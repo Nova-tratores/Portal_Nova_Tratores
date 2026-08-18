@@ -12,6 +12,7 @@ export interface KanbanItem {
   desconto: number;
   data: string;
   observacao: string;
+  criadoPor?: string;
   ultimaAcao: string;
   ultimoUsuario: string;
   ultimaData: string;

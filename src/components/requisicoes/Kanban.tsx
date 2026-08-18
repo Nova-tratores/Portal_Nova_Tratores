@@ -5,15 +5,22 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { normalizarNomePessoa } from '@/lib/texto';
-import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag, ArrowLeftRight } from 'lucide-react';
+import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag, ArrowLeftRight, LayoutGrid, List } from 'lucide-react';
 import CompararReqs from './CompararReqs';
+import dynamic from 'next/dynamic';
+
+// CardReq completo — usado pelo modo lista pra abrir a requisição da linha clicada
+const CardReq = dynamic(() => import('./CardReq'), { ssr: false });
 
 const LISTA_FORNECEDORES_CADASTRADOS = ["Rodrigo Torneiro (Panda)"];
 
-export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, idDestaque = null, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true }: any) {
+export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, idDestaque = null, podeEditar = true, podeMoverFase = true, podeImprimir = true, podeExcluir = true, extraControles = null }: any) {
   const isMobile = useIsMobile();
   // No celular mostramos UMA fase por vez, escolhida por botão (o kanban de colunas não cabe).
   const [faseMobile, setFaseMobile] = useState('pedido');
+  // Visão: kanban (colunas) × lista (tabela com todas as fases)
+  const [visao, setVisao] = useState<'kanban' | 'lista'>('kanban');
+  const [reqAbertaLista, setReqAbertaLista] = useState<any>(null);
   // No celular os filtros (data/filtro/grupos/comparar) ficam num painel que abre/fecha.
   const [mobileFiltros, setMobileFiltros] = useState(false);
   // Dados compartilhados - buscados UMA vez, passados para todos os cards
@@ -32,7 +39,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
     const fetchDados = async () => {
       const [{ data: f }, { data: u }, { data: v }] = await Promise.all([
         supabase.from('Fornecedores').select('nome').order('nome'),
-        supabase.from('financeiro_usu').select('nome, funcao, email').eq('ativo', true).order('nome'),
+        supabase.from('financeiro_usu').select('nome, funcao, email, avatar_url').eq('ativo', true).order('nome'),
         supabase.from('SupaPlacas').select('IdPlaca, NumPlaca').order('NumPlaca'),
       ]);
       setDadosCompartilhados({ fornecedores: f || [], usuarios: u || [], veiculos: v || [] });
@@ -129,7 +136,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   const CARDS_POR_VEZ = 20;
 
   const colunas = [
-    { id: 'pedido', titulo: 'Pedido Realizado', cor: 'bg-red-500' },
+    { id: 'pedido', titulo: 'Pedido Realizado', cor: 'bg-orange-600' },
     { id: 'completa', titulo: 'Atualizada por Técnico', cor: 'bg-cyan-500' },
     { id: 'aguardando', titulo: 'Aguardando Fornecedor', cor: 'bg-orange-400' },
     { id: 'financeiro', titulo: 'Enviado Financeiro', cor: 'bg-indigo-600' },
@@ -410,10 +417,10 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
 
   const sairDaComparacao = () => { setModoComparar(false); setEscolhidas([]); setComparando(null); };
 
-  const pillBase = "px-3 py-1.5 rounded-full text-[12px] font-semibold border transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap";
-  const pillActive = "bg-red-600 text-white border-red-600";
-  const pillInactive = "bg-white text-zinc-500 border-zinc-200 hover:border-red-300 hover:text-red-600";
-  const inputInline = "bg-white text-zinc-800 text-[13px] rounded-full px-3 py-1.5 outline-none focus:ring-2 focus:ring-red-500/20 focus:border-red-400 transition-all placeholder:text-zinc-400 border border-zinc-200";
+  const pillBase = "px-4 py-2.5 rounded-full text-[14px] font-semibold border transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap";
+  const pillActive = "bg-orange-600 text-white border-orange-600";
+  const pillInactive = "bg-white text-black border-zinc-200 hover:border-orange-300 hover:text-orange-600";
+  const inputInline = "bg-white text-black text-[14.5px] rounded-full px-4 py-2.5 outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-400 transition-all placeholder:text-black/50 border border-zinc-200";
   const selectInline = `${inputInline} appearance-none cursor-pointer pr-7`;
 
   return (
@@ -424,23 +431,23 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
         <div className="flex items-center gap-2 flex-wrap">
 
           {/* BUSCA UNIFICADA (pesquisa em vários campos) — largura total no celular */}
-          <div className="relative w-full md:flex-1 md:w-auto min-w-0 md:min-w-[260px] md:max-w-[460px] group">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-500 pointer-events-none"/>
+          <div className="relative w-full md:flex-1 md:w-auto min-w-0 md:min-w-[340px] md:max-w-[600px] group">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-500 pointer-events-none"/>
             <input
               type="text"
               placeholder="Pesquisar requisição..."
               value={filtroBusca}
               onChange={e => setFiltroBusca(e.target.value)}
-              className={`${inputInline} pl-9 pr-8 w-full ${filtroBusca ? '!border-red-400 !bg-red-50' : ''}`}
+              className={`${inputInline} pl-9 pr-8 w-full ${filtroBusca ? '!border-orange-400 !bg-orange-50' : ''}`}
             />
             {filtroBusca
-              ? <button onClick={() => setFiltroBusca('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500"><X size={13}/></button>
+              ? <button onClick={() => setFiltroBusca('')} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-black hover:text-orange-500"><X size={13}/></button>
               : <Info size={13} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-300 pointer-events-none"/>
             }
             {/* Tooltip ao passar o rato — mostra os campos pesquisáveis */}
             <div className="absolute left-0 top-full mt-1.5 z-30 hidden group-hover:block pointer-events-none">
               <div className="bg-zinc-900 text-white text-[11px] leading-relaxed rounded-lg px-3 py-2 shadow-xl whitespace-nowrap">
-                <p className="font-bold text-red-300 mb-0.5">Pesquise por:</p>
+                <p className="font-bold text-orange-300 mb-0.5">Pesquise por:</p>
                 <p>Nº ID · Título · Fornecedor · Nº da Nota · Solicitante · Tipo</p>
               </div>
             </div>
@@ -451,9 +458,9 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             const nAtivos = filtros.length + (filtroData ? 1 : 0) + (grupoFiltro != null ? 1 : 0);
             return (
               <button onClick={() => setMobileFiltros(v => !v)}
-                className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full border text-sm font-semibold transition-all ${mobileFiltros || nAtivos ? 'border-red-300 bg-red-50 text-red-600' : 'border-zinc-200 bg-white text-zinc-600'}`}>
+                className={`w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-full border text-sm font-semibold transition-all ${mobileFiltros || nAtivos ? 'border-orange-300 bg-orange-50 text-orange-600' : 'border-zinc-200 bg-white text-black'}`}>
                 <SlidersHorizontal size={14} /> Filtros
-                {nAtivos > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full bg-red-600 text-white">{nAtivos}</span>}
+                {nAtivos > 0 && <span className="text-[10px] font-bold px-1.5 rounded-full bg-orange-600 text-white">{nAtivos}</span>}
               </button>
             );
           })()}
@@ -467,14 +474,14 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
 
           {/* Data exata */}
           <div className="relative shrink-0" title="Pesquisar por data exata">
-            <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none z-10"/>
+            <Calendar size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-black pointer-events-none z-10"/>
             <input
               type="date"
               value={filtroData}
               onChange={e => setFiltroData(e.target.value)}
-              className={`${inputInline} pl-7 pr-2 ${filtroData ? '!border-red-400 !bg-red-50 !text-red-700' : ''}`}
+              className={`${inputInline} pl-7 pr-2 ${filtroData ? '!border-orange-400 !bg-orange-50 !text-orange-700' : ''}`}
             />
-            {filtroData && <button onClick={() => setFiltroData('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-red-500 bg-white"><X size={12}/></button>}
+            {filtroData && <button onClick={() => setFiltroData('')} className="absolute right-1.5 top-1/2 -translate-y-1/2 text-black hover:text-orange-500 bg-white"><X size={12}/></button>}
           </div>
 
           {/* Separador */}
@@ -489,7 +496,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
             >
               <Filter size={13} /> Filtro
               {filtros.length > 0 && (
-                <span className={`ml-0.5 text-[10px] font-bold px-1.5 rounded-full ${filtros.length > 0 ? 'bg-white/25' : 'bg-zinc-100 text-zinc-500'}`}>{filtros.length}</span>
+                <span className={`ml-0.5 text-[10px] font-bold px-1.5 rounded-full ${filtros.length > 0 ? 'bg-white/25' : 'bg-zinc-100 text-black'}`}>{filtros.length}</span>
               )}
             </button>
 
@@ -497,15 +504,15 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
               <div className="absolute left-0 top-full mt-1.5 z-40 w-72 bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-hidden">
                 {!filtroCampo ? (
                   <div className="py-1.5">
-                    <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">Filtrar por</div>
+                    <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-black">Filtrar por</div>
                     {CAMPOS_FILTRO.map(c => {
                       const nAtivos = filtros.filter(f => f.campo === c.key).length;
                       return (
                         <button key={c.key} onClick={() => { setFiltroCampo(c.key); setFiltroValorBusca(''); }}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-zinc-700 hover:bg-red-50 hover:text-red-600 transition-colors">
-                          <c.Icon size={14} className="text-zinc-400" />
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-black hover:bg-orange-50 hover:text-orange-600 transition-colors">
+                          <c.Icon size={14} className="text-black" />
                           <span className="flex-1 text-left font-medium">{c.label}</span>
-                          {nAtivos > 0 && <span className="text-[10px] font-bold bg-red-100 text-red-600 px-1.5 rounded-full">{nAtivos}</span>}
+                          {nAtivos > 0 && <span className="text-[10px] font-bold bg-orange-100 text-orange-600 px-1.5 rounded-full">{nAtivos}</span>}
                           <span className="text-zinc-300">›</span>
                         </button>
                       );
@@ -514,27 +521,27 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 ) : (
                   <div className="flex flex-col max-h-[340px]">
                     <div className="flex items-center gap-2 px-2 py-2 border-b border-zinc-100">
-                      <button onClick={() => { setFiltroCampo(null); setFiltroValorBusca(''); }} className="p-1 text-zinc-400 hover:text-red-500"><ArrowLeft size={15} /></button>
-                      <span className="text-[13px] font-bold text-zinc-700">{CAMPOS_FILTRO.find(c => c.key === filtroCampo)?.label}</span>
+                      <button onClick={() => { setFiltroCampo(null); setFiltroValorBusca(''); }} className="p-1 text-black hover:text-orange-500"><ArrowLeft size={15} /></button>
+                      <span className="text-[13px] font-bold text-black">{CAMPOS_FILTRO.find(c => c.key === filtroCampo)?.label}</span>
                     </div>
                     <div className="p-2 border-b border-zinc-100">
                       <input autoFocus value={filtroValorBusca} onChange={e => setFiltroValorBusca(e.target.value)}
-                        placeholder="Buscar..." className="w-full text-[13px] bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-red-400" />
+                        placeholder="Buscar..." className="w-full text-[13px] bg-zinc-50 border border-zinc-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400" />
                     </div>
                     <div className="overflow-y-auto py-1">
                       {(() => {
                         const opcoes = (opcoesPorCampo[filtroCampo] || []).filter(o => o.label.toLowerCase().includes(filtroValorBusca.trim().toLowerCase()));
-                        if (opcoes.length === 0) return <div className="px-3 py-6 text-center text-[12px] text-zinc-400">Nada encontrado</div>;
+                        if (opcoes.length === 0) return <div className="px-3 py-6 text-center text-[12px] text-black">Nada encontrado</div>;
                         return opcoes.map(o => {
                           const ativo = temFiltroCampo(filtroCampo!, o.valor);
                           return (
                             <button key={o.valor} onClick={() => alternarFiltro(filtroCampo!, o.valor, o.label)}
-                              className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors ${ativo ? 'bg-red-50 text-red-600 font-semibold' : 'text-zinc-700 hover:bg-zinc-50'}`}>
-                              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${ativo ? 'bg-red-600 border-red-600' : 'border-zinc-300'}`}>
+                              className={`w-full flex items-center gap-2 px-3 py-2 text-[13px] transition-colors ${ativo ? 'bg-orange-50 text-orange-600 font-semibold' : 'text-black hover:bg-zinc-50'}`}>
+                              <span className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${ativo ? 'bg-orange-600 border-orange-600' : 'border-zinc-300'}`}>
                                 {ativo && <Check size={11} className="text-white" />}
                               </span>
                               <span className="flex-1 text-left truncate">{o.label}</span>
-                              <span className="text-[10px] font-bold text-zinc-400">{o.qtd}</span>
+                              <span className="text-[10px] font-bold text-black">{o.qtd}</span>
                             </button>
                           );
                         });
@@ -550,10 +557,10 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           {filtros.map(f => {
             const campoLabel = CAMPOS_FILTRO.find(c => c.key === f.campo)?.label || f.campo;
             return (
-              <span key={`${f.campo}:${f.valor}`} className="inline-flex items-center gap-1.5 text-[12px] font-semibold bg-red-50 text-red-700 border border-red-200 rounded-full pl-2.5 pr-1.5 py-1">
-                <span className="text-red-400 font-bold text-[10px] uppercase">{campoLabel}</span>
+              <span key={`${f.campo}:${f.valor}`} className="inline-flex items-center gap-1.5 text-[12px] font-semibold bg-orange-50 text-orange-700 border border-orange-200 rounded-full pl-2.5 pr-1.5 py-1">
+                <span className="text-orange-400 font-bold text-[10px] uppercase">{campoLabel}</span>
                 {f.label}
-                <button onClick={() => removerFiltro(f.campo, f.valor)} className="text-red-400 hover:text-red-600"><X size={12} /></button>
+                <button onClick={() => removerFiltro(f.campo, f.valor)} className="text-orange-400 hover:text-orange-600"><X size={12} /></button>
               </span>
             );
           })}
@@ -572,23 +579,23 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
               <Layers size={13} /> {grupoFiltro != null ? (gruposAbertos.find((g: any) => g.id === grupoFiltro)?.nome || 'Grupos') : 'Grupos'}
               {grupoFiltro != null
                 ? <X size={12} className="ml-0.5" onClick={(e) => { e.stopPropagation(); setGrupoFiltro(null); }} />
-                : gruposAbertos.length > 0 && <span className="ml-0.5 text-[10px] font-bold px-1.5 rounded-full bg-zinc-100 text-zinc-500">{gruposAbertos.length}</span>}
+                : gruposAbertos.length > 0 && <span className="ml-0.5 text-[10px] font-bold px-1.5 rounded-full bg-zinc-100 text-black">{gruposAbertos.length}</span>}
             </button>
 
             {grupoMenu && (
               <div className="absolute left-0 top-full mt-1.5 z-40 w-72 bg-white rounded-xl shadow-2xl border border-zinc-200 overflow-hidden">
-                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-zinc-400">Filtrar por grupo</div>
+                <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-black">Filtrar por grupo</div>
                 <div className="max-h-[300px] overflow-y-auto pb-1">
                   {gruposAbertos.length === 0 ? (
-                    <div className="px-3 py-2 text-[13px] text-zinc-400 italic">Nenhum grupo aberto</div>
+                    <div className="px-3 py-2 text-[13px] text-black italic">Nenhum grupo aberto</div>
                   ) : gruposAbertos.map((g: any) => {
                     const ativo = grupoFiltro === g.id;
                     return (
                       <button key={g.id} onClick={() => { setGrupoFiltro(ativo ? null : g.id); setGrupoMenu(false); }}
-                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors ${ativo ? 'bg-red-50 text-red-600' : 'text-zinc-700 hover:bg-zinc-50'}`}>
-                        <FolderOpen size={14} className={ativo ? 'text-red-500' : 'text-zinc-400'} />
+                        className={`w-full flex items-center gap-2.5 px-3 py-2 text-[13px] transition-colors ${ativo ? 'bg-orange-50 text-orange-600' : 'text-black hover:bg-zinc-50'}`}>
+                        <FolderOpen size={14} className={ativo ? 'text-orange-500' : 'text-black'} />
                         <span className="flex-1 text-left font-medium truncate">{g.nome}</span>
-                        <span className={`text-[10px] font-bold px-1.5 rounded-full ${ativo ? 'bg-red-100 text-red-600' : 'bg-zinc-100 text-zinc-500'}`}>{(g.membros || []).length}</span>
+                        <span className={`text-[10px] font-bold px-1.5 rounded-full ${ativo ? 'bg-orange-100 text-orange-600' : 'bg-zinc-100 text-black'}`}>{(g.membros || []).length}</span>
                         {ativo && <X size={13} />}
                       </button>
                     );
@@ -596,11 +603,11 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 </div>
                 <div className="flex items-center gap-2 p-2 border-t border-zinc-100 bg-zinc-50/60">
                   <button onClick={() => { setGrupoMenu(false); setNovoGrupoNome(''); setShowCriar(true); }}
-                    className="flex-1 text-[12px] font-bold px-3 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 flex items-center justify-center gap-1.5">
+                    className="flex-1 text-[12px] font-bold px-3 py-2 rounded-lg bg-orange-600 text-white hover:bg-orange-700 flex items-center justify-center gap-1.5">
                     <Plus size={14} /> Novo grupo
                   </button>
                   <button onClick={() => { setGrupoMenu(false); setShowGerenciar(true); }}
-                    className="flex-1 text-[12px] font-semibold px-3 py-2 rounded-lg border border-zinc-300 text-zinc-600 hover:border-zinc-500 flex items-center justify-center gap-1.5">
+                    className="flex-1 text-[12px] font-semibold px-3 py-2 rounded-lg border border-zinc-300 text-black hover:border-zinc-500 flex items-center justify-center gap-1.5">
                     <SlidersHorizontal size={13} /> Gerenciar{grupos.length > 0 ? ` (${grupos.length})` : ''}
                   </button>
                 </div>
@@ -611,15 +618,30 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           <button
             onClick={() => (modoComparar ? sairDaComparacao() : setModoComparar(true))}
             title="Escolher duas requisições e ver lado a lado"
-            className={`${pillBase} shrink-0 ${modoComparar ? pillActive : 'bg-white text-zinc-600 border-zinc-200 hover:border-red-300 hover:text-red-600'}`}
+            className={`${pillBase} shrink-0 ${modoComparar ? pillActive : 'bg-white text-black border-zinc-200 hover:border-orange-300 hover:text-orange-600'}`}
           >
-            <ArrowLeftRight size={12} /> Comparar
+            <ArrowLeftRight size={14} /> Comparar
           </button>
+
+          {/* Painel do Dev (aprovações) — inline na barra, ao lado do Comparar */}
+          {extraControles}
+
+          {/* Visão: colunas × lista */}
+          <div className="flex items-center shrink-0 border border-zinc-200 rounded-full overflow-hidden bg-white">
+            <button onClick={() => setVisao('kanban')} title="Ver em colunas (kanban)"
+              className={`px-3.5 py-2.5 text-[14px] font-semibold flex items-center gap-1.5 transition-all ${visao === 'kanban' ? 'bg-orange-600 text-white' : 'text-black hover:text-orange-600'}`}>
+              <LayoutGrid size={14} /> Kanban
+            </button>
+            <button onClick={() => setVisao('lista')} title="Ver em lista (todas as fases)"
+              className={`px-3.5 py-2.5 text-[14px] font-semibold flex items-center gap-1.5 transition-all ${visao === 'lista' ? 'bg-orange-600 text-white' : 'text-black hover:text-orange-600'}`}>
+              <List size={14} /> Lista
+            </button>
+          </div>
 
           {/* Contador + Limpar */}
           {temFiltroAtivo && (
             <>
-              <span className="text-[11px] font-bold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1 rounded-full shrink-0">{resultCount}</span>
+              <span className="text-[11px] font-bold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1 rounded-full shrink-0">{resultCount}</span>
               <button onClick={limparFiltros} className={`${pillBase} ${pillActive} shrink-0`}>
                 <X size={12} /> Limpar
               </button>
@@ -642,23 +664,23 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 <button onClick={() => setComparando([escolhidas[0], escolhidas[1]])} className="text-[11px] font-semibold text-white bg-amber-600 px-2.5 py-1 rounded-full hover:bg-amber-700">Ver lado a lado</button>
               )}
               {escolhidas.length > 0 && (
-                <button onClick={() => setEscolhidas([])} className="text-[11px] font-semibold text-zinc-600 bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-zinc-400">Limpar escolha</button>
+                <button onClick={() => setEscolhidas([])} className="text-[11px] font-semibold text-black bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-zinc-400">Limpar escolha</button>
               )}
-              <button onClick={sairDaComparacao} className="text-zinc-400 hover:text-red-500"><X size={14} /></button>
+              <button onClick={sairDaComparacao} className="text-black hover:text-orange-500"><X size={14} /></button>
             </div>
           </div>
         )}
 
         {/* Banner do grupo ativo */}
         {grupoAtivo && (
-          <div className="mt-2 flex items-center gap-3 flex-wrap bg-red-50 border border-red-200 rounded-xl px-4 py-2">
-            <span className="text-[13px] font-bold text-red-700 flex items-center gap-1.5"><FolderOpen size={14} /> {grupoAtivo.nome}</span>
-            <span className="text-[11px] text-red-500">{(grupoAtivo.membros || []).length} requisição(ões) neste grupo</span>
+          <div className="mt-2 flex items-center gap-3 flex-wrap bg-orange-50 border border-orange-200 rounded-xl px-4 py-2">
+            <span className="text-[13px] font-bold text-orange-700 flex items-center gap-1.5"><FolderOpen size={14} /> {grupoAtivo.nome}</span>
+            <span className="text-[11px] text-orange-500">{(grupoAtivo.membros || []).length} requisição(ões) neste grupo</span>
             <div className="ml-auto flex items-center gap-2">
-              <button onClick={() => setGrupoHist(grupoAtivo)} className="text-[11px] font-semibold text-zinc-600 bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-zinc-400">Histórico</button>
+              <button onClick={() => setGrupoHist(grupoAtivo)} className="text-[11px] font-semibold text-black bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-zinc-400">Histórico</button>
               <button onClick={() => mudarStatusGrupo(grupoAtivo.id, 'concluido')} className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-full hover:bg-emerald-100">Concluir grupo</button>
-              <button onClick={() => mudarStatusGrupo(grupoAtivo.id, 'cancelado')} className="text-[11px] font-semibold text-zinc-600 bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-red-300 hover:text-red-600">Cancelar grupo</button>
-              <button onClick={() => setGrupoFiltro(null)} className="text-zinc-400 hover:text-red-500"><X size={14} /></button>
+              <button onClick={() => mudarStatusGrupo(grupoAtivo.id, 'cancelado')} className="text-[11px] font-semibold text-black bg-white border border-zinc-200 px-2.5 py-1 rounded-full hover:border-orange-300 hover:text-orange-600">Cancelar grupo</button>
+              <button onClick={() => setGrupoFiltro(null)} className="text-black hover:text-orange-500"><X size={14} /></button>
             </div>
           </div>
         )}
@@ -669,20 +691,20 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
         <div className="fixed inset-0 z-[9200] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setShowCriar(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center gap-3 px-6 py-5 border-b border-zinc-100">
-              <div className="w-11 h-11 rounded-xl bg-red-600 text-white flex items-center justify-center"><FolderPlus size={20} /></div>
+              <div className="w-11 h-11 rounded-xl bg-orange-600 text-white flex items-center justify-center"><FolderPlus size={20} /></div>
               <div>
-                <h3 className="text-lg font-bold text-zinc-900">Novo grupo</h3>
-                <p className="text-[12px] text-zinc-400">Junte requisições com o mesmo propósito</p>
+                <h3 className="text-lg font-bold text-black">Novo grupo</h3>
+                <p className="text-[12px] text-black">Junte requisições com o mesmo propósito</p>
               </div>
             </div>
             <div className="p-6">
-              <label className="text-[12px] font-bold text-zinc-500 uppercase tracking-wider mb-2 block">Nome do grupo</label>
+              <label className="text-[12px] font-bold text-black uppercase tracking-wider mb-2 block">Nome do grupo</label>
               <input autoFocus value={novoGrupoNome} onChange={e => setNovoGrupoNome(e.target.value)}
                 onKeyDown={e => { if (e.key === 'Enter') criarGrupo(); if (e.key === 'Escape') setShowCriar(false); }}
-                placeholder="Ex.: Peças da colheita 2026" className="w-full text-[15px] text-zinc-900 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:bg-white" />
+                placeholder="Ex.: Peças da colheita 2026" className="w-full text-[15px] text-black bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:bg-white" />
               <div className="flex gap-3 mt-5">
-                <button onClick={() => setShowCriar(false)} className="flex-1 py-3 rounded-xl border border-zinc-200 text-zinc-600 text-sm font-semibold hover:bg-zinc-50">Cancelar</button>
-                <button onClick={criarGrupo} disabled={!novoGrupoNome.trim() || salvandoGrupo} className="flex-1 py-3 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-40 flex items-center justify-center gap-2">
+                <button onClick={() => setShowCriar(false)} className="flex-1 py-3 rounded-xl border border-zinc-200 text-black text-sm font-semibold hover:bg-zinc-50">Cancelar</button>
+                <button onClick={criarGrupo} disabled={!novoGrupoNome.trim() || salvandoGrupo} className="flex-1 py-3 rounded-xl bg-orange-600 text-white text-sm font-bold hover:bg-orange-700 disabled:opacity-40 flex items-center justify-center gap-2">
                   {salvandoGrupo ? 'Criando...' : <><Plus size={16} /> Criar grupo</>}
                 </button>
               </div>
@@ -696,42 +718,42 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
         <div className="fixed inset-0 z-[9000] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => { setShowGerenciar(false); setRenomeandoId(null); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-5 border-b border-zinc-100">
-              <h3 className="text-lg font-bold text-zinc-900 flex items-center gap-2"><SlidersHorizontal size={20} /> Gerenciar grupos</h3>
+              <h3 className="text-lg font-bold text-black flex items-center gap-2"><SlidersHorizontal size={20} /> Gerenciar grupos</h3>
               <div className="flex items-center gap-2">
-                <button onClick={() => { setNovoGrupoNome(''); setShowCriar(true); }} className="text-[13px] font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg hover:bg-red-700 flex items-center gap-1.5"><Plus size={15} /> Novo grupo</button>
-                <button onClick={() => { setShowGerenciar(false); setRenomeandoId(null); }} className="text-zinc-400 hover:text-red-500"><X size={20} /></button>
+                <button onClick={() => { setNovoGrupoNome(''); setShowCriar(true); }} className="text-[13px] font-bold text-white bg-orange-600 px-3 py-1.5 rounded-lg hover:bg-orange-700 flex items-center gap-1.5"><Plus size={15} /> Novo grupo</button>
+                <button onClick={() => { setShowGerenciar(false); setRenomeandoId(null); }} className="text-black hover:text-orange-500"><X size={20} /></button>
               </div>
             </div>
             <div className="overflow-y-auto p-4 flex flex-col gap-2.5">
               {grupos.length === 0 ? (
-                <p className="text-sm text-zinc-400 text-center py-10">Nenhum grupo ainda. Clique em <b>Novo grupo</b> pra criar o primeiro.</p>
+                <p className="text-sm text-black text-center py-10">Nenhum grupo ainda. Clique em <b>Novo grupo</b> pra criar o primeiro.</p>
               ) : grupos.map((g: any) => (
                 <div key={g.id} className="flex items-center gap-3 border border-zinc-200 rounded-xl px-4 py-3">
-                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0 ${g.status === 'aberto' ? 'bg-red-50 text-red-600' : g.status === 'concluido' ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-zinc-500'}`}>{g.status === 'aberto' ? 'Aberto' : g.status === 'concluido' ? 'Concluído' : 'Cancelado'}</span>
+                  <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full shrink-0 ${g.status === 'aberto' ? 'bg-orange-50 text-orange-600' : g.status === 'concluido' ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-black'}`}>{g.status === 'aberto' ? 'Aberto' : g.status === 'concluido' ? 'Concluído' : 'Cancelado'}</span>
                   <div className="flex-1 min-w-0">
                     {renomeandoId === g.id ? (
                       <input autoFocus value={renomeandoNome} onChange={e => setRenomeandoNome(e.target.value)}
                         onKeyDown={e => { if (e.key === 'Enter') renomearGrupo(g.id, renomeandoNome); if (e.key === 'Escape') setRenomeandoId(null); }}
                         onBlur={() => renomearGrupo(g.id, renomeandoNome)}
-                        className="w-full text-sm font-semibold text-zinc-800 bg-zinc-50 border border-red-300 rounded-lg px-2 py-1 outline-none" />
+                        className="w-full text-sm font-semibold text-black bg-zinc-50 border border-orange-300 rounded-lg px-2 py-1 outline-none" />
                     ) : (
-                      <div className="text-[15px] font-semibold text-zinc-800 truncate flex items-center gap-2">
+                      <div className="text-[15px] font-semibold text-black truncate flex items-center gap-2">
                         {g.nome}
-                        <button onClick={() => { setRenomeandoId(g.id); setRenomeandoNome(g.nome); }} title="Renomear" className="text-zinc-300 hover:text-red-500"><SlidersHorizontal size={12} /></button>
+                        <button onClick={() => { setRenomeandoId(g.id); setRenomeandoNome(g.nome); }} title="Renomear" className="text-zinc-300 hover:text-orange-500"><SlidersHorizontal size={12} /></button>
                       </div>
                     )}
-                    <div className="text-[12px] text-zinc-400">{(g.membros || []).length} requisição(ões) · criado por {g.criado_por || '—'}</div>
+                    <div className="text-[12px] text-black">{(g.membros || []).length} requisição(ões) · criado por {g.criado_por || '—'}</div>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={() => { setGrupoFiltro(g.id); setShowGerenciar(false); }} title="Ver no kanban" className="text-[12px] font-semibold text-zinc-600 bg-white border border-zinc-200 px-2.5 py-1.5 rounded-lg hover:border-red-300 hover:text-red-600 flex items-center gap-1"><FolderOpen size={13} /> Ver</button>
-                    <button onClick={() => setGrupoHist(g)} title="Histórico" className="text-[12px] font-semibold text-zinc-500 bg-white border border-zinc-200 px-2.5 py-1.5 rounded-lg hover:border-zinc-400">Histórico</button>
+                    <button onClick={() => { setGrupoFiltro(g.id); setShowGerenciar(false); }} title="Ver no kanban" className="text-[12px] font-semibold text-black bg-white border border-zinc-200 px-2.5 py-1.5 rounded-lg hover:border-orange-300 hover:text-orange-600 flex items-center gap-1"><FolderOpen size={13} /> Ver</button>
+                    <button onClick={() => setGrupoHist(g)} title="Histórico" className="text-[12px] font-semibold text-black bg-white border border-zinc-200 px-2.5 py-1.5 rounded-lg hover:border-zinc-400">Histórico</button>
                     {g.status === 'aberto' ? (
                       <>
                         <button onClick={() => mudarStatusGrupo(g.id, 'concluido')} title="Concluir" className="text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1.5 rounded-lg hover:bg-emerald-100">Concluir</button>
-                        <button onClick={() => mudarStatusGrupo(g.id, 'cancelado')} title="Cancelar" className="text-[12px] font-semibold text-zinc-600 bg-white border border-zinc-200 px-2.5 py-1.5 rounded-lg hover:border-red-300 hover:text-red-600">Cancelar</button>
+                        <button onClick={() => mudarStatusGrupo(g.id, 'cancelado')} title="Cancelar" className="text-[12px] font-semibold text-black bg-white border border-zinc-200 px-2.5 py-1.5 rounded-lg hover:border-orange-300 hover:text-orange-600">Cancelar</button>
                       </>
                     ) : (
-                      <button onClick={() => mudarStatusGrupo(g.id, 'aberto')} title="Reabrir" className="text-[12px] font-semibold text-red-600 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-lg hover:bg-red-100 flex items-center gap-1"><RotateCcw size={13} /> Reabrir</button>
+                      <button onClick={() => mudarStatusGrupo(g.id, 'aberto')} title="Reabrir" className="text-[12px] font-semibold text-orange-600 bg-orange-50 border border-orange-200 px-2.5 py-1.5 rounded-lg hover:bg-orange-100 flex items-center gap-1"><RotateCcw size={13} /> Reabrir</button>
                     )}
                   </div>
                 </div>
@@ -747,25 +769,25 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-100">
               <div>
-                <h3 className="text-base font-bold text-zinc-800 flex items-center gap-2"><Layers size={17} /> {grupoHist.nome}</h3>
-                <p className="text-[11px] text-zinc-400">Histórico do grupo</p>
+                <h3 className="text-base font-bold text-black flex items-center gap-2"><Layers size={17} /> {grupoHist.nome}</h3>
+                <p className="text-[11px] text-black">Histórico do grupo</p>
               </div>
-              <button onClick={() => setGrupoHist(null)} className="text-zinc-400 hover:text-red-500"><X size={18} /></button>
+              <button onClick={() => setGrupoHist(null)} className="text-black hover:text-orange-500"><X size={18} /></button>
             </div>
             <div className="overflow-y-auto p-4 flex flex-col gap-2">
               {(!Array.isArray(grupoHist.historico) || grupoHist.historico.length === 0) ? (
-                <p className="text-sm text-zinc-400 text-center py-8">Sem histórico.</p>
+                <p className="text-sm text-black text-center py-8">Sem histórico.</p>
               ) : [...grupoHist.historico].reverse().map((h: any, i: number) => (
                 <div key={i} className="flex items-start gap-2 border border-zinc-100 rounded-lg px-3 py-2">
-                  <div className="w-1.5 h-1.5 rounded-full bg-red-500 mt-1.5 shrink-0" />
+                  <div className="w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="text-[13px] text-zinc-700">
+                    <div className="text-[13px] text-black">
                       <span className="font-semibold">{h.usuario || '—'}</span>{' '}
-                      <span className="text-zinc-500">{h.acao}</span>
-                      {h.req_id ? <span className="text-zinc-500"> a requisição <span className="font-semibold text-red-600">#{h.req_id}</span></span> : null}
-                      {h.detalhe ? <span className="text-zinc-500"> — {h.detalhe}</span> : null}
+                      <span className="text-black">{h.acao}</span>
+                      {h.req_id ? <span className="text-black"> a requisição <span className="font-semibold text-orange-600">#{h.req_id}</span></span> : null}
+                      {h.detalhe ? <span className="text-black"> — {h.detalhe}</span> : null}
                     </div>
-                    <div className="text-[10px] text-zinc-400">{h.em ? new Date(h.em).toLocaleString('pt-BR') : ''}</div>
+                    <div className="text-[10px] text-black">{h.em ? new Date(h.em).toLocaleString('pt-BR') : ''}</div>
                   </div>
                 </div>
               ))}
@@ -775,6 +797,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
       )}
 
       {/* GRADE KANBAN - COLUNAS COM DESIGNER SLIM */}
+      {visao === 'kanban' ? (
       <div className="px-3 md:px-6 mt-2">
         {/* CELULAR: seletor de fase por botão (mostra uma fase por vez) */}
         {isMobile && (
@@ -785,18 +808,19 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
               return (
                 <button key={col.id} onClick={() => setFaseMobile(col.id)}
                   className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-semibold border transition-all ${
-                    ativo ? 'bg-red-600 border-red-600 text-white shadow-sm' : 'bg-white border-zinc-200 text-zinc-600'
+                    ativo ? 'bg-orange-600 border-orange-600 text-white shadow-sm' : 'bg-white border-zinc-200 text-black'
                   }`}>
                   <span className={`w-2 h-2 rounded-full ${col.cor}`}></span>
                   {col.titulo}
-                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${ativo ? 'bg-white/25 text-white' : 'bg-zinc-100 text-zinc-500'}`}>{n}</span>
+                  <span className={`text-xs font-bold px-1.5 py-0.5 rounded-full ${ativo ? 'bg-white/25 text-white' : 'bg-zinc-100 text-black'}`}>{n}</span>
                 </button>
               );
             })}
           </div>
         )}
         {/* No PC as colunas ficam lado a lado; no celular renderiza só a fase escolhida */}
-        <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-8 scrollbar-hide justify-start md:justify-center">
+        {/* Colunas esticam pra ocupar a tela inteira (sem teto de largura) */}
+        <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-8 scrollbar-hide justify-start">
           {(isMobile ? colunas.filter((c) => c.id === faseMobile) : colunas).map((col) => {
             let items = filtradas.filter((r: any) => r.status === col.id);
             if (col.id === 'financeiro') {
@@ -821,18 +845,18 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 onDragOver={(e) => handleDragOver(e, col.id)}
                 onDragLeave={() => setColunaArrastando(null)}
                 onDrop={(e) => handleDrop(e, col.id)}
-                className={`w-full md:flex-1 md:min-w-[280px] md:max-w-[380px] flex flex-col rounded-2xl transition-all duration-300 border ${
-                  isOver ? 'bg-red-50/50 border-red-200' : 'bg-transparent border-transparent'
+                className={`w-full md:flex-1 md:min-w-[300px] flex flex-col rounded-2xl transition-all duration-300 border ${
+                  isOver ? 'bg-orange-50/50 border-orange-200' : 'bg-transparent border-transparent'
                 }`}
               >
                 {/* TÍTULOS DAS FASES */}
                 <div className="py-4 px-6 bg-white/95 backdrop-blur-sm rounded-t-2xl border-b border-zinc-200">
                   <div className="flex justify-between items-center">
-                    <h3 className="text-xs font-medium text-zinc-600 uppercase tracking-[0.2em]">
+                    <h3 className="text-xs font-bold text-black uppercase tracking-[0.2em]">
                       {col.titulo}
                     </h3>
                     <div className="flex items-center gap-2.5">
-                      <span className="text-xs font-medium text-zinc-400">{items.length}</span>
+                      <span className="text-xs font-medium text-zinc-500">{items.length}</span>
                       <div className={`w-2 h-2 rounded-full ${col.cor}`}></div>
                     </div>
                   </div>
@@ -885,7 +909,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                       {items.length > (limitesPorColuna[col.id] || CARDS_POR_VEZ) && (
                         <button
                           onClick={() => setLimitesPorColuna(prev => ({ ...prev, [col.id]: (prev[col.id] || CARDS_POR_VEZ) + CARDS_POR_VEZ }))}
-                          className="w-full py-4 rounded-xl border border-dashed border-zinc-200 text-xs font-bold text-zinc-500 uppercase tracking-widest hover:bg-zinc-50 hover:text-zinc-900 transition-all"
+                          className="w-full py-4 rounded-xl border border-dashed border-zinc-200 text-xs font-bold text-black uppercase tracking-widest hover:bg-zinc-50 hover:text-black transition-all"
                         >
                           Carregar mais ({items.length - (limitesPorColuna[col.id] || CARDS_POR_VEZ)} restantes)
                         </button>
@@ -893,8 +917,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                     </>
                   ) : (
                     <div className="py-12 border border-dashed border-zinc-200 rounded-2xl flex flex-col items-center justify-center gap-2 opacity-10">
-                      <Layout size={18} className="text-zinc-900" />
-                      <span className="text-xs font-bold uppercase tracking-[0.4em] text-zinc-900">Livre</span>
+                      <Layout size={18} className="text-black" />
+                      <span className="text-xs font-bold uppercase tracking-[0.4em] text-black">Livre</span>
                     </div>
                   )}
                 </div>
@@ -903,6 +927,75 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
           })}
         </div>
       </div>
+      ) : (
+      /* MODO LISTA — todas as fases numa tabela só, respeitando os filtros */
+      <div className="px-3 md:px-6 mt-2 pb-10">
+        <div className="bg-white border border-zinc-200 overflow-x-auto">
+          <table className="w-full text-[13.5px] text-black">
+            <thead>
+              <tr className="bg-orange-600 text-white text-left">
+                <th className="px-3 py-3 font-bold">#</th>
+                <th className="px-3 py-3 font-bold">Tipo</th>
+                <th className="px-3 py-3 font-bold">Título</th>
+                <th className="px-3 py-3 font-bold">Criado por</th>
+                <th className="px-3 py-3 font-bold">Setor</th>
+                <th className="px-3 py-3 font-bold">Fornecedor</th>
+                <th className="px-3 py-3 font-bold">Data</th>
+                <th className="px-3 py-3 font-bold text-right">Valor (R$)</th>
+                <th className="px-3 py-3 font-bold">Fase</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const idsFase = colunas.map(c => c.id);
+                const linhas = filtradas.filter((r: any) => idsFase.includes(r.status)).sort((a: any, b: any) => Number(b.id) - Number(a.id));
+                if (linhas.length === 0) return (
+                  <tr><td colSpan={9} className="px-3 py-12 text-center text-black/50">Nenhuma requisição no filtro.</td></tr>
+                );
+                return linhas.map((r: any) => {
+                  const col = colunas.find(c => c.id === r.status);
+                  return (
+                    <tr key={r.id} onClick={() => setReqAbertaLista(r)} className="border-t border-zinc-200 hover:bg-orange-50 cursor-pointer transition-colors">
+                      <td className="px-3 py-2.5 font-bold text-orange-600">{r.id}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">{r.tipo || r.ReqTipo || '—'}</td>
+                      <td className="px-3 py-2.5 max-w-[360px] truncate">{r.titulo}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">{r.criado_por || nomeSolicitante(r.solicitante) || '—'}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">{r.setor || '—'}</td>
+                      <td className="px-3 py-2.5 max-w-[200px] truncate">{r.fornecedor || '—'}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">{r.data ? new Date(r.data + 'T12:00:00').toLocaleDateString('pt-BR') : '—'}</td>
+                      <td className="px-3 py-2.5 text-right font-bold whitespace-nowrap">{r.valor_despeza || '0,00'}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap">
+                        <span className="inline-flex items-center gap-1.5 font-semibold">
+                          <span className={`w-2 h-2 rounded-full ${col?.cor || 'bg-zinc-300'}`} />
+                          {col?.titulo || r.status}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                });
+              })()}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      )}
+
+      {/* Requisição aberta a partir do modo lista */}
+      {reqAbertaLista && (
+        <CardReq
+          req={reqAbertaLista}
+          onUpdate={podeEditar ? onUpdate : () => {}}
+          onPrint={onPrint}
+          dadosCompartilhados={dadosCompartilhados}
+          aberto={true}
+          onFechar={() => { const id = reqAbertaLista.id; setReqAbertaLista(null); onCardFechado?.(id); }}
+          podeEditar={podeEditar}
+          grupos={grupos}
+          usuarioAtual={usuarioAtual}
+          onGruposChange={recarregarGrupos}
+          onExpandirGrupo={(id: number) => setGrupoFiltro(id)}
+        />
+      )}
 
       {comparando && (
         <CompararReqs

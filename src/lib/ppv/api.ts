@@ -132,6 +132,9 @@ export const api = {
   buscarProdutos: (termo: string) =>
     request<ProdutoBusca[]>(`/api/ppv/produtos?termo=${encodeURIComponent(termo)}`),
 
+  produtosMaisUsados: () =>
+    request<{ codigo: string; descricao: string; preco: number; usos: number }[]>("/api/ppv/produtos/mais-usados"),
+
   salvarProdutoManual: (dados: DadosProdutoManual) =>
     post<{ success: boolean }>("/api/ppv/produtos", dados),
 

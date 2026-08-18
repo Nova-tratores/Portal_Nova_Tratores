@@ -8,11 +8,26 @@ import {
 } from 'lucide-react';
 import { anexosDaReq } from '@/lib/requisicoes/anexos';
 
-// Valor pt-BR ("1.234,56" | "R$ 1.234,56" | número) -> number
+// Valor monetário -> number. Aceita pt-BR ("1.234,56"), americano ("800.00")
+// e número puro. Antes o ponto era SEMPRE tratado como milhar: "800.00"
+// (gravado pelo app do técnico) virava 80.000 e estourava os totais.
 function parseBR(v: any): number {
   if (v == null || v === '') return 0;
-  if (typeof v === 'number') return v;
-  let s = String(v).replace(/[R$\s.]/g, '').replace(',', '.');
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  let s = String(v).replace(/[R$\s]/g, '');
+  const temVirgula = s.includes(','), temPonto = s.includes('.');
+  if (temVirgula && temPonto) {
+    // o separador mais à DIREITA é o decimal
+    if (s.lastIndexOf(',') > s.lastIndexOf('.')) s = s.replace(/\./g, '').replace(',', '.');
+    else s = s.replace(/,/g, '');
+  } else if (temVirgula) {
+    s = s.replace(/\./g, '').replace(',', '.'); // decimal BR
+  } else if (temPonto) {
+    // só ponto: 1 ponto com 1–2 casas depois = decimal americano; senão é milhar
+    const casas = s.length - s.lastIndexOf('.') - 1;
+    const pontos = (s.match(/\./g) || []).length;
+    if (!(pontos === 1 && casas >= 1 && casas <= 2)) s = s.replace(/\./g, '');
+  }
   const n = parseFloat(s);
   return isNaN(n) ? 0 : n;
 }
@@ -233,7 +248,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   const card: React.CSSProperties = { background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14, boxShadow: '0 1px 3px rgba(15,20,30,0.05)' };
   const inp: React.CSSProperties = { width: '100%', padding: '13px 15px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', fontSize: 15.5, outline: 'none', boxSizing: 'border-box' };
   const lbl: React.CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' };
-  const btnRed: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 11, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' };
+  const btnRed: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 11, border: 'none', background: '#EA580C', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' };
   const btnGhost: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' };
   const Avatar = ({ nome, size = 42 }: { nome: string; size?: number }) => (
     <span style={{ width: size, height: size, borderRadius: size * 0.3, background: `linear-gradient(135deg, ${corDe(nome)}, ${corDe(nome)}cc)`, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.34, flexShrink: 0 }}>{iniciais(nome)}</span>
@@ -292,7 +307,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
                 <div key={m.mes} style={{ ...card, overflow: 'hidden', marginBottom: 12 }}>
                   <div onClick={() => setMesAberto(aberto ? null : m.mes)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '15px 17px', cursor: 'pointer' }}>
                     <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'capitalize' }}>{mesNome(m.mes)}</span>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: '#dc2626', background: '#fef2f2', padding: '3px 10px', borderRadius: 999 }}>{m.reqs.length} {m.reqs.length === 1 ? 'req' : 'reqs'}</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: '#EA580C', background: '#FFF7ED', padding: '3px 10px', borderRadius: 999 }}>{m.reqs.length} {m.reqs.length === 1 ? 'req' : 'reqs'}</span>
                     <span style={{ marginLeft: 'auto', fontSize: 17, fontWeight: 700, color: '#059669', fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(m.total)}</span>
                     {aberto ? <ChevronUp size={18} color="var(--portal-text-muted)" /> : <ChevronDown size={18} color="var(--portal-text-muted)" />}
                   </div>
@@ -345,7 +360,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   if (view === 'form') {
     const statusTxt = (s: string, aviso?: string) => s === 'buscando' ? <span style={{ color: '#2563eb', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · consultando…</span>
       : s === 'ok' ? <span style={{ color: '#059669', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · preenchido{aviso ? <span style={{ color: '#d97706' }}> · {aviso}</span> : ''}</span>
-      : s === 'erro' ? <span style={{ color: '#dc2626', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · não encontrado, preencha à mão</span> : null;
+      : s === 'erro' ? <span style={{ color: '#EA580C', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · não encontrado, preencha à mão</span> : null;
     const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 };
     const fg = (span2 = false): React.CSSProperties => ({ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: span2 ? 'span 2' : undefined });
     return (
@@ -353,13 +368,13 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
         <button onClick={cancelarEdicao} style={{ ...btnGhost, marginBottom: 16 }}><ArrowLeft size={16} /> Voltar</button>
         <form onSubmit={handleSubmit}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12, marginBottom: 20, textAlign: 'center' }}>
-            <div style={{ width: 46, height: 46, borderRadius: 12, background: editando ? '#fef2f2' : 'var(--portal-bg-secondary)', color: editando ? '#dc2626' : 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{editando ? <Edit3 size={23} /> : <Store size={23} />}</div>
+            <div style={{ width: 46, height: 46, borderRadius: 12, background: editando ? '#FFF7ED' : 'var(--portal-bg-secondary)', color: editando ? '#EA580C' : 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{editando ? <Edit3 size={23} /> : <Store size={23} />}</div>
             <h2 style={{ fontSize: 23, fontWeight: 700, color: 'var(--portal-text)', margin: 0 }}>{editando ? 'Editar fornecedor' : 'Novo fornecedor'}</h2>
           </div>
 
           {/* Identificação */}
           <div style={{ ...card, padding: '20px 22px', marginBottom: 16 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#dc2626', marginBottom: 16 }}>Identificação</div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#EA580C', marginBottom: 16 }}>Identificação</div>
             <div style={grid}>
               <div style={fg()}>
                 <span style={lbl}>CNPJ / CPF{statusTxt(cnpjStatus, cnpjAviso)}</span>
@@ -373,7 +388,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
           {/* Endereço */}
           <div style={{ ...card, padding: '20px 22px', marginBottom: 16 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#dc2626', marginBottom: 16 }}>Endereço <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--portal-text-muted)', fontWeight: 500 }}>— p/ Omie</span></div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#EA580C', marginBottom: 16 }}>Endereço <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--portal-text-muted)', fontWeight: 500 }}>— p/ Omie</span></div>
             <div style={grid}>
               <div style={fg()}><span style={lbl}>CEP{statusTxt(cepStatus)}</span><input name="cep" maxLength={9} value={formData.cep} onChange={(e) => { const v = e.target.value; setFormData((p) => ({ ...p, cep: v })); buscarCep(v); }} style={inp} placeholder="00000-000" /></div>
               <div style={fg()}><span style={lbl}>Cidade</span><input name="cidade" value={formData.cidade} onChange={handleChange} style={inp} placeholder="Ex: Piraju" /></div>
@@ -386,7 +401,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
           {/* Serviço */}
           <div style={{ ...card, padding: '16px 18px', marginBottom: 16 }}>
-            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#dc2626', marginBottom: 16 }}>Serviço</div>
+            <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#EA580C', marginBottom: 16 }}>Serviço</div>
             <div style={fg(true)}><span style={lbl}>Descrição do que fornece</span><input name="descricao" value={formData.descricao} onChange={handleChange} style={inp} placeholder="Ex: Peças agrícolas" /></div>
           </div>
 
@@ -462,7 +477,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
                   </div>
                   {s?.count ? <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 999, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)' }}>{s.count} reqs</span> : null}
                   <button onClick={(e) => { e.stopPropagation(); iniciarEdicao(f); }} title="Editar" style={{ background: 'none', border: 'none', color: 'var(--portal-text-muted)', cursor: 'pointer', padding: 4 }}><Edit3 size={15} /></button>
-                  <button onClick={(e) => { e.stopPropagation(); excluirFornecedor(f.id); }} title="Excluir" style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', padding: 4 }}><Trash2 size={15} /></button>
+                  <button onClick={(e) => { e.stopPropagation(); excluirFornecedor(f.id); }} title="Excluir" style={{ background: 'none', border: 'none', color: '#EA580C', cursor: 'pointer', padding: 4 }}><Trash2 size={15} /></button>
                   <ChevronRight size={16} color="var(--portal-text-muted)" />
                 </div>
               );

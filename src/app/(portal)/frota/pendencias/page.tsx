@@ -612,9 +612,9 @@ export default function FrotaPendenciasPage() {
           <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, width: '100%', maxWidth: 960, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,.3)' }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
               {fotoBox(aberto, 150, '0')}
-              <button onClick={fecharModal}
-                style={{ position: 'absolute', top: 12, right: 12, width: 34, height: 34, borderRadius: 0, border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,.9)', color: '#334155', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <X size={17} />
+              <button onClick={fecharModal} title="Fechar"
+                style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 0, border: '1.5px solid rgba(255,255,255,.55)', cursor: 'pointer', background: 'rgba(15,23,42,.65)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <X size={18} />
               </button>
             </div>
             <div style={{ padding: '14px 22px', borderBottom: '1px solid rgba(0,0,0,0.5)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>

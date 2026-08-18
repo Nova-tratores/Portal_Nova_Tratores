@@ -12,6 +12,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import QRUnidadeModal from '@/components/ppv/QRUnidadeModal'
+import PecasNav from '@/components/ppv/PecasNav'
 import { htmlFolha, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
 import { STATUS_LABEL, STATUS_COR, DESTINO_LABEL, EMPRESA_LABEL, EMPRESA_COR, type PecaUnidade, type UnidadeStatus } from '@/lib/pecas/unidades'
 
@@ -143,13 +144,15 @@ export default function UnidadesRastreioPage() {
   })
 
   return (
+    <div className="pecas-skin">
+    <PecasNav />
     <div style={{ padding: '18px 22px', maxWidth: 1200, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
         <Link href="/ppv" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
           <ArrowLeft size={15} /> PPV
         </Link>
         <h1 style={{ fontSize: 19, fontWeight: 800, color: 'var(--portal-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <QrCode size={18} color="#0d9488" /> Rastreio de unidades
+          <QrCode size={18} color="#EA580C" /> Rastreio de unidades
         </h1>
         <button onClick={buscar} title="Atualizar" style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
           <RefreshCw size={13} /> Atualizar
@@ -167,9 +170,9 @@ export default function UnidadesRastreioPage() {
         {ABAS.map(a => (
           <button key={a.id} onClick={() => setAba(a.id)} style={{
             padding: '7px 14px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
-            border: aba === a.id ? '2px solid #0d9488' : '1px solid var(--portal-border)',
+            border: aba === a.id ? '2px solid #EA580C' : '1px solid var(--portal-border)',
             background: aba === a.id ? 'rgba(13,148,136,.08)' : 'var(--portal-bg-card)',
-            color: aba === a.id ? '#0d9488' : 'var(--portal-text-secondary)',
+            color: aba === a.id ? '#EA580C' : 'var(--portal-text-secondary)',
           }}>{a.rotulo}</button>
         ))}
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar código, UN-, nome ou OS…" style={{ ...selStyle, marginLeft: 'auto', minWidth: 230 }} />
@@ -288,6 +291,7 @@ export default function UnidadesRastreioPage() {
       <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{total} unidade(s) no filtro</div>
 
       {qrModal && <QRUnidadeModal unidadeId={qrModal.id} numero={qrModal.numero} codigo={qrModal.codigo} onClose={() => setQrModal(null)} />}
+    </div>
     </div>
   )
 }

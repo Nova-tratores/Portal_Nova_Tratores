@@ -242,6 +242,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       temReq: reqsDoCard.length > 0,
       temRel: !!safeGet(row, "ID_Relatorio_Final"),
       servSolicitado: (safeGet(row, "Serv_Solicitado") as string) || "-",
+      ordemOmie: (safeGet(row, "Ordem_Omie") as string) || "",
       previsaoExecucao: (safeGet(row, "Previsao_Execucao") as string) || "",
       previsaoFaturamento: (safeGet(row, "Previsao_Faturamento") as string) || "",
       diasExecucao: (safeGet(row, "Dias_Execucao") as string) || "",

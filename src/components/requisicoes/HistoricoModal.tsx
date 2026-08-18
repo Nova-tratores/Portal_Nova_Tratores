@@ -80,10 +80,10 @@ export default function HistoricoModal({ reqId, titulo, open, onClose }: Props) 
       case 'criar': return <PlusCircle size={15} className="text-emerald-600" />;
       case 'editar': return <Pencil size={15} className="text-blue-600" />;
       case 'mover_status': return <ArrowRightLeft size={15} className="text-indigo-600" />;
-      case 'deletar': return <Trash2 size={15} className="text-zinc-500" />;
+      case 'deletar': return <Trash2 size={15} className="text-black" />;
       case 'pedido': return <ShieldAlert size={15} className="text-amber-600" />;
       case 'aprovado': return <ShieldCheck size={15} className="text-emerald-600" />;
-      case 'recusado': return <ShieldX size={15} className="text-red-600" />;
+      case 'recusado': return <ShieldX size={15} className="text-orange-600" />;
       case 'consumido': return <Pencil size={15} className="text-amber-700" />;
     }
   };

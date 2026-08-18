@@ -27,7 +27,7 @@ const emAbertoStatus = (s: string) => !/conclu|cancel/i.test(String(s || ""));
 const corStatus = (s: string) => {
   if (/conclu/i.test(s)) return { bg: "#DCFCE7", fg: "#166534" };
   if (/cancel/i.test(s)) return { bg: "#F1F5F9", fg: "#64748B" };
-  return { bg: "#FEE2E2", fg: "#DC2626" };
+  return { bg: "#FEE2E2", fg: "#EA580C" };
 };
 // A data vem em "DD/MM/AAAA HH:mm" (Brasil). new Date() não entende esse
 // formato → dava "Invalid Date". Aqui parseamos manualmente; se vier ISO,
@@ -83,23 +83,23 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
         <div style={{ background: "#fff", width: "100%", maxWidth: 1040, maxHeight: "94vh", borderRadius: 16, boxShadow: "0 24px 60px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden" }}
           onClick={(e) => e.stopPropagation()}>
           {/* Cabeçalho */}
-          <div style={{ padding: "18px 22px", borderBottom: "1px solid #eef0f3", display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FEF2F2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <div style={{ padding: "18px 22px", borderBottom: "1px solid rgba(0,0,0,0.5)", display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FFF7ED", color: "#EA580C", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <i className="fas fa-magnifying-glass-chart" />
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>Histórico do produto</div>
               <div style={{ fontSize: 13, color: "#64748b", fontFamily: "ui-monospace, Menlo, monospace" }}>{codigo}{descricao ? ` · ${descricao}` : ""}</div>
             </div>
-            <button onClick={() => setVerInfo(true)} title="Características, observações e mais" style={{ padding: "8px 13px", borderRadius: 9, border: "1.5px solid #e2e8f0", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+            <button onClick={() => setVerInfo(true)} title="Características, observações e mais" style={{ padding: "8px 13px", borderRadius: 9, border: "1.5px solid rgba(0,0,0,0.5)", background: "#fff", color: "#334155", fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
               <i className="fas fa-circle-info" style={{ marginRight: 6 }} />Mais detalhes
             </button>
             <button onClick={onClose} style={{ width: 34, height: 34, borderRadius: 8, border: "none", background: "#f1f5f9", color: "#64748b", cursor: "pointer" }}><i className="fas fa-times" /></button>
           </div>
 
           {/* Informações do produto — já abertas (estoque nas duas empresas) */}
-          <div style={{ padding: "14px 22px", borderBottom: "1px solid #f1f5f9", background: "#fafbfc" }}>
-            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#dc2626", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8 }}>Informações do produto</div>
+          <div style={{ padding: "14px 22px", borderBottom: "1px solid rgba(0,0,0,0.5)", background: "#fafbfc" }}>
+            <div style={{ fontSize: 11.5, fontWeight: 700, color: "#EA580C", textTransform: "uppercase", letterSpacing: .5, marginBottom: 8 }}>Informações do produto</div>
             {infoLoad ? (
               <div style={{ color: "#94a3b8", fontSize: 13 }}><i className="fas fa-spinner fa-spin" style={{ marginRight: 6 }} />Carregando…</div>
             ) : !info || info.length === 0 ? (
@@ -109,13 +109,13 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
                 {info.map((c) => {
                   const saldoNeg = parseFloat(String(c.saldo ?? 0)) < 0;
                   return (
-                    <div key={c.conta} style={{ flex: "1 1 300px", border: "1px solid #eef0f3", borderRadius: 11, padding: "10px 14px", background: "#fff" }}>
+                    <div key={c.conta} style={{ flex: "1 1 300px", border: "1px solid rgba(0,0,0,0.5)", borderRadius: 11, padding: "10px 14px", background: "#fff" }}>
                       <div style={{ fontSize: 12.5, fontWeight: 700, color: "#475569", marginBottom: 8 }}>{c.conta}{(c.marca || c.familia) ? <span style={{ fontWeight: 500, color: "#94a3b8" }}> · {[c.marca, c.familia].filter(Boolean).join(" / ")}</span> : null}</div>
                       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
                         {[
                           { l: "Valor Venda", v: fmtRS(c.valor_venda), cor: "#059669" },
                           { l: "CMC", v: fmtRS(c.cmc), cor: "#059669" },
-                          { l: "Saldo", v: String(c.saldo ?? "—"), cor: saldoNeg ? "#dc2626" : "#0f172a" },
+                          { l: "Saldo", v: String(c.saldo ?? "—"), cor: saldoNeg ? "#EA580C" : "#0f172a" },
                         ].map((f) => (
                           <div key={f.l}>
                             <div style={{ fontSize: 10.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .4 }}>{f.l}</div>
@@ -131,13 +131,13 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
           </div>
 
           {/* Resumo */}
-          <div style={{ display: "flex", gap: 10, padding: "14px 22px", borderBottom: "1px solid #f1f5f9" }}>
+          <div style={{ display: "flex", gap: 10, padding: "14px 22px", borderBottom: "1px solid rgba(0,0,0,0.5)" }}>
             {[
               { k: "PPVs no total", v: dados?.total_ppvs ?? 0, cor: "#0f172a" },
-              { k: "Em aberto", v: dados?.em_aberto ?? 0, cor: "#dc2626" },
+              { k: "Em aberto", v: dados?.em_aberto ?? 0, cor: "#EA580C" },
               { k: "Qtd. somada", v: dados?.total_qtde ?? 0, cor: "#0f172a" },
             ].map((c) => (
-              <div key={c.k} style={{ flex: 1, background: "#f8fafc", border: "1px solid #eef0f3", borderRadius: 11, padding: "10px 14px" }}>
+              <div key={c.k} style={{ flex: 1, background: "#f8fafc", border: "1px solid rgba(0,0,0,0.5)", borderRadius: 11, padding: "10px 14px" }}>
                 <div style={{ fontSize: 11.5, color: "#64748b", textTransform: "uppercase", letterSpacing: .5 }}>{c.k}</div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: c.cor, fontVariantNumeric: "tabular-nums" }}>{c.v}</div>
               </div>
@@ -145,9 +145,9 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
           </div>
 
           {/* Filtro */}
-          <div style={{ padding: "10px 22px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid #f1f5f9" }}>
+          <div style={{ padding: "10px 22px", display: "flex", alignItems: "center", gap: 10, borderBottom: "1px solid rgba(0,0,0,0.5)" }}>
             <label style={{ display: "flex", alignItems: "center", gap: 7, fontSize: 13.5, color: "#475569", cursor: "pointer" }}>
-              <input type="checkbox" checked={soAberto} onChange={(e) => setSoAberto(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#dc2626" }} />
+              <input type="checkbox" checked={soAberto} onChange={(e) => setSoAberto(e.target.checked)} style={{ width: 16, height: 16, accentColor: "#EA580C" }} />
               Mostrar só os em aberto
             </label>
           </div>
@@ -172,7 +172,7 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
                     const cs = corStatus(p.status);
                     return (
                       <tr key={p.id} onClick={() => onAbrirPpv?.(p.id)}
-                        style={{ borderTop: "1px solid #f1f5f9", cursor: onAbrirPpv ? "pointer" : "default" }}
+                        style={{ borderTop: "1px solid rgba(0,0,0,0.5)", cursor: onAbrirPpv ? "pointer" : "default" }}
                         onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")}
                         onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
                         <td style={{ padding: "11px 22px", fontWeight: 700, color: "#2563eb" }}>#{p.id}</td>

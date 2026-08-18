@@ -316,7 +316,7 @@ export default function TrajetosModal({ placa, onClose }: Props) {
           <div style={{ flex: 1, position: 'relative' }}>
             <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
             {sel.length === 0 && (
-              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.75)', zIndex: 500, fontSize: 13, color: '#475569', fontWeight: 600 }}>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--portal-bg) 75%, transparent)', zIndex: 500, fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>
                 Marque um ou mais dias na lista pra desenhar os trajetos
               </div>
             )}

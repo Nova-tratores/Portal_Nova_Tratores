@@ -90,8 +90,8 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
         className={`bg-white border rounded-2xl p-4 md:p-6 hover:shadow-lg transition-all group mb-4 md:mb-5 border-l-[6px] relative overflow-hidden ${modoComparar ? 'cursor-pointer' : podeMoverFase ? 'cursor-grab active:cursor-grabbing' : 'cursor-pointer'} ${
           escolhidoParaComparar ? 'border-amber-500 border-l-amber-500 ring-2 ring-amber-300'
             : modoComparar ? 'border-zinc-200 border-l-zinc-400 hover:border-amber-400'
-            : veioDoApp ? 'border-red-500 border-l-blue-600 shadow-md shadow-blue-900/10 hover:border-red-500'
-            : 'border-zinc-200 border-l-zinc-400 hover:border-red-500'
+            : veioDoApp ? 'border-orange-500 border-l-blue-600 shadow-md shadow-blue-900/10 hover:border-orange-500'
+            : 'border-zinc-200 border-l-zinc-400 hover:border-orange-500'
         }`}
       >
         {escolhidoParaComparar && (
@@ -100,7 +100,7 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
           </div>
         )}
         {veioDoApp && (
-          <div className="absolute top-0 left-0 bg-red-600 text-white text-xs font-black px-3 py-1 rounded-br-xl flex items-center gap-1 uppercase tracking-tighter z-10" title="Requisição criada pelo técnico através do aplicativo">
+          <div className="absolute top-0 left-0 bg-orange-600 text-white text-xs font-black px-3 py-1 rounded-br-xl flex items-center gap-1 uppercase tracking-tighter z-10" title="Requisição criada pelo técnico através do aplicativo">
             <HardHat size={10} /> TÉCNICO (APP)
           </div>
         )}
@@ -108,27 +108,27 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
         {/* Ações sempre à mostra (antes só apareciam no hover, e ninguém achava).
             Ficam discretas e só ganham cor ao passar o mouse. */}
         <div className={`absolute top-4 right-4 md:top-6 md:right-6 flex gap-1.5 ${modoComparar ? 'hidden' : ''}`}>
-          <button onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-red-600 hover:bg-red-600 hover:text-white transition-all" title="Abrir requisição / Mapa de Cotações"><ClipboardList size={15} /></button>
-          <button onClick={(e) => { e.stopPropagation(); setHistAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-zinc-400 hover:bg-zinc-800 hover:text-white transition-all" title="Histórico da requisição"><Clock size={15} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setModalAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-orange-600 hover:bg-orange-600 hover:text-white transition-all" title="Abrir requisição / Mapa de Cotações"><ClipboardList size={15} /></button>
+          <button onClick={(e) => { e.stopPropagation(); setHistAberto(true); }} className="p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-zinc-800 hover:text-white transition-all" title="Histórico da requisição"><Clock size={15} /></button>
           {podeImprimir && (
-            <button onClick={handlePrintClick} className="p-2.5 rounded-xl bg-zinc-100 text-zinc-400 hover:bg-red-600 hover:text-white transition-all" title="Imprimir requisição"><Printer size={15} /></button>
+            <button onClick={handlePrintClick} className="p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-orange-600 hover:text-white transition-all" title="Imprimir requisição"><Printer size={15} /></button>
           )}
         </div>
 
         {podeExcluir && !modoComparar && (
-          <button onClick={handleTrash} className="absolute bottom-4 right-4 md:bottom-6 md:right-6 p-2.5 rounded-xl bg-zinc-100 text-zinc-400 hover:bg-red-600 hover:text-white transition-all" title="Mover para a lixeira"><Trash2 size={15} /></button>
+          <button onClick={handleTrash} className="absolute bottom-4 right-4 md:bottom-6 md:right-6 p-2.5 rounded-xl bg-zinc-100 text-black hover:bg-orange-600 hover:text-white transition-all" title="Mover para a lixeira"><Trash2 size={15} /></button>
         )}
 
         <div className="flex items-start gap-4 mb-5 mt-2">
-          <div className={`min-w-[50px] h-[50px] rounded-xl flex items-center justify-center ${veioDoApp ? 'bg-red-500/15 text-red-600' : 'bg-zinc-50 text-zinc-500'}`}>
+          <div className={`min-w-[50px] h-[50px] rounded-xl flex items-center justify-center ${veioDoApp ? 'bg-orange-500/15 text-orange-600' : 'bg-zinc-50 text-zinc-500'}`}>
             <span className="text-lg font-light tracking-tighter">{req.id}</span>
           </div>
           {/* pr no bloco inteiro: os botões de ação agora ficam fixos no canto,
               e sem isso tanto a etiqueta do tipo quanto o título passavam por
               baixo deles. */}
           <div className={`flex flex-col gap-1 min-w-0 ${modoComparar ? '' : 'pr-[112px]'}`}>
-            <span className="text-xs font-medium text-red-600 uppercase tracking-[0.2em] bg-red-50 px-2 py-0.5 rounded-md self-start">{req.tipo || req.ReqTipo}</span>
-            <h4 className="text-[15px] font-normal text-zinc-700 leading-tight group-hover:text-red-600 transition-colors line-clamp-2">
+            <span className="text-xs font-bold text-orange-600 uppercase tracking-[0.15em] self-start">{req.tipo || req.ReqTipo}</span>
+            <h4 className="text-[15px] font-normal text-black leading-tight group-hover:text-orange-600 transition-colors line-clamp-2">
               {req.titulo}
               {subtituloContextual && <span className="text-zinc-400 font-light"> · {subtituloContextual}</span>}
             </h4>
@@ -137,37 +137,47 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
 
         {/* Criado por */}
         <div className="flex items-center gap-1.5 mb-4 -mt-1">
-          <BadgeCheck size={12} className="text-red-400 flex-shrink-0" />
-          <span className="text-[11px] font-semibold text-red-500 truncate">Criado por: {req.criado_por || nomeExibicao}</span>
+          <BadgeCheck size={12} className="text-orange-500 flex-shrink-0" />
+          <span className="text-[11px] font-medium text-zinc-500 truncate">Criado por: <span className="font-semibold text-black">{req.criado_por || nomeExibicao}</span></span>
         </div>
 
-        <div className="space-y-3 border-t border-zinc-200 pt-5 text-zinc-500">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-normal uppercase tracking-widest flex items-center gap-2">
-              <Calendar size={12} className="text-zinc-400" /> Data:
+        {/* Informações em GRADE (2 colunas): rótulo cinza em cima, valor preto
+            embaixo — nos cards largos lê muito melhor que a lista rótulo × valor */}
+        <div className="border-t border-zinc-200 pt-4 grid grid-cols-2 gap-x-6 gap-y-3">
+          <div className="min-w-0">
+            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+              <Calendar size={11} className="text-zinc-400" /> Data
             </span>
-            <span className="text-xs font-medium text-zinc-600">{req.data ? new Date(req.data + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</span>
+            <div className="text-[13px] font-semibold text-black mt-0.5">{req.data ? new Date(req.data + 'T12:00:00').toLocaleDateString('pt-BR') : '---'}</div>
           </div>
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-normal uppercase tracking-widest flex items-center gap-2">
-              <Building2 size={12} className="text-zinc-400" /> Setor:
+          <div className="min-w-0">
+            <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+              <Building2 size={11} className="text-zinc-400" /> Setor
             </span>
-            <span className="text-xs font-medium text-zinc-600 truncate max-w-[180px]">{req.setor || req.ReqQuem || '---'}</span>
+            <div className="text-[13px] font-semibold text-black mt-0.5 truncate">{req.setor || req.ReqQuem || '---'}</div>
           </div>
-          {(req.tipo === 'Ferramenta' || req.ReqTipo === 'Ferramenta') && (
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-normal uppercase tracking-widest flex items-center gap-2">
-                <Tag size={12} className="text-zinc-400" /> Destinação:
+          {req.fornecedor && (
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Briefcase size={11} className="text-zinc-400" /> Fornecedor
               </span>
-              <span className="text-xs font-medium text-zinc-600 truncate max-w-[180px]">{req.quem_ferramenta || req.ferramenta_quem || '---'}</span>
+              <div className="text-[13px] font-semibold text-black mt-0.5 truncate">{req.fornecedor}</div>
+            </div>
+          )}
+          {(req.tipo === 'Ferramenta' || req.ReqTipo === 'Ferramenta') && (
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Tag size={11} className="text-zinc-400" /> Destinação
+              </span>
+              <div className="text-[13px] font-semibold text-black mt-0.5 truncate">{req.quem_ferramenta || req.ferramenta_quem || '---'}</div>
             </div>
           )}
           {['Veicular Abastecimento', 'Trator Abastecimento', 'Quadri Abastecimento'].includes(req.tipo) && req.litros_combustivel && (
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-normal uppercase tracking-widest flex items-center gap-2">
-                <Tag size={12} className="text-amber-500" /> Litros:
+            <div className="min-w-0">
+              <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-widest flex items-center gap-1.5">
+                <Tag size={11} className="text-amber-500" /> Litros
               </span>
-              <span className="text-xs font-bold text-amber-600">{req.litros_combustivel}L</span>
+              <div className="text-[13px] font-bold text-amber-600 mt-0.5">{req.litros_combustivel}L</div>
             </div>
           )}
         </div>
@@ -188,9 +198,9 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
             ancorada no canto de baixo. */}
         <div className="mt-4 flex items-center gap-1.5 flex-wrap">
             {([
-              { campo: 'foto_nf', sigla: 'NF', nome: 'Nota fiscal', Icone: Receipt, cor: 'text-red-600 bg-red-50' },
-              { campo: 'boleto_fornecedor', sigla: 'Boleto', nome: 'Boleto do fornecedor', Icone: Banknote, cor: 'text-blue-600 bg-blue-50' },
-              { campo: 'recibo_fornecedor', sigla: 'Recibo', nome: 'Recibo / outros', Icone: Paperclip, cor: 'text-teal-600 bg-teal-50' },
+              { campo: 'foto_nf', sigla: 'NF', nome: 'Nota fiscal', Icone: Receipt, cor: 'chip-anexo-on' },
+              { campo: 'boleto_fornecedor', sigla: 'Boleto', nome: 'Boleto do fornecedor', Icone: Banknote, cor: 'chip-anexo-on' },
+              { campo: 'recibo_fornecedor', sigla: 'Recibo', nome: 'Recibo / outros', Icone: Paperclip, cor: 'chip-anexo-on' },
             ] as const).map(({ campo, sigla, nome, Icone, cor }) => {
               const tem = !!req[campo];
               return (
@@ -206,7 +216,7 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
         {/* Valor por último: a lixeira ancora no canto de baixo à direita, e aqui
             o que fica embaixo dela é só espaço vazio. */}
         <div className="mt-2 flex items-center gap-3 pr-12">
-          <div className="text-[18px] font-bold text-zinc-900 tracking-tighter"><span className="text-xs text-zinc-400 mr-1 italic font-normal">R$</span>{req.valor_despeza || '0,00'}</div>
+          <div className="text-[18px] font-bold text-black tracking-tighter"><span className="text-xs text-zinc-400 mr-1 italic font-normal">R$</span>{req.valor_despeza || '0,00'}</div>
         </div>
       </div>
 

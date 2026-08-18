@@ -83,13 +83,15 @@ interface Props {
   modalClienteNome: string;
   onClienteConsumido?: () => void; // limpa o nome no pai depois de aplicado (ver useEffect)
   onDirty?: () => void;
+  /** Incrementa quando o modal "Novo Item" pede pra abrir o Importar Kit. */
+  kitSinal?: number;
 }
 
 export default function PPVDrawer({
   open, ppvId, onClose, onBuscaProduto, onAbrirCatalogo, onBuscaOS, onBuscaCliente,
   modalOSId, modalOSDisplay, modalProdDisplay, modalProdCodigo,
   onModalProdDisplayChange, onSetModalOS,
-  modalClienteNome, onClienteConsumido, onDirty,
+  modalClienteNome, onClienteConsumido, onDirty, kitSinal,
 }: Props) {
   const { tecnicos, productCache, showToast } = usePPV();
   const { userProfile } = useAuth();
@@ -133,13 +135,14 @@ export default function PPVDrawer({
   const [cancelarOpen, setCancelarOpen] = useState(false);   // modal que pede o motivo do cancelamento
   const [cancelMotivo, setCancelMotivo] = useState("");
   const [cancelando, setCancelando] = useState(false);
-  const [novoItemMenu, setNovoItemMenu] = useState(false); // "Novo Item" abre as opções de adicionar
   const [duplicando, setDuplicando] = useState(false);
+  const [codCopiado, setCodCopiado] = useState<string | null>(null); // feedback do "copiar código"
   const [showAnexos, setShowAnexos] = useState(false);
   const [showTarefas, setShowTarefas] = useState(false);
   const [tarefasPendentes, setTarefasPendentes] = useState(0);
   const [anexosCount, setAnexosCount] = useState(0);
   const [custoCMC, setCustoCMC] = useState(0);       // soma do CMC (custo) de todos os itens
+  const [cmcPorItem, setCmcPorItem] = useState<Record<string, number>>({}); // CMC unitário por código (coluna da tabela)
   const [custoLoading, setCustoLoading] = useState(false);
   const [showVendedor, setShowVendedor] = useState(false);   // modal de escolha do vendedor
   const [itemSelecionado, setItemSelecionado] = useState<string | null>(null); // linha selecionada
@@ -376,10 +379,25 @@ export default function PPVDrawer({
     if (open && ppvId) {
       setShowLogs(false);
       setShowAnexos(false);
-      setNovoItemMenu(false);
       carregarDetalhes(ppvId);
     }
   }, [open, ppvId, carregarDetalhes]);
+
+  // Modal "Novo Item" pediu o Importar Kit (botão com legenda ao lado da busca)
+  useEffect(() => {
+    if (kitSinal && open && ppvId) setKitModalOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kitSinal]);
+
+  // Produto escolhido no modal "Novo Item" → adiciona DIRETO no pedido
+  // (qtd 1; escolher o mesmo produto de novo soma mais um). O modal fica aberto.
+  const autoAddRef = useRef(false);
+  useEffect(() => {
+    if (!open || !ppvId || !modalProdCodigo || !modalProdDisplay || autoAddRef.current) return;
+    autoAddRef.current = true;
+    addExtra().finally(() => { autoAddRef.current = false; });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalProdCodigo, modalProdDisplay]);
 
   // Conta anexos/comentários (pra bolinha vermelha no botão Anexos)
   const recarregarAnexosCount = useCallback(() => {
@@ -426,7 +444,12 @@ export default function PPVDrawer({
           body: JSON.stringify({ itens }),
         });
         const j = await r.json();
-        if (!cancel) setCustoCMC(r.ok ? (Number(j.total) || 0) : 0);
+        if (!cancel) {
+          setCustoCMC(r.ok ? (Number(j.total) || 0) : 0);
+          const m: Record<string, number> = {};
+          if (r.ok) (j.itens || []).forEach((d: { codigo: string; cmc: number }) => { m[d.codigo] = Number(d.cmc) || 0; });
+          setCmcPorItem(m);
+        }
         if (!r.ok) console.error("[PPV custo-cmc]", j?.error);
       } catch (e) {
         if (!cancel) { console.error("[PPV custo-cmc]", e); setCustoCMC(0); }
@@ -1139,9 +1162,9 @@ export default function PPVDrawer({
 
                     {/* Toolbar de itens (estilo Omie): Novo Item · Descrição Produto · Excluir Item */}
                     <div style={{ display: "flex", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
-                      <button type="button" onClick={() => setNovoItemMenu((o) => !o)} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
+                      <button type="button" onClick={onBuscaProduto} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Buscar produto, mais usados, catálogo e kit"}
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "none", background: "#f0a22e", color: "#fff", fontSize: 13.5, fontWeight: 600, cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1 }}>
-                        <i className={`fas ${novoItemMenu ? "fa-chevron-up" : "fa-plus"}`} /> Novo Item
+                        <i className="fas fa-plus" /> Novo Item
                       </button>
                       <button type="button" onClick={verDescricaoProduto} disabled={!itemSelecionado} title={itemSelecionado ? "Ver informações do produto selecionado" : "Selecione um produto (clique na descrição)"}
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fff", color: itemSelecionado ? "#334155" : "#94a3b8", fontSize: 13.5, fontWeight: 600, cursor: itemSelecionado ? "pointer" : "not-allowed" }}>
@@ -1152,59 +1175,6 @@ export default function PPVDrawer({
                         <i className="fas fa-trash" /> Excluir Item
                       </button>
                     </div>
-
-                    {novoItemMenu && (
-                    /* Ações de itens: Importar Kit + Catálogo (par) */
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-                      {/* Importar Kit de Revisão */}
-                      <button type="button" onClick={() => setKitModalOpen(true)} disabled={importandoKit || !ppvId || !podeItem}
-                        title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
-                        style={{
-                          padding: "14px 16px", borderRadius: 14, border: "1px solid #f5c99a",
-                          background: "linear-gradient(135deg, #fff7ef, #fff3e6)",
-                          cursor: importandoKit || !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: importandoKit || !ppvId || !podeItem ? 0.55 : 1,
-                          display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
-                        }}
-                        onMouseEnter={(e) => { if (!importandoKit && ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(232,115,12,0.20)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
-                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #e8730c, #9a3412)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(232,115,12,0.35)" }}>
-                          {importandoKit ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 16 }} /> : <i className="fas fa-tools" style={{ fontSize: 16 }} />}
-                        </span>
-                        <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#9a3412" }}>
-                            {importandoKit ? "Importando kit..." : "Importar Kit"}
-                          </span>
-                          <span style={{ display: "block", fontSize: 12, color: "#b45309", marginTop: 1 }}>
-                            Revisão por modelo e horas
-                          </span>
-                        </span>
-                      </button>
-
-                      {/* Catálogo de Peças */}
-                      <button type="button" onClick={onAbrirCatalogo} disabled={!ppvId || !podeItem}
-                        title={!podeItem ? MSG_SEM_PERMISSAO : undefined}
-                        style={{
-                          padding: "14px 16px", borderRadius: 14, border: "1px solid #e2e8f0",
-                          background: "linear-gradient(135deg, #f8fafc, #f8fafc)",
-                          cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1,
-                          display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
-                        }}
-                        onMouseEnter={(e) => { if (ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(100,116,139,0.18)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
-                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #64748b, #334155)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(100,116,139,0.32)" }}>
-                          <i className="fas fa-book-open" style={{ fontSize: 16 }} />
-                        </span>
-                        <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#334155" }}>
-                            Catálogo
-                          </span>
-                          <span style={{ display: "block", fontSize: 12, color: "#94a3b8", marginTop: 1 }}>
-                            Busque a peça pela figura
-                          </span>
-                        </span>
-                      </button>
-                    </div>
-                    )}
 
                     {/* Kits importados — remover o kit inteiro de uma vez */}
                     {(details?.kits || []).length > 0 && (
@@ -1226,24 +1196,12 @@ export default function PPVDrawer({
                       </div>
                     )}
 
-                    {novoItemMenu && (<>
-                    {/* Adicionar por código (digite/busque a peça) */}
-                    <label style={{ fontWeight: 500, textTransform: "none", letterSpacing: 0, fontSize: 13 }}>Adicionar por código</label>
-                    <div style={{ display: "flex", gap: 10, marginBottom: produtosComSaldo.length > 0 ? 16 : 0 }}>
-                      <input type="text" value={modalProdDisplay} readOnly placeholder="Clique para buscar o produto..." onClick={onBuscaProduto} style={{ cursor: "pointer", fontWeight: 500, flex: 1, marginBottom: 0, fontSize: 15 }} />
-                      <input type="number" value={qtdExtra} onChange={(e) => setQtdExtra(parseInt(e.target.value) || 1)} min={1} style={{ width: 70, textAlign: "center", fontWeight: 500, marginBottom: 0, fontSize: 15 }} />
-                      <button type="button" onClick={addExtra} disabled={addingExtra || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : undefined} className="ppv-btn-save" style={{ padding: "10px 18px", whiteSpace: "nowrap", fontSize: 13 }}>
-                        {addingExtra ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar</>}
-                      </button>
-                    </div>
-                    </>)}
-
                     {/* Lista de produtos — tabela estilo Omie */}
                     {produtosComSaldo.length > 0 && (
                       <div style={{ border: "1px solid var(--ppv-border, #E2E8F0)", borderRadius: 4, overflow: "hidden" }}>
                         {/* Cabeçalho */}
                         <div style={{ display: "grid", gridTemplateColumns: "150px 60px minmax(140px,1fr) 130px 116px 116px 210px 44px", gap: 10, alignItems: "center", padding: "9px 16px", background: "#edeae4", borderBottom: "1px solid #d8d2c6", fontSize: 12, fontWeight: 600, color: "#5f574c", letterSpacing: 0.2 }}>
-                          <span>Produto <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "center" }}>Qtd <span style={{ color: "#b7b0a3" }}>»</span></span><span>Descrição <span style={{ color: "#b7b0a3" }}>»</span></span><span>Local de Estoque <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Preço un. <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Total <span style={{ color: "#b7b0a3" }}>»</span></span><span>Categoria <span style={{ color: "#b7b0a3" }}>»</span></span><span />
+                          <span>Produto <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "center" }}>Qtd <span style={{ color: "#b7b0a3" }}>»</span></span><span>Descrição <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Custo (CMC) <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Preço un. <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Total <span style={{ color: "#b7b0a3" }}>»</span></span><span>Categoria <span style={{ color: "#b7b0a3" }}>»</span></span><span />
                         </div>
                         {produtosComSaldo.map((p, i) => {
                           const isDevolvido = p.saldo === 0;
@@ -1259,6 +1217,13 @@ export default function PPVDrawer({
                                   style={{ padding: 0, border: "none", background: "transparent", cursor: "pointer", fontWeight: 500, fontSize: "inherit", fontFamily: "inherit", color: "#2563EB", textDecoration: isDevolvido ? "line-through" : "none", display: "inline-flex", alignItems: "center", gap: 5 }}>
                                   {p.codigo}<i className="fas fa-circle-info" style={{ fontSize: 11, color: "#93C5FD" }} />
                                 </button>
+                                {/* Copiar o código do produto — opção clara, com feedback */}
+                                <button type="button"
+                                  onClick={(e) => { e.stopPropagation(); navigator.clipboard?.writeText(p.codigo).then(() => { setCodCopiado(p.codigo); setTimeout(() => setCodCopiado((c) => (c === p.codigo ? null : c)), 1500); }).catch(() => {}); }}
+                                  title={codCopiado === p.codigo ? "Copiado!" : "Copiar código do produto"}
+                                  style={{ display: "inline-flex", alignItems: "center", gap: 4, padding: "2px 8px", borderRadius: 6, border: `1px solid ${codCopiado === p.codigo ? "#6EE7B7" : "#E2E8F0"}`, background: codCopiado === p.codigo ? "#ECFDF5" : "#fff", color: codCopiado === p.codigo ? "#059669" : "#64748B", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+                                  <i className={`fas ${codCopiado === p.codigo ? "fa-check" : "fa-copy"}`} style={{ fontSize: 10 }} /> {codCopiado === p.codigo ? "Copiado" : "Copiar"}
+                                </button>
                                 {p.empresa && <span style={{ fontSize: 11, fontWeight: 500, padding: "1px 7px", borderRadius: 6, background: isPrimario ? "#DBEAFE" : "#fff3e6", color: isPrimario ? "#2563EB" : "#c2570a" }}>{isPrimario ? "CASTRO" : "NOVA"}</span>}
                               </div>
                               {/* Qtd / saldo + status */}
@@ -1270,8 +1235,10 @@ export default function PPVDrawer({
                               </div>
                               {/* Descrição — clicar seleciona o item */}
                               <div onClick={() => setItemSelecionado(p.codigo)} style={{ minWidth: 0, color: "#475569", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", cursor: "pointer", fontWeight: itemSelecionado === p.codigo ? 700 : 400 }} title="Clique para selecionar este item">{p.descricao}</div>
-                              {/* Local de Estoque (novo — placeholder, // TODO: ligar ao banco) */}
-                              <div title="Local de Estoque" style={{ fontSize: 13, color: "#475569" }}>Estoque Balcão</div>
+                              {/* Custo unitário (CMC) do item — lido do banco pela conta certa */}
+                              <div title="Custo unitário (CMC)" style={{ fontSize: 13, color: "#0f9d58", fontWeight: 600, textAlign: "right", whiteSpace: "nowrap" }}>
+                                {custoLoading ? "…" : cmcPorItem[p.codigo] ? formatarMoeda(cmcPorItem[p.codigo]) : "—"}
+                              </div>
                               {/* Preço un. (editável) */}
                               <div style={{ textAlign: "right" }}>
                                 {editando ? (
@@ -1401,7 +1368,7 @@ export default function PPVDrawer({
               <button className="ppv-rail-btn primary" onClick={salvar} disabled={salvando || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}>
                 <i className={`fas ${salvando ? "fa-spinner fa-spin" : "fa-save"}`} /> {salvando ? "Salvando..." : "Salvar"}
               </button>
-              <button className="ppv-rail-btn" onClick={() => { setAbaAtiva("Itens da Venda"); setNovoItemMenu(true); }} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Incluir item (kit, catálogo ou busca)"}><i className="fas fa-plus-circle" /> Incluir</button>
+              <button className="ppv-rail-btn" onClick={() => { setAbaAtiva("Itens da Venda"); onBuscaProduto(); }} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Incluir item (busca, mais usados, catálogo ou kit)"}><i className="fas fa-plus-circle" /> Incluir</button>
               {/* Um único botão que MORFA: Enviar (cria no Omie) → Faturar (emite NF-e) → Faturado */}
               {!pedidoOmie ? (
                 <button className="ppv-rail-btn" onClick={enviarOmie} disabled={enviandoOmie || !podeOmie} title={!podeOmie ? MSG_SEM_PERMISSAO : "Criar o Pedido de Venda no Omie"}>

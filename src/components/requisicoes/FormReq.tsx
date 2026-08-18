@@ -59,7 +59,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   useEffect(() => {
     const fetchData = async () => {
       const [{ data: users }, { data: veic }, { data: ordens }] = await Promise.all([
-        supabase.from('financeiro_usu').select('id, nome, funcao').eq('ativo', true).order('nome'),
+        supabase.from('financeiro_usu').select('id, nome, funcao, avatar_url').eq('ativo', true).order('nome'),
         // Fase 5: o cadastro de veículos é do FROTA. O value do select continua
         // sendo o IdPlaca da SupaPlacas (via supa_placa_id, mantido pelo Frota)
         // — requisições antigas e o lançamento no Omie não mudam nada.
@@ -70,7 +70,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
           .eq('ativo', true)
           .not('supa_placa_id', 'is', null)
           .order('placa'),
-        supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Os_Tecnico, Status').not('Status', 'in', '("Concluída","Cancelada")').order('Id_Ordem', { ascending: false }),
+        supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Cnpj_Cliente, Os_Tecnico, Status, Projeto').not('Status', 'in', '("Concluída","Cancelada")').order('Id_Ordem', { ascending: false }),
       ]);
       if (users) setUsuarios(users);
       if (veic) {
@@ -134,6 +134,26 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
 
   // Empresa já inicializada no estado — sem useEffect loop
 
+  // Escolheu a O.S. → puxa da ordem o CHASSIS e o HORÍMETRO que o técnico já
+  // registrou (Ordem_Servico_Tecnicos; fallback do chassis: campo Projeto da OS).
+  const puxarDadosOS = async (o: any) => {
+    try {
+      const { data } = await supabase
+        .from('Ordem_Servico_Tecnicos')
+        .select('IdOs, Status, Chassis, Horimetro')
+        .eq('Ordem_Servico', o.Id_Ordem);
+      const lista = [...(data || [])].sort((a: any, b: any) => Number(b.IdOs || 0) - Number(a.IdOs || 0));
+      const tec = lista.find((t: any) => String(t.Status || '').toLowerCase() === 'enviado') || lista[0] || null;
+      const chassis = String(tec?.Chassis || o.Projeto || '').toUpperCase().trim();
+      const horimetro = String(tec?.Horimetro || '').trim();
+      setFormData(p => ({
+        ...p,
+        Chassis_Modelo: chassis || p.Chassis_Modelo,
+        hodometro: horimetro ? formatarHodometro(horimetro) : p.hodometro,
+      }));
+    } catch { /* sem dados do técnico — segue manual */ }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Veicular Manutenção: placa + HODÔMETRO são obrigatórios — a requisição
@@ -162,16 +182,16 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
   };
 
   // Estilos atualizados: letras maiores e brancas
-  const inputStyle = "w-full px-5 py-4 rounded-xl border border-zinc-200 bg-zinc-50 focus:border-red-500 focus:ring-4 focus:ring-red-500/20 outline-none transition-all text-lg font-medium text-zinc-900 placeholder:text-zinc-400";
-  const labelStyle = "text-sm font-bold text-zinc-900 uppercase tracking-[0.2em] mb-2 block ml-1";
+  const inputStyle = "w-full px-5 py-4 rounded-xl border border-zinc-200 bg-zinc-50 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/20 outline-none transition-all text-lg font-medium text-black placeholder:text-zinc-400";
+  const labelStyle = "text-sm font-bold text-zinc-500 uppercase tracking-[0.2em] mb-2 block ml-1";
 
   return (
     <div className="max-w-4xl mx-auto">
       {/* Fundo alterado para escuro para suportar as letras brancas pedidas */}
-      <div className="bg-white rounded-2xl border border-zinc-200 shadow-lg p-8 md:p-12 text-zinc-900">
+      <div className="bg-white rounded-2xl border border-zinc-200 shadow-lg p-8 md:p-12 text-black">
         <div className="mb-10">
-          <h2 className="text-3xl font-black uppercase tracking-tighter text-zinc-900">Nova Requisição</h2>
-          <p className="text-base text-zinc-500 mt-2">Preencha os dados técnicos abaixo para iniciar o processo.</p>
+          <h2 className="text-3xl font-black uppercase tracking-tighter text-black">Nova Requisição</h2>
+          <p className="text-base text-black mt-2">Preencha os dados técnicos abaixo para iniciar o processo.</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -244,12 +264,12 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                 className={`${inputStyle} cursor-pointer flex items-center justify-between`}
                 onClick={() => setSolDropdownOpen(!solDropdownOpen)}
               >
-                <span className={formData.solicitante ? 'text-zinc-900' : 'text-zinc-400'}>
+                <span className={formData.solicitante ? 'text-black' : 'text-black'}>
                   {formData.solicitante
                     ? `${formData.solicitante}${(() => { const u = usuarios.find(u => u.nome === formData.solicitante); return u?.funcao ? ` — ${u.funcao}` : ''; })()}`
                     : 'Quem pede?'}
                 </span>
-                <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
               </div>
               {solDropdownOpen && (
                 <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
@@ -259,7 +279,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                       placeholder="Buscar por nome ou função..."
                       value={solBusca}
                       onChange={e => setSolBusca(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-red-400"
+                      className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-orange-400"
                     />
                   </div>
                   {usuarios
@@ -277,10 +297,18 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                           setSolDropdownOpen(false);
                           setSolBusca('');
                         }}
-                        className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.solicitante === u.nome ? 'bg-red-50' : ''}`}
+                        className={`w-full px-4 py-2.5 text-left hover:bg-zinc-50 border-b border-zinc-50 flex items-center gap-3 ${formData.solicitante === u.nome ? 'bg-orange-50' : ''}`}
                       >
-                        <span className="font-bold text-sm text-zinc-800">{u.nome}</span>
-                        {u.funcao && <span className="text-xs text-zinc-500 ml-2">— {u.funcao}</span>}
+                        {u.avatar_url ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={u.avatar_url} alt="" className="w-8 h-8 rounded-full object-cover shrink-0 border border-zinc-200" />
+                        ) : (
+                          <span className="w-8 h-8 rounded-full bg-orange-100 text-orange-700 font-bold text-sm flex items-center justify-center shrink-0">{(u.nome || '?').charAt(0).toUpperCase()}</span>
+                        )}
+                        <span className="min-w-0 truncate">
+                          <span className="font-bold text-sm text-black">{u.nome}</span>
+                          {u.funcao && <span className="text-xs text-black ml-2">— {u.funcao}</span>}
+                        </span>
                       </button>
                     ))
                   }
@@ -289,7 +317,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                     const q = solBusca.toLowerCase();
                     return (u.nome || '').toLowerCase().includes(q) || (u.funcao || '').toLowerCase().includes(q);
                   }).length === 0 && (
-                    <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhum usuário encontrado</p>
+                    <p className="px-4 py-3 text-sm text-black text-center">Nenhum usuário encontrado</p>
                   )}
                 </div>
               )}
@@ -305,13 +333,13 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
 
           {/* NOVO CAMPO: QUEM FERRAMENTA (Aparece apenas se tipo for Ferramenta) */}
           {formData.tipo === 'Ferramenta' && (
-            <div className="p-8 bg-red-50 rounded-2xl border border-red-200">
+            <div className="p-8 bg-orange-50 rounded-2xl border border-orange-200">
               <label className={labelStyle}>Destinação da Ferramenta</label>
               <select 
                 required 
                 value={formData.quem_ferramenta}
                 onChange={e => setFormData({...formData, quem_ferramenta: e.target.value})} 
-                className={`${inputStyle} !border-red-300`}
+                className={`${inputStyle} !border-orange-300`}
               >
                 <option value="" className="bg-white">Selecione o uso...</option>
                 <option value="Uso Pessoal" className="bg-white">Uso Pessoal (Individual)</option>
@@ -322,19 +350,19 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
 
           {/* VEICULAR: placa + km */}
           {['Veicular Abastecimento', 'Veicular Manutenção'].includes(formData.tipo) && (
-            <div className="p-6 bg-red-50 rounded-2xl border border-red-200">
-              <p className="text-xs font-black text-red-600 uppercase tracking-widest mb-4">Informacoes do Veiculo</p>
+            <div className="p-6 bg-orange-50 rounded-2xl border border-orange-200">
+              <p className="text-xs font-black text-orange-600 uppercase tracking-widest mb-4">Informacoes do Veiculo</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
                   <label className={labelStyle}>Veiculo / Placa</label>
-                  <select required value={formData.veiculo} onChange={e => setFormData({...formData, veiculo: e.target.value})} className={`${inputStyle} !border-red-300`}>
+                  <select required value={formData.veiculo} onChange={e => setFormData({...formData, veiculo: e.target.value})} className={`${inputStyle} !border-orange-300`}>
                     <option value="" className="bg-white">Selecione o veiculo...</option>
                     {veiculos.map(v => <option key={v.IdPlaca} value={v.IdPlaca} className="bg-white">{v.NumPlaca}</option>)}
                   </select>
                 </div>
                 <div>
                   <label className={labelStyle}>Hodometro / Horimetro</label>
-                  <input placeholder="Ex: 12.500 km" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={`${inputStyle} !border-red-300`} />
+                  <input placeholder="Ex: 12.500 km" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={`${inputStyle} !border-orange-300`} />
                 </div>
               </div>
             </div>
@@ -353,10 +381,10 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                         className={`${inputStyle} !border-amber-300 cursor-pointer flex items-center justify-between`}
                         onClick={() => setProjDropdownOpen(!projDropdownOpen)}
                       >
-                        <span className={formData.projeto_nome ? 'text-zinc-900' : 'text-zinc-400'}>
+                        <span className={formData.projeto_nome ? 'text-black' : 'text-black'}>
                           {formData.projeto_nome || 'Buscar projeto ou chassis...'}
                         </span>
-                        <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </div>
                       {projDropdownOpen && (
                         <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
@@ -372,7 +400,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                           {formData.projeto_codigo && (
                             <button type="button"
                               onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
-                              className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                              className="w-full px-4 py-2 text-left text-sm text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
                               ✕ Remover seleção
                             </button>
                           )}
@@ -383,15 +411,15 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                                 setProjDropdownOpen(false); setProjBusca('');
                               }}
                               className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.projeto_codigo === String(p.codigo) ? 'bg-amber-50' : ''}`}>
-                              <span className="font-bold text-sm text-zinc-800">{p.nome}</span>
-                              <span className="text-xs text-zinc-400 ml-2">{p.empresa}</span>
+                              <span className="font-bold text-sm text-black">{p.nome}</span>
+                              <span className="text-xs text-black ml-2">{p.empresa}</span>
                             </button>
                           ))}
                           {projBusca.trim().length >= 2 && projResultados.length === 0 && (
-                            <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhum projeto encontrado</p>
+                            <p className="px-4 py-3 text-sm text-black text-center">Nenhum projeto encontrado</p>
                           )}
                           {projBusca.trim().length < 2 && (
-                            <p className="px-4 py-3 text-sm text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                            <p className="px-4 py-3 text-sm text-black text-center">Digite pelo menos 2 caracteres</p>
                           )}
                         </div>
                       )}
@@ -413,84 +441,20 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
           {/* TRATOR-LOJA (por setor) */}
           {formData.setor === 'Trator-Loja' && (
             <div className="p-6 bg-zinc-100/30 rounded-2xl border border-zinc-300/50">
-              <p className="text-xs font-black text-zinc-500 uppercase tracking-widest mb-4">Informacoes do Trator (Loja)</p>
-              <div ref={projRef} className="relative">
-                <label className={labelStyle}>Projeto / Chassis</label>
-                <div
-                  className={`${inputStyle} cursor-pointer flex items-center justify-between`}
-                  onClick={() => setProjDropdownOpen(!projDropdownOpen)}
-                >
-                  <span className={formData.projeto_nome ? 'text-zinc-900' : 'text-zinc-400'}>
-                    {formData.projeto_nome || 'Buscar projeto ou chassis...'}
-                  </span>
-                  <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                </div>
-                {projDropdownOpen && (
-                  <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
-                    <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
-                      <input
-                        autoFocus
-                        placeholder="Buscar por nome, chassis, modelo..."
-                        value={projBusca}
-                        onChange={e => setProjBusca(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-red-400"
-                      />
-                    </div>
-                    {formData.projeto_codigo && (
-                      <button type="button"
-                        onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
-                        className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100">
-                        ✕ Remover seleção
-                      </button>
-                    )}
-                    {projResultados.map(p => (
-                      <button type="button" key={`${p.codigo}-${p.empresa}`}
-                        onClick={() => {
-                          setFormData(prev => ({...prev, projeto_codigo: String(p.codigo), projeto_nome: p.nome, Chassis_Modelo: p.nome}));
-                          setProjDropdownOpen(false); setProjBusca('');
-                        }}
-                        className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.projeto_codigo === String(p.codigo) ? 'bg-red-50' : ''}`}>
-                        <span className="font-bold text-sm text-zinc-800">{p.nome}</span>
-                        <span className="text-xs text-zinc-400 ml-2">{p.empresa}</span>
-                      </button>
-                    ))}
-                    {projBusca.trim().length >= 2 && projResultados.length === 0 && (
-                      <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhum projeto encontrado</p>
-                    )}
-                    {projBusca.trim().length < 2 && (
-                      <p className="px-4 py-3 text-sm text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
-                    )}
-                  </div>
-                )}
-              </div>
-              {formData.projeto_nome && (
-                <div className="mt-3">
-                  <label className={labelStyle}>Chassis / Modelo (manual)</label>
-                  <input placeholder="Ajuste se necessário" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={inputStyle} />
-                </div>
-              )}
-              {!formData.projeto_nome && (
-                <div className="mt-3">
-                  <label className={labelStyle}>Chassis / Modelo do Trator</label>
-                  <input placeholder="Ex: VALTRA BM110 - CHASSIS 123456" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={inputStyle} />
-                </div>
-              )}
-              <div className="mt-3">
-                <label className={labelStyle}>Hodometro / Horimetro</label>
-                <input placeholder="Ex: 12.500 km / 3.400 h" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={inputStyle} />
-              </div>
-              <div ref={osRef} className="relative mt-3">
+              <p className="text-xs font-black text-black uppercase tracking-widest mb-4">Informacoes do Trator (Loja)</p>
+              {/* O.S. PRIMEIRO: escolher a ordem já puxa o chassis/modelo e o horímetro registrados nela */}
+              <div ref={osRef} className="relative">
                 <label className={labelStyle}>Ordem de Serviço</label>
                 <div
                   className={`${inputStyle} cursor-pointer flex items-center justify-between`}
                   onClick={() => setOsDropdownOpen(!osDropdownOpen)}
                 >
-                  <span className={formData.ordem_servico ? 'text-zinc-900' : 'text-zinc-400'}>
+                  <span className="text-black">
                     {formData.ordem_servico
                       ? `OS ${formData.ordem_servico} - ${ordensAbertas.find(o => String(o.Id_Ordem) === formData.ordem_servico)?.Os_Cliente || ''}`
-                      : 'Selecione a O.S...'}
+                      : 'Selecione a O.S. (puxa chassis e horímetro)...'}
                   </span>
-                  <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                 </div>
                 {osDropdownOpen && (
                   <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
@@ -500,14 +464,14 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                         placeholder="Buscar por OS, cliente ou técnico..."
                         value={osBusca}
                         onChange={e => setOsBusca(e.target.value)}
-                        className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-red-400"
+                        className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-orange-400"
                       />
                     </div>
                     {formData.ordem_servico && (
                       <button
                         type="button"
                         onClick={() => { setFormData(p => ({...p, ordem_servico: ''})); setOsDropdownOpen(false); setOsBusca(''); }}
-                        className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100"
+                        className="w-full px-4 py-2 text-left text-sm text-orange-500 hover:bg-orange-50 border-b border-zinc-100"
                       >
                         ✕ Remover seleção
                       </button>
@@ -524,15 +488,16 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                           key={o.Id_Ordem}
                           onClick={() => {
                             setFormData(p => ({...p, ordem_servico: String(o.Id_Ordem)}));
+                            puxarDadosOS(o);
                             setOsDropdownOpen(false);
                             setOsBusca('');
                           }}
-                          className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.ordem_servico === String(o.Id_Ordem) ? 'bg-red-50' : ''}`}
+                          className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.ordem_servico === String(o.Id_Ordem) ? 'bg-orange-50' : ''}`}
                         >
-                          <span className="font-bold text-sm text-zinc-800">OS {o.Id_Ordem}</span>
-                          <span className="text-xs text-zinc-500 ml-2">{o.Os_Cliente}</span>
-                          <span className="text-xs text-zinc-400 ml-2">({o.Os_Tecnico})</span>
-                          <span className="text-[10px] text-zinc-400 ml-2 uppercase">{o.Status}</span>
+                          <span className="font-bold text-sm text-black">OS {o.Id_Ordem}</span>
+                          <span className="text-xs text-black ml-2">{o.Os_Cliente}</span>
+                          <span className="text-xs text-black ml-2">({o.Os_Tecnico})</span>
+                          <span className="text-[10px] text-black ml-2 uppercase">{o.Status}</span>
                         </button>
                       ))
                     }
@@ -541,10 +506,69 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                       const q = osBusca.toLowerCase();
                       return String(o.Id_Ordem).toLowerCase().includes(q) || (o.Os_Cliente || '').toLowerCase().includes(q) || (o.Os_Tecnico || '').toLowerCase().includes(q);
                     }).length === 0 && (
-                      <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhuma O.S. encontrada</p>
+                      <p className="px-4 py-3 text-sm text-black text-center">Nenhuma O.S. encontrada</p>
                     )}
                   </div>
                 )}
+              </div>
+              <div ref={projRef} className="relative mt-3">
+                <label className={labelStyle}>Projeto / Chassis</label>
+                <div
+                  className={`${inputStyle} cursor-pointer flex items-center justify-between`}
+                  onClick={() => setProjDropdownOpen(!projDropdownOpen)}
+                >
+                  <span className={formData.projeto_nome ? 'text-black' : 'text-black'}>
+                    {formData.projeto_nome || 'Buscar projeto ou chassis...'}
+                  </span>
+                  <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </div>
+                {projDropdownOpen && (
+                  <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
+                    <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                      <input
+                        autoFocus
+                        placeholder="Buscar por nome, chassis, modelo..."
+                        value={projBusca}
+                        onChange={e => setProjBusca(e.target.value)}
+                        className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-orange-400"
+                      />
+                    </div>
+                    {formData.projeto_codigo && (
+                      <button type="button"
+                        onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
+                        className="w-full px-4 py-2 text-left text-sm text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
+                        ✕ Remover seleção
+                      </button>
+                    )}
+                    {projResultados.map(p => (
+                      <button type="button" key={`${p.codigo}-${p.empresa}`}
+                        onClick={() => {
+                          setFormData(prev => ({...prev, projeto_codigo: String(p.codigo), projeto_nome: p.nome, Chassis_Modelo: p.nome}));
+                          setProjDropdownOpen(false); setProjBusca('');
+                        }}
+                        className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.projeto_codigo === String(p.codigo) ? 'bg-orange-50' : ''}`}>
+                        <span className="font-bold text-sm text-black">{p.nome}</span>
+                        <span className="text-xs text-black ml-2">{p.empresa}</span>
+                      </button>
+                    ))}
+                    {projBusca.trim().length >= 2 && projResultados.length === 0 && (
+                      <p className="px-4 py-3 text-sm text-black text-center">Nenhum projeto encontrado</p>
+                    )}
+                    {projBusca.trim().length < 2 && (
+                      <p className="px-4 py-3 text-sm text-black text-center">Digite pelo menos 2 caracteres</p>
+                    )}
+                  </div>
+                )}
+              </div>
+              {/* Um campo SÓ de chassis (antes eram dois e confundia): preenchido
+                  pela O.S. ou pelo projeto, e dá pra ajustar na mão */}
+              <div className="mt-3">
+                <label className={labelStyle}>Chassis / Modelo do Trator</label>
+                <input placeholder="Puxado da O.S. ou do projeto — ajuste se precisar" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={inputStyle} />
+              </div>
+              <div className="mt-3">
+                <label className={labelStyle}>Hodometro / Horimetro</label>
+                <input placeholder="Ex: 12.500 km / 3.400 h" inputMode="numeric" value={formData.hodometro} onChange={e => setFormData({...formData, hodometro: e.target.value})} onBlur={e => setFormData({...formData, hodometro: formatarHodometro(e.target.value)})} className={inputStyle} />
               </div>
             </div>
           )}
@@ -560,12 +584,12 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                     className={`${inputStyle} !text-base border-orange-500/20 cursor-pointer flex items-center justify-between`}
                     onClick={() => setCliDropdownOpen(!cliDropdownOpen)}
                   >
-                    <span className={formData.cliente ? 'text-zinc-900' : 'text-zinc-400'}>
+                    <span className={formData.cliente ? 'text-black' : 'text-black'}>
                       {formData.cliente
                         ? `${formData.cliente}${formData.cliente_cnpj ? ` — ${formData.cliente_cnpj}` : ''}`
                         : 'Buscar cliente por nome ou CNPJ...'}
                     </span>
-                    <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                   </div>
                   {cliDropdownOpen && (
                     <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
@@ -581,7 +605,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                       {formData.cliente_cnpj && (
                         <button type="button"
                           onClick={() => { setFormData(p => ({...p, cliente: '', cliente_cnpj: ''})); setCliDropdownOpen(false); setCliBusca(''); }}
-                          className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                          className="w-full px-4 py-2 text-left text-sm text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
                           ✕ Remover seleção
                         </button>
                       )}
@@ -592,16 +616,16 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                             setCliDropdownOpen(false); setCliBusca('');
                           }}
                           className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.cliente_cnpj === c.cnpj_cpf ? 'bg-orange-50' : ''}`}>
-                          <span className="font-bold text-sm text-zinc-800">{c.nome_fantasia || c.razao_social}</span>
-                          <span className="text-xs text-zinc-500 ml-2">{c.cnpj_cpf}</span>
-                          {c.cidade && <span className="text-xs text-zinc-400 ml-2">({c.cidade})</span>}
+                          <span className="font-bold text-sm text-black">{c.nome_fantasia || c.razao_social}</span>
+                          <span className="text-xs text-black ml-2">{c.cnpj_cpf}</span>
+                          {c.cidade && <span className="text-xs text-black ml-2">({c.cidade})</span>}
                         </button>
                       ))}
                       {cliBusca.trim().length >= 2 && cliResultados.length === 0 && (
-                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhum cliente encontrado</p>
+                        <p className="px-4 py-3 text-sm text-black text-center">Nenhum cliente encontrado</p>
                       )}
                       {cliBusca.trim().length < 2 && (
-                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                        <p className="px-4 py-3 text-sm text-black text-center">Digite pelo menos 2 caracteres</p>
                       )}
                     </div>
                   )}
@@ -612,12 +636,12 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                     className={`${inputStyle} !text-base border-orange-500/20 cursor-pointer flex items-center justify-between`}
                     onClick={() => setOsDropdownOpen(!osDropdownOpen)}
                   >
-                    <span className={formData.ordem_servico ? 'text-zinc-900' : 'text-zinc-400'}>
+                    <span className={formData.ordem_servico ? 'text-black' : 'text-black'}>
                       {formData.ordem_servico
                         ? `OS ${formData.ordem_servico} - ${ordensAbertas.find(o => String(o.Id_Ordem) === formData.ordem_servico)?.Os_Cliente || ''}`
                         : 'Selecione a O.S...'}
                     </span>
-                    <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                   </div>
                   {osDropdownOpen && (
                     <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
@@ -627,14 +651,14 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                           placeholder="Buscar por OS, cliente ou técnico..."
                           value={osBusca}
                           onChange={e => setOsBusca(e.target.value)}
-                          className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-red-400"
+                          className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-orange-400"
                         />
                       </div>
                       {formData.ordem_servico && (
                         <button
                           type="button"
                           onClick={() => { setFormData(p => ({...p, ordem_servico: ''})); setOsDropdownOpen(false); setOsBusca(''); }}
-                          className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100"
+                          className="w-full px-4 py-2 text-left text-sm text-orange-500 hover:bg-orange-50 border-b border-zinc-100"
                         >
                           ✕ Remover seleção
                         </button>
@@ -650,16 +674,17 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                             type="button"
                             key={o.Id_Ordem}
                             onClick={() => {
-                              setFormData(p => ({...p, ordem_servico: String(o.Id_Ordem), cliente: o.Os_Cliente || p.cliente}));
+                              setFormData(p => ({...p, ordem_servico: String(o.Id_Ordem), cliente: o.Os_Cliente || p.cliente, cliente_cnpj: o.Cnpj_Cliente || p.cliente_cnpj}));
+                              puxarDadosOS(o); // chassis + horímetro registrados na OS
                               setOsDropdownOpen(false);
                               setOsBusca('');
                             }}
-                            className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.ordem_servico === String(o.Id_Ordem) ? 'bg-red-50' : ''}`}
+                            className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.ordem_servico === String(o.Id_Ordem) ? 'bg-orange-50' : ''}`}
                           >
-                            <span className="font-bold text-sm text-zinc-800">OS {o.Id_Ordem}</span>
-                            <span className="text-xs text-zinc-500 ml-2">{o.Os_Cliente}</span>
-                            <span className="text-xs text-zinc-400 ml-2">({o.Os_Tecnico})</span>
-                            <span className="text-[10px] text-zinc-400 ml-2 uppercase">{o.Status}</span>
+                            <span className="font-bold text-sm text-black">OS {o.Id_Ordem}</span>
+                            <span className="text-xs text-black ml-2">{o.Os_Cliente}</span>
+                            <span className="text-xs text-black ml-2">({o.Os_Tecnico})</span>
+                            <span className="text-[10px] text-black ml-2 uppercase">{o.Status}</span>
                           </button>
                         ))
                       }
@@ -668,7 +693,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                         const q = osBusca.toLowerCase();
                         return String(o.Id_Ordem).toLowerCase().includes(q) || (o.Os_Cliente || '').toLowerCase().includes(q) || (o.Os_Tecnico || '').toLowerCase().includes(q);
                       }).length === 0 && (
-                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhuma O.S. encontrada</p>
+                        <p className="px-4 py-3 text-sm text-black text-center">Nenhuma O.S. encontrada</p>
                       )}
                     </div>
                   )}
@@ -679,10 +704,10 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                     className={`${inputStyle} !text-base border-orange-500/20 cursor-pointer flex items-center justify-between`}
                     onClick={() => setProjDropdownOpen(!projDropdownOpen)}
                   >
-                    <span className={formData.projeto_nome ? 'text-zinc-900' : 'text-zinc-400'}>
+                    <span className={formData.projeto_nome ? 'text-black' : 'text-black'}>
                       {formData.projeto_nome || 'Buscar projeto ou chassis...'}
                     </span>
-                    <svg className="w-4 h-4 text-zinc-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                    <svg className="w-4 h-4 text-black" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                   </div>
                   {projDropdownOpen && (
                     <div className="absolute z-50 mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-auto">
@@ -698,7 +723,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                       {formData.projeto_codigo && (
                         <button type="button"
                           onClick={() => { setFormData(p => ({...p, projeto_codigo: '', projeto_nome: '', Chassis_Modelo: ''})); setProjDropdownOpen(false); setProjBusca(''); }}
-                          className="w-full px-4 py-2 text-left text-sm text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                          className="w-full px-4 py-2 text-left text-sm text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
                           ✕ Remover seleção
                         </button>
                       )}
@@ -709,18 +734,22 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                             setProjDropdownOpen(false); setProjBusca('');
                           }}
                           className={`w-full px-4 py-3 text-left hover:bg-zinc-50 border-b border-zinc-50 ${formData.projeto_codigo === String(p.codigo) ? 'bg-orange-50' : ''}`}>
-                          <span className="font-bold text-sm text-zinc-800">{p.nome}</span>
-                          <span className="text-xs text-zinc-400 ml-2">{p.empresa}</span>
+                          <span className="font-bold text-sm text-black">{p.nome}</span>
+                          <span className="text-xs text-black ml-2">{p.empresa}</span>
                         </button>
                       ))}
                       {projBusca.trim().length >= 2 && projResultados.length === 0 && (
-                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Nenhum projeto encontrado</p>
+                        <p className="px-4 py-3 text-sm text-black text-center">Nenhum projeto encontrado</p>
                       )}
                       {projBusca.trim().length < 2 && (
-                        <p className="px-4 py-3 text-sm text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                        <p className="px-4 py-3 text-sm text-black text-center">Digite pelo menos 2 caracteres</p>
                       )}
                     </div>
                   )}
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-orange-400 uppercase">Chassis / Modelo</label>
+                  <input placeholder="Puxado da O.S. — ajuste se precisar" value={formData.Chassis_Modelo} onChange={e => setFormData({...formData, Chassis_Modelo: e.target.value.toUpperCase()})} className={`${inputStyle} !text-base border-orange-500/20`} />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-orange-400 uppercase">Valor Cobrado do Cliente</label>
@@ -738,17 +767,17 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
           {/* Grupos (coletivos) — opcional, em dropdown pra não poluir o form */}
           {gruposDisp.length > 0 && (
             <div>
-              <label className={labelStyle}>Adicionar a grupo(s) <span className="text-zinc-400 normal-case tracking-normal font-medium">(opcional)</span></label>
+              <label className={labelStyle}>Adicionar a grupo(s) <span className="text-black normal-case tracking-normal font-medium">(opcional)</span></label>
               <div className="relative">
                 <button type="button" onClick={() => setGruposFormAberto(o => !o)}
                   className={`${inputStyle} flex items-center gap-2 text-left`}>
-                  <FolderOpen size={18} className="text-zinc-400 shrink-0" />
-                  <span className={`flex-1 truncate ${gruposSel.length ? 'text-zinc-900' : 'text-zinc-400'}`}>
+                  <FolderOpen size={18} className="text-black shrink-0" />
+                  <span className={`flex-1 truncate ${gruposSel.length ? 'text-black' : 'text-black'}`}>
                     {gruposSel.length === 0 ? 'Nenhum grupo'
                       : gruposSel.length === 1 ? gruposDisp.find((g: any) => g.id === gruposSel[0])?.nome
                       : `${gruposSel.length} grupos selecionados`}
                   </span>
-                  <ChevronDown size={20} className={`text-zinc-400 transition-transform ${gruposFormAberto ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={20} className={`text-black transition-transform ${gruposFormAberto ? 'rotate-180' : ''}`} />
                 </button>
                 {gruposFormAberto && (
                   <div className="absolute z-20 mt-2 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-64 overflow-y-auto p-1.5">
@@ -757,8 +786,8 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                       return (
                         <button type="button" key={g.id}
                           onClick={() => setGruposSel(prev => sel ? prev.filter(x => x !== g.id) : [...prev, g.id])}
-                          className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-base transition-all ${sel ? 'bg-red-50 text-red-700' : 'text-zinc-700 hover:bg-zinc-50'}`}>
-                          <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${sel ? 'bg-red-600 border-red-600' : 'border-zinc-300'}`}>
+                          className={`w-full flex items-center gap-3 px-3 py-3 rounded-lg text-left text-base transition-all ${sel ? 'bg-orange-50 text-orange-700' : 'text-black hover:bg-zinc-50'}`}>
+                          <span className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${sel ? 'bg-orange-600 border-orange-600' : 'border-zinc-300'}`}>
                             {sel && <Check size={14} className="text-white" />}
                           </span>
                           {g.nome}
@@ -771,7 +800,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
             </div>
           )}
 
-          <button type="submit" className="w-full bg-white text-slate-900 font-black py-6 rounded-xl shadow-lg hover:bg-red-500 hover:text-white transition-all uppercase text-sm tracking-[0.4em]">
+          <button type="submit" className="w-full bg-white text-black font-black py-6 rounded-xl shadow-lg hover:bg-orange-500 hover:text-white transition-all uppercase text-sm tracking-[0.4em]">
             Confirmar e Enviar Pedido
           </button>
         </form>

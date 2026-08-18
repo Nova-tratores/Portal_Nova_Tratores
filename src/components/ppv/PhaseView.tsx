@@ -188,9 +188,14 @@ const MiniCard = memo(function MiniCard({
   }
 
   // ── Modo CARDS ──
+  // Título: Nº em NEGRITO + cliente sem negrito; infos em LISTA embaixo (18/08)
+  const numero = String(o.id || "").replace(/^(PPV|REM)-?/i, "");
   return (
     <div ref={cardRef} className={`ppv-mini-card ${dragging ? "dragging" : ""}`} draggable onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
-      <div className="ppv-mini-card-title" style={{ color: tituloColor }}>{titulo}</div>
+      <div className="ppv-mini-card-title" style={{ color: tituloColor }}>
+        <b className="ppv-num-neon">{isTipoRem ? `REM ${numero}` : numero}</b>
+        <span style={{ fontWeight: 400, color: "#334155" }}> — {o.cliente || "Sem Cliente"}</span>
+      </div>
       {onStatusChange && (
         <div className="ppv-mini-card-phase" onClick={(e) => e.stopPropagation()}>
           <select value={statusNorm} onChange={(e) => onStatusChange(o.id, e.target.value)} className="ppv-mini-card-phase-select">
@@ -198,25 +203,26 @@ const MiniCard = memo(function MiniCard({
           </select>
         </div>
       )}
-      <div className="ppv-mini-card-top">
-        <span className={`ppv-mini-card-tipo ${isTipoRem ? "rem" : ""}`}>{isTipoRem ? "REM" : "PPV"}</span>
-        <span className="ppv-mini-card-valor">{valorFmt}</span>
+      {/* Informações em LISTA */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 9 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
+          <span style={{ color: "#94a3b8" }}><span className={`ppv-mini-card-tipo ${isTipoRem ? "rem" : ""}`} style={{ marginRight: 6 }}>{isTipoRem ? "REM" : "PPV"}</span>Valor</span>
+          <b style={{ color: "#0f172a", whiteSpace: "nowrap", fontSize: 15 }}>{valorFmt}</b>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
+          <span style={{ color: "#94a3b8" }}><i className="fas fa-user-cog" style={{ marginRight: 5 }} />Técnico</span>
+          <span style={{ color: "#334155", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.tecnico || "?"}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
+          <span style={{ color: "#94a3b8" }}><i className="far fa-calendar" style={{ marginRight: 5 }} />Data</span>
+          <span style={{ color: "#334155", whiteSpace: "nowrap" }}>{dataFmt}</span>
+        </div>
+        {o.observacao && <div className="ppv-mini-card-obs" style={{ marginTop: 2, fontSize: 13 }}>{o.observacao}</div>}
       </div>
-      <div className="ppv-mini-card-cliente">{o.cliente || "Sem Cliente"}</div>
-      {o.observacao && <div className="ppv-mini-card-obs">{o.observacao}</div>}
-      <div className="ppv-mini-card-bottom">
-        <span className="ppv-mini-card-tecnico"><i className="fas fa-user-cog" /> {o.tecnico || "?"}</span>
-        <span className="ppv-mini-card-data"><i className="far fa-calendar" /> {dataFmt}</span>
-      </div>
-      {o.ultimaAcao && (
-        <div style={{ background: "#F8F9FA", borderRadius: 3, padding: "6px 8px", marginTop: 8, border: "1px solid #E9ECEF" }}>
-          <div style={{ fontSize: 10, fontWeight: 600, color: "#374151", marginBottom: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {o.ultimaAcao}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 9, color: "#9CA3AF" }}>
-            <span><i className="far fa-user" style={{ marginRight: 3 }} />{o.ultimoUsuario}</span>
-            <span>{o.ultimaData}</span>
-          </div>
+      {/* Só quem criou — a "última ação" saiu (poluía o card) */}
+      {(o.criadoPor || o.ultimoUsuario) && (
+        <div style={{ marginTop: 9, fontSize: 12.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          <i className="far fa-user" style={{ marginRight: 4 }} /> Criado por <b style={{ color: "#475569" }}>{o.criadoPor || o.ultimoUsuario}</b>
         </div>
       )}
       {previewPortal}

@@ -64,12 +64,12 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
 
   const Cabecalho = ({ r, lado }: { r: any; lado: string }) => (
     <div className="flex-1 min-w-0 px-5 py-4">
-      <div className="text-[11px] uppercase tracking-[0.2em] text-zinc-400">{lado}</div>
+      <div className="text-[11px] uppercase tracking-[0.2em] text-black">{lado}</div>
       <div className="flex items-baseline gap-2 mt-1">
-        <span className="text-[22px] text-zinc-900 tracking-tight">#{r.id}</span>
-        <span className="text-[13px] text-red-600 bg-red-50 px-2 py-0.5 rounded-md">{r.tipo || r.ReqTipo}</span>
+        <span className="text-[22px] text-black tracking-tight">#{r.id}</span>
+        <span className="text-[13px] text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md">{r.tipo || r.ReqTipo}</span>
       </div>
-      <div className="text-[14px] text-zinc-600 mt-1 line-clamp-2">{r.titulo}</div>
+      <div className="text-[14px] text-black mt-1 line-clamp-2">{r.titulo}</div>
     </div>
   );
 
@@ -77,19 +77,19 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
     <div className="fixed inset-0 z-[85] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onFechar}>
       <div className="bg-white w-full max-w-6xl max-h-[94vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-zinc-200 flex items-center gap-3">
-          <ArrowLeftRight size={18} className="text-red-600" />
+          <ArrowLeftRight size={18} className="text-orange-600" />
           <div className="flex-1">
-            <div className="text-[15px] text-zinc-900">Comparar requisições</div>
-            <div className="text-[13px] text-zinc-500">
+            <div className="text-[15px] text-black">Comparar requisições</div>
+            <div className="text-[13px] text-black">
               {linhas.length - iguais} campo(s) diferente(s) de {linhas.length} — o que difere está destacado.
             </div>
           </div>
           {onTrocar && (
-            <button onClick={onTrocar} className="px-4 py-2 rounded-xl border border-zinc-200 text-[14px] text-zinc-600 hover:bg-zinc-50">
+            <button onClick={onTrocar} className="px-4 py-2 rounded-xl border border-zinc-200 text-[14px] text-black hover:bg-zinc-50">
               Escolher outras
             </button>
           )}
-          <button onClick={onFechar} className="w-9 h-9 rounded-lg flex items-center justify-center text-zinc-500 hover:bg-zinc-100"><X size={18} /></button>
+          <button onClick={onFechar} className="w-9 h-9 rounded-lg flex items-center justify-center text-black hover:bg-zinc-100"><X size={18} /></button>
         </div>
 
         {/* Cabeçalho das duas colunas — fica fixo ao rolar */}
@@ -105,13 +105,13 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
             const difere = String(l.a).trim() !== String(l.b).trim();
             return (
               <div key={l.label} className={`flex items-stretch border-b border-zinc-100 ${difere ? 'bg-amber-50/60' : i % 2 ? 'bg-zinc-50/40' : ''}`}>
-                <div className="w-[160px] shrink-0 px-5 py-3 text-[12px] uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                <div className="w-[160px] shrink-0 px-5 py-3 text-[12px] uppercase tracking-wider text-black flex items-center gap-1.5">
                   {difere ? <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" /> : <span className="w-1.5 h-1.5 shrink-0" />}
                   {l.label}
                 </div>
-                <div className={`flex-1 min-w-0 px-5 py-3 text-[14px] whitespace-pre-wrap break-words ${l.a ? 'text-zinc-800' : 'text-zinc-300'}`}>{l.a || '—'}</div>
+                <div className={`flex-1 min-w-0 px-5 py-3 text-[14px] whitespace-pre-wrap break-words ${l.a ? 'text-black' : 'text-zinc-300'}`}>{l.a || '—'}</div>
                 <div className="w-px bg-zinc-200" />
-                <div className={`flex-1 min-w-0 px-5 py-3 text-[14px] whitespace-pre-wrap break-words ${l.b ? 'text-zinc-800' : 'text-zinc-300'}`}>{l.b || '—'}</div>
+                <div className={`flex-1 min-w-0 px-5 py-3 text-[14px] whitespace-pre-wrap break-words ${l.b ? 'text-black' : 'text-zinc-300'}`}>{l.b || '—'}</div>
               </div>
             );
           })}
@@ -122,7 +122,7 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
             const difere = ta !== tb;
             return (
               <div key={campo} className={`flex items-stretch border-b border-zinc-100 ${difere ? 'bg-amber-50/60' : ''}`}>
-                <div className="w-[160px] shrink-0 px-5 py-3 text-[12px] uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+                <div className="w-[160px] shrink-0 px-5 py-3 text-[12px] uppercase tracking-wider text-black flex items-center gap-1.5">
                   {difere ? <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" /> : <span className="w-1.5 h-1.5 shrink-0" />}
                   <Icone size={13} /> {n}
                 </div>

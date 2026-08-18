@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
 
   const [dados, logsData] = await Promise.all([
     supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PEDIDOS}?select=id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao&order=data.desc`
+      `${TBL_PEDIDOS}?select=id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao,email_usuario&order=data.desc`
     ),
     supabaseFetch<Record<string, unknown>[]>(
       `${TBL_LOGS}?select=id_ppv,acao,usuario_email,data_hora&order=id.desc`
@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
       desconto: parseFloat(String(getValorInsensivel(r, "desconto_percentual") || 0)),
       data: getValorInsensivel(r, "data"),
       observacao: getValorInsensivel(r, "observacao"),
+      criadoPor: getValorInsensivel(r, "email_usuario") || "",
       ultimaAcao: ultimoLog?.acao || "",
       ultimoUsuario: ultimoLog?.usuario || "",
       ultimaData: ultimoLog?.data || "",

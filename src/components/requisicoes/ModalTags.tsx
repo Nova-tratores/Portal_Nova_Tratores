@@ -6,7 +6,7 @@ import { X, Plus, Trash2, Tag, ChevronDown, ChevronUp } from 'lucide-react';
 interface TagReq { id: number; nome: string; cor: string; grupo: string | null }
 interface Props { open: boolean; onClose: () => void }
 
-const CORES = ['#dc2626', '#ea580c', '#d97706', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#be185d', '#64748b', '#1e293b'];
+const CORES = ['#EA580C', '#ea580c', '#d97706', '#16a34a', '#0891b2', '#2563eb', '#7c3aed', '#be185d', '#64748b', '#1e293b'];
 
 const GRUPOS = [
   { value: 'categoria', label: 'Categoria de Peça', color: '#ea580c' },

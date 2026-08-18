@@ -133,7 +133,7 @@ export default function OrcamentoVencidoAlerta({ userName }: { userName: string 
               disabled={salvando}
               style={{
                 flex: 1, padding: '14px', borderRadius: '14px', border: 'none',
-                background: '#ef4444', color: '#fff', fontSize: '14px', fontWeight: '700',
+                background: '#F97316', color: '#fff', fontSize: '14px', fontWeight: '700',
                 cursor: 'pointer', opacity: salvando ? 0.6 : 1,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
                 boxShadow: '0 4px 12px rgba(239,68,68,0.3)'

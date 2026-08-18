@@ -719,7 +719,8 @@ body {
   gap: 16px;
   padding: 0 24px;
   min-height: 60px;
-  background: var(--ppv-primary-dark);
+  /* laranja de verdade (o tom antigo --ppv-primary-dark puxava pro vermelho) */
+  background: linear-gradient(135deg, #F97316, #EA580C);
   color: white;
   position: relative;
   z-index: 30;
@@ -762,13 +763,13 @@ body {
 .ppv-topbar-nav-btn,
 .ppv-topbar-action-btn {
   position: relative;
-  padding: 10px 18px;
+  padding: 13px 26px;
   border: none;
   border-radius: 12px 12px 0 0;
-  background: rgba(255,255,255,0.10);
-  color: rgba(255,255,255,0.72);
+  background: rgba(255,255,255,0.22);
+  color: #111827; /* guias fechadas com fonte PRETA (pedido do usuário, 18/08) */
   font-family: 'Poppins', sans-serif;
-  font-size: 13.5px;
+  font-size: 15px;
   font-weight: 500;
   cursor: pointer;
   display: flex;
@@ -779,8 +780,8 @@ body {
 }
 .ppv-topbar-nav-btn:hover:not(.active),
 .ppv-topbar-action-btn:hover {
-  background: rgba(255,255,255,0.20);
-  color: #fff;
+  background: rgba(255,255,255,0.38);
+  color: #000;
 }
 .ppv-topbar-nav-btn.active {
   background: #f1f5f9;
@@ -795,7 +796,321 @@ body {
 .ppv-topbar-nav-btn.active::before { left: -11px; border-bottom-right-radius: 11px; box-shadow: 5.5px 5.5px 0 5.5px #f1f5f9; }
 .ppv-topbar-nav-btn.active::after { right: -11px; border-bottom-left-radius: 11px; box-shadow: -5.5px 5.5px 0 5.5px #f1f5f9; }
 .ppv-topbar-nav-btn i,
-.ppv-topbar-action-btn i { font-size: 13px; }
+.ppv-topbar-action-btn i { font-size: 14.5px; }
+
+/* ============================================================ */
+/* MÓDULO PEÇAS — skin: tudo quadrado, detalhes laranja, fontes  */
+/* pretas (sem cinza). Aplicada via classe .pecas-skin no root   */
+/* de cada tela (PPV, Orçamentos, Requisições, Retiradas).       */
+/* ============================================================ */
+/* bordas quadradas em tudo — menos as guias Chrome da faixa laranja
+   (regra simples + re-afirmação abaixo, pra não depender de :not() complexo) */
+.pecas-skin * { border-radius: 0 !important; }
+.pecas-skin .ppv-topbar { border-radius: 0 !important; }
+.pecas-skin .ppv-topbar-nav-btn { border-radius: 12px 12px 0 0 !important; }
+
+/* Hierarquia de leitura: valores/títulos pretos, apoio (rótulos, legendas)
+   em cinza — sem forçar preto em tudo (ficava ilegível, tudo igual). */
+/* detalhes em LARANJA (a cor do módulo): acentos azuis/vermelhos do Tailwind viram laranja */
+.pecas-skin [class*="bg-red-5"], .pecas-skin [class*="bg-red-6"], .pecas-skin [class*="bg-red-7"],
+.pecas-skin [class*="bg-blue-5"], .pecas-skin [class*="bg-blue-6"], .pecas-skin [class*="bg-blue-7"],
+.pecas-skin [class*="bg-indigo-5"], .pecas-skin [class*="bg-indigo-6"] {
+  background-color: #EA580C !important;
+}
+.pecas-skin [class*="text-red-5"], .pecas-skin [class*="text-red-6"], .pecas-skin [class*="text-red-7"],
+.pecas-skin [class*="text-blue-5"], .pecas-skin [class*="text-blue-6"], .pecas-skin [class*="text-blue-7"],
+.pecas-skin [class*="text-indigo-6"] {
+  color: #EA580C !important;
+}
+.pecas-skin [class*="border-red-"], .pecas-skin [class*="border-blue-"], .pecas-skin [class*="border-indigo-"] {
+  border-color: #EA580C !important;
+}
+.pecas-skin [class*="bg-red-1"], .pecas-skin [class*="bg-blue-1"], .pecas-skin [class*="bg-red-50"], .pecas-skin [class*="bg-blue-50"] {
+  background-color: #FFF7ED !important; /* laranja bem claro */
+}
+
+/* Chip de anexo ACESO (NF/Boleto/Recibo anexados): laranja FLUORESCENTE,
+   com brilho de marca-texto — funciona nos dois temas. */
+.chip-anexo-on {
+  background: #FF9E1B !important;
+  color: #1a1200 !important;
+  font-weight: 700;
+  box-shadow: 0 0 10px rgba(255, 158, 27, 0.55);
+}
+
+/* ============================================================ */
+/* MODO ESCURO — módulo Peças (cores claras fixas, inline e     */
+/* Tailwind). Só em TELA: na impressão as cores originais valem. */
+/* ============================================================ */
+@media screen {
+  /* Textos escuros aplicados por style inline (React serializa hex → rgb) */
+  [data-theme="dark"] [style*="color: rgb(15, 23, 42)"],
+  [data-theme="dark"] [style*="color: rgb(17, 24, 39)"],
+  [data-theme="dark"] [style*="color: rgb(31, 31, 31)"],
+  [data-theme="dark"] [style*="color: rgb(30, 41, 59)"],
+  [data-theme="dark"] [style*="color: rgb(51, 65, 85)"],
+  [data-theme="dark"] [style*="color: rgb(63, 58, 52)"],
+  [data-theme="dark"] [style*="color: rgb(58, 58, 58)"],
+  [data-theme="dark"] [style*="color: rgb(0, 0, 0)"] {
+    color: var(--portal-text) !important;
+  }
+  [data-theme="dark"] [style*="color: rgb(71, 85, 105)"],
+  [data-theme="dark"] [style*="color: rgb(100, 116, 139)"],
+  [data-theme="dark"] [style*="color: rgb(95, 87, 76)"],
+  [data-theme="dark"] [style*="color: rgb(138, 131, 120)"] {
+    color: #b6bcc6 !important;
+  }
+  /* Âmbar/marrom escuros (avisos amarelos): no escuro viram âmbar CLARO legível */
+  [data-theme="dark"] [style*="color: rgb(146, 64, 14)"],
+  [data-theme="dark"] [style*="color: rgb(122, 90, 0)"],
+  [data-theme="dark"] [style*="color: rgb(120, 53, 15)"],
+  [data-theme="dark"] [style*="color: rgb(90, 70, 0)"] {
+    color: #fcd34d !important;
+  }
+  [data-theme="dark"] [style*="color: rgb(180, 83, 9)"],
+  [data-theme="dark"] [style*="color: rgb(161, 98, 7)"],
+  [data-theme="dark"] [style*="color: rgb(217, 119, 6)"] {
+    color: #fbbf24 !important;
+  }
+  [data-theme="dark"] [style*="color: rgb(154, 52, 18)"],
+  [data-theme="dark"] [style*="color: rgb(194, 65, 12)"] {
+    color: #fdba74 !important;
+  }
+  [data-theme="dark"] [style*="color: rgb(127, 29, 29)"],
+  [data-theme="dark"] [style*="color: rgb(153, 27, 27)"] {
+    color: #fca5a5 !important;
+  }
+  /* Classes Tailwind equivalentes (avisos amarelos/laranja) */
+  [data-theme="dark"] .text-amber-700, [data-theme="dark"] .text-amber-800, [data-theme="dark"] .text-amber-900,
+  [data-theme="dark"] .text-yellow-700, [data-theme="dark"] .text-yellow-800 {
+    color: #fcd34d !important;
+  }
+  [data-theme="dark"] .text-orange-700, [data-theme="dark"] .text-orange-800, [data-theme="dark"] .text-orange-900 {
+    color: #fdba74 !important;
+  }
+  [data-theme="dark"] .bg-amber-50, [data-theme="dark"] .bg-yellow-50, [data-theme="dark"] .bg-amber-50\/50 {
+    background-color: #2b2008 !important;
+  }
+  [data-theme="dark"] .border-amber-200, [data-theme="dark"] .border-amber-300, [data-theme="dark"] .border-yellow-200 {
+    border-color: #6b5310 !important;
+  }
+  /* Fundos claros inline (qualquer elemento; cobre background E background-color) */
+  [data-theme="dark"] [style*="background: rgb(255, 255, 255)"],
+  [data-theme="dark"] [style*="background-color: rgb(255, 255, 255)"],
+  [data-theme="dark"] [style*="background-color: rgb(248, 250, 252)"],
+  [data-theme="dark"] [style*="background-color: rgb(241, 245, 249)"],
+  [data-theme="dark"] [style*="background-color: rgb(250, 250, 250)"],
+  [data-theme="dark"] [style*="background-color: rgb(245, 245, 245)"],
+  [data-theme="dark"] [style*="background-color: rgb(248, 249, 250)"],
+  [data-theme="dark"] [style*="background: rgb(255, 250, 245)"],
+  [data-theme="dark"] [style*="background: rgb(248, 250, 252)"],
+  [data-theme="dark"] [style*="background: rgb(250, 251, 252)"],
+  [data-theme="dark"] [style*="background: rgb(241, 245, 249)"],
+  [data-theme="dark"] [style*="background: rgb(244, 242, 238)"],
+  [data-theme="dark"] [style*="background: rgb(250, 249, 247)"],
+  [data-theme="dark"] [style*="background: rgb(248, 248, 246)"] {
+    background: var(--portal-bg-card) !important;
+  }
+  /* Azuis bem claros (pílulas de projeto, chips informativos) */
+  [data-theme="dark"] [style*="background: rgb(239, 246, 255)"],
+  [data-theme="dark"] [style*="background-color: rgb(239, 246, 255)"],
+  [data-theme="dark"] [style*="background: rgb(219, 234, 254)"],
+  [data-theme="dark"] [style*="background-color: rgb(219, 234, 254)"] {
+    background: #14233d !important;
+  }
+  /* Variantes background-color dos tons claros (laranja/vermelho/cinza-azulado) */
+  [data-theme="dark"] [style*="background-color: rgb(255, 247, 237)"],
+  [data-theme="dark"] [style*="background-color: rgb(255, 251, 235)"],
+  [data-theme="dark"] [style*="background: rgb(255, 251, 245)"],
+  [data-theme="dark"] [style*="background-color: rgb(255, 251, 245)"] { background: #2b1c10 !important; }
+  [data-theme="dark"] [style*="background-color: rgb(254, 242, 242)"] { background: #2a1215 !important; }
+  [data-theme="dark"] [style*="background-color: rgb(248, 250, 252)"],
+  [data-theme="dark"] [style*="background-color: rgb(241, 245, 249)"],
+  [data-theme="dark"] [style*="background-color: rgb(249, 250, 251)"],
+  [data-theme="dark"] [style*="background-color: rgb(243, 244, 246)"] { background: var(--portal-bg-secondary) !important; }
+  [data-theme="dark"] [style*="background: rgb(249, 250, 251)"],
+  [data-theme="dark"] [style*="background: rgb(243, 244, 246)"] { background: var(--portal-bg-secondary) !important; }
+  [data-theme="dark"] [style*="solid rgb(191, 219, 254)"] { border-color: #1e3a8a !important; }
+
+  /* Tons de laranja bem claros (destaques do módulo Peças) */
+  [data-theme="dark"] [style*="background: rgb(255, 247, 237)"],
+  [data-theme="dark"] [style*="background: rgb(255, 247, 239)"],
+  [data-theme="dark"] [style*="background: rgb(255, 243, 230)"],
+  [data-theme="dark"] [style*="background: rgb(254, 243, 199)"],
+  [data-theme="dark"] [style*="background: rgb(255, 247, 214)"],
+  [data-theme="dark"] [style*="background: rgb(255, 251, 235)"] {
+    background: #2b1c10 !important;
+  }
+  /* Bordas claras inline */
+  [data-theme="dark"] [style*="solid rgb(226, 232, 240)"],
+  [data-theme="dark"] [style*="solid rgb(238, 240, 243)"],
+  [data-theme="dark"] [style*="solid rgb(233, 236, 241)"],
+  [data-theme="dark"] [style*="solid rgb(227, 232, 239)"],
+  [data-theme="dark"] [style*="solid rgb(238, 242, 247)"],
+  [data-theme="dark"] [style*="solid rgb(245, 247, 250)"],
+  [data-theme="dark"] [style*="solid rgb(214, 208, 196)"],
+  [data-theme="dark"] [style*="solid rgb(230, 228, 222)"],
+  [data-theme="dark"] [style*="solid rgb(254, 215, 170)"] {
+    border-color: var(--portal-border) !important;
+  }
+  /* Classes utilitárias (Tailwind) — textos escuros ficam claros no escuro */
+  [data-theme="dark"] .text-black,
+  [data-theme="dark"] .text-slate-700, [data-theme="dark"] .text-slate-800, [data-theme="dark"] .text-slate-900,
+  [data-theme="dark"] .text-zinc-700, [data-theme="dark"] .text-zinc-800, [data-theme="dark"] .text-zinc-900 {
+    color: var(--portal-text) !important;
+  }
+  [data-theme="dark"] .bg-white, [data-theme="dark"] [class*="bg-white/"] { background-color: var(--portal-bg-card) !important; }
+  [data-theme="dark"] .bg-zinc-50, [data-theme="dark"] .bg-slate-50, [data-theme="dark"] .bg-zinc-100 {
+    background-color: var(--portal-bg-secondary) !important;
+  }
+  [data-theme="dark"] .bg-orange-50, [data-theme="dark"] .bg-orange-50\/50,
+  [data-theme="dark"] [class*="FFFAF5"], [data-theme="dark"] [class*="FFF7ED"] {
+    background-color: #2b1c10 !important;
+  }
+  [data-theme="dark"] .border-zinc-100, [data-theme="dark"] .border-zinc-200, [data-theme="dark"] .border-zinc-300,
+  [data-theme="dark"] .border-slate-100, [data-theme="dark"] .border-slate-200,
+  [data-theme="dark"] .border-orange-100, [data-theme="dark"] .border-orange-200,
+  [data-theme="dark"] .border-orange-200\/50, [data-theme="dark"] .border-orange-200\/60 {
+    border-color: var(--portal-border) !important;
+  }
+  /* Hovers claros que "acendem" no escuro */
+  [data-theme="dark"] .hover\:bg-zinc-50:hover, [data-theme="dark"] .hover\:bg-orange-50:hover {
+    background-color: var(--portal-bg-hover) !important;
+  }
+
+  /* ── Cards de grupo do DASHBOARD no escuro: cores FLUORESCENTES + letras pretas ── */
+  [data-theme="dark"] .dash-group-card,
+  [data-theme="dark"] .dash-group-card * { color: #0a0a0a !important; }
+  [data-theme="dark"] .dash-group-card [style*="rgba(255, 255, 255"] { background: rgba(0, 0, 0, 0.14) !important; }
+  [data-theme="dark"] .dash-group-servicos   { background: #22D3EE !important; box-shadow: 0 0 22px rgba(34, 211, 238, 0.45) !important; }
+  [data-theme="dark"] .dash-group-pecas      { background: #FF9E1B !important; box-shadow: 0 0 22px rgba(255, 158, 27, 0.5) !important; }
+  [data-theme="dark"] .dash-group-financeiro { background: #34F5A4 !important; box-shadow: 0 0 22px rgba(52, 245, 164, 0.45) !important; }
+  [data-theme="dark"] .dash-group-comercial  { background: #FF4D4D !important; box-shadow: 0 0 22px rgba(255, 77, 77, 0.5) !important; }
+  [data-theme="dark"] .dash-group-estoque    { background: #E2E8F0 !important; box-shadow: 0 0 22px rgba(226, 232, 240, 0.35) !important; }
+  [data-theme="dark"] .dash-group-frota      { background: #4D7EFF !important; box-shadow: 0 0 22px rgba(77, 126, 255, 0.5) !important; }
+  [data-theme="dark"] .dash-group-outros     { background: #A8B2C1 !important; box-shadow: 0 0 18px rgba(168, 178, 193, 0.35) !important; }
+
+  /* ── Guias Chrome da faixa laranja no escuro: a aba ativa "abre" pro fundo escuro ── */
+  [data-theme="dark"] .ppv-topbar-nav-btn.active {
+    background: var(--portal-bg);
+    color: #F97316;
+  }
+  [data-theme="dark"] .ppv-topbar-nav-btn.active::before { box-shadow: 5.5px 5.5px 0 5.5px var(--portal-bg); }
+  [data-theme="dark"] .ppv-topbar-nav-btn.active::after { box-shadow: -5.5px 5.5px 0 5.5px var(--portal-bg); }
+
+  /* ── Drawer do PPV (estilo Omie) no escuro ── */
+  [data-theme="dark"] .ppv-modal-container { background: var(--portal-bg-card); }
+  [data-theme="dark"] .ppv-drawer { background: var(--portal-bg); color: var(--portal-text); }
+  [data-theme="dark"] .ppv-action-rail { background: var(--portal-bg-card); border-left-color: var(--portal-border); }
+  [data-theme="dark"] .ppv-rail-btn { color: var(--portal-text); }
+  [data-theme="dark"] .ppv-rail-btn i { color: var(--portal-text-muted); }
+  [data-theme="dark"] .ppv-rail-btn:hover:not(:disabled) { background: var(--portal-bg-secondary); }
+  [data-theme="dark"] .ppv-rail-btn.ghost { color: var(--portal-text-secondary); }
+  [data-theme="dark"] .ppv-rail-btn.primary { color: #fff; }
+  [data-theme="dark"] .ppv-rail-sep { background: var(--portal-border); }
+  [data-theme="dark"] .ppv-omie-topbar, [data-theme="dark"] .ppv-omie-head, [data-theme="dark"] .ppv-drawer-header {
+    background: var(--portal-bg-card); border-color: var(--portal-border);
+  }
+  [data-theme="dark"] .ppv-omie-title { color: var(--portal-text); }
+  [data-theme="dark"] .ppv-omie-close { background: var(--portal-bg-card); color: var(--portal-text); border-color: var(--portal-border); }
+  [data-theme="dark"] .ppv-omie-close:hover { background: var(--portal-bg-secondary); }
+  [data-theme="dark"] .ppv-omie-tab { color: var(--portal-text-secondary); }
+  [data-theme="dark"] .ppv-omie-tab:hover { color: var(--portal-text); }
+  [data-theme="dark"] .ppv-drawer label,
+  [data-theme="dark"] .ppv-drawer .ppv-readonly-label { color: var(--portal-text-secondary); }
+  [data-theme="dark"] .ppv-card { background: var(--portal-bg-card) !important; border-color: var(--portal-border) !important; color: var(--portal-text); }
+  [data-theme="dark"] .ppv-card-title { color: var(--portal-text) !important; }
+
+  /* ── Hexes que faltavam (POS, Sync Omie, tabelas do drawer) ── */
+  [data-theme="dark"] [style*="color: rgb(30, 58, 95)"] { color: #7dd3fc !important; }   /* valores do POS */
+  [data-theme="dark"] [style*="color: rgb(82, 82, 82)"] { color: #c4c4c4 !important; }
+  [data-theme="dark"] [style*="background: rgb(240, 253, 244)"] { background: #0e2a1b !important; }  /* verde-claro */
+  [data-theme="dark"] [style*="background: rgb(254, 242, 242)"] { background: #2a1215 !important; }  /* vermelho-claro */
+  [data-theme="dark"] [style*="background: rgb(255, 242, 223)"] { background: #2b1c10 !important; }  /* linha selecionada */
+  [data-theme="dark"] [style*="background: rgb(237, 234, 228)"],
+  [data-theme="dark"] [style*="background: rgb(236, 234, 228)"],   /* boxOmie (caixas de totais) */
+  [data-theme="dark"] [style*="background: rgb(248, 249, 250)"] { background: var(--portal-bg-secondary) !important; }
+  [data-theme="dark"] [style*="color: rgb(74, 69, 61)"] { color: var(--portal-text) !important; } /* texto do boxOmie */
+  [data-theme="dark"] [style*="background: rgb(234, 247, 239)"] { background: #0e2a1b !important; } /* caixa verde do CMC */
+  [data-theme="dark"] [style*="solid rgb(191, 230, 205)"] { border-color: #14532d !important; }
+  [data-theme="dark"] [style*="background: rgb(229, 229, 229)"] { background: #3a3a3a !important; }
+  [data-theme="dark"] [style*="solid rgb(240, 240, 240)"],
+  [data-theme="dark"] [style*="solid rgb(229, 229, 229)"],
+  [data-theme="dark"] [style*="solid rgb(216, 210, 198)"] { border-color: var(--portal-border) !important; }
+  [data-theme="dark"] [style*="solid rgb(254, 202, 202)"] { border-color: #7f1d1d !important; }
+  [data-theme="dark"] [style*="solid rgb(187, 247, 208)"] { border-color: #14532d !important; }
+  [data-theme="dark"] [style*="solid rgb(245, 201, 154)"] { border-color: #7c3a12 !important; }
+
+  /* ── Botões de fundo LARANJA no escuro: legenda PRETA (Novo Lançamento,
+        Cards, Novo Item, Adicionar, Finalizar…) — pedido do usuário, 18/08 ── */
+  [data-theme="dark"] [style*="background: rgb(232, 115, 12)"],
+  [data-theme="dark"] [style*="background-color: rgb(232, 115, 12)"],
+  [data-theme="dark"] [style*="background: rgb(234, 88, 12)"],
+  [data-theme="dark"] [style*="background-color: rgb(234, 88, 12)"],
+  [data-theme="dark"] [style*="background: rgb(249, 115, 22)"],
+  [data-theme="dark"] [style*="background-color: rgb(249, 115, 22)"],
+  [data-theme="dark"] [style*="background: rgb(240, 162, 46)"],
+  [data-theme="dark"] [style*="linear-gradient(135deg, rgb(249, 115, 22)"],
+  [data-theme="dark"] [style*="linear-gradient(135deg, rgb(232, 115, 12)"] {
+    color: #1a1200 !important;
+  }
+  [data-theme="dark"] .ppv-rail-btn.primary,
+  [data-theme="dark"] .ppv-rail-btn.primary i,
+  [data-theme="dark"] .ppv-btn-save,
+  [data-theme="dark"] .cat-add {
+    color: #1a1200 !important;
+  }
+
+  /* ── Botões/chips de fundo VERMELHO no escuro (Menu, perfil…): legenda PRETA ── */
+  [data-theme="dark"] [style*="background: rgb(220, 38, 38)"],
+  [data-theme="dark"] [style*="background-color: rgb(220, 38, 38)"],
+  [data-theme="dark"] [style*="background: rgb(185, 28, 28)"],
+  [data-theme="dark"] [style*="linear-gradient(135deg, rgb(220, 38, 38)"],
+  [data-theme="dark"] [style*="linear-gradient(135deg, rgb(239, 68, 68)"] {
+    color: #0f0505 !important;
+  }
+  [data-theme="dark"] [style*="linear-gradient(135deg, rgb(220, 38, 38)"] :is(span, div, b, small, p),
+  [data-theme="dark"] [style*="linear-gradient(135deg, rgb(239, 68, 68)"] :is(span, div, b, small, p) {
+    color: #0f0505 !important;
+  }
+
+  /* Nome e função no chip do perfil (fundo vermelho do header) */
+  [data-theme="dark"] .portal-user-name p { color: #0f0505 !important; }
+
+  /* ── Botões de fundo AZUL do módulo Frota no escuro: legenda PRETA ── */
+  [data-theme="dark"] [style*="background: rgb(30, 64, 175)"],
+  [data-theme="dark"] [style*="background-color: rgb(30, 64, 175)"],
+  [data-theme="dark"] [style*="background: rgb(29, 78, 216)"],
+  [data-theme="dark"] [style*="background-color: rgb(29, 78, 216)"],
+  [data-theme="dark"] [style*="background: rgb(37, 99, 235)"],
+  [data-theme="dark"] [style*="background-color: rgb(37, 99, 235)"],
+  [data-theme="dark"] [style*="background: rgb(30, 58, 138)"],
+  [data-theme="dark"] [style*="linear-gradient(135deg, rgb(29, 78, 216)"] {
+    color: #0b0f1a !important;
+  }
+
+  /* ── Fase do PPV no escuro: neon mais aceso ainda ── */
+  [data-theme="dark"] .ppv-phase-group-name {
+    background: transparent !important;
+    color: #FFA51E !important;
+    text-shadow: 0 0 10px rgba(255, 165, 30, 0.75);
+  }
+  [data-theme="dark"] .bg-orange-100 { background-color: #9A3412 !important; }
+  [data-theme="dark"] .text-orange-800 { color: #FFEDD5 !important; }
+
+  /* ── Anexos do CardReq e afins: cinza-claro fixo vira cinza-escuro ── */
+  [data-theme="dark"] .bg-zinc-200, [data-theme="dark"] .bg-zinc-300 { background-color: #3a3a3a !important; }
+
+  /* ── Catálogo no escuro: fundo geral + caixa do desenho ── */
+  [data-theme="dark"] [style*="background: rgb(247, 248, 250)"] { background: var(--portal-bg) !important; }
+  [data-theme="dark"] [style*="rgb(251, 252, 254)"] { background: var(--portal-bg-card) !important; }
+
+  /* ── Códigos/acentos laranja: um tom mais CLARO no escuro (legível) ── */
+  [data-theme="dark"] [style*="color: rgb(234, 88, 12)"],
+  [data-theme="dark"] [style*="color: rgb(232, 115, 12)"] { color: #fb923c !important; }
+  [data-theme="dark"] [style*="color: rgb(194, 87, 10)"],
+  [data-theme="dark"] [style*="color: rgb(194, 65, 12)"] { color: #fdba74 !important; }
+}
 
 /* ======================================== */
 /* Phase Tabs                               */
@@ -898,11 +1213,20 @@ body {
 .ppv-phase-group-name {
   font-size: 15px;
   font-weight: 800;
-  color: #9a3412;          /* laranja escuro (legível sobre o grifo) */
-  background: #ffe0b8;     /* grifo laranja nítido (marca-texto) */
-  padding: 2px 10px;
-  border-radius: 3px;
+  color: #FF8A00;          /* laranja NEON com brilho (sem grifo) */
+  text-shadow: 0 0 8px rgba(255, 138, 0, 0.55);
+  padding: 2px 2px;
   white-space: nowrap;
+}
+
+/* Número do pedido nos cards do PPV — mesmo laranja neon brilhante */
+.ppv-num-neon {
+  color: #FF8A00;
+  text-shadow: 0 0 8px rgba(255, 138, 0, 0.55);
+}
+[data-theme="dark"] .ppv-num-neon {
+  color: #FFA51E;
+  text-shadow: 0 0 10px rgba(255, 165, 30, 0.75);
 }
 .ppv-phase-group-count {
   font-size: 13px;

@@ -38,6 +38,14 @@ function parseMoeda(valorFmt: string): string {
 
 export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, aberto = false, onFechar, podeEditar = true, grupos = [], usuarioAtual = '', onGruposChange, onExpandirGrupo }: { req: any, onUpdate: any, onPrint: any, dadosCompartilhados?: any, aberto?: boolean, onFechar?: () => void, podeEditar?: boolean, grupos?: any[], usuarioAtual?: string, onGruposChange?: () => void, onExpandirGrupo?: (id: number) => void }) {
   const [modalAberto, setModalAberto] = useState(aberto);
+
+  // Sinaliza pro resto da página que um card está aberto — os botões flutuantes
+  // (Nova Requisição e Painel do Dev) somem pra não ficar por cima do modal.
+  useEffect(() => {
+    if (!modalAberto) return;
+    document.body.setAttribute('data-req-modal', '1');
+    return () => { document.body.removeAttribute('data-req-modal'); };
+  }, [modalAberto]);
   const [modalCotacaoAberto, setModalCotacaoAberto] = useState(false);
   const [histAberto, setHistAberto] = useState(false);
 
@@ -83,6 +91,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const [projDropdownOpen, setProjDropdownOpen] = useState(false);
   const [projResultados, setProjResultados] = useState<{ codigo: number; nome: string; empresa: string }[]>([]);
   const projDropdownRef = useRef<HTMLDivElement>(null);
+  const [solBusca, setSolBusca] = useState('');
+  const [solDropdownOpen, setSolDropdownOpen] = useState(false);
+  const solDropdownRef = useRef<HTMLDivElement>(null);
 
   // Campos monetários formatados
   const [valorDespesaFmt, setValorDespesaFmt] = useState(() => {
@@ -129,11 +140,28 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
   useEffect(() => {
     if (!modalAberto || ordensAbertas.length > 0) return;
-    supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Os_Tecnico, Status')
+    supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Cnpj_Cliente, Os_Tecnico, Status, Projeto')
       .not('Status', 'in', '("Concluída","Cancelada")')
       .order('Id_Ordem', { ascending: false })
       .then(({ data }) => { if (data) setOrdensAbertas(data); });
   }, [modalAberto, ordensAbertas.length]);
+
+  // Escolheu a O.S. → puxa da ordem o CHASSIS e o HORÍMETRO que o técnico já
+  // registrou (Ordem_Servico_Tecnicos; fallback do chassis: campo Projeto da OS).
+  const puxarDadosOS = async (o: any) => {
+    try {
+      const { data } = await supabase
+        .from('Ordem_Servico_Tecnicos')
+        .select('IdOs, Status, Chassis, Horimetro')
+        .eq('Ordem_Servico', o.Id_Ordem);
+      const lista = [...(data || [])].sort((a: any, b: any) => Number(b.IdOs || 0) - Number(a.IdOs || 0));
+      const tec = lista.find((t: any) => String(t.Status || '').toLowerCase() === 'enviado') || lista[0] || null;
+      const chassis = String(tec?.Chassis || o.Projeto || '').toUpperCase().trim();
+      const horimetro = String(tec?.Horimetro || '').trim();
+      if (chassis) persist('Chassis_Modelo', chassis);
+      if (horimetro) persist('hodometro', formatarHodometro(horimetro));
+    } catch { /* sem dados do técnico — segue manual */ }
+  };
 
   useEffect(() => {
     if (req.fornecedor && !fornBusca) setFornBusca(req.fornecedor);
@@ -145,6 +173,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       if (fornDropdownRef.current && !fornDropdownRef.current.contains(e.target as Node)) setFornDropdownOpen(false);
       if (cliDropdownRef.current && !cliDropdownRef.current.contains(e.target as Node)) setCliDropdownOpen(false);
       if (projDropdownRef.current && !projDropdownRef.current.contains(e.target as Node)) setProjDropdownOpen(false);
+      if (solDropdownRef.current && !solDropdownRef.current.contains(e.target as Node)) setSolDropdownOpen(false);
     };
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
@@ -390,13 +419,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     } catch { /* ignore */ }
   };
 
-  const inputBase = "w-full text-[15px] text-zinc-900 bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 outline-none focus:border-red-500 focus:bg-white transition-all placeholder:text-zinc-300";
+  const inputBase = "w-full text-[15px] text-black bg-zinc-50 border border-zinc-200 rounded-xl px-4 py-3 outline-none focus:border-orange-500 focus:bg-white transition-all placeholder:text-zinc-300";
   const selectBase = `${inputBase} [&>option]:text-black [&>option]:bg-white cursor-pointer`;
-  const labelBase = "text-[13px] font-semibold text-zinc-400 uppercase tracking-wider mb-2 flex items-center gap-2";
+  const labelBase = "text-[13px] font-semibold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-2";
   const sectionTitle = "text-[13px] font-bold uppercase tracking-wider mb-4 flex items-center gap-2";
 
   const statusColors: Record<string, string> = {
-    pedido: 'bg-red-500',
+    pedido: 'bg-orange-500',
     completa: 'bg-cyan-500',
     aguardando: 'bg-orange-400',
     financeiro: 'bg-indigo-600',
@@ -415,10 +444,10 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
     return (
       <div key={field} className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${hasFile ? 'border-emerald-200 bg-emerald-50/50' : 'border-zinc-200 bg-zinc-50'}`}>
-        <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${hasFile ? 'text-emerald-600' : 'text-zinc-400'}`}>
+        <div className={`w-7 h-7 rounded flex items-center justify-center shrink-0 ${hasFile ? 'text-emerald-600' : 'text-black'}`}>
           {icon}
         </div>
-        <span className={`text-sm font-medium flex-1 min-w-0 truncate ${hasFile ? 'text-emerald-700' : 'text-zinc-500'}`}>
+        <span className={`text-sm font-medium flex-1 min-w-0 truncate ${hasFile ? 'text-emerald-700' : 'text-black'}`}>
           {isUploading ? 'Enviando...' : justUploaded ? 'Enviado!' : label}
         </span>
         {hasFile && (
@@ -427,7 +456,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               <ExternalLink size={12} />
             </button>
           ) : (
-            <a href={fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="w-7 h-7 flex items-center justify-center rounded bg-red-600 text-white hover:bg-red-500 transition-all shrink-0" title="Ver">
+            <a href={fileUrl || '#'} target="_blank" rel="noopener noreferrer" className="w-7 h-7 flex items-center justify-center rounded bg-orange-600 text-white hover:bg-orange-500 transition-all shrink-0" title="Ver">
               <Eye size={12} />
             </a>
           )
@@ -435,7 +464,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
         {/* Sem botão de câmera: o seletor de arquivo do celular já oferece a câmera,
             e toda imagem anexada passa pelo corte antes de subir (handleFileUpload). */}
         <label className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer transition-all shrink-0 ${
-          justUploaded ? 'bg-emerald-500 text-white' : isUploading ? 'bg-zinc-200 text-zinc-400' : 'bg-zinc-200 text-zinc-600 hover:bg-red-600 hover:text-white'
+          justUploaded ? 'bg-emerald-500 text-white' : isUploading ? 'bg-zinc-200 text-black' : 'bg-zinc-200 text-black hover:bg-orange-600 hover:text-white'
         }`} title="Enviar arquivo">
           {justUploaded ? <Check size={12} /> : <Upload size={12} />}
           <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => handleFileUpload(e, field, label)} disabled={isUploading} />
@@ -452,13 +481,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
           <div className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-xl border border-zinc-200">
             <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-6 py-4 border-b border-zinc-200 flex justify-between items-center z-10">
               <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-red-600 text-white flex items-center justify-center"><ClipboardList size={18}/></div>
+                <div className="w-9 h-9 rounded-lg bg-orange-600 text-white flex items-center justify-center"><ClipboardList size={18}/></div>
                 <div>
-                  <h2 className="text-base font-semibold text-zinc-900">Mapa de Cotações</h2>
-                  <p className="text-[11px] text-zinc-400">REQ #{req.id}</p>
+                  <h2 className="text-base font-semibold text-black">Mapa de Cotações</h2>
+                  <p className="text-[11px] text-black">REQ #{req.id}</p>
                 </div>
               </div>
-              <button onClick={() => setModalCotacaoAberto(false)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-50 text-zinc-500 hover:bg-red-500 hover:text-white transition-all"><X size={16}/></button>
+              <button onClick={() => setModalCotacaoAberto(false)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-50 text-black hover:bg-orange-500 hover:text-white transition-all"><X size={16}/></button>
             </div>
 
             <div className="p-6 space-y-4">
@@ -467,9 +496,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 return (
                   <div key={idx} className="bg-zinc-50 border border-zinc-200 rounded-xl p-5">
                     <div className="flex items-center gap-2 mb-4">
-                      <div className="w-6 h-6 rounded-full bg-red-600 text-white flex items-center justify-center text-[10px] font-bold">{idx}</div>
-                      <span className="text-xs font-semibold text-zinc-600">Fornecedor {idx}</span>
-                      <button onClick={() => removerCotacao(idx)} className="ml-auto p-1.5 rounded-lg bg-zinc-50 text-zinc-400 hover:bg-red-500/20 hover:text-red-400 transition-all"><X size={12}/></button>
+                      <div className="w-6 h-6 rounded-full bg-orange-600 text-white flex items-center justify-center text-[10px] font-bold">{idx}</div>
+                      <span className="text-xs font-semibold text-black">Fornecedor {idx}</span>
+                      <button onClick={() => removerCotacao(idx)} className="ml-auto p-1.5 rounded-lg bg-zinc-50 text-black hover:bg-orange-500/20 hover:text-orange-400 transition-all"><X size={12}/></button>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
@@ -491,9 +520,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
               <div className="flex gap-3 pt-2">
                 {fornecedoresVisiveis < 5 && (
-                  <button onClick={() => setFornecedoresVisiveis(prev => prev + 1)} className="flex-1 border-2 border-dashed border-zinc-200 text-zinc-500 py-3 rounded-xl text-sm font-semibold uppercase tracking-wider hover:border-red-200 hover:text-red-600 transition-all flex items-center justify-center gap-2"><Plus size={16}/> Adicionar</button>
+                  <button onClick={() => setFornecedoresVisiveis(prev => prev + 1)} className="flex-1 border-2 border-dashed border-zinc-200 text-black py-3 rounded-xl text-sm font-semibold uppercase tracking-wider hover:border-orange-200 hover:text-orange-600 transition-all flex items-center justify-center gap-2"><Plus size={16}/> Adicionar</button>
                 )}
-                <button onClick={salvarCotacao} className="flex-1 bg-red-600 text-white py-3 rounded-xl text-sm font-semibold uppercase tracking-wider hover:bg-red-500 transition-all flex items-center justify-center gap-2"><CheckCheck size={16}/> Salvar</button>
+                <button onClick={salvarCotacao} className="flex-1 bg-orange-600 text-white py-3 rounded-xl text-sm font-semibold uppercase tracking-wider hover:bg-orange-500 transition-all flex items-center justify-center gap-2"><CheckCheck size={16}/> Salvar</button>
               </div>
             </div>
           </div>
@@ -513,23 +542,23 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
             {/* HEADER */}
             <div className="px-4 md:px-8 py-3 md:py-5 border-b border-zinc-200 flex items-center gap-3 md:gap-5 shrink-0 bg-zinc-50/50">
-              <div className={`w-11 h-11 md:w-14 md:h-14 shrink-0 rounded-xl flex items-center justify-center text-base md:text-lg font-bold ${veioDoApp ? 'bg-red-500/15 text-red-600' : 'bg-zinc-100 text-zinc-600'}`}>
+              <div className={`w-11 h-11 md:w-14 md:h-14 shrink-0 rounded-xl flex items-center justify-center text-base md:text-lg font-bold ${veioDoApp ? 'bg-orange-500/15 text-orange-600' : 'bg-zinc-100 text-black'}`}>
                 {req.id}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-3">
-                  <h2 className="text-[15px] md:text-lg font-bold text-zinc-900 truncate">{localData.titulo || 'Sem título'}</h2>
-                  {veioDoApp && <span className="bg-red-600 text-white text-[10px] px-2.5 py-0.5 rounded-md font-bold shrink-0">APP</span>}
+                  <h2 className="text-[15px] md:text-lg font-bold text-black truncate">{localData.titulo || 'Sem título'}</h2>
+                  {veioDoApp && <span className="bg-orange-600 text-white text-[10px] px-2.5 py-0.5 rounded-md font-bold shrink-0">APP</span>}
                 </div>
                 <div className="flex items-center gap-2 md:gap-3 mt-1">
                   <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusColors[req.status] || 'bg-slate-500'}`}></div>
-                  <span className="text-[11px] md:text-xs text-zinc-400 uppercase tracking-wider font-semibold truncate">{req.status}</span>
-                  {nomeExibicao && <span className="text-[11px] md:text-xs text-zinc-400 truncate hidden sm:inline">· {nomeExibicao}</span>}
+                  <span className="text-[11px] md:text-xs text-black uppercase tracking-wider font-semibold truncate">{req.status}</span>
+                  {nomeExibicao && <span className="text-[11px] md:text-xs text-black truncate hidden sm:inline">· {nomeExibicao}</span>}
                 </div>
               </div>
-              <button onClick={() => setHistAberto(true)} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-zinc-800 hover:text-white hover:border-zinc-800 transition-all shrink-0" title="Histórico"><Clock size={16}/></button>
-              <button onClick={handlePrint} className="h-10 w-10 md:w-auto md:px-4 flex items-center justify-center gap-2 rounded-lg bg-red-600 border border-red-600 text-white text-sm hover:bg-red-500 transition-all shrink-0" title="Imprimir a requisição"><Printer size={16}/> <span className="hidden md:inline">Imprimir</span></button>
-              <button onClick={fecharModal} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-zinc-500 hover:bg-red-500 hover:text-white hover:border-red-500 transition-all shrink-0"><X size={18}/></button>
+              <button onClick={() => setHistAberto(true)} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-black hover:bg-zinc-800 hover:text-white hover:border-zinc-800 transition-all shrink-0" title="Histórico"><Clock size={16}/></button>
+              <button onClick={handlePrint} className="h-10 w-10 md:w-auto md:px-4 flex items-center justify-center gap-2 rounded-lg bg-orange-600 border border-orange-600 text-white text-sm hover:bg-orange-500 transition-all shrink-0" title="Imprimir a requisição"><Printer size={16}/> <span className="hidden md:inline">Imprimir</span></button>
+              <button onClick={fecharModal} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-black hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all shrink-0"><X size={18}/></button>
             </div>
 
             {/* MODAL — Pedir permissão ao Dev */}
@@ -537,18 +566,18 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={e => { if (e.target === e.currentTarget) setPedirOpen(false); }}>
                 <div className="bg-white rounded-2xl shadow-xl border border-zinc-200 w-full max-w-md overflow-hidden">
                   <div className="px-6 py-4 border-b border-zinc-200 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center text-red-600"><Lock size={18} /></div>
+                    <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center text-orange-600"><Lock size={18} /></div>
                     <div>
-                      <h3 className="text-base font-bold text-zinc-900">Pedir permissão ao Dev</h3>
-                      <p className="text-xs text-zinc-400">Requisição #{req.id} — valor alto</p>
+                      <h3 className="text-base font-bold text-black">Pedir permissão ao Dev</h3>
+                      <p className="text-xs text-black">Requisição #{req.id} — valor alto</p>
                     </div>
                   </div>
                   <div className="p-6">
-                    <label className="text-xs font-bold text-zinc-500 uppercase block mb-2">O que pretende alterar?</label>
-                    <textarea spellCheck lang="pt-BR" value={motivoPedido} onChange={e => setMotivoPedido(e.target.value)} rows={4} placeholder="Explique a alteração que precisa de fazer..." className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm outline-none focus:border-red-400 resize-none" />
+                    <label className="text-xs font-bold text-black uppercase block mb-2">O que pretende alterar?</label>
+                    <textarea spellCheck lang="pt-BR" value={motivoPedido} onChange={e => setMotivoPedido(e.target.value)} rows={4} placeholder="Explique a alteração que precisa de fazer..." className="w-full px-3 py-2.5 rounded-xl border border-zinc-200 text-sm outline-none focus:border-orange-400 resize-none" />
                     <div className="flex gap-3 mt-4">
-                      <button onClick={() => setPedirOpen(false)} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-zinc-600 text-sm font-semibold hover:bg-zinc-50">Cancelar</button>
-                      <button onClick={enviarPedidoPermissao} disabled={!motivoPedido.trim() || enviandoPedido} className="flex-1 py-2.5 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 disabled:opacity-50">{enviandoPedido ? 'A enviar...' : 'Enviar pedido'}</button>
+                      <button onClick={() => setPedirOpen(false)} className="flex-1 py-2.5 rounded-xl border border-zinc-200 text-black text-sm font-semibold hover:bg-zinc-50">Cancelar</button>
+                      <button onClick={enviarPedidoPermissao} disabled={!motivoPedido.trim() || enviandoPedido} className="flex-1 py-2.5 rounded-xl bg-orange-600 text-white text-sm font-bold hover:bg-orange-700 disabled:opacity-50">{enviandoPedido ? 'A enviar...' : 'Enviar pedido'}</button>
                     </div>
                   </div>
                 </div>
@@ -562,13 +591,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {/* Cada requisição tem o próprio endereço; copiar aqui pra colar no
                   chat/WhatsApp e a pessoa cair direto neste card. */}
               <div className="flex items-center gap-3 bg-white border border-zinc-200 rounded-xl px-4 py-2.5">
-                <Link2 size={15} className="text-zinc-400 shrink-0" />
-                <span className="text-[13px] text-zinc-500 font-mono truncate flex-1" title={linkDaReq}>
+                <Link2 size={15} className="text-black shrink-0" />
+                <span className="text-[13px] text-black font-mono truncate flex-1" title={linkDaReq}>
                   /requisicoes?req={req.id}
                 </span>
                 <button onClick={copiarLink}
                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-all shrink-0 ${
-                    linkCopiado ? 'bg-emerald-500 text-white' : 'bg-zinc-100 text-zinc-600 hover:bg-red-600 hover:text-white'
+                    linkCopiado ? 'bg-emerald-500 text-white' : 'bg-zinc-100 text-black hover:bg-orange-600 hover:text-white'
                   }`}>
                   {linkCopiado ? <><Check size={14} /> Copiado!</> : <><Link2 size={14} /> Copiar link</>}
                 </button>
@@ -579,23 +608,23 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               <div className="bg-zinc-50 border border-zinc-200 rounded-xl">
                 <button type="button" onClick={() => setGruposAberto(o => !o)}
                   className="w-full flex items-center gap-2 px-4 py-3 text-left">
-                  <FolderOpen size={14} className="text-red-600 shrink-0" />
-                  <span className="text-[13px] font-bold text-zinc-600">Grupos</span>
-                  <span className="text-[12px] text-zinc-400">
+                  <FolderOpen size={14} className="text-orange-600 shrink-0" />
+                  <span className="text-[13px] font-bold text-black">Grupos</span>
+                  <span className="text-[12px] text-black">
                     {gruposDaReq.length === 0 ? 'nenhum grupo' : gruposDaReq.length === 1 ? gruposDaReq[0].nome : `${gruposDaReq.length} grupos`}
                   </span>
-                  <ChevronDown size={16} className={`ml-auto text-zinc-400 transition-transform ${gruposAberto ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={16} className={`ml-auto text-black transition-transform ${gruposAberto ? 'rotate-180' : ''}`} />
                 </button>
                 {gruposAberto && (
                   <div className="px-4 pb-3 -mt-1">
                     {gruposDaReq.length > 0 && (
                       <div className="flex flex-wrap gap-2 mb-2">
                         {gruposDaReq.map((g: any) => (
-                          <span key={g.id} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-red-700 bg-red-50 border border-red-200 rounded-full pl-2.5 pr-1.5 py-1">
+                          <span key={g.id} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-orange-700 bg-orange-50 border border-orange-200 rounded-full pl-2.5 pr-1.5 py-1">
                             <button onClick={() => onExpandirGrupo?.(g.id)} title="Expandir grupo no kanban" className="hover:underline flex items-center gap-1"><FolderOpen size={12} /> {g.nome}</button>
-                            {g.status !== 'aberto' && <span className="text-[9px] uppercase text-zinc-400">({g.status})</span>}
+                            {g.status !== 'aberto' && <span className="text-[9px] uppercase text-black">({g.status})</span>}
                             {podeEditar && (
-                              <button onClick={() => alterarGrupoReq(g.id, 'remove')} title="Remover deste grupo" className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-red-400 hover:bg-red-200 hover:text-red-700"><X size={11} /></button>
+                              <button onClick={() => alterarGrupoReq(g.id, 'remove')} title="Remover deste grupo" className="ml-0.5 w-4 h-4 flex items-center justify-center rounded-full text-orange-400 hover:bg-orange-200 hover:text-orange-700"><X size={11} /></button>
                             )}
                           </span>
                         ))}
@@ -603,15 +632,15 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     )}
                     {podeEditar && gruposDisponiveis.length > 0 ? (
                       <div className="flex items-center gap-2">
-                        <select value={grupoParaAdd} onChange={e => setGrupoParaAdd(e.target.value)} className="text-[13px] bg-white border border-zinc-200 rounded-lg px-2 py-1.5 outline-none focus:border-red-400 flex-1 max-w-[240px]">
+                        <select value={grupoParaAdd} onChange={e => setGrupoParaAdd(e.target.value)} className="text-[13px] bg-white border border-zinc-200 rounded-lg px-2 py-1.5 outline-none focus:border-orange-400 flex-1 max-w-[240px]">
                           <option value="">Adicionar a um grupo...</option>
                           {gruposDisponiveis.map((g: any) => <option key={g.id} value={g.id}>{g.nome}</option>)}
                         </select>
                         <button onClick={() => grupoParaAdd && alterarGrupoReq(Number(grupoParaAdd), 'add')} disabled={!grupoParaAdd}
-                          className="text-[12px] font-bold text-white bg-red-600 px-3 py-1.5 rounded-lg hover:bg-red-700 disabled:opacity-40 flex items-center gap-1"><Plus size={13} /> Adicionar</button>
+                          className="text-[12px] font-bold text-white bg-orange-600 px-3 py-1.5 rounded-lg hover:bg-orange-700 disabled:opacity-40 flex items-center gap-1"><Plus size={13} /> Adicionar</button>
                       </div>
                     ) : gruposDaReq.length === 0 && (
-                      <span className="text-[12px] text-zinc-400 italic">esta requisição não está em nenhum grupo</span>
+                      <span className="text-[12px] text-black italic">esta requisição não está em nenhum grupo</span>
                     )}
                   </div>
                 )}
@@ -621,13 +650,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {/* ── BLOQUEIO DE VALOR ALTO ── */}
               {valorAlto && (
                 bloqueada ? (
-                  <div className="flex items-center gap-3 p-4 rounded-xl border border-red-200 bg-red-50">
-                    <Lock size={20} className="text-red-600 shrink-0" />
+                  <div className="flex items-center gap-3 p-4 rounded-xl border border-orange-200 bg-orange-50">
+                    <Lock size={20} className="text-orange-600 shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-red-700">Requisição bloqueada — valor acima de R$ {LIMITE_BLOQUEIO},00</p>
-                      <p className="text-xs text-red-600">Para alterar, peça permissão a um Dev. A impressão continua disponível.</p>
+                      <p className="text-sm font-bold text-orange-700">Requisição bloqueada — valor acima de R$ {LIMITE_BLOQUEIO},00</p>
+                      <p className="text-xs text-orange-600">Para alterar, peça permissão a um Dev. A impressão continua disponível.</p>
                     </div>
-                    <button onClick={() => setPedirOpen(true)} className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold px-4 py-2 rounded-lg whitespace-nowrap shrink-0">Pedir permissão</button>
+                    <button onClick={() => setPedirOpen(true)} className="bg-orange-600 hover:bg-orange-700 text-white text-xs font-bold px-4 py-2 rounded-lg whitespace-nowrap shrink-0">Pedir permissão</button>
                   </div>
                 ) : autoriz ? (
                   <div className="flex items-center gap-3 p-4 rounded-xl border border-emerald-200 bg-emerald-50">
@@ -665,12 +694,58 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                     {TIPOS_REQ.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
-                <div>
+                <div ref={solDropdownRef} className="relative">
                   <label className={labelBase}><UserCircle size={11}/> Solicitante</label>
-                  <select value={localData.solicitante || ""} onChange={e => persist('solicitante', e.target.value)} className={selectBase}>
-                    <option value="">Selecionar...</option>
-                    {usuariosBanco.map((u: any) => <option key={u.nome} value={u.nome}>{u.nome}</option>)}
-                  </select>
+                  <div
+                    className={`${inputBase} cursor-pointer flex items-center justify-between gap-2`}
+                    onClick={() => setSolDropdownOpen(!solDropdownOpen)}
+                  >
+                    <span className="text-black text-sm truncate">
+                      {localData.solicitante
+                        ? `${localData.solicitante}${(() => { const u = usuariosBanco.find((x: any) => x.nome === localData.solicitante); return u?.funcao ? ` — ${u.funcao}` : ''; })()}`
+                        : 'Quem pede?'}
+                    </span>
+                    <svg className="w-3 h-3 text-black shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                  </div>
+                  {solDropdownOpen && (
+                    <div className="absolute z-[70] mt-1 w-full min-w-[260px] bg-white border border-zinc-200 rounded-xl shadow-xl max-h-56 overflow-auto">
+                      <div className="sticky top-0 bg-white p-2 border-b border-zinc-100">
+                        <input
+                          autoFocus
+                          placeholder="Buscar por nome ou função..."
+                          value={solBusca}
+                          onChange={e => setSolBusca(e.target.value)}
+                          className="w-full px-3 py-2 rounded-lg border border-zinc-200 text-sm outline-none focus:border-orange-400"
+                        />
+                      </div>
+                      {usuariosBanco
+                        .filter((u: any) => {
+                          if (!solBusca.trim()) return true;
+                          const q = solBusca.toLowerCase();
+                          return (u.nome || '').toLowerCase().includes(q) || (u.funcao || '').toLowerCase().includes(q);
+                        })
+                        .map((u: any) => (
+                          <button
+                            type="button"
+                            key={u.nome}
+                            onClick={() => { persist('solicitante', u.nome); setSolDropdownOpen(false); setSolBusca(''); }}
+                            className={`w-full px-3 py-2 text-left hover:bg-zinc-50 border-b border-zinc-50 flex items-center gap-2.5 ${localData.solicitante === u.nome ? 'bg-orange-50' : ''}`}
+                          >
+                            {u.avatar_url ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={u.avatar_url} alt="" className="w-7 h-7 rounded-full object-cover shrink-0 border border-zinc-200" />
+                            ) : (
+                              <span className="w-7 h-7 rounded-full bg-orange-100 text-orange-700 font-bold text-xs flex items-center justify-center shrink-0">{(u.nome || '?').charAt(0).toUpperCase()}</span>
+                            )}
+                            <span className="min-w-0 truncate">
+                              <span className="font-bold text-sm text-black">{u.nome}</span>
+                              {u.funcao && <span className="text-xs text-black ml-1.5">— {u.funcao}</span>}
+                            </span>
+                          </button>
+                        ))
+                      }
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className={labelBase}><Building2 size={11}/> Setor</label>
@@ -692,12 +767,12 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         className={`${inputBase} cursor-pointer flex items-center justify-between`}
                         onClick={() => setCliDropdownOpen(!cliDropdownOpen)}
                       >
-                        <span className={localData.cliente ? 'text-zinc-900 text-sm' : 'text-zinc-400 text-sm'}>
+                        <span className={localData.cliente ? 'text-black text-sm' : 'text-black text-sm'}>
                           {localData.cliente
                             ? `${localData.cliente}${localData.cliente_cnpj ? ` — ${localData.cliente_cnpj}` : ''}`
                             : 'Buscar cliente por nome ou CNPJ...'}
                         </span>
-                        <svg className="w-3 h-3 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        <svg className="w-3 h-3 text-black shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </div>
                       {cliDropdownOpen && (
                         <div className="absolute z-[70] mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-56 overflow-auto">
@@ -713,7 +788,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                           {localData.cliente_cnpj && (
                             <button type="button"
                               onClick={() => { persist('cliente', ''); persist('cliente_cnpj', ''); setCliDropdownOpen(false); setCliBusca(''); }}
-                              className="w-full px-4 py-2 text-left text-xs text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                              className="w-full px-4 py-2 text-left text-xs text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
                               Remover vínculo
                             </button>
                           )}
@@ -725,16 +800,16 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                                 setCliDropdownOpen(false); setCliBusca('');
                               }}
                               className={`w-full px-4 py-2 text-left hover:bg-zinc-50 border-b border-zinc-50 ${localData.cliente_cnpj === c.cnpj_cpf ? 'bg-amber-50' : ''}`}>
-                              <span className="font-bold text-sm text-zinc-800">{c.nome_fantasia || c.razao_social}</span>
-                              <span className="text-xs text-zinc-500 ml-2">{c.cnpj_cpf}</span>
-                              {c.cidade && <span className="text-xs text-zinc-400 ml-2">({c.cidade})</span>}
+                              <span className="font-bold text-sm text-black">{c.nome_fantasia || c.razao_social}</span>
+                              <span className="text-xs text-black ml-2">{c.cnpj_cpf}</span>
+                              {c.cidade && <span className="text-xs text-black ml-2">({c.cidade})</span>}
                             </button>
                           ))}
                           {cliBusca.trim().length >= 2 && cliResultados.length === 0 && (
-                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Nenhum cliente encontrado</p>
+                            <p className="px-4 py-3 text-xs text-black text-center">Nenhum cliente encontrado</p>
                           )}
                           {cliBusca.trim().length < 2 && (
-                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                            <p className="px-4 py-3 text-xs text-black text-center">Digite pelo menos 2 caracteres</p>
                           )}
                         </div>
                       )}
@@ -745,12 +820,12 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         className={`${inputBase} cursor-pointer flex items-center justify-between`}
                         onClick={() => setOsDropdownOpen(!osDropdownOpen)}
                       >
-                        <span className={localData.ordem_servico ? 'text-zinc-900 text-sm' : 'text-zinc-400 text-sm'}>
+                        <span className={localData.ordem_servico ? 'text-black text-sm' : 'text-black text-sm'}>
                           {localData.ordem_servico
                             ? `OS ${localData.ordem_servico} - ${ordensAbertas.find(o => String(o.Id_Ordem) === String(localData.ordem_servico))?.Os_Cliente || ''}`
                             : 'Selecione a O.S...'}
                         </span>
-                        <svg className="w-3 h-3 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        <svg className="w-3 h-3 text-black shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </div>
                       {osDropdownOpen && (
                         <div className="absolute z-[70] mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-56 overflow-auto">
@@ -760,14 +835,14 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                               placeholder="Buscar OS, cliente ou técnico..."
                               value={osBusca}
                               onChange={e => setOsBusca(e.target.value)}
-                              className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm outline-none focus:border-red-400"
+                              className="w-full px-4 py-3 rounded-xl border border-zinc-200 text-sm outline-none focus:border-orange-400"
                             />
                           </div>
                           {localData.ordem_servico && (
                             <button
                               type="button"
                               onClick={() => { persist('ordem_servico', null); setOsDropdownOpen(false); setOsBusca(''); }}
-                              className="w-full px-4 py-2 text-left text-xs text-red-500 hover:bg-red-50 border-b border-zinc-100"
+                              className="w-full px-4 py-2 text-left text-xs text-orange-500 hover:bg-orange-50 border-b border-zinc-100"
                             >
                               Remover vínculo
                             </button>
@@ -785,14 +860,16 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                                 onClick={() => {
                                   persist('ordem_servico', String(o.Id_Ordem));
                                   if (o.Os_Cliente) persist('cliente', o.Os_Cliente);
+                                  if (o.Cnpj_Cliente) persist('cliente_cnpj', o.Cnpj_Cliente);
+                                  puxarDadosOS(o); // chassis + horímetro registrados na OS
                                   setOsDropdownOpen(false);
                                   setOsBusca('');
                                 }}
-                                className={`w-full px-4 py-2 text-left hover:bg-zinc-50 border-b border-zinc-50 ${String(localData.ordem_servico) === String(o.Id_Ordem) ? 'bg-red-50' : ''}`}
+                                className={`w-full px-4 py-2 text-left hover:bg-zinc-50 border-b border-zinc-50 ${String(localData.ordem_servico) === String(o.Id_Ordem) ? 'bg-orange-50' : ''}`}
                               >
-                                <span className="font-bold text-sm text-zinc-800">OS {o.Id_Ordem}</span>
-                                <span className="text-sm text-zinc-500 ml-2">{o.Os_Cliente}</span>
-                                <span className="text-xs text-zinc-400 ml-1">({o.Os_Tecnico})</span>
+                                <span className="font-bold text-sm text-black">OS {o.Id_Ordem}</span>
+                                <span className="text-sm text-black ml-2">{o.Os_Cliente}</span>
+                                <span className="text-xs text-black ml-1">({o.Os_Tecnico})</span>
                               </button>
                             ))
                           }
@@ -801,7 +878,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                             const q = osBusca.toLowerCase();
                             return String(o.Id_Ordem).toLowerCase().includes(q) || (o.Os_Cliente || '').toLowerCase().includes(q) || (o.Os_Tecnico || '').toLowerCase().includes(q);
                           }).length === 0 && (
-                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Nenhuma O.S. encontrada</p>
+                            <p className="px-4 py-3 text-xs text-black text-center">Nenhuma O.S. encontrada</p>
                           )}
                         </div>
                       )}
@@ -814,10 +891,10 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         className={`${inputBase} cursor-pointer flex items-center justify-between`}
                         onClick={() => setProjDropdownOpen(!projDropdownOpen)}
                       >
-                        <span className={localData.Chassis_Modelo ? 'text-zinc-900 text-sm' : 'text-zinc-400 text-sm'}>
+                        <span className={localData.Chassis_Modelo ? 'text-black text-sm' : 'text-black text-sm'}>
                           {localData.Chassis_Modelo || 'Buscar projeto ou chassis...'}
                         </span>
-                        <svg className="w-3 h-3 text-zinc-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                        <svg className="w-3 h-3 text-black shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
                       </div>
                       {projDropdownOpen && (
                         <div className="absolute z-[70] mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-56 overflow-auto">
@@ -833,7 +910,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                           {localData.Chassis_Modelo && (
                             <button type="button"
                               onClick={() => { persist('Chassis_Modelo', ''); persist('projeto_codigo', ''); persist('projeto_nome', ''); setProjDropdownOpen(false); setProjBusca(''); }}
-                              className="w-full px-4 py-2 text-left text-xs text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                              className="w-full px-4 py-2 text-left text-xs text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
                               Remover seleção
                             </button>
                           )}
@@ -846,15 +923,15 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                                 setProjDropdownOpen(false); setProjBusca('');
                               }}
                               className={`w-full px-4 py-2 text-left hover:bg-zinc-50 border-b border-zinc-50 ${localData.projeto_nome === p.nome ? 'bg-amber-50' : ''}`}>
-                              <span className="font-bold text-sm text-zinc-800">{p.nome}</span>
-                              <span className="text-xs text-zinc-400 ml-2">{p.empresa}</span>
+                              <span className="font-bold text-sm text-black">{p.nome}</span>
+                              <span className="text-xs text-black ml-2">{p.empresa}</span>
                             </button>
                           ))}
                           {projBusca.trim().length >= 2 && projResultados.length === 0 && (
-                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Nenhum projeto encontrado</p>
+                            <p className="px-4 py-3 text-xs text-black text-center">Nenhum projeto encontrado</p>
                           )}
                           {projBusca.trim().length < 2 && (
-                            <p className="px-4 py-3 text-xs text-zinc-400 text-center">Digite pelo menos 2 caracteres</p>
+                            <p className="px-4 py-3 text-xs text-black text-center">Digite pelo menos 2 caracteres</p>
                           )}
                         </div>
                       )}
@@ -879,7 +956,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
               {localData.setor === "Trator-Loja" && (
                 <div className="border border-zinc-200 rounded-xl p-4">
-                  <span className={`${sectionTitle} text-zinc-500`}><Cpu size={12}/> Trator (Loja)</span>
+                  <span className={`${sectionTitle} text-black`}><Cpu size={12}/> Trator (Loja)</span>
                   <div>
                     <label className={labelBase}><Cpu size={11}/> Chassis / Modelo</label>
                     <input value={localData.Chassis_Modelo || ''} onChange={e => setField('Chassis_Modelo', e.target.value)} onBlur={e => persist('Chassis_Modelo', e.target.value.toUpperCase())} className={inputBase} />
@@ -888,8 +965,8 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               )}
 
               {localData.tipo === 'Ferramenta' && (
-                <div className="border border-red-200 bg-red-50/50 rounded-xl p-4">
-                  <span className={`${sectionTitle} text-red-600`}><Tag size={12}/> Ferramenta</span>
+                <div className="border border-orange-200 bg-orange-50/50 rounded-xl p-4">
+                  <span className={`${sectionTitle} text-orange-600`}><Tag size={12}/> Ferramenta</span>
                   <label className={labelBase}><Tag size={11}/> Destinação</label>
                   <select value={localData.quem_ferramenta || ''} onChange={e => { setField('quem_ferramenta', e.target.value); persist('quem_ferramenta', e.target.value); }} className={selectBase}>
                     <option value="">Selecione...</option>
@@ -900,8 +977,8 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               )}
 
               {['Veicular Abastecimento', 'Veicular Manutenção'].includes(localData.tipo) && (
-                <div className="border border-red-200 bg-red-50/50 rounded-xl p-4">
-                  <span className={`${sectionTitle} text-red-600`}><Car size={12}/> Veículo</span>
+                <div className="border border-orange-200 bg-orange-50/50 rounded-xl p-4">
+                  <span className={`${sectionTitle} text-orange-600`}><Car size={12}/> Veículo</span>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className={labelBase}><Car size={11}/> Placa</label>
@@ -937,7 +1014,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
               {/* ── FINANCEIRO ── */}
               <div>
-                <span className={`${sectionTitle} text-zinc-500`}><CreditCard size={12}/> Financeiro</span>
+                <span className={`${sectionTitle} text-black`}><CreditCard size={12}/> Financeiro</span>
                 <div className="grid grid-cols-2 gap-3 mb-3">
                   <div ref={fornDropdownRef} className="relative">
                     <label className={labelBase}><Store size={11}/> Fornecedor</label>
@@ -953,7 +1030,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                       <div className="absolute z-[70] mt-1 w-full bg-white border border-zinc-200 rounded-xl shadow-xl max-h-52 overflow-auto">
                         {localData.fornecedor && (
                           <button type="button" onClick={() => { persist('fornecedor', ''); setFornBusca(''); setFornDropdownOpen(false); }}
-                            className="w-full px-4 py-2 text-left text-xs text-red-500 hover:bg-red-50 border-b border-zinc-100">
+                            className="w-full px-4 py-2 text-left text-xs text-orange-500 hover:bg-orange-50 border-b border-zinc-100">
                             Remover seleção
                           </button>
                         )}
@@ -962,13 +1039,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                           .map((f: any, i: number) => (
                             <button type="button" key={`${f.nome}-${i}`}
                               onClick={() => { persist('fornecedor', f.nome); setFornBusca(f.nome); setFornDropdownOpen(false); }}
-                              className={`w-full px-4 py-2 text-left text-sm hover:bg-zinc-50 border-b border-zinc-50 ${localData.fornecedor === f.nome ? 'bg-red-50 font-semibold' : 'text-zinc-700'}`}>
+                              className={`w-full px-4 py-2 text-left text-sm hover:bg-zinc-50 border-b border-zinc-50 ${localData.fornecedor === f.nome ? 'bg-orange-50 font-semibold' : 'text-black'}`}>
                               {f.nome}
                             </button>
                           ))
                         }
                         {fornecedoresBanco.filter((f: any) => f.nome?.toLowerCase().includes(fornBusca.toLowerCase())).length === 0 && (
-                          <p className="px-4 py-3 text-xs text-zinc-400 text-center">Nenhum fornecedor encontrado</p>
+                          <p className="px-4 py-3 text-xs text-black text-center">Nenhum fornecedor encontrado</p>
                         )}
                       </div>
                     )}
@@ -980,16 +1057,16 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 </div>
 
                 {/* Valor da despesa */}
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-3">
-                  <label className="text-[13px] font-bold text-red-600 uppercase tracking-wider block mb-2">Custo Real</label>
+                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-3">
+                  <label className="text-[13px] font-bold text-orange-600 uppercase tracking-wider block mb-2">Custo Real</label>
                   <div className="flex items-center gap-2">
-                    <span className="text-red-600 text-lg font-bold select-none">R$</span>
+                    <span className="text-orange-600 text-lg font-bold select-none">R$</span>
                     <input
                       inputMode="decimal"
                       value={valorDespesaFmt}
                       onChange={e => setValorDespesaFmt(formatarMoeda(e.target.value))}
                       onBlur={() => { const raw = parseMoeda(valorDespesaFmt); if (parseValorBR(raw) !== parseValorBR(req.valor_despeza)) persist('valor_despeza', raw); }}
-                      className="w-full text-xl font-bold text-red-700 bg-white border border-red-200 rounded-lg px-3 py-2 outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 transition-all placeholder:text-red-200"
+                      className="w-full text-xl font-bold text-orange-700 bg-white border border-orange-200 rounded-lg px-3 py-2 outline-none focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 transition-all placeholder:text-orange-200"
                       placeholder="0,00"
                     />
                   </div>
@@ -999,7 +1076,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 <div className="flex items-center gap-3 mb-2">
                   <button
                     onClick={() => setModalCotacaoAberto(true)}
-                    className="flex items-center gap-2 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 hover:bg-red-100 transition-all text-sm font-semibold"
+                    className="flex items-center gap-2 px-4 py-3 rounded-xl bg-orange-50 border border-orange-200 text-orange-600 hover:bg-orange-100 transition-all text-sm font-semibold"
                   >
                     <ClipboardList size={14} />
                     Cotações ({fornecedoresVisiveis})
@@ -1014,9 +1091,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         setCotacaoData(novo);
                         await supabase.from('req_cotacao').upsert(novo);
                       }}
-                      className="w-3.5 h-3.5 accent-red-600 cursor-pointer"
+                      className="w-3.5 h-3.5 accent-orange-600 cursor-pointer"
                     />
-                    <span className="text-xs text-zinc-500">No PDF</span>
+                    <span className="text-xs text-black">No PDF</span>
                   </label>
                 </div>
 
@@ -1033,7 +1110,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
               {/* ── ANEXOS ── */}
               <div>
-                <span className={`${sectionTitle} text-zinc-500`}><Paperclip size={12}/> Anexos</span>
+                <span className={`${sectionTitle} text-black`}><Paperclip size={12}/> Anexos</span>
                 <div className="space-y-2">
                   {renderAnexo('Nota Fiscal', 'foto_nf', <Camera size={14}/>)}
                   {renderAnexo('Boleto', 'boleto_fornecedor', <Receipt size={14}/>)}
@@ -1041,7 +1118,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 </div>
 
                 {anexosNoDrive.length > 0 && (
-                  <div className="mt-2 text-[13px] text-zinc-500">
+                  <div className="mt-2 text-[13px] text-black">
                     {anexosNoDrive.map(a => a.label).join(', ')} está no Drive antigo e não entra na impressão — abra pelo olhinho.
                   </div>
                 )}

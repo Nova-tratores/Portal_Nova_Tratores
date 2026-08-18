@@ -31,7 +31,7 @@ import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 function PPVApp() {
   const { kanbanItems, carregarKanban, atualizarKanbanLocal, toast, hideToast, globalLoading, cacheProduct, showToast, recarregarRevisoes } = usePPV();
   const { userProfile } = useAuth();
-  const { pode } = usePermissoes(userProfile?.id);
+  const { pode, temAcesso } = usePermissoes(userProfile?.id);
   const isMobile = useIsMobile();
   const podeCriar = pode('ppv', 'criar');
   const podeMoverFase = pode('ppv', 'mover_fase');
@@ -49,12 +49,19 @@ function PPVApp() {
   // inicial sai do pathname (usePathname é igual no servidor e no cliente, sem
   // descasar a hidratação) e a URL é mantida em sincronia quando troca de aba.
   const [activeTab, setActiveTab] = useState(
-    pathname?.endsWith("/catalogo") ? "catalogoTab" : "kanbanTab"
+    pathname?.endsWith("/catalogo") ? "catalogoTab"
+      : searchParams?.get("tab") === "etiquetas" ? "etiquetasTab"
+      : "kanbanTab"
   );
   useEffect(() => {
     const alvo = activeTab === "catalogoTab" ? "/ppv/catalogo" : "/ppv";
-    if (window.location.pathname !== alvo) {
-      window.history.replaceState(null, "", alvo + window.location.search);
+    const sp = new URLSearchParams(window.location.search);
+    sp.delete("tab");
+    if (activeTab === "etiquetasTab") sp.set("tab", "etiquetas");
+    const qs = sp.toString();
+    const destino = alvo + (qs ? `?${qs}` : "");
+    if (window.location.pathname + window.location.search !== destino) {
+      window.history.replaceState(null, "", destino);
     }
   }, [activeTab]);
   const [searchFilter, setSearchFilter] = useState("");
@@ -154,6 +161,7 @@ function PPVApp() {
   const [modalOSDisplay, setModalOSDisplay] = useState("");
   const [modalProdDisplay, setModalProdDisplay] = useState("");
   const [modalProdCodigo, setModalProdCodigo] = useState("");
+  const [kitSinal, setKitSinal] = useState(0); // modal "Novo Item" → abrir Importar Kit no drawer
 
   // Modal cliente field
   const [modalClienteNome, setModalClienteNome] = useState("");
@@ -332,7 +340,7 @@ function PPVApp() {
         {/* Abas (estilo Chrome) à direita: só Gestão e Catálogo */}
         <div className="ppv-topbar-actions">
           <button className={`ppv-topbar-nav-btn ${activeTab === "kanbanTab" ? "active" : ""}`} onClick={() => setActiveTab("kanbanTab")}>
-            <i className="fas fa-th-large" /> Gestão
+            <i className="fas fa-th-large" /> Pré-Pedido de Venda
           </button>
           {podeCatalogo && (
             <button className={`ppv-topbar-nav-btn ${activeTab === "catalogoTab" ? "active" : ""}`} onClick={() => setActiveTab("catalogoTab")}>
@@ -345,6 +353,17 @@ function PPVApp() {
             </button>
           )}
           {podeRetiradas && <BotaoRetiradas />}
+          {/* Sistema Peças: Orçamentos e Requisições como abas internas do PPV */}
+          {temAcesso('orcamentos') && (
+            <a href="/orcamentos" className="ppv-topbar-nav-btn" style={{ textDecoration: 'none' }}>
+              <i className="fas fa-calculator" /> Orçamentos
+            </a>
+          )}
+          {temAcesso('requisicoes') && (
+            <a href="/requisicoes" className="ppv-topbar-nav-btn" style={{ textDecoration: 'none' }}>
+              <i className="fas fa-clipboard-list" /> Requisições
+            </a>
+          )}
         </div>
       </div>
 
@@ -389,13 +408,13 @@ function PPVApp() {
         )}
 
         {activeTab === "catalogoTab" && (
-          <div className="flex-1 overflow-hidden p-4" style={bgPattern}>
+          <div className="pecas-skin flex-1 overflow-hidden p-4" style={bgPattern}>
             <CatalogoNovo userName={userProfile?.nome || ""} />
           </div>
         )}
 
         {activeTab === "etiquetasTab" && (
-          <div className="flex-1 overflow-y-auto" style={bgPattern}>
+          <div className="pecas-skin flex-1 overflow-y-auto" style={bgPattern}>
             <EtiquetasPanel embedded />
           </div>
         )}
@@ -426,7 +445,7 @@ function PPVApp() {
         onAbrirCatalogo={() => handleAbrirCatalogo("modal")}
         onBuscaCliente={() => handleBuscaCliente("modal")}
         modalOSId={modalOSId} modalOSDisplay={modalOSDisplay}
-        modalProdDisplay={modalProdDisplay} modalProdCodigo={modalProdCodigo}
+        modalProdDisplay={modalProdDisplay} modalProdCodigo={modalProdCodigo} kitSinal={kitSinal}
         onModalProdDisplayChange={(v) => { setModalProdDisplay(v); if (!v) setModalProdCodigo(""); }}
         onSetModalOS={handleSetModalOS}
         modalClienteNome={modalClienteNome}
@@ -436,7 +455,8 @@ function PPVApp() {
 
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={handleSelectCliente} />
       <ModalBuscaOS open={buscaOSOpen} onClose={() => setBuscaOSOpen(false)} onSelect={handleSelectOS} />
-      <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => setBuscaProdutoOpen(false)} onSelect={handleSelectProduto} onEditManual={handleEditManual} abrirNoCatalogo={buscaProdutoCatalogo} onCriarProvisorio={handleCriarProvisorio} />
+      <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => setBuscaProdutoOpen(false)} onSelect={handleSelectProduto} onEditManual={handleEditManual} abrirNoCatalogo={buscaProdutoCatalogo} onCriarProvisorio={handleCriarProvisorio}
+        onAbrirKit={buscaProdutoMode === "modal" ? () => { setBuscaProdutoOpen(false); setKitSinal((s) => s + 1); } : undefined} />
       <ModalProdutosEstoque open={produtosEstoqueOpen} onClose={() => setProdutosEstoqueOpen(false)} onSelect={(codigo, descricao) => { setProdutosEstoqueOpen(false); setUsoProduto({ codigo, descricao }); }} />
       <ModalUsoProduto open={!!usoProduto} codigo={usoProduto?.codigo || null} descricao={usoProduto?.descricao} onClose={() => setUsoProduto(null)} onAbrirPpv={(id) => { usoProdutoVoltar.current = usoProduto; setUsoProduto(null); openCardDetails(id); }} />
       <ModalProdutoManual open={produtoManualOpen} onClose={() => setProdutoManualOpen(false)} onSaved={() => {}} editData={produtoManualEdit} provisorio={produtoManualProvisorio} />

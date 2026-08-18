@@ -285,7 +285,17 @@ export default function ItemOrcamentoModal({
     <div className="io-ov" onClick={fecharComAviso}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       {Sprite}
-      <div className="io-card" onClick={(e) => e.stopPropagation()}>
+      <div style={{ display: "flex", alignItems: "stretch", justifyContent: "center", gap: 6, maxWidth: "98vw", margin: "0 auto", width: "fit-content" }} onClick={(e) => e.stopPropagation()}>
+      {/* Painel SECUNDÁRIO anexado à esquerda: histórico do produto (entrada + vendas) */}
+      <div style={{ width: 340, flexShrink: 0, background: "#fff", borderRadius: 8, boxShadow: "0 18px 50px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "92vh" }}>
+        <div style={{ padding: "13px 16px", borderBottom: "1px solid rgba(0,0,0,0.5)", fontWeight: 800, fontSize: 14, color: "#1f1f1f", display: "flex", alignItems: "center", gap: 8 }}>
+          <svg className="io-ic" style={{ width: 15, height: 15, color: "#EA580C" }}><use href="#io-i-clock" /></svg> Histórico do produto
+        </div>
+        <div style={{ flex: 1, overflowY: "auto", padding: 14 }}>
+          <PainelHistorico dados={dados} loading={dadosLoading} />
+        </div>
+      </div>
+      <div className="io-card" style={{ margin: 0, flex: "1 1 auto", minWidth: 0 }} onClick={(e) => e.stopPropagation()}>
         <div className="io-title">
           Item de Orçamento
           {ppvId && <span className="io-tag">PPV {ppvId} · {conta}</span>}
@@ -395,8 +405,56 @@ export default function ItemOrcamentoModal({
           <button className="io-btn gray" onClick={onClose}>Fechar</button>
         </div>
       </div>
+      </div>
     </div>,
     document.body,
+  );
+}
+
+// Histórico do produto (última entrada + últimas vendas) — vive no painel
+// lateral esquerdo, "anexado" ao modal, pra ver tudo junto sem rolar.
+function PainelHistorico({ dados, loading }: { dados: ProdutoDados | null; loading: boolean }) {
+  if (loading) return <div style={{ color: "#8a8378", fontSize: 13 }}>Carregando histórico…</div>;
+  return (
+    <div>
+      <div style={{ marginBottom: 14 }}>
+        <label className="io-l"><svg className="io-ic"><use href="#io-i-in" /></svg> Última entrada do produto (compra)</label>
+        {dados?.ultimaEntrada ? (
+          <div className="io-listcard" style={{ borderLeft: "3px solid #0f9d58" }}>
+            <span style={{ width: 32, height: 32, borderRadius: "50%", background: "#eaf7ef", color: "#0f9d58", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg className="io-ic" style={{ width: 15, height: 15, color: "#0f9d58" }}><use href="#io-i-in" /></svg></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dados.ultimaEntrada.fornecedor || "Fornecedor não identificado"}</div>
+              <div style={{ fontSize: 11.5, color: "#8a8378" }}>Entrada · NF {dados.ultimaEntrada.nf || "—"} · {dados.ultimaEntrada.data}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f9d58" }}>{brl(dados.ultimaEntrada.vu)}</div>
+              <div style={{ fontSize: 11.5, color: "#8a8378" }}>{dados.ultimaEntrada.qtd} un · custo NF</div>
+            </div>
+          </div>
+        ) : <div style={{ fontSize: 12.5, color: "#8a8378" }}>Sem entradas registradas.</div>}
+      </div>
+
+      <div>
+        <label className="io-l"><svg className="io-ic"><use href="#io-i-clock" /></svg> Últimas vendas (pra quem foi)</label>
+        {dados && dados.historicoVendas.length > 0 ? (
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {dados.historicoVendas.map((v, i) => (
+              <div key={i} className="io-listcard" style={{ borderLeft: "3px solid #2f6fb0", marginTop: 0 }}>
+                <span style={{ width: 32, height: 32, borderRadius: "50%", background: "#eef3fb", color: "#2f6fb0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg className="io-ic" style={{ width: 15, height: 15, color: "#2f6fb0" }}><use href="#io-i-cart" /></svg></span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.cliente || "Cliente não identificado"}</div>
+                  <div style={{ fontSize: 11.5, color: "#8a8378" }}>Pedido {v.numero} · {v.data}{v.vendedor ? ` · Vendedor: ${v.vendedor}` : ""}</div>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 700 }}>{brl(v.vt)}</div>
+                  <div style={{ fontSize: 11.5, color: "#8a8378" }}>{v.qtd} un</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : <div style={{ fontSize: 12.5, color: "#8a8378" }}>Sem vendas registradas.</div>}
+      </div>
+    </div>
   );
 }
 
@@ -562,43 +620,8 @@ function PainelDados({ dados, loading, codigo }: { dados: ProdutoDados | null; l
         </div>
       )}
 
-      <div style={{ marginBottom: 12 }}>
-        <label className="io-l"><svg className="io-ic"><use href="#io-i-in" /></svg> Última entrada do produto (compra)</label>
-        {dados?.ultimaEntrada ? (
-          <div className="io-listcard" style={{ borderLeft: "3px solid #0f9d58" }}>
-            <span style={{ width: 32, height: 32, borderRadius: "50%", background: "#eaf7ef", color: "#0f9d58", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg className="io-ic" style={{ width: 15, height: 15, color: "#0f9d58" }}><use href="#io-i-in" /></svg></span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{dados.ultimaEntrada.fornecedor || "Fornecedor não identificado"}</div>
-              <div style={{ fontSize: 11.5, color: "#8a8378" }}>Entrada · NF {dados.ultimaEntrada.nf || "—"} · {dados.ultimaEntrada.data}</div>
-            </div>
-            <div style={{ textAlign: "right" }}>
-              <div style={{ fontSize: 13.5, fontWeight: 700, color: "#0f9d58" }}>{brl(dados.ultimaEntrada.vu)}</div>
-              <div style={{ fontSize: 11.5, color: "#8a8378" }}>{dados.ultimaEntrada.qtd} un · custo NF</div>
-            </div>
-          </div>
-        ) : <div style={{ fontSize: 12.5, color: "#8a8378" }}>Sem entradas registradas.</div>}
-      </div>
-
-      <div>
-        <label className="io-l"><svg className="io-ic"><use href="#io-i-clock" /></svg> Histórico — últimas vendas (pra quem foi)</label>
-        {dados && dados.historicoVendas.length > 0 ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-            {dados.historicoVendas.map((v, i) => (
-              <div key={i} className="io-listcard" style={{ borderLeft: "3px solid #2f6fb0", marginTop: 0 }}>
-                <span style={{ width: 32, height: 32, borderRadius: "50%", background: "#eef3fb", color: "#2f6fb0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg className="io-ic" style={{ width: 15, height: 15, color: "#2f6fb0" }}><use href="#io-i-cart" /></svg></span>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{v.cliente || "Cliente não identificado"}</div>
-                  <div style={{ fontSize: 11.5, color: "#8a8378" }}>Pedido {v.numero} · {v.data}{v.vendedor ? ` · Vendedor: ${v.vendedor}` : ""}</div>
-                </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 13.5, fontWeight: 700 }}>{brl(v.vt)}</div>
-                  <div style={{ fontSize: 11.5, color: "#8a8378" }}>{v.qtd} un</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <div style={{ fontSize: 12.5, color: "#8a8378" }}>Sem vendas registradas.</div>}
-      </div>
+      {/* Última entrada + últimas vendas moraram aqui — agora vivem no painel
+          lateral esquerdo (PainelHistorico), visível o tempo todo. */}
     </div>
   );
 }

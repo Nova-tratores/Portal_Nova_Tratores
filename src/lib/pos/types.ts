@@ -54,6 +54,7 @@ export interface KanbanCard {
   temReq: boolean;
   temRel: boolean;
   servSolicitado: string;
+  ordemOmie?: string; // nº que a OS virou no Omie (pra busca)
   previsaoExecucao: string;
   previsaoFaturamento: string;
   dataFimServico: string;

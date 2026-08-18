@@ -11,9 +11,9 @@ interface Peca { id: number; code: string; name: string; reference: string; qtd:
 function estiloSistema(nome: string): { icone: string; cor: string } {
   const n = (nome || "").toLowerCase();
   const tem = (...ks: string[]) => ks.some((k) => n.includes(k));
-  if (tem("motor", "diesel", "combust", "injec", "injeç")) return { icone: "fa-gear", cor: "#dc2626" };
+  if (tem("motor", "diesel", "combust", "injec", "injeç")) return { icone: "fa-gear", cor: "#EA580C" };
   if (tem("elétr", "eletr", "bateria", "farol", "chicote")) return { icone: "fa-bolt", cor: "#ca8a04" };
-  if (tem("câmbio", "cambio", "transmiss", "tdp", "marcha")) return { icone: "fa-gears", cor: "#2563eb" };
+  if (tem("câmbio", "cambio", "transmiss", "tdp", "marcha")) return { icone: "fa-gears", cor: "#EA580C" };
   if (tem("hidrául", "hidraul", "bomba")) return { icone: "fa-oil-can", cor: "#7c3aed" };
   if (tem("freio")) return { icone: "fa-circle-stop", cor: "#be123c" };
   if (tem("direç", "direc", "volante", "coluna")) return { icone: "fa-arrows-left-right", cor: "#65a30d" };
@@ -29,7 +29,7 @@ interface Figura { id: string; code: string; name: string; secao: string; thumb_
 interface Secao { secao: string; ordem: number; figuras: number; thumb?: string | null }
 const zoomBtn: CSSProperties = { width: 34, height: 34, borderRadius: 9, border: "1px solid #e2e8f0", background: "rgba(255,255,255,0.95)", color: "#334155", fontSize: 18, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.12)", lineHeight: 1 };
 const fsBtn: CSSProperties = { padding: "8px 14px", borderRadius: 9, border: "1px solid rgba(255,255,255,0.3)", background: "rgba(255,255,255,0.1)", color: "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 7 };
-interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null; tipo?: string | null; familia?: string | null; manual_url?: string | null; manual_nome?: string | null }
+interface Modelo { slug: string; nome: string; image_url: string | null; figuras?: number; marca?: string | null; tipo?: string | null; familia?: string | null; manual_url?: string | null; manual_nome?: string | null; ordem?: number }
 interface Marca { slug: string; nome: string; logo_url: string | null; modelos: number; tipos: string[] }
 // Linha de produto: agrupa as variantes num card só (ex.: PST DUO tem 62 variantes de chassi/versão).
 interface Familia { nome: string; marca: string; tipo: string | null; image_url: string | null; variantes: Modelo[] }
@@ -76,6 +76,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   const [cliRes, setCliRes] = useState<any[]>([]);
   const [cliSel, setCliSel] = useState<any | null>(null);
   const [criando, setCriando] = useState(false);
+  // "Adicionar produtos em…": escolhe PPV × Orçamento e depois o documento ABERTO
+  const [addEmOpen, setAddEmOpen] = useState(false);
+  const [addEmTipo, setAddEmTipo] = useState<"ppv" | "orcamento" | null>(null);
+  const [docsAbertos, setDocsAbertos] = useState<{ id: string; rotulo: string; sub: string }[]>([]);
+  const [docsCarregando, setDocsCarregando] = useState(false);
+  const [docSel, setDocSel] = useState<{ id: string; rotulo: string } | null>(null);
+  const [docBusca, setDocBusca] = useState("");
   // Carrinhos salvos (Fase 1)
   const [carrinhosOpen, setCarrinhosOpen] = useState(false);
   const [nomeCarrinho, setNomeCarrinho] = useState("");
@@ -128,10 +135,10 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   // Tela cheia: alterna entre consultar peças (bolinhas) e desenhar com a caneta.
   const [fsModo, setFsModo] = useState<"pecas" | "caneta">("pecas");
   const [fsPeca, setFsPeca] = useState<Peca | null>(null);
-  // Painel de peças recolhível: escondido, o desenho ganha a tela toda.
-  const [painelAberto, setPainelAberto] = useState(false);
-  // Dica piscando na aba das peças — some assim que o usuário abre a primeira vez.
-  const [jaAbriuPainel, setJaAbriuPainel] = useState(false);
+  // Painel de peças recolhível — ABERTO por padrão (decisão do usuário, 18/08).
+  const [painelAberto, setPainelAberto] = useState(true);
+  // Dica da aba das peças — só aparece se a pessoa fechar o painel.
+  const [jaAbriuPainel, setJaAbriuPainel] = useState(true);
   const [fsZoom, setFsZoom] = useState(1);
   const limitarFsPan = useCallback((p: { x: number; y: number }) => {
     const box = fsBoxRef.current, img = fsImgRef.current;
@@ -141,13 +148,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     const maxY = Math.max(0, img.clientHeight * fsZoom - box.clientHeight) + folga; // origem no topo
     return { x: Math.min(maxX, Math.max(-maxX, p.x)), y: Math.min(folga, Math.max(-maxY, p.y)) };
   }, [fsZoom]);
-  const [penColor, setPenColor] = useState("#dc2626");
+  const [penColor, setPenColor] = useState("#EA580C");
   const [copiado, setCopiado] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fsImgRef = useRef<HTMLImageElement | null>(null);
   const desenhando = useRef(false);
 
-  const CORES = ["#dc2626", "#2563eb", "#16a34a", "#f59e0b", "#7c3aed", "#000000", "#ffffff"];
+  const CORES = ["#EA580C", "#EA580C", "#16a34a", "#f59e0b", "#7c3aed", "#000000", "#ffffff"];
 
   const ajustarCanvas = useCallback(() => {
     const img = fsImgRef.current, cv = canvasRef.current;
@@ -272,24 +279,28 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   // Reseta zoom/pan sempre que abre outra figura.
   useEffect(() => { setZoom(1); setPan({ x: 0, y: 0 }); setPdfMenu(false); }, [figura?.id]);
 
-  // Roda do mouse: Ctrl (ou ⌘) = zoom; sem modificador = rolar a página normalmente.
+  // Roda do mouse em cima do desenho: Ctrl (ou ⌘) = zoom; sem modificador a
+  // IMAGEM sobe/desce (pan vertical) — pedido do usuário, 18/08.
   useEffect(() => {
     const el = imgBoxRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if (editando) return;
-      if (!e.ctrlKey && !e.metaKey) return; // deixa rolar (scroll) o painel
       e.preventDefault();
-      const fator = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-      setZoom((z) => {
-        const nz = Math.min(6, Math.max(1, z * fator));
-        if (nz === 1) setPan({ x: 0, y: 0 });
-        return nz;
-      });
+      if (e.ctrlKey || e.metaKey) {
+        const fator = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+        setZoom((z) => {
+          const nz = Math.min(6, Math.max(1, z * fator));
+          if (nz === 1) setPan({ x: 0, y: 0 });
+          return nz;
+        });
+      } else {
+        setPan((p) => limitarPan({ x: p.x, y: p.y - e.deltaY * 0.85 }));
+      }
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [editando, figura?.id]);
+  }, [editando, figura?.id, limitarPan]);
 
   // Gera PDF da figura (com ou sem a lista de peças da direita).
   // acao: "imprimir" abre na máquina de impressão; "baixar" só faz download.
@@ -395,33 +406,78 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   const setQty = (code: string, q: number) => setCart((prev) => prev.map((x) => (x.code === code ? { ...x, qty: Math.max(1, q) } : x)));
   const removeFromCart = (code: string) => setCart((prev) => prev.filter((x) => x.code !== code));
 
-  // busca de cliente (no carrinho)
-  useEffect(() => {
-    if (!cartOpen) return;
-    const q = cliQ.trim();
-    if (q.length < 2) { setCliRes([]); return; }
-    const t = setTimeout(async () => { try { const r = await fetch(`/api/ppv/clientes?termo=${encodeURIComponent(q)}`); setCliRes(r.ok ? await r.json() : []); } catch { setCliRes([]); } }, 300);
-    return () => clearTimeout(t);
-  }, [cliQ, cartOpen]);
+  // "Adicionar produtos em…" — passo 1: escolher PPV × Orçamento e carregar os ABERTOS
+  const escolherTipoDoc = useCallback(async (tipoDoc: "ppv" | "orcamento") => {
+    setAddEmTipo(tipoDoc); setDocSel(null); setDocBusca(""); setDocsAbertos([]); setDocsCarregando(true);
+    try {
+      if (tipoDoc === "ppv") {
+        const r = await fetch("/api/ppv/pedidos");
+        const d = await r.json();
+        const fechados = ["Cancelada", "Concluída", "Cancelado", "Fechado"];
+        setDocsAbertos((Array.isArray(d) ? d : [])
+          .filter((p: any) => !fechados.includes(p.status))
+          .map((p: any) => ({ id: String(p.id), rotulo: `PPV ${p.id} — ${p.cliente || "sem cliente"}`, sub: p.status || "" })));
+      } else {
+        // ?q= é obrigatório: sem ele a rota cai no ramo "por OS" e devolve vazio
+        const r = await fetch("/api/orcamentos?q=");
+        const d = await r.json();
+        const lista = Array.isArray(d) ? d : (Array.isArray(d?.orcamentos) ? d.orcamentos : []);
+        setDocsAbertos(lista
+          .filter((o: any) => !/aprovad|recusad|cancel|conclu|expirad|virou/i.test(String(o.status || "")) && !o.expirado)
+          .map((o: any) => ({ id: String(o.id), rotulo: `Orç. ${o.numero || o.id} — ${o.cliente_nome || "sem cliente"}`, sub: o.status || "" })));
+      }
+    } catch { setDocsAbertos([]); }
+    setDocsCarregando(false);
+  }, []);
 
-  const criarDoc = useCallback(async (tipoDoc: "ppv" | "orcamento") => {
-    if (!cliSel) { setToast("Escolha o cliente."); setTimeout(() => setToast(""), 2200); return; }
-    if (cart.length === 0) return;
+  // Passo 2: incluir as peças do carrinho no documento escolhido (criar-doc com alvoId)
+  const incluirNoDoc = useCallback(async () => {
+    if (!addEmTipo || !docSel || cart.length === 0) return;
     setCriando(true);
     try {
       const r = await fetch("/api/catalogo/criar-doc", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tipo: tipoDoc, items: cart.map((c) => ({ codigo: c.code, descricao: c.name, quantidade: c.qty })), cliente: cliSel, userName: userName || "" }),
+        body: JSON.stringify({ tipo: addEmTipo, alvoId: docSel.id, items: cart.map((c) => ({ codigo: c.code, descricao: c.name, quantidade: c.qty })), userName: userName || "" }),
       });
       const j = await r.json();
       if (r.ok) {
-        setToast(tipoDoc === "ppv" ? `PPV ${j.id || ""} criado!` : `Orçamento ${j.numero || ""} criado!`);
-        setCart([]); setCliSel(null); setCliQ(""); setCartOpen(false);
-      } else setToast(j.error || "Erro ao criar.");
+        setToast(`${cart.reduce((s, i) => s + i.qty, 0)} peça(s) incluída(s) em ${docSel.rotulo}!`);
+        setCart([]); setAddEmOpen(false); setAddEmTipo(null); setDocSel(null); setCartOpen(false);
+      } else setToast(j.error || "Erro ao incluir.");
     } catch { setToast("Erro de conexão."); }
     setCriando(false);
     setTimeout(() => setToast(""), 3500);
-  }, [cliSel, cart, userName]);
+  }, [addEmTipo, docSel, cart, userName]);
+
+  // Copia os códigos do carrinho (qtd × código — nome), um por linha
+  const copiarCodigosCarrinho = useCallback(() => {
+    if (cart.length === 0) return;
+    const texto = cart.map((i) => `${i.qty}x ${i.code} — ${i.name}`).join("\n");
+    navigator.clipboard?.writeText(texto).then(() => { setToast("Códigos copiados!"); setTimeout(() => setToast(""), 1600); }).catch(() => {});
+  }, [cart]);
+
+  // Baixa/imprime o carrinho em PDF (janela de impressão → salvar como PDF)
+  const pdfCarrinho = useCallback(() => {
+    if (cart.length === 0) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    const titulo = (nomeCarrinho.trim() || (modeloSel ? `Carrinho ${modeloSel.nome}` : "Carrinho de peças"));
+    const linhas = cart.map((i, n) => `<tr><td>${n + 1}</td><td class="qtd">${i.qty}</td><td class="cod">${i.code}</td><td>${i.name}</td></tr>`).join("");
+    w.document.write(`<!DOCTYPE html><html><head><title>${titulo}</title><style>
+      body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:28px;}
+      h1{font-size:20px;margin:0 0 3px;} .sub{color:#555;font-size:12px;margin-bottom:18px;}
+      table{width:100%;border-collapse:collapse;font-size:13px;}
+      th{background:#EA580C;color:#fff;text-align:left;padding:8px 10px;font-size:12px;}
+      td{border-bottom:1px solid #ddd;padding:7px 10px;vertical-align:top;}
+      .cod{font-family:Consolas,Menlo,monospace;white-space:nowrap;} .qtd{text-align:center;}
+    </style></head><body>
+      <h1>${titulo}</h1>
+      <div class="sub">${modeloSel ? `Modelo: ${modeloSel.nome} · ` : ""}${new Date().toLocaleDateString("pt-BR")} · ${cart.reduce((s, i) => s + i.qty, 0)} peça(s)</div>
+      <table><thead><tr><th>#</th><th>Qtd</th><th>Código</th><th>Descrição</th></tr></thead><tbody>${linhas}</tbody></table>
+      <script>window.onload=function(){window.print();}</script>
+    </body></html>`);
+    w.document.close();
+  }, [cart, nomeCarrinho, modeloSel]);
 
   // Navegação: marcas → linhas de produto → variantes → sistemas → figura.
   // "sistemas" junta o que eram duas telas (lista de sistemas + figuras do
@@ -457,14 +513,37 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     if (!/\d/.test(nome)) p = p.replace(/\s+\S{1,3}$/, "");
     return p.replace(/[\s\-–/]+$/, "");
   };
+  // Ordem MANUAL primeiro (coluna `ordem`, definida pelo botão "Ordenar" — 0 = sem
+  // ordem manual, fica por último na regra automática de tipo/família/nome).
+  const ordemManual = (m: Modelo) => (m.ordem && m.ordem > 0 ? m.ordem : Number.MAX_SAFE_INTEGER);
   const ordenar = (lista: Modelo[]) =>
     [...lista].sort((a, b) => {
+      const oa = ordemManual(a), ob = ordemManual(b);
+      if (oa !== ob) return oa - ob;
       const ta = a.tipo || "", tb = b.tipo || "";
       if (ta !== tb) return ta.localeCompare(tb, "pt");           // implementos juntos, autopropelidos juntos
       const fa = familia(a.nome), fb = familia(b.nome);
       if (fa !== fb) return fa.localeCompare(fb, "pt");
       return a.nome.localeCompare(b.nome, "pt", { numeric: true });
     });
+
+  // ── Ordenação manual (arrastar não: setinhas ▲▼ por card, salva no banco) ──
+  const [modoOrdenar, setModoOrdenar] = useState(false);
+  useEffect(() => { setModoOrdenar(false); }, [marcaSel]); // trocou de marca → sai do modo
+  const moverFamilia = (i: number, dir: -1 | 1) => {
+    const fams = agrupar(modelosVisiveis);
+    const j = i + dir;
+    if (j < 0 || j >= fams.length) return;
+    [fams[i], fams[j]] = [fams[j], fams[i]];
+    // Renumera TODAS as famílias visíveis da marca: posição do card = bloco de ordem
+    const ordemPorSlug = new Map<string, number>();
+    fams.forEach((f, idx) => f.variantes.forEach((m) => ordemPorSlug.set(m.slug, idx + 1)));
+    setModelos((prev) => prev.map((m) => (ordemPorSlug.has(m.slug) ? { ...m, ordem: ordemPorSlug.get(m.slug)! } : m)));
+    fetch("/api/catalogo", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ acao: "ordenar-modelos", ordens: [...ordemPorSlug].map(([slug, ordem]) => ({ slug, ordem })) }),
+    }).catch(() => {});
+  };
 
   // Modelos da marca escolhida, respeitando o filtro de tipo
   const modelosDaMarca = modelos.filter((m) => m.marca === marcaSel?.nome);
@@ -679,7 +758,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     setTimeout(() => { scrollImagemParaRef(ref); scrollParaRef(ref); }, 140);
   }, [figura, scrollImagemParaRef, scrollParaRef]);
 
-  const corSecao: Record<string, string> = { Motor: "#dc2626", "Transmissão": "#2563eb", "Sistema Hidráulico": "#7c3aed", "Eixo Dianteiro": "#0891b2", "Elétrica": "#ca8a04", Lataria: "#0d9488", Freio: "#be123c", Embreagem: "#9333ea", "Diferencial": "#0369a1", "Direção": "#65a30d" };
+  const corSecao: Record<string, string> = { Motor: "#EA580C", "Transmissão": "#EA580C", "Sistema Hidráulico": "#7c3aed", "Eixo Dianteiro": "#0891b2", "Elétrica": "#ca8a04", Lataria: "#0d9488", Freio: "#be123c", Embreagem: "#9333ea", "Diferencial": "#0369a1", "Direção": "#65a30d" };
 
   const voltar = () => {
     if (figura) setFigura(null);
@@ -719,8 +798,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
       <button key={f.nome} className="cat-card" onClick={() => abrirFamilia(f)} style={{ padding: 0, borderRadius: 14, border: "1px solid #e9ecf1", background: "#fff", cursor: "pointer", overflow: "hidden", textAlign: "left" }}>
         <div style={{ height: 240, background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", padding: 14, position: "relative" }}>
           {f.tipo && <span style={{ position: "absolute", top: 10, left: 10, fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: .6, padding: "3px 9px", borderRadius: 999, background: "#0f172a", color: "#fff", opacity: .82 }}>{f.tipo}</span>}
-          {temManual && <span title="Tem manual de instrução" style={{ position: "absolute", top: 10, right: 10, width: 24, height: 24, borderRadius: 7, background: "#dc2626", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}><i className="fas fa-book" /></span>}
-          {n > 1 && <span style={{ position: "absolute", bottom: 10, right: 10, fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, background: "#fff", color: "#dc2626", border: "1px solid #fecaca" }}>{n} versões</span>}
+          {temManual && <span title="Tem manual de instrução" style={{ position: "absolute", top: 10, right: 10, width: 24, height: 24, borderRadius: 7, background: "#EA580C", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11 }}><i className="fas fa-book" /></span>}
+          {n > 1 && <span style={{ position: "absolute", bottom: 10, right: 10, fontSize: 11, fontWeight: 800, padding: "3px 10px", borderRadius: 999, background: "#fff", color: "#EA580C", border: "1px solid #FED7AA" }}>{n} versões</span>}
           {f.image_url && !imgErro[`fam:${f.nome}`] ? <img src={f.image_url} alt={f.nome} onError={() => setImgErro((s) => ({ ...s, [`fam:${f.nome}`]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 46, color: "#cbd5e1" }} />}
         </div>
         <div style={{ padding: "16px 18px", borderTop: "1px solid #f0f2f6", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -757,7 +836,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
           const n = conta(t);
           return (
             <button key={t || "todos"} onClick={() => setTipoSel(t)}
-              style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 999, border: `2px solid ${ativo ? "#dc2626" : "#e3e8ef"}`, background: ativo ? "#dc2626" : "#fff", color: ativo ? "#fff" : "#475569", fontSize: 16, fontWeight: 400, cursor: "pointer", transition: "all .12s" }}>
+              style={{ display: "flex", alignItems: "center", gap: 8, padding: "11px 20px", borderRadius: 999, border: `2px solid ${ativo ? "#EA580C" : "#e3e8ef"}`, background: ativo ? "#EA580C" : "#fff", color: ativo ? "#fff" : "#475569", fontSize: 16, fontWeight: 400, cursor: "pointer", transition: "all .12s" }}>
               {t || "Todos"}
               <span style={{ fontSize: 13.5, fontWeight: 400, padding: "2px 10px", borderRadius: 999, background: ativo ? "rgba(255,255,255,.22)" : "#f1f5f9", color: ativo ? "#fff" : "#94a3b8" }}>{n}</span>
             </button>
@@ -771,23 +850,19 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
     <div style={{ display: "flex", flexDirection: "column", height: "100%", background: "#f7f8fa", borderRadius: 14, overflow: "hidden", color: "#0f172a", fontFamily: "'Inter','Segoe UI',system-ui,sans-serif" }}>
       <style>{`
         .cat-card{transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;box-shadow:0 1px 2px rgba(16,24,40,.05);}
-        .cat-card:hover{transform:translateY(-4px);box-shadow:0 14px 30px rgba(16,24,40,.13);border-color:var(--cor,#d3dae5);}
-        .cat-card:hover .cat-img img{transform:scale(1.08);}
+        .cat-card:hover{box-shadow:0 10px 24px rgba(16,24,40,.12);border-color:var(--cor,#d3dae5);}
         .cat-sis{transition:background .15s ease,padding-left .15s ease;}
         .cat-sis:hover{padding-left:16px;background:#f8fafc;}
-        @keyframes catPisca{0%,100%{opacity:1;transform:translateY(-50%) scale(1);}50%{opacity:.55;transform:translateY(-50%) scale(1.06);}}
-        .cat-dica{animation:catPisca 1.1s ease-in-out infinite;}
+        /* (animações de piscar/pular removidas — o catálogo fica parado no lugar) */
         .cat-back:hover{background:#eef1f6 !important;color:#0f172a !important;}
         .cat-add{transition:filter .15s,transform .08s;}
         .cat-add:hover{filter:brightness(1.08);}
         .cat-add:active{transform:scale(.92);}
-        .cat-input:focus{border-color:#dc2626 !important;box-shadow:0 0 0 3px rgba(220,38,38,.12);}
+        .cat-input:focus{border-color:#EA580C !important;box-shadow:0 0 0 3px rgba(220,38,38,.12);}
         .cat-row:hover{background:#f8fafc;}
         .cat-crumb{cursor:pointer;transition:color .12s,background .12s;}
         .cat-crumb:hover{filter:brightness(.97);}
-        @keyframes catPula{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
-        .cat-pula{animation:catPula 1.4s ease-in-out infinite;}
-        .cat-crumb:hover{color:#dc2626;text-decoration:underline;}
+        .cat-crumb:hover{color:#EA580C;text-decoration:underline;}
         .cat-scroll::-webkit-scrollbar{width:9px;height:9px;}
         .cat-scroll::-webkit-scrollbar-thumb{background:#d7dde6;border-radius:8px;}
         .cat-scroll::-webkit-scrollbar-thumb:hover{background:#c2cad6;}
@@ -803,14 +878,14 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
         </div>
         {vista !== "busca" && (
           <div style={{ fontSize: 13, color: "#64748b", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {(secaoAtual || figura || modeloSel || familiaSel || (marcaSel && marcas.length > 1)) && <button className="cat-pula" onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 9, border: "none", background: "#0f172a", color: "#fff", borderRadius: 11, padding: "11px 20px", cursor: "pointer", fontSize: 16.5, fontWeight: 400, boxShadow: "0 4px 14px rgba(15,23,42,.28)" }}><i className="fas fa-arrow-left" style={{ fontSize: 15 }} /> Voltar</button>}
-            <button className="cat-crumb" onClick={irParaMarcas} style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 9, border: "1.5px solid #dc2626", background: "#fff5f5", color: "#dc2626", borderRadius: 10, padding: isMobile ? "11px 12px" : "10px 18px", fontSize: isMobile ? 14 : 16.5, fontWeight: isMobile ? 600 : 400, cursor: travado ? "default" : "pointer", ...(isMobile ? { flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap" } : {}) }}>
-              <i className="fas fa-bars" style={{ fontSize: isMobile ? 13 : 15 }} /> Catálogo menu
+            {(secaoAtual || figura || modeloSel || familiaSel || (marcaSel && marcas.length > 1)) && <button onClick={voltar} style={{ display: "flex", alignItems: "center", gap: 9, border: "none", background: "#0f172a", color: "#fff", borderRadius: 11, padding: "11px 20px", cursor: "pointer", fontSize: 16.5, fontWeight: 400, boxShadow: "0 4px 14px rgba(15,23,42,.28)" }}><i className="fas fa-arrow-left" style={{ fontSize: 15 }} /> Voltar</button>}
+            <button className="cat-crumb" onClick={irParaMarcas} title="Início do catálogo" style={{ display: "flex", alignItems: "center", justifyContent: "center", border: "1.5px solid #EA580C", background: "#FFF7ED", color: "#EA580C", borderRadius: 10, padding: isMobile ? "11px 14px" : "10px 16px", cursor: travado ? "default" : "pointer" }}>
+              <i className="fas fa-home" style={{ fontSize: isMobile ? 16 : 18 }} />
             </button>
             {!onSelecionarPeca && (
-              <button onClick={() => setCarrinhosOpen(true)} title="Meus carrinhos" className={isMobile ? "" : "cat-pula"}
-                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 9, border: "none", background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff", borderRadius: 10, padding: isMobile ? "11px 12px" : "11px 20px", cursor: "pointer", fontSize: isMobile ? 14 : 16.5, fontWeight: isMobile ? 600 : 400, boxShadow: isMobile ? "0 3px 10px rgba(220,38,38,.28)" : "0 5px 16px rgba(220,38,38,.38)", ...(isMobile ? { flex: "1 1 0", minWidth: 0, whiteSpace: "nowrap" } : {}) }}>
-                <i className="fas fa-cart-shopping" style={{ fontSize: isMobile ? 14 : 16 }} /> Meus carrinhos
+              <button onClick={() => setCarrinhosOpen(true)} title="Meus carrinhos"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", border: "none", background: "linear-gradient(135deg,#F97316,#EA580C)", color: "#fff", borderRadius: 10, padding: isMobile ? "11px 14px" : "11px 16px", cursor: "pointer", boxShadow: "0 3px 10px rgba(220,38,38,.28)" }}>
+                <i className="fas fa-cart-shopping" style={{ fontSize: isMobile ? 16 : 18 }} />
               </button>
             )}
             {!travado && marcaSel && <><span style={{ color: "#cbd5e1" }}>›</span><span className="cat-crumb" onClick={() => { setFamiliaSel(null); setModeloSel(null); setSecaoAtual(""); setFigura(null); }}>{marcaSel.nome}</span></>}
@@ -833,7 +908,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
       )}
 
       <div className="cat-scroll" style={{ flex: 1, overflow: "auto", position: "relative" }}>
-        {loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(247,248,250,0.72)", zIndex: 5, fontSize: 13, color: "#64748b" }}><i className="fas fa-circle-notch fa-spin" style={{ marginRight: 8, color: "#dc2626" }} /> Carregando…</div>}
+        {loading && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(247,248,250,0.72)", zIndex: 5, fontSize: 13, color: "#64748b" }}><i className="fas fa-circle-notch fa-spin" style={{ marginRight: 8, color: "#EA580C" }} /> Carregando…</div>}
 
         {/* ===== BUSCA ===== */}
         {vista === "busca" && (
@@ -896,29 +971,29 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 {resultados.map((p) => (
                   <div key={p.id} className="cat-row" style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "14px 16px", borderBottom: "1px solid #f1f4f8", transition: "background .12s" }}>
                     {/* CÓDIGO — monoespaçado e destacado, coluna fixa */}
-                    <code style={{ width: 168, flexShrink: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 15, fontWeight: 800, letterSpacing: .5, color: "#dc2626", background: "#fef2f2", border: "1px solid #fecaca", padding: "7px 10px", borderRadius: 8, textAlign: "center" }}>{p.code}</code>
+                    <code style={{ width: 168, flexShrink: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 15, fontWeight: 800, letterSpacing: .5, color: "#EA580C", background: "#fef2f2", border: "1px solid #FED7AA", padding: "7px 10px", borderRadius: 8, textAlign: "center" }}>{p.code}</code>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* DESCRIÇÃO */}
                       <div style={{ fontSize: 17, fontWeight: 600, color: "#0f172a", lineHeight: 1.3 }}>{p.name}</div>
-                      {p.figura && <button onClick={() => { setBusca(""); abrirFigura(p.figura_id!); }} style={{ border: "none", background: "transparent", padding: 0, marginTop: 3, cursor: "pointer", fontSize: 13, color: "#2563eb", fontWeight: 600, textAlign: "left" }}>{p.figura.secao} · {p.figura.code} {p.figura.name} →</button>}
+                      {p.figura && <button onClick={() => { setBusca(""); abrirFigura(p.figura_id!); }} style={{ border: "none", background: "transparent", padding: 0, marginTop: 3, cursor: "pointer", fontSize: 13, color: "#EA580C", fontWeight: 600, textAlign: "left" }}>{p.figura.secao} · {p.figura.code} {p.figura.name} →</button>}
                       {/* Máquinas que usam a peça — a mesma figura serve vários modelos */}
                       {p.modelos && p.modelos.length > 0 && (
                         <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginTop: 9, alignItems: "center" }}>
                           <span style={{ fontSize: 12, color: "#0f172a", fontWeight: 800, textTransform: "uppercase", letterSpacing: .5 }}>
-                            <i className="fas fa-tractor" style={{ color: "#2563eb", marginRight: 5 }} />Usada em
+                            <i className="fas fa-tractor" style={{ color: "#EA580C", marginRight: 5 }} />Usada em
                           </span>
                           {p.modelos.slice(0, 8).map((nm) => (
                             <span key={nm} style={{ fontSize: 13.5, fontWeight: 700, color: "#1d4ed8", background: "#eff6ff", border: "1.5px solid #bfdbfe", borderRadius: 999, padding: "4px 12px" }}>{nm}</span>
                           ))}
                           {p.modelos.length > 8 && (
-                            <span title={p.modelos.join(", ")} style={{ fontSize: 13.5, fontWeight: 800, color: "#fff", background: "#2563eb", borderRadius: 999, padding: "4px 11px", cursor: "help" }}>+{p.modelos.length - 8}</span>
+                            <span title={p.modelos.join(", ")} style={{ fontSize: 13.5, fontWeight: 800, color: "#fff", background: "#EA580C", borderRadius: 999, padding: "4px 11px", cursor: "help" }}>+{p.modelos.length - 8}</span>
                           )}
                         </div>
                       )}
                     </div>
                     <span style={{ width: 70, textAlign: "right", fontSize: 15, fontWeight: 600, color: "#334155", whiteSpace: "nowrap" }}>{p.qtd} {p.unit}</span>
                     <button className="cat-add" onClick={() => addPeca({ code: p.code, name: p.name })} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"}
-                      style={{ border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, width: 38, height: 38, fontSize: 15, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
+                      style={{ border: "none", background: "#EA580C", color: "#fff", borderRadius: 8, width: 38, height: 38, fontSize: 15, cursor: "pointer", flexShrink: 0 }}><i className="fas fa-plus" /></button>
                   </div>
                 ))}
               </div>
@@ -979,13 +1054,36 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 <div style={{ fontSize: 26, fontWeight: 800, color: "#0f172a", lineHeight: 1.15 }}>{marcaSel.nome}</div>
                 <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 2 }}>{modelosVisiveis.length} de {modelosDaMarca.length} modelos</div>
               </div>
+              {/* Ordenar quais modelos aparecem primeiro (setinhas nos cards, salva pra todo mundo) */}
+              <button onClick={() => setModoOrdenar((o) => !o)} title="Escolher a ordem em que os modelos aparecem"
+                style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8, border: modoOrdenar ? "none" : "1.5px solid #e3e8ef", background: modoOrdenar ? "#EA580C" : "#fff", color: modoOrdenar ? "#fff" : "#334155", borderRadius: 10, padding: "10px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}>
+                <i className="fas fa-arrow-down-up-across-line" style={{ fontSize: 13 }} /> {modoOrdenar ? "Concluir ordenação" : "Ordenar"}
+              </button>
             </div>
+
+            {modoOrdenar && (
+              <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "9px 14px", borderRadius: 10, background: "#FFF7ED", border: "1px solid #fed7aa", color: "#9a3412", fontSize: 13, marginBottom: 14 }}>
+                <i className="fas fa-circle-info" /> Use as setas <b>▲ ▼</b> nos cards pra escolher quem aparece primeiro. A ordem fica salva pra todo mundo.
+              </div>
+            )}
 
             {/* Filtro por tipo — só aparece se a marca tiver mais de um */}
             {tiposDaMarca.length > 1 && chipsTipo(tiposDaMarca, modelosDaMarca)}
 
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: 20 }}>
-              {agrupar(modelosVisiveis).map(cardFamilia)}
+              {agrupar(modelosVisiveis).map((f, i, arr) => modoOrdenar ? (
+                <div key={`ord-${f.nome}`} style={{ position: "relative" }}>
+                  <div style={{ position: "absolute", top: 10, right: 10, zIndex: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ background: "#0f172a", color: "#fff", borderRadius: 8, padding: "4px 10px", fontSize: 12.5, fontWeight: 700 }}>{i + 1}º</span>
+                    <button onClick={() => moverFamilia(i, -1)} disabled={i === 0} title="Subir"
+                      style={{ width: 34, height: 34, borderRadius: 8, border: "none", background: i === 0 ? "#e2e8f0" : "#EA580C", color: "#fff", cursor: i === 0 ? "default" : "pointer", fontSize: 14 }}><i className="fas fa-arrow-up" /></button>
+                    <button onClick={() => moverFamilia(i, 1)} disabled={i === arr.length - 1} title="Descer"
+                      style={{ width: 34, height: 34, borderRadius: 8, border: "none", background: i === arr.length - 1 ? "#e2e8f0" : "#EA580C", color: "#fff", cursor: i === arr.length - 1 ? "default" : "pointer", fontSize: 14 }}><i className="fas fa-arrow-down" /></button>
+                  </div>
+                  {/* card congelado enquanto ordena (sem navegar sem querer) */}
+                  <div style={{ pointerEvents: "none" }}>{cardFamilia(f)}</div>
+                </div>
+              ) : cardFamilia(f))}
               {modelosVisiveis.length === 0 && <div style={{ padding: 30, color: "#94a3b8" }}>Nenhum modelo neste tipo.</div>}
             </div>
           </div>
@@ -999,7 +1097,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 {familiaSel.image_url ? <img src={familiaSel.image_url} alt={familiaSel.nome} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 26, color: "#cbd5e1" }} />}
               </div>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 1.2, textTransform: "uppercase" }}>{familiaSel.marca}{familiaSel.tipo ? ` · ${familiaSel.tipo}` : ""}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#EA580C", letterSpacing: 1.2, textTransform: "uppercase" }}>{familiaSel.marca}{familiaSel.tipo ? ` · ${familiaSel.tipo}` : ""}</div>
                 <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.15, color: "#0f172a" }}>{familiaSel.nome}</div>
                 <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3 }}>{familiaSel.variantes.length} versões — escolha a do cliente (chassi / configuração)</div>
               </div>
@@ -1011,7 +1109,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                   style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", padding: "12px 15px", border: "none", borderBottom: "1px solid #f1f4f8", background: "transparent", cursor: "pointer" }}>
                   <i className="fas fa-file-lines" style={{ color: "#cbd5e1", fontSize: 14 }} />
                   <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 600, color: "#0f172a" }}>{m.nome}</span>
-                  {m.manual_url && <i className="fas fa-book" title="Tem manual" style={{ color: "#dc2626", fontSize: 12 }} />}
+                  {m.manual_url && <i className="fas fa-book" title="Tem manual" style={{ color: "#EA580C", fontSize: 12 }} />}
                   <span style={{ fontSize: 12, color: "#94a3b8", whiteSpace: "nowrap" }}>{m.figuras || 0} figuras</span>
                   <i className="fas fa-chevron-right" style={{ fontSize: 11, color: "#cbd5e1" }} />
                 </button>
@@ -1024,12 +1122,12 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
         {vista === "sistemas" && modeloSel && (
           <div style={{ padding: 18 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 18, padding: 18, borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 20, position: "relative", overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,.05)" }}>
-              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: "#dc2626" }} />
+              <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: "#EA580C" }} />
               <div style={{ width: 120, height: 84, borderRadius: 10, overflow: "hidden", background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #eef1f6", marginLeft: 6 }}>
                 {modeloSel.image_url && !imgErro[modeloSel.slug] ? <img src={modeloSel.image_url} alt={modeloSel.nome} onError={() => setImgErro((s) => ({ ...s, [modeloSel.slug]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 32, color: "#cbd5e1" }} />}
               </div>
               <div>
-                <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 1.2, textTransform: "uppercase" }}>{modeloSel.marca || "Trator"}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, color: "#EA580C", letterSpacing: 1.2, textTransform: "uppercase" }}>{modeloSel.marca || "Trator"}</div>
                 <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.15, color: "#0f172a" }}>{modeloSel.nome}</div>
                 <div style={{ fontSize: 12.5, color: "#94a3b8", marginTop: 3 }}>{secoes.reduce((a, s) => a + s.figuras, 0)} figuras · {secoes.length} sistemas</div>
               </div>
@@ -1040,7 +1138,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                   style={{
                     marginLeft: "auto", marginRight: 6, display: "flex", alignItems: "center", gap: 9,
                     padding: "11px 18px", borderRadius: 11, border: "none",
-                    background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff",
+                    background: "linear-gradient(135deg,#F97316,#EA580C)", color: "#fff",
                     fontSize: 13.5, fontWeight: 700, textDecoration: "none",
                     boxShadow: "0 4px 12px rgba(220,38,38,.28)", flexShrink: 0,
                   }}>
@@ -1129,7 +1227,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
             <div ref={leftPanelRef} style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3", overflowY: "auto", scrollbarGutter: "stable", maxHeight: "100%", display: "flex", flexDirection: "column" }}>
               <div style={{ marginBottom: 12, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
                 <div>
-                  <div style={{ fontSize: 11, fontWeight: 700, color: "#dc2626", letterSpacing: 0.5 }}>{figura.code}</div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: "#EA580C", letterSpacing: 0.5 }}>{figura.code}</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{figura.name}</div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
@@ -1137,7 +1235,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                   {figura.image_url && !editando && (
                     <div style={{ position: "relative" }}>
                       <button onClick={() => setPdfMenu((o) => !o)} disabled={gerandoPdf} title="Baixar esta figura em PDF"
-                        style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 13px", borderRadius: 9, border: "1.5px solid #fecaca", background: "#fff5f5", color: "#dc2626", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                        style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 13px", borderRadius: 9, border: "1.5px solid #FED7AA", background: "#FFF7ED", color: "#EA580C", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                         <i className={`fas ${gerandoPdf ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {gerandoPdf ? "Gerando..." : "Gerar PDF"}
                         {!gerandoPdf && <i className="fas fa-chevron-down" style={{ fontSize: 9 }} />}
                       </button>
@@ -1153,7 +1251,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                               </div>
                               <button onClick={() => { if (grp.acao === "imprimir") { setPrintDlg({ comPecas: true }); setPdfMenu(false); } else gerarPdf(true, "baixar"); }} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 15px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#0f172a", textAlign: "left" }}
                                 onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                                <i className="fas fa-list" style={{ color: "#dc2626", width: 15 }} /> Com peças
+                                <i className="fas fa-list" style={{ color: "#EA580C", width: 15 }} /> Com peças
                               </button>
                               <button onClick={() => { if (grp.acao === "imprimir") { setPrintDlg({ comPecas: false }); setPdfMenu(false); } else gerarPdf(false, "baixar"); }} style={{ display: "flex", alignItems: "center", gap: 9, width: "100%", padding: "9px 15px", border: "none", background: "transparent", cursor: "pointer", fontSize: 13, color: "#0f172a", textAlign: "left" }}
                                 onMouseEnter={(e) => (e.currentTarget.style.background = "#f8fafc")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
@@ -1195,8 +1293,9 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                         // arrastar a imagem em qualquer zoom (o limitarPan segura pra não sumir)
                         onMouseDown={(e) => { if (!editando) { e.preventDefault(); panRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }; } }}
                         onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })}
-                        // cabe inteira na tela: limita pela ALTURA disponível, não só pela largura
-                        style={{ maxWidth: "100%", maxHeight: "calc(100vh - 210px)", width: "auto", display: "block" }} />
+                        // cabe INTEIRA na tela mesmo com o painel de peças aberto:
+                        // desconta topo do portal + barras do catálogo + cabeçalho da figura
+                        style={{ maxWidth: "100%", maxHeight: "calc(100dvh - 330px)", width: "auto", display: "block" }} />
                       {/* MODO NORMAL: bolinhas clicáveis */}
                       {!editando && (figura.hotspots || []).map((h, i) => {
                         const ativo = refHover === h.reference;
@@ -1205,7 +1304,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                             onMouseEnter={() => setRefHover(h.reference)} onMouseLeave={() => !pecaSel && setRefHover(null)}
                             // TAMANHO FIXO: mudar width/height no hover fazia o cursor entrar/sair
                             // da bolinha durante a animação → tremedeira. Destaque só por cor + anel.
-                            style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / zoom})`, width: 32, height: 32, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: 13, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 7px rgba(0,0,0,0.45)" : "0 2px 7px rgba(0,0,0,0.45)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
+                            style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / zoom})`, width: 32, height: 32, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#EA580C" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: 13, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 7px rgba(0,0,0,0.45)" : "0 2px 7px rgba(0,0,0,0.45)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
                         );
                       })}
                       {/* Ficha da peça LOGO ABAIXO da bolinha em foco */}
@@ -1221,10 +1320,10 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                             position: "absolute", left: `${Math.min(Math.max(esquerda, 16), 84)}%`, top: `calc(${(h.y / imgDim.h) * 100}% + ${26 / zoom}px)`,
                             transform: `translateX(-50%) scale(${1 / zoom})`, transformOrigin: "top center", zIndex: 9,
                             background: "#0f172a", color: "#fff", borderRadius: 14, padding: "16px 20px", minWidth: 330, maxWidth: 460,
-                            boxShadow: "0 16px 40px rgba(0,0,0,.42)", border: "2px solid #dc2626", pointerEvents: "none",
+                            boxShadow: "0 16px 40px rgba(0,0,0,.42)", border: "2px solid #EA580C", pointerEvents: "none",
                           }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                              <span style={{ display: "inline-flex", width: 38, height: 38, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 400, background: "#dc2626", color: "#fff", flexShrink: 0 }}>{p.reference}</span>
+                              <span style={{ display: "inline-flex", width: 38, height: 38, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 17, fontWeight: 400, background: "#EA580C", color: "#fff", flexShrink: 0 }}>{p.reference}</span>
                               <div style={{ minWidth: 0 }}>
                                 <div style={{ fontSize: 12, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .9 }}>Código</div>
                                 <code style={{ fontSize: 24, fontWeight: 400, color: "#fca5a5", fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: .6, lineHeight: 1.2 }}>{p.code}</code>
@@ -1240,7 +1339,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                       {editando && hsEdit.map((h, i) => (
                         <div key={`e-${h.reference}-${i}`} onMouseDown={(e) => { e.preventDefault(); setArrastando(i); }}
                           title={`Ref ${h.reference} — arraste para o número`}
-                          style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: 22, height: 22, borderRadius: "50%", border: "2px solid #fff", background: arrastando === i ? "#4338ca" : "#dc2626", color: "#fff", fontSize: 11, fontWeight: 800, cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 6px rgba(0,0,0,0.5)", zIndex: arrastando === i ? 6 : 5 }}>{h.reference}</div>
+                          style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: "translate(-50%,-50%)", width: 22, height: 22, borderRadius: "50%", border: "2px solid #fff", background: arrastando === i ? "#4338ca" : "#EA580C", color: "#fff", fontSize: 11, fontWeight: 800, cursor: "grab", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 1px 6px rgba(0,0,0,0.5)", zIndex: arrastando === i ? 6 : 5 }}>{h.reference}</div>
                       ))}
                     </div>
                     {/* Controles de zoom (fora do wrapper, não escalam) */}
@@ -1255,8 +1354,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                     {/* Dica: nem é óbvio que a imagem se arrasta, então avisamos. */}
                     {!editando && (
                       <div style={{ position: "absolute", bottom: 8, left: 8, zIndex: 5, display: "flex", alignItems: "center", gap: 8, padding: "7px 13px", borderRadius: 999, background: "rgba(255,255,255,0.94)", border: "1px solid #e2e8f0", color: "#475569", fontSize: 14, fontWeight: 400, boxShadow: "0 2px 8px rgba(0,0,0,0.10)", pointerEvents: "none" }}>
-                        <i className="fas fa-hand-pointer" style={{ color: "#2563eb" }} />
-                        Segure o mouse e arraste para mover a imagem
+                        <i className="fas fa-hand-pointer" style={{ color: "#EA580C" }} />
+                        Arraste ou use o scroll pra mover · Ctrl+scroll dá zoom
                       </div>
                     )}
                   </>
@@ -1280,14 +1379,14 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                   empurrava o layout, movia a bolinha e criava tremedeira. No
                   hover fica só a ficha flutuante acima (que não mexe no layout). */}
               {(() => { const pecaTira = pecaSel; return pecaTira && (
-                <div style={{ position: "sticky", bottom: 0, zIndex: 8, marginTop: 12, borderRadius: 12, border: "1.5px solid #fecaca", background: "#fff7f7", padding: "13px 15px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", boxShadow: "0 -6px 18px rgba(0,0,0,0.10)" }}>
-                  <span style={{ display: "inline-flex", width: 38, height: 38, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 500, background: "#dc2626", color: "#fff", flexShrink: 0 }}>{pecaTira.reference}</span>
+                <div style={{ position: "sticky", bottom: 0, zIndex: 8, marginTop: 12, borderRadius: 12, border: "1.5px solid #FED7AA", background: "#fff7f7", padding: "13px 15px", display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap", boxShadow: "0 -6px 18px rgba(0,0,0,0.10)" }}>
+                  <span style={{ display: "inline-flex", width: 38, height: 38, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 16, fontWeight: 500, background: "#EA580C", color: "#fff", flexShrink: 0 }}>{pecaTira.reference}</span>
                   <div style={{ flex: "1 1 180px", minWidth: 0 }}>
                     <div style={{ fontSize: 12, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .6, fontWeight: 400 }}>Descrição</div>
                     <div style={{ fontSize: 19, fontWeight: 400, color: "#0f172a", lineHeight: 1.3 }}>{pecaTira.name}</div>
                     <div style={{ fontSize: 15, marginTop: 6, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
                       <span style={{ fontSize: 12, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .6 }}>Código</span>
-                      <code style={{ fontWeight: 500, color: "#dc2626", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 17, letterSpacing: .5 }}>{pecaTira.code}</code>
+                      <code style={{ fontWeight: 500, color: "#EA580C", fontFamily: "ui-monospace, Menlo, monospace", fontSize: 17, letterSpacing: .5 }}>{pecaTira.code}</code>
                       {pecaTira.qtd ? <span style={{ color: "#64748b", fontWeight: 400 }}>· o desenho pede {pecaTira.qtd}{pecaTira.unit ? ` ${pecaTira.unit}` : ""}</span> : null}
                     </div>
                   </div>
@@ -1300,7 +1399,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                   </div>
 
                   <button className="cat-add" onClick={() => { addPeca({ code: pecaTira.code, name: pecaTira.name }, qtdSel); setPecaSel(null); }}
-                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 22px", border: "none", borderRadius: 10, background: "#dc2626", color: "#fff", fontSize: 16, fontWeight: 400, cursor: "pointer" }}>
+                    style={{ display: "flex", alignItems: "center", gap: 8, padding: "12px 22px", border: "none", borderRadius: 10, background: "#EA580C", color: "#fff", fontSize: 16, fontWeight: 400, cursor: "pointer" }}>
                     <i className="fas fa-plus" /> {onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"}
                   </button>
                   <button onClick={() => { setPecaSel(null); setRefHover(null); }} title="Fechar"
@@ -1314,14 +1413,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
               <>
                 {/* Dica: pisca até o usuário abrir a lista pela primeira vez */}
                 {!jaAbriuPainel && (
-                  <div className="cat-dica" style={{ position: "absolute", right: 76, top: "50%", transform: "translateY(-50%)", zIndex: 21, background: "#dc2626", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 16, boxShadow: "0 8px 24px rgba(220,38,38,.4)", display: "flex", alignItems: "center", gap: 10, pointerEvents: "none", whiteSpace: "nowrap" }}>
+                  <div style={{ position: "absolute", right: 76, top: "50%", transform: "translateY(-50%)", zIndex: 21, background: "#EA580C", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 16, boxShadow: "0 8px 24px rgba(220,38,38,.4)", display: "flex", alignItems: "center", gap: 10, pointerEvents: "none", whiteSpace: "nowrap" }}>
                     <i className="fas fa-hand-point-right" style={{ fontSize: 18 }} />
                     Clique aqui para ver a lista de peças
                   </div>
                 )}
                 <button onClick={() => { setPainelAberto(true); setJaAbriuPainel(true); }} title="Mostrar as peças"
-                  className={jaAbriuPainel ? "" : "cat-dica"}
-                  style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "22px 13px", border: "2px solid #dc2626", borderRight: "none", borderRadius: "14px 0 0 14px", background: "#fff", color: "#dc2626", cursor: "pointer", boxShadow: "-6px 0 20px rgba(16,24,40,.16)" }}>
+                  style={{ position: "absolute", right: 0, top: "50%", transform: "translateY(-50%)", zIndex: 20, display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "22px 13px", border: "2px solid #EA580C", borderRight: "none", borderRadius: "14px 0 0 14px", background: "#fff", color: "#EA580C", cursor: "pointer", boxShadow: "-6px 0 20px rgba(16,24,40,.16)" }}>
                   <i className="fas fa-chevron-left" style={{ fontSize: 18 }} />
                   <span style={{ writingMode: "vertical-rl", fontSize: 16, letterSpacing: 1.4, color: "#0f172a" }}>PEÇAS ({(figura.pecas || []).length})</span>
                 </button>
@@ -1343,9 +1441,9 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                     <div key={p.id} ref={(el) => { rowRefs.current[p.reference] = el; }} onMouseEnter={() => setRefHover(p.reference)} onMouseLeave={() => { if (!pecaSel) setRefHover(null); }}
                       onClick={() => selecionarPecaDaLista(p)} title="Clique para destacar no desenho"
                       style={{ display: "flex", alignItems: "center", padding: "13px 16px", borderBottom: "1px solid #f3f5f8", background: ativo ? "#fff7ed" : "transparent", transition: "background .12s", cursor: "pointer" }}>
-                      <span style={{ width: 44 }}><span style={{ display: "inline-flex", width: 28, height: 28, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 13.5, fontWeight: 400, background: ativo ? "#dc2626" : "#eef2f7", color: ativo ? "#fff" : "#475569" }}>{p.reference}</span></span>
+                      <span style={{ width: 44 }}><span style={{ display: "inline-flex", width: 28, height: 28, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 13.5, fontWeight: 400, background: ativo ? "#EA580C" : "#eef2f7", color: ativo ? "#fff" : "#475569" }}>{p.reference}</span></span>
                       <span style={{ width: 180, display: "flex", alignItems: "center", gap: 6 }}>
-                        <code style={{ fontSize: 16.5, fontWeight: 400, color: "#dc2626", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", letterSpacing: .3 }}>{p.code}</code>
+                        <code style={{ fontSize: 16.5, fontWeight: 400, color: "#EA580C", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", letterSpacing: .3 }}>{p.code}</code>
                         <button onClick={(e) => { e.stopPropagation(); copiarCodigo(p.code); }} title="Copiar código"
                           style={{ border: "none", background: "transparent", cursor: "pointer", color: copiado === p.code ? "#16a34a" : "#94a3b8", fontSize: 14, padding: 2, flexShrink: 0 }}>
                           <i className={`fas ${copiado === p.code ? "fa-check" : "fa-copy"}`} />
@@ -1353,7 +1451,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                       </span>
                       <span style={{ flex: 1, fontSize: 16.5, paddingRight: 8, color: "#0f172a", lineHeight: 1.35, fontWeight: 400 }}>{p.name}</span>
                       <span style={{ width: 56, fontSize: 15, color: "#64748b" }}>{p.qtd} {p.unit}</span>
-                      <button className="cat-add" onClick={(e) => { e.stopPropagation(); addPeca({ code: p.code, name: p.name }); }} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"} style={{ width: 36, height: 36, border: "none", background: "#dc2626", color: "#fff", borderRadius: 8, cursor: "pointer", flexShrink: 0, fontSize: 14 }}><i className="fas fa-plus" /></button>
+                      <button className="cat-add" onClick={(e) => { e.stopPropagation(); addPeca({ code: p.code, name: p.name }); }} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"} style={{ width: 36, height: 36, border: "none", background: "#EA580C", color: "#fff", borderRadius: 8, cursor: "pointer", flexShrink: 0, fontSize: 14 }}><i className="fas fa-plus" /></button>
                     </div>
                   );
                 })}
@@ -1365,8 +1463,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
 
       {/* Botão flutuante do carrinho (modo avulso) */}
       {!onSelecionarPeca && cart.length > 0 && !cartOpen && (
-        <button className="cat-add" onClick={() => setCartOpen(true)} style={{ position: "absolute", bottom: 18, right: 18, zIndex: 40, display: "flex", alignItems: "center", gap: 9, padding: "13px 19px", borderRadius: 13, border: "none", background: "linear-gradient(135deg,#ef4444,#dc2626)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", boxShadow: "0 8px 22px rgba(220,38,38,0.40)" }}>
-          <i className="fas fa-cart-shopping" /> Carrinho <span style={{ background: "#fff", color: "#dc2626", borderRadius: 20, padding: "2px 9px", fontSize: 12, fontWeight: 800 }}>{cart.reduce((s, i) => s + i.qty, 0)}</span>
+        <button className="cat-add" onClick={() => setCartOpen(true)} style={{ position: "absolute", bottom: 18, right: 18, zIndex: 40, display: "flex", alignItems: "center", gap: 9, padding: "13px 19px", borderRadius: 13, border: "none", background: "linear-gradient(135deg,#F97316,#EA580C)", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer", boxShadow: "0 8px 22px rgba(220,38,38,0.40)" }}>
+          <i className="fas fa-cart-shopping" /> Carrinho <span style={{ background: "#fff", color: "#EA580C", borderRadius: 20, padding: "2px 9px", fontSize: 12, fontWeight: 800 }}>{cart.reduce((s, i) => s + i.qty, 0)}</span>
         </button>
       )}
 
@@ -1376,7 +1474,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
           <div onClick={() => setCartOpen(false)} style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,0.55)" }} />
           <div style={{ position: "relative", width: 780, maxWidth: "96%", maxHeight: "92vh", background: "#fff", borderRadius: 18, boxShadow: "0 30px 70px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #eef0f3", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 22, fontWeight: 400 }}><i className="fas fa-cart-shopping" style={{ color: "#dc2626", marginRight: 10 }} />Carrinho ({cart.reduce((s, i) => s + i.qty, 0)} {cart.reduce((s, i) => s + i.qty, 0) === 1 ? "peça" : "peças"})</div>
+              <div style={{ fontSize: 22, fontWeight: 400 }}><i className="fas fa-cart-shopping" style={{ color: "#EA580C", marginRight: 10 }} />Carrinho ({cart.reduce((s, i) => s + i.qty, 0)} {cart.reduce((s, i) => s + i.qty, 0) === 1 ? "peça" : "peças"})</div>
               <button onClick={() => setCartOpen(false)} style={{ border: "none", background: "#f1f5f9", borderRadius: 10, width: 40, height: 40, cursor: "pointer", color: "#475569", fontSize: 18 }}><i className="fas fa-times" /></button>
             </div>
 
@@ -1385,7 +1483,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 <div key={it.code} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 24px", borderBottom: "1px solid #f5f7fa" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 17, fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</div>
-                    <code style={{ fontSize: 15, fontWeight: 400, color: "#dc2626", fontFamily: "ui-monospace, Menlo, monospace" }}>{it.code}</code>
+                    <code style={{ fontSize: 15, fontWeight: 400, color: "#EA580C", fontFamily: "ui-monospace, Menlo, monospace" }}>{it.code}</code>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                     <button onClick={() => setQty(it.code, it.qty - 1)} style={{ width: 34, height: 34, border: "1px solid #e2e8f0", background: "#fff", borderRadius: 8, cursor: "pointer", fontSize: 17 }}>−</button>
@@ -1398,64 +1496,90 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
             </div>
 
             <div style={{ borderTop: "1px solid #eef0f3", padding: 24 }}>
-              <div style={{ fontSize: 14, fontWeight: 400, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 10 }}>Cliente</div>
-              {/* Cadastrado (busca no Omie) x avulso (digitado na hora) */}
+              {/* Copiar códigos + PDF do carrinho */}
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-                {([["cadastrado", "fa-address-book", "Já cadastrado"], ["novo", "fa-user-pen", "Não cadastrado"]] as const).map(([m, ic, lb]) => (
-                  <button key={m} onClick={() => { setCliModo(m as "cadastrado" | "novo"); if (m === "novo") { setCliSel(null); setCliRes([]); } else setCliNovo(""); }}
-                    style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px", borderRadius: 10, cursor: "pointer", fontSize: 16, fontWeight: 400,
-                      border: `2px solid ${cliModo === m ? "#dc2626" : "#e2e8f0"}`, background: cliModo === m ? "#fff5f5" : "#fff", color: cliModo === m ? "#dc2626" : "#64748b" }}>
-                    <i className={`fas ${ic}`} /> {lb}
-                  </button>
-                ))}
+                <button disabled={cart.length === 0} onClick={copiarCodigosCarrinho}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontWeight: 600, fontSize: 15, cursor: "pointer", opacity: cart.length === 0 ? 0.5 : 1 }}>
+                  <i className="fas fa-copy" style={{ color: "#EA580C" }} /> Copiar códigos
+                </button>
+                <button disabled={cart.length === 0} onClick={pdfCarrinho}
+                  style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px", borderRadius: 10, border: "1px solid #e2e8f0", background: "#fff", color: "#334155", fontWeight: 600, fontSize: 15, cursor: "pointer", opacity: cart.length === 0 ? 0.5 : 1 }}>
+                  <i className="fas fa-file-pdf" style={{ color: "#EA580C" }} /> Baixar PDF
+                </button>
               </div>
-              {cliModo === "novo" ? (
-                <input value={cliNovo} onChange={(e) => setCliNovo(e.target.value)} placeholder="Nome do cliente"
-                  style={{ width: "100%", padding: "13px 14px", borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 17, boxSizing: "border-box", outline: "none", marginBottom: 12 }} />
-              ) : cliSel ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 10, background: "#f0fdf4", border: "1px solid #bbf7d0", marginBottom: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 18, fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{cliSel.nome}</div>
-                    <div style={{ fontSize: 14.5, color: "#64748b" }}>{cliSel.documento}{cliSel.cidade ? ` · ${cliSel.cidade}` : ""}</div>
-                  </div>
-                  <button onClick={() => { setCliSel(null); setCliQ(""); }} style={{ border: "none", background: "transparent", color: "#dc2626", cursor: "pointer", fontSize: 15, fontWeight: 400 }}>Trocar</button>
-                </div>
-              ) : (
-                <div style={{ position: "relative", marginBottom: 12 }}>
-                  <input value={cliQ} onChange={(e) => setCliQ(e.target.value)} placeholder="Buscar cliente (nome ou CNPJ)…" style={{ width: "100%", padding: "13px 14px", borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 17, boxSizing: "border-box", outline: "none" }} />
-                  {cliRes.length > 0 && (
-                    <div style={{ position: "absolute", bottom: "100%", left: 0, right: 0, marginBottom: 4, maxHeight: 200, overflow: "auto", background: "#fff", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 -6px 20px rgba(0,0,0,0.12)", zIndex: 5 }}>
-                      {cliRes.map((c, i) => (
-                        <button key={i} onClick={() => { setCliSel(c); setCliRes([]); }} style={{ display: "block", width: "100%", textAlign: "left", border: "none", background: "transparent", padding: "9px 12px", cursor: "pointer", borderBottom: "1px solid #f1f5f9" }}>
-                          <div style={{ fontSize: 16, fontWeight: 400 }}>{c.nome}</div>
-                          <div style={{ fontSize: 14, color: "#94a3b8" }}>{c.documento}{c.cidade ? ` · ${c.cidade}` : ""}</div>
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
-                <button disabled={criando || cart.length === 0 || !clienteNome} onClick={() => criarDoc("orcamento")} style={{ flex: 1, padding: "15px", borderRadius: 10, border: "2px solid #ea580c", background: "#fff", color: "#ea580c", fontWeight: 400, fontSize: 17, cursor: "pointer", opacity: criando || !clienteNome ? 0.5 : 1 }}><i className="fas fa-file-invoice" /> Orçamento</button>
-                <button disabled={criando || cart.length === 0 || !clienteNome} onClick={() => criarDoc("ppv")} style={{ flex: 1, padding: "15px", borderRadius: 10, border: "none", background: "#dc2626", color: "#fff", fontWeight: 400, fontSize: 17, cursor: "pointer", opacity: criando || !clienteNome ? 0.5 : 1 }}><i className="fas fa-box" /> PPV</button>
-              </div>
-              <div style={{ fontSize: 14, color: "#94a3b8", marginTop: 10, textAlign: "center" }}>Os preços são puxados do Omie ao criar o documento.</div>
 
-              {/* Salvar como carrinho */}
+              {/* Um botão só: escolhe PPV × Orçamento no passo seguinte */}
+              <button disabled={criando || cart.length === 0} onClick={() => { setAddEmOpen(true); setAddEmTipo(null); setDocSel(null); }}
+                style={{ width: "100%", padding: "15px", borderRadius: 10, border: "none", background: "#EA580C", color: "#fff", fontWeight: 700, fontSize: 17, cursor: "pointer", opacity: criando || cart.length === 0 ? 0.5 : 1 }}>
+                <i className="fas fa-plus" /> Adicionar produtos em…
+              </button>
+              <div style={{ fontSize: 14, color: "#94a3b8", marginTop: 10, textAlign: "center" }}>Os preços são puxados do Omie ao incluir no documento.</div>
+
+              {/* Salvar como carrinho — só o nome */}
               <div style={{ marginTop: 14, borderTop: "1px dashed #e2e8f0", paddingTop: 14 }}>
-                <div style={{ fontSize: 17, fontWeight: 400, color: "#334155", marginBottom: 10 }}><i className="fas fa-bookmark" style={{ color: "#dc2626", marginRight: 8 }} /> Salvar como carrinho</div>
+                <div style={{ fontSize: 17, fontWeight: 400, color: "#334155", marginBottom: 10 }}><i className="fas fa-bookmark" style={{ color: "#EA580C", marginRight: 8 }} /> Salvar como carrinho</div>
                 <input value={nomeCarrinho} onChange={(e) => setNomeCarrinho(e.target.value)} placeholder={modeloSel ? `Nome (ex.: Revisão ${modeloSel.nome})` : "Nome do carrinho"}
                   style={{ width: "100%", padding: "13px 14px", borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 17, boxSizing: "border-box", outline: "none", marginBottom: 10 }} />
-                <input value={servicoCarrinho} onChange={(e) => setServicoCarrinho(e.target.value)} placeholder="Serviço (opcional)"
-                  style={{ width: "100%", padding: "13px 14px", borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 17, boxSizing: "border-box", outline: "none", marginBottom: 10 }} />
-                <div style={{ fontSize: 14.5, color: "#94a3b8", marginBottom: 10 }}>Cliente: {clienteNome || "—"}{modeloSel ? ` · Modelo: ${modeloSel.nome}` : ""}</div>
                 <button disabled={salvandoCarrinho || cart.length === 0} onClick={salvarCarrinho}
-                  style={{ width: "100%", padding: "15px", borderRadius: 10, border: "2px solid #dc2626", background: "#fff", color: "#dc2626", fontWeight: 400, fontSize: 17, cursor: "pointer", opacity: salvandoCarrinho || cart.length === 0 ? 0.5 : 1 }}>
+                  style={{ width: "100%", padding: "15px", borderRadius: 10, border: "2px solid #EA580C", background: "#fff", color: "#EA580C", fontWeight: 400, fontSize: 17, cursor: "pointer", opacity: salvandoCarrinho || cart.length === 0 ? 0.5 : 1 }}>
                   <i className="fas fa-cart-shopping" /> {salvandoCarrinho ? "Salvando..." : "Salvar carrinho"}
                 </button>
               </div>
             </div>
           </div>
+
+          {/* Passo 2: escolher PPV × Orçamento e o documento aberto */}
+          {addEmOpen && (
+            <div onClick={(e) => { if (e.target === e.currentTarget) setAddEmOpen(false); }}
+              style={{ position: "absolute", inset: 0, zIndex: 10, background: "rgba(15,23,42,0.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+              <div style={{ width: 560, maxWidth: "94%", maxHeight: "86vh", background: "#fff", borderRadius: 16, boxShadow: "0 24px 60px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
+                <div style={{ padding: "16px 20px", borderBottom: "1px solid #eef0f3", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#0f172a" }}><i className="fas fa-plus" style={{ color: "#EA580C", marginRight: 8 }} /> Adicionar produtos em…</div>
+                  <button onClick={() => setAddEmOpen(false)} style={{ border: "none", background: "#f1f5f9", borderRadius: 8, width: 34, height: 34, cursor: "pointer", color: "#475569" }}><i className="fas fa-times" /></button>
+                </div>
+                <div style={{ padding: 20, overflow: "auto" }}>
+                  <div style={{ display: "flex", gap: 10, marginBottom: 14 }}>
+                    {([["ppv", "fa-box", "Pré-Pedido de Venda"], ["orcamento", "fa-file-invoice", "Orçamento"]] as const).map(([t, ic, lb]) => (
+                      <button key={t} onClick={() => escolherTipoDoc(t as "ppv" | "orcamento")}
+                        style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px", borderRadius: 10, cursor: "pointer", fontSize: 15.5, fontWeight: 600,
+                          border: `2px solid ${addEmTipo === t ? "#EA580C" : "#e2e8f0"}`, background: addEmTipo === t ? "#FFF7ED" : "#fff", color: addEmTipo === t ? "#EA580C" : "#64748b" }}>
+                        <i className={`fas ${ic}`} /> {lb}
+                      </button>
+                    ))}
+                  </div>
+                  {addEmTipo && (
+                    <>
+                      <input value={docBusca} onChange={(e) => setDocBusca(e.target.value)} placeholder="Filtrar por número ou cliente…"
+                        style={{ width: "100%", padding: "11px 13px", borderRadius: 10, border: "1px solid #e2e8f0", fontSize: 15, boxSizing: "border-box", outline: "none", marginBottom: 10 }} />
+                      <div style={{ border: "1px solid #eef0f3", borderRadius: 10, maxHeight: 260, overflow: "auto" }}>
+                        {docsCarregando ? (
+                          <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}><i className="fas fa-circle-notch fa-spin" style={{ marginRight: 8, color: "#EA580C" }} /> Carregando abertos…</div>
+                        ) : (() => {
+                          const q = docBusca.trim().toLowerCase();
+                          const lista = docsAbertos.filter((d) => !q || d.rotulo.toLowerCase().includes(q));
+                          if (lista.length === 0) return <div style={{ padding: 24, textAlign: "center", color: "#94a3b8" }}>Nenhum documento aberto encontrado.</div>;
+                          return lista.map((d) => (
+                            <button key={d.id} onClick={() => setDocSel({ id: d.id, rotulo: d.rotulo })}
+                              style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", border: "none", borderBottom: "1px solid #f5f7fa", background: docSel?.id === d.id ? "#FFF7ED" : "#fff", padding: "11px 14px", cursor: "pointer" }}>
+                              <span style={{ width: 18, height: 18, borderRadius: "50%", border: `2px solid ${docSel?.id === d.id ? "#EA580C" : "#cbd5e1"}`, background: docSel?.id === d.id ? "#EA580C" : "#fff", flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+                                {docSel?.id === d.id && <i className="fas fa-check" style={{ fontSize: 9, color: "#fff" }} />}
+                              </span>
+                              <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 600, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.rotulo}</span>
+                              {d.sub && <span style={{ fontSize: 11.5, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", flexShrink: 0 }}>{d.sub}</span>}
+                            </button>
+                          ));
+                        })()}
+                      </div>
+                      <button disabled={!docSel || criando} onClick={incluirNoDoc}
+                        style={{ width: "100%", marginTop: 12, padding: "14px", borderRadius: 10, border: "none", background: "#EA580C", color: "#fff", fontWeight: 700, fontSize: 16, cursor: "pointer", opacity: !docSel || criando ? 0.5 : 1 }}>
+                        {criando ? <><i className="fas fa-spinner fa-spin" /> Incluindo…</> : <><i className="fas fa-plus" /> Novo item: incluir {cart.reduce((s, i) => s + i.qty, 0)} peça(s){docSel ? ` em ${docSel.rotulo}` : ""}</>}
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1474,7 +1598,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
           style={{ position: "fixed", inset: 0, zIndex: 4000, background: "rgba(15,23,42,0.5)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
           <div style={{ width: 420, maxWidth: "94vw", background: "#fff", borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.3)", overflow: "hidden" }}>
             <div style={{ padding: "16px 20px", borderBottom: "1px solid #f1f5f9", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-              <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}><i className="fas fa-print" style={{ color: "#dc2626", marginRight: 8 }} /> Ajustar impressão</div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}><i className="fas fa-print" style={{ color: "#EA580C", marginRight: 8 }} /> Ajustar impressão</div>
               <button onClick={() => setPrintDlg(null)} style={{ border: "none", background: "transparent", fontSize: 22, color: "#94a3b8", cursor: "pointer", lineHeight: 1 }}>&times;</button>
             </div>
             <div style={{ padding: 20 }}>
@@ -1528,7 +1652,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 <i className="fas fa-download" /> Baixar
               </button>
               <button onClick={() => { const cp = printDlg.comPecas; const o = { scale: printScale, rot: printRot, pos: printPos }; setPrintDlg(null); gerarPdf(cp, "imprimir", o); }} disabled={gerandoPdf}
-                style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#dc2626", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
+                style={{ padding: "10px 20px", borderRadius: 10, border: "none", background: "#EA580C", color: "#fff", fontSize: 14, fontWeight: 700, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 8 }}>
                 <i className="fas fa-print" /> Imprimir
               </button>
             </div>
@@ -1547,7 +1671,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
               {([["pecas", "fa-circle-dot", "Peças"], ["caneta", "fa-pen", "Caneta"]] as const).map(([m, ic, lb]) => (
                 <button key={m} onClick={() => setFsModo(m as "pecas" | "caneta")}
                   style={{ display: "flex", alignItems: "center", gap: 7, padding: "8px 15px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14.5, fontWeight: 400,
-                    background: fsModo === m ? "#dc2626" : "transparent", color: fsModo === m ? "#fff" : "#cbd5e1" }}>
+                    background: fsModo === m ? "#EA580C" : "transparent", color: fsModo === m ? "#fff" : "#cbd5e1" }}>
                   <i className={`fas ${ic}`} /> {lb}
                 </button>
               ))}
@@ -1557,7 +1681,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 <div style={{ display: "flex", gap: 8 }}>
                   {CORES.map((c) => (
                     <button key={c} onClick={() => setPenColor(c)} title={c}
-                      style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer", border: penColor === c ? "3px solid #fff" : "2px solid rgba(255,255,255,0.35)", boxShadow: penColor === c ? "0 0 0 2px #dc2626" : "none" }} />
+                      style={{ width: 26, height: 26, borderRadius: "50%", background: c, cursor: "pointer", border: penColor === c ? "3px solid #fff" : "2px solid rgba(255,255,255,0.35)", boxShadow: penColor === c ? "0 0 0 2px #EA580C" : "none" }} />
                   ))}
                 </div>
                 <button onClick={desfazerTraco} disabled={!temDesenho} title="Voltar um rabisco"
@@ -1583,7 +1707,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
             <div style={{ flex: 1 }} />
             <button onClick={() => gerarPdfDesenho("baixar")} disabled={gerandoPdf} style={fsBtn}><i className="fas fa-download" /> Baixar PDF</button>
             <button onClick={() => gerarPdfDesenho("imprimir")} disabled={gerandoPdf} style={{ ...fsBtn, background: "rgba(255,255,255,0.16)" }}><i className="fas fa-print" /> Imprimir</button>
-            <button onClick={() => { limparDesenho(); setFullscreen(false); }} style={{ ...fsBtn, background: "#dc2626", border: "none" }}><i className="fas fa-times" /> Fechar</button>
+            <button onClick={() => { limparDesenho(); setFullscreen(false); }} style={{ ...fsBtn, background: "#EA580C", border: "none" }}><i className="fas fa-times" /> Fechar</button>
           </div>
           {/* Imagem + canvas de desenho (com zoom) */}
           <div ref={fsBoxRef}
@@ -1609,7 +1733,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                       onMouseEnter={() => { setRefHover(h.reference); const p = (figura.pecas || []).find((x) => x.reference === h.reference); if (p) setFsPeca(p); }}
                       onMouseLeave={() => setRefHover(null)}
                       onClick={() => { const p = (figura.pecas || []).find((x) => x.reference === h.reference); if (p) { setPecaSel(p); setFsPeca(p); } }}
-                      style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / fsZoom})`, width: 34, height: 34, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#dc2626" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: 14, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 8px rgba(0,0,0,0.5)" : "0 2px 8px rgba(0,0,0,0.5)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>
+                      style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / fsZoom})`, width: 34, height: 34, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#EA580C" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: 14, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 8px rgba(0,0,0,0.5)" : "0 2px 8px rgba(0,0,0,0.5)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>
                       {h.reference}
                     </button>
                   );
@@ -1621,7 +1745,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
           {/* Tira da peça — aparece ao passar o mouse na bolinha */}
           {fsModo === "pecas" && fsPeca && (
             <div style={{ borderTop: "1px solid rgba(255,255,255,0.14)", background: "rgba(15,23,42,0.98)", padding: "16px 22px", display: "flex", alignItems: "center", gap: 20, flexWrap: "wrap" }}>
-              <span style={{ display: "inline-flex", width: 46, height: 46, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 400, background: "#dc2626", color: "#fff", flexShrink: 0 }}>{fsPeca.reference}</span>
+              <span style={{ display: "inline-flex", width: 46, height: 46, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 400, background: "#EA580C", color: "#fff", flexShrink: 0 }}>{fsPeca.reference}</span>
               <div style={{ minWidth: 200 }}>
                 <div style={{ fontSize: 12.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .8 }}>Código</div>
                 <code style={{ fontSize: 23, fontWeight: 400, color: "#f87171", fontFamily: "ui-monospace, Menlo, monospace", letterSpacing: .6 }}>{fsPeca.code}</code>
@@ -1637,7 +1761,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 </div>
               ) : null}
               <button className="cat-add" onClick={() => addPeca({ code: fsPeca.code, name: fsPeca.name })}
-                style={{ display: "flex", alignItems: "center", gap: 9, padding: "13px 24px", border: "none", borderRadius: 10, background: "#dc2626", color: "#fff", fontSize: 16.5, fontWeight: 400, cursor: "pointer" }}>
+                style={{ display: "flex", alignItems: "center", gap: 9, padding: "13px 24px", border: "none", borderRadius: 10, background: "#EA580C", color: "#fff", fontSize: 16.5, fontWeight: 400, cursor: "pointer" }}>
                 <i className="fas fa-plus" /> {onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"}
               </button>
             </div>

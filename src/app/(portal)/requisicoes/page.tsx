@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import ModalTags from '@/components/requisicoes/ModalTags';
 import PainelDev from '@/components/requisicoes/PainelDev';
+import PecasNav from '@/components/ppv/PecasNav';
 
 // A aba "Veículos" morreu na Fase 5 do Frota: o cadastro de veículos agora é
 // SÓ no módulo Frota (/frota, botão "Novo veículo"), que mantém a SupaPlacas
@@ -364,6 +365,9 @@ function RequisicoesPageInner() {
   ].filter(Boolean) as { id: string; label: string; icon: React.ReactNode }[];
 
   return (
+    <div className="pecas-skin">
+    {/* Sistema Peças: barra padronizada do módulo */}
+    <div className="print:hidden"><PecasNav /></div>
     <div className="px-3 py-3 md:px-8 md:py-6">
       {reqParaImprimir && <TemplatePDF req={reqParaImprimir} anexos={anexosParaImprimir} onUpdate={() => {}} onPrint={() => {}} />}
       <ModalTags open={showTagsModal} onClose={() => setShowTagsModal(false)} />
@@ -382,16 +386,16 @@ function RequisicoesPageInner() {
               animation: 'toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
             }}
           >
-            <div style={{ height: '3px', background: 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
+            <div style={{ height: '3px', background: 'linear-gradient(90deg, #EA580C, #F97316)', animation: 'toastProgress 6s linear forwards' }} />
             <div className="flex items-center gap-3 p-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-500 to-red-700 flex items-center justify-center text-white shrink-0 shadow-md shadow-red-200">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 flex items-center justify-center text-white shrink-0 shadow-md shadow-orange-200">
                 <Bell size={18} />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-[10px] font-bold text-red-500 uppercase tracking-widest mb-0.5">{t.tipoNotif}</p>
-                <p className="text-[13px] font-semibold text-zinc-800 truncate">{t.titulo}</p>
+                <p className="text-[10px] font-bold text-orange-500 uppercase tracking-widest mb-0.5">{t.tipoNotif}</p>
+                <p className="text-[13px] font-semibold text-black truncate">{t.titulo}</p>
               </div>
-              <div className="text-[10px] text-zinc-400 font-medium shrink-0">agora</div>
+              <div className="text-[10px] text-black font-medium shrink-0">agora</div>
             </div>
           </div>
         ))}
@@ -447,7 +451,7 @@ function RequisicoesPageInner() {
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                     transition: 'all 0.2s'
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2'; e.currentTarget.style.color = '#dc2626' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#FFEDD5'; e.currentTarget.style.color = '#EA580C' }}
                   onMouseLeave={e => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-muted)' }}
                 >
                   <X size={16} />
@@ -458,13 +462,13 @@ function RequisicoesPageInner() {
                   onClick={() => setNotificacoes([])}
                   style={{
                     width: '100%', padding: '8px', borderRadius: '10px',
-                    background: '#fef2f2', border: '1px solid #fecaca',
-                    color: '#dc2626', fontSize: '11px', fontWeight: '600',
+                    background: '#FFF7ED', border: '1px solid #FED7AA',
+                    color: '#EA580C', fontSize: '11px', fontWeight: '600',
                     cursor: 'pointer', transition: 'all 0.2s',
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
                   }}
-                  onMouseEnter={e => { e.currentTarget.style.background = '#fee2e2' }}
-                  onMouseLeave={e => { e.currentTarget.style.background = '#fef2f2' }}
+                  onMouseEnter={e => { e.currentTarget.style.background = '#FFEDD5' }}
+                  onMouseLeave={e => { e.currentTarget.style.background = '#FFF7ED' }}
                 >
                   <CheckCheck size={13} /> Limpar todas
                 </button>
@@ -500,12 +504,12 @@ function RequisicoesPageInner() {
                 >
                   <div style={{
                     width: '40px', height: '40px', borderRadius: '12px',
-                    background: 'linear-gradient(135deg, #fef2f2, #fff1f2)',
-                    border: '1px solid #fecaca',
+                    background: 'linear-gradient(135deg, #FFF7ED, #fff1f2)',
+                    border: '1px solid #FED7AA',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     flexShrink: 0
                   }}>
-                    <Bell size={16} color="#dc2626" />
+                    <Bell size={16} color="#EA580C" />
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <p style={{
@@ -520,7 +524,7 @@ function RequisicoesPageInner() {
                       }}>{n.solicitante}</span>
                       <span style={{ width: '3px', height: '3px', borderRadius: '50%', background: 'var(--portal-text-faint)' }} />
                       <span style={{
-                        fontSize: '11px', color: '#dc2626', fontWeight: '600'
+                        fontSize: '11px', color: '#EA580C', fontWeight: '600'
                       }}>{n.hora}</span>
                     </div>
                   </div>
@@ -544,49 +548,22 @@ function RequisicoesPageInner() {
         </>
       )}
 
-      {/* Header */}
-      <div style={{ marginBottom: '24px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-          <div>
-            <h2 style={{ fontSize: '28px', fontWeight: '800', color: 'var(--portal-text)', marginBottom: '6px' }}>
-              Requisições
-            </h2>
-            <p style={{ color: 'var(--portal-text-muted)', fontSize: '14px' }}>
-              Kanban de requisições de materiais e serviços
-            </p>
-          </div>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={() => setShowTagsModal(true)}
-              {...gateBtn(podeTags)}
-              style={{
-                padding: '8px 14px', borderRadius: '10px',
-                background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                color: 'var(--portal-text-secondary)', fontSize: '13px', cursor: 'pointer',
-                display: 'flex', alignItems: 'center', gap: '6px', fontFamily: 'Inter',
-                ...estiloSemPermissao(podeTags)
-              }}
-            >
-              <Tag size={16} />
-              Tags
-            </button>
-          </div>
-        </div>
-
+      {/* Header — sem título/subtítulo: guias (maiores) + Tags numa linha só */}
+      <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
         {/* Tabs (rolam na horizontal no celular quando não cabem) */}
-        <div style={{ display: 'flex', gap: '4px', background: 'var(--portal-bg-secondary)', padding: '4px', borderRadius: '12px', width: 'fit-content', maxWidth: '100%', overflowX: 'auto' }}>
+        <div style={{ display: 'flex', gap: '4px', background: 'var(--portal-bg-secondary)', padding: '5px', borderRadius: '12px', width: 'fit-content', maxWidth: '100%', overflowX: 'auto' }}>
           {tabs.map(tab => (
             <button
               key={tab.id}
               onClick={() => setAbaAtiva(tab.id)}
               style={{
-                display: 'flex', alignItems: 'center', gap: '6px',
-                padding: '8px 16px', borderRadius: '8px',
+                display: 'flex', alignItems: 'center', gap: '7px',
+                padding: '10px 22px', borderRadius: '8px',
                 background: abaAtiva === tab.id ? 'var(--portal-bg-card)' : 'transparent',
                 border: abaAtiva === tab.id ? '1px solid var(--portal-border)' : '1px solid transparent',
                 boxShadow: abaAtiva === tab.id ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
-                color: abaAtiva === tab.id ? '#dc2626' : 'var(--portal-text-secondary)',
-                fontSize: '13px', fontWeight: abaAtiva === tab.id ? '600' : '500',
+                color: abaAtiva === tab.id ? '#EA580C' : '#6b7280',
+                fontSize: '15px', fontWeight: abaAtiva === tab.id ? '700' : '500',
                 cursor: 'pointer', fontFamily: 'Inter', transition: 'all 0.2s',
                 whiteSpace: 'nowrap', flexShrink: 0
               }}
@@ -596,12 +573,26 @@ function RequisicoesPageInner() {
             </button>
           ))}
         </div>
+        <button
+          onClick={() => setShowTagsModal(true)}
+          {...gateBtn(podeTags)}
+          style={{
+            padding: '10px 18px', borderRadius: '10px',
+            background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
+            color: '#525252', fontSize: '15px', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: '7px', fontFamily: 'Inter',
+            ...estiloSemPermissao(podeTags)
+          }}
+        >
+          <Tag size={17} />
+          Tags
+        </button>
       </div>
 
       {/* Content */}
       {loading ? (
         <div className="flex items-center justify-center py-32">
-          <Activity className="animate-spin text-red-500" />
+          <Activity className="animate-spin text-orange-500" />
         </div>
       ) : (
         <div className="print:hidden">
@@ -616,6 +607,7 @@ function RequisicoesPageInner() {
               podeMoverFase={podeMoverFase}
               podeImprimir={podeImprimir}
               podeExcluir={podeExcluir}
+              extraControles={isDev && userProfile ? <PainelDev devId={userProfile.id} devNome={userProfile.nome} inline /> : null}
             />
           )}
 
@@ -639,7 +631,7 @@ function RequisicoesPageInner() {
             const getNome = (email: string) => { const u = usuariosList.find((x: any) => x.email === email?.trim()); return u?.nome || email || '—'; };
             const getPlaca = (id: any) => { const v = veiculosList.find((x: any) => String(x.IdPlaca) === String(id)); return v?.NumPlaca || ''; };
             const fases = [
-              { id: 'pedido', label: 'Pedido Realizado', cor: '#ef4444' },
+              { id: 'pedido', label: 'Pedido Realizado', cor: '#F97316' },
               { id: 'completa', label: 'Atualizada por Técnico', cor: '#06b6d4' },
               { id: 'aguardando', label: 'Aguardando Fornecedor', cor: '#f97316' },
             ];
@@ -679,37 +671,37 @@ function RequisicoesPageInner() {
             <div>
               <div className="flex flex-wrap gap-3 mb-6 items-end no-print">
                 <div>
-                  <label className="text-xs text-zinc-500 font-medium block mb-1">Buscar</label>
-                  <input type="text" placeholder="ID, título, cliente, nº nota..." value={filtroRelBusca} onChange={e => setFiltroRelBusca(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-red-200" />
+                  <label className="text-xs text-black font-medium block mb-1">Buscar</label>
+                  <input type="text" placeholder="ID, título, cliente, nº nota..." value={filtroRelBusca} onChange={e => setFiltroRelBusca(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm w-48 focus:outline-none focus:ring-2 focus:ring-orange-200" />
                 </div>
                 <div>
-                  <label className="text-xs text-zinc-500 font-medium block mb-1">Tipo</label>
-                  <select value={filtroRelTipo} onChange={e => setFiltroRelTipo(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200">
+                  <label className="text-xs text-black font-medium block mb-1">Tipo</label>
+                  <select value={filtroRelTipo} onChange={e => setFiltroRelTipo(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200">
                     <option value="">Todos</option>
                     {tipos.map(t => <option key={t} value={t}>{t}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-zinc-500 font-medium block mb-1">Setor</label>
-                  <select value={filtroRelSetor} onChange={e => setFiltroRelSetor(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200">
+                  <label className="text-xs text-black font-medium block mb-1">Setor</label>
+                  <select value={filtroRelSetor} onChange={e => setFiltroRelSetor(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200">
                     <option value="">Todos</option>
                     {setores.map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-zinc-500 font-medium block mb-1">Solicitante</label>
-                  <select value={filtroRelSolicitante} onChange={e => setFiltroRelSolicitante(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-200">
+                  <label className="text-xs text-black font-medium block mb-1">Solicitante</label>
+                  <select value={filtroRelSolicitante} onChange={e => setFiltroRelSolicitante(e.target.value)} className="border border-zinc-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-200">
                     <option value="">Todos</option>
                     {solicitantes.map(s => <option key={s} value={s}>{getNome(s)}</option>)}
                   </select>
                 </div>
-                <button onClick={() => { setFiltroRelBusca(''); setFiltroRelTipo(''); setFiltroRelSetor(''); setFiltroRelSolicitante(''); }} className="text-xs text-zinc-400 hover:text-red-600 underline py-2">Limpar filtros</button>
-                <button onClick={handlePrint} className="ml-auto bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 text-zinc-700 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all">
+                <button onClick={() => { setFiltroRelBusca(''); setFiltroRelTipo(''); setFiltroRelSetor(''); setFiltroRelSolicitante(''); }} className="text-xs text-black hover:text-orange-600 underline py-2">Limpar filtros</button>
+                <button onClick={handlePrint} className="ml-auto bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 text-black px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all">
                   <Printer size={14} /> Imprimir
                 </button>
               </div>
 
-              <div className="text-xs text-zinc-500 mb-3 font-medium">{reqAbertas.length} requisição(ões) aberta(s)</div>
+              <div className="text-xs text-black mb-3 font-medium">{reqAbertas.length} requisição(ões) aberta(s)</div>
 
               <div id="relatorio-req-print">
                 <h1 style={{ display: 'none' }}>Nova Tratores — Requisições em Aberto</h1>
@@ -727,7 +719,7 @@ function RequisicoesPageInner() {
                       <div className="overflow-x-auto rounded-lg border border-zinc-200">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="bg-zinc-50 text-left text-xs text-zinc-500 uppercase tracking-wider">
+                            <tr className="bg-zinc-50 text-left text-xs text-black uppercase tracking-wider">
                               <th className="px-3 py-2 font-semibold">#</th>
                               <th className="px-3 py-2 font-semibold">Título</th>
                               <th className="px-3 py-2 font-semibold">Solicitante</th>
@@ -740,13 +732,13 @@ function RequisicoesPageInner() {
                           <tbody>
                             {items.map((r: any) => (
                               <tr key={r.id} className="border-t border-zinc-100 hover:bg-zinc-50 transition-colors">
-                                <td className="px-3 py-2 font-semibold text-zinc-700">{r.id}</td>
-                                <td className="px-3 py-2 text-zinc-800 font-medium" style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.titulo || r.Material_Serv_Solicitado || '—'}</td>
-                                <td className="px-3 py-2 text-zinc-600">{getNome(r.solicitante)}</td>
-                                <td className="px-3 py-2"><span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 text-zinc-600">{r.tipo || r.ReqTipo || '—'}</span></td>
-                                <td className="px-3 py-2 text-zinc-600 text-xs">{r.setor || '—'}</td>
-                                <td className="px-3 py-2 text-zinc-600 text-xs">{getDetalhe(r)}</td>
-                                <td className="px-3 py-2 text-zinc-700 font-medium text-right whitespace-nowrap">R$ {r.valor_despeza || '0,00'}</td>
+                                <td className="px-3 py-2 font-semibold text-black">{r.id}</td>
+                                <td className="px-3 py-2 text-black font-medium" style={{ maxWidth: 250, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.titulo || r.Material_Serv_Solicitado || '—'}</td>
+                                <td className="px-3 py-2 text-black">{getNome(r.solicitante)}</td>
+                                <td className="px-3 py-2"><span className="inline-block px-2 py-0.5 rounded text-xs font-medium bg-zinc-100 text-black">{r.tipo || r.ReqTipo || '—'}</span></td>
+                                <td className="px-3 py-2 text-black text-xs">{r.setor || '—'}</td>
+                                <td className="px-3 py-2 text-black text-xs">{getDetalhe(r)}</td>
+                                <td className="px-3 py-2 text-black font-medium text-right whitespace-nowrap">R$ {r.valor_despeza || '0,00'}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -756,7 +748,7 @@ function RequisicoesPageInner() {
                   );
                 })}
                 {reqAbertas.length === 0 && (
-                  <div className="py-16 text-center text-zinc-400 text-sm">Nenhuma requisição aberta encontrada</div>
+                  <div className="py-16 text-center text-black text-sm">Nenhuma requisição aberta encontrada</div>
                 )}
               </div>
             </div>)
@@ -766,33 +758,33 @@ function RequisicoesPageInner() {
             <div>
               <div className="flex justify-between items-center mb-8">
                 <div>
-                  <p className="text-sm text-zinc-500">Requisições excluídas — restaure quando necessário</p>
+                  <p className="text-sm text-black">Requisições excluídas — restaure quando necessário</p>
                 </div>
               </div>
 
               {lixeiraCount === 0 ? (
                 <div className="flex flex-col items-center justify-center py-32 text-zinc-300">
                   <Trash2 size={48} className="mb-4 opacity-30" />
-                  <p className="text-sm font-semibold text-zinc-400">Lixeira vazia</p>
+                  <p className="text-sm font-semibold text-black">Lixeira vazia</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {requisicoes.filter(r => r.status === 'lixeira').map(r => (
-                    <div key={r.id} className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-red-200 transition-all">
+                    <div key={r.id} className="bg-white border border-zinc-200 rounded-2xl p-6 hover:border-orange-200 transition-all">
                       <div className="flex items-start gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-xl bg-zinc-50 flex items-center justify-center text-zinc-400 font-medium text-sm border border-zinc-200">
+                        <div className="w-10 h-10 rounded-xl bg-zinc-50 flex items-center justify-center text-black font-medium text-sm border border-zinc-200">
                           {r.id}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{r.tipo || r.ReqTipo}</span>
-                          <h3 className="text-sm font-semibold text-zinc-800 leading-tight mt-0.5 line-clamp-2">{r.titulo || r.Material_Serv_Solicitado || '—'}</h3>
+                          <span className="text-[10px] font-bold text-black uppercase tracking-widest">{r.tipo || r.ReqTipo}</span>
+                          <h3 className="text-sm font-semibold text-black leading-tight mt-0.5 line-clamp-2">{r.titulo || r.Material_Serv_Solicitado || '—'}</h3>
                         </div>
                       </div>
 
-                      <div className="space-y-1.5 text-xs text-zinc-500 border-t border-zinc-100 pt-3 mb-4">
-                        <div className="flex justify-between"><span>Solicitante</span><span className="text-zinc-700 font-medium truncate max-w-[150px]">{r.solicitante || '—'}</span></div>
-                        <div className="flex justify-between"><span>Setor</span><span className="text-zinc-700 font-medium">{r.setor || '—'}</span></div>
-                        <div className="flex justify-between"><span>Valor</span><span className="text-zinc-700 font-medium">R$ {r.valor_despeza || '0,00'}</span></div>
+                      <div className="space-y-1.5 text-xs text-black border-t border-zinc-100 pt-3 mb-4">
+                        <div className="flex justify-between"><span>Solicitante</span><span className="text-black font-medium truncate max-w-[150px]">{r.solicitante || '—'}</span></div>
+                        <div className="flex justify-between"><span>Setor</span><span className="text-black font-medium">{r.setor || '—'}</span></div>
+                        <div className="flex justify-between"><span>Valor</span><span className="text-black font-medium">R$ {r.valor_despeza || '0,00'}</span></div>
                       </div>
 
                       <div className="flex gap-2">
@@ -803,7 +795,7 @@ function RequisicoesPageInner() {
                             auditLog({ sistema: 'requisicoes', acao: 'mover_status', entidade: 'requisicao', entidade_id: String(r.id), entidade_label: r.titulo, detalhes: { de: 'lixeira', para: 'pedido' } });
                             notificarUsuariosReq('requisicao', `${userName} restaurou requisição #${r.id}`, r.titulo || '', '/requisicoes');
                           }}
-                          className="flex-1 bg-zinc-50 hover:bg-red-600 border border-zinc-200 hover:border-red-500 text-zinc-600 hover:text-white py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
+                          className="flex-1 bg-zinc-50 hover:bg-orange-600 border border-zinc-200 hover:border-orange-500 text-black hover:text-white py-2.5 rounded-xl text-xs font-semibold uppercase tracking-wider transition-all flex items-center justify-center gap-2"
                         >
                           <Activity size={14} /> Restaurar
                         </button>
@@ -818,7 +810,10 @@ function RequisicoesPageInner() {
       )}
 
       {/* Painel do Dev (só visível para Devs) */}
-      {isDev && userProfile && <PainelDev devId={userProfile.id} devNome={userProfile.nome} />}
+      {/* Painel do Dev agora fica inline na barra de filtros do Kanban (extraControles) */}
+
+      {/* Card aberto (modal de detalhes) → os botões flutuantes somem */}
+      <style>{`body[data-req-modal="1"] .fab-nova-req, body[data-req-modal="1"] .fab-painel-dev { display: none !important; }`}</style>
 
       {/* FAB - Nova Requisição */}
       <button
@@ -827,7 +822,7 @@ function RequisicoesPageInner() {
         style={{
           position: 'fixed', bottom: '32px', right: '32px',
           width: '56px', height: '56px',
-          background: abaAtiva === 'form' ? '#dc2626' : 'linear-gradient(135deg, #dc2626, #b91c1c)',
+          background: abaAtiva === 'form' ? '#EA580C' : 'linear-gradient(135deg, #EA580C, #C2410C)',
           color: '#fff', borderRadius: '16px', border: 'none',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           boxShadow: '0 8px 24px rgba(220,38,38,0.3)',
@@ -835,7 +830,7 @@ function RequisicoesPageInner() {
           transform: abaAtiva === 'form' ? 'rotate(45deg)' : 'rotate(0deg)',
           ...estiloSemPermissao(podeCriar)
         }}
-        className="print:hidden"
+        className="print:hidden fab-nova-req"
       >
         <Plus size={24} />
       </button>
@@ -878,6 +873,7 @@ function RequisicoesPageInner() {
           </div>
         </div>
       )}
+    </div>
     </div>
   );
 }

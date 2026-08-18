@@ -77,7 +77,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
         </div>
         <div className="search-box" style={{ position: "relative" }}>
           <i className="fas fa-search" style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "#7A6E5D" }} />
-          <input type="text" className="search-input" placeholder="Pesquisar cliente ou OS..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
+          <input type="text" className="search-input" placeholder="Pesquisar cliente, OS ou nº no Omie..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
         </div>
         <div className="header-actions">
           <button className="btn-top btn-new" onClick={onNewOS} {...gateBtn(podeCriar)} style={estiloSemPermissao(podeCriar)}><i className="fas fa-plus" /> NOVA ORDEM</button>

@@ -95,7 +95,7 @@ export default function ModalBuscaClienteOrc({ open, onClose, onSelect }: Props)
             placeholder="Nome, CNPJ ou cidade do cliente..."
             style={{
               width: '100%', padding: '14px 16px', borderRadius: 10,
-              border: '2px solid #dc2626', fontSize: 14, outline: 'none',
+              border: '2px solid #EA580C', fontSize: 14, outline: 'none',
               fontFamily: "'Poppins', sans-serif", marginBottom: 12,
             }}
           />

@@ -61,10 +61,9 @@ export async function POST(req: NextRequest) {
     }
     const total = resolvidos.reduce((s, i) => s + i.quantidade * i.preco, 0);
 
-    // PPV não aceita peça sem preço (não cadastrada no Omie).
-    if (tipo === "ppv" && semPreco > 0) {
-      return NextResponse.json({ error: `${semPreco} peça(s) não cadastrada(s) no Omie — cadastre antes de gerar/incluir no PPV.` }, { status: 400 });
-    }
+    // Peça sem cadastro/preço NÃO trava mais o PPV (decisão do usuário, 18/08):
+    // entra com preço zero e ajusta-se dentro do pedido. O `semPreco` volta na
+    // resposta pra interface avisar.
 
     if (tipo === "orcamento") {
       if (incluir) {

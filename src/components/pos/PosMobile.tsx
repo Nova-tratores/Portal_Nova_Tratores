@@ -45,7 +45,7 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
       .filter((o) => {
         if (fase !== "TODAS" && o.status !== fase) return false;
         if (!q) return true;
-        return `${o.id} ${o.cliente} ${o.tecnico} ${o.servSolicitado}`.toLowerCase().includes(q);
+        return `${o.id} ${o.cliente} ${o.tecnico} ${o.servSolicitado} ${o.ordemOmie || ''}`.toLowerCase().includes(q);
       })
       // Mesma ordem do PC: agrupadas por fase (Concluída/Cancelada por último),
       // nunca misturando cancelada com aberta. Sort estável mantém a ordem dentro da fase.

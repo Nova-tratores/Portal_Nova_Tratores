@@ -23,19 +23,19 @@ export default function FormUsuario({ usuarioParaEditar, onSave, onCancel }: any
     setLoading(false);
   };
 
-  const inputStyle = "w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4 text-zinc-900 outline-none focus:border-red-500 transition-all placeholder:text-zinc-400";
-  const labelStyle = "text-[10px] font-black text-zinc-500 uppercase tracking-widest ml-2 mb-2 flex items-center gap-2";
+  const inputStyle = "w-full bg-zinc-50 border border-zinc-200 rounded-2xl px-5 py-4 text-black outline-none focus:border-orange-500 transition-all placeholder:text-black";
+  const labelStyle = "text-[10px] font-black text-black uppercase tracking-widest ml-2 mb-2 flex items-center gap-2";
 
   return (
     <div className="p-10">
       <div className="flex justify-between items-center mb-10">
         <div>
-          <h2 className="text-2xl font-black uppercase tracking-tighter text-zinc-900">
+          <h2 className="text-2xl font-black uppercase tracking-tighter text-black">
             {usuarioParaEditar ? 'Editar Colaborador' : 'Novo Colaborador'}
           </h2>
-          <p className="text-xs text-zinc-400 font-bold uppercase tracking-widest">Cadastro de Técnicos e Solicitantes</p>
+          <p className="text-xs text-black font-bold uppercase tracking-widest">Cadastro de Técnicos e Solicitantes</p>
         </div>
-        <button type="button" onClick={onCancel} className="w-12 h-12 bg-zinc-50 rounded-full flex items-center justify-center text-zinc-500 hover:bg-red-500 hover:text-white transition-all">
+        <button type="button" onClick={onCancel} className="w-12 h-12 bg-zinc-50 rounded-full flex items-center justify-center text-black hover:bg-orange-500 hover:text-white transition-all">
           <X size={20} />
         </button>
       </div>
@@ -65,7 +65,7 @@ export default function FormUsuario({ usuarioParaEditar, onSave, onCancel }: any
           </div>
         )}
 
-        <button type="submit" disabled={loading} className="w-full bg-red-600 hover:bg-red-500 disabled:bg-zinc-100 text-white py-5 rounded-3xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-red-900/20 transition-all mt-6">
+        <button type="submit" disabled={loading} className="w-full bg-orange-600 hover:bg-orange-500 disabled:bg-zinc-100 text-white py-5 rounded-3xl font-black uppercase tracking-widest text-xs flex items-center justify-center gap-3 shadow-xl shadow-orange-900/20 transition-all mt-6">
           {loading ? <Loader2 className="animate-spin" /> : <Save size={18} />}
           {usuarioParaEditar ? 'Salvar Alterações' : 'Cadastrar Usuário'}
         </button>

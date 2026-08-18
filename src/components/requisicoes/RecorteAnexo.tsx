@@ -167,19 +167,19 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
 
   const alcaEstilo: React.CSSProperties = {
     position: 'absolute', width: 22, height: 22, borderRadius: 5,
-    background: '#fff', border: '2px solid #dc2626', zIndex: 3, touchAction: 'none',
+    background: '#fff', border: '2px solid #EA580C', zIndex: 3, touchAction: 'none',
   };
 
   return (
-    <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4" onClick={onCancelar}>
-      <div className="bg-white w-full max-w-4xl max-h-[94vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[80] bg-black/80 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4" onClick={onCancelar}>
+      <div className="bg-white w-full max-w-4xl max-h-[94dvh] rounded-2xl shadow-2xl flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-zinc-200 flex items-center gap-3">
-          <Crop size={18} className="text-red-600" />
+          <Crop size={18} className="text-orange-600" />
           <div className="flex-1 min-w-0">
-            <div className="text-[15px] text-zinc-900">Recortar {titulo}</div>
-            <div className="text-[13px] text-zinc-500">Corte a imagem para que fique sem fundo aparente.</div>
+            <div className="text-[15px] text-black">Recortar {titulo}</div>
+            <div className="text-[13px] text-black">Corte a imagem para que fique sem fundo aparente.</div>
           </div>
-          <button onClick={onCancelar} className="w-9 h-9 rounded-lg flex items-center justify-center text-zinc-500 hover:bg-zinc-100">
+          <button onClick={onCancelar} className="w-9 h-9 rounded-lg flex items-center justify-center text-black hover:bg-zinc-100">
             <X size={18} />
           </button>
         </div>
@@ -187,7 +187,7 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
         <div className="flex-1 min-h-0 overflow-auto bg-zinc-100 p-5 flex items-center justify-center">
           <div ref={boxRef} className="relative select-none" style={{ lineHeight: 0, touchAction: 'none' }}>
             {src && <img ref={imgRef} src={src} alt="" onLoad={aoCarregar} draggable={false}
-              style={{ maxWidth: '100%', maxHeight: 'calc(94vh - 230px)', display: 'block' }} />}
+              style={{ maxWidth: '100%', maxHeight: 'calc(94dvh - 250px)', display: 'block' }} />}
 
             {pronto && (
               <>
@@ -208,7 +208,7 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
                     position: 'absolute', zIndex: 2, cursor: 'move',
                     left: `${rect.x * 100}%`, top: `${rect.y * 100}%`,
                     width: `${rect.w * 100}%`, height: `${rect.h * 100}%`,
-                    border: '2px solid #dc2626', boxShadow: '0 0 0 9999px rgba(0,0,0,0)',
+                    border: '2px solid #EA580C', boxShadow: '0 0 0 9999px rgba(0,0,0,0)',
                   }}
                 />
                 {([
@@ -225,21 +225,23 @@ export default function RecorteAnexo({ arquivo, titulo, onCancelar, onConfirmar 
           </div>
         </div>
 
-        <div className="px-6 py-4 border-t border-zinc-200 flex items-center gap-3">
+        {/* Rodapé: no celular os botões QUEBRAM em duas linhas e o "Cortar e
+            anexar" cresce — nada de botão escondido fora da tela */}
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-t border-zinc-200 flex flex-wrap items-center gap-2 sm:gap-3">
           <button onClick={() => imgRef.current && setRect(sugerirRecorte(imgRef.current))}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-zinc-200 text-[14px] text-zinc-600 hover:bg-zinc-50">
+            className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-xl border border-zinc-200 text-[13px] sm:text-[14px] text-black hover:bg-zinc-50">
             <RotateCcw size={15} /> Sugerir de novo
           </button>
           <button onClick={() => setRect({ x: 0, y: 0, w: 1, h: 1 })}
-            className="px-4 py-2.5 rounded-xl border border-zinc-200 text-[14px] text-zinc-600 hover:bg-zinc-50">
+            className="px-3 sm:px-4 py-2.5 rounded-xl border border-zinc-200 text-[13px] sm:text-[14px] text-black hover:bg-zinc-50">
             Imagem inteira
           </button>
-          <div className="flex-1" />
-          <button onClick={onCancelar} className="px-5 py-2.5 rounded-xl border border-zinc-200 text-[14px] text-zinc-600 hover:bg-zinc-50">
+          <div className="hidden sm:block flex-1" />
+          <button onClick={onCancelar} className="flex-1 sm:flex-none justify-center px-4 sm:px-5 py-3 sm:py-2.5 rounded-xl border border-zinc-200 text-[14px] text-black hover:bg-zinc-50">
             Cancelar
           </button>
           <button onClick={confirmar} disabled={!pronto || salvando}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-red-600 text-white text-[14px] hover:bg-red-500 disabled:opacity-60">
+            className="flex-[2] sm:flex-none flex items-center justify-center gap-2 px-4 sm:px-6 py-3 sm:py-2.5 rounded-xl bg-orange-600 text-white text-[14px] font-semibold hover:bg-orange-500 disabled:opacity-60">
             {salvando ? <Loader2 size={15} className="animate-spin" /> : <Check size={15} />} Cortar e anexar
           </button>
         </div>

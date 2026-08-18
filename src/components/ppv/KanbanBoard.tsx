@@ -30,8 +30,9 @@ const COLUMNS = [
 export default function KanbanBoard({ items, searchFilter, onCardClick, onStatusChange }: KanbanBoardProps) {
   const filter = searchFilter.toLowerCase();
 
+  // pedidoOmie entra na busca: dá pra achar o card pelo número que virou no Omie
   const filteredItems = items.filter((i) =>
-    `${i.id}${i.cliente}${i.tecnico}`.toLowerCase().includes(filter)
+    `${i.id}${i.cliente}${i.tecnico}${(i as { pedidoOmie?: string }).pedidoOmie || ''}`.toLowerCase().includes(filter)
   );
 
   const grouped = COLUMNS.map((col) => ({

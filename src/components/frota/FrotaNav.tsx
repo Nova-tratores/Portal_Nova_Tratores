@@ -53,8 +53,9 @@ export default function FrotaNav() {
                 padding: '11px 20px',
                 fontSize: 14,
                 fontWeight: ativo ? 700 : 500,
-                color: ativo ? '#111827' : '#fff',
-                background: ativo ? '#fff' : 'rgba(255,255,255,0.12)',
+                color: '#111111', // fonte PRETA sempre (#111827 era remapeado pra branco no escuro)
+                // #fefefe: branco "de verdade" que o modo escuro NÃO converte (o #fff vira card escuro)
+                background: ativo ? '#fefefe' : 'rgba(255,255,255,0.30)',
                 borderRadius: '11px 11px 0 0',
                 boxShadow: ativo ? '0 -2px 6px rgba(0,0,0,0.15)' : 'none',
                 textDecoration: 'none',

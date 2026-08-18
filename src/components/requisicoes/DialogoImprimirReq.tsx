@@ -43,27 +43,27 @@ export default function DialogoImprimirReq({ req, onFechar, onImprimir }: Props)
       onClick={(e) => { e.stopPropagation(); if (!preparando) onFechar(); }}>
       <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-zinc-200 flex items-center gap-3">
-          <Printer size={18} className="text-red-600" />
+          <Printer size={18} className="text-orange-600" />
           <div className="flex-1">
-            <div className="text-[15px] text-zinc-900">Imprimir requisição #{req.id}</div>
-            <div className="text-[13px] text-zinc-500">Sai tudo num documento só, cada anexo numa folha.</div>
+            <div className="text-[15px] text-black">Imprimir requisição #{req.id}</div>
+            <div className="text-[13px] text-black">Sai tudo num documento só, cada anexo numa folha.</div>
           </div>
         </div>
 
         <div className="px-6 py-4 space-y-2">
           <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl bg-zinc-50 border border-zinc-200">
             <Check size={16} className="text-emerald-600 shrink-0" />
-            <span className="text-[14px] text-zinc-700 flex-1">Folha da requisição</span>
-            <span className="text-[12px] text-zinc-400">sempre</span>
+            <span className="text-[14px] text-black flex-1">Folha da requisição</span>
+            <span className="text-[12px] text-black">sempre</span>
           </div>
           {disponiveis.length === 0 ? (
-            <div className="text-[13px] text-zinc-400 px-1 py-1">Esta requisição não tem anexos.</div>
+            <div className="text-[13px] text-black px-1 py-1">Esta requisição não tem anexos.</div>
           ) : disponiveis.map(a => (
             <label key={a.field} className="flex items-center gap-3 px-3 py-2.5 rounded-xl border border-zinc-200 cursor-pointer hover:bg-zinc-50">
               <input type="checkbox" checked={!!marcados[a.field]}
                 onChange={e => setMarcados(m => ({ ...m, [a.field]: e.target.checked }))}
-                className="w-4 h-4 accent-red-600" />
-              <span className="text-[14px] text-zinc-700">{a.label}</span>
+                className="w-4 h-4 accent-orange-600" />
+              <span className="text-[14px] text-black">{a.label}</span>
             </label>
           ))}
         </div>
@@ -71,11 +71,11 @@ export default function DialogoImprimirReq({ req, onFechar, onImprimir }: Props)
         <div className="px-6 py-4 border-t border-zinc-200 flex items-center gap-3">
           <div className="flex-1" />
           <button onClick={onFechar} disabled={preparando}
-            className="px-5 py-2.5 rounded-xl border border-zinc-200 text-[14px] text-zinc-600 hover:bg-zinc-50 disabled:opacity-60">
+            className="px-5 py-2.5 rounded-xl border border-zinc-200 text-[14px] text-black hover:bg-zinc-50 disabled:opacity-60">
             Cancelar
           </button>
           <button onClick={confirmar} disabled={preparando}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-red-600 text-white text-[14px] hover:bg-red-500 disabled:opacity-60">
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-orange-600 text-white text-[14px] hover:bg-orange-500 disabled:opacity-60">
             <Printer size={15} /> {preparando ? 'Preparando...' : 'Imprimir'}
           </button>
         </div>

@@ -33,8 +33,8 @@ const DASH_GROUPS: Record<string, { label: string; color: string; gradient: stri
   servicos:   { label: 'Serviços',    color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)', icon: <Settings size={22} /> },
   pecas:      { label: 'Peças',       color: '#F97316', gradient: 'linear-gradient(135deg, #F97316, #EA580C)', icon: <Package size={22} /> },
   financeiro: { label: 'Financeiro',  color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', icon: <DollarSign size={22} /> },
-  comercial:  { label: 'Comercial',   color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)', icon: <Building size={22} /> },
-  estoque:    { label: 'Estoque',     color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)', icon: <BarChart3 size={22} /> },
+  comercial:  { label: 'Comercial',   color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #B91C1C)', icon: <Building size={22} /> },
+  estoque:    { label: 'Estoque',     color: '#94A3B8', gradient: 'linear-gradient(135deg, #CBD5E1, #94A3B8)', icon: <BarChart3 size={22} /> },
   frota:      { label: 'Frota',       color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', icon: <Truck size={22} /> },
   outros:     { label: 'Outros',      color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)', icon: <Activity size={22} /> },
 }
@@ -63,15 +63,15 @@ const systems: SystemCard[] = [
   { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #059669, #047857)', href: '/dre-financeiro', tag: 'DRE', group: 'financeiro' },
 
   // Comercial (roxo)
-  { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #7C3AED)', href: '/propostas', tag: 'VENDAS', group: 'comercial' },
-  { id: 'feedbacks', name: 'Feedbacks & CRM', description: 'CRM/RFM, oportunidades automáticas de revisão, peças, up-sell e follow-up', icon: <Megaphone size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #A78BFA, #7C3AED)', href: '/feedbacks', tag: 'CRM', group: 'comercial' },
-  { id: 'clientes', name: 'Pastas Clientes', description: 'Ranking de clientes por volume de serviços, OS, PV e NF integrados ao Omie', icon: <Building size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #6D28D9)', href: '/clientes', tag: 'CLIENTES', group: 'comercial' },
-  { id: 'supervisor-vendas', name: 'Supervisor Vendas', description: 'Painel do supervisor: vendedores, visitas, catálogo, mapa e alertas', icon: <TrendingUp size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #7C3AED, #6D28D9)', href: '/supervisor-vendas', tag: 'VENDAS', group: 'comercial' },
-  { id: 'gestao-vendas', name: 'Gestão de Vendas', description: 'Resultado mensal: margens, comissões e custos por vendedor', icon: <BarChart3 size={28} />, color: '#8B5CF6', gradient: 'linear-gradient(135deg, #8B5CF6, #5B21B6)', href: '/gestao-vendas', tag: 'RESULTADOS', group: 'comercial' },
+  { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #B91C1C)', href: '/propostas', tag: 'VENDAS', group: 'comercial' },
+  { id: 'feedbacks', name: 'Feedbacks & CRM', description: 'CRM/RFM, oportunidades automáticas de revisão, peças, up-sell e follow-up', icon: <Megaphone size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #F87171, #B91C1C)', href: '/feedbacks', tag: 'CRM', group: 'comercial' },
+  { id: 'clientes', name: 'Pastas Clientes', description: 'Ranking de clientes por volume de serviços, OS, PV e NF integrados ao Omie', icon: <Building size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)', href: '/clientes', tag: 'CLIENTES', group: 'comercial' },
+  { id: 'supervisor-vendas', name: 'Supervisor Vendas', description: 'Painel do supervisor: vendedores, visitas, catálogo, mapa e alertas', icon: <TrendingUp size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #B91C1C, #991B1B)', href: '/supervisor-vendas', tag: 'VENDAS', group: 'comercial' },
+  { id: 'gestao-vendas', name: 'Gestão de Vendas', description: 'Resultado mensal: margens, comissões e custos por vendedor', icon: <BarChart3 size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #7F1D1D)', href: '/gestao-vendas', tag: 'RESULTADOS', group: 'comercial' },
 
   // Estoque (vermelho)
-  { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)', href: '/visual-estoque', tag: 'VISUAL', group: 'estoque' },
-  { id: 'consulta-omie', name: 'Consulta Estoque', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #EF4444, #B91C1C)', href: '/estoque', tag: 'CONSULTA', group: 'estoque' },
+  { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #CBD5E1, #94A3B8)', href: '/visual-estoque', tag: 'VISUAL', group: 'estoque' },
+  { id: 'consulta-omie', name: 'Consulta Estoque', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque', tag: 'CONSULTA', group: 'estoque' },
   { id: 'frota', name: 'Frota', description: 'Veículos, abastecimento, multas, manutenções, documentos e rastreamento', icon: <Truck size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/frota', tag: 'VEÍCULOS', group: 'frota' },
   // Atalho pra abrir pendência de veículo (módulo próprio, mobile-first com foto)
   { id: 'pendencias', name: 'Pendências Frota', description: 'Abrir e acompanhar pendências dos veículos — com foto direto do celular', icon: <Wrench size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/pendencias', tag: 'PENDÊNCIAS', group: 'frota' },
@@ -759,7 +759,7 @@ export default function DashboardPage() {
               const gc = group.config
               const ativo = omieGroup === group.key
               return (
-                <button key={group.key} onClick={() => setOmieGroup(ativo ? null : group.key)} style={{
+                <button key={group.key} className={`dash-group-card dash-group-${group.key}`} onClick={() => setOmieGroup(ativo ? null : group.key)} style={{
                   border: 'none', borderRadius: 18, padding: '20px', cursor: 'pointer', textAlign: 'left',
                   background: gc.gradient, color: '#fff', minHeight: 148,
                   display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 16,

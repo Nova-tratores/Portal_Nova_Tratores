@@ -390,3 +390,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }
+
+// PATCH — ordenação manual dos modelos (botão "Ordenar" do catálogo).
+// Recebe { acao: "ordenar-modelos", ordens: [{ slug, ordem }] } e grava a coluna
+// `ordem` de catalogo_modelos (0 = sem ordem manual; 1, 2, 3… = posição escolhida).
+export async function PATCH(req: NextRequest) {
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (body?.acao !== "ordenar-modelos" || !Array.isArray(body?.ordens)) {
+      return NextResponse.json({ error: "ação desconhecida" }, { status: 400 });
+    }
+    const ordens = (body.ordens as { slug?: unknown; ordem?: unknown }[])
+      .map((o) => ({ slug: String(o.slug || ""), ordem: Number(o.ordem) }))
+      .filter((o) => o.slug && Number.isFinite(o.ordem) && o.ordem >= 0)
+      .slice(0, 500);
+    if (!ordens.length) return NextResponse.json({ error: "nada pra ordenar" }, { status: 400 });
+    for (const o of ordens) {
+      const { error } = await supabase.from("catalogo_modelos").update({ ordem: o.ordem }).eq("slug", o.slug);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    return NextResponse.json({ ok: true, atualizados: ordens.length });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}

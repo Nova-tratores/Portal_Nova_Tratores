@@ -43,8 +43,8 @@ const GROUP_CONFIG: Record<string, { label: string; color: string; gradient: str
   servicos:   { label: 'SERVIÇOS',    color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)' },
   pecas:      { label: 'PEÇAS',       color: '#F97316', gradient: 'linear-gradient(135deg, #F97316, #EA580C)' },
   financeiro: { label: 'FINANCEIRO',  color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)' },
-  comercial:  { label: 'COMERCIAL',   color: '#EC4899', gradient: 'linear-gradient(135deg, #EC4899, #DB2777)' },
-  estoque:    { label: 'ESTOQUE',     color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)' },
+  comercial:  { label: 'COMERCIAL',   color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #991B1B)' },
+  estoque:    { label: 'ESTOQUE',     color: '#94A3B8', gradient: 'linear-gradient(135deg, #CBD5E1, #94A3B8)' },
   frota:      { label: 'FROTA',       color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)' },
   outros:     { label: 'OUTROS',      color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)' },
 }

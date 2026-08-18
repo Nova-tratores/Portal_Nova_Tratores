@@ -68,10 +68,10 @@ function formatCNPJ(v: string) {
   return v
 }
 
-const ln = '#E5E7EB'
+const ln = 'var(--portal-border)'
 const ln2 = '#F3F4F6'
-const inpModal: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, boxSizing: 'border-box', outline: 'none', color: '#111827', background: '#fff' }
-const lblModal: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: '#6B7280', letterSpacing: 0.3, display: 'block', marginBottom: 4 }
+const inpModal: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid #E5E7EB', fontSize: 13, boxSizing: 'border-box', outline: 'none', color: 'var(--portal-text)', background: 'var(--portal-bg-card)' }
+const lblModal: React.CSSProperties = { fontSize: 11, fontWeight: 700, color: 'var(--portal-text-secondary)', letterSpacing: 0.3, display: 'block', marginBottom: 4 }
 
 // Botão de upload de PDF estilizado (substitui o input file nativo)
 function FileDrop({ label, hint, file, onPick, accent = '#2563EB' }: { label: string; hint?: string; file: File | null; onPick: (f: File | null) => void; accent?: string }) {
@@ -79,9 +79,9 @@ function FileDrop({ label, hint, file, onPick, accent = '#2563EB' }: { label: st
     <div style={{ marginBottom: 14 }}>
       <label style={lblModal}>{label}</label>
       {!file ? (
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', border: '1.5px dashed #D1D5DB', borderRadius: 10, cursor: 'pointer', color: '#6B7280', fontSize: 13, fontWeight: 600, background: '#F9FAFB', transition: 'all .15s' }}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 14px', border: '1.5px dashed #D1D5DB', borderRadius: 10, cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, background: 'var(--portal-bg-secondary)', transition: 'all .15s' }}
           onMouseEnter={e => { e.currentTarget.style.borderColor = accent; e.currentTarget.style.color = accent }}
-          onMouseLeave={e => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.color = '#6B7280' }}>
+          onMouseLeave={e => { e.currentTarget.style.borderColor = '#D1D5DB'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}>
           <Upload size={16} />
           <span>Selecionar PDF</span>
           <input type="file" accept="application/pdf" onChange={e => onPick(e.target.files?.[0] || null)} style={{ display: 'none' }} />
@@ -89,11 +89,11 @@ function FileDrop({ label, hint, file, onPick, accent = '#2563EB' }: { label: st
       ) : (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', border: `1.5px solid ${accent}`, borderRadius: 10, background: `${accent}0D`, fontSize: 13 }}>
           <FileText size={16} color={accent} style={{ flexShrink: 0 }} />
-          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#111827', fontWeight: 600 }}>{file.name}</span>
-          <button type="button" onClick={() => onPick(null)} title="Remover" style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 6, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><X size={13} color="#6B7280" /></button>
+          <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--portal-text)', fontWeight: 600 }}>{file.name}</span>
+          <button type="button" onClick={() => onPick(null)} title="Remover" style={{ background: 'var(--portal-bg-card)', border: '1px solid #E5E7EB', borderRadius: 6, width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}><X size={13} color="#6B7280" /></button>
         </div>
       )}
-      {hint && !file && <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>{hint}</div>}
+      {hint && !file && <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 4 }}>{hint}</div>}
     </div>
   )
 }
@@ -378,8 +378,23 @@ function ClientesPageInner() {
     setLoadingEmails(null)
   }
 
+  // Deep link: /clientes?cod=123&doc=... abre a pasta do cliente direto
+  const [urlClienteTratada, setUrlClienteTratada] = useState(false)
+  useEffect(() => {
+    if (urlClienteTratada || clientes.length === 0) return
+    setUrlClienteTratada(true)
+    const p = new URLSearchParams(window.location.search)
+    const cod = p.get('cod'); const doc = p.get('doc')
+    if (!cod && !doc) return
+    const alvo = clientes.find(c => (cod && String(c.cod_cli) === cod) || (!!doc && c.cnpj_cpf === doc))
+    if (alvo) abrirDetalhe(alvo)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientes, urlClienteTratada])
+
   const abrirDetalhe = async (cliente: Cliente) => {
     setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true); setLembretesCliente([]); setEtiquetasCliente([]); setFeedbacksCliente([]); setTagsOmieCliente([]); setDescricaoCliente(''); setDescricaoLocal(''); setModalEtiqueta(false)
+    // Reflete o cliente aberto na URL (dá pra linkar/favoritar/voltar direto)
+    if (typeof window !== 'undefined') window.history.replaceState(null, '', `/clientes?cod=${cliente.cod_cli}&doc=${encodeURIComponent(cliente.cnpj_cpf || '')}`)
     try { const res = await fetch(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`); const data = await res.json(); setOrdens(data.ordens || [])
       setPedidos((data.pedidos || []).map((pv: any) => ({ ...pv, itens: typeof pv.itens === 'string' ? JSON.parse(pv.itens) : (pv.itens || []) })))
     } catch {} setLoadingDetalhe(false)
@@ -661,8 +676,8 @@ function ClientesPageInner() {
     return (
       <div style={{ padding: 'clamp(12px, 4vw, 20px) clamp(12px, 4vw, 32px) 48px', width: '100%', boxSizing: 'border-box' }}>
         {selectedCliente && (<>
-        <button onClick={() => setSelectedCliente(null)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: '#6B7280', fontSize: 13, padding: '4px 0', marginBottom: 18 }}>
+        <button onClick={() => { setSelectedCliente(null); if (typeof window !== 'undefined') window.history.replaceState(null, '', '/clientes') }}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: 13, padding: '4px 0', marginBottom: 18 }}>
           <ArrowLeft size={16} /> Voltar para lista
         </button>
 
@@ -670,7 +685,7 @@ function ClientesPageInner() {
           {/* ===================== SIDEBAR ===================== */}
           <aside style={{ position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Card do cliente */}
-            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
               <div style={{ padding: '20px', background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', color: '#fff' }}>
                 <div style={{ width: 46, height: 46, borderRadius: 12, background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
                   <User size={22} color="#fff" />
@@ -693,8 +708,8 @@ function ClientesPageInner() {
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '9px 18px' }}>
                     <f.icon size={15} color="#9CA3AF" style={{ marginTop: 2, flexShrink: 0 }} />
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 10, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>{f.l}</div>
-                      <div style={{ fontSize: 13, color: '#111827', fontWeight: 500, wordBreak: 'break-word' }}>{f.v}</div>
+                      <div style={{ fontSize: 10, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, fontWeight: 700 }}>{f.l}</div>
+                      <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 500, wordBreak: 'break-word' }}>{f.v}</div>
                     </div>
                   </div>
                 ))}
@@ -702,9 +717,9 @@ function ClientesPageInner() {
             </div>
 
             {/* Etiquetas (compacto) */}
-            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
                   <Tag size={14} color="#2563EB" /> Etiquetas
                 </div>
                 <button onClick={() => setModalEtiqueta(!modalEtiqueta)} title="Gerenciar etiquetas"
@@ -730,7 +745,7 @@ function ClientesPageInner() {
                   </span>
                 ))}
                 {etiquetasCliente.length === 0 && tagsOmieCliente.length === 0 && !modalEtiqueta && (
-                  <span style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>Sem etiquetas. Clique + para marcar.</span>
+                  <span style={{ fontSize: 12, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>Sem etiquetas. Clique + para marcar.</span>
                 )}
               </div>
               {modalEtiqueta && (
@@ -741,7 +756,7 @@ function ClientesPageInner() {
                       return (
                         <div key={e.id} style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                           <button onClick={() => cli.cnpj_cpf && toggleEtiqueta(cli.cnpj_cpf, e.id, ativo)}
-                            style={{ padding: '4px 11px', borderRadius: 16, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: ativo ? `2px solid ${e.cor}` : '2px solid #D1D5DB', background: ativo ? e.cor : '#fff', color: ativo ? '#fff' : '#6B7280', transition: 'all .15s' }}>
+                            style={{ padding: '4px 11px', borderRadius: 16, fontSize: 11, fontWeight: 700, cursor: 'pointer', border: ativo ? `2px solid ${e.cor}` : '2px solid #D1D5DB', background: ativo ? e.cor : '#fff', color: ativo ? '#fff' : 'var(--portal-text-secondary)', transition: 'all .15s' }}>
                             {e.nome}
                           </button>
                           <button onClick={() => excluirEtiqueta(e.id)} title="Excluir etiqueta"
@@ -769,8 +784,8 @@ function ClientesPageInner() {
 
             {/* Projetos */}
             {cli.projetos && cli.projetos.length > 0 && (
-              <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
+              <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
                   <FolderOpen size={14} color="#2563EB" /> Projetos ({cli.projetos.length})
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -785,13 +800,13 @@ function ClientesPageInner() {
             )}
 
             {/* Observações */}
-            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
                 Observações
               </div>
               <textarea value={descricaoLocal} onChange={ev => setDescricaoLocal(ev.target.value)}
                 placeholder="Anote algo sobre este cliente..."
-                style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 13, outline: 'none', resize: 'vertical', minHeight: 56, fontFamily: 'inherit', color: '#111827' }} />
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 10, border: '1px solid #E5E7EB', fontSize: 13, outline: 'none', resize: 'vertical', minHeight: 56, fontFamily: 'inherit', color: 'var(--portal-text)' }} />
               {descricaoLocal !== descricaoCliente && (
                 <button onClick={() => cli.cnpj_cpf && salvarDescricao(cli.cnpj_cpf)} disabled={salvandoDesc}
                   style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, background: '#059669', color: '#fff', border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
@@ -801,12 +816,12 @@ function ClientesPageInner() {
             </div>
 
             {/* Feedbacks / Atendimentos (compacto) — modulo Feedbacks & CRM */}
-            <div style={{ background: '#fff', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
                 <ClipboardList size={14} color="#7C3AED" /> Feedbacks ({feedbacksCliente.length})
               </div>
               {feedbacksCliente.length === 0 ? (
-                <span style={{ fontSize: 12, color: '#9CA3AF', fontStyle: 'italic' }}>Sem feedbacks registrados.</span>
+                <span style={{ fontSize: 12, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>Sem feedbacks registrados.</span>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {feedbacksCliente.slice(0, 6).map((f: any) => {
@@ -825,14 +840,14 @@ function ClientesPageInner() {
                         style={{ border: '1px solid #F3F4F6', borderLeft: `3px solid ${cor}`, borderRadius: 8, padding: '8px 10px', background: '#FCFCFD', cursor: 'pointer', transition: 'background .15s' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: texto ? 3 : 0, flexWrap: 'wrap' }}>
                           <span style={{ fontSize: 10, fontWeight: 800, color: cor, background: corBg, padding: '1px 7px', borderRadius: 10, letterSpacing: 0.3 }}>{crm ? 'CRM' : 'RFM'}</span>
-                          <span style={{ fontSize: 11, color: '#6B7280', fontWeight: 600 }}>{dataTxt}</span>
-                          {f.status_atendimento && <span style={{ fontSize: 10, color: '#9CA3AF' }}>· {statusLabel[f.status_atendimento] || f.status_atendimento}</span>}
+                          <span style={{ fontSize: 11, color: 'var(--portal-text-secondary)', fontWeight: 600 }}>{dataTxt}</span>
+                          {f.status_atendimento && <span style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>· {statusLabel[f.status_atendimento] || f.status_atendimento}</span>}
                         </div>
                         {texto && (
-                          <div style={{ fontSize: 12, color: '#374151', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{texto}</div>
+                          <div style={{ fontSize: 12, color: 'var(--portal-text)', lineHeight: 1.35, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{texto}</div>
                         )}
                         {(f.nota != null || f.trator) && (
-                          <div style={{ fontSize: 10.5, color: '#9CA3AF', marginTop: 3 }}>
+                          <div style={{ fontSize: 10.5, color: 'var(--portal-text-muted)', marginTop: 3 }}>
                             {f.nota != null ? `Nota ${f.nota}` : ''}{f.nota != null && f.trator ? ' · ' : ''}{f.trator || ''}
                           </div>
                         )}
@@ -840,7 +855,7 @@ function ClientesPageInner() {
                     )
                   })}
                   {feedbacksCliente.length > 6 && (
-                    <span style={{ fontSize: 11, color: '#9CA3AF', fontStyle: 'italic' }}>+{feedbacksCliente.length - 6} mais</span>
+                    <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>+{feedbacksCliente.length - 6} mais</span>
                   )}
                 </div>
               )}
@@ -853,7 +868,7 @@ function ClientesPageInner() {
         {/* LEMBRETES DO CLIENTE */}
         {lembretesCliente.length > 0 && (
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: '#111827', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Bell size={16} color="#E65100" /> Lembretes ({lembretesCliente.filter((l: any) => !l.concluido).length} ativos)
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -866,7 +881,7 @@ function ClientesPageInner() {
                   <Bell size={16} color="#E65100" style={{ flexShrink: 0, marginTop: 2 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, color: '#1a1a1a', fontWeight: 600, lineHeight: 1.4 }}>{l.lembrete}</div>
-                    <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>
+                    <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 4 }}>
                       {l.criado_por ? `Por ${l.criado_por}` : ''}
                       {l.criado_por && l.created_at ? ' — ' : ''}
                       {l.created_at ? new Date(l.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) : ''}
@@ -876,7 +891,7 @@ function ClientesPageInner() {
               ))}
               {lembretesCliente.filter((l: any) => l.concluido).length > 0 && (
                 <details style={{ marginTop: 4 }}>
-                  <summary style={{ fontSize: 12, color: '#9CA3AF', cursor: 'pointer', fontWeight: 600 }}>
+                  <summary style={{ fontSize: 12, color: 'var(--portal-text-muted)', cursor: 'pointer', fontWeight: 600 }}>
                     {lembretesCliente.filter((l: any) => l.concluido).length} concluído(s)
                   </summary>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
@@ -889,7 +904,7 @@ function ClientesPageInner() {
                         <CheckCircle size={14} color="#2E7D32" style={{ flexShrink: 0, marginTop: 2 }} />
                         <div style={{ flex: 1 }}>
                           <div style={{ fontSize: 13, color: '#555', textDecoration: 'line-through' }}>{l.lembrete}</div>
-                          <div style={{ fontSize: 10, color: '#9CA3AF', marginTop: 3 }}>
+                          <div style={{ fontSize: 10, color: 'var(--portal-text-muted)', marginTop: 3 }}>
                             Concluído por {l.concluido_por || '—'}
                             {l.concluido_em ? ` em ${new Date(l.concluido_em).toLocaleDateString('pt-BR')}` : ''}
                             {l.concluido_em_ordem ? <span style={{ color: '#2E7D32', fontWeight: 700 }}> · OS {l.concluido_em_ordem}</span> : ''}
@@ -905,7 +920,7 @@ function ClientesPageInner() {
         )}
 
         {loadingDetalhe ? (
-          <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+          <div style={{ padding: 80, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>
             <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
             <div>Carregando...</div>
           </div>
@@ -959,20 +974,20 @@ function ClientesPageInner() {
                 { l: 'Valor OS', v: formatCurrency(totalValorOS), c: '#7C3AED' },
                 { l: 'Valor PV', v: formatCurrency(totalValorPV), c: '#DC2626' },
               ].map((c, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: '#F9FAFB', border: '1px solid #E5E7EB' }}>
-                  <span style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600 }}>{c.l}</span>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: 'var(--portal-bg-secondary)', border: '1px solid #E5E7EB' }}>
+                  <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontWeight: 600 }}>{c.l}</span>
                   <span style={{ fontSize: 14, fontWeight: 700, color: c.c }}>{c.v}</span>
                 </div>
               ))}
             </div>
 
             {ordens.length === 0 && pedidos.length === 0 ? (
-              <div style={{ padding: 60, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>Nenhuma ordem de servico encontrada</div>
+              <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>Nenhuma ordem de servico encontrada</div>
             ) : (
               <div>
                 {/* TITULO + FILTROS */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Wrench size={18} color="#DC2626" /> Ordens de Servico ({ordensFiltradas.length})
                   </div>
                   <button onClick={() => abrirAnexar('os')}
@@ -992,8 +1007,8 @@ function ClientesPageInner() {
                     <button key={tab.id} onClick={() => setOsColuna(tab.id)}
                       style={{
                         padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                        background: osColuna === tab.id ? '#111827' : '#F3F4F6',
-                        color: osColuna === tab.id ? '#fff' : '#6B7280',
+                        background: osColuna === tab.id ? '#dc2626' : '#F3F4F6',
+                        color: osColuna === tab.id ? '#fff' : 'var(--portal-text-secondary)',
                         transition: 'all 0.15s',
                       }}>
                       {tab.label} <span style={{ opacity: 0.7, marginLeft: 4 }}>{tab.count}</span>
@@ -1010,7 +1025,7 @@ function ClientesPageInner() {
                       padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                       border: osFiltroTipo ? '1px solid #DC2626' : '1px solid #E5E7EB',
                       background: osFiltroTipo ? '#FEF2F2' : '#fff',
-                      color: osFiltroTipo ? '#DC2626' : '#6B7280',
+                      color: osFiltroTipo ? '#DC2626' : 'var(--portal-text-secondary)',
                       outline: 'none',
                     }}>
                     <option value="">Tipo de serviço</option>
@@ -1028,7 +1043,7 @@ function ClientesPageInner() {
                         padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
                         border: osFiltroTipo.startsWith('maq:') ? '1px solid #DC2626' : '1px solid #E5E7EB',
                         background: osFiltroTipo.startsWith('maq:') ? '#FEF2F2' : '#fff',
-                        color: osFiltroTipo.startsWith('maq:') ? '#DC2626' : '#6B7280',
+                        color: osFiltroTipo.startsWith('maq:') ? '#DC2626' : 'var(--portal-text-secondary)',
                         outline: 'none',
                       }}>
                       <option value="">Máquina</option>
@@ -1036,19 +1051,19 @@ function ClientesPageInner() {
                     </select>
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 8, border: osBuscaNF ? '1px solid #DC2626' : '1px solid #E5E7EB', background: osBuscaNF ? '#FEF2F2' : '#fff' }}>
-                    <Search size={13} color={osBuscaNF ? '#DC2626' : '#9CA3AF'} />
+                    <Search size={13} color={osBuscaNF ? '#DC2626' : 'var(--portal-text-muted)'} />
                     <input
                       type="text" placeholder="Buscar NF, OS..."
                       value={osBuscaNF} onChange={e => setOsBuscaNF(e.target.value)}
-                      style={{ border: 'none', outline: 'none', background: 'none', fontSize: 12, width: 130, color: '#111827' }}
+                      style={{ border: 'none', outline: 'none', background: 'none', fontSize: 12, width: 130, color: 'var(--portal-text)' }}
                     />
-                    {osBuscaNF && <X size={12} onClick={() => setOsBuscaNF('')} style={{ cursor: 'pointer', color: '#9CA3AF' }} />}
+                    {osBuscaNF && <X size={12} onClick={() => setOsBuscaNF('')} style={{ cursor: 'pointer', color: 'var(--portal-text-muted)' }} />}
                   </div>
                 </div>
 
                 {/* OS COMO CARDS */}
                 {ordensFiltradas.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 13 }}>Nenhuma OS com esses filtros</div>
+                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 13 }}>Nenhuma OS com esses filtros</div>
                 ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 28 }}>
                   {ordensFiltradas.map((os, oi) => {
@@ -1066,19 +1081,19 @@ function ClientesPageInner() {
                     const pecasTotal = pecas.reduce((s: number, p: any) => s + (Number(p.valor_total) || 0), 0)
                     const maoObra = Math.max(0, (os.valor_total || 0) - pecasTotal)
                     const lbl: React.CSSProperties = { display: 'block', fontSize: 9.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#94A3B8' }
-                    const totNum: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }
+                    const totNum: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }
 
                     return (
                       <div key={os.num_os} className="cli-card" onClick={() => setModalOS(os)}
-                        style={{ position: 'relative', padding: '14px 18px 14px 22px', border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', cursor: 'pointer', transition: 'all 0.15s', boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden', animationDelay: `${Math.min(oi * 30, 300)}ms` }}
+                        style={{ position: 'relative', padding: '14px 18px 14px 22px', border: '1px solid #E5E7EB', borderRadius: 12, background: 'var(--portal-bg-card)', cursor: 'pointer', transition: 'all 0.15s', boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden', animationDelay: `${Math.min(oi * 30, 300)}ms` }}
                         onMouseEnter={ev => { ev.currentTarget.style.borderColor = '#CBD5E1'; ev.currentTarget.style.boxShadow = '0 6px 16px rgba(16,24,40,0.09)' }}
-                        onMouseLeave={ev => { ev.currentTarget.style.borderColor = '#E5E7EB'; ev.currentTarget.style.boxShadow = '0 1px 2px rgba(16,24,40,0.04)' }}>
+                        onMouseLeave={ev => { ev.currentTarget.style.borderColor = 'var(--portal-border)'; ev.currentTarget.style.boxShadow = '0 1px 2px rgba(16,24,40,0.04)' }}>
                         <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: acc }} />
 
                         {/* Cabeçalho: OS + PV + status · data */}
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', borderBottom: '1px solid #F1F5F9', paddingBottom: 10, marginBottom: 10 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 15.5, fontWeight: 600, color: '#0F172A', whiteSpace: 'nowrap' }}>OS {os.num_os}</span>
+                            <span style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>OS {os.num_os}</span>
                             {numRef && <span style={{ fontSize: 12, fontWeight: 600, color: '#EA580C', background: '#FFF7ED', border: '1px solid #FED7AA', padding: '1px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>PV {numRef}</span>}
                             {remRef && <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 5, background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA', whiteSpace: 'nowrap' }}>{ref.label}</span>}
                             <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: acc, textTransform: 'uppercase', letterSpacing: 0.3 }}>
@@ -1093,7 +1108,7 @@ function ClientesPageInner() {
                                 <FileText size={12} /> PDF
                               </a>
                             )}
-                            <span style={{ fontSize: 12, fontWeight: 600, color: '#0F172A' }}>{formatDate(os.data_previsao)}</span>
+                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)' }}>{formatDate(os.data_previsao)}</span>
                           </div>
                         </div>
 
@@ -1110,7 +1125,7 @@ function ClientesPageInner() {
                                 <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#EA580C', fontWeight: 600 }}>{p.codigo || '-'}</span>
                                 <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descricao || p.desc || '-'}</span>
                                 <span style={{ color: '#94A3B8', fontVariantNumeric: 'tabular-nums' }}>{p.quantidade}×</span>
-                                <span style={{ fontWeight: 600, color: '#0F172A', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(p.valor_total || 0)}</span>
+                                <span style={{ fontWeight: 600, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(p.valor_total || 0)}</span>
                               </div>
                             ))}
                           </div>
@@ -1133,7 +1148,7 @@ function ClientesPageInner() {
                 {/* PVs sem OS */}
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: '#111827', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
                       <Package size={18} color="#EA580C" /> Pedidos de Venda avulsos ({pvsSemOS.length})
                     </div>
                     <button onClick={() => abrirAnexar('pv')}
@@ -1148,17 +1163,17 @@ function ClientesPageInner() {
                           style={{
                             position: 'relative', display: 'flex', flexDirection: 'column', gap: 8,
                             padding: '13px 16px 13px 20px', border: '1px solid #E5E7EB', borderRadius: 12,
-                            background: '#fff', boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden',
+                            background: 'var(--portal-bg-card)', boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden',
                             animationDelay: `${Math.min(pi * 30, 300)}ms`,
                           }}>
                           <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: '#EA580C' }} />
 
                           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
-                              <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', whiteSpace: 'nowrap' }}>PV {pv.num_pedido}</span>
+                              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>PV {pv.num_pedido}</span>
                               {pv.numero_nf && <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>NF {pv.numero_nf}</span>}
                             </div>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: '#0F172A', flexShrink: 0 }}>{formatCurrency(pv.valor_total || 0)}</span>
+                            <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', flexShrink: 0 }}>{formatCurrency(pv.valor_total || 0)}</span>
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
@@ -1169,12 +1184,12 @@ function ClientesPageInner() {
                               <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{formatDate(pv.data_previsao)}</span>
                               <a href={pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
                                 target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={pv.ppv_real ? 'Abrir PPV original' : 'Imprimir PV'}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E5E7EB', background: '#fff', textDecoration: 'none', color: '#475569' }}>
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', textDecoration: 'none', color: '#475569' }}>
                                 <Printer size={15} />
                               </a>
                               {pv.link_nf && (
                                 <a href={pv.link_nf} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Baixar NF"
-                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: 'none', background: '#0F172A', textDecoration: 'none', color: '#fff' }}>
+                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: 'none', background: '#dc2626', textDecoration: 'none', color: '#fff' }}>
                                   <Download size={15} />
                                 </a>
                               )}
@@ -1213,12 +1228,12 @@ function ClientesPageInner() {
         {subNF && (
           <div onClick={e => { if (e.target === e.currentTarget && !subSalvando) setSubNF(null) }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ background: '#fff', borderRadius: 16, width: 440, maxWidth: '95vw', padding: 26 }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 440, maxWidth: '95vw', padding: 26 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <h2 style={{ fontSize: 19, fontWeight: 800, color: '#111827', margin: 0 }}>Marcar NF como substituída</h2>
-                <button onClick={() => setSubNF(null)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
+                <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Marcar NF como substituída</h2>
+                <button onClick={() => setSubNF(null)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
               </div>
-              <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 18px' }}>
+              <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', margin: '0 0 18px' }}>
                 OS {subNF.osNum}. Registra a troca (nº antigo → novo) no histórico. O cancelamento/emissão da nota em si é feito no Omie.
               </p>
 
@@ -1229,7 +1244,7 @@ function ClientesPageInner() {
                     <button key={v} onClick={() => setSubNF({ ...subNF, nf_tipo: v })}
                       style={{ flex: 1, padding: '9px 0', borderRadius: 9, fontSize: 13, fontWeight: 700, cursor: 'pointer',
                         border: subNF.nf_tipo === v ? '2px solid #2563EB' : '1px solid #E5E7EB',
-                        background: subNF.nf_tipo === v ? '#EFF6FF' : '#fff', color: subNF.nf_tipo === v ? '#1D4ED8' : '#6B7280' }}>
+                        background: subNF.nf_tipo === v ? '#EFF6FF' : '#fff', color: subNF.nf_tipo === v ? '#1D4ED8' : 'var(--portal-text-secondary)' }}>
                       {lbl}
                     </button>
                   ))}
@@ -1248,9 +1263,9 @@ function ClientesPageInner() {
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                 <button onClick={() => setSubNF(null)} disabled={subSalvando}
-                  style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', color: '#374151', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
+                  style={{ padding: '10px 18px', borderRadius: 10, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                 <button onClick={salvarSubstituicao} disabled={subSalvando || !subNF.num_novo.trim()}
-                  style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: subNF.num_novo.trim() ? '#2563EB' : '#9CA3AF', color: '#fff', fontSize: 14, fontWeight: 700, cursor: subSalvando ? 'wait' : 'pointer' }}>
+                  style={{ padding: '10px 18px', borderRadius: 10, border: 'none', background: subNF.num_novo.trim() ? '#2563EB' : 'var(--portal-text-muted)', color: '#fff', fontSize: 14, fontWeight: 700, cursor: subSalvando ? 'wait' : 'pointer' }}>
                   {subSalvando ? 'Salvando...' : 'Registrar substituição'}
                 </button>
               </div>
@@ -1262,14 +1277,14 @@ function ClientesPageInner() {
         {showAnexar && (
           <div onClick={e => { if (e.target === e.currentTarget && !anexando) setShowAnexar(null) }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ background: '#fff', borderRadius: 16, width: 460, maxWidth: '95vw', padding: 28 }}>
+            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 460, maxWidth: '95vw', padding: 28 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>
+                <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>
                   Anexar {showAnexar === 'os' ? 'Ordem de Serviço' : 'Pedido de Venda'}
                 </h2>
-                <button onClick={() => setShowAnexar(null)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
+                <button onClick={() => setShowAnexar(null)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
               </div>
-              <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 18px' }}>
+              <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', margin: '0 0 18px' }}>
                 Informe o número; o resto (cliente, valores, datas e a {showAnexar === 'os' ? 'NF de serviço' : 'NF de peça'}) é lido do Omie. Se quiser, anexe o PDF.
               </p>
 
@@ -1282,16 +1297,16 @@ function ClientesPageInner() {
                 <div style={{ marginBottom: 14 }}>
                   <label style={lblModal}>PEDIDO DE VENDA VINCULADO (opcional)</label>
                   <input value={anexPvVinc} onChange={e => setAnexPvVinc(e.target.value.replace(/\D/g, ''))} placeholder="Nº do PV ligado a esta OS" style={inpModal} />
-                  <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 4 }}>Se informar, eu puxo o PV do Omie e deixo ligado a esta OS na pasta.</div>
+                  <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 4 }}>Se informar, eu puxo o PV do Omie e deixo ligado a esta OS na pasta.</div>
                 </div>
               )}
 
               {showAnexar === 'os' && (
-                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, padding: '10px 12px', borderRadius: 10, border: `1px solid ${anexInterno ? '#A7F3D0' : '#E5E7EB'}`, background: anexInterno ? '#ECFDF5' : '#F9FAFB', cursor: 'pointer' }}>
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, marginBottom: 16, padding: '10px 12px', borderRadius: 10, border: `1px solid ${anexInterno ? '#A7F3D0' : 'var(--portal-border)'}`, background: anexInterno ? '#ECFDF5' : '#F9FAFB', cursor: 'pointer' }}>
                   <input type="checkbox" checked={anexInterno} onChange={e => setAnexInterno(e.target.checked)} style={{ width: 16, height: 16, marginTop: 1, accentColor: '#059669', cursor: 'pointer', flexShrink: 0 }} />
-                  <span style={{ fontSize: 13, color: '#374151', fontWeight: 600, lineHeight: 1.35 }}>
+                  <span style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600, lineHeight: 1.35 }}>
                     Serviço interno (sem NF de serviço)
-                    <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: '#6B7280', marginTop: 2 }}>Não busco nota no Omie. Anexe o recibo no lugar das NFs, se quiser.</span>
+                    <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'var(--portal-text-secondary)', marginTop: 2 }}>Não busco nota no Omie. Anexe o recibo no lugar das NFs, se quiser.</span>
                   </span>
                 </label>
               )}
@@ -1315,12 +1330,12 @@ function ClientesPageInner() {
                 </div>
               )}
 
-              <div style={{ fontSize: 11, color: '#9CA3AF', marginBottom: 14 }}>Empresa: <strong>{selectedCliente?.empresa}</strong></div>
+              <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginBottom: 14 }}>Empresa: <strong>{selectedCliente?.empresa}</strong></div>
 
               {anexErro && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 14 }}>{anexErro}</div>}
 
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowAnexar(null)} disabled={anexando} style={{ padding: '11px 22px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+                <button onClick={() => setShowAnexar(null)} disabled={anexando} style={{ padding: '11px 22px', borderRadius: 10, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
                 <button onClick={anexarItem} disabled={anexando || !anexNumero.trim()} style={{ padding: '11px 24px', borderRadius: 10, border: 'none', background: showAnexar === 'os' ? 'linear-gradient(135deg, #2563EB, #1D4ED8)' : 'linear-gradient(135deg, #EA580C, #C2410C)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (anexando || !anexNumero.trim()) ? 'not-allowed' : 'pointer', opacity: (anexando || !anexNumero.trim()) ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
                   {anexando ? 'Lendo do Omie...' : 'Anexar'}
                 </button>
@@ -1340,17 +1355,17 @@ function ClientesPageInner() {
           return (
             <div className="cli-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               onClick={() => setModalOS(null)}>
-              <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: '92%', maxWidth: 860, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}
+              <div className="cli-modal" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: '92%', maxWidth: 860, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}
                 onClick={e => e.stopPropagation()}>
 
                 {/* Header — estilo documento (formal) */}
                 <div style={{ padding: '22px 28px 18px', borderBottom: '2px solid #0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
                   <button onClick={() => setModalOS(null)}
-                    style={{ position: 'absolute', top: 14, right: 14, background: '#F3F4F6', border: '1px solid #E5E7EB', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748B' }}>
+                    style={{ position: 'absolute', top: 14, right: 14, background: 'var(--portal-bg-secondary)', border: '1px solid #E5E7EB', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748B' }}>
                     <X size={16} />
                   </button>
                   <div style={{ minWidth: 0, paddingRight: 48 }}>
-                    <div style={{ fontSize: 17, fontWeight: 600, color: '#0F172A' }}>{cli.nome_fantasia || cli.razao_social}</div>
+                    <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--portal-text)' }}>{cli.nome_fantasia || cli.razao_social}</div>
                     <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>{formatCNPJ(cli.cnpj_cpf)}{(os.cidade || cli.cidade) ? ` · ${os.cidade || cli.cidade}` : ''}</div>
                     <div style={{ display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap' }}>
                       {os.projeto && <span style={{ fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 8, background: '#F8FAFC', border: '1px solid #E5E7EB', color: '#475569' }}>{os.projeto}</span>}
@@ -1359,7 +1374,7 @@ function ClientesPageInner() {
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.6, color: '#94A3B8' }}>Ordem de Serviço</div>
-                    <div style={{ fontSize: 26, fontWeight: 600, color: '#0F172A', lineHeight: 1, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{os.num_os}</div>
+                    <div style={{ fontSize: 26, fontWeight: 600, color: 'var(--portal-text)', lineHeight: 1, marginTop: 2, fontVariantNumeric: 'tabular-nums' }}>{os.num_os}</div>
                     <div style={{ marginTop: 8 }}>
                       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '3px 11px', borderRadius: 999, background: os.cancelada ? '#FEE2E2' : os.faturada ? '#DCFCE7' : '#FEF3C7', color: os.cancelada ? '#DC2626' : os.faturada ? '#16A34A' : '#D97706' }}>
                         <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor' }} />{os.servico_interno && !os.cancelada ? 'Fechado interno' : os.status}
@@ -1384,8 +1399,8 @@ function ClientesPageInner() {
                       { l: 'Técnico', v: os.vendedor || '—', c: undefined, sub: null },
                       { l: 'Cidade', v: os.cidade || cli.cidade || '—', c: undefined, sub: null },
                       { l: 'Data inclusão', v: formatDate(os.data_inclusao), c: undefined, sub: null },
-                      { l: 'NF de Serviço', v: numNfServ, c: numNfServ !== '—' ? '#0F172A' : '#94A3B8', sub: null },
-                      { l: 'NF de Peça', v: numNfPeca, c: numNfPeca !== '—' ? '#0F172A' : '#94A3B8', sub: null },
+                      { l: 'NF de Serviço', v: numNfServ, c: numNfServ !== '—' ? 'var(--portal-text)' : '#94A3B8', sub: null },
+                      { l: 'NF de Peça', v: numNfPeca, c: numNfPeca !== '—' ? 'var(--portal-text)' : '#94A3B8', sub: null },
                       { l: os.projeto ? 'Máquina / Chassi' : 'Contrato', v: os.projeto || os.contrato || '—', c: undefined, sub: null },
                     ]
                     return (
@@ -1393,7 +1408,7 @@ function ClientesPageInner() {
                         {celulas.map((f, i) => (
                           <div key={i} title={String(f.v)} style={{ padding: '11px 14px', borderRight: i % 3 !== 2 ? '1px solid #F1F5F9' : 'none', borderBottom: i < 6 ? '1px solid #F1F5F9' : 'none', minWidth: 0 }}>
                             <div style={{ fontSize: 10, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#94A3B8' }}>{f.l}</div>
-                            <div style={{ fontSize: 14, fontWeight: 600, color: f.c || '#0F172A', marginTop: 3, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.v}</div>
+                            <div style={{ fontSize: 14, fontWeight: 600, color: f.c || 'var(--portal-text)', marginTop: 3, fontVariantNumeric: 'tabular-nums', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.v}</div>
                             {f.sub && <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{f.sub}</div>}
                           </div>
                         ))}
@@ -1419,8 +1434,8 @@ function ClientesPageInner() {
                   {/* Solicitacao */}
                   {solicitacao && (
                     <div style={{ marginBottom: 24 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Solicitacao</div>
-                      <div style={{ padding: '14px 18px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB', fontSize: 14, color: '#1F2937', lineHeight: 1.6 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Solicitacao</div>
+                      <div style={{ padding: '14px 18px', borderRadius: 10, background: 'var(--portal-bg-secondary)', border: '1px solid #E5E7EB', fontSize: 14, color: '#1F2937', lineHeight: 1.6 }}>
                         {solicitacao}
                       </div>
                     </div>
@@ -1429,18 +1444,18 @@ function ClientesPageInner() {
                   {/* Servicos */}
                   {servicos.length > 0 && (
                     <div style={{ marginBottom: 24 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Servicos ({servicos.length})</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Servicos ({servicos.length})</div>
                       <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
                         {servicos.map((s: any, si: number) => (
                           <div key={si} style={{ padding: '12px 16px', borderBottom: si < servicos.length - 1 ? '1px solid #F3F4F6' : 'none', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div style={{ flex: 1 }}>
-                              <div style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>{s.desc || s.descricao || s.nome || `Servico ${si + 1}`}</div>
-                              {(s.qtd ?? s.quantidade) != null && <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 2 }}>Qtd: {s.qtd ?? s.quantidade}</div>}
+                              <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 500 }}>{s.desc || s.descricao || s.nome || `Servico ${si + 1}`}</div>
+                              {(s.qtd ?? s.quantidade) != null && <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 2 }}>Qtd: {s.qtd ?? s.quantidade}</div>}
                             </div>
                             {(s.valor || s.valor_unitario) && (
-                              <div style={{ fontSize: 14, fontWeight: 600, color: '#374151', flexShrink: 0, marginLeft: 16, textAlign: 'right' }}>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text)', flexShrink: 0, marginLeft: 16, textAlign: 'right' }}>
                                 {formatCurrency(s.valor || s.valor_unitario || 0)}
-                                <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 500 }}>un.</div>
+                                <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontWeight: 500 }}>un.</div>
                               </div>
                             )}
                           </div>
@@ -1452,7 +1467,7 @@ function ClientesPageInner() {
                   {/* Obs */}
                   {os.obs && (
                     <div style={{ marginBottom: 24 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Observacoes</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Observacoes</div>
                       <div style={{ padding: '14px 18px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 13, color: '#92400E', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                         {os.obs}
                       </div>
@@ -1462,8 +1477,8 @@ function ClientesPageInner() {
                   {/* Dados adicionais */}
                   {os.dados_adic && (
                     <div style={{ marginBottom: 24 }}>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Dados Adicionais</div>
-                      <div style={{ padding: '14px 18px', borderRadius: 10, background: '#F9FAFB', border: '1px solid #E5E7EB', fontSize: 13, color: '#6B7280', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>Dados Adicionais</div>
+                      <div style={{ padding: '14px 18px', borderRadius: 10, background: 'var(--portal-bg-secondary)', border: '1px solid #E5E7EB', fontSize: 13, color: 'var(--portal-text-secondary)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
                         {os.dados_adic}
                       </div>
                     </div>
@@ -1472,20 +1487,20 @@ function ClientesPageInner() {
                   {/* ── Ações, agrupadas por assunto ── */}
                   {(() => {
                     const LBL = { fontSize: 10, fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase' as const, letterSpacing: 0.5, marginBottom: 10 }
-                    const CARD: React.CSSProperties = { border: '1px solid #E5E7EB', borderRadius: 12, padding: '13px 16px', background: '#fff' }
+                    const CARD: React.CSSProperties = { border: '1px solid #E5E7EB', borderRadius: 12, padding: '13px 16px', background: 'var(--portal-bg-card)' }
                     const ROW = { display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }
                     const BASE = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 15px', borderRadius: 9, fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }
-                    const GHOST = { ...BASE, border: '1px solid #E5E7EB', background: '#fff', color: '#334155' }
-                    const DARK = { ...BASE, border: 'none', background: '#0F172A', color: '#fff' }
+                    const GHOST = { ...BASE, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: '#334155' }
+                    const DARK = { ...BASE, border: 'none', background: '#dc2626', color: '#fff' }
                     const WARN = { ...BASE, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#B45309', fontWeight: 700 }
                     const GREEN = { ...BASE, border: 'none', background: '#059669', color: '#fff' }
-                    const MUTED = { fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' as const }
+                    const MUTED = { fontSize: 13, color: 'var(--portal-text-muted)', fontStyle: 'italic' as const }
                     const nfServ = os.link_nf || os.financeiro?.nf_servico
                     const numNfServ = os.num_nf || os.financeiro?.num_nf_servico
                     const boletos = (os.financeiro?.boleto || '').split(',').map(s => s.trim()).filter(Boolean)
                     return (
                       <div style={{ marginTop: 22, paddingTop: 20, borderTop: '2px solid #0F172A', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                        <div style={{ fontSize: 12, fontWeight: 700, color: '#0F172A', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Documentos e financeiro</div>
+                        <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Documentos e financeiro</div>
 
                         {/* DOCUMENTOS */}
                         <div style={CARD}>
@@ -1521,7 +1536,7 @@ function ClientesPageInner() {
                                   style={{ ...GHOST, cursor: forcandoCard ? 'wait' : 'pointer' }}>
                                   <Hash size={15} /> {forcandoCard ? 'Buscando...' : 'Trocar o nº do pedido de venda'}
                                   {pvDaOS && (
-                                    <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 700, color: os.pv_manual ? '#B45309' : '#9CA3AF' }}>
+                                    <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 700, color: os.pv_manual ? '#B45309' : 'var(--portal-text-muted)' }}>
                                       ({pvDaOS}{os.pv_manual ? ' · manual' : ''})
                                     </span>
                                   )}
@@ -1561,7 +1576,7 @@ function ClientesPageInner() {
                                     Já enviado ao financeiro{os.financeiro.id ? ` (#${os.financeiro.id})` : ''}
                                   </span>
                                 ) : (
-                                  <label title="Se marcado, ao anexar a nota já cria o card no financeiro" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#6B7280', cursor: 'pointer', userSelect: 'none', paddingLeft: 2 }}>
+                                  <label title="Se marcado, ao anexar a nota já cria o card no financeiro" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--portal-text-secondary)', cursor: 'pointer', userSelect: 'none', paddingLeft: 2 }}>
                                     <input type="checkbox" checked={gerarCardFin} onChange={e => setGerarCardFin(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#B45309' }} />
                                     Enviar para o Financeiro
                                   </label>
@@ -1754,7 +1769,7 @@ function ClientesPageInner() {
         {modalProjeto && (
           <div className="cli-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             onClick={() => setModalProjeto(null)}>
-            <div className="cli-modal" style={{ background: '#F9FAFB', borderRadius: 16, width: '95%', maxWidth: 1100, maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}
+            <div className="cli-modal" style={{ background: 'var(--portal-bg-secondary)', borderRadius: 16, width: '95%', maxWidth: 1100, maxHeight: '92vh', overflow: 'hidden', boxShadow: '0 24px 64px rgba(0,0,0,0.25)', display: 'flex', flexDirection: 'column' }}
               onClick={ev => ev.stopPropagation()}>
 
               {/* Header profissional (grafite) */}
@@ -1800,12 +1815,12 @@ function ClientesPageInner() {
               </div>
 
               {modalProjetoLoading ? (
-                <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+                <div style={{ padding: 80, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>
                   <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
                   <div>Carregando projeto...</div>
                 </div>
               ) : !modalProjetoData ? (
-                <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>Erro ao carregar projeto</div>
+                <div style={{ padding: 80, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>Erro ao carregar projeto</div>
               ) : (() => {
                 const d = modalProjetoData
                 const chassis: any[] = d.chassis || []
@@ -1878,17 +1893,17 @@ function ClientesPageInner() {
                           <button key={t.id} onClick={() => setProjetoTab(t.id)}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
-                              border: '1px solid', borderColor: on ? '#E5E7EB' : 'transparent',
+                              border: '1px solid', borderColor: on ? 'var(--portal-border)' : 'transparent',
                               borderBottom: on ? '1px solid #fff' : '1px solid transparent',
                               borderRadius: '10px 10px 0 0', background: on ? '#fff' : 'transparent',
                               cursor: 'pointer', fontSize: 13, fontWeight: on ? 700 : 500,
-                              color: on ? '#2563EB' : '#6B7280', transition: 'all 0.15s', whiteSpace: 'nowrap',
+                              color: on ? '#2563EB' : 'var(--portal-text-secondary)', transition: 'all 0.15s', whiteSpace: 'nowrap',
                               position: 'relative', top: 1, marginBottom: -1,
                             }}>
                             <t.icon size={15} />
                             {t.label}
                             {t.count !== null && t.count > 0 && (
-                              <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 10, background: on ? '#EFF6FF' : '#E5E7EB', color: on ? '#2563EB' : '#9CA3AF', fontWeight: 700 }}>
+                              <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 10, background: on ? '#EFF6FF' : 'var(--portal-border)', color: on ? '#2563EB' : 'var(--portal-text-muted)', fontWeight: 700 }}>
                                 {t.count}
                               </span>
                             )}
@@ -1898,7 +1913,7 @@ function ClientesPageInner() {
                     </div>
 
                     {/* Content */}
-                    <div style={{ flex: 1, overflow: 'auto', padding: '24px 28px', background: '#fff' }}>
+                    <div style={{ flex: 1, overflow: 'auto', padding: '24px 28px', background: 'var(--portal-bg-card)' }}>
 
                       {/* ─── RESUMO ─── */}
                       {projetoTab === 'resumo' && (() => {
@@ -1912,11 +1927,11 @@ function ClientesPageInner() {
                         const horimetro = revHorimetroAtual(trator)
                         const proxRev = revProxima(trator)
                         const iniciais = (donoAtual?.nome || '?').trim().split(/\s+/).slice(0, 2).map((w: string) => w[0]).join('').toUpperCase()
-                        const card: React.CSSProperties = { border: '1px solid #E6E9EF', borderRadius: 13, background: '#fff', overflow: 'hidden' }
+                        const card: React.CSSProperties = { border: '1px solid #E6E9EF', borderRadius: 13, background: 'var(--portal-bg-card)', overflow: 'hidden' }
                         const cardTtl: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase', color: '#3f4855', padding: '11px 16px', borderBottom: '1px solid #EEF1F5', background: '#F7F8FA' }
-                        const lab: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: '#8b93a1' }
+                        const lab: React.CSSProperties = { fontSize: 9.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase', color: 'var(--portal-text-muted)' }
                         const val: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: '#14171d', marginTop: 3 }
-                        const secTtl: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: '#8b93a1', margin: '22px 0 12px' }
+                        const secTtl: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--portal-text-muted)', margin: '22px 0 12px' }
                         return (
                           <div>
                             {/* Identificação + Dono atual */}
@@ -1947,7 +1962,7 @@ function ClientesPageInner() {
                                       <div style={{ width: 44, height: 44, borderRadius: 11, background: '#EEF4FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, flexShrink: 0 }}>{iniciais}</div>
                                       <div style={{ minWidth: 0 }}>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}><span style={{ fontSize: 15, fontWeight: 600, color: '#14171d' }}>{donoAtual.nome || 'Cliente'}</span><span style={{ fontSize: 9.5, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: '#E9FAF3', color: '#059669' }}>ATUAL</span></div>
-                                        <div style={{ fontSize: 12, color: '#8b93a1', marginTop: 1 }}>Cliente desde {formatDate(donoAtual.primeira_os)}</div>
+                                        <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1 }}>Cliente desde {formatDate(donoAtual.primeira_os)}</div>
                                       </div>
                                     </div>
                                     <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid #EEF1F5' }}>
@@ -1960,21 +1975,21 @@ function ClientesPageInner() {
                                         { l: 'Período como dono', v: `${formatDate(donoAtual.primeira_os)} — ${formatDate(donoAtual.ultima_os)}`, copy: '' },
                                       ].map((f, i) => (
                                         <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center', padding: '6px 0' }}>
-                                          <span style={{ fontSize: 11, color: '#8b93a1', flexShrink: 0 }}>{f.l}</span>
+                                          <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', flexShrink: 0 }}>{f.l}</span>
                                           <span style={{ fontSize: 12.5, fontWeight: 600, color: '#14171d', textAlign: 'right', display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 0, fontFamily: f.mono ? 'monospace' : undefined }}>
                                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.v}</span>
-                                            {f.copy ? <button onClick={e => copiarContato(e, f.copy)} title="Copiar" style={{ ...btnCopiar, color: copiadoContato === f.copy ? '#16a34a' : '#8b93a1' }}>{copiadoContato === f.copy ? <Check size={12} /> : <Copy size={12} />}</button> : null}
+                                            {f.copy ? <button onClick={e => copiarContato(e, f.copy)} title="Copiar" style={{ ...btnCopiar, color: copiadoContato === f.copy ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === f.copy ? <Check size={12} /> : <Copy size={12} />}</button> : null}
                                           </span>
                                         </div>
                                       ))}
                                     </div>
                                     <div style={{ display: 'flex', gap: 18, marginTop: 14, paddingTop: 12, borderTop: '1px solid #EEF1F5' }}>
-                                      <div><div style={{ fontSize: 16, fontWeight: 600, color: '#14171d' }}>{donoAtual.total_os}</div><div style={{ fontSize: 10, color: '#8b93a1', textTransform: 'uppercase' }}>OS deste dono</div></div>
-                                      <div><div style={{ fontSize: 16, fontWeight: 600, color: '#059669' }}>{formatCurrency(donoAtual.total_valor)}</div><div style={{ fontSize: 10, color: '#8b93a1', textTransform: 'uppercase' }}>Faturado</div></div>
-                                      <div><div style={{ fontSize: 16, fontWeight: 600, color: '#14171d' }}>{donosList.length}</div><div style={{ fontSize: 10, color: '#8b93a1', textTransform: 'uppercase' }}>Donos</div></div>
+                                      <div><div style={{ fontSize: 16, fontWeight: 600, color: '#14171d' }}>{donoAtual.total_os}</div><div style={{ fontSize: 10, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>OS deste dono</div></div>
+                                      <div><div style={{ fontSize: 16, fontWeight: 600, color: '#059669' }}>{formatCurrency(donoAtual.total_valor)}</div><div style={{ fontSize: 10, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>Faturado</div></div>
+                                      <div><div style={{ fontSize: 16, fontWeight: 600, color: '#14171d' }}>{donosList.length}</div><div style={{ fontSize: 10, color: 'var(--portal-text-muted)', textTransform: 'uppercase' }}>Donos</div></div>
                                     </div>
                                   </>
-                                ) : <div style={{ fontSize: 13, color: '#9CA3AF' }}>Sem dono registrado</div>}
+                                ) : <div style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>Sem dono registrado</div>}
                               </div>
                             </div>
 
@@ -1988,9 +2003,9 @@ function ClientesPageInner() {
                                 { l: 'Próxima revisão', v: proxRev || (trator ? 'em dia' : '—'), s: proxRev && horimetro ? `atual ${horimetro} h` : '', c: '#d97706', small: true },
                               ].map((k, i) => (
                                 <div key={i} style={{ border: '1px solid #E6E9EF', borderRadius: 13, padding: '14px 16px' }}>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: '#8b93a1', textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: k.c }} />{k.l}</div>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, fontWeight: 700 }}><span style={{ width: 9, height: 9, borderRadius: 3, background: k.c }} />{k.l}</div>
                                   <div style={{ fontSize: k.small ? 17 : 22, fontWeight: 600, marginTop: 7, color: k.c }}>{k.v}</div>
-                                  {k.s && <div style={{ fontSize: 11, color: '#8b93a1', marginTop: 2 }}>{k.s}</div>}
+                                  {k.s && <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 2 }}>{k.s}</div>}
                                 </div>
                               ))}
                             </div>
@@ -2002,7 +2017,7 @@ function ClientesPageInner() {
                                 <div style={{ border: '1px solid #E6E9EF', borderRadius: 13, padding: 16 }}>
                                   <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
                                     <div style={{ fontSize: 13, color: '#3f4855' }}>Horímetro atual: <b style={{ fontSize: 15, color: '#14171d' }}>{horimetro ? `${horimetro} h` : '—'}</b></div>
-                                    {trator.Entrega && <div style={{ fontSize: 11.5, color: '#8b93a1' }}>Entrega em {trator.Entrega}</div>}
+                                    {trator.Entrega && <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>Entrega em {trator.Entrega}</div>}
                                   </div>
                                   <div style={{ display: 'flex', overflowX: 'auto', paddingBottom: 4 }}>
                                     {REVISOES_HORAS.map((h: string, i: number) => {
@@ -2012,11 +2027,11 @@ function ClientesPageInner() {
                                       return (
                                         <div key={h} style={{ flex: 1, minWidth: 64, textAlign: 'center', position: 'relative' }}>
                                           {i > 0 && <div style={{ position: 'absolute', top: 15, left: '-50%', width: '100%', height: 2, background: done ? '#059669' : '#E6E9EF' }} />}
-                                          <div style={{ width: 32, height: 32, borderRadius: '50%', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, position: 'relative', zIndex: 1, border: `2px solid ${done ? '#059669' : isNext ? '#d97706' : '#E6E9EF'}`, background: done ? '#059669' : isNext ? '#FEF6E7' : '#fff', color: done ? '#fff' : isNext ? '#d97706' : '#8b93a1' }}>
+                                          <div style={{ width: 32, height: 32, borderRadius: '50%', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, position: 'relative', zIndex: 1, border: `2px solid ${done ? '#059669' : isNext ? '#d97706' : '#E6E9EF'}`, background: done ? '#059669' : isNext ? '#FEF6E7' : '#fff', color: done ? '#fff' : isNext ? '#d97706' : 'var(--portal-text-muted)' }}>
                                             {done ? <CheckCircle size={15} /> : h.replace('h', '')}
                                           </div>
                                           <div style={{ fontSize: 10.5, fontWeight: 600, marginTop: 6, color: isNext ? '#d97706' : '#3f4855' }}>{h}</div>
-                                          <div style={{ fontSize: 9.5, color: '#8b93a1', marginTop: 1 }}>{done ? formatDate(data) : (isNext ? 'prevista' : '—')}</div>
+                                          <div style={{ fontSize: 9.5, color: 'var(--portal-text-muted)', marginTop: 1 }}>{done ? formatDate(data) : (isNext ? 'prevista' : '—')}</div>
                                         </div>
                                       )
                                     })}
@@ -2032,12 +2047,12 @@ function ClientesPageInner() {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                                   {ultimosSvc.map((s, i) => (
                                     <div key={i} onClick={() => irParaServico(s.num_os)}
-                                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 14px', border: '1px solid #E6E9EF', borderRadius: 11, cursor: 'pointer', background: '#fff' }}
+                                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '11px 14px', border: '1px solid #E6E9EF', borderRadius: 11, cursor: 'pointer', background: 'var(--portal-bg-card)' }}
                                       onMouseEnter={e => { e.currentTarget.style.borderColor = '#2563EB'; e.currentTarget.style.background = '#EEF4FF' }}
                                       onMouseLeave={e => { e.currentTarget.style.borderColor = '#E6E9EF'; e.currentTarget.style.background = '#fff' }}>
                                       <span style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', minWidth: 64 }}>OS {s.num_os}</span>
                                       <span style={{ flex: 1, fontSize: 12.5, color: '#3f4855', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{s.linhas?.[0]?.desc || s.status || '-'}</span>
-                                      <span style={{ fontSize: 11.5, color: '#8b93a1' }}>{formatDate(s.data)}</span>
+                                      <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{formatDate(s.data)}</span>
                                       <span style={{ fontSize: 13, fontWeight: 600, color: '#14171d', minWidth: 96, textAlign: 'right' }}>{formatCurrency(s.valor || 0)}</span>
                                     </div>
                                   ))}
@@ -2051,54 +2066,54 @@ function ClientesPageInner() {
                       {/* ─── DONOS ─── */}
                       {projetoTab === 'donos' && (
                         <div>
-                          <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>Clientes que tiveram servicos faturados neste projeto</div>
+                          <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginBottom: 16 }}>Clientes que tiveram servicos faturados neste projeto</div>
                           {donosList.length === 0 ? (
-                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhum dono encontrado</div>
+                            <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>Nenhum dono encontrado</div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                               {donosList.map((dono: any, di: number) => {
                                 const aberto = donoAberto === dono.cod_cli
                                 const oss = osDoDono(dono.cod_cli)
                                 return (
-                                <div key={di} style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', overflow: 'hidden' }}>
+                                <div key={di} style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: 'var(--portal-bg-card)', overflow: 'hidden' }}>
                                   <div onClick={() => setDonoAberto(aberto ? null : dono.cod_cli)} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '16px 20px', cursor: 'pointer', background: aberto ? '#F8FAFC' : '#fff' }}>
                                     <div style={{
                                       width: 48, height: 48, borderRadius: 12, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                                       background: di === 0 ? '#EFF6FF' : '#F9FAFB',
                                     }}>
-                                      <User size={22} color={di === 0 ? '#2563EB' : '#9CA3AF'} />
+                                      <User size={22} color={di === 0 ? '#2563EB' : 'var(--portal-text-muted)'} />
                                     </div>
                                     <div style={{ flex: 1 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <span style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{dono.nome || 'Cliente sem nome'}</span>
+                                        <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)' }}>{dono.nome || 'Cliente sem nome'}</span>
                                         {di === 0 && <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>ATUAL</span>}
                                       </div>
-                                      <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                                      <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginTop: 2, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
                                         {dono.cnpj_cpf && <span>{formatCNPJ(dono.cnpj_cpf)}</span>}
                                         {dono.cidade && <span>{dono.cidade}/{dono.estado}</span>}
                                       </div>
                                     </div>
                                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                      <div style={{ fontSize: 15, fontWeight: 700, color: '#111827' }}>{dono.total_os} OS</div>
+                                      <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{dono.total_os} OS</div>
                                       <div style={{ fontSize: 13, color: '#059669', fontWeight: 600 }}>{formatCurrency(dono.total_valor)}</div>
-                                      <div style={{ fontSize: 11, color: '#9CA3AF', marginTop: 2 }}>{formatDate(dono.primeira_os)} — {formatDate(dono.ultima_os)}</div>
+                                      <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', marginTop: 2 }}>{formatDate(dono.primeira_os)} — {formatDate(dono.ultima_os)}</div>
                                     </div>
                                     {aberto ? <ChevronUp size={18} color="#9CA3AF" /> : <ChevronDown size={18} color="#9CA3AF" />}
                                   </div>
                                   {aberto && (
-                                    <div style={{ borderTop: '1px solid #E5E7EB', background: '#F9FAFB', padding: '8px' }}>
-                                      <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, padding: '6px 10px' }}>Ordens de serviço deste dono</div>
+                                    <div style={{ borderTop: '1px solid #E5E7EB', background: 'var(--portal-bg-secondary)', padding: '8px' }}>
+                                      <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.4, padding: '6px 10px' }}>Ordens de serviço deste dono</div>
                                       {oss.length === 0 ? (
-                                        <div style={{ padding: '10px', fontSize: 13, color: '#9CA3AF' }}>Nenhuma OS</div>
+                                        <div style={{ padding: '10px', fontSize: 13, color: 'var(--portal-text-muted)' }}>Nenhuma OS</div>
                                       ) : oss.map((os: any, oi: number) => (
                                         <div key={oi} onClick={() => irParaServico(os.num_os)} title="Ver detalhes do serviço"
-                                          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', background: '#fff', border: '1px solid #EEF0F3', marginBottom: 6 }}
+                                          style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', background: 'var(--portal-bg-card)', border: '1px solid #EEF0F3', marginBottom: 6 }}
                                           onMouseEnter={e => { e.currentTarget.style.borderColor = '#BFDBFE'; e.currentTarget.style.background = '#F8FAFF' }}
                                           onMouseLeave={e => { e.currentTarget.style.borderColor = '#EEF0F3'; e.currentTarget.style.background = '#fff' }}>
                                           <span style={{ fontSize: 13, fontWeight: 700, color: '#2563EB', minWidth: 70 }}>OS {os.num_os}</span>
-                                          <span style={{ flex: 1, fontSize: 12, color: '#6B7280' }}>{os.status || '-'}</span>
-                                          <span style={{ fontSize: 12, color: '#9CA3AF' }}>{formatDate(os.data_previsao || os.data_inclusao)}</span>
-                                          <span style={{ fontSize: 13, fontWeight: 600, color: '#111827', minWidth: 90, textAlign: 'right' }}>{formatCurrency(os.valor_total || 0)}</span>
+                                          <span style={{ flex: 1, fontSize: 12, color: 'var(--portal-text-secondary)' }}>{os.status || '-'}</span>
+                                          <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{formatDate(os.data_previsao || os.data_inclusao)}</span>
+                                          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', minWidth: 90, textAlign: 'right' }}>{formatCurrency(os.valor_total || 0)}</span>
                                           <ChevronRight size={15} color="#C4C9D2" />
                                         </div>
                                       ))}
@@ -2116,7 +2131,7 @@ function ClientesPageInner() {
                       {projetoTab === 'servicos' && (
                         <div>
                           {servicosAgrupados.length === 0 ? (
-                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhum servico encontrado</div>
+                            <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>Nenhum servico encontrado</div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                               {servicosAgrupados.map((g: any, gi: number) => {
@@ -2127,19 +2142,19 @@ function ClientesPageInner() {
                                 const valorPecas = pecasDoServ.reduce((s: number, p: any) => s + (p.valor_total || 0), 0)
                                 return (
                                   <div key={gi} onClick={() => setServicoModalOS(String(g.num_os))}
-                                    style={{ border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}
+                                    style={{ border: '1px solid #E5E7EB', borderRadius: 10, background: 'var(--portal-bg-card)', cursor: 'pointer', overflow: 'hidden', transition: 'all 0.15s' }}
                                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#BFDBFE'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(37,99,235,0.08)' }}
-                                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.boxShadow = 'none' }}>
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--portal-border)'; e.currentTarget.style.boxShadow = 'none' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', gap: 12 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0 }}>
                                         <Wrench size={15} color="#2563EB" style={{ flexShrink: 0 }} />
                                         <span style={{ fontWeight: 700, color: '#2563EB', fontSize: 13, flexShrink: 0 }}>OS {g.num_os}</span>
                                         {temPV && <span style={{ fontSize: 11, color: '#EA580C', fontWeight: 600, flexShrink: 0 }}>+ PV {pvRefNum}</span>}
-                                        <span style={{ color: '#6B7280', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.cliente || '-'}</span>
+                                        <span style={{ color: 'var(--portal-text-secondary)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.cliente || '-'}</span>
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
-                                        <span style={{ fontSize: 12, color: '#9CA3AF' }}>{formatDate(g.data)}</span>
-                                        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>{formatCurrency((g.valor || 0) + valorPecas)}</span>
+                                        <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{formatDate(g.data)}</span>
+                                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{formatCurrency((g.valor || 0) + valorPecas)}</span>
                                       </div>
                                     </div>
                                     {/* Detalhes: serviços + peças */}
@@ -2165,26 +2180,26 @@ function ClientesPageInner() {
                       {projetoTab === 'pecas' && (
                         <div>
                           {pecasAgrupadas.length === 0 ? (
-                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>
+                            <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>
                               Nenhuma peça avulsa. Peças vinculadas a OS aparecem na aba Serviços.
                             </div>
                           ) : (
-                            <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: isMobile ? 'auto' : 'hidden', background: '#fff' }}>
-                              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 80px 120px', minWidth: isMobile ? 560 : undefined, padding: '10px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600 }}>
+                            <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: isMobile ? 'auto' : 'hidden', background: 'var(--portal-bg-card)' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 80px 120px', minWidth: isMobile ? 560 : undefined, padding: '10px 16px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: 'var(--portal-text-secondary)', textTransform: 'uppercase', fontWeight: 600 }}>
                                 <span>Pedido</span><span>Itens</span><span>Cliente</span><span style={{ textAlign: 'center' }}>Qtd</span><span style={{ textAlign: 'right' }}>Total</span>
                               </div>
                               {pecasAgrupadas.map((g: any, gi: number) => (
                                 <div key={gi} onClick={() => setPedidoModalNum(String(g.num_pv))} title="Ver detalhes do pedido"
-                                  style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 80px 120px', minWidth: isMobile ? 560 : undefined, padding: '12px 16px', borderBottom: `1px solid ${ln2}`, fontSize: 13, color: '#374151', alignItems: 'center', cursor: 'pointer' }}
+                                  style={{ display: 'grid', gridTemplateColumns: '110px 1fr 140px 80px 120px', minWidth: isMobile ? 560 : undefined, padding: '12px 16px', borderBottom: `1px solid ${ln2}`, fontSize: 13, color: 'var(--portal-text)', alignItems: 'center', cursor: 'pointer' }}
                                   onMouseEnter={e => { e.currentTarget.style.background = '#FFFBF5' }}
                                   onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
                                   <span style={{ fontWeight: 700, color: '#EA580C' }}>PV {g.num_pv}</span>
-                                  <span style={{ color: '#374151', fontSize: 12 }}>
+                                  <span style={{ color: 'var(--portal-text)', fontSize: 12 }}>
                                     {g.itens.length} {g.itens.length === 1 ? 'item' : 'itens'}
-                                    <span style={{ color: '#9CA3AF' }}> — {(g.itens[0]?.desc || '').slice(0, 55)}{(g.itens[0]?.desc || '').length > 55 ? '…' : ''}</span>
+                                    <span style={{ color: 'var(--portal-text-muted)' }}> — {(g.itens[0]?.desc || '').slice(0, 55)}{(g.itens[0]?.desc || '').length > 55 ? '…' : ''}</span>
                                   </span>
-                                  <span style={{ color: '#6B7280', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.cliente || '-'}</span>
-                                  <span style={{ textAlign: 'center', fontSize: 12, color: '#6B7280' }}>{g.qtd}</span>
+                                  <span style={{ color: 'var(--portal-text-secondary)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.cliente || '-'}</span>
+                                  <span style={{ textAlign: 'center', fontSize: 12, color: 'var(--portal-text-secondary)' }}>{g.qtd}</span>
                                   <span style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(g.valor || 0)}</span>
                                 </div>
                               ))}
@@ -2197,7 +2212,7 @@ function ClientesPageInner() {
                       {projetoTab === 'requisicoes' && (
                         <div>
                           {reqList.length === 0 ? (
-                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhuma requisicao encontrada</div>
+                            <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>Nenhuma requisicao encontrada</div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                               {reqList.map((r: any, ri: number) => {
@@ -2211,22 +2226,22 @@ function ClientesPageInner() {
                                 const sc = statusColor[r.status] || statusColor.pedido
                                 return (
                                   <div key={ri} onClick={() => setReqModal(r)}
-                                    style={{ padding: '14px 18px', border: `1px solid ${r.match_chassis ? '#BFDBFE' : '#E5E7EB'}`, borderRadius: 10, background: '#fff', cursor: 'pointer', transition: 'all 0.15s' }}
+                                    style={{ padding: '14px 18px', border: `1px solid ${r.match_chassis ? '#BFDBFE' : 'var(--portal-border)'}`, borderRadius: 10, background: 'var(--portal-bg-card)', cursor: 'pointer', transition: 'all 0.15s' }}
                                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)' }}
-                                    onMouseLeave={e => { e.currentTarget.style.borderColor = r.match_chassis ? '#BFDBFE' : '#E5E7EB'; e.currentTarget.style.boxShadow = 'none' }}>
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = r.match_chassis ? '#BFDBFE' : 'var(--portal-border)'; e.currentTarget.style.boxShadow = 'none' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                                        <span style={{ fontSize: 14, fontWeight: 700, color: '#111827' }}>#{r.id}</span>
+                                        <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>#{r.id}</span>
                                         <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 5, background: sc.bg, color: sc.c, border: `1px solid ${sc.b}` }}>{r.status}</span>
-                                        <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 5, background: '#F3F4F6', color: '#6B7280' }}>{r.tipo}</span>
+                                        <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 5, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)' }}>{r.tipo}</span>
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                         {r.valor_despeza && parseFloat(r.valor_despeza) > 0 && <span style={{ fontSize: 13, color: '#059669', fontWeight: 700 }}>{formatCurrency(parseFloat(r.valor_despeza))}</span>}
                                         <ChevronRight size={15} color="#C4C9D2" />
                                       </div>
                                     </div>
-                                    <div style={{ fontSize: 13, color: '#374151' }}>{r.titulo || '-'}</div>
-                                    <div style={{ fontSize: 12, color: '#9CA3AF', marginTop: 4 }}>
+                                    <div style={{ fontSize: 13, color: 'var(--portal-text)' }}>{r.titulo || '-'}</div>
+                                    <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 4 }}>
                                       {r.solicitante || '-'} · {r.created_at ? new Date(r.created_at).toLocaleDateString('pt-BR') : '-'}
                                     </div>
                                   </div>
@@ -2241,7 +2256,7 @@ function ClientesPageInner() {
                       {projetoTab === 'revisoes' && (
                         <div>
                           {revList.length === 0 ? (
-                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhuma revisao encontrada para os chassis deste projeto</div>
+                            <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>Nenhuma revisao encontrada para os chassis deste projeto</div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                               {revList.map((t: any, ti: number) => {
@@ -2249,13 +2264,13 @@ function ClientesPageInner() {
                                 const proximaRevisao = REVISOES_HORAS.find(h => !t[`${h} Data`])
                                 return (
                                   <div key={ti} onClick={() => setRevModal(t)}
-                                    style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: '#fff', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.15s' }}
+                                    style={{ border: '1px solid #E5E7EB', borderRadius: 12, background: 'var(--portal-bg-card)', overflow: 'hidden', cursor: 'pointer', transition: 'all 0.15s' }}
                                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.06)' }}
-                                    onMouseLeave={e => { e.currentTarget.style.borderColor = '#E5E7EB'; e.currentTarget.style.boxShadow = 'none' }}>
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--portal-border)'; e.currentTarget.style.boxShadow = 'none' }}>
                                     <div style={{ padding: '14px 20px', borderBottom: '1px solid #F3F4F6', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                       <div>
-                                        <div style={{ fontSize: 16, fontWeight: 700, color: '#111827' }}>{t.Modelo || '-'}</div>
-                                        <div style={{ fontSize: 13, color: '#6B7280', marginTop: 2 }}>Chassis: <span style={{ fontFamily: 'monospace' }}>{t.Chassis || '-'}</span> — Cliente: {t.Cliente || '-'}</div>
+                                        <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)' }}>{t.Modelo || '-'}</div>
+                                        <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginTop: 2 }}>Chassis: <span style={{ fontFamily: 'monospace' }}>{t.Chassis || '-'}</span> — Cliente: {t.Cliente || '-'}</div>
                                       </div>
                                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                                         <div style={{ textAlign: 'right' }}>
@@ -2273,20 +2288,20 @@ function ClientesPageInner() {
                                         return (
                                           <div key={h} style={{
                                             padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, minWidth: 70, textAlign: 'center',
-                                            background: done ? '#ECFDF5' : '#F9FAFB', color: done ? '#059669' : '#D1D5DB', border: `1px solid ${done ? '#A7F3D0' : '#E5E7EB'}`,
+                                            background: done ? '#ECFDF5' : '#F9FAFB', color: done ? '#059669' : '#D1D5DB', border: `1px solid ${done ? '#A7F3D0' : 'var(--portal-border)'}`,
                                           }}>
                                             <div>{h}</div>
-                                            {done && <div style={{ fontSize: 10, fontWeight: 500, color: '#6B7280', marginTop: 2 }}>{data}</div>}
-                                            {horim && <div style={{ fontSize: 10, color: '#9CA3AF' }}>{horim}h</div>}
+                                            {done && <div style={{ fontSize: 10, fontWeight: 500, color: 'var(--portal-text-secondary)', marginTop: 2 }}>{data}</div>}
+                                            {horim && <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{horim}h</div>}
                                           </div>
                                         )
                                       })}
                                     </div>
                                     {(t.Entrega || t["Inspecao Data"]) && (
-                                      <div style={{ padding: '10px 20px', borderTop: '1px solid #F3F4F6', display: 'flex', gap: 20, fontSize: 12, color: '#6B7280' }}>
-                                        {t.Entrega && <span>Entrega: <strong style={{ color: '#374151' }}>{t.Entrega}</strong></span>}
-                                        {t["Inspecao Data"] && <span>Inspecao: <strong style={{ color: '#374151' }}>{t["Inspecao Data"]}</strong></span>}
-                                        {t["Inspecao Horimetro"] && <span>Horimetro inspecao: <strong style={{ color: '#374151' }}>{t["Inspecao Horimetro"]}h</strong></span>}
+                                      <div style={{ padding: '10px 20px', borderTop: '1px solid #F3F4F6', display: 'flex', gap: 20, fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+                                        {t.Entrega && <span>Entrega: <strong style={{ color: 'var(--portal-text)' }}>{t.Entrega}</strong></span>}
+                                        {t["Inspecao Data"] && <span>Inspecao: <strong style={{ color: 'var(--portal-text)' }}>{t["Inspecao Data"]}</strong></span>}
+                                        {t["Inspecao Horimetro"] && <span>Horimetro inspecao: <strong style={{ color: 'var(--portal-text)' }}>{t["Inspecao Horimetro"]}h</strong></span>}
                                       </div>
                                     )}
                                   </div>
@@ -2300,32 +2315,32 @@ function ClientesPageInner() {
                       {/* ─── GARANTIAS (emails) ─── */}
                       {projetoTab === 'garantias' && (
                         <div>
-                          <div style={{ fontSize: 13, color: '#6B7280', marginBottom: 16 }}>Emails relacionados aos chassis deste projeto</div>
+                          <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginBottom: 16 }}>Emails relacionados aos chassis deste projeto</div>
                           {totalEmails === 0 ? (
-                            <div style={{ padding: 40, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Nenhum email de garantia encontrado</div>
+                            <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>Nenhum email de garantia encontrado</div>
                           ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                               {Object.entries(emailsList).map(([ch, emails]: [string, any]) => (
                                 <div key={ch}>
-                                  <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                                     <Hash size={13} color="#2563EB" /> Chassis {ch} ({emails.length} emails)
                                   </div>
                                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                                     {emails.map((e: any, ei: number) => (
-                                      <div key={ei} style={{ padding: '12px 16px', border: '1px solid #E5E7EB', borderRadius: 10, background: '#fff' }}>
+                                      <div key={ei} style={{ padding: '12px 16px', border: '1px solid #E5E7EB', borderRadius: 10, background: 'var(--portal-bg-card)' }}>
                                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
                                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                             <Mail size={14} color="#6B7280" />
-                                            <span style={{ fontSize: 13, fontWeight: 600, color: '#111827' }}>{e.assunto || e.subject || 'Sem assunto'}</span>
+                                            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)' }}>{e.assunto || e.subject || 'Sem assunto'}</span>
                                           </div>
-                                          <span style={{ fontSize: 11, color: '#9CA3AF' }}>{e.data ? new Date(e.data).toLocaleDateString('pt-BR') : '-'}</span>
+                                          <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>{e.data ? new Date(e.data).toLocaleDateString('pt-BR') : '-'}</span>
                                         </div>
-                                        <div style={{ fontSize: 12, color: '#6B7280' }}>De: {e.de || e.from || '-'}</div>
+                                        <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>De: {e.de || e.from || '-'}</div>
                                         {e.anexos && e.anexos.length > 0 && (
                                           <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                                             {e.anexos.map((a: any, ai: number) => (
                                               <a key={ai} href={a.url || a.link || '#'} target="_blank" rel="noopener noreferrer"
-                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '3px 8px', borderRadius: 5, background: '#F3F4F6', color: '#374151', textDecoration: 'none', border: '1px solid #E5E7EB' }}>
+                                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, padding: '3px 8px', borderRadius: 5, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', textDecoration: 'none', border: '1px solid #E5E7EB' }}>
                                                 <Download size={10} /> {a.nome || a.filename || `Anexo ${ai + 1}`}
                                               </a>
                                             ))}
@@ -2356,7 +2371,7 @@ function ClientesPageInner() {
                       return (
                         <div onClick={e => { if (e.target === e.currentTarget) setServicoModalOS(null) }}
                           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)', zIndex: 10002, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-                          <div style={{ background: '#fff', borderRadius: 18, width: 720, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
+                          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 18, width: 720, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
                             {/* Header */}
                             <div style={{ background: 'linear-gradient(135deg, #991b1b, #dc2626)', padding: '22px 26px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -2373,8 +2388,8 @@ function ClientesPageInner() {
                               {/* Destaque: total + status */}
                               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: '#F8FAFC', border: '1px solid #EEF0F3', borderRadius: 14, marginBottom: 20 }}>
                                 <div>
-                                  <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>Valor total</div>
-                                  <div style={{ fontSize: 27, fontWeight: 800, color: '#111827', lineHeight: 1.15 }}>{formatCurrency(total)}</div>
+                                  <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>Valor total</div>
+                                  <div style={{ fontSize: 27, fontWeight: 800, color: 'var(--portal-text)', lineHeight: 1.15 }}>{formatCurrency(total)}</div>
                                 </div>
                                 {status && <span style={{ fontSize: 12, fontWeight: 700, padding: '7px 16px', borderRadius: 20, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE' }}>{status}</span>}
                               </div>
@@ -2386,16 +2401,16 @@ function ClientesPageInner() {
                                   { l: 'Data', v: formatDate(os?.data_previsao || os?.data_inclusao || grupo?.data) },
                                   { l: 'Cidade', v: os?.cidade || '-' },
                                 ].map((f, i) => (
-                                  <div key={i} style={{ padding: '11px 15px', background: '#fff', border: '1px solid #EEF0F3', borderRadius: 11 }}>
-                                    <div style={{ fontSize: 10.5, color: '#9CA3AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 }}>{f.l}</div>
-                                    <div style={{ fontSize: 14, color: '#111827', fontWeight: 600, wordBreak: 'break-word' }}>{f.v}</div>
+                                  <div key={i} style={{ padding: '11px 15px', background: 'var(--portal-bg-card)', border: '1px solid #EEF0F3', borderRadius: 11 }}>
+                                    <div style={{ fontSize: 10.5, color: 'var(--portal-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 }}>{f.l}</div>
+                                    <div style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: 600, wordBreak: 'break-word' }}>{f.v}</div>
                                   </div>
                                 ))}
                                 {/* Pedido vinculado (link) ocupando a linha toda */}
                                 <div style={{ gridColumn: '1 / -1', padding: '11px 15px', background: pedidoEhPV ? '#EFF6FF' : '#fff', border: `1px solid ${pedidoEhPV ? '#BFDBFE' : '#EEF0F3'}`, borderRadius: 11, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
                                   <div>
-                                    <div style={{ fontSize: 10.5, color: '#9CA3AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 }}>Nº do Pedido do Cliente</div>
-                                    <div style={{ fontSize: 14, color: '#111827', fontWeight: 700 }}>{pedido || '—'}</div>
+                                    <div style={{ fontSize: 10.5, color: 'var(--portal-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 }}>Nº do Pedido do Cliente</div>
+                                    <div style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: 700 }}>{pedido || '—'}</div>
                                   </div>
                                   {pedidoEhPV && (
                                     <button onClick={() => setPedidoModalNum(refPed.num)} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg, #EA580C, #C2410C)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', flexShrink: 0 }}>
@@ -2407,7 +2422,7 @@ function ClientesPageInner() {
 
                               {(os?.pdf_anexo || os?.link_nf) && (
                                 <div style={{ marginBottom: 22 }}>
-                                  <div style={{ fontSize: 11.5, color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 9 }}>Anexos</div>
+                                  <div style={{ fontSize: 11.5, color: 'var(--portal-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 9 }}>Anexos</div>
                                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                     {os?.pdf_anexo && (
                                       <a href={os.pdf_anexo} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '10px 16px', borderRadius: 10, background: '#EFF6FF', color: '#2563EB', border: '1px solid #BFDBFE', fontSize: 13, fontWeight: 700, textDecoration: 'none' }}><FileText size={15} /> PDF da OS</a>
@@ -2419,20 +2434,20 @@ function ClientesPageInner() {
                                 </div>
                               )}
 
-                              <div style={{ fontSize: 11.5, color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 9 }}>Serviços ({linhas.length})</div>
+                              <div style={{ fontSize: 11.5, color: 'var(--portal-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 9 }}>Serviços ({linhas.length})</div>
                               <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: isMobile ? 'auto' : 'hidden' }}>
                                 {linhas.length === 0 ? (
-                                  <div style={{ padding: '14px', fontSize: 13, color: '#9CA3AF' }}>Sem detalhamento de serviços.</div>
+                                  <div style={{ padding: '14px', fontSize: 13, color: 'var(--portal-text-muted)' }}>Sem detalhamento de serviços.</div>
                                 ) : (
                                   <>
                                     {linhas.map((l: any, li: number) => (
                                       <div key={li} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 16px', borderBottom: '1px solid #F3F4F6', fontSize: 13, background: li % 2 ? '#FAFBFC' : '#fff' }}>
-                                        <span style={{ color: '#374151', lineHeight: 1.45 }}>{l.desc || '-'}</span>
-                                        <span style={{ fontWeight: 700, color: '#111827', whiteSpace: 'nowrap' }}>{formatCurrency(l.valor || 0)}</span>
+                                        <span style={{ color: 'var(--portal-text)', lineHeight: 1.45 }}>{l.desc || '-'}</span>
+                                        <span style={{ fontWeight: 700, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{formatCurrency(l.valor || 0)}</span>
                                       </div>
                                     ))}
                                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '12px 16px', fontSize: 13, background: '#F8FAFC' }}>
-                                      <span style={{ fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.3, fontSize: 11.5 }}>Total</span>
+                                      <span style={{ fontWeight: 700, color: 'var(--portal-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.3, fontSize: 11.5 }}>Total</span>
                                       <span style={{ fontWeight: 800, color: '#2563EB', whiteSpace: 'nowrap', fontSize: 15 }}>{formatCurrency(total)}</span>
                                     </div>
                                   </>
@@ -2453,7 +2468,7 @@ function ClientesPageInner() {
                       return (
                         <div onClick={e => { if (e.target === e.currentTarget) setPedidoModalNum(null) }}
                           style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.55)', backdropFilter: 'blur(4px)', zIndex: 10003, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-                          <div style={{ background: '#fff', borderRadius: 18, width: 760, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
+                          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 18, width: 760, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.3)' }}>
                             {/* Header */}
                             <div style={{ background: 'linear-gradient(135deg, #EA580C, #C2410C)', padding: '22px 26px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -2468,14 +2483,14 @@ function ClientesPageInner() {
                             {/* Body */}
                             <div style={{ padding: '24px 26px', overflow: 'auto' }}>
                               {!pv ? (
-                                <div style={{ padding: 30, textAlign: 'center', color: '#9CA3AF', fontSize: 14 }}>Pedido não encontrado nos dados deste projeto.</div>
+                                <div style={{ padding: 30, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14 }}>Pedido não encontrado nos dados deste projeto.</div>
                               ) : (
                                 <>
                                   {/* Destaque */}
                                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: '#FFFBF5', border: '1px solid #FED7AA', borderRadius: 14, marginBottom: 20 }}>
                                     <div>
-                                      <div style={{ fontSize: 11, color: '#9CA3AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>Valor total</div>
-                                      <div style={{ fontSize: 27, fontWeight: 800, color: '#111827', lineHeight: 1.15 }}>{formatCurrency(totalPv)}</div>
+                                      <div style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4 }}>Valor total</div>
+                                      <div style={{ fontSize: 27, fontWeight: 800, color: 'var(--portal-text)', lineHeight: 1.15 }}>{formatCurrency(totalPv)}</div>
                                     </div>
                                     {pv.etapa && <span style={{ fontSize: 12, fontWeight: 700, padding: '7px 16px', borderRadius: 20, background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA' }}>{pv.etapa}</span>}
                                   </div>
@@ -2485,9 +2500,9 @@ function ClientesPageInner() {
                                       { l: 'Cliente', v: pv.cliente_nome || '-' },
                                       { l: 'Data', v: formatDate(pv.data_previsao || pv.data_inclusao) },
                                     ].map((f, i) => (
-                                      <div key={i} style={{ padding: '11px 15px', background: '#fff', border: '1px solid #EEF0F3', borderRadius: 11 }}>
-                                        <div style={{ fontSize: 10.5, color: '#9CA3AF', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 }}>{f.l}</div>
-                                        <div style={{ fontSize: 14, color: '#111827', fontWeight: 600, wordBreak: 'break-word' }}>{f.v}</div>
+                                      <div key={i} style={{ padding: '11px 15px', background: 'var(--portal-bg-card)', border: '1px solid #EEF0F3', borderRadius: 11 }}>
+                                        <div style={{ fontSize: 10.5, color: 'var(--portal-text-muted)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3, marginBottom: 3 }}>{f.l}</div>
+                                        <div style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: 600, wordBreak: 'break-word' }}>{f.v}</div>
                                       </div>
                                     ))}
                                   </div>
@@ -2499,27 +2514,27 @@ function ClientesPageInner() {
                                     </div>
                                   )}
 
-                                  <div style={{ fontSize: 11.5, color: '#374151', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 9 }}>Produtos ({itens.length})</div>
+                                  <div style={{ fontSize: 11.5, color: 'var(--portal-text)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 9 }}>Produtos ({itens.length})</div>
                                   <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: isMobile ? 'auto' : 'hidden' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', minWidth: isMobile ? 460 : undefined, padding: '11px 16px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.3 }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', minWidth: isMobile ? 460 : undefined, padding: '11px 16px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: 'var(--portal-text-secondary)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.3 }}>
                                       <span>Codigo</span><span>Descricao</span><span style={{ textAlign: 'center' }}>Qtd</span><span style={{ textAlign: 'right' }}>Unit.</span><span style={{ textAlign: 'right' }}>Total</span>
                                     </div>
                                     {itens.length === 0 ? (
-                                      <div style={{ padding: '14px', fontSize: 13, color: '#9CA3AF' }}>Sem itens cadastrados neste pedido.</div>
+                                      <div style={{ padding: '14px', fontSize: 13, color: 'var(--portal-text-muted)' }}>Sem itens cadastrados neste pedido.</div>
                                     ) : (
                                       <>
                                         {itens.map((p: any, pi: number) => (
-                                          <div key={pi} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', minWidth: isMobile ? 460 : undefined, padding: '12px 16px', borderBottom: '1px solid #F3F4F6', fontSize: 13, color: '#374151', alignItems: 'start', background: pi % 2 ? '#FAFBFC' : '#fff' }}>
-                                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#6B7280' }}>{p.codigo || '-'}</span>
+                                          <div key={pi} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', minWidth: isMobile ? 460 : undefined, padding: '12px 16px', borderBottom: '1px solid #F3F4F6', fontSize: 13, color: 'var(--portal-text)', alignItems: 'start', background: pi % 2 ? '#FAFBFC' : '#fff' }}>
+                                            <span style={{ fontFamily: 'monospace', fontSize: 11, color: 'var(--portal-text-secondary)' }}>{p.codigo || '-'}</span>
                                             <span style={{ fontSize: 12.5, lineHeight: 1.45 }}>{p.descricao || p.desc || '-'}</span>
                                             <span style={{ fontSize: 12.5, textAlign: 'center' }}>{p.quantidade}</span>
-                                            <span style={{ textAlign: 'right', fontSize: 12.5, color: '#6B7280' }}>{formatCurrency(p.valor_unitario || 0)}</span>
+                                            <span style={{ textAlign: 'right', fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{formatCurrency(p.valor_unitario || 0)}</span>
                                             <span style={{ textAlign: 'right', fontWeight: 700 }}>{formatCurrency(p.valor_total || 0)}</span>
                                           </div>
                                         ))}
                                         <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 50px 100px 110px', minWidth: isMobile ? 460 : undefined, padding: '12px 16px', fontSize: 13, background: '#FFFBF5', alignItems: 'center' }}>
-                                          <span style={{ gridColumn: '1 / 3', fontWeight: 700, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 0.3, fontSize: 11.5 }}>Total</span>
-                                          <span style={{ textAlign: 'center', fontWeight: 700, color: '#6B7280' }}>{totalQtd}</span>
+                                          <span style={{ gridColumn: '1 / 3', fontWeight: 700, color: 'var(--portal-text-secondary)', textTransform: 'uppercase', letterSpacing: 0.3, fontSize: 11.5 }}>Total</span>
+                                          <span style={{ textAlign: 'center', fontWeight: 700, color: 'var(--portal-text-secondary)' }}>{totalQtd}</span>
                                           <span></span>
                                           <span style={{ textAlign: 'right', fontWeight: 800, color: '#EA580C', fontSize: 15 }}>{formatCurrency(totalPv)}</span>
                                         </div>
@@ -2544,7 +2559,7 @@ function ClientesPageInner() {
         {reqModal && (
           <div className="cli-overlay" onClick={e => { if (e.target === e.currentTarget) setReqModal(null) }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
+            <div className="cli-modal" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
               <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '22px 28px', borderRadius: '16px 16px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>Requisição #{reqModal.id}</div>
@@ -2580,19 +2595,19 @@ function ClientesPageInner() {
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px 24px' }}>
                         {fields.filter(f => f.v).map((f, i) => (
                           <div key={i}>
-                            <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 4 }}>{f.l}</div>
+                            <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>{f.l}</div>
                             {f.badge ? (
                               <span style={{ fontSize: 13, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: f.sc!.bg, color: f.sc!.c, border: `1px solid ${f.sc!.b}` }}>{f.v}</span>
                             ) : (
-                              <div style={{ fontSize: 14, fontWeight: 600, color: f.green ? '#059669' : '#111827', fontFamily: f.mono ? 'monospace' : undefined }}>{f.v}</div>
+                              <div style={{ fontSize: 14, fontWeight: 600, color: f.green ? '#059669' : 'var(--portal-text)', fontFamily: f.mono ? 'monospace' : undefined }}>{f.v}</div>
                             )}
                           </div>
                         ))}
                       </div>
                       {reqModal.obs && (
-                        <div style={{ marginTop: 20, padding: 16, background: '#F9FAFB', borderRadius: 10, border: '1px solid #F3F4F6' }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', marginBottom: 6 }}>Observações</div>
-                          <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reqModal.obs}</div>
+                        <div style={{ marginTop: 20, padding: 16, background: 'var(--portal-bg-secondary)', borderRadius: 10, border: '1px solid #F3F4F6' }}>
+                          <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Observações</div>
+                          <div style={{ fontSize: 13, color: 'var(--portal-text)', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{reqModal.obs}</div>
                         </div>
                       )}
                     </>
@@ -2607,7 +2622,7 @@ function ClientesPageInner() {
         {revModal && (
           <div className="cli-overlay" onClick={e => { if (e.target === e.currentTarget) setRevModal(null) }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div className="cli-modal" style={{ background: '#fff', borderRadius: 16, width: 560, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
+            <div className="cli-modal" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 560, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto' }}>
               <div style={{ background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', padding: '22px 28px', borderRadius: '16px 16px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: '#fff' }}>{revModal.Modelo || 'Trator'}</div>
@@ -2636,7 +2651,7 @@ function ClientesPageInner() {
                     )}
                   </div>
                 )}
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#374151', marginBottom: 12 }}>Histórico de Revisões</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 12 }}>Histórico de Revisões</div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {REVISOES_HORAS.map(h => {
                     const data = revModal[`${h} Data`]
@@ -2645,20 +2660,20 @@ function ClientesPageInner() {
                     return (
                       <div key={h} style={{
                         display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 10,
-                        background: done ? '#ECFDF5' : '#F9FAFB', border: `1px solid ${done ? '#A7F3D0' : '#E5E7EB'}`,
+                        background: done ? '#ECFDF5' : '#F9FAFB', border: `1px solid ${done ? '#A7F3D0' : 'var(--portal-border)'}`,
                       }}>
                         <div style={{
                           width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          background: done ? '#059669' : '#E5E7EB', color: done ? '#fff' : '#9CA3AF', fontSize: 11, fontWeight: 800,
+                          background: done ? '#059669' : 'var(--portal-border)', color: done ? '#fff' : 'var(--portal-text-muted)', fontSize: 11, fontWeight: 800,
                         }}>
                           {done ? <CheckCircle size={18} /> : h.replace('h', '')}
                         </div>
                         <div style={{ flex: 1 }}>
-                          <div style={{ fontSize: 14, fontWeight: 700, color: done ? '#059669' : '#9CA3AF' }}>{h}</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: done ? '#059669' : 'var(--portal-text-muted)' }}>{h}</div>
                           {done ? (
-                            <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>
-                              Realizada em <strong style={{ color: '#374151' }}>{data}</strong>
-                              {horim ? <> — Horímetro: <strong style={{ color: '#374151' }}>{horim}h</strong></> : ''}
+                            <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginTop: 2 }}>
+                              Realizada em <strong style={{ color: 'var(--portal-text)' }}>{data}</strong>
+                              {horim ? <> — Horímetro: <strong style={{ color: 'var(--portal-text)' }}>{horim}h</strong></> : ''}
                             </div>
                           ) : (
                             <div style={{ fontSize: 12, color: '#D1D5DB', marginTop: 2 }}>Pendente</div>
@@ -2744,12 +2759,12 @@ function ClientesPageInner() {
       </div>
 
       {loading ? (
-        <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+        <div style={{ padding: 80, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>
           <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
           <div>Carregando clientes...</div>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+        <div style={{ padding: 80, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>
           {clientes.length === 0 ? 'Nenhum cliente. Sincronizacao em andamento...' : 'Nenhum cliente encontrado'}
         </div>
       ) : (
@@ -2866,12 +2881,12 @@ function ClientesPageInner() {
       </div>
 
       {maquinasLoad ? (
-        <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+        <div style={{ padding: 80, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>
           <RefreshCw size={24} style={{ animation: 'spin 1s linear infinite', marginBottom: 12 }} />
           <div>Carregando máquinas...</div>
         </div>
       ) : maquinasFiltradas.length === 0 ? (
-        <div style={{ padding: 80, textAlign: 'center', color: '#9CA3AF', fontSize: 15 }}>
+        <div style={{ padding: 80, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>
           {maquinas.length === 0 ? 'Nenhuma máquina encontrada.' : 'Nenhuma máquina para esse filtro.'}
         </div>
       ) : (
@@ -2928,12 +2943,12 @@ function ClientesPageInner() {
       {showCriarCliente && (
         <div onClick={e => { if (e.target === e.currentTarget && !criando) setShowCriarCliente(false) }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: 580, maxWidth: '95vw', maxHeight: '92vh', overflow: 'auto', padding: 28 }}>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 580, maxWidth: '95vw', maxHeight: '92vh', overflow: 'auto', padding: 28 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>Criar Cliente</h2>
-              <button onClick={() => setShowCriarCliente(false)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Criar Cliente</h2>
+              <button onClick={() => setShowCriarCliente(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
             </div>
-            <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 18px' }}>Cria também no Omie (IncluirCliente) e aparece na lista.</p>
+            <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', margin: '0 0 18px' }}>Cria também no Omie (IncluirCliente) e aparece na lista.</p>
 
             <div style={{ marginBottom: 12 }}>
               <label style={lblModal}>EMPRESA *</label>
@@ -2978,7 +2993,7 @@ function ClientesPageInner() {
             {criarErro && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 14 }}>{criarErro}</div>}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowCriarCliente(false)} disabled={criando} style={{ padding: '11px 22px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => setShowCriarCliente(false)} disabled={criando} style={{ padding: '11px 22px', borderRadius: 10, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
               <button onClick={criarCliente} disabled={criando} style={{ padding: '11px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: criando ? 'not-allowed' : 'pointer', opacity: criando ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Plus size={15} /> {criando ? 'Criando...' : 'Criar Cliente'}
               </button>
@@ -2991,12 +3006,12 @@ function ClientesPageInner() {
       {showCriarProjeto && (
         <div onClick={e => { if (e.target === e.currentTarget && !criando) setShowCriarProjeto(false) }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: '#fff', borderRadius: 16, width: 440, maxWidth: '95vw', padding: 28 }}>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 440, maxWidth: '95vw', padding: 28 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111827', margin: 0 }}>Criar Projeto</h2>
-              <button onClick={() => setShowCriarProjeto(false)} style={{ background: '#F3F4F6', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
+              <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Criar Projeto</h2>
+              <button onClick={() => setShowCriarProjeto(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
             </div>
-            <p style={{ fontSize: 13, color: '#6B7280', margin: '0 0 18px' }}>Cria no Omie (IncluirProjeto). O vínculo com o cliente acontece depois, via OS.</p>
+            <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', margin: '0 0 18px' }}>Cria no Omie (IncluirProjeto). O vínculo com o cliente acontece depois, via OS.</p>
 
             <div style={{ marginBottom: 12 }}>
               <label style={lblModal}>EMPRESA *</label>
@@ -3012,7 +3027,7 @@ function ClientesPageInner() {
             {criarErro && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 14 }}>{criarErro}</div>}
 
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowCriarProjeto(false)} disabled={criando} style={{ padding: '11px 22px', borderRadius: 10, border: '1px solid #E5E7EB', background: '#fff', color: '#6B7280', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
+              <button onClick={() => setShowCriarProjeto(false)} disabled={criando} style={{ padding: '11px 22px', borderRadius: 10, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
               <button onClick={criarProjeto} disabled={criando || !projNome.trim()} style={{ padding: '11px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (criando || !projNome.trim()) ? 'not-allowed' : 'pointer', opacity: (criando || !projNome.trim()) ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <FolderOpen size={15} /> {criando ? 'Criando...' : 'Criar Projeto'}
               </button>

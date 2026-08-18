@@ -38,7 +38,7 @@ export default function Header({
             type="text"
             value={searchFilter}
             onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Buscar ID, Cliente, Técnico..."
+            placeholder="Buscar ID, Cliente, Técnico, nº do pedido no Omie..."
             style={{
               width: "100%", padding: "10px 32px 10px 38px", border: "1.5px solid var(--ppv-border-light)",
               borderRadius: 10, background: "white", fontFamily: "'Poppins', sans-serif",

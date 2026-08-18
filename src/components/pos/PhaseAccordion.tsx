@@ -283,6 +283,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         (!searchLower ||
           o.cliente.toLowerCase().includes(searchLower) ||
           o.id.includes(searchLower) ||
+          (o.ordemOmie || '').toLowerCase().includes(searchLower) || // nº que a OS virou no Omie
           o.servSolicitado.toLowerCase().includes(searchLower)) &&
         (!activePhase || o.status === activePhase) &&
         (!tecnicoFiltro || (o.tecnico || "").trim() === tecnicoFiltro)

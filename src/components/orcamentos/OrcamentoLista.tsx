@@ -241,9 +241,9 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
   const tipoIcon = (t: string) => t === 'pecas' ? <Package size={14} /> : t === 'mao-de-obra' ? <Wrench size={14} /> : <><Package size={12} /><Wrench size={12} /></>
   const statusColors: Record<string, { bg: string; color: string; border: string }> = {
     rascunho: { bg: '#f5f5f5', color: '#737373', border: '#e5e5e5' },
-    ativo: { bg: '#eff6ff', color: '#1d4ed8', border: '#bfdbfe' },
+    ativo: { bg: '#FFF7ED', color: '#EA580C', border: '#FED7AA' },
     aprovado: { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
-    rejeitado: { bg: '#fef2f2', color: '#dc2626', border: '#fecaca' },
+    rejeitado: { bg: '#fef2f2', color: '#EA580C', border: '#fecaca' },
     expirado: { bg: '#fefce8', color: '#a16207', border: '#fde68a' },
   }
 
@@ -265,7 +265,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
         </div>
         <button onClick={onNovo} {...gateBtn(podeCriar)} style={{
           padding: '10px 24px', borderRadius: 10, border: 'none',
-          background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+          background: 'linear-gradient(135deg, #EA580C, #C2410C)',
           color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: 8,
           boxShadow: '0 4px 12px rgba(220,38,38,0.2)',
@@ -344,7 +344,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
             return (
               <div key={item.id} onClick={() => onEditar(item.id)} style={{ background: '#fff', borderRadius: 14, border: '1px solid #f0f0f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04)', padding: 14, cursor: 'pointer' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                  <span style={{ fontWeight: 800, color: '#dc2626', fontSize: 15 }}>{item.numero}</span>
+                  <span style={{ fontWeight: 800, color: '#EA580C', fontSize: 15 }}>{item.numero}</span>
                   <span style={{ fontWeight: 800, fontSize: 15, color: '#1a1a1a' }}>R$ {fmt(item.total)}</span>
                 </div>
                 <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a', marginTop: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.cliente_nome}</div>
@@ -361,9 +361,9 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
                     <option value="expirado">Expirado</option>
                   </select>
                   <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
-                    <button onClick={() => { setTecnicoGerar(''); setGerarModal({ id: item.id, tipoOrc: item.tipo }) }} disabled={!podeGerar} title="Gerar OS/PPV" style={{ ...actionBtn, padding: 8, ...estiloSemPermissao(podeGerar) }}><Send size={16} color="#1d4ed8" /></button>
+                    <button onClick={() => { setTecnicoGerar(''); setGerarModal({ id: item.id, tipoOrc: item.tipo }) }} disabled={!podeGerar} title="Gerar OS/PPV" style={{ ...actionBtn, padding: 8, ...estiloSemPermissao(podeGerar) }}><Send size={16} color="#EA580C" /></button>
                     <button onClick={() => verPDF(item.id)} title="Imprimir" style={{ ...actionBtn, padding: 8 }}><Printer size={16} color="#737373" /></button>
-                    <button onClick={() => excluir(item.id)} {...gateBtn(podeExcluir)} title="Excluir" style={{ ...actionBtn, padding: 8, ...estiloSemPermissao(podeExcluir) }}><Trash2 size={16} color="#ef4444" /></button>
+                    <button onClick={() => excluir(item.id)} {...gateBtn(podeExcluir)} title="Excluir" style={{ ...actionBtn, padding: 8, ...estiloSemPermissao(podeExcluir) }}><Trash2 size={16} color="#F97316" /></button>
                   </div>
                 </div>
               </div>
@@ -404,7 +404,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
                   onMouseEnter={e => (e.currentTarget.style.background = '#fafafa')}
                   onMouseLeave={e => (e.currentTarget.style.background = '#fff')}
                 >
-                  <td style={{ ...tdStyle, fontWeight: 700, color: '#dc2626' }}>{item.numero}</td>
+                  <td style={{ ...tdStyle, fontWeight: 700, color: '#EA580C' }}>{item.numero}</td>
                   <td style={tdStyle}>
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12,
@@ -447,13 +447,13 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
                         title={!podeGerar ? MSG_SEM_PERMISSAO : (item.tipo === 'pecas' ? 'Gerar Pedido (PPV)' : item.tipo === 'mao-de-obra' ? 'Enviar p/ POS (gera OS)' : 'Enviar p/ POS (gera OS + PPV)')}
                         style={{ ...actionBtn, ...estiloSemPermissao(podeGerar) }}
                       >
-                        <Send size={15} color="#1d4ed8" />
+                        <Send size={15} color="#EA580C" />
                       </button>
                       <button onClick={() => verPDF(item.id)} title="Imprimir" style={actionBtn}>
                         <Printer size={15} color="#737373" />
                       </button>
                       <button onClick={() => excluir(item.id)} {...gateBtn(podeExcluir)} title={!podeExcluir ? MSG_SEM_PERMISSAO : 'Excluir'} style={{ ...actionBtn, ...estiloSemPermissao(podeExcluir) }}>
-                        <Trash2 size={15} color="#ef4444" />
+                        <Trash2 size={15} color="#F97316" />
                       </button>
                     </div>
                   </td>
@@ -500,7 +500,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
             </p>
             <div style={{ marginBottom: 20 }}>
               <label style={{ display: 'block', fontSize: 11, fontWeight: 700, color: '#737373', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 6 }}>
-                Técnico Responsável <span style={{ color: '#dc2626' }}>*</span>
+                Técnico Responsável <span style={{ color: '#EA580C' }}>*</span>
               </label>
               <select
                 value={tecnicoGerar}
@@ -535,7 +535,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
                   padding: '10px 24px', borderRadius: 10, border: 'none',
                   background: gerarModal.tipoOrc === 'pecas'
                     ? 'linear-gradient(135deg, #16a34a, #15803d)'
-                    : 'linear-gradient(135deg, #1d4ed8, #1e40af)',
+                    : 'linear-gradient(135deg, #EA580C, #1e40af)',
                   color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
                   opacity: gerando || !tecnicoGerar.trim() ? 0.5 : 1,
                 }}

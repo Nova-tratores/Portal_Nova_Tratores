@@ -392,7 +392,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
           >
             <div style={{
               width: 64, height: 64, borderRadius: 16, margin: '0 auto 16px',
-              background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+              background: 'linear-gradient(135deg, #EA580C, #C2410C)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 8px 24px rgba(220,38,38,0.2)',
             }}>
@@ -417,7 +417,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
           >
             <div style={{
               width: 64, height: 64, borderRadius: 16, margin: '0 auto 16px',
-              background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+              background: 'linear-gradient(135deg, #F97316, #EA580C)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 8px 24px rgba(220,38,38,0.2)',
             }}>
@@ -442,7 +442,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
           >
             <div style={{
               width: 64, height: 64, borderRadius: 16, margin: '0 auto 16px',
-              background: 'linear-gradient(135deg, #b91c1c, #991b1b)',
+              background: 'linear-gradient(135deg, #C2410C, #991b1b)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 8px 24px rgba(220,38,38,0.2)',
             }}>
@@ -472,7 +472,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
           position: 'fixed', top: 24, right: 24, zIndex: 9999,
           padding: '12px 24px', borderRadius: 10,
           background: toast.type === 'error' ? '#fef2f2' : '#ecfdf5',
-          color: toast.type === 'error' ? '#b91c1c' : '#047857',
+          color: toast.type === 'error' ? '#C2410C' : '#047857',
           border: `1px solid ${toast.type === 'error' ? '#fecaca' : '#a7f3d0'}`,
           fontWeight: 600, fontSize: 14, boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
         }}>
@@ -497,7 +497,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
               {orcamentoNumero && (
                 <span style={{
                   fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6,
-                  background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe',
+                  background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA',
                 }}>
                   {tipo === 'pecas' ? 'Peças' : tipo === 'mao-de-obra' ? 'Mão de Obra' : 'Completo'}
                 </span>
@@ -543,7 +543,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
           </button>
           <button onClick={gerarPDF} disabled={gerando} style={{
             padding: '10px 24px', borderRadius: 10, border: 'none',
-            background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
+            background: 'linear-gradient(135deg, #EA580C, #C2410C)',
             color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
             opacity: gerando ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8,
           }}>
@@ -561,7 +561,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
         {/* Linha cliente */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 12 }}>
           <div style={{ flex: 1 }}>
-            <label style={labelStyle}>Cliente <span style={{ color: '#dc2626' }}>*</span></label>
+            <label style={labelStyle}>Cliente <span style={{ color: '#EA580C' }}>*</span></label>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
                 value={cliente.nome}
@@ -666,15 +666,15 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setModalKitOpen(true)} style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
-                borderRadius: 8, border: '1px solid #bfdbfe', background: '#eff6ff',
-                color: '#1d4ed8', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                borderRadius: 8, border: '1px solid #FED7AA', background: '#FFF7ED',
+                color: '#EA580C', fontSize: 12, fontWeight: 600, cursor: 'pointer',
               }}>
                 <Package size={14} /> Importar Kit
               </button>
               <button onClick={adicionarLinha} style={{
                 display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
                 borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2',
-                color: '#dc2626', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                color: '#EA580C', fontSize: 12, fontWeight: 600, cursor: 'pointer',
               }}>
                 <Plus size={14} /> Linha
               </button>
@@ -812,7 +812,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
               padding: '12px 28px', borderTop: '1px solid #f0f0f0',
               textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1a1a1a',
             }}>
-              Subtotal Peças: <span style={{ color: '#dc2626' }}>R$ {fmt(totalPecas)}</span>
+              Subtotal Peças: <span style={{ color: '#EA580C' }}>R$ {fmt(totalPecas)}</span>
             </div>
           )}
         </div>
@@ -858,7 +858,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
                   />
                 </div>
                 <div style={{ gridColumn: '1/-1', textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
-                  Total: <span style={{ color: '#dc2626' }}>R$ {fmt(totalMaoObra)}</span>
+                  Total: <span style={{ color: '#EA580C' }}>R$ {fmt(totalMaoObra)}</span>
                 </div>
               </div>
             )}
@@ -902,7 +902,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
                 />
               </div>
               <div style={{ gridColumn: '1/-1', textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
-                Total: <span style={{ color: '#dc2626' }}>R$ {fmt(totalDeslocamento)}</span>
+                Total: <span style={{ color: '#EA580C' }}>R$ {fmt(totalDeslocamento)}</span>
               </div>
             </div>
           )}

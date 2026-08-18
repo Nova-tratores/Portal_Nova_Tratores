@@ -17,9 +17,11 @@ interface Props {
   abrirNoCatalogo?: boolean;
   /** Peça do catálogo não cadastrada → criar produto provisório (code + nome). */
   onCriarProvisorio?: (code: string, name: string) => void;
+  /** Abrir o Importar Kit a partir daqui (só no contexto do pedido aberto). */
+  onAbrirKit?: () => void;
 }
 
-export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEditManual, abrirNoCatalogo, onCriarProvisorio }: Props) {
+export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEditManual, abrirNoCatalogo, onCriarProvisorio, onAbrirKit }: Props) {
   const { cacheProduct, showToast } = usePPV();
   const [termo, setTermo] = useState("");
   const [resultados, setResultados] = useState<ProdutoBusca[]>([]);
@@ -29,6 +31,8 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
   const [editandoPreco, setEditandoPreco] = useState<{ idx: number; valor: string } | null>(null);
   const [salvandoPreco, setSalvandoPreco] = useState(false);
   const [detalheProd, setDetalheProd] = useState<{ codigo: string; descricao?: string } | null>(null);
+  const [maisUsados, setMaisUsados] = useState<{ codigo: string; descricao: string; preco: number; usos: number }[]>([]);
+  const [addedFlash, setAddedFlash] = useState<string | null>(null); // feedback "adicionado" na linha
   const inputRef = useRef<HTMLInputElement>(null);
   const precoInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -42,6 +46,14 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
       if (!abrirNoCatalogo) setTimeout(() => inputRef.current?.focus(), 200);
     }
   }, [open, abrirNoCatalogo]);
+
+  // Produtos MAIS UTILIZADOS — aparecem antes de pesquisar qualquer coisa
+  useEffect(() => {
+    if (!open || mode === "edit" || maisUsados.length > 0) return;
+    api.produtosMaisUsados()
+      .then((d) => { setMaisUsados(d || []); (d || []).forEach((p) => cacheProduct(p.codigo, p.descricao, p.preco)); })
+      .catch(() => {});
+  }, [open, mode, maisUsados.length, cacheProduct]);
 
   const buscar = useCallback(async (searchTermo: string) => {
     if (searchTermo.trim().length < 2) {
@@ -102,8 +114,16 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
         showToast("error", "Produtos de estoque nao podem ser editados manualmente.");
         return;
       }
-    } else {
-      onSelect(p.codigo, p.descricao, p.preco, p.empresa);
+      onClose();
+      return;
+    }
+    onSelect(p.codigo, p.descricao, p.preco, p.empresa);
+    if (mode === "modal") {
+      // No pedido aberto a escolha JÁ ADICIONA o item — o modal fica aberto
+      // pra continuar adicionando (clicar de novo soma +1 do mesmo produto).
+      setAddedFlash(p.codigo);
+      setTimeout(() => setAddedFlash(null), 1400);
+      return;
     }
     onClose();
   }
@@ -148,19 +168,15 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-red-900/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className={`flex flex-col rounded-lg bg-[#FFFAF5] shadow-2xl ${verCatalogo ? "h-[88vh] w-[1060px] max-w-[96vw]" : "h-[550px] w-[800px]"}`}>
         <div className="flex items-center justify-between rounded-t-lg border-b border-orange-200/60 bg-[#FFFAF5] px-10 py-5">
-          <h2 className="text-xl font-bold text-slate-800">{mode === "edit" ? "Editar Produto Manual" : "Pesquisar Produto"}</h2>
-          <div className="flex items-center gap-3">
-            {mode !== "edit" && (
-              <button onClick={() => setVerCatalogo((v) => !v)} className={`flex items-center gap-2 rounded-md border px-3.5 py-1.5 text-sm font-bold transition-colors ${verCatalogo ? "border-red-600 bg-red-600 text-white" : "border-red-200 bg-white text-red-600 hover:bg-red-50"}`}>
-                <i className="fas fa-book-open" /> Catálogos
-              </button>
-            )}
-            <button onClick={onClose} className="border-none bg-transparent text-2xl text-slate-400 transition-colors hover:text-red-500">&times;</button>
-          </div>
+          <h2 className="text-xl font-bold text-slate-800">{mode === "edit" ? "Editar Produto Manual" : mode === "modal" ? "Novo Item" : "Pesquisar Produto"}</h2>
+          <button onClick={onClose} className="border-none bg-transparent text-2xl text-slate-400 transition-colors hover:text-red-500">&times;</button>
         </div>
         {verCatalogo ? (
           <div className="flex flex-1 flex-col overflow-hidden p-3" style={{ minHeight: 0 }}>
             <div className="mb-2 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[12px] leading-snug text-amber-800">
+              <button onClick={() => setVerCatalogo(false)} className="mr-1 flex shrink-0 items-center gap-1.5 rounded-md border border-amber-400 bg-white px-2.5 py-1 text-[12px] font-bold text-amber-700 transition-colors hover:bg-amber-100">
+                <i className="fas fa-arrow-left" /> Busca
+              </button>
               <i className="fas fa-circle-info mt-0.5 text-amber-500" />
               <span>
                 Só dá pra adicionar peças <b>já cadastradas no Omie</b>. Se a peça escolhida não existir, abre a tela pra
@@ -173,25 +189,62 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
           </div>
         ) : (
         <div className="flex-1 overflow-y-auto bg-[#FFFAF5] px-10 py-7">
-          <div className="relative mb-3">
-            <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-red-400" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={termo}
-              onChange={(e) => handleChange(e.target.value)}
-              onKeyUp={(e) => e.key === "Enter" && buscar(termo)}
-              placeholder="Codigo ou nome do produto..."
-              className="w-full rounded-lg border-2 border-red-500 py-4 pl-11 pr-20 text-base font-[Poppins] focus:outline-none focus:ring-2 focus:ring-red-200"
-            />
-            <button
-              onClick={() => buscar(termo)}
-              disabled={buscando || termo.trim().length < 2}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-red-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
-            >
-              {buscando ? <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> : "Buscar"}
-            </button>
+          {/* Busca + atalhos com legenda (Catálogo × Kit) do lado */}
+          <div className="mb-3 flex items-stretch gap-2.5">
+            <div className="relative flex-1">
+              <i className="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-red-400" />
+              <input
+                ref={inputRef}
+                type="text"
+                value={termo}
+                onChange={(e) => handleChange(e.target.value)}
+                onKeyUp={(e) => e.key === "Enter" && buscar(termo)}
+                placeholder="Codigo ou nome do produto..."
+                className="w-full rounded-lg border-2 border-red-500 py-4 pl-11 pr-20 text-base font-[Poppins] focus:outline-none focus:ring-2 focus:ring-red-200"
+              />
+              <button
+                onClick={() => buscar(termo)}
+                disabled={buscando || termo.trim().length < 2}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-md bg-red-600 px-4 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700 disabled:opacity-50"
+              >
+                {buscando ? <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-white border-t-transparent" /> : "Buscar"}
+              </button>
+            </div>
+            {mode !== "edit" && (
+              <button onClick={() => setVerCatalogo(true)} title="Buscar a peça pela figura do catálogo"
+                className="flex w-[86px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-orange-300 bg-white text-orange-600 transition-colors hover:bg-orange-50">
+                <i className="fas fa-images text-lg" />
+                <span className="text-[11px] font-bold">Catálogo</span>
+              </button>
+            )}
+            {mode === "modal" && onAbrirKit && (
+              <button onClick={onAbrirKit} title="Importar kit de revisão (modelo + horas)"
+                className="flex w-[86px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-orange-300 bg-white text-orange-600 transition-colors hover:bg-orange-50">
+                <i className="fas fa-cubes text-lg" />
+                <span className="text-[11px] font-bold">Kit</span>
+              </button>
+            )}
           </div>
+
+          {/* MAIS UTILIZADOS — aparece antes de pesquisar */}
+          {termo.trim().length < 2 && !buscando && maisUsados.length > 0 && (
+            <div className="mb-3">
+              <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400"><i className="fas fa-fire mr-1 text-orange-400" /> Produtos mais utilizados</div>
+              <div className="overflow-hidden rounded-lg border border-orange-200/60">
+                {maisUsados.map((p) => (
+                  <button key={p.codigo} type="button"
+                    onClick={() => handleClick({ codigo: p.codigo, descricao: p.descricao, preco: p.preco, origem: "completos" } as ProdutoBusca)}
+                    className={`flex w-full items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-left transition-colors last:border-b-0 ${addedFlash === p.codigo ? "bg-emerald-50" : "bg-white hover:bg-orange-50"}`}>
+                    <span className="w-[130px] shrink-0 truncate text-[13px] font-bold text-slate-800">{p.codigo}</span>
+                    <span className="min-w-0 flex-1 truncate text-[13px] text-slate-600" title={p.descricao}>{p.descricao}</span>
+                    <span className="shrink-0 text-[13px] font-semibold text-slate-700">R$ {p.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
+                    <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-600" title="Quantas vezes já foi usado em pedidos">{p.usos}×</span>
+                    {addedFlash === p.codigo && <span className="shrink-0 text-[11px] font-bold text-emerald-600"><i className="fas fa-check mr-1" />adicionado</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           {resultados.length > 0 && (
             <div className="mb-2 text-[11px] text-slate-400">
@@ -199,6 +252,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
             </div>
           )}
 
+          {!(termo.trim().length < 2 && !buscando && maisUsados.length > 0) && (
           <div className="overflow-hidden rounded-lg border border-orange-200/60" style={{ maxHeight: 330, overflowY: "auto" }}>
             <table className="w-full border-collapse">
               <thead>
@@ -218,7 +272,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                   </td></tr>
                 ) : resultados.length > 0 ? (
                   resultados.map((p, idx) => (
-                    <tr key={idx} onClick={() => handleClick(p)} className="cursor-pointer border-b border-slate-100 transition-colors hover:bg-orange-50">
+                    <tr key={idx} onClick={() => handleClick(p)} className={`cursor-pointer border-b border-slate-100 transition-colors ${addedFlash === p.codigo ? "bg-emerald-50" : "hover:bg-orange-50"}`}>
                       <td className="px-4 py-3 text-[13px] font-bold text-slate-800">
                         {/* Clicar no CÓDIGO abre as informações do produto (não seleciona).
                             Estilo de LINK bem claro: sublinhado + ícone "olho". */}
@@ -317,6 +371,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
               </tbody>
             </table>
           </div>
+          )}
         </div>
         )}
       </div>
