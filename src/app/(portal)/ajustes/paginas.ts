@@ -36,6 +36,7 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   { key: 'ajustes:inventario', label: 'Inventário rotativo', href: '/ajustes/inventario', grupo: 'Edição', departamento: 'Estoque' },
   { key: 'ajustes:inventario-contagem', label: 'Contagem', href: '/ajustes/inventario/contagem', grupo: 'Edição', departamento: 'Estoque' },
   { key: 'ajustes:caracteristicas', label: 'Características', href: '/ajustes/caracteristicas', grupo: 'Edição', departamento: 'Estoque' },
+  { key: 'ajustes:localizacao', label: 'Localização física', href: '/ajustes/localizacao', grupo: 'Edição', departamento: 'Estoque' },
   { key: 'ajustes:familias', label: 'Famílias', href: '/ajustes/familias', grupo: 'Edição', departamento: 'Estoque' },
   { key: 'ajustes:descricoes', label: 'Descrições', href: '/ajustes/descricoes', grupo: 'Edição', departamento: 'Estoque' },
   { key: 'ajustes:catalogo-caract', label: 'Sistema/Sub-sistema', href: '/ajustes/catalogo-caracteristicas', grupo: 'Edição', departamento: 'Estoque' },
