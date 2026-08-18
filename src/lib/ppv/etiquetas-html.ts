@@ -27,6 +27,25 @@ export function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
+// Empresa abreviada na etiqueta (2 letras) — libera largura p/ o código caber
+// inteiro. Aplicado no RENDER (não na origem) p/ valer também nas reimpressões
+// do histórico (snapshots antigos guardam o nome por extenso).
+export function empresaCurta(nome: string): string {
+  const s = String(nome || '').trim().toUpperCase()
+  if (/NOVA/.test(s)) return 'NO'
+  if (/CASTRO/.test(s)) return 'CA'
+  return s.replace(/[^A-Z0-9]/g, '').slice(0, 2) || s.slice(0, 2)
+}
+
+// Tamanho (pt) do código LEGÍVEL conforme o nº de caracteres, p/ nunca truncar
+// (o Code128 já leva o código inteiro; isto é só o texto humano). `dupla` = 2
+// empresas na mesma etiqueta (menos espaço → fonte menor).
+export function fonteCodigo(len: number, dupla: boolean): number {
+  let pt = len <= 9 ? 12 : len <= 12 ? 10 : len <= 15 ? 8.5 : 7
+  if (dupla) pt = Math.max(6, +(pt * 0.8).toFixed(1))
+  return pt
+}
+
 // ── Código de barras Code 128 (subset B) em SVG puro, sem lib externa ───────
 // Tabela padrão: larguras de barra/espaço de cada símbolo (0-106).
 const C128 = [
@@ -81,9 +100,9 @@ function blocosTexto(e: BlocoEtiqueta, comBarra: boolean): string {
       : ''
     return `      <div class="bloco">
         <div class="cab">
-          <span class="emp">${esc(l.empresa)}</span>
-          <span class="cod">${esc(l.codigo)}</span>
-          <span class="emp fantasma">${esc(l.empresa)}</span>
+          <span class="emp">${esc(empresaCurta(l.empresa))}</span>
+          <span class="cod" style="font-size:${fonteCodigo(String(l.codigo).length, dupla)}pt">${esc(l.codigo)}</span>
+          <span class="emp fantasma">${esc(empresaCurta(l.empresa))}</span>
         </div>${dupla
         ? descLocDupla
         : `${l.descricao ? `
@@ -216,7 +235,7 @@ export function htmlRecorte(blocos: BlocoEtiqueta[]): string {
 </style></head><body>
 <div class="grade">
 ${blocos.map(e => {
-    const conteudo = e.linhas.map(l => `    <div class="emp">${esc(l.empresa)}</div>
+    const conteudo = e.linhas.map(l => `    <div class="emp">${esc(empresaCurta(l.empresa))}</div>
     <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${esc(l.locacao)}` : ''}</div>${e.qrSvg ? '' : `
     ${code128Svg(l.codigo, 7)}`}`).join('\n')
     if (!e.qrSvg) {
