@@ -358,7 +358,7 @@ body {
 [data-theme="dark"] .fin-band-verde,
 .portal-dark div.fin-band-verde[style*="position: sticky"],
 .portal-dark .fin-band-verde {
-  background: #c5e29f !important;
+  background: linear-gradient(135deg, #D8F0B2, #A9D47D) !important;
 }
 
 /* POS Header */

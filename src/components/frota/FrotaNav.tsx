@@ -31,7 +31,7 @@ export default function FrotaNav() {
         alignItems: 'flex-end',
         gap: 3,
         padding: '10px 24px 0',
-        background: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)',
+        background: 'linear-gradient(135deg, #3B82F6, #1E3A8A)', // degradê mais visível (igual estilo do Peças)
         boxShadow: '0 1px 4px var(--portal-shadow)',
         flexWrap: 'wrap',
       }}

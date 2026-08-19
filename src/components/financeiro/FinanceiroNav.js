@@ -82,7 +82,7 @@ export default function FinanceiroNav({ children }) {
   return (
     <div className="fin-band-verde" style={{
       position: 'sticky', top: '84px', zIndex: 30,
-      background: '#c5e29f',
+      background: 'linear-gradient(135deg, #D8F0B2, #A9D47D)',
       boxShadow: '0 1px 4px var(--portal-shadow)',
       padding: '0 24px',
     }}>
