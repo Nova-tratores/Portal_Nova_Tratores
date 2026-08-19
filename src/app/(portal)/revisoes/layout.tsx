@@ -3,7 +3,7 @@
 // local injeta a mesma faixa).
 import ServicosNav from '@/components/servicos/ServicosNav';
 
-export default function CronogramaLayout({ children }: { children: React.ReactNode }) {
+export default function RevisoesLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <ServicosNav />
