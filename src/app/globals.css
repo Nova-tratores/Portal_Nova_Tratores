@@ -1044,6 +1044,12 @@ body {
     border-color: var(--portal-border) !important;
   }
   [data-theme="dark"] .os-card-title { color: var(--portal-text) !important; }
+  [data-theme="dark"] .os-header,
+  [data-theme="dark"] .os-summary {
+    background: var(--portal-bg-card) !important;
+    border-color: var(--portal-border) !important;
+    color: var(--portal-text) !important;
+  }
   [data-theme="dark"] .os-action-rail {
     background: var(--portal-bg-card) !important;
     border-color: var(--portal-border) !important;
@@ -3496,7 +3502,7 @@ body {
   align-items: center;
   padding: 16px 28px;
   border-bottom: 1px solid var(--border);
-  background: #fff;
+  background: var(--surface);
   position: sticky;
   top: 0;
   z-index: 10;
@@ -3587,7 +3593,7 @@ body {
 
 /* Summary card at top (edit mode) — estilo Omie: branco e limpo */
 .os-summary {
-  background: #fff;
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 14px;
   padding: 20px 24px;
