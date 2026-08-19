@@ -135,9 +135,10 @@ function blocosTexto(e: BlocoEtiqueta, comBarra: boolean): string {
 }
 
 // ── Impressão em FOLHA ADESIVA pré-cortada 3×10 (Pimaco/Avery 6180) ─────────
-// Folha Carta 215,9×279,4mm · etiqueta 66,675×25,4mm · margem 12,7mm em cima/
-// baixo e 4,76mm nas laterais · 3,175mm entre colunas · SEM espaço entre
-// linhas. `usadas` = posições (0-29) da 1ª folha já descoladas — saem em branco.
+// Folha 215×280mm · margem 5mm laterais, 12mm topo, 13mm base · 4mm entre
+// colunas, 0mm entre linhas → etiqueta 65,667mm larg (=(215−10−8)/3) × 25,5mm
+// alt (=(280−25)/10). `usadas` = posições (0-29) da 1ª folha já descoladas —
+// saem em branco.
 export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>): string {
   const paginas: (BlocoEtiqueta | null)[][] = []
   const fila = [...blocos]
@@ -180,12 +181,12 @@ ${blocosTexto(e, false)}
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças (folha 3×10)</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  @page { size: 215.9mm 279.4mm; margin: 0; }
+  @page { size: 215mm 280mm; margin: 0; }
   body { font-family: Arial, Helvetica, sans-serif; }
   .pagina {
-    width: 215.9mm; height: 279.4mm; padding: 12.7mm 4.7625mm;
-    display: grid; grid-template-columns: repeat(3, 66.675mm);
-    grid-auto-rows: 25.4mm; column-gap: 3.175mm;
+    width: 215mm; height: 280mm; padding: 12mm 5mm 13mm 5mm;
+    display: grid; grid-template-columns: repeat(3, 65.667mm);
+    grid-auto-rows: 25.5mm; column-gap: 4mm; row-gap: 0;
     page-break-after: always;
   }
   .pagina:last-child { page-break-after: auto; }
