@@ -80,7 +80,7 @@ const navItems: NavItem[] = [
   // Comercial (roxo)
   { id: 'propostas', name: 'Proposta Comercial', href: '/propostas', icon: <FileText size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },
   { id: 'feedbacks', name: 'Feedbacks & CRM', href: '/feedbacks', icon: <Megaphone size={18} />, tag: 'CRM', gradient: '', group: 'comercial' },
-  { id: 'clientes', name: 'Clientes', href: '/clientes', icon: <Building size={18} />, tag: 'CLIENTES', gradient: '', group: 'comercial' },
+  { id: 'clientes', name: 'Clientes', href: '/clientes', icon: <Building size={18} />, tag: 'CLIENTES', gradient: '', group: 'servicos' },
   { id: 'supervisor-vendas', name: 'Supervisor Vendas', href: '/supervisor-vendas', icon: <SlidersHorizontal size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },
 
   // Estoque (vermelho)

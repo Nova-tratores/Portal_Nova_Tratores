@@ -903,6 +903,8 @@ body {
   }
   [data-theme="dark"] [style*="color: rgb(71, 85, 105)"],
   [data-theme="dark"] [style*="color: rgb(100, 116, 139)"],
+  [data-theme="dark"] [style*="color: rgb(107, 114, 128)"],
+  [data-theme="dark"] [style*="color: rgb(55, 65, 81)"],
   [data-theme="dark"] [style*="color: rgb(95, 87, 76)"],
   [data-theme="dark"] [style*="color: rgb(138, 131, 120)"] {
     color: #b6bcc6 !important;
@@ -1113,7 +1115,11 @@ body {
   /* ── Hexes que faltavam (POS, Sync Omie, tabelas do drawer) ── */
   [data-theme="dark"] [style*="color: rgb(30, 58, 95)"] { color: #7dd3fc !important; }   /* valores do POS */
   [data-theme="dark"] [style*="color: rgb(82, 82, 82)"] { color: #c4c4c4 !important; }
-  [data-theme="dark"] [style*="background: rgb(240, 253, 244)"] { background: #0e2a1b !important; }  /* verde-claro */
+  [data-theme="dark"] [style*="background: rgb(240, 253, 244)"],
+  [data-theme="dark"] [style*="background: rgb(236, 253, 245)"] { background: #0e2a1b !important; }  /* verdes-claros */
+  [data-theme="dark"] [style*="background: rgb(243, 232, 255)"] { background: #2a1f3d !important; }  /* roxo-claro */
+  [data-theme="dark"] [style*="background: rgb(224, 242, 254)"] { background: #12283a !important; }  /* céu-claro */
+  [data-theme="dark"] [style*="solid rgb(209, 213, 219)"] { border-color: var(--portal-border) !important; }
   [data-theme="dark"] [style*="background: rgb(254, 242, 242)"] { background: #2a1215 !important; }  /* vermelho-claro */
   [data-theme="dark"] [style*="background: rgb(255, 242, 223)"] { background: #2b1c10 !important; }  /* linha selecionada */
   [data-theme="dark"] [style*="background: rgb(237, 234, 228)"],

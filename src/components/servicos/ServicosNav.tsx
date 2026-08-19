@@ -13,6 +13,7 @@ const ABAS = [
   { modulo: 'lousa', label: 'Lousa Virtual', href: '/lousa' },
   { modulo: 'garantias', label: 'Garantias', href: '/garantias' },
   { modulo: 'revisoes', label: 'Revisões', href: '/revisoes' },
+  { modulo: 'clientes', label: 'Clientes', href: '/clientes' },
   { modulo: 'mecanicos', label: 'Janela Mecânico', href: '/mecanicos' },
   { modulo: 'cronograma', label: 'Cronograma', href: '/cronograma' },
   { modulo: 'sat', label: 'SAT', href: '/sat' },
