@@ -237,8 +237,18 @@ export default function RecebimentosPage() {
       if (ate) qs += '&ate=' + encodeURIComponent(ate);
       if (force) qs += '&force=1';
       const r = await fetch(`/api/ajustes/recebimentos-pendentes?${qs}`);
-      const d = (await r.json()) as RecebPayload;
-      if (d.erro) { setErro(d.erro); setStatusMsg(''); return; }
+      // A resposta pode NAO ser JSON: numa carga fria/force o calculo ao vivo (~1-2 min)
+      // pode estourar o timeout do proxy do Railway, que devolve "upstream error" (texto).
+      // O calculo continua rodando no servidor e grava o snapshot; o proximo Buscar pega do cache.
+      const txt = await r.text();
+      let d: RecebPayload;
+      try { d = JSON.parse(txt) as RecebPayload; }
+      catch {
+        setErro('O servidor esta reprocessando os recebimentos na Omie (pode levar 1-2 min na primeira vez). O calculo continua em segundo plano — aguarde alguns segundos e clique em Buscar de novo.');
+        setStatusMsg('');
+        return;
+      }
+      if (!r.ok || d.erro) { setErro(d.erro || `Erro ${r.status} ao buscar recebimentos.`); setStatusMsg(''); return; }
       setResultados({});
       setDados(d);
       const fonte = d.fonte === 'cache' ? `cache de ${d.cachedEm ? new Date(d.cachedEm).toLocaleTimeString('pt-BR') : '?'}` : 'consulta ao vivo';
@@ -304,7 +314,6 @@ export default function RecebimentosPage() {
             <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar(false)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
           </div>
           <button onClick={() => buscar(false)} disabled={carregando || !conta} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando || !conta ? 0.5 : 1 }}>Buscar</button>
-          <button onClick={() => buscar(true)} disabled={carregando || !conta} title="Ignora o cache" style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando || !conta ? 0.5 : 1 }}>Atualizar</button>
           <ContaSelector />
         </div>
       </div>
@@ -391,6 +400,18 @@ export default function RecebimentosPage() {
               </div>
             </>
           )}
+
+          {/* Rodape: "Atualizar" fica AQUI embaixo (nao no topo) p/ nao ser clicado sem querer,
+              pois forca um recompute ao vivo na Omie (~1-2 min, ignora o cache). */}
+          <div style={{ marginTop: 24, paddingTop: 14, borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <button onClick={() => buscar(true)} disabled={carregando || !conta} title="Ignora o cache e recalcula tudo na Omie (demora)"
+              style={{ padding: '7px 14px', background: '#fff', color: '#334155', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando || !conta ? 0.5 : 1 }}>
+              ↻ Atualizar (recalcular ao vivo)
+            </button>
+            <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>
+              Recalcula tudo na Omie ignorando o cache — leva ~1-2 min. Use só quando precisar do estado mais recente; a lista normal já vem do cache.
+            </span>
+          </div>
         </>
       )}
 
@@ -652,10 +673,12 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
 }) {
   const [naoFin, setNaoFin] = useState<boolean>(!!r.temSinalGarantia); // garantia: nao gera contas a pagar por padrao
   const [naoMov, setNaoMov] = useState<boolean>(false);
-  // CFOP de entrada editavel por item; default = cfopEntradaSugerido (equivalente da NF)
+  // CFOP de entrada editavel por item. Default = o CFOP que a Omie puxaria (it.cfopEntrada),
+  // que e' garantidamente CADASTRADO na Omie; cai para o equivalente calculado da NF so' quando
+  // a Omie nao trouxe nenhum. Evita o erro "CFOP nao cadastrada [X]" do equivalente calculado.
   const [cfops, setCfops] = useState<Record<number, string>>(() => {
     const init: Record<number, string> = {};
-    (r.itens || []).forEach((it, i) => { init[i] = it.cfopEntradaSugerido || cfopEntradaEquiv(it.cfop) || ''; });
+    (r.itens || []).forEach((it, i) => { init[i] = it.cfopEntrada || it.cfopEntradaSugerido || cfopEntradaEquiv(it.cfop) || ''; });
     return init;
   });
   const [enviando, setEnviando] = useState(false);
@@ -727,6 +750,12 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   const usarOmie = () => {
     const novo: Record<number, string> = {};
     (r.itens || []).forEach((it, i) => { novo[i] = it.cfopEntrada || ''; });
+    setCfops(novo);
+  };
+  // aplica o EQUIVALENTE calculado da NF (5->1/6->2) em todos os itens (pode nao estar cadastrado)
+  const usarEquivalente = () => {
+    const novo: Record<number, string> = {};
+    (r.itens || []).forEach((it, i) => { novo[i] = it.cfopEntradaSugerido || cfopEntradaEquiv(it.cfop) || ''; });
     setCfops(novo);
   };
 
@@ -810,7 +839,20 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
         setEnviando(false);
         setStatusModal('');
         onConcluido(recKey(r), { tipo: 'erro', texto: d.erro || 'falhou' });
-        alert('Erro ao dar entrada: ' + (d.erro || 'falhou'));
+        // Erro comum da Omie: "CFOP nao cadastrada [X] ! - Tag: [cCFOPEntrada]" — o CFOP de entrada
+        // (tipicamente o equivalente calculado) nao existe na tabela de CFOPs desta empresa na Omie.
+        const mCfop = /CFOP\s+n[ãa]o\s+cadastrada\s*\[?\s*([\d.]+)/i.exec(String(d.erro || ''));
+        if (mCfop) {
+          alert(
+            `A Omie recusou: o CFOP de entrada ${mCfop[1]} nao esta cadastrado nesta empresa.\n\n` +
+            `Como resolver:\n` +
+            `• clique em "usar o que a Omie puxaria" (CFOP ja cadastrado), ou\n` +
+            `• edite o CFOP de entrada do item para um valido, ou deixe em branco (a Omie decide), ou\n` +
+            `• cadastre o CFOP ${mCfop[1]} na Omie (Configuracoes > CFOP) e tente de novo.`,
+          );
+        } else {
+          alert('Erro ao dar entrada: ' + (d.erro || 'falhou'));
+        }
       }
     } catch (ex) {
       setEnviando(false);
@@ -879,8 +921,9 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
 
           <h3 style={{ fontWeight: 600, color: '#334155', marginBottom: 4, fontSize: '.82rem' }}>CFOP de entrada por item</h3>
           <div style={{ fontSize: '.72rem', color: '#64748b', marginBottom: 8 }}>
-            Pre-preenchido com o equivalente do CFOP da NF (1o digito 5→1, 6→2). Edite se precisar. O Omie, por conta dele, &quot;puxa&quot; o CFOP da ultima entrada do produto - por isso a gente sobrescreve.
-            <button type="button" onClick={usarOmie} style={{ marginLeft: 6, color: '#2563eb', background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', fontSize: '.72rem' }}>usar o que o Omie puxaria</button>
+            Pre-preenchido com o CFOP que a <b>Omie puxaria</b> (garantidamente cadastrado). Edite se precisar. O equivalente calculado da NF (5→1/6→2) e' mais &quot;correto&quot;, mas pode nao estar cadastrado na Omie — se der erro de &quot;CFOP nao cadastrada&quot;, volte ao que a Omie puxaria ou deixe em branco.
+            <button type="button" onClick={usarOmie} style={{ marginLeft: 6, color: '#2563eb', background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', fontSize: '.72rem' }}>usar o que a Omie puxaria</button>
+            <button type="button" onClick={usarEquivalente} style={{ marginLeft: 8, color: '#2563eb', background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer', fontSize: '.72rem' }}>usar o equivalente da NF</button>
           </div>
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6 }}>
