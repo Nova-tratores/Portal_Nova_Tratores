@@ -189,15 +189,18 @@ function salvarSnapshotPendentes(conta: Conta, dataDeBR: string, dataAteBR: stri
     });
 }
 
-/** Descarta os snapshots persistidos de uma conta (após dar entrada — a lista mudou). */
-export function invalidarSnapshotPendentes(conta: Conta): void {
-  supabase
+/**
+ * Descarta os snapshots persistidos de uma conta (após dar entrada — a lista mudou).
+ * AWAITED de propósito: garante que o DELETE commitou antes de a chamada retornar,
+ * senão um reload (não-force) logo após o dar-entrada leria o snapshot L2 velho e a
+ * NF recém-processada reapareceria na lista. Best-effort quanto a erro (só loga).
+ */
+export async function invalidarSnapshotPendentes(conta: Conta): Promise<void> {
+  const { error } = await supabase
     .from('recebimento_pendentes_cache')
     .delete()
-    .eq('conta_omie', contaLow(conta))
-    .then(({ error }: any) => {
-      if (error) console.warn('[receb] invalidarSnapshotPendentes:', error.message);
-    });
+    .eq('conta_omie', contaLow(conta));
+  if (error) console.warn('[receb] invalidarSnapshotPendentes:', error.message);
 }
 
 /** Recebimentos pendentes (com cache) + projeção de impacto no CMC. */
@@ -378,7 +381,7 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
   const r = await concluirRecebimento(conta, { idReceb, chaveNFe });
   cache.invalidatePrefix(`analise:${conta}:`);
   cache.invalidatePrefix(`pendentes:${conta}:`);
-  invalidarSnapshotPendentes(conta); // o snapshot persistido ficou desatualizado (essa NF saiu)
+  await invalidarSnapshotPendentes(conta); // o snapshot persistido ficou desatualizado (essa NF saiu)
 
   supabase
     .from('cmc_sync_log')
