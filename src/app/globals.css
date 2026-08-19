@@ -1119,6 +1119,28 @@ body {
   [data-theme="dark"] [style*="background: rgb(236, 253, 245)"] { background: #0e2a1b !important; }  /* verdes-claros */
   [data-theme="dark"] [style*="background: rgb(243, 232, 255)"] { background: #2a1f3d !important; }  /* roxo-claro */
   [data-theme="dark"] [style*="background: rgb(224, 242, 254)"] { background: #12283a !important; }  /* céu-claro */
+
+  /* ── Paletas de técnico da Lousa (linhas da grade semanal) ── */
+  [data-theme="dark"] [style*="background: rgb(250, 245, 255)"],
+  [data-theme="dark"] [style*="background-color: rgb(250, 245, 255)"] { background: #241a33 !important; }  /* roxo-50 */
+  [data-theme="dark"] [style*="background: rgb(253, 242, 248)"],
+  [data-theme="dark"] [style*="background-color: rgb(253, 242, 248)"] { background: #2e1620 !important; }  /* rosa-50 */
+  [data-theme="dark"] [style*="background: rgb(236, 254, 255)"],
+  [data-theme="dark"] [style*="background-color: rgb(236, 254, 255)"] { background: #0d262b !important; }  /* ciano-50 */
+  [data-theme="dark"] [style*="background: rgb(238, 242, 255)"],
+  [data-theme="dark"] [style*="background-color: rgb(238, 242, 255)"] { background: #1a1f38 !important; }  /* índigo-50 */
+  [data-theme="dark"] [style*="solid rgb(216, 180, 254)"] { border-color: #5b21b6 !important; }
+  [data-theme="dark"] [style*="solid rgb(251, 207, 232)"] { border-color: #831843 !important; }
+  [data-theme="dark"] [style*="solid rgb(165, 243, 252)"] { border-color: #155e75 !important; }
+  [data-theme="dark"] [style*="solid rgb(199, 210, 254)"] { border-color: #3730a3 !important; }
+  [data-theme="dark"] [style*="solid rgb(253, 230, 138)"] { border-color: #92400e !important; }
+  /* Textos escuros (tons -800) sobre os pastéis: clareiam no escuro */
+  [data-theme="dark"] [style*="color: rgb(30, 64, 175)"] { color: #93c5fd !important; }
+  [data-theme="dark"] [style*="color: rgb(22, 101, 52)"] { color: #86efac !important; }
+  [data-theme="dark"] [style*="color: rgb(107, 33, 168)"] { color: #d8b4fe !important; }
+  [data-theme="dark"] [style*="color: rgb(157, 23, 77)"] { color: #f9a8d4 !important; }
+  [data-theme="dark"] [style*="color: rgb(21, 94, 117)"] { color: #67e8f9 !important; }
+  [data-theme="dark"] [style*="color: rgb(55, 48, 163)"] { color: #a5b4fc !important; }
   [data-theme="dark"] [style*="solid rgb(209, 213, 219)"] { border-color: var(--portal-border) !important; }
   [data-theme="dark"] [style*="background: rgb(254, 242, 242)"] { background: #2a1215 !important; }  /* vermelho-claro */
   [data-theme="dark"] [style*="background: rgb(255, 242, 223)"] { background: #2b1c10 !important; }  /* linha selecionada */
