@@ -819,6 +819,25 @@ body {
 .ppv-topbar-nav-btn i,
 .ppv-topbar-action-btn i { font-size: 14.5px; }
 
+/* CELULAR: a faixa do módulo rola na horizontal DENTRO dela (a página não
+   estoura de largura) e as guias encolhem pra caber no dedo. */
+@media (max-width: 768px) {
+  .ppv-topbar { padding: 0 10px; min-height: 52px; }
+  .ppv-topbar-actions {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    max-width: 100%;
+  }
+  .ppv-topbar-actions::-webkit-scrollbar { display: none; }
+  .ppv-topbar-nav-btn, .ppv-topbar-action-btn {
+    padding: 10px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+}
+
 /* ============================================================ */
 /* MÓDULO PEÇAS — skin: tudo quadrado, detalhes laranja, fontes  */
 /* pretas (sem cinza). Aplicada via classe .pecas-skin no root   */

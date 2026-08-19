@@ -95,7 +95,7 @@ export default function FinanceiroNav({ children }) {
             pintava um card escuro POR CIMA da faixa verde no modo escuro. */}
         <nav className="fin-tabs-nav" style={{
           display: 'flex', alignItems: 'flex-end', gap: '3px',
-          flex: 1, overflowX: 'auto',
+          flex: 1, overflowX: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch',
         }}>
           {links.map(link => {
             const isActive = pathname === link.href

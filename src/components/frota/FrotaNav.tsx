@@ -32,6 +32,7 @@ export default function FrotaNav() {
         gap: 3,
         padding: '10px 24px 0',
         background: 'linear-gradient(135deg, #3B82F6, #1E3A8A)', // degradê mais visível (igual estilo do Peças)
+        overflowX: 'auto', WebkitOverflowScrolling: 'touch', // celular: as guias rolam DENTRO da faixa
         boxShadow: '0 1px 4px var(--portal-shadow)',
         flexWrap: 'wrap',
       }}
