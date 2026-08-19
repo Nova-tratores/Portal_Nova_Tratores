@@ -28,7 +28,7 @@ const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 
 // Pós-Vendas vê SÓ os cards de Oficina (serviço). Os de Peças ficam no painel de Peças.
 const SETOR_PAINEL = 'oficina';
 
-const setorBadgeStyle = { position: 'absolute', top: '10px', right: '10px', zIndex: 2, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' };
+const setorBadgeStyle = { position: 'absolute', top: '10px', right: '10px', zIndex: 2, fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#A6FF3B', color: '#123300', border: '1px solid #8BE62A', boxShadow: '0 0 8px rgba(166,255,59,0.5)' };
 const METODOS_PAGAR = ['Boleto', 'Boleto Parcelado', 'Pix', 'Cartão de Crédito', 'Cartão de Débito', 'Dinheiro', 'Transferência', 'Carnê ISS'];
 
 function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
@@ -331,18 +331,18 @@ function HomePosVendasContent() {
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav>
         <button onClick={sincronizarOS} disabled={sincOS} title="Buscar ordens de serviço faturadas (com NF) no Omie e gerar os chamados" style={{
-          background: 'var(--portal-bg-secondary)', color: '#4f46e5',
-          border: '1px solid #c7d2fe', padding: '8px 14px', borderRadius: '8px', fontWeight: '700',
+          background: '#A6FF3B', color: '#123300', boxShadow: '0 0 12px rgba(166,255,59,0.55)',
+          border: '1px solid #8BE62A', padding: '8px 14px', borderRadius: '8px', fontWeight: '700',
           cursor: sincOS ? 'default' : 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px', transition: '0.2s',
         }}>
           <RefreshCw size={14} /> {sincOS ? 'SINCRONIZANDO…' : 'SINCRONIZAR OMIE'}
         </button>
         <div style={{ position: 'relative' }}>
           <button onClick={() => setShowNovoMenu(s => !s)} style={{
-            background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color:'#fff',
+            background: '#A6FF3B', color:'#123300',
             border:'none', padding:'8px 16px', borderRadius:'8px', fontWeight:'700',
             cursor:'pointer', fontSize:'12px', display: 'flex', alignItems: 'center', gap: '6px',
-            boxShadow: '0 2px 6px rgba(220,38,38,0.25)', transition: '0.2s',
+            boxShadow: '0 0 12px rgba(166,255,59,0.55)', transition: '0.2s',
           }}>
             <PlusCircle size={15}/> NOVO
           </button>

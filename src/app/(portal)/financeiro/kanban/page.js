@@ -37,7 +37,7 @@ const STATUS_CONFIG = {
 const FORMAS_BOLETO = ['Pix', 'Dinheiro', 'Boleto 30 dias', 'Boleto Parcelado', 'Cartão a vista', 'Cartão Parcelado', 'Cheque'];
 
 // Pós-Vendas vê os cards de Oficina; pode incluir os de Peças via checkbox.
-const setorBadgeStyle = { display: 'inline-flex', alignItems: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#eef2ff', color: '#4f46e5', border: '1px solid #c7d2fe' };
+const setorBadgeStyle = { display: 'inline-flex', alignItems: 'center', fontSize: '10px', fontWeight: 700, letterSpacing: '0.5px', textTransform: 'uppercase', padding: '3px 9px', borderRadius: '8px', background: '#A6FF3B', color: '#123300', border: '1px solid #8BE62A', boxShadow: '0 0 8px rgba(166,255,59,0.5)' };
 
 // FinanceiroSubNav removido — agora usa componente compartilhado FinanceiroNav
 

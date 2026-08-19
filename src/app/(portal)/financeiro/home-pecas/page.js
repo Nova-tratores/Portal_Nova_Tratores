@@ -338,10 +338,10 @@ function HomePosVendasContent() {
         </button>
         <div style={{ position: 'relative' }}>
           <button onClick={() => setShowNovoMenu(s => !s)} style={{
-            background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color:'#fff',
+            background: '#A6FF3B', color:'#123300',
             border:'none', padding:'8px 16px', borderRadius:'8px', fontWeight:'700',
             cursor:'pointer', fontSize:'12px', display: 'flex', alignItems: 'center', gap: '6px',
-            boxShadow: '0 2px 6px rgba(220,38,38,0.25)', transition: '0.2s',
+            boxShadow: '0 0 12px rgba(166,255,59,0.55)', transition: '0.2s',
           }}>
             <PlusCircle size={15}/> NOVO
           </button>
