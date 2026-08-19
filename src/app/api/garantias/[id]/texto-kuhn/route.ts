@@ -2,14 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
 import { TBL_GARANTIAS, TBL_GAR_PECAS } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
+import { formatarTextosSG } from '@/lib/garantias/sg-textos';
+import { extrairDias, montarTextoKuhn } from '@/lib/garantias/texto-kuhn';
 
 // POST /api/garantias/[id]/texto-kuhn — monta o TEXTO ÚNICO no formato que a
 // Extranet da KUHN pede na caixa "PROVÁVEL CAUSA E DESCRIÇÃO DO PROBLEMA"
-// (numerado 1–6, com horas de M.O., KM e peças) pra aprovação da mão de obra.
-// Usa os textos do Tratorilson (sg_reclamacao/sg_acao_tomada) quando existem;
-// senão cai pro relato cru. Campos sem dado saem como ____ pro garantista
-// completar antes de colar. Salva em checklist_respostas.sg_kuhn_site.
-// body: { ator? }
+// (numerado 1–6 do manual, com horas de M.O. e KM POR DIA — a
+// Ordem_Servico_Tecnicos guarda até 3 dias no mesmo registro) pra aprovação
+// da mão de obra. Reclamação/serviço vêm dos textos do Tratorilson: usa os
+// sg_* já revisados e, se faltarem, GERA na hora (só cai pro relato cru se a
+// IA estiver fora do ar). Fecha com "SG PEÇAS: <nº na KUHN>" (numero_externo).
+// Campos sem dado saem como ____ pro garantista completar antes de colar.
+// Montagem pura em lib/garantias/texto-kuhn.ts. Salva em
+// checklist_respostas.sg_kuhn_site. body: { ator? }
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
@@ -17,7 +22,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const { data: g } = await supabase
     .from(TBL_GARANTIAS)
-    .select('id, numero, id_ordem, status, checklist_respostas')
+    .select('id, numero, id_ordem, modelo, numero_externo, status, checklist_respostas')
     .eq('id', id)
     .maybeSingle();
   if (!g) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
@@ -25,7 +30,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'Garantia já finalizada.' }, { status: 400 });
   }
 
-  const [osRes, tecRes, pecasRes, anexosRes] = await Promise.all([
+  const [osRes, tecRes, pecasRes, reqsRes] = await Promise.all([
     supabase
       .from('Ordem_Servico')
       .select('Data, Serv_Solicitado')
@@ -33,68 +38,97 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .maybeSingle(),
     supabase
       .from('Ordem_Servico_Tecnicos')
-      .select('TecResp1, DataInicio, DataFinal, InicioHora, FinalHora, TotalHora, TotalKm, InicioKm, ServicoRealizado')
+      .select(
+        'TecResp1, Motivo, ServicoRealizado, DataInicio, DataFinal, InicioHora, FinalHora, InicioKm, FinalKm, ' +
+        'DataInicio2, InicioHora2, FinalHora2, InicioKm2, FinalKm2, ' +
+        'DataInicio3, InicioHora3, FinaHora3, InicioKm3, FinalKm3, TotalHora, TotalKm'
+      )
       .eq('Ordem_Servico', g.id_ordem)
       .order('IdOs', { ascending: false })
       .limit(1),
     supabase.from(TBL_GAR_PECAS).select('cod_produto, descricao').eq('garantia_id', id),
-    supabase.from('garantia_anexos').select('id', { count: 'exact', head: true }).eq('garantia_id', id),
+    supabase
+      .from('Requisicao')
+      .select('id, titulo')
+      .eq('ordem_servico', g.id_ordem)
+      .not('status', 'in', '("lixeira","cancelada")'),
   ]);
 
+  const s = (v: unknown): string => String(v ?? '').trim();
   const os = osRes.data;
-  const tec = (tecRes.data || [])[0] as Record<string, string | null> | undefined;
-  const respostas = ((g.checklist_respostas as Record<string, unknown>) || {});
+  const tec = (tecRes.data || [])[0] as unknown as Record<string, unknown> | undefined;
+  let respostas = ((g.checklist_respostas as Record<string, unknown>) || {});
 
-  const brData = (s: string | null | undefined): string => {
-    const t = String(s || '').trim();
-    const iso = t.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (iso) return `${iso[3]}-${iso[2]}-${iso[1]}`;
-    const br = t.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-    if (br) return `${br[1]}-${br[2]}-${br[3]}`;
-    return t || '____';
-  };
-  const brNum = (s: string | null | undefined): string => {
-    const n = Number(String(s ?? '').replace(/\./g, '').replace(',', '.'));
-    return Number.isFinite(n) && String(s ?? '').trim() !== '' ? n.toLocaleString('pt-BR') : '____';
-  };
-  const ou = (s: string | null | undefined, alt = '____'): string => {
-    const t = String(s || '').trim();
-    return t || alt;
-  };
+  // Reclamação/serviço: sg_* revisados > gerados agora pelo Tratorilson > cru.
+  let reclamacao = s(respostas['sg_reclamacao']);
+  let servico = s(respostas['sg_acao_tomada']);
+  if (!reclamacao || !servico) {
+    const pecas = (pecasRes.data || []) as { descricao: string; cod_produto: string | null }[];
+    const reqs = (reqsRes.data || []) as { id: number; titulo: string | null }[];
+    // Serviços de terceiros: só requisições casadas com as peças da garantia —
+    // MESMO critério do formatar-textos (manter em sincronia).
+    const norm = (t: string) => t.trim().toLowerCase();
+    const reqIdsDasPecas = new Set(
+      pecas
+        .map((p) => String(p.cod_produto || '').match(/^REQ-(\d+)/i)?.[1])
+        .filter(Boolean)
+        .map((n) => Number(n)),
+    );
+    const descricoesPecas = pecas.map((p) => norm(String(p.descricao || ''))).filter(Boolean);
+    const servicosTerceiros = reqs
+      .filter((r) => {
+        if (reqIdsDasPecas.has(r.id)) return true;
+        const t = norm(String(r.titulo || ''));
+        if (!t) return false;
+        return descricoesPecas.some((d) => d === t || d.includes(t) || t.includes(d));
+      })
+      .map((r) => String(r.titulo || '').trim())
+      .filter(Boolean);
+    try {
+      const textos = await formatarTextosSG({
+        reclamacaoBruta: os?.Serv_Solicitado || null,
+        diagnosticoBruto: s(tec?.Motivo) || null,
+        acaoBruta: s(tec?.ServicoRealizado) || null,
+        pecas: pecas
+          .filter((p) => !String(p.cod_produto || '').startsWith('REQ-'))
+          .map((p) => String(p.descricao || '').trim())
+          .filter(Boolean),
+        servicosTerceiros,
+        modelo: g.modelo,
+      });
+      // Preenche só o que faltava — texto já revisado pelo garantista fica.
+      respostas = {
+        ...respostas,
+        sg_reclamacao: s(respostas['sg_reclamacao']) || textos.reclamacao,
+        sg_diagnostico: s(respostas['sg_diagnostico']) || textos.diagnostico,
+        sg_acao_tomada: s(respostas['sg_acao_tomada']) || textos.acao_tomada,
+        sg_observacoes: s(respostas['sg_observacoes']) || textos.observacoes || '',
+      };
+      reclamacao = reclamacao || textos.reclamacao;
+      servico = servico || textos.acao_tomada;
+    } catch (e) {
+      console.warn('[garantias] Tratorilson indisponível no texto-kuhn:', e instanceof Error ? e.message : e);
+      reclamacao = reclamacao || s(os?.Serv_Solicitado);
+      servico = servico || s(tec?.ServicoRealizado);
+    }
+  }
 
-  // número da OS sem prefixo (OS-0634 -> 634)
+  // número da OS sem prefixo (OS-0418 -> 418)
   const numeroOS = String(g.id_ordem || '').replace(/^OS-?0*/i, '') || String(g.id_ordem || '____');
   // primeiro nome do técnico, maiúsculo (formato do exemplo aprovado pela Kuhn)
-  const tecnico = ou(tec?.TecResp1).split(/\s+/)[0]?.toUpperCase() || '____';
+  const tecnico = s(tec?.TecResp1).split(/\s+/)[0]?.toUpperCase() || '____';
 
-  const kmInicial = brNum(tec?.InicioKm);
-  const totalKm = brNum(tec?.TotalKm);
-  const kmFinal = (() => {
-    const ini = Number(String(tec?.InicioKm ?? '').replace(/\./g, '').replace(',', '.'));
-    const tot = Number(String(tec?.TotalKm ?? '').replace(/\./g, '').replace(',', '.'));
-    if (Number.isFinite(ini) && Number.isFinite(tot) && String(tec?.InicioKm ?? '').trim() !== '') {
-      return (ini + tot).toLocaleString('pt-BR');
-    }
-    return '____';
-  })();
-
-  const reclamacao = ou(respostas['sg_reclamacao'] as string, ou(os?.Serv_Solicitado));
-  const servico = ou(respostas['sg_acao_tomada'] as string, ou(tec?.ServicoRealizado));
-  const codigosPecas = (pecasRes.data || [])
-    .map((p) => String(p.cod_produto || '').trim() || String(p.descricao || '').trim())
-    .filter((c) => c && !/^REQ-/i.test(c));
-
-  const texto = [
-    `- Arquivo em anexo : ${anexosRes.count ?? 0}`,
-    `1. Data do atendimento: ${brData(tec?.DataFinal || tec?.DataInicio)};`,
-    `2. Número da Ordem de Serviço: ${numeroOS};`,
-    `3. Nome do Técnico da Revenda: ${tecnico};`,
-    `4. Horas de Mão de Obra na Máquina: Inicio: ${ou(tec?.InicioHora)}, Término ${ou(tec?.FinalHora)}, ${ou(tec?.TotalHora)} horas de serviço sem pausas;`,
-    `5. KM rodado inicial e final: KM Inicial: ${kmInicial}, KM Final: ${kmFinal}, ${totalKm} KM rodado;`,
-    `6. Descrição completa do atendimento: ${brData(os?.Data)}: Reclamação do cliente: ${reclamacao}`,
-    `${brData(tec?.DataFinal || tec?.DataInicio)}: Serviço: ${servico}`,
-    codigosPecas.length ? `Peças: ${codigosPecas.join(', ')}` : `Peças: ____`,
-  ].join('\n');
+  const texto = montarTextoKuhn({
+    numeroOS,
+    tecnico,
+    dataAtendimento: s(tec?.DataFinal) || s(tec?.DataInicio),
+    dataReclamacao: s(os?.Data),
+    dias: extrairDias(tec),
+    totalHoraCampo: s(tec?.TotalHora),
+    reclamacao,
+    servico,
+    sgPecas: s(g.numero_externo),
+  });
 
   await supabase
     .from(TBL_GARANTIAS)
