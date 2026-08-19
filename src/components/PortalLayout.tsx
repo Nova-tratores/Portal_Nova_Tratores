@@ -653,19 +653,31 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {/* Right: chat + sino + user */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
 
-          {/* Tela dividida: dois sistemas lado a lado (some quando o portal
-              está DENTRO de um painel da /split, pra não aninhar) */}
+          {/* Tela dividida: dois sistemas lado a lado. Na /split o MESMO botão
+              vira o "voltar pra uma tela só" (abre o sistema do painel esquerdo).
+              Some quando o portal está DENTRO de um painel, pra não aninhar. */}
           {!emIframe && (
             <button
-              onClick={() => { window.location.href = '/split' }}
-              title="Tela dividida — dois sistemas lado a lado"
+              onClick={() => {
+                if (pathname === '/split') {
+                  let volta = '/dashboard'
+                  try { const s = JSON.parse(localStorage.getItem('portal-split') || '{}'); if (s.esq) volta = s.esq } catch { /* dashboard */ }
+                  window.location.href = volta
+                } else {
+                  window.location.href = '/split'
+                }
+              }}
+              title={pathname === '/split' ? 'Voltar pra uma tela só' : 'Tela dividida — dois sistemas lado a lado'}
               style={{
-                position: 'relative', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)',
-                color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '11px', borderRadius: '12px',
+                position: 'relative',
+                background: pathname === '/split' ? '#dc2626' : 'var(--portal-bg-secondary)',
+                border: '1px solid var(--portal-border)',
+                color: pathname === '/split' ? '#fff' : 'var(--portal-text-secondary)',
+                cursor: 'pointer', padding: '11px', borderRadius: '12px',
                 display: 'flex', alignItems: 'center', transition: 'all 0.2s'
               }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
+              onMouseEnter={(e) => { if (pathname !== '/split') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' } }}
+              onMouseLeave={(e) => { if (pathname !== '/split') { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' } }}
             >
               <Columns size={20} />
             </button>
