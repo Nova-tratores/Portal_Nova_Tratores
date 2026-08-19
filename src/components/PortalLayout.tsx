@@ -12,7 +12,7 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
   DollarSign, Package, Menu, X, User as UserIcon,
-  LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
+  LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle, Columns,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
   LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket
@@ -202,6 +202,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [chatOpen, setChatOpen] = useState(false)
   const [lembretesOpen, setLembretesOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
+  // Rodando dentro de um painel da tela dividida (/split)? Esconde o botão de dividir.
+  const [emIframe, setEmIframe] = useState(false)
+  useEffect(() => { try { setEmIframe(window.self !== window.top) } catch { setEmIframe(true) } }, [])
   // Tooltip da notificação (mostra o conteúdo completo ao passar o mouse)
   const [notifHover, setNotifHover] = useState<{ titulo: string; descricao: string; tempo: any; tipo: string; top: number; left: number } | null>(null)
   const [topMenuOpen, setTopMenuOpen] = useState(false)
@@ -648,6 +651,24 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
         {/* Right: chat + sino + user */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+
+          {/* Tela dividida: dois sistemas lado a lado (some quando o portal
+              está DENTRO de um painel da /split, pra não aninhar) */}
+          {!emIframe && (
+            <button
+              onClick={() => { window.location.href = '/split' }}
+              title="Tela dividida — dois sistemas lado a lado"
+              style={{
+                position: 'relative', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)',
+                color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '11px', borderRadius: '12px',
+                display: 'flex', alignItems: 'center', transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
+            >
+              <Columns size={20} />
+            </button>
+          )}
 
           {/* Ícone Chat */}
           <button
