@@ -148,6 +148,58 @@ export function montarCustoEstoque(): Record<string, 'S' | 'N'> {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Snapshot PERSISTENTE dos pendentes (Supabase). Substitui o cache em memoria
+// como fonte que sobrevive a redeploy. A tela abre a partir daqui (instantaneo);
+// o cron de prewarm regrava com force=1. Migration: sql/recebimento-pendentes-cache.sql.
+// ---------------------------------------------------------------------------
+async function lerSnapshotPendentes(
+  conta: Conta,
+  dataDeBR: string,
+  dataAteBR: string,
+): Promise<{ payload: any; geradoEm: string } | null> {
+  const { data, error } = await supabase
+    .from('recebimento_pendentes_cache')
+    .select('payload,gerado_em')
+    .eq('conta_omie', contaLow(conta))
+    .eq('janela_de', dataDeBR)
+    .eq('janela_ate', dataAteBR)
+    .maybeSingle();
+  if (error) { console.warn('[receb] lerSnapshotPendentes:', error.message); return null; }
+  if (!data || !data.payload) return null;
+  return { payload: data.payload, geradoEm: data.gerado_em };
+}
+
+function salvarSnapshotPendentes(conta: Conta, dataDeBR: string, dataAteBR: string, payload: any): void {
+  supabase
+    .from('recebimento_pendentes_cache')
+    .upsert(
+      {
+        conta_omie: contaLow(conta),
+        janela_de: dataDeBR,
+        janela_ate: dataAteBR,
+        payload,
+        duracao_ms: payload?.duracaoMs ?? null,
+        gerado_em: new Date().toISOString(),
+      },
+      { onConflict: 'conta_omie,janela_de,janela_ate' },
+    )
+    .then(({ error }: any) => {
+      if (error) console.warn('[receb] salvarSnapshotPendentes:', error.message);
+    });
+}
+
+/** Descarta os snapshots persistidos de uma conta (após dar entrada — a lista mudou). */
+export function invalidarSnapshotPendentes(conta: Conta): void {
+  supabase
+    .from('recebimento_pendentes_cache')
+    .delete()
+    .eq('conta_omie', contaLow(conta))
+    .then(({ error }: any) => {
+      if (error) console.warn('[receb] invalidarSnapshotPendentes:', error.message);
+    });
+}
+
 /** Recebimentos pendentes (com cache) + projeção de impacto no CMC. */
 export async function obterRecebimentosPendentes(
   conta: Conta,
@@ -158,8 +210,16 @@ export async function obterRecebimentosPendentes(
 ): Promise<any> {
   const chave = `pendentes:${conta}:${dataDeBR}:${dataAteBR}`;
   if (!force) {
+    // L1: cache em memoria (mesmo processo, mais rapido)
     const hit = cache.get<any>(chave);
     if (hit) return { ...hit.valor, fonte: 'cache', cachedEm: hit.gravadoEm };
+    // L2: snapshot persistente no Supabase (sobrevive a redeploy). Sem TTL rigido:
+    // a tela mostra o horario ("cache de HH:MM") e o usuario pode "Atualizar".
+    const snap = await lerSnapshotPendentes(conta, dataDeBR, dataAteBR);
+    if (snap) {
+      cache.set(chave, snap.payload, ttlSeg || getConfig().cacheTtlSeg);
+      return { ...snap.payload, fonte: 'cache', cachedEm: snap.geradoEm };
+    }
   }
   const payload = await analisarRecebimentosPendentes(conta, {
     dataDeBR,
@@ -167,6 +227,7 @@ export async function obterRecebimentosPendentes(
     onProgress: (m: string) => console.log(`[pendentes ${conta}] ${m}`),
   });
   cache.set(chave, payload, ttlSeg || getConfig().cacheTtlSeg);
+  salvarSnapshotPendentes(conta, dataDeBR, dataAteBR, payload); // best-effort, nao bloqueia
   return { ...payload, fonte: 'omie' };
 }
 
@@ -317,6 +378,7 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
   const r = await concluirRecebimento(conta, { idReceb, chaveNFe });
   cache.invalidatePrefix(`analise:${conta}:`);
   cache.invalidatePrefix(`pendentes:${conta}:`);
+  invalidarSnapshotPendentes(conta); // o snapshot persistido ficou desatualizado (essa NF saiu)
 
   supabase
     .from('cmc_sync_log')

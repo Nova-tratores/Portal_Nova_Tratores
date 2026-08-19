@@ -556,17 +556,24 @@ export async function analisarRecebimentosPendentes(conta: Conta, opts: any = {}
   });
   const comSinal = pendentes.filter(r => r.temSinalGarantia);
 
-  // enriquece SO os com sinal de garantia: CMC + saldo atuais (consolidado) por produto
+  // enriquece SO os com sinal de garantia: CMC + saldo atuais (consolidado) por produto.
+  // Consultas em LOTES concorrentes (produtos distintos nao disparam "Consumo
+  // redundante" da Omie): corta o tempo ~Nx vs. o sequencial com sleep(1000) antigo.
   const idsProd = [...new Set(comSinal.flatMap(r => (r.itens || []).filter((it: any) => it.idProduto > 0).map((it: any) => it.idProduto)))];
   const cmcPorProd = new Map<any, any>();
-  for (let i = 0; i < idsProd.length; i++) {
-    const id = idsProd[i];
-    onProgress(`CMC do produto ${i + 1}/${idsProd.length} (cod ${id})`);
-    try {
-      const pos = await obterPosicaoEstoqueProduto(conta, id, { codigoLocalEstoque: 0 });
-      cmcPorProd.set(id, { saldo: num(pos.saldo), cmc: num(pos.cmc) });
-    } catch (e: any) { onProgress(`  aviso: PosicaoEstoque prod ${id}: ${e.message}`); }
-    await sleep(1000);
+  const CONC = 4; // concorrencia conservadora p/ respeitar o rate-limit da Omie
+  let feitos = 0;
+  for (let i = 0; i < idsProd.length; i += CONC) {
+    const lote = idsProd.slice(i, i + CONC);
+    await Promise.all(lote.map(async (id) => {
+      try {
+        const pos = await obterPosicaoEstoqueProduto(conta, id, { codigoLocalEstoque: 0 });
+        cmcPorProd.set(id, { saldo: num(pos.saldo), cmc: num(pos.cmc) });
+      } catch (e: any) { onProgress(`  aviso: PosicaoEstoque prod ${id}: ${e.message}`); }
+    }));
+    feitos += lote.length;
+    onProgress(`CMC dos produtos ${feitos}/${idsProd.length}`);
+    if (i + CONC < idsProd.length) await sleep(400); // respiro curto entre lotes
   }
 
   let totalItensRisco = 0;
