@@ -869,6 +869,13 @@ body {
   background-color: #FFF7ED !important; /* laranja bem claro */
 }
 
+/* Dentro dos painéis da TELA DIVIDIDA (/split) o cabeçalho do portal some;
+   as barras que grudavam 84px abaixo dele grudam no topo do painel. */
+.em-iframe [style*="top: 84px"],
+.em-iframe [style*="top:84px"] {
+  top: 0 !important;
+}
+
 /* Chip de anexo ACESO (NF/Boleto/Recibo anexados): laranja FLUORESCENTE,
    com brilho de marca-texto — funciona nos dois temas. */
 .chip-anexo-on {

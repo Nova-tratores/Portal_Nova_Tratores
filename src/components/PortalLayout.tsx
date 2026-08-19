@@ -577,8 +577,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div className={tema === 'dark' ? 'portal-dark' : ''} style={{ minHeight: '100vh', background: 'var(--portal-bg)', position: 'relative' }}>
-      {/* ===== TOP BAR (maior) ===== */}
+    <div className={`${tema === 'dark' ? 'portal-dark' : ''}${emIframe ? ' em-iframe' : ''}`} style={{ minHeight: '100vh', background: 'var(--portal-bg)', position: 'relative' }}>
+      {/* ===== TOP BAR (maior) — some dentro dos painéis da tela dividida ===== */}
+      {!emIframe && (
       <header className="portal-header" style={{
         position: 'sticky', top: 0, zIndex: 50,
         padding: '0 32px', height: '84px',
@@ -1016,6 +1017,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           </div>
         </div>
       </header>
+      )}
 
       {/* ===== SIDEBAR ===== */}
       <div style={{
