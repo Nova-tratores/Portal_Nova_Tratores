@@ -78,7 +78,18 @@ export default function GarantiasBoard({ garantias, onCardClick }: Props) {
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              // Coluna cheia (ex.: 19 na fábrica) rola POR DENTRO — sem isso a
+              // página estica e a rolagem horizontal do board fica lá embaixo.
+              maxHeight: isMobile ? undefined : 'max(320px, calc(100vh - 330px))',
+              overflowY: isMobile ? undefined : 'auto',
+              paddingRight: isMobile ? 0 : 2,
+            }}
+          >
             {porColuna[col].length === 0 ? (
               <div style={{ fontSize: 11, color: 'var(--portal-text-faint)', textAlign: 'center', padding: '16px 0' }}>
                 Vazio
