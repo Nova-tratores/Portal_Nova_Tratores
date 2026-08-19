@@ -124,6 +124,63 @@ function isoDefault(offsetMeses: number): string {
 const thStyle: React.CSSProperties = { background: '#f8fafc', color: '#475569', fontSize: '.65rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '8px 10px', textAlign: 'left', borderBottom: '1px solid #e2e8f0', fontWeight: 600, whiteSpace: 'nowrap' };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f1f5f9', color: '#334155', fontSize: '.82rem' };
 
+// ---------- cabecalho ordenavel + filtro por coluna (padrao de /ajustes/alertas + caracteristicas) ----------
+type SortKey = 'nf' | 'fornecedor' | 'natureza' | 'tipo' | 'emissao' | 'total' | 'itens' | 'sinal' | 'responsavel';
+const COLS_RECEB: { key: SortKey; label: string; num?: boolean; flex: number }[] = [
+  { key: 'nf', label: 'NF', flex: 1 },
+  { key: 'fornecedor', label: 'Fornecedor', flex: 2 },
+  { key: 'natureza', label: 'Natureza', flex: 2 },
+  { key: 'tipo', label: 'Tipo', flex: 1 },
+  { key: 'emissao', label: 'Emissao', flex: 1 },
+  { key: 'total', label: 'Total', num: true, flex: 1 },
+  { key: 'itens', label: 'Itens', num: true, flex: 1 },
+  { key: 'sinal', label: 'Sinal', flex: 1 },
+  { key: 'responsavel', label: 'Responsavel', flex: 2 },
+];
+
+// data de emissao (DD/MM/AAAA ou ISO) -> epoch ms para ordenar
+function tsEmissao(s: string | null | undefined): number {
+  if (!s) return 0;
+  const str = String(s);
+  if (str.includes('/')) { const p = str.split('/'); if (p.length === 3) return new Date(+p[2], +p[1] - 1, +p[0]).getTime(); }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? 0 : d.getTime();
+}
+
+// texto de uma coluna (p/ filtro/exibicao)
+function valTexto(r: Recebimento, key: SortKey): string {
+  switch (key) {
+    case 'nf': return `${r.numeroNFe || ''}${r.serieNFe ? '/' + r.serieNFe : ''}`;
+    case 'fornecedor': return r.fornecedorNome || '';
+    case 'natureza': return r.naturezaOperacao || '';
+    case 'tipo': return r.tipo ? (TIPO_LABEL[r.tipo] || r.tipo) : '';
+    case 'emissao': return r.dataEmissao || '';
+    case 'total': return r.valorNFe != null ? String(r.valorNFe) : '';
+    case 'itens': return String((r.itens || []).length);
+    case 'sinal': return r.temSinalGarantia ? (r.sinal === 'natureza' ? 'garantia (natureza)' : 'garantia (cfop)') : '';
+    case 'responsavel': return r.responsavelNome || '';
+  }
+}
+// valor de ordenacao (numero p/ colunas num/emissao, senao string)
+function valSort(r: Recebimento, key: SortKey): number | string {
+  if (key === 'total') return r.valorNFe ?? 0;
+  if (key === 'itens') return (r.itens || []).length;
+  if (key === 'emissao') return tsEmissao(r.dataEmissao);
+  return valTexto(r, key).toLowerCase();
+}
+// filtro por coluna: termo so-digitos exige igualdade EXATA (num); senao substring.
+function casaFiltroColuna(valorCelula: string, termo: string): boolean {
+  const t = termo.trim().toLowerCase();
+  if (!t) return true;
+  const v = String(valorCelula).toLowerCase();
+  if (/^\d+$/.test(t)) return v === t || v.replace(/\D/g, '') === t;
+  return v.includes(t);
+}
+
+const thSortStyle: React.CSSProperties = { ...thStyle, cursor: 'pointer', userSelect: 'none' };
+const thFiltroStyle: React.CSSProperties = { background: '#fff', padding: '4px 8px', borderBottom: '1px solid #e2e8f0' };
+const filtroInput: React.CSSProperties = { width: '100%', border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.7rem', boxSizing: 'border-box' };
+
 export default function RecebimentosPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
@@ -139,6 +196,22 @@ export default function RecebimentosPage() {
   const [resultados, setResultados] = useState<Record<string, ResultadoCard>>({});
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
   const [soMinhas, setSoMinhas] = useState(false);
+
+  // ordenacao/filtro por coluna (nivel NF)
+  const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
+  const [filtros, setFiltros] = useState<Record<string, string>>({});
+  // mostrar/esconder a descricao dos produtos (default: compacto). Lembra no localStorage.
+  const [mostrarProdutos, setMostrarProdutos] = useState(false);
+  useEffect(() => {
+    try { if (localStorage.getItem('receb-mostrar-produtos') === '1') setMostrarProdutos(true); } catch { /* ignore */ }
+  }, []);
+  const toggleProdutos = useCallback(() => {
+    setMostrarProdutos((v) => { const n = !v; try { localStorage.setItem('receb-mostrar-produtos', n ? '1' : '0'); } catch { /* ignore */ } return n; });
+  }, []);
+  const ordenarPor = useCallback((key: SortKey) => {
+    setSort((s) => (s && s.key === key ? { key, dir: (s.dir === 1 ? -1 : 1) as 1 | -1 } : { key, dir: 1 }));
+  }, []);
+  const temFiltro = Object.values(filtros).some((v) => v && v.trim());
 
   // modal "dar entrada"
   const [modalReceb, setModalReceb] = useState<Recebimento | null>(null);
@@ -254,6 +327,13 @@ export default function RecebimentosPage() {
                 Só as minhas
               </label>
             )}
+            <button onClick={toggleProdutos} title="Mostra/esconde a descricao dos produtos em cada NF"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px', borderRadius: 6, border: '1px solid #cbd5e1', background: mostrarProdutos ? '#eef2ff' : '#fff', color: '#334155', cursor: 'pointer', fontSize: '.72rem' }}>
+              {mostrarProdutos ? '▾ Esconder produtos' : '▸ Mostrar produtos'}
+            </button>
+            {temFiltro && (
+              <button onClick={() => setFiltros({})} style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid #fecaca', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', fontSize: '.72rem' }}>limpar filtros</button>
+            )}
             <span style={{ marginLeft: 'auto', color: '#64748b' }}>{carregando ? 'Carregando…' : statusMsg}</span>
           </div>
 
@@ -266,28 +346,51 @@ export default function RecebimentosPage() {
             <Kpi label="Itens que vao baixar o CMC" valor={fmtNum(dados?.totalItensRisco)} cor="#b91c1c" />
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {!dados ? (
-              <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#94a3b8' }}>Clique em <b>Buscar</b> para listar os recebimentos pendentes.</div>
-            ) : (() => {
-              const lista = (dados.recebimentos || []).filter(
-                (r) => !soMinhas || (userProfile?.id && r.responsavelUserId === userProfile.id),
-              );
-              if (lista.length === 0) {
-                return <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#059669' }}>{soMinhas ? 'Nenhuma NF-e atribuída a você nesse período.' : 'Nenhuma NF-e pendente nesse periodo. 🎉'}</div>;
-              }
-              return lista.map((r) => (
-                <CardReceb
-                  key={recKey(r)}
-                  r={r}
-                  resultado={resultados[recKey(r)]}
-                  usuarios={usuarios}
-                  onAbrir={() => setModalReceb(r)}
-                  onResponsavelChange={(uid) => onResponsavelChange(r, uid)}
-                />
-              ));
-            })()}
-          </div>
+          {!dados ? (
+            <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#94a3b8' }}>Clique em <b>Buscar</b> para listar os recebimentos pendentes.</div>
+          ) : (
+            <>
+              <CabecalhoReceb
+                sort={sort}
+                filtros={filtros}
+                onSort={ordenarPor}
+                onFiltro={(k, v) => setFiltros((f) => ({ ...f, [k]: v }))}
+              />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {(() => {
+                  let lista = (dados.recebimentos || []).filter(
+                    (r) => !soMinhas || (userProfile?.id && r.responsavelUserId === userProfile.id),
+                  );
+                  const ativos = COLS_RECEB.filter((c) => (filtros[c.key] || '').trim());
+                  if (ativos.length) {
+                    lista = lista.filter((r) => ativos.every((c) => casaFiltroColuna(valTexto(r, c.key), filtros[c.key])));
+                  }
+                  if (sort) {
+                    const { key, dir } = sort;
+                    lista = [...lista].sort((a, b) => {
+                      const va = valSort(a, key), vb = valSort(b, key);
+                      if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+                      return String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' }) * dir;
+                    });
+                  }
+                  if (lista.length === 0) {
+                    return <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: temFiltro ? '#b45309' : '#059669' }}>{temFiltro ? 'Nenhuma NF-e bate com os filtros. Use "limpar filtros".' : (soMinhas ? 'Nenhuma NF-e atribuída a você nesse período.' : 'Nenhuma NF-e pendente nesse periodo. 🎉')}</div>;
+                  }
+                  return lista.map((r) => (
+                    <CardReceb
+                      key={recKey(r)}
+                      r={r}
+                      resultado={resultados[recKey(r)]}
+                      usuarios={usuarios}
+                      mostrarProdutos={mostrarProdutos}
+                      onAbrir={() => setModalReceb(r)}
+                      onResponsavelChange={(uid) => onResponsavelChange(r, uid)}
+                    />
+                  ));
+                })()}
+              </div>
+            </>
+          )}
         </>
       )}
 
@@ -315,8 +418,42 @@ function Kpi({ label, valor, cor }: { label: string; valor: string; cor?: string
   );
 }
 
-function CardReceb({ r, resultado, usuarios, onAbrir, onResponsavelChange }: {
-  r: Recebimento; resultado?: ResultadoCard; usuarios: Usuario[];
+// Cabecalho sticky sobre os cards: rotulos clicaveis (ordenar) + linha de filtros (AND).
+// Nao alinha pixel a pixel com os cards (a lista sao cards, nao uma <table>): funciona
+// como painel de ordenacao/filtro rotulado por campo, no estilo das tabelas de /ajustes.
+function CabecalhoReceb({ sort, filtros, onSort, onFiltro }: {
+  sort: { key: SortKey; dir: 1 | -1 } | null;
+  filtros: Record<string, string>;
+  onSort: (key: SortKey) => void;
+  onFiltro: (key: SortKey, valor: string) => void;
+}) {
+  return (
+    <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 12, overflow: 'hidden' }}>
+      <div style={{ display: 'flex' }}>
+        {COLS_RECEB.map((c) => {
+          const ativo = sort?.key === c.key;
+          return (
+            <div key={c.key} onClick={() => onSort(c.key)} style={{ ...thSortStyle, flex: c.flex, textAlign: c.num ? 'right' : 'left' }}
+              title="Clique para ordenar">
+              {c.label}{ativo ? (sort!.dir === 1 ? ' ▲' : ' ▼') : ''}
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ display: 'flex' }}>
+        {COLS_RECEB.map((c) => (
+          <div key={c.key} style={{ ...thFiltroStyle, flex: c.flex }}>
+            <input value={filtros[c.key] || ''} onChange={(e) => onFiltro(c.key, e.target.value)}
+              placeholder={c.num ? '= exato' : 'filtrar…'} style={{ ...filtroInput, textAlign: c.num ? 'right' : 'left' }} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function CardReceb({ r, resultado, usuarios, mostrarProdutos, onAbrir, onResponsavelChange }: {
+  r: Recebimento; resultado?: ResultadoCard; usuarios: Usuario[]; mostrarProdutos: boolean;
   onAbrir: () => void; onResponsavelChange: (userId: string | null) => void;
 }) {
   const temSinal = !!r.temSinalGarantia;
@@ -361,7 +498,7 @@ function CardReceb({ r, resultado, usuarios, onAbrir, onResponsavelChange }: {
         </span>
       </div>
 
-      {temSinal ? (
+      {mostrarProdutos && (temSinal ? (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -420,7 +557,7 @@ function CardReceb({ r, resultado, usuarios, onAbrir, onResponsavelChange }: {
           {(r.itens || []).slice(0, 6).map((it) => `${it.descricaoProduto || it.codigoProdutoInt || '?'} (${fmtSaldo(it.qtde)} @ ${fmtBRL(it.precoUnit)})`).join(' · ') || '(sem itens)'}
           {(r.itens || []).length > 6 ? ` · +${(r.itens || []).length - 6} itens` : ''}
         </div>
-      )}
+      ))}
     </div>
   );
 }
