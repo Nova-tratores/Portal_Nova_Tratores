@@ -13,7 +13,8 @@ import { supabase } from './supabase';
 import * as cache from './cache';
 import { getConfig } from './config';
 import { analisarRecebimentosPendentes } from './analise';
-import { alterarRecebimentoItens, concluirRecebimento, obterPosicaoEstoqueProduto } from './omie';
+import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto } from './omie';
+import type { AlterarCabecArgs } from './omie';
 
 // conta_omie nas tabelas recebimento_* e MINUSCULO ('nova'/'castro'); a Conta do
 // modulo /ajustes e MAIUSCULA. Esta ponte e obrigatoria p/ casar com recebimento_meta.
@@ -267,6 +268,10 @@ export interface DarEntradaArgs {
   naoGerarMovEstoque?: boolean;
   codCategoria?: string | null;
   codDepartamento?: string | null;
+  /** Campos financeiros de CABECALHO gravados via AlterarRecebimento (Fase 3). */
+  infoAdicionais?: AlterarCabecArgs['infoAdicionais'];
+  observacoes?: string | null;
+  parcelas?: AlterarCabecArgs['parcelasEditar'];
   criadoPor?: string;
   userId?: string | null;   // financeiro_usu.id de quem deu entrada (log interno)
   userNome?: string | null;
@@ -378,6 +383,24 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
     alterado = await alterarRecebimentoItens(conta, { idReceb, chaveNFe, itens: itensEditar });
   }
 
+  // passe 3: campos de CABECALHO (categoria/conta/data, observacoes, parcelas) numa
+  // chamada SEPARADA (validado: AlterarRecebimento aceita infoAdicionais/observacoes/
+  // parcelasEditar sem itensRecebimentoEditar). infoAdicionais e' all-or-nothing.
+  let cabecAlterado: any = null;
+  if (b.infoAdicionais || b.observacoes != null || b.parcelas) {
+    try {
+      cabecAlterado = await alterarRecebimentoCabec(conta, {
+        idReceb, chaveNFe,
+        infoAdicionais: b.infoAdicionais ?? null,
+        observacoes: b.observacoes ?? null,
+        parcelasEditar: b.parcelas ?? null,
+      });
+    } catch (e: any) {
+      // nao aborta a entrada por causa dos campos financeiros; propaga aviso no retorno
+      cabecAlterado = { ok: false, erro: e?.message || String(e) };
+    }
+  }
+
   const r = await concluirRecebimento(conta, { idReceb, chaveNFe });
   cache.invalidatePrefix(`analise:${conta}:`);
   cache.invalidatePrefix(`pendentes:${conta}:`);
@@ -424,8 +447,8 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
         cmcAtual: a.cmcAtual, cmcProjetado: a.cmcProjetado, alerta: a.alerta,
       })),
     },
-    resultado: { idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados: associados.length },
+    resultado: { idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados: associados.length, cabec: cabecAlterado },
   });
 
-  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados };
+  return { ok: true, idReceb: r.idReceb, descStatus: r.descStatus, ajustado: !!alterado, associados, cabec: cabecAlterado };
 }

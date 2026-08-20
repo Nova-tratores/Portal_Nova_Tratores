@@ -874,6 +874,91 @@ export async function consultarRecebimento(conta: Conta, idReceb: number | strin
   };
 }
 
+// Detalhe FINANCEIRO de um recebimento (para pre-preencher a UI de dar-entrada):
+// categoria/conta/data (infoAdicionais) + parcelas que a NF ja traz do XML.
+export interface RecebFinanceiro {
+  etapa: string | null; recebido: boolean; cancelada: boolean;
+  totalNFe: number;
+  categoria: string | null;      // cCategCompra
+  nIdConta: number | null;       // conta corrente (= nCodCC)
+  dRegistro: string | null;      // DD/MM/AAAA
+  parcelas: { cCodParcela: string | null; nQtdParcela: number; lista: Array<{ dVencimento: string | null; nSequencia: number; pParcela: number; vParcela: number }> } | null;
+}
+export async function consultarRecebimentoFinanceiro(conta: Conta, idReceb: number | string): Promise<RecebFinanceiro> {
+  if (idReceb == null || idReceb === '') throw new Error('informe idReceb');
+  const data: any = await omieRequest('/produtos/recebimentonfe/', 'ConsultarRecebimento', { nIdReceb: Number(idReceb) || idReceb }, conta);
+  if (data && data.faultstring) throw new Error(data.faultstring);
+  const rec = (data && (data.recebimento || data.recebimentos || data)) || {};
+  const cab = rec.cabec || rec.cabecalho || {};
+  const ic = rec.infoCadastro || rec.cadastro || {};
+  const ia = rec.infoAdicionais || {};
+  const pc = rec.parcelas || null;
+  const lista = Array.isArray(pc?.parcelasLista) ? pc.parcelasLista.map((p: any) => ({
+    dVencimento: p.dVencimento ?? null,
+    nSequencia: Number(p.nSequencia) || 0,
+    pParcela: num(p.pParcela),
+    vParcela: num(p.vParcela),
+  })) : [];
+  return {
+    etapa: cab.cEtapa != null ? String(cab.cEtapa) : null,
+    recebido: ic.cRecebido === 'S',
+    cancelada: ic.cCancelada === 'S',
+    totalNFe: num(cab.nValorNFe),
+    categoria: ia.cCategCompra ?? null,
+    nIdConta: ia.nIdConta != null ? Number(ia.nIdConta) : null,
+    dRegistro: ia.dRegistro ?? null,
+    parcelas: pc ? { cCodParcela: pc.cCodParcela ?? null, nQtdParcela: Number(pc.nQtdParcela) || lista.length, lista } : null,
+  };
+}
+
+// Grava os blocos de CABECALHO de um recebimento (categoria/conta/data, observacoes,
+// parcelas) via AlterarRecebimento. Vai numa chamada SEPARADA dos itens/CFOP: validado
+// em runtime que { ide, infoAdicionais, observacoes, parcelasEditar } (sem
+// itensRecebimentoEditar) e' aceito ("Recebimento alterado com sucesso!"). O bloco
+// infoAdicionais e' all-or-nothing: cCategCompra + nIdConta + dRegistro juntos.
+export interface AlterarCabecArgs {
+  idReceb?: number | string | null;
+  chaveNFe?: string | null;
+  infoAdicionais?: { cCategCompra: string; nIdConta: number; dRegistro: string; nIdProjeto?: number | null; nIdComprador?: number | null } | null;
+  observacoes?: string | null;
+  parcelasEditar?: { cCodParcela: string; nQtdParcela: number; lista: Array<{ dVencimento: string; nSequencia: number; pParcela: number; vParcela: number }> } | null;
+}
+export async function alterarRecebimentoCabec(conta: Conta, args: AlterarCabecArgs): Promise<{ ok: boolean; skipped?: boolean; raw?: any }> {
+  const { idReceb, chaveNFe, infoAdicionais, observacoes, parcelasEditar } = args;
+  if (idReceb == null && chaveNFe == null) throw new Error('informe idReceb ou chaveNFe');
+  const ide: Record<string, any> = {};
+  if (idReceb != null) ide.nIdReceb = Number(idReceb) || idReceb;
+  else if (chaveNFe) ide.cChaveNfe = String(chaveNFe);
+  const param: Record<string, any> = { ide };
+  if (infoAdicionais && infoAdicionais.cCategCompra && infoAdicionais.nIdConta && infoAdicionais.dRegistro) {
+    param.infoAdicionais = {
+      cCategCompra: String(infoAdicionais.cCategCompra),
+      nIdConta: Number(infoAdicionais.nIdConta),
+      dRegistro: String(infoAdicionais.dRegistro),
+    };
+    if (infoAdicionais.nIdProjeto) param.infoAdicionais.nIdProjeto = Number(infoAdicionais.nIdProjeto);
+    if (infoAdicionais.nIdComprador) param.infoAdicionais.nIdComprador = Number(infoAdicionais.nIdComprador);
+  }
+  if (observacoes != null) param.observacoes = { cObs: String(observacoes) };
+  if (parcelasEditar && Array.isArray(parcelasEditar.lista) && parcelasEditar.lista.length > 0) {
+    param.parcelasEditar = {
+      cCodParcela: String(parcelasEditar.cCodParcela || '999'),
+      nQtdParcela: Number(parcelasEditar.nQtdParcela) || parcelasEditar.lista.length,
+      parcelasListaEditar: parcelasEditar.lista.map((p) => ({
+        dVencimento: String(p.dVencimento),
+        nSequencia: Number(p.nSequencia),
+        pParcela: num(p.pParcela),
+        vParcela: num(p.vParcela),
+      })),
+    };
+  }
+  // nada de cabecalho p/ alterar -> no-op (evita chamada Omie desnecessaria)
+  if (!param.infoAdicionais && !param.observacoes && !param.parcelasEditar) return { ok: true, skipped: true };
+  const raw = await omieRequest('/produtos/recebimentonfe/', 'AlterarRecebimento', param, conta);
+  if (raw && (raw as any).faultstring) throw new Error((raw as any).faultstring);
+  return { ok: true, raw };
+}
+
 // Resolve o nIdNF (id interno da NF-e no Omie) a partir da CHAVE de acesso.
 // ConsultarNF (/produtos/nfconsultar/) por cChaveNFe. Retorna null quando a NF ainda
 // NAO esta cadastrada (recebimento pendente -> "NF nao cadastrada"): so vira consultavel
