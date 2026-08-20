@@ -1,6 +1,7 @@
 import PortalLayout from '@/components/PortalLayout'
 import BugReporterChat from '@/components/BugReporterChat'
 import ReporterAcoes from '@/components/ReporterAcoes'
+import AutoAtualiza from '@/components/AutoAtualiza'
 import Script from 'next/script'
 
 export default function PortalGroupLayout({
@@ -11,6 +12,8 @@ export default function PortalGroupLayout({
   return (
     <>
       <PortalLayout>{children}</PortalLayout>
+      {/* recarrega sozinho quando sai deploy novo (fim do Ctrl+Shift+R) */}
+      <AutoAtualiza />
       {/* Apontador de Falhas */}
       <Script
         src="/bug-reporter.js"
