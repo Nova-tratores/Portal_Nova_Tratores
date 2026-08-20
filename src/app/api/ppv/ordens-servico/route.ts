@@ -3,7 +3,10 @@ import { supabaseFetch } from "@/lib/ppv/supabase";
 import { TBL_OS } from "@/lib/ppv/constants";
 import type { OSBusca } from "@/lib/ppv/types";
 
-// Status considerados "abertos" (não finalizados)
+// Status considerados "abertos" (não finalizados) — tudo que não é
+// Concluída/Cancelada. As fases de fim de fluxo (Relatório Atualizado,
+// Enviar/Enviado Omie, Preenchido Garantia) TAMBÉM entram: é justamente
+// nelas que o faturamento precisa vincular o PPV na OS.
 const STATUS_ABERTOS = [
   "Orçamento",
   "Orçamento enviado para o cliente e aguardando",
@@ -13,8 +16,12 @@ const STATUS_ABERTOS = [
   "Execução aguardando peças (em transporte)",
   "Aguardando outros",
   "Executada",
+  "Relatório Atualizado",
   "Relatório Concluído",
   "Executada aguardando comercial",
+  "Enviar Omie",
+  "Enviado Para Omie",
+  "Preenchido Garantia",
 ];
 
 export async function GET(req: NextRequest) {

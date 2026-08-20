@@ -11,7 +11,7 @@ interface Props {
   open: boolean;
   mode: "main" | "modal" | "edit";
   onClose: () => void;
-  onSelect: (codigo: string, descricao: string, preco: number, empresa?: string) => void;
+  onSelect: (codigo: string, descricao: string, preco: number, empresa?: string, qtd?: number) => void;
   onEditManual?: (id: number, codigo: string, descricao: string, preco: number) => void;
   /** Abre já na aba de catálogo (botão "Catálogo" do drawer). */
   abrirNoCatalogo?: boolean;
@@ -33,6 +33,13 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
   const [detalheProd, setDetalheProd] = useState<{ codigo: string; descricao?: string } | null>(null);
   const [maisUsados, setMaisUsados] = useState<{ codigo: string; descricao: string; preco: number; usos: number }[]>([]);
   const [addedFlash, setAddedFlash] = useState<string | null>(null); // feedback "adicionado" na linha
+  // Fluxo do "Novo Item": clicar no produto pergunta a QUANTIDADE (dialog no
+  // centro) e a confirmação de adicionado também sai no MEIO da tela.
+  const [qtdDialog, setQtdDialog] = useState<ProdutoBusca | null>(null);
+  const [qtdValor, setQtdValor] = useState("1");
+  const [confirmacao, setConfirmacao] = useState<string | null>(null);
+  const qtdInputRef = useRef<HTMLInputElement>(null);
+  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const precoInputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -117,15 +124,30 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
       onClose();
       return;
     }
-    onSelect(p.codigo, p.descricao, p.preco, p.empresa);
     if (mode === "modal") {
-      // No pedido aberto a escolha JÁ ADICIONA o item — o modal fica aberto
-      // pra continuar adicionando (clicar de novo soma +1 do mesmo produto).
-      setAddedFlash(p.codigo);
-      setTimeout(() => setAddedFlash(null), 1400);
+      // No pedido aberto: pergunta a quantidade antes de adicionar.
+      setQtdDialog(p);
+      setQtdValor("1");
+      setTimeout(() => { qtdInputRef.current?.focus(); qtdInputRef.current?.select(); }, 100);
       return;
     }
+    onSelect(p.codigo, p.descricao, p.preco, p.empresa);
     onClose();
+  }
+
+  function confirmarQtd() {
+    if (!qtdDialog) return;
+    const qtd = parseInt(qtdValor, 10);
+    if (isNaN(qtd) || qtd < 1) { showToast("error", "Quantidade inválida."); return; }
+    const p = qtdDialog;
+    onSelect(p.codigo, p.descricao, p.preco, p.empresa, qtd);
+    setQtdDialog(null);
+    setAddedFlash(p.codigo);
+    setTimeout(() => setAddedFlash(null), 1400);
+    // Confirmação no MEIO da tela (não no canto)
+    if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+    setConfirmacao(`${qtd}× ${p.codigo} — ${p.descricao}`);
+    confirmTimerRef.current = setTimeout(() => setConfirmacao(null), 1800);
   }
 
   function highlightMatch(text: string) {
@@ -378,6 +400,50 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
 
       {/* Informações do produto — mesmo popup do PPV aberto */}
       <ModalProdutoEstoque open={!!detalheProd} codigo={detalheProd?.codigo || null} descricao={detalheProd?.descricao} onClose={() => setDetalheProd(null)} />
+
+      {/* ── Dialog de QUANTIDADE (centro da tela) ── */}
+      {qtdDialog && (
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 1200, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.45)" }}
+          onClick={(e) => { if (e.target === e.currentTarget) setQtdDialog(null); }}
+        >
+          <div style={{ background: "var(--portal-bg-card, #fff)", borderRadius: 14, padding: "22px 26px", width: 420, maxWidth: "92vw", boxShadow: "0 12px 40px rgba(0,0,0,0.35)", border: "1px solid var(--portal-border, #e5e7eb)" }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#EA580C", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Adicionar ao pedido</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "var(--portal-text, #111)", marginBottom: 2 }}>{qtdDialog.codigo}</div>
+            <div style={{ fontSize: 13, color: "var(--portal-text-secondary, #6b7280)", marginBottom: 14 }}>{qtdDialog.descricao}</div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--portal-text-secondary, #6b7280)", marginBottom: 6 }}>Quantidade</label>
+            <input
+              ref={qtdInputRef}
+              type="number"
+              min={1}
+              inputMode="numeric"
+              value={qtdValor}
+              onChange={(e) => setQtdValor(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmarQtd(); if (e.key === "Escape") setQtdDialog(null); }}
+              style={{ width: "100%", fontSize: 22, fontWeight: 800, textAlign: "center", padding: "10px 12px", borderRadius: 10, border: "2px solid #EA580C", marginBottom: 14, background: "var(--portal-bg-secondary, #f9fafb)", color: "var(--portal-text, #111)", boxSizing: "border-box" }}
+            />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setQtdDialog(null)} style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "1px solid var(--portal-border, #e5e7eb)", background: "transparent", color: "var(--portal-text-secondary, #6b7280)", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
+                Cancelar
+              </button>
+              <button onClick={confirmarQtd} style={{ flex: 2, padding: "11px 0", borderRadius: 10, border: "none", background: "#EA580C", color: "#fff", fontSize: 14, fontWeight: 800, cursor: "pointer" }}>
+                Adicionar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Confirmação de ADICIONADO (centro da tela, some sozinha) ── */}
+      {confirmacao && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 1300, display: "flex", alignItems: "center", justifyContent: "center", pointerEvents: "none" }}>
+          <div style={{ background: "#14532d", color: "#fefefe", borderRadius: 14, padding: "20px 30px", maxWidth: "88vw", boxShadow: "0 12px 40px rgba(0,0,0,0.45)", textAlign: "center", border: "2px solid #22c55e" }}>
+            <div style={{ fontSize: 30, marginBottom: 6 }}>✓</div>
+            <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 2 }}>Produto adicionado ao pedido</div>
+            <div style={{ fontSize: 13.5, opacity: 0.9 }}>{confirmacao}</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

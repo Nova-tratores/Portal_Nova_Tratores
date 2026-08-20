@@ -85,13 +85,17 @@ interface Props {
   onDirty?: () => void;
   /** Incrementa quando o modal "Novo Item" pede pra abrir o Importar Kit. */
   kitSinal?: number;
+  /** Quantidade escolhida no dialog do "Novo Item" (padrão 1). */
+  modalProdQtd?: number;
+  /** Incrementa quando o "Novo Item" FECHA → aplica as adições de uma vez (sem piscar durante). */
+  buscaFechadaSinal?: number;
 }
 
 export default function PPVDrawer({
   open, ppvId, onClose, onBuscaProduto, onAbrirCatalogo, onBuscaOS, onBuscaCliente,
   modalOSId, modalOSDisplay, modalProdDisplay, modalProdCodigo,
   onModalProdDisplayChange, onSetModalOS,
-  modalClienteNome, onClienteConsumido, onDirty, kitSinal,
+  modalClienteNome, onClienteConsumido, onDirty, kitSinal, modalProdQtd, buscaFechadaSinal,
 }: Props) {
   const { tecnicos, productCache, showToast } = usePPV();
   const { userProfile } = useAuth();
@@ -197,8 +201,9 @@ export default function PPVDrawer({
   useEffect(() => {
     if (!temSubstituto) return;
     if (substitutoTipo === "POS" && listaOSAbertas.length === 0) {
+      // /api/pos/ordens devolve KanbanCard[] (campos minúsculos: id/cliente/status)
       fetch("/api/pos/ordens").then(r => r.json()).then((data) => {
-        if (Array.isArray(data)) setListaOSAbertas(data.filter((o: any) => o.Status !== "Cancelada" && o.Status !== "Concluída").map((o: any) => ({ id: String(o.Id_Ordem), cliente: o.Os_Cliente || "", status: o.Status || "" })));
+        if (Array.isArray(data)) setListaOSAbertas(data.filter((o: any) => o.status !== "Cancelada" && o.status !== "Concluída").map((o: any) => ({ id: String(o.id), cliente: o.cliente || "", status: o.status || "" })));
       }).catch(() => {});
     }
     if (substitutoTipo === "PPV" && listaPPVAbertos.length === 0) {
@@ -389,15 +394,28 @@ export default function PPVDrawer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kitSinal]);
 
-  // Produto escolhido no modal "Novo Item" → adiciona DIRETO no pedido
-  // (qtd 1; escolher o mesmo produto de novo soma mais um). O modal fica aberto.
+  // Produto escolhido no modal "Novo Item" → adiciona no pedido com a QTD
+  // escolhida no dialog. O modal fica aberto. A adição é SILENCIOSA: a lista
+  // do pedido (atrás do modal) NÃO re-renderiza a cada item — o resultado
+  // fica pendente e é aplicado de uma vez quando o modal fecha (sem piscar).
   const autoAddRef = useRef(false);
+  const detailsPendentesRef = useRef<typeof details | null>(null);
   useEffect(() => {
     if (!open || !ppvId || !modalProdCodigo || !modalProdDisplay || autoAddRef.current) return;
     autoAddRef.current = true;
-    addExtra().finally(() => { autoAddRef.current = false; });
+    addExtra({ qtd: modalProdQtd, silencioso: true }).finally(() => { autoAddRef.current = false; });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modalProdCodigo, modalProdDisplay]);
+
+  // "Novo Item" fechou → aplica as adições acumuladas de uma vez só
+  useEffect(() => {
+    if (!buscaFechadaSinal) return;
+    if (detailsPendentesRef.current) {
+      setDetails(detailsPendentesRef.current);
+      detailsPendentesRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buscaFechadaSinal]);
 
   // Conta anexos/comentários (pra bolinha vermelha no botão Anexos)
   const recarregarAnexosCount = useCallback(() => {
@@ -555,16 +573,23 @@ export default function PPVDrawer({
     setSalvando(false);
   }
 
-  async function addExtra() {
+  async function addExtra(opts?: { qtd?: number; silencioso?: boolean }) {
     if (!podeItem) { showToast("error", "Sem permissão para alterar itens."); return; }
     const c = modalProdDisplay.split(" - ")[0].trim();
-    if (!c || qtdExtra < 1) { showToast("error", "Dados inválidos"); return; }
+    const quantidade = opts?.qtd && opts.qtd > 0 ? opts.qtd : qtdExtra;
+    if (!c || quantidade < 1) { showToast("error", "Dados inválidos"); return; }
     const cached = productCache[c] || { descricao: "ITEM MANUAL", preco: 0 };
     setAddingExtra(true);
     try {
-      const d = await api.registrarMovimentacao({ id: ppvId!, codigo: c, descricao: cached.descricao, quantidade: qtdExtra, preco: cached.preco, tecnico: details?.tecnico || "", tipoMovimento: "Saída", userName: userProfile?.nome || "" });
-      setDetails(d);
-      showToast("success", "Item adicionado");
+      const d = await api.registrarMovimentacao({ id: ppvId!, codigo: c, descricao: cached.descricao, quantidade, preco: cached.preco, tecnico: details?.tecnico || "", tipoMovimento: "Saída", userName: userProfile?.nome || "" });
+      if (opts?.silencioso) {
+        // Vindo do "Novo Item": não re-renderiza a lista atrás do modal (evita
+        // o pisca) nem mostra toast no canto — a confirmação sai no próprio modal.
+        detailsPendentesRef.current = d;
+      } else {
+        setDetails(d);
+        showToast("success", "Item adicionado");
+      }
       onModalProdDisplayChange("");
       setQtdExtra(1); // volta pra 1: senão fica a última qtd e a pessoa lança demais
       onDirty?.();

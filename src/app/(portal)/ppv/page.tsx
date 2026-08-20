@@ -114,6 +114,8 @@ function PPVApp() {
   const [buscaOSOpen, setBuscaOSOpen] = useState(false);
   const [buscaProdutoOpen, setBuscaProdutoOpen] = useState(false);
   const [buscaProdutoMode, setBuscaProdutoMode] = useState<"main" | "modal" | "edit">("main");
+  const [modalProdQtd, setModalProdQtd] = useState(1);            // qtd escolhida no "Novo Item"
+  const [buscaFechadaSinal, setBuscaFechadaSinal] = useState(0);  // fechou o "Novo Item" → drawer atualiza 1x
   const [buscaProdutoCatalogo, setBuscaProdutoCatalogo] = useState(false);
   const [produtoManualOpen, setProdutoManualOpen] = useState(false);
   const [produtoManualEdit, setProdutoManualEdit] = useState<{ id: string; codigo: string; descricao: string; preco: number } | null>(null);
@@ -241,12 +243,13 @@ function PPVApp() {
     setProdutoManualOpen(true);
   }
 
-  function handleSelectProduto(codigo: string, descricao: string, preco: number, empresa?: string) {
+  function handleSelectProduto(codigo: string, descricao: string, preco: number, empresa?: string, qtd?: number) {
     cacheProduct(codigo, descricao, preco, empresa);
     const display = `${codigo} - ${descricao}`;
     if (prodContext.current === "filtro") { setUsoProduto({ codigo, descricao }); return; }
     if (prodContext.current === "main") setProdutoDisplay(display);
     else if (prodContext.current === "modal") {
+      setModalProdQtd(qtd && qtd > 0 ? qtd : 1);
       setModalProdDisplay(display);
       setModalProdCodigo(codigo);
     }
@@ -451,11 +454,13 @@ function PPVApp() {
         modalClienteNome={modalClienteNome}
         onClienteConsumido={handleClienteConsumido}
         onDirty={markDrawerDirty}
+        modalProdQtd={modalProdQtd}
+        buscaFechadaSinal={buscaFechadaSinal}
       />
 
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={handleSelectCliente} />
       <ModalBuscaOS open={buscaOSOpen} onClose={() => setBuscaOSOpen(false)} onSelect={handleSelectOS} />
-      <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => setBuscaProdutoOpen(false)} onSelect={handleSelectProduto} onEditManual={handleEditManual} abrirNoCatalogo={buscaProdutoCatalogo} onCriarProvisorio={handleCriarProvisorio}
+      <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => { setBuscaProdutoOpen(false); if (buscaProdutoMode === "modal") setBuscaFechadaSinal((s) => s + 1); }} onSelect={handleSelectProduto} onEditManual={handleEditManual} abrirNoCatalogo={buscaProdutoCatalogo} onCriarProvisorio={handleCriarProvisorio}
         onAbrirKit={buscaProdutoMode === "modal" ? () => { setBuscaProdutoOpen(false); setKitSinal((s) => s + 1); } : undefined} />
       <ModalProdutosEstoque open={produtosEstoqueOpen} onClose={() => setProdutosEstoqueOpen(false)} onSelect={(codigo, descricao) => { setProdutosEstoqueOpen(false); setUsoProduto({ codigo, descricao }); }} />
       <ModalUsoProduto open={!!usoProduto} codigo={usoProduto?.codigo || null} descricao={usoProduto?.descricao} onClose={() => setUsoProduto(null)} onAbrirPpv={(id) => { usoProdutoVoltar.current = usoProduto; setUsoProduto(null); openCardDetails(id); }} />
