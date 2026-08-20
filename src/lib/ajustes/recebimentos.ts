@@ -15,6 +15,16 @@ import { getConfig } from './config';
 import { analisarRecebimentosPendentes } from './analise';
 import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto } from './omie';
 import type { AlterarCabecArgs } from './omie';
+import { hoje, addDias, fmtBR, parseAnyDate } from './dates';
+
+// Janela "grande" fixa: pendentes desde 01/11/2022 ate hoje (pedido do usuario).
+export const JANELA_INICIAL_BR = '01/11/2022';
+// Janela recomputada a cada atualizacao DIARIA (o resto do historico fica congelado
+// no snapshot). Cobre NFs que chegam com emissao de algumas semanas atras.
+function diasRecentes(): number {
+  const n = parseInt(process.env.RECEBIMENTO_DIAS_RECENTES || '', 10);
+  return Number.isFinite(n) && n > 0 ? n : 60;
+}
 
 // conta_omie nas tabelas recebimento_* e MINUSCULO ('nova'/'castro'); a Conta do
 // modulo /ajustes e MAIUSCULA. Esta ponte e obrigatoria p/ casar com recebimento_meta.
@@ -190,6 +200,124 @@ function salvarSnapshotPendentes(conta: Conta, dataDeBR: string, dataAteBR: stri
     });
 }
 
+/** Lê o snapshot MAIS RECENTE de uma conta (qualquer janela) — usado pela tela e pelo
+ *  merge incremental. Robusto à virada do dia (janela_ate muda mas servimos o último bom). */
+async function lerSnapshotAtual(conta: Conta): Promise<{ payload: any; geradoEm: string; janelaDe: string; janelaAte: string } | null> {
+  const { data, error } = await supabase
+    .from('recebimento_pendentes_cache')
+    .select('payload,gerado_em,janela_de,janela_ate')
+    .eq('conta_omie', contaLow(conta))
+    .order('gerado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) { console.warn('[receb] lerSnapshotAtual:', error.message); return null; }
+  if (!data || !data.payload) return null;
+  return { payload: data.payload, geradoEm: data.gerado_em, janelaDe: data.janela_de, janelaAte: data.janela_ate };
+}
+
+/** Remove linhas antigas do conta, mantendo só a de gerado_em mais recente. */
+async function limparSnapshotsAntigos(conta: Conta): Promise<void> {
+  const { data } = await supabase
+    .from('recebimento_pendentes_cache')
+    .select('id')
+    .eq('conta_omie', contaLow(conta))
+    .order('gerado_em', { ascending: false });
+  const ids = (data || []).map((r: any) => r.id).slice(1); // tira a mais recente
+  if (ids.length === 0) return;
+  const { error } = await supabase.from('recebimento_pendentes_cache').delete().in('id', ids);
+  if (error) console.warn('[receb] limparSnapshotsAntigos:', error.message);
+}
+
+function tsEmiss(r: any): number { const d = parseAnyDate(r?.dataEmissao); return d ? d.getTime() : 0; }
+
+/** Recalcula os KPIs de pendentes a partir da lista mesclada. totalRecebimentos (inclui
+ *  processados) NAO e' recomputavel incrementalmente — herda do base (KPI "periodo", aprox). */
+function recomputarTotaisPendentes(recebimentos: any[], totalRecebimentosBase: number): any {
+  const comSinal = recebimentos.filter((r) => r.temSinalGarantia);
+  let totalItensRisco = 0;
+  for (const r of recebimentos) for (const it of (r.itens || [])) if (it.alerta) totalItensRisco++;
+  return {
+    totalRecebimentos: totalRecebimentosBase,
+    totalNaoProcessados: recebimentos.length,
+    totalComSinalGarantia: comSinal.length,
+    totalItensRisco,
+  };
+}
+
+/** Snapshot COMPLETO (seed / reconciliação): recomputa 01/11/2022→hoje e grava. Pesado
+ *  (fire-and-forget pelo chamador). Reusa o caminho force de obterRecebimentosPendentes. */
+export async function recomputarSnapshotCompleto(conta: Conta): Promise<any> {
+  const ateBR = fmtBR(hoje());
+  const payload = await analisarRecebimentosPendentes(conta, {
+    dataDeBR: JANELA_INICIAL_BR, dataAteBR: ateBR,
+    onProgress: (m: string) => console.log(`[receb-seed ${conta}] ${m}`),
+  });
+  salvarSnapshotPendentes(conta, JANELA_INICIAL_BR, ateBR, payload);
+  await limparSnapshotsAntigos(conta);
+  return { modo: 'completo', total: payload.totalNaoProcessados, duracaoMs: payload.duracaoMs };
+}
+
+/** Atualização DIÁRIA incremental: recomputa só a janela recente e faz merge no snapshot
+ *  guardado (histórico antigo permanece congelado). Se não houver base, faz o seed completo. */
+export async function atualizarSnapshotIncremental(conta: Conta): Promise<any> {
+  const base = await lerSnapshotAtual(conta);
+  if (!base || !Array.isArray(base.payload?.recebimentos)) {
+    return recomputarSnapshotCompleto(conta); // seed
+  }
+  const dias = diasRecentes();
+  const ate = hoje();
+  const corte = addDias(ate, -dias);
+  const ateBR = fmtBR(ate);
+  const recente = await analisarRecebimentosPendentes(conta, {
+    dataDeBR: fmtBR(corte), dataAteBR: ateBR,
+    onProgress: (m: string) => console.log(`[receb-dia ${conta}] ${m}`),
+  });
+  const corteTs = corte.getTime();
+  // antigos (emissão < corte) do base + todos os recentes; dedupe por idReceb (recente vence)
+  const antigos = (base.payload.recebimentos as any[]).filter((r) => tsEmiss(r) < corteTs);
+  const vistos = new Set<string>();
+  const merged: any[] = [];
+  for (const r of [...(recente.recebimentos as any[]), ...antigos]) {
+    const k = String(r.idReceb ?? r.chaveNFe ?? r.numeroNFe);
+    if (vistos.has(k)) continue;
+    vistos.add(k);
+    merged.push(r);
+  }
+  // ordena: garantia/risco primeiro, depois emissão desc (mesma regra da análise)
+  merged.sort((a, b) => {
+    if (!!a.temSinalGarantia !== !!b.temSinalGarantia) return a.temSinalGarantia ? -1 : 1;
+    if (!!a.temItemRisco !== !!b.temItemRisco) return a.temItemRisco ? -1 : 1;
+    return tsEmiss(b) - tsEmiss(a);
+  });
+  const totais = recomputarTotaisPendentes(merged, Number(base.payload.totalRecebimentos) || merged.length);
+  const payload = {
+    ...base.payload,
+    ...totais,
+    dataDeBR: JANELA_INICIAL_BR, dataAteBR: ateBR,
+    geradoEm: new Date().toISOString(),
+    recebimentos: merged,
+    modo: 'incremental',
+  };
+  salvarSnapshotPendentes(conta, JANELA_INICIAL_BR, ateBR, payload);
+  await limparSnapshotsAntigos(conta);
+  return { modo: 'incremental', diasRecentes: dias, total: merged.length, recentes: recente.recebimentos.length };
+}
+
+/** Remove UMA NF do snapshot guardado (após dar entrada) sem recompute pesado. */
+export async function removerNfDoSnapshot(conta: Conta, idReceb: number | string | null, chaveNFe?: string | null): Promise<void> {
+  const base = await lerSnapshotAtual(conta);
+  if (!base || !Array.isArray(base.payload?.recebimentos)) return;
+  const alvo = idReceb != null ? String(idReceb) : (chaveNFe ? String(chaveNFe) : null);
+  if (!alvo) return;
+  const restantes = (base.payload.recebimentos as any[]).filter(
+    (r) => String(r.idReceb ?? '') !== alvo && String(r.chaveNFe ?? '') !== alvo,
+  );
+  if (restantes.length === (base.payload.recebimentos as any[]).length) return; // nada removido
+  const totais = recomputarTotaisPendentes(restantes, Number(base.payload.totalRecebimentos) || restantes.length);
+  const payload = { ...base.payload, ...totais, geradoEm: new Date().toISOString(), recebimentos: restantes };
+  salvarSnapshotPendentes(conta, base.janelaDe, base.janelaAte, payload);
+}
+
 /**
  * Descarta os snapshots persistidos de uma conta (após dar entrada — a lista mudou).
  * AWAITED de propósito: garante que o DELETE commitou antes de a chamada retornar,
@@ -224,15 +352,34 @@ export async function obterRecebimentosPendentes(
       cache.set(chave, snap.payload, ttlSeg || getConfig().cacheTtlSeg);
       return { ...snap.payload, fonte: 'cache', cachedEm: snap.geradoEm };
     }
+    // L3: qualquer snapshot recente da conta (virada do dia: janela_ate mudou mas o
+    // último snapshot bom ainda serve). Evita compute pesado num load normal.
+    const atual = await lerSnapshotAtual(conta);
+    if (atual) {
+      cache.set(chave, atual.payload, ttlSeg || getConfig().cacheTtlSeg);
+      return { ...atual.payload, fonte: 'cache', cachedEm: atual.geradoEm };
+    }
   }
+  // Sem snapshot. Num load de USUARIO (nao force) NAO computamos a janela grande inteira
+  // (34 meses = minutos): limitamos a janela recente. O snapshot COMPLETO vem do seed
+  // (cron/atualizar-dia sem base, ou botao "Atualizar" = force).
+  let deComputeBR = dataDeBR;
+  if (!force) {
+    const deReq = parseAnyDate(dataDeBR);
+    const teto = addDias(hoje(), -Math.max(diasRecentes(), 190)); // ~6 meses de teto no read
+    if (deReq && deReq.getTime() < teto.getTime()) deComputeBR = fmtBR(teto);
+  }
+  const parcial = deComputeBR !== dataDeBR;
   const payload = await analisarRecebimentosPendentes(conta, {
-    dataDeBR,
+    dataDeBR: deComputeBR,
     dataAteBR,
     onProgress: (m: string) => console.log(`[pendentes ${conta}] ${m}`),
   });
   cache.set(chave, payload, ttlSeg || getConfig().cacheTtlSeg);
-  salvarSnapshotPendentes(conta, dataDeBR, dataAteBR, payload); // best-effort, nao bloqueia
-  return { ...payload, fonte: 'omie' };
+  // so persiste quando computou a janela pedida por inteiro (nao um recorte parcial),
+  // p/ o cron continuar enxergando "sem base" e fazer o seed completo.
+  if (!parcial) salvarSnapshotPendentes(conta, dataDeBR, dataAteBR, payload);
+  return { ...payload, fonte: parcial ? 'omie-parcial' : 'omie' };
 }
 
 /** Item associado a um produto existente: impacto no CMC projetado (pre-entrada). */
@@ -404,7 +551,8 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
   const r = await concluirRecebimento(conta, { idReceb, chaveNFe });
   cache.invalidatePrefix(`analise:${conta}:`);
   cache.invalidatePrefix(`pendentes:${conta}:`);
-  await invalidarSnapshotPendentes(conta); // o snapshot persistido ficou desatualizado (essa NF saiu)
+  // remove SO esta NF do snapshot guardado (mantem o historico congelado, sem recompute pesado)
+  await removerNfDoSnapshot(conta, idReceb, chaveNFe);
 
   supabase
     .from('cmc_sync_log')
