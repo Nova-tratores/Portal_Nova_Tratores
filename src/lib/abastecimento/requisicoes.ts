@@ -41,6 +41,7 @@ export interface ReqAbastRow {
   veiculo: string | number | null; // SupaPlacas.IdPlaca (só no Veicular)
   hodometro: string | null;
   litros_combustivel: string | null;
+  combustivel?: string | null; // opcional: coluna nova (20/08/2026), reqs antigas não têm
   valor_despeza: string | null;
   fornecedor: string | null;
   solicitante: string | null;
@@ -64,7 +65,7 @@ export interface ReqAbastecimento {
   motorista_nome: string | null; // solicitante
   posto_nome: string | null; // fornecedor
   posto_cidade: string | null;
-  combustivel: string | null; // a requisição não informa o combustível
+  combustivel: string | null; // coluna nova (20/08/2026) — reqs antigas ficam "Não informado"
   litros: number;
   valor_unitario: number | null;
   valor_total: number | null;
@@ -148,7 +149,7 @@ export function normalizarReqAbastecimento(
     motorista_nome: str(r.solicitante),
     posto_nome: str(r.fornecedor),
     posto_cidade: null,
-    combustivel: null,
+    combustivel: str(r.combustivel),
     litros: litrosOk,
     valor_unitario: valorOk != null && litrosOk > 0 ? valorOk / litrosOk : null,
     valor_total: valorOk,
@@ -160,7 +161,7 @@ export function normalizarReqAbastecimento(
 }
 
 const COLS_REQ =
-  'id, tipo, data, status, veiculo, hodometro, litros_combustivel, valor_despeza, fornecedor, solicitante, setor, empresa, Chassis_Modelo, ordem_servico';
+  'id, tipo, data, status, veiculo, hodometro, litros_combustivel, combustivel, valor_despeza, fornecedor, solicitante, setor, empresa, Chassis_Modelo, ordem_servico';
 
 // Busca e normaliza as requisições de abastecimento do período (datas
 // inclusivas, 'YYYY-MM-DD'; vazio = sem corte).
@@ -180,17 +181,28 @@ export async function buscarReqsAbastecimento(
     porIdPlaca.set(String(v.supa_placa_id), { placa: String(v.placa), modelo: v.modelo || null });
   }
 
-  const out: ReqAbastecimento[] = [];
-  for (let off = 0; off < 20_000; off += 1000) {
+  const montarQuery = (cols: string, off: number) => {
     let q = supabase
       .from('Requisicao')
-      .select(COLS_REQ)
+      .select(cols)
       .in('tipo', [...TIPOS_REQ_ABASTECIMENTO])
       .order('data', { ascending: false })
       .range(off, off + 999);
     if (de) q = q.gte('data', de);
     if (ate) q = q.lte('data', ate);
-    const { data, error } = await q;
+    return q;
+  };
+
+  // Fallback pré-migration: sem a coluna combustivel (sql/add-requisicao-
+  // combustivel.sql), o select nomeado derrubaria a tela toda — refaz sem ela.
+  let cols = COLS_REQ;
+  const out: ReqAbastecimento[] = [];
+  for (let off = 0; off < 20_000; off += 1000) {
+    let { data, error } = await montarQuery(cols, off);
+    if (error && cols.includes(' combustivel,') && /combustivel/i.test(error.message)) {
+      cols = cols.replace(' combustivel,', '');
+      ({ data, error } = await montarQuery(cols, off));
+    }
     if (error) throw new Error(`Requisicao: ${error.message}`);
     for (const r of (data || []) as unknown as ReqAbastRow[]) {
       const norm = normalizarReqAbastecimento(r, porIdPlaca);

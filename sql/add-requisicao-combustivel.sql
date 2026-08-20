@@ -1,0 +1,12 @@
+-- =============================================================================
+-- Requisições de abastecimento — tipo de combustível (20/08/2026).
+-- O relatório de Abastecimento mostrava "Não informado" pra tudo que vinha de
+-- requisição (Veicular/Trator/Quadri Abastecimento) porque o formulário não
+-- perguntava o combustível. O FormReq agora tem o campo (obrigatório nos 3
+-- tipos de abastecimento; Trator/Quadri já vêm com Diesel sugerido) e a tela
+-- de Abastecimento lê a coluna na união das fontes.
+--
+-- Aplicar manualmente no SQL editor do Supabase ANTES do deploy (sem a
+-- coluna, criar requisição de abastecimento com combustível dá erro).
+-- =============================================================================
+ALTER TABLE "Requisicao" ADD COLUMN IF NOT EXISTS combustivel TEXT;

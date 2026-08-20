@@ -12,7 +12,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { podeFrota } from '@/lib/frota/server';
-import { montarDashboard, type LinhaDash } from '@/lib/abastecimento/agregacoes';
+import { montarDashboard, normalizarDepartamento, type LinhaDash } from '@/lib/abastecimento/agregacoes';
 import { buscarReqsAbastecimento, PLACA_QUADRI, PLACA_TRATOR } from '@/lib/abastecimento/requisicoes';
 
 export const runtime = 'nodejs';
@@ -67,14 +67,19 @@ export async function GET(req: NextRequest) {
         .range(off, off + PAGINA - 1);
       if (filial) q = q.eq('filial_nome', filial);
       if (placa) q = q.eq('placa', placa);
-      if (departamento) q = q.eq('departamento', departamento);
+      // departamento: filtro em JS depois de canonizar ("COMERCIAL" do cartão
+      // e "Comercial" da requisição são o mesmo setor — .eq no banco só
+      // acharia uma das grafias)
 
       const { data, error } = await q;
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       const lote = (data || []) as unknown as LinhaDash[];
       for (const l of lote) {
+        const dep = normalizarDepartamento(l.departamento);
+        if (departamento && dep !== departamento) continue;
         ext.push({
           ...l,
+          departamento: dep,
           litros: Number(l.litros) || 0,
           valor_total: l.valor_total == null ? null : Number(l.valor_total),
           hodometro: l.hodometro == null ? null : Number(l.hodometro),
@@ -88,7 +93,7 @@ export async function GET(req: NextRequest) {
     const reqs = (await buscarReqsAbastecimento(supabase, deExt.slice(0, 10), ate)).filter((r) => {
       if (filial && r.filial_nome !== filial) return false;
       if (placa && r.placa !== placa) return false;
-      if (departamento && r.departamento !== departamento) return false;
+      if (departamento && normalizarDepartamento(r.departamento) !== departamento) return false;
       return true;
     });
     for (const r of reqs) {
@@ -112,7 +117,7 @@ export async function GET(req: NextRequest) {
         data_transacao: r.data_transacao,
         capacidade_tanque: r.capacidade_tanque,
         ordem_servico: r.ordem_servico,
-        departamento: r.departamento,
+        departamento: normalizarDepartamento(r.departamento),
         origem: 'requisicao',
       });
     }

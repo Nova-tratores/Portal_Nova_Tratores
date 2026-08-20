@@ -52,9 +52,16 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     data: new Date().toISOString().split('T')[0],
     empresa: EMPRESAS.NOVA.nome, endereco_empr: EMPRESAS.NOVA.endereco, veiculo: '', hodometro: '',
     cliente: '', cliente_cnpj: '', ordem_servico: '', fornecedor: '', obs: '',
-    valor_cobrado_cliente: '', quem_ferramenta: '', Chassis_Modelo: '', litros_combustivel: '', status: 'pedido',
+    valor_cobrado_cliente: '', quem_ferramenta: '', Chassis_Modelo: '', litros_combustivel: '', combustivel: '', status: 'pedido',
     projeto_codigo: '', projeto_nome: ''
   });
+
+  // Trator/Quadri rodam a diesel — sugere sozinho (editável no select).
+  useEffect(() => {
+    if (['Trator Abastecimento', 'Quadri Abastecimento'].includes(formData.tipo) && !formData.combustivel) {
+      setFormData(p => ({ ...p, combustivel: 'Diesel' }));
+    }
+  }, [formData.tipo, formData.combustivel]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -433,6 +440,13 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
                 <div>
                   <label className={labelStyle}>Litros de Combustível</label>
                   <input required placeholder="Ex: 150,00" inputMode="decimal" value={formData.litros_combustivel} onChange={e => setFormData({...formData, litros_combustivel: e.target.value})} onBlur={e => setFormData({...formData, litros_combustivel: formatarLitros(e.target.value)})} className={`${inputStyle} !border-amber-300`} />
+                </div>
+                <div>
+                  <label className={labelStyle}>Tipo de Combustível</label>
+                  <select required value={formData.combustivel} onChange={e => setFormData({...formData, combustivel: e.target.value})} className={`${inputStyle} !border-amber-300`}>
+                    <option value="" className="bg-white">Selecione...</option>
+                    {['Gasolina Comum', 'Gasolina Aditivada', 'Etanol', 'Diesel', 'Diesel S10', 'Arla 32'].map(c => <option key={c} value={c} className="bg-white">{c}</option>)}
+                  </select>
                 </div>
               </div>
             </div>

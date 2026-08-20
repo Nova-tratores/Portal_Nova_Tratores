@@ -217,6 +217,19 @@ export const porMotorista = (linhas: LinhaDash[]) =>
 export const porPosto = (linhas: LinhaDash[]) =>
   ranking(linhas, (l) => l.posto_nome || 'Posto não informado', (l) => l.posto_cidade);
 
+// "Comercial" (requisições, setor em Título) e "COMERCIAL" (cartão Veloe,
+// centro de custo em CAIXA ALTA) são o MESMO setor — canoniza pra Título
+// ANTES de agregar/filtrar, senão o ranking duplica a linha.
+export function normalizarDepartamento(d: string | null | undefined): string | null {
+  const t = String(d ?? '').trim().replace(/\s+/g, ' ');
+  if (!t) return null;
+  return t
+    .toLowerCase()
+    .split(' ')
+    .map((p) => (['de', 'da', 'do', 'dos', 'das', 'e'].includes(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
+    .join(' ');
+}
+
 export const porDepartamento = (linhas: LinhaDash[]) =>
   ranking(linhas, (l) => l.departamento || 'Sem departamento', () => null);
 
