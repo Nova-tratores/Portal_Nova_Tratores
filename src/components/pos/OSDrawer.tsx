@@ -97,6 +97,36 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [ordemOmie, setOrdemOmie] = useState("");
   const [pedidoVenda, setPedidoVenda] = useState("");
   const [omieLog, setOmieLog] = useState("");
+  // PDF da OS no Omie (osdocs · ObterOS) — aparece depois do "Enviar Omie"
+  const [baixandoPdfOmie, setBaixandoPdfOmie] = useState(false);
+  const abrirPdfOmie = useCallback(async () => {
+    if (!osId || baixandoPdfOmie) return;
+    setBaixandoPdfOmie(true);
+    const win = window.open("", "_blank"); // abre no clique (evita bloqueio de pop-up)
+    try {
+      const r = await fetch(`/api/pos/ordens/${osId}/pdf-omie`, { headers: await authHeaders() });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.url) { win?.close(); alert(d.error || "Não consegui obter o PDF da ordem no Omie."); return; }
+      if (win) win.location.href = d.url; else window.open(d.url, "_blank");
+    } catch {
+      win?.close(); alert("Erro de conexão ao buscar o PDF no Omie.");
+    } finally { setBaixandoPdfOmie(false); }
+  }, [osId, baixandoPdfOmie]);
+  // PDF do pedido de PEÇAS vinculado (PPV) — atalho pela própria OS
+  const [baixandoPdfPecas, setBaixandoPdfPecas] = useState<string | null>(null);
+  const abrirPdfPecasOmie = useCallback(async (pid: string) => {
+    if (!pid || baixandoPdfPecas) return;
+    setBaixandoPdfPecas(pid);
+    const win = window.open("", "_blank");
+    try {
+      const r = await fetch(`/api/ppv/pedidos/pdf-omie?id=${encodeURIComponent(pid)}`);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.url) { win?.close(); alert(d.error || "Não consegui obter o PDF do pedido no Omie."); return; }
+      if (win) win.location.href = d.url; else window.open(d.url, "_blank");
+    } catch {
+      win?.close(); alert("Erro de conexão ao buscar o PDF no Omie.");
+    } finally { setBaixandoPdfPecas(null); }
+  }, [baixandoPdfPecas]);
   const [motivoCancel, setMotivoCancel] = useState("");
   const [temSubstituto, setTemSubstituto] = useState(false);
   const [substitutoTipo, setSubstitutoTipo] = useState<"POS" | "PPV">("POS");
@@ -318,8 +348,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   useEffect(() => {
     if (!temSubstituto) return;
     if (substitutoTipo === "POS" && listaOSAbertas.length === 0) {
+      // /api/pos/ordens devolve KanbanCard[] (campos minúsculos: id/cliente/status)
       fetch("/api/pos/ordens").then(r => r.json()).then((data) => {
-        if (Array.isArray(data)) setListaOSAbertas(data.filter((o: any) => o.Status !== "Cancelada" && o.Status !== "Concluída" && String(o.Id_Ordem) !== osId).map((o: any) => ({ id: String(o.Id_Ordem), cliente: o.Os_Cliente || "", status: o.Status || "" })));
+        if (Array.isArray(data)) setListaOSAbertas(data.filter((o: any) => o.status !== "Cancelada" && o.status !== "Concluída" && String(o.id) !== osId).map((o: any) => ({ id: String(o.id), cliente: o.cliente || "", status: o.status || "" })));
       }).catch(() => {});
     }
     if (substitutoTipo === "PPV" && listaPPVAbertos.length === 0) {
@@ -947,6 +978,22 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             <div style={{ fontWeight: 700, fontSize: 15 }}>{ordemOmie}</div>
                           </div>
                         )}
+                        {ordemOmie && !servicoInterno && (
+                          <button
+                            onClick={abrirPdfOmie}
+                            disabled={baixandoPdfOmie}
+                            style={{
+                              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                              padding: "10px 14px", borderRadius: 8, border: "1.5px solid #0EA5E9",
+                              background: "transparent", color: "#0EA5E9", fontWeight: 700, fontSize: 13.5,
+                              cursor: baixandoPdfOmie ? "wait" : "pointer",
+                            }}
+                          >
+                            {baixandoPdfOmie
+                              ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
+                              : <><i className="fas fa-file-pdf" /> PDF da ordem (Omie)</>}
+                          </button>
+                        )}
                         {pedidoVenda && (
                           <div>
                             <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Pedido de Venda (PPV)</div>
@@ -1121,6 +1168,22 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <div>
                           <label>N Ordem Omie</label>
                           <input type="text" value={ordemOmie} onChange={(e) => setOrdemOmie(e.target.value)} style={S_MB0} />
+                          {ordemOmie && !servicoInterno && (
+                            <button
+                              onClick={abrirPdfOmie}
+                              disabled={baixandoPdfOmie}
+                              style={{
+                                marginTop: 10, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                padding: "11px 14px", borderRadius: 8, border: "1.5px solid #0EA5E9",
+                                background: "transparent", color: "#0EA5E9", fontWeight: 700, fontSize: 13.5,
+                                cursor: baixandoPdfOmie ? "wait" : "pointer",
+                              }}
+                            >
+                              {baixandoPdfOmie
+                                ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
+                                : <><i className="fas fa-file-pdf" /> PDF da ordem (Omie)</>}
+                            </button>
+                          )}
                         </div>
                       )}
                       {status === "Cancelada" && (
@@ -1159,6 +1222,22 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <div className="os-omie-badge">
                         <i className="fas fa-check-circle" /> {servicoInterno ? 'Remessa gerada' : 'Enviado para Omie'} (ID: {ordemOmie})
                       </div>
+                      {!servicoInterno && (
+                        <button
+                          onClick={abrirPdfOmie}
+                          disabled={baixandoPdfOmie}
+                          style={{
+                            marginTop: 10, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                            padding: "11px 14px", borderRadius: 8, border: "1.5px solid #0EA5E9",
+                            background: "transparent", color: "#0EA5E9", fontWeight: 700, fontSize: 13.5,
+                            cursor: baixandoPdfOmie ? "wait" : "pointer",
+                          }}
+                        >
+                          {baixandoPdfOmie
+                            ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
+                            : <><i className="fas fa-file-pdf" /> PDF da ordem (Omie)</>}
+                        </button>
+                      )}
                     </div>
                   )}
                   {mode === "edit" && !ordemOmie && servicoInterno && status === "Concluída" && (
@@ -2122,6 +2201,18 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 <button className="os-rail-btn" onClick={() => setShowLogs(!showLogs)}>
                   <i className="fas fa-clock-rotate-left" /> Histórico / Log
                 </button>
+
+                {/* ── PDFs oficiais do Omie: a OS e, se houver peças (PPV), o pedido ── */}
+                {mode === "edit" && ordemOmie && !servicoInterno && (
+                  <button className="os-rail-btn" onClick={abrirPdfOmie} disabled={baixandoPdfOmie} title="PDF oficial da Ordem de Serviço no Omie">
+                    <i className={`fas ${baixandoPdfOmie ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfOmie ? "Buscando..." : "PDF OS (Omie)"}
+                  </button>
+                )}
+                {mode === "edit" && ppv.trim() && ppv.split(",").map((s) => s.trim()).filter(Boolean).map((pid) => (
+                  <button key={pid} className="os-rail-btn" onClick={() => abrirPdfPecasOmie(pid)} disabled={baixandoPdfPecas === pid} title={`PDF oficial do pedido de peças ${pid} no Omie`}>
+                    <i className={`fas ${baixandoPdfPecas === pid ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfPecas === pid ? "Buscando..." : `PDF Peças ${pid}`}
+                  </button>
+                ))}
 
                 {!ordemOmie && !(servicoInterno && status === "Concluída") && (
                   <button

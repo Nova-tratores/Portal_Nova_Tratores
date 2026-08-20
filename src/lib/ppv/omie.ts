@@ -577,12 +577,19 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     // Atualiza PPV: salva pedido_omie + empresa + move pra fase "Enviado Omie".
     // Só vira "Concluída" depois de FATURADO (ver faturarPPVNoOmie). Não sobrescreve
     // se já estiver Concluída/Cancelada (evita "voltar" a fase por um reenvio).
+    // Foi como remessa (OS interna)? O PPV VIRA "Remessa" no portal também —
+    // é esse campo que as travas de faturamento leem ("Remessa não é faturada").
     const statusAtual = String(detalhes.status || "");
     const manter = ["Concluída", "Cancelada"].includes(statusAtual);
     await supabaseFetch(
       `${TBL_PEDIDOS}?id_pedido=eq.${idPPV}`,
       "PATCH",
-      { pedido_omie: numPedido, omie_empresa: empresaNome, ...(manter ? {} : { status: "Enviado Omie" }) }
+      {
+        pedido_omie: numPedido,
+        omie_empresa: empresaNome,
+        ...(isRemessa ? { Tipo_Pedido: "Remessa" } : {}),
+        ...(manter ? {} : { status: "Enviado Omie" }),
+      }
     );
 
     await registrarLog(idPPV, `${tipoLabel} Omie nº ${numPedido} criado (${acc.name}). Aguardando faturamento.`);

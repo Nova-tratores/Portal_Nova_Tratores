@@ -65,26 +65,70 @@ export async function POST(req: NextRequest) {
       const osTotal = osSemNF?.length || 0;
       console.log(`[sync-nfs] ${acc.name}: ${osTotal} OS sem NF`);
 
+      // Fonte OFICIAL das notas de serviço: /servicos/nfse/ · ListarNFSEs
+      // (paginado com nPagina/nRegPorPagina). Cada NFS-e já vem com o vínculo
+      // da OS (OrdemServico.nCodigoOS) — o StatusOS às vezes vinha sem a nota
+      // e a OS ficava sem NF na pasta pra sempre. Canceladas ficam de fora.
+      const mapaNfsePorOS: Record<string, { num: string; idNf: number }> = {};
+      if (osTotal > 0) {
+        try {
+          let pag = 1, totPag = 1;
+          do {
+            const r: any = await omieCall("/servicos/nfse/", "ListarNFSEs", { nPagina: pag, nRegPorPagina: 500 }, acc);
+            totPag = Number(r?.nTotPaginas || 1);
+            for (const nf of (r?.nfseEncontradas || [])) {
+              const codOS = String(nf?.OrdemServico?.nCodigoOS || "");
+              const status = String(nf?.Cabecalho?.cStatusNFSe || "");
+              if (!codOS || status === "C") continue;
+              mapaNfsePorOS[codOS] = {
+                num: String(nf?.Cabecalho?.nNumeroNFSe || ""),
+                idNf: Number(nf?.Cabecalho?.nCodNF || 0),
+              };
+            }
+            pag++;
+          } while (pag <= totPag);
+          console.log(`[sync-nfs] ${acc.name}: ListarNFSEs mapeou ${Object.keys(mapaNfsePorOS).length} NFS-e`);
+        } catch (e) { console.warn(`[sync-nfs] ListarNFSEs ${acc.name}:`, e instanceof Error ? e.message : e); }
+      }
+
       for (const os of osSemNF || []) {
         try {
-          const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: os.cod_os }, acc);
-          const nfseList: any[] = st?.ListaRpsNfse || [];
-          if (nfseList.length > 0) {
-            const nfse = nfseList.find((n: any) => n?.danfe || n?.cUrlNfse) || nfseList[nfseList.length - 1];
-            const numNFSe = nfse.nNfse || "";
-            const danfeUrl = nfse.danfe || nfse.cUrlNfse || "";
-            if (numNFSe || danfeUrl) {
-              let finalUrl = danfeUrl;
-              if (danfeUrl) {
-                const stored = await downloadAndStore(danfeUrl, `${empKey}/os_${os.num_os}/nfse_${numNFSe || os.num_os}.pdf`);
-                if (stored) finalUrl = stored;
-              }
-              const updates: Record<string, string> = {};
-              if (numNFSe) updates.num_nf = numNFSe;
-              if (finalUrl) updates.link_nf = finalUrl;
-              await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", os.num_os).eq("empresa", acc.name);
-              osComNF++;
+          let numNFSe = "", danfeUrl = "";
+
+          // 1º: a listagem oficial (número da nota) + ObterNFSe (PDF pelo nCodNF)
+          const daLista = mapaNfsePorOS[String(os.cod_os)];
+          if (daLista) {
+            numNFSe = daLista.num;
+            if (daLista.idNf) {
+              try {
+                const doc: any = await omieCall("/servicos/osdocs/", "ObterNFSe", { nIdNf: daLista.idNf }, acc);
+                danfeUrl = String(doc?.cPdfNFSe || doc?.cUrlNFSe || "");
+              } catch { /* segue só com o número */ }
             }
+          }
+
+          // 2º (fallback): o caminho antigo via StatusOS
+          if (!numNFSe && !danfeUrl) {
+            const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: os.cod_os }, acc);
+            const nfseList: any[] = st?.ListaRpsNfse || [];
+            if (nfseList.length > 0) {
+              const nfse = nfseList.find((n: any) => n?.danfe || n?.cUrlNfse) || nfseList[nfseList.length - 1];
+              numNFSe = nfse.nNfse || "";
+              danfeUrl = nfse.danfe || nfse.cUrlNfse || "";
+            }
+          }
+
+          if (numNFSe || danfeUrl) {
+            let finalUrl = danfeUrl;
+            if (danfeUrl) {
+              const stored = await downloadAndStore(danfeUrl, `${empKey}/os_${os.num_os}/nfse_${numNFSe || os.num_os}.pdf`);
+              if (stored) finalUrl = stored;
+            }
+            const updates: Record<string, string> = {};
+            if (numNFSe) updates.num_nf = numNFSe;
+            if (finalUrl) updates.link_nf = finalUrl;
+            await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", os.num_os).eq("empresa", acc.name);
+            osComNF++;
           }
           await new Promise(r => setTimeout(r, 250));
         } catch { /* ignore */ }

@@ -134,6 +134,22 @@ export default function PPVDrawer({
   const [listaOSAbertas, setListaOSAbertas] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [listaPPVAbertos, setListaPPVAbertos] = useState<Array<{ id: string; cliente: string; status: string }>>([]);
   const [pedidoOmie, setPedidoOmie] = useState("");
+  // PDF oficial do pedido no Omie (dfedocs · ObterPedVenda)
+  const [baixandoPdfOmie, setBaixandoPdfOmie] = useState(false);
+  const abrirPdfOmiePPV = useCallback(async () => {
+    if (!ppvId || baixandoPdfOmie) return;
+    setBaixandoPdfOmie(true);
+    const win = window.open("", "_blank"); // abre no clique (evita bloqueio de pop-up)
+    try {
+      const r = await fetch(`/api/ppv/pedidos/pdf-omie?id=${encodeURIComponent(ppvId)}`);
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d.url) { win?.close(); showToast("error", d.error || "Não consegui obter o PDF do pedido no Omie."); return; }
+      if (win) win.location.href = d.url; else window.open(d.url, "_blank");
+    } catch {
+      win?.close(); showToast("error", "Erro de conexão ao buscar o PDF no Omie.");
+    } finally { setBaixandoPdfOmie(false); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ppvId, baixandoPdfOmie]);
   const [faturadoEm, setFaturadoEm] = useState("");
   const [showFaturar, setShowFaturar] = useState(false);
   const [cancelarOpen, setCancelarOpen] = useState(false);   // modal que pede o motivo do cancelamento
@@ -991,6 +1007,22 @@ export default function PPVDrawer({
                         <div>
                           <label>Pedido OMIE *</label>
                           <input type="text" value={pedidoOmie} onChange={(e) => setPedidoOmie(e.target.value)} placeholder="Código do pedido Omie..." style={{ marginBottom: 0 }} />
+                          {pedidoOmie && (
+                            <button
+                              onClick={abrirPdfOmiePPV}
+                              disabled={baixandoPdfOmie}
+                              style={{
+                                marginTop: 10, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                                padding: "11px 14px", borderRadius: 8, border: "1.5px solid #EA580C",
+                                background: "transparent", color: "#EA580C", fontWeight: 700, fontSize: 13.5,
+                                cursor: baixandoPdfOmie ? "wait" : "pointer",
+                              }}
+                            >
+                              {baixandoPdfOmie
+                                ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
+                                : <><i className="fas fa-file-pdf" /> PDF do pedido (Omie)</>}
+                            </button>
+                          )}
                         </div>
                       )}
                       {status === "Cancelada" && (
@@ -1416,6 +1448,11 @@ export default function PPVDrawer({
                 </button>
               )}
               <button className="ppv-rail-btn" onClick={gerarPDF} disabled={gerando}><i className={`fas ${gerando ? "fa-spinner fa-spin" : "fa-print"}`} /> {gerando ? "Gerando..." : "Imprimir"}</button>
+              {pedidoOmie && (
+                <button className="ppv-rail-btn" onClick={abrirPdfOmiePPV} disabled={baixandoPdfOmie} title="PDF oficial do pedido de venda no Omie">
+                  <i className={`fas ${baixandoPdfOmie ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfOmie ? "Buscando..." : "PDF Omie"}
+                </button>
+              )}
               {pedidoOmie && tipoPedido !== "Remessa" && (
                 <button className="ppv-rail-btn" onClick={abrirPdfOmie} disabled={pdfOmieLoading} title="Abrir o PDF do Pedido de Venda gerado pelo Omie">
                   <i className={`fas ${pdfOmieLoading ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {pdfOmieLoading ? "Gerando..." : "PDF do Omie"}
