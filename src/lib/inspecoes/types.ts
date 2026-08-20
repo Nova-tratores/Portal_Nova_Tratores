@@ -7,6 +7,9 @@ export interface EmailInspecao {
   chassisFinal: string;
   attachments: { filename: string; contentType: string; size: number; part: string }[];
   body: string;
+  /** envio DECLARADO na mão (inspeção que saiu por fora do portal) */
+  registroManual?: boolean;
+  enviadoPor?: string | null;
 }
 
 export const INSPECAO_DESTINATARIOS_FIXOS: { nome: string; email: string }[] = [

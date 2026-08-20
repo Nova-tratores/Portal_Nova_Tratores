@@ -12,6 +12,7 @@ import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { EmailInspecao, INSPECAO_DESTINATARIOS_FIXOS } from "@/lib/inspecoes/types";
 import { Observacao, TipoObservacao, TIPOS_LABEL, TIPOS_LISTA } from "@/lib/observacoes/types";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
+import { authHeaders } from "@/lib/auth/client";
 
 interface EmailAttachment {
   filename: string;
@@ -29,6 +30,9 @@ interface EmailRevisao {
   chassisFinal: string | null;
   attachments: EmailAttachment[];
   body: string;
+  /** envio DECLARADO na mão (revisão que saiu por fora do portal) */
+  registroManual?: boolean;
+  enviadoPor?: string | null;
 }
 
 interface Destinatario {
@@ -107,6 +111,9 @@ function DashboardAgrupadoInner() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [emails, setEmails] = useState<EmailRevisao[]>([]);
   const [loadingEmails, setLoadingEmails] = useState(false);
+  // registro manual de envio (revisão enviada por fora do portal)
+  const [marcandoManual, setMarcandoManual] = useState("");
+  const [msgMarcacao, setMsgMarcacao] = useState("");
   const [emailsCarregados, setEmailsCarregados] = useState(false);
   const [emailExpandido, setEmailExpandido] = useState<string | null>(null);
   const [tabModal, setTabModal] = useState<"timeline" | "emails" | "enviar" | "inspecao" | "observacoes" | "lembretes">("timeline");
@@ -187,6 +194,70 @@ function DashboardAgrupadoInner() {
       setInspecaoEmails(data.emails || []);
     } catch {
       console.error("Falha ao buscar e-mails de inspeção.");
+    }
+  };
+
+  // Registro MANUAL de envio: revisão/inspeção que saiu por fora do portal
+  // (Gmail direto, WhatsApp) ficava "Pendente" pra sempre e segurava a
+  // pendência Mahindra. Aqui só grava o registro — não dispara e-mail.
+  const marcarEnviadaManual = async (tipo: "revisao" | "inspecao", rev?: string) => {
+    if (!selecionado || marcandoManual) return;
+    if (!podeEnviar) { setMsgMarcacao("Você não tem permissão para registrar envios."); return; }
+    const rotulo = tipo === "inspecao" ? "a inspeção de pré-entrega" : `a revisão de ${rev}`;
+    if (!confirm(`Registrar que ${rotulo} JÁ FOI ENVIADA por fora do portal?\n\nNenhum e-mail será disparado — isso só marca na timeline (e libera a pendência Mahindra das OSs deste chassi).`)) return;
+
+    setMarcandoManual(`${tipo}-${rev || ""}`);
+    setMsgMarcacao("");
+    try {
+      const res = await fetch("/api/revisoes/marcar-enviada", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({
+          tipo,
+          chassis: selecionado.Chassis,
+          horas: rev,
+          horimetro: tipo === "inspecao" ? (selecionado["Inspecao Horimetro"] as string | undefined) : undefined,
+          modelo: selecionado.Modelo,
+          cliente: selecionado.Cliente,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Falha ao registrar.");
+      await Promise.all([fetchEmails(), fetchInspecaoEmails()]);
+      setMsgMarcacao(`✓ ${tipo === "inspecao" ? "Inspeção" : `Revisão ${rev}`} marcada como enviada.`);
+      auditLog({
+        sistema: "revisoes", acao: "editar", entidade: "trator", entidade_id: selecionado.ID,
+        entidade_label: `${selecionado.Modelo} - ${selecionado.Chassis}`,
+        detalhes: { campo: "registro_manual_envio", para: tipo === "inspecao" ? "inspecao" : rev },
+      });
+    } catch (e) {
+      setMsgMarcacao(e instanceof Error ? e.message : "Falha ao registrar.");
+    } finally {
+      setMarcandoManual("");
+      setTimeout(() => setMsgMarcacao(""), 6000);
+    }
+  };
+
+  const desfazerMarcacaoManual = async (tipo: "revisao" | "inspecao", id: string | number) => {
+    if (marcandoManual) return;
+    if (!confirm("Desfazer este registro manual? A revisão volta a aparecer como pendente.")) return;
+    setMarcandoManual(`undo-${id}`);
+    setMsgMarcacao("");
+    try {
+      const res = await fetch("/api/revisoes/marcar-enviada", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ tipo, id }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Falha ao desfazer.");
+      await Promise.all([fetchEmails(), fetchInspecaoEmails()]);
+      setMsgMarcacao("Registro manual desfeito.");
+    } catch (e) {
+      setMsgMarcacao(e instanceof Error ? e.message : "Falha ao desfazer.");
+    } finally {
+      setMarcandoManual("");
+      setTimeout(() => setMsgMarcacao(""), 6000);
     }
   };
 
@@ -1118,6 +1189,15 @@ function DashboardAgrupadoInner() {
                       <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wider">Revisões</h4>
                       <span className="text-sm text-zinc-400">{revisoesFeitas} de {totalRevisoes} realizadas</span>
                     </div>
+                    {msgMarcacao && (
+                      <div className={`mb-3 text-sm px-3 py-2 rounded-lg border ${
+                        msgMarcacao.startsWith("✓")
+                          ? "bg-sky-50 border-sky-200 text-sky-700"
+                          : "bg-amber-50 border-amber-200 text-amber-700"
+                      }`}>
+                        {msgMarcacao}
+                      </div>
+                    )}
                     <div className="relative">
                       <div className="absolute left-[15px] top-2 bottom-2 w-px bg-zinc-200"></div>
                       <div
@@ -1165,7 +1245,12 @@ function DashboardAgrupadoInner() {
                                 </div>
                                 <div className="shrink-0">
                                   {inspEmail ? (
-                                    <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-500/20">Notificado</span>
+                                    inspEmail.registroManual ? (
+                                      <span title={`Registro manual${inspEmail.enviadoPor ? ` por ${inspEmail.enviadoPor}` : ""} — enviada por fora do portal`}
+                                        className="inline-flex items-center gap-1.5 text-sm text-sky-700 bg-sky-50 px-2 py-1 rounded-md border border-sky-200">Enviada (manual)</span>
+                                    ) : (
+                                      <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-500/20">Notificado</span>
+                                    )
                                   ) : inspData ? (
                                     <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">Sem email</span>
                                   ) : (
@@ -1192,7 +1277,23 @@ function DashboardAgrupadoInner() {
                                         <div>
                                           <p className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Email</p>
                                           {inspEmail ? (
-                                            <p className="text-base text-emerald-600">Enviado em {new Date(inspEmail.date).toLocaleDateString("pt-BR")}</p>
+                                            inspEmail.registroManual ? (
+                                              <>
+                                                <p className="text-base text-sky-700">Registro manual · {new Date(inspEmail.date).toLocaleDateString("pt-BR")}</p>
+                                                <p className="text-xs text-zinc-400">{inspEmail.enviadoPor ? `marcado por ${inspEmail.enviadoPor}` : "enviada por fora do portal"}</p>
+                                                {podeEnviar && (
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); desfazerMarcacaoManual("inspecao", inspEmail.uid); }}
+                                                    disabled={!!marcandoManual}
+                                                    className="mt-1 text-xs text-zinc-500 underline hover:text-red-600 disabled:opacity-50"
+                                                  >
+                                                    desfazer registro
+                                                  </button>
+                                                )}
+                                              </>
+                                            ) : (
+                                              <p className="text-base text-emerald-600">Enviado em {new Date(inspEmail.date).toLocaleDateString("pt-BR")}</p>
+                                            )
                                           ) : (
                                             <p className="text-base text-amber-600">Não enviado</p>
                                           )}
@@ -1215,10 +1316,20 @@ function DashboardAgrupadoInner() {
                                       })()}
                                     </div>
                                   ) : (
-                                    <div className="flex items-center gap-3">
-                                      <div className="flex-1">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <div className="flex-1 min-w-[180px]">
                                         <p className="text-base text-amber-600">Inspeção de pré-entrega ainda não enviada</p>
+                                        <p className="text-xs text-zinc-400 mt-1">Já enviou por fora do portal? Registre aqui — não dispara e-mail.</p>
                                       </div>
+                                      {podeEnviar && (
+                                        <button
+                                          onClick={() => marcarEnviadaManual("inspecao")}
+                                          disabled={!!marcandoManual}
+                                          className="text-sm bg-white text-sky-700 border border-sky-300 px-3 py-2 rounded-lg font-medium hover:bg-sky-50 transition-colors shrink-0 disabled:opacity-50"
+                                        >
+                                          {marcandoManual === "inspecao-" ? "Registrando…" : "Marcar como enviada"}
+                                        </button>
+                                      )}
                                       <button
                                         onClick={() => setTabModal("inspecao")}
                                         className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors shrink-0"
@@ -1289,9 +1400,16 @@ function DashboardAgrupadoInner() {
                                 {emailsCarregados && (
                                   <div className="shrink-0">
                                     {email ? (
-                                      <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-500/20">
-                                        Notificado
-                                      </span>
+                                      email.registroManual ? (
+                                        <span title={`Registro manual${email.enviadoPor ? ` por ${email.enviadoPor}` : ""} — enviada por fora do portal`}
+                                          className="inline-flex items-center gap-1.5 text-sm text-sky-700 bg-sky-50 px-2 py-1 rounded-md border border-sky-200">
+                                          Enviada (manual)
+                                        </span>
+                                      ) : (
+                                        <span className="inline-flex items-center gap-1.5 text-sm text-emerald-600 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-500/20">
+                                          Notificado
+                                        </span>
+                                      )
                                     ) : isFeita ? (
                                       <span className="inline-flex items-center gap-1.5 text-sm text-amber-600 bg-amber-50 px-2 py-1 rounded-md border border-amber-200">
                                         Sem email
@@ -1321,9 +1439,36 @@ function DashboardAgrupadoInner() {
                                         <div>
                                           <p className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Email</p>
                                           {email ? (
-                                            <p className="text-base text-emerald-600">Enviado em {new Date(email.date).toLocaleDateString("pt-BR")}</p>
+                                            email.registroManual ? (
+                                              <>
+                                                <p className="text-base text-sky-700">Registro manual · {new Date(email.date).toLocaleDateString("pt-BR")}</p>
+                                                <p className="text-xs text-zinc-400">{email.enviadoPor ? `marcado por ${email.enviadoPor}` : "enviada por fora do portal"}</p>
+                                                {podeEnviar && (
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); desfazerMarcacaoManual("revisao", email.uid); }}
+                                                    disabled={!!marcandoManual}
+                                                    className="mt-1 text-xs text-zinc-500 underline hover:text-red-600 disabled:opacity-50"
+                                                  >
+                                                    desfazer registro
+                                                  </button>
+                                                )}
+                                              </>
+                                            ) : (
+                                              <p className="text-base text-emerald-600">Enviado em {new Date(email.date).toLocaleDateString("pt-BR")}</p>
+                                            )
                                           ) : (
-                                            <p className="text-base text-amber-600">Não enviado</p>
+                                            <>
+                                              <p className="text-base text-amber-600">Não enviado</p>
+                                              {podeEnviar && (
+                                                <button
+                                                  onClick={(e) => { e.stopPropagation(); marcarEnviadaManual("revisao", rev); }}
+                                                  disabled={!!marcandoManual}
+                                                  className="mt-1 text-xs text-sky-700 underline hover:text-sky-900 disabled:opacity-50"
+                                                >
+                                                  {marcandoManual === `revisao-${rev}` ? "registrando…" : "marcar como enviada"}
+                                                </button>
+                                              )}
+                                            </>
                                           )}
                                         </div>
                                       </div>
@@ -1345,13 +1490,23 @@ function DashboardAgrupadoInner() {
                                       })()}
                                     </div>
                                   ) : isProxima ? (
-                                    <div className="flex items-center gap-3">
-                                      <div className="flex-1">
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <div className="flex-1 min-w-[180px]">
                                         <p className="text-base text-amber-600">Próxima revisão estimada</p>
                                         <p className="text-sm text-zinc-400 mt-1">
                                           Previsão: {prev.dataEstimada.toLocaleDateString("pt-BR")} · {prev.mediaHorasDia} h/dia de uso médio
                                         </p>
+                                        <p className="text-xs text-zinc-400 mt-1">Já foi feita e enviada por fora? Registre — não dispara e-mail.</p>
                                       </div>
+                                      {podeEnviar && (
+                                        <button
+                                          onClick={() => marcarEnviadaManual("revisao", rev)}
+                                          disabled={!!marcandoManual}
+                                          className="text-sm bg-white text-sky-700 border border-sky-300 px-3 py-2 rounded-lg font-medium hover:bg-sky-50 transition-colors shrink-0 disabled:opacity-50"
+                                        >
+                                          {marcandoManual === `revisao-${rev}` ? "Registrando…" : "Marcar como enviada"}
+                                        </button>
+                                      )}
                                       <button
                                         onClick={() => { setTabModal("enviar"); setRevisaoEnvio(rev); }}
                                         className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors shrink-0"
@@ -1505,13 +1660,30 @@ function DashboardAgrupadoInner() {
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-zinc-400">Situação</span>
                             {insp ? (
-                              <span className="text-sm font-medium px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">Notificado</span>
+                              insp.registroManual ? (
+                                <span title={insp.enviadoPor ? `Registro manual por ${insp.enviadoPor}` : "Registro manual"}
+                                  className="text-sm font-medium px-2.5 py-1 rounded-md bg-sky-50 text-sky-700 border border-sky-200">Enviada (manual)</span>
+                              ) : (
+                                <span className="text-sm font-medium px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-600 border border-emerald-200">Notificado</span>
+                              )
                             ) : inspecaoData ? (
                               <span className="text-sm font-medium px-2.5 py-1 rounded-md bg-amber-50 text-amber-600 border border-amber-200">Sem email</span>
                             ) : (
                               <span className="text-sm font-medium px-2.5 py-1 rounded-md bg-zinc-100 text-zinc-500 border border-zinc-200">Pendente</span>
                             )}
                           </div>
+                          {!insp && podeEnviar && (
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-xs text-zinc-400">Enviada por fora do portal?</span>
+                              <button
+                                onClick={() => marcarEnviadaManual("inspecao")}
+                                disabled={!!marcandoManual}
+                                className="text-xs text-sky-700 border border-sky-300 px-2.5 py-1 rounded-md font-medium hover:bg-sky-50 disabled:opacity-50"
+                              >
+                                {marcandoManual === "inspecao-" ? "Registrando…" : "Marcar como enviada"}
+                              </button>
+                            </div>
+                          )}
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-zinc-400">Data</span>
                             <span className="text-base text-zinc-800">{inspecaoData ? formatarData(inspecaoData) : "—"}</span>

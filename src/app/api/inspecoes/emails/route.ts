@@ -15,6 +15,8 @@ interface InspecaoEmailRow {
   chassis_final: string;
   pdf_url: string | null;
   corpo: string | null;
+  registro_manual?: boolean | null;
+  enviado_por?: string | null;
 }
 
 export async function GET() {
@@ -39,6 +41,10 @@ export async function GET() {
       horimetro: row.horimetro || "",
       modelo: row.modelo,
       chassisFinal: row.chassis_final,
+      // envio declarado na mão (não saiu e-mail pelo portal) — a coluna pode
+      // não existir ainda, então o assunto também marca
+      registroManual: row.registro_manual === true || /^\[REGISTRO MANUAL\]/i.test(String(row.assunto || "")),
+      enviadoPor: row.enviado_por || null,
       attachments: row.pdf_url
         ? [{ filename: `inspecao_${row.chassis_final}.pdf`, contentType: "application/pdf", size: 0, part: row.pdf_url }]
         : [],

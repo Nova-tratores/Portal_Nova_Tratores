@@ -28,6 +28,10 @@ export async function GET() {
       horas: row.horas,
       modelo: row.modelo,
       chassisFinal: row.chassis_final,
+      // envio declarado na mão (não saiu e-mail pelo portal) — a coluna pode
+      // não existir ainda, então o assunto também marca
+      registroManual: row.registro_manual === true || /^\[REGISTRO MANUAL\]/i.test(String(row.assunto || '')),
+      enviadoPor: row.enviado_por || null,
       attachments: row.pdf_url
         ? [{ filename: `revisao_${row.horas}h.pdf`, contentType: "application/pdf", size: 0, part: row.pdf_url }]
         : [],
