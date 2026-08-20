@@ -327,6 +327,9 @@ export default function NovoPagarReceber() {
         anexo_boleto: bol,
         anexo_requisicao: reqs,
         is_requisicao: true,
+        // Rastreio de notas: ids das requisições de origem (antes só existiam
+        // como "#id" no motivo e o vínculo se perdia)
+        requisicao_ids: notaSelecionada ? notaSelecionada.reqs.map(r => r.id) : null,
         status: 'financeiro',
         // Prestador autônomo (RPA): dispensa NF e boleto na validação do Omie
         autonomo_sem_nota: autonomoSemNota,
@@ -355,7 +358,14 @@ export default function NovoPagarReceber() {
         registro.qtd_parcelas = parcelas.length
         registro.parcelas_vencimentos = parcelas.map(p => `${p.vencimento}|${p.valor}`).join(', ')
       }
-      const { data: inserido, error } = await supabase.from('finan_pagar').insert([registro]).select().single()
+      let { data: inserido, error } = await supabase.from('finan_pagar').insert([registro]).select().single()
+      // banco ainda sem a coluna requisicao_ids (migração do rastreio não
+      // rodou)? re-tenta sem ela — cadastrar conta a pagar NÃO pode depender
+      // da migração
+      if (error && /requisicao_ids/i.test(error.message || '')) {
+        delete registro.requisicao_ids
+        ;({ data: inserido, error } = await supabase.from('finan_pagar').insert([registro]).select().single())
+      }
       if (error) throw error
       auditLog({ sistema: 'financeiro', acao: 'criar', entidade: 'finan_pagar', entidade_label: `Pagar - ${formData.entidade} - R$ ${formData.valor}`, detalhes: { fornecedor: formData.entidade, valor: formData.valor, metodo: formData.metodo, nf: formData.numero_NF } })
       notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} criou registro financeiro`, `Fornecedor: ${formData.entidade} — R$ ${formData.valor}`, '/financeiro')

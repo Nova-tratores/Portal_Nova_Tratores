@@ -8,6 +8,7 @@
 //   ITF rasterizado) e imagem (barcode ITF).
 // =====================================================================
 import { parseNFeXML } from './nfe-parser'
+import { acharChaveNFe } from './chave-nfe'
 
 // ---------------------------------------------------------------------
 // Download do anexo (URL pública do storage) → File
@@ -109,21 +110,8 @@ async function canvasDePdf(pdf, pagina = 1) {
   return canvas
 }
 
-// ---------------------------------------------------------------------
-// CHAVE NF-e (44 dígitos)
-// ---------------------------------------------------------------------
-function acharChaveNFe(textoOuDigitos) {
-  const limpo = String(textoOuDigitos || '').replace(/\D/g, '')
-  for (let i = 0; i <= limpo.length - 44; i++) {
-    const cand = limpo.slice(i, i + 44)
-    const cUF = cand.slice(0, 2)
-    const mod = cand.slice(20, 22)
-    if (/^(1[1-7]|2[1-9]|3[1-5]|4[1-3]|5[0-3])/.test(cUF) && (mod === '55' || mod === '65')) {
-      return cand
-    }
-  }
-  return ''
-}
+// (validação/decomposição da chave NF-e vive em ./chave-nfe.ts — lib pura,
+// compartilhada com o rastreio de notas no servidor)
 
 /** Lê a chave NF-e (44 díg) do anexo de NF. Lança Error se não conseguir. */
 export async function lerChaveNFeDeUrl(url) {

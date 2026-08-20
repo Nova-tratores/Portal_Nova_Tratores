@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import { formatarDataBR, formatarMoeda } from '@/lib/financeiro/utils'
 import {
-  FileText, Download, Search, FilterX, Eye, ChevronDown
+  FileText, Download, Search, FilterX, Eye, ChevronDown, ScanSearch
 } from 'lucide-react'
 
 // --- TELA DE CARREGAMENTO ---
@@ -71,6 +71,7 @@ export default function HistoricoPagar() {
 
   // ESTADOS PARA FILTROS
   const [filtroBusca, setFiltroBusca] = useState('')
+  const [termoRastreio, setTermoRastreio] = useState('')
   const [mesesAbertos, setMesesAbertos] = useState({})
 
   const router = useRouter()
@@ -154,6 +155,29 @@ export default function HistoricoPagar() {
                   <FilterX size={18} /> LIMPAR
               </button>
             )}
+
+            {/* RASTREIO DE NOTAS — ficha completa do documento (nota, boletos,
+                requisições, conta Omie, anexos) em /financeiro/rastreio */}
+            <div style={{ ...filterGroup, flex: '1 1 380px', maxWidth: '560px' }}>
+                <label style={filterLabel}>RASTREAR DOCUMENTO</label>
+                <div style={{ position: 'relative' }}>
+                    <ScanSearch size={18} style={filterIcon} />
+                    <input
+                      type="text"
+                      placeholder="Nº da NF, requisição (#123) ou boleto — Enter pra rastrear"
+                      value={termoRastreio}
+                      onChange={(e) => setTermoRastreio(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && termoRastreio.trim()) router.push(`/financeiro/rastreio?q=${encodeURIComponent(termoRastreio.trim())}`) }}
+                      style={{ ...filterInput, borderColor: '#bfdbfe', background: '#f8fbff' }}
+                    />
+                </div>
+            </div>
+            <button
+              onClick={() => { if (termoRastreio.trim()) router.push(`/financeiro/rastreio?q=${encodeURIComponent(termoRastreio.trim())}`) }}
+              disabled={!termoRastreio.trim()}
+              style={{ ...btnLimpar, background: termoRastreio.trim() ? '#2563eb' : '#c7d2fe', cursor: termoRastreio.trim() ? 'pointer' : 'default' }}>
+              <ScanSearch size={18} /> RASTREAR
+            </button>
         </div>
 
         {/* DESPESAS POR MÊS — mês atual aberto, anteriores em cascata */}

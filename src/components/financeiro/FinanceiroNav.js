@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import {
   LayoutDashboard, Columns3, BarChart3, History, Receipt, Users,
-  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle
+  PlusCircle, FileText, DollarSign, UserCog, AlertTriangle, Search
 } from 'lucide-react'
 
 const ICONS = {
@@ -17,12 +17,14 @@ const ICONS = {
   receber: DollarSign,
   rh: Users,
   vencidos: AlertTriangle,
+  rastreio: Search,
 }
 
 const LINKS_FINANCEIRO = [
   { label: 'Painel', href: '/financeiro/home-financeiro', icon: 'painel' },
   { label: 'Kanban', href: '/financeiro/kanban-financeiro', icon: 'kanban' },
   { label: 'Despesas', href: '/financeiro/historico-pagar', icon: 'pagar' },
+  { label: 'Rastreio', href: '/financeiro/rastreio', icon: 'rastreio' },
   { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
   { label: 'Relatorio', href: '/financeiro/relatorio-pagar', icon: 'dashboard' },
 ]

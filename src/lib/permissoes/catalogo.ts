@@ -141,6 +141,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   financeiro: [
     { id: 'criar_lancamento', label: 'Criar conta a pagar/receber' },
     { id: 'criar_chamado', label: 'Abrir chamado (NF/RH)' },
+    { id: 'rastreio', label: 'Rastreio de notas (busca nota/boleto/requisição)' },
   ],
   // DRE Financeiro: granular POR TELA (cada ação = uma tela analítica). O id da
   // ação é o slug da rota (/dre-financeiro/<id>). Quem tem 'financeiro' ou é
