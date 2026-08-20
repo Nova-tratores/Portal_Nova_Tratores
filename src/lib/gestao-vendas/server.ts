@@ -3,6 +3,8 @@
 
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { resolverClientesViaOmie } from './clientes-omie'
+import { contaOmie } from '@/lib/omie/contas'
+import { carregarVendedoresOmie, invalidarCacheMatching } from '@/lib/omie/matching'
 import type { Autenticado } from '@/lib/auth/server'
 import type {
   AjusteVenda,
@@ -266,9 +268,165 @@ export async function buscarVendedoresAtivos(): Promise<Vendedor[]> {
     .from('vendedores')
     .select('id, nome, email, ativo, codigo')
     .eq('ativo', true)
+    // oficiais (com código) primeiro; importados do Omie / manuais (código null) depois, por nome
     .order('codigo', { ascending: true, nullsFirst: false })
+    .order('nome', { ascending: true })
   if (error) throw new Error(`vendedores: ${error.message}`)
   return data ?? []
+}
+
+// ---------- gestão da lista de vendedores (adicionar manual / sincronizar Omie) ----------
+
+// nome normalizado p/ dedup (maiúsc/minúsc + acentos + espaços não contam)
+const normVendedorNome = (s: string): string =>
+  (s ?? '').trim().toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ')
+
+// Tira o "cargo" do nome do vendedor Omie, guardando só o nome da pessoa:
+//   "Técnico: Fernando Leonel"        → "Fernando Leonel"
+//   "Aux: Fabricio Correia"           → "Fabricio Correia"
+//   "¨..MOTORISTA: CARIVALDO¨.."       → "CARIVALDO"
+//   "Técnico Externo:" (sem nome)     → ""  (descartado por quem chama)
+// Regra: remove tudo até o primeiro ":" (o rótulo de cargo) e limpa decorações
+// nas pontas. Nomes sem ":" (ex.: "Zezo - José Antonio Camargo") ficam intactos.
+const limparNomeVendedorOmie = (raw: string): string => {
+  let s = (raw ?? '').trim()
+  const i = s.indexOf(':')
+  if (i >= 0) s = s.slice(i + 1)
+  s = s.replace(/[¨"']/g, ' ')
+  s = s.replace(/^[\s.\-–—]+|[\s.\-–—]+$/g, '')
+  return s.replace(/\s+/g, ' ').trim()
+}
+
+// slug estável p/ montar o email-placeholder (a coluna email é NOT NULL + UNIQUE)
+const slugVendedor = (s: string): string =>
+  (s ?? '').toLowerCase().normalize('NFD').replace(/\p{Diacritic}/gu, '')
+    .replace(/[^a-z0-9]+/g, '.').replace(/^\.+|\.+$/g, '').slice(0, 40) || 'vendedor'
+
+// gera um email único que não colide com os já usados (respeita a constraint UNIQUE)
+function emailPlaceholderUnico(nome: string, usados: Set<string>): string {
+  const slug = slugVendedor(nome)
+  let cand = `${slug}@sem-email.novatratores`
+  let i = 2
+  while (usados.has(cand.toLowerCase())) {
+    cand = `${slug}-${i}@sem-email.novatratores`
+    i++
+  }
+  usados.add(cand.toLowerCase())
+  return cand
+}
+
+type VendedorMin = { id: number; nome: string; email: string; ativo: boolean; codigo: number | null }
+
+async function buscarTodosVendedores(): Promise<VendedorMin[]> {
+  const { data, error } = await supabaseAdmin
+    .from('vendedores')
+    .select('id, nome, email, ativo, codigo')
+  if (error) throw new Error(`vendedores: ${error.message}`)
+  return data ?? []
+}
+
+// Adiciona um vendedor à lista. Sem email → gera placeholder único.
+// Se já existir pelo nome: reativa (se inativo) ou recusa como duplicado.
+export async function adicionarVendedor(nomeRaw: string, emailRaw?: string | null): Promise<Vendedor> {
+  const nome = (nomeRaw ?? '').trim()
+  if (!nome) throw new Error('Informe o nome do vendedor.')
+
+  const todos = await buscarTodosVendedores()
+  const existente = todos.find((v) => normVendedorNome(v.nome) === normVendedorNome(nome))
+  if (existente) {
+    if (!existente.ativo) {
+      const { data, error } = await supabaseAdmin
+        .from('vendedores')
+        .update({ ativo: true })
+        .eq('id', existente.id)
+        .select('id, nome, email, ativo, codigo')
+        .single()
+      if (error) throw new Error(error.message)
+      return data
+    }
+    throw new Error(`Já existe um vendedor "${existente.nome}" na lista.`)
+  }
+
+  const usados = new Set(todos.map((v) => (v.email ?? '').toLowerCase()))
+  const email = emailRaw && emailRaw.trim() ? emailRaw.trim() : emailPlaceholderUnico(nome, usados)
+
+  const { data, error } = await supabaseAdmin
+    .from('vendedores')
+    .insert({ nome, email, ativo: true, codigo: null })
+    .select('id, nome, email, ativo, codigo')
+    .single()
+  if (error) throw new Error(error.message)
+  return data
+}
+
+// Lista os candidatos a vendedor vindos das duas contas Omie que AINDA NÃO estão
+// na lista (dedup por nome, cargo removido). Ignora os com "/" (técnicos
+// combinados: "Fulano // Beltrano"). NÃO grava nada — é só a lista pro usuário
+// escolher quais adicionar.
+export async function listarCandidatosVendedoresOmie(): Promise<string[]> {
+  const contas = [
+    { name: 'Nova Tratores', ...contaOmie('Nova Tratores') },
+    { name: 'Castro Peças', ...contaOmie('Castro Peças') },
+  ].filter((c) => c.key && c.secret)
+
+  // nomes únicos vindos do Omie (1ª grafia vista vence), pulando os com "/"
+  const nomesOmie = new Map<string, string>()
+  for (const acc of contas) {
+    try {
+      invalidarCacheMatching(acc) // força releitura (novos vendedores no Omie desde o último clique)
+      const lista = await carregarVendedoresOmie(acc)
+      for (const v of lista) {
+        const original = (v.nome ?? '').trim()
+        // ignora técnicos combinados ("Fulano // Beltrano") — só nomes individuais
+        if (!original || original.includes('/')) continue
+        const nome = limparNomeVendedorOmie(original) // guarda o nome, sem o cargo
+        if (!nome) continue // sobrou vazio (ex.: "Técnico Externo:")
+        const k = normVendedorNome(nome)
+        if (!nomesOmie.has(k)) nomesOmie.set(k, nome)
+      }
+    } catch (e) {
+      // best-effort por conta: se uma falhar (sem credencial/rate limit), segue com a outra
+      console.warn(`[gestao-vendas] listarCandidatosVendedoresOmie ${acc.name}:`, (e as Error).message)
+    }
+  }
+
+  const todos = await buscarTodosVendedores()
+  const existentes = new Set(todos.map((v) => normVendedorNome(v.nome)))
+
+  return [...nomesOmie.values()]
+    .filter((nome) => !existentes.has(normVendedorNome(nome)))
+    .sort((a, b) => a.localeCompare(b, 'pt-BR'))
+}
+
+// Adiciona vários vendedores de uma vez (usado ao confirmar a seleção do Omie).
+// Dedup por nome; gera email-placeholder único p/ cada um. Não mexe nos que já existem.
+export async function adicionarVendedoresEmLote(nomesRaw: string[]): Promise<{
+  criados: number
+  nomes: string[]
+  vendedores: Vendedor[]
+}> {
+  const todos = await buscarTodosVendedores()
+  const existentes = new Set(todos.map((v) => normVendedorNome(v.nome)))
+  const usados = new Set(todos.map((v) => (v.email ?? '').toLowerCase()))
+
+  const vistos = new Set<string>()
+  const novos: { nome: string; email: string; ativo: boolean; codigo: null }[] = []
+  for (const raw of nomesRaw) {
+    const nome = (raw ?? '').trim()
+    if (!nome) continue
+    const k = normVendedorNome(nome)
+    if (existentes.has(k) || vistos.has(k)) continue
+    vistos.add(k)
+    novos.push({ nome, email: emailPlaceholderUnico(nome, usados), ativo: true, codigo: null })
+  }
+
+  if (novos.length) {
+    const { error } = await supabaseAdmin.from('vendedores').insert(novos)
+    if (error) throw new Error(error.message)
+  }
+
+  const vendedores = await buscarVendedoresAtivos()
+  return { criados: novos.length, nomes: novos.map((n) => n.nome), vendedores }
 }
 
 export async function buscarCustos(mes: number, ano: number, conta: string): Promise<CustoMensalVendedor[]> {

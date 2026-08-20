@@ -9,7 +9,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useGv } from '../GvProvider'
-import { salvarAjusteApi, useGvMes } from '../hooks'
+import {
+  adicionarVendedorApi,
+  adicionarVendedoresEmLoteApi,
+  listarCandidatosOmieApi,
+  salvarAjusteApi,
+  useGvMes,
+} from '../hooks'
 import {
   calcular,
   classificarCmcRatio,
@@ -143,7 +149,7 @@ function valorColuna(l: LinhaAjuste, col: ColKey): string | number {
 
 export default function GvAjustesPage() {
   const { mes, ano, conta } = useGv()
-  const { linhas, vendedores, loading, error, aplicarAjusteSalvo } = useGvMes()
+  const { linhas, vendedores, loading, error, aplicarAjusteSalvo, aplicarVendedores } = useGvMes()
 
   // ---------- filtro de família (multi-select, padrão sem peças/#N/D) ----------
   const [familias, setFamilias] = useState<string[]>([])
@@ -290,6 +296,8 @@ export default function GvAjustesPage() {
       </div>
 
       {error && <ErroCard msg={error} />}
+
+      <GerenciarVendedores vendedores={vendedores} onChange={aplicarVendedores} />
 
       {/* Filtro de família — padrão sem peças e #N/D */}
       <div className="flex flex-wrap items-center gap-2 rounded-md bg-gray-100 px-3 py-2 text-sm">
@@ -454,6 +462,203 @@ const filtroInputClass =
 
 const filtroSelectClass =
   'w-full min-w-[90px] rounded border border-gray-300 bg-white px-1 py-0.5 text-[10px] font-normal normal-case text-gray-700 focus:outline-none focus:ring-1 focus:ring-red-500'
+
+// Barra de gestão da lista de vendedores: adicionar um manual + puxar do Omie.
+function GerenciarVendedores({
+  vendedores,
+  onChange,
+}: {
+  vendedores: Vendedor[]
+  onChange: (vs: Vendedor[]) => void
+}) {
+  const [abrindo, setAbrindo] = useState(false)
+  const [nome, setNome] = useState('')
+  const [email, setEmail] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+  const [erro, setErro] = useState<string | null>(null)
+
+  async function adicionar() {
+    const n = nome.trim()
+    if (!n || busy) return
+    setBusy(true); setErro(null); setMsg(null)
+    try {
+      const { vendedores: vs, vendedor } = await adicionarVendedorApi(n, email.trim() || undefined)
+      onChange(vs)
+      setMsg(`Vendedor "${vendedor.nome}" adicionado à lista.`)
+      setNome(''); setEmail(''); setAbrindo(false)
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // ---- seleção de candidatos do Omie ----
+  const [candidatos, setCandidatos] = useState<string[] | null>(null) // null = painel fechado
+  const [selecionados, setSelecionados] = useState<Set<string>>(new Set())
+
+  async function abrirOmie() {
+    if (busy) return
+    if (candidatos) { setCandidatos(null); return } // toggle fecha
+    setBusy(true); setErro(null); setMsg(null)
+    try {
+      const { candidatos: cs } = await listarCandidatosOmieApi()
+      setCandidatos(cs)
+      setSelecionados(new Set())
+      if (cs.length === 0) setMsg('Nenhum vendedor novo no Omie — já está tudo salvo.')
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  function alternar(nome: string) {
+    setSelecionados((s) => {
+      const n = new Set(s)
+      if (n.has(nome)) n.delete(nome); else n.add(nome)
+      return n
+    })
+  }
+
+  async function adicionarSelecionados() {
+    const nomes = [...selecionados]
+    if (!nomes.length || busy) return
+    setBusy(true); setErro(null); setMsg(null)
+    try {
+      const { vendedores: vs, criados } = await adicionarVendedoresEmLoteApi(nomes)
+      onChange(vs)
+      setMsg(`${criados} vendedor(es) adicionado(s) do Omie.`)
+      setCandidatos(null)
+      setSelecionados(new Set())
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs font-medium uppercase tracking-wide text-gray-500">
+          Vendedores ({vendedores.length}):
+        </span>
+        <button
+          type="button"
+          onClick={() => { setAbrindo((v) => !v); setErro(null); setMsg(null) }}
+          disabled={busy}
+          className="rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:border-gray-400 hover:text-gray-900 disabled:opacity-50"
+        >
+          ➕ Adicionar vendedor
+        </button>
+        <button
+          type="button"
+          onClick={abrirOmie}
+          disabled={busy}
+          title="Lista os vendedores do Omie que ainda não estão salvos p/ você escolher quais adicionar (ignora nomes com “/” e remove o cargo)"
+          className="rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:border-gray-400 hover:text-gray-900 disabled:opacity-50"
+        >
+          {busy ? '⏳ Aguarde…' : candidatos ? '✕ Fechar Omie' : '🔄 Puxar do Omie'}
+        </button>
+        {msg && <span className="text-xs text-green-700">{msg}</span>}
+        {erro && <span className="text-xs text-red-600">{erro}</span>}
+      </div>
+
+      {/* seleção de candidatos do Omie */}
+      {candidatos && candidatos.length > 0 && (
+        <div className="mt-2 border-t border-gray-100 pt-2">
+          <div className="mb-1.5 flex flex-wrap items-center gap-2">
+            <span className="text-[11px] text-gray-500">
+              {candidatos.length} vendedor(es) no Omie ainda não salvo(s). Marque os que quer adicionar:
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelecionados(new Set(candidatos))}
+              className="text-[10px] text-gray-500 hover:text-gray-800"
+            >
+              marcar todos
+            </button>
+            <span className="text-gray-300">·</span>
+            <button
+              type="button"
+              onClick={() => setSelecionados(new Set())}
+              className="text-[10px] text-gray-500 hover:text-gray-800"
+            >
+              limpar
+            </button>
+          </div>
+          <div className="grid max-h-64 grid-cols-1 gap-x-4 gap-y-1 overflow-y-auto rounded border border-gray-100 bg-gray-50 p-2 sm:grid-cols-2 lg:grid-cols-3">
+            {candidatos.map((nome) => (
+              <label key={nome} className="flex cursor-pointer items-center gap-1.5 text-xs text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={selecionados.has(nome)}
+                  onChange={() => alternar(nome)}
+                  className="h-3.5 w-3.5 rounded border-gray-300 text-red-600 focus:ring-red-500"
+                />
+                <span className="truncate" title={nome}>{nome}</span>
+              </label>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={adicionarSelecionados}
+              disabled={busy || selecionados.size === 0}
+              className="h-8 rounded-md bg-red-600 px-3 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              Adicionar selecionados ({selecionados.size})
+            </button>
+          </div>
+        </div>
+      )}
+
+      {abrindo && (
+        <div className="mt-2 flex flex-wrap items-end gap-2 border-t border-gray-100 pt-2">
+          <label className="flex flex-col text-[10px] uppercase tracking-wide text-gray-500">
+            Nome
+            <input
+              value={nome}
+              onChange={(e) => setNome(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') adicionar() }}
+              placeholder="Nome do vendedor"
+              autoFocus
+              className="mt-0.5 h-8 w-56 rounded-md border border-gray-300 bg-white px-2 text-xs normal-case text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500"
+            />
+          </label>
+          <label className="flex flex-col text-[10px] uppercase tracking-wide text-gray-500">
+            E-mail (opcional)
+            <input
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') adicionar() }}
+              placeholder="opcional"
+              className="mt-0.5 h-8 w-56 rounded-md border border-gray-300 bg-white px-2 text-xs normal-case text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500"
+            />
+          </label>
+          <button
+            type="button"
+            onClick={adicionar}
+            disabled={busy || !nome.trim()}
+            className="h-8 rounded-md bg-red-600 px-3 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-50"
+          >
+            Salvar
+          </button>
+          <button
+            type="button"
+            onClick={() => { setAbrindo(false); setNome(''); setEmail(''); setErro(null) }}
+            disabled={busy}
+            className="h-8 rounded-md px-2 text-xs text-gray-500 hover:text-gray-800"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function LinhaRow({
   linha,

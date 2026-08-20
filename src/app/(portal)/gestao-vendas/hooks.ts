@@ -89,7 +89,35 @@ export function useGvMes(contaOverride?: 'NOVA' | 'CASTRO' | 'TODAS') {
     })
   }, [])
 
-  return { vendas, vendedores, linhas, loading, error, aplicarAjusteSalvo }
+  // troca a lista de vendedores localmente (após adicionar/sincronizar sem recarregar o mês)
+  const aplicarVendedores = useCallback((novos: Vendedor[]) => {
+    setData((atual) => (atual ? { ...atual, vendedores: novos } : atual))
+  }, [])
+
+  return { vendas, vendedores, linhas, loading, error, aplicarAjusteSalvo, aplicarVendedores }
+}
+
+// ---------- gestão da lista de vendedores ----------
+
+export async function adicionarVendedorApi(
+  nome: string,
+  email?: string,
+): Promise<{ vendedor: Vendedor; vendedores: Vendedor[] }> {
+  return postJson('/api/gestao-vendas/vendedores', { nome, email })
+}
+
+// lista os candidatos vindos do Omie que ainda não estão salvos (não grava nada)
+export async function listarCandidatosOmieApi(): Promise<{ candidatos: string[] }> {
+  return postJson('/api/gestao-vendas/vendedores', { listarOmie: true })
+}
+
+// adiciona em lote os nomes escolhidos na seleção do Omie
+export async function adicionarVendedoresEmLoteApi(nomes: string[]): Promise<{
+  criados: number
+  nomes: string[]
+  vendedores: Vendedor[]
+}> {
+  return postJson('/api/gestao-vendas/vendedores', { nomes })
 }
 
 export type SalvarAjusteBody = {
