@@ -16,7 +16,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { podeFrota } from '@/lib/frota/server';
-import { localBR } from '@/lib/abastecimento/agregacoes';
+import { localBR, normalizarDepartamento } from '@/lib/abastecimento/agregacoes';
 import { buscarReqsAbastecimento, type ReqAbastecimento } from '@/lib/abastecimento/requisicoes';
 import type { TransacaoRow, TransacoesResp } from '@/lib/abastecimento/tipos';
 
@@ -105,7 +105,14 @@ export async function GET(req: NextRequest) {
         ['departamento', 'departamento'],
       ] as const) {
         const v = sp.get(param);
-        if (v) x = v === '__sem__' && param === 'motorista' ? x.is(col, null) : x.eq(col, v);
+        if (v) {
+          // __sem__ = drill dos rótulos nulos ("Não informado", "Sem depar-
+          // tamento"...); departamento compara sem caixa (cartão grava
+          // "COMERCIAL", o drill manda o canônico "Comercial").
+          x = v === '__sem__' ? x.is(col, null)
+            : param === 'departamento' ? x.ilike(col, v)
+            : x.eq(col, v);
+        }
       }
       return x;
     };
@@ -170,8 +177,12 @@ export async function GET(req: NextRequest) {
       ] as const) {
         const v = sp.get(param);
         if (!v) continue;
-        if (param === 'motorista' && v === '__sem__') {
-          if (r.motorista_nome != null) return false;
+        if (v === '__sem__') {
+          if (r[col] != null) return false;
+          continue;
+        }
+        if (param === 'departamento') {
+          if (normalizarDepartamento(r.departamento) !== v) return false;
           continue;
         }
         if (r[col] !== v) return false;

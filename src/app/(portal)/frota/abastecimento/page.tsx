@@ -587,7 +587,7 @@ export default function AbastecimentoPage() {
                               <Bar
                                 key={c} dataKey={c} name={c} stackId="g" fill={corDoCombustivel(c, dados.combustiveis)} barSize={26} cursor="pointer"
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                                onClick={(d: any) => { const mes = d?.payload?.mes ?? d?.mes; if (mes) abrirDetalhe(`${c} em ${rotuloMes(mes)}`, { mes, combustivel: c }); }}
+                                onClick={(d: any) => { const mes = d?.payload?.mes ?? d?.mes; if (mes) abrirDetalhe(`${c} em ${rotuloMes(mes)}`, { mes, combustivel: c === 'Não informado' ? '__sem__' : c }); }}
                               />
                             ))}
                           </BarChart>
@@ -612,7 +612,7 @@ export default function AbastecimentoPage() {
                             <tr
                               key={d.chave}
                               style={linhaClicavel}
-                              onClick={() => d.chave !== 'Sem departamento' && abrirDetalhe(`Abastecimentos — ${d.chave}`, { departamento: d.chave })}
+                              onClick={() => abrirDetalhe(`Abastecimentos — ${d.chave}`, { departamento: d.chave === 'Sem departamento' ? '__sem__' : d.chave })}
                             >
                               <td style={{ ...tdStyle, fontWeight: 600 }}>{d.chave}</td>
                               <td style={{ ...tdStyle, textAlign: 'right' }}>{d.transacoes}</td>
@@ -641,7 +641,7 @@ export default function AbastecimentoPage() {
                         </thead>
                         <tbody>
                           {dados.porCombustivel.map((c) => (
-                            <tr key={c.combustivel} style={linhaClicavel} onClick={() => abrirDetalhe(`Abastecimentos de ${c.combustivel}`, { combustivel: c.combustivel })}>
+                            <tr key={c.combustivel} style={linhaClicavel} onClick={() => abrirDetalhe(`Abastecimentos de ${c.combustivel}`, { combustivel: c.combustivel === 'Não informado' ? '__sem__' : c.combustivel })}>
                               <td style={tdStyle}>
                                 <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 0, background: corDoCombustivel(c.combustivel, dados.combustiveis), marginRight: 8 }} />
                                 {c.combustivel}
@@ -785,7 +785,7 @@ export default function AbastecimentoPage() {
                         dados={dados.porPosto.slice(0, 12).map((p) => ({ chave: p.chave, nome: p.chave, valor: p.valor }))}
                         cor={COR_VALOR}
                         formato={(v) => fmtRS(v)}
-                        onItemClick={(chave) => abrirDetalhe(`Abastecimentos no posto ${chave}`, { posto: chave })}
+                        onItemClick={(chave) => abrirDetalhe(`Abastecimentos no posto ${chave}`, { posto: chave === 'Posto não informado' ? '__sem__' : chave })}
                       />
                     </Card>
                   </div>
