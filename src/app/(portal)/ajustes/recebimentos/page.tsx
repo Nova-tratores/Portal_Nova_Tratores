@@ -708,12 +708,45 @@ function BuscaProduto({ conta, termoInicial, valor, onSelecionar, disabled }: {
 }
 
 // ---------- modal "dar entrada" ----------
+// ---- datas: Omie usa DD/MM/AAAA; <input type=date> usa AAAA-MM-DD ----
+function brToIso(s?: string | null): string {
+  if (!s) return '';
+  const p = String(s).split('/');
+  if (p.length === 3) return `${p[2]}-${String(p[1]).padStart(2, '0')}-${String(p[0]).padStart(2, '0')}`;
+  return String(s).slice(0, 10);
+}
+function isoToBR(s?: string | null): string {
+  if (!s) return '';
+  const p = String(s).slice(0, 10).split('-');
+  if (p.length === 3) return `${p[2]}/${p[1]}/${p[0]}`;
+  return String(s);
+}
+function hojeIso(): string { return new Date().toISOString().slice(0, 10); }
+// tipos da seção financeira (Fase 3)
+interface OpcaoCat { codigo: string; descricao: string }
+interface OpcaoCC { codigo: number; descricao: string }
+interface ParcelaEdit { dVenc: string; valor: number; pct: number } // dVenc em ISO
+
 function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConcluido }: {
   r: Recebimento; conta: string; criadoPor: string; userId: string | null; userNome: string | null;
   onClose: () => void; onConcluido: (reck: string, res: ResultadoCard) => void;
 }) {
   const [naoFin, setNaoFin] = useState<boolean>(!!r.temSinalGarantia); // garantia: nao gera contas a pagar por padrao
   const [naoMov, setNaoMov] = useState<boolean>(false);
+
+  // ---- Fase 3: Financeiro / Classificacao (categoria/conta/data + obs + parcelas) ----
+  const [categorias, setCategorias] = useState<OpcaoCat[]>([]);
+  const [contasCC, setContasCC] = useState<OpcaoCC[]>([]);
+  const [categoria, setCategoria] = useState('');       // cCategCompra
+  const [contaCC, setContaCC] = useState('');           // nIdConta (string)
+  const [dataReg, setDataReg] = useState('');           // ISO
+  const [obs, setObs] = useState('');
+  const [obsTouched, setObsTouched] = useState(false);
+  const [cCodParcela, setCCodParcela] = useState('999');
+  const [parcelas, setParcelas] = useState<ParcelaEdit[]>([]);
+  const [parcelasTouched, setParcelasTouched] = useState(false);
+  const [finCarregando, setFinCarregando] = useState(false);
+  const totalNFe = Number(r.valorNFe) || 0;
   // CFOP de entrada editavel por item. Default = o CFOP que a Omie puxaria (it.cfopEntrada),
   // que e' garantidamente CADASTRADO na Omie; cai para o equivalente calculado da NF so' quando
   // a Omie nao trouxe nenhum. Evita o erro "CFOP nao cadastrada [X]" do equivalente calculado.
@@ -755,6 +788,69 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // prefill da seção Financeiro ao abrir: dropdowns (categorias/contas) + o que a NF já traz
+  // (categoria/conta/data/parcelas do XML, via ConsultarRecebimento).
+  useEffect(() => {
+    if (!conta || r.idReceb == null) return;
+    let cancel = false;
+    (async () => {
+      setFinCarregando(true);
+      try {
+        const [cats, ccs, fin] = await Promise.all([
+          fetch(`/api/ajustes/categorias?conta=${encodeURIComponent(conta)}`).then((x) => x.json()).catch(() => ({})),
+          fetch(`/api/ajustes/contas-correntes?conta=${encodeURIComponent(conta)}`).then((x) => x.json()).catch(() => ({})),
+          fetch(`/api/ajustes/recebimentos/${r.idReceb}/financeiro?conta=${encodeURIComponent(conta)}`).then((x) => x.json()).catch(() => ({})),
+        ]);
+        if (cancel) return;
+        setCategorias((cats.categorias || []) as OpcaoCat[]);
+        setContasCC((ccs.contasCorrentes || []) as OpcaoCC[]);
+        if (fin && !fin.erro) {
+          if (fin.categoria) setCategoria(String(fin.categoria));
+          if (fin.nIdConta != null) setContaCC(String(fin.nIdConta));
+          setDataReg(fin.dRegistro ? brToIso(fin.dRegistro) : (r.dataEmissao ? brToIso(r.dataEmissao) : hojeIso()));
+          if (fin.parcelas) {
+            setCCodParcela(fin.parcelas.cCodParcela || '999');
+            setParcelas((fin.parcelas.lista || []).map((p: { dVencimento?: string; vParcela?: number; pParcela?: number }) => ({
+              dVenc: brToIso(p.dVencimento), valor: Number(p.vParcela) || 0, pct: Number(p.pParcela) || 0,
+            })));
+          }
+        } else if (!fin?.dRegistro) {
+          setDataReg(r.dataEmissao ? brToIso(r.dataEmissao) : hojeIso());
+        }
+      } finally { if (!cancel) setFinCarregando(false); }
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conta, r.idReceb]);
+
+  // helpers de parcelas
+  const refazerParcelas = (n: number) => {
+    setParcelasTouched(true);
+    const qtd = Math.max(1, Math.min(36, Math.floor(n) || 1));
+    const base = totalNFe / qtd;
+    const arr: ParcelaEdit[] = [];
+    let acc = 0;
+    const d0 = parcelas[0]?.dVenc || dataReg || hojeIso();
+    for (let i = 0; i < qtd; i++) {
+      const valor = i === qtd - 1 ? Math.round((totalNFe - acc) * 100) / 100 : Math.round(base * 100) / 100;
+      acc += valor;
+      const d = new Date(d0); d.setMonth(d.getMonth() + i);
+      arr.push({ dVenc: isNaN(d.getTime()) ? d0 : d.toISOString().slice(0, 10), valor, pct: totalNFe > 0 ? Math.round((valor / totalNFe) * 1e5) / 1e3 : 0 });
+    }
+    setParcelas(arr);
+  };
+  const setParcelaCampo = (i: number, campo: 'dVenc' | 'valor', v: string) => {
+    setParcelasTouched(true);
+    setParcelas((ps) => ps.map((p, idx) => idx === i ? {
+      ...p,
+      dVenc: campo === 'dVenc' ? v : p.dVenc,
+      valor: campo === 'valor' ? (Number(v) || 0) : p.valor,
+      pct: campo === 'valor' && totalNFe > 0 ? Math.round(((Number(v) || 0) / totalNFe) * 1e5) / 1e3 : p.pct,
+    } : p));
+  };
+  const somaParcelas = parcelas.reduce((s, p) => s + (Number(p.valor) || 0), 0);
+  const parcelasDivergem = parcelas.length > 0 && Math.abs(somaParcelas - totalNFe) > 0.01;
 
   // ao entrar na fase de correcao, busca o custo REAL de cada item em risco e
   // pre-preenche o alvo (so onde o usuario ainda nao editou).
@@ -824,6 +920,20 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
         descricaoProduto: p ? `${p.codigo} — ${p.descricao}` : undefined,
       };
     });
+    // Fase 3: financeiro/classificacao (cabecalho). infoAdicionais e' all-or-nothing.
+    const dataRegBR = dataReg ? isoToBR(dataReg) : '';
+    let infoAdicionais: { cCategCompra: string; nIdConta: number; dRegistro: string } | undefined;
+    if (categoria) {
+      if (!contaCC || !dataRegBR) { alert('Para classificar a NF, informe categoria + conta corrente + data de registro (os três juntos), ou deixe a categoria em branco.'); return; }
+      infoAdicionais = { cCategCompra: categoria, nIdConta: Number(contaCC), dRegistro: dataRegBR };
+    }
+    const parcelasPayload = (parcelasTouched && parcelas.length > 0) ? {
+      cCodParcela, nQtdParcela: parcelas.length,
+      lista: parcelas.map((p, i) => ({ dVencimento: isoToBR(p.dVenc), nSequencia: i + 1, pParcela: Number(p.pct) || 0, vParcela: Number(p.valor) || 0 })),
+    } : undefined;
+    if (parcelasPayload && parcelasDivergem) { alert(`A soma das parcelas (${fmtBRL(somaParcelas)}) difere do total da NF (${fmtBRL(totalNFe)}). Ajuste antes de continuar.`); return; }
+    const observacoesPayload = obsTouched ? obs : undefined;
+
     const assocTxt = (r.itens || [])
       .map((it, i) => (it.criarNovo && acaoDe(it, i) === 'associar' && assoc[i] ? `\n  · "${it.descricaoProduto || it.codigoProdutoInt}" → ${assoc[i]!.codigo} ${assoc[i]!.descricao}` : ''))
       .join('');
@@ -842,6 +952,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
         body: JSON.stringify({
           conta, idReceb: r.idReceb, chaveNFe: r.chaveNFe,
           itens, naoGerarFinanceiro: naoFin, naoGerarMovEstoque: naoMov,
+          infoAdicionais, observacoes: observacoesPayload, parcelas: parcelasPayload,
           criadoPor, userId, userNome, tipo: r.tipo, numeroNFe: r.numeroNFe,
         }),
       });
@@ -867,7 +978,9 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
             return novo;
           });
         }
-        onConcluido(recKey(r), { tipo: 'ok', texto: `✔ entrada processada${d.ajustado ? ' (com ajustes)' : ''}${d.descStatus ? ' · ' + d.descStatus : ''}` });
+        const cabecFalhou = d.cabec && d.cabec.ok === false;
+        if (cabecFalhou) alert('A entrada foi processada, mas os campos financeiros (categoria/conta/data/parcelas) NÃO gravaram: ' + (d.cabec.erro || 'erro') + '\n\nAjuste direto na Omie se necessário.');
+        onConcluido(recKey(r), { tipo: 'ok', texto: `✔ entrada processada${d.ajustado ? ' (com ajustes)' : ''}${cabecFalhou ? ' · ⚠ financeiro não gravou' : ''}${d.descStatus ? ' · ' + d.descStatus : ''}` });
         if (riscosBase.length + extras.length > 0) {
           // mantem o modal aberto p/ corrigir o CMC que acabou de baixar
           setEnviando(false);
@@ -961,6 +1074,67 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
               <input type="checkbox" checked={naoMov} onChange={(e) => setNaoMov(e.target.checked)} />
               <b>Nao movimentar estoque</b> <span style={{ color: '#64748b' }}>(marque se essa NF nao deve mexer no estoque)</span>
             </label>
+          </div>
+
+          <div style={{ border: '1px solid #e2e8f0', borderRadius: 8, padding: 12, marginBottom: 14, background: '#f8fafc' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+              <h3 style={{ fontWeight: 600, color: '#334155', margin: 0, fontSize: '.82rem' }}>Financeiro / Classificação</h3>
+              {finCarregando && <span style={{ fontSize: '.68rem', color: '#94a3b8' }}>carregando…</span>}
+              <span style={{ fontSize: '.68rem', color: '#94a3b8' }}>(pré-preenchido com o que a NF traz; edite se precisar)</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 10 }}>
+              <label style={{ fontSize: '.72rem', color: '#475569' }}>Categoria da compra
+                <select value={categoria} onChange={(e) => setCategoria(e.target.value)} style={selStyle}>
+                  <option value="">(não classificar)</option>
+                  {categoria && !categorias.some((c) => c.codigo === categoria) && <option value={categoria}>{categoria} (atual)</option>}
+                  {categorias.map((c) => <option key={c.codigo} value={c.codigo}>{c.codigo} — {c.descricao}</option>)}
+                </select>
+              </label>
+              <label style={{ fontSize: '.72rem', color: '#475569' }}>Conta corrente
+                <select value={contaCC} onChange={(e) => setContaCC(e.target.value)} style={selStyle}>
+                  <option value="">(padrão da Omie)</option>
+                  {contaCC && !contasCC.some((c) => String(c.codigo) === contaCC) && <option value={contaCC}>conta {contaCC} (atual)</option>}
+                  {contasCC.map((c) => <option key={c.codigo} value={String(c.codigo)}>{c.descricao}</option>)}
+                </select>
+              </label>
+              <label style={{ fontSize: '.72rem', color: '#475569' }}>Data de registro
+                <input type="date" value={dataReg} onChange={(e) => setDataReg(e.target.value)} style={selStyle} />
+              </label>
+            </div>
+            {categoria && (!contaCC || !dataReg) && (
+              <div style={{ fontSize: '.68rem', color: '#b45309', marginBottom: 8 }}>⚠ Para classificar, a Omie exige categoria + conta corrente + data de registro juntas.</div>
+            )}
+            <label style={{ fontSize: '.72rem', color: '#475569', display: 'block', marginBottom: 10 }}>Observações
+              <textarea value={obs} onChange={(e) => { setObs(e.target.value); setObsTouched(true); }} rows={2}
+                placeholder="observações internas do recebimento…" style={{ ...selStyle, resize: 'vertical', fontFamily: 'inherit' }} />
+            </label>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '.72rem', color: '#475569', fontWeight: 600 }}>Parcelas</span>
+                <span style={{ fontSize: '.68rem', color: '#64748b' }}>nº</span>
+                <input type="number" min={1} max={36} value={parcelas.length || 1} onChange={(e) => refazerParcelas(Number(e.target.value))}
+                  style={{ width: 52, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem' }} />
+                <button type="button" onClick={() => refazerParcelas(parcelas.length || 1)}
+                  style={{ fontSize: '.68rem', color: '#2563eb', background: 'none', border: 'none', textDecoration: 'underline', cursor: 'pointer' }}>refazer (dividir igual)</button>
+                <span style={{ marginLeft: 'auto', fontSize: '.68rem', color: parcelasDivergem ? '#dc2626' : '#059669' }}>
+                  soma {fmtBRL(somaParcelas)} / total {fmtBRL(totalNFe)}{parcelasDivergem ? ' ⚠' : ' ✓'}
+                </span>
+              </div>
+              {parcelas.length > 0 && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  {parcelas.map((p, i) => (
+                    <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.72rem' }}>
+                      <span style={{ color: '#94a3b8', width: 18 }}>{i + 1}</span>
+                      <input type="date" value={p.dVenc} onChange={(e) => setParcelaCampo(i, 'dVenc', e.target.value)}
+                        style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem' }} />
+                      <input type="number" step="0.01" value={p.valor} onChange={(e) => setParcelaCampo(i, 'valor', e.target.value)}
+                        style={{ width: 100, border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', fontSize: '.72rem', textAlign: 'right' }} />
+                      <span style={{ color: '#94a3b8' }}>{p.pct ? p.pct.toFixed(2).replace('.', ',') + '%' : ''}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
           <h3 style={{ fontWeight: 600, color: '#334155', marginBottom: 4, fontSize: '.82rem' }}>CFOP de entrada por item</h3>
@@ -1112,5 +1286,6 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   );
 }
 
+const selStyle: React.CSSProperties = { display: 'block', width: '100%', marginTop: 3, border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', fontSize: '.78rem', background: '#fff', boxSizing: 'border-box' };
 const mTh: React.CSSProperties = { textAlign: 'left', padding: '4px 8px', borderBottom: '1px solid #e2e8f0', background: '#f8fafc', fontSize: '.7rem', color: '#475569', fontWeight: 600, whiteSpace: 'nowrap' };
 const mTd: React.CSSProperties = { padding: '4px 8px', borderBottom: '1px solid #f1f5f9', fontSize: '.72rem', color: '#334155' };
