@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
-import { montarParcelas } from '@/lib/financeiro/parcelas'
+import { montarParcelas, valorTotalCard, formatarBRL } from '@/lib/financeiro/parcelas'
+import { useAuditLog } from '@/hooks/useAuditLog'
 import { MessageCircle, Mail, Check, Pencil, Send, Plus, X } from 'lucide-react'
 import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
 
@@ -16,11 +17,19 @@ function boletoUrls(card) {
   return urls
 }
 
+// Fases em que o envio do boleto ainda está pendente: nelas, o envio por email
+// com sucesso MOVE o card para "Aguardando Vencimento" (mesmo destino do botão
+// da capa). Em fases posteriores (aguardando/pago/vencido) um reenvio não mexe
+// no status — recobrança tem fluxo próprio.
+const STATUS_PRE_ENVIO = ['gerar_boleto', 'validar_pix', 'enviar_cliente', 'sem_boleto']
+
 // Mostra/registra a preferência de envio do boleto de um cliente (WhatsApp ou Email),
 // permite vários emails e envia o boleto por email (mesmo esquema do Controle Revisão).
-// NÃO altera o status do card — o "Enviado ao cliente" é manual.
+// Envio por email com sucesso move o card pra Aguardando Vencimento; WhatsApp
+// continua com confirmação manual (abrir o wa.me não garante que foi enviado).
 export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nomeProp }) {
   const { userProfile } = useAuth()
+  const { log: auditLog } = useAuditLog()
   const cnpj = cnpjProp ?? card?.cnpj_cliente
   const nome = nomeProp ?? card?.nom_cliente
 
@@ -87,15 +96,22 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
   const montarMensagem = (bUrls, nUrls) => {
     const saud = new Date().getHours() < 12 ? 'Bom dia' : 'Boa tarde'
     const nf = [card?.num_nf_servico && `S ${card.num_nf_servico}`, card?.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(' / ')
-    const valor = card?.valor_servico != null && card?.valor_servico !== '' ? Number(card.valor_servico).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : ''
+    const totalNum = valorTotalCard(card)
+    const valor = totalNum != null ? formatarBRL(totalNum) : ''
     const venc = formatVenc(card?.vencimento_boleto)
     const linhas = [
       `${saud}${nome ? `, ${nome}` : ''}!`,
       '',
       `Segue o boleto${nf ? ` referente à NF ${nf}` : ''} da Nova Tratores.`,
     ]
-    if (valor) linhas.push(`Valor: ${valor}`)
-    if (venc) linhas.push(`Vencimento: ${venc}`)
+    const parcelasWa = montarParcelas(card)
+    if (parcelasWa.length > 1) {
+      linhas.push(`Pagamento parcelado em ${parcelasWa.length}x:`)
+      parcelasWa.forEach(p => linhas.push(`  ${p.n}ª parcela — venc. ${p.data || '—'}${p.valor ? ` — ${p.valor}` : ''}`))
+    } else {
+      if (valor) linhas.push(`Valor: ${valor}`)
+      if (venc) linhas.push(`Vencimento: ${venc}`)
+    }
     if (bUrls.length) { linhas.push(''); linhas.push(bUrls.length > 1 ? 'Boletos:' : 'Boleto:'); bUrls.forEach(u => linhas.push(u)) }
     if (nUrls.length) { linhas.push(''); linhas.push(nUrls.length > 1 ? 'Notas fiscais:' : 'Nota fiscal:'); nUrls.forEach(u => linhas.push(u)) }
     linhas.push('')
@@ -173,7 +189,23 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
     setPref(data || row); setEditando(false); setAviso({ tipo: 'ok', msg: 'Preferência salva.' })
   }
 
-  // Envia o boleto por email — NÃO mexe no status do card
+  // Depois do envio com sucesso: card em fase pré-envio → "Aguardando Vencimento"
+  // (mesmo destino do envio rápido da capa). Devolve true se moveu.
+  const moverAposEnvio = async (destinatarios) => {
+    if (!card?.id || !STATUS_PRE_ENVIO.includes(card.status)) return false
+    const { error } = await supabase.from('Chamado_NF')
+      .update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento', status_changed_at: new Date().toISOString() })
+      .eq('id', card.id)
+    if (error) return false
+    auditLog({
+      sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF',
+      entidade_id: String(card.id), entidade_label: `NF #${card.id} - ${nome || ''}`,
+      detalhes: { de: card.status, para: 'aguardando_vencimento', acao_desc: 'Boleto enviado por email ao cliente', destinatarios },
+    })
+    return true
+  }
+
+  // Envia o boleto por email — sucesso move o card pra Aguardando Vencimento
   const enviarBoleto = async (listaEmails) => {
     const destinatarios = (listaEmails || []).map(e => e.trim()).filter(Boolean)
     if (destinatarios.length === 0) { alert('Adicione ao menos um email.'); return }
@@ -189,7 +221,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
           destinatarios,
           cliente: nome || '',
           nf: [card?.num_nf_servico && `S ${card.num_nf_servico}`, card?.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(' / '),
-          valor: card?.valor_servico != null ? Number(card.valor_servico).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '',
+          valor: valorTotalCard(card) != null ? formatarBRL(valorTotalCard(card)) : '',
           vencimento: card?.vencimento_boleto || '',
           parcelas: montarParcelas(card),
           remetente: userProfile?.nome || '',
@@ -201,7 +233,8 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
         if (out.semConfig) { setEmailsPendentes(destinatarios); setConfigEmailOpen(true); return }
         throw new Error(out.error || 'Falha no envio')
       }
-      setAviso({ tipo: 'ok', msg: `Boleto enviado para ${destinatarios.join(', ')}.` })
+      const moveu = await moverAposEnvio(destinatarios)
+      setAviso({ tipo: 'ok', msg: `Boleto enviado para ${destinatarios.join(', ')}.${moveu ? ' Card movido para Aguardando Vencimento.' : ''}` })
     } catch (e) {
       setAviso({ tipo: 'erro', msg: e.message })
     } finally { setEnviando(false) }
