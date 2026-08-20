@@ -50,9 +50,11 @@ export function empresaCurta(nome: string): string {
 
 // Tamanho (pt) do código LEGÍVEL conforme o nº de caracteres, p/ nunca truncar
 // (o Code128 já leva o código inteiro; isto é só o texto humano). `dupla` = 2
-// empresas na mesma etiqueta (menos espaço → fonte menor).
+// empresas na mesma etiqueta (menos espaço → fonte menor). Faixa apertada
+// (13→8,5): antes um código curto tipo "RA-107372" saía GIGANTE (15pt) e um
+// longo "RP-007702018C91" bem menor — as etiquetas pareciam de tamanhos diferentes.
 export function fonteCodigo(len: number, dupla: boolean): number {
-  let pt = len <= 9 ? 15 : len <= 12 ? 13 : len <= 15 ? 11 : 9
+  let pt = len <= 12 ? 13 : len <= 15 ? 11.5 : len <= 18 ? 10 : 8.5
   if (dupla) pt = Math.max(7, +(pt * 0.8).toFixed(1))
   return pt
 }
@@ -132,7 +134,7 @@ function dataRefAtual(): string {
 // Blocos de UMA etiqueta. Cada linha vira um .bloco = .corpo (empresa+código+
 // descrição+locação, que encolhe/corta se faltar espaço) + .rodape (o barcode,
 // com espaço garantido — nunca é cortado). `comBarra` = etiqueta comum (sem QR).
-function blocosTexto(e: BlocoEtiqueta, comBarra: boolean): string {
+function blocosTexto(e: BlocoEtiqueta, comBarra: boolean, dataRef = ''): string {
   const dupla = e.linhas.length > 1
   return e.linhas.map(l => {
     const curta = esc(empresaCurta(l.empresa))
@@ -140,13 +142,19 @@ function blocosTexto(e: BlocoEtiqueta, comBarra: boolean): string {
     const badge = `<span class="emp">${curta}</span>`
     const fant = `<span class="emp fantasma">${curta}</span>`
     const cab = `<div class="cab">${dir ? fant : badge}<span class="cod" style="font-size:${fonteCodigo(String(l.codigo).length, dupla)}pt">${esc(l.codigo)}</span>${dir ? badge : fant}</div>`
+    // .desc sempre presente (mesmo vazia) com ALTURA FIXA de 2 linhas → a locação
+    // começa SEMPRE no mesmo Y, tenha a descrição 1 ou 2 linhas (antes ela subia/
+    // descia conforme o nº de linhas).
     const texto = dupla
       ? ((l.descricao || l.locacao)
           ? `<div class="descloc">${l.descricao ? `<span class="d">${esc(l.descricao)}</span>` : ''}${l.locacao ? `<span class="l">${l.descricao ? '· ' : ''}${locHtml(l.locacao)}</span>` : ''}</div>`
           : '')
-      : `${l.descricao ? `<div class="desc">${esc(l.descricao)}</div>` : ''}${l.locacao ? `<div class="loc-linha">${locHtml(l.locacao)}</div>` : ''}`
+      : `<div class="desc">${esc(l.descricao || '')}</div>${l.locacao ? `<div class="loc-linha">${locHtml(l.locacao)}</div>` : ''}`
+    // Rodapé = data (fonte menor, ENTRE a locação e o código) + o barcode. A data
+    // saiu do canto absoluto (onde encavalava a ponta do Code128 nos códigos longos)
+    // pro fluxo, logo acima da barra.
     const rodape = comBarra ? `
-        <div class="rodape">${code128Svg(l.codigo, dupla ? 3.4 : 5)}</div>` : ''
+        <div class="rodape">${dataRef ? `<div class="dt-inline">${esc(dataRef)}</div>` : ''}${code128Svg(l.codigo, dupla ? 3.4 : 5)}</div>` : ''
     return `      <div class="bloco">
         <div class="corpo">${cab}${texto}</div>${rodape}
       </div>`
@@ -184,8 +192,7 @@ export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: Off
     const comQr = !!e.qrSvg
     if (!comQr) {
       return `    <div class="cel${dupla ? ' dupla' : ''}">
-${blocosTexto(e, true)}
-      <div class="dt">${dataRef}</div>
+${blocosTexto(e, true, dataRef)}
     </div>`
     }
     // Rastreada: texto à esquerda, QR à direita (substitui o Code 128);
@@ -228,7 +235,7 @@ ${blocosTexto(e, false)}
   .fantasma { visibility: hidden; }
   .cod { flex: 1 1 auto; min-width: 0; font-size: 14pt; font-weight: 800; line-height: 1.1; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .barra { display: block; margin: 0.5mm auto 0; max-width: 100%; }
-  .desc { font-size: 10pt; font-weight: 600; line-height: 1.1; max-width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .desc { font-size: 10pt; font-weight: 600; line-height: 1.1; height: 2.2em; max-width: 100%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .loc-linha { font-size: 9pt; color: #777; font-weight: 400; line-height: 1.12; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .loc-linha strong, .descloc .l strong { font-weight: 800; color: #000; font-size: 1.2em; }
   .dupla .emp { font-size: 5pt; }
@@ -237,6 +244,10 @@ ${blocosTexto(e, false)}
   .descloc { display: flex; justify-content: center; align-items: baseline; gap: 2px; max-width: 100%; font-size: 7pt; font-weight: 600; line-height: 1.1; }
   .descloc .d { flex: 0 0 auto; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .descloc .l { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #333; }
+  /* data em FLUXO, centrada logo acima do barcode (não mais absoluta encavalando a barra) */
+  .dt-inline { font-size: 4.8pt; color: #888; line-height: 1; text-align: center; margin-bottom: 0.3mm; }
+  .dupla .dt-inline { font-size: 4.2pt; margin-bottom: 0.1mm; }
+  /* .dt (absoluta) ainda usada só no layout com QR, onde não há barcode pra encavalar */
   .dt { position: absolute; bottom: 0.5mm; right: 1.4mm; font-size: 5.5pt; color: #666; }
   .dt.esq { right: auto; left: 1.4mm; }
   /* Rastreada: texto à esquerda + QR fixo à direita (sem Code 128) */
