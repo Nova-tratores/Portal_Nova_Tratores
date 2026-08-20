@@ -8,6 +8,9 @@ import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/li
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
+import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
+import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
+import { PPVMiniProvider } from "@/lib/ppv/PPVContext";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
 import OSUnidadesInfo from "@/components/ppv/OSUnidadesInfo";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
@@ -484,7 +487,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setCriandoPPV(false);
   }, [osId, userName, loadPPV]);
 
-  const adicionarProdutoPPV = useCallback(async (item: { codigo?: string; descricao?: string; preco?: number }) => {
+  const adicionarProdutoPPV = useCallback(async (item: { codigo?: string; descricao?: string; preco?: number }, qtd?: number) => {
     const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
     const target = ids.length === 1 ? ids[0] : addProdTarget;
     if (!target || !item?.codigo) return;
@@ -495,7 +498,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         body: JSON.stringify({
           id: target, tecnico: tecnico1 || "", tipoMovimento: "Saída",
           codigo: item.codigo, descricao: item.descricao || item.codigo,
-          quantidade: addProdQtd || 1, preco: Number(item.preco) || 0, userName,
+          quantidade: (qtd && qtd > 0 ? qtd : addProdQtd) || 1, preco: Number(item.preco) || 0, userName,
         }),
       });
       if (!res.ok) {
@@ -510,6 +513,39 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     }
     setAddingProduto(false);
   }, [ppv, addProdTarget, addProdQtd, tecnico1, userName, loadPPV]);
+
+  // Kit de revisão direto na OS: mesmo modal do PPV (kit inteiro ou só
+  // algumas peças) — os itens entram no PPV vinculado marcados com o rótulo.
+  const [kitOSOpen, setKitOSOpen] = useState(false);
+  const [importandoKitOS, setImportandoKitOS] = useState(false);
+  const abrirKitOS = useCallback(() => {
+    const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
+    if (ids.length === 0) { alert("Não há PPV vinculado. Informe o PPV acima antes de importar o kit."); return; }
+    if (ids.length > 1 && !addProdTarget) { alert("Escolha para qual PPV você quer importar o kit."); return; }
+    setKitOSOpen(true);
+  }, [ppv, addProdTarget]);
+  const importarKitNaOS = useCallback(async (produtos: { codigo: string; descricao: string; quantidade: number; preco: number }[], rotulo?: string) => {
+    const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
+    const target = ids.length === 1 ? ids[0] : addProdTarget;
+    if (!target || produtos.length === 0) return;
+    setImportandoKitOS(true);
+    try {
+      const res = await fetch("/api/ppv/movimentacoes", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: target, kit: rotulo || "Kit", tecnico: tecnico1 || "", userName, itens: produtos }),
+      });
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        alert(e.error || "Erro ao importar o kit no PPV.");
+      } else {
+        await loadPPV(ppv);
+        alert(`Kit importado: ${produtos.length} ${produtos.length === 1 ? "item" : "itens"} no PPV ${target}.`);
+      }
+    } catch {
+      alert("Erro ao importar o kit no PPV.");
+    }
+    setImportandoKitOS(false);
+  }, [ppv, addProdTarget, tecnico1, userName, loadPPV]);
 
   const fetchLembretes = useCallback(async (chave: string) => {
     if (!chave) { setLembretes([]); return; }
@@ -578,12 +614,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
   const enviarParaOmie = useCallback(async () => {
     if (!osId) return;
-    if (servicoInterno ? !podeConcluir : !podeOmie) {
-      alert(servicoInterno ? "Você não tem permissão para concluir ordens." : "Você não tem permissão para enviar ao Omie.");
+    if (!podeOmie) {
+      alert("Você não tem permissão para enviar ao Omie.");
       return;
     }
     if (!confirm(servicoInterno
-      ? "Concluir esta ordem interna?\n\n• A OS NÃO vai para o Omie.\n• Se houver peças, a remessa delas é gerada no Omie."
+      ? "Deseja enviar esta OS para o Omie?\n\n• A OS é criada normalmente no Omie.\n• Por ser INTERNA, as peças vinculadas saem como REMESSA (não gera pedido de venda)."
       : "Deseja enviar esta OS para o Omie?")) return;
     setEnviandoOmie(true);
     try {
@@ -605,25 +641,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         return;
       }
       if (result.sucesso) {
-        let msg: string;
-        if (result.interna) {
-          msg = "Ordem interna concluída!";
-          msg += result.cNumOS ? `\nRemessa de peças no Omie nº ${result.cNumOS}` : "\n(sem peças — nenhuma remessa gerada)";
-        } else {
-          msg = `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
-          if (result.pedidoVenda) msg += `\nPedido de Venda nº ${result.pedidoVenda}`;
-        }
-        if (result.pedidoVendaErro) msg += `\nErro na remessa de peças: ${result.pedidoVendaErro}`;
+        let msg = `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
+        if (result.pedidoVenda) msg += `\n${servicoInterno ? "Remessa de peças" : "Pedido de Venda"} nº ${result.pedidoVenda}`;
+        if (result.pedidoVendaErro) msg += `\nErro nas peças: ${result.pedidoVendaErro}`;
         alert(msg);
         if (result.cNumOS) setOrdemOmie(String(result.cNumOS));
         setStatus("Concluída");
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {
-        alert(`Erro ao ${servicoInterno ? "concluir a ordem interna" : "enviar para o Omie"}:\n${result.erro}`);
+        alert(`Erro ao enviar para o Omie:\n${result.erro}`);
       }
     } catch (err) {
-      alert(`Erro de conexão ao ${servicoInterno ? "concluir a ordem" : "enviar para o Omie"}.`);
+      alert("Erro de conexão ao enviar para o Omie.");
       console.error(err);
     }
     setEnviandoOmie(false);
@@ -702,11 +732,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       }
       setSaving(false);
       setLogRefreshKey((k) => k + 1);
-      // Avisa quando a ordem muda de externa↔interna (ela migra de aba no kanban)
+      // Avisa quando a ordem muda de externa↔interna (muda só o destino das peças)
       if (mode === "edit" && servicoInterno !== internoOriginalRef.current) {
         alert(servicoInterno
-          ? "Ordem marcada como INTERNA — movida para a aba \"Internas\"."
-          : "Ordem voltou a ser EXTERNA — movida para a aba \"Externas\".");
+          ? "Ordem marcada como INTERNA — vai normal pro Omie, mas as peças vinculadas sairão como REMESSA."
+          : "Ordem voltou a ser EXTERNA — as peças vinculadas saem como Pedido de Venda.");
       }
       // PPV automático pedido mas não criado → avisa (antes falhava calado e a OS
       // ficava com um PPV inexistente vinculado).
@@ -978,7 +1008,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             <div style={{ fontWeight: 700, fontSize: 15 }}>{ordemOmie}</div>
                           </div>
                         )}
-                        {ordemOmie && !servicoInterno && (
+                        {ordemOmie && (
                           <button
                             onClick={abrirPdfOmie}
                             disabled={baixandoPdfOmie}
@@ -1112,8 +1142,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                               Ordem interna
                               <span style={{ display: 'block', fontSize: 11, fontWeight: 400, color: 'var(--portal-text-secondary)', marginTop: 3, lineHeight: 1.4 }}>
                                 {servicoInterno
-                                  ? 'Não vai pro Omie — fica na aba Internas (peças só por remessa).'
-                                  : 'Marque pra tratar como interna (vai pra aba Internas e não envia ao Omie).'}
+                                  ? 'Vai normal pro Omie — só as peças vinculadas saem como REMESSA.'
+                                  : 'Marque pra tratar como interna (as peças vinculadas viram remessa no Omie).'}
                               </span>
                             </span>
                           </label>
@@ -1168,7 +1198,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <div>
                           <label>N Ordem Omie</label>
                           <input type="text" value={ordemOmie} onChange={(e) => setOrdemOmie(e.target.value)} style={S_MB0} />
-                          {ordemOmie && !servicoInterno && (
+                          {ordemOmie && (
                             <button
                               onClick={abrirPdfOmie}
                               disabled={baixandoPdfOmie}
@@ -1218,26 +1248,24 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {/* Estado do envio ao Omie (o botão de ação foi para a coluna à direita) */}
                   {mode === "edit" && ordemOmie && (
                     <div className="os-card" style={{ order: 20 }}>
-                      <div className="os-card-title"><i className="fas fa-cloud-upload-alt" /> {servicoInterno ? "Concluir ordem interna" : "Enviar para o Omie"}</div>
+                      <div className="os-card-title"><i className="fas fa-cloud-upload-alt" /> Enviar para o Omie</div>
                       <div className="os-omie-badge">
-                        <i className="fas fa-check-circle" /> {servicoInterno ? 'Remessa gerada' : 'Enviado para Omie'} (ID: {ordemOmie})
+                        <i className="fas fa-check-circle" /> Enviado para Omie (ID: {ordemOmie})
                       </div>
-                      {!servicoInterno && (
-                        <button
-                          onClick={abrirPdfOmie}
-                          disabled={baixandoPdfOmie}
-                          style={{
-                            marginTop: 10, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                            padding: "11px 14px", borderRadius: 8, border: "1.5px solid #0EA5E9",
-                            background: "transparent", color: "#0EA5E9", fontWeight: 700, fontSize: 13.5,
-                            cursor: baixandoPdfOmie ? "wait" : "pointer",
-                          }}
-                        >
-                          {baixandoPdfOmie
-                            ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
-                            : <><i className="fas fa-file-pdf" /> PDF da ordem (Omie)</>}
-                        </button>
-                      )}
+                      <button
+                        onClick={abrirPdfOmie}
+                        disabled={baixandoPdfOmie}
+                        style={{
+                          marginTop: 10, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
+                          padding: "11px 14px", borderRadius: 8, border: "1.5px solid #0EA5E9",
+                          background: "transparent", color: "#0EA5E9", fontWeight: 700, fontSize: 13.5,
+                          cursor: baixandoPdfOmie ? "wait" : "pointer",
+                        }}
+                      >
+                        {baixandoPdfOmie
+                          ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
+                          : <><i className="fas fa-file-pdf" /> PDF da ordem (Omie)</>}
+                      </button>
                     </div>
                   )}
                   {mode === "edit" && !ordemOmie && servicoInterno && status === "Concluída" && (
@@ -1797,10 +1825,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                                 {ppvIds.map((id) => <option key={id} value={id}>PPV {id}</option>)}
                               </select>
                             )}
-                            <input type="number" min={1} value={addProdQtd} onChange={(e) => setAddProdQtd(parseInt(e.target.value) || 1)} title="Quantidade" style={{ width: 64, textAlign: "center", marginBottom: 0 }} />
-                            <button type="button" onClick={abrirAddProduto} disabled={addingProduto || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}
+                            <button type="button" onClick={abrirAddProduto} disabled={addingProduto || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Busca com mais usados, catálogo e kit — pergunta a quantidade"}
                               style={{ flex: "1 1 auto", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "none", background: addingProduto || !podeEditar ? "var(--portal-text-faint)" : "#0d9488", color: "#fff", fontSize: 13, fontWeight: 600, cursor: addingProduto || !podeEditar ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
                               {addingProduto ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-plus" /> Adicionar peça {ppvIds.length > 1 ? "" : `ao PPV ${ppvIds[0]}`}</>}
+                            </button>
+                            <button type="button" onClick={abrirKitOS} disabled={importandoKitOS || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Importar kit de revisão (inteiro ou só algumas peças)"}
+                              style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "9px 14px", borderRadius: 8, border: "1.5px solid #0d9488", background: "transparent", color: "#0d9488", fontSize: 13, fontWeight: 700, cursor: importandoKitOS || !podeEditar ? "not-allowed" : "pointer", whiteSpace: "nowrap" }}>
+                              {importandoKitOS ? <i className="fas fa-spinner fa-spin" /> : <><i className="fas fa-box-open" /> Kit</>}
                             </button>
                           </div>
                         </div>
@@ -2203,7 +2234,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 </button>
 
                 {/* ── PDFs oficiais do Omie: a OS e, se houver peças (PPV), o pedido ── */}
-                {mode === "edit" && ordemOmie && !servicoInterno && (
+                {mode === "edit" && ordemOmie && (
                   <button className="os-rail-btn" onClick={abrirPdfOmie} disabled={baixandoPdfOmie} title="PDF oficial da Ordem de Serviço no Omie">
                     <i className={`fas ${baixandoPdfOmie ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfOmie ? "Buscando..." : "PDF OS (Omie)"}
                   </button>
@@ -2216,16 +2247,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                 {!ordemOmie && !(servicoInterno && status === "Concluída") && (
                   <button
-                    className={`os-rail-btn ${servicoInterno ? "interna" : "omie"}`}
+                    className="os-rail-btn omie"
                     onClick={enviarParaOmie}
-                    disabled={enviandoOmie || (servicoInterno ? !podeConcluir : !podeOmie)}
-                    title={(servicoInterno ? !podeConcluir : !podeOmie) ? MSG_SEM_PERMISSAO : undefined}
+                    disabled={enviandoOmie || !podeOmie}
+                    title={!podeOmie ? MSG_SEM_PERMISSAO : servicoInterno ? "OS interna: vai normal pro Omie; peças saem como remessa" : undefined}
                   >
                     {enviandoOmie
-                      ? <><i className="fas fa-spinner fa-spin" /> {servicoInterno ? "Concluindo..." : "Enviando..."}</>
-                      : servicoInterno
-                        ? <><i className="fas fa-clipboard-check" /> Concluir Interna</>
-                        : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
+                      ? <><i className="fas fa-spinner fa-spin" /> Enviando...</>
+                      : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
                   </button>
                 )}
               </>
@@ -2265,10 +2294,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         renderItem={(item) => item.descricao || ""}
       />
 
-      <SearchModal title={ppvIds.length > 1 && addProdTarget ? `Adicionar peça ao PPV ${addProdTarget}` : "Adicionar peça ao PPV"} placeholder="Buscar produto por código ou descrição..." apiUrl="/api/ppv/produtos" paramName="termo" visible={showAddProdModal} onClose={() => setShowAddProdModal(false)}
-        onSelect={(item) => adicionarProdutoPPV(item as { codigo?: string; descricao?: string; preco?: number })}
-        renderItem={(item) => `${item.codigo} — ${item.descricao}${item.preco ? ` · R$ ${Number(item.preco).toFixed(2)}` : ""}`}
-      />
+      {/* Adicionar peça no PPV vinculado — MESMA experiência do "Novo Item" do
+          PPV: mais usados, busca, catálogo, atalho de kit e pergunta de
+          quantidade. Wrapper com z-index acima do drawer da OS. */}
+      <div style={{ position: "relative", zIndex: 7000 }}>
+        <PPVMiniProvider>
+          <ModalBuscaProduto
+            open={showAddProdModal}
+            mode="modal"
+            onClose={() => setShowAddProdModal(false)}
+            onSelect={(codigo, descricao, preco, _empresa, qtd) => { adicionarProdutoPPV({ codigo, descricao, preco }, qtd); }}
+            onAbrirKit={() => { setShowAddProdModal(false); setKitOSOpen(true); }}
+          />
+        </PPVMiniProvider>
+        <ModalImportarKit open={kitOSOpen} onClose={() => setKitOSOpen(false)} onImportar={(produtos, _horas, rotulo) => { setKitOSOpen(false); importarKitNaOS(produtos, rotulo); }} />
+      </div>
     </>
   );
 }

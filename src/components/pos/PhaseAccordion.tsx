@@ -220,20 +220,16 @@ const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
 export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onEnviarOmie, onEnviarOmieTodas, enviandoOmie }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
-  const [escopo, setEscopo] = useState<"externas" | "internas">("externas");
   const [tecnicoFiltro, setTecnicoFiltro] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
   // Tooltip com a Descrição do Serviço completa ao passar o mouse no card
   const [descTip, setDescTip] = useState<{ texto: string; top: number; left: number } | null>(null);
 
-  // Separa ordens externas (vão pro Omie) das internas (só remessa quando precisar)
-  const totInternas = useMemo(() => orders.filter((o) => o.servicoInterno).length, [orders]);
-  const totExternas = orders.length - totInternas;
-  const escopoOrders = useMemo(
-    () => orders.filter((o) => (escopo === "internas" ? !!o.servicoInterno : !o.servicoInterno)),
-    [orders, escopo]
-  );
+  // Internas e externas ficam JUNTAS no quadro (decisão 21/08): interna vai
+  // normal pro Omie, só muda que as peças saem como remessa. O selo INTERNA
+  // no card continua identificando.
+  const escopoOrders = orders;
 
   // Lista de técnicos disponíveis no escopo atual (para o filtro)
   const tecnicos = useMemo(() => {
@@ -321,31 +317,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
 
   return (
     <>
-      {/* Escopo: Externas x Internas — barra horizontal (boxed) */}
       <div style={{ padding: "12px 30px", display: "flex", borderBottom: "1px solid var(--border)" }}>
-        <div style={{ display: "inline-flex", gap: 4, background: "var(--portal-bg-secondary)", padding: 4, borderRadius: 10 }}>
-          {([
-            { v: "externas" as const, label: "Externas", icon: "fa-globe", count: totExternas, color: "#1E3A5F" },
-            { v: "internas" as const, label: "Internas", icon: "fa-tools", count: totInternas, color: "#7C3AED" },
-          ]).map((t) => {
-            const active = escopo === t.v;
-            return (
-              <button key={t.v} onClick={() => { setEscopo(t.v); setActivePhase(""); setTecnicoFiltro(""); }}
-                style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "8px 22px", borderRadius: 8,
-                  border: active ? `1.5px solid ${t.color}` : "1.5px solid transparent",
-                  background: active ? "var(--portal-bg-card)" : "transparent",
-                  color: active ? t.color : "var(--portal-text-secondary)",
-                  fontWeight: 700, fontSize: 13, cursor: "pointer",
-                  boxShadow: active ? "0 1px 3px rgba(0,0,0,0.12)" : "none", transition: "all 0.15s",
-                }}>
-                <i className={`fas ${t.icon}`} /> {t.label}
-                <span style={{ background: active ? `${t.color}1f` : "rgba(0,0,0,0.06)", color: active ? t.color : "var(--portal-text-secondary)", padding: "1px 8px", borderRadius: 10, fontSize: 11, fontWeight: 700 }}>{t.count}</span>
-              </button>
-            );
-          })}
-        </div>
-
         {/* Filtro por técnico */}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
           <i className="fas fa-user-cog" style={{ color: "var(--portal-text-secondary)", fontSize: 13 }} />
