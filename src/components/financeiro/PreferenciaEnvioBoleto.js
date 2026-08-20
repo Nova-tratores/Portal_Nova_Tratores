@@ -18,14 +18,14 @@ function boletoUrls(card) {
 }
 
 // Fases em que o envio do boleto ainda está pendente: nelas, o envio por email
-// com sucesso MOVE o card para "Aguardando Vencimento" (mesmo destino do botão
+// com sucesso MOVE o card para "Aguardando Cliente" (mesmo destino do botão
 // da capa). Em fases posteriores (aguardando/pago/vencido) um reenvio não mexe
 // no status — recobrança tem fluxo próprio.
 const STATUS_PRE_ENVIO = ['gerar_boleto', 'validar_pix', 'enviar_cliente', 'sem_boleto']
 
 // Mostra/registra a preferência de envio do boleto de um cliente (WhatsApp ou Email),
 // permite vários emails e envia o boleto por email (mesmo esquema do Controle Revisão).
-// Envio por email com sucesso move o card pra Aguardando Vencimento; WhatsApp
+// Envio por email com sucesso move o card pra Aguardando Cliente; WhatsApp
 // continua com confirmação manual (abrir o wa.me não garante que foi enviado).
 export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nomeProp }) {
   const { userProfile } = useAuth()
@@ -189,12 +189,12 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
     setPref(data || row); setEditando(false); setAviso({ tipo: 'ok', msg: 'Preferência salva.' })
   }
 
-  // Depois do envio com sucesso: card em fase pré-envio → "Aguardando Vencimento"
+  // Depois do envio com sucesso: card em fase pré-envio → "Aguardando Cliente"
   // (mesmo destino do envio rápido da capa). Devolve true se moveu.
   const moverAposEnvio = async (destinatarios) => {
     if (!card?.id || !STATUS_PRE_ENVIO.includes(card.status)) return false
     const { error } = await supabase.from('Chamado_NF')
-      .update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento', status_changed_at: new Date().toISOString() })
+      .update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Cliente', status_changed_at: new Date().toISOString() })
       .eq('id', card.id)
     if (error) return false
     auditLog({
@@ -205,7 +205,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
     return true
   }
 
-  // Envia o boleto por email — sucesso move o card pra Aguardando Vencimento
+  // Envia o boleto por email — sucesso move o card pra Aguardando Cliente
   const enviarBoleto = async (listaEmails) => {
     const destinatarios = (listaEmails || []).map(e => e.trim()).filter(Boolean)
     if (destinatarios.length === 0) { alert('Adicione ao menos um email.'); return }
@@ -234,7 +234,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
         throw new Error(out.error || 'Falha no envio')
       }
       const moveu = await moverAposEnvio(destinatarios)
-      setAviso({ tipo: 'ok', msg: `Boleto enviado para ${destinatarios.join(', ')}.${moveu ? ' Card movido para Aguardando Vencimento.' : ''}` })
+      setAviso({ tipo: 'ok', msg: `Boleto enviado para ${destinatarios.join(', ')}.${moveu ? ' Card movido para Aguardando Cliente.' : ''}` })
     } catch (e) {
       setAviso({ tipo: 'erro', msg: e.message })
     } finally { setEnviando(false) }

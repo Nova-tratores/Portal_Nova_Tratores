@@ -212,7 +212,7 @@ export default function NotificationSystem({ userProfile }) {
         const statusLabel = {
           gerar_boleto:          'Gerar Boleto',
           enviar_cliente:        'Enviar ao Cliente',
-          aguardando_vencimento: 'Aguardando Vencimento',
+          aguardando_vencimento: 'Aguardando Cliente',
           vencido:               'Vencido',
           pago:                  'Pago',
           concluido:             'Concluído',

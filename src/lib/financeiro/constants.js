@@ -50,7 +50,7 @@ export const STATUS_CONFIG_NF = {
   gerar_boleto:          { label: 'GERAR BOLETO',          bg: '#eff6ff', color: '#3b82f6', border: '#bfdbfe' },
   validar_pix:           { label: 'VALIDAR PIX',           bg: '#f5f3ff', color: '#7c3aed', border: '#ddd6fe' },
   enviar_cliente:        { label: 'ENVIAR PARA CLIENTE',   bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
-  aguardando_vencimento: { label: 'AGUARDANDO VENCIMENTO', bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
+  aguardando_vencimento: { label: 'AGUARDANDO CLIENTE', bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
   pago:                  { label: 'PAGO',                  bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
   vencido:               { label: 'VENCIDO',               bg: '#fff1f2', color: '#dc2626', border: '#fecaca' },
   concluido:             { label: 'CONCLUIDO',             bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },

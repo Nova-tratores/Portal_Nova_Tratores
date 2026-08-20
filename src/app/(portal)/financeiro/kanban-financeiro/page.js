@@ -37,7 +37,7 @@ const router = useRouter();
 
 const notificarMovimento = (t, novoStatus, descExtra) => {
   const label = `NF #${t.id} - ${t.nom_cliente || t.tarefa || ''}`;
-  const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Vencimento', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído' };
+  const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Cliente', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído' };
   marcarMinhaAcao('Chamado_NF', t.id, {
     titulo: `Card movimentado → ${statusLabels[novoStatus] || novoStatus}`,
     descricao: descExtra || label,
@@ -50,7 +50,7 @@ const notificarMovimento = (t, novoStatus, descExtra) => {
 const colunas = [
   { id: 'gerar_boleto', titulo: 'GERAR BOLETO' },
   { id: 'enviar_cliente', titulo: 'ENVIAR PARA CLIENTE' },
-  { id: 'aguardando_vencimento', titulo: 'AGUARDANDO VENCIMENTO' },
+  { id: 'aguardando_vencimento', titulo: 'AGUARDANDO CLIENTE' },
   { id: 'sem_boleto', titulo: 'CLIENTE SEM BOLETO' },
   { id: 'pago', titulo: 'PAGO' },
   { id: 'vencido', titulo: 'VENCIDO' }
@@ -1134,7 +1134,7 @@ const highlightIdStyle = { fontSize: '11px', color: 'var(--portal-text-secondary
 const cardInfoStyle = { display:'flex', alignItems:'center', gap:'8px', color:'var(--portal-text-secondary)', fontSize:'13px', marginBottom:'6px', letterSpacing: '0.3px' };
 // ── Ficha compacta (estilo dos cards) ──
 const fichaCorStatus = (s) => s === 'vencido' ? '#dc2626' : s === 'sem_boleto' ? '#f59e0b' : (s === 'pago' || s === 'concluido') ? '#16a34a' : '#8bc53f';
-const fichaLabelStatus = (s) => ({ gerar_boleto: 'GERAR BOLETO', validar_pix: 'VALIDAR PIX', enviar_cliente: 'ENVIAR PARA CLIENTE', aguardando_vencimento: 'AGUARDANDO VENCIMENTO', sem_boleto: 'CLIENTE SEM BOLETO', pago: 'PAGO', vencido: 'VENCIDO', concluido: 'CONCLUÍDO' }[s] || String(s || '').replace(/_/g, ' ').toUpperCase());
+const fichaLabelStatus = (s) => ({ gerar_boleto: 'GERAR BOLETO', validar_pix: 'VALIDAR PIX', enviar_cliente: 'ENVIAR PARA CLIENTE', aguardando_vencimento: 'AGUARDANDO CLIENTE', sem_boleto: 'CLIENTE SEM BOLETO', pago: 'PAGO', vencido: 'VENCIDO', concluido: 'CONCLUÍDO' }[s] || String(s || '').replace(/_/g, ' ').toUpperCase());
 const fichaTdLab = { padding:'4px 10px 4px 0', fontSize:'10.5px', fontWeight:'500', letterSpacing:'0.6px', textTransform:'uppercase', color:'#8a9479', width:'34%', borderBottom:'1px solid var(--portal-border)', whiteSpace:'nowrap' };
 const fichaTdVal = { padding:'4px 0', fontSize:'13px', color:'var(--portal-text)', fontWeight:'400', borderBottom:'1px solid var(--portal-border)', fontVariantNumeric:'tabular-nums' };
 const inputStyleModal = { width: '100%', padding: '22px', border: '1px solid var(--portal-border)', borderRadius: '0px', outline: 'none', background:'var(--portal-bg-card)', color:'var(--portal-text)', fontSize: '20px', boxSizing: 'border-box' };

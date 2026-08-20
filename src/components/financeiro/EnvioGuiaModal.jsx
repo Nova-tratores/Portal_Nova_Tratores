@@ -37,7 +37,7 @@ const CONTEUDO = {
     passos: [
       'Baixe o boleto anexado no card.',
       'Envie pro cliente pelo WhatsApp normalmente.',
-      'Volte aqui e clique em "Marcar como enviado" — o card pula pra Aguardando Vencimento.',
+      'Volte aqui e clique em "Marcar como enviado" — o card pula pra Aguardando Cliente.',
     ],
     acao: 'marcar_enviado', acaoLabel: 'Marcar como enviado',
   },

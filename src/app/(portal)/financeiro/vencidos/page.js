@@ -42,7 +42,7 @@ export default function VencidosPage() {
 
   const notificarMovimento = (t, novoStatus, descExtra) => {
     const label = `NF #${t.id} - ${t.nom_cliente || ''}`
-    const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Vencimento', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído' }
+    const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Cliente', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído' }
     marcarMinhaAcao('Chamado_NF', t.id, {
       titulo: `Card movimentado → ${statusLabels[novoStatus] || novoStatus}`,
       descricao: descExtra || label,

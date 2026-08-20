@@ -915,7 +915,7 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       const SB = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
       const SK = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
       const H = { apikey: SK, authorization: `Bearer ${SK}` };
-      const STATUS_LABEL: Record<string, string> = { gerar_boleto: "Gerar Boleto", enviar_cliente: "Enviar ao Cliente", aguardando_vencimento: "Aguardando Vencimento", pago: "Pago", vencido: "Vencido", sem_boleto: "Cliente Sem Boleto", validar_pix: "Validar Recebimento", concluido: "Concluído" };
+      const STATUS_LABEL: Record<string, string> = { gerar_boleto: "Gerar Boleto", enviar_cliente: "Enviar ao Cliente", aguardando_vencimento: "Aguardando Cliente", pago: "Pago", vencido: "Vencido", sem_boleto: "Cliente Sem Boleto", validar_pix: "Validar Recebimento", concluido: "Concluído" };
       const setorLabel = (s: any) => (s === "pecas" ? "Peças" : "Oficina");
       const hoje = new Date().toISOString().slice(0, 10);
       const setorFiltro = args.setor === "pecas" ? "&setor_destino=eq.pecas" : args.setor === "oficina" ? "&setor_destino=not.eq.pecas" : "";

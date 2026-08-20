@@ -28,7 +28,7 @@ import { labelSetor, ehDoSetor } from '@/lib/financeiro/setor'
 const STATUS_CONFIG = {
  gerar_boleto:          { label: 'GERAR BOLETO',          bg: '#eff6ff', color: '#3b82f6', border: '#bfdbfe' },
  enviar_cliente:        { label: 'ENVIAR PARA CLIENTE',   bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
- aguardando_vencimento: { label: 'AGUARDANDO VENCIMENTO', bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
+ aguardando_vencimento: { label: 'AGUARDANDO CLIENTE', bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
  pago:                  { label: 'PAGO',                  bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
  vencido:               { label: 'VENCIDO',               bg: '#fff5f5', color: '#dc2626', border: '#fecaca' },
  concluido:             { label: 'CONCLUIDO',             bg: '#f0fdf4', color: '#15803d', border: '#bbf7d0' },
@@ -76,7 +76,7 @@ export default function Kanban() {
  const colunas = [
   { id: 'gerar_boleto', titulo: 'GERAR BOLETO' },
   { id: 'enviar_cliente', titulo: 'ENVIAR PARA CLIENTE' },
-  { id: 'aguardando_vencimento', titulo: 'AGUARDANDO VENCIMENTO' },
+  { id: 'aguardando_vencimento', titulo: 'AGUARDANDO CLIENTE' },
   { id: 'sem_boleto', titulo: 'CLIENTE SEM BOLETO' },
   { id: 'pago', titulo: 'PAGO' },
   { id: 'vencido', titulo: 'VENCIDO' }
@@ -276,15 +276,15 @@ export default function Kanban() {
  };
 
  const handleConfirmarEnvioPV = async (t) => {
-    await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento' }).eq('id', t.id);
+    await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Cliente' }).eq('id', t.id);
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou boleto ao cliente`, `NF #${t.id} — ${t.nom_cliente || ''}`, `/financeiro/kanban`)
-    alert("Card movido para Aguardando Vencimento!");
+    alert("Card movido para Aguardando Cliente!");
     setTarefaSelecionada(null);
     carregarDados();
  };
 
  // ENVIO RÁPIDO direto do card (coluna Enviar para Cliente): manda o boleto por
- // e-mail conforme a preferência do cliente e já move pra Aguardando Vencimento.
+ // e-mail conforme a preferência do cliente e já move pra Aguardando Cliente.
  // Se faltar algo (preferência, e-mail configurado, anexo, ou cliente prefere
  // WhatsApp), abre o modal de orientação com o passo a passo.
  const handleEnviarRapido = async (t) => {
@@ -297,7 +297,7 @@ export default function Kanban() {
         audit: (a) => auditLog({ sistema: 'financeiro', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, ...a }),
       });
       if (r.status === 'enviado') {
-        alert(`Boleto enviado por e-mail para: ${r.destinatarios.join(', ')}.\nCard movido para Aguardando Vencimento!`);
+        alert(`Boleto enviado por e-mail para: ${r.destinatarios.join(', ')}.\nCard movido para Aguardando Cliente!`);
         carregarDados();
       } else if (r.status === 'erro' && r.semConfig) {
         setEnvioGuia({ motivo: 'sem_config', card: t });
@@ -434,7 +434,7 @@ export default function Kanban() {
              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                {t.status === 'enviar_cliente' && (
                  <button
-                   title="Enviar boleto ao cliente (conforme a preferência) e mover para Aguardando Vencimento"
+                   title="Enviar boleto ao cliente (conforme a preferência) e mover para Aguardando Cliente"
                    disabled={enviandoId === t.id}
                    onClick={(e) => { e.stopPropagation(); handleEnviarRapido(t); }}
                    style={{ background: '#8bc53f', border: '1px solid #7ab332', borderRadius: '8px', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: enviandoId === t.id ? 'wait' : 'pointer', color: '#fff', transition: '0.2s', flexShrink: 0, opacity: enviandoId === t.id ? 0.6 : 1 }}

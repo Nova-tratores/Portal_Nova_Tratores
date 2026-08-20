@@ -66,13 +66,13 @@ MÓDULOS PRINCIPAIS:
 • FINANCEIRO: gestão de faturamento (NF/boletos), contas a pagar e chamados internos. Acesso por função do usuário:
   Financeiro → painel/kanban do Financeiro; Pós-Vendas (Oficina) → painel/kanban do Pós-Vendas; Peças → painel/kanban de Peças. Admin do portal vê tudo.
   - CHAMADO NF (Chamado_NF): é um faturamento com nota fiscal. Tem cliente, CNPJ, valor, NF de serviço e/ou de peça (com anexos), condição de pagamento, vencimentos, boletos, comprovantes, observações e histórico.
-  - FASES (status): "Gerar Boleto" → "Enviar ao Cliente" → "Aguardando Vencimento" → "Pago" → "Concluído". Outras: "Cliente Sem Boleto", "Vencido", "Validar Pix/Recebimento".
+  - FASES (status): "Gerar Boleto" → "Enviar ao Cliente" → "Aguardando Cliente" → "Pago" → "Concluído". Outras: "Cliente Sem Boleto", "Vencido", "Validar Pix/Recebimento".
   - FLUXO: o Financeiro cria o chamado e gera/anexa o boleto → a tarefa vai para o setor (Pós-Vendas ou Peças) enviar ao cliente → o cliente paga → anexa-se o comprovante → confirma "Pago" → "Concluído".
   - FORMAS DE PAGAMENTO: Pix, Dinheiro, Boleto 30 dias, Boleto Parcelado, Cartão à vista, Cartão Parcelado, Cheque. Pix/Dinheiro/Cartão/Cheque exigem comprovante; boleto gera o boleto. Boleto Parcelado tem parcelas com vencimentos próprios.
   - SETORES: cada card é de "Setor Oficina" (Pós-Vendas) ou "Setor Peças" (mostrado num badge no card). Pós-Vendas vê os dois; Peças vê só os dele; Financeiro vê tudo.
   - TELAS: Painel (colunas: Faturamento, Requisições [só Pós-Vendas/Financeiro], Cliente Sem Boleto), Kanban (colunas por fase, com rolagem lateral e busca única), Despesas (contas a pagar agrupadas por mês — mês atual aberto, anteriores em cascata) e "Novo Chamado NF".
   - PREFERÊNCIA DE ENVIO DO BOLETO (por cliente): cada cliente pode ter a preferência salva — WhatsApp ou Email (pode ter vários emails). Na etapa "enviar ao cliente" dá pra mandar o boleto + as notas por email (PDF anexado) ou por WhatsApp (abre o wa.me com a mensagem pronta e links válidos por 60 dias).
-  - ENVIO AUTOMÁTICO: se o cliente tem email salvo, ao gerar o boleto o sistema envia sozinho, move o card para "Aguardando Vencimento" e avisa o Pós-Vendas (deu certo/erro) e o Financeiro (deu certo). WhatsApp é sempre manual.
+  - ENVIO AUTOMÁTICO: se o cliente tem email salvo, ao gerar o boleto o sistema envia sozinho, move o card para "Aguardando Cliente" e avisa o Pós-Vendas (deu certo/erro) e o Financeiro (deu certo). WhatsApp é sempre manual.
   - INTEGRAÇÃO OMIE (automática, sincroniza sozinha; tem botão "Sincronizar Omie" para rodar na hora):
     • Peças: Pedido de Venda faturado com a categoria "Revenda de Peças Balcão" no Omie gera um card de Peças.
     • Oficina: Ordem de Serviço faturada (com NFS-e) gera um card; cruza com o Pedido de Venda pelo campo "Nº do Pedido do Cliente" da OS (se nesse campo tiver "CASTRO", o pedido é da empresa Castro Peças), soma a NF de serviço + a NF de peças e pega a condição e os vencimentos (prioriza as parcelas da OS quando as datas diferem).

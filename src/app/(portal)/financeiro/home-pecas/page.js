@@ -177,7 +177,7 @@ function HomePosVendasContent() {
 
   const notificarMovimento = (tabela, t, novoStatus, descExtra) => {
     const label = getCardLabel(t);
-    const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Vencimento', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído', financeiro: 'Financeiro' };
+    const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Cliente', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído', financeiro: 'Financeiro' };
     const titulo = `Card movimentado → ${statusLabels[novoStatus] || novoStatus}`;
     const descricao = descExtra || label;
     const tipo = t.gTipo || 'boleto';
@@ -260,7 +260,7 @@ function HomePosVendasContent() {
 
   const handleConfirmarEnvioBoleto = async (t) => {
     notificarMovimento('Chamado_NF', t, 'aguardando_vencimento', `${getCardLabel(t)} — Boleto enviado ao cliente`);
-    await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento' }).eq('id', t.id);
+    await supabase.from('Chamado_NF').update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Cliente' }).eq('id', t.id);
     auditLog({ sistema: 'financeiro', acao: 'mover_status', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: getCardLabel(t), detalhes: { de: t.status, para: 'aguardando_vencimento', acao_desc: 'Boleto enviado ao cliente' } });
     notificarAdminsClient('financeiro', `${userProfile?.nome || 'Usuário'} enviou boleto ao cliente — ${getCardLabel(t)}`, null, `/financeiro/home-pecas`)
     alert("Boleto enviado!"); setTarefaSelecionada(null); carregarDados();

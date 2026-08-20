@@ -109,11 +109,11 @@ export async function autoEnviarENotificar({ card, remetente, userId, audit }) {
     // marca como enviado ao cliente (mesmo status do botão manual)
     try {
       await supabase.from('Chamado_NF')
-        .update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Vencimento', status_changed_at: new Date().toISOString() })
+        .update({ status: 'aguardando_vencimento', tarefa: 'Aguardando Cliente', status_changed_at: new Date().toISOString() })
         .eq('id', card.id)
     } catch { /* ignore */ }
     const emails = r.destinatarios.join(', ')
-    notificarSetor({ alvo: 'posvendas', titulo: `Boleto enviado automaticamente — ${cliente}`, descricao: `Email: ${emails}. Card movido para Aguardando Vencimento.`, link })
+    notificarSetor({ alvo: 'posvendas', titulo: `Boleto enviado automaticamente — ${cliente}`, descricao: `Email: ${emails}. Card movido para Aguardando Cliente.`, link })
     notificarSetor({ alvo: 'financeiro', titulo: `Boleto enviado automaticamente — ${cliente}`, descricao: `Email: ${emails}.`, link }) // sem userId → inclui quem gerou
     audit?.({ acao: 'enviar_email', detalhes: { auto: true, cliente, destinatarios: r.destinatarios, status: 'aguardando_vencimento' } })
   } else if (r.status === 'erro') {

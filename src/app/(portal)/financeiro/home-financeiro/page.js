@@ -194,7 +194,7 @@ function HomeFinanceiroContent() {
 
  const notificarMovimento = (tabela, t, novoStatus, descExtra) => {
     const label = getCardLabel(t);
-    const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Vencimento', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído', financeiro: 'Financeiro' };
+    const statusLabels = { gerar_boleto: 'Gerar Boleto', enviar_cliente: 'Enviar ao Cliente', aguardando_vencimento: 'Aguardando Cliente', pago: 'Pago', vencido: 'Vencido', concluido: 'Concluído', financeiro: 'Financeiro' };
     const titulo = `Card movimentado → ${statusLabels[novoStatus] || novoStatus}`;
     const descricao = descExtra || label;
     const tipo = t.gTipo || 'boleto';
