@@ -115,7 +115,27 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       win?.close(); alert("Erro de conexão ao buscar o PDF no Omie.");
     } finally { setBaixandoPdfOmie(false); }
   }, [osId, baixandoPdfOmie]);
-  // PDF do pedido de PEÇAS vinculado (PPV) — atalho pela própria OS
+  // PDF do pedido de PEÇAS vinculado (PPV) — atalho pela própria OS.
+  // Só aparece quando o PPV JÁ virou pedido/remessa no Omie; o rótulo mostra
+  // o número do Omie (não o id do PPV).
+  const [ppvOmieMap, setPpvOmieMap] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
+    if (!visible || ids.length === 0) { setPpvOmieMap({}); return; }
+    let ativo = true;
+    (async () => {
+      const mapa: Record<string, string> = {};
+      await Promise.all(ids.map(async (pid) => {
+        try {
+          const r = await fetch(`/api/ppv/pedidos?id=${encodeURIComponent(pid)}`);
+          const j = r.ok ? await r.json() : null;
+          if (j?.pedidoOmie) mapa[pid] = String(j.pedidoOmie);
+        } catch { /* sem Omie ainda */ }
+      }));
+      if (ativo) setPpvOmieMap(mapa);
+    })();
+    return () => { ativo = false; };
+  }, [ppv, visible, ordemOmie]);
   const [baixandoPdfPecas, setBaixandoPdfPecas] = useState<string | null>(null);
   const abrirPdfPecasOmie = useCallback(async (pid: string) => {
     if (!pid || baixandoPdfPecas) return;
@@ -2236,12 +2256,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 {/* ── PDFs oficiais do Omie: a OS e, se houver peças (PPV), o pedido ── */}
                 {mode === "edit" && ordemOmie && (
                   <button className="os-rail-btn" onClick={abrirPdfOmie} disabled={baixandoPdfOmie} title="PDF oficial da Ordem de Serviço no Omie">
-                    <i className={`fas ${baixandoPdfOmie ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfOmie ? "Buscando..." : "PDF OS (Omie)"}
+                    <i className={`fas ${baixandoPdfOmie ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfOmie ? "Buscando..." : `PDF OS ${(ordemOmie.replace(/^0+/, "") || ordemOmie)}`}
                   </button>
                 )}
-                {mode === "edit" && ppv.trim() && ppv.split(",").map((s) => s.trim()).filter(Boolean).map((pid) => (
-                  <button key={pid} className="os-rail-btn" onClick={() => abrirPdfPecasOmie(pid)} disabled={baixandoPdfPecas === pid} title={`PDF oficial do pedido de peças ${pid} no Omie`}>
-                    <i className={`fas ${baixandoPdfPecas === pid ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfPecas === pid ? "Buscando..." : `PDF Peças ${pid}`}
+                {mode === "edit" && Object.entries(ppvOmieMap).map(([pid, numOmie]) => (
+                  <button key={pid} className="os-rail-btn" onClick={() => abrirPdfPecasOmie(pid)} disabled={baixandoPdfPecas === pid} title={`PDF oficial do pedido/remessa de peças no Omie (${pid})`}>
+                    <i className={`fas ${baixandoPdfPecas === pid ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfPecas === pid ? "Buscando..." : `PDF PV ${(numOmie.replace(/^0+/, "") || numOmie)}`}
                   </button>
                 ))}
 
