@@ -199,12 +199,28 @@ function DashboardAgrupadoInner() {
 
   // Registro MANUAL de envio: revisão/inspeção que saiu por fora do portal
   // (Gmail direto, WhatsApp) ficava "Pendente" pra sempre e segurava a
-  // pendência Mahindra. Aqui só grava o registro — não dispara e-mail.
+  // pendência Mahindra. Grava o registro (sem disparar e-mail) E marca a
+  // revisão como REALIZADA no cadastro do trator — sem a data, a timeline
+  // continuava tratando como não feita e não liberava as revisões seguintes.
   const marcarEnviadaManual = async (tipo: "revisao" | "inspecao", rev?: string) => {
     if (!selecionado || marcandoManual) return;
     if (!podeEnviar) { setMsgMarcacao("Você não tem permissão para registrar envios."); return; }
     const rotulo = tipo === "inspecao" ? "a inspeção de pré-entrega" : `a revisão de ${rev}`;
-    if (!confirm(`Registrar que ${rotulo} JÁ FOI ENVIADA por fora do portal?\n\nNenhum e-mail será disparado — isso só marca na timeline (e libera a pendência Mahindra das OSs deste chassi).`)) return;
+    const campoData = tipo === "inspecao" ? "Inspecao Data" : `${rev} Data`;
+    const dataAtual = String(selecionado[campoData] || "").trim();
+
+    const hojeBR = new Date().toLocaleDateString("pt-BR");
+    const resp = prompt(
+      `Registrar que ${rotulo} JÁ FOI FEITA e enviada por fora do portal.\n`
+      + `Nenhum e-mail será disparado.\n\n`
+      + `Data em que foi realizada/enviada (dd/mm/aaaa):`,
+      dataAtual || hojeBR,
+    );
+    if (resp === null) return;
+    const dataBR = resp.trim() || hojeBR;
+    const m = dataBR.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    if (!m) { setMsgMarcacao("Data inválida — use o formato dd/mm/aaaa."); setTimeout(() => setMsgMarcacao(""), 6000); return; }
+    const dataISO = `${m[3]}-${m[2]}-${m[1]}`;
 
     setMarcandoManual(`${tipo}-${rev || ""}`);
     setMsgMarcacao("");
@@ -219,28 +235,53 @@ function DashboardAgrupadoInner() {
           horimetro: tipo === "inspecao" ? (selecionado["Inspecao Horimetro"] as string | undefined) : undefined,
           modelo: selecionado.Modelo,
           cliente: selecionado.Cliente,
+          data: dataISO,
         }),
       });
       const json = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(json.error || "Falha ao registrar.");
+      // 409 = já constava o envio; segue mesmo assim pra gravar a data da
+      // revisão (era o caso de quem marcou antes desta correção)
+      if (!res.ok && res.status !== 409) throw new Error(json.error || "Falha ao registrar.");
+
+      // marca a revisão como REALIZADA (é o que destrava a próxima na timeline)
+      if (dataAtual !== dataBR) {
+        const { error } = await supabase
+          .from("tratores")
+          .update({ [campoData]: dataBR })
+          .eq("ID", selecionado.ID);
+        if (error) throw new Error(`Registro salvo, mas não consegui marcar a data: ${error.message}`);
+        const atualizado = { ...selecionado, [campoData]: dataBR } as Trator;
+        setSelecionado(atualizado);
+        setTratores(prev => prev.map(t => (t.ID === selecionado.ID ? atualizado : t)));
+      }
+
       await Promise.all([fetchEmails(), fetchInspecaoEmails()]);
-      setMsgMarcacao(`✓ ${tipo === "inspecao" ? "Inspeção" : `Revisão ${rev}`} marcada como enviada.`);
+      setMsgMarcacao(
+        `✓ ${tipo === "inspecao" ? "Inspeção" : `Revisão ${rev}`} registrada como enviada em ${dataBR}`
+        + `${res.status === 409 ? " (o envio já constava — atualizei a data)" : ""}.`,
+      );
       auditLog({
         sistema: "revisoes", acao: "editar", entidade: "trator", entidade_id: selecionado.ID,
         entidade_label: `${selecionado.Modelo} - ${selecionado.Chassis}`,
-        detalhes: { campo: "registro_manual_envio", para: tipo === "inspecao" ? "inspecao" : rev },
+        detalhes: { campo: "registro_manual_envio", para: tipo === "inspecao" ? "inspecao" : rev, data: dataBR },
       });
     } catch (e) {
       setMsgMarcacao(e instanceof Error ? e.message : "Falha ao registrar.");
     } finally {
       setMarcandoManual("");
-      setTimeout(() => setMsgMarcacao(""), 6000);
+      setTimeout(() => setMsgMarcacao(""), 8000);
     }
   };
 
-  const desfazerMarcacaoManual = async (tipo: "revisao" | "inspecao", id: string | number) => {
+  const desfazerMarcacaoManual = async (tipo: "revisao" | "inspecao", id: string | number, rev?: string) => {
     if (marcandoManual) return;
     if (!confirm("Desfazer este registro manual? A revisão volta a aparecer como pendente.")) return;
+    // a data da revisão pode ter vindo do registro manual OU do preenchimento
+    // normal — nunca apaga sem perguntar
+    const campoData = tipo === "inspecao" ? "Inspecao Data" : `${rev} Data`;
+    const temData = selecionado && String(selecionado[campoData] || "").trim();
+    const limparData = !!temData && confirm(`Limpar também a data da revisão (${temData})?\n\nOK = volta a contar como NÃO realizada · Cancelar = mantém a data.`);
+
     setMarcandoManual(`undo-${id}`);
     setMsgMarcacao("");
     try {
@@ -251,8 +292,16 @@ function DashboardAgrupadoInner() {
       });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json.error || "Falha ao desfazer.");
+      if (limparData && selecionado) {
+        const { error } = await supabase.from("tratores").update({ [campoData]: "" }).eq("ID", selecionado.ID);
+        if (!error) {
+          const atualizado = { ...selecionado, [campoData]: "" } as Trator;
+          setSelecionado(atualizado);
+          setTratores(prev => prev.map(t => (t.ID === selecionado.ID ? atualizado : t)));
+        }
+      }
       await Promise.all([fetchEmails(), fetchInspecaoEmails()]);
-      setMsgMarcacao("Registro manual desfeito.");
+      setMsgMarcacao(`Registro manual desfeito${limparData ? " (data da revisão limpa)" : ""}.`);
     } catch (e) {
       setMsgMarcacao(e instanceof Error ? e.message : "Falha ao desfazer.");
     } finally {
@@ -1284,6 +1333,7 @@ function DashboardAgrupadoInner() {
                                                 {podeEnviar && (
                                                   <button
                                                     onClick={(e) => { e.stopPropagation(); desfazerMarcacaoManual("inspecao", inspEmail.uid); }}
+                                                    title="Remove o registro manual (pergunta se limpa a data)"
                                                     disabled={!!marcandoManual}
                                                     className="mt-1 text-xs text-zinc-500 underline hover:text-red-600 disabled:opacity-50"
                                                   >
@@ -1445,7 +1495,7 @@ function DashboardAgrupadoInner() {
                                                 <p className="text-xs text-zinc-400">{email.enviadoPor ? `marcado por ${email.enviadoPor}` : "enviada por fora do portal"}</p>
                                                 {podeEnviar && (
                                                   <button
-                                                    onClick={(e) => { e.stopPropagation(); desfazerMarcacaoManual("revisao", email.uid); }}
+                                                    onClick={(e) => { e.stopPropagation(); desfazerMarcacaoManual("revisao", email.uid, rev); }}
                                                     disabled={!!marcandoManual}
                                                     className="mt-1 text-xs text-zinc-500 underline hover:text-red-600 disabled:opacity-50"
                                                   >
@@ -1515,7 +1565,34 @@ function DashboardAgrupadoInner() {
                                       </button>
                                     </div>
                                   ) : (
-                                    <p className="text-sm text-zinc-400">Revisão ainda não realizada.</p>
+                                    // Revisão futura: mesmo fora de ordem dá pra enviar o
+                                    // checklist ou registrar que já foi feita — antes ficava
+                                    // travada até a anterior ter data preenchida
+                                    <div className="flex items-center gap-3 flex-wrap">
+                                      <div className="flex-1 min-w-[180px]">
+                                        <p className="text-sm text-zinc-400">Revisão ainda não realizada.</p>
+                                        {email && (
+                                          <p className="text-xs text-sky-700 mt-1">
+                                            Já existe {email.registroManual ? "registro manual" : "e-mail enviado"} desta revisão para este chassi.
+                                          </p>
+                                        )}
+                                      </div>
+                                      {podeEnviar && !email && (
+                                        <button
+                                          onClick={() => marcarEnviadaManual("revisao", rev)}
+                                          disabled={!!marcandoManual}
+                                          className="text-sm bg-white text-sky-700 border border-sky-300 px-3 py-2 rounded-lg font-medium hover:bg-sky-50 transition-colors shrink-0 disabled:opacity-50"
+                                        >
+                                          {marcandoManual === `revisao-${rev}` ? "Registrando…" : "Marcar como enviada"}
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => { setTabModal("enviar"); setRevisaoEnvio(rev); }}
+                                        className="text-sm bg-red-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-red-700 transition-colors shrink-0"
+                                      >
+                                        Enviar cheque
+                                      </button>
+                                    </div>
                                   )}
                                 </div>
                               )}
