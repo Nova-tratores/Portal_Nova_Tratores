@@ -162,10 +162,14 @@ function blocosTexto(e: BlocoEtiqueta, comBarra: boolean, dataRef = ''): string 
 }
 
 // ── Impressão em FOLHA ADESIVA pré-cortada 3×10 (Pimaco/Avery 6180) ─────────
-// Folha 215×280mm · margem 5mm laterais, 12mm topo, 13mm base · 4mm entre
-// colunas, 0mm entre linhas → etiqueta 65,667mm larg (=(215−10−8)/3) × 25,5mm
-// alt (=(280−25)/10). `usadas` = posições (0-29) da 1ª folha já descoladas —
-// saem em branco. `off` = calibração fina de impressora (mm), ver OffsetFolha.
+// Geometria EXATA do padrão US Letter / Avery 5160·6180 (o mesmo do papel
+// "Carta 216×279mm" da impressora): página 215,9×279,4mm · margem 12,7mm topo/base
+// e 4,76mm laterais · 3,175mm entre colunas, 0 entre linhas → etiqueta 66,675mm ×
+// 25,4mm (1 pol). Antes usávamos 215×280 / 25,5mm (medida à mão); a diferença
+// altura-página (280 vs 279) fazia o Chrome "ajustar pra caber" e ENCOLHER a folha,
+// acumulando desalinhamento linha a linha. Casando com Carta, imprime 1:1 (Escala 100%).
+// `usadas` = posições (0-29) da 1ª folha já descoladas — saem em branco.
+// `off` = calibração fina de impressora (mm), ver OffsetFolha.
 export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: OffsetFolha = {}): string {
   const paginas: (BlocoEtiqueta | null)[][] = []
   const fila = [...blocos]
@@ -181,10 +185,10 @@ export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: Off
   }
   const dataRef = dataRefAtual()
   // Realoca as margens pelo offset (mantém o tamanho da etiqueta intacto).
-  const ox = Math.max(-5, Math.min(5, off.x || 0))
-  const oy = Math.max(-12, Math.min(13, off.y || 0))
-  const padTop = (12 + oy).toFixed(2), padBot = (13 - oy).toFixed(2)
-  const padLeft = (5 + ox).toFixed(2), padRight = (5 - ox).toFixed(2)
+  const ox = Math.max(-4, Math.min(4, off.x || 0))
+  const oy = Math.max(-12, Math.min(12, off.y || 0))
+  const padTop = (12.7 + oy).toFixed(2), padBot = (12.7 - oy).toFixed(2)
+  const padLeft = (4.76 + ox).toFixed(2), padRight = (4.76 - ox).toFixed(2)
 
   const cel = (e: BlocoEtiqueta | null) => {
     if (e === null) return '    <div class="cel"></div>'
@@ -212,12 +216,12 @@ ${blocosTexto(e, false)}
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças (folha 3×10)</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  @page { size: 215mm 280mm; margin: 0; }
+  @page { size: 215.9mm 279.4mm; margin: 0; }
   body { font-family: Arial, Helvetica, sans-serif; }
   .pagina {
-    width: 215mm; height: 280mm; padding: ${padTop}mm ${padRight}mm ${padBot}mm ${padLeft}mm;
-    display: grid; grid-template-columns: repeat(3, 65.667mm);
-    grid-auto-rows: 25.5mm; column-gap: 4mm; row-gap: 0;
+    width: 215.9mm; height: 279.4mm; padding: ${padTop}mm ${padRight}mm ${padBot}mm ${padLeft}mm;
+    display: grid; grid-template-columns: repeat(3, 66.675mm);
+    grid-auto-rows: 25.4mm; column-gap: 3.175mm; row-gap: 0;
     page-break-after: always;
   }
   .pagina:last-child { page-break-after: auto; }
