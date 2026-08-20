@@ -28,12 +28,16 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
   if (!temModuloFrota(auth)) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 });
 
-  const [multas, usos, resp] = await Promise.all([
+  const [multas, usos, resp, mots] = await Promise.all([
     supabase.from('frota_multas').select('*').order('dt_multa', { ascending: false }),
     supabase.from('vw_frota_uso_diario').select('veiculo_id, data, pessoa_nome'),
     supabase.from('frota_responsaveis').select('veiculo_id, motorista_nome, inicio, fim'),
+    supabase.from('frota_motoristas').select('id, nome'),
   ]);
   if (multas.error) return NextResponse.json({ error: multas.error.message }, { status: 500 });
+
+  const nomeMotorista = new Map<string, string>();
+  for (const p of mots.data || []) nomeMotorista.set(p.id, p.nome);
 
   const usoPorDia = new Map<string, string>();
   for (const u of usos.data || []) {
@@ -49,13 +53,17 @@ export async function GET(req: NextRequest) {
 
   const lista = (multas.data || []).map((m) => {
     const d = String(m.dt_multa || '').slice(0, 10);
+    // Motorista definido NA MÃO na tela vence tudo; depois a cadeia automática.
+    const manual = m.responsavel_id ? nomeMotorista.get(m.responsavel_id) || null : null;
     const uso = m.veiculo_id && d ? usoPorDia.get(`${m.veiculo_id}|${d}`) : null;
     const fixo = d ? fixoEm(m.veiculo_id, d) : null;
-    const atribuido = uso || fixo || m.motorista_nome || null;
+    const atribuido = manual || uso || fixo || m.motorista_nome || null;
     return {
       ...m,
       atribuido_a: atribuido,
-      atribuido_fonte: uso ? 'uso_diario' : fixo ? 'responsavel_fixo' : m.motorista_nome ? 'rotaexata' : null,
+      atribuido_fonte: manual
+        ? 'manual'
+        : uso ? 'uso_diario' : fixo ? 'responsavel_fixo' : m.motorista_nome ? 'rotaexata' : null,
       origem: String(m.re_id || '').startsWith('manual:') ? 'manual' : 'rotaexata',
     };
   });
@@ -157,6 +165,23 @@ export async function PATCH(req: NextRequest) {
   if (body.descontado_folha !== undefined) upd.descontado_folha = !!body.descontado_folha;
   if (body.desconto_competencia !== undefined) upd.desconto_competencia = body.desconto_competencia || null;
   if (body.obs_interna !== undefined) upd.obs_interna = String(body.obs_interna || '').trim() || null;
+  // Indicação do condutor ao órgão (data em que foi indicado + prazo-limite)
+  const soData = (v: unknown): string | null => {
+    const t = String(v || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+  };
+  if (body.condutor_indicado_em !== undefined) {
+    if (body.condutor_indicado_em && !soData(body.condutor_indicado_em)) {
+      return NextResponse.json({ error: 'Data de indicação inválida.' }, { status: 400 });
+    }
+    upd.condutor_indicado_em = soData(body.condutor_indicado_em);
+  }
+  if (body.indicacao_prazo !== undefined) {
+    if (body.indicacao_prazo && !soData(body.indicacao_prazo)) {
+      return NextResponse.json({ error: 'Prazo de indicação inválido.' }, { status: 400 });
+    }
+    upd.indicacao_prazo = soData(body.indicacao_prazo);
+  }
   if (Object.keys(upd).length === 0) {
     return NextResponse.json({ error: 'Nada para atualizar.' }, { status: 400 });
   }
@@ -187,6 +212,9 @@ export async function PATCH(req: NextRequest) {
         : {}),
       ...(upd.obs_interna !== undefined ? { obs_interna: upd.obs_interna } : {}),
       ...(upd.desconto_competencia !== undefined ? { desconto_competencia: upd.desconto_competencia } : {}),
+      ...(upd.responsavel_id !== undefined ? { responsavel_id: upd.responsavel_id } : {}),
+      ...(upd.condutor_indicado_em !== undefined ? { condutor_indicado_em: upd.condutor_indicado_em } : {}),
+      ...(upd.indicacao_prazo !== undefined ? { indicacao_prazo: upd.indicacao_prazo } : {}),
     },
   });
 

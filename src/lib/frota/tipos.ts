@@ -207,8 +207,13 @@ export interface Multa {
   obs_interna: string | null;
   // resolvido pelo servidor: quem estava COM o carro na data da infração
   // (uso diário vence; responsável fixo é o fallback; RE por último)
+  // Motorista definido NA MÃO na tela de multas — vence a cadeia automática
+  responsavel_id: string | null;
+  // Indicação do condutor ao órgão autuador (sem indicar no prazo vem a NIC)
+  condutor_indicado_em: string | null;   // DATE — null = ainda não indicado
+  indicacao_prazo: string | null;        // DATE — prazo-limite do auto
   atribuido_a: string | null;
-  atribuido_fonte: 'uso_diario' | 'responsavel_fixo' | 'rotaexata' | null;
+  atribuido_fonte: 'manual' | 'uso_diario' | 'responsavel_fixo' | 'rotaexata' | null;
   // manual = cadastrada pelo portal (notificação por correio etc.); o sync da
   // Rota Exata nunca toca nelas (re_id sintético "manual:<uuid>")
   origem: 'manual' | 'rotaexata';

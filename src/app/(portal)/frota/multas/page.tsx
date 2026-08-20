@@ -1,9 +1,10 @@
 'use client';
-// Frota > Multas — todas as multas da frota, com QUEM estava com o carro na
-// data (uso diário > responsável fixo > Rota Exata) e o fluxo interno
-// (análise/defesa/paga/descontada). A lista abre na hora com o espelho local
-// e um sync com a Rota Exata roda em segundo plano ao abrir a aba (trava de
-// 10 min na rota /multas/atualizar) — recarrega sozinha quando termina.
+// Frota > Multas — multas cadastradas MANUALMENTE (o sync da Rota Exata pra
+// multas foi DESLIGADO em 20/08/2026 — ela segue só pra localização). Cada
+// multa tem: motorista editável (vence a cadeia automática uso diário >
+// responsável fixo), fluxo interno (análise/defesa/paga/descontada),
+// INDICAÇÃO DO CONDUTOR ao órgão (data + prazo, com alerta de vencido) e o
+// painel de pontos por motorista dos últimos 12 meses.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ShieldAlert, AlertTriangle, MapPin, ExternalLink, Paperclip, Loader2, Camera, Plus, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -25,10 +26,13 @@ const STATUS: Record<string, { label: string; cor: string; bg: string }> = {
   arquivada: { label: 'Arquivada', cor: '#64748b', bg: '#f1f5f9' },
 };
 const FONTE_LABEL: Record<string, string> = {
+  manual: 'definido manualmente',
   uso_diario: 'marcou o carro no dia',
   responsavel_fixo: 'responsável fixo',
   rotaexata: 'carimbado pela Rota Exata',
 };
+
+interface MotoristaOpcao { id: string; nome: string; e_motorista?: boolean }
 
 interface VeiculoOpcao { id: string; placa: string; placa_exibicao?: string | null; modelo?: string | null; ativo?: boolean }
 
@@ -181,10 +185,10 @@ export default function FrotaMultasPage() {
   const podeEditar = pode('frota', 'multas:editar');
 
   const [multas, setMultas] = useState<Multa[]>([]);
+  const [motoristas, setMotoristas] = useState<MotoristaOpcao[]>([]);
   const [erro, setErro] = useState('');
   const [soAbertas, setSoAbertas] = useState(true);
   const [busy, setBusy] = useState('');
-  const [sincronizando, setSincronizando] = useState(false);
   const [novaMulta, setNovaMulta] = useState(false);
 
   const carregar = useCallback(async () => {
@@ -197,35 +201,31 @@ export default function FrotaMultasPage() {
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
 
-  // Ao abrir a aba: puxa da Rota Exata em segundo plano (a rota ignora se o
-  // último sync tem menos de 10 min) e recarrega a lista se veio coisa nova.
-  const sincronizouRef = useRef(false);
+  // Lista de motoristas pro seletor de responsável de cada multa
   useEffect(() => {
-    if (sincronizouRef.current) return;
-    sincronizouRef.current = true;
     (async () => {
-      setSincronizando(true);
       try {
-        const r = await fetch('/api/frota/multas/atualizar', { method: 'POST', headers: await authHeaders() });
-        const d = await r.json().catch(() => ({}));
-        if (r.ok && d.sincronizou) await carregar();
-      } catch { /* sem rede/timeout: a aba segue com o espelho local */ }
-      finally { setSincronizando(false); }
+        const r = await fetch('/api/frota/motoristas', { headers: await authHeaders() });
+        const d = await r.json();
+        if (r.ok) setMotoristas((d.motoristas || []) as MotoristaOpcao[]);
+      } catch { /* seletor fica vazio; a tela segue */ }
     })();
-  }, [carregar]);
+  }, []);
 
-  const mudarStatus = async (id: string, status: string) => {
+  // PATCH genérico (status, motorista, indicação do condutor...)
+  const patchMulta = async (id: string, campos: Record<string, unknown>) => {
     setBusy(id);
     try {
       const r = await fetch('/api/frota/multas', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ id, status_interno: status }),
+        body: JSON.stringify({ id, ...campos }),
       });
       if (!r.ok) { const d = await r.json(); alert(d.error || 'Falha ao atualizar.'); return; }
       await carregar();
     } finally { setBusy(''); }
   };
+  const mudarStatus = (id: string, status: string) => patchMulta(id, { status_interno: status });
 
   // anexos (auto de infração, boleto, comprovante, defesa...)
   const fileRef = useRef<HTMLInputElement>(null);
@@ -265,6 +265,26 @@ export default function FrotaMultasPage() {
     .filter((m) => !['paga', 'descontada', 'arquivada'].includes(m.status_interno))
     .reduce((s, m) => s + (Number(m.valor) || 0), 0);
 
+  // Pontos por motorista nos ÚLTIMOS 12 MESES (janela dos pontos na CNH),
+  // contando pelo motorista atribuído de cada multa (exceto arquivadas).
+  const pontosPorMotorista = useMemo(() => {
+    const corte = new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10);
+    const mapa = new Map<string, { pontos: number; qtd: number }>();
+    for (const m of multas) {
+      if (m.status_interno === 'arquivada') continue;
+      if (!m.atribuido_a || !m.pontos) continue;
+      const d = String(m.dt_multa || '').slice(0, 10);
+      if (!d || d < corte) continue;
+      const atual = mapa.get(m.atribuido_a) || { pontos: 0, qtd: 0 };
+      atual.pontos += Number(m.pontos) || 0;
+      atual.qtd += 1;
+      mapa.set(m.atribuido_a, atual);
+    }
+    return [...mapa.entries()]
+      .map(([nome, v]) => ({ nome, ...v }))
+      .sort((a, b) => b.pontos - a.pontos);
+  }, [multas]);
+
   return (
     <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
@@ -274,11 +294,6 @@ export default function FrotaMultasPage() {
         <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
           {visiveis.length} exibidas · <strong style={{ color: '#b91c1c' }}>{fmtRS(totalAberto)}</strong> em aberto
         </span>
-        {sincronizando && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--portal-text-muted)' }}>
-            <Loader2 size={13} className="animate-spin" /> sincronizando com a Rota Exata…
-          </span>
-        )}
         <div style={{ flex: 1 }} />
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
           <input type="checkbox" checked={soAbertas} onChange={() => setSoAbertas((v) => !v)} /> só em aberto
@@ -312,6 +327,31 @@ export default function FrotaMultasPage() {
           e.target.value = '';
         }}
       />
+
+      {/* Pontos por motorista (janela de 12 meses da CNH) */}
+      {pontosPorMotorista.length > 0 && (
+        <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: '10px 14px', marginBottom: 14, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 11, fontWeight: 800, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
+            Pontos por motorista · últimos 12 meses
+          </span>
+          {pontosPorMotorista.map((p) => (
+            <span
+              key={p.nome}
+              title={`${p.qtd} multa(s) atribuída(s) nos últimos 12 meses${p.pontos >= 20 ? ' — ATENÇÃO: risco de suspensão da CNH (20+ pontos)' : ''}`}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 700,
+                borderRadius: 999, padding: '3px 10px',
+                color: p.pontos >= 20 ? '#b91c1c' : 'var(--portal-text-secondary)',
+                background: p.pontos >= 20 ? '#fef2f2' : 'var(--portal-bg-secondary)',
+                border: `1px solid ${p.pontos >= 20 ? '#fca5a5' : 'var(--portal-border)'}`,
+              }}
+            >
+              {p.nome} · {p.pontos} pts
+              {p.pontos >= 20 && <AlertTriangle size={11} />}
+            </span>
+          ))}
+        </div>
+      )}
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
       {visiveis.length === 0 && !erro && (
@@ -347,13 +387,75 @@ export default function FrotaMultasPage() {
                     <MapPin size={11} /> {m.local_endereco} {m.local_lat && <ExternalLink size={10} />}
                   </a>
                 )}
-                <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginTop: 3 }}>
-                  <strong>{m.atribuido_a || 'não identificado'}</strong>
-                  {m.atribuido_fonte && <span style={{ color: 'var(--portal-text-muted)' }}> ({FONTE_LABEL[m.atribuido_fonte]})</span>}
+                {/* Motorista: seletor manual vence a cadeia automática (uso diário > fixo) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4, flexWrap: 'wrap', fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>Motorista:</span>
+                  {podeEditar ? (
+                    <select
+                      value={m.responsavel_id || ''}
+                      disabled={busy === m.id}
+                      onChange={(e) => patchMulta(m.id, { responsavel_id: e.target.value || null })}
+                      title="Definir o motorista desta multa (vence a atribuição automática)"
+                      style={{ padding: '3px 6px', borderRadius: 7, fontSize: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', maxWidth: 220 }}
+                    >
+                      <option value="">— automático —</option>
+                      {motoristas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+                    </select>
+                  ) : (
+                    <strong>{m.atribuido_a || 'não identificado'}</strong>
+                  )}
+                  {podeEditar && !m.responsavel_id && (
+                    <strong>{m.atribuido_a || 'não identificado'}</strong>
+                  )}
+                  {m.atribuido_fonte && <span style={{ color: 'var(--portal-text-muted)' }}>({FONTE_LABEL[m.atribuido_fonte]})</span>}
                   {m.motorista_divergente && (
-                    <span title="O motorista carimbado pela Rota Exata difere do responsável vigente na data — confira antes de descontar" style={{ color: '#b45309', marginLeft: 6 }}>
+                    <span title="O motorista carimbado pela Rota Exata difere do responsável vigente na data — confira antes de descontar" style={{ color: '#b45309' }}>
                       <AlertTriangle size={11} style={{ verticalAlign: '-2px' }} /> divergência
                     </span>
+                  )}
+                </div>
+
+                {/* Indicação do condutor ao órgão (sem indicar no prazo vem a NIC) */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap', fontSize: 11.5 }}>
+                  {(() => {
+                    const hoje = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+                    const br = (d: string) => d.split('-').reverse().join('/');
+                    const chip = m.condutor_indicado_em
+                      ? { txt: `Condutor indicado em ${br(m.condutor_indicado_em)}`, cor: '#15803d', bg: '#dcfce7', bd: '#86efac' }
+                      : m.indicacao_prazo && m.indicacao_prazo < hoje
+                        ? { txt: `Indicação VENCIDA (prazo ${br(m.indicacao_prazo)})`, cor: '#b91c1c', bg: '#fef2f2', bd: '#fca5a5' }
+                        : m.indicacao_prazo
+                          ? { txt: `Indicar condutor até ${br(m.indicacao_prazo)}`, cor: '#92400e', bg: '#fef3c7', bd: '#fcd34d' }
+                          : { txt: 'Condutor não indicado', cor: '#92400e', bg: '#fef3c7', bd: '#fcd34d' };
+                    return (
+                      <span style={{ fontSize: 10.5, fontWeight: 800, color: chip.cor, background: chip.bg, border: `1px solid ${chip.bd}`, borderRadius: 999, padding: '2px 8px' }}>
+                        {chip.txt}
+                      </span>
+                    );
+                  })()}
+                  {podeEditar && (
+                    <>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--portal-text-muted)' }}>
+                        indicado em
+                        <input
+                          type="date"
+                          value={m.condutor_indicado_em || ''}
+                          disabled={busy === m.id}
+                          onChange={(e) => patchMulta(m.id, { condutor_indicado_em: e.target.value || null })}
+                          style={{ padding: '2px 5px', borderRadius: 6, fontSize: 11, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)' }}
+                        />
+                      </label>
+                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--portal-text-muted)' }}>
+                        prazo
+                        <input
+                          type="date"
+                          value={m.indicacao_prazo || ''}
+                          disabled={busy === m.id}
+                          onChange={(e) => patchMulta(m.id, { indicacao_prazo: e.target.value || null })}
+                          style={{ padding: '2px 5px', borderRadius: 6, fontSize: 11, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)' }}
+                        />
+                      </label>
+                    </>
                   )}
                 </div>
 

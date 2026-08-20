@@ -84,11 +84,21 @@ export async function POST(req: NextRequest) {
     const desde = new Date(Date.now() - 7 * 86_400_000).toISOString();
     const { data: multas } = await supabase
       .from('frota_multas')
-      .select('id, veiculo_id, placa, descricao, numero_auto, valor, pontos, dt_multa, motorista_nome, local_endereco, local_lat, local_lng, imagens, created_at')
+      .select('id, veiculo_id, placa, descricao, numero_auto, valor, pontos, dt_multa, responsavel_id, motorista_nome, local_endereco, local_lat, local_lng, imagens, created_at')
       .gte('created_at', desde);
     for (const m of multas || []) {
       const dia = String(m.dt_multa || '').slice(0, 10) || new Date().toISOString().slice(0, 10);
-      const resp = (await responsavelNaData(m.veiculo_id, m.placa, dia)) || (m.motorista_nome ? String(m.motorista_nome) : null);
+      // Motorista definido NA MÃO na tela de multas vence a cadeia automática
+      let manual: string | null = null;
+      if (m.responsavel_id) {
+        const { data: mot } = await supabase
+          .from('frota_motoristas')
+          .select('nome')
+          .eq('id', m.responsavel_id)
+          .maybeSingle();
+        manual = mot?.nome ? String(mot.nome) : null;
+      }
+      const resp = manual || (await responsavelNaData(m.veiculo_id, m.placa, dia)) || (m.motorista_nome ? String(m.motorista_nome) : null);
       if (!resp) { resumo.sem_responsavel.push(`multa ${m.placa} ${dia}`); continue; }
       const { nome } = await resolverTecnicoNome(supabase, resp);
       const mapsUrl = m.local_lat && m.local_lng ? `https://www.google.com/maps?q=${m.local_lat},${m.local_lng}` : null;

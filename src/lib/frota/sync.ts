@@ -379,8 +379,11 @@ export async function syncEventos() {
     return porId || porPlaca.get(resolverPlaca(adesao?.vei_placa));
   };
 
-  // 1) /multas — já vem com o motorista (nome, CPF, CNH), local e imagens
-  const multas = await fetchTudo('/multas');
+  // 1) /multas — DESLIGADO (20/08/2026, decisão do usuário): multas agora são
+  // cadastradas MANUALMENTE na aba Frota > Multas. A Rota Exata segue só pra
+  // localização, manutenções e custos. As multas já importadas ficam na tabela
+  // (histórico) — nada é apagado. Pra religar, volte a buscar fetchTudo('/multas').
+  const multas: any[] = [];
 
   // responsáveis vigentes, pra bandeira de divergência
   const { data: resp } = await supabase
