@@ -5,7 +5,7 @@
 //     EMPRESA 1
 //     CÓDIGO - DESCRIÇÃO - CARACTERÍSTICA DE LOCAÇÃO
 // Fonte: produtos_caracteristicas (sync de Ajustes; locação = chaves com #).
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { ArrowLeft, Loader2, Plus, Printer, QrCode, Search, Tag, Trash2, X } from 'lucide-react'
@@ -14,6 +14,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import { htmlFolha, htmlRecorte, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
+import { casaFiltroColuna, reconciliarOrdem, ControleOrdenacao, SeletorColunas, MenuEngrenagem, type Sort } from '@/components/tabela/ConfigColunas'
 
 interface ItemBusca {
   conta_omie: string
@@ -70,6 +71,35 @@ function locacaoDe(car: Record<string, string> | null): string {
 
 const chaveItem = (i: ItemBusca) => `${i.conta_omie}|${i.codigo}`
 
+// ── Config de colunas da tabela (filtro/ordenação/seletor, estilo Características) ──
+const LOC_KEYS = ['#PRATELEIRA', '#ANDAR', '#CAIXA']
+const LABELS_FIXOS: Record<string, string> = {
+  empresa: 'Empresa', codigo: 'Código', descricao: 'Descrição',
+  '#PRATELEIRA': 'Prateleira', '#ANDAR': 'Andar', '#CAIXA': 'Caixa', chegou: 'Chegou em',
+}
+const DEFAULT_ORDEM_ETIQ = ['empresa', 'codigo', 'descricao', '#PRATELEIRA', '#ANDAR', '#CAIXA', 'chegou']
+const CHAVE_PREF_COLUNAS = 'etiquetas-colunas'
+const ORDEM_KEY = (uid: string) => `etiq-ordem-colunas-${uid}`
+const OCULTAS_KEY = (uid: string) => `etiq-colunas-ocultas-${uid}`
+function labelColEtiq(k: string): string { return LABELS_FIXOS[k] || k.replace(/^#/, '') }
+
+// Valor "limpo" de uma característica (ignora vazio / só-zeros / só-x, como na locação).
+function valCarac(car: Record<string, string> | null, k: string): string {
+  const v = (car?.[k] || '').trim()
+  if (!v || /^0+$/.test(v) || /^x+$/i.test(v)) return ''
+  return v
+}
+
+// Valor de uma célula (item × coluna) — base do filtro e da ordenação.
+function valColEtiq(i: ItemBusca, col: string): string {
+  if (col === 'empresa') return EMPRESA_LABEL[i.conta_omie] || i.conta_omie
+  if (col === 'codigo') return i.codigo || ''
+  if (col === 'descricao') return (i.descricao || '').trim()
+  if (col === 'chegou') return i.chegou || ''
+  if (col.startsWith('#')) return valCarac(i.caracteristicas, col)
+  return (i.caracteristicas?.[col] || '').trim()
+}
+
 export default function EtiquetasPanel({ embedded = false }: { embedded?: boolean }) {
   const { userProfile } = useAuth()
   const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
@@ -88,6 +118,12 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const [rastrear, setRastrear] = useState(false)
   const [imprimindo, setImprimindo] = useState(false)
   const [folhas, setFolhas] = useState<FolhaHist[]>([])
+  // Config de colunas (filtro por coluna, ordenação principal+desempate, seletor).
+  const [filtros, setFiltros] = useState<Record<string, string>>({})
+  const [sorts, setSorts] = useState<Sort[]>([])
+  const [ordemColunas, setOrdemColunas] = useState<string[]>([])
+  const [colunasOcultas, setColunasOcultas] = useState<string[]>([])
+  const [seletorAberto, setSeletorAberto] = useState(false)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -108,6 +144,31 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       finally { setCarregandoRecentes(false) }
     })()
   }, [])
+
+  // Preferências de colunas (ordem + ocultas) por usuário: Supabase (portal_ui_prefs)
+  // com fallback localStorage. Mesmo padrão de /ajustes/caracteristicas.
+  useEffect(() => {
+    const uid = userProfile?.id
+    if (!uid) return
+    ;(async () => {
+      let ordem: string[] | null = null
+      let ocultas: string[] | null = null
+      try {
+        const r = await fetch(`/api/perfil/ui-prefs?user_id=${encodeURIComponent(uid)}&chave=${CHAVE_PREF_COLUNAS}`)
+        if (r.ok) {
+          const d = await r.json()
+          if (d.valor && typeof d.valor === 'object') {
+            if (Array.isArray(d.valor.ordem)) ordem = d.valor.ordem.map(String)
+            if (Array.isArray(d.valor.ocultas)) ocultas = d.valor.ocultas.map(String)
+          }
+        }
+      } catch { /* segue pro fallback */ }
+      if (!ordem) { try { const raw = localStorage.getItem(ORDEM_KEY(uid)); if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) ordem = a } } catch { /* ignore */ } }
+      if (!ocultas) { try { const raw = localStorage.getItem(OCULTAS_KEY(uid)); if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) ocultas = a } } catch { /* ignore */ } }
+      if (ordem) setOrdemColunas(ordem)
+      if (ocultas) setColunasOcultas(ocultas)
+    })()
+  }, [userProfile?.id])
 
   // Fila COMPARTILHADA + histórico de folhas (persistidos). A fila deixou de ser
   // local: carrega no mount e cada alteração escreve no servidor (todos veem).
@@ -211,6 +272,64 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const mostrandoRecentes = q.trim().length < 2
   const listaMostrada = mostrandoRecentes ? recentes : resultados
 
+  // Colunas disponíveis: fixas + localização + 'chegou' (recentes) + demais características presentes.
+  const colunasDisponiveis = useMemo(() => {
+    const base = ['empresa', 'codigo', 'descricao', ...LOC_KEYS]
+    if (mostrandoRecentes) base.push('chegou')
+    const extras = new Set<string>()
+    for (const i of listaMostrada) {
+      if (!i.caracteristicas) continue
+      for (const k of Object.keys(i.caracteristicas)) {
+        if (!LOC_KEYS.includes(k) && valCarac(i.caracteristicas, k)) extras.add(k)
+      }
+    }
+    return [...base, ...[...extras].sort((a, b) => a.localeCompare(b, 'pt-BR'))]
+  }, [listaMostrada, mostrandoRecentes])
+
+  const ordemEfetiva = reconciliarOrdem(ordemColunas.length ? ordemColunas : DEFAULT_ORDEM_ETIQ, colunasDisponiveis)
+  const colsVisiveis = ordemEfetiva.filter(k => !colunasOcultas.includes(k))
+
+  // Lista visível = filtro por coluna (AND) + ordenação multi-nível (principal + desempate).
+  const linhasVisiveis = useMemo(() => {
+    let arr = listaMostrada
+    const ativos = Object.entries(filtros).filter(([, v]) => v && v.trim() !== '')
+    if (ativos.length) arr = arr.filter(i => ativos.every(([col, v]) => casaFiltroColuna(valColEtiq(i, col), v)))
+    if (sorts.length) {
+      arr = arr.slice().sort((a, b) => {
+        for (const { key, dir } of sorts) {
+          const c = valColEtiq(a, key).localeCompare(valColEtiq(b, key), 'pt-BR', { numeric: true, sensitivity: 'base' }) * dir
+          if (c !== 0) return c
+        }
+        return 0
+      })
+    }
+    return arr
+  }, [listaMostrada, filtros, sorts])
+
+  // Clique no cabeçalho: define a coluna como critério ÚNICO (inverte se já for principal).
+  const clicarSort = (key: string) => setSorts(arr => (arr[0]?.key === key ? [{ key, dir: -arr[0].dir }] : [{ key, dir: 1 }]))
+  const sortInfo = (key: string) => { const idx = sorts.findIndex(x => x.key === key); return idx < 0 ? null : { pos: idx, dir: sorts[idx].dir } }
+
+  // Persistência das preferências de colunas (localStorage + Supabase).
+  const salvarPrefsColunas = async (ordem: string[], ocultas: string[]) => {
+    const uid = userProfile?.id
+    if (!uid) return
+    try { localStorage.setItem(ORDEM_KEY(uid), JSON.stringify(ordem)); localStorage.setItem(OCULTAS_KEY(uid), JSON.stringify(ocultas)) } catch { /* ignore */ }
+    try {
+      await fetch('/api/perfil/ui-prefs', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_id: uid, chave: CHAVE_PREF_COLUNAS, valor: { ordem, ocultas } }),
+      })
+    } catch { /* best-effort */ }
+  }
+  const aplicarColunas = (ordem: string[], ocultas: string[]) => {
+    setOrdemColunas(ordem); setColunasOcultas(ocultas); setSeletorAberto(false); salvarPrefsColunas(ordem, ocultas)
+  }
+  const restaurarColunas = () => {
+    const ordem = reconciliarOrdem(DEFAULT_ORDEM_ETIQ, colunasDisponiveis)
+    setOrdemColunas(ordem); setColunasOcultas([]); salvarPrefsColunas(ordem, [])
+  }
+
   const alternarSel = (k: string) => {
     setSel(prev => {
       const s = new Set(prev)
@@ -265,17 +384,13 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     setSel(new Set())
   }
 
-  // Marca/desmarca todas as peças da lista mostrada (busca ou "últimas compradas").
-  const todasMarcadas = listaMostrada.length > 0 && listaMostrada.every(i => sel.has(chaveItem(i)))
+  // Marca/desmarca todas as peças VISÍVEIS (respeita o filtro por coluna atual).
+  const todasMarcadas = linhasVisiveis.length > 0 && linhasVisiveis.every(i => sel.has(chaveItem(i)))
   const alternarTodas = () => {
     setSel(prev => {
-      if (todasMarcadas) {
-        const s = new Set(prev)
-        listaMostrada.forEach(i => s.delete(chaveItem(i)))
-        return s
-      }
       const s = new Set(prev)
-      listaMostrada.forEach(i => s.add(chaveItem(i)))
+      if (todasMarcadas) linhasVisiveis.forEach(i => s.delete(chaveItem(i)))
+      else linhasVisiveis.forEach(i => s.add(chaveItem(i)))
       return s
     })
   }
@@ -400,28 +515,50 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         }
         if (lista.length === 0) return null
         return (
+        <>
+        {/* Barra: Ordenar por (principal + desempate) + engrenagem (seletor de colunas) */}
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 8 }}>
+          <ControleOrdenacao cols={colsVisiveis.map(c => ({ key: c, label: labelColEtiq(c) }))} sorts={sorts} setSorts={setSorts} />
+          <div style={{ marginLeft: 'auto' }}>
+            <MenuEngrenagem ocultasCount={colunasOcultas.length} onColunas={() => setSeletorAberto(true)} onRestaurar={restaurarColunas} />
+          </div>
+        </div>
         <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
           {mostrandoRecentes && (
             <div style={{ padding: '8px 12px', fontSize: 12, fontWeight: 800, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)' }}>
               📦 Últimas peças compradas (NFs de entrada do Omie)
             </div>
           )}
-          <div style={{ maxHeight: 340, overflowY: 'auto' }}>
+          <div style={{ maxHeight: 340, overflow: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
                 <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
                   <th style={{ padding: '8px 10px', width: 30 }}>
                     <input type="checkbox" checked={todasMarcadas} onChange={alternarTodas} title={todasMarcadas ? 'Desmarcar todas' : 'Selecionar todas'} style={{ cursor: 'pointer' }} />
                   </th>
-                  <th style={{ padding: '8px 10px', width: 140 }}>Empresa</th>
-                  <th style={{ padding: '8px 10px', width: 130 }}>Código</th>
-                  <th style={{ padding: '8px 10px' }}>Descrição</th>
-                  <th style={{ padding: '8px 10px', width: 200 }}>Locação</th>
-                  {mostrandoRecentes && <th style={{ padding: '8px 10px', width: 90 }}>Chegou em</th>}
+                  {colsVisiveis.map(col => {
+                    const si = sortInfo(col)
+                    return (
+                      <th key={col} onClick={() => clicarSort(col)} title="Clique para ordenar por esta coluna" style={{ padding: '8px 10px', cursor: 'pointer', whiteSpace: 'nowrap', userSelect: 'none', color: 'var(--portal-text)' }}>
+                        {labelColEtiq(col)}
+                        {si && <span style={{ marginLeft: 4, color: '#2563eb' }}>{si.dir > 0 ? '▲' : '▼'}{sorts.length > 1 && <sup style={{ fontSize: '.6rem' }}>{si.pos + 1}</sup>}</span>}
+                      </th>
+                    )
+                  })}
+                </tr>
+                <tr>
+                  <th style={{ padding: '0 6px 6px', background: 'var(--portal-bg-secondary)' }} />
+                  {colsVisiveis.map(col => (
+                    <th key={col} style={{ padding: '0 6px 6px', background: 'var(--portal-bg-secondary)' }}>
+                      <input value={filtros[col] || ''} onClick={e => e.stopPropagation()} onChange={e => setFiltros(f => ({ ...f, [col]: e.target.value }))}
+                        placeholder="filtrar" title={/^\d/.test(filtros[col] || '') ? 'Número = valor exato' : 'Texto = contém'}
+                        style={{ width: '100%', minWidth: 54, border: '1px solid var(--portal-border)', borderRadius: 4, padding: '3px 6px', fontSize: 11, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {lista.map(i => {
+                {linhasVisiveis.map(i => {
                   const k = chaveItem(i)
                   const marcado = sel.has(k)
                   return (
@@ -429,17 +566,19 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
                       <td style={{ padding: '7px 10px' }}>
                         <input type="checkbox" readOnly checked={marcado} />
                       </td>
-                      <td style={{ padding: '7px 10px' }}>
-                        <span style={{ display: 'inline-block', whiteSpace: 'nowrap', fontSize: 10.5, fontWeight: 800, padding: '3px 10px', borderRadius: 999, color: '#fff', background: EMPRESA_COR[i.conta_omie] || '#6b7280' }}>
-                          {EMPRESA_LABEL[i.conta_omie] || i.conta_omie}
-                        </span>
-                      </td>
-                      <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--portal-text)' }}>{i.codigo}</td>
-                      <td style={{ padding: '7px 10px', color: 'var(--portal-text)' }}>
-                        {i.descricao || <em style={{ color: 'var(--portal-text-muted)' }}>sem cadastro de características</em>}
-                      </td>
-                      <td style={{ padding: '7px 10px', color: 'var(--portal-text-secondary)' }}>{locacaoDe(i.caracteristicas) || '—'}</td>
-                      {mostrandoRecentes && <td style={{ padding: '7px 10px', color: 'var(--portal-text-secondary)', whiteSpace: 'nowrap' }}>{i.chegou || '—'}</td>}
+                      {colsVisiveis.map(col => {
+                        if (col === 'empresa') return (
+                          <td key={col} style={{ padding: '7px 10px' }}>
+                            <span style={{ display: 'inline-block', whiteSpace: 'nowrap', fontSize: 10.5, fontWeight: 800, padding: '3px 10px', borderRadius: 999, color: '#fff', background: EMPRESA_COR[i.conta_omie] || '#6b7280' }}>
+                              {EMPRESA_LABEL[i.conta_omie] || i.conta_omie}
+                            </span>
+                          </td>
+                        )
+                        if (col === 'codigo') return <td key={col} style={{ padding: '7px 10px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{i.codigo}</td>
+                        if (col === 'descricao') return <td key={col} style={{ padding: '7px 10px', color: 'var(--portal-text)' }}>{i.descricao || <em style={{ color: 'var(--portal-text-muted)' }}>sem cadastro de características</em>}</td>
+                        const v = valColEtiq(i, col)
+                        return <td key={col} style={{ padding: '7px 10px', color: 'var(--portal-text-secondary)', whiteSpace: (col.startsWith('#') || col === 'chegou') ? 'nowrap' : undefined }}>{v || '—'}</td>
+                      })}
                     </tr>
                   )
                 })}
@@ -474,6 +613,11 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
             </span>
           </div>
         </div>
+        {seletorAberto && (
+          <SeletorColunas ordem={ordemEfetiva} ocultas={colunasOcultas} labelCol={labelColEtiq}
+            onAplicar={aplicarColunas} onCancelar={() => setSeletorAberto(false)} />
+        )}
+        </>
         )
       })()}
 
