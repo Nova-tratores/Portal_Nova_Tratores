@@ -3,8 +3,13 @@
 //        1) USO DIÁRIO (vw_frota_uso_diario: quem marcou que pegou o carro no dia)
 //        2) responsável FIXO vigente (frota_responsaveis)
 //        3) o que a Rota Exata carimbou
+// POST  /api/frota/multas — multa MANUAL (notificação que chegou por correio
+//        etc., fora da Rota Exata). re_id sintético "manual:<uuid>" — a coluna
+//        é UNIQUE NOT NULL e o sync upserta por ela, então o prefixo garante
+//        que o espelho da Rota Exata nunca toca nem colide com as manuais.
 // PATCH /api/frota/multas — status interno / desconto em folha / responsável.
-//        Permissão: frota:multas:editar.
+//        Permissão de escrita (POST/PATCH): frota:multas:editar.
+import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
@@ -51,6 +56,7 @@ export async function GET(req: NextRequest) {
       ...m,
       atribuido_a: atribuido,
       atribuido_fonte: uso ? 'uso_diario' : fixo ? 'responsavel_fixo' : m.motorista_nome ? 'rotaexata' : null,
+      origem: String(m.re_id || '').startsWith('manual:') ? 'manual' : 'rotaexata',
     };
   });
 
@@ -58,6 +64,76 @@ export async function GET(req: NextRequest) {
 }
 
 const STATUS_VALIDOS = new Set(['nova', 'em_analise', 'em_defesa', 'paga', 'descontada', 'arquivada']);
+
+export async function POST(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
+  if (!podeFrota(auth, 'multas:editar')) {
+    return NextResponse.json({ error: 'Sem permissão para cadastrar multas.' }, { status: 403 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const veiculoId = String(body.veiculo_id || '');
+  const dtMulta = String(body.dt_multa || '').trim();
+  const descricao = String(body.descricao || '').trim();
+  if (!veiculoId) return NextResponse.json({ error: 'Selecione o veículo.' }, { status: 400 });
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dtMulta)) {
+    return NextResponse.json({ error: 'Informe a data da infração.' }, { status: 400 });
+  }
+  if (!descricao) return NextResponse.json({ error: 'Descreva a infração.' }, { status: 400 });
+
+  const valor = body.valor === '' || body.valor == null ? null : Number(body.valor);
+  if (valor != null && (!Number.isFinite(valor) || valor < 0)) {
+    return NextResponse.json({ error: 'Valor inválido.' }, { status: 400 });
+  }
+  const pontos = body.pontos === '' || body.pontos == null ? null : Math.trunc(Number(body.pontos));
+  if (pontos != null && (!Number.isFinite(pontos) || pontos < 0)) {
+    return NextResponse.json({ error: 'Pontos inválidos.' }, { status: 400 });
+  }
+  const dtVencimento = String(body.dt_vencimento || '').trim();
+  if (dtVencimento && !/^\d{4}-\d{2}-\d{2}$/.test(dtVencimento)) {
+    return NextResponse.json({ error: 'Vencimento inválido.' }, { status: 400 });
+  }
+
+  const { data: veic } = await supabase
+    .from('frota_veiculos')
+    .select('id, placa, placa_exibicao')
+    .eq('id', veiculoId)
+    .maybeSingle();
+  if (!veic) return NextResponse.json({ error: 'Veículo não encontrado.' }, { status: 400 });
+
+  const { data: criada, error } = await supabase
+    .from('frota_multas')
+    .insert({
+      re_id: `manual:${randomUUID()}`,
+      veiculo_id: veic.id,
+      placa: veic.placa,
+      descricao,
+      numero_auto: String(body.numero_auto || '').trim() || null,
+      valor,
+      pontos,
+      // meio-dia -03: a atribuição de responsável compara só a DATA — assim o
+      // dia não escorrega com fuso.
+      dt_multa: `${dtMulta}T12:00:00-03:00`,
+      dt_vencimento: dtVencimento || null,
+      local_endereco: String(body.local_endereco || '').trim() || null,
+      obs_interna: String(body.obs_interna || '').trim() || null,
+      status_interno: 'nova',
+    })
+    .select('id')
+    .single();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await logFrota(auth, {
+    acao: 'criar',
+    entidade: 'multa',
+    entidadeId: criada.id,
+    entidadeLabel: `Multa manual ${String(body.numero_auto || '').trim() || criada.id.slice(0, 8)} · ${veic.placa_exibicao || veic.placa} · R$ ${Number(valor || 0).toFixed(2)}`,
+    detalhes: { origem: 'manual', dt_multa: dtMulta, descricao },
+  });
+
+  return NextResponse.json({ ok: true, id: criada.id });
+}
 
 export async function PATCH(req: NextRequest) {
   const auth = await autenticar(req);

@@ -5,7 +5,7 @@
 // e um sync com a Rota Exata roda em segundo plano ao abrir a aba (trava de
 // 10 min na rota /multas/atualizar) — recarrega sozinha quando termina.
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ShieldAlert, AlertTriangle, MapPin, ExternalLink, Paperclip, Loader2, Camera } from 'lucide-react';
+import { ShieldAlert, AlertTriangle, MapPin, ExternalLink, Paperclip, Loader2, Camera, Plus, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { authHeaders } from '@/lib/auth/client';
@@ -21,7 +21,7 @@ const STATUS: Record<string, { label: string; cor: string; bg: string }> = {
   em_analise: { label: 'Em análise', cor: '#1d4ed8', bg: '#dbeafe' },
   em_defesa: { label: 'Em defesa', cor: '#7c3aed', bg: '#ede9fe' },
   paga: { label: 'Paga', cor: '#15803d', bg: '#dcfce7' },
-  descontada: { label: 'Descontada em folha', cor: '#1e3a8a', bg: '#dbeafe' },
+  descontada: { label: 'Descontada em folha', cor: '#0f766e', bg: '#ccfbf1' },
   arquivada: { label: 'Arquivada', cor: '#64748b', bg: '#f1f5f9' },
 };
 const FONTE_LABEL: Record<string, string> = {
@@ -29,6 +29,143 @@ const FONTE_LABEL: Record<string, string> = {
   responsavel_fixo: 'responsável fixo',
   rotaexata: 'carimbado pela Rota Exata',
 };
+
+interface VeiculoOpcao { id: string; placa: string; placa_exibicao?: string | null; modelo?: string | null; ativo?: boolean }
+
+const inputNM: React.CSSProperties = {
+  width: '100%', padding: '8px 10px', borderRadius: 8, fontSize: 13,
+  border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)',
+  color: 'var(--portal-text)', outline: 'none',
+};
+
+// Modal de multa MANUAL (notificação que chegou por correio etc. — fora da
+// Rota Exata). O responsável NA DATA é resolvido sozinho pelo servidor
+// (uso diário > fixo), igual às sincronizadas.
+function NovaMultaModal({ onClose, onCriada }: { onClose: () => void; onCriada: () => void }) {
+  const [veiculos, setVeiculos] = useState<VeiculoOpcao[] | null>(null);
+  const [form, setForm] = useState({
+    veiculo_id: '', dt_multa: '', descricao: '', valor: '', pontos: '',
+    numero_auto: '', dt_vencimento: '', local_endereco: '', obs_interna: '',
+  });
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/frota/veiculos', { headers: await authHeaders() });
+        const d = await r.json();
+        if (r.ok) setVeiculos(((d.veiculos || []) as VeiculoOpcao[]).filter((v) => v.ativo !== false));
+        else setVeiculos([]);
+      } catch { setVeiculos([]); }
+    })();
+  }, []);
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  const salvar = async () => {
+    setErro('');
+    if (!form.veiculo_id) { setErro('Selecione o veículo.'); return; }
+    if (!form.dt_multa) { setErro('Informe a data da infração.'); return; }
+    if (!form.descricao.trim()) { setErro('Descreva a infração.'); return; }
+    setSalvando(true);
+    try {
+      const r = await fetch('/api/frota/multas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify(form),
+      });
+      const d = await r.json();
+      if (!r.ok) { setErro(d.error || 'Falha ao cadastrar a multa.'); return; }
+      onCriada();
+    } catch { setErro('Erro de conexão.'); }
+    finally { setSalvando(false); }
+  };
+
+  return (
+    <div
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+    >
+      <div style={{ background: 'var(--portal-bg-card)', borderRadius: 14, width: '100%', maxWidth: 540, maxHeight: '90vh', overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <ShieldAlert size={16} color="#b91c1c" /> Nova multa (manual)
+          </h3>
+          <button onClick={onClose} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}>
+            <X size={18} />
+          </button>
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+          Pra multa que não veio pela Rota Exata (notificação por correio, órgão local…). Quem estava com o
+          carro na data é atribuído automaticamente, e o auto de infração pode ser anexado depois no card.
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Veículo *
+            <select value={form.veiculo_id} onChange={set('veiculo_id')} style={inputNM}>
+              <option value="">{veiculos == null ? 'Carregando…' : 'Selecione…'}</option>
+              {(veiculos || []).map((v) => (
+                <option key={v.id} value={v.id}>
+                  {formatarPlaca(v.placa_exibicao || v.placa)}{v.modelo ? ` · ${v.modelo}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Data da infração *
+            <input type="date" value={form.dt_multa} onChange={set('dt_multa')} style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Vencimento
+            <input type="date" value={form.dt_vencimento} onChange={set('dt_vencimento')} style={inputNM} />
+          </label>
+          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Infração *
+            <input value={form.descricao} onChange={set('descricao')} placeholder="Ex.: Excesso de velocidade até 20%" style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Valor (R$)
+            <input type="number" min={0} step="0.01" value={form.valor} onChange={set('valor')} placeholder="0,00" style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Pontos
+            <input type="number" min={0} step={1} value={form.pontos} onChange={set('pontos')} placeholder="0" style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Nº do auto de infração
+            <input value={form.numero_auto} onChange={set('numero_auto')} style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Local
+            <input value={form.local_endereco} onChange={set('local_endereco')} placeholder="Endereço/rodovia" style={inputNM} />
+          </label>
+          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Observação interna
+            <input value={form.obs_interna} onChange={set('obs_interna')} style={inputNM} />
+          </label>
+        </div>
+
+        {erro && <div style={{ fontSize: 12, color: '#b91c1c' }}>{erro}</div>}
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button onClick={onClose} style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'none', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+            Cancelar
+          </button>
+          <button
+            onClick={salvar}
+            disabled={salvando}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#b91c1c,#7f1d1d)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: salvando ? 'default' : 'pointer', opacity: salvando ? 0.6 : 1 }}
+          >
+            {salvando ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} Cadastrar multa
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // as imagens que a Rota Exata carimba vêm em formatos variados — extrai URLs
 function urlsImagensRE(imagens: unknown): string[] {
@@ -48,6 +185,7 @@ export default function FrotaMultasPage() {
   const [soAbertas, setSoAbertas] = useState(true);
   const [busy, setBusy] = useState('');
   const [sincronizando, setSincronizando] = useState(false);
+  const [novaMulta, setNovaMulta] = useState(false);
 
   const carregar = useCallback(async () => {
     try {
@@ -133,19 +271,35 @@ export default function FrotaMultasPage() {
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <ShieldAlert size={20} color="#b91c1c" /> Multas
         </h2>
-        <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
+        <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
           {visiveis.length} exibidas · <strong style={{ color: '#b91c1c' }}>{fmtRS(totalAberto)}</strong> em aberto
         </span>
         {sincronizando && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, color: 'var(--portal-text)' }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--portal-text-muted)' }}>
             <Loader2 size={13} className="animate-spin" /> sincronizando com a Rota Exata…
           </span>
         )}
         <div style={{ flex: 1 }} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
           <input type="checkbox" checked={soAbertas} onChange={() => setSoAbertas((v) => !v)} /> só em aberto
         </label>
+        {podeEditar && (
+          <button
+            onClick={() => setNovaMulta(true)}
+            title="Cadastrar multa que não veio pela Rota Exata (notificação por correio etc.)"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 9, border: 'none', background: 'linear-gradient(135deg,#b91c1c,#7f1d1d)', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}
+          >
+            <Plus size={14} /> Nova multa
+          </button>
+        )}
       </div>
+
+      {novaMulta && (
+        <NovaMultaModal
+          onClose={() => setNovaMulta(false)}
+          onCriada={() => { setNovaMulta(false); carregar(); }}
+        />
+      )}
 
       {/* input único e escondido — o botão "anexar" de cada multa aponta pra cá */}
       <input
@@ -161,36 +315,41 @@ export default function FrotaMultasPage() {
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
       {visiveis.length === 0 && !erro && (
-        <div style={{ color: 'var(--portal-text)', fontSize: 13 }}>Nenhuma multa {soAbertas ? 'em aberto' : 'registrada'}. 🎉</div>
+        <div style={{ color: 'var(--portal-text-muted)', fontSize: 13 }}>Nenhuma multa {soAbertas ? 'em aberto' : 'registrada'}. 🎉</div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {visiveis.map((m) => {
           const st = STATUS[m.status_interno] || STATUS.nova;
           return (
-            <div key={m.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+            <div key={m.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div style={{ minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(m.placa)}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{fmtData(m.dt_multa)}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{fmtData(m.dt_multa)}</div>
               </div>
 
               <div style={{ flex: 2, minWidth: 220 }}>
                 <div style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>
                   {m.descricao || 'Infração'}
-                  {m.numero_auto && <span style={{ color: 'var(--portal-text)', fontWeight: 400 }}> · auto {m.numero_auto}</span>}
+                  {m.numero_auto && <span style={{ color: 'var(--portal-text-muted)', fontWeight: 400 }}> · auto {m.numero_auto}</span>}
+                  {m.origem === 'manual' && (
+                    <span title="Cadastrada manualmente no portal (não veio da Rota Exata)" style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: '#64748b', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 999, padding: '1px 7px', verticalAlign: '1px' }}>
+                      manual
+                    </span>
+                  )}
                 </div>
                 {m.local_endereco && (
                   <a
                     href={m.local_lat && m.local_lng ? `https://www.google.com/maps?q=${m.local_lat},${m.local_lng}` : undefined}
                     target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--portal-text)', textDecoration: 'none' }}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: 'var(--portal-text-muted)', textDecoration: 'none' }}
                   >
                     <MapPin size={11} /> {m.local_endereco} {m.local_lat && <ExternalLink size={10} />}
                   </a>
                 )}
-                <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 3 }}>
+                <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginTop: 3 }}>
                   <strong>{m.atribuido_a || 'não identificado'}</strong>
-                  {m.atribuido_fonte && <span style={{ color: 'var(--portal-text)' }}> ({FONTE_LABEL[m.atribuido_fonte]})</span>}
+                  {m.atribuido_fonte && <span style={{ color: 'var(--portal-text-muted)' }}> ({FONTE_LABEL[m.atribuido_fonte]})</span>}
                   {m.motorista_divergente && (
                     <span title="O motorista carimbado pela Rota Exata difere do responsável vigente na data — confira antes de descontar" style={{ color: '#b45309', marginLeft: 6 }}>
                       <AlertTriangle size={11} style={{ verticalAlign: '-2px' }} /> divergência
@@ -202,17 +361,17 @@ export default function FrotaMultasPage() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, flexWrap: 'wrap' }}>
                   {urlsImagensRE(m.imagens).map((u, i) => (
                     <a key={`re-${i}`} href={u} target="_blank" rel="noopener noreferrer" title="Imagem carimbada pela Rota Exata"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 600, color: '#1e40af', background: '#f0fdfa', border: '1px solid #bfdbfe', borderRadius: 999, padding: '2px 8px', textDecoration: 'none' }}>
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 600, color: '#0d9488', background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 999, padding: '2px 8px', textDecoration: 'none' }}>
                       <Camera size={10} /> foto {i + 1}
                     </a>
                   ))}
                   {(m.anexos || []).map((a) => (
-                    <span key={a.url} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 999, padding: '2px 8px' }}>
+                    <span key={a.url} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 999, padding: '2px 8px' }}>
                       <a href={a.url} target="_blank" rel="noopener noreferrer" title={`${a.nome}${a.por ? ` · ${a.por}` : ''}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'inherit', textDecoration: 'none', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <Paperclip size={10} /> {a.nome}
                       </a>
                       {podeEditar && (
-                        <button onClick={() => removerAnexo(m.id, a.url, a.nome)} title="Remover anexo" style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 12, padding: 0, lineHeight: 1 }}>×</button>
+                        <button onClick={() => removerAnexo(m.id, a.url, a.nome)} title="Remover anexo" style={{ background: 'none', border: 'none', color: '#b91c1c', cursor: 'pointer', fontSize: 11, padding: 0, lineHeight: 1 }}>×</button>
                       )}
                     </span>
                   ))}
@@ -221,7 +380,7 @@ export default function FrotaMultasPage() {
                       onClick={() => { setMultaAnexando(m.id); fileRef.current?.click(); }}
                       disabled={busy === `anexo-${m.id}`}
                       title="Anexar arquivo (auto de infração, boleto, comprovante, defesa…)"
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, color: '#1e40af', background: 'transparent', border: '1px dashed #1e40af66', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: '#0d9488', background: 'transparent', border: '1px dashed #0d948866', borderRadius: 999, padding: '2px 8px', cursor: 'pointer' }}
                     >
                       {busy === `anexo-${m.id}` ? <Loader2 size={10} className="spin" /> : <Paperclip size={10} />} anexar
                     </button>
@@ -231,8 +390,8 @@ export default function FrotaMultasPage() {
 
               <div style={{ textAlign: 'right', minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: '#b91c1c' }}>{fmtRS(m.valor)}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{m.pontos ?? 0} pts · {m.nivel_infracao || '—'}</div>
-                {m.dt_vencimento && <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>vence {fmtData(m.dt_vencimento)}</div>}
+                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{m.pontos ?? 0} pts · {m.nivel_infracao || '—'}</div>
+                {m.dt_vencimento && <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>vence {fmtData(m.dt_vencimento)}</div>}
               </div>
 
               <div style={{ minWidth: 150 }}>
@@ -242,7 +401,7 @@ export default function FrotaMultasPage() {
                   title={podeEditar ? 'Mudar o status interno' : MSG_SEM_PERMISSAO}
                   onChange={(e) => mudarStatus(m.id, e.target.value)}
                   style={{
-                    width: '100%', padding: '6px 8px', borderRadius: 0, fontSize: 13, fontWeight: 700,
+                    width: '100%', padding: '6px 8px', borderRadius: 8, fontSize: 12, fontWeight: 700,
                     border: `1px solid ${st.cor}33`, background: st.bg, color: st.cor,
                     cursor: podeEditar ? 'pointer' : 'not-allowed', opacity: podeEditar ? 1 : 0.6,
                   }}

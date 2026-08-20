@@ -209,6 +209,9 @@ export interface Multa {
   // (uso diário vence; responsável fixo é o fallback; RE por último)
   atribuido_a: string | null;
   atribuido_fonte: 'uso_diario' | 'responsavel_fixo' | 'rotaexata' | null;
+  // manual = cadastrada pelo portal (notificação por correio etc.); o sync da
+  // Rota Exata nunca toca nelas (re_id sintético "manual:<uuid>")
+  origem: 'manual' | 'rotaexata';
 }
 
 export interface ManutencaoView {
