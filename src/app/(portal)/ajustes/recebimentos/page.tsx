@@ -126,17 +126,21 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 
 // ---------- cabecalho ordenavel + filtro por coluna (padrao de /ajustes/alertas + caracteristicas) ----------
 type SortKey = 'nf' | 'fornecedor' | 'natureza' | 'tipo' | 'emissao' | 'total' | 'itens' | 'sinal' | 'responsavel';
-const COLS_RECEB: { key: SortKey; label: string; num?: boolean; flex: number }[] = [
-  { key: 'nf', label: 'NF', flex: 1 },
-  { key: 'fornecedor', label: 'Fornecedor', flex: 2 },
-  { key: 'natureza', label: 'Natureza', flex: 2 },
-  { key: 'tipo', label: 'Tipo', flex: 1 },
-  { key: 'emissao', label: 'Emissao', flex: 1 },
-  { key: 'total', label: 'Total', num: true, flex: 1 },
-  { key: 'itens', label: 'Itens', num: true, flex: 1 },
-  { key: 'sinal', label: 'Sinal', flex: 1 },
-  { key: 'responsavel', label: 'Responsavel', flex: 2 },
+const COLS_RECEB: { key: SortKey; label: string; num?: boolean; flex: number; min: number }[] = [
+  { key: 'nf', label: 'NF', flex: 1.2, min: 100 },
+  { key: 'fornecedor', label: 'Fornecedor', flex: 2.4, min: 170 },
+  { key: 'natureza', label: 'Natureza', flex: 2.2, min: 150 },
+  { key: 'tipo', label: 'Tipo', flex: 1, min: 95 },
+  { key: 'emissao', label: 'Emissao', flex: 1, min: 90 },
+  { key: 'total', label: 'Total', num: true, flex: 1, min: 95 },
+  { key: 'itens', label: 'Itens', num: true, flex: 0.7, min: 60 },
+  { key: 'sinal', label: 'Sinal', flex: 1, min: 90 },
+  { key: 'responsavel', label: 'Responsavel', flex: 1.8, min: 150 },
 ];
+// grid COMPARTILHADO entre o cabecalho e a linha principal de cada card (alinhamento).
+const GRID_RECEB = COLS_RECEB.map((c) => `minmax(${c.min}px, ${c.flex}fr)`).join(' ');
+const MINW_RECEB = COLS_RECEB.reduce((s, c) => s + c.min, 0); // largura minima p/ scroll horizontal
+const ROW_PAD_X = 12; // padding lateral igual no header e nos cards (p/ as trilhas baterem)
 
 // data de emissao (DD/MM/AAAA ou ISO) -> epoch ms para ordenar
 function tsEmissao(s: string | null | undefined): number {
@@ -360,7 +364,7 @@ export default function RecebimentosPage() {
           {!dados ? (
             <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#94a3b8' }}>Clique em <b>Buscar</b> para listar os recebimentos pendentes.</div>
           ) : (
-            <>
+            <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
               <CabecalhoReceb
                 sort={sort}
                 filtros={filtros}
@@ -401,7 +405,7 @@ export default function RecebimentosPage() {
                   ));
                 })()}
               </div>
-            </>
+            </div>
           )}
 
           {/* Rodape: "Atualizar" fica AQUI embaixo (nao no topo) p/ nao ser clicado sem querer,
@@ -452,21 +456,21 @@ function CabecalhoReceb({ sort, filtros, onSort, onFiltro }: {
   onFiltro: (key: SortKey, valor: string) => void;
 }) {
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 12, overflow: 'hidden' }}>
-      <div style={{ display: 'flex' }}>
+    <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 12, overflow: 'hidden', minWidth: MINW_RECEB + 2 * ROW_PAD_X }}>
+      <div style={{ display: 'grid', gridTemplateColumns: GRID_RECEB, padding: `8px ${ROW_PAD_X}px 6px` }}>
         {COLS_RECEB.map((c) => {
           const ativo = sort?.key === c.key;
           return (
-            <div key={c.key} onClick={() => onSort(c.key)} style={{ ...thSortStyle, flex: c.flex, textAlign: c.num ? 'right' : 'left' }}
+            <div key={c.key} onClick={() => onSort(c.key)} style={{ ...thSortStyle, background: 'transparent', border: 'none', padding: '0 6px', textAlign: c.num ? 'right' : 'left' }}
               title="Clique para ordenar">
               {c.label}{ativo ? (sort!.dir === 1 ? ' ▲' : ' ▼') : ''}
             </div>
           );
         })}
       </div>
-      <div style={{ display: 'flex' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: GRID_RECEB, padding: `0 ${ROW_PAD_X}px 8px` }}>
         {COLS_RECEB.map((c) => (
-          <div key={c.key} style={{ ...thFiltroStyle, flex: c.flex }}>
+          <div key={c.key} style={{ padding: '0 6px' }}>
             <input value={filtros[c.key] || ''} onChange={(e) => onFiltro(c.key, e.target.value)}
               placeholder={c.num ? '= exato' : 'filtrar…'} style={{ ...filtroInput, textAlign: c.num ? 'right' : 'left' }} />
           </div>
@@ -523,43 +527,57 @@ function CardReceb({ r, conta, resultado, usuarios, mostrarProdutos, onAbrir, on
   const borda = r.temItemRisco ? '#fca5a5' : (r.temItemNovo && temSinal ? '#fcd34d' : (temSinal ? '#fde68a' : '#e2e8f0'));
   const headerBg = r.temItemRisco ? '#fef2f2' : (temSinal ? '#fffbeb' : '#f8fafc');
   const concluido = resultado?.tipo === 'ok';
+  const cell: React.CSSProperties = { padding: '0 6px', minWidth: 0, alignSelf: 'center' };
+  const ellip: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' };
+  const sinalLabel = !temSinal ? '' : (r.sinal === 'natureza' ? 'natureza' : 'CFOP');
   return (
-    <div style={{ background: '#fff', border: `1px solid ${borda}`, borderRadius: 8, overflow: 'hidden', opacity: concluido ? 0.65 : 1 }}>
-      <div style={{ padding: '10px 16px', background: headerBg, borderBottom: `1px solid ${borda}`, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span style={{ fontWeight: 600, color: '#1e293b' }}>NF {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''}</span>
-        <span style={{ fontSize: '.85rem', color: '#475569' }}>{r.fornecedorNome || ''}</span>
-        {r.naturezaOperacao && <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#e2e8f0', color: '#475569' }}>{r.naturezaOperacao}</span>}
-        {r.tipo && <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fff', border: `1px solid ${TIPO_COR[r.tipo] || '#cbd5e1'}`, color: TIPO_COR[r.tipo] || '#475569', fontWeight: 600 }}>{TIPO_LABEL[r.tipo] || r.tipo}</span>}
-        <span style={{ fontSize: '.72rem', color: '#64748b' }}>emissao {r.dataEmissao || ''}</span>
-        <span style={{ fontSize: '.72rem', color: '#64748b' }}>total {fmtBRL(r.valorNFe)}</span>
-        {r.etapa && <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>etapa {r.etapa}</span>}
-        <span style={{ fontSize: '.72rem', color: '#94a3b8' }}>{r.itens ? r.itens.length : 0} itens</span>
-        {temSinal && <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: r.sinal === 'natureza' ? '#fef3c7' : '#dbeafe', color: r.sinal === 'natureza' ? '#92400e' : '#1e40af' }}>sinal: {r.sinal === 'natureza' ? 'natureza da operacao' : 'CFOP de garantia'}</span>}
-        {r.temItemRisco ? (
-          <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#dc2626', color: '#fff' }}>vai baixar o CMC{r.maiorImpactoPct ? ` (~${fmtPct(r.maiorImpactoPct)})` : ''}</span>
-        ) : r.temItemNovo && temSinal ? (
-          <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fde68a', color: '#92400e' }}>vai criar produto novo</span>
-        ) : null}
-        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }} title={r.responsavelAutomatico ? 'Responsável padrão (pelo tipo). Troque para transferir.' : 'Responsável (transferível)'}>
-            <span style={{ fontSize: '.62rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.4px' }}>resp.</span>
+    <div style={{ background: '#fff', border: `1px solid ${borda}`, borderRadius: 8, overflow: 'hidden', opacity: concluido ? 0.65 : 1, minWidth: MINW_RECEB + 2 * ROW_PAD_X }}>
+      <div style={{ background: headerBg, borderBottom: `1px solid ${borda}` }}>
+        {/* linha ALINHADA com o cabeçalho (mesmo grid) */}
+        <div style={{ display: 'grid', gridTemplateColumns: GRID_RECEB, alignItems: 'center', padding: `8px ${ROW_PAD_X}px`, gap: '2px 0' }}>
+          <div style={cell}><span style={{ fontWeight: 600, color: '#1e293b', fontSize: '.8rem' }}>NF {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''}</span></div>
+          <div style={cell} title={r.fornecedorNome || ''}><span style={{ ...ellip, fontSize: '.8rem', color: '#475569' }}>{r.fornecedorNome || ''}</span></div>
+          <div style={cell} title={r.naturezaOperacao || ''}>
+            {r.naturezaOperacao ? <span style={{ ...ellip, fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#e2e8f0', color: '#475569' }}>{r.naturezaOperacao}</span> : <span style={{ color: '#cbd5e1' }}>—</span>}
+          </div>
+          <div style={cell}>
+            {r.tipo ? <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fff', border: `1px solid ${TIPO_COR[r.tipo] || '#cbd5e1'}`, color: TIPO_COR[r.tipo] || '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>{TIPO_LABEL[r.tipo] || r.tipo}</span> : null}
+          </div>
+          <div style={{ ...cell, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>{r.dataEmissao || ''}</div>
+          <div style={{ ...cell, fontSize: '.78rem', color: '#334155', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtBRL(r.valorNFe)}</div>
+          <div style={{ ...cell, fontSize: '.75rem', color: '#64748b', textAlign: 'right' }}>{r.itens ? r.itens.length : 0}</div>
+          <div style={cell}>
+            {temSinal ? <span style={{ fontSize: '.68rem', padding: '2px 7px', borderRadius: 6, background: r.sinal === 'natureza' ? '#fef3c7' : '#dbeafe', color: r.sinal === 'natureza' ? '#92400e' : '#1e40af', whiteSpace: 'nowrap' }} title={r.sinal === 'natureza' ? 'sinal: natureza da operação' : 'sinal: CFOP de garantia'}>{sinalLabel}</span> : <span style={{ color: '#cbd5e1' }}>—</span>}
+          </div>
+          <div style={cell} title={r.responsavelAutomatico ? 'Responsável padrão (pelo tipo). Troque para transferir.' : 'Responsável (transferível)'}>
             <select
               value={r.responsavelUserId || ''}
               onChange={(e) => onResponsavelChange(e.target.value || null)}
-              style={{ fontSize: '.72rem', border: '1px solid #cbd5e1', borderRadius: 6, padding: '3px 6px', background: '#fff', color: '#334155', maxWidth: 170 }}
+              style={{ width: '100%', fontSize: '.72rem', border: '1px solid #cbd5e1', borderRadius: 6, padding: '3px 6px', background: '#fff', color: '#334155' }}
             >
               <option value="">(ninguém)</option>
               {usuarios.map((u) => <option key={u.id} value={u.id}>{u.nome}</option>)}
             </select>
-            {r.responsavelAutomatico && r.responsavelUserId && <span style={{ fontSize: '.6rem', color: '#94a3b8' }}>auto</span>}
+          </div>
+        </div>
+        {/* linha de AÇÕES (largura total): badges de risco + botões */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: `0 ${ROW_PAD_X}px 8px` }}>
+          {r.etapa && <span style={{ fontSize: '.68rem', color: '#94a3b8' }}>etapa {r.etapa}</span>}
+          {r.temItemRisco ? (
+            <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#dc2626', color: '#fff' }}>vai baixar o CMC{r.maiorImpactoPct ? ` (~${fmtPct(r.maiorImpactoPct)})` : ''}</span>
+          ) : r.temItemNovo && temSinal ? (
+            <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fde68a', color: '#92400e' }}>vai criar produto novo</span>
+          ) : null}
+          {r.responsavelAutomatico && r.responsavelUserId && <span style={{ fontSize: '.6rem', color: '#94a3b8' }}>resp. automático</span>}
+          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <NotaFiscalAcoes chave={r.chaveNFe} idReceb={r.idReceb} conta={conta} />
+            {resultado ? (
+              <span style={{ fontSize: '.72rem', color: resultado.tipo === 'ok' ? '#047857' : '#dc2626' }}>{resultado.texto}</span>
+            ) : (
+              <button onClick={onAbrir} style={{ padding: '5px 12px', fontSize: '.75rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Dar entrada...</button>
+            )}
           </span>
-          <NotaFiscalAcoes chave={r.chaveNFe} idReceb={r.idReceb} conta={conta} />
-          {resultado ? (
-            <span style={{ fontSize: '.72rem', color: resultado.tipo === 'ok' ? '#047857' : '#dc2626' }}>{resultado.texto}</span>
-          ) : (
-            <button onClick={onAbrir} style={{ padding: '5px 12px', fontSize: '.75rem', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer' }}>Dar entrada...</button>
-          )}
-        </span>
+        </div>
       </div>
 
       {mostrarProdutos && (temSinal ? (
