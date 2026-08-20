@@ -35,6 +35,26 @@ export async function adicionarFila(linhas: LinhaEtiqueta[], copias: number, aut
   if (error) throw error;
   return data as ItemFila;
 }
+
+// Adiciona VÁRIAS etiquetas de uma vez (seleção múltipla no painel) num único insert —
+// pra etiquetar uma prateleira inteira sem clicar peça por peça. Cada item vira sua
+// própria etiqueta; `copias` é aplicado a todas.
+export async function adicionarVarias(itens: { linhas: LinhaEtiqueta[]; copias?: number }[], autor?: AutorEtiqueta): Promise<ItemFila[]> {
+  const rows = (Array.isArray(itens) ? itens : [])
+    .filter(it => Array.isArray(it?.linhas) && it.linhas.length >= 1 && it.linhas.length <= 2)
+    .map(it => ({
+      linhas: it.linhas,
+      copias: Math.min(50, Math.max(1, Number(it.copias) || 1)),
+      criado_por: autor?.userId ?? null, criado_nome: autor?.userName ?? null,
+    }));
+  if (rows.length === 0) throw new Error('nenhum item válido (1 a 2 peças por etiqueta)');
+  const { data, error } = await supabase.from('etiquetas_fila')
+    .insert(rows)
+    .select('id, linhas, copias, criado_nome, criado_em')
+    .order('id', { ascending: true });
+  if (error) throw error;
+  return (data || []) as ItemFila[];
+}
 export async function atualizarCopias(id: number, copias: number): Promise<void> {
   const { error } = await supabase.from('etiquetas_fila')
     .update({ copias: Math.min(50, Math.max(1, Number(copias) || 1)) }).eq('id', id);

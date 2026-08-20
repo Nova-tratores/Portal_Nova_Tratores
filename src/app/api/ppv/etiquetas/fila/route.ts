@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
-import { listarFila, adicionarFila, atualizarCopias, removerFila, limparFila } from '@/lib/ppv/etiquetas-fila';
+import { listarFila, adicionarFila, adicionarVarias, atualizarCopias, removerFila, limparFila } from '@/lib/ppv/etiquetas-fila';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,12 +25,19 @@ export async function GET() {
   catch (e) { return NextResponse.json({ erro: (e as Error).message }, { status: 500 }); }
 }
 
-// POST: adiciona uma etiqueta à fila. body { linhas:[{conta,empresa,codigo,descricao,locacao}], copias? }
+// POST: adiciona à fila.
+//   - lote  → body { itens: [{ linhas:[...], copias? }, ...] }  → { ok, itens }
+//   - único → body { linhas:[{conta,empresa,codigo,descricao,locacao}], copias? } → { ok, item }
 export async function POST(req: NextRequest) {
   try {
     const a = await autor(req);
     if (!a) return NextResponse.json({ erro: 'Não autenticado' }, { status: 401 });
-    const { linhas, copias } = (await req.json().catch(() => ({}))) as any;
+    const body = (await req.json().catch(() => ({}))) as any;
+    if (Array.isArray(body.itens)) {
+      const itens = await adicionarVarias(body.itens, a);
+      return NextResponse.json({ ok: true, itens });
+    }
+    const { linhas, copias } = body;
     if (!Array.isArray(linhas) || linhas.length === 0) return NextResponse.json({ erro: 'linhas obrigatórias' }, { status: 400 });
     const item = await adicionarFila(linhas, copias ?? 1, a);
     return NextResponse.json({ ok: true, item });

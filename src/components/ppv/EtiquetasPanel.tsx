@@ -83,7 +83,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
   const [formato, setFormato] = useState<'folha' | 'recorte'>('folha')
-  const [modoIndividual, setModoIndividual] = useState(false)
+  const [copiasLote, setCopiasLote] = useState(1)
   const [usadas, setUsadas] = useState<Set<number>>(new Set())
   const [rastrear, setRastrear] = useState(false)
   const [imprimindo, setImprimindo] = useState(false)
@@ -140,6 +140,18 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       setEtiquetas(prev => [...prev, { id: json.item.id, linhas: json.item.linhas, copias: json.item.copias }])
     } catch (e) { setErro('Erro ao adicionar à fila: ' + (e instanceof Error ? e.message : e)) }
   }
+  // Adição em MASSA: cada peça marcada vira sua própria etiqueta, num único POST.
+  const addFilaLoteServer = async (itensLinhas: LinhaEtiqueta[][], copias: number) => {
+    if (itensLinhas.length === 0) return
+    try {
+      const res = await fetch('/api/ppv/etiquetas/fila', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ itens: itensLinhas.map(linhas => ({ linhas, copias })) }),
+      })
+      const json = await res.json(); if (!res.ok || json.erro) throw new Error(json.erro || 'falha')
+      setEtiquetas(prev => [...prev, ...(json.itens || []).map((r: { id: number; linhas: LinhaEtiqueta[]; copias: number }) => ({ id: r.id, linhas: r.linhas, copias: r.copias }))])
+    } catch (e) { setErro('Erro ao adicionar em massa: ' + (e instanceof Error ? e.message : e)) }
+  }
   const mudarCopiasServer = async (id: number, copias: number) => {
     const c = Math.max(1, Math.min(50, copias))
     setEtiquetas(prev => prev.map(x => x.id === id ? { ...x, copias: c } : x))
@@ -195,6 +207,10 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
 
   if (!pLoading && userProfile && !pode('ppv', 'etiquetas')) return <SemPermissao />
 
+  // Lista mostrada: resultados da busca ou as "últimas compradas" (estado inicial).
+  const mostrandoRecentes = q.trim().length < 2
+  const listaMostrada = mostrandoRecentes ? recentes : resultados
+
   const alternarSel = (k: string) => {
     setSel(prev => {
       const s = new Set(prev)
@@ -211,30 +227,57 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     locacao: locacaoDe(i.caracteristicas),
   })
 
-  const clicarLinha = (i: ItemBusca) => {
-    if (modoIndividual) { addFilaServer([linhaDe(i)], 1); return }
-    alternarSel(chaveItem(i))
+  const clicarLinha = (i: ItemBusca) => alternarSel(chaveItem(i))
+
+  // Peças marcadas (dedupe). Varre resultados E recentes porque a seleção persiste
+  // entre buscas (o usuário pode marcar em "últimas compradas" e depois buscar).
+  const itensSelecionados = (): ItemBusca[] => {
+    const vistos = new Set<string>()
+    return [...resultados, ...recentes].filter(i => {
+      const k = chaveItem(i)
+      if (!sel.has(k) || vistos.has(k)) return false
+      vistos.add(k)
+      return true
+    })
   }
 
-  const adicionarEtiqueta = () => {
-    const vistos = new Set<string>()
-    const linhas = [...resultados, ...recentes]
-      .filter(i => {
-        const k = chaveItem(i)
-        if (!sel.has(k) || vistos.has(k)) return false
-        vistos.add(k)
-        return true
-      })
+  // "Juntar em 1 etiqueta" — mesma peça em 2 empresas (NOVA+CASTRO), máx. 2.
+  const juntarEtiqueta = () => {
+    const linhas = itensSelecionados()
       .map(linhaDe)
       .sort((a, b) => a.empresa.localeCompare(b.empresa) * -1)
     if (linhas.length === 0) return
     if (linhas.length > 2) {
-      setErro('Máximo de 2 peças por etiqueta (uma por empresa) — desmarque o excedente e adicione em etiquetas separadas.')
+      setErro('Para "juntar" use no máximo 2 peças (uma por empresa). Para muitas, use "Adicionar como etiquetas separadas".')
       return
     }
     setErro('')
     addFilaServer(linhas, 1)
     setSel(new Set())
+  }
+
+  // Adição em MASSA — cada peça marcada vira sua própria etiqueta, com copiasLote cópias.
+  const adicionarSeparadas = () => {
+    const itens = itensSelecionados().map(i => [linhaDe(i)])
+    if (itens.length === 0) return
+    setErro('')
+    addFilaLoteServer(itens, Math.max(1, Math.min(50, copiasLote)))
+    setSel(new Set())
+  }
+
+  // Marca/desmarca todas as peças da lista mostrada (busca ou "últimas compradas").
+  const todasMarcadas = listaMostrada.length > 0 && listaMostrada.every(i => sel.has(chaveItem(i)))
+  const alternarTodas = () => {
+    setSel(prev => {
+      if (todasMarcadas) {
+        const s = new Set(prev)
+        listaMostrada.forEach(i => s.delete(chaveItem(i)))
+        return s
+      }
+      const s = new Set(prev)
+      listaMostrada.forEach(i => s.add(chaveItem(i)))
+      return s
+    })
   }
 
   const imprimir = async () => {
@@ -331,9 +374,10 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       </div>
 
       <p style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }}>
-        Busque a peça, marque as linhas dela em cada empresa (o código muda de uma pra outra) e
-        adicione à fila — a etiqueta sai com <strong>EMPRESA → CÓDIGO - DESCRIÇÃO - LOCAÇÃO</strong>,
-        no tamanho da folha adesiva 3×10: imprime direto nela e é só descolar, sem recortar.
+        Busque as peças (ou uma prateleira inteira, ex.: <em>PRATELEIRA 3</em>), <strong>marque várias</strong> e
+        adicione todas à fila de uma vez — cada uma vira uma etiqueta com
+        <strong> EMPRESA → CÓDIGO - DESCRIÇÃO - LOCAÇÃO</strong>, no tamanho da folha adesiva 3×10:
+        imprime direto nela e é só descolar, sem recortar.
       </p>
 
       {/* Busca */}
@@ -346,8 +390,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
 
       {/* Resultados (busca) ou as últimas peças COMPRADAS (estado inicial) */}
       {(() => {
-        const mostrandoRecentes = q.trim().length < 2
-        const lista = mostrandoRecentes ? recentes : resultados
+        const lista = listaMostrada
         if (mostrandoRecentes && carregandoRecentes) {
           return (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--portal-text-muted)', padding: '14px 4px' }}>
@@ -367,7 +410,9 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
               <thead>
                 <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
-                  <th style={{ padding: '8px 10px', width: 30 }} />
+                  <th style={{ padding: '8px 10px', width: 30 }}>
+                    <input type="checkbox" checked={todasMarcadas} onChange={alternarTodas} title={todasMarcadas ? 'Desmarcar todas' : 'Selecionar todas'} style={{ cursor: 'pointer' }} />
+                  </th>
                   <th style={{ padding: '8px 10px', width: 140 }}>Empresa</th>
                   <th style={{ padding: '8px 10px', width: 130 }}>Código</th>
                   <th style={{ padding: '8px 10px' }}>Descrição</th>
@@ -378,13 +423,11 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
               <tbody>
                 {lista.map(i => {
                   const k = chaveItem(i)
-                  const marcado = !modoIndividual && sel.has(k)
+                  const marcado = sel.has(k)
                   return (
                     <tr key={k} onClick={() => clicarLinha(i)} style={{ borderTop: '1px solid var(--portal-border)', cursor: 'pointer', background: marcado ? 'rgba(232,115,12,.08)' : 'transparent' }}>
                       <td style={{ padding: '7px 10px' }}>
-                        {modoIndividual
-                          ? <Plus size={14} color="#e8730c" style={{ display: 'block' }} />
-                          : <input type="checkbox" readOnly checked={marcado} />}
+                        <input type="checkbox" readOnly checked={marcado} />
                       </td>
                       <td style={{ padding: '7px 10px' }}>
                         <span style={{ display: 'inline-block', whiteSpace: 'nowrap', fontSize: 10.5, fontWeight: 800, padding: '3px 10px', borderRadius: 999, color: '#fff', background: EMPRESA_COR[i.conta_omie] || '#6b7280' }}>
@@ -404,24 +447,30 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
             </table>
           </div>
           <div style={{ padding: 10, borderTop: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: 'var(--portal-bg-secondary)' }}>
-            {!modoIndividual && (
-              <button onClick={adicionarEtiqueta} disabled={sel.size === 0} style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none',
-                background: sel.size === 0 ? '#9ca3af' : '#e8730c', color: '#fff', fontSize: 13, fontWeight: 700, cursor: sel.size === 0 ? 'default' : 'pointer',
-              }}>
-                <Plus size={14} /> Adicionar etiqueta ({sel.size} linha{sel.size === 1 ? '' : 's'})
-              </button>
-            )}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={modoIndividual} onChange={e => { setModoIndividual(e.target.checked); setSel(new Set()) }} />
-              1 peça = 1 etiqueta
+            <button onClick={adicionarSeparadas} disabled={sel.size === 0} style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none',
+              background: sel.size === 0 ? '#9ca3af' : '#e8730c', color: '#fff', fontSize: 13, fontWeight: 700, cursor: sel.size === 0 ? 'default' : 'pointer',
+            }}>
+              <Plus size={14} /> Adicionar {sel.size} peça{sel.size === 1 ? '' : 's'} ({copiasLote}× cada)
+            </button>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+              Cópias por peça
+              <input type="number" min={1} max={50} value={copiasLote}
+                onClick={e => e.stopPropagation()}
+                onChange={e => setCopiasLote(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
+                style={{ width: 56, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--portal-border)', fontSize: 12, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
             </label>
-            <span style={{ fontSize: 11.5, color: !modoIndividual && sel.size > 2 ? '#EA580C' : 'var(--portal-text-muted)', fontWeight: !modoIndividual && sel.size > 2 ? 700 : 400 }}>
-              {modoIndividual
-                ? 'Cada clique numa peça já adiciona uma etiqueta na fila.'
-                : sel.size > 2
-                  ? 'Máximo de 2 peças por etiqueta — desmarque o excedente.'
-                  : 'Marque a MESMA peça nas duas empresas pra etiqueta sair com os dois códigos (máx. 2 por etiqueta).'}
+            <button onClick={juntarEtiqueta} disabled={sel.size < 1 || sel.size > 2} title="Mesma peça nas 2 empresas (NOVA+CASTRO) numa única etiqueta com os dois códigos" style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
+              border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)',
+              color: sel.size < 1 || sel.size > 2 ? 'var(--portal-text-muted)' : 'var(--portal-text)',
+              fontSize: 12.5, fontWeight: 700, cursor: sel.size < 1 || sel.size > 2 ? 'default' : 'pointer',
+            }}>
+              Juntar em 1 etiqueta
+            </button>
+            <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', flex: '1 1 220px', minWidth: 0 }}>
+              Marque várias (ou use o ✓ do cabeçalho pra <strong>selecionar todas</strong>) e adicione de uma vez —
+              cada peça vira 1 etiqueta. <strong>Juntar</strong> é só pra mesma peça nas 2 empresas (máx. 2).
             </span>
           </div>
         </div>
