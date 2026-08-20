@@ -379,25 +379,36 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                   )}
                   {det.multas.length > 0 && (
                     <div style={{ borderTop: '1px dashed var(--portal-border)', paddingTop: 8, display: 'flex', flexDirection: 'column', gap: 5 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#b91c1c' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: '#b91c1c', flexWrap: 'wrap' }}>
                         <ShieldAlert size={13} /> {det.multas_total.qtd} multa(s) · {fmtRS(det.multas_total.valor)} · {det.multas_total.pontos} ponto(s)
+                        <span
+                          title="Pontos na janela de 12 meses da CNH (fora arquivadas) — 20+ = risco de suspensão"
+                          style={{
+                            fontSize: 11, fontWeight: 800, borderRadius: 999, padding: '1px 8px',
+                            color: (det.multas_total.pontos_12m ?? 0) >= 20 ? '#b91c1c' : '#92400e',
+                            background: (det.multas_total.pontos_12m ?? 0) >= 20 ? '#fef2f2' : '#fef3c7',
+                            border: `1px solid ${(det.multas_total.pontos_12m ?? 0) >= 20 ? '#fca5a5' : '#fcd34d'}`,
+                          }}
+                        >
+                          {det.multas_total.pontos_12m ?? 0} pts nos últimos 12m
+                        </span>
                       </div>
-                      {det.multas.slice(0, 8).map((mu) => {
-                        const st = STATUS_MULTA[mu.status_interno || ''] || null;
-                        return (
-                          <div key={mu.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--portal-text)' }}>
-                            <span style={{ minWidth: 66 }}>{fmtData(mu.dt_multa)}</span>
-                            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mu.descricao || ''}>
-                              {formatarPlaca(mu.placa)} — {mu.descricao || '—'}
-                            </span>
-                            {st && <span style={{ fontSize: 11, fontWeight: 700, color: st.cor, background: st.bg, borderRadius: 999, padding: '1px 7px' }}>{st.label}</span>}
-                            <strong style={{ color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{mu.valor != null ? fmtRS(mu.valor) : '—'}</strong>
-                          </div>
-                        );
-                      })}
-                      {det.multas.length > 8 && (
-                        <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>… e mais {det.multas.length - 8} (veja em Frota → Multas)</div>
-                      )}
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5, maxHeight: 280, overflowY: 'auto', paddingRight: 2 }}>
+                        {det.multas.map((mu) => {
+                          const st = STATUS_MULTA[mu.status_interno || ''] || null;
+                          return (
+                            <div key={mu.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--portal-text)' }}>
+                              <span style={{ minWidth: 66 }}>{fmtData(mu.dt_multa)}</span>
+                              <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={mu.descricao || ''}>
+                                {formatarPlaca(mu.placa)} — {mu.descricao || '—'}
+                              </span>
+                              {mu.pontos ? <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)', whiteSpace: 'nowrap' }}>{mu.pontos} pts</span> : null}
+                              {st && <span style={{ fontSize: 11, fontWeight: 700, color: st.cor, background: st.bg, borderRadius: 999, padding: '1px 7px' }}>{st.label}</span>}
+                              <strong style={{ color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{mu.valor != null ? fmtRS(mu.valor) : '—'}</strong>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </>

@@ -176,7 +176,7 @@ export interface MotoristaDetalhe {
     valor: number | null;
     status_interno: string | null;
   }[];
-  multas_total: { qtd: number; valor: number; pontos: number };
+  multas_total: { qtd: number; valor: number; pontos: number; pontos_12m: number };
   documentos_rh: { id: string; tipo: string; descricao: string | null; data_validade: string | null; url: string | null }[];
 }
 

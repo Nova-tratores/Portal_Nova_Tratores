@@ -98,9 +98,23 @@ export async function POST(req: NextRequest) {
   if (pontos != null && (!Number.isFinite(pontos) || pontos < 0)) {
     return NextResponse.json({ error: 'Pontos inválidos.' }, { status: 400 });
   }
+  const dataOk = (v: unknown): string | null => {
+    const t = String(v || '').trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : null;
+  };
   const dtVencimento = String(body.dt_vencimento || '').trim();
-  if (dtVencimento && !/^\d{4}-\d{2}-\d{2}$/.test(dtVencimento)) {
+  if (dtVencimento && !dataOk(dtVencimento)) {
     return NextResponse.json({ error: 'Vencimento inválido.' }, { status: 400 });
+  }
+  const hora = String(body.hora || '').trim();
+  if (hora && !/^\d{2}:\d{2}$/.test(hora)) {
+    return NextResponse.json({ error: 'Hora da infração inválida (HH:MM).' }, { status: 400 });
+  }
+  if (body.dt_defesa && !dataOk(body.dt_defesa)) {
+    return NextResponse.json({ error: 'Prazo de defesa inválido.' }, { status: 400 });
+  }
+  if (body.indicacao_prazo && !dataOk(body.indicacao_prazo)) {
+    return NextResponse.json({ error: 'Prazo de indicação inválido.' }, { status: 400 });
   }
 
   const { data: veic } = await supabase
@@ -117,13 +131,19 @@ export async function POST(req: NextRequest) {
       veiculo_id: veic.id,
       placa: veic.placa,
       descricao,
+      codigo: String(body.codigo || '').trim() || null,
+      nivel_infracao: String(body.nivel_infracao || '').trim() || null,
       numero_auto: String(body.numero_auto || '').trim() || null,
       valor,
       pontos,
-      // meio-dia -03: a atribuição de responsável compara só a DATA — assim o
-      // dia não escorrega com fuso.
-      dt_multa: `${dtMulta}T12:00:00-03:00`,
+      // Sem hora informada fica meio-dia -03 (a atribuição de responsável
+      // compara só a DATA — assim o dia não escorrega com fuso; a tela só
+      // exibe a hora quando não for 12:00 em ponto).
+      dt_multa: `${dtMulta}T${hora || '12:00'}:00-03:00`,
       dt_vencimento: dtVencimento || null,
+      dt_defesa: dataOk(body.dt_defesa),
+      indicacao_prazo: dataOk(body.indicacao_prazo),
+      responsavel_id: String(body.responsavel_id || '').trim() || null,
       local_endereco: String(body.local_endereco || '').trim() || null,
       obs_interna: String(body.obs_interna || '').trim() || null,
       status_interno: 'nova',

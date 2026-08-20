@@ -16,6 +16,15 @@ import type { Multa } from '@/lib/frota/tipos';
 
 const fmtRS = (v: number | null) => (v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }));
 const fmtData = (s: string | null) => (s ? new Date(s).toLocaleDateString('pt-BR') : '—');
+// Data da multa com a HORA quando informada (meio-dia em ponto = cadastro sem hora)
+const fmtDataHoraMulta = (s: string | null) => {
+  if (!s) return '—';
+  const d = new Date(s);
+  const base = d.toLocaleDateString('pt-BR');
+  return d.getHours() === 12 && d.getMinutes() === 0
+    ? base
+    : `${base} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
 
 const STATUS: Record<string, { label: string; cor: string; bg: string }> = {
   nova: { label: 'Nova', cor: '#b45309', bg: '#fef3c7' },
@@ -42,14 +51,40 @@ const inputNM: React.CSSProperties = {
   color: 'var(--portal-text)', outline: 'none',
 };
 
+// Tabela do CTB (valores-base desde 2016): escolher o nível preenche
+// pontos e valor sozinho (editáveis depois).
+const NIVEIS: Record<string, { pontos: number; valor: number }> = {
+  'Leve': { pontos: 3, valor: 88.38 },
+  'Média': { pontos: 4, valor: 130.16 },
+  'Grave': { pontos: 5, valor: 195.23 },
+  'Gravíssima': { pontos: 7, valor: 293.47 },
+};
+
+// Infrações mais comuns — escolher uma preenche nível/pontos/valor de uma vez
+// (as gravíssimas com multiplicador já vêm com o valor multiplicado).
+const CATALOGO_INFRACOES: { desc: string; nivel: string; pontos: number; valor: number }[] = [
+  { desc: 'Transitar em velocidade superior à máxima em até 20%', nivel: 'Média', pontos: 4, valor: 130.16 },
+  { desc: 'Transitar em velocidade superior à máxima em mais de 20% até 50%', nivel: 'Grave', pontos: 5, valor: 195.23 },
+  { desc: 'Transitar em velocidade superior à máxima em mais de 50% (x3)', nivel: 'Gravíssima', pontos: 7, valor: 880.41 },
+  { desc: 'Dirigir segurando ou manuseando o celular', nivel: 'Gravíssima', pontos: 7, valor: 293.47 },
+  { desc: 'Avançar o sinal vermelho do semáforo', nivel: 'Gravíssima', pontos: 7, valor: 293.47 },
+  { desc: 'Dirigir sem usar o cinto de segurança', nivel: 'Grave', pontos: 5, valor: 195.23 },
+  { desc: 'Estacionar em local/horário proibido pela sinalização', nivel: 'Média', pontos: 4, valor: 130.16 },
+  { desc: 'Parar sobre a faixa de pedestres', nivel: 'Média', pontos: 4, valor: 130.16 },
+  { desc: 'Ultrapassar pela contramão em faixa contínua (x5)', nivel: 'Gravíssima', pontos: 7, valor: 1467.35 },
+  { desc: 'Dirigir veículo com licenciamento vencido', nivel: 'Gravíssima', pontos: 7, valor: 293.47 },
+  { desc: 'Deixar de acender o farol baixo à noite', nivel: 'Média', pontos: 4, valor: 130.16 },
+];
+
 // Modal de multa MANUAL (notificação que chegou por correio etc. — fora da
 // Rota Exata). O responsável NA DATA é resolvido sozinho pelo servidor
 // (uso diário > fixo), igual às sincronizadas.
-function NovaMultaModal({ onClose, onCriada }: { onClose: () => void; onCriada: () => void }) {
+function NovaMultaModal({ motoristas, onClose, onCriada }: { motoristas: MotoristaOpcao[]; onClose: () => void; onCriada: () => void }) {
   const [veiculos, setVeiculos] = useState<VeiculoOpcao[] | null>(null);
   const [form, setForm] = useState({
-    veiculo_id: '', dt_multa: '', descricao: '', valor: '', pontos: '',
-    numero_auto: '', dt_vencimento: '', local_endereco: '', obs_interna: '',
+    veiculo_id: '', dt_multa: '', hora: '', descricao: '', nivel_infracao: '', valor: '', pontos: '',
+    numero_auto: '', codigo: '', dt_vencimento: '', dt_defesa: '', indicacao_prazo: '',
+    responsavel_id: '', local_endereco: '', obs_interna: '',
   });
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState('');
@@ -67,6 +102,27 @@ function NovaMultaModal({ onClose, onCriada }: { onClose: () => void; onCriada: 
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  // Automação: infração do catálogo preenche nível/pontos/valor; trocar o
+  // nível preenche pontos/valor pela tabela do CTB (tudo editável depois).
+  const setInfracao = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.value;
+    const hit = CATALOGO_INFRACOES.find((c) => c.desc === v);
+    setForm((f) => ({
+      ...f,
+      descricao: v,
+      ...(hit ? { nivel_infracao: hit.nivel, pontos: String(hit.pontos), valor: hit.valor.toFixed(2) } : {}),
+    }));
+  };
+  const setNivel = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const v = e.target.value;
+    const n = NIVEIS[v];
+    setForm((f) => ({
+      ...f,
+      nivel_infracao: v,
+      ...(n ? { pontos: String(n.pontos), valor: n.valor.toFixed(2) } : {}),
+    }));
+  };
 
   const salvar = async () => {
     setErro('');
@@ -123,30 +179,63 @@ function NovaMultaModal({ onClose, onCriada }: { onClose: () => void; onCriada: 
             <input type="date" value={form.dt_multa} onChange={set('dt_multa')} style={inputNM} />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
-            Vencimento
-            <input type="date" value={form.dt_vencimento} onChange={set('dt_vencimento')} style={inputNM} />
+            Hora da infração
+            <input type="time" value={form.hora} onChange={set('hora')} style={inputNM} />
           </label>
           <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
-            Infração *
-            <input value={form.descricao} onChange={set('descricao')} placeholder="Ex.: Excesso de velocidade até 20%" style={inputNM} />
+            Infração * <span style={{ fontWeight: 400 }}>(escolher da lista preenche nível, pontos e valor sozinho)</span>
+            <input value={form.descricao} onChange={setInfracao} list="catalogo-infracoes" placeholder="Digite ou escolha da lista…" style={inputNM} />
+            <datalist id="catalogo-infracoes">
+              {CATALOGO_INFRACOES.map((c) => <option key={c.desc} value={c.desc} />)}
+            </datalist>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
-            Valor (R$)
-            <input type="number" min={0} step="0.01" value={form.valor} onChange={set('valor')} placeholder="0,00" style={inputNM} />
+            Nível (preenche pontos/valor)
+            <select value={form.nivel_infracao} onChange={setNivel} style={inputNM}>
+              <option value="">—</option>
+              {Object.keys(NIVEIS).map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
             Pontos
             <input type="number" min={0} step={1} value={form.pontos} onChange={set('pontos')} placeholder="0" style={inputNM} />
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Valor (R$)
+            <input type="number" min={0} step="0.01" value={form.valor} onChange={set('valor')} placeholder="0,00" style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Vencimento do boleto
+            <input type="date" value={form.dt_vencimento} onChange={set('dt_vencimento')} style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
             Nº do auto de infração
             <input value={form.numero_auto} onChange={set('numero_auto')} style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Código da infração (CTB)
+            <input value={form.codigo} onChange={set('codigo')} placeholder="Ex.: 745-50" style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Prazo de defesa
+            <input type="date" value={form.dt_defesa} onChange={set('dt_defesa')} style={inputNM} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Prazo pra indicar o condutor
+            <input type="date" value={form.indicacao_prazo} onChange={set('indicacao_prazo')} style={inputNM} />
+          </label>
+          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            Motorista (se já souber — senão a atribuição automática resolve)
+            <select value={form.responsavel_id} onChange={set('responsavel_id')} style={inputNM}>
+              <option value="">— automático (uso diário / responsável fixo) —</option>
+              {motoristas.map((p) => <option key={p.id} value={p.id}>{p.nome}</option>)}
+            </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
             Local
             <input value={form.local_endereco} onChange={set('local_endereco')} placeholder="Endereço/rodovia" style={inputNM} />
           </label>
-          <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
             Observação interna
             <input value={form.obs_interna} onChange={set('obs_interna')} style={inputNM} />
           </label>
@@ -311,6 +400,7 @@ export default function FrotaMultasPage() {
 
       {novaMulta && (
         <NovaMultaModal
+          motoristas={motoristas}
           onClose={() => setNovaMulta(false)}
           onCriada={() => { setNovaMulta(false); carregar(); }}
         />
@@ -365,7 +455,7 @@ export default function FrotaMultasPage() {
             <div key={m.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: '12px 16px', display: 'flex', gap: 16, alignItems: 'flex-start', flexWrap: 'wrap' }}>
               <div style={{ minWidth: 90 }}>
                 <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(m.placa)}</div>
-                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{fmtData(m.dt_multa)}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{fmtDataHoraMulta(m.dt_multa)}</div>
               </div>
 
               <div style={{ flex: 2, minWidth: 220 }}>

@@ -50,12 +50,8 @@ export async function GET(req: NextRequest) {
 
     // vínculos da frota (só existem com linha local)
     const cpfDigitos = normalizarCpf(rhFunc?.cpf ?? local?.cpf);
-    const cpfFormatado =
-      cpfDigitos.length === 11
-        ? `${cpfDigitos.slice(0, 3)}.${cpfDigitos.slice(3, 6)}.${cpfDigitos.slice(6, 9)}-${cpfDigitos.slice(9)}`
-        : null;
 
-    const [respR, multasIdR, multasCpfR, documentos] = await Promise.all([
+    const [respR, multasTodasR, usosR, respTodosR, documentos] = await Promise.all([
       local
         ? supabase
             .from('frota_responsaveis')
@@ -64,28 +60,54 @@ export async function GET(req: NextRequest) {
             .order('inicio', { ascending: false })
             .limit(30)
         : Promise.resolve({ data: [] as any[] }),
-      local
-        ? supabase
-            .from('frota_multas')
-            .select('id, placa, dt_multa, descricao, pontos, valor, status_interno')
-            .eq('motorista_id', local.id)
-        : Promise.resolve({ data: [] as any[] }),
-      cpfDigitos.length === 11
-        ? supabase
-            .from('frota_multas')
-            .select('id, placa, dt_multa, descricao, pontos, valor, status_interno')
-            .in('motorista_cpf', cpfFormatado ? [cpfDigitos, cpfFormatado] : [cpfDigitos])
-        : Promise.resolve({ data: [] as any[] }),
+      supabase
+        .from('frota_multas')
+        .select('id, placa, veiculo_id, dt_multa, descricao, pontos, valor, status_interno, responsavel_id, motorista_id, motorista_cpf'),
+      supabase.from('vw_frota_uso_diario').select('veiculo_id, data, pessoa_nome'),
+      supabase.from('frota_responsaveis').select('veiculo_id, motorista_id, inicio, fim'),
       rhId ? listarDocumentosRH(rhId) : Promise.resolve([]),
     ]);
 
     // responsável em aberto?
     const responsavel = (respR.data || []).some((r: any) => r.fim === null);
 
-    // multas: merge por id (motorista_id ∪ CPF nos 2 formatos)
-    const multasMap = new Map<string, any>();
-    for (const m of [...(multasIdR.data || []), ...(multasCpfR.data || [])]) multasMap.set(m.id, m);
-    const multas = [...multasMap.values()].sort((a, b) => String(b.dt_multa || '').localeCompare(String(a.dt_multa || '')));
+    // Multas da pessoa pela MESMA cadeia de atribuição da tela Frota > Multas:
+    // motorista definido na mão (responsavel_id) > uso diário (por nome) >
+    // responsável fixo vigente na data > carimbo antigo da Rota Exata (id/CPF).
+    // Antes só id/CPF da RE contavam — multa manual não aparecia na ficha.
+    const chave = (s: unknown) =>
+      String(s ?? '')
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .trim()
+        .replace(/\s+/g, ' ')
+        .toLowerCase();
+    const meuNome = chave(local?.nome || rhFunc?.nome);
+    const usoPorDia = new Map<string, string>();
+    for (const u of usosR.data || []) {
+      if (u.pessoa_nome) usoPorDia.set(`${u.veiculo_id}|${u.data}`, String(u.pessoa_nome));
+    }
+    const fixoEm = (veiculoId: string | null, d: string): string | null => {
+      if (!veiculoId) return null;
+      const r = (respTodosR.data || []).find(
+        (x: any) => x.veiculo_id === veiculoId && x.inicio <= d && (x.fim === null || x.fim >= d),
+      );
+      return r?.motorista_id ?? null;
+    };
+    const minha = (m: any): boolean => {
+      if (m.responsavel_id) return !!local && m.responsavel_id === local.id;
+      const d = String(m.dt_multa || '').slice(0, 10);
+      const uso = m.veiculo_id && d ? usoPorDia.get(`${m.veiculo_id}|${d}`) : null;
+      if (uso) return !!meuNome && chave(uso) === meuNome;
+      const fixo = d ? fixoEm(m.veiculo_id, d) : null;
+      if (fixo) return !!local && fixo === local.id;
+      if (local && m.motorista_id === local.id) return true;
+      const cpfM = String(m.motorista_cpf || '').replace(/\D/g, '');
+      return cpfDigitos.length === 11 && cpfM === cpfDigitos;
+    };
+    const multas = ((multasTodasR.data || []) as any[])
+      .filter(minha)
+      .sort((a, b) => String(b.dt_multa || '').localeCompare(String(a.dt_multa || '')));
 
     const abertas = multas.filter((m) => !['paga', 'descontada', 'arquivada'].includes(m.status_interno || ''));
     const detalhe: MotoristaDetalhe = {
@@ -128,6 +150,14 @@ export async function GET(req: NextRequest) {
         qtd: multas.length,
         valor: multas.reduce((s, m) => s + (Number(m.valor) || 0), 0),
         pontos: multas.reduce((s, m) => s + (Number(m.pontos) || 0), 0),
+        // janela dos pontos na CNH (12 meses da infração, fora arquivadas)
+        pontos_12m: multas
+          .filter(
+            (m) =>
+              m.status_interno !== 'arquivada' &&
+              String(m.dt_multa || '').slice(0, 10) >= new Date(Date.now() - 365 * 86400000).toISOString().slice(0, 10),
+          )
+          .reduce((s, m) => s + (Number(m.pontos) || 0), 0),
       },
       documentos_rh: documentos,
     };
