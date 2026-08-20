@@ -34,6 +34,9 @@ const STATUS: Record<string, { label: string; cor: string; bg: string }> = {
   descontada: { label: 'Descontada em folha', cor: '#0f766e', bg: '#ccfbf1' },
   arquivada: { label: 'Arquivada', cor: '#64748b', bg: '#f1f5f9' },
 };
+// Status que tiram a multa do "em aberto" (encerradas)
+const FINALIZADAS = ['paga', 'descontada', 'arquivada'];
+
 const FONTE_LABEL: Record<string, string> = {
   manual: 'definido manualmente',
   uso_diario: 'marcou o carro no dia',
@@ -276,7 +279,7 @@ export default function FrotaMultasPage() {
   const [multas, setMultas] = useState<Multa[]>([]);
   const [motoristas, setMotoristas] = useState<MotoristaOpcao[]>([]);
   const [erro, setErro] = useState('');
-  const [soAbertas, setSoAbertas] = useState(true);
+  const [filtro, setFiltro] = useState<'abertas' | 'encerradas' | 'todas'>('abertas');
   const [busy, setBusy] = useState('');
   const [novaMulta, setNovaMulta] = useState(false);
 
@@ -346,13 +349,11 @@ export default function FrotaMultasPage() {
     } finally { setBusy(''); }
   };
 
-  const visiveis = useMemo(
-    () => multas.filter((m) => !soAbertas || !['paga', 'descontada', 'arquivada'].includes(m.status_interno)),
-    [multas, soAbertas],
-  );
-  const totalAberto = multas
-    .filter((m) => !['paga', 'descontada', 'arquivada'].includes(m.status_interno))
-    .reduce((s, m) => s + (Number(m.valor) || 0), 0);
+  const abertas = useMemo(() => multas.filter((m) => !FINALIZADAS.includes(m.status_interno)), [multas]);
+  const encerradas = useMemo(() => multas.filter((m) => FINALIZADAS.includes(m.status_interno)), [multas]);
+  const visiveis = filtro === 'abertas' ? abertas : filtro === 'encerradas' ? encerradas : multas;
+  const totalAberto = abertas.reduce((s, m) => s + (Number(m.valor) || 0), 0);
+  const totalEncerrado = encerradas.reduce((s, m) => s + (Number(m.valor) || 0), 0);
 
   // Pontos por motorista nos ÚLTIMOS 12 MESES (janela dos pontos na CNH),
   // contando pelo motorista atribuído de cada multa (exceto arquivadas).
@@ -381,12 +382,33 @@ export default function FrotaMultasPage() {
           <ShieldAlert size={20} color="#b91c1c" /> Multas
         </h2>
         <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>
-          {visiveis.length} exibidas · <strong style={{ color: '#b91c1c' }}>{fmtRS(totalAberto)}</strong> em aberto
+          <strong style={{ color: '#b91c1c' }}>{fmtRS(totalAberto)}</strong> em aberto
+          {encerradas.length > 0 && <> · {fmtRS(totalEncerrado)} encerradas</>}
         </span>
         <div style={{ flex: 1 }} />
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
-          <input type="checkbox" checked={soAbertas} onChange={() => setSoAbertas((v) => !v)} /> só em aberto
-        </label>
+        {/* Abas: em aberto / encerradas (pagas · descontadas · arquivadas) / todas */}
+        <div style={{ display: 'flex', gap: 4, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 10, padding: 3 }}>
+          {([
+            ['abertas', `Em aberto (${abertas.length})`],
+            ['encerradas', `Encerradas (${encerradas.length})`],
+            ['todas', `Todas (${multas.length})`],
+          ] as const).map(([k, label]) => (
+            <button
+              key={k}
+              onClick={() => setFiltro(k)}
+              title={k === 'encerradas' ? 'Pagas, descontadas em folha e arquivadas' : undefined}
+              style={{
+                padding: '5px 12px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 700,
+                cursor: 'pointer',
+                background: filtro === k ? 'var(--portal-bg-card)' : 'transparent',
+                color: filtro === k ? '#b91c1c' : 'var(--portal-text-secondary)',
+                boxShadow: filtro === k ? '0 1px 3px rgba(0,0,0,0.15)' : 'none',
+              }}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {podeEditar && (
           <button
             onClick={() => setNovaMulta(true)}
@@ -445,7 +467,9 @@ export default function FrotaMultasPage() {
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
       {visiveis.length === 0 && !erro && (
-        <div style={{ color: 'var(--portal-text-muted)', fontSize: 13 }}>Nenhuma multa {soAbertas ? 'em aberto' : 'registrada'}. 🎉</div>
+        <div style={{ color: 'var(--portal-text-muted)', fontSize: 13 }}>
+          Nenhuma multa {filtro === 'abertas' ? 'em aberto. 🎉' : filtro === 'encerradas' ? 'encerrada.' : 'registrada. 🎉'}
+        </div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
