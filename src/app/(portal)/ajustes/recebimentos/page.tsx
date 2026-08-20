@@ -389,6 +389,7 @@ export default function RecebimentosPage() {
                     <CardReceb
                       key={recKey(r)}
                       r={r}
+                      conta={conta}
                       resultado={resultados[recKey(r)]}
                       usuarios={usuarios}
                       mostrarProdutos={mostrarProdutos}
@@ -473,8 +474,47 @@ function CabecalhoReceb({ sort, filtros, onSort, onFiltro }: {
   );
 }
 
-function CardReceb({ r, resultado, usuarios, mostrarProdutos, onAbrir, onResponsavelChange }: {
-  r: Recebimento; resultado?: ResultadoCard; usuarios: Usuario[]; mostrarProdutos: boolean;
+// Ações da NF-e do fornecedor: copiar chave, consultar na SEFAZ e ver DANFE (PDF).
+// O DANFE vem via DfeDocs/ObterNfe (rota [id]/danfe): resolve nIdNfe pela chave ->
+// cPdf. Só existe DEPOIS de concluir (pendente -> aviso "disponível após concluir").
+function NotaFiscalAcoes({ chave, idReceb, conta }: { chave?: string | null; idReceb?: number | string | null; conta: string }) {
+  const [carregando, setCarregando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+  const chaveDig = (chave || '').replace(/\D/g, '');
+  const copiar = async () => {
+    if (!chaveDig) return;
+    try { await navigator.clipboard.writeText(chaveDig); setCopiado(true); setTimeout(() => setCopiado(false), 1500); } catch { /* ignore */ }
+  };
+  const consultarSefaz = async () => {
+    await copiar();
+    window.open('https://www.nfe.fazenda.gov.br/portal/consultaRecaptcha.aspx', '_blank', 'noopener');
+  };
+  const verDanfe = async () => {
+    if (idReceb == null) return;
+    setCarregando(true);
+    try {
+      const qs = `conta=${encodeURIComponent(conta)}${chaveDig ? `&chave=${chaveDig}` : ''}`;
+      const r = await fetch(`/api/ajustes/recebimentos/${idReceb}/danfe?${qs}`);
+      const d = await r.json();
+      if (d.url) window.open(d.url, '_blank', 'noopener');
+      else if (d.pendente) alert(d.msg || 'O DANFE fica disponível após concluir o recebimento.');
+      else alert('Não foi possível abrir o DANFE: ' + (d.erro || 'erro'));
+    } catch (ex) { alert('Erro ao buscar o DANFE: ' + (ex as Error).message); }
+    finally { setCarregando(false); }
+  };
+  if (!chaveDig && idReceb == null) return null;
+  const btn: React.CSSProperties = { padding: '3px 8px', fontSize: '.7rem', border: '1px solid #cbd5e1', borderRadius: 6, background: '#fff', color: '#334155', cursor: 'pointer', whiteSpace: 'nowrap' };
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      {chaveDig && <button type="button" onClick={copiar} title={`Chave: ${chaveDig}`} style={btn}>{copiado ? '✓ chave copiada' : 'copiar chave'}</button>}
+      {chaveDig && <button type="button" onClick={consultarSefaz} title="Copia a chave e abre a consulta pública da SEFAZ" style={btn}>consultar (SEFAZ)</button>}
+      <button type="button" onClick={verDanfe} disabled={carregando} style={{ ...btn, opacity: carregando ? 0.6 : 1, cursor: carregando ? 'wait' : 'pointer' }}>{carregando ? '…' : 'ver DANFE'}</button>
+    </span>
+  );
+}
+
+function CardReceb({ r, conta, resultado, usuarios, mostrarProdutos, onAbrir, onResponsavelChange }: {
+  r: Recebimento; conta: string; resultado?: ResultadoCard; usuarios: Usuario[]; mostrarProdutos: boolean;
   onAbrir: () => void; onResponsavelChange: (userId: string | null) => void;
 }) {
   const temSinal = !!r.temSinalGarantia;
@@ -511,6 +551,7 @@ function CardReceb({ r, resultado, usuarios, mostrarProdutos, onAbrir, onRespons
             </select>
             {r.responsavelAutomatico && r.responsavelUserId && <span style={{ fontSize: '.6rem', color: '#94a3b8' }}>auto</span>}
           </span>
+          <NotaFiscalAcoes chave={r.chaveNFe} idReceb={r.idReceb} conta={conta} />
           {resultado ? (
             <span style={{ fontSize: '.72rem', color: resultado.tipo === 'ok' ? '#047857' : '#dc2626' }}>{resultado.texto}</span>
           ) : (
@@ -895,7 +936,10 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 920, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Dar entrada na NF {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''} - {r.fornecedorNome || ''}</h2>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginLeft: 'auto' }}>
+            <NotaFiscalAcoes chave={r.chaveNFe} idReceb={r.idReceb} conta={conta} />
+            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+          </span>
         </div>
         <div style={{ padding: 18, overflowY: 'auto', fontSize: '.82rem' }}>
           {fase === 'entrada' && (<>

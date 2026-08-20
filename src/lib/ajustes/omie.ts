@@ -851,6 +851,58 @@ export async function reverterRecebimento(conta: Conta, args: Record<string, any
   return omieRequest('/produtos/recebimentonfe/', 'ReverterRecebimento', params, conta);
 }
 
+// Consulta UM recebimento pelo id (estado atual, "ao vivo" - nao depende do cache).
+// ConsultarRecebimento { nIdReceb }. Retorna o essencial p/ decidir se o DANFE ja
+// existe (a NF so vira consultavel via GetUrlDanfe DEPOIS de concluida, etapa 60).
+export async function consultarRecebimento(conta: Conta, idReceb: number | string): Promise<{
+  etapa: string | null; recebido: boolean; cancelada: boolean;
+  numeroNFe: string | null; serieNFe: string | null; chaveNFe: string | null; idReceb: any;
+}> {
+  if (idReceb == null || idReceb === '') throw new Error('informe idReceb');
+  const data: any = await omieRequest('/produtos/recebimentonfe/', 'ConsultarRecebimento', { nIdReceb: Number(idReceb) || idReceb }, conta);
+  const rec = data && (data.recebimento || data.recebimentos || data) || {};
+  const cab = rec.cabec || rec.cabecalho || {};
+  const ic = rec.infoCadastro || rec.cadastro || {};
+  return {
+    etapa: cab.cEtapa != null ? String(cab.cEtapa) : null,
+    recebido: ic.cRecebido === 'S',
+    cancelada: ic.cCancelada === 'S',
+    numeroNFe: cab.cNumeroNFe != null ? String(cab.cNumeroNFe) : null,
+    serieNFe: cab.cSerieNFe != null ? String(cab.cSerieNFe) : null,
+    chaveNFe: cab.cChaveNFe ?? null,
+    idReceb: cab.nIdReceb ?? idReceb,
+  };
+}
+
+// Resolve o nIdNF (id interno da NF-e no Omie) a partir da CHAVE de acesso.
+// ConsultarNF (/produtos/nfconsultar/) por cChaveNFe. Retorna null quando a NF ainda
+// NAO esta cadastrada (recebimento pendente -> "NF nao cadastrada"): so vira consultavel
+// depois de concluida. (Testado em runtime: pendente = fault "NF nao cadastrada".)
+export async function obterIdNfePorChave(conta: Conta, chaveNFe: string): Promise<number | null> {
+  if (!chaveNFe) return null;
+  try {
+    const r: any = await omieRequest('/produtos/nfconsultar/', 'ConsultarNF', { cChaveNFe: String(chaveNFe) }, conta);
+    if (!r || r.faultstring) return null;
+    const id = r.compl?.nIdNF ?? r.nIdNF ?? r.ide?.nIdNF ?? null;
+    return id ? Number(id) : null;
+  } catch { return null; }
+}
+
+// DANFE (PDF) + XML de uma NF-e via DfeDocs/ObterNfe (param nIdNfe). O cPdf e' um
+// link temporario (click.omie.com) do DANFE. Retorna tambem o XML e a chave.
+export async function obterDanfeDfe(conta: Conta, nIdNfe: number): Promise<{
+  url: string | null; xml: string | null; chave: string | null; numero: string | null; status: string | null;
+}> {
+  const r: any = await omieRequest('/produtos/dfedocs/', 'ObterNfe', { nIdNfe: Number(nIdNfe) }, conta);
+  return {
+    url: r?.cPdf || null,
+    xml: r?.cXmlNfe || null,
+    chave: r?.nChaveNfe || null,
+    numero: r?.cNumNfe || null,
+    status: r?.cDesStatus || r?.message || null,
+  };
+}
+
 // =============================================================================
 // Movimentos de estoque de um produto (para reconstruir o CMC).
 // /estoque/consulta/ -> MovimentoEstoque { id_prod, dataInicial, dataFinal }.
