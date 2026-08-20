@@ -219,6 +219,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
           urls,
           nfUrls,
           destinatarios,
+          chamadoId: card?.id || null,
           cliente: nome || '',
           nf: [card?.num_nf_servico && `S ${card.num_nf_servico}`, card?.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(' / '),
           valor: valorTotalCard(card) != null ? formatarBRL(valorTotalCard(card)) : '',

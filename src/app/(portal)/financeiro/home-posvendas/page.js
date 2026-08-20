@@ -18,6 +18,7 @@ import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import ConfirmarFaseModal from '@/components/ConfirmarFaseModal'
 import { EnviarParaOmieBox } from '@/components/financeiro/OmieContaPagar'
 import PreferenciaEnvioBoleto from '@/components/financeiro/PreferenciaEnvioBoleto'
+import EmailsDoCard from '@/components/financeiro/EmailsDoCard'
 import PrefEnvioBadge from '@/components/financeiro/PrefEnvioBadge'
 import { montarMapasPref, acharMetodo } from '@/lib/financeiro/prefEnvio'
 import { authHeaders } from '@/lib/auth/client'
@@ -891,6 +892,7 @@ function HomePosVendasContent() {
                   {tarefaSelecionada.gTipo !== 'pagar' && tarefaSelecionada.gTipo !== 'rh' && (
                     <div style={{ marginTop:'45px' }}>
                       <PreferenciaEnvioBoleto card={tarefaSelecionada} />
+          <EmailsDoCard chamadoId={tarefaSelecionada?.id} />
                     </div>
                   )}
 

@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Bell, RefreshCw, MessageSquare, ChevronRight } from 'lucide-react'
+import RespostasEmail from '@/components/financeiro/RespostasEmail'
 import { formatarMoeda } from '@/lib/financeiro/utils'
 import { useRouter, usePathname } from 'next/navigation'
 
@@ -274,6 +275,9 @@ export default function NotificationSystem({ userProfile }) {
 
   return (
     <>
+      {/* Painel de respostas de e-mail dos clientes — ao lado do sino */}
+      <RespostasEmail />
+
       {/* ═══════════════════════════════════════════════════════════
           SINO — canto superior direito, circular, moderno
       ═══════════════════════════════════════════════════════════ */}

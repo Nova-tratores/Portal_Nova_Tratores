@@ -17,6 +17,7 @@ import {
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import ConfirmarFaseModal from '@/components/ConfirmarFaseModal'
 import PreferenciaEnvioBoleto from '@/components/financeiro/PreferenciaEnvioBoleto'
+import EmailsDoCard from '@/components/financeiro/EmailsDoCard'
 import PrefEnvioBadge from '@/components/financeiro/PrefEnvioBadge'
 import EnvioGuiaModal from '@/components/financeiro/EnvioGuiaModal'
 import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
@@ -742,6 +743,7 @@ export default function Kanban() {
         {/* PREFERÊNCIA DE ENVIO + AÇÃO DE ENVIO — antes das observações */}
         <div style={{ marginTop:'20px', display:'flex', flexDirection:'column', gap:'20px' }}>
           <PreferenciaEnvioBoleto card={tarefaSelecionada} />
+          <EmailsDoCard chamadoId={tarefaSelecionada?.id} />
           {tarefaSelecionada.status === 'enviar_cliente' && (
             <div style={{background:'#f0fdf4', padding:'30px 35px', borderRadius:'20px', border:'1px solid #bbf7d0'}}>
               <label style={{...labelModalStyle, color:'#16a34a', fontSize: '16px'}}>AÇÃO REQUERIDA</label>

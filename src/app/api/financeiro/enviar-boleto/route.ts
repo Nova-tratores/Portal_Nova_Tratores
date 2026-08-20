@@ -31,6 +31,7 @@ export async function POST(request: Request) {
     vencimento?: string;
     remetente?: string;
     parcelas?: { n: number; data: string; valor: string }[];
+    chamadoId?: number | string; // id do card (Chamado_NF) — registra o envio no histórico de e-mails
   };
   try {
     body = await request.json();
@@ -179,6 +180,26 @@ ${blocoValores}
       html,
       attachments,
     });
+    // Registra o envio no histórico de e-mails do card (bloco "E-mails deste
+    // boleto" + casamento das respostas do cliente via message-id).
+    const chamadoId = Number(body.chamadoId) || 0;
+    if (chamadoId) {
+      try {
+        await adminSupa.from('financeiro_emails').insert({
+          chamado_id: chamadoId,
+          tipo: 'boleto',
+          direcao: 'enviado',
+          de_email: fromEmail,
+          destinatarios: destinatarios.join(', '),
+          assunto: subject,
+          corpo: html,
+          message_id: info.messageId || null,
+          user_id: auth.userId,
+        });
+      } catch (e) {
+        console.warn('[enviar-boleto] falha ao registrar o e-mail no histórico:', e);
+      }
+    }
     return NextResponse.json({ ok: true, id: info.messageId, enviados: destinatarios, de: fromEmail });
   } catch (error: any) {
     console.error('Erro ao enviar boleto por email:', error);

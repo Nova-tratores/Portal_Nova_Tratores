@@ -1,0 +1,30 @@
+# Financeiro — e-mails de cobrança:
+#  1. Lembrete de vencimento: 5 dias antes de vencer, reenvia boleto+notas por
+#     e-mail (só pra quem recebeu por e-mail). Idempotente por card+vencimento.
+#  2. Respostas dos clientes: lê a caixa de cada remetente via IMAP e casa a
+#     resposta com o card (aparece no card + painel de respostas + sininho).
+name: Financeiro - Lembretes e respostas de e-mail
+
+on:
+  schedule:
+    - cron: '0 12 * * *'   # 09:00 BRT (-03)
+    - cron: '0 16 * * *'   # 13:00 BRT
+    - cron: '0 20 * * *'   # 17:00 BRT
+  workflow_dispatch: {}
+
+jobs:
+  emails:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lembrete de vencimento (5 dias antes)
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/financeiro/cron/lembrete-vencimento"
+
+      - name: Ler respostas dos clientes (IMAP)
+        if: always()
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/financeiro/cron/ler-respostas"

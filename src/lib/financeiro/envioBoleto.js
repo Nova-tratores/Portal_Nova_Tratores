@@ -66,6 +66,7 @@ export async function tentarEnvioAutomaticoBoleto(card, remetente) {
         urls: bUrls,
         nfUrls: nUrls,
         destinatarios,
+        chamadoId: card.id || null,
         cliente: card.nom_cliente || '',
         nf: [card.num_nf_servico && `S ${card.num_nf_servico}`, card.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(' / '),
         valor: valorTotalCard(card) != null ? formatarBRL(valorTotalCard(card)) : '',
