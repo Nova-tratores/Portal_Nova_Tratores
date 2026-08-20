@@ -187,7 +187,9 @@ export default function RecebimentosPage() {
   const { conta, contaParam } = useConta();
   const criadoPor = userProfile?.nome || 'portal';
 
-  const [de, setDe] = useState(isoDefault(-6));
+  // janela padrão: pendentes desde 01/11/2022 (o cache guarda o histórico; só o recente
+  // é recomputado diariamente pelo cron). O usuário pode estreitar a janela nos filtros.
+  const [de, setDe] = useState('2022-11-01');
   const [ate, setAte] = useState(isoDefault(0));
   const [dados, setDados] = useState<RecebPayload | null>(null);
   const [carregando, setCarregando] = useState(false);

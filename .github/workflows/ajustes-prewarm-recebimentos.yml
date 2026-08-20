@@ -1,37 +1,34 @@
-name: Ajustes - Prewarm recebimentos (cache)
+name: Ajustes - Recebimentos pendentes (atualização diária)
 
-# Mantém o cache de "Recebimentos pendentes" quente para NOVA + CASTRO, para a
-# tela /ajustes/recebimentos abrir pronta (sem "sincronizar no Omie" na mão).
+# Atualiza o cache de "Recebimentos pendentes" (janela grande 01/11/2022 → hoje) para
+# NOVA + CASTRO. Merge INCREMENTAL: recomputa só a janela recente e mantém o histórico
+# congelado no snapshot (recebimento_pendentes_cache). A tela lê o snapshot (instantâneo).
 #
-# Chama o MESMO endpoint que a tela usa, com force=1 e a janela padrão (6 meses),
-# garantindo que a chave de cache aquecida seja exatamente a que a página carrega.
-# (O cronHomePrewarm existente usa outra janela e por isso não servia.)
-#
-# Cadência pedida: a cada 54 min, das 06:10 às 19:00 BRT. O cron do GitHub não faz
-# intervalo "rolante" de 54 min, então os horários são ENUMERADOS (BRT+3 = UTC).
-# Obs.: o agendador do GitHub pode atrasar alguns minutos (não é preciso ao segundo).
+# 1×/dia às 07:00 UTC (~04:00 BRT), fora de pico. Fire-and-forget: se o compute demorar
+# além do --max-time, o servidor termina em segundo plano e grava o snapshot mesmo assim.
+# Use "workflow_dispatch" com seed=1 para forçar o recompute COMPLETO (seed/reconciliação).
 # Requer os secrets PORTAL_URL e CRON_SECRET.
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: 'Recompute COMPLETO (01/11/2022→hoje) em vez do incremental'
+        type: boolean
+        default: false
   schedule:
-    - cron: '50 9,11,13,15,17,19,21 * * *'   # a cada 2h no :50 — 06:50 a 18:50 BRT
+    - cron: '0 7 * * *'   # diário 07:00 UTC = ~04:00 BRT
 
 jobs:
-  prewarm-recebimentos:
+  atualizar-recebimentos:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
-      - name: Aquecer recebimentos NOVA
+      - name: Atualizar cache de recebimentos (incremental ou seed)
         run: |
-          curl -fsS --max-time 300 \
+          SEED=""
+          if [ "${{ github.event.inputs.seed }}" = "true" ]; then SEED="?seed=1"; fi
+          curl -sS --max-time 900 -X POST \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.PORTAL_URL }}/api/ajustes/recebimentos-pendentes?conta=NOVA&force=1" \
-            -o /dev/null -w "recebimentos NOVA: HTTP %{http_code} em %{time_total}s\n"
-
-      - name: Aquecer recebimentos CASTRO
-        run: |
-          curl -fsS --max-time 300 \
-            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
-            "${{ secrets.PORTAL_URL }}/api/ajustes/recebimentos-pendentes?conta=CASTRO&force=1" \
-            -o /dev/null -w "recebimentos CASTRO: HTTP %{http_code} em %{time_total}s\n"
+            "${{ secrets.PORTAL_URL }}/api/ajustes/recebimentos-pendentes/atualizar-dia${SEED}" \
+            -w "\natualizar-dia: HTTP %{http_code} em %{time_total}s\n" || echo "curl encerrou (fire-and-forget: o servidor continua e grava o snapshot)"
