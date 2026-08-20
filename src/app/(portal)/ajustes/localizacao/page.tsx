@@ -95,7 +95,9 @@ export default function LocalizacaoPage() {
 
   // "Conferir por posição": marca própria de localização (localizacao_conferida)
   const [conferidas, setConferidas] = useState<Map<string, { status: 'conferido' | 'divergente'; nome?: string }>>(new Map());
-  const [abrirConferir, setAbrirConferir] = useState(false);
+  // deck do Conferir: null = fechado; array = flashcard aberto com essas posições
+  // (global = todas do filtro; ou só de uma prateleira/andar escolhidos)
+  const [conferirDeck, setConferirDeck] = useState<Pos[] | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null);
@@ -325,10 +327,10 @@ export default function LocalizacaoPage() {
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar código, descrição ou localização (ex.: PRATELEIRA 6, 9 D 02)"
             style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px 8px 32px', fontSize: '.82rem' }} />
         </div>
-        <button onClick={() => setAbrirConferir(true)} disabled={deckPosicoes.length === 0}
-          title={deckPosicoes.length === 0 ? 'Nenhuma posição no filtro atual' : 'Conferir as posições do filtro atual (use a busca para focar)'}
+        <button onClick={() => setConferirDeck(deckPosicoes)} disabled={deckPosicoes.length === 0}
+          title={deckPosicoes.length === 0 ? 'Nenhuma posição no filtro atual' : 'Conferir todas as posições do filtro atual (ou use o botão Conferir de uma prateleira)'}
           style={{ ...btnPrim, background: '#16a34a', border: '1px solid #16a34a', opacity: deckPosicoes.length === 0 ? .5 : 1 }}>
-          <ClipboardCheck size={15} /> Conferir{deckPosicoes.length ? ` (${deckPosicoes.length})` : ''}
+          <ClipboardCheck size={15} /> Conferir tudo{deckPosicoes.length ? ` (${deckPosicoes.length})` : ''}
         </button>
       </div>
 
@@ -356,11 +358,18 @@ export default function LocalizacaoPage() {
               if (buscando && nPecas === 0) return null;
               return (
                 <div key={kP} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                  <button onClick={() => toggle(kP)} style={{ ...linhaBtn, background: '#f8fafc', fontWeight: 700 }}>
-                    {estaAberto(kP) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    <span style={{ color: '#1d4ed8' }}>Prateleira {labelSeg(prat)}</span>
-                    <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem', fontWeight: 500 }}>{nPecas} peça(s)</span>
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', background: '#f8fafc' }}>
+                    <button onClick={() => toggle(kP)} style={{ ...linhaBtn, flex: 1, fontWeight: 700 }}>
+                      {estaAberto(kP) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                      <span style={{ color: '#1d4ed8' }}>Prateleira {labelSeg(prat)}</span>
+                      <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem', fontWeight: 500 }}>{nPecas} peça(s)</span>
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); setConferirDeck(deckPosicoes.filter((pp) => pp.prat === prat)); }}
+                      title={`Conferir só a Prateleira ${labelSeg(prat)}`}
+                      style={{ ...btn, margin: '0 8px', padding: '4px 10px', fontSize: '.7rem', background: '#16a34a', color: '#fff', border: '1px solid #16a34a' }}>
+                      <ClipboardCheck size={13} /> Conferir
+                    </button>
+                  </div>
                   {estaAberto(kP) && andares.map((andar) => {
                     const kA = `${kP}|A|${andar}`;
                     const caixas = Array.from(arvore.get(prat)!.get(andar)!.keys()).sort(cmpSeg);
@@ -368,11 +377,18 @@ export default function LocalizacaoPage() {
                     if (buscando && nA === 0) return null;
                     return (
                       <div key={kA} style={{ paddingLeft: 18 }}>
-                        <button onClick={() => toggle(kA)} style={{ ...linhaBtn, fontWeight: 600, color: '#334155' }}>
-                          {estaAberto(kA) ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-                          Andar {labelSeg(andar)}
-                          <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem', fontWeight: 500 }}>{nA} peça(s)</span>
-                        </button>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <button onClick={() => toggle(kA)} style={{ ...linhaBtn, flex: 1, fontWeight: 600, color: '#334155' }}>
+                            {estaAberto(kA) ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
+                            Andar {labelSeg(andar)}
+                            <span style={{ marginLeft: 'auto', color: '#94a3b8', fontSize: '.72rem', fontWeight: 500 }}>{nA} peça(s)</span>
+                          </button>
+                          <button onClick={(e) => { e.stopPropagation(); setConferirDeck(deckPosicoes.filter((pp) => pp.prat === prat && pp.andar === andar)); }}
+                            title={`Conferir Prateleira ${labelSeg(prat)} · Andar ${labelSeg(andar)}`}
+                            style={{ ...btn, margin: '0 8px', padding: '3px 9px', fontSize: '.68rem', background: '#dcfce7', color: '#16a34a', border: '1px solid #bbf7d0' }}>
+                            <ClipboardCheck size={12} /> Conferir
+                          </button>
+                        </div>
                         {estaAberto(kA) && caixas.map((caixa) => {
                           const arr = arvore.get(prat)!.get(andar)!.get(caixa)!;
                           const visiveis = arr.filter(casa);
@@ -450,10 +466,10 @@ export default function LocalizacaoPage() {
         <ModalColocar posicao={colocar} produtosEmpresa={daEmpresa} salvando={salvando}
           onCancelar={() => setColocar(null)} onConfirmar={definir} />
       )}
-      {abrirConferir && (
-        <ModalConferirPosicao deck={deckPosicoes} daEmpresa={daEmpresa} conferidas={conferidas}
+      {conferirDeck && (
+        <ModalConferirPosicao deck={conferirDeck} daEmpresa={daEmpresa} conferidas={conferidas}
           onMarcar={marcarConferencia} onTrocar={setColocar} onEtiqueta={addEtiqueta}
-          onClose={() => setAbrirConferir(false)} />
+          onClose={() => setConferirDeck(null)} />
       )}
     </div>
   );
