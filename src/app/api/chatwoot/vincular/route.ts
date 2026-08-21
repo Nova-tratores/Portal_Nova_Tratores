@@ -67,14 +67,10 @@ export async function POST(req: NextRequest) {
     const nome = cliente.nome_fantasia || cliente.razao_social || "";
     const custom_attributes = {
       ...existing,
-      cliente_portal: nome
-        ? `${cliente.cod_cli} - ${nome}`
-        : String(cliente.cod_cli ?? ""),
-      cod_cli: String(cliente.cod_cli ?? ""),
-      empresa_omie: String(cliente.empresa ?? ""),
-      cnpj_cpf: cliente.cnpj_cpf || "",
-      cidade: cliente.cidade || "",
-      estado: cliente.estado || "",
+      // Campo visível "Cliente" (nome + código do portal)
+      cliente: nome ? `${nome} (cód ${cliente.cod_cli})` : String(cliente.cod_cli ?? ""),
+      // Referência interna p/ a "ficha viva" (fase 2): identifica o cliente no portal
+      cliente_ref: `${cliente.cod_cli ?? ""}:${cliente.empresa ?? ""}`,
     };
 
     const putRes = await fetch(base, {

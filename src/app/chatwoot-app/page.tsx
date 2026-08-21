@@ -42,7 +42,7 @@ export default function ChatwootAppPage() {
   // Cliente atualmente vinculado (lido dos atributos do contato)
   const linked = useMemo(() => {
     const ca = contact?.custom_attributes || {};
-    const label = ca["cliente_portal"];
+    const label = ca["cliente"];
     return typeof label === "string" && label ? label : null;
   }, [contact]);
 
@@ -132,7 +132,7 @@ export default function ChatwootAppPage() {
               ...prev,
               custom_attributes: {
                 ...(prev.custom_attributes || {}),
-                cliente_portal: `${cliente.cod_cli} - ${nome}`,
+                cliente: `${nome} (cód ${cliente.cod_cli})`,
               },
             }
           : prev
