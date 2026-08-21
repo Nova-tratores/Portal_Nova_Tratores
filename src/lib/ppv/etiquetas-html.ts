@@ -3,6 +3,8 @@
 //
 // Dois formatos: folha adesiva pré-cortada 3×10 (Pimaco/Avery 6180, Carta,
 // 66,675×25,4mm) e papel comum (2 colunas tracejadas pra recortar).
+// A 3×10 também imprime em papel comum: `tracejado` desenha a linha de corte na
+// borda de cada etiqueta (mesmo tamanho, só que recortando em vez de descolar).
 //
 // Cada bloco pode vir com QR de rastreio (unidade rastreada — o QR SUBSTITUI
 // o código de barras Code 128, decisão do usuário 11/08/2026) ou sem (etiqueta
@@ -38,10 +40,19 @@ const MAX_PT_DUPLA = 7
 const ALTURA_BARRA_MM = 5.6
 const MAX_BARRA_MM = 9
 
-/** Deslocamento fino (mm) da folha p/ calibrar impressoras que puxam torto.
- *  x>0 empurra p/ direita, y>0 empurra p/ baixo. Mantém o tamanho das etiquetas
- *  (só realoca as margens), então não estraga o casamento com a folha pré-cortada. */
-export interface OffsetFolha { x?: number; y?: number }
+export interface OpcoesFolha {
+  /** Deslocamento fino (mm) da folha p/ calibrar impressoras que puxam torto.
+   *  x>0 empurra p/ direita, y>0 empurra p/ baixo. Mantém o tamanho das etiquetas
+   *  (só realoca as margens), então não estraga o casamento com a folha pré-cortada. */
+  x?: number
+  y?: number
+  /** Imprime o tracejado de corte na BORDA de cada etiqueta (papel comum).
+   *  Na folha adesiva não se usa: ela já vem picotada, e a linha impressa cairia
+   *  em cima do vinco (ou, com a impressora puxando torto, dentro da etiqueta). */
+  tracejado?: boolean
+}
+/** @deprecated nome de quando a opção era só o offset — use OpcoesFolha. */
+export type OffsetFolha = OpcoesFolha
 
 export function esc(s: string): string {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -232,8 +243,8 @@ function blocosTexto(e: BlocoEtiqueta, comBarra: boolean): string {
 // altura-página (280 vs 279) fazia o Chrome "ajustar pra caber" e ENCOLHER a folha,
 // acumulando desalinhamento linha a linha. Casando com Carta, imprime 1:1 (Escala 100%).
 // `usadas` = posições (0-29) da 1ª folha já descoladas — saem em branco.
-// `off` = calibração fina de impressora (mm), ver OffsetFolha.
-export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: OffsetFolha = {}): string {
+// `off` = calibração fina + tracejado de corte, ver OpcoesFolha.
+export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: OpcoesFolha = {}): string {
   const paginas: (BlocoEtiqueta | null)[][] = []
   const fila = [...blocos]
   let primeira = true
@@ -247,11 +258,18 @@ export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: Off
     primeira = false
   }
   const dataRef = dataRefAtual()
+  // No papel comum não existe picote pra casar: as 3 colunas se encostam (uma
+  // tesourada vertical serve às duas vizinhas) e os 6,35mm do vão viram MARGEM.
+  // Isso tira o tracejado das colunas da ponta da faixa que quase nenhuma
+  // impressora imprime (~5mm da borda) — senão a linha de corte sumia justo
+  // onde ela é necessária. A etiqueta continua 66,675×25,4mm nos dois modos.
+  const vaoCol = off.tracejado ? 0 : 3.175
+  const ladoBase = off.tracejado ? 7.93 : 4.76
   // Realoca as margens pelo offset (mantém o tamanho da etiqueta intacto).
   const ox = Math.max(-4, Math.min(4, off.x || 0))
   const oy = Math.max(-12, Math.min(12, off.y || 0))
   const padTop = (12.7 + oy).toFixed(2), padBot = (12.7 - oy).toFixed(2)
-  const padLeft = (4.76 + ox).toFixed(2), padRight = (4.76 - ox).toFixed(2)
+  const padLeft = (ladoBase + ox).toFixed(2), padRight = (ladoBase - ox).toFixed(2)
 
   const cel = (e: BlocoEtiqueta | null) => {
     if (e === null) return '    <div class="cel"></div>'
@@ -293,7 +311,7 @@ ${blocosTexto(e, false)}
   .pagina {
     width: 215.9mm; height: 279.4mm; padding: ${padTop}mm ${padRight}mm ${padBot}mm ${padLeft}mm;
     display: grid; grid-template-columns: repeat(3, 66.675mm);
-    grid-auto-rows: 25.4mm; column-gap: 3.175mm; row-gap: 0;
+    grid-auto-rows: 25.4mm; column-gap: ${vaoCol}mm; row-gap: 0;
     page-break-after: always;
   }
   .pagina:last-child { page-break-after: auto; }
@@ -329,6 +347,11 @@ ${blocosTexto(e, false)}
   .cod {
     font-family: Consolas, 'DejaVu Sans Mono', 'Liberation Mono', 'Courier New', monospace;
     font-stretch: normal; font-weight: 700; font-size: 1.06em; letter-spacing: -.1px; color: #000;
+    /* NUNCA quebrar o código no meio: "RP-005555207R1" partia no hífen e virava
+       "RP-" numa linha e o resto na outra — quem confere a peça lê errado. Se
+       não couber na largura, quem cede é a FONTE (o ajuste abaixo mede a
+       largura também e encolhe até o código caber inteiro numa linha). */
+    white-space: nowrap;
   }
   .desc { font-weight: 600; }
   .loc { color: #444; }
@@ -340,20 +363,37 @@ ${blocosTexto(e, false)}
      recuada junto com a área de segurança */
   .dt { position: absolute; bottom: 1.2mm; right: 3.2mm; font-size: 4.8pt; color: #999; letter-spacing: .2px; line-height: 1; }
   .dt.esq { right: auto; left: 3.2mm; }
-  /* Rastreada: texto corrido à esquerda + QR fixo à direita (sem Code 128) */
-  .cel.comqr { flex-direction: row; align-items: center; gap: 1.4mm; }
+  /* Rastreada: texto corrido à esquerda + QR fixo à direita (sem Code 128).
+     o "align-items: stretch" é OBRIGATÓRIO: com "center" a coluna de texto ficava
+     com altura automática, e aí o .bloco (flex-basis 0) colapsava pra ZERO —
+     o overflow:hidden do corpo apagava o texto inteiro e a etiqueta saía só com
+     o QR. Quem centraliza na vertical é o .txt/.qr, cada um dentro da sua
+     coluna já esticada. */
+  .cel.comqr { flex-direction: row; align-items: stretch; gap: 1.4mm; }
   .cel.comqr .txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
   .cel.comqr .bloco { justify-content: center; }
   .cel.comqr .linha { -webkit-line-clamp: 4; }
   .cel.comqr.dupla .linha { -webkit-line-clamp: 2; }
-  .qr { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; }
+  .qr { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .qr svg { width: 13mm; height: 13mm; display: block; }
   .dupla .qr svg { width: 12mm; height: 12mm; }
   .un { font-size: 5pt; color: #555; margin-top: 0.2mm; letter-spacing: .2px; }
+  /* TRACEJADO DE CORTE (papel comum, body.cortar): linha na borda EXTERNA de
+     cada etiqueta, pra recortar com tesoura. Vai num ::before com border de
+     verdade — o tracejado da prévia é um "outline" dentro de @media screen e por
+     isso NUNCA saía no papel; e border imprime mesmo com "gráficos de fundo"
+     desligado no diálogo de impressão (background/box-shadow não). Só nas
+     células com conteúdo: não faz sentido recortar etiqueta em branco. */
+  body.cortar .cel:not(:empty)::before {
+    content: ''; position: absolute; pointer-events: none;
+    top: 0; right: 0; bottom: 0; left: 0;
+    border: 1px dashed #9ca3af;
+  }
   @media screen {
     body { background: #e5e7eb; }
     .pagina { background: #fff; margin: 10px auto; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
-    /* tracejado = corte da etiqueta física */
+    /* tracejado = corte da etiqueta física (só guia de tela; o que sai no papel
+       é o body.cortar acima, quando o usuário pede papel comum) */
     .cel { outline: 1px dashed #d1d5db; }
     /* guia AZUL = área de segurança (só na tela): tudo que a impressora pode
        deslocar sem cortar conteúdo. Não aparece no papel. */
@@ -363,7 +403,7 @@ ${blocosTexto(e, false)}
       outline: 0.5px dotted rgba(37, 99, 235, .35);
     }
   }
-</style></head><body>
+</style></head><body${off.tracejado ? ' class="cortar"' : ''}>
 ${paginas.map(cels => `  <div class="pagina">
 ${cels.map(cel).join('\n')}
   </div>`).join('\n')}
@@ -393,7 +433,12 @@ function ajustarFontes() {
       if (rodape) h -= rodape.offsetHeight;
       return h - 3; // folga: margem do texto + arredondamento de impressão
     };
-    var cabe = function () { return linha.scrollHeight <= espaco(); };
+    // Altura E largura: o código não quebra (white-space:nowrap), então numa
+    // etiqueta de texto curto a fonte podia crescer até o código vazar pela
+    // lateral — e overflow:hidden cortaria justamente o que mais importa.
+    var cabe = function () {
+      return linha.scrollHeight <= espaco() && linha.scrollWidth <= linha.clientWidth + 1;
+    };
 
     // Busca BINÁRIA do maior valor que cabe (texto mais alto = cabe menos, a
     // relação é monotônica). Linear custaria centenas de recálculos de layout
