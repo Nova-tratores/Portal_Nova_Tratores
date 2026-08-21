@@ -775,6 +775,35 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
     (r.itens || []).forEach((it, i) => { init[i] = it.cfopEntrada || it.cfopEntradaSugerido || cfopEntradaEquiv(it.cfop) || ''; });
     return init;
   });
+  // mapa aprendido CFOP-saida(fornecedor) -> CFOP-entrada (prioridade 2, quando a Omie
+  // nao trouxe cfopEntrada) + quais linhas vieram do mapa (p/ o selo "padrao aprendido").
+  const [cfopDeMapa, setCfopDeMapa] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    if (!conta) return;
+    let cancel = false;
+    (async () => {
+      try {
+        const d = await fetch(`/api/ajustes/recebimentos/cfop-map?conta=${encodeURIComponent(conta)}`).then((x) => x.json());
+        const mapa = (d?.mapa || {}) as Record<string, string>;
+        if (cancel || !mapa || Object.keys(mapa).length === 0) return;
+        setCfops((atual) => {
+          const novo = { ...atual };
+          const vindos = new Set<number>();
+          (r.itens || []).forEach((it, i) => {
+            if (it.cfopEntrada) return; // Omie ja forneceu (prioridade 1) — nao mexe
+            const fallback = it.cfopEntradaSugerido || cfopEntradaEquiv(it.cfop) || '';
+            const aprendido = mapa[String(it.cfop || '').replace(/\D/g, '')];
+            // so' aplica se o usuario ainda nao editou (valor == fallback calculado)
+            if (aprendido && (atual[i] || '') === fallback) { novo[i] = aprendido; vindos.add(i); }
+          });
+          if (vindos.size > 0) setCfopDeMapa(vindos);
+          return novo;
+        });
+      } catch { /* silencioso */ }
+    })();
+    return () => { cancel = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conta]);
   const [enviando, setEnviando] = useState(false);
   const [statusModal, setStatusModal] = useState('');
 
@@ -934,6 +963,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
         // produto e' criado ao concluir. Aqui so' EDITAR (leva o CFOP) ou IGNORAR.
         cAcao: acao === 'ignorar' ? 'IGNORAR' : 'EDITAR',
         cfopEntrada: cfop || undefined,
+        cfopForn: it.cfop || undefined, // p/ aprender o mapa saída→entrada
         associarIdProduto: p ? p.codigoProduto : undefined,
         qtde: p ? it.qtde : undefined,
         precoUnit: p ? it.precoUnit : undefined,
@@ -1189,9 +1219,11 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
                     <td style={{ ...mTd, fontFamily: 'monospace' }}>{it.cfop || ''}</td>
                     <td style={{ ...mTd, fontFamily: 'monospace', color: '#64748b' }}>{it.cfopEntrada || '(ao processar)'}</td>
                     <td style={mTd}>
-                      <input type="text" value={cfops[i] ?? ''} disabled={ignorado} onChange={(e) => setCfops((s) => ({ ...s, [i]: e.target.value }))}
+                      <input type="text" value={cfops[i] ?? ''} disabled={ignorado}
+                        onChange={(e) => { setCfops((s) => ({ ...s, [i]: e.target.value })); setCfopDeMapa((m) => { if (!m.has(i)) return m; const n = new Set(m); n.delete(i); return n; }); }}
                         placeholder={it.cfopEntradaSugerido || cfopEntradaEquiv(it.cfop) || '1.949'}
                         style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '2px 6px', width: 90, fontFamily: 'monospace', fontSize: '.72rem' }} />
+                      {cfopDeMapa.has(i) && <span title="CFOP de entrada que já foi aceito antes para este CFOP do fornecedor" style={{ marginLeft: 4, fontSize: '.58rem', padding: '1px 5px', borderRadius: 4, background: '#ecfdf5', color: '#065f46', border: '1px solid #a7f3d0' }}>padrão aprendido</span>}
                     </td>
                     <td style={{ ...mTd, textAlign: 'right' }}>{fmtSaldo(it.qtde)}</td>
                     <td style={{ ...mTd, textAlign: 'right' }}>{fmtBRL(it.precoUnit)}</td>
