@@ -3,14 +3,26 @@ import { useEffect, useState, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Search, X } from 'lucide-react'
 
+// `nome` = string EXATA gravada no banco. `pasta` = pasta física (bate com fase_fabrica.cor_pasta).
+// As 2 últimas fases (branca/cinza) foram adicionadas na evolução do módulo.
 const FASES = [
-  { nome: 'Proposta solicitada', cor: 'bg-red-100 text-red-700' },
-  { nome: 'Proposta Recebida', cor: 'bg-amber-100 text-amber-700' },
-  { nome: 'Pedido Feito / Aguardando Maq', cor: 'bg-blue-100 text-blue-700' },
-  { nome: 'Proposta Concluida/ Maquina Recebida', cor: 'bg-emerald-100 text-emerald-700' }
+  { nome: 'Proposta solicitada', cor: 'bg-red-100 text-red-700', pasta: 'amarela' },
+  { nome: 'Proposta Recebida', cor: 'bg-amber-100 text-amber-700', pasta: 'amarela' },
+  { nome: 'Pedido Feito / Aguardando Maq', cor: 'bg-blue-100 text-blue-700', pasta: 'verde' },
+  { nome: 'Proposta Concluida/ Maquina Recebida', cor: 'bg-emerald-100 text-emerald-700', pasta: 'verde' },
+  { nome: 'Aguardando faturamento da fábrica', cor: 'bg-slate-100 text-slate-600', pasta: 'branca' },
+  { nome: 'Faturado por nós', cor: 'bg-zinc-200 text-zinc-700', pasta: 'cinza' }
 ]
 
-const FASES_ABERTAS = ['Proposta solicitada', 'Proposta Recebida', 'Pedido Feito / Aguardando Maq']
+// Cor do quadradinho da pasta física.
+const PASTA_COR = { amarela: '#FACC15', verde: '#22C55E', branca: '#E2E8F0', cinza: '#94A3B8' }
+
+// "Em aberto" = não faturado por nós (fase final).
+const FASES_ABERTAS = ['Proposta solicitada', 'Proposta Recebida', 'Pedido Feito / Aguardando Maq', 'Proposta Concluida/ Maquina Recebida', 'Aguardando faturamento da fábrica']
+
+// Aging "hoje" / "N dias" com cor por atraso.
+const agingTexto = (d) => { const n = Number(d); return (!Number.isFinite(n) || n <= 0) ? 'hoje' : `${n} dia${n !== 1 ? 's' : ''}` }
+const agingCor = (d) => { const n = Number(d); return n > 15 ? 'text-red-600 font-bold' : n > 7 ? 'text-amber-600 font-semibold' : 'text-zinc-400' }
 
 export default function FactoryKanban({ onCardClick }) {
   const [orders, setOrders] = useState([])
@@ -18,7 +30,10 @@ export default function FactoryKanban({ onCardClick }) {
   const [filtroFase, setFiltroFase] = useState('')
 
   const load = async () => {
-    const { data } = await supabase.from('Proposta_Fabrica').select('*').order('id', { ascending: false })
+    // View v_proposta_fabrica: já esconde deletados, traz dias_na_fase, cor_pasta e eh_final.
+    const { data } = await supabase.from('v_proposta_fabrica').select('*')
+      .order('dias_na_fase', { ascending: false })
+      .order('id', { ascending: false })
     setOrders(data || [])
   }
 
@@ -93,12 +108,13 @@ export default function FactoryKanban({ onCardClick }) {
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Vendedor</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Marca / Modelo</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Status</th>
+              <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Parado há</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest w-[220px]">Alterar Fase</th>
             </tr>
           </thead>
           <tbody>
             {filtradas.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhum pedido encontrado</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhum pedido encontrado</td></tr>
             ) : (
               filtradas.map(order => (
                 <tr key={order.id} onClick={() => onCardClick(order)} className="border-b border-zinc-100 hover:bg-red-50/50 cursor-pointer transition-colors group">
@@ -118,7 +134,13 @@ export default function FactoryKanban({ onCardClick }) {
                     <span className="text-sm text-zinc-600">{order.marca} {order.modelo}</span>
                   </td>
                   <td className="px-5 py-3.5">
-                    <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md uppercase ${getStatusStyle(order.status)}`}>{order.status}</span>
+                    <span className="inline-flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-sm border border-zinc-300 shrink-0" title={`Pasta ${order.cor_pasta || ''}`} style={{ backgroundColor: PASTA_COR[order.cor_pasta] || '#F4F4F5' }} />
+                      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-md uppercase ${getStatusStyle(order.status)}`}>{order.status}</span>
+                    </span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className={`text-sm ${agingCor(order.dias_na_fase)}`}>{agingTexto(order.dias_na_fase)}</span>
                   </td>
                   <td className="px-5 py-3.5" onClick={e => e.stopPropagation()}>
                     <select

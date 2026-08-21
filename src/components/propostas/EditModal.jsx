@@ -7,6 +7,11 @@ import { Copy, Trash2, FileDown, X, History } from 'lucide-react'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import HistoricoProposta from './HistoricoProposta'
 
+// Colunas que só existem na view v_formulario (aging/cores). NÃO podem ir num
+// INSERT/UPDATE da tabela "Formulario" — o PostgREST recusa coluna inexistente.
+const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade']
+const semColsView = (obj) => { const o = { ...obj }; for (const k of COLS_VIEW) delete o[k]; return o }
+
 export default function EditModal({ proposal, onClose }) {
   const [formData, setFormData] = useState(proposal || {})
   const [imagePreview, setImagePreview] = useState(proposal?.Imagem_Equipamento || '')
@@ -48,7 +53,8 @@ export default function EditModal({ proposal, onClose }) {
 
   const handleTrash = async () => {
     if (confirm("DESEJA REALMENTE MOVER ESTA PROPOSTA PARA A LIXEIRA?")) {
-      const { error } = await supabase.from('Formulario').update({ status: 'Lixeira' }).eq('id', proposal.id)
+      // Soft-delete: marca deleted_at e PRESERVA o status do funil (não vira mais 'Lixeira').
+      const { error } = await supabase.from('Formulario').update({ deleted_at: new Date().toISOString() }).eq('id', proposal.id)
       if (!error) {
         await log({ sistema: 'Proposta Comercial', acao: 'lixeira', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: proposal.Cliente })
         alert("MOVIDO PARA A LIXEIRA COM SUCESSO!"); window.location.reload()
@@ -59,7 +65,7 @@ export default function EditModal({ proposal, onClose }) {
 
   const handleDuplicar = async () => {
     if (!confirm("Deseja DUPLICAR esta proposta? Uma nova cópia será criada em 'Enviar proposta'.")) return
-    const copia = { ...formData }
+    const copia = semColsView({ ...formData })
     delete copia.id           // novo ID gerado pelo banco
     delete copia.created_at   // se existir, o banco gera de novo
     delete copia.id_fabrica_ref // a cópia é independente (não vinculada à fábrica)
@@ -267,13 +273,14 @@ export default function EditModal({ proposal, onClose }) {
 
   const handleUpdate = async () => {
     // Diff: o que mudou em relação ao original (para o histórico).
-    const IGN = new Set(['id', 'created_at', 'id_fabrica_ref', 'Imagem_Equipamento'])
+    const IGN = new Set(['id', 'created_at', 'id_fabrica_ref', 'Imagem_Equipamento', ...COLS_VIEW])
     const corta = (v) => { const s = String(v ?? ''); return s.length > 300 ? s.slice(0, 300) + '…' : s }
     const alteracoes = Object.keys(formData).filter(k => !IGN.has(k)).reduce((acc, k) => {
       if (String(proposal?.[k] ?? '') !== String(formData[k] ?? '')) acc.push({ campo: k, de: corta(proposal?.[k]), para: corta(formData[k]) })
       return acc
     }, [])
-    const { error } = await supabase.from('Formulario').update(formData).eq('id', proposal.id)
+    // Envia só colunas graváveis de "Formulario" (tira as colunas só-de-view).
+    const { error } = await supabase.from('Formulario').update(semColsView(formData)).eq('id', proposal.id)
     if (!error) {
       if (alteracoes.length) await log({ sistema: 'Proposta Comercial', acao: 'editar', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: formData.Cliente || proposal.Cliente, detalhes: { alteracoes } })
       alert("ATUALIZADO COM SUCESSO!"); window.location.reload()

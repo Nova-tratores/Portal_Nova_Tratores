@@ -113,7 +113,7 @@ function PropostaComercialPageInner() {
       let titulo = ''
 
       if (view === 'clientes') {
-        const { data } = await supabase.from('Formulario').select('*').in('status', STATUS_ABERTO_CLI).order('id', { ascending: false })
+        const { data } = await supabase.from('Formulario').select('*').is('deleted_at', null).in('status', STATUS_ABERTO_CLI).order('id', { ascending: false })
         dados = (data || []).map(d => [
           `#${d.id}`,
           d.Cliente || '---',
@@ -124,7 +124,7 @@ function PropostaComercialPageInner() {
         ])
         titulo = 'PROPOSTAS COMERCIAIS EM ABERTO'
       } else {
-        const { data } = await supabase.from('Proposta_Fabrica').select('*').in('status', STATUS_ABERTO_FAB).order('id', { ascending: false })
+        const { data } = await supabase.from('Proposta_Fabrica').select('*').is('deleted_at', null).in('status', STATUS_ABERTO_FAB).order('id', { ascending: false })
         dados = (data || []).map(d => [
           `#${d.id}`,
           d.cliente || '---',
@@ -186,7 +186,7 @@ function PropostaComercialPageInner() {
 
       // Se for propostas cliente, adiciona totalização
       if (view === 'clientes') {
-        const { data: raw } = await supabase.from('Formulario').select('Valor_Total').in('status', STATUS_ABERTO_CLI)
+        const { data: raw } = await supabase.from('Formulario').select('Valor_Total').is('deleted_at', null).in('status', STATUS_ABERTO_CLI)
         const somaTotal = (raw || []).reduce((acc, r) => acc + parseValor(r.Valor_Total), 0)
         const finalY = doc.lastAutoTable.finalY + 8
         doc.setFontSize(11)

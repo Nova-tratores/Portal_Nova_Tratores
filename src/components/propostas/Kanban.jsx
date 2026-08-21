@@ -42,6 +42,19 @@ function formatBRL(val) {
   return parseValor(val).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+// Aging: "hoje" / "3 dias". Acima de 15 dias fica vermelho (proposta esquecida).
+function agingTexto(dias) {
+  const d = Number(dias)
+  if (!Number.isFinite(d) || d <= 0) return 'hoje'
+  return `${d} dia${d !== 1 ? 's' : ''}`
+}
+function agingCor(dias) {
+  const d = Number(dias)
+  if (d > 15) return 'text-red-600 font-bold'
+  if (d > 7) return 'text-amber-600 font-semibold'
+  return 'text-zinc-400'
+}
+
 export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' }) {
   const { log } = useAuditLog()
   const [cards, setCards] = useState([])
@@ -49,7 +62,12 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
   const [filtroStatus, setFiltroStatus] = useState('')
 
   const loadData = async () => {
-    const { data } = await supabase.from('Formulario').select('*').neq('status', 'Lixeira').order('id', { ascending: false })
+    // Lê da view v_formulario (traz dias_na_fase/cores). Esconde a lixeira por deleted_at
+    // (pega tanto o legado status='Lixeira' quanto o soft-delete novo). Ordena pelo mais parado.
+    const { data } = await supabase.from('v_formulario').select('*')
+      .is('deleted_at', null)
+      .order('dias_na_fase', { ascending: false })
+      .order('id', { ascending: false })
     setCards(data || [])
   }
 
@@ -126,6 +144,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       <div className="text-base font-semibold text-zinc-800">{card.Cliente || 'Sem nome'}</div>
                       <div className="text-sm text-zinc-600 mt-0.5">{card.Marca} {card.Modelo}</div>
                       <div className="text-sm text-zinc-400">{card.Cidade || '---'}</div>
+                      <div className={`text-xs mt-1 ${agingCor(card.dias_na_fase)}`}>parado há {agingTexto(card.dias_na_fase)}</div>
                       <select onClick={e => e.stopPropagation()} value={card.status} onChange={(e) => updateStatus(card.id, e.target.value, e)}
                         className="mt-2.5 w-full bg-zinc-50 border border-zinc-200 text-zinc-600 text-sm font-semibold p-2 rounded-md outline-none cursor-pointer focus:ring-2 focus:ring-red-500/40">
                         {COLUNAS.map(f => <option key={f.nome} value={f.nome}>{f.label}</option>)}
@@ -150,12 +169,13 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Cidade</th>
                 <th className="text-right px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Valor</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Status</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Parado há</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide w-[210px]">Alterar</th>
               </tr>
             </thead>
             <tbody>
               {filtradas.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
+                <tr><td colSpan={8} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
               ) : (
                 filtradas.map(card => {
                   const isFromFactory = !!card.id_fabrica_ref
@@ -181,6 +201,9 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       </td>
                       <td className="px-5 py-4">
                         <span className={`text-sm font-semibold px-2.5 py-1 rounded-md ${getStatusStyle(card.status)}`}>{statusLabel(card.status)}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className={`text-sm ${agingCor(card.dias_na_fase)}`}>{agingTexto(card.dias_na_fase)}</span>
                       </td>
                       <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                         <select

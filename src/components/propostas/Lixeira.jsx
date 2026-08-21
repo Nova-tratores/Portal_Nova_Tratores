@@ -11,13 +11,18 @@ export default function Lixeira({ onClose, embed = false }) {
 
   const buscarExcluidos = async () => {
     setLoading(true)
-    const { data } = await supabase.from('Formulario').select('*').eq('status', 'Lixeira').order('id', { ascending: false })
+    // Excluídos = soft-delete por deleted_at (cobre o legado status='Lixeira', que o
+    // backfill também marcou com deleted_at, e o soft-delete novo com status preservado).
+    const { data } = await supabase.from('Formulario').select('*').not('deleted_at', 'is', null).order('id', { ascending: false })
     if (data) setItensExcluidos(data)
     setLoading(false)
   }
 
-  const restaurarProposta = async (id) => {
-    const { error } = await supabase.from('Formulario').update({ status: 'Enviar Proposta' }).eq('id', id)
+  const restaurarProposta = async (item) => {
+    // Limpa o soft-delete. Se for do legado (status ainda 'Lixeira'), devolve ao início do funil.
+    const patch = { deleted_at: null, deleted_motivo: null }
+    if (item.status === 'Lixeira') patch.status = 'Enviar Proposta'
+    const { error } = await supabase.from('Formulario').update(patch).eq('id', item.id)
     if (!error) { alert("PROPOSTA RESTAURADA COM SUCESSO!"); buscarExcluidos() }
   }
 
@@ -72,7 +77,7 @@ export default function Lixeira({ onClose, embed = false }) {
                     <td className="p-4 text-[13px] font-bold text-zinc-700">{item.Marca} {item.Modelo}</td>
                     <td className="p-4">
                       <div className="flex gap-2.5">
-                        <button onClick={() => restaurarProposta(item.id)} className="bg-emerald-500 text-white border-none px-4 py-2 rounded-md font-black cursor-pointer text-[10px] hover:bg-emerald-600 transition-colors">RESTAURAR</button>
+                        <button onClick={() => restaurarProposta(item)} className="bg-emerald-500 text-white border-none px-4 py-2 rounded-md font-black cursor-pointer text-[10px] hover:bg-emerald-600 transition-colors">RESTAURAR</button>
                         <button onClick={() => excluirParaSempre(item.id)} className="bg-red-600 text-white border-none px-4 py-2 rounded-md font-black cursor-pointer text-[10px] hover:bg-red-700 transition-colors">EXCLUIR DEFINITIVO</button>
                       </div>
                     </td>

@@ -2,13 +2,17 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
+// Colunas que só existem na view v_proposta_fabrica — não podem ir num UPDATE da tabela.
+const COLS_VIEW_FAB = ['dias_na_fase', 'cor_hex', 'cor_pasta', 'fase_ordem', 'eh_final', 'dias_atraso_eta']
+const semColsViewFab = (obj) => { const o = { ...obj }; for (const k of COLS_VIEW_FAB) delete o[k]; return o }
+
 export default function FactoryEditModal({ order, onClose, onConvert }) {
   const [formData, setFormData] = useState(order || {})
   const isLocked = order.convertido
 
   const handleUpdate = async () => {
     if (isLocked) return
-    const { error } = await supabase.from('Proposta_Fabrica').update(formData).eq('id', order.id)
+    const { error } = await supabase.from('Proposta_Fabrica').update(semColsViewFab(formData)).eq('id', order.id)
     if (!error) { alert("PEDIDO SALVO!"); window.location.reload() }
   }
 
