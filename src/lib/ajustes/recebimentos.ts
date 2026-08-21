@@ -332,6 +332,49 @@ export async function invalidarSnapshotPendentes(conta: Conta): Promise<void> {
   if (error) console.warn('[receb] invalidarSnapshotPendentes:', error.message);
 }
 
+// ---------------------------------------------------------------------------
+// Mapa aprendido CFOP-saida(fornecedor) -> CFOP-entrada (o "Painel do Contador" do
+// portal). Aprende com entradas CONCLUIDAS (CFOP aceito pela Omie); pré-preenche a
+// próxima. Migration: sql/recebimento-cfop-entrada-map.sql.
+// ---------------------------------------------------------------------------
+function soDig(s: unknown): string { return String(s ?? '').replace(/\D/g, ''); }
+
+/** Upsert (best-effort) dos pares CFOP-saida -> CFOP-entrada que a Omie aceitou. */
+export function aprenderCfopEntrada(
+  conta: Conta,
+  pares: Array<{ cfopSaida: string; cfopEntrada: string }>,
+  userId: string | null,
+): void {
+  const low = contaLow(conta);
+  // dedup por cfopSaida (fica o último)
+  const mapa = new Map<string, string>();
+  for (const p of pares) {
+    const s = soDig(p.cfopSaida), e = soDig(p.cfopEntrada);
+    if (s.length >= 4 && e.length >= 4) mapa.set(s, e);
+  }
+  if (mapa.size === 0) return;
+  const rows = [...mapa].map(([cfop_saida, cfop_entrada]) => ({
+    conta_omie: low, cfop_saida, cfop_entrada, origem: 'aprendido',
+    atualizado_em: new Date().toISOString(), atualizado_por: userId,
+  }));
+  supabase
+    .from('cfop_entrada_map')
+    .upsert(rows, { onConflict: 'conta_omie,cfop_saida' })
+    .then(({ error }: any) => { if (error) console.warn('[receb] aprenderCfopEntrada:', error.message); });
+}
+
+/** Mapa { cfop_saida(digitos): cfop_entrada } aprendido/configurado para a conta. */
+export async function obterMapaCfopEntrada(conta: Conta): Promise<Record<string, string>> {
+  const { data, error } = await supabase
+    .from('cfop_entrada_map')
+    .select('cfop_saida,cfop_entrada')
+    .eq('conta_omie', contaLow(conta));
+  if (error) { console.warn('[receb] obterMapaCfopEntrada:', error.message); return {}; }
+  const out: Record<string, string> = {};
+  for (const r of (data || []) as any[]) out[soDig(r.cfop_saida)] = String(r.cfop_entrada);
+  return out;
+}
+
 /** Recebimentos pendentes (com cache) + projeção de impacto no CMC. */
 export async function obterRecebimentosPendentes(
   conta: Conta,
@@ -404,6 +447,8 @@ export interface DarEntradaArgs {
     nSequencia: number | string;
     cAcao?: string;
     cfopEntrada?: string;
+    /** CFOP do fornecedor (NF de saída dele) — p/ aprender o mapa saída→entrada. */
+    cfopForn?: string | null;
     /** id Omie do produto a associar (item que viria como "produto novo"). */
     associarIdProduto?: number | null;
     /** so p/ projetar o impacto no CMC do produto associado */
@@ -553,6 +598,12 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
   cache.invalidatePrefix(`pendentes:${conta}:`);
   // remove SO esta NF do snapshot guardado (mantem o historico congelado, sem recompute pesado)
   await removerNfDoSnapshot(conta, idReceb, chaveNFe);
+
+  // aprende o mapa CFOP-saida(fornecedor) -> CFOP-entrada com o que a Omie ACEITOU nesta
+  // entrada concluida (best-effort). So itens EDITAR com os dois CFOPs preenchidos.
+  aprenderCfopEntrada(conta, itensIn
+    .filter((it) => String(it.cAcao || '').toUpperCase() !== 'IGNORAR' && it.cfopForn && it.cfopEntrada)
+    .map((it) => ({ cfopSaida: it.cfopForn as string, cfopEntrada: it.cfopEntrada as string })), b.userId ?? null);
 
   supabase
     .from('cmc_sync_log')
