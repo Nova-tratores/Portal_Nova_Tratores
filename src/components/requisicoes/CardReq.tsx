@@ -998,8 +998,19 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {['Veicular Abastecimento', 'Trator Abastecimento', 'Quadri Abastecimento'].includes(localData.tipo) && (
                 <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4">
                   <span className={`${sectionTitle} text-amber-600`}><Gauge size={12}/> Abastecimento</span>
-                  <label className={labelBase}><Gauge size={11}/> Litros</label>
-                  <input inputMode="decimal" value={localData.litros_combustivel || ''} onChange={e => setField('litros_combustivel', e.target.value)} onBlur={e => { const v = formatarLitros(e.target.value); setField('litros_combustivel', v); persist('litros_combustivel', v); }} className={inputBase} placeholder="Ex: 150,00" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelBase}><Gauge size={11}/> Litros</label>
+                      <input inputMode="decimal" value={localData.litros_combustivel || ''} onChange={e => setField('litros_combustivel', e.target.value)} onBlur={e => { const v = formatarLitros(e.target.value); setField('litros_combustivel', v); persist('litros_combustivel', v); }} className={inputBase} placeholder="Ex: 150,00" />
+                    </div>
+                    <div>
+                      <label className={labelBase}><Gauge size={11}/> Tipo de Combustível</label>
+                      <select value={localData.combustivel || ''} onChange={e => { setField('combustivel', e.target.value); persist('combustivel', e.target.value || null); }} className={inputBase}>
+                        <option value="">Não informado</option>
+                        {['Gasolina Comum', 'Gasolina Aditivada', 'Etanol', 'Diesel', 'Diesel S10', 'Arla 32'].map(c => <option key={c} value={c}>{c}</option>)}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
 
