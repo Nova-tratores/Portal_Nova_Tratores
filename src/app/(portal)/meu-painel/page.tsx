@@ -276,7 +276,7 @@ export default function MeuPainelPage() {
         ids.map((user_id) => ({
           user_id, tipo, titulo,
           descricao: descricao || null,
-          link: '/painel-mecanicos',
+          link: '/mecanicos',
         }))
       )
     } catch (err) { console.error('[MeuPainel] Erro ao notificar:', err) }

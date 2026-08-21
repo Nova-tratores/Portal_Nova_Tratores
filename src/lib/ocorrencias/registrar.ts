@@ -163,7 +163,7 @@ export async function notificarOcorrencia(
           tipo: 'pos',
           titulo: `Ocorrência${auto}: ${n.label} — ${n.tecnico_nome}`,
           descricao: `−${n.pontos} pts · ${n.observacao.slice(0, 140)}${sufixoOS}`,
-          link: '/painel-mecanicos',
+          link: '/mecanicos',
         })),
       )
     }

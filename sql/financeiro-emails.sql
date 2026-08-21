@@ -6,7 +6,7 @@
 create table if not exists financeiro_emails (
   id            bigserial primary key,
   chamado_id    bigint not null,
-  tipo          text not null check (tipo in ('boleto','lembrete','resposta')),
+  tipo          text not null check (tipo in ('boleto','lembrete','resposta','mensagem')),
   direcao       text not null default 'enviado' check (direcao in ('enviado','recebido')),
   de_email      text,
   destinatarios text,
@@ -32,3 +32,9 @@ alter table financeiro_emails enable row level security;
 drop policy if exists p_fin_emails_sel on financeiro_emails;
 create policy p_fin_emails_sel on financeiro_emails
   for select to authenticated using (true);
+
+-- Quem já criou a tabela ANTES do tipo 'mensagem' (respostas manuais pela
+-- caixa de e-mail do header): atualiza o check.
+alter table financeiro_emails drop constraint if exists financeiro_emails_tipo_check;
+alter table financeiro_emails add constraint financeiro_emails_tipo_check
+  check (tipo in ('boleto','lembrete','resposta','mensagem'));

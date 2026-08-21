@@ -9,6 +9,7 @@ const TIPO_INFO = {
   boleto:   { label: 'Boleto enviado',                  cor: '#2563eb', Icon: Send },
   lembrete: { label: 'Lembrete de vencimento (5 dias)', cor: '#d97706', Icon: Clock },
   resposta: { label: 'RESPOSTA DO CLIENTE',             cor: '#16a34a', Icon: Reply },
+  mensagem: { label: 'Mensagem enviada (caixa de e-mail)', cor: '#0ea5e9', Icon: Send },
 }
 
 const fmtData = (iso) => {
