@@ -13,7 +13,7 @@ import { supabase } from './supabase';
 import * as cache from './cache';
 import { getConfig } from './config';
 import { analisarRecebimentosPendentes } from './analise';
-import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto } from './omie';
+import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos } from './omie';
 import type { AlterarCabecArgs } from './omie';
 import { hoje, addDias, fmtBR, parseAnyDate } from './dates';
 
@@ -339,40 +339,82 @@ export async function invalidarSnapshotPendentes(conta: Conta): Promise<void> {
 // ---------------------------------------------------------------------------
 function soDig(s: unknown): string { return String(s ?? '').replace(/\D/g, ''); }
 
-/** Upsert (best-effort) dos pares CFOP-saida -> CFOP-entrada que a Omie aceitou. */
-export function aprenderCfopEntrada(
-  conta: Conta,
-  pares: Array<{ cfopSaida: string; cfopEntrada: string }>,
-  userId: string | null,
-): void {
-  const low = contaLow(conta);
-  // dedup por cfopSaida (fica o último)
-  const mapa = new Map<string, string>();
-  for (const p of pares) {
-    const s = soDig(p.cfopSaida), e = soDig(p.cfopEntrada);
-    if (s.length >= 4 && e.length >= 4) mapa.set(s, e);
-  }
-  if (mapa.size === 0) return;
-  const rows = [...mapa].map(([cfop_saida, cfop_entrada]) => ({
-    conta_omie: low, cfop_saida, cfop_entrada, origem: 'aprendido',
-    atualizado_em: new Date().toISOString(), atualizado_por: userId,
-  }));
-  supabase
-    .from('cfop_entrada_map')
-    .upsert(rows, { onConflict: 'conta_omie,cfop_saida' })
-    .then(({ error }: any) => { if (error) console.warn('[receb] aprenderCfopEntrada:', error.message); });
+// chave do mapa = "<ncm>|<cfop_saida>" (ncm pode ser '' = geral, fallback só por saída)
+function chaveCfop(ncm: unknown, cfopSaida: unknown): string { return `${soDig(ncm)}|${soDig(cfopSaida)}`; }
+
+/** Conjunto de chaves (ncm|cfop_saida) marcadas como 'manual' (não sobrescrever). */
+async function chavesManuaisCfop(low: string): Promise<Set<string>> {
+  const { data } = await supabase
+    .from('cfop_entrada_map').select('ncm,cfop_saida').eq('conta_omie', low).eq('origem', 'manual');
+  const set = new Set<string>();
+  for (const r of (data || []) as any[]) set.add(chaveCfop(r.ncm, r.cfop_saida));
+  return set;
 }
 
-/** Mapa { cfop_saida(digitos): cfop_entrada } aprendido/configurado para a conta. */
+/** Upsert (best-effort) dos pares (ncm, CFOP-saida) -> CFOP-entrada que a Omie aceitou. */
+export async function aprenderCfopEntrada(
+  conta: Conta,
+  pares: Array<{ cfopSaida: string; cfopEntrada: string; ncm?: string | null; qtd?: number }>,
+  userId: string | null,
+): Promise<void> {
+  const low = contaLow(conta);
+  const mapa = new Map<string, { ncm: string; cfop_saida: string; cfop_entrada: string; qtd: number }>();
+  for (const p of pares) {
+    const s = soDig(p.cfopSaida), e = soDig(p.cfopEntrada), n = soDig(p.ncm);
+    if (s.length >= 4 && e.length >= 4) mapa.set(chaveCfop(n, s), { ncm: n, cfop_saida: s, cfop_entrada: e, qtd: p.qtd || 1 });
+  }
+  if (mapa.size === 0) return;
+  const manuais = await chavesManuaisCfop(low);
+  const rows = [...mapa].filter(([k]) => !manuais.has(k)).map(([, v]) => ({
+    conta_omie: low, ncm: v.ncm, cfop_saida: v.cfop_saida, cfop_entrada: v.cfop_entrada, qtd: v.qtd,
+    origem: 'aprendido', atualizado_em: new Date().toISOString(), atualizado_por: userId,
+  }));
+  if (rows.length === 0) return;
+  const { error } = await supabase.from('cfop_entrada_map').upsert(rows, { onConflict: 'conta_omie,ncm,cfop_saida' });
+  if (error) console.warn('[receb] aprenderCfopEntrada:', error.message);
+}
+
+/** Mapa { "<ncm>|<cfop_saida>": cfop_entrada } aprendido/configurado para a conta. */
 export async function obterMapaCfopEntrada(conta: Conta): Promise<Record<string, string>> {
   const { data, error } = await supabase
-    .from('cfop_entrada_map')
-    .select('cfop_saida,cfop_entrada')
-    .eq('conta_omie', contaLow(conta));
+    .from('cfop_entrada_map').select('ncm,cfop_saida,cfop_entrada').eq('conta_omie', contaLow(conta));
   if (error) { console.warn('[receb] obterMapaCfopEntrada:', error.message); return {}; }
   const out: Record<string, string> = {};
-  for (const r of (data || []) as any[]) out[soDig(r.cfop_saida)] = String(r.cfop_entrada);
+  for (const r of (data || []) as any[]) out[chaveCfop(r.ncm, r.cfop_saida)] = String(r.cfop_entrada);
   return out;
+}
+
+/**
+ * Minera os recebimentos JÁ CONCLUÍDOS (na Omie) e aprende (ncm, cfop_saida) -> cfop_entrada
+ * por VOTO MAJORITÁRIO. É a forma de aprender das entradas feitas direto na Omie (não só pelo
+ * portal). Preserva linhas origem='manual'. Read-heavy (ListarRecebimentos) -> fire-and-forget.
+ */
+export async function minerarCfopDeConcluidos(conta: Conta, dataDeBR: string, dataAteBR: string): Promise<{ chaves: number; itens: number }> {
+  const recs = await listarRecebimentos(conta, dataDeBR, dataAteBR, {});
+  // votos[chave] = Map<cfop_entrada, contagem>
+  const votos = new Map<string, Map<string, number>>();
+  let itens = 0;
+  for (const r of recs) {
+    if (!r.recebido || r.cancelada) continue;
+    for (const it of (r.itens || [])) {
+      const saida = soDig(it.cfop), ent = soDig(it.cfopEntrada), ncm = soDig(it.ncm);
+      if (saida.length < 4 || ent.length < 4) continue;
+      itens++;
+      const k = chaveCfop(ncm, saida);
+      let m = votos.get(k); if (!m) { m = new Map(); votos.set(k, m); }
+      m.set(ent, (m.get(ent) || 0) + 1);
+    }
+  }
+  if (votos.size === 0) return { chaves: 0, itens };
+  const pares: Array<{ cfopSaida: string; cfopEntrada: string; ncm: string; qtd: number }> = [];
+  for (const [k, m] of votos) {
+    const [ncm, saida] = k.split('|');
+    let melhor = '', max = 0;
+    for (const [ent, n] of m) if (n > max) { max = n; melhor = ent; }
+    if (melhor) pares.push({ ncm, cfopSaida: saida, cfopEntrada: melhor, qtd: max });
+  }
+  await aprenderCfopEntrada(conta, pares, null);
+  return { chaves: pares.length, itens };
 }
 
 /** Recebimentos pendentes (com cache) + projeção de impacto no CMC. */
@@ -449,6 +491,8 @@ export interface DarEntradaArgs {
     cfopEntrada?: string;
     /** CFOP do fornecedor (NF de saída dele) — p/ aprender o mapa saída→entrada. */
     cfopForn?: string | null;
+    /** NCM do item — desambigua o CFOP de entrada (chave do mapa). */
+    ncm?: string | null;
     /** id Omie do produto a associar (item que viria como "produto novo"). */
     associarIdProduto?: number | null;
     /** so p/ projetar o impacto no CMC do produto associado */
@@ -601,9 +645,9 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
 
   // aprende o mapa CFOP-saida(fornecedor) -> CFOP-entrada com o que a Omie ACEITOU nesta
   // entrada concluida (best-effort). So itens EDITAR com os dois CFOPs preenchidos.
-  aprenderCfopEntrada(conta, itensIn
+  void aprenderCfopEntrada(conta, itensIn
     .filter((it) => String(it.cAcao || '').toUpperCase() !== 'IGNORAR' && it.cfopForn && it.cfopEntrada)
-    .map((it) => ({ cfopSaida: it.cfopForn as string, cfopEntrada: it.cfopEntrada as string })), b.userId ?? null);
+    .map((it) => ({ cfopSaida: it.cfopForn as string, cfopEntrada: it.cfopEntrada as string, ncm: it.ncm ?? null })), b.userId ?? null);
 
   supabase
     .from('cmc_sync_log')

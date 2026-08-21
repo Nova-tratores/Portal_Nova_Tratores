@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { getContasOmie } from '@/lib/ajustes/omie';
-import { atualizarSnapshotIncremental, recomputarSnapshotCompleto } from '@/lib/ajustes/recebimentos';
+import { atualizarSnapshotIncremental, recomputarSnapshotCompleto, minerarCfopDeConcluidos, JANELA_INICIAL_BR } from '@/lib/ajustes/recebimentos';
+import { hoje, addDias, fmtBR } from '@/lib/ajustes/dates';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -22,11 +23,21 @@ export async function POST(req: NextRequest) {
   const contaParam = parseConta(sp.get('conta'));
   const contas = contaParam ? [contaParam] : getContasOmie().map((c) => c.id);
   const resultados: Record<string, any> = {};
+  const ateBR = fmtBR(hoje());
   for (const c of contas) {
     try {
       resultados[c] = seed ? await recomputarSnapshotCompleto(c) : await atualizarSnapshotIncremental(c);
     } catch (e) {
       resultados[c] = { erro: (e as Error).message };
+    }
+    // minera o mapa CFOP (ncm,saída→entrada) dos recebimentos concluídos:
+    // seed = janela ampla (backfill 01/11/2022→hoje); incremental = últimos ~90 dias.
+    try {
+      const deBR = seed ? JANELA_INICIAL_BR : fmtBR(addDias(hoje(), -90));
+      const cfop = await minerarCfopDeConcluidos(c, deBR, ateBR);
+      resultados[c] = { ...(resultados[c] || {}), cfop };
+    } catch (e) {
+      resultados[c] = { ...(resultados[c] || {}), cfopErro: (e as Error).message };
     }
   }
   return NextResponse.json({ sucesso: true, seed, resultados, timestamp: new Date().toISOString() });
