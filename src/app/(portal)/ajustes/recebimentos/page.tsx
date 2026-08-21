@@ -20,6 +20,7 @@ const TIPO_COR: Record<string, string> = { pecas: '#475569', pecas_garantia: '#b
 interface ItemReceb {
   nSequencia: number | string | null;
   cfop?: string | null;
+  ncm?: string | null;
   cfopEntrada?: string | null;
   cfopEntradaSugerido?: string | null;
   codigoProdutoInt?: string | null;
@@ -792,7 +793,10 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
           (r.itens || []).forEach((it, i) => {
             if (it.cfopEntrada) return; // Omie ja forneceu (prioridade 1) — nao mexe
             const fallback = it.cfopEntradaSugerido || cfopEntradaEquiv(it.cfop) || '';
-            const aprendido = mapa[String(it.cfop || '').replace(/\D/g, '')];
+            const saidaDig = String(it.cfop || '').replace(/\D/g, '');
+            const ncmDig = String(it.ncm || '').replace(/\D/g, '');
+            // prioriza o aprendido POR NCM (desambigua: mesmo CFOP saída → entradas diferentes); fallback só por saída
+            const aprendido = mapa[`${ncmDig}|${saidaDig}`] || mapa[`|${saidaDig}`];
             // so' aplica se o usuario ainda nao editou (valor == fallback calculado)
             if (aprendido && (atual[i] || '') === fallback) { novo[i] = aprendido; vindos.add(i); }
           });
@@ -964,6 +968,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
         cAcao: acao === 'ignorar' ? 'IGNORAR' : 'EDITAR',
         cfopEntrada: cfop || undefined,
         cfopForn: it.cfop || undefined, // p/ aprender o mapa saída→entrada
+        ncm: it.ncm || undefined,       // desambigua o CFOP de entrada por NCM
         associarIdProduto: p ? p.codigoProduto : undefined,
         qtde: p ? it.qtde : undefined,
         precoUnit: p ? it.precoUnit : undefined,
