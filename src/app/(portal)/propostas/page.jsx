@@ -113,10 +113,12 @@ function PropostaComercialPageInner() {
       let titulo = ''
 
       if (view === 'clientes') {
-        const { data } = await supabase.from('Formulario').select('*').is('deleted_at', null).in('status', STATUS_ABERTO_CLI).order('id', { ascending: false })
+        // v_formulario traz vendedor_nome e dias_na_fase; ordena pelo mais parado.
+        const { data } = await supabase.from('v_formulario').select('*').is('deleted_at', null).in('status', STATUS_ABERTO_CLI).order('dias_na_fase', { ascending: false })
         dados = (data || []).map(d => [
           `#${d.id}`,
           d.Cliente || '---',
+          d.vendedor_nome || '---',
           `${d.Marca || ''} ${d.Modelo || ''}`.trim() || '---',
           d.Cidade || '---',
           `R$ ${formatBRL(d.Valor_Total)}`,
@@ -163,7 +165,7 @@ function PropostaComercialPageInner() {
 
       // Tabela
       const columns = view === 'clientes'
-        ? ['ID', 'Cliente', 'Marca / Modelo', 'Cidade', 'Valor', 'Status']
+        ? ['ID', 'Cliente', 'Vendedor', 'Marca / Modelo', 'Cidade', 'Valor', 'Status']
         : ['ID', 'Cliente', 'Vendedor', 'Marca / Modelo', 'Status']
 
       doc.autoTable({
@@ -175,24 +177,30 @@ function PropostaComercialPageInner() {
         headStyles: { fillColor: [39, 39, 42], textColor: 255, fontStyle: 'bold', fontSize: 8 },
         alternateRowStyles: { fillColor: [250, 250, 250] },
         columnStyles: view === 'clientes' ? {
-          0: { cellWidth: 22 },
-          4: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] },
-          5: { cellWidth: 55 }
+          0: { cellWidth: 20 },
+          5: { halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] },
+          6: { cellWidth: 48 }
         } : {
           0: { cellWidth: 22 },
           4: { cellWidth: 60 }
         }
       })
 
-      // Se for propostas cliente, adiciona totalização
+      // Se for propostas cliente, adiciona totalização (bruto + previsão ponderada)
       if (view === 'clientes') {
         const { data: raw } = await supabase.from('Formulario').select('Valor_Total').is('deleted_at', null).in('status', STATUS_ABERTO_CLI)
         const somaTotal = (raw || []).reduce((acc, r) => acc + parseValor(r.Valor_Total), 0)
+        // v_forecast já pondera por probabilidade da fase (banco 60%, cliente 30%, enviar 10%).
+        const { data: fc } = await supabase.from('v_forecast').select('valor_ponderado')
+        const somaPond = (fc || []).reduce((acc, r) => acc + (Number(r.valor_ponderado) || 0), 0)
         const finalY = doc.lastAutoTable.finalY + 8
         doc.setFontSize(11)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(220, 38, 38)
         doc.text(`VALOR TOTAL EM ABERTO: R$ ${formatBRL(somaTotal)}`, pageWidth - 14, finalY, { align: 'right' })
+        doc.setFontSize(9)
+        doc.setTextColor(100, 100, 100)
+        doc.text(`Previsão ponderada (por probabilidade da fase): R$ ${formatBRL(somaPond)}`, pageWidth - 14, finalY + 6, { align: 'right' })
       }
 
       doc.save(`${titulo.replace(/ /g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`)

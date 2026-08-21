@@ -3,6 +3,7 @@ import { useEffect, useState, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Search, X } from 'lucide-react'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import MotivoPerdaModal, { STATUS_PERDIDO } from './MotivoPerdaModal'
 
 // `nome` = valor real gravado no banco (não mexer). `label` = como aparece pro usuário (padronizado).
 const COLUNAS = [
@@ -60,6 +61,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
   const [cards, setCards] = useState([])
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
+  const [perda, setPerda] = useState(null)   // proposta sendo marcada como "não vendido"
 
   const loadData = async () => {
     // Lê da view v_formulario (traz dias_na_fase/cores). Esconde a lixeira por deleted_at
@@ -77,11 +79,20 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
     e.stopPropagation()
     const antigo = cards.find(c => c.id === id)
     if (antigo?.status === newStatus) return
+    // "Não vendido" exige registrar o motivo — abre o modal em vez de gravar direto.
+    if (newStatus === STATUS_PERDIDO) { setPerda(antigo); return }
     const { error } = await supabase.from('Formulario').update({ status: newStatus }).eq('id', id)
     if (!error) {
       log({ sistema: 'Proposta Comercial', acao: 'mover_status', entidade: 'proposta', entidade_id: String(id), entidade_label: antigo?.Cliente, detalhes: { de: statusLabel(antigo?.status), para: statusLabel(newStatus) } })
       loadData()
     }
+  }
+
+  // Confirmação do MotivoPerdaModal: o modal já gravou status+motivo; aqui só loga e recarrega.
+  const onPerdaSalva = (patch, motivoNome) => {
+    log({ sistema: 'Proposta Comercial', acao: 'mover_status', entidade: 'proposta', entidade_id: String(perda.id), entidade_label: perda?.Cliente, detalhes: { de: statusLabel(perda?.status), para: statusLabel(STATUS_PERDIDO), motivo: motivoNome } })
+    setPerda(null)
+    loadData()
   }
 
   const filtradas = useMemo(() => {
@@ -229,6 +240,8 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       )}
 
       <div className="mt-3 text-right text-sm text-zinc-400 font-medium">{filtradas.length} proposta{filtradas.length !== 1 ? 's' : ''}</div>
+
+      {perda && <MotivoPerdaModal proposta={perda} onClose={() => setPerda(null)} onSaved={onPerdaSalva} />}
     </div>
   )
 }
