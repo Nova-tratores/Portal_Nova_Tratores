@@ -8,6 +8,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { authHeaders } from '@/lib/auth/client'
+import { useAuth } from '@/hooks/useAuth'
+import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
 import { Mail, Reply, RefreshCw, ExternalLink, Paperclip, X, Send, Check, CheckCheck } from 'lucide-react'
 
 const fmtData = (iso, comAno) => {
@@ -29,7 +31,9 @@ const fmtTamanho = (b) => {
 }
 
 export default function CaixaEmail() {
+  const { userProfile } = useAuth()
   const [temConfig, setTemConfig] = useState(false)
+  const [configOpen, setConfigOpen] = useState(false) // modal "conectar meu e-mail"
   const [conta, setConta] = useState('')
   const [open, setOpen] = useState(false)
   const [emails, setEmails] = useState([])
@@ -102,6 +106,8 @@ export default function CaixaEmail() {
   }, [temConfig, carregarCaixa])
 
   const abrirPainel = () => {
+    // Sem e-mail conectado ainda → abre direto a tela de conectar o dele
+    if (!temConfig) { setConfigOpen(true); return }
     const novo = !open
     setOpen(novo)
     if (novo) carregarCaixa(false) // cache de 30s no servidor: resposta imediata
@@ -168,15 +174,15 @@ export default function CaixaEmail() {
     setEnviandoResp(false)
   }
 
-  if (!temConfig) return null
-
   const chip = { display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '6px 12px', cursor: 'pointer', color: 'var(--portal-text)', fontSize: 12.5, fontWeight: 600 }
 
   return (
     <div ref={boxRef} style={{ position: 'relative' }}>
       <button
         onClick={abrirPainel}
-        title={`Sua caixa de e-mail (${conta})${badge > 0 ? ` — ${badge} não lido${badge > 1 ? 's' : ''}` : ''}`}
+        title={temConfig
+          ? `Sua caixa de e-mail (${conta})${badge > 0 ? ` — ${badge} não lido${badge > 1 ? 's' : ''}` : ''}`
+          : 'Conectar meu e-mail no portal'}
         style={{
           position: 'relative', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)',
           color: open ? '#16a34a' : 'var(--portal-text-secondary)', cursor: 'pointer', padding: '11px', borderRadius: '12px',
@@ -254,6 +260,24 @@ export default function CaixaEmail() {
           ))}
         </div>
       )}
+
+      {/* ── Conectar o e-mail (quem ainda não configurou) ── */}
+      <ConfigEmailEnvioModal
+        open={configOpen}
+        emailInicial={userProfile?.email || ''}
+        onClose={() => setConfigOpen(false)}
+        onSaved={async () => {
+          setConfigOpen(false)
+          try {
+            const r = await fetch('/api/financeiro/config-envio', { headers: { ...(await authHeaders()) } })
+            const c = await r.json()
+            if (c && !c.error && c.email_envio) {
+              setTemConfig(true); setConta(c.email_envio)
+              setOpen(true); carregarCaixa(true)
+            }
+          } catch { /* tenta de novo no próximo clique */ }
+        }}
+      />
 
       {/* ── MODAL DE LEITURA (corpo renderizado + anexos + responder) ── */}
       {msgAberta && (
