@@ -218,6 +218,15 @@ export default function FormModal({ onClose, initialData }) {
     delete payload.Valor_A_Vista
     if (!temValidade) payload.validade = 'Sem validade'
 
+    // Colunas numericas (bigint) nao aceitam string vazia -> converte "" para null
+    const camposNumericos = ['Ano', 'Qtd_Eqp', 'Prazo_Entrega', 'Valor_Total', 'Niname/NCM', 'id_fabrica_ref', 'num_secoes_auto']
+    camposNumericos.forEach(campo => {
+      const v = payload[campo]
+      if (v === '' || v === null || v === undefined || (typeof v === 'string' && v.trim() === '')) {
+        payload[campo] = null
+      }
+    })
+
     const { data, error } = await supabase.from('Formulario').insert([payload]).select('id').single()
     if (!error) {
       if (data?.id) await log({ sistema: 'Proposta Comercial', acao: 'criar', entidade: 'proposta', entidade_id: String(data.id), entidade_label: payload.Cliente })
