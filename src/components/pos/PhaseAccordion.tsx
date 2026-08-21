@@ -6,6 +6,7 @@ import { PHASES } from "@/lib/pos/constants";
 import { diasEntre } from "@/lib/pos/utils";
 import type { KanbanCard } from "@/lib/pos/types";
 import { STATUS_COR, STATUS_LABEL } from "@/lib/garantias/constants";
+import { normName } from "@/lib/tecnico-utils";
 import type { GarantiaStatus } from "@/lib/garantias/types";
 
 interface PhaseViewProps {
@@ -17,28 +18,33 @@ interface PhaseViewProps {
   onEnviarOmie?: (orderId: string) => void;
   onEnviarOmieTodas?: () => void;
   enviandoOmie?: string | null; // id da OS em envio, ou "__todas__"
+  /** Filtro por técnico — controlado pelo header (fila de perfis com foto). */
+  tecnicoFiltro?: string;
 }
 
 const FASE_ENVIAR_OMIE = "Enviar Omie";
 
+// Fases SEM cor própria (pedido 21/08): tudo preto no claro — o #111827 é
+// remapado pra claro no modo escuro pelas regras do globals.
+const PRETO_FASE = "#111827";
 export const PHASE_COLORS: Record<string, string> = {
-  "Orçamento": "#3B82F6",
-  "Orçamento enviado para o cliente e aguardando": "#60A5FA",
-  "Aguardando ordem Técnico": "#0EA5E9",
-  "Execução": "#F59E0B",
-  "Execução (Realizando Diagnóstico)": "#F97316",
-  "Execução aguardando peças (em transporte)": "#FB923C",
-  "Relatório Atualizado": "#06B6D4",
-  "Aguardando outros": "#A855F7",
-  "Executada": "#8B5CF6",
-  "Relatório Concluído": "#A78BFA",
-  "Relatório Concluído - Garantia": "#0D9488",
-  "Enviar Omie": "#F59E0B",
-  "Enviado Para Omie": "#0EA5E9",
-  "Preenchido Garantia": "#14B8A6",
-  "Executada aguardando comercial": "#C084FC",
-  "Concluída": "#10B981",
-  "Cancelada": "#EF4444",
+  "Orçamento": PRETO_FASE,
+  "Orçamento enviado para o cliente e aguardando": PRETO_FASE,
+  "Aguardando ordem Técnico": PRETO_FASE,
+  "Execução": PRETO_FASE,
+  "Execução (Realizando Diagnóstico)": PRETO_FASE,
+  "Execução aguardando peças (em transporte)": PRETO_FASE,
+  "Relatório Atualizado": PRETO_FASE,
+  "Aguardando outros": PRETO_FASE,
+  "Executada": PRETO_FASE,
+  "Relatório Concluído": PRETO_FASE,
+  "Relatório Concluído - Garantia": PRETO_FASE,
+  "Enviar Omie": PRETO_FASE,
+  "Enviado Para Omie": PRETO_FASE,
+  "Preenchido Garantia": PRETO_FASE,
+  "Executada aguardando comercial": PRETO_FASE,
+  "Concluída": PRETO_FASE,
+  "Cancelada": PRETO_FASE,
 };
 
 // Seção virtual do quadro: as ordens na fase "Relatório Concluído" que têm
@@ -65,8 +71,9 @@ export const PHASE_SHORT: Record<string, string> = {
   "Cancelada": "Cancelada",
 };
 
-// Ícones "acesos" da capa do card em azul FLUORESCENTE com brilho (18/08)
-const S_ICON_COLOR = { color: "#00C2FF", textShadow: "0 0 8px rgba(0, 194, 255, 0.6)" } as const;
+// Ícones "acesos" da capa do card em PRETO (pedido 21/08; o #111827 vira
+// claro no modo escuro pelas regras do globals)
+const S_ICON_COLOR = { color: "#111827" } as const;
 
 function formatDateBR(dateStr: string): string {
   if (!dateStr) return "";
@@ -196,7 +203,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
 
           {/* Ícone GARANTIA — tooltip no hover */}
           <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-shield-halved" title={garantiaStatus ? `Garantia: ${STATUS_LABEL[garantiaStatus]}` : "Sem garantia"} style={{ color: garantiaStatus ? (STATUS_COR[garantiaStatus] || "#00C2FF") : "var(--border)" }} />
+            <i className="fas fa-shield-halved" title={garantiaStatus ? `Garantia: ${STATUS_LABEL[garantiaStatus]}` : "Sem garantia"} style={{ color: garantiaStatus ? "#111827" : "var(--border)" }} />
             {garantiaStatus && (
               <div className="mc-tooltip">
                 <div className="mc-tooltip-arrow" />
@@ -218,9 +225,8 @@ const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 // Fases que aparecem no quadro mas SEM mostrar a contagem no cabeçalho.
 const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
-export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onEnviarOmie, onEnviarOmieTodas, enviandoOmie }: PhaseViewProps) {
+export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, tecnicoFiltro = "" }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
-  const [tecnicoFiltro, setTecnicoFiltro] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
   // Tooltip com a Descrição do Serviço completa ao passar o mouse no card
@@ -230,13 +236,6 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   // normal pro Omie, só muda que as peças saem como remessa. O selo INTERNA
   // no card continua identificando.
   const escopoOrders = orders;
-
-  // Lista de técnicos disponíveis no escopo atual (para o filtro)
-  const tecnicos = useMemo(() => {
-    const set = new Set<string>();
-    for (const o of escopoOrders) { const t = (o.tecnico || "").trim(); if (t) set.add(t); }
-    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  }, [escopoOrders]);
 
   // Carrega quais OS têm garantia (para o ícone de escudo no card)
   useEffect(() => {
@@ -283,7 +282,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           (o.ordemOmie || '').toLowerCase().includes(searchLower) || // nº que a OS virou no Omie
           o.servSolicitado.toLowerCase().includes(searchLower)) &&
         (!activePhase || o.status === activePhase) &&
-        (!tecnicoFiltro || (o.tecnico || "").trim() === tecnicoFiltro)
+        (!tecnicoFiltro || normName(o.tecnico || "") === normName(tecnicoFiltro))
     );
   }, [escopoOrders, searchLower, activePhase, tecnicoFiltro]);
 
@@ -301,8 +300,9 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         const comGar = items.filter((o) => garantiaMap[o.id]);
         if (semGar.length > 0) map[FASE_CONCLUIDO] = semGar;
         if (comGar.length > 0) map[FASE_CONCLUIDO_GAR] = comGar;
-      } else if (phase === "Enviar Omie" || phase === "Enviado Para Omie" || phase === "Preenchido Garantia" || items.length > 0) {
-        // As filas do Tratorilson aparecem sempre (mesmo vazias).
+      } else if (items.length > 0) {
+        // Fase vazia NÃO aparece (pedido 21/08 — antes Enviar/Enviado Omie e
+        // Preenchido Garantia ficavam sempre visíveis, mesmo com 0).
         map[phase] = items;
       }
     }
@@ -317,37 +317,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
 
   return (
     <>
-      <div style={{ padding: "12px 30px", display: "flex", borderBottom: "1px solid var(--border)" }}>
-        {/* Filtro por técnico */}
-        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
-          <i className="fas fa-user-cog" style={{ color: "var(--portal-text-secondary)", fontSize: 13 }} />
-          <select
-            value={tecnicoFiltro}
-            onChange={(e) => setTecnicoFiltro(e.target.value)}
-            title="Filtrar por técnico"
-            style={{
-              padding: "8px 12px", borderRadius: 8,
-              border: tecnicoFiltro ? "1.5px solid #1E3A5F" : "1.5px solid var(--border)",
-              background: "#fff", color: "var(--portal-text)", fontWeight: 600, fontSize: 13,
-              cursor: "pointer", maxWidth: 240,
-            }}
-          >
-            <option value="">Todos os técnicos</option>
-            {tecnicos.map((t) => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-          {tecnicoFiltro && (
-            <button
-              onClick={() => setTecnicoFiltro("")}
-              title="Limpar filtro de técnico"
-              style={{ border: "none", background: "transparent", color: "var(--portal-text-secondary)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 4 }}
-            >
-              <i className="fas fa-times" />
-            </button>
-          )}
-        </div>
-      </div>
+      {/* Filtro por técnico agora vive no HEADER (fila de perfis com foto) */}
 
       {/* Cards */}
       <main className="cards-wrapper">

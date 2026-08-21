@@ -13,6 +13,9 @@ import LembretesDrawer from "@/components/pos/LembretesDrawer";
 import LoadingIndicator from "@/components/pos/LoadingIndicator";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { authHeaders } from "@/lib/auth/client";
+import { supabase } from "@/lib/supabase";
+import { normName } from "@/lib/tecnico-utils";
+import type { PerfilTecnico } from "@/components/pos/Header";
 import type { KanbanCard, ClienteOption } from "@/lib/pos/types";
 
 function PosPageInner() {
@@ -28,6 +31,36 @@ function PosPageInner() {
   const [clientes, setClientes] = useState<ClienteOption[]>([]);
   const [tecnicos, setTecnicos] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  // Filtro por técnico no header: fila de perfis do PORTAL (com foto)
+  const [tecnicoFiltro, setTecnicoFiltro] = useState("");
+  const [tecnicosPerfil, setTecnicosPerfil] = useState<PerfilTecnico[]>([]);
+
+  // Casa cada técnico com o usuário do portal (financeiro_usu) pelo nome →
+  // pega a FOTO (avatar_url). Técnico sem conta no portal entra com inicial.
+  useEffect(() => {
+    if (tecnicos.length === 0) return;
+    let ativo = true;
+    (async () => {
+      try {
+        const { data: usuarios } = await supabase
+          .from("financeiro_usu").select("nome, avatar_url").eq("ativo", true);
+        if (!ativo) return;
+        const porNome = new Map((usuarios || []).map((u) => [normName(u.nome || ""), u.avatar_url || ""]));
+        setTecnicosPerfil(tecnicos.map((t) => {
+          const chave = normName(t);
+          let avatar = porNome.get(chave) || "";
+          if (!avatar) {
+            // fallback: usuário cujo nome contém o do técnico (ou vice-versa)
+            for (const [n, a] of porNome) {
+              if (a && (n.includes(chave) || chave.includes(n))) { avatar = a; break; }
+            }
+          }
+          return { nome: t, avatar };
+        }));
+      } catch { setTecnicosPerfil(tecnicos.map((t) => ({ nome: t, avatar: "" }))); }
+    })();
+    return () => { ativo = false; };
+  }, [tecnicos]);
   const [loading, setLoading] = useState(true);
   const [valorHora, setValorHora] = useState(193);
   const [valorKm, setValorKm] = useState(2.8);
@@ -280,10 +313,14 @@ function PosPageInner() {
             valorKm={valorKm}
             onConfigSaved={(h, k) => { setValorHora(h); setValorKm(k); }}
             podeCriar={podeCriar}
+            tecnicosPerfil={tecnicosPerfil}
+            tecnicoFiltro={tecnicoFiltro}
+            onTecnicoFiltro={setTecnicoFiltro}
           />
           <PhaseAccordion
             orders={orders}
             searchTerm={searchTerm}
+            tecnicoFiltro={tecnicoFiltro}
             onCardClick={handleCardClick}
             onPhaseChange={podeMoverFase ? handlePhaseChange : undefined}
             onEnviarOmie={podeOmie ? handleEnviarOmie : undefined}

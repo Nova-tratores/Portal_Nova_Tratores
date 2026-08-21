@@ -3,6 +3,8 @@
 import { useState, useRef, useEffect } from "react";
 import { gateBtn, estiloSemPermissao } from "@/lib/permissoes/ui";
 
+export interface PerfilTecnico { nome: string; avatar: string }
+
 interface HeaderProps {
   searchTerm: string;
   onSearch: (term: string) => void;
@@ -14,9 +16,13 @@ interface HeaderProps {
   valorKm: number;
   onConfigSaved?: (valorHora: number, valorKm: number) => void;
   podeCriar?: boolean;
+  /** Perfis dos TÉCNICOS (usuário do portal, com foto) — filtro por clique. */
+  tecnicosPerfil?: PerfilTecnico[];
+  tecnicoFiltro?: string;
+  onTecnicoFiltro?: (nome: string) => void;
 }
 
-export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true }: HeaderProps) {
+export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true, tecnicosPerfil = [], tecnicoFiltro = "", onTecnicoFiltro }: HeaderProps) {
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todas");
@@ -34,6 +40,17 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [menuOpen]);
+  // Dropdown do filtro de técnicos (escondido por padrão)
+  const [tecOpen, setTecOpen] = useState(false);
+  const tecRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!tecOpen) return;
+    function onDoc(e: MouseEvent) {
+      if (tecRef.current && !tecRef.current.contains(e.target as Node)) setTecOpen(false);
+    }
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [tecOpen]);
 
   const handleGerar = () => {
     setShowFiltroRelatorio(false);
@@ -71,19 +88,101 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
   return (
     <>
       <header>
-        <div className="brand-area">
-          <div className="brand-icon"><i className="fas fa-tractor" /></div>
-          <div style={{ fontSize: 20, fontWeight: 700 }}>NOVA TRATORES</div>
-        </div>
+        {/* Busca na ESQUERDA + perfis dos técnicos (filtro por foto) na direita
+            dela + botões na cor da faixa azul (sem o logo — pedido de 21/08) */}
         <div className="search-box" style={{ position: "relative" }}>
           <i className="fas fa-search" style={{ position: "absolute", left: 15, top: "50%", transform: "translateY(-50%)", color: "#7A6E5D" }} />
           <input type="text" className="search-input" placeholder="Pesquisar cliente, OS ou nº no Omie..." value={searchTerm} onChange={(e) => onSearch(e.target.value)} />
         </div>
+
+        {tecnicosPerfil.length > 0 && (() => {
+          const sel = tecnicosPerfil.find((t) => t.nome === tecnicoFiltro) || null;
+          const bolinha = (t: PerfilTecnico, tam: number, ativo: boolean) => t.avatar ? (
+            <img src={t.avatar} alt={t.nome} style={{
+              width: tam, height: tam, borderRadius: "50%", objectFit: "cover",
+              border: ativo ? "3px solid #0369A1" : "2px solid var(--border, #E4D9C8)",
+              boxShadow: ativo ? "0 0 0 3px rgba(56,189,248,0.35)" : "none",
+            }} />
+          ) : (
+            <span style={{
+              width: tam, height: tam, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+              background: "linear-gradient(135deg, #38BDF8, #0369A1)", color: "#111111", fontWeight: 800, fontSize: tam / 2.6,
+              border: ativo ? "3px solid #0369A1" : "2px solid transparent",
+              boxShadow: ativo ? "0 0 0 3px rgba(56,189,248,0.35)" : "none", boxSizing: "border-box",
+            }}>{t.nome.trim().charAt(0).toUpperCase()}</span>
+          );
+          return (
+            <div style={{ position: "relative", marginRight: "auto" }} ref={tecRef}>
+              {/* Fechado por padrão: só o botão (mostra o técnico filtrado, se houver) */}
+              <button
+                onClick={() => setTecOpen((o) => !o)}
+                title="Filtrar por técnico"
+                style={{
+                  display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", borderRadius: 10,
+                  border: tecnicoFiltro ? "2px solid #0369A1" : "1.5px solid var(--border, #E4D9C8)",
+                  background: "#fff", cursor: "pointer", color: "#111827", fontWeight: 700, fontSize: 13,
+                }}
+              >
+                {sel ? bolinha(sel, 26, true) : <i className="fas fa-user-cog" style={{ color: "#0369A1" }} />}
+                {sel ? sel.nome.trim().split(/\s+/)[0] : "Técnicos"}
+                <i className="fas fa-chevron-down" style={{ fontSize: 10, transform: tecOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+              </button>
+
+              {tecOpen && (
+                <div style={{
+                  position: "absolute", left: 0, top: "calc(100% + 8px)", zIndex: 1000,
+                  width: 290, maxWidth: "88vw", maxHeight: "60vh", overflowY: "auto",
+                  background: "#fff", borderRadius: 14,
+                  border: "1px solid #E4D9C8", boxShadow: "0 12px 32px rgba(0,0,0,0.18)", padding: 6,
+                }}>
+                  {tecnicoFiltro && (
+                    <button onClick={() => { onTecnicoFiltro?.(""); setTecOpen(false); }}
+                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "transparent", border: "none", borderRadius: 9, cursor: "pointer", padding: "8px 10px", color: "#DC2626", fontWeight: 700, fontSize: 13 }}
+                      onMouseEnter={(e) => (e.currentTarget.style.background = "#FEF2F2")}
+                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
+                      <span style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "#FEE2E2", border: "2px solid #FCA5A5", boxSizing: "border-box", flexShrink: 0 }}>
+                        <i className="fas fa-times" />
+                      </span>
+                      Limpar filtro
+                    </button>
+                  )}
+                  {[...tecnicosPerfil].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")).map((t) => {
+                    const ativo = tecnicoFiltro === t.nome;
+                    return (
+                      <button
+                        key={t.nome}
+                        onClick={() => { onTecnicoFiltro?.(ativo ? "" : t.nome); setTecOpen(false); }}
+                        title={ativo ? `Filtrando por ${t.nome} — clique pra limpar` : `Filtrar OS de ${t.nome}`}
+                        style={{
+                          display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
+                          background: ativo ? "#E0F2FE" : "transparent", border: "none", borderRadius: 9,
+                          cursor: "pointer", padding: "7px 10px",
+                          color: "#111827", fontWeight: ativo ? 800 : 600, fontSize: 13.5,
+                        }}
+                        onMouseEnter={(e) => { if (!ativo) e.currentTarget.style.background = "#F3EDE3"; }}
+                        onMouseLeave={(e) => { if (!ativo) e.currentTarget.style.background = "transparent"; }}
+                      >
+                        {bolinha(t, 32, ativo)}
+                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.nome}</span>
+                        {ativo && <i className="fas fa-check" style={{ marginLeft: "auto", color: "#0369A1" }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
+
         <div className="header-actions">
-          <button className="btn-top btn-new" onClick={onNewOS} {...gateBtn(podeCriar)} style={estiloSemPermissao(podeCriar)}><i className="fas fa-plus" /> NOVA ORDEM</button>
+          <button className="btn-top btn-new" onClick={onNewOS} {...gateBtn(podeCriar)}
+            style={{ background: "linear-gradient(135deg, #38BDF8, #0369A1)", color: "#111111", border: "none", ...estiloSemPermissao(podeCriar) }}>
+            <i className="fas fa-plus" /> NOVA ORDEM
+          </button>
 
           <div style={{ position: "relative" }} ref={menuRef}>
-            <button className="btn-top btn-report" onClick={() => setMenuOpen((o) => !o)}>
+            <button className="btn-top btn-report" onClick={() => setMenuOpen((o) => !o)}
+              style={{ background: "linear-gradient(135deg, #38BDF8, #0369A1)", color: "#111111", border: "none" }}>
               <i className="fas fa-bars" /> MENU
               <i className="fas fa-chevron-down" style={{ fontSize: 10, marginLeft: 6, transform: menuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
             </button>
