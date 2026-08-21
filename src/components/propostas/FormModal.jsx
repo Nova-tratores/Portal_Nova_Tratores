@@ -13,6 +13,7 @@ export default function FormModal({ onClose, initialData }) {
   const [listaEquipamentos, setListaEquipamentos] = useState([])
   const [listaTratores, setListaTratores] = useState([])
   const [listaAutopropelidos, setListaAutopropelidos] = useState([])
+  const [listaVendedores, setListaVendedores] = useState([])
   const [buscaCli, setBuscaCli] = useState(initialData?.cliente || '')
   const [buscaEq, setBuscaEq] = useState(initialData?.modelo || '')
   const [showCli, setShowCli] = useState(false)
@@ -41,6 +42,7 @@ export default function FormModal({ onClose, initialData }) {
     validade: '',
     Imagem_Equipamento: '',
     status: 'Enviar Proposta',
+    vendedor_id: initialData?.vendedor_id || '',
     id_fabrica_ref: initialData?.id || '',
     motor_trator: '',
     transmissao_diant_trator: '',
@@ -102,12 +104,13 @@ export default function FormModal({ onClose, initialData }) {
           return allData
         }
 
-        const [dataOmie, dataManual, dataEquip, dataTrator, dataAuto] = await Promise.all([
+        const [dataOmie, dataManual, dataEquip, dataTrator, dataAuto, dataVend] = await Promise.all([
           fetchAll('Clientes_Omie'),
           fetchAll('Cliente_Manual'),
           supabase.from('Equipamentos').select('*'),
           supabase.from('cad_trator').select('*'),
-          supabase.from('cad_autopropelido').select('*')
+          supabase.from('cad_autopropelido').select('*'),
+          supabase.from('vendedores').select('id,nome').eq('ativo', true).order('nome')
         ])
 
         const unidos = [
@@ -119,6 +122,7 @@ export default function FormModal({ onClose, initialData }) {
         if (dataEquip.data) setListaEquipamentos(dataEquip.data)
         if (dataTrator.data) setListaTratores(dataTrator.data)
         if (dataAuto.data) setListaAutopropelidos(dataAuto.data)
+        if (dataVend.data) setListaVendedores(dataVend.data)
       } catch (err) { console.error("Erro ao carregar dados:", err) }
     }
     carregarDados()
@@ -208,6 +212,7 @@ export default function FormModal({ onClose, initialData }) {
     setLoading(true)
     const payload = { ...formData }
     payload.tipo = tipoMaq
+    payload.vendedor_id = formData.vendedor_id ? Number(formData.vendedor_id) : null  // FK vendedores(id) é inteiro
     delete payload.cep
     delete payload.Tipo_Entrega
     delete payload.Valor_A_Vista
@@ -324,9 +329,16 @@ export default function FormModal({ onClose, initialData }) {
               {campo('Cidade', 'Cidade')}
               {campo('Bairro', 'Bairro')}
               {campo('CEP', 'cep', '!text-zinc-400')}
-              <div className={`${fieldCls} md:col-span-3`}>
+              <div className={`${fieldCls} md:col-span-2`}>
                 <span className={labelStyle}>Endereço completo</span>
                 <input value={formData.End_Entrega} onChange={e => setFormData({ ...formData, End_Entrega: e.target.value })} className={inputStyle} />
+              </div>
+              <div className={fieldCls}>
+                <span className={labelStyle}>Vendedor</span>
+                <select value={formData.vendedor_id} onChange={e => setFormData({ ...formData, vendedor_id: e.target.value })} className={`${inputStyle} cursor-pointer`}>
+                  <option value="">— sem vendedor —</option>
+                  {listaVendedores.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
+                </select>
               </div>
             </div>
 

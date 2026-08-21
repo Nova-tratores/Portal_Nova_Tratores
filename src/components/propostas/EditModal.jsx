@@ -9,7 +9,7 @@ import HistoricoProposta from './HistoricoProposta'
 
 // Colunas que só existem na view v_formulario (aging/cores). NÃO podem ir num
 // INSERT/UPDATE da tabela "Formulario" — o PostgREST recusa coluna inexistente.
-const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade']
+const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade', 'vendedor_nome']
 const semColsView = (obj) => { const o = { ...obj }; for (const k of COLS_VIEW) delete o[k]; return o }
 
 export default function EditModal({ proposal, onClose }) {
@@ -17,6 +17,7 @@ export default function EditModal({ proposal, onClose }) {
   const [imagePreview, setImagePreview] = useState(proposal?.Imagem_Equipamento || '')
   const [assinaturaDiretor, setAssinaturaDiretor] = useState(null)
   const [showHist, setShowHist] = useState(false)
+  const [listaVendedores, setListaVendedores] = useState([])
   const { log } = useAuditLog()
 
   // Tipo GUARDADO na proposta; propostas antigas (sem tipo) caem no palpite pelos campos preenchidos.
@@ -40,6 +41,8 @@ export default function EditModal({ proposal, onClose }) {
   const fetchConfig = async () => {
     const { data } = await supabase.from('Configuracoes').select('assinatura_url').single()
     if (data) setAssinaturaDiretor(data.assinatura_url)
+    const { data: vends } = await supabase.from('vendedores').select('id,nome').eq('ativo', true).order('nome')
+    if (vends) setListaVendedores(vends)
   }
 
   const getImageDimensions = (url) => {
@@ -66,6 +69,7 @@ export default function EditModal({ proposal, onClose }) {
   const handleDuplicar = async () => {
     if (!confirm("Deseja DUPLICAR esta proposta? Uma nova cópia será criada em 'Enviar proposta'.")) return
     const copia = semColsView({ ...formData })
+    copia.vendedor_id = formData.vendedor_id ? Number(formData.vendedor_id) : null
     delete copia.id           // novo ID gerado pelo banco
     delete copia.created_at   // se existir, o banco gera de novo
     delete copia.id_fabrica_ref // a cópia é independente (não vinculada à fábrica)
@@ -280,7 +284,9 @@ export default function EditModal({ proposal, onClose }) {
       return acc
     }, [])
     // Envia só colunas graváveis de "Formulario" (tira as colunas só-de-view).
-    const { error } = await supabase.from('Formulario').update(semColsView(formData)).eq('id', proposal.id)
+    const payload = semColsView(formData)
+    payload.vendedor_id = formData.vendedor_id ? Number(formData.vendedor_id) : null  // FK vendedores(id) é inteiro
+    const { error } = await supabase.from('Formulario').update(payload).eq('id', proposal.id)
     if (!error) {
       if (alteracoes.length) await log({ sistema: 'Proposta Comercial', acao: 'editar', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: formData.Cliente || proposal.Cliente, detalhes: { alteracoes } })
       alert("ATUALIZADO COM SUCESSO!"); window.location.reload()
@@ -333,7 +339,13 @@ export default function EditModal({ proposal, onClose }) {
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>CEP</label><input value={formData.cep || ''} onChange={e => setFormData({ ...formData, cep: e.target.value })} className={inputStyle} /></div>
               </div>
               <div className="flex">
-                <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>ENDERECO COMPLETO</label><input value={formData.End_Entrega || ''} onChange={e => setFormData({ ...formData, End_Entrega: e.target.value })} className={inputStyle} /></div>
+                <div className="flex-[2] p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>ENDERECO COMPLETO</label><input value={formData.End_Entrega || ''} onChange={e => setFormData({ ...formData, End_Entrega: e.target.value })} className={inputStyle} /></div>
+                <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>VENDEDOR</label>
+                  <select value={formData.vendedor_id ?? ''} onChange={e => setFormData({ ...formData, vendedor_id: e.target.value })} className={`${inputStyle} cursor-pointer`}>
+                    <option value="">— sem vendedor —</option>
+                    {listaVendedores.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
 

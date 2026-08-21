@@ -90,7 +90,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       const campos = [
         c.Cliente, c.Marca, c.Modelo, `${c.Marca || ''} ${c.Modelo || ''}`, c.Cidade,
         String(c.id), formatBRL(c.Valor_Total), String(c.Valor_Total ?? ''),
-        c.status, statusLabel(c.status),
+        c.status, statusLabel(c.status), c.vendedor_nome,
       ]
       const matchBusca = !q || campos.some(v => (v || '').toString().toLowerCase().includes(q))
       const matchStatus = !filtroStatus || c.status === filtroStatus
@@ -144,6 +144,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       <div className="text-base font-semibold text-zinc-800">{card.Cliente || 'Sem nome'}</div>
                       <div className="text-sm text-zinc-600 mt-0.5">{card.Marca} {card.Modelo}</div>
                       <div className="text-sm text-zinc-400">{card.Cidade || '---'}</div>
+                      {card.vendedor_nome && <div className="text-xs text-zinc-500 mt-0.5">Vendedor: {card.vendedor_nome}</div>}
                       <div className={`text-xs mt-1 ${agingCor(card.dias_na_fase)}`}>parado há {agingTexto(card.dias_na_fase)}</div>
                       <select onClick={e => e.stopPropagation()} value={card.status} onChange={(e) => updateStatus(card.id, e.target.value, e)}
                         className="mt-2.5 w-full bg-zinc-50 border border-zinc-200 text-zinc-600 text-sm font-semibold p-2 rounded-md outline-none cursor-pointer focus:ring-2 focus:ring-red-500/40">
@@ -165,6 +166,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
               <tr className="border-b-2 border-zinc-200">
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">ID</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Cliente</th>
+                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Vendedor</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Marca / Modelo</th>
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Cidade</th>
                 <th className="text-right px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Valor</th>
@@ -175,7 +177,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
             </thead>
             <tbody>
               {filtradas.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
+                <tr><td colSpan={9} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
               ) : (
                 filtradas.map(card => {
                   const isFromFactory = !!card.id_fabrica_ref
@@ -189,6 +191,9 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-lg font-semibold text-zinc-800 group-hover:text-red-600 transition-colors">{card.Cliente || 'Sem nome'}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        <span className="text-base text-zinc-600">{card.vendedor_nome || <span className="text-zinc-300">—</span>}</span>
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-base text-zinc-600">{card.Marca} {card.Modelo}</span>
