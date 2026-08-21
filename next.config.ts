@@ -1,5 +1,9 @@
 import type { NextConfig } from "next";
 
+// Domínio do Chatwoot que pode embutir a página /chatwoot-app num iframe.
+const CHATWOOT_ORIGIN =
+  process.env.CHATWOOT_URL || "https://chatwoot-production-e3ef.up.railway.app";
+
 const nextConfig: NextConfig = {
   // pdfkit precisa dos arquivos de fonte (.afm) do próprio pacote em runtime;
   // bundlado ele perde o caminho (ENOENT Helvetica.afm). Externo resolve.
@@ -8,6 +12,19 @@ const nextConfig: NextConfig = {
   // package-lock.json perdido acima do repo (ex.: C:\Users\<user>), e aí
   // externos (pdfkit/pino/rimraf) não resolvem no build.
   turbopack: { root: __dirname },
+  async headers() {
+    return [
+      {
+        source: "/chatwoot-app",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: `frame-ancestors 'self' ${CHATWOOT_ORIGIN};`,
+          },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;
