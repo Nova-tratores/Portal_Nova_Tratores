@@ -8,6 +8,7 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import AcessoBloqueado from '@/components/AcessoBloqueado'
 import { usePathname, useRouter } from 'next/navigation'
 import TratorinoChat from '@/components/TratorinoChat'
+import CaixaEmail from '@/components/CaixaEmail'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
@@ -682,6 +683,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               <Columns size={20} />
             </button>
           )}
+
+          {/* Caixa de e-mail do usuário (só aparece pra quem configurou o e-mail de envio) */}
+          <CaixaEmail />
 
           {/* Ícone Chat */}
           <button
