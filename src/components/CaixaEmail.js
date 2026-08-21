@@ -37,6 +37,7 @@ export default function CaixaEmail() {
   const [conta, setConta] = useState('')
   const [open, setOpen] = useState(false)
   const [emails, setEmails] = useState([])
+  const [busca, setBusca] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState('')
   const [badge, setBadge] = useState(0)
@@ -224,13 +225,37 @@ export default function CaixaEmail() {
             </div>
           </div>
 
+          {/* Filtro de pesquisa da caixa (remetente, assunto, cliente) */}
+          <div style={{ position: 'relative', margin: '0 4px 8px' }}>
+            <i className="fa fa-search" style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)', fontSize: 12 }} />
+            <input
+              type="text"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Pesquisar na caixa…"
+              style={{ width: '100%', boxSizing: 'border-box', padding: '9px 30px', borderRadius: 9, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', fontSize: 13 }}
+            />
+            {busca && (
+              <button onClick={() => setBusca('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'transparent', color: '#dc2626', cursor: 'pointer', fontSize: 13 }}>✕</button>
+            )}
+          </div>
+
           {carregando && emails.length === 0 ? (
             <div style={{ padding: 26, textAlign: 'center', color: 'var(--portal-text-secondary)', fontSize: 13 }}>Conectando na sua caixa…</div>
           ) : erro && emails.length === 0 ? (
             <div style={{ padding: 18, textAlign: 'center', color: '#dc2626', fontSize: 13 }}>{erro}</div>
           ) : emails.length === 0 ? (
             <div style={{ padding: 22, textAlign: 'center', color: 'var(--portal-text-secondary)', fontSize: 13 }}>Caixa vazia.</div>
-          ) : emails.map((em) => (
+          ) : (() => {
+            const termos = busca.trim().toLowerCase().split(/\s+/).filter(Boolean)
+            const visiveis = termos.length === 0 ? emails : emails.filter((em) => {
+              const alvo = `${em.deNome || ''} ${em.de || ''} ${em.assunto || ''} ${em.cliente || ''}`.toLowerCase()
+              return termos.every((t) => alvo.includes(t))
+            })
+            if (visiveis.length === 0) return (
+              <div style={{ padding: 22, textAlign: 'center', color: 'var(--portal-text-secondary)', fontSize: 13 }}>Nada encontrado pra “{busca}”.</div>
+            )
+            return visiveis.map((em) => (
             <div key={em.uid}
               onClick={() => abrirMensagem(em)}
               style={{
@@ -257,7 +282,8 @@ export default function CaixaEmail() {
                 <div style={{ fontSize: 11.5, color: '#16a34a', fontWeight: 700, marginTop: 2 }}>Cliente: {em.cliente}</div>
               )}
             </div>
-          ))}
+          ))
+          })()}
         </div>
       )}
 
