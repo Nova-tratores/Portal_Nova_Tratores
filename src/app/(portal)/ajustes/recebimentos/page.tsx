@@ -814,7 +814,9 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   // itens que o Omie criaria como produto NOVO: o usuario decide novo/associar/ignorar
   const [acoes, setAcoes] = useState<Record<number, AcaoItem>>({});
   const [assoc, setAssoc] = useState<Record<number, ProdutoSugestao | null>>({});
-  const acaoDe = (it: ItemReceb, i: number): AcaoItem => acoes[i] || (it.criarNovo ? 'novo' : 'novo');
+  // acao por item: para produto NOVO o usuario escolhe novo/associar/ignorar; para produto
+  // EXISTENTE o padrao e' 'novo' (=EDITAR) mas tambem pode ser 'ignorar' (checkbox).
+  const acaoDe = (_it: ItemReceb, i: number): AcaoItem => acoes[i] || 'novo';
 
   // 2a fase: correcao do CMC distorcido por garantia
   const [fase, setFase] = useState<'entrada' | 'correcao'>('entrada');
@@ -959,7 +961,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
     const itens = (r.itens || []).map((it, i) => {
       const seq = it.nSequencia;
       const cfop = (cfops[i] || '').trim();
-      const acao = it.criarNovo ? acaoDe(it, i) : 'novo';
+      const acao = acaoDe(it, i);
       const p = acao === 'associar' ? assoc[i] : null;
       return {
         nSequencia: (seq == null || seq === '' ? null : (isNaN(Number(seq)) ? seq : Number(seq))),
@@ -992,7 +994,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
     const assocTxt = (r.itens || [])
       .map((it, i) => (it.criarNovo && acaoDe(it, i) === 'associar' && assoc[i] ? `\n  · "${it.descricaoProduto || it.codigoProdutoInt}" → ${assoc[i]!.codigo} ${assoc[i]!.descricao}` : ''))
       .join('');
-    const ignTxt = (r.itens || []).filter((it, i) => it.criarNovo && acaoDe(it, i) === 'ignorar').length;
+    const ignTxt = (r.itens || []).filter((it, i) => acaoDe(it, i) === 'ignorar').length;
     if (!confirm(
       `Confirmar entrada da NF ${r.numeroNFe || '?'}?\n\nIsso PROCESSA a NF no Omie${naoFin ? ', SEM gerar contas a pagar' : ''}${naoMov ? ', SEM movimentar estoque' : ''}.`
       + (assocTxt ? `\n\nItens que serao ASSOCIADOS a produtos existentes (so' da p/ desfazer revertendo o recebimento):${assocTxt}` : '')
@@ -1212,7 +1214,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
               </thead>
               <tbody>
                 {(r.itens || []).map((it, i) => {
-                  const acao = it.criarNovo ? acaoDe(it, i) : 'novo';
+                  const acao = acaoDe(it, i);
                   const ignorado = acao === 'ignorar';
                   return (
                   <Fragment key={i}>
@@ -1220,6 +1222,12 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
                     <td style={mTd}>
                       {it.descricaoProduto || it.codigoProdutoInt || '?'}
                       {it.criarNovo ? <span style={{ marginLeft: 4, fontSize: '.6rem', padding: '0 5px', borderRadius: 4, background: '#fef3c7', color: '#92400e' }}>novo</span> : (it.idProduto ? <span style={{ fontFamily: 'monospace', fontSize: '.6rem', color: '#94a3b8' }}> #{it.idProduto}</span> : null)}
+                      {!it.criarNovo && (
+                        <label style={{ marginLeft: 8, fontSize: '.62rem', color: ignorado ? '#dc2626' : '#94a3b8', display: 'inline-flex', alignItems: 'center', gap: 3, cursor: 'pointer' }} title="Deixa este item de fora do recebimento (não processa)">
+                          <input type="checkbox" checked={ignorado} onChange={(e) => setAcoes((s) => ({ ...s, [i]: e.target.checked ? 'ignorar' : 'novo' }))} />
+                          ignorar
+                        </label>
+                      )}
                     </td>
                     <td style={{ ...mTd, fontFamily: 'monospace' }}>{it.cfop || ''}</td>
                     <td style={{ ...mTd, fontFamily: 'monospace', color: '#64748b' }}>{it.cfopEntrada || '(ao processar)'}</td>
