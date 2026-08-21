@@ -1,14 +1,16 @@
-// Geração do HTML de impressão das ETIQUETAS DE PEÇAS (extraído da tela
+﻿// Geração do HTML de impressão das ETIQUETAS DE PEÇAS (extraído da tela
 // /ppv/etiquetas pra fila de rastreio /ppv/unidades reusar na reimpressão).
 //
-// Dois formatos: folha adesiva pré-cortada 3×10 (Pimaco/Avery 6180, Carta,
-// 66,675×25,4mm) e papel comum (2 colunas tracejadas pra recortar).
-// A 3×10 também imprime em papel comum: `tracejado` desenha a linha de corte na
-// borda de cada etiqueta (mesmo tamanho, só que recortando em vez de descolar).
+// UM motor pros dois papéis (unificado em 21/08/2026): a folha 3×10 (Pimaco/
+// Avery 6180, Carta, 66,675×25,4mm) e o papel comum, que é a MESMA folha com
+// `tracejado` (linha de corte na borda) — recorta em vez de descolar. O gerador
+// antigo de papel comum tinha layout próprio de 2 colunas grandes e foi
+// removido: o usuário quis as 3 colunas iguais às da etiqueta, e manter dois
+// desenhos da mesma etiqueta só multiplicava o conserto de cada detalhe.
 //
-// Cada bloco pode vir com QR de rastreio (unidade rastreada — o QR SUBSTITUI
-// o código de barras Code 128, decisão do usuário 11/08/2026) ou sem (etiqueta
-// comum de prateleira, layout com Code 128 como sempre foi).
+// Cada bloco pode levar QR de rastreio, Code 128, ou os DOIS (`barraComQr`):
+// celular lê o QR e vai pra página da unidade; a pistola do balcão lê a barra
+// e enxerga o código da peça.
 //
 // Layout da célula (correção 19/08/2026): cada bloco é dividido em CORPO (texto,
 // que encolhe/corta se sobrar pouco espaço) + RODAPÉ (barcode, com espaço FIXO
@@ -25,7 +27,7 @@ export interface LinhaEtiqueta {
 
 export interface BlocoEtiqueta {
   linhas: LinhaEtiqueta[]
-  /** SVG do QR de rastreio (QRCode.toString type:'svg') — presente = rastreada */
+  /** SVG do QR de rastreio (montado por qrSvg) — presente = unidade rastreada */
   qrSvg?: string | null
   /** número legível da unidade (UN-000123), impresso sob o QR */
   numero?: string | null
@@ -50,6 +52,10 @@ export interface OpcoesFolha {
    *  Na folha adesiva não se usa: ela já vem picotada, e a linha impressa cairia
    *  em cima do vinco (ou, com a impressora puxando torto, dentro da etiqueta). */
   tracejado?: boolean
+  /** Etiqueta rastreada com os DOIS códigos: QR (celular → página da unidade)
+   *  e Code 128 (pistola do balcão → código da peça). Sem isto o QR entra no
+   *  lugar do barcode, e a etiqueta rastreada não serve pro leitor do balcão. */
+  barraComQr?: boolean
 }
 /** @deprecated nome de quando a opção era só o offset — use OpcoesFolha. */
 export type OffsetFolha = OpcoesFolha
@@ -198,6 +204,38 @@ export function code128Svg(texto: string, alturaMm: number): string {
   return `<svg class="barra" viewBox="0 0 ${modulos} 10" preserveAspectRatio="none" style="height:${alturaMm}mm;width:${larguraMm}mm" xmlns="http://www.w3.org/2000/svg">${rects.join('')}</svg>`
 }
 
+/**
+ * QR em SVG de RETÂNGULOS PREENCHIDOS, a partir da matriz da lib `qrcode`
+ * (`QRCode.create(texto).modules`).
+ *
+ * A lib desenha cada fileira de módulos como um TRAÇO (`stroke`) de espessura
+ * 1, e no papel isso sai LAVADO: a impressora rasteriza linha fina como
+ * hairline/antialias e o QR fica cinza — enquanto o Code 128, que sempre foi
+ * `rect` preenchido, sai preto sólido na MESMA folha e na mesma impressora.
+ * Fill não tem esse problema. Na tela a diferença não aparece, por isso o
+ * visual enganava.
+ *
+ * Junta módulos escuros vizinhos numa tirada só (menos nós → HTML bem menor
+ * numa folha de 30 etiquetas).
+ */
+export function qrSvg(modules: { size: number; data: ArrayLike<number> } | null | undefined): string {
+  const n = modules?.size || 0
+  if (!n || !modules) return ''
+  const partes: string[] = []
+  for (let y = 0; y < n; y++) {
+    let x = 0
+    while (x < n) {
+      if (!modules.data[y * n + x]) { x++; continue }
+      let w = 1
+      while (x + w < n && modules.data[y * n + x + w]) w++
+      partes.push(`M${x} ${y}h${w}v1h-${w}z`)
+      x += w
+    }
+  }
+  if (partes.length === 0) return ''
+  return `<svg viewBox="0 0 ${n} ${n}" shape-rendering="crispEdges" xmlns="http://www.w3.org/2000/svg"><path fill="#000" d="${partes.join('')}"/></svg>`
+}
+
 function dataRefAtual(): string {
   const agora = new Date()
   return `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
@@ -271,6 +309,7 @@ export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: Opc
   const padTop = (12.7 + oy).toFixed(2), padBot = (12.7 - oy).toFixed(2)
   const padLeft = (ladoBase + ox).toFixed(2), padRight = (ladoBase - ox).toFixed(2)
 
+  const barraComQr = !!off.barraComQr
   const cel = (e: BlocoEtiqueta | null) => {
     if (e === null) return '    <div class="cel"></div>'
     const dupla = e.linhas.length > 1
@@ -281,8 +320,28 @@ ${blocosTexto(e, true)}
       <div class="dt">${dataRef}</div>
     </div>`
     }
-    // Rastreada: texto à esquerda, QR à direita (substitui o Code 128);
-    // número da unidade sob o QR; data migra pro canto inferior esquerdo.
+    // Rastreada com os DOIS códigos: a barra atravessa a etiqueta INTEIRA em
+    // baixo e o topo é dividido entre texto e QR. Tentar espremer a barra na
+    // coluna do texto (ao lado do QR) derrubava o módulo do código mais longo
+    // pra 0,23mm, abaixo do piso de leitura de 0,25mm — o teste pega isso.
+    // Aqui ela fica com os mesmos 59,9mm da etiqueta comum.
+    if (barraComQr) {
+      return `    <div class="cel comqr combarra${dupla ? ' dupla' : ''}">
+      <div class="topo">
+        <div class="txt">
+${blocosTexto(e, false)}
+        </div>
+        <div class="qr">
+          ${e.qrSvg}${e.numero ? `
+          <div class="un">${esc(e.numero)}</div>` : ''}
+          <div class="dt inline">${dataRef}</div>
+        </div>
+      </div>
+${e.linhas.map(l => `      <div class="rodape">${code128Svg(l.codigo, dupla ? 3 : ALTURA_BARRA_MM)}</div>`).join('\n')}
+    </div>`
+    }
+    // Só QR (ele substitui a barra): texto à esquerda, QR à direita. A data sai
+    // do canto absoluto e vai pra baixo do QR, junto do número da unidade.
     return `    <div class="cel comqr${dupla ? ' dupla' : ''}">
       <div class="txt">
 ${blocosTexto(e, false)}
@@ -290,8 +349,8 @@ ${blocosTexto(e, false)}
       <div class="qr">
         ${e.qrSvg}${e.numero ? `
         <div class="un">${esc(e.numero)}</div>` : ''}
+        <div class="dt inline">${dataRef}</div>
       </div>
-      <div class="dt esq">${dataRef}</div>
     </div>`
   }
 
@@ -362,17 +421,30 @@ ${blocosTexto(e, false)}
   /* data discreta no canto inferior direito (fora do fluxo, como no recorte) —
      recuada junto com a área de segurança */
   .dt { position: absolute; bottom: 1.2mm; right: 3.2mm; font-size: 4.8pt; color: #999; letter-spacing: .2px; line-height: 1; }
-  .dt.esq { right: auto; left: 3.2mm; }
+  /* na etiqueta rastreada a data entra no fluxo, sob o QR (ver comentário no
+     cel(): no canto ela encavalaria o barcode quando os dois códigos convivem) */
+  .dt.inline { position: static; margin-top: 0.3mm; text-align: center; }
   /* Rastreada: texto corrido à esquerda + QR fixo à direita (sem Code 128).
      o "align-items: stretch" é OBRIGATÓRIO: com "center" a coluna de texto ficava
      com altura automática, e aí o .bloco (flex-basis 0) colapsava pra ZERO —
      o overflow:hidden do corpo apagava o texto inteiro e a etiqueta saía só com
      o QR. Quem centraliza na vertical é o .txt/.qr, cada um dentro da sua
      coluna já esticada. */
-  .cel.comqr { flex-direction: row; align-items: stretch; gap: 1.4mm; }
+  /* gap = ZONA DE SILÊNCIO do QR (o padrão pede 4 módulos claros em volta):
+     2mm > 4 × 0,35mm do módulo de um QR de 13mm. Do outro lado quem fornece é
+     a área de segurança da etiqueta. */
+  .cel.comqr { flex-direction: row; align-items: stretch; gap: 2mm; }
   .cel.comqr .txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
   .cel.comqr .bloco { justify-content: center; }
-  .cel.comqr .linha { -webkit-line-clamp: 4; }
+  /* QR + barcode: topo (texto | QR) em cima, barra de ponta a ponta embaixo.
+     O .topo tem altura DEFINIDA (flex do que sobra depois da barra), que é o
+     que o ajuste de fonte mede — por isso o texto nunca invade o barcode. */
+  .cel.comqr.combarra { flex-direction: column; gap: 0; }
+  .cel.comqr.combarra .topo { flex: 1 1 auto; min-height: 0; width: 100%; display: flex; align-items: stretch; gap: 2mm; }
+  /* clamp ALTO de propósito: ele é só a rede de segurança. Quem decide o
+     tamanho é o ajuste de fonte, que ENCOLHE até caber — com clamp baixo o
+     texto era cortado no "…" (a locação sumia) antes de a fonte tentar. */
+  .cel.comqr .linha { -webkit-line-clamp: 5; }
   .cel.comqr.dupla .linha { -webkit-line-clamp: 2; }
   .qr { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; }
   .qr svg { width: 13mm; height: 13mm; display: block; }
@@ -484,54 +556,5 @@ window.addEventListener('load', function () {
   if (location.hash.indexOf('previa') === -1) window.print();
 });
 </script>
-</body></html>`
-}
-
-// Impressão em papel comum, 2 colunas com borda tracejada pra recortar
-export function htmlRecorte(blocos: BlocoEtiqueta[]): string {
-  const dataRef = dataRefAtual()
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças</title>
-<style>
-  * { box-sizing: border-box; margin: 0; }
-  body { font-family: Arial, Helvetica, sans-serif; padding: 8mm; }
-  .grade { display: grid; grid-template-columns: 1fr 1fr; gap: 6mm; }
-  .etq { position: relative; border: 1.5px dashed #555; border-radius: 4px; padding: 8px 10px 14px; break-inside: avoid; page-break-inside: avoid; }
-  .etq.comqr { display: flex; gap: 4mm; align-items: center; }
-  .etq .conteudo { flex: 1 1 auto; min-width: 0; }
-  .emp { font-size: 11px; font-weight: 800; letter-spacing: .5px; margin-top: 6px; }
-  .emp:first-child, .conteudo > .emp:first-child { margin-top: 0; }
-  .linha { font-size: 12px; line-height: 1.35; margin-top: 1px; }
-  .cod { font-weight: 800; font-family: 'Courier New', monospace; }
-  .barra { display: block; margin: 2px auto 3px; max-width: 100%; }
-  .qr { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; }
-  .qr svg { width: 16mm; height: 16mm; display: block; }
-  .un { font-size: 8px; color: #555; margin-top: 1px; }
-  .dt { position: absolute; bottom: 3px; right: 6px; font-size: 8px; color: #666; }
-  @media print { body { padding: 4mm; } }
-</style></head><body>
-<div class="grade">
-${blocos.map(e => {
-    const conteudo = e.linhas.map(l => `    <div class="emp">${esc(empresaCurta(l.empresa))}</div>
-    <div class="linha"><span class="cod">${esc(l.codigo)}</span> - ${esc(l.descricao)}${l.locacao ? ` - ${locHtml(l.locacao)}` : ''}</div>${e.qrSvg ? '' : `
-    ${code128Svg(l.codigo, 7)}`}`).join('\n')
-    if (!e.qrSvg) {
-      return `  <div class="etq">
-${conteudo}
-    <div class="dt">${dataRef}</div>
-  </div>`
-    }
-    return `  <div class="etq comqr">
-    <div class="conteudo">
-${conteudo}
-    </div>
-    <div class="qr">
-      ${e.qrSvg}${e.numero ? `
-      <div class="un">${esc(e.numero)}</div>` : ''}
-    </div>
-    <div class="dt">${dataRef}</div>
-  </div>`
-  }).join('\n')}
-</div>
-<script>window.onload = () => { window.print(); }</script>
 </body></html>`
 }

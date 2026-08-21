@@ -13,7 +13,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
-import { htmlFolha, htmlRecorte, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
+import { htmlFolha, qrSvg, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
 import { casaFiltroColuna, reconciliarOrdem, ControleOrdenacao, SeletorColunas, MenuEngrenagem, type Sort } from '@/components/tabela/ConfigColunas'
 
 interface ItemBusca {
@@ -100,6 +100,13 @@ function valColEtiq(i: ItemBusca, col: string): string {
   return (i.caracteristicas?.[col] || '').trim()
 }
 
+// QR da unidade em SVG de retângulos PREENCHIDOS (qrSvg) em vez do SVG da lib,
+// que desenha os módulos como traço e sai lavado na impressora. `QRCode.create`
+// só monta a matriz — quem vira SVG somos nós.
+function qrDaUnidade(unidadeId: string): string {
+  return qrSvg(QRCode.create(`${window.location.origin}/p/${unidadeId}`, { errorCorrectionLevel: 'M' }).modules)
+}
+
 export default function EtiquetasPanel({ embedded = false }: { embedded?: boolean }) {
   const { userProfile } = useAuth()
   const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
@@ -116,9 +123,10 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const [copiasLote, setCopiasLote] = useState(1)
   const [usadas, setUsadas] = useState<Set<number>>(new Set())
   const [rastrear, setRastrear] = useState(false)
-  // Folha 3×10 impressa em papel COMUM: sai com a linha de corte na borda de
-  // cada etiqueta (na adesiva não, que já vem picotada).
-  const [tracejado, setTracejado] = useState(false)
+  // Etiqueta rastreada com os DOIS códigos: QR (celular → página da unidade) e
+  // Code 128 (pistola do balcão → código da peça). Sem isto o QR entra no lugar
+  // da barra e a etiqueta deixa de servir ao leitor do balcão.
+  const [barraComQr, setBarraComQr] = useState(false)
   const [imprimindo, setImprimindo] = useState(false)
   const [folhas, setFolhas] = useState<FolhaHist[]>([])
   // Config de colunas (filtro por coluna, ordenação principal+desempate, seletor).
@@ -129,21 +137,27 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const [seletorAberto, setSeletorAberto] = useState(false)
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Preferências de quem IMPRIME (papel na bandeja, leitores que o balcão usa),
+  // não da folha — ficam no localStorage e valem também nas reimpressões do
+  // histórico e da unidade avulsa, onde não há esses controles na tela.
   useEffect(() => {
     try {
       setRastrear(localStorage.getItem('etiquetas_rastrear') === '1')
-      setTracejado(localStorage.getItem('etiquetas_tracejado') === '1')
+      setBarraComQr(localStorage.getItem('etiquetas_barra_qr') === '1')
+      if (localStorage.getItem('etiquetas_formato') === 'recorte') setFormato('recorte')
     } catch { /* segue */ }
   }, [])
   const mudarRastrear = (v: boolean) => {
     setRastrear(v)
     try { localStorage.setItem('etiquetas_rastrear', v ? '1' : '0') } catch { /* segue */ }
   }
-  // Preferência de quem imprime (o papel que a impressora tem), não da folha —
-  // por isso fica no localStorage e vale também nas reimpressões do histórico.
-  const mudarTracejado = (v: boolean) => {
-    setTracejado(v)
-    try { localStorage.setItem('etiquetas_tracejado', v ? '1' : '0') } catch { /* segue */ }
+  const mudarBarraComQr = (v: boolean) => {
+    setBarraComQr(v)
+    try { localStorage.setItem('etiquetas_barra_qr', v ? '1' : '0') } catch { /* segue */ }
+  }
+  const mudarFormato = (v: 'folha' | 'recorte') => {
+    setFormato(v)
+    try { localStorage.setItem('etiquetas_formato', v) } catch { /* segue */ }
   }
 
   useEffect(() => {
@@ -246,13 +260,16 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       const w = window.open('', '_blank'); if (!w) { setErro('O navegador bloqueou a janela — libere pop-ups.'); return }
       let blocos: BlocoEtiqueta[] = (folha.itens || []).map(it => ({ linhas: it.linhas }))
       if (folha.rastreado) {
-        const qrs = await Promise.all((folha.itens || []).map(it => it.unidade_id
-          ? QRCode.toString(`${window.location.origin}/p/${it.unidade_id}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' })
-          : Promise.resolve('')))
-        blocos = (folha.itens || []).map((it, i) => ({ linhas: it.linhas, qrSvg: qrs[i] || null, numero: it.numero }))
+        blocos = (folha.itens || []).map(it => ({
+          linhas: it.linhas,
+          qrSvg: it.unidade_id ? qrDaUnidade(it.unidade_id) : null,
+          numero: it.numero,
+        }))
       }
       w.document.open()
-      w.document.write(folha.formato === 'recorte' ? htmlRecorte(blocos) : htmlFolha(blocos, new Set(folha.usadas || []), { tracejado }))
+      w.document.write(htmlFolha(blocos, new Set(folha.formato === 'recorte' ? [] : (folha.usadas || [])), {
+        tracejado: folha.formato === 'recorte', barraComQr,
+      }))
       w.document.close()
     } catch (e) { setErro(String(e instanceof Error ? e.message : e)) }
   }
@@ -448,13 +465,13 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
             throw new Error('Pareamento etiqueta↔QR divergiu — nada foi impresso, tente de novo.')
           }
         }
-        const qrs = await Promise.all(unidades.map(u =>
-          QRCode.toString(`${window.location.origin}/p/${u.id}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' })))
-        blocos = fisicas.map((e, i) => ({ linhas: e.linhas, qrSvg: qrs[i], numero: unidades[i].numero }))
+        blocos = fisicas.map((e, i) => ({ linhas: e.linhas, qrSvg: qrDaUnidade(unidades[i].id), numero: unidades[i].numero }))
         itensFolha = fisicas.map((e, i) => ({ linhas: e.linhas, numero: unidades[i].numero, unidade_id: unidades[i].id }))
       }
       w.document.open()
-      w.document.write(formato === 'folha' ? htmlFolha(blocos, usadas, { tracejado }) : htmlRecorte(blocos))
+      w.document.write(htmlFolha(blocos, formato === 'folha' ? usadas : new Set<number>(), {
+        tracejado: formato === 'recorte', barraComQr,
+      }))
       w.document.close()
       // registra a folha no histórico (snapshot p/ reimprimir) e esvazia a fila
       // COMPARTILHADA — o que foi impresso sai da fila e vira "folha" consultável.
@@ -638,12 +655,13 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
           <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--portal-text)' }}>Imprimir em:</span>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
-            <input type="radio" checked={formato === 'folha'} onChange={() => setFormato('folha')} />
+            <input type="radio" checked={formato === 'folha'} onChange={() => mudarFormato('folha')} />
             Folha adesiva 3×10 (Pimaco/Avery 6180 — 66,7 × 25,4 mm)
           </label>
+          {/* Papel comum = a MESMA folha 3×10, com a linha de corte impressa. */}
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
-            <input type="radio" checked={formato === 'recorte'} onChange={() => setFormato('recorte')} />
-            Papel comum (tracejado pra recortar)
+            <input type="radio" checked={formato === 'recorte'} onChange={() => mudarFormato('recorte')} />
+            <Scissors size={14} /> Papel comum (mesma etiqueta, tracejado pra recortar)
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: rastrear ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
             <input type="checkbox" checked={rastrear} onChange={e => mudarRastrear(e.target.checked)} />
@@ -652,22 +670,29 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         </div>
         {rastrear && (
           <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
-            Cada etiqueta impressa vira uma <strong>unidade rastreada</strong> com QR próprio (o QR entra no lugar do código de barras).
+            Cada etiqueta impressa vira uma <strong>unidade rastreada</strong> com QR próprio.
             Quem pegar a peça escaneia, marca &quot;peguei&quot; e o departamento libera na fila de retiradas.
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, fontWeight: 700, color: barraComQr ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={barraComQr} onChange={e => mudarBarraComQr(e.target.checked)} />
+              Imprimir também o código de barras
+            </label>
+            <span style={{ display: 'block', marginTop: 2 }}>
+              {barraComQr
+                ? <>A etiqueta sai com os <strong>dois</strong>: celular lê o QR e abre a peça; a pistola do balcão lê a barra e enxerga o código.</>
+                : <>Sem isto o QR ocupa o lugar da barra, e a etiqueta rastreada <strong>não serve</strong> pro leitor do balcão.</>}
+            </span>
+          </div>
+        )}
+        {formato === 'recorte' && (
+          <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
+            Mesma etiqueta da folha adesiva (66,7 × 25,4 mm), em 3 colunas coladas, com a linha de corte na borda.
+            {' '}Na impressão use <strong>escala 100%</strong> (sem &quot;ajustar à página&quot;).
           </div>
         )}
         {formato === 'folha' && (
           <div style={{ marginTop: 10 }}>
-            {/* Mesma folha 3×10 impressa em papel comum: quem não tem a adesiva
-                na mão recorta na tesoura — mas precisa da linha pra cortar. */}
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: tracejado ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer', marginBottom: 8 }}>
-              <input type="checkbox" checked={tracejado} onChange={e => mudarTracejado(e.target.checked)} />
-              <Scissors size={14} /> Papel comum — imprimir o tracejado pra recortar
-            </label>
             <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', marginBottom: 8, lineHeight: 1.5 }}>
-              {tracejado
-                ? <>Cada peça sai numa etiqueta do mesmo tamanho da adesiva, com a linha de corte na borda.</>
-                : <>Cada peça sai numa etiqueta da folha — é só descolar, sem recortar.</>}
+              Cada peça sai numa etiqueta da folha — é só descolar, sem recortar.
               {' '}Na impressão use <strong>escala 100%</strong> (sem &quot;ajustar à página&quot;).
               {' '}Folha já começada? Clique abaixo nas posições <strong>já usadas</strong> pra impressão pular elas{usadas.size > 0 && <> · <button onClick={() => setUsadas(new Set())} style={{ border: 'none', background: 'none', color: '#EA580C', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>limpar ({usadas.size})</button></>}:
             </div>
