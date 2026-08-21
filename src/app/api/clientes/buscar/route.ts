@@ -10,9 +10,23 @@ const supabase = createClient(
     ""
 );
 
+// Libera o front do Chatwoot (outro domínio) a consultar este endpoint.
+const CHATWOOT_ORIGIN =
+  process.env.CHATWOOT_URL || "https://chatwoot-production-e3ef.up.railway.app";
+const CORS = {
+  "Access-Control-Allow-Origin": CHATWOOT_ORIGIN,
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: CORS });
+}
+
 export async function GET(req: NextRequest) {
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
-  if (q.length < 2) return NextResponse.json({ clientes: [] });
+  if (q.length < 2)
+    return NextResponse.json({ clientes: [] }, { headers: CORS });
 
   // vírgula/parênteses/percent quebram a sintaxe do .or() do PostgREST
   const term = q.replace(/[,()%]/g, " ").trim();
@@ -29,7 +43,10 @@ export async function GET(req: NextRequest) {
     .limit(20);
 
   if (error)
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json(
+      { error: error.message },
+      { status: 500, headers: CORS }
+    );
 
-  return NextResponse.json({ clientes: data || [] });
+  return NextResponse.json({ clientes: data || [] }, { headers: CORS });
 }
