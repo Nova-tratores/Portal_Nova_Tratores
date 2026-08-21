@@ -12,12 +12,20 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
+// remove acentos + minúsculas → busca insensível a acento e maiúscula/minúscula
+function normalizar(s: string | null | undefined): string {
+  return (s || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
 export async function GET(req: Request) {
-  const q = (new URL(req.url).searchParams.get("q") || "").trim().toLowerCase();
+  const q = (new URL(req.url).searchParams.get("q") || "").trim();
 
   if (!rhConfigurado()) {
     return NextResponse.json(
@@ -29,14 +37,16 @@ export async function GET(req: Request) {
     return NextResponse.json({ funcionarios: [] }, { headers: CORS });
   }
 
+  const nq = normalizar(q);
+
   try {
     const todos = await listarFuncionariosRH();
     const funcionarios = todos
       .filter(
         f =>
-          (f.nome || "").toLowerCase().includes(q) ||
-          (f.email || "").toLowerCase().includes(q) ||
-          (f.cargo || "").toLowerCase().includes(q)
+          normalizar(f.nome).includes(nq) ||
+          normalizar(f.email).includes(nq) ||
+          normalizar(f.cargo).includes(nq)
       )
       .slice(0, 20)
       .map(f => ({
