@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
-// Máquinas/tratores vinculados a um cliente (últimos faturados/atendidos
-// no CNPJ), para a aba do Chatwoot: chassis, modelo, última revisão
-// (revisao_emails) e último serviço (OS do cliente que cita o chassis).
+// Máquinas/tratores do cliente para a aba do Chatwoot — mesma fonte dos
+// PROJETOS da Pasta Clientes (portal_nt_projetos_PRINCIPAL, nome =
+// "MODELO CHASSIS"): chassis, última revisão (revisao_emails) e último
+// serviço (OS mais recente do projeto).
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY ||
@@ -30,18 +31,24 @@ function parseServicos(raw: unknown): Servico[] {
   }
 }
 
-function resumoServico(servicos: Servico[], chassis: string): string {
-  const alvo = servicos.find(s =>
-    (s.desc || "").toLowerCase().includes(chassis.toLowerCase())
-  );
-  const desc = alvo?.desc || servicos[0]?.desc || "";
-  // Tira os marcadores "Chassis: ... | Modelo: ..." do texto
+function resumoServicos(servicos: Servico[]): string {
+  const desc = servicos[0]?.desc || "";
   const limpo = desc
     .split("|")
     .filter(p => !/chassis:|modelo:/i.test(p))
     .join("|")
     .trim();
   return limpo.length > 90 ? `${limpo.slice(0, 90)}…` : limpo;
+}
+
+// "6075E CAB MDI07513AT0006263" -> modelo "6075E CAB", chassis "MDI07513AT0006263"
+function separarModeloChassis(nome: string): { modelo: string; chassis: string } {
+  const tokens = String(nome || "").trim().split(/\s+/);
+  const ultimo = tokens[tokens.length - 1] || "";
+  if (tokens.length > 1 && /^[A-Z0-9-]{8,}$/i.test(ultimo)) {
+    return { modelo: tokens.slice(0, -1).join(" "), chassis: ultimo };
+  }
+  return { modelo: nome, chassis: "" };
 }
 
 export async function OPTIONS() {
@@ -56,73 +63,73 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    // 1) Máquinas cujo último cliente é este código
-    let qMaq = supabase
-      .from("portal_nt_projetos_chassis")
-      .select("chassis, projeto, modelo, empresa, cnpj_cpf_ultimo")
+    // 1) Projetos (máquinas) do cliente — igual à Pasta Clientes
+    let qProj = supabase
+      .from("portal_nt_projetos_PRINCIPAL")
+      .select("codigo, nome, empresa, inativo")
       .eq("cod_cli_ultimo", cod);
-    if (empresa) qMaq = qMaq.eq("empresa", empresa);
-    const { data: maqRows, error: errMaq } = await qMaq;
-    if (errMaq) throw new Error(errMaq.message);
+    if (empresa) qProj = qProj.eq("empresa", empresa);
+    const { data: projRows, error: errProj } = await qProj;
+    if (errProj) throw new Error(errProj.message);
 
-    const chassisList = (maqRows || []).map(m => m.chassis).filter(Boolean);
-    if (!chassisList.length) {
+    const projetos = (projRows || []).filter(p => p.inativo !== "S" && p.nome);
+    if (!projetos.length) {
       return NextResponse.json({ maquinas: [] }, { headers: CORS });
     }
 
-    // 2) Última revisão de cada chassis (controle de revisão)
-    const { data: revisoes } = await supabase
-      .from("revisao_emails")
-      .select("chassis, horas, created_at")
-      .in("chassis", chassisList)
-      .order("created_at", { ascending: false });
-    const ultimaRevisao = new Map<string, { horas: string; data: string }>();
-    for (const r of revisoes || []) {
-      if (!ultimaRevisao.has(r.chassis)) {
-        ultimaRevisao.set(r.chassis, {
-          horas: String(r.horas || ""),
-          data: r.created_at || "",
-        });
-      }
-    }
-
-    // 3) OSs do cliente — último serviço que cita cada chassis
+    // 2) OS mais recente de cada projeto (último serviço)
+    const nomes = projetos.map(p => p.nome);
     let qOs = supabase
       .from("portal_nt_clientes_os")
-      .select("num_os, data_previsao, servicos")
-      .eq("cod_cli", cod)
+      .select("num_os, projeto, empresa, data_previsao, servicos, cancelada, status")
+      .in("projeto", nomes)
       .order("data_previsao", { ascending: false })
-      .limit(400);
+      .limit(500);
     if (empresa) qOs = qOs.eq("empresa", empresa);
     const { data: osRows } = await qOs;
 
-    const maquinas = (maqRows || []).map(m => {
-      let ultimoServico: {
-        num_os: string;
-        data: string;
-        resumo: string;
-      } | null = null;
-      for (const os of osRows || []) {
-        const servicos = parseServicos(os.servicos);
-        const cita = servicos.some(s =>
-          (s.desc || "").toLowerCase().includes(m.chassis.toLowerCase())
-        );
-        if (cita) {
-          ultimoServico = {
-            num_os: String(os.num_os || ""),
-            data: os.data_previsao || "",
-            resumo: resumoServico(servicos, m.chassis),
-          };
-          break; // já ordenado do mais recente pro mais antigo
+    const ultimaOs = new Map<string, { num_os: string; data: string; resumo: string }>();
+    for (const os of osRows || []) {
+      if (os.cancelada) continue;
+      const chave = `${os.projeto}|${os.empresa}`;
+      if (ultimaOs.has(chave)) continue; // já ordenado desc
+      ultimaOs.set(chave, {
+        num_os: String(os.num_os || ""),
+        data: os.data_previsao || "",
+        resumo: resumoServicos(parseServicos(os.servicos)),
+      });
+    }
+
+    // 3) Última revisão por chassis (controle de revisão)
+    const chassisList = nomes
+      .map(n => separarModeloChassis(n).chassis)
+      .filter(Boolean);
+    const ultimaRevisao = new Map<string, { horas: string; data: string }>();
+    if (chassisList.length) {
+      const { data: revisoes } = await supabase
+        .from("revisao_emails")
+        .select("chassis, horas, created_at")
+        .in("chassis", chassisList)
+        .order("created_at", { ascending: false });
+      for (const r of revisoes || []) {
+        if (!ultimaRevisao.has(r.chassis)) {
+          ultimaRevisao.set(r.chassis, {
+            horas: String(r.horas || ""),
+            data: r.created_at || "",
+          });
         }
       }
+    }
+
+    const maquinas = projetos.map(p => {
+      const { modelo, chassis } = separarModeloChassis(p.nome);
       return {
-        chassis: m.chassis,
-        modelo: m.modelo || "",
-        projeto: m.projeto || "",
-        empresa: m.empresa || "",
-        ultima_revisao: ultimaRevisao.get(m.chassis) || null,
-        ultimo_servico: ultimoServico,
+        projeto: p.nome,
+        modelo,
+        chassis,
+        empresa: p.empresa || "",
+        ultima_revisao: (chassis && ultimaRevisao.get(chassis)) || null,
+        ultimo_servico: ultimaOs.get(`${p.nome}|${p.empresa}`) || null,
       };
     });
 
