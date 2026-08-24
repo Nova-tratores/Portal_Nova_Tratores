@@ -36,6 +36,8 @@ export default function NotasEntradaPage() {
   const [mes, setMes] = useState(now.getMonth() + 1);
   const [ano, setAno] = useState(now.getFullYear());
   const [nf, setNf] = useState('');
+  const [fornecedor, setFornecedor] = useState('');
+  const [descricao, setDescricao] = useState('');
   const [pagina, setPagina] = useState(1);
   const [resp, setResp] = useState<NotasResp | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -49,12 +51,22 @@ export default function NotasEntradaPage() {
   const [valorPorId, setValorPorId] = useState<Record<number, number>>({});
   const [carregandoTodas, setCarregandoTodas] = useState(false);
 
+  // Filtros da busca: NF, fornecedor (nome_emitente) e/ou descrição do produto
+  // (varre os itens). Qualquer texto ignora o mês/ano; sem texto, usa mês/ano.
+  const filtrosParam = useMemo(() => {
+    const parts: string[] = [];
+    if (nf.trim()) parts.push(`nf=${encodeURIComponent(nf.trim())}`);
+    if (fornecedor.trim()) parts.push(`fornecedor=${encodeURIComponent(fornecedor.trim())}`);
+    if (descricao.trim()) parts.push(`descricao=${encodeURIComponent(descricao.trim())}`);
+    if (parts.length === 0) parts.push(`mes=${mes}`, `ano=${ano}`);
+    return '&' + parts.join('&');
+  }, [nf, fornecedor, descricao, mes, ano]);
+
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro('');
     try {
-      const nfParam = nf.trim() ? `&nf=${encodeURIComponent(nf.trim())}` : `&mes=${mes}&ano=${ano}`;
-      const r = await fetch(`/api/estoque/notas-entrada?pagina=${pagina}${nfParam}${contaParam}`);
+      const r = await fetch(`/api/estoque/notas-entrada?pagina=${pagina}${filtrosParam}${contaParam}`);
       const d = (await r.json()) as NotasResp;
       if (d.erro) { setErro(d.erro); return; }
       setResp(d);
@@ -63,9 +75,11 @@ export default function NotasEntradaPage() {
     } finally {
       setCarregando(false);
     }
-  }, [mes, ano, nf, pagina, contaParam]);
+  }, [filtrosParam, pagina, contaParam]);
 
-  useEffect(() => { carregar(); }, [carregar]);
+  // Debounce (300ms) — evita bater a cada tecla, sobretudo na busca por descrição
+  // (que varre os itens no servidor).
+  useEffect(() => { const t = setTimeout(() => { carregar(); }, 300); return () => clearTimeout(t); }, [carregar]);
 
   // Acumula os valores das notas que vão sendo exibidas (para somar a seleção).
   useEffect(() => {
@@ -78,7 +92,7 @@ export default function NotasEntradaPage() {
   }, [resp]);
 
   // Trocar de período / conta / busca limpa a seleção.
-  useEffect(() => { setSelecionados(new Set()); setValorPorId({}); }, [mes, ano, nf, contaParam]);
+  useEffect(() => { setSelecionados(new Set()); setValorPorId({}); }, [filtrosParam, contaParam]);
 
   const toggleSelecao = useCallback((id: number) => {
     setSelecionados((prev) => {
@@ -91,8 +105,7 @@ export default function NotasEntradaPage() {
   const selecionarTodasPeriodo = useCallback(async () => {
     setCarregandoTodas(true);
     try {
-      const nfParam = nf.trim() ? `&nf=${encodeURIComponent(nf.trim())}` : `&mes=${mes}&ano=${ano}`;
-      const r = await fetch(`/api/estoque/notas-entrada?todas=1${nfParam}${contaParam}`);
+      const r = await fetch(`/api/estoque/notas-entrada?todas=1${filtrosParam}${contaParam}`);
       const d = await r.json();
       if (d.erro) { alert(d.erro); return; }
       const notas = (d.notas || []) as Array<{ id: number; valor_nf: number }>;
@@ -107,7 +120,7 @@ export default function NotasEntradaPage() {
     } finally {
       setCarregandoTodas(false);
     }
-  }, [mes, ano, nf, contaParam]);
+  }, [filtrosParam, contaParam]);
 
   const limparSelecao = useCallback(() => setSelecionados(new Set()), []);
 
@@ -183,6 +196,14 @@ export default function NotasEntradaPage() {
         <div>
           <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Buscar NF</label>
           <input value={nf} onChange={(e) => { setNf(e.target.value); setPagina(1); }} placeholder="nº da NF" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 140 }} />
+        </div>
+        <div>
+          <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Fornecedor</label>
+          <input value={fornecedor} onChange={(e) => { setFornecedor(e.target.value); setPagina(1); }} placeholder="nome do emitente" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 200 }} />
+        </div>
+        <div>
+          <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Descrição do produto</label>
+          <input value={descricao} onChange={(e) => { setDescricao(e.target.value); setPagina(1); }} placeholder="ex.: filtro, óleo, engate" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 220 }} />
         </div>
         <button onClick={iniciarBackfill} disabled={backfill?.rodando} style={{ padding: '9px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#666', borderRadius: 8, fontSize: '.78rem', fontWeight: 600, cursor: backfill?.rodando ? 'not-allowed' : 'pointer', marginLeft: 'auto' }}>
           {backfill?.rodando ? 'Enriquecendo…' : 'Enriquecer emitente/categoria'}
