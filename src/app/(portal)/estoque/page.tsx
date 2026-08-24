@@ -1,7 +1,6 @@
 'use client';
 // Busca de produto (home do módulo Estoque). Portado de GET / (server.js:11887).
 import { useState, useCallback, useEffect } from 'react';
-import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -11,21 +10,14 @@ import CmcChart from '@/components/estoque/CmcChart';
 import { Card, InfoGrid, InfoItem, VendaCard, fmtRS } from '@/components/estoque/ui';
 import type { BuscarResult, HistoricoPonto } from '@/lib/estoque/types';
 
-const NAV = [
-  { href: '/estoque/dashboard', label: '→ Dashboard de Vendas' },
-  { href: '/estoque/notas-entrada', label: '→ Notas de Entrada' },
-  { href: '/estoque/cadastro-produto', label: '→ Cadastro de Produto' },
-  { href: '/estoque/curva-abc', label: '→ Curva ABC' },
-  { href: '/estoque/giro-estoque', label: '→ Giro de Estoque' },
-  { href: '/estoque/cruzamento-familia', label: '→ Cruzamento por Família' },
-];
+// Navegação do módulo migrou para o submenu central (EstoqueNav, injetado no layout).
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444' };
 
 export default function EstoqueBuscaPage() {
   const { userProfile } = useAuth();
-  const { temAcesso, pode, loading: permLoading } = usePermissoes(userProfile?.id);
+  const { temAcesso, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contaParam } = useConta();
 
   const [codigo, setCodigo] = useState('');
@@ -104,14 +96,6 @@ export default function EstoqueBuscaPage() {
     <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
       <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Consulta Estoque Omie</h1>
       <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 18 }}>Consulta produtos, estoque, vendas, compras e CMC</p>
-
-      <div style={{ marginBottom: 18, display: 'flex', gap: 18, flexWrap: 'wrap' }}>
-        {NAV.filter((n) => pode('estoque', n.href.replace('/estoque/', ''))).map((n) => (
-          <Link key={n.href} href={n.href} style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>
-            {n.label}
-          </Link>
-        ))}
-      </div>
 
       <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <input

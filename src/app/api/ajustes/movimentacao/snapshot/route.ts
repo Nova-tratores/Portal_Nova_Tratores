@@ -8,10 +8,10 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 120; // criar pode disparar a consulta Omie se o cache expirou
 
 // POST: cria um snapshot compartilhável da consulta. Body: {conta, idProd, de, ate}.
-// Exige login + acesso à página (ajustes / ajustes:movimentacao-produto).
+// Exige login + acesso à página (estoque / estoque:movimentacao-produto).
 export async function POST(req: NextRequest) {
   try {
-    const user = await exigirPermissao(req, 'ajustes', 'movimentacao-produto');
+    const user = await exigirPermissao(req, 'estoque', 'movimentacao-produto');
     const body = (await req.json().catch(() => ({}))) as { conta?: string; idProd?: number; de?: string; ate?: string };
     const conta = parseConta(body.conta ?? null) ?? CONTA_DEFAULT;
     const idProd = Number(body.idProd);
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
 // GET: lê um snapshot pelo hash (?hash=). 404 inexistente, 410 expirado.
 export async function GET(req: NextRequest) {
   try {
-    await exigirPermissao(req, 'ajustes', 'movimentacao-produto');
+    await exigirPermissao(req, 'estoque', 'movimentacao-produto');
     const hash = req.nextUrl.searchParams.get('hash') || '';
     const snap = await lerSnapshotMovimentacao(hash);
     if (!snap) return NextResponse.json({ erro: 'snapshot não encontrado' }, { status: 404 });

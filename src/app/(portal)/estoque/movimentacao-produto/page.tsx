@@ -238,7 +238,7 @@ export default function MovimentacaoProdutoPage() {
       });
       const d = await r.json();
       if (!r.ok || d.erro) { setCompartilhaMsg('falhou: ' + (d.erro || r.status)); return; }
-      const url = `${window.location.origin}/ajustes/movimentacao-produto?s=${d.hash}`;
+      const url = `${window.location.origin}/estoque/movimentacao-produto?s=${d.hash}`;
       let copiou = true;
       try { await navigator.clipboard.writeText(url); } catch { copiou = false; }
       setCompartilhaMsg(copiou ? 'link copiado! (vale 30 dias)' : url);
@@ -333,7 +333,7 @@ export default function MovimentacaoProdutoPage() {
     URL.revokeObjectURL(a.href);
   }, [dados, movsView, produtoSel, de, ate]);
 
-  if (!permLoading && userProfile && !pode('ajustes', 'movimentacao-produto')) return <SemPermissao />;
+  if (!permLoading && userProfile && !pode('estoque', 'movimentacao-produto')) return <SemPermissao />;
 
   const resumo = dados?.resumo;
   // Conta efetiva: em modo snapshot vale a conta do próprio retrato, mesmo que o
