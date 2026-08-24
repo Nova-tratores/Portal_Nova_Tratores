@@ -155,7 +155,11 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     } catch { /* segue */ }
   }, [])
   const mudarAjuste = (eixo: 'x' | 'y', v: number) => {
-    const n = Math.round(Math.max(-12, Math.min(12, v)) * 2) / 2 // passo de 0,5mm
+    // ±25mm na vertical: impressora que empurra a página uma etiqueta inteira
+    // pra baixo precisa de -12mm ou mais, e o limite antigo (a própria margem)
+    // não alcançava justamente o caso real.
+    const lim = eixo === 'y' ? 25 : 15
+    const n = Math.round(Math.max(-lim, Math.min(lim, v)) * 2) / 2 // passo de 0,5mm
     if (eixo === 'x') setAjusteX(n); else setAjusteY(n)
     try { localStorage.setItem(`etiquetas_ajuste_${eixo}`, String(n)) } catch { /* segue */ }
   }
@@ -728,10 +732,10 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
                 acertar o diálogo. Folha pré-cortada não perdoa 2mm. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12, paddingTop: 10, borderTop: '1px dashed var(--portal-border)' }}>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)' }}>Saiu deslocado? Ajuste fino (mm):</span>
-              {([['x', 'Horizontal', ajusteX, '+ direita'], ['y', 'Vertical', ajusteY, '+ desce']] as const).map(([eixo, rotulo, valor, sentido]) => (
+              {([['x', 'Horizontal', ajusteX, '+ direita', 15], ['y', 'Vertical', ajusteY, '+ desce', 25]] as const).map(([eixo, rotulo, valor, sentido, lim]) => (
                 <label key={eixo} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--portal-text-secondary)' }}>
                   {rotulo}
-                  <input type="number" step={0.5} min={-12} max={12} value={valor}
+                  <input type="number" step={0.5} min={-lim} max={lim} value={valor}
                     onChange={e => mudarAjuste(eixo, Number(e.target.value))}
                     style={{ width: 62, padding: '3px 6px', fontSize: 12, fontWeight: 700, textAlign: 'right', borderRadius: 5, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
                   <span style={{ fontSize: 10.5, color: 'var(--portal-text-muted)' }}>{sentido}</span>
@@ -743,8 +747,12 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
                   zerar
                 </button>
               )}
-              <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', flex: '1 1 260px', minWidth: 0 }}>
-                Meça na folha impressa quanto o texto saiu fora do picote e ponha aqui com o sinal contrário.
+              <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', flex: '1 1 100%', minWidth: 0, lineHeight: 1.5 }}>
+                Antes de gastar adesivo: imprima em <strong>papel comum</strong> e sobreponha à folha adesiva contra a luz.
+                {' '}Essa folha sai com uma <strong>régua de 100mm</strong> embaixo — se ela medir menos que 100mm, a impressora está
+                {' '}<strong>reduzindo</strong> a página (papel errado no diálogo) e o ajuste abaixo não resolve, porque o erro cresce a cada linha.
+                {' '}Se a régua medir certo, meça quantos mm o texto saiu fora do picote e ponha aqui com o <strong>sinal contrário</strong>
+                {' '}— desceu 12mm, use −12.
               </span>
             </div>
           </div>

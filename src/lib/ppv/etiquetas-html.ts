@@ -303,13 +303,17 @@ export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: Opc
   // onde ela é necessária. A etiqueta continua 66,675×25,4mm nos dois modos.
   const vaoCol = off.tracejado ? 0 : 3.175
   const ladoBase = off.tracejado ? 7.93 : 4.76
-  // Realoca as margens pelo offset (mantém o tamanho da etiqueta intacto).
-  // Limite = a própria margem: padding negativo é CSS inválido e derrubaria a
-  // regra inteira (o shorthand tem 4 valores), estourando o layout da folha.
-  const ox = Math.max(-(ladoBase - 0.3), Math.min(ladoBase - 0.3, off.x || 0))
-  const oy = Math.max(-12.4, Math.min(12.4, off.y || 0))
-  const padTop = (12.7 + oy).toFixed(2), padBot = (12.7 - oy).toFixed(2)
-  const padLeft = (ladoBase + ox).toFixed(2), padRight = (ladoBase - ox).toFixed(2)
+  // Deslocamento da folha inteira por TRANSLATE, não por margem: mexer no
+  // padding limitava a correção ao tamanho da própria margem (12,7mm), e
+  // padding negativo é CSS inválido — derrubaria o shorthand inteiro e
+  // estouraria o layout. Impressora que joga a página 12mm pra baixo precisa
+  // de -12mm, ou seja, EXATAMENTE o limite que a margem não alcançava.
+  // Translate não tem esse teto e não mexe no tamanho da etiqueta.
+  const ox = Math.max(-15, Math.min(15, off.x || 0))
+  const oy = Math.max(-25, Math.min(25, off.y || 0))
+  const desloc = ox || oy ? `transform: translate(${ox}mm, ${oy}mm);` : ''
+  const padTop = '12.70', padBot = '12.70'
+  const padLeft = ladoBase.toFixed(2), padRight = ladoBase.toFixed(2)
 
   const barraComQr = !!off.barraComQr
   const cel = (e: BlocoEtiqueta | null) => {
@@ -370,12 +374,27 @@ ${blocosTexto(e, false)}
     -webkit-font-smoothing: antialiased;
   }
   .pagina {
+    position: relative;
     width: 215.9mm; height: 279.4mm; padding: ${padTop}mm ${padRight}mm ${padBot}mm ${padLeft}mm;
+    ${desloc}
     display: grid; grid-template-columns: repeat(3, 66.675mm);
     grid-auto-rows: 25.4mm; column-gap: ${vaoCol}mm; row-gap: 0;
     page-break-after: always;
   }
   .pagina:last-child { page-break-after: auto; }
+  /* RÉGUA DE 100mm na margem de baixo (só no papel comum, onde não custa
+     adesivo). É o que separa as duas causas de desalinhamento: se a régua
+     impressa medir 100mm, a impressora está em 1:1 e o problema é só
+     deslocamento (resolve no ajuste fino); se medir menos — 97,3mm é o que dá
+     quando o papel está em A4 —, a impressora está REDUZINDO a folha, e aí
+     nenhum ajuste resolve: o erro cresce a cada linha. Feita de BORDAS porque
+     borda imprime mesmo com "gráficos de fundo" desligado. */
+  .regua { position: absolute; left: ${ladoBase}mm; bottom: 3.6mm; display: flex; align-items: flex-end; gap: 2.5mm; }
+  .regua .tiques { display: flex; width: 100mm; height: 2.6mm; border: 0.3mm solid #111; border-top: none; }
+  .regua i { flex: 1 1 0; border-left: 0.3mm solid #111; }
+  .regua i:first-child { border-left: none; }
+  .regua b { font: 700 6pt/1 Arial, sans-serif; color: #111; }
+  .regua u { font: 400 6pt/1 Arial, sans-serif; color: #555; text-decoration: none; }
   /* ÁREA DE SEGURANÇA (margem de erro de impressão): o conteúdo respira 2,6mm
      do corte de cima, 2,4mm de baixo e 3,4mm das laterais — folha entrando
      torta ou impressora puxando o papel alguns milímetros continua imprimindo
@@ -491,7 +510,8 @@ ${blocosTexto(e, false)}
 <div class="dica">No diálogo de impressão: Papel = <u>Carta</u> · Margens = <u>Nenhuma</u> · Escala = <u>100%</u>
   <span>— com papel A4 a folha sai 2,7% menor e ~12,6mm mais baixa, e o texto cai na etiqueta de baixo.</span></div>
 ${paginas.map(cels => `  <div class="pagina">
-${cels.map(cel).join('\n')}
+${cels.map(cel).join('\n')}${off.tracejado ? `
+    <div class="regua"><span class="tiques">${'<i></i>'.repeat(10)}</span><b>100 mm</b><u>meça com régua: menos que isso = a impressora está reduzindo a folha</u></div>` : ''}
   </div>`).join('\n')}
 <script>
 // AJUSTE FINO DA FONTE: o servidor manda um tamanho de partida e aqui o
