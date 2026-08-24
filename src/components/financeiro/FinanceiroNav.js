@@ -43,7 +43,10 @@ const LINKS_PECAS = [
   { label: 'Vencidos', href: '/financeiro/vencidos', icon: 'vencidos' },
 ]
 
-export default function FinanceiroNav({ children }) {
+// `children` é um slot opcional à direita das guias. O default explícito é o
+// que permite chamar <FinanceiroNav /> de uma tela .tsx sem o TS exigir a prop
+// (este arquivo é .js, então o tipo é inferido da assinatura).
+export default function FinanceiroNav({ children = null }) {
   const pathname = usePathname()
   const { userProfile } = useAuth()
   const [vencidosCount, setVencidosCount] = useState(0)
