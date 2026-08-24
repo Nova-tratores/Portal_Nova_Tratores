@@ -1,0 +1,25 @@
+name: Estoque - Enriquecer notas de entrada (emitente/categoria, diário)
+
+# Preenche automaticamente o nome do emitente (fornecedor) e a categoria das
+# notas_entrada em toda a história (NOVA + CASTRO), varrendo todos os meses desde
+# 11/2022. É o equivalente automático do botão "Enriquecer emitente/categoria" da
+# tela /estoque/notas-entrada. Roda depois do sync-compras (03:30 BRT) para pegar
+# também as notas recém-sincronizadas.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '30 7 * * *'    # 07:30 UTC = 04:30 BRT
+  workflow_dispatch: {}       # permite rodar manualmente
+
+jobs:
+  enriquecer-notas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Disparar enriquecimento de notas de entrada (desde 11/2022)
+        run: |
+          curl -fsS --max-time 900 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/enriquecer-notas" \
+            -w "\nenriquecer-notas: HTTP %{http_code}\n"

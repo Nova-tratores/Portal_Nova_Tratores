@@ -103,8 +103,11 @@ async function buscarNFeEntradaMes(deStr: string, ateStr: string, conta: Conta):
         const total = (n.total || {}) as Record<string, unknown>;
         const icms = (total.ICMSTot || {}) as Record<string, unknown>;
         const nfEmitInt = (n.nfEmitInt || {}) as Record<string, unknown>;
+        const compl = (n.compl || {}) as Record<string, unknown>;
         notasCompletas.push({
-          ncod_nf: (ide.nCodNF as number) || (n.nCodNF as number) || null,
+          // Código interno da NF p/ o DANFE: nas NF de entrada fica em compl.nIdNF
+          // (ide.nCodNF costuma vir vazio) — mesma cadeia defensiva do módulo de saída.
+          ncod_nf: (ide.nCodNF as number) || (compl.nIdNF as number) || (n.nCodNF as number) || null,
           ncod_emp_emit: (nfEmitInt.nCodEmp as number) || null,
           numero_nf: nf,
           serie: String(ide.serie || ''),
@@ -385,10 +388,11 @@ async function popularComprasConta(conta: Conta, de: string, ate: string, janela
 
 /**
  * Dispara o popular-compras em background para as contas alvo (lock per-conta).
- * Período: 01/01/2023 até hoje (mesmo do monolito). Portado de /api/popular-compras.
+ * Período: 01/11/2022 até hoje (alinha com contas.dataInicio = 11/2022; antes era
+ * 01/01/2023 e Nov/Dez 2022 nunca eram buscados). Portado de /api/popular-compras.
  */
 export function iniciarPopularCompras(contasAlvo: Conta[]): { contasIniciadas: Conta[]; contasPuladas: Conta[] } {
-  const de = '01/01/2023';
+  const de = '01/11/2022';
   const ate = fmtD(new Date());
   const validas = contasAlvo.length > 0 ? contasAlvo : getContasOmie().map((c) => c.id);
   const aIniciar = validas.filter((c) => !getSyncState(c).rodando);

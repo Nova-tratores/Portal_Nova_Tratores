@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   try {
     const url = await getUrlDanfe(
-      { ncod_nf: sp.get('ncod_nf') || undefined, numero_nf: sp.get('numero_nf') || undefined, serie: sp.get('serie') || undefined },
+      { ncod_nf: sp.get('ncod_nf') || undefined, numero_nf: sp.get('numero_nf') || undefined, serie: sp.get('serie') || undefined, chave: sp.get('chave') || undefined },
       conta ?? CONTA_DEFAULT,
     );
     return NextResponse.json({ url });
