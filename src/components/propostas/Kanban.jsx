@@ -142,12 +142,14 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
 
   // Cards de resumo — SEMPRE sobre o que está filtrado na tabela (atualizam sozinhos).
   const resumo = useMemo(() => {
-    const a = { criN: 0, criV: 0, fabN: 0, fabV: 0, bancoN: 0, bancoV: 0 }
+    const a = { criN: 0, criV: 0, fabN: 0, fabV: 0, bancoN: 0, bancoV: 0, prevV: 0 }
     for (const c of filtradas) {
       const v = parseValor(c.Valor_Total)
       a.criN++; a.criV += v
       if (c.fabrica_pedido_id != null) { a.fabN++; a.fabV += v }
       if (c.status === 'AGUARDANDO RESPOSTA BANCO') { a.bancoN++; a.bancoV += v }
+      // Previsão de faturamento: só em aberto, ponderada pelo termômetro (ou prob. da fase).
+      if (STATUS_ABERTO.includes(c.status)) a.prevV += v * (termoValor(c) / 100)
     }
     return a
   }, [filtradas])
@@ -230,7 +232,12 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       </div>
 
       {/* CARDS DE RESUMO — sempre sobre o que está filtrado; clicar aplica o filtro */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+        <div className="text-left border border-red-200 rounded-xl p-4 bg-red-50/40">
+          <div className="text-[11px] font-bold text-red-400 uppercase tracking-wide">Previsão de faturamento</div>
+          <div className="text-xl font-bold mt-1 text-red-600">R$ {formatBRL(resumo.prevV)}</div>
+          <div className="text-xs text-zinc-500 mt-0.5">ponderada pelo termômetro (em aberto)</div>
+        </div>
         <ResumoCard titulo="Criadas (no filtro)" n={resumo.criN} valor={resumo.criV} cor="text-zinc-800"
           ativo={!filtroStatus && !soFab} onClick={() => { setFiltroStatus(''); setSoFab(false) }} />
         <ResumoCard titulo="Previsão faturamento fábrica" n={resumo.fabN} valor={resumo.fabV} cor="text-blue-600"

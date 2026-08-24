@@ -18,6 +18,8 @@ function parseValor(val) {
   return isNaN(n) ? 0 : n
 }
 const formatBRL = (v) => parseValor(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+// Chance de fechar (0-100): termômetro manual, ou probabilidade da fase quando não definido.
+const termoValor = (c) => (c.termometro != null && c.termometro !== '') ? Number(c.termometro) : Math.round((Number(c.probabilidade) || 0) * 100)
 
 const JANELAS = [
   { k: '30', label: 'Últimos 30 dias', dias: 30 },
@@ -42,7 +44,7 @@ export default function ResumoPropostas() {
     (async () => {
       setLoading(true)
       const { data } = await supabase.from('v_formulario')
-        .select('id,criado_em,vendedor_nome,Marca,Modelo,Cidade,status,Valor_Total,fabrica_pedido_id')
+        .select('id,criado_em,vendedor_nome,Marca,Modelo,Cidade,status,Valor_Total,fabrica_pedido_id,termometro,probabilidade')
         .is('deleted_at', null)
       setCards(data || [])
       setLoading(false)
@@ -83,13 +85,14 @@ export default function ResumoPropostas() {
 
   // KPIs do período (independem do agrupamento). "Feito em fábrica" = proposta com pedido vinculado.
   const kpis = useMemo(() => {
-    const a = { totN: 0, totV: 0, vendN: 0, vendV: 0, fabN: 0, fabV: 0, perdN: 0, perdV: 0 }
+    const a = { totN: 0, totV: 0, vendN: 0, vendV: 0, fabN: 0, fabV: 0, perdN: 0, perdV: 0, prevV: 0 }
     for (const c of filtrados) {
       const v = parseValor(c.Valor_Total)
       a.totN++; a.totV += v
       if (c.status === STATUS_VENDIDO) { a.vendN++; a.vendV += v }
       if (c.status === STATUS_PERDIDO) { a.perdN++; a.perdV += v }
       if (c.fabrica_pedido_id != null) { a.fabN++; a.fabV += v }
+      if (STATUS_ABERTO.includes(c.status)) a.prevV += v * (termoValor(c) / 100)  // previsão ponderada
     }
     return a
   }, [filtrados])
@@ -132,6 +135,15 @@ export default function ResumoPropostas() {
           <span className="text-xs font-bold text-zinc-400 uppercase tracking-wide mr-1">Agrupar por:</span>
           {DIMS.map(d => <button key={d.k} onClick={() => setDim(d.k)} className={`${btn(dim === d.k)} inline-flex items-center gap-1.5`}><d.Icon size={14} /> {d.label}</button>)}
         </div>
+      </div>
+
+      {/* PREVISÃO DE FATURAMENTO (ponderada pelo termômetro) */}
+      <div className="border border-red-200 rounded-xl p-4 bg-red-50/40 mb-3 flex items-baseline justify-between flex-wrap gap-2">
+        <div>
+          <div className="text-[11px] font-bold text-red-400 uppercase tracking-wide">Previsão de faturamento</div>
+          <div className="text-xs text-zinc-500">propostas em aberto, ponderadas pelo termômetro (ou probabilidade da fase)</div>
+        </div>
+        <div className="text-2xl font-bold text-red-600">R$ {formatBRL(kpis.prevV)}</div>
       </div>
 
       {/* KPIs DO PERÍODO */}
