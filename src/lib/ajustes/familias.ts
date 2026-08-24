@@ -31,6 +31,8 @@ export interface ProdutoFamilia {
   descricao: string;
   codigo_familia: number | null;
   familia_nome: string;
+  valorUnitario?: number;
+  dataInclusao?: string; // DD/MM/AAAA (info.dInc do ListarProdutos)
 }
 
 /** Famílias cadastradas da conta (tem o codigo_familia numérico, ao contrário
@@ -91,6 +93,8 @@ interface OmieProdCad {
   codigo?: string;
   descricao?: string;
   codigo_familia?: number;
+  valor_unitario?: number;
+  info?: { dInc?: string };
   inativo?: string;
   bloqueado?: string;
 }
@@ -138,6 +142,8 @@ export async function listarSemFamilia(
         descricao: String(p.descricao || ''),
         codigo_familia: null,
         familia_nome: '',
+        valorUnitario: Number(p.valor_unitario) || 0,
+        dataInclusao: p.info?.dInc || '',
       });
     }
     pagina++;

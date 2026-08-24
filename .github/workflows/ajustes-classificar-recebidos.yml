@@ -1,0 +1,31 @@
+name: Ajustes - Classificar produtos recebidos (robô)
+
+# Robô diário: produtos recém-recebidos SEM FAMÍLIA e com valor < R$10.000 →
+# família "Peças" + sugere o "Tipo:" + cria tarefas (confirmar localização/Tipo)
+# para o responsável de peças em /tarefas.
+# Chama /api/ajustes/cron/classificar-recebidos (fire-and-forget). 1×/dia às 08:00
+# UTC (~05:00 BRT), fora dos outros crons. Requer secrets PORTAL_URL e CRON_SECRET.
+
+on:
+  workflow_dispatch:
+    inputs:
+      conta:
+        description: 'Limitar a uma conta (NOVA/CASTRO); vazio = as duas'
+        required: false
+        default: ''
+  schedule:
+    - cron: '0 8 * * *'   # diário 08:00 UTC ≈ 05:00 BRT
+
+jobs:
+  classificar-recebidos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Disparar robô de classificação
+        run: |
+          Q=""
+          if [ -n "${{ github.event.inputs.conta }}" ]; then Q="?conta=${{ github.event.inputs.conta }}"; fi
+          curl -sS --max-time 600 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/ajustes/cron/classificar-recebidos${Q}" \
+            -w "\nclassificar-recebidos: HTTP %{http_code} em %{time_total}s\n" || echo "curl encerrou (fire-and-forget: o servidor continua)"
