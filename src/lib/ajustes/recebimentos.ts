@@ -13,7 +13,7 @@ import { supabase } from './supabase';
 import * as cache from './cache';
 import { getConfig } from './config';
 import { analisarRecebimentosPendentes } from './analise';
-import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos } from './omie';
+import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos, formatarCfopEntrada } from './omie';
 import type { AlterarCabecArgs } from './omie';
 import { hoje, addDias, fmtBR, parseAnyDate } from './dates';
 
@@ -380,7 +380,7 @@ export async function obterMapaCfopEntrada(conta: Conta): Promise<Record<string,
     .from('cfop_entrada_map').select('ncm,cfop_saida,cfop_entrada').eq('conta_omie', contaLow(conta));
   if (error) { console.warn('[receb] obterMapaCfopEntrada:', error.message); return {}; }
   const out: Record<string, string> = {};
-  for (const r of (data || []) as any[]) out[chaveCfop(r.ncm, r.cfop_saida)] = String(r.cfop_entrada);
+  for (const r of (data || []) as any[]) out[chaveCfop(r.ncm, r.cfop_saida)] = formatarCfopEntrada(r.cfop_entrada);
   return out;
 }
 
