@@ -104,14 +104,17 @@ export async function buscarComprasLista(id: number | string, conta: ContaFiltro
   const nfs = [...new Set(compras.map((c) => c.nf).filter(Boolean))];
   if (nfs.length > 0) {
     const { data: notasNF } = await filtroConta(
-      supabase.from('notas_entrada').select('numero_nf,emitente').in('numero_nf', nfs),
+      supabase.from('notas_entrada').select('numero_nf,nome_emitente,emitente').in('numero_nf', nfs),
       conta,
     );
     if (notasNF) {
+      // Nome do fornecedor: coluna dedicada `nome_emitente` (enriquecida) e, como
+      // fallback, o JSON `emitente` cru da NFe (xNome/xFant). As chaves antigas
+      // nome_fantasia/razao_social não existem nesse JSON — por isso vinha vazio.
       const emiMap: Record<string, string> = {};
-      notasNF.forEach((n: { numero_nf: unknown; emitente?: { nome_fantasia?: string; razao_social?: string } }) => {
+      notasNF.forEach((n: { numero_nf: unknown; nome_emitente?: string; emitente?: { xNome?: string; xFant?: string } }) => {
         const e = n.emitente || {};
-        emiMap[String(n.numero_nf)] = e.nome_fantasia || e.razao_social || '';
+        emiMap[String(n.numero_nf)] = n.nome_emitente || e.xNome || e.xFant || '';
       });
       compras.forEach((c) => { c.fornecedor = emiMap[c.nf] || ''; });
     }
