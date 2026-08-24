@@ -14,6 +14,7 @@ export default function MotivoPerdaModal({ proposta, onClose, onSaved }) {
   const [motivoId, setMotivoId] = useState('')
   const [concorrente, setConcorrente] = useState('')
   const [concorrenteValor, setConcorrenteValor] = useState('')
+  const [obs, setObs] = useState('')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -33,6 +34,7 @@ export default function MotivoPerdaModal({ proposta, onClose, onSaved }) {
       motivo_perda_id: Number(motivoId),
       concorrente: concorrente.trim() || null,
       concorrente_valor: concorrenteValor ? Number(concorrenteValor) : null,
+      motivo_perda_obs: obs.trim() || null,
     }
     const { error } = await supabase.from('Formulario').update(patch).eq('id', proposta.id)
     setSaving(false)
@@ -74,6 +76,11 @@ export default function MotivoPerdaModal({ proposta, onClose, onSaved }) {
               </div>
             </div>
           )}
+
+          <div className="flex flex-col gap-1.5">
+            <label className="text-[11px] font-bold text-zinc-500 uppercase tracking-wide">Observações (mais informações)</label>
+            <textarea value={obs} onChange={e => setObs(e.target.value)} rows={3} className={`${inputStyle} resize-none`} placeholder="Contexto, o que faltou, próximos passos..." />
+          </div>
         </div>
 
         <div className="px-6 py-4 border-t border-zinc-200 flex gap-3 justify-end">

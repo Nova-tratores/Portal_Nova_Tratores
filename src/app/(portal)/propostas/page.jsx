@@ -5,7 +5,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { supabase } from '@/lib/supabase'
-import { Plus, Trash2, RefreshCw, Factory, Users, FileDown, Menu, ChevronDown, List, LayoutGrid, Check } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, Factory, Users, FileDown, Menu, ChevronDown, List, LayoutGrid, Check, BarChart3 } from 'lucide-react'
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import dynamic from 'next/dynamic'
 
@@ -24,6 +24,7 @@ const TratorEditModal = dynamic(() => import('@/components/propostas/TratorEditM
 const AutopropelidoModal = dynamic(() => import('@/components/propostas/AutopropelidoModal'), { ssr: false })
 const AutopropelidoEditModal = dynamic(() => import('@/components/propostas/AutopropelidoEditModal'), { ssr: false })
 const Lixeira = dynamic(() => import('@/components/propostas/Lixeira'), { ssr: false })
+const ResumoPropostas = dynamic(() => import('@/components/propostas/ResumoPropostas'), { ssr: false })
 
 // Parse seguro de valor monetário
 function parseValor(val) {
@@ -215,6 +216,7 @@ function PropostaComercialPageInner() {
   const tabs = [
     { id: 'clientes', label: 'Propostas Cliente', icon: <Users size={14} /> },
     { id: 'fabrica', label: 'Pedidos Fabrica', icon: <Factory size={14} /> },
+    { id: 'resumo', label: 'Resumo', icon: <BarChart3 size={14} /> },
     ...(podeExcluir ? [{ id: 'lixeira', label: 'Lixeira', icon: <Trash2 size={14} /> }] : []),
   ]
 
@@ -254,7 +256,7 @@ function PropostaComercialPageInner() {
           </div>
 
           {/* BARRA DE ACOES */}
-          {view !== 'lixeira' && (
+          {view !== 'lixeira' && view !== 'resumo' && (
           <div className="bg-white border border-zinc-200 p-3 rounded-xl">
             <div className="flex items-center gap-2 flex-wrap">
               {/* MENU (Cadastrar/Editar + utilitários) */}
@@ -330,6 +332,8 @@ function PropostaComercialPageInner() {
       <div className="px-6 mt-4 w-full">
         {view === 'lixeira' ? (
           <Lixeira embed />
+        ) : view === 'resumo' ? (
+          <ResumoPropostas />
         ) : view === 'fabrica' ? (
           <FactoryKanban onCardClick={(p) => handleCardClick(p, 'fab')} />
         ) : (

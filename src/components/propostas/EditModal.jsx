@@ -1,11 +1,12 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import jsPDF from 'jspdf'
 import QRCode from 'qrcode'
-import { Copy, Trash2, FileDown, X, History } from 'lucide-react'
+import { Copy, Trash2, FileDown, X, History, Search, Link2, Unlink } from 'lucide-react'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import HistoricoProposta from './HistoricoProposta'
+import { STATUS_PERDIDO } from './MotivoPerdaModal'
 
 // Colunas que só existem na view v_formulario (aging/cores). NÃO podem ir num
 // INSERT/UPDATE da tabela "Formulario" — o PostgREST recusa coluna inexistente.
@@ -18,6 +19,11 @@ export default function EditModal({ proposal, onClose }) {
   const [assinaturaDiretor, setAssinaturaDiretor] = useState(null)
   const [showHist, setShowHist] = useState(false)
   const [listaVendedores, setListaVendedores] = useState([])
+  const [listaMotivos, setListaMotivos] = useState([])
+  const [listaPedidos, setListaPedidos] = useState([])   // pedidos de fábrica (p/ vincular)
+  const [buscaPed, setBuscaPed] = useState('')
+  const [showPed, setShowPed] = useState(false)
+  const pedRef = useRef(null)
   const { log } = useAuditLog()
 
   // Tipo GUARDADO na proposta; propostas antigas (sem tipo) caem no palpite pelos campos preenchidos.
@@ -43,6 +49,41 @@ export default function EditModal({ proposal, onClose }) {
     if (data) setAssinaturaDiretor(data.assinatura_url)
     const { data: vends } = await supabase.from('vendedores').select('id,nome').eq('ativo', true).order('nome')
     if (vends) setListaVendedores(vends)
+    const { data: mots } = await supabase.from('motivo_perda').select('*').eq('ativo', true).order('id')
+    if (mots) setListaMotivos(mots)
+    const { data: peds } = await supabase.from('v_proposta_fabrica').select('id,cliente,marca,modelo,status').order('id', { ascending: false })
+    if (peds) setListaPedidos(peds)
+  }
+
+  // Fecha o dropdown de busca de pedido ao clicar fora.
+  useEffect(() => {
+    const onDoc = (e) => { if (pedRef.current && !pedRef.current.contains(e.target)) setShowPed(false) }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  // Pedido de fábrica atualmente vinculado (id_fabrica_ref -> Proposta_Fabrica.id).
+  const pedidoVinculado = listaPedidos.find(p => String(p.id) === String(formData.id_fabrica_ref || ''))
+
+  // Vincular/desvincular são AÇÕES IMEDIATAS (como lixeira/duplicar): gravam e recarregam.
+  const vincularPedido = async (ped) => {
+    const { error } = await supabase.from('Formulario').update({ id_fabrica_ref: String(ped.id) }).eq('id', proposal.id)
+    if (error) { alert('Erro ao vincular: ' + error.message); return }
+    await log({ sistema: 'Proposta Comercial', acao: 'editar', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: formData.Cliente, detalhes: { alteracoes: [{ campo: 'id_fabrica_ref', de: String(formData.id_fabrica_ref || ''), para: String(ped.id) }] } })
+    alert('VINCULADO AO PEDIDO DE FÁBRICA #' + ped.id); window.location.reload()
+  }
+  const desvincularPedido = async () => {
+    const antigo = formData.id_fabrica_ref
+    if (!antigo) return
+    if (!confirm('Desvincular esta proposta do pedido de fábrica #' + antigo + '?')) return
+    const { error } = await supabase.from('Formulario').update({ id_fabrica_ref: '' }).eq('id', proposal.id)
+    if (error) { alert('Erro ao desvincular: ' + error.message); return }
+    // O trigger só LIGA convertido; ao desvincular, desliga se nenhuma proposta ATIVA
+    // (não deletada) referencia mais o pedido.
+    const { count } = await supabase.from('Formulario').select('id', { count: 'exact', head: true }).eq('id_fabrica_ref', String(antigo)).is('deleted_at', null)
+    if (!count) await supabase.from('Proposta_Fabrica').update({ convertido: false }).eq('id', Number(antigo))
+    await log({ sistema: 'Proposta Comercial', acao: 'editar', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: formData.Cliente, detalhes: { alteracoes: [{ campo: 'id_fabrica_ref', de: String(antigo), para: '' }] } })
+    alert('DESVINCULADO.'); window.location.reload()
   }
 
   const getImageDimensions = (url) => {
@@ -286,6 +327,8 @@ export default function EditModal({ proposal, onClose }) {
     // Envia só colunas graváveis de "Formulario" (tira as colunas só-de-view).
     const payload = semColsView(formData)
     payload.vendedor_id = formData.vendedor_id ? Number(formData.vendedor_id) : null  // FK vendedores(id) é inteiro
+    payload.motivo_perda_id = formData.motivo_perda_id ? Number(formData.motivo_perda_id) : null   // smallint: '' quebra
+    payload.concorrente_valor = formData.concorrente_valor ? Number(formData.concorrente_valor) : null  // numeric: '' quebra
     const { error } = await supabase.from('Formulario').update(payload).eq('id', proposal.id)
     if (!error) {
       if (alteracoes.length) await log({ sistema: 'Proposta Comercial', acao: 'editar', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: formData.Cliente || proposal.Cliente, detalhes: { alteracoes } })
@@ -425,6 +468,62 @@ export default function EditModal({ proposal, onClose }) {
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>CONDICOES DE PAGAMENTO</label><input value={formData.Condicoes || ''} onChange={e => setFormData({ ...formData, Condicoes: e.target.value })} className={inputStyle} /></div>
               </div>
             </div>
+
+            {/* IV. PEDIDO DE FÁBRICA — vincular/desvincular */}
+            <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">IV. PEDIDO DE FÁBRICA</div>
+            <div className="border border-zinc-200 rounded-xl bg-white p-3">
+              {formData.id_fabrica_ref ? (
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-sm text-zinc-700">
+                    <Link2 size={16} className="text-emerald-600 shrink-0" />
+                    Vinculada ao pedido <span className="font-bold">#{formData.id_fabrica_ref}</span>
+                    {pedidoVinculado && <span className="text-zinc-500">— {pedidoVinculado.cliente} · {pedidoVinculado.marca} {pedidoVinculado.modelo}</span>}
+                  </div>
+                  <button onClick={desvincularPedido} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 text-red-600 border border-red-200 text-xs font-semibold hover:bg-red-100 cursor-pointer"><Unlink size={14} /> Desvincular</button>
+                </div>
+              ) : (
+                <div className="relative" ref={pedRef}>
+                  <label className={labelStyle}>Vincular a um pedido de fábrica existente</label>
+                  <div className="relative mt-1">
+                    <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                    <input className="w-full bg-zinc-50 border border-zinc-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500/30" value={buscaPed} onFocus={() => setShowPed(true)} onChange={e => { setBuscaPed(e.target.value); setShowPed(true) }} placeholder="Buscar pedido por cliente, modelo ou #ID..." />
+                  </div>
+                  {showPed && (
+                    <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-zinc-200 z-[100] max-h-[240px] overflow-y-auto rounded-xl shadow-xl">
+                      {listaPedidos.filter(p => { const t = buscaPed.toLowerCase(); return !buscaPed || (p.cliente || '').toLowerCase().includes(t) || (p.modelo || '').toLowerCase().includes(t) || (p.marca || '').toLowerCase().includes(t) || String(p.id).includes(t) }).slice(0, 50).map(p => (
+                        <div key={p.id} className="px-3 py-2.5 cursor-pointer border-b border-zinc-100 hover:bg-red-50 text-sm" onClick={() => vincularPedido(p)}>
+                          <span className="font-bold text-zinc-700">#{p.id}</span> <span className="text-zinc-800">{p.cliente || 'sem cliente'}</span>
+                          <div className="text-[11px] text-zinc-500">{p.marca} {p.modelo} · {p.status}</div>
+                        </div>
+                      ))}
+                      {listaPedidos.length === 0 && <div className="px-3 py-3 text-sm text-zinc-400">Nenhum pedido de fábrica.</div>}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* V. DESFECHO — só quando a proposta está "não vendido" */}
+            {formData.status === STATUS_PERDIDO && (
+              <>
+                <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">V. DESFECHO — MOTIVO DA PERDA</div>
+                <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
+                  <div className="flex border-b border-zinc-100">
+                    <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>MOTIVO</label>
+                      <select value={formData.motivo_perda_id ?? ''} onChange={e => setFormData({ ...formData, motivo_perda_id: e.target.value })} className={`${inputStyle} cursor-pointer`}>
+                        <option value="">— selecione —</option>
+                        {listaMotivos.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                      </select>
+                    </div>
+                    <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>CONCORRENTE</label><input value={formData.concorrente || ''} onChange={e => setFormData({ ...formData, concorrente: e.target.value })} className={inputStyle} /></div>
+                    <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>VALOR DELES (R$)</label><input type="number" value={formData.concorrente_valor ?? ''} onChange={e => setFormData({ ...formData, concorrente_valor: e.target.value })} className={inputStyle} /></div>
+                  </div>
+                  <div className="flex">
+                    <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>OBSERVAÇÕES</label><textarea value={formData.motivo_perda_obs || ''} onChange={e => setFormData({ ...formData, motivo_perda_obs: e.target.value })} className="w-full border-none outline-none text-[15px] min-h-[70px] resize-none font-normal text-zinc-900" placeholder="Mais informações sobre a perda..." /></div>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

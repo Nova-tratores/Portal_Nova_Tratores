@@ -62,6 +62,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [perda, setPerda] = useState(null)   // proposta sendo marcada como "não vendido"
+  const [sort, setSort] = useState({ key: 'dias_na_fase', dir: 'desc' })   // default: mais parado primeiro
 
   const loadData = async () => {
     // Lê da view v_formulario (traz dias_na_fase/cores). Esconde a lixeira por deleted_at
@@ -108,6 +109,38 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       return matchBusca && matchStatus
     })
   }, [cards, busca, filtroStatus])
+
+  // Ordenação clicável do cabeçalho (A-Z / Z-A). Cada coluna extrai um valor comparável.
+  const sortGet = {
+    id: c => Number(c.id) || 0,
+    Cliente: c => (c.Cliente || '').toLowerCase(),
+    vendedor_nome: c => (c.vendedor_nome || '').toLowerCase(),
+    maquina: c => `${c.Marca || ''} ${c.Modelo || ''}`.trim().toLowerCase(),
+    Cidade: c => (c.Cidade || '').toLowerCase(),
+    valor: c => parseValor(c.Valor_Total),
+    status: c => statusLabel(c.status).toLowerCase(),
+    dias_na_fase: c => Number(c.dias_na_fase) || 0,
+  }
+  const toggleSort = (k) => setSort(s => s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' })
+
+  const ordenadas = useMemo(() => {
+    const get = sortGet[sort.key] || (() => 0)
+    return [...filtradas].sort((a, b) => {
+      const va = get(a), vb = get(b)
+      const cmp = (typeof va === 'number' && typeof vb === 'number') ? va - vb : String(va).localeCompare(String(vb), 'pt-BR')
+      return sort.dir === 'asc' ? cmp : -cmp
+    })
+  }, [filtradas, sort])
+
+  // Cabeçalho clicável com seta ▲/▼.
+  const Th = ({ k, label, className }) => {
+    const active = sort.key === k
+    return (
+      <th className={`${className} cursor-pointer select-none ${active ? '!text-red-600' : 'hover:text-zinc-700'}`} onClick={() => toggleSort(k)}>
+        <span className="inline-flex items-center gap-1">{label}{active && <span className="text-[10px]">{sort.dir === 'asc' ? '▲' : '▼'}</span>}</span>
+      </th>
+    )
+  }
 
   const getStatusStyle = (status) => {
     const col = COLUNAS.find(c => c.nome === status)
@@ -175,14 +208,14 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b-2 border-zinc-200">
-                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">ID</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Cliente</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Vendedor</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Marca / Modelo</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Cidade</th>
-                <th className="text-right px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Valor</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Status</th>
-                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Parado há</th>
+                <Th k="id" label="ID" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <Th k="Cliente" label="Cliente" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <Th k="vendedor_nome" label="Vendedor" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <Th k="maquina" label="Marca / Modelo" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <Th k="Cidade" label="Cidade" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <Th k="valor" label="Valor" className="text-right px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <Th k="status" label="Status" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <Th k="dias_na_fase" label="Parado há" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide w-[210px]">Alterar</th>
               </tr>
             </thead>
@@ -190,7 +223,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
               {filtradas.length === 0 ? (
                 <tr><td colSpan={9} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
               ) : (
-                filtradas.map(card => {
+                ordenadas.map(card => {
                   const isFromFactory = !!card.id_fabrica_ref
                   return (
                     <tr key={card.id} onClick={() => onCardClick(card)} className="border-b border-zinc-200 hover:bg-red-50/50 cursor-pointer transition-colors group">

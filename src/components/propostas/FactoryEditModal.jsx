@@ -1,6 +1,7 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { Search, Link2 } from 'lucide-react'
 
 // Colunas que só existem na view v_proposta_fabrica — não podem ir num UPDATE da tabela.
 const COLS_VIEW_FAB = ['dias_na_fase', 'cor_hex', 'cor_pasta', 'fase_ordem', 'eh_final', 'dias_atraso_eta']
@@ -9,6 +10,33 @@ const semColsViewFab = (obj) => { const o = { ...obj }; for (const k of COLS_VIE
 export default function FactoryEditModal({ order, onClose, onConvert }) {
   const [formData, setFormData] = useState(order || {})
   const isLocked = order.convertido
+  const [propVinc, setPropVinc] = useState(null)     // proposta cliente já vinculada a este pedido
+  const [listaProp, setListaProp] = useState([])     // propostas p/ vincular
+  const [buscaProp, setBuscaProp] = useState('')
+  const [showProp, setShowProp] = useState(false)
+  const propRef = useRef(null)
+
+  useEffect(() => {
+    (async () => {
+      const { data: vinc } = await supabase.from('Formulario').select('id,Cliente,status').eq('id_fabrica_ref', String(order.id)).is('deleted_at', null).maybeSingle()
+      setPropVinc(vinc || null)
+      // Candidatas a vincular: propostas não deletadas e ainda sem pedido de fábrica.
+      const { data: livres } = await supabase.from('Formulario').select('id,Cliente,Marca,Modelo,status,id_fabrica_ref').is('deleted_at', null).order('id', { ascending: false })
+      setListaProp((livres || []).filter(p => !p.id_fabrica_ref))
+    })()
+  }, [order.id])
+
+  useEffect(() => {
+    const onDoc = (e) => { if (propRef.current && !propRef.current.contains(e.target)) setShowProp(false) }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  const vincularProposta = async (prop) => {
+    const { error } = await supabase.from('Formulario').update({ id_fabrica_ref: String(order.id) }).eq('id', prop.id)
+    if (error) { alert('Erro ao vincular: ' + error.message); return }
+    alert('PEDIDO #' + order.id + ' VINCULADO À PROPOSTA #' + prop.id); window.location.reload()
+  }
 
   const handleUpdate = async () => {
     if (isLocked) return
@@ -26,7 +54,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
             <h2 className="text-base font-black text-zinc-900">
               {isLocked ? 'VISUALIZACAO DE REGISTRO' : 'EDICAO DE FABRICA'} #{formData.id}
             </h2>
-            {isLocked && <div className="bg-emerald-500 text-white text-[9px] px-2 py-0.5 rounded mt-1 font-black inline-block">CONVERTIDO EM PROPOSTA CLIENTE N {formData.proposta_id_gerada}</div>}
+            {propVinc && <div className="bg-emerald-500 text-white text-[9px] px-2 py-0.5 rounded mt-1 font-black inline-block">VINCULADO À PROPOSTA CLIENTE #{propVinc.id}</div>}
           </div>
           <button onClick={onClose} className="text-red-600 font-bold bg-transparent border-none cursor-pointer hover:text-red-800">FECHAR</button>
         </div>
@@ -58,6 +86,37 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
                   <label className="text-[8px] font-bold text-zinc-400">FASE ATUAL</label>
                   <input value={formData.status || ''} disabled={isLocked} className={inputStyle} />
                 </div>
+              </div>
+            </section>
+
+            <section className="bg-white rounded-xl border border-zinc-200 overflow-visible">
+              <div className="px-4 py-2.5 bg-zinc-50 text-[9px] font-extrabold text-zinc-400 border-b border-zinc-200">PROPOSTA DE CLIENTE VINCULADA</div>
+              <div className="p-4">
+                {propVinc ? (
+                  <div className="flex items-center gap-2 text-sm text-zinc-700">
+                    <Link2 size={16} className="text-emerald-600 shrink-0" />
+                    Vinculado à proposta <span className="font-bold">#{propVinc.id}</span> — {propVinc.Cliente || 'sem nome'}
+                  </div>
+                ) : (
+                  <div className="relative" ref={propRef}>
+                    <label className="text-[8px] font-bold text-zinc-400">VINCULAR A UMA PROPOSTA DE CLIENTE EXISTENTE (SEM PEDIDO)</label>
+                    <div className="relative mt-1">
+                      <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 pointer-events-none" />
+                      <input className="w-full bg-zinc-50 border border-zinc-200 rounded-lg pl-9 pr-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-red-500/30" value={buscaProp} onFocus={() => setShowProp(true)} onChange={e => { setBuscaProp(e.target.value); setShowProp(true) }} placeholder="Buscar por cliente, modelo ou #ID..." />
+                    </div>
+                    {showProp && (
+                      <div className="absolute top-full left-0 right-0 mt-1.5 bg-white border border-zinc-200 z-[100] max-h-[240px] overflow-y-auto rounded-xl shadow-xl">
+                        {listaProp.filter(p => { const t = buscaProp.toLowerCase(); return !buscaProp || (p.Cliente || '').toLowerCase().includes(t) || (p.Modelo || '').toLowerCase().includes(t) || (p.Marca || '').toLowerCase().includes(t) || String(p.id).includes(t) }).slice(0, 50).map(p => (
+                          <div key={p.id} className="px-3 py-2.5 cursor-pointer border-b border-zinc-100 hover:bg-red-50 text-sm" onClick={() => vincularProposta(p)}>
+                            <span className="font-bold text-zinc-700">#{p.id}</span> <span className="text-zinc-800">{p.Cliente || 'sem nome'}</span>
+                            <div className="text-[11px] text-zinc-500">{p.Marca} {p.Modelo} · {p.status}</div>
+                          </div>
+                        ))}
+                        {listaProp.length === 0 && <div className="px-3 py-3 text-sm text-zinc-400">Nenhuma proposta livre para vincular.</div>}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </section>
           </div>
