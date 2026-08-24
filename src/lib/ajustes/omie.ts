@@ -746,6 +746,16 @@ export function cfopEntradaEquivalente(cfopSaida: any): string | null {
   return `${primeiro}.${resto}`;
 }
 
+// A Omie EXIGE o CFOP no formato "X.XXX" (com ponto) no cCFOPEntrada. Se mandar só
+// digitos ("1653") ela RECUSA com "CFOP nao cadastrada [1653]" (testado em runtime).
+// Normaliza qualquer entrada (digitada, do mapa aprendido, etc.) para o formato aceito.
+export function formatarCfopEntrada(v: any): string {
+  const s = v == null ? '' : String(v);
+  const d = s.replace(/\D/g, '');
+  if (d.length < 4) return s; // formato inesperado: manda como veio (a Omie valida)
+  return `${d[0]}.${d.slice(1, 4)}`;
+}
+
 // AlterarRecebimento - edita itens de um recebimento ANTES de concluir.
 // itens: [{ nSequencia, cAcao ('EDITAR'|'IGNORAR'|'ASSOCIAR-PRODUTO'), nIdProdutoExistente,
 //           cCFOPEntrada, cNaoGerarFinanceiro ('S'/'N'), cNaoGerarMovEstoque ('S'/'N') }].
@@ -783,7 +793,7 @@ export async function alterarRecebimentoItens(conta: Conta, args: Record<string,
     if (cAcao !== 'EDITAR') return { itensIde };
 
     const ajustes: Record<string, any> = {};
-    if (it.cCFOPEntrada) ajustes.cCFOPEntrada = String(it.cCFOPEntrada);
+    if (it.cCFOPEntrada) ajustes.cCFOPEntrada = formatarCfopEntrada(it.cCFOPEntrada);
     if (it.cNaoGerarFinanceiro != null) ajustes.cNaoGerarFinanceiro = it.cNaoGerarFinanceiro === 'S' || it.cNaoGerarFinanceiro === true ? 'S' : 'N';
     if (it.cNaoGerarMovEstoque != null) ajustes.cNaoGerarMovEstoque = it.cNaoGerarMovEstoque === 'S' || it.cNaoGerarMovEstoque === true ? 'S' : 'N';
     // OBS: categoria/departamento NAO fazem parte de itensAjustes no Omie
