@@ -313,6 +313,24 @@ function valorCasaDescricao(valor: string, descToks: string[]): boolean {
   return vt.every((vw) => descToks.some((dw) => casaPalavra(vw, dw)));
 }
 
+/** Sugere o "Tipo:" de UM produto a partir da descrição (reusa o mesmo matcher do
+ *  botão "Sugerir Tipo:"). Retorna o candidato mais específico (ou null) + a lista.
+ *  Usado pelo robô de classificação de recebidos. */
+export async function sugerirTipoDaDescricao(conta: Conta, descricao: string): Promise<{ tipo: string | null; candidatos: string[] }> {
+  const descToks = tokenizar(descricao);
+  if (!descToks.length) return { tipo: null, candidatos: [] };
+  let vals: string[] = [];
+  try {
+    const cat = await listarCaracteristicas(conta);
+    const hit = (cat as any[]).find((x) => /tipo/i.test(String(x?.nome || '')));
+    vals = hit ? (hit.conteudosPermitidos || []) : [];
+  } catch (e: any) { console.warn('[sugerirTipoDaDescricao] catalogo:', e?.message); }
+  if (!vals.length) return { tipo: null, candidatos: [] };
+  const candidatos = vals.filter((v) => valorCasaDescricao(v, descToks));
+  candidatos.sort((a, b) => tokensValor(b).length - tokensValor(a).length || b.length - a.length);
+  return { tipo: candidatos[0] || null, candidatos };
+}
+
 /** Sugere "Tipo:" para produtos com esse campo vazio. */
 export async function sugestoesTipo(): Promise<any> {
   const rows = await lerTodasCaractRows();
