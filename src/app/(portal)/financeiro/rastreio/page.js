@@ -13,7 +13,7 @@ import DialogoVincular from '@/components/financeiro/rastreio/DialogoVincular'
 import { authHeaders } from '@/lib/auth/client'
 import { formatarDataBR, formatarMoeda } from '@/lib/financeiro/utils'
 import {
-  AlertTriangle, ChevronDown, ExternalLink, FileText, Link2, Loader2, ScanSearch, Unlink,
+  AlertTriangle, ArrowLeft, ChevronDown, ExternalLink, FileText, Link2, Loader2, ScanSearch, Unlink,
 } from 'lucide-react'
 
 const ROTULO_TIPO = {
@@ -314,6 +314,22 @@ function RastreioInner() {
 
   return (
     <main style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)', maxWidth: '1180px', margin: '0 auto' }}>
+      {/* Voltar: quase sempre se chega aqui vindo das Despesas, e sem isto o
+          único caminho de volta é o botão do navegador. `router.back()` preserva
+          o filtro e o mês que estavam abertos lá; o link direto é o plano B pra
+          quem abriu a ficha de fora (colando uma URL, por exemplo). */}
+      <button
+        onClick={() => (window.history.length > 1 ? router.back() : router.push('/financeiro/historico-pagar'))}
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: '12px',
+          padding: '7px 12px', borderRadius: '10px', cursor: 'pointer', font: 'inherit',
+          fontSize: '12.5px', fontWeight: 700,
+          border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)',
+        }}
+      >
+        <ArrowLeft size={15} /> Voltar
+      </button>
+
       {/* busca */}
       <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', padding: '18px 20px', marginBottom: '18px', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' }}>
         <label style={{ fontSize: '10px', color: '#9e9e9e', letterSpacing: '1px', marginLeft: '5px', textTransform: 'uppercase' }}>Rastrear documento</label>

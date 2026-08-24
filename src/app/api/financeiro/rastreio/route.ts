@@ -30,9 +30,16 @@ const supabase = createClient(
 const LIMIT = 20;
 const LIMIT_TEXTO = 10;
 
-const COLS_FP = 'id, fornecedor, valor, data_vencimento, motivo, metodo, status, status_envio, numero_NF, nfe_chave, nfe_serie, nfe_data_emissao, nfe_cnpj_emitente, nfe_xml_url, anexo_nf, anexo_boleto, anexo_requisicao, comprovante_pagamento, is_requisicao, requisicao_ids, qtd_parcelas, parcelas_vencimentos, omie_cod_lancamento, omie_empresa, criado_por, created_at, autonomo_sem_nota';
+// ⚠ Nomes CONFERIDOS contra a tabela (21/08/2026). Errar um nome aqui não
+// levanta erro visível: `rowsDe` engole a falha e devolve [], então a ficha sai
+// sem a seção — foi o que aconteceu com `comprovante_pagamento`/`created_at`,
+// que não existem em finan_pagar (são `anexo_comprovante` e `criado_em`).
+const COLS_FP = 'id, fornecedor, valor, data_vencimento, motivo, metodo, status, status_envio, numero_NF, nfe_chave, nfe_serie, nfe_data_emissao, nfe_cnpj_emitente, nfe_xml_url, anexo_nf, anexo_boleto, anexo_requisicao, anexo_comprovante, is_requisicao, requisicao_ids, qtd_parcelas, parcelas_vencimentos, omie_cod_lancamento, omie_empresa, criado_por, criado_em, autonomo_sem_nota';
 const COLS_REQ = 'id, titulo, tipo, setor, status, data, solicitante, fornecedor, numero_nota, valor_despeza, foto_nf, boleto_fornecedor, recibo_fornecedor, ordem_servico, origem';
-const COLS_CHAMADO = 'id, nom_cliente, cnpj_cliente, valor_servico, num_nf_servico, num_nf_peca, anexo_nf_servico, anexo_nf_peca, anexo_boleto, anexo_boleto_2, anexo_boleto_3, comprovante_pagamento, comprovante_pagamento_p1, comprovante_pagamento_p2, comprovante_pagamento_p3, comprovante_pagamento_p4, comprovante_pagamento_p5, forma_pagamento, qtd_parcelas, vencimento_boleto, datas_parcelas, status, setor, setor_destino, origem, omie_num_os, omie_num_pedido, omie_empresa, created_at';
+// idem: os boletos extras do Chamado_NF são `anexo_boleto2` (sem underscore) e
+// `anexo_boleto_p1..p5`; `anexo_boleto_2/_3` nunca existiram, e a tabela não tem
+// coluna de criação.
+const COLS_CHAMADO = 'id, nom_cliente, cnpj_cliente, valor_servico, num_nf_servico, num_nf_peca, anexo_nf_servico, anexo_nf_peca, anexo_boleto, anexo_boleto2, anexo_boleto_juros, anexo_boleto_p1, anexo_boleto_p2, anexo_boleto_p3, anexo_boleto_p4, anexo_boleto_p5, comprovante_pagamento, comprovante_pagamento_p1, comprovante_pagamento_p2, comprovante_pagamento_p3, comprovante_pagamento_p4, comprovante_pagamento_p5, forma_pagamento, qtd_parcelas, vencimento_boleto, datas_parcelas, status, setor, setor_destino, origem, omie_num_os, omie_num_pedido, omie_empresa';
 const COLS_NE = 'numero_nf, serie, ncod_nf, nome_emitente, emitente, valor_nf, data_emissao, conta_omie, complemento, parcelas, contas_pagar';
 const COLS_NS = 'n_cod_nf, numero, numero_int, serie, tipo, chave_nfe, cliente_nome, cliente_doc, valor_nf, data_emissao, cancelada, conta_omie';
 const COLS_TITULO = 'codigo_lancamento, numero_documento, numero_documento_fiscal, numero_boleto, numero_parcela, valor_documento, data_vencimento, status_titulo, conta_omie';
@@ -360,7 +367,7 @@ function montarAnexos(f: { secoes: any }): AnexoFicha[] {
     if (fp.anexo_nf) add(origem, ol, 'Nota fiscal', fp.anexo_nf);
     splitCsv(fp.anexo_boleto).forEach((u, i, arr) => add(origem, ol, arr.length > 1 ? `Boleto ${i + 1}` : 'Boleto', u));
     splitCsv(fp.anexo_requisicao).forEach((u, i, arr) => add(origem, ol, arr.length > 1 ? `Requisição (PDF ${i + 1})` : 'Requisição (PDF)', u));
-    if (fp.comprovante_pagamento) add(origem, ol, 'Comprovante de pagamento', fp.comprovante_pagamento);
+    if (fp.anexo_comprovante) add(origem, ol, 'Comprovante de pagamento', fp.anexo_comprovante);
     if (fp.nfe_xml_url) add(origem, ol, 'XML NF-e', fp.nfe_xml_url);
   }
   for (const q of f.secoes.requisicoes) {
@@ -375,7 +382,10 @@ function montarAnexos(f: { secoes: any }): AnexoFicha[] {
     const ol = `Faturamento #${c.id}`;
     if (c.anexo_nf_servico) splitCsv(c.anexo_nf_servico).forEach((u, i, arr) => add(origem, ol, arr.length > 1 ? `NF serviço ${i + 1}` : 'NF serviço', u));
     if (c.anexo_nf_peca) splitCsv(c.anexo_nf_peca).forEach((u, i, arr) => add(origem, ol, arr.length > 1 ? `NF peça ${i + 1}` : 'NF peça', u));
-    const boletos = [...splitCsv(c.anexo_boleto), ...splitCsv(c.anexo_boleto_2), ...splitCsv(c.anexo_boleto_3)];
+    const boletos = [
+      ...splitCsv(c.anexo_boleto), ...splitCsv(c.anexo_boleto2), ...splitCsv(c.anexo_boleto_juros),
+      ...[1, 2, 3, 4, 5].flatMap((p) => splitCsv(c[`anexo_boleto_p${p}`])),
+    ];
     boletos.forEach((u, i) => add(origem, ol, boletos.length > 1 ? `Boleto ${i + 1}` : 'Boleto', u));
     if (c.comprovante_pagamento) add(origem, ol, 'Comprovante de pagamento', c.comprovante_pagamento);
     for (let p = 1; p <= 5; p++) {
