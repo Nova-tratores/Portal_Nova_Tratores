@@ -135,7 +135,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       ]
       const matchBusca = !q || campos.some(v => (v || '').toString().toLowerCase().includes(q))
       const matchStatus = !filtroStatus || c.status === filtroStatus
-      const matchFab = !soFab || !!c.id_fabrica_ref
+      const matchFab = !soFab || c.fabrica_pedido_id != null   // FAB real (pedido de fábrica existe)
       return matchBusca && matchStatus && matchFab
     })
   }, [cards, busca, filtroStatus, soFab])
@@ -146,7 +146,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
     for (const c of filtradas) {
       const v = parseValor(c.Valor_Total)
       a.criN++; a.criV += v
-      if (c.id_fabrica_ref) { a.fabN++; a.fabV += v }
+      if (c.fabrica_pedido_id != null) { a.fabN++; a.fabV += v }
       if (c.status === 'AGUARDANDO RESPOSTA BANCO') { a.bancoN++; a.bancoV += v }
     }
     return a
@@ -254,7 +254,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                   {doStatus.map(card => (
                     <div key={card.id} onClick={() => onCardClick(card)} className="bg-white border border-zinc-200 rounded-xl p-3.5 cursor-pointer hover:border-red-300 hover:shadow-sm transition-all">
                       <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-sm font-bold text-zinc-700 flex items-center gap-1.5">#{card.id}{card.id_fabrica_ref && <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">FAB</span>}</span>
+                        <span className="text-sm font-bold text-zinc-700 flex items-center gap-1.5">#{card.id}{card.fabrica_pedido_id != null && <span className="text-[9px] font-black bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded">FAB</span>}</span>
                         <span className="text-base font-bold text-red-600">R$ {formatBRL(card.Valor_Total)}</span>
                       </div>
                       <div className="text-base font-semibold text-zinc-800">{card.Cliente || 'Sem nome'}</div>
@@ -302,7 +302,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                 <tr><td colSpan={11} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
               ) : (
                 ordenadas.map(card => {
-                  const isFromFactory = !!card.id_fabrica_ref
+                  const isFromFactory = card.fabrica_pedido_id != null
                   return (
                     <tr key={card.id} onClick={() => onCardClick(card)} className="border-b border-zinc-200 hover:bg-red-50/50 cursor-pointer transition-colors group">
                       <td className="px-5 py-4">

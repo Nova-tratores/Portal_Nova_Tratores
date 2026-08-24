@@ -42,7 +42,7 @@ export default function ResumoPropostas() {
     (async () => {
       setLoading(true)
       const { data } = await supabase.from('v_formulario')
-        .select('id,criado_em,vendedor_nome,Marca,Modelo,Cidade,status,Valor_Total,id_fabrica_ref')
+        .select('id,criado_em,vendedor_nome,Marca,Modelo,Cidade,status,Valor_Total,fabrica_pedido_id')
         .is('deleted_at', null)
       setCards(data || [])
       setLoading(false)
@@ -89,7 +89,7 @@ export default function ResumoPropostas() {
       a.totN++; a.totV += v
       if (c.status === STATUS_VENDIDO) { a.vendN++; a.vendV += v }
       if (c.status === STATUS_PERDIDO) { a.perdN++; a.perdV += v }
-      if (c.id_fabrica_ref) { a.fabN++; a.fabV += v }
+      if (c.fabrica_pedido_id != null) { a.fabN++; a.fabV += v }
     }
     return a
   }, [filtrados])

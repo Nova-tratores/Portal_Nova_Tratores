@@ -10,7 +10,7 @@ import { STATUS_PERDIDO } from './MotivoPerdaModal'
 
 // Colunas que só existem na view v_formulario (aging/cores). NÃO podem ir num
 // INSERT/UPDATE da tabela "Formulario" — o PostgREST recusa coluna inexistente.
-const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade', 'vendedor_nome', 'fabrica_custo']
+const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade', 'vendedor_nome', 'fabrica_custo', 'fabrica_pedido_id']
 const semColsView = (obj) => { const o = { ...obj }; for (const k of COLS_VIEW) delete o[k]; return o }
 
 export default function EditModal({ proposal, onClose }) {
@@ -489,12 +489,12 @@ export default function EditModal({ proposal, onClose }) {
             {/* IV. PEDIDO DE FÁBRICA — vincular/desvincular */}
             <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">IV. PEDIDO DE FÁBRICA</div>
             <div className="border border-zinc-200 rounded-xl bg-white p-3">
-              {formData.id_fabrica_ref ? (
+              {pedidoVinculado ? (
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2 text-sm text-zinc-700">
                     <Link2 size={16} className="text-emerald-600 shrink-0" />
-                    Vinculada ao pedido <span className="font-bold">#{formData.id_fabrica_ref}</span>
-                    {pedidoVinculado && <span className="text-zinc-500">— {pedidoVinculado.cliente} · {pedidoVinculado.marca} {pedidoVinculado.modelo}</span>}
+                    Vinculada ao pedido <span className="font-bold">#{pedidoVinculado.id}</span>
+                    <span className="text-zinc-500">— {pedidoVinculado.cliente} · {pedidoVinculado.marca} {pedidoVinculado.modelo}</span>
                   </div>
                   <button onClick={desvincularPedido} className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-50 text-red-600 border border-red-200 text-xs font-semibold hover:bg-red-100 cursor-pointer"><Unlink size={14} /> Desvincular</button>
                 </div>
