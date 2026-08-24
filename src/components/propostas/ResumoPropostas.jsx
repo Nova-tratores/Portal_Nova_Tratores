@@ -42,7 +42,7 @@ export default function ResumoPropostas() {
     (async () => {
       setLoading(true)
       const { data } = await supabase.from('v_formulario')
-        .select('id,criado_em,vendedor_nome,Marca,Modelo,Cidade,status,Valor_Total')
+        .select('id,criado_em,vendedor_nome,Marca,Modelo,Cidade,status,Valor_Total,id_fabrica_ref')
         .is('deleted_at', null)
       setCards(data || [])
       setLoading(false)
@@ -81,6 +81,19 @@ export default function ResumoPropostas() {
     })
   }, [grupos, sort])
 
+  // KPIs do período (independem do agrupamento). "Feito em fábrica" = proposta com pedido vinculado.
+  const kpis = useMemo(() => {
+    const a = { totN: 0, totV: 0, vendN: 0, vendV: 0, fabN: 0, fabV: 0, perdN: 0, perdV: 0 }
+    for (const c of filtrados) {
+      const v = parseValor(c.Valor_Total)
+      a.totN++; a.totV += v
+      if (c.status === STATUS_VENDIDO) { a.vendN++; a.vendV += v }
+      if (c.status === STATUS_PERDIDO) { a.perdN++; a.perdV += v }
+      if (c.id_fabrica_ref) { a.fabN++; a.fabV += v }
+    }
+    return a
+  }, [filtrados])
+
   const tot = useMemo(() => grupos.reduce((t, g) => ({
     n: t.n + g.n, valor: t.valor + g.valor, aberto: t.aberto + g.aberto, vendido: t.vendido + g.vendido, perdido: t.perdido + g.perdido,
   }), { n: 0, valor: 0, aberto: 0, vendido: 0, perdido: 0 }), [grupos])
@@ -99,6 +112,14 @@ export default function ResumoPropostas() {
 
   const btn = (active) => `px-4 py-2 rounded-lg text-sm font-semibold border transition-colors cursor-pointer ${active ? 'bg-red-600 text-white border-red-600' : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'}`
 
+  const Card = ({ titulo, n, valor, cor, bg }) => (
+    <div className={`border border-zinc-200 rounded-xl p-4 ${bg}`}>
+      <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wide">{titulo}</div>
+      <div className={`text-2xl font-bold mt-1 ${cor}`}>R$ {formatBRL(valor)}</div>
+      <div className="text-xs text-zinc-500 mt-0.5">{n} proposta{n !== 1 ? 's' : ''}</div>
+    </div>
+  )
+
   return (
     <div className="w-full">
       {/* PRÉ-CONFIGURAÇÕES */}
@@ -111,6 +132,14 @@ export default function ResumoPropostas() {
           <span className="text-xs font-bold text-zinc-400 uppercase tracking-wide mr-1">Agrupar por:</span>
           {DIMS.map(d => <button key={d.k} onClick={() => setDim(d.k)} className={`${btn(dim === d.k)} inline-flex items-center gap-1.5`}><d.Icon size={14} /> {d.label}</button>)}
         </div>
+      </div>
+
+      {/* KPIs DO PERÍODO */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <Card titulo="No período" n={kpis.totN} valor={kpis.totV} cor="text-zinc-800" bg="bg-white" />
+        <Card titulo="Concluído (vendido)" n={kpis.vendN} valor={kpis.vendV} cor="text-emerald-600" bg="bg-emerald-50/50" />
+        <Card titulo="Feito em fábrica" n={kpis.fabN} valor={kpis.fabV} cor="text-blue-600" bg="bg-blue-50/50" />
+        <Card titulo="Concluído sem sucesso" n={kpis.perdN} valor={kpis.perdV} cor="text-zinc-500" bg="bg-zinc-50" />
       </div>
 
       {/* TABELA AGREGADA */}
