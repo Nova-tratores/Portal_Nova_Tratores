@@ -36,9 +36,10 @@ function resumoServicos(servicos: Servico[]): string {
   const limpo = desc
     .split("|")
     .filter(p => !/chassis:|modelo:/i.test(p))
-    .join("|")
+    .join(" | ")
     .trim();
-  return limpo.length > 90 ? `${limpo.slice(0, 90)}…` : limpo;
+  // O modal do Chatwoot mostra o texto inteiro; só um teto de segurança.
+  return limpo.length > 600 ? `${limpo.slice(0, 600)}…` : limpo;
 }
 
 // "6075E CAB MDI07513AT0006263" -> modelo "6075E CAB", chassis "MDI07513AT0006263"
