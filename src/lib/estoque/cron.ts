@@ -10,6 +10,7 @@ import { obterTotalOS } from './os';
 import { sincronizarProdutos, sincronizarApenasEstoque } from './produtos-sync';
 import { capturarSnapshotMensal, capturarSnapshotTipoMensal, backfillSnapshotsHistoricos } from './cruzamento-familia';
 import { sincronizarComprasJanela } from './compras-sync';
+import { enriquecerNotasMes } from './notas-entrada';
 import { sincronizarRemessas, sincronizarMovimentacao, sincronizarOutrasEntradas, cruzarDevolucoes, detectarDevolucoesDemonstracao } from '../visual-estoque/remessas-sync';
 
 /**
@@ -129,6 +130,47 @@ export async function cronSyncCompras(mesesAtras = 3): Promise<Record<string, un
     } catch (e) {
       resultado[c.id] = { ok: false, erro: (e as Error).message };
     }
+  }
+  return resultado;
+}
+
+/**
+ * Enriquecimento diário de `notas_entrada` (nome do emitente + categoria) em TODA
+ * a história (por padrão desde 11/2022), por conta. É o equivalente automático do
+ * botão "Enriquecer emitente/categoria" da tela, mas varrendo todos os meses ×
+ * todas as contas — resolve os emitentes faltantes da CASTRO na história antiga,
+ * que o `sync-compras` (só últimos 3 meses) não alcança. Re-rodar um mês já
+ * enriquecido é barato: `enriquecerNotasMes` sai cedo quando não há candidatos.
+ * Sequencial (respeita o lock per-conta e o rate limit da Omie). Job longo →
+ * disparar em background de madrugada.
+ */
+export async function cronEnriquecerNotas(
+  desde: { ano: number; mes: number } = { ano: 2022, mes: 11 },
+): Promise<Record<string, unknown>> {
+  const now = new Date();
+  const fimAno = now.getFullYear();
+  const fimMes = now.getMonth() + 1;
+  const resultado: Record<string, unknown> = {};
+  for (const c of getContasOmie()) {
+    let emitentes = 0;
+    let categorias = 0;
+    let meses = 0;
+    let erros = 0;
+    let ano = desde.ano;
+    let mes = desde.mes;
+    while (ano < fimAno || (ano === fimAno && mes <= fimMes)) {
+      try {
+        const r = await enriquecerNotasMes(mes, ano, c.id);
+        emitentes += r.emitentes_preenchidos || 0;
+        categorias += r.categorias_preenchidas || 0;
+      } catch {
+        erros++;
+      }
+      meses++;
+      mes++;
+      if (mes > 12) { mes = 1; ano++; }
+    }
+    resultado[c.id] = { meses, emitentes_preenchidos: emitentes, categorias_preenchidas: categorias, erros };
   }
   return resultado;
 }

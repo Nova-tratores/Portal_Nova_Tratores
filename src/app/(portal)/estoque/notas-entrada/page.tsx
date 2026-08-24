@@ -128,10 +128,13 @@ export default function NotasEntradaPage() {
   }, [contaParam]);
 
   const verDanfe = useCallback(async (n: Nota) => {
+    // Abre a aba SINCRONAMENTE no clique — se abrir depois do await, o browser
+    // bloqueia o popup (era o motivo de "a DANFE nunca abrir").
+    const w = window.open('', '_blank');
     const r = await fetch(`/api/estoque/danfe?ncod_nf=${n.ncod_nf || ''}&numero_nf=${encodeURIComponent(n.numero_nf || '')}&serie=${encodeURIComponent(n.serie || '')}${contaParam}`);
     const d = await r.json();
-    if (d.url) window.open(d.url, '_blank');
-    else alert('DANFE indisponível: ' + (d.erro || ''));
+    if (d.url) { if (w) w.location.href = d.url; else window.open(d.url, '_blank'); }
+    else { if (w) w.close(); alert('DANFE indisponível: ' + (d.erro || '')); }
   }, [contaParam]);
 
   const pollStatus = useCallback(() => {
@@ -157,7 +160,7 @@ export default function NotasEntradaPage() {
   if (!permLoading && userProfile && !pode('estoque', 'notas-entrada')) return <SemPermissao />;
 
   const anos: number[] = [];
-  for (let y = now.getFullYear(); y >= 2023; y--) anos.push(y);
+  for (let y = now.getFullYear(); y >= 2022; y--) anos.push(y);
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>

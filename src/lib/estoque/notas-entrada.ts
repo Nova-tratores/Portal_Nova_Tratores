@@ -11,6 +11,38 @@ import { getCredentials, CONTA_DEFAULT, type Conta, type ContaFiltro } from './c
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 
+/**
+ * Normaliza os itens de uma nota de entrada para o shape plano que a tela
+ * renderiza. A sync grava `itens` no formato CRU do Omie (`det[].prod.*`), então
+ * `it.descricao`/`it.codigo_produto`/etc. vinham sempre `undefined` (era o motivo
+ * das descrições e valores não carregarem). Aceita também o formato plano legado.
+ */
+export function normalizarItensEntrada(itens: unknown): Array<{
+  codigo_produto: string; descricao: string; quantidade: number; valor_unitario: number; valor_total: number;
+}> {
+  if (!Array.isArray(itens)) return [];
+  return itens.map((raw) => {
+    const it = (raw || {}) as Record<string, unknown>;
+    const prod = (it.prod ?? null) as Record<string, unknown> | null;
+    if (prod) {
+      return {
+        codigo_produto: String(prod.cProd ?? ''),
+        descricao: String(prod.xProd ?? ''),
+        quantidade: num(prod.qCom ?? prod.qTrib),
+        valor_unitario: num(prod.vUnCom ?? prod.vUnTrib),
+        valor_total: num(prod.vProd ?? prod.vTotItem),
+      };
+    }
+    return {
+      codigo_produto: String(it.codigo_produto ?? ''),
+      descricao: String(it.descricao ?? ''),
+      quantidade: num(it.quantidade),
+      valor_unitario: num(it.valor_unitario),
+      valor_total: num(it.valor_total),
+    };
+  });
+}
+
 // ===== Categorias Omie (código → descrição), cache 30 min por conta =====
 const categoriasOmieCache: Record<string, { mapa: Record<string, string>; time: number }> = {};
 
@@ -68,7 +100,7 @@ export async function listarNotasEntrada(
   let query = supabase
     .from('notas_entrada')
     .select(
-      'id,ncod_nf,numero_nf,serie,data_emissao,hora_emissao,emitente,nome_emitente,categoria,contas_pagar,valor_produtos,valor_nf,valor_icms,valor_ipi,valor_frete,valor_desconto,valor_total_tributos,parcelas,itens,cancelada,mes,ano,conta_omie',
+      'id,ncod_nf,numero_nf,serie,data_emissao,hora_emissao,emitente,nome_emitente,categoria,contas_pagar,valor_produtos,valor_nf,valor_icms,valor_ipi,valor_frete,valor_desconto,valor_total_tributos,parcelas,itens,complemento,cancelada,mes,ano,conta_omie',
       { count: 'exact' },
     );
   if (filtros.nf) {
@@ -86,7 +118,16 @@ export async function listarNotasEntrada(
   query = query.order('data_emissao', { ascending: false }).range(offset, offset + porPagina - 1);
   const { data: notas, count, error } = await query;
   if (error) throw new Error(error.message);
-  return { notas: (notas || []) as Array<Record<string, unknown>>, total: count || 0, pagina: pag, porPagina, totalPaginas: Math.ceil((count || 0) / porPagina) };
+  const notasNorm = (notas || []).map((n) => {
+    const row = n as Record<string, unknown>;
+    const compl = (row.complemento || {}) as Record<string, unknown>;
+    // O código interno da NF (usado pelo GetUrlDanfe) fica em complemento.nIdNF —
+    // a sync antiga não populava `ncod_nf`, então resolvemos aqui p/ o DANFE abrir
+    // mesmo nas notas já gravadas (sem depender de rebuild).
+    const ncodNf = row.ncod_nf ?? compl.nIdNF ?? null;
+    return { ...row, ncod_nf: ncodNf, itens: normalizarItensEntrada(row.itens) };
+  });
+  return { notas: notasNorm as Array<Record<string, unknown>>, total: count || 0, pagina: pag, porPagina, totalPaginas: Math.ceil((count || 0) / porPagina) };
 }
 
 // ===== Todas as notas de um período (campos mínimos, sem paginação) =====
@@ -203,16 +244,20 @@ export async function buscarContasPagarNF(
 
 // ===== URL do DANFE =====
 export async function getUrlDanfe(
-  args: { ncod_nf?: string; numero_nf?: string; serie?: string },
+  args: { ncod_nf?: string; numero_nf?: string; serie?: string; chave?: string },
   conta: Conta,
 ): Promise<string> {
   let nCodNF = args.ncod_nf ? parseInt(args.ncod_nf) : null;
-  if (!nCodNF && args.numero_nf) {
-    const consulta = await omieRequest<{ nCodNF?: number; nfCadastro?: { nCodNF?: number } }>(
-      '/produtos/nfconsultar/', 'ConsultarNF', { nNF: args.numero_nf, serie: args.serie || '1', tpNF: '0', tpAmb: '1' }, { conta },
+  if (!nCodNF && (args.numero_nf || args.chave)) {
+    // O código interno da NF de entrada vem no `compl.nIdNF` do ConsultarNF (não
+    // num `nCodNF` de topo). Consulta por chave quando disponível (é única).
+    const param = args.chave
+      ? { cChaveNFe: args.chave }
+      : { nNF: args.numero_nf, serie: args.serie || '1', tpNF: '0', tpAmb: '1' };
+    const consulta = await omieRequest<{ nCodNF?: number; compl?: { nIdNF?: number }; nfCadastro?: { nCodNF?: number } }>(
+      '/produtos/nfconsultar/', 'ConsultarNF', param, { conta },
     );
-    if (consulta?.nCodNF) nCodNF = consulta.nCodNF;
-    else if (consulta?.nfCadastro?.nCodNF) nCodNF = consulta.nfCadastro.nCodNF;
+    nCodNF = consulta?.nCodNF || consulta?.compl?.nIdNF || consulta?.nfCadastro?.nCodNF || null;
   }
   if (!nCodNF) throw new Error('Nao foi possivel encontrar o codigo interno da NF');
   const r = await omieRequest<{ faultstring?: string; cUrlDanfe?: string }>(
