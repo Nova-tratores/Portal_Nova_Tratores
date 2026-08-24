@@ -127,6 +127,11 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   // Code 128 (pistola do balcão → código da peça). Sem isto o QR entra no lugar
   // da barra e a etiqueta deixa de servir ao leitor do balcão.
   const [barraComQr, setBarraComQr] = useState(false)
+  // Calibração da impressora (mm): folha pré-cortada não perdoa deslocamento —
+  // 2mm já jogam o texto pra fora do picote. Guardado por navegador porque é
+  // característica da IMPRESSORA, não da folha.
+  const [ajusteX, setAjusteX] = useState(0)
+  const [ajusteY, setAjusteY] = useState(0)
   const [imprimindo, setImprimindo] = useState(false)
   const [folhas, setFolhas] = useState<FolhaHist[]>([])
   // Config de colunas (filtro por coluna, ordenação principal+desempate, seletor).
@@ -145,8 +150,15 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       setRastrear(localStorage.getItem('etiquetas_rastrear') === '1')
       setBarraComQr(localStorage.getItem('etiquetas_barra_qr') === '1')
       if (localStorage.getItem('etiquetas_formato') === 'recorte') setFormato('recorte')
+      setAjusteX(Number(localStorage.getItem('etiquetas_ajuste_x')) || 0)
+      setAjusteY(Number(localStorage.getItem('etiquetas_ajuste_y')) || 0)
     } catch { /* segue */ }
   }, [])
+  const mudarAjuste = (eixo: 'x' | 'y', v: number) => {
+    const n = Math.round(Math.max(-12, Math.min(12, v)) * 2) / 2 // passo de 0,5mm
+    if (eixo === 'x') setAjusteX(n); else setAjusteY(n)
+    try { localStorage.setItem(`etiquetas_ajuste_${eixo}`, String(n)) } catch { /* segue */ }
+  }
   const mudarRastrear = (v: boolean) => {
     setRastrear(v)
     try { localStorage.setItem('etiquetas_rastrear', v ? '1' : '0') } catch { /* segue */ }
@@ -268,7 +280,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       }
       w.document.open()
       w.document.write(htmlFolha(blocos, new Set(folha.formato === 'recorte' ? [] : (folha.usadas || [])), {
-        tracejado: folha.formato === 'recorte', barraComQr,
+        tracejado: folha.formato === 'recorte', barraComQr, x: ajusteX, y: ajusteY,
       }))
       w.document.close()
     } catch (e) { setErro(String(e instanceof Error ? e.message : e)) }
@@ -470,7 +482,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       }
       w.document.open()
       w.document.write(htmlFolha(blocos, formato === 'folha' ? usadas : new Set<number>(), {
-        tracejado: formato === 'recorte', barraComQr,
+        tracejado: formato === 'recorte', barraComQr, x: ajusteX, y: ajusteY,
       }))
       w.document.close()
       // registra a folha no histórico (snapshot p/ reimprimir) e esvazia a fila
@@ -693,7 +705,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
           <div style={{ marginTop: 10 }}>
             <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', marginBottom: 8, lineHeight: 1.5 }}>
               Cada peça sai numa etiqueta da folha — é só descolar, sem recortar.
-              {' '}Na impressão use <strong>escala 100%</strong> (sem &quot;ajustar à página&quot;).
+              {' '}No diálogo de impressão: <strong>Papel = Carta</strong>, <strong>Margens = Nenhuma</strong> e <strong>Escala = 100%</strong>.
+              {' '}Com papel A4 a folha sai 2,7% menor e ~12,6mm mais baixa — o texto cai na etiqueta de baixo.
               {' '}Folha já começada? Clique abaixo nas posições <strong>já usadas</strong> pra impressão pular elas{usadas.size > 0 && <> · <button onClick={() => setUsadas(new Set())} style={{ border: 'none', background: 'none', color: '#EA580C', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>limpar ({usadas.size})</button></>}:
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 46px)', gap: 3 }}>
@@ -710,6 +723,29 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
                   {p + 1}
                 </button>
               ))}
+            </div>
+            {/* Calibração da impressora: para o deslocamento que SOBRAR depois de
+                acertar o diálogo. Folha pré-cortada não perdoa 2mm. */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12, paddingTop: 10, borderTop: '1px dashed var(--portal-border)' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)' }}>Saiu deslocado? Ajuste fino (mm):</span>
+              {([['x', 'Horizontal', ajusteX, '+ direita'], ['y', 'Vertical', ajusteY, '+ desce']] as const).map(([eixo, rotulo, valor, sentido]) => (
+                <label key={eixo} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--portal-text-secondary)' }}>
+                  {rotulo}
+                  <input type="number" step={0.5} min={-12} max={12} value={valor}
+                    onChange={e => mudarAjuste(eixo, Number(e.target.value))}
+                    style={{ width: 62, padding: '3px 6px', fontSize: 12, fontWeight: 700, textAlign: 'right', borderRadius: 5, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
+                  <span style={{ fontSize: 10.5, color: 'var(--portal-text-muted)' }}>{sentido}</span>
+                </label>
+              ))}
+              {(ajusteX !== 0 || ajusteY !== 0) && (
+                <button onClick={() => { mudarAjuste('x', 0); mudarAjuste('y', 0) }}
+                  style={{ border: 'none', background: 'none', color: '#EA580C', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
+                  zerar
+                </button>
+              )}
+              <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', flex: '1 1 260px', minWidth: 0 }}>
+                Meça na folha impressa quanto o texto saiu fora do picote e ponha aqui com o sinal contrário.
+              </span>
             </div>
           </div>
         )}

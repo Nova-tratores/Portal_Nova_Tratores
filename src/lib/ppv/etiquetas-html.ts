@@ -304,8 +304,10 @@ export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: Opc
   const vaoCol = off.tracejado ? 0 : 3.175
   const ladoBase = off.tracejado ? 7.93 : 4.76
   // Realoca as margens pelo offset (mantém o tamanho da etiqueta intacto).
-  const ox = Math.max(-4, Math.min(4, off.x || 0))
-  const oy = Math.max(-12, Math.min(12, off.y || 0))
+  // Limite = a própria margem: padding negativo é CSS inválido e derrubaria a
+  // regra inteira (o shorthand tem 4 valores), estourando o layout da folha.
+  const ox = Math.max(-(ladoBase - 0.3), Math.min(ladoBase - 0.3, off.x || 0))
+  const oy = Math.max(-12.4, Math.min(12.4, off.y || 0))
   const padTop = (12.7 + oy).toFixed(2), padBot = (12.7 - oy).toFixed(2)
   const padLeft = (ladoBase + ox).toFixed(2), padRight = (ladoBase - ox).toFixed(2)
 
@@ -461,8 +463,18 @@ ${blocosTexto(e, false)}
     top: 0; right: 0; bottom: 0; left: 0;
     border: 1px dashed #9ca3af;
   }
+  /* lembrete das opções do diálogo de impressão: é o que mais desalinha folha
+     pré-cortada (papel A4 com folha Carta = o Chrome encolhe 2,7% e centraliza,
+     empurrando tudo ~12,6mm pra baixo). Só na tela — nunca no papel. */
+  .dica { display: none; }
   @media screen {
     body { background: #e5e7eb; }
+    .dica {
+      display: block; max-width: 215.9mm; margin: 10px auto -4px; padding: 9px 12px;
+      background: #fff7ed; border: 1px solid #fdba74; border-radius: 8px;
+      font: 700 12px/1.5 -apple-system, 'Segoe UI', Arial, sans-serif; color: #7c2d12;
+    }
+    .dica span { font-weight: 400; }
     .pagina { background: #fff; margin: 10px auto; box-shadow: 0 1px 6px rgba(0,0,0,.25); }
     /* tracejado = corte da etiqueta física (só guia de tela; o que sai no papel
        é o body.cortar acima, quando o usuário pede papel comum) */
@@ -476,6 +488,8 @@ ${blocosTexto(e, false)}
     }
   }
 </style></head><body${off.tracejado ? ' class="cortar"' : ''}>
+<div class="dica">No diálogo de impressão: Papel = <u>Carta</u> · Margens = <u>Nenhuma</u> · Escala = <u>100%</u>
+  <span>— com papel A4 a folha sai 2,7% menor e ~12,6mm mais baixa, e o texto cai na etiqueta de baixo.</span></div>
 ${paginas.map(cels => `  <div class="pagina">
 ${cels.map(cel).join('\n')}
   </div>`).join('\n')}
