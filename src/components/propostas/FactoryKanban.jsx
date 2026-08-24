@@ -24,6 +24,14 @@ const FASES_ABERTAS = ['Proposta solicitada', 'Proposta Recebida', 'Pedido Feito
 const agingTexto = (d) => { const n = Number(d); return (!Number.isFinite(n) || n <= 0) ? 'hoje' : `${n} dia${n !== 1 ? 's' : ''}` }
 const agingCor = (d) => { const n = Number(d); return n > 15 ? 'text-red-600 font-bold' : n > 7 ? 'text-amber-600 font-semibold' : 'text-zinc-400' }
 
+const fmtR$ = (v) => (v == null || v === '') ? '—' : 'R$ ' + Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const FRETE_LABEL = { incluso: 'Incluso', nao_incluso: 'Não incluso' }
+const freteTexto = (o) => {
+  if (!o.frete_modalidade) return '—'
+  const base = FRETE_LABEL[o.frete_modalidade] || o.frete_modalidade
+  return (o.frete_valor != null && o.frete_valor !== '') ? `${base} · ${fmtR$(o.frete_valor)}` : base
+}
+
 export default function FactoryKanban({ onCardClick }) {
   const [orders, setOrders] = useState([])
   const [busca, setBusca] = useState('')
@@ -107,6 +115,8 @@ export default function FactoryKanban({ onCardClick }) {
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Cliente</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Vendedor</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Marca / Modelo</th>
+              <th className="text-right px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Custo</th>
+              <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Frete</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Status</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">Parado há</th>
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest w-[220px]">Alterar Fase</th>
@@ -114,7 +124,7 @@ export default function FactoryKanban({ onCardClick }) {
           </thead>
           <tbody>
             {filtradas.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhum pedido encontrado</td></tr>
+              <tr><td colSpan={9} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhum pedido encontrado</td></tr>
             ) : (
               filtradas.map(order => (
                 <tr key={order.id} onClick={() => onCardClick(order)} className="border-b border-zinc-100 hover:bg-red-50/50 cursor-pointer transition-colors group">
@@ -132,6 +142,12 @@ export default function FactoryKanban({ onCardClick }) {
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="text-sm text-zinc-600">{order.marca} {order.modelo}</span>
+                  </td>
+                  <td className="px-5 py-3.5 text-right">
+                    <span className="text-sm font-semibold text-zinc-700">{fmtR$(order.custo)}</span>
+                  </td>
+                  <td className="px-5 py-3.5">
+                    <span className="text-sm text-zinc-500">{freteTexto(order)}</span>
                   </td>
                   <td className="px-5 py-3.5">
                     <span className="inline-flex items-center gap-2">

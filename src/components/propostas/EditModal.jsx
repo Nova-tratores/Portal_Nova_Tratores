@@ -10,7 +10,7 @@ import { STATUS_PERDIDO } from './MotivoPerdaModal'
 
 // Colunas que só existem na view v_formulario (aging/cores). NÃO podem ir num
 // INSERT/UPDATE da tabela "Formulario" — o PostgREST recusa coluna inexistente.
-const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade', 'vendedor_nome']
+const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade', 'vendedor_nome', 'fabrica_custo']
 const semColsView = (obj) => { const o = { ...obj }; for (const k of COLS_VIEW) delete o[k]; return o }
 
 export default function EditModal({ proposal, onClose }) {
@@ -329,6 +329,7 @@ export default function EditModal({ proposal, onClose }) {
     payload.vendedor_id = formData.vendedor_id ? Number(formData.vendedor_id) : null  // FK vendedores(id) é inteiro
     payload.motivo_perda_id = formData.motivo_perda_id ? Number(formData.motivo_perda_id) : null   // smallint: '' quebra
     payload.concorrente_valor = formData.concorrente_valor ? Number(formData.concorrente_valor) : null  // numeric: '' quebra
+    payload.termometro = (formData.termometro === '' || formData.termometro == null) ? null : Number(formData.termometro)  // smallint 0-100
     const { error } = await supabase.from('Formulario').update(payload).eq('id', proposal.id)
     if (!error) {
       if (alteracoes.length) await log({ sistema: 'Proposta Comercial', acao: 'editar', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: formData.Cliente || proposal.Cliente, detalhes: { alteracoes } })
@@ -369,6 +370,22 @@ export default function EditModal({ proposal, onClose }) {
 
         <div className="px-10 py-8 overflow-y-auto flex-1">
           <div className="flex flex-col gap-4">
+            {/* TERMÔMETRO — % editável (padrão: probabilidade da fase). Mudanças entram no Histórico. */}
+            {(() => {
+              const termo = formData.termometro != null && formData.termometro !== '' ? Number(formData.termometro) : Math.round((Number(formData.probabilidade) || 0) * 100)
+              const cor = termo >= 60 ? 'accent-emerald-600' : termo >= 30 ? 'accent-amber-500' : 'accent-sky-500'
+              return (
+                <div className="flex items-center gap-4 bg-white border border-zinc-200 rounded-xl px-4 py-3">
+                  <label className="text-[13px] font-semibold text-zinc-700 whitespace-nowrap">Termômetro</label>
+                  <input type="range" min="0" max="100" step="5" value={termo}
+                    onChange={e => setFormData({ ...formData, termometro: Number(e.target.value) })}
+                    className={`flex-1 ${cor} cursor-pointer`} />
+                  <span className="text-lg font-bold text-zinc-800 w-14 text-right">{termo}%</span>
+                  {formData.termometro == null && <span className="text-[10px] text-zinc-400">(padrão da fase)</span>}
+                </div>
+              )
+            })()}
+
             <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">I. DADOS DO CLIENTE</div>
             <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
               <div className="flex border-b border-zinc-100">

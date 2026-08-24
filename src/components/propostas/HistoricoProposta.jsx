@@ -10,7 +10,10 @@ const LABELS = {
   Marca: 'Marca', Modelo: 'Modelo', Ano: 'Ano', Qtd_Eqp: 'Quantidade',
   Valor_Total: 'Valor total', validade: 'Validade', Condicoes: 'Condições de pagamento',
   Prazo_Entrega: 'Prazo de entrega', status: 'Status', Configuracao: 'Descrição técnica',
-  Descricao: 'Descrição',
+  Descricao: 'Descrição', termometro: 'Termômetro', vendedor_id: 'Vendedor',
+  motivo_perda_id: 'Motivo da perda', motivo_perda_obs: 'Obs. da perda',
+  concorrente: 'Concorrente', concorrente_valor: 'Valor do concorrente',
+  id_fabrica_ref: 'Pedido de fábrica',
 }
 const rotulo = (k) => LABELS[k] || k
 

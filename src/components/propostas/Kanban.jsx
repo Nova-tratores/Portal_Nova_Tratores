@@ -56,12 +56,41 @@ function agingCor(dias) {
   return 'text-zinc-400'
 }
 
+// Termômetro (0-100). Se o usuário não definiu (null), usa a probabilidade da fase como padrão.
+function termoValor(c) {
+  if (c.termometro != null && c.termometro !== '') return Number(c.termometro)
+  return Math.round((Number(c.probabilidade) || 0) * 100)
+}
+function termoCor(v) {
+  if (v >= 60) return 'bg-emerald-500'
+  if (v >= 30) return 'bg-amber-500'
+  return 'bg-sky-500'
+}
+function fmtData(iso) {
+  if (!iso) return '—'
+  try { return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(iso)) }
+  catch { return '—' }
+}
+
+// Barra de termômetro (% preenchido). Read-only no Kanban.
+function TermoBar({ v }) {
+  return (
+    <div className="flex items-center gap-2 min-w-[90px]">
+      <div className="flex-1 h-2 rounded-full bg-zinc-100 overflow-hidden">
+        <div className={`h-full ${termoCor(v)}`} style={{ width: `${Math.max(0, Math.min(100, v))}%` }} />
+      </div>
+      <span className="text-xs font-semibold text-zinc-500 w-8 text-right">{v}%</span>
+    </div>
+  )
+}
+
 export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' }) {
   const { log } = useAuditLog()
   const [cards, setCards] = useState([])
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState('')
   const [perda, setPerda] = useState(null)   // proposta sendo marcada como "não vendido"
+  const [soFab, setSoFab] = useState(false)  // só propostas com pedido de fábrica (FAB)
   const [sort, setSort] = useState({ key: 'dias_na_fase', dir: 'desc' })   // default: mais parado primeiro
 
   const loadData = async () => {
@@ -106,9 +135,22 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       ]
       const matchBusca = !q || campos.some(v => (v || '').toString().toLowerCase().includes(q))
       const matchStatus = !filtroStatus || c.status === filtroStatus
-      return matchBusca && matchStatus
+      const matchFab = !soFab || !!c.id_fabrica_ref
+      return matchBusca && matchStatus && matchFab
     })
-  }, [cards, busca, filtroStatus])
+  }, [cards, busca, filtroStatus, soFab])
+
+  // Cards de resumo — SEMPRE sobre o que está filtrado na tabela (atualizam sozinhos).
+  const resumo = useMemo(() => {
+    const a = { criN: 0, criV: 0, fabN: 0, fabV: 0, bancoN: 0, bancoV: 0 }
+    for (const c of filtradas) {
+      const v = parseValor(c.Valor_Total)
+      a.criN++; a.criV += v
+      if (c.id_fabrica_ref) { a.fabN++; a.fabV += v }
+      if (c.status === 'AGUARDANDO RESPOSTA BANCO') { a.bancoN++; a.bancoV += v }
+    }
+    return a
+  }, [filtradas])
 
   // Ordenação clicável do cabeçalho (A-Z / Z-A). Cada coluna extrai um valor comparável.
   const sortGet = {
@@ -120,6 +162,8 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
     valor: c => parseValor(c.Valor_Total),
     status: c => statusLabel(c.status).toLowerCase(),
     dias_na_fase: c => Number(c.dias_na_fase) || 0,
+    termometro: c => termoValor(c),
+    criado_em: c => c.criado_em ? new Date(c.criado_em).getTime() : 0,
   }
   const toggleSort = (k) => setSort(s => s.key === k ? { key: k, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: 'asc' })
 
@@ -149,6 +193,16 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
 
   const filterInputStyle = "w-full bg-zinc-100/50 text-zinc-700 text-base rounded-lg px-3 py-2.5 outline-none focus:ring-2 focus:ring-red-500/40 transition-all placeholder:text-zinc-400 border border-zinc-200"
 
+  const chipCls = (active, tone = 'red') => `px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors cursor-pointer ${active ? (tone === 'emerald' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-red-600 text-white border-red-600') : 'bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50'}`
+  // Card de resumo clicável (também serve de atalho de filtro).
+  const ResumoCard = ({ titulo, n, valor, onClick, cor, ativo }) => (
+    <button onClick={onClick} className={`text-left border rounded-xl p-4 transition-all cursor-pointer bg-white ${ativo ? 'border-red-400 ring-2 ring-red-100' : 'border-zinc-200 hover:border-zinc-300'}`}>
+      <div className="text-[11px] font-bold text-zinc-400 uppercase tracking-wide">{titulo}</div>
+      <div className={`text-xl font-bold mt-1 ${cor}`}>R$ {formatBRL(valor)}</div>
+      <div className="text-xs text-zinc-500 mt-0.5">{n} proposta{n !== 1 ? 's' : ''}</div>
+    </button>
+  )
+
   return (
     <div className="w-full">
       {/* BUSCA — filtra por qualquer campo */}
@@ -159,12 +213,30 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-600 pointer-events-none" />
             <input type="text" placeholder="Digite cliente, ID, marca, modelo, cidade, valor ou status..." value={busca} onChange={e => setBusca(e.target.value)} className={`${filterInputStyle} pl-9`} />
           </div>
-          {(busca || filtroStatus) && (
-            <button onClick={() => { setBusca(''); setFiltroStatus('') }} className="px-4 py-2.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 text-xs font-semibold tracking-wide transition-colors flex items-center gap-2 whitespace-nowrap">
+          {(busca || filtroStatus || soFab) && (
+            <button onClick={() => { setBusca(''); setFiltroStatus(''); setSoFab(false) }} className="px-4 py-2.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 text-xs font-semibold tracking-wide transition-colors flex items-center gap-2 whitespace-nowrap">
               <X size={14} /> Limpar
             </button>
           )}
         </div>
+      </div>
+
+      {/* ATALHOS RÁPIDOS — configuram os filtros da tabela */}
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wide mr-1">Atalhos:</span>
+        <button onClick={() => { setFiltroStatus(''); setSoFab(false) }} className={chipCls(!filtroStatus && !soFab)}>Todas</button>
+        {COLUNAS.map(c => <button key={c.nome} onClick={() => setFiltroStatus(filtroStatus === c.nome ? '' : c.nome)} className={chipCls(filtroStatus === c.nome)}>{c.label}</button>)}
+        <button onClick={() => setSoFab(v => !v)} className={chipCls(soFab, 'emerald')}>FAB (pedido fábrica)</button>
+      </div>
+
+      {/* CARDS DE RESUMO — sempre sobre o que está filtrado; clicar aplica o filtro */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+        <ResumoCard titulo="Criadas (no filtro)" n={resumo.criN} valor={resumo.criV} cor="text-zinc-800"
+          ativo={!filtroStatus && !soFab} onClick={() => { setFiltroStatus(''); setSoFab(false) }} />
+        <ResumoCard titulo="Previsão faturamento fábrica" n={resumo.fabN} valor={resumo.fabV} cor="text-blue-600"
+          ativo={soFab} onClick={() => setSoFab(v => !v)} />
+        <ResumoCard titulo="Aguardando banco" n={resumo.bancoN} valor={resumo.bancoV} cor="text-violet-600"
+          ativo={filtroStatus === 'AGUARDANDO RESPOSTA BANCO'} onClick={() => setFiltroStatus(filtroStatus === 'AGUARDANDO RESPOSTA BANCO' ? '' : 'AGUARDANDO RESPOSTA BANCO')} />
       </div>
 
       {modo === 'kanban' ? (
@@ -189,7 +261,11 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       <div className="text-sm text-zinc-600 mt-0.5">{card.Marca} {card.Modelo}</div>
                       <div className="text-sm text-zinc-400">{card.Cidade || '---'}</div>
                       {card.vendedor_nome && <div className="text-xs text-zinc-500 mt-0.5">Vendedor: {card.vendedor_nome}</div>}
-                      <div className={`text-xs mt-1 ${agingCor(card.dias_na_fase)}`}>parado há {agingTexto(card.dias_na_fase)}</div>
+                      <div className="flex items-center justify-between mt-1">
+                        <div className={`text-xs ${agingCor(card.dias_na_fase)}`}>parado há {agingTexto(card.dias_na_fase)}</div>
+                        <div className="text-[11px] text-zinc-400">{fmtData(card.criado_em)}</div>
+                      </div>
+                      <div className="mt-1.5"><TermoBar v={termoValor(card)} /></div>
                       <select onClick={e => e.stopPropagation()} value={card.status} onChange={(e) => updateStatus(card.id, e.target.value, e)}
                         className="mt-2.5 w-full bg-zinc-50 border border-zinc-200 text-zinc-600 text-sm font-semibold p-2 rounded-md outline-none cursor-pointer focus:ring-2 focus:ring-red-500/40">
                         {COLUNAS.map(f => <option key={f.nome} value={f.nome}>{f.label}</option>)}
@@ -216,12 +292,14 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                 <Th k="valor" label="Valor" className="text-right px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <Th k="status" label="Status" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <Th k="dias_na_fase" label="Parado há" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <Th k="termometro" label="Termômetro" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <Th k="criado_em" label="Criada em" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide w-[210px]">Alterar</th>
               </tr>
             </thead>
             <tbody>
               {filtradas.length === 0 ? (
-                <tr><td colSpan={9} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
+                <tr><td colSpan={11} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
               ) : (
                 ordenadas.map(card => {
                   const isFromFactory = !!card.id_fabrica_ref
@@ -247,6 +325,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       </td>
                       <td className="px-5 py-4 text-right">
                         <span className="text-lg font-bold text-red-600">R$ {formatBRL(card.Valor_Total)}</span>
+                        {isFromFactory && card.fabrica_custo != null && <div className="text-[11px] text-zinc-400">custo fáb: R$ {formatBRL(card.fabrica_custo)}</div>}
                       </td>
                       <td className="px-5 py-4">
                         <span className={`text-sm font-semibold px-2.5 py-1 rounded-md ${getStatusStyle(card.status)}`}>{statusLabel(card.status)}</span>
@@ -254,6 +333,8 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       <td className="px-5 py-4">
                         <span className={`text-sm ${agingCor(card.dias_na_fase)}`}>{agingTexto(card.dias_na_fase)}</span>
                       </td>
+                      <td className="px-5 py-4"><TermoBar v={termoValor(card)} /></td>
+                      <td className="px-5 py-4"><span className="text-sm text-zinc-500">{fmtData(card.criado_em)}</span></td>
                       <td className="px-5 py-4" onClick={e => e.stopPropagation()}>
                         <select
                           className="w-full bg-zinc-50 border border-zinc-200 text-zinc-600 text-sm font-semibold p-2.5 rounded-md outline-none cursor-pointer focus:ring-2 focus:ring-red-500/40"
