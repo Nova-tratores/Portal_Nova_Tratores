@@ -89,28 +89,100 @@ export interface NotasEntradaResult {
   totalPaginas: number;
 }
 
+// Colunas retornadas para a listagem da tela.
+const NOTA_COLS =
+  'id,ncod_nf,numero_nf,serie,data_emissao,hora_emissao,emitente,nome_emitente,categoria,contas_pagar,valor_produtos,valor_nf,valor_icms,valor_ipi,valor_frete,valor_desconto,valor_total_tributos,parcelas,itens,complemento,cancelada,mes,ano,conta_omie';
+
+/** Normaliza uma linha do banco p/ o shape da tela: resolve ncod_nf via
+ *  complemento.nIdNF (sync antiga não populava; faz o DANFE abrir sem rebuild) e
+ *  achata os itens (formato cru do Omie). */
+function normalizarNotaRow(n: unknown): Record<string, unknown> {
+  const row = (n || {}) as Record<string, unknown>;
+  const compl = (row.complemento || {}) as Record<string, unknown>;
+  return { ...row, ncod_nf: row.ncod_nf ?? compl.nIdNF ?? null, itens: normalizarItensEntrada(row.itens) };
+}
+
+const lc = (s: unknown) => String(s ?? '').toLowerCase();
+
+/**
+ * Busca por DESCRIÇÃO do produto: varre o `itens` (jsonb cru do Omie) no servidor,
+ * aplicando também nf/fornecedor/ignorar em memória, e devolve as notas que casam
+ * ordenadas por emissão desc. A paginação é feita em memória (evita listas gigantes
+ * de id na URL do PostgREST). Sem índice/RPC.
+ */
+async function buscarNotasPorDescricao(
+  filtros: { nf?: string; fornecedor?: string; descricao?: string },
+  conta: ContaFiltro,
+  nomesIgnorar: string[],
+): Promise<Array<{ id: number; data_emissao: string }>> {
+  const termo = lc(filtros.descricao).trim();
+  const nf = lc(filtros.nf).trim();
+  const forn = lc(filtros.fornecedor).trim();
+  const ignorar = new Set(nomesIgnorar.map((x) => String(x)));
+  const LOTE = 1000;
+  const matched: Array<{ id: number; data_emissao: string }> = [];
+  let offset = 0;
+  for (;;) {
+    let q = supabase.from('notas_entrada').select('id,numero_nf,nome_emitente,data_emissao,itens').order('id', { ascending: true }).range(offset, offset + LOTE - 1);
+    q = filtroConta(q, conta);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<Record<string, unknown>>;
+    for (const row of lote) {
+      const nome = String(row.nome_emitente ?? '');
+      if (ignorar.has(nome)) continue;
+      if (nf && !lc(row.numero_nf).includes(nf)) continue;
+      if (forn && !lc(nome).includes(forn)) continue;
+      const itens = Array.isArray(row.itens) ? row.itens : [];
+      const bate = itens.some((raw) => {
+        const it = (raw || {}) as Record<string, unknown>;
+        const prod = (it.prod ?? null) as Record<string, unknown> | null;
+        return lc(prod?.xProd ?? it.descricao).includes(termo);
+      });
+      if (bate) matched.push({ id: row.id as number, data_emissao: String(row.data_emissao ?? '') });
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  // Ordena por emissão desc. data_emissao pode ser ISO (YYYY-MM-DD) ou DD/MM/YYYY.
+  const toISO = (d: string) => { const p = d.split('/'); return p.length === 3 ? `${p[2]}${p[1]}${p[0]}` : d; };
+  matched.sort((a, b) => (toISO(b.data_emissao) < toISO(a.data_emissao) ? -1 : 1));
+  return matched;
+}
+
 export async function listarNotasEntrada(
-  filtros: { mes?: number; ano?: number; nf?: string; pagina?: number },
+  filtros: { mes?: number; ano?: number; nf?: string; fornecedor?: string; descricao?: string; pagina?: number },
   conta: ContaFiltro,
 ): Promise<NotasEntradaResult> {
   const pag = filtros.pagina || 1;
   const porPagina = 50;
   const offset = (pag - 1) * porPagina;
+  const { nomes } = await getIgnorarFiltro(conta);
 
-  let query = supabase
-    .from('notas_entrada')
-    .select(
-      'id,ncod_nf,numero_nf,serie,data_emissao,hora_emissao,emitente,nome_emitente,categoria,contas_pagar,valor_produtos,valor_nf,valor_icms,valor_ipi,valor_frete,valor_desconto,valor_total_tributos,parcelas,itens,complemento,cancelada,mes,ano,conta_omie',
-      { count: 'exact' },
-    );
-  if (filtros.nf) {
-    query = query.ilike('numero_nf', '%' + filtros.nf + '%');
-  } else {
+  // Busca por descrição do produto: varre os itens e pagina em memória.
+  if (filtros.descricao && filtros.descricao.trim()) {
+    const matched = await buscarNotasPorDescricao(filtros, conta, nomes);
+    const total = matched.length;
+    const totalPaginas = Math.ceil(total / porPagina);
+    const pageIds = matched.slice(offset, offset + porPagina).map((m) => m.id);
+    if (pageIds.length === 0) return { notas: [], total, pagina: pag, porPagina, totalPaginas };
+    const { data, error } = await supabase.from('notas_entrada').select(NOTA_COLS).in('id', pageIds);
+    if (error) throw new Error(error.message);
+    const byId = new Map((data || []).map((r) => [(r as Record<string, unknown>).id as number, r]));
+    const notasNorm = pageIds.map((id) => byId.get(id)).filter(Boolean).map(normalizarNotaRow);
+    return { notas: notasNorm, total, pagina: pag, porPagina, totalPaginas };
+  }
+
+  let query = supabase.from('notas_entrada').select(NOTA_COLS, { count: 'exact' });
+  // NF e/ou fornecedor são busca textual e ignoram o filtro de mês/ano.
+  const temTexto = !!(filtros.nf || filtros.fornecedor);
+  if (filtros.nf) query = query.ilike('numero_nf', '%' + filtros.nf + '%');
+  if (filtros.fornecedor) query = query.ilike('nome_emitente', '%' + filtros.fornecedor + '%');
+  if (!temTexto) {
     if (filtros.mes) query = query.eq('mes', filtros.mes);
     if (filtros.ano) query = query.eq('ano', filtros.ano);
   }
   query = filtroConta(query, conta);
-  const { nomes } = await getIgnorarFiltro(conta);
   if (nomes.length > 0) {
     const escaped = nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',');
     query = query.not('nome_emitente', 'in', '(' + escaped + ')');
@@ -118,16 +190,8 @@ export async function listarNotasEntrada(
   query = query.order('data_emissao', { ascending: false }).range(offset, offset + porPagina - 1);
   const { data: notas, count, error } = await query;
   if (error) throw new Error(error.message);
-  const notasNorm = (notas || []).map((n) => {
-    const row = n as Record<string, unknown>;
-    const compl = (row.complemento || {}) as Record<string, unknown>;
-    // O código interno da NF (usado pelo GetUrlDanfe) fica em complemento.nIdNF —
-    // a sync antiga não populava `ncod_nf`, então resolvemos aqui p/ o DANFE abrir
-    // mesmo nas notas já gravadas (sem depender de rebuild).
-    const ncodNf = row.ncod_nf ?? compl.nIdNF ?? null;
-    return { ...row, ncod_nf: ncodNf, itens: normalizarItensEntrada(row.itens) };
-  });
-  return { notas: notasNorm as Array<Record<string, unknown>>, total: count || 0, pagina: pag, porPagina, totalPaginas: Math.ceil((count || 0) / porPagina) };
+  const notasNorm = (notas || []).map(normalizarNotaRow);
+  return { notas: notasNorm, total: count || 0, pagina: pag, porPagina, totalPaginas: Math.ceil((count || 0) / porPagina) };
 }
 
 // ===== Todas as notas de um período (campos mínimos, sem paginação) =====
@@ -135,20 +199,37 @@ export async function listarNotasEntrada(
 export interface NotaResumo { id: number; numero_nf: string | null; valor_nf: number }
 
 export async function listarNotasEntradaTodas(
-  filtros: { mes?: number; ano?: number; nf?: string },
+  filtros: { mes?: number; ano?: number; nf?: string; fornecedor?: string; descricao?: string },
   conta: ContaFiltro,
 ): Promise<{ notas: NotaResumo[]; total: number; somaValor: number }> {
   const { nomes } = await getIgnorarFiltro(conta);
   const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
 
+  // Busca por descrição: reusa a varredura de itens e busca os valores por id.
+  if (filtros.descricao && filtros.descricao.trim()) {
+    const matched = await buscarNotasPorDescricao(filtros, conta, nomes);
+    if (matched.length === 0) return { notas: [], total: 0, somaValor: 0 };
+    const ids = matched.map((m) => m.id);
+    const notas: NotaResumo[] = [];
+    const CH = 500;
+    for (let i = 0; i < ids.length; i += CH) {
+      const { data, error } = await supabase.from('notas_entrada').select('id,numero_nf,valor_nf').in('id', ids.slice(i, i + CH));
+      if (error) throw new Error(error.message);
+      (data || []).forEach((r) => notas.push({ id: (r as { id: number }).id, numero_nf: (r as { numero_nf: string | null }).numero_nf, valor_nf: num((r as { valor_nf: unknown }).valor_nf) }));
+    }
+    const somaValor = notas.reduce((s, n) => s + n.valor_nf, 0);
+    return { notas, total: notas.length, somaValor };
+  }
+
+  const temTexto = !!(filtros.nf || filtros.fornecedor);
   const LOTE = 1000;
   const notas: NotaResumo[] = [];
   let offset = 0;
   while (true) {
     let query = supabase.from('notas_entrada').select('id,numero_nf,valor_nf');
-    if (filtros.nf) {
-      query = query.ilike('numero_nf', '%' + filtros.nf + '%');
-    } else {
+    if (filtros.nf) query = query.ilike('numero_nf', '%' + filtros.nf + '%');
+    if (filtros.fornecedor) query = query.ilike('nome_emitente', '%' + filtros.fornecedor + '%');
+    if (!temTexto) {
       if (filtros.mes) query = query.eq('mes', filtros.mes);
       if (filtros.ano) query = query.eq('ano', filtros.ano);
     }
