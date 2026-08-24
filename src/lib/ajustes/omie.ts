@@ -1032,18 +1032,28 @@ function parseMovPeriodo(arr: any): any {
 }
 
 export async function obterMovimentosProduto(conta: Conta, idProd: any, dataDeBR: string, dataAteBR: string): Promise<any[]> {
-  let resp: any;
+  // IMPORTANTE: a Omie capa ~100 movimentos por pagina neste metodo e os devolve
+  // em ordem CRONOLOGICA (mais antigos primeiro). Ler so a 1a pagina descarta os
+  // movimentos mais recentes (ex.: agosto sumia num periodo de 90 dias com >100
+  // lancamentos). Por isso paginamos todas as paginas (mesmo endpoint/convencao
+  // do ListarPosEstoque), acumulando via nTotPaginas.
+  let lista: any[];
   try {
-    resp = await omieRequest('/estoque/consulta/', 'MovimentoEstoque', {
+    const { itens } = await paginarOmie('/estoque/consulta/', 'MovimentoEstoque', {
       id_prod: Number(idProd) || idProd,
       dataInicial: dataDeBR,
       dataFinal: dataAteBR
-    }, conta);
+    }, conta, {
+      paginaKey: 'nPagina', regKey: 'nRegPorPagina', regValue: 500,
+      totalKeys: ['nTotPaginas', 'total_de_paginas'],
+      listaKeys: ['movProduto', 'movimentos', 'movEstoque', 'lista'],
+      debugTag: 'MovimentoEstoque'
+    });
+    lista = itens;
   } catch (e) {
     if (ehErroSemRegistros(e)) return [];
     throw e;
   }
-  const lista = (resp && (resp.movProduto || resp.movimentos || resp.movEstoque || resp.lista)) || [];
   const movs = lista.map((m: any) => {
     const mp = parseMovPeriodo(m && m.movPeriodo);
     return {
