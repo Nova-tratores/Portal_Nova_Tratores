@@ -104,15 +104,22 @@ export async function GET(req: NextRequest) {
     const nomes = projetos.map(p => p.nome);
     const { data: osRows } = await supabase
       .from("portal_nt_clientes_os")
-      .select("num_os, projeto, empresa, data_previsao, servicos, cancelada, status")
+      .select(
+        "num_os, projeto, empresa, data_previsao, servicos, cancelada, status, valor_total"
+      )
       .in("projeto", nomes)
       .order("data_previsao", { ascending: false })
       .limit(500);
 
     const ultimaOs = new Map<string, { num_os: string; data: string; resumo: string }>();
+    const statsOs = new Map<string, { total: number; valor: number }>();
     for (const os of osRows || []) {
       if (os.cancelada) continue;
       const chave = `${os.projeto}|${os.empresa}`;
+      const stats = statsOs.get(chave) || { total: 0, valor: 0 };
+      stats.total += 1;
+      stats.valor += os.valor_total || 0;
+      statsOs.set(chave, stats);
       if (ultimaOs.has(chave)) continue; // já ordenado desc
       ultimaOs.set(chave, {
         num_os: String(os.num_os || ""),
@@ -144,13 +151,17 @@ export async function GET(req: NextRequest) {
 
     const maquinas = projetos.map(p => {
       const { modelo, chassis } = separarModeloChassis(p.nome);
+      const chave = `${p.nome}|${p.empresa}`;
+      const stats = statsOs.get(chave);
       return {
         projeto: p.nome,
         modelo,
         chassis,
         empresa: p.empresa || "",
+        os_total: stats?.total || 0,
+        valor_total: stats?.valor || 0,
         ultima_revisao: (chassis && ultimaRevisao.get(chassis)) || null,
-        ultimo_servico: ultimaOs.get(`${p.nome}|${p.empresa}`) || null,
+        ultimo_servico: ultimaOs.get(chave) || null,
       };
     });
 
