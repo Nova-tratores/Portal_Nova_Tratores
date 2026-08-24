@@ -57,36 +57,56 @@ export async function OPTIONS() {
 
 export async function GET(req: NextRequest) {
   const cod = (req.nextUrl.searchParams.get("cod") || "").trim();
-  const empresa = (req.nextUrl.searchParams.get("empresa") || "").trim();
   if (!cod) {
     return NextResponse.json({ maquinas: [] }, { headers: CORS });
   }
 
   try {
-    // 1) Projetos (máquinas) do cliente — igual à Pasta Clientes
-    let qProj = supabase
+    // 0) CNPJ do cliente — o mesmo cliente existe nas DUAS contas Omie
+    // (Nova Tratores e Castro Pecas) com códigos diferentes; as máquinas
+    // podem estar em qualquer uma, então casamos por cod OU por CNPJ.
+    const { data: cadastro } = await supabase
+      .from("portal_nt_clientes_cadastro_omie")
+      .select("cnpj_cpf")
+      .eq("cod_cli", cod)
+      .limit(1)
+      .maybeSingle();
+    const cnpj = (cadastro?.cnpj_cpf || "").trim();
+
+    // 1) Projetos (máquinas) — igual à Pasta Clientes
+    const projMap = new Map<string, Record<string, any>>();
+    const addProjetos = (rows: Record<string, any>[] | null) => {
+      for (const p of rows || []) {
+        if (p.inativo === "S" || !p.nome) continue;
+        projMap.set(`${p.nome}|${p.empresa}`, p);
+      }
+    };
+    const porCod = await supabase
       .from("portal_nt_projetos_PRINCIPAL")
       .select("codigo, nome, empresa, inativo")
       .eq("cod_cli_ultimo", cod);
-    if (empresa) qProj = qProj.eq("empresa", empresa);
-    const { data: projRows, error: errProj } = await qProj;
-    if (errProj) throw new Error(errProj.message);
-
-    const projetos = (projRows || []).filter(p => p.inativo !== "S" && p.nome);
+    addProjetos(porCod.data);
+    if (cnpj) {
+      const porCnpj = await supabase
+        .from("portal_nt_projetos_PRINCIPAL")
+        .select("codigo, nome, empresa, inativo")
+        .eq("cnpj_cpf_ultimo", cnpj);
+      addProjetos(porCnpj.data);
+    }
+    const projetos = [...projMap.values()];
     if (!projetos.length) {
       return NextResponse.json({ maquinas: [] }, { headers: CORS });
     }
 
-    // 2) OS mais recente de cada projeto (último serviço)
+    // 2) OS mais recente de cada projeto (último serviço) — sem filtrar
+    // por empresa, pelo mesmo motivo.
     const nomes = projetos.map(p => p.nome);
-    let qOs = supabase
+    const { data: osRows } = await supabase
       .from("portal_nt_clientes_os")
       .select("num_os, projeto, empresa, data_previsao, servicos, cancelada, status")
       .in("projeto", nomes)
       .order("data_previsao", { ascending: false })
       .limit(500);
-    if (empresa) qOs = qOs.eq("empresa", empresa);
-    const { data: osRows } = await qOs;
 
     const ultimaOs = new Map<string, { num_os: string; data: string; resumo: string }>();
     for (const os of osRows || []) {
