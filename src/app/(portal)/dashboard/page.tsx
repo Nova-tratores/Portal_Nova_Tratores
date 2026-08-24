@@ -27,6 +27,7 @@ interface SystemCard {
   tag: string
   group: string
   external?: boolean
+  permAcao?: string // ação granular dentro do módulo (pode(modulo, permAcao)); senão usa temAcesso(modulo)
 }
 
 const DASH_GROUPS: Record<string, { label: string; color: string; gradient: string; icon: React.ReactNode }> = {
@@ -72,6 +73,9 @@ const systems: SystemCard[] = [
   // Estoque (vermelho)
   { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #CBD5E1, #94A3B8)', href: '/visual-estoque', tag: 'VISUAL', group: 'estoque' },
   { id: 'consulta-omie', name: 'Consulta Estoque', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque', tag: 'CONSULTA', group: 'estoque' },
+  { id: 'estoque-notas-entrada', name: 'Notas de Entrada', description: 'Notas fiscais de entrada, DANFE, descrições e custos de compra', icon: <FileText size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/notas-entrada', tag: 'ENTRADAS', group: 'estoque', permAcao: 'notas-entrada' },
+  { id: 'estoque-recebimentos', name: 'Recebimentos', description: 'Conferência de recebimentos de mercadoria e pendências', icon: <Package size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/recebimentos', tag: 'RECEBIMENTO', group: 'estoque', permAcao: 'recebimentos' },
+  { id: 'estoque-movimentacao', name: 'Movimentação de Produto', description: 'Entradas e saídas de estoque de um produto no período (kardex)', icon: <Activity size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/movimentacao-produto', tag: 'MOVIMENTAÇÃO', group: 'estoque', permAcao: 'movimentacao-produto' },
   { id: 'frota', name: 'Frota', description: 'Veículos, abastecimento, multas, manutenções, documentos e rastreamento', icon: <Truck size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/frota', tag: 'VEÍCULOS', group: 'frota' },
   // Atalho pra abrir pendência de veículo (módulo próprio, mobile-first com foto)
   { id: 'pendencias', name: 'Pendências Frota', description: 'Abrir e acompanhar pendências dos veículos — com foto direto do celular', icon: <Wrench size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/pendencias', tag: 'PENDÊNCIAS', group: 'frota' },
@@ -110,6 +114,9 @@ const systemToModulo: Record<string, string> = {
   'lousa': 'lousa',
   'consulta-estoque': 'consulta-estoque', // card Visual Estoque (/visual-estoque)
   'consulta-omie': 'estoque',             // card Consulta Estoque (/estoque)
+  'estoque-notas-entrada': 'estoque',     // sub-tela; gate por pode('estoque','notas-entrada')
+  'estoque-recebimentos': 'estoque',      // sub-tela; gate por pode('estoque','recebimentos')
+  'estoque-movimentacao': 'estoque',      // sub-tela; gate por pode('estoque','movimentacao-produto')
   'frota': 'frota',                       // ⚠️ card SEM entrada aqui = visível pra TODOS
   'pendencias': 'pendencias',
   'avisos': 'avisos',
@@ -135,7 +142,7 @@ const defaultFolders: CardFolder[] = []
 export default function DashboardPage() {
   const { userProfile, router } = useAuth()
   const isMobile = useIsMobile()
-  const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { log: auditLog } = useAuditLog()
   const [searchTerm, setSearchTerm] = useState('')
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
@@ -311,8 +318,10 @@ export default function DashboardPage() {
 
   const allowedSystems = useMemo(() => systems.filter(s => {
     const modulo = systemToModulo[s.id]
-    return modulo ? temAcesso(modulo) : true
-  }), [temAcesso])
+    if (!modulo) return true
+    // Sub-telas de um módulo (permAcao) respeitam a permissão granular; o resto, o módulo inteiro.
+    return s.permAcao ? pode(modulo, s.permAcao) : temAcesso(modulo)
+  }), [temAcesso, pode])
 
   // Showcase rotativo: passa de sistema em sistema sozinho
   useEffect(() => {
