@@ -25,6 +25,9 @@ type Cliente = {
   razao_social: string | null;
   nome_fantasia: string | null;
   cnpj_cpf: string | null;
+  endereco: string | null;
+  bairro: string | null;
+  cep: string | null;
   cidade: string | null;
   estado: string | null;
   telefone: string | null;
@@ -53,7 +56,7 @@ async function carregarClientes(): Promise<Cliente[]> {
     const { data } = await supabase
       .from("portal_nt_clientes_cadastro_omie")
       .select(
-        "cod_cli, empresa, razao_social, nome_fantasia, cnpj_cpf, cidade, estado, telefone, email"
+        "cod_cli, empresa, razao_social, nome_fantasia, cnpj_cpf, endereco, bairro, cep, cidade, estado, telefone, email"
       )
       .range(from, from + PAGE - 1);
     if (data && data.length > 0) {
