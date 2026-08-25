@@ -885,6 +885,9 @@ export async function serieMensal(
 
   const pontos: PontoMensal[] = meses.map((m, i) => {
     const ponto: PontoMensal = { periodo: labelMes(m.mes, m.ano), mes: m.mes, ano: m.ano };
+    // Faturamento de peças do mês (só grupo peça) — campo extra p/ a barra
+    // opcional do gráfico; NÃO entra em `series` (não vira linha nem coluna).
+    ponto.faturamento_peca = Math.round(fluxos[i]?.saidaPeca ?? 0);
     if (i === k - 1) {
       ponto.estoque_peca = Math.round(estPeca);
       ponto.estoque_maquina = Math.round(estMaq);

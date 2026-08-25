@@ -83,6 +83,7 @@ export default function CruzamentoFamiliaPage() {
   const [serie, setSerie] = useState<SerieResp | null>(null);
   const [serieCarregando, setSerieCarregando] = useState(false);
   const [serieErro, setSerieErro] = useState('');
+  const [mostrarFatPecas, setMostrarFatPecas] = useState(false);
 
   // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
   const [mesesTipo, setMesesTipo] = useState(12);
@@ -351,6 +352,10 @@ export default function CruzamentoFamiliaPage() {
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <Sel label="Período" value={meses} onChange={(v) => setMeses(parseInt(v))} options={[6, 12, 18, 24, 36, 48].map((m) => ({ value: m, label: m + ' meses' }))} />
           <Sel label="Entrada/Saída por" value={dimensao} onChange={(v) => setDimensao(v as Dimensao)} options={[{ value: 'tipo', label: 'Tipo (Peça/Máquina)' }, { value: 'categoria', label: 'Categoria' }, { value: 'familia', label: 'Família' }, { value: 'tipocarac', label: 'Tipo (característica)' }]} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
+            <input type="checkbox" checked={mostrarFatPecas} onChange={(e) => setMostrarFatPecas(e.target.checked)} />
+            Faturamento de peças (barra)
+          </label>
         </div>
 
         {serieErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieErro}</div>}
@@ -359,7 +364,7 @@ export default function CruzamentoFamiliaPage() {
         {serie && !serieCarregando && (
           <>
             <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-              <SerieMensalChart dados={serie.pontos} series={serie.series} />
+              <SerieMensalChart dados={serie.pontos} series={serie.series} barKey={mostrarFatPecas ? 'faturamento_peca' : undefined} barLabel="Faturamento peças" barCor="#dc2626" />
             </div>
 
             <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
