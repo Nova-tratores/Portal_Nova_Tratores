@@ -1206,11 +1206,16 @@ body {
     color: #0b0f1a !important;
   }
 
-  /* ── Fase do PPV no escuro: neon mais aceso ainda ── */
+  /* ── Fase do PPV no escuro: PRETO em chip claro (pedido 25/08) ── */
   [data-theme="dark"] .ppv-phase-group-name {
-    background: transparent !important;
-    color: #FFA51E !important;
-    text-shadow: 0 0 10px rgba(255, 165, 30, 0.75);
+    background: #fefefe !important;
+    color: #111111 !important;
+    text-shadow: none !important;
+    padding: 2px 10px;
+    border-radius: 4px;
+  }
+  [data-theme="dark"] .ppv-phase-group-count {
+    background: #fefefe !important;
   }
   [data-theme="dark"] .bg-orange-100 { background-color: #9A3412 !important; }
   [data-theme="dark"] .text-orange-800 { color: #FFEDD5 !important; }
@@ -1330,20 +1335,17 @@ body {
 .ppv-phase-group-name {
   font-size: 15px;
   font-weight: 800;
-  color: #FF8A00;          /* laranja NEON com brilho (sem grifo) */
-  text-shadow: 0 0 8px rgba(255, 138, 0, 0.55);
+  color: #111111;          /* preto (pedido 25/08 — era laranja neon); #111111 escapa o remap do dark */
   padding: 2px 2px;
   white-space: nowrap;
 }
 
-/* Número do pedido nos cards do PPV — mesmo laranja neon brilhante */
+/* Número do pedido nos cards do PPV — PRETO (pedido 25/08) */
 .ppv-num-neon {
-  color: #FF8A00;
-  text-shadow: 0 0 8px rgba(255, 138, 0, 0.55);
+  color: #111111;
 }
 [data-theme="dark"] .ppv-num-neon {
-  color: #FFA51E;
-  text-shadow: 0 0 10px rgba(255, 165, 30, 0.75);
+  color: #111111;
 }
 .ppv-phase-group-count {
   font-size: 13px;
@@ -4708,4 +4710,41 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
     --text-light: #737373 !important;
     --primary-light: #f5f5f5 !important;
   }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PPV: fontes, números e ícones PRETOS (pedido 25/08).
+   #111111 escapa o remap do modo escuro; !important vence os
+   estilos inline dos cards (spans cinza #94a3b8/#334155).
+   No dark o card fica claro pra letra preta continuar legível
+   (#fefefe também escapa a conversão do tema). */
+.ppv-mini-card,
+.ppv-mini-card span,
+.ppv-mini-card b,
+.ppv-mini-card i,
+.ppv-mini-card select,
+.ppv-mini-card-title,
+.ppv-mini-card-obs,
+.ppv-list-lbl,
+.ppv-list-v,
+.ppv-list-valor,
+.ppv-list-titulo,
+.ppv-list-cliente,
+.ppv-list-obs,
+.ppv-phase-group-count {
+  color: #111111 !important;
+  text-shadow: none !important;
+}
+/* Vencer as regras dark antigas (mesma especificidade, aqui embaixo ganha) */
+[data-theme="dark"] .ppv-mini-card-obs,
+[data-theme="dark"] .ppv-phase-group-count {
+  color: #111111 !important;
+}
+/* No escuro o card e a linha da lista ficam CLAROS pra letra preta ler bem */
+[data-theme="dark"] .ppv-mini-card,
+[data-theme="dark"] .ppv-list-row {
+  background: #fefefe !important;
+}
+[data-theme="dark"] .ppv-mini-card select {
+  background: #fefefe !important;
 }
