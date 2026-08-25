@@ -18,6 +18,10 @@ interface Maquina {
   estoque: number
   dias_em_estoque: number
   cmc_portal: number
+  origem: 'estoque' | 'demonstracao'
+  destinatario: string
+  numero_remessa: string
+  valor_remessa: number | null
   fornecedor: string
   custo_pago: number | null
   custo_acumulado: number | null
@@ -43,6 +47,7 @@ export default function ConferenciaCustosPage() {
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
   const [soPendentes, setSoPendentes] = useState(false)
+  const [origemF, setOrigemF] = useState<'todas' | 'estoque' | 'demonstracao'>('todas')
   const [salvandoKey, setSalvandoKey] = useState<string | null>(null)
   const [salvoKey, setSalvoKey] = useState<string | null>(null)
 
@@ -101,33 +106,37 @@ export default function ConferenciaCustosPage() {
     const t = busca.trim().toLowerCase()
     return maquinas.filter(m => {
       if (soPendentes && m.contatado) return false
+      if (origemF !== 'todas' && m.origem !== origemF) return false
       if (!t) return true
       return (
         m.codigo.toLowerCase().includes(t) ||
         m.descricao.toLowerCase().includes(t) ||
         m.familia_nome.toLowerCase().includes(t) ||
-        (m.fornecedor || '').toLowerCase().includes(t)
+        (m.fornecedor || '').toLowerCase().includes(t) ||
+        (m.destinatario || '').toLowerCase().includes(t)
       )
     })
-  }, [maquinas, busca, soPendentes])
+  }, [maquinas, busca, soPendentes, origemF])
 
   const totais = useMemo(() => {
     const custoPortal = filtradas.reduce((s, m) => s + (m.cmc_portal || 0) * (m.estoque || 1), 0)
     const custoPago = filtradas.reduce((s, m) => s + (m.custo_pago || 0), 0)
     const contatados = filtradas.filter(m => m.contatado).length
-    return { custoPortal, custoPago, contatados, total: filtradas.length }
+    const emDemo = filtradas.filter(m => m.origem === 'demonstracao').length
+    return { custoPortal, custoPago, contatados, emDemo, total: filtradas.length }
   }, [filtradas])
 
   const exportarCSV = () => {
     const head = [
-      'Código', 'Descrição', 'Família', 'Marca', 'Conta', 'Estoque', 'Dias em estoque',
-      'Custo portal (CMC)', 'Fornecedor', 'Custo pago', 'Custo acumulado', 'Custo fábrica',
-      'Contatado', 'Observação',
+      'Código', 'Descrição', 'Família', 'Marca', 'Conta', 'Origem', 'Em demonstração p/', 'Nº remessa',
+      'Estoque', 'Dias em estoque', 'Custo portal (CMC)', 'Fornecedor', 'Custo pago', 'Custo acumulado',
+      'Custo fábrica', 'Contatado', 'Observação',
     ]
     const linhas = filtradas.map(m => [
-      m.codigo, m.descricao, m.familia_nome, m.marca, m.conta_omie, m.estoque, m.dias_em_estoque,
-      m.cmc_portal, m.fornecedor, m.custo_pago ?? '', m.custo_acumulado ?? '', m.custo_fabrica ?? '',
-      m.contatado ? 'Sim' : 'Não', (m.observacao || '').replace(/\n/g, ' '),
+      m.codigo, m.descricao, m.familia_nome, m.marca, m.conta_omie,
+      m.origem === 'demonstracao' ? 'Demonstração' : 'Estoque', m.destinatario, m.numero_remessa,
+      m.estoque, m.dias_em_estoque, m.cmc_portal, m.fornecedor, m.custo_pago ?? '', m.custo_acumulado ?? '',
+      m.custo_fabrica ?? '', m.contatado ? 'Sim' : 'Não', (m.observacao || '').replace(/\n/g, ' '),
     ])
     const csv = [head, ...linhas]
       .map(l => l.map(c => `"${String(c).replace(/"/g, '""')}"`).join(';'))
@@ -149,8 +158,8 @@ export default function ConferenciaCustosPage() {
       <div style={{ marginBottom: 4 }}>
         <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Conferência de custo das máquinas</h1>
         <p style={{ fontSize: 13, color: 'var(--portal-text-secondary,#737373)', margin: '4px 0 0' }}>
-          Todo o estoque de máquinas com o custo atual do portal. Ligue para cada fornecedor e
-          registre o custo pago, acumulado e o custo atual na fábrica — salva automaticamente.
+          Máquinas no pátio e em demonstração/consignação, com o custo atual do portal. Ligue para
+          cada fornecedor e registre o custo pago, acumulado e o custo atual na fábrica — salva automaticamente.
         </p>
       </div>
 
@@ -171,6 +180,16 @@ export default function ConferenciaCustosPage() {
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar código, descrição, família, fornecedor…"
             style={{ width: '100%', padding: '8px 10px 8px 32px', fontSize: 13, borderRadius: 8, border: '1px solid var(--portal-border,#e5e5e5)' }} />
         </div>
+        <div style={{ display: 'flex', gap: 4 }}>
+          {([['todas', 'Todas'], ['estoque', 'No pátio'], ['demonstracao', 'Demonstração']] as const).map(([v, label]) => (
+            <button key={v} onClick={() => setOrigemF(v)} style={{
+              padding: '7px 12px', fontSize: 12.5, fontWeight: origemF === v ? 700 : 500, cursor: 'pointer',
+              border: '1px solid var(--portal-border,#e5e5e5)', borderRadius: 8,
+              background: origemF === v ? '#111827' : 'transparent',
+              color: origemF === v ? '#fff' : 'var(--portal-text,#171717)',
+            }}>{label}</button>
+          ))}
+        </div>
         <label style={{ display: 'flex', gap: 6, alignItems: 'center', fontSize: 13, cursor: 'pointer' }}>
           <input type="checkbox" checked={soPendentes} onChange={e => setSoPendentes(e.target.checked)} />
           Só não contatados
@@ -187,6 +206,7 @@ export default function ConferenciaCustosPage() {
         <span>Custo portal (total): <b style={{ color: 'var(--portal-text,#171717)' }}>{fmt(totais.custoPortal)}</b></span>
         <span>Custo pago informado: <b style={{ color: 'var(--portal-text,#171717)' }}>{fmt(totais.custoPago)}</b></span>
         <span>Contatados: <b style={{ color: 'var(--portal-text,#171717)' }}>{totais.contatados}/{totais.total}</b></span>
+        {totais.emDemo > 0 && <span>Em demonstração: <b style={{ color: '#dc2626' }}>{totais.emDemo}</b></span>}
       </div>
 
       {loading ? (
@@ -201,6 +221,7 @@ export default function ConferenciaCustosPage() {
                 <Th>Código</Th>
                 <Th>Descrição</Th>
                 <Th>Família</Th>
+                <Th>Origem</Th>
                 <Th right>Dias estq.</Th>
                 <Th right>Custo portal</Th>
                 <Th>Fornecedor</Th>
@@ -222,6 +243,16 @@ export default function ConferenciaCustosPage() {
                       {m.estoque > 1 && <span style={{ fontSize: 11, color: '#dc2626' }}>{m.estoque} un.</span>}
                     </Td>
                     <Td>{m.familia_nome}</Td>
+                    <Td>
+                      {m.origem === 'demonstracao' ? (
+                        <span title={`Em demonstração${m.destinatario ? ' para ' + m.destinatario : ''}${m.numero_remessa ? ' · remessa ' + m.numero_remessa : ''}`}>
+                          <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 5, background: 'rgba(220,38,38,0.1)', color: '#dc2626', fontWeight: 700, fontSize: 11 }}>Demonstração</span>
+                          {m.destinatario && <span style={{ display: 'block', fontSize: 11, color: '#999', maxWidth: 150, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{m.destinatario}</span>}
+                        </span>
+                      ) : (
+                        <span style={{ display: 'inline-block', padding: '1px 6px', borderRadius: 5, background: 'rgba(107,114,128,0.12)', color: '#6b7280', fontWeight: 600, fontSize: 11 }}>No pátio</span>
+                      )}
+                    </Td>
                     <Td right>{m.dias_em_estoque}</Td>
                     <Td right mono>{fmt(m.cmc_portal)}</Td>
                     <Td>
@@ -247,7 +278,7 @@ export default function ConferenciaCustosPage() {
                 )
               })}
               {filtradas.length === 0 && (
-                <tr><td colSpan={11} style={{ padding: 30, textAlign: 'center', color: '#999' }}>Nenhuma máquina encontrada.</td></tr>
+                <tr><td colSpan={12} style={{ padding: 30, textAlign: 'center', color: '#999' }}>Nenhuma máquina encontrada.</td></tr>
               )}
             </tbody>
           </table>
