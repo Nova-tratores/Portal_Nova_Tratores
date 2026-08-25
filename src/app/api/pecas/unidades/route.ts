@@ -86,19 +86,26 @@ export async function POST(req: NextRequest) {
 }
 
 // GET — fila/listagem. Filtros: status (CSV), q (numero/codigo/descricao),
-// destino_os, limit/offset. ?count=1 devolve só a contagem (badge do hub).
-// Consulta POR OS (?destino_os=) só exige sessão — o card "Peças rastreadas"
-// do OSDrawer é usado por gente do POS que não tem o módulo ppv. A fila
-// completa passa com ppv puro OU o granular rastreio_liberar (sem a ação,
-// quem tem SÓ 'ppv:rastreio_liberar' levava 403 numa tela feita pra ele).
+// destino_os, destino_ppv, limit/offset. ?count=1 devolve só a contagem.
+// Consulta POR OS (?destino_os=) ou POR PPV (?destino_ppv=) só exige sessão —
+// os cards "Peças rastreadas" (OSDrawer/PPVDrawer) e a tela de liberação são
+// usados por gente sem o módulo ppv completo. A fila completa passa com ppv
+// puro OU o granular rastreio_liberar (sem a ação, quem tem SÓ
+// 'ppv:rastreio_liberar' levava 403 numa tela feita pra ele).
 export async function GET(req: NextRequest) {
   try {
-    if (req.nextUrl.searchParams.get('destino_os')) await exigirSessao(req);
-    else await exigirPermissao(req, 'ppv', 'rastreio_liberar');
     const sp = req.nextUrl.searchParams;
     const status = (sp.get('status') || '').split(',').map((s) => s.trim()).filter(Boolean);
     const q = (sp.get('q') || '').trim().replace(/[,()]/g, ' ').trim();
     const destinoOs = (sp.get('destino_os') || '').trim();
+    const destinoPpv = (sp.get('destino_ppv') || '').trim();
+    // branch decidido pelos valores TRIMADOS — com o cru, ?destino_ppv=%20
+    // passava só com sessão e o filtro (vazio) devolvia a fila inteira
+    if (destinoOs || destinoPpv) {
+      await exigirSessao(req);
+    } else {
+      await exigirPermissao(req, 'ppv', 'rastreio_liberar');
+    }
     const soCount = sp.get('count') === '1';
     const limit = Math.min(Math.max(parseInt(sp.get('limit') || '100', 10) || 100, 1), 200);
     const offset = Math.max(parseInt(sp.get('offset') || '0', 10) || 0, 0);
@@ -108,6 +115,7 @@ export async function GET(req: NextRequest) {
       .select(soCount ? 'id' : '*', { count: 'exact', head: soCount });
     if (status.length) qy = qy.in('status', status);
     if (destinoOs) qy = qy.eq('destino_os', destinoOs);
+    if (destinoPpv) qy = qy.eq('destino_ppv', destinoPpv);
     if (q) qy = qy.or(`numero.ilike.%${q}%,codigo.ilike.%${q}%,descricao.ilike.%${q}%,alt_codigo.ilike.%${q}%,retirado_por_nome.ilike.%${q}%`);
 
     const { data, error, count } = await qy

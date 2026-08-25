@@ -33,14 +33,20 @@ export interface BlocoEtiqueta {
   numero?: string | null
 }
 
-/** Tetos do ajuste automático de fonte (pt): acima disso o texto fica grande
- *  demais pro barcode e pra locação respirarem. A dupla divide a altura em
- *  duas, então o teto dela é bem menor. */
-const MAX_PT_LINHA = 14
-const MAX_PT_DUPLA = 7
-/** Altura da barra na etiqueta única: valor de partida e teto do ajuste (mm). */
+/** Tetos do ajuste automático de fonte (pt).
+ *
+ *  A etiqueta tem duas zonas com objetivos opostos: a LOCAÇÃO precisa ser lida
+ *  do outro lado do corredor (teto alto), e os DADOS só são conferidos com a
+ *  peça na mão (teto baixo, pra não roubar espaço de quem importa mais).
+ *  A dupla divide tudo entre duas empresas, então cede nos dois. */
+const MAX_PT_DADOS = 10
+const MAX_PT_LOC = 34
+const MAX_PT_DUPLA = 7.5
+const MAX_PT_LOC_DUPLA = 18
+/** Altura da barra na etiqueta única (mm), quando o código de barras está
+ *  ligado. Fixa: a sobra de altura agora vira TEXTO MAIOR, que é o que o balcão
+ *  precisa — antes ela era gasta engordando a barra. */
 const ALTURA_BARRA_MM = 5.6
-const MAX_BARRA_MM = 9
 
 export interface OpcoesFolha {
   /** Deslocamento fino (mm) da folha p/ calibrar impressoras que puxam torto.
@@ -52,10 +58,20 @@ export interface OpcoesFolha {
    *  Na folha adesiva não se usa: ela já vem picotada, e a linha impressa cairia
    *  em cima do vinco (ou, com a impressora puxando torto, dentro da etiqueta). */
   tracejado?: boolean
-  /** Etiqueta rastreada com os DOIS códigos: QR (celular → página da unidade)
-   *  e Code 128 (pistola do balcão → código da peça). Sem isto o QR entra no
-   *  lugar do barcode, e a etiqueta rastreada não serve pro leitor do balcão. */
-  barraComQr?: boolean
+  /** Imprime TAMBÉM o código de barras Code 128 (padrão: NÃO).
+   *
+   *  Desligado desde 25/08/2026 a pedido do balcão: a barra comia até 9mm dos
+   *  20,4mm úteis da etiqueta e o texto ficava pequeno demais pra ler. O QR faz
+   *  o papel dela ocupando um canto.
+   *
+   *  ⚠ Só religue sabendo que pistola 1D (laser comum) lê barra e NÃO lê QR —
+   *  se a leitura do balcão for por pistola dessas, a barra é a única que serve.
+   *  O encoder Code 128 continua testado e pronto justamente por isso. */
+  comBarra?: boolean
+  /** Papel SELECIONADO NA IMPRESSORA (não o tamanho da folha adesiva, que é
+   *  sempre Carta). Com 'a4' a página sai 210×297 e a impressora não precisa
+   *  encaixar nada — é o que evita o encolhimento de 2,7%. Default: carta. */
+  papel?: 'carta' | 'a4'
 }
 /** @deprecated nome de quando a opção era só o offset — use OpcoesFolha. */
 export type OffsetFolha = OpcoesFolha
@@ -74,38 +90,28 @@ export function empresaCurta(nome: string): string {
   return s.replace(/[^A-Z0-9]/g, '').slice(0, 2) || s.slice(0, 2)
 }
 
-// Tamanho (pt) do TEXTO CORRIDO da etiqueta (código + descrição + locação numa
-// frase só, layout do papel de recorte trazido pra folha adesiva em 21/08/2026).
-// Escala pelo TOTAL de caracteres: texto curto sai grande e legível, texto longo
-// encolhe até caber nas 3 linhas — em vez de cortar no "…". `dupla` = 2 empresas
-// na mesma etiqueta (metade da altura pra cada uma).
-export function fonteLinha(len: number, dupla: boolean): number {
-  // PISO seguro: tamanho que cabe mesmo sem Arial Narrow instalada e sem o
-  // ajuste do navegador rodar. Em cima disso, o script `ajustarFontes` cresce
-  // cada etiqueta até encostar no espaço real que ela tem (etiqueta única) —
-  // por isso aqui a escala é conservadora de propósito.
-  let pt = len <= 60 ? 9 : len <= 85 ? 8.2 : len <= 110 ? 7.4 : len <= 140 ? 6.6 : 6
-  if (dupla) pt = Math.max(5, +(pt * 0.78).toFixed(1))
-  return pt
-}
-
-// Mantida por compatibilidade com quem importar (o layout novo usa fonteLinha).
-export function fonteCodigo(len: number, dupla: boolean): number {
-  let pt = len <= 12 ? 13 : len <= 15 ? 11.5 : len <= 18 ? 10 : 8.5
-  if (dupla) pt = Math.max(7, +(pt * 0.8).toFixed(1))
-  return pt
-}
+// Os tamanhos de fonte não são mais calculados no servidor: cada zona é medida
+// e ajustada no navegador (ajustarFontes), porque só lá se sabe quanto o texto
+// realmente ocupa. O que o servidor manda é um PISO conservador no CSS
+// (.dados / .loc-grande), pra etiqueta sair legível mesmo se o script não rodar.
 
 // Locação com o VALOR em NEGRITO: "PRATELEIRA 3 · ANDAR A · CAIXA 01" mantém os
 // rótulos normais e destaca o número/letra (3 / A / 01). Devolve HTML (não
-// re-escapar). Cada trecho separado por "·" vira "RÓTULO <strong>VALOR</strong>".
+// re-escapar).
+//
+// Cada trecho vai num <span class="seg"> que NÃO QUEBRA por dentro: "CAIXA" e
+// "04" precisam ficar na mesma linha. Quando quebravam, a etiqueta parecia
+// cortada — o número órfão na linha de baixo não se lê como parte do endereço.
+// A quebra acontece ENTRE os trechos, no separador, que leva espaços de verdade
+// em volta justamente pra oferecer esse ponto de quebra.
 export function locHtml(loc: string): string {
   return String(loc || '').split('·').map(seg => {
     const s = seg.trim()
     if (!s) return ''
     const m = s.match(/^(\S+)\s+(.+)$/)
-    return m ? `${esc(m[1])} <strong>${esc(m[2])}</strong>` : esc(s)
-  }).filter(Boolean).join(' · ')
+    const html = m ? `${esc(m[1])} <strong>${esc(m[2])}</strong>` : esc(s)
+    return `<span class="seg">${html}</span>`
+  }).filter(Boolean).join(' <span class="sep">·</span> ')
 }
 
 // ── Código de barras Code 128 (subset B) em SVG puro, sem lib externa ───────
@@ -218,6 +224,23 @@ export function code128Svg(texto: string, alturaMm: number): string {
  * Junta módulos escuros vizinhos numa tirada só (menos nós → HTML bem menor
  * numa folha de 30 etiquetas).
  */
+/**
+ * URL da unidade EM MAIÚSCULAS, de propósito.
+ *
+ * O QR tem um modo "alfanumérico" que empacota 2 caracteres a cada 11 bits, mas
+ * ele só aceita A-Z, 0-9 e alguns símbolos — uma única minúscula joga a string
+ * inteira pro modo byte, com 8 bits por caractere. Só de subir a caixa, o QR
+ * desta URL cai de 37 pra 33 módulos, o que faz cada módulo passar de 0,26 pra
+ * 0,30mm no mesmo espaço físico. É a diferença entre ler e não ler.
+ *
+ * Seguro nos dois lados: esquema e domínio são case-insensitive por definição,
+ * e a rota /p/[id] valida o UUID com regex /i e compara com coluna `uuid` do
+ * Postgres, que também ignora a caixa.
+ */
+export function urlDaUnidade(origem: string, unidadeId: string): string {
+  return `${origem}/p/${unidadeId}`.toUpperCase()
+}
+
 export function qrSvg(modules: { size: number; data: ArrayLike<number> } | null | undefined): string {
   const n = modules?.size || 0
   if (!n || !modules) return ''
@@ -241,36 +264,43 @@ function dataRefAtual(): string {
   return `${String(agora.getMonth() + 1).padStart(2, '0')}/${agora.getFullYear()}`
 }
 
-// Blocos de UMA etiqueta, no layout do papel de recorte (o que o usuário
-// aprovou em 21/08/2026): EMPRESA numa linha e, embaixo, uma FRASE corrida
-// "CÓDIGO - DESCRIÇÃO - PRATELEIRA 4 · ANDAR A · CAIXA 01" alinhada à esquerda,
-// com o barcode centrado no rodapé. Aproveita muito melhor a largura da
-// etiqueta do que o formato centralizado em 3 blocos (código/descrição/locação),
-// que estourava a altura e obrigava a cortar a descrição.
+// ── Conteúdo da etiqueta em DUAS ZONAS (desenho do usuário, 25/08/2026) ─────
 //
-// .corpo encolhe/corta se faltar espaço; .rodape (barcode) tem espaço FIXO —
-// nunca é empurrado pra fora. `comBarra` = etiqueta comum (a rastreada leva QR).
-function blocosTexto(e: BlocoEtiqueta, comBarra: boolean): string {
+//   ┌───────────────────────────────┬──────┐
+//   │ CÓDIGO · DESCRIÇÃO   (menor)  │ NO   │  ← sigla e data empilhadas à
+//   │                               │08/26 │    direita: matam duas linhas
+//   ├───────────────────────────────┴──────┤
+//   │ PRATELEIRA 8 · ANDAR A      (ENORME) │  ← é o que se lê de longe
+//   └──────────────────────────────────────┘
+//
+// A locação ganhou zona própria porque é ela que a pessoa procura atravessando
+// o corredor; código e descrição só importam depois, com a peça na mão. Antes
+// tudo dividia a mesma frase corrida e a locação herdava o tamanho do conjunto.
+//
+// Os espaços em volta do separador NÃO são decoração: sem eles o navegador lê
+// "RP-006517047Y1·BOMBA" como uma palavra só de 20 caracteres (o ponto médio
+// não é ponto de quebra), a linha não quebra, transborda, e o ajuste de fonte
+// trava pequeno pra não estourar a largura.
+const SEP = ' <span class="sep">·</span> '
+
+function zonaDados(e: BlocoEtiqueta): string {
   const dupla = e.linhas.length > 1
   return e.linhas.map(l => {
     const desc = String(l.descricao || '').trim()
-    const loc = String(l.locacao || '').trim()
-    // tamanho pelo texto INTEIRO da frase (é ele que decide quantas linhas dá)
-    const total = String(l.codigo).length + desc.length + loc.length
-    // separador leve entre as partes (cinza) — a frase respira sem virar
-    // uma parede de texto preto
-    const sep = '<span class="sep">·</span>'
     const partes = [`<span class="cod">${esc(l.codigo)}</span>`]
     if (desc) partes.push(`<span class="desc">${esc(desc)}</span>`)
-    if (loc) partes.push(`<span class="loc">${locHtml(loc)}</span>`)
-    return `      <div class="bloco">
-        <div class="corpo">
-          <div class="emp">${esc(empresaCurta(l.empresa))}</div>
-          <div class="linha" style="font-size:${fonteLinha(total, dupla)}pt">${partes.join(sep)}</div>
-        </div>${comBarra ? `
-        <div class="rodape">${code128Svg(l.codigo, dupla ? 3 : ALTURA_BARRA_MM)}</div>` : ''}
-      </div>`
+    // na dupla a sigla vem junto da linha (são empresas diferentes); na simples
+    // ela sobe pra coluna da direita, junto da data
+    const sigla = dupla ? `<span class="emp-inline">${esc(empresaCurta(l.empresa))}</span> ` : ''
+    return `        <div class="linha-dados">${sigla}${partes.join(SEP)}</div>`
   }).join('\n')
+}
+
+/** Locação exibida: iguais entre as empresas viram UMA; diferentes, as duas. */
+export function locacaoDaEtiqueta(e: BlocoEtiqueta): string {
+  const locs = e.linhas.map(l => String(l.locacao || '').trim()).filter(Boolean)
+  const unicas = [...new Set(locs)]
+  return unicas.join('  /  ')
 }
 
 // ── Impressão em FOLHA ADESIVA pré-cortada 3×10 (Pimaco/Avery 6180) ─────────
@@ -302,7 +332,28 @@ export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: Opc
   // impressora imprime (~5mm da borda) — senão a linha de corte sumia justo
   // onde ela é necessária. A etiqueta continua 66,675×25,4mm nos dois modos.
   const vaoCol = off.tracejado ? 0 : 3.175
-  const ladoBase = off.tracejado ? 7.93 : 4.76
+
+  // TAMANHO DA PÁGINA = o papel que a IMPRESSORA está usando, não o tamanho da
+  // folha adesiva. Parece contraintuitivo, mas é o ponto todo: se a impressora
+  // está em A4 e mandamos uma página Carta, o Chrome encaixa uma na outra —
+  // ENCOLHE 2,7% e centraliza. O encolhimento é fatal, porque erro de escala
+  // cresce a cada linha (~7mm da 1ª à 10ª) e nenhum ajuste fino corrige.
+  // Emitindo a página no tamanho do papel da impressora não há encaixe, as
+  // etiquetas saem em tamanho REAL, e o que sobra é deslocamento constante —
+  // esse sim o ajuste fino resolve.
+  const pagLarg = off.papel === 'a4' ? 210 : 215.9
+  const pagAlt = off.papel === 'a4' ? 297 : 279.4
+  const gradeLarg = 3 * 66.675 + 2 * vaoCol
+  // ONDE a grade fica na página:
+  // · folha ADESIVA → na posição do PICOTE, que é sempre da folha Carta
+  //   (12,7mm do topo, 4,76mm da lateral). A folha é Carta mesmo quando a
+  //   impressora está em A4 — o tamanho da página só serve pra dizer à
+  //   impressora que ela não precisa encaixar (e encolher) nada. Impressora
+  //   começa a imprimir na borda de entrada do papel, então medir a partir do
+  //   topo vale nos dois tamanhos de página.
+  // · papel COMUM → centrada na página de verdade: não há picote pra casar.
+  const ladoBase = off.tracejado ? (pagLarg - gradeLarg) / 2 : (215.9 - gradeLarg) / 2
+  const topoBase = off.tracejado ? (pagAlt - 10 * 25.4) / 2 : 12.7
   // Deslocamento da folha inteira por TRANSLATE, não por margem: mexer no
   // padding limitava a correção ao tamanho da própria margem (12,7mm), e
   // padding negativo é CSS inválido — derrubaria o shorthand inteiro e
@@ -312,58 +363,49 @@ export function htmlFolha(blocos: BlocoEtiqueta[], usadas: Set<number>, off: Opc
   const ox = Math.max(-15, Math.min(15, off.x || 0))
   const oy = Math.max(-25, Math.min(25, off.y || 0))
   const desloc = ox || oy ? `transform: translate(${ox}mm, ${oy}mm);` : ''
-  const padTop = '12.70', padBot = '12.70'
-  const padLeft = ladoBase.toFixed(2), padRight = ladoBase.toFixed(2)
+  const padV = topoBase.toFixed(2), padH = ladoBase.toFixed(2)
 
-  const barraComQr = !!off.barraComQr
+  const comBarra = !!off.comBarra
   const cel = (e: BlocoEtiqueta | null) => {
     if (e === null) return '    <div class="cel"></div>'
     const dupla = e.linhas.length > 1
-    const comQr = !!e.qrSvg
-    if (!comQr) {
-      return `    <div class="cel${dupla ? ' dupla' : ''}">
-${blocosTexto(e, true)}
-      <div class="dt">${dataRef}</div>
-    </div>`
-    }
-    // Rastreada com os DOIS códigos: a barra atravessa a etiqueta INTEIRA em
-    // baixo e o topo é dividido entre texto e QR. Tentar espremer a barra na
-    // coluna do texto (ao lado do QR) derrubava o módulo do código mais longo
-    // pra 0,23mm, abaixo do piso de leitura de 0,25mm — o teste pega isso.
-    // Aqui ela fica com os mesmos 59,9mm da etiqueta comum.
-    if (barraComQr) {
-      return `    <div class="cel comqr combarra${dupla ? ' dupla' : ''}">
-      <div class="topo">
-        <div class="txt">
-${blocosTexto(e, false)}
-        </div>
-        <div class="qr">
-          ${e.qrSvg}${e.numero ? `
+    const loc = locacaoDaEtiqueta(e)
+
+    // Coluna da direita: sigla (só na simples — na dupla ela vai junto de cada
+    // linha) e data, empilhadas. Duas informações curtas que gastavam uma linha
+    // inteira cada quando ficavam no fluxo do texto.
+    // O número da unidade vem PRA CÁ, e não sob o QR: lá embaixo ele não cabia
+    // na zona de cima (QR de 8,6mm + número passavam dos 45% da etiqueta) e
+    // saía cortado pela régua. Aqui ele é só mais uma linha curta de metadado.
+    const lado = `        <div class="lado">${dupla ? '' : `
+          <div class="emp">${esc(empresaCurta(e.linhas[0].empresa))}</div>`}
+          <div class="dt-lado">${dataRef}</div>${e.numero ? `
           <div class="un">${esc(e.numero)}</div>` : ''}
-          <div class="dt inline">${dataRef}</div>
+        </div>`
+
+    const qr = e.qrSvg ? `        <div class="qr">${e.qrSvg}</div>` : ''
+
+    const barra = comBarra
+      ? '\n' + e.linhas.map(l => `      <div class="rodape">${code128Svg(l.codigo, dupla ? 3 : ALTURA_BARRA_MM)}</div>`).join('\n')
+      : ''
+
+    return `    <div class="cel duaszonas${dupla ? ' dupla' : ''}${e.qrSvg ? ' comqr' : ''}${loc ? '' : ' semloc'}${comBarra ? ' combarra' : ''}">
+      <div class="sup">
+        <div class="dados">
+${zonaDados(e)}
         </div>
+${lado}
       </div>
-${e.linhas.map(l => `      <div class="rodape">${code128Svg(l.codigo, dupla ? 3 : ALTURA_BARRA_MM)}</div>`).join('\n')}
-    </div>`
-    }
-    // Só QR (ele substitui a barra): texto à esquerda, QR à direita. A data sai
-    // do canto absoluto e vai pra baixo do QR, junto do número da unidade.
-    return `    <div class="cel comqr${dupla ? ' dupla' : ''}">
-      <div class="txt">
-${blocosTexto(e, false)}
-      </div>
-      <div class="qr">
-        ${e.qrSvg}${e.numero ? `
-        <div class="un">${esc(e.numero)}</div>` : ''}
-        <div class="dt inline">${dataRef}</div>
-      </div>
+      <div class="baixo">${loc ? `
+        <div class="loc-grande"><span>${locHtml(loc)}</span></div>` : '<div class="loc-grande"></div>'}${qr ? '\n' + qr : ''}
+      </div>${barra}
     </div>`
   }
 
   return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças (folha 3×10)</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  @page { size: 215.9mm 279.4mm; margin: 0; }
+  @page { size: ${pagLarg}mm ${pagAlt}mm; margin: 0; }
   /* Tipografia da etiqueta: CONDENSADA (Arial Narrow e equivalentes) — mesma
      altura de letra ocupando menos largura, então o texto sai maior e continua
      cabendo. font-stretch cobre as fontes variáveis; Arial é o fallback seguro
@@ -375,7 +417,7 @@ ${blocosTexto(e, false)}
   }
   .pagina {
     position: relative;
-    width: 215.9mm; height: 279.4mm; padding: ${padTop}mm ${padRight}mm ${padBot}mm ${padLeft}mm;
+    width: ${pagLarg}mm; height: ${pagAlt}mm; padding: ${padV}mm ${padH}mm;
     ${desloc}
     display: grid; grid-template-columns: repeat(3, 66.675mm);
     grid-auto-rows: 25.4mm; column-gap: ${vaoCol}mm; row-gap: 0;
@@ -389,7 +431,7 @@ ${blocosTexto(e, false)}
      quando o papel está em A4 —, a impressora está REDUZINDO a folha, e aí
      nenhum ajuste resolve: o erro cresce a cada linha. Feita de BORDAS porque
      borda imprime mesmo com "gráficos de fundo" desligado. */
-  .regua { position: absolute; left: ${ladoBase}mm; bottom: 3.6mm; display: flex; align-items: flex-end; gap: 2.5mm; }
+  .regua { position: absolute; left: ${padH}mm; bottom: 3.6mm; display: flex; align-items: flex-end; gap: 2.5mm; }
   .regua .tiques { display: flex; width: 100mm; height: 2.6mm; border: 0.3mm solid #111; border-top: none; }
   .regua i { flex: 1 1 0; border-left: 0.3mm solid #111; }
   .regua i:first-child { border-left: none; }
@@ -404,24 +446,66 @@ ${blocosTexto(e, false)}
     position: relative; overflow: hidden; padding: 2.6mm 3.4mm 2.4mm; text-align: left;
     display: flex; flex-direction: column; align-items: stretch; justify-content: flex-start;
   }
-  /* bloco = corpo (texto corrido, ocupa o espaço que sobra) + rodapé (barcode,
-     espaço garantido). .corpo com flex:1 é o que dá ao ajuste de fonte uma
-     ALTURA REAL pra medir (clientHeight = espaço livre da etiqueta). */
-  .bloco { width: 100%; flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; justify-content: space-between; }
-  .dupla .bloco + .bloco { margin-top: 0.6mm; }
-  /* conteúdo centrado na vertical: o que sobra vira respiro em cima E embaixo,
-     em vez de um buraco entre o texto e o código de barras */
-  .corpo { flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: center; }
-  .rodape { flex: 0 0 auto; width: 100%; }
-  /* empresa: caixa-alta espaçada, cinza — identifica sem competir com o código */
-  .emp { font-size: 6pt; font-weight: 700; letter-spacing: 1.1px; line-height: 1; color: #666; }
-  .dupla .emp { font-size: 5pt; letter-spacing: .8px; }
-  /* frase corrida: CÓDIGO · DESCRIÇÃO · LOCAÇÃO (corpo vem do fonteLinha) */
-  .linha {
-    line-height: 1.22; margin-top: 0.5mm; overflow: hidden; color: #111;
-    display: -webkit-box; -webkit-line-clamp: 5; -webkit-box-orient: vertical;
+  /* ── DUAS ZONAS ──────────────────────────────────────────────────────────
+     .sup   = dados (código/descrição) + coluna da direita (sigla, data, QR).
+              Altura CONTIDA: no máximo 45% da etiqueta, pra locação sempre
+              ficar com a maior metade.
+     .loc-grande = locação, ocupa TODO o resto e é a maior coisa da etiqueta.
+     A régua entre as duas é o que separa "o que se lê de longe" de "o que se
+     confere com a peça na mão". */
+  /* Altura FIXA (não max-height): com teto percentual a altura da zona dependia
+     do próprio texto que eu estava medindo, e o ajuste chegava a um tamanho que
+     "cabia" na medição e mesmo assim saía cortado pela régua. Fixa, o alvo do
+     ajuste é um número estável. */
+  /* 38%: a locação é a razão de ser da etiqueta a três metros, e cada ponto
+     percentual tirado daqui vira altura de fonte lá embaixo. Os dados encolhem
+     junto — foi o que o usuário pediu ao dizer que em cima "pode diminuir". */
+  .sup {
+    flex: 0 0 38%; overflow: hidden;
+    display: flex; align-items: flex-start; gap: 1.6mm; width: 100%;
   }
-  .dupla .linha { -webkit-line-clamp: 2; margin-top: 0.2mm; }
+  /* dupla tem duas linhas de dados (uma por empresa): precisa de mais em cima,
+     e a locação delas costuma ser curta — normalmente é a mesma peça */
+  .cel.dupla .sup { flex: 0 0 52%; }
+  /* dupla COM QR: a zona de baixo precisa caber o QR sem espremer, então a de
+     cima cede — os dados da dupla já são pequenos e aguentam */
+  .cel.dupla.comqr .sup { flex: 0 0 45%; }
+  /* font-size aqui é PISO: o ajuste no navegador sobe a partir dele. Se o
+     script não rodar, a etiqueta ainda sai legível em vez de herdar o tamanho
+     do body e estourar. */
+  .dados { flex: 1 1 auto; min-width: 0; overflow: hidden; font-size: 7pt; }
+  .linha-dados { line-height: 1.2; overflow: hidden; color: #111; }
+  .linha-dados + .linha-dados { margin-top: 0.4mm; }
+  /* coluna da direita: sigla e data empilhadas — juntas gastam a altura de UMA
+     linha de texto, no lugar de duas linhas soltas no fluxo */
+  .lado { flex: 0 0 auto; text-align: right; line-height: 1.15; }
+  .emp { font-size: 6.5pt; font-weight: 800; letter-spacing: .8px; color: #555; }
+  .dt-lado { font-size: 5pt; color: #999; letter-spacing: .2px; }
+  .emp-inline { font-size: .72em; font-weight: 800; color: #666; letter-spacing: .6px; }
+  /* Zona de baixo: locação + QR lado a lado.
+     O QR mora AQUI, e não no topo, porque esta é a zona ALTA (62% da etiqueta):
+     cabem 11,5mm de QR, contra 9,8mm lá em cima — e cada milímetro vira módulo
+     maior, que é o que decide se o leitor enxerga. De quebra a locação para de
+     ceder altura pro QR e cresce: 17pt em vez de 11,5pt. */
+  .baixo {
+    flex: 1 1 auto; min-height: 0; width: 100%;
+    display: flex; align-items: stretch; gap: 2mm;
+    border-top: 0.35mm solid #111; margin-top: 0.8mm; padding-top: 0.8mm;
+  }
+  /* LOCAÇÃO: a razão de ser da etiqueta a três metros de distância */
+  .loc-grande {
+    flex: 1 1 auto; min-width: 0; min-height: 0; overflow: hidden;
+    display: flex; align-items: center;
+    font-weight: 800; line-height: 1.08; color: #000;
+    font-size: 11pt; /* piso — o ajuste no navegador sobe daqui */
+  }
+  .loc-grande > span { display: block; width: 100%; }
+  .loc-grande strong { font-weight: 800; }
+  /* "CAIXA 04" nunca se parte no meio (ver locHtml) */
+  .seg { white-space: nowrap; }
+  /* sem locação cadastrada não há régua nem zona de baixo: os dados usam tudo */
+  .cel.semloc .sup { max-height: none; flex: 1 1 auto; align-items: center; }
+  .rodape { flex: 0 0 auto; width: 100%; }
   /* código: monoespaçada de verdade (Consolas/DejaVu) — 0 vs O e 1 vs I sem
      dúvida na hora de conferir a peça. Courier New só como último recurso. */
   .cod {
@@ -434,43 +518,27 @@ ${blocosTexto(e, false)}
     white-space: nowrap;
   }
   .desc { font-weight: 600; }
-  .loc { color: #444; }
-  .linha .loc strong { font-weight: 700; color: #000; }
-  .sep { color: #aaa; font-weight: 400; margin: 0 .28em; }
+  /* sem margem: o respiro vem dos espaços reais em volta (ver comentário no
+     blocosTexto — eles são o que permite a linha quebrar) */
+  .sep { color: #aaa; font-weight: 400; }
   .barra { display: block; margin: 0.7mm auto 0; max-width: 100%; }
   .dupla .barra { margin: 0.35mm auto 0; }
-  /* data discreta no canto inferior direito (fora do fluxo, como no recorte) —
-     recuada junto com a área de segurança */
-  .dt { position: absolute; bottom: 1.2mm; right: 3.2mm; font-size: 4.8pt; color: #999; letter-spacing: .2px; line-height: 1; }
-  /* na etiqueta rastreada a data entra no fluxo, sob o QR (ver comentário no
-     cel(): no canto ela encavalaria o barcode quando os dois códigos convivem) */
-  .dt.inline { position: static; margin-top: 0.3mm; text-align: center; }
-  /* Rastreada: texto corrido à esquerda + QR fixo à direita (sem Code 128).
-     o "align-items: stretch" é OBRIGATÓRIO: com "center" a coluna de texto ficava
-     com altura automática, e aí o .bloco (flex-basis 0) colapsava pra ZERO —
-     o overflow:hidden do corpo apagava o texto inteiro e a etiqueta saía só com
-     o QR. Quem centraliza na vertical é o .txt/.qr, cada um dentro da sua
-     coluna já esticada. */
-  /* gap = ZONA DE SILÊNCIO do QR (o padrão pede 4 módulos claros em volta):
-     2mm > 4 × 0,35mm do módulo de um QR de 13mm. Do outro lado quem fornece é
-     a área de segurança da etiqueta. */
-  .cel.comqr { flex-direction: row; align-items: stretch; gap: 2mm; }
-  .cel.comqr .txt { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
-  .cel.comqr .bloco { justify-content: center; }
-  /* QR + barcode: topo (texto | QR) em cima, barra de ponta a ponta embaixo.
-     O .topo tem altura DEFINIDA (flex do que sobra depois da barra), que é o
-     que o ajuste de fonte mede — por isso o texto nunca invade o barcode. */
-  .cel.comqr.combarra { flex-direction: column; gap: 0; }
-  .cel.comqr.combarra .topo { flex: 1 1 auto; min-height: 0; width: 100%; display: flex; align-items: stretch; gap: 2mm; }
-  /* clamp ALTO de propósito: ele é só a rede de segurança. Quem decide o
-     tamanho é o ajuste de fonte, que ENCOLHE até caber — com clamp baixo o
-     texto era cortado no "…" (a locação sumia) antes de a fonte tentar. */
-  .cel.comqr .linha { -webkit-line-clamp: 5; }
-  .cel.comqr.dupla .linha { -webkit-line-clamp: 2; }
-  .qr { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; justify-content: center; }
-  .qr svg { width: 13mm; height: 13mm; display: block; }
-  .dupla .qr svg { width: 12mm; height: 12mm; }
-  .un { font-size: 5pt; color: #555; margin-top: 0.2mm; letter-spacing: .2px; }
+  /* QR: canto superior direito, ao lado da sigla/data. Zona de silêncio vem do
+     gap de 1,6mm somado à área de segurança da etiqueta. */
+  .qr { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; }
+  /* QR PEQUENO (25/08/2026): 13mm roubavam quase um quarto da largura útil, e a
+     queixa do balcão era não conseguir ler o TEXTO. 9,5mm ainda dá ~0,26mm por
+     módulo num QR de 37 módulos — celular lê de perto sem drama, e sobram ~6mm
+     de largura pro texto, que é onde eles fazem falta. */
+  /* 11,5mm na zona de baixo. Não é estética: com a URL em MAIÚSCULAS o QR tem
+     33 módulos, e 11,5mm dão 0,348mm por módulo — bem acima do piso prático de
+     leitura (0,25mm). Antes eram 0,232mm E cortado, que foi o que quebrou. */
+  /* flex:0 0 auto é OBRIGATÓRIO: como item de um flex em coluna, o SVG encolhia
+     só na ALTURA pra caber na linha — saía retangular. QR fora de esquadro não
+     lê, e o defeito é invisível a olho nu. */
+  .qr svg { width: 10.5mm; height: 10.5mm; display: block; flex: 0 0 auto; }
+  .dupla .qr svg { width: 9.2mm; height: 9.2mm; }
+  .un { font-size: 4.6pt; color: #666; letter-spacing: .1px; white-space: nowrap; }
   /* TRACEJADO DE CORTE (papel comum, body.cortar): linha na borda EXTERNA de
      cada etiqueta, pra recortar com tesoura. Vai num ::before com border de
      verdade — o tracejado da prévia é um "outline" dentro de @media screen e por
@@ -520,67 +588,62 @@ ${cels.map(cel).join('\n')}${off.tracejado ? `
 // maior fonte que cabe (em vez de todas no menor denominador comum) e nenhuma
 // sai cortada. A medida é contra o .bloco, que tem altura FIXA (a da etiqueta);
 // medir contra o texto não serve, porque ele cresce junto.
+// Busca BINÁRIA do maior tamanho que cabe. A relação é monotônica (fonte maior
+// = texto mais alto = cabe menos), e busca linear custaria centenas de
+// recálculos de layout por folha, travando a janela de impressão.
+function maiorQueCabe(lo, hi, passo, aplicar, cabe) {
+  var best = lo;
+  aplicar(lo);
+  if (!cabe()) return null;              // nem o mínimo cabe
+  for (var k = 0; k < 9 && hi - lo > passo; k++) {
+    var mid = Math.round(((lo + hi) / 2) / passo) * passo;
+    mid = Math.round(mid * 100) / 100;
+    if (mid <= lo || mid >= hi) break;
+    aplicar(mid);
+    if (cabe()) { best = mid; lo = mid; } else { hi = mid; }
+  }
+  aplicar(best);
+  return best;
+}
+
+// Encolhe em degraus quando nem o piso coube (texto excepcionalmente longo).
+function encolherAteCaber(aplicar, cabe, piso) {
+  var pt = piso;
+  for (var d = 0; d < 14 && !cabe() && pt > 3.4; d++) {
+    pt = Math.round((pt - 0.3) * 100) / 100;
+    aplicar(pt);
+  }
+}
+
 function ajustarFontes() {
-  document.querySelectorAll('.bloco').forEach(function (bloco) {
-    var linha = bloco.querySelector('.linha');
-    if (!linha) return;
-    var emp = bloco.querySelector('.emp');
-    var rodape = bloco.querySelector('.rodape');
-    var dupla = !!bloco.closest('.cel.dupla');
-    var teto = dupla ? ${MAX_PT_DUPLA} : ${MAX_PT_LINHA};
-    var piso = 4.4;
-    // Espaço que sobra pro texto = altura da etiqueta − empresa − barcode − folga.
-    // Cálculo EXPLÍCITO em vez de detectar transbordo: com o conteúdo centrado,
-    // o que vaza pra cima não aparece no scrollHeight e a medição mentia (ora
-    // deixava crescer até cortar, ora travava cedo deixando espaço morto).
-    var espaco = function () {
-      var h = bloco.clientHeight;
-      if (emp) h -= emp.offsetHeight;
-      if (rodape) h -= rodape.offsetHeight;
-      return h - 3; // folga: margem do texto + arredondamento de impressão
-    };
-    // Altura E largura: o código não quebra (white-space:nowrap), então numa
-    // etiqueta de texto curto a fonte podia crescer até o código vazar pela
-    // lateral — e overflow:hidden cortaria justamente o que mais importa.
-    var cabe = function () {
-      return linha.scrollHeight <= espaco() && linha.scrollWidth <= linha.clientWidth + 1;
-    };
+  document.querySelectorAll('.cel.duaszonas').forEach(function (cel) {
+    var sup = cel.querySelector('.sup');
+    var dados = cel.querySelector('.dados');
+    var loc = cel.querySelector('.loc-grande');
+    if (!sup || !dados) return;
+    var dupla = cel.classList.contains('dupla');
 
-    // Busca BINÁRIA do maior valor que cabe (texto mais alto = cabe menos, a
-    // relação é monotônica). Linear custaria centenas de recálculos de layout
-    // por folha e travaria a janela de impressão; assim são ~7.
-    var maiorQueCabe = function (lo, hi, passo, aplicar) {
-      var best = lo;
-      aplicar(lo);
-      if (!cabe()) return null;            // nem o mínimo cabe
-      for (var k = 0; k < 8 && hi - lo > passo; k++) {
-        var mid = Math.round(((lo + hi) / 2) / passo) * passo;
-        mid = Math.round(mid * 100) / 100;
-        if (mid <= lo || mid >= hi) break;
-        aplicar(mid);
-        if (cabe()) { best = mid; lo = mid; } else { hi = mid; }
-      }
-      aplicar(best);
-      return best;
+    // ── 1) DADOS (código/descrição) ────────────────────────────────────────
+    // A zona de cima tem altura FIXA no CSS e não pode roubar da locação, que é
+    // o que se lê de longe. O alvo é a altura real dela, medida agora.
+    var cabeDados = function () {
+      return dados.scrollHeight <= sup.clientHeight && dados.scrollWidth <= dados.clientWidth + 1;
     };
-
-    // 1) fonte: maior tamanho que cabe (encolhe abaixo do piso se precisar)
-    var aplicarPt = function (v) { linha.style.fontSize = v + 'pt'; };
-    if (maiorQueCabe(piso, teto, 0.25, aplicarPt) === null) {
-      // nem no piso coube: desce em degraus até caber (texto muito longo)
-      var pt = piso;
-      for (var d = 0; d < 12 && !cabe() && pt > 3.6; d++) {
-        pt = Math.round((pt - 0.3) * 100) / 100;
-        aplicarPt(pt);
-      }
+    var aplicarDados = function (v) { dados.style.fontSize = v + 'pt'; };
+    if (maiorQueCabe(4.2, dupla ? ${MAX_PT_DUPLA} : ${MAX_PT_DADOS}, 0.25, aplicarDados, cabeDados) === null) {
+      encolherAteCaber(aplicarDados, cabeDados, 4.2);
     }
 
-    // 2) o que ainda sobrar vai pra ALTURA DA BARRA. O texto só cresce em
-    // degraus (uma linha a mais ou nada), então quase sempre fica um resto —
-    // e barra mais alta é barra mais fácil de ler de qualquer ângulo.
-    var svg = rodape && rodape.querySelector('svg');
-    if (svg && !dupla && cabe()) {
-      maiorQueCabe(${ALTURA_BARRA_MM}, ${MAX_BARRA_MM}, 0.2, function (v) { svg.style.height = v + 'mm'; });
+    // ── 2) LOCAÇÃO ─────────────────────────────────────────────────────────
+    // Só depois de a zona de cima assentar: a locação fica com TODO o resto,
+    // e é aqui que a fonte vai o mais alto que a etiqueta permitir.
+    if (!loc) return;
+    var cabeLoc = function () {
+      return loc.scrollHeight <= loc.clientHeight && loc.scrollWidth <= loc.clientWidth + 1;
+    };
+    var aplicarLoc = function (v) { loc.style.fontSize = v + 'pt'; };
+    if (maiorQueCabe(5, dupla ? ${MAX_PT_LOC_DUPLA} : ${MAX_PT_LOC}, 0.25, aplicarLoc, cabeLoc) === null) {
+      encolherAteCaber(aplicarLoc, cabeLoc, 5);
     }
   });
 }

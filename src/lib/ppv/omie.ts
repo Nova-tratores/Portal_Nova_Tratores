@@ -7,6 +7,7 @@ import { supabaseFetch } from "./supabase";
 import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS, TBL_OS } from "./constants";
 import { buscarPPVPorId, registrarLog } from "./queries";
 import { contaOmie } from "@/lib/omie/contas";
+import { aplicarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
 
 // A OS vinculada é interna? (usado pra mandar o PPV como Remessa automaticamente)
 async function osEhInterna(osId: string): Promise<boolean> {
@@ -594,6 +595,13 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
 
     await registrarLog(idPPV, `${tipoLabel} Omie nº ${numPedido} criado (${acc.name}). Aguardando faturamento.`);
 
+    // Remessa nunca fatura — a peça sai com a nota de remessa: aplica as
+    // unidades rastreadas liberadas agora (best-effort; sobras aparecem na
+    // conferência liberado × faturado).
+    if (isRemessa) {
+      try { await aplicarUnidadesDoPPV(idPPV, { origem: "remessa", pedidoOmie: numPedido }); } catch { /* best-effort */ }
+    }
+
     return { sucesso: true, numeroPedido: numPedido };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -763,6 +771,9 @@ export async function faturarPPVNoOmie(
       await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
         faturado_omie_em: new Date().toISOString(), status: "Concluída", omie_empresa: acc.name, nf_numero: numeroNf || null,
       });
+      // faturado por fora (direto no Omie) e o portal só carimbou agora — as
+      // unidades rastreadas liberadas também precisam ser aplicadas
+      try { await aplicarUnidadesDoPPV(idPPV, { origem: "faturamento", pedidoOmie: String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || "") }); } catch { /* best-effort */ }
       return { sucesso: true, jaFaturado: true, numeroPedido: String(pedido.cabecalho?.numero_pedido || cab.pedido_omie || ""), etapa: etapaAtual, empresa: acc.name, nfNumero: numeroNf || null };
     }
     console.error(`[Omie PPV faturar] ${idPPV}: etapa ${etapaAtual} SEM NF-e — não marco faturado.`);
@@ -818,6 +829,12 @@ export async function faturarPPVNoOmie(
       ...(numeroNf ? { nf_numero: numeroNf } : {}),
     });
     await registrarLog(idPPV, `Faturado no Omie (FaturarPedidoVenda) — pedido nº ${numeroPedido}${numeroNf ? `, NF-e ${numeroNf}` : " (NF-e em autorização na SEFAZ)"} (${acc.name}). PPV concluída.`);
+
+    // NF-e emitida (FaturarPedidoVenda aceito): aplica as unidades rastreadas
+    // LIBERADAS deste PPV (gravando o preço de venda); reservas nunca
+    // liberadas viram alerta. Best-effort — a NF já saiu, falha aqui não
+    // desfaz nada; sobras ficam visíveis na conferência liberado × faturado.
+    try { await aplicarUnidadesDoPPV(idPPV, { origem: "faturamento", pedidoOmie: numeroPedido }); } catch { /* best-effort */ }
 
     return { sucesso: true, numeroPedido, etapa: OMIE_ETAPA_FATURADO, empresa: acc.name, nfNumero: numeroNf || null, aguardandoSefaz: !numeroNf };
   } catch (err) {

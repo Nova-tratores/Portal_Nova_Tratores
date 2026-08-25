@@ -44,8 +44,10 @@ CREATE TABLE IF NOT EXISTS peca_unidades (
     'devolucao_pendente', 'cancelada', 'extraviada'
   )),
 
-  destino_tipo TEXT CHECK (destino_tipo IN ('os', 'balcao', 'uso_interno')),
+  destino_tipo TEXT CHECK (destino_tipo IN ('os', 'balcao', 'uso_interno', 'ppv')),
   destino_os TEXT,                       -- Ordem_Servico.Id_Ordem (texto)
+  destino_ppv TEXT,                      -- pedidos.id_pedido ('PPV-0001'/'REM-0001')
+  venda_preco NUMERIC,                   -- por quanto foi vendida (snapshot do item do PPV)
   destino_obs TEXT NOT NULL DEFAULT '',
 
   retirado_por UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -96,6 +98,7 @@ CREATE INDEX IF NOT EXISTS idx_pu_status       ON peca_unidades(status);
 CREATE INDEX IF NOT EXISTS idx_pu_codigo       ON peca_unidades(conta_omie, codigo);
 CREATE INDEX IF NOT EXISTS idx_pu_alt_codigo   ON peca_unidades(alt_codigo) WHERE alt_codigo IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pu_destino_os   ON peca_unidades(destino_os) WHERE destino_os IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_pu_destino_ppv  ON peca_unidades(destino_ppv) WHERE destino_ppv IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_pu_retirado_por ON peca_unidades(retirado_por, status);
 CREATE INDEX IF NOT EXISTS idx_pu_lote         ON peca_unidades(lote_id);
 CREATE INDEX IF NOT EXISTS idx_pue_unidade     ON peca_unidade_eventos(unidade_id, created_at);

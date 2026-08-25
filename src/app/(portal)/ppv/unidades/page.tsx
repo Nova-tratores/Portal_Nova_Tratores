@@ -3,7 +3,7 @@
 // aguardando liberação, liberadas, devoluções pra conferir, estoque etc.
 // Ações (liberar/recusar/receber/…) vão pra /api/pecas/unidades/[id]/acoes;
 // quem valida permissão é o servidor (ppv puro | ppv:rastreio_liberar | admin).
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
 import { ArrowLeft, Check, ExternalLink, Loader2, Printer, QrCode, RefreshCw, X } from 'lucide-react'
@@ -13,8 +13,9 @@ import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import QRUnidadeModal from '@/components/ppv/QRUnidadeModal'
 import PecasNav from '@/components/ppv/PecasNav'
-import { htmlFolha, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
+import { htmlFolha, qrSvg, urlDaUnidade, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
 import { STATUS_LABEL, STATUS_COR, DESTINO_LABEL, EMPRESA_LABEL, EMPRESA_COR, type PecaUnidade, type UnidadeStatus } from '@/lib/pecas/unidades'
+import type { DivergenciaPPV } from '@/lib/pecas/ppv-vinculo'
 
 const ABAS: { id: string; rotulo: string; status: UnidadeStatus[] }[] = [
   { id: 'pendentes', rotulo: 'Aguardando liberação', status: ['retirada_pendente'] },
@@ -22,6 +23,8 @@ const ABAS: { id: string; rotulo: string; status: UnidadeStatus[] }[] = [
   { id: 'devolucoes', rotulo: 'Devoluções', status: ['devolucao_pendente'] },
   { id: 'estoque', rotulo: 'Em estoque', status: ['estoque'] },
   { id: 'todas', rotulo: 'Todas', status: [] },
+  // liberado × faturado: PPVs fechados/faturados com unidade ainda presa
+  { id: 'conferencia', rotulo: 'Conferência', status: [] },
 ]
 
 function fmtDataHora(iso: string | null): string {
@@ -35,6 +38,11 @@ export default function UnidadesRastreioPage() {
 
   const [aba, setAba] = useState('pendentes')
   const [q, setQ] = useState('')
+  // busca com debounce (um fetch por TECLA piscava a lista e zerava a seleção)
+  const [qBusca, setQBusca] = useState('')
+  // descarta resposta fora de ordem (a query curta é a mais pesada e pode
+  // chegar por último, sobrescrevendo o resultado do termo atual)
+  const seqRef = useRef(0)
   const [linhas, setLinhas] = useState<PecaUnidade[]>([])
   const [total, setTotal] = useState(0)
   const [carregando, setCarregando] = useState(true)
@@ -42,29 +50,47 @@ export default function UnidadesRastreioPage() {
   const [agindo, setAgindo] = useState('')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [qrModal, setQrModal] = useState<PecaUnidade | null>(null)
+  const [divergencias, setDivergencias] = useState<DivergenciaPPV[]>([])
 
   const abaDef = useMemo(() => ABAS.find(a => a.id === aba) || ABAS[0], [aba])
   const podeLiberar = pode('ppv', 'rastreio_liberar')
 
+  useEffect(() => {
+    const t = setTimeout(() => setQBusca(q), 350)
+    return () => clearTimeout(t)
+  }, [q])
+
   const buscar = useCallback(async () => {
+    const seq = ++seqRef.current
     setCarregando(true)
     setErro('')
     try {
+      if (abaDef.id === 'conferencia') {
+        const r = await fetch('/api/ppv/pedidos/conferencia?divergentes=1', { headers: await authHeaders() })
+        const j = await r.json()
+        if (seq !== seqRef.current) return // resposta obsoleta
+        if (!r.ok) throw new Error(j.error || 'Falha ao carregar')
+        setDivergencias(j.ppvs || [])
+        setLinhas([])
+        setTotal((j.ppvs || []).length)
+        return
+      }
       const params = new URLSearchParams({ limit: '200' })
       if (abaDef.status.length) params.set('status', abaDef.status.join(','))
-      if (q.trim()) params.set('q', q.trim())
+      if (qBusca.trim()) params.set('q', qBusca.trim())
       const r = await fetch(`/api/pecas/unidades?${params}`, { headers: await authHeaders() })
       const j = await r.json()
+      if (seq !== seqRef.current) return // resposta obsoleta
       if (!r.ok) throw new Error(j.error || 'Falha ao carregar')
       setLinhas(j.unidades || [])
       setTotal(j.total || 0)
       setSel(new Set())
     } catch (e) {
-      setErro(String(e instanceof Error ? e.message : e))
+      if (seq === seqRef.current) setErro(String(e instanceof Error ? e.message : e))
     } finally {
-      setCarregando(false)
+      if (seq === seqRef.current) setCarregando(false)
     }
-  }, [abaDef, q])
+  }, [abaDef, qBusca])
 
   useEffect(() => { buscar() }, [buscar])
 
@@ -121,16 +147,24 @@ export default function UnidadesRastreioPage() {
     const w = window.open('', '_blank')
     if (!w) return
     try {
-      const qrSvg = await QRCode.toString(`${window.location.origin}/p/${u.id}`, { type: 'svg', margin: 0, errorCorrectionLevel: 'M' })
+      // QR de retângulos preenchidos (o SVG de traço da lib sai lavado no papel)
+      const svgQr = qrSvg(QRCode.create(urlDaUnidade(window.location.origin, u.id), { errorCorrectionLevel: 'M' }).modules)
       const bloco: BlocoEtiqueta = {
         linhas: [
           { empresa: EMPRESA_LABEL[u.conta_omie] || u.conta_omie, codigo: u.codigo, descricao: u.descricao, locacao: u.locacao },
           ...(u.alt_codigo ? [{ empresa: EMPRESA_LABEL[u.alt_conta_omie || ''] || u.alt_conta_omie || '', codigo: u.alt_codigo, descricao: u.alt_descricao || '', locacao: u.alt_locacao || '' }] : []),
         ],
-        qrSvg,
+        qrSvg: svgQr,
         numero: u.numero,
       }
-      w.document.write(htmlFolha([bloco], new Set()))
+      // segue as preferências da tela de etiquetas (papel na bandeja, leitores
+      // do balcão) — aqui não há esses controles
+      let tracejado = false, comBarra = false
+      try {
+        tracejado = localStorage.getItem('etiquetas_formato') === 'recorte'
+        comBarra = localStorage.getItem('etiquetas_com_barra') === '1'
+      } catch { /* segue */ }
+      w.document.write(htmlFolha([bloco], new Set(), { tracejado, comBarra }))
       w.document.close()
     } catch {
       w.close()
@@ -175,7 +209,9 @@ export default function UnidadesRastreioPage() {
             color: aba === a.id ? '#EA580C' : 'var(--portal-text-secondary)',
           }}>{a.rotulo}</button>
         ))}
-        <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar código, UN-, nome ou OS…" style={{ ...selStyle, marginLeft: 'auto', minWidth: 230 }} />
+        {aba !== 'conferencia' && (
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar código, UN-, nome ou OS…" style={{ ...selStyle, marginLeft: 'auto', minWidth: 230 }} />
+        )}
       </div>
 
       {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
@@ -189,7 +225,61 @@ export default function UnidadesRastreioPage() {
         </div>
       )}
 
+      {/* Conferência liberado × faturado */}
+      {aba === 'conferencia' && (
+        <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <thead>
+              <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
+                <th style={{ padding: '8px 10px', width: 110 }}>PPV</th>
+                <th style={{ padding: '8px 10px' }}>Cliente</th>
+                <th style={{ padding: '8px 10px', width: 110 }}>Situação</th>
+                <th style={{ padding: '8px 10px', width: 130 }}>Faturado em</th>
+                <th style={{ padding: '8px 10px', width: 260 }}>Divergência</th>
+                <th style={{ padding: '8px 10px', width: 120 }} />
+              </tr>
+            </thead>
+            <tbody>
+              {carregando && (
+                <tr><td colSpan={6} style={{ padding: 18, textAlign: 'center', color: 'var(--portal-text-muted)' }}>
+                  <Loader2 size={15} className="animate-spin" style={{ verticalAlign: -3, marginRight: 6 }} /> Carregando…
+                </td></tr>
+              )}
+              {!carregando && divergencias.length === 0 && (
+                <tr><td colSpan={6} style={{ padding: 18, textAlign: 'center', color: 'var(--portal-text-muted)' }}>
+                  Nenhum PPV faturado/fechado com peça pendente — conferência em dia. ✓
+                </td></tr>
+              )}
+              {!carregando && divergencias.map(d => (
+                <tr key={d.id_ppv} style={{ borderTop: '1px solid var(--portal-border)' }}>
+                  <td style={{ padding: '7px 10px' }}>
+                    <a href={`/ppv?id=${encodeURIComponent(d.id_ppv)}`} target="_blank" rel="noreferrer" style={{ fontFamily: 'monospace', fontWeight: 700, color: '#0ea5e9', textDecoration: 'none' }}>{d.id_ppv}</a>
+                  </td>
+                  <td style={{ padding: '7px 10px', color: 'var(--portal-text)' }}>{d.cliente || '—'}</td>
+                  <td style={{ padding: '7px 10px', fontSize: 11.5 }}>
+                    <span style={{ fontWeight: 800, color: d.faturado ? '#16a34a' : 'var(--portal-text-secondary)' }}>{d.faturado ? 'Faturado' : d.status}</span>
+                  </td>
+                  <td style={{ padding: '7px 10px', fontSize: 11.5, color: 'var(--portal-text-secondary)', whiteSpace: 'nowrap' }}>{fmtDataHora(d.faturado_em)}</td>
+                  <td style={{ padding: '7px 10px', fontSize: 12 }}>
+                    {d.liberadas > 0 && <span style={{ color: '#dc2626', fontWeight: 700 }}>{d.liberadas} liberada(s) sem NF</span>}
+                    {d.liberadas > 0 && d.reservadas > 0 && ' · '}
+                    {d.reservadas > 0 && <span style={{ color: '#b45309', fontWeight: 700 }}>{d.reservadas} escaneada(s) sem liberação</span>}
+                    {d.em_devolucao > 0 && <span style={{ color: 'var(--portal-text-muted)' }}>{(d.liberadas > 0 || d.reservadas > 0) ? ' · ' : ''}{d.em_devolucao} em devolução</span>}
+                  </td>
+                  <td style={{ padding: '7px 10px' }}>
+                    <a href={`/ppv/liberacao/${encodeURIComponent(d.id_ppv)}`} target="_blank" rel="noreferrer" style={{ ...btnMini('#fff', '#2563eb'), textDecoration: 'none' }}>
+                      <QrCode size={12} /> Liberação
+                    </a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Tabela */}
+      {aba !== 'conferencia' && (
       <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'auto' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
@@ -212,7 +302,7 @@ export default function UnidadesRastreioPage() {
             )}
             {!carregando && linhas.length === 0 && (
               <tr><td colSpan={8} style={{ padding: 18, textAlign: 'center', color: 'var(--portal-text-muted)' }}>
-                Nenhuma unidade {abaDef.status.length ? `em "${abaDef.rotulo.toLowerCase()}"` : 'registrada'} — imprima etiquetas com &quot;Rastrear unidades (QR)&quot; ligado na tela de Etiquetas.
+                Nenhuma unidade {abaDef.status.length ? `em "${abaDef.rotulo.toLowerCase()}"` : 'registrada'} — toda etiqueta impressa na tela de Etiquetas vira uma unidade rastreada.
               </td></tr>
             )}
             {!carregando && linhas.map(u => (
@@ -244,7 +334,12 @@ export default function UnidadesRastreioPage() {
                 <td style={{ padding: '7px 10px', fontSize: 11.5 }}>
                   {u.destino_tipo === 'os' && u.destino_os
                     ? <a href={`/pos?os=${encodeURIComponent(u.destino_os)}`} target="_blank" rel="noreferrer" style={{ color: '#0ea5e9', fontWeight: 700 }}>{u.destino_os}</a>
-                    : u.destino_tipo ? DESTINO_LABEL[u.destino_tipo] : '—'}
+                    : u.destino_tipo === 'ppv' && u.destino_ppv
+                      ? <a href={`/ppv?id=${encodeURIComponent(u.destino_ppv)}`} target="_blank" rel="noreferrer" style={{ color: '#0ea5e9', fontWeight: 700 }}>{u.destino_ppv}</a>
+                      : u.destino_tipo ? DESTINO_LABEL[u.destino_tipo] : '—'}
+                  {u.destino_tipo === 'ppv' && u.venda_preco != null && (
+                    <div style={{ color: '#166534', fontWeight: 700 }}>R$ {Number(u.venda_preco).toFixed(2).replace('.', ',')}</div>
+                  )}
                 </td>
                 <td style={{ padding: '7px 10px' }}>
                   <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
@@ -288,7 +383,10 @@ export default function UnidadesRastreioPage() {
           </tbody>
         </table>
       </div>
-      <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{total} unidade(s) no filtro</div>
+      )}
+      <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-muted)' }}>
+        {aba === 'conferencia' ? `${total} PPV(s) com divergência` : `${total} unidade(s) no filtro`}
+      </div>
 
       {qrModal && <QRUnidadeModal unidadeId={qrModal.id} numero={qrModal.numero} codigo={qrModal.codigo} onClose={() => setQrModal(null)} />}
     </div>

@@ -16,6 +16,9 @@ interface Props {
   onNovo: () => void;
   podeCriar: boolean;
   loading: boolean;
+  /** liberação de peças por QR (rastreio): botão por card quando permitido */
+  podeLiberar?: boolean;
+  onLiberar?: (id: string) => void;
 }
 
 const cor = (s: string) => PHASE_COLORS[s] || "#64748b";
@@ -29,7 +32,7 @@ const dataBR = (d: string) => {
 };
 const rs = (v: number) => `R$ ${(Number(v) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardClick, onNovo, podeCriar, loading }: Props) {
+export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardClick, onNovo, podeCriar, loading, podeLiberar, onLiberar }: Props) {
   const [fase, setFase] = useState("TODAS");
 
   const fasesPresentes = useMemo(() => {
@@ -101,27 +104,36 @@ export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardCl
                     <span style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4, color: "#475569" }}>{curto(o.status)}</span>
                   </div>
                 )}
-                <button onClick={() => onCardClick(o.id)} style={{
-                  textAlign: "left", display: "flex", padding: 0, borderRadius: 14, border: "1px solid #e7ebf0", background: "#fff", cursor: "pointer",
-                  overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,0.04)",
-                }}>
-                  <div style={{ width: 5, background: c, flexShrink: 0 }} />
-                  <div style={{ flex: 1, minWidth: 0, padding: "13px 14px" }}>
-                    <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
-                      <span style={{ fontSize: 15.5, fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.cliente || "Sem cliente"}</span>
-                      <span style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", flexShrink: 0 }}>{rs(o.valor)}</span>
+                <div style={{ display: "flex", borderRadius: 14, border: "1px solid #e7ebf0", background: "#fff", overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,0.04)" }}>
+                  <button onClick={() => onCardClick(o.id)} style={{
+                    textAlign: "left", display: "flex", flex: 1, minWidth: 0, padding: 0, border: "none", background: "transparent", cursor: "pointer",
+                  }}>
+                    <div style={{ width: 5, background: c, flexShrink: 0 }} />
+                    <div style={{ flex: 1, minWidth: 0, padding: "13px 14px" }}>
+                      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10 }}>
+                        <span style={{ fontSize: 15.5, fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.cliente || "Sem cliente"}</span>
+                        <span style={{ fontSize: 15, fontWeight: 800, color: "#0f172a", flexShrink: 0 }}>{rs(o.valor)}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "7px 0", flexWrap: "wrap" }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: `${c}18`, color: c }}>{curto(o.status)}</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: remessa ? "#eef2ff" : "#fef2f2", color: remessa ? "#4338ca" : "#dc2626" }}>{remessa ? "REMESSA" : "PEDIDO"}</span>
+                      </div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12.5, color: "#64748b", flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: 700, color: "#dc2626" }}>{o.id}</span>
+                        {o.tecnico && <span><i className="fas fa-user-gear" style={{ marginRight: 4, opacity: .7 }} />{o.tecnico}</span>}
+                        {o.data && <span><i className="fas fa-calendar" style={{ marginRight: 4, opacity: .7 }} />{dataBR(o.data)}</span>}
+                      </div>
                     </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "7px 0", flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: `${c}18`, color: c }}>{curto(o.status)}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: remessa ? "#eef2ff" : "#fef2f2", color: remessa ? "#4338ca" : "#dc2626" }}>{remessa ? "REMESSA" : "PEDIDO"}</span>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12.5, color: "#64748b", flexWrap: "wrap" }}>
-                      <span style={{ fontWeight: 700, color: "#dc2626" }}>{o.id}</span>
-                      {o.tecnico && <span><i className="fas fa-user-gear" style={{ marginRight: 4, opacity: .7 }} />{o.tecnico}</span>}
-                      {o.data && <span><i className="fas fa-calendar" style={{ marginRight: 4, opacity: .7 }} />{dataBR(o.data)}</span>}
-                    </div>
-                  </div>
-                </button>
+                  </button>
+                  {podeLiberar && onLiberar && (
+                    <button onClick={() => onLiberar(o.id)} title="Liberação de peças (QR)" style={{
+                      width: 46, border: "none", borderLeft: "1px solid #eef2f7", background: "#f8fafc", color: "#2563eb",
+                      cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 17,
+                    }}>
+                      <i className="fas fa-qrcode" />
+                    </button>
+                  )}
+                </div>
                 </Fragment>
               );
             })}

@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { TBL_OS, TBL_CLIENTES, TBL_PEDIDOS, TBL_LOGS_PPV, VALOR_HORA, VALOR_KM } from "./constants";
 import { enviarPPVParaOmie } from "@/lib/ppv/omie";
+import { aplicarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
 import { normName } from "@/lib/tecnico-utils";
 
 // --- Credenciais ---
@@ -687,7 +688,7 @@ async function fecharPPVsVinculados(ppvIds: string[], idOrdem: string): Promise<
   // Busca todos os PPVs de uma vez (batch)
   const { data: ppvs } = await supabase
     .from(TBL_PEDIDOS)
-    .select("id_pedido, status")
+    .select("id_pedido, status, pedido_omie")
     .in("id_pedido", ppvIds);
 
   // Filtra os que podem ser fechados
@@ -716,7 +717,16 @@ async function fecharPPVsVinculados(ppvIds: string[], idOrdem: string): Promise<
     }))
   );
 
+  // fecharPPVsVinculados força 'Fechado' TAMBÉM em PPV cujo envio ao Omie
+  // falhou (ex.: produtos de empresas misturadas) — esses NÃO têm NF nenhuma,
+  // então só aplica as unidades de quem realmente tem pedido_omie; o resto
+  // fica 'liberada' e aparece na conferência de divergências.
+  const comOmie = new Set((ppvs || []).filter((p: any) => p.pedido_omie).map((p: any) => p.id_pedido));
   for (const ppvId of idsFechar) {
     console.log(`[PPV] ✓ ${ppvId} fechado (OS ${idOrdem} enviada para Omie)`);
+    if (!comOmie.has(ppvId)) continue;
+    // PPV fechado com pedido no Omie = peças faturadas pela NF da OS → aplica
+    // as unidades rastreadas liberadas (best-effort; sobras na conferência)
+    try { await aplicarUnidadesDoPPV(ppvId, { origem: "os_fechamento", os: idOrdem }); } catch { /* best-effort */ }
   }
 }

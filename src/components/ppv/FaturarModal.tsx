@@ -1,8 +1,11 @@
 "use client";
 // Faturamento do PPV (NF-e) — confirmação simples. Clicou "Sim" → chama o
 // FaturarPedidoVenda no Omie, fecha o modal e avisa "enviado pra SEFAZ".
-import { useState } from "react";
+// Antes de confirmar, mostra (não bloqueia) quantas peças rastreadas do
+// pedido foram escaneadas e nunca liberadas — rastreio de unidades.
+import { useEffect, useState } from "react";
 import { api } from "@/lib/ppv/api";
+import { authHeaders } from "@/lib/auth/client";
 
 export default function FaturarModal({
   open, ppvId, numeroPedido, userName, onClose, onDone, showToast,
@@ -17,6 +20,22 @@ export default function FaturarModal({
 }) {
   const [faturando, setFaturando] = useState(false);
   const [erro, setErro] = useState("");
+  // unidades rastreadas escaneadas no pedido mas nunca liberadas — aviso
+  const [reservadasPendentes, setReservadasPendentes] = useState(0);
+
+  useEffect(() => {
+    if (!open || !ppvId) return;
+    setReservadasPendentes(0);
+    let cancel = false;
+    (async () => {
+      try {
+        const r = await fetch(`/api/pecas/unidades?destino_ppv=${encodeURIComponent(ppvId)}&status=retirada_pendente&count=1`, { headers: await authHeaders() });
+        const j = await r.json().catch(() => ({}));
+        if (!cancel && r.ok) setReservadasPendentes(Number(j.total) || 0);
+      } catch { /* sem aviso */ }
+    })();
+    return () => { cancel = true; };
+  }, [open, ppvId]);
 
   if (!open) return null;
 
@@ -69,6 +88,15 @@ export default function FaturarModal({
                 Deseja faturar o Pedido de Venda{numero ? ` nº ${numero}` : ""}?
               </div>
               <div style={{ fontSize: 13, color: "#64748b", marginBottom: 18 }}>Isto emite uma NF-e real no Omie.</div>
+              {/* Peças escaneadas aguardando liberação (rastreio) — não bloqueia */}
+              {reservadasPendentes > 0 && (
+                <div style={{ marginBottom: 14, background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 4, padding: "10px 12px", fontSize: 12.5, color: "#92400e", lineHeight: 1.5 }}>
+                  ⚠ <strong>{reservadasPendentes} peça(s) escaneada(s)</strong> neste pedido ainda aguardando liberação —{" "}
+                  <a href={ppvId ? `/ppv/liberacao/${encodeURIComponent(ppvId)}` : "#"} target="_blank" rel="noreferrer" style={{ color: "#92400e", fontWeight: 700 }}>
+                    abrir liberação
+                  </a>. Dá pra faturar mesmo assim; a pendência fica na conferência.
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8 }}>
                 <button onClick={faturar} disabled={faturando} style={{ ...btn, flex: 1, background: "#e8730c", color: "#fff", cursor: faturando ? "wait" : "pointer" }}>
                   {faturando ? "Faturando…" : "Sim, faturar"}

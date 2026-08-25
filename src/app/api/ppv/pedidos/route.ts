@@ -15,6 +15,8 @@ async function projetoDaOS(osId: string): Promise<string> {
 import { buscarPPVPorId, atualizarValorTotal, registrarLog, vincularPPVnaOS, gerarProximoId, sincronizarStatusComOS } from "@/lib/ppv/queries";
 import { criarPedidoSchema, editarPedidoSchema } from "@/lib/ppv/schemas";
 import { logAndNotify } from "@/lib/server/audit-notify";
+import { soltarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
+import { exigirAcessoModulo } from "@/lib/ajustes/permissao-server";
 
 // GET - Listar kanban OU buscar por ID
 export async function GET(req: NextRequest) {
@@ -156,6 +158,16 @@ export async function POST(req: NextRequest) {
 // PATCH - Editar pedido existente
 export async function PATCH(req: NextRequest) {
   try {
+    // Sem isto, um curl anônimo cancelava PPV e soltava as unidades rastreadas
+    // (o hook de cancelamento mexe na máquina de estados do rastreio, cujo
+    // contrato é escrita só autenticada). Módulo puro, granular ou admin.
+    // As demais rotas legadas do ppv seguem sem auth — débito pré-existente.
+    try {
+      await exigirAcessoModulo(req, "ppv");
+    } catch (e) {
+      const st = (e as { http?: number })?.http || 401;
+      return NextResponse.json({ error: e instanceof Error ? e.message : "não autenticado" }, { status: st });
+    }
     const raw = await req.json();
     const parsed = editarPedidoSchema.safeParse(raw);
     if (!parsed.success) {
@@ -216,6 +228,14 @@ export async function PATCH(req: NextRequest) {
 
     await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${dados.id}`, "PATCH", payload);
     if (dados.osId) await vincularPPVnaOS(dados.osId, dados.id);
+
+    // PPV cancelado: solta as unidades rastreadas — reservas voltam ao
+    // estoque; liberadas viram devolução pendente (conferência física)
+    const virouCancelado = ["Cancelada", "Cancelado"].includes(String(dados.status || ""))
+      && estadoAtual && !["Cancelada", "Cancelado"].includes(String(estadoAtual.status || ""));
+    if (virouCancelado) {
+      try { await soltarUnidadesDoPPV(dados.id, { id: null, nome: `${userName} (cancelamento do PPV)` }, "PPV cancelado"); } catch { /* best-effort */ }
+    }
 
     // Registrar logs detalhados de cada mudança
     if (!estadoAtual) {

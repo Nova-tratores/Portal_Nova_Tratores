@@ -11,7 +11,7 @@ export type UnidadeStatus =
   | 'cancelada'
   | 'extraviada';
 
-export type DestinoTipo = 'os' | 'balcao' | 'uso_interno';
+export type DestinoTipo = 'os' | 'balcao' | 'uso_interno' | 'ppv';
 
 export interface PecaUnidade {
   id: string;
@@ -28,6 +28,8 @@ export interface PecaUnidade {
   status: UnidadeStatus;
   destino_tipo: DestinoTipo | null;
   destino_os: string | null;
+  destino_ppv: string | null;
+  venda_preco: number | null;
   destino_obs: string;
   retirado_por: string | null;
   retirado_por_nome: string;
@@ -78,6 +80,7 @@ export const DESTINO_LABEL: Record<DestinoTipo, string> = {
   os: 'Ordem de serviço',
   balcao: 'Venda balcão',
   uso_interno: 'Uso interno',
+  ppv: 'Pedido de venda (PPV)',
 };
 
 export const EMPRESA_LABEL: Record<string, string> = {
@@ -102,7 +105,9 @@ export type UnidadeAcao =
   | 'extraviar'
   | 'recuperar'
   | 'aplicar_cron'
-  | 'devolver_cron';
+  | 'devolver_cron'
+  | 'reservar_ppv'
+  | 'aplicar_faturamento';
 
 // acao -> { de quais estados pode sair, pra qual vai, tipo do evento }
 export const TRANSICOES: Record<UnidadeAcao, { de: UnidadeStatus[]; para: UnidadeStatus; evento: string }> = {
@@ -118,6 +123,9 @@ export const TRANSICOES: Record<UnidadeAcao, { de: UnidadeStatus[]; para: Unidad
   recuperar:         { de: ['extraviada'],         para: 'estoque',            evento: 'recuperacao' },
   aplicar_cron:      { de: ['liberada'],           para: 'aplicada',           evento: 'aplicacao' },
   devolver_cron:     { de: ['liberada'],           para: 'devolucao_pendente', evento: 'devolucao_marcada' },
+  // fluxo PPV: scan reserva a unidade pro pedido; faturamento aplica as liberadas
+  reservar_ppv:        { de: ['estoque'],  para: 'retirada_pendente', evento: 'retirada' },
+  aplicar_faturamento: { de: ['liberada'], para: 'aplicada',          evento: 'aplicacao' },
 };
 
 // comparação de códigos de peça (relatório do técnico × unidade)

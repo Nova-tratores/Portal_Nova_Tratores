@@ -21,6 +21,8 @@ import AnexosModal from "./AnexosModal";
 import TarefasModal from "./TarefasModal";
 import SelecionarUsuarioModal from "./SelecionarUsuarioModal";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
+import PPVUnidadesInfo from "./PPVUnidadesInfo";
+import QRScanner, { type ScanResultado } from "@/components/pecas/QRScanner";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
 // Abas na MESMA ordem/nome do Omie (tela "Pedido de Venda").
@@ -107,6 +109,11 @@ export default function PPVDrawer({
   // Ocorrência rápida por PV (categoria PV pré-selecionada)
   const podeOcorrencia = pode('painel-mecanicos', 'criar_ocorrencia');
   const [showOcorrencia, setShowOcorrencia] = useState(false);
+  // Rastreio de unidades: liberação por QR + scan-to-add
+  const podeLiberarQR = pode('ppv', 'rastreio_liberar');
+  const [scanAddAberto, setScanAddAberto] = useState(false);
+  // muda pra re-buscar o card de peças rastreadas depois de um scan
+  const [unidadesVersao, setUnidadesVersao] = useState(0);
 
   const [details, setDetails] = useState<PPVDetalhes | null>(null);
   const [status, setStatus] = useState("Orçamento");
@@ -611,6 +618,40 @@ export default function PPVDrawer({
       onDirty?.();
     } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro"); }
     setAddingExtra(false);
+  }
+
+  // Scan-to-add: VINCULA primeiro (código já é item do pedido → só reserva a
+  // unidade, sem duplicar a quantidade); código novo (422) → aí sim adiciona
+  // 1 un E reserva. Sem o vincular-primeiro, escanear as 2 unidades físicas
+  // de um item já lançado com qtde 2 dobraria o pedido pra 4 un.
+  async function scanAdicionarUnidade(unidadeId: string): Promise<ScanResultado> {
+    if (!ppvId) return { ok: false, mensagem: "Salve o pedido antes de escanear." };
+    try {
+      const chamar = async (apenasVincular: boolean) => {
+        const res = await fetch("/api/ppv/pedidos/scan-add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+          body: JSON.stringify({ id_ppv: ppvId, unidade_id: unidadeId, apenas_vincular: apenasVincular }),
+        });
+        return { res, j: await res.json().catch(() => ({})) };
+      };
+      let { res, j } = await chamar(true);
+      let adicionouItem = false;
+      if (res.status === 422 && j.codigo_fora_do_ppv) {
+        // código não está no pedido — o botão é "Adicionar por QR", então adiciona
+        ({ res, j } = await chamar(false));
+        adicionouItem = true;
+      }
+      if (!res.ok) return { ok: false, mensagem: j.error || "Falha ao registrar o scan." };
+      if (j.ja_vinculada) return { ok: "repetida", mensagem: `${j.unidade?.numero || ""} já vinculada a este pedido` };
+      try { const d = await api.buscarPedido(ppvId); if (d) setDetails(d); } catch { /* segue */ }
+      setUnidadesVersao((v) => v + 1);
+      onDirty?.();
+      const verbo = adicionouItem || j.item_criado ? "adicionado" : "vinculado (item já estava no pedido)";
+      return { ok: true, mensagem: `${j.unidade?.codigo || ""} ${verbo} (${j.unidade?.numero || ""})${j.aviso_empresa ? ` · ${j.aviso_empresa}` : ""}` };
+    } catch (e) {
+      return { ok: false, mensagem: e instanceof Error ? e.message : "Erro no scan." };
+    }
   }
 
   async function importarKitItens(produtos: { codigo: string; descricao: string; quantidade: number; preco: number }[], _horas?: number, rotulo?: string) {
@@ -1231,6 +1272,30 @@ export default function PPVDrawer({
                         style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #f5c99a", background: "#fff", color: itemSelecionado && podeItem ? "#c2570a" : "#f0a3a3", fontSize: 13.5, fontWeight: 600, cursor: itemSelecionado && podeItem ? "pointer" : "not-allowed" }}>
                         <i className="fas fa-trash" /> Excluir Item
                       </button>
+
+                      {/* Adicionar por QR (rastreio de unidades) */}
+                      <button type="button" onClick={() => setScanAddAberto(true)} disabled={!ppvId || !podeItem}
+                        title={!podeItem ? MSG_SEM_PERMISSAO : "Escanear o QR da etiqueta pra adicionar a peça e reservar a unidade"}
+                        style={{
+                          padding: "14px 16px", borderRadius: 14, border: "1px solid #BFDBFE",
+                          background: "linear-gradient(135deg, #EFF6FF, #F0F9FF)",
+                          cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1,
+                          display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
+                        }}
+                        onMouseEnter={(e) => { if (ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(37,99,235,0.18)"; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
+                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #3b82f6, #1d4ed8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(29,78,216,0.32)" }}>
+                          <i className="fas fa-qrcode" style={{ fontSize: 16 }} />
+                        </span>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#1d4ed8" }}>
+                            Adicionar por QR
+                          </span>
+                          <span style={{ display: "block", fontSize: 12, color: "#7ba3e8", marginTop: 1 }}>
+                            Escaneia a etiqueta e reserva a unidade
+                          </span>
+                        </span>
+                      </button>
                     </div>
 
                     {/* Kits importados — remover o kit inteiro de uma vez */}
@@ -1328,6 +1393,9 @@ export default function PPVDrawer({
                         })}
                       </div>
                     )}
+
+                    {/* Unidades rastreadas (QR) vinculadas + conferência liberado × faturado */}
+                    {ppvId && <PPVUnidadesInfo key={unidadesVersao} ppvId={ppvId} verificarConferencia={!!faturadoEm || normalizarStatus(status) === "Concluída"} />}
                   </div>
                   )}
 
@@ -1426,6 +1494,13 @@ export default function PPVDrawer({
                 <i className={`fas ${salvando ? "fa-spinner fa-spin" : "fa-save"}`} /> {salvando ? "Salvando..." : "Salvar"}
               </button>
               <button className="ppv-rail-btn" onClick={() => { setAbaAtiva("Itens da Venda"); onBuscaProduto(); }} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Incluir item (busca, mais usados, catálogo ou kit)"}><i className="fas fa-plus-circle" /> Incluir</button>
+              {/* Rastreio de unidades: tela de liberação por QR (feature pausada, mantida) */}
+              {podeLiberarQR && ppvId && (
+                <button className="ppv-rail-btn" onClick={() => window.open(`/ppv/liberacao/${encodeURIComponent(ppvId)}`, "_blank")}
+                  title="Tela de liberação de peças por QR (escanear e liberar retiradas)">
+                  <i className="fas fa-qrcode" /> Liberação (QR)
+                </button>
+              )}
               {/* Um único botão que MORFA: Enviar (cria no Omie) → Faturar (emite NF-e) → Faturado */}
               {!pedidoOmie ? (
                 <button className="ppv-rail-btn" onClick={enviarOmie} disabled={enviandoOmie || !podeOmie} title={!podeOmie ? MSG_SEM_PERMISSAO : "Criar o Pedido de Venda no Omie"}>
@@ -1551,6 +1626,15 @@ export default function PPVDrawer({
       <SelecionarUsuarioModal open={showVendedor} atual={tecnico} onClose={() => setShowVendedor(false)} onSelect={(nome) => setTecnico(nome)} />
       {/* Busca de cliente do PRÓPRIO drawer — escreve direto no estado daqui */}
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={aplicarCliente} />
+      {/* Scan-to-add: escaneia o QR da etiqueta → adiciona o item e reserva a
+          unidade (rastreio de unidades — feature pausada, mantida) */}
+      <QRScanner
+        open={scanAddAberto}
+        onClose={() => setScanAddAberto(false)}
+        onScan={scanAdicionarUnidade}
+        titulo="Adicionar peça por QR"
+        subtitulo={ppvId ? `${ppvId} · cada leitura adiciona 1 un e reserva a unidade` : undefined}
+      />
 
       {/* Cancelamento: pede o MOTIVO antes de tudo, depois cancela no Omie + portal */}
       {cancelarOpen && (

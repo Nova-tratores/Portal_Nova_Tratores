@@ -55,15 +55,30 @@ export async function podeLiberarUnidades(userId: string): Promise<boolean> {
 interface ExtrasTransicao {
   destino_tipo?: string | null;
   destino_os?: string | null;
+  destino_ppv?: string | null;
   destino_obs?: string;
   motivo?: string;
   aplicarDireto?: boolean;
+  // destino 'ppv' SÓ aplica direto quando o chamador COMPROVOU o faturamento
+  // (liberar-lote consulta ppvFaturado) — sem isso, unidade de PPV aberto
+  // viraria 'aplicada' sem NF e sumiria da conferência
+  faturadoConfirmado?: boolean;
+  // guarda extra de concorrência do lote: o UPDATE só aplica se a unidade
+  // ainda pertencer a este PPV (ABA: solta+re-reservada em outro pedido)
+  esperaDestinoPpv?: string;
+  // liberação pelo PPV: quem está PEGANDO a peça (escolhido na tela) — não é o
+  // ator (que é quem liberou); sobrescreve retirado_por/_nome/_em
+  retirador?: { id: string; nome: string } | null;
+  // preço unitário de venda (reserva grava snapshot; faturamento atualiza)
+  venda_preco?: number | null;
   payload?: Record<string, unknown>;
 }
 
 const LIMPA_RETIRADA = {
   destino_tipo: null,
   destino_os: null,
+  destino_ppv: null,
+  venda_preco: null,
   destino_obs: '',
   retirado_por: null,
   retirado_por_nome: '',
@@ -109,18 +124,45 @@ export async function transicionar(
       patch.retirado_por_nome = ator.nome;
       patch.retirado_em = agora;
       break;
+    case 'reservar_ppv':
+      // scan na tela de liberação/drawer: prende a unidade ao pedido; quem
+      // escaneou fica como retirador provisório (a liberação define o real)
+      patch.destino_tipo = 'ppv';
+      patch.destino_ppv = extras.destino_ppv || null;
+      patch.destino_obs = extras.destino_obs || '';
+      if (extras.venda_preco != null) patch.venda_preco = extras.venda_preco;
+      patch.retirado_por = ator.id;
+      patch.retirado_por_nome = ator.nome;
+      patch.retirado_em = agora;
+      break;
     case 'liberar':
       patch.liberado_por = ator.id;
       patch.liberado_em = agora;
-      // balcão/uso interno pode já sair aplicada (não volta pra prateleira)
-      if (extras.aplicarDireto && u.destino_tipo !== 'os') {
+      if (extras.retirador) {
+        patch.retirado_por = extras.retirador.id;
+        patch.retirado_por_nome = extras.retirador.nome;
+        patch.retirado_em = agora;
+      }
+      // balcão/uso interno pode já sair aplicada (não volta pra prateleira);
+      // destino 'ppv' SÓ com faturamento comprovado pelo chamador — senão a
+      // unidade viraria "vendida" sem NF e escaparia da conferência
+      if (
+        extras.aplicarDireto
+        && u.destino_tipo !== 'os'
+        && (u.destino_tipo !== 'ppv' || extras.faturadoConfirmado === true)
+      ) {
         para = 'aplicada';
         patch.aplicado_em = agora;
+        // preço final com que a peça saiu na NF (liberação tardia)
+        if (extras.venda_preco != null) patch.venda_preco = extras.venda_preco;
       }
       break;
     case 'concluir':
     case 'aplicar_cron':
+    case 'aplicar_faturamento':
       patch.aplicado_em = agora;
+      // preço final com que a peça saiu na NF (quando informado)
+      if (extras.venda_preco != null) patch.venda_preco = extras.venda_preco;
       break;
     case 'receber_devolucao':
       patch.devolvido_em = agora;
@@ -136,12 +178,15 @@ export async function transicionar(
   }
   patch.status = para;
 
-  const { data: atualizada, error } = await supabase
+  let upd = supabase
     .from('peca_unidades')
     .update(patch)
     .eq('id', unidadeId)
-    .eq('status', u.status) // guarda de concorrência
-    .select('*');
+    .eq('status', u.status); // guarda de concorrência
+  // lote por PPV: garante que a unidade AINDA pertence a este pedido (ABA:
+  // cancelada e re-reservada em outro PPV entre a leitura do lote e agora)
+  if (extras.esperaDestinoPpv !== undefined) upd = upd.eq('destino_ppv', extras.esperaDestinoPpv);
+  const { data: atualizada, error } = await upd.select('*');
   if (error) throw httpErr(500, `Falha ao atualizar: ${error.message}`);
   if (!atualizada || atualizada.length === 0) {
     throw httpErr(409, 'O estado da unidade mudou — recarregue a página.');
@@ -157,6 +202,7 @@ export async function transicionar(
     payload: {
       ...(extras.destino_tipo ? { destino_tipo: extras.destino_tipo } : {}),
       ...(extras.destino_os ? { destino_os: extras.destino_os } : {}),
+      ...(extras.destino_ppv ? { ppv: extras.destino_ppv } : {}),
       ...(extras.motivo ? { motivo: extras.motivo } : {}),
       ...(extras.payload || {}),
     },

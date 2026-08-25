@@ -203,7 +203,9 @@ export default function AcoesUnidade({ unidadeId, numero, status, destinoTipo, r
               <button onClick={() => agir('liberar')} disabled={!!enviando} style={btn('#2563eb')}>
                 {enviando === 'liberar' ? 'Liberando…' : '✓ Liberar retirada'}
               </button>
-              {destinoTipo !== 'os' && (
+              {/* OS abate pelo relatório do técnico; PPV aplica só no faturamento
+                  (aplicar direto aqui viraria "vendida" sem NF) */}
+              {destinoTipo !== 'os' && destinoTipo !== 'ppv' && (
                 <button onClick={() => agir('liberar', { aplicar_direto: true })} disabled={!!enviando} style={btnSec}>
                   Liberar e já concluir (entregue)
                 </button>

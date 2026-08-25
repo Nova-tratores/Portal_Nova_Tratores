@@ -52,8 +52,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if ((acao === 'cancelar_retirada' || acao === 'devolver') && !liberador && u.retirado_por !== quem.id) {
       throw httpErr(403, 'Só quem retirou (ou o departamento de peças) pode fazer isso.');
     }
-    if (acao === 'aplicar_cron' || acao === 'devolver_cron') {
+    if (acao === 'aplicar_cron' || acao === 'devolver_cron' || acao === 'aplicar_faturamento') {
       throw httpErr(400, 'Ação reservada ao sistema.');
+    }
+    if (acao === 'reservar_ppv') {
+      // reserva pro PPV só pela rota dedicada (valida PPV/empresa/movimentação)
+      throw httpErr(400, 'Use a tela de liberação do PPV para reservar unidades.');
     }
 
     const ator = { id: quem.id, nome: quem.nome };
@@ -92,10 +96,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ ok: true, status: r.para });
     }
 
-    // demais ações
+    // demais ações — destino 'ppv' nunca aplica direto por aqui (só o
+    // liberar-lote, que comprova o faturamento; senão vira "vendida" sem NF)
     const extras = {
       motivo: String(body.motivo || '').trim() || undefined,
-      aplicarDireto: body.aplicar_direto === true,
+      aplicarDireto: body.aplicar_direto === true && u.destino_tipo !== 'ppv',
     };
     const r = await transicionar(id, acao, ator, extras);
 

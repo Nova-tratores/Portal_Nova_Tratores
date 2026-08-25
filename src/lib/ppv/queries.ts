@@ -404,6 +404,16 @@ export async function sincronizarStatusComOS(): Promise<void> {
           { status: novoStatus }
         );
         await registrarLog(idPedido, `Status auto-sync: ${statusAtual} → ${novoStatus} (OS ${idOs}: "${statusOS}")`);
+        // OS cancelada cancela o PPV por AQUI (não passa pelo PATCH da rota) —
+        // sem isto as unidades rastreadas ficariam presas pra sempre num
+        // pedido cancelado (reserva não volta ao estoque, scan em outro
+        // pedido dá 409). Best-effort, mesmo hook do cancelamento manual.
+        if (novoStatus === "Cancelada") {
+          try {
+            const { soltarUnidadesDoPPV } = await import("@/lib/pecas/ppv-vinculo");
+            await soltarUnidadesDoPPV(idPedido, { id: null, nome: `sistema (OS ${idOs} cancelada)` }, "PPV cancelado pela OS");
+          } catch { /* aparece na conferência de divergências */ }
+        }
       }
     }
   } catch (e) {

@@ -381,6 +381,8 @@ function PPVApp() {
             onNovo={() => setActiveTab("formTab")}
             podeCriar={podeCriar}
             loading={globalLoading}
+            podeLiberar={podeRetiradas}
+            onLiberar={(id) => { window.location.href = `/ppv/liberacao/${encodeURIComponent(id)}`; }}
           />
         )}
 

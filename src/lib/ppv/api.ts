@@ -46,10 +46,12 @@ function post<T>(url: string, body: unknown): Promise<T> {
   });
 }
 
-function patch<T>(url: string, body: unknown): Promise<T> {
+async function patch<T>(url: string, body: unknown): Promise<T> {
+  // PATCH de pedidos passou a exigir sessão no servidor (cancelamento solta
+  // unidades rastreadas) — mandar o token aqui cobre todos os chamadores
   return request<T>(url, {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(body),
   });
 }

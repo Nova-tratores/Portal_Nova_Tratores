@@ -8,12 +8,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import QRCode from 'qrcode'
-import { ArrowLeft, Loader2, Plus, Printer, QrCode, Scissors, Search, Tag, Trash2, X } from 'lucide-react'
+import { ArrowLeft, Barcode, Loader2, Plus, Printer, QrCode, Scissors, Search, Tag, Trash2, X } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
-import { htmlFolha, qrSvg, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
+import { htmlFolha, qrSvg, urlDaUnidade, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
 import { casaFiltroColuna, reconciliarOrdem, ControleOrdenacao, SeletorColunas, MenuEngrenagem, type Sort } from '@/components/tabela/ConfigColunas'
 
 interface ItemBusca {
@@ -104,7 +104,7 @@ function valColEtiq(i: ItemBusca, col: string): string {
 // que desenha os módulos como traço e sai lavado na impressora. `QRCode.create`
 // só monta a matriz — quem vira SVG somos nós.
 function qrDaUnidade(unidadeId: string): string {
-  return qrSvg(QRCode.create(`${window.location.origin}/p/${unidadeId}`, { errorCorrectionLevel: 'M' }).modules)
+  return qrSvg(QRCode.create(urlDaUnidade(window.location.origin, unidadeId), { errorCorrectionLevel: 'M' }).modules)
 }
 
 export default function EtiquetasPanel({ embedded = false }: { embedded?: boolean }) {
@@ -123,15 +123,19 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const [copiasLote, setCopiasLote] = useState(1)
   const [usadas, setUsadas] = useState<Set<number>>(new Set())
   const [rastrear, setRastrear] = useState(false)
-  // Etiqueta rastreada com os DOIS códigos: QR (celular → página da unidade) e
-  // Code 128 (pistola do balcão → código da peça). Sem isto o QR entra no lugar
-  // da barra e a etiqueta deixa de servir ao leitor do balcão.
-  const [barraComQr, setBarraComQr] = useState(false)
+  // Código de barras: DESLIGADO por padrão desde 25/08/2026 (o balcão não
+  // conseguia ler as letras, e a barra comia até 9mm da altura). Continua
+  // disponível porque pistola 1D não lê QR.
+  const [comBarra, setComBarra] = useState(false)
   // Calibração da impressora (mm): folha pré-cortada não perdoa deslocamento —
   // 2mm já jogam o texto pra fora do picote. Guardado por navegador porque é
   // característica da IMPRESSORA, não da folha.
   const [ajusteX, setAjusteX] = useState(0)
   const [ajusteY, setAjusteY] = useState(0)
+  // Papel SELECIONADO NA IMPRESSORA (a folha adesiva é sempre Carta). Se a
+  // impressora está em A4 e mandamos página Carta, o Chrome encolhe 2,7% —
+  // e erro de escala nenhum ajuste fino conserta.
+  const [papel, setPapel] = useState<'carta' | 'a4'>('carta')
   const [imprimindo, setImprimindo] = useState(false)
   const [folhas, setFolhas] = useState<FolhaHist[]>([])
   // Config de colunas (filtro por coluna, ordenação principal+desempate, seletor).
@@ -148,12 +152,17 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   useEffect(() => {
     try {
       setRastrear(localStorage.getItem('etiquetas_rastrear') === '1')
-      setBarraComQr(localStorage.getItem('etiquetas_barra_qr') === '1')
+      setComBarra(localStorage.getItem('etiquetas_com_barra') === '1')
       if (localStorage.getItem('etiquetas_formato') === 'recorte') setFormato('recorte')
       setAjusteX(Number(localStorage.getItem('etiquetas_ajuste_x')) || 0)
       setAjusteY(Number(localStorage.getItem('etiquetas_ajuste_y')) || 0)
+      if (localStorage.getItem('etiquetas_papel') === 'a4') setPapel('a4')
     } catch { /* segue */ }
   }, [])
+  const mudarPapel = (v: 'carta' | 'a4') => {
+    setPapel(v)
+    try { localStorage.setItem('etiquetas_papel', v) } catch { /* segue */ }
+  }
   const mudarAjuste = (eixo: 'x' | 'y', v: number) => {
     // ±25mm na vertical: impressora que empurra a página uma etiqueta inteira
     // pra baixo precisa de -12mm ou mais, e o limite antigo (a própria margem)
@@ -167,9 +176,9 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     setRastrear(v)
     try { localStorage.setItem('etiquetas_rastrear', v ? '1' : '0') } catch { /* segue */ }
   }
-  const mudarBarraComQr = (v: boolean) => {
-    setBarraComQr(v)
-    try { localStorage.setItem('etiquetas_barra_qr', v ? '1' : '0') } catch { /* segue */ }
+  const mudarComBarra = (v: boolean) => {
+    setComBarra(v)
+    try { localStorage.setItem('etiquetas_com_barra', v ? '1' : '0') } catch { /* segue */ }
   }
   const mudarFormato = (v: 'folha' | 'recorte') => {
     setFormato(v)
@@ -284,7 +293,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       }
       w.document.open()
       w.document.write(htmlFolha(blocos, new Set(folha.formato === 'recorte' ? [] : (folha.usadas || [])), {
-        tracejado: folha.formato === 'recorte', barraComQr, x: ajusteX, y: ajusteY,
+        tracejado: folha.formato === 'recorte', comBarra, x: ajusteX, y: ajusteY, papel,
       }))
       w.document.close()
     } catch (e) { setErro(String(e instanceof Error ? e.message : e)) }
@@ -486,7 +495,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       }
       w.document.open()
       w.document.write(htmlFolha(blocos, formato === 'folha' ? usadas : new Set<number>(), {
-        tracejado: formato === 'recorte', barraComQr, x: ajusteX, y: ajusteY,
+        tracejado: formato === 'recorte', comBarra, x: ajusteX, y: ajusteY, papel,
       }))
       w.document.close()
       // registra a folha no histórico (snapshot p/ reimprimir) e esvazia a fila
@@ -683,22 +692,24 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
             <input type="checkbox" checked={rastrear} onChange={e => mudarRastrear(e.target.checked)} />
             <QrCode size={14} /> Rastrear unidades (QR)
           </label>
+          {/* Barra fora do bloco do rastreio: ela é escolha de LEITOR, não de
+              rastreio — quem lê com pistola 1D precisa dela mesmo sem rastrear. */}
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: comBarra ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={comBarra} onChange={e => mudarComBarra(e.target.checked)} />
+            <Barcode size={14} /> Código de barras
+          </label>
         </div>
         {rastrear && (
           <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
             Cada etiqueta impressa vira uma <strong>unidade rastreada</strong> com QR próprio.
             Quem pegar a peça escaneia, marca &quot;peguei&quot; e o departamento libera na fila de retiradas.
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6, fontSize: 12, fontWeight: 700, color: barraComQr ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={barraComQr} onChange={e => mudarBarraComQr(e.target.checked)} />
-              Imprimir também o código de barras
-            </label>
-            <span style={{ display: 'block', marginTop: 2 }}>
-              {barraComQr
-                ? <>A etiqueta sai com os <strong>dois</strong>: celular lê o QR e abre a peça; a pistola do balcão lê a barra e enxerga o código.</>
-                : <>Sem isto o QR ocupa o lugar da barra, e a etiqueta rastreada <strong>não serve</strong> pro leitor do balcão.</>}
-            </span>
           </div>
         )}
+        <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
+          {comBarra
+            ? <>A barra atravessa a etiqueta embaixo e <strong>rouba altura do texto</strong> — ligue só se a leitura for por pistola comum (1D), que não lê QR.</>
+            : <>Sem a barra, o texto ocupa a etiqueta inteira e sai <strong>bem maior</strong>. O QR pequeno faz o papel dela para celular e leitor 2D.</>}
+        </div>
         {formato === 'recorte' && (
           <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
             Mesma etiqueta da folha adesiva (66,7 × 25,4 mm), em 3 colunas coladas, com a linha de corte na borda.
@@ -730,7 +741,24 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
             </div>
             {/* Calibração da impressora: para o deslocamento que SOBRAR depois de
                 acertar o diálogo. Folha pré-cortada não perdoa 2mm. */}
+            {/* Papel da IMPRESSORA — não confundir com o tamanho da folha
+                adesiva, que é sempre Carta. Página no tamanho errado faz o
+                Chrome encaixar uma na outra e encolher 2,7%. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12, paddingTop: 10, borderTop: '1px dashed var(--portal-border)' }}>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)' }}>Papel que a impressora usa:</span>
+              {([['carta', 'Carta (216×279)'], ['a4', 'A4 (210×297)']] as const).map(([v, rotulo]) => (
+                <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--portal-text)', cursor: 'pointer' }}>
+                  <input type="radio" checked={papel === v} onChange={() => mudarPapel(v)} />
+                  {rotulo}
+                </label>
+              ))}
+              <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', flex: '1 1 100%', minWidth: 0, lineHeight: 1.5 }}>
+                A folha adesiva é sempre <strong>Carta</strong> — isto aqui é o papel <strong>selecionado na impressora</strong>.
+                {' '}Se estiverem diferentes, a impressora encaixa uma na outra e <strong>encolhe a folha em 2,7%</strong>:
+                {' '}as etiquetas saem menores e o erro cresce a cada linha, o que nenhum ajuste fino conserta.
+              </span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--portal-border)' }}>
               <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)' }}>Saiu deslocado? Ajuste fino (mm):</span>
               {([['x', 'Horizontal', ajusteX, '+ direita', 15], ['y', 'Vertical', ajusteY, '+ desce', 25]] as const).map(([eixo, rotulo, valor, sentido, lim]) => (
                 <label key={eixo} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--portal-text-secondary)' }}>
