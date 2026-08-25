@@ -144,7 +144,7 @@ async function carregarProdutos(conta: ContaFiltro): Promise<{
     const { data, error } = await aplicarContaProdutos(
       supabase.from('produtos').select('codigo_produto,codigo,familia_nome,estoque,valor_estoque'),
       conta,
-    ).range(offset, offset + LOTE - 1);
+    ).order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<{ codigo_produto: unknown; codigo: unknown; familia_nome: unknown; estoque: unknown; valor_estoque: unknown }>;
     for (const p of lote) {
@@ -188,7 +188,7 @@ async function carregarTipoCaracteristica(conta: ContaFiltro): Promise<Record<st
     const { data, error } = await filtroConta(
       supabase.from('produto_tipo').select('codigo_produto,tipo').not('tipo', 'is', null).neq('tipo', ''),
       conta,
-    ).range(offset, offset + LOTE - 1);
+    ).order('codigo_produto').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<{ codigo_produto: unknown; tipo: unknown }>;
     for (const r of lote) {
@@ -216,7 +216,7 @@ async function carregarEstoquePorTipo(conta: ContaFiltro): Promise<Record<string
     const { data, error } = await aplicarContaProdutos(
       supabase.from('produtos').select('codigo_produto,familia_nome,estoque,valor_estoque'),
       conta,
-    ).range(offset, offset + LOTE - 1);
+    ).order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<{ codigo_produto: unknown; familia_nome: unknown; estoque: unknown; valor_estoque: unknown }>;
     for (const p of lote) {
@@ -252,7 +252,7 @@ async function carregarSaidas(
         .eq('mes', mes)
         .eq('ano', ano),
       conta,
-    ).range(offset, offset + LOTE - 1);
+    ).order('codigo_produto').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<{ codigo_produto: unknown; familia: unknown; quantidade: unknown; valor_total: unknown }>;
     for (const v of lote) {
@@ -285,7 +285,7 @@ async function carregarEntradas(
   let offset = 0;
   const LOTE = 1000;
   while (true) {
-    let query = supabase.from('notas_entrada').select('itens').eq('mes', mes).eq('ano', ano);
+    let query = supabase.from('notas_entrada').select('itens').eq('mes', mes).eq('ano', ano).order('ncod_nf');
     query = filtroConta(query, conta);
     // NÃO filtrar por `cancelada`: é string ("" ou data de cancelamento), não bool;
     // a listagem (listarNotasEntrada) também não filtra. Ver memória.
@@ -450,7 +450,7 @@ async function notasDoMes(
   let offset = 0;
   const LOTE = 1000;
   while (true) {
-    let query = supabase.from('notas_entrada').select('categoria,itens').eq('mes', mes).eq('ano', ano);
+    let query = supabase.from('notas_entrada').select('categoria,itens').eq('mes', mes).eq('ano', ano).order('ncod_nf');
     query = filtroConta(query, conta);
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
@@ -499,7 +499,7 @@ async function vendasDoMes(
         .eq('mes', mes)
         .eq('ano', ano),
       conta,
-    ).range(offset, offset + LOTE - 1);
+    ).order('codigo_produto').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<Record<string, unknown>>;
     for (const v of lote) {
@@ -703,21 +703,32 @@ async function lerSnapshotPorMes(
   const map = new Map<string, { peca: number; maquina: number }>();
   const anos = [...new Set(meses.map((m) => m.ano))];
   if (anos.length === 0) return map;
-  let query = supabase.from(SNAPSHOT_TABLE).select('ano,mes,familia,estoque_valor').in('ano', anos);
-  if (conta) query = query.eq('conta_omie', String(conta).toLowerCase());
-  const { data, error } = await query;
-  if (error) {
-    // Tabela ainda não criada / sem permissão → trata como "sem snapshots".
-    return map;
-  }
-  for (const r of (data || []) as Array<{ ano: number; mes: number; familia: unknown; estoque_valor: unknown }>) {
-    const g = classificarGrupo(String(r.familia ?? ''));
-    if (g === 'ignorar') continue;
-    const key = `${r.ano}-${r.mes}`;
-    const e = map.get(key) || { peca: 0, maquina: 0 };
-    if (g === 'peca') e.peca += num(r.estoque_valor);
-    else e.maquina += num(r.estoque_valor);
-    map.set(key, e);
+  // Paginação OBRIGATÓRIA + ordem estável: sem isto o PostgREST corta em 1000
+  // linhas e o agregado (TODAS) subconta/perde meses inteiros. Ordem pela PK
+  // composta garante que range() não pula/repete.
+  let offset = 0;
+  const LOTE = 1000;
+  while (true) {
+    let query = supabase.from(SNAPSHOT_TABLE).select('ano,mes,familia,estoque_valor').in('ano', anos)
+      .order('ano').order('mes').order('conta_omie').order('familia');
+    if (conta) query = query.eq('conta_omie', String(conta).toLowerCase());
+    const { data, error } = await query.range(offset, offset + LOTE - 1);
+    if (error) {
+      // Tabela ainda não criada / sem permissão → trata como "sem snapshots".
+      return map;
+    }
+    const lote = (data || []) as Array<{ ano: number; mes: number; familia: unknown; estoque_valor: unknown }>;
+    for (const r of lote) {
+      const g = classificarGrupo(String(r.familia ?? ''));
+      if (g === 'ignorar') continue;
+      const key = `${r.ano}-${r.mes}`;
+      const e = map.get(key) || { peca: 0, maquina: 0 };
+      if (g === 'peca') e.peca += num(r.estoque_valor);
+      else e.maquina += num(r.estoque_valor);
+      map.set(key, e);
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
   }
   return map;
 }
@@ -730,19 +741,28 @@ async function lerSnapshotTipoPorMes(
   const map = new Map<string, Record<string, number>>();
   const anos = [...new Set(meses.map((m) => m.ano))];
   if (anos.length === 0) return map;
-  let query = supabase.from(SNAPSHOT_TIPO_TABLE).select('ano,mes,tipo,estoque_valor').in('ano', anos);
-  if (conta) query = query.eq('conta_omie', String(conta).toLowerCase());
-  const { data, error } = await query;
-  if (error) {
-    // Tabela ainda não criada / sem permissão → trata como "sem snapshots".
-    return map;
-  }
-  for (const r of (data || []) as Array<{ ano: number; mes: number; tipo: unknown; estoque_valor: unknown }>) {
-    const tipo = String(r.tipo ?? '').trim() || SEM_TIPO;
-    const key = `${r.ano}-${r.mes}`;
-    const e = map.get(key) || {};
-    e[tipo] = (e[tipo] || 0) + num(r.estoque_valor);
-    map.set(key, e);
+  // Paginação + ordem estável (mesmo motivo de lerSnapshotPorMes: teto 1000).
+  let offset = 0;
+  const LOTE = 1000;
+  while (true) {
+    let query = supabase.from(SNAPSHOT_TIPO_TABLE).select('ano,mes,tipo,estoque_valor').in('ano', anos)
+      .order('ano').order('mes').order('conta_omie').order('tipo');
+    if (conta) query = query.eq('conta_omie', String(conta).toLowerCase());
+    const { data, error } = await query.range(offset, offset + LOTE - 1);
+    if (error) {
+      // Tabela ainda não criada / sem permissão → trata como "sem snapshots".
+      return map;
+    }
+    const lote = (data || []) as Array<{ ano: number; mes: number; tipo: unknown; estoque_valor: unknown }>;
+    for (const r of lote) {
+      const tipo = String(r.tipo ?? '').trim() || SEM_TIPO;
+      const key = `${r.ano}-${r.mes}`;
+      const e = map.get(key) || {};
+      e[tipo] = (e[tipo] || 0) + num(r.estoque_valor);
+      map.set(key, e);
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
   }
   return map;
 }
@@ -998,7 +1018,7 @@ async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promi
     const { data, error } = await aplicarContaProdutos(
       supabase.from('produtos').select('codigo_produto,descricao,familia_nome,estoque,valor_estoque'),
       conta,
-    ).gt('estoque', 0).range(offset, offset + LOTE - 1);
+    ).gt('estoque', 0).order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<Record<string, unknown>>;
     for (const p of lote) {
@@ -1031,7 +1051,7 @@ async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promi
   let offset = 0;
   const LOTE = 1000;
   while (true) {
-    let query = supabase.from('notas_entrada').select('numero_nf,categoria,itens').eq('mes', f.mes!).eq('ano', f.ano!);
+    let query = supabase.from('notas_entrada').select('numero_nf,categoria,itens').eq('mes', f.mes!).eq('ano', f.ano!).order('ncod_nf');
     query = filtroConta(query, conta);
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
@@ -1068,7 +1088,7 @@ async function composicaoSaida(conta: ContaFiltro, f: ComposicaoFiltro): Promise
         .select('numero_pedido,codigo_produto,descricao,familia,quantidade,valor_total,codigo_categoria')
         .eq('mes', f.mes!).eq('ano', f.ano!),
       conta,
-    ).range(offset, offset + LOTE - 1);
+    ).order('codigo_produto').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<Record<string, unknown>>;
     for (const v of lote) {
