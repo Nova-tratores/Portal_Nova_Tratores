@@ -6,7 +6,9 @@ name: Sync NFs (Pastas Clientes)
 
 on:
   schedule:
-    - cron: '0 8 * * *'    # 08:00 UTC = 05:00 BRT
+    - cron: '0 8 * * *'    # 08:00 UTC = 05:00 BRT (passada completa da madrugada)
+    - cron: '0 15 * * *'   # 15:00 UTC = 12:00 BRT (pega NFs emitidas de manhã)
+    - cron: '0 20 * * *'   # 20:00 UTC = 17:00 BRT (pega NFs emitidas à tarde)
   workflow_dispatch: {}      # permite rodar manualmente pelo botão "Run workflow"
 
 jobs:
