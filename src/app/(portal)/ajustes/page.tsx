@@ -484,7 +484,7 @@ function ResumoSemana({ conta, contaParam }: { conta: string; contaParam: string
         {!d && !erro && <span style={{ fontSize: '.7rem', color: '#94a3b8', marginLeft: 'auto' }}>carregando…</span>}
       </div>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 12 }}>
-        <Link href="/ajustes/recebimentos" style={card}>
+        <Link href="/estoque/recebimentos" style={card}>
           <div style={lbl}>Recebimentos pendentes</div>
           <div style={big(rc?.totalNaoProcessados ? '#b45309' : undefined)}>{rc?.erro ? '—' : rc?.totalNaoProcessados ?? '—'}</div>
           <div style={sub}>{rc?.erro ? rc.erro : [rc?.totalComSinalGarantia ? `${rc.totalComSinalGarantia} c/ sinal garantia` : '', rc?.totalItensRisco ? `${rc.totalItensRisco} itens risco` : ''].filter(Boolean).join(' · ') || 'NFs nao processadas'}</div>

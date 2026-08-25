@@ -43,7 +43,7 @@ export const PAGINAS_AJUSTES: PaginaAjustes[] = [
   { key: 'ajustes:omie-massa', label: 'Omie em massa', href: '/ajustes/omie-massa', grupo: 'Edição', departamento: 'Estoque' },
   // Visualização
   { key: 'ajustes:negativos', label: 'Estoque negativo', href: '/ajustes/negativos', grupo: 'Visualização', departamento: 'Estoque' },
-  { key: 'ajustes:recebimentos', label: 'Recebimentos pendentes', href: '/ajustes/recebimentos', grupo: 'Visualização', departamento: 'Estoque' },
+  // 'recebimentos' migrou para o módulo Estoque (rota /estoque/recebimentos, chave 'estoque:recebimentos').
   { key: 'ajustes:pedidos', label: 'Pedidos abertos', href: '/ajustes/pedidos', grupo: 'Visualização', departamento: 'Venda' },
   { key: 'ajustes:remessas', label: 'Remessas em aberto', href: '/ajustes/remessas', grupo: 'Visualização', departamento: 'Estoque' },
   // 'movimentacao-produto' migrou para o módulo Estoque (chave 'estoque:movimentacao-produto').

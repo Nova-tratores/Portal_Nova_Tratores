@@ -29,6 +29,7 @@ export const PAGINAS_ESTOQUE: PaginaEstoque[] = [
   // Entradas
   { key: 'notas-entrada', label: 'Notas de Entrada', href: '/estoque/notas-entrada', grupo: 'entradas' },
   { key: 'recebimentos', label: 'Recebimentos', href: '/estoque/recebimentos', grupo: 'entradas' },
+  { key: 'recebimentos-omie', label: 'Recebimentos (Omie)', href: '/estoque/recebimentos-omie', grupo: 'entradas' },
   // Análise
   { key: 'curva-abc', label: 'Curva ABC', href: '/estoque/curva-abc', grupo: 'analise' },
   { key: 'giro-estoque', label: 'Giro de Estoque', href: '/estoque/giro-estoque', grupo: 'analise' },

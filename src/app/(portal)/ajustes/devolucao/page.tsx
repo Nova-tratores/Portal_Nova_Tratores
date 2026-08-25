@@ -120,7 +120,7 @@ export default function DevolucaoPage() {
 
       <div style={{ margin: '0 0 14px', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: '.8rem' }}>
         <Link href="/ajustes" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>← Dashboard</Link>
-        <Link href="/ajustes/recebimentos" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>→ Recebimentos pendentes</Link>
+        <Link href="/estoque/recebimentos" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>→ Recebimentos pendentes</Link>
       </div>
 
       <div style={card}>
