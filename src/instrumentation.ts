@@ -63,20 +63,9 @@ export async function register(): Promise<void> {
     log('financeiro auto-sync (scanner) DESLIGADO — criação via webhook. SYNC_FINANCEIRO_AUTO=on liga o backup.');
   }
 
-  // Lembrete NFS-e sem PDF (5 em 5 min). DESLIGADO por padrão: foi SUBSTITUÍDO pelo
-  // RELATÓRIO SEMANAL de faturados sem NF (cron clientes-relatorio-semanal.yml, sexta
-  // 08:00, que dispara UMA notificação). O lembrete de 5 min ficava spammando o
-  // Pós-Vendas a cada ciclo (sem dedup por OS). Só religa com LEMBRETE_NF_5MIN=on.
-  if (process.env.LEMBRETE_NF_5MIN === 'on') {
-    const rodarLembreteNF = async () => {
-      try { await fetch(`${base}/api/financeiro/lembrete-nf-servico`, { method: 'POST' }); } catch (e) { log('lembrete-nf-servico falhou: ' + (e as Error).message); }
-    };
-    setInterval(() => { rodarLembreteNF().catch(() => {}); }, CINCO_MIN);
-    setTimeout(() => { rodarLembreteNF().catch(() => {}); }, 120 * 1000); // 1ª rodada ~2min após o boot
-    log('lembrete NFS-e (5 min) LIGADO (LEMBRETE_NF_5MIN=on)');
-  } else {
-    log('lembrete NFS-e (5 min) DESLIGADO — substituído pelo relatório semanal. LEMBRETE_NF_5MIN=on religa.');
-  }
+  // (removido em 25/08/2026) Lembrete NFS-e de 5 em 5 min — EXCLUÍDO a pedido:
+  // spammava o Pós-Vendas. O relatório semanal (clientes-relatorio-semanal.yml)
+  // segue cobrindo os faturados sem NF com UMA notificação por semana.
 
   // Pasta Cliente: vigia OS/PV/NFs novas (alteradas na última 1h) a cada 5 min.
   // SÓ atualiza as tabelas da pasta (portal_nt_clientes_*) + baixa as NFs — NÃO cria

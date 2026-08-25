@@ -179,15 +179,6 @@ export const AGENDAMENTOS: Agendamento[] = [
     obs: 'Duplica o cron do GitHub',
   },
   {
-    nome: 'Lembrete NFS-e sem PDF',
-    modulo: 'Financeiro',
-    fonte: 'in-process',
-    frequencia: 'A cada 5 min',
-    alvo: 'POST /api/financeiro/lembrete-nf-servico',
-    arquivo: 'src/instrumentation.ts',
-    obs: 'DESLIGADO — substituído pelo relatório semanal. Religa com LEMBRETE_NF_5MIN=on',
-  },
-  {
     nome: 'Pasta cliente (sync-recente)',
     modulo: 'Clientes',
     fonte: 'in-process',
