@@ -57,6 +57,73 @@ async function downloadNF(url: string, path: string): Promise<string> {
   } catch { return url; }
 }
 
+// Data no fuso de SP em dd/MM/aaaa (filtro dEmi* do ListarNFSEs)
+function dataBRSaoPaulo(diasAtras = 0): string {
+  const d = new Date(Date.now() - diasAtras * 86400000);
+  return d.toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" });
+}
+
+// Busca a NFS-e de uma OS recém-faturada e grava número + PDF na Pasta.
+// Caminho oficial: ListarNFSEs (filtrado por emissão ontem→hoje, fica
+// leve) acha a nota pelo vínculo nCodigoOS; ObterNFSe (osdocs) traz o
+// PDF. Tenta em 0s/30s/120s porque a emissão pode demorar um pouco.
+async function buscarNfseDaOS(numOS: string, codOS: number, acc: Acc) {
+  const esperas = [0, 30000, 120000];
+  for (const espera of esperas) {
+    if (espera) await new Promise(r => setTimeout(r, espera));
+    try {
+      const r: any = await omieCall("/servicos/nfse/", "ListarNFSEs", {
+        nPagina: 1,
+        nRegPorPagina: 500,
+        dEmiInicial: dataBRSaoPaulo(1),
+        dEmiFinal: dataBRSaoPaulo(0),
+      }, acc);
+      const nf = (r?.nfseEncontradas || []).find((n: any) =>
+        String(n?.OrdemServico?.nCodigoOS || "") === String(codOS) &&
+        String(n?.Cabecalho?.cStatusNFSe || "") !== "C");
+
+      let numNFSe = String(nf?.Cabecalho?.nNumeroNFSe || "");
+      let danfeUrl = "";
+      const idNf = Number(nf?.Cabecalho?.nCodNF || 0);
+      if (idNf) {
+        try {
+          const doc: any = await omieCall("/servicos/osdocs/", "ObterNFSe", { nIdNf: idNf }, acc);
+          danfeUrl = String(doc?.cPdfNFSe || doc?.cUrlNFSe || "");
+        } catch { /* segue só com o número */ }
+      }
+
+      // Fallback: caminho antigo via StatusOS
+      if (!numNFSe && !danfeUrl) {
+        const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: codOS }, acc);
+        const lista: any[] = st?.ListaRpsNfse || [];
+        const nfse = lista.find((n: any) => n?.danfe || n?.cUrlNfse) || lista[lista.length - 1];
+        if (nfse) {
+          numNFSe = nfse.nNfse || "";
+          danfeUrl = nfse.danfe || nfse.cUrlNfse || "";
+        }
+      }
+
+      if (numNFSe || danfeUrl) {
+        let finalUrl = danfeUrl;
+        if (danfeUrl) {
+          finalUrl = await downloadNF(danfeUrl, `${acc.name.replace(/ /g, "_")}/os_${numOS}/nfse_${numNFSe || numOS}.pdf`);
+        }
+        const updates: Record<string, string> = {};
+        if (numNFSe) updates.num_nf = numNFSe;
+        if (finalUrl) updates.link_nf = finalUrl;
+        await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", numOS).eq("empresa", acc.name);
+        if (finalUrl) {
+          console.log(`[webhook] NFS-e ${numNFSe} da OS ${numOS} vinculada com PDF`);
+          return; // conseguiu o PDF — encerra as tentativas
+        }
+      }
+      console.log(`[webhook] NFS-e da OS ${numOS} ainda sem PDF — nova tentativa em breve`);
+    } catch (e) {
+      console.warn(`[webhook] busca NFS-e OS ${numOS}:`, e instanceof Error ? e.message : e);
+    }
+  }
+}
+
 // Processar OS criada/alterada/faturada
 async function processarOS(codOS: number, acc: Acc) {
   const os: any = await omieCall("/servicos/os/", "ConsultarOS", { nCodOS: codOS }, acc);
@@ -118,25 +185,11 @@ async function processarOS(codOS: number, acc: Acc) {
 
   await supabase.from("portal_nt_clientes_os").upsert(row, { onConflict: "num_os,empresa" });
 
-  // Se faturada, buscar NFS-e
+  // Se faturada, buscar NFS-e em SEGUNDO PLANO com tentativas — a nota
+  // costuma nascer alguns segundos depois do faturamento, e o caminho
+  // antigo (StatusOS.danfe) vinha vazio e deixava a OS sem o PDF.
   if (info.cFaturada === "S") {
-    try {
-      const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: codOS }, acc);
-      const nfseList: any[] = st?.ListaRpsNfse || [];
-      if (nfseList.length > 0) {
-        const nfse = nfseList[0];
-        const numNFSe = nfse.nNfse || "";
-        const danfeUrl = nfse.danfe || nfse.cUrlNfse || "";
-        if (numNFSe || danfeUrl) {
-          let finalUrl = danfeUrl;
-          if (danfeUrl) finalUrl = await downloadNF(danfeUrl, `${acc.name.replace(/ /g, "_")}/os_${cab.cNumOS}/nfse_${numNFSe || cab.cNumOS}.pdf`);
-          const updates: Record<string, string> = {};
-          if (numNFSe) updates.num_nf = numNFSe;
-          if (finalUrl) updates.link_nf = finalUrl;
-          await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", cab.cNumOS).eq("empresa", acc.name);
-        }
-      }
-    } catch {}
+    void buscarNfseDaOS(String(cab.cNumOS), Number(codOS), acc);
   }
 
   // Enriquecer nome do cliente
