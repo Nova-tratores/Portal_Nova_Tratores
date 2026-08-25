@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseVE } from "@/lib/visual-estoque/supabase";
-import { buscarProdutosEnriquecidos } from "@/lib/visual-estoque/data";
+import { buscarProdutosEnriquecidos, buscarMaquinasDemonstracao } from "@/lib/visual-estoque/data";
 
 // Famílias que NÃO são máquinas (igual ao pátio). A conferência é só de máquinas.
 const FAMILIAS_OCULTAS = ["Peças", "Agricultura de Precisão"];
@@ -12,7 +12,12 @@ export async function GET(req: NextRequest) {
   const conta = req.nextUrl.searchParams.get("conta") || undefined;
 
   try {
-    const produtos = await buscarProdutosEnriquecidos(conta);
+    // Máquinas físicas em estoque + máquinas fora em demonstração/consignação
+    // (ainda nossas — status Pendente em movimentacao_produtos, igual ao pátio).
+    const [produtos, demo] = await Promise.all([
+      buscarProdutosEnriquecidos(conta),
+      buscarMaquinasDemonstracao(conta),
+    ]);
     const maquinas = produtos.filter(
       (p) => !FAMILIAS_OCULTAS.includes(p.familia_nome) && p.estoque > 0 && !p.inativo
     );
@@ -24,7 +29,7 @@ export async function GET(req: NextRequest) {
     const idx = new Map<string, any>();
     for (const s of salvas || []) idx.set(`${s.codigo_produto}|${s.conta_omie}`, s);
 
-    const linhas = maquinas.map((m) => {
+    const montar = (m: any, origem: "estoque" | "demonstracao") => {
       const conf = idx.get(`${m.codigo_produto}|${m.conta_omie}`) || {};
       return {
         codigo_produto: m.codigo_produto,
@@ -36,6 +41,10 @@ export async function GET(req: NextRequest) {
         estoque: m.estoque,
         dias_em_estoque: m.dias_em_estoque,
         cmc_portal: m.cmc, // custo atual no portal (Custo Médio Contábil)
+        origem, // 'estoque' (no pátio) ou 'demonstracao' (fora, em consignação)
+        destinatario: m.destinatario ?? "", // p/ quem foi, quando em demonstração
+        numero_remessa: m.numero_remessa ?? "",
+        valor_remessa: origem === "demonstracao" ? m.valor_estoque : null, // valor de saída
         // valores conferidos com o fornecedor (null enquanto não preenchidos)
         fornecedor: conf.fornecedor ?? "",
         custo_pago: conf.custo_pago ?? null,
@@ -46,10 +55,19 @@ export async function GET(req: NextRequest) {
         atualizado_em: conf.atualizado_em ?? null,
         atualizado_por: conf.atualizado_por ?? null,
       };
-    });
+    };
 
-    // Ordena por descrição para facilitar a conferência manual.
-    linhas.sort((a, b) => a.descricao.localeCompare(b.descricao, "pt-BR"));
+    const linhas = [
+      ...maquinas.map((m) => montar(m, "estoque")),
+      ...demo.map((m) => montar(m, "demonstracao")),
+    ];
+
+    // Estoque físico primeiro, depois demonstração; dentro de cada, por descrição.
+    linhas.sort((a, b) =>
+      a.origem !== b.origem
+        ? a.origem === "estoque" ? -1 : 1
+        : a.descricao.localeCompare(b.descricao, "pt-BR")
+    );
 
     return NextResponse.json({ maquinas: linhas, total: linhas.length });
   } catch (e) {
