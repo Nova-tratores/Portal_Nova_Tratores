@@ -9,6 +9,7 @@ import AcessoBloqueado from '@/components/AcessoBloqueado'
 import { usePathname, useRouter } from 'next/navigation'
 import TratorinoChat from '@/components/TratorinoChat'
 import CaixaEmail from '@/components/CaixaEmail'
+import VigiaCameras from '@/components/VigiaCameras'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
@@ -683,6 +684,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               <Columns size={20} />
             </button>
           )}
+
+          {/* Vigia das câmeras (só aparece se o script da loja já reportou) */}
+          <VigiaCameras />
 
           {/* Caixa de e-mail do usuário (só aparece pra quem configurou o e-mail de envio) */}
           <CaixaEmail />
