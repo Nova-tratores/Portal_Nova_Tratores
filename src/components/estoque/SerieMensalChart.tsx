@@ -10,9 +10,13 @@ export type PontoMensal = Record<string, number | string>;
 
 const fmtRS = (v: number) => 'R$ ' + Math.round(Number(v)).toLocaleString('pt-BR');
 
-export default function SerieMensalChart({ dados, series, altura = 360, barKey, barLabel, barCor }: {
+export interface BarraDef { key: string; label: string; cor: string }
+
+export default function SerieMensalChart({ dados, series, altura = 360, hideKeys, bars, onPointClick }: {
   dados: PontoMensal[]; series: SerieDef[]; altura?: number;
-  barKey?: string; barLabel?: string; barCor?: string;
+  hideKeys?: string[];          // chaves de linha a esconder (ex.: filtro de grupo)
+  bars?: BarraDef[];            // barras no eixo Y direito (ex.: faturamento)
+  onPointClick?: (key: string, ponto: PontoMensal) => void; // clique num ponto/barra
 }) {
   if (!dados || dados.length === 0) {
     return (
@@ -21,6 +25,11 @@ export default function SerieMensalChart({ dados, series, altura = 360, barKey, 
       </div>
     );
   }
+  const oculto = new Set(hideKeys ?? []);
+  const linhas = series.filter((s) => !s.soTabela && !oculto.has(s.key));
+  const temBarras = !!bars && bars.length > 0;
+  const cursor = onPointClick ? 'pointer' : undefined;
+  const paraPonto = (d: unknown): PontoMensal | undefined => (d as { payload?: PontoMensal })?.payload;
   return (
     <div style={{ width: '100%', height: altura }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -28,17 +37,19 @@ export default function SerieMensalChart({ dados, series, altura = 360, barKey, 
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
           <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
           <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
-          {barKey && (
+          {temBarras && (
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
           )}
           <Tooltip formatter={(v: number, name: string) => [fmtRS(v), name]} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          {barKey && (
-            <Bar yAxisId="right" dataKey={barKey} name={barLabel ?? 'Faturamento'} fill={barCor ?? '#dc2626'} fillOpacity={0.28} />
-          )}
-          {series.filter((s) => !s.soTabela).map((s) => (
+          {temBarras && bars!.map((b) => (
+            <Bar key={b.key} yAxisId="right" dataKey={b.key} name={b.label} fill={b.cor} fillOpacity={0.28}
+              cursor={cursor} onClick={(d: unknown) => { const p = paraPonto(d); if (p) onPointClick?.(b.key, p); }} />
+          ))}
+          {linhas.map((s) => (
             <Line yAxisId="left" key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.cor}
-              strokeWidth={2} strokeDasharray={s.dash ? '5 4' : undefined} dot={{ r: 2 }} />
+              strokeWidth={2} strokeDasharray={s.dash ? '5 4' : undefined} dot={{ r: 2 }}
+              activeDot={{ r: 4, cursor, onClick: (a: unknown, b: unknown) => { const p = paraPonto(b) ?? paraPonto(a); if (p) onPointClick?.(s.key, p); } }} />
           ))}
         </ComposedChart>
       </ResponsiveContainer>
