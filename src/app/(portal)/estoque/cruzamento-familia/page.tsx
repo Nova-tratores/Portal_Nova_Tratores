@@ -12,7 +12,7 @@ import { fmtRS } from '@/components/estoque/ui';
 import SerieMensalChart, { type PontoMensal, type SerieDef } from '@/components/estoque/SerieMensalChart';
 import ComposicaoModal, { type ComposicaoParams } from '@/components/estoque/ComposicaoModal';
 
-type Tab = 'mes' | 'grafico' | 'estoqueTipo';
+type Tab = 'mes' | 'grafico' | 'estoqueTipo' | 'reconciliacao';
 type Dimensao = 'tipo' | 'categoria' | 'familia' | 'tipocarac';
 interface SerieResp { pontos: PontoMensal[]; series: SerieDef[]; dimensao: Dimensao; estoqueAtual: { peca: number; maquina: number }; erro?: string }
 interface SerieTipoResp { pontos: PontoMensal[]; series: SerieDef[]; estoqueAtual: Record<string, number>; erro?: string }
@@ -95,6 +95,7 @@ export default function CruzamentoFamiliaPage() {
   const [mostrarFatPecas, setMostrarFatPecas] = useState(false);
   const [grupo, setGrupo] = useState<'peca' | 'maquina' | 'ambos'>('ambos');
   const [incluirDemo, setIncluirDemo] = useState(true);
+  const [grupoRec, setGrupoRec] = useState<'peca' | 'maquina'>('peca');
 
   // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
   const [mesesTipo, setMesesTipo] = useState(12);
@@ -138,7 +139,7 @@ export default function CruzamentoFamiliaPage() {
     }
   }, [meses, dimensao, incluirDemo, contaParam]);
 
-  useEffect(() => { if (tab === 'grafico') carregarSerie(); }, [carregarSerie, tab]);
+  useEffect(() => { if (tab === 'grafico' || tab === 'reconciliacao') carregarSerie(); }, [carregarSerie, tab]);
 
   const carregarSerieTipo = useCallback(async () => {
     setSerieTipoCarregando(true);
@@ -261,7 +262,7 @@ export default function CruzamentoFamiliaPage() {
 
       {/* Abas */}
       <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-        {([['mes', 'Tabela do mês'], ['grafico', 'Gráfico mensal'], ['estoqueTipo', 'Estoque por Tipo']] as [Tab, string][]).map(([id, label]) => (
+        {([['mes', 'Tabela do mês'], ['grafico', 'Gráfico mensal'], ['estoqueTipo', 'Estoque por Tipo'], ['reconciliacao', 'Reconciliação']] as [Tab, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ padding: '8px 16px', border: '1px solid', borderColor: tab === id ? '#dc2626' : '#e0e0e0', background: tab === id ? '#dc2626' : '#fff', color: tab === id ? '#fff' : '#666', borderRadius: 8, fontSize: '.82rem', fontWeight: 600, cursor: 'pointer' }}>
             {label}
@@ -496,6 +497,92 @@ export default function CruzamentoFamiliaPage() {
             </p>
           </>
         )}
+      </>
+      )}
+
+      {tab === 'reconciliacao' && (
+      <>
+        <div style={{ display: 'flex', gap: 16, marginBottom: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+          <Sel label="Período" value={meses} onChange={(v) => setMeses(parseInt(v))} options={[6, 12, 18, 24, 36, 48].map((m) => ({ value: m, label: m + ' meses' }))} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: '.7rem', color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.03em' }}>Grupo</span>
+            <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 8, overflow: 'hidden' }}>
+              {([['peca', 'Peças'], ['maquina', 'Máquinas']] as const).map(([g, lbl]) => (
+                <button key={g} onClick={() => setGrupoRec(g)} style={{
+                  padding: '7px 12px', fontSize: '.8rem', border: 'none', cursor: 'pointer',
+                  background: grupoRec === g ? '#111' : '#fff', color: grupoRec === g ? '#fff' : '#555',
+                  borderLeft: g !== 'peca' ? '1px solid #ddd' : 'none',
+                }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {serieErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieErro}</div>}
+        {serieCarregando && <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>}
+
+        {serie && !serieCarregando && (() => {
+          const g = grupoRec;
+          const pts = serie.pontos;
+          const val = (p: PontoMensal, k: string): number | null => (p[k] == null ? null : Number(p[k]));
+          const linhas = pts.map((p, i) => {
+            const est = val(p, `estoque_${g}`);
+            const estPrev = i > 0 ? val(pts[i - 1], `estoque_${g}`) : null;
+            const entrada = Number(p[`entrada_${g}`] || 0);
+            const cogs = Number(p[`cogs_${g}`] || 0);
+            const fluxo = entrada - cogs;
+            const varEst = est != null && estPrev != null ? est - estPrev : null;
+            const residuo = varEst == null ? null : varEst - fluxo;
+            return { periodo: String(p.periodo), est, varEst, entrada, cogs, fluxo, residuo };
+          });
+          const comRes = linhas.filter((l) => l.residuo != null) as Array<{ residuo: number }>;
+          const resAcum = comRes.reduce((s, l) => s + l.residuo, 0);
+          const resMedAbs = comRes.length ? comRes.reduce((s, l) => s + Math.abs(l.residuo), 0) / comRes.length : 0;
+          const fecham = comRes.filter((l) => Math.abs(l.residuo) < 5000).length;
+          const fmtSig = (v: number | null): string => (v == null ? '—' : (v >= 0 ? '+' : '−') + 'R$ ' + Math.round(Math.abs(v)).toLocaleString('pt-BR'));
+          const corRes = (v: number | null) => (v == null ? '#bbb' : Math.abs(v) < 5000 ? '#16a34a' : Math.abs(v) < 50000 ? '#d97706' : '#dc2626');
+          return (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 14 }}>
+                <Resumo titulo="Resíduo acumulado" valor={fmtSig(resAcum)} sub="Δ Estoque − (Entrada − Saída a custo)" cor={Math.abs(resAcum) > 50000 ? '#dc2626' : '#333'} />
+                <Resumo titulo="Resíduo médio/mês" valor={'R$ ' + Math.round(resMedAbs).toLocaleString('pt-BR')} sub="média absoluta" />
+                <Resumo titulo="Meses que fecham" valor={`${fecham} de ${comRes.length}`} sub="|resíduo| < R$ 5 mil" />
+              </div>
+              <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead><tr>
+                    <th style={thStyle}>Mês</th>
+                    <th style={thNum}>Estoque (fim)</th>
+                    <th style={thNum}>Δ Estoque</th>
+                    <th style={thNum}>Entrada (custo)</th>
+                    <th style={thNum}>Saída (custo/COGS)</th>
+                    <th style={thNum}>Fluxo (E−S)</th>
+                    <th style={thNum}>Resíduo</th>
+                  </tr></thead>
+                  <tbody>
+                    {linhas.map((l, i) => (
+                      <tr key={i}>
+                        <td style={tdStyle}>{l.periodo}</td>
+                        <td style={tdNum}>{l.est == null ? '—' : fmtRS0(l.est)}</td>
+                        <td style={{ ...tdNum, color: l.varEst == null ? '#bbb' : l.varEst >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(l.varEst)}</td>
+                        <td style={{ ...tdNum, color: l.entrada ? '#16a34a' : '#bbb', cursor: l.entrada ? 'pointer' : 'default' }}
+                          onClick={() => l.entrada && abrirPopupSerie({ key: `nf_entrada_${g}`, label: `Entrada ${g === 'peca' ? 'Peça' : 'Máquina'}`, cor: '#16a34a' }, pts[i])}>
+                          {l.entrada ? fmtRS0(l.entrada) : '—'}
+                        </td>
+                        <td style={{ ...tdNum, color: l.cogs ? '#dc2626' : '#bbb' }}>{l.cogs ? fmtRS0(l.cogs) : '—'}</td>
+                        <td style={{ ...tdNum, color: l.fluxo >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(l.fluxo)}</td>
+                        <td style={{ ...tdNum, fontWeight: 700, color: corRes(l.residuo) }}>{fmtSig(l.residuo)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
+                Reconciliação em <strong>custo</strong>: Estoque, Entrada (valor da NF de entrada) e <strong>Saída a custo (COGS = CMC × qtd)</strong> — todos na mesma base. <strong>Resíduo</strong> = Δ Estoque − (Entrada − Saída) = o que <strong>não fecha</strong> no mês. Resíduo grande costuma ser <strong>saída não registrada</strong> (OS interna/frota, garantia, cortesia), <strong>ajuste de inventário</strong> ou diferença de <strong>base de valoração</strong>. Atenção: a Saída aqui é o <strong>custo</strong> dos itens vendidos, <strong>não a receita</strong> (faturamento). Meses sem snapshot de estoque não têm Δ nem resíduo. {g === 'maquina' && 'Obs.: compras de máquina muitas vezes não passam por NF de entrada, então a Entrada de máquina é incompleta — leia o resíduo com ressalva.'}
+              </p>
+            </>
+          );
+        })()}
       </>
       )}
 
