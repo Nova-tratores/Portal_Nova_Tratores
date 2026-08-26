@@ -94,6 +94,7 @@ export default function CruzamentoFamiliaPage() {
   const [serieErro, setSerieErro] = useState('');
   const [mostrarFatPecas, setMostrarFatPecas] = useState(false);
   const [grupo, setGrupo] = useState<'peca' | 'maquina' | 'ambos'>('ambos');
+  const [incluirDemo, setIncluirDemo] = useState(true);
 
   // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
   const [mesesTipo, setMesesTipo] = useState(12);
@@ -126,7 +127,7 @@ export default function CruzamentoFamiliaPage() {
     setSerieCarregando(true);
     setSerieErro('');
     try {
-      const r = await fetch(`/api/estoque/cruzamento-familia/serie?meses=${meses}&dimensao=${dimensao}${contaParam}`);
+      const r = await fetch(`/api/estoque/cruzamento-familia/serie?meses=${meses}&dimensao=${dimensao}&demo=${incluirDemo ? 1 : 0}${contaParam}`);
       const d = (await r.json()) as SerieResp;
       if (d.erro) { setSerieErro(d.erro); setSerie(null); return; }
       setSerie(d);
@@ -135,7 +136,7 @@ export default function CruzamentoFamiliaPage() {
     } finally {
       setSerieCarregando(false);
     }
-  }, [meses, dimensao, contaParam]);
+  }, [meses, dimensao, incluirDemo, contaParam]);
 
   useEffect(() => { if (tab === 'grafico') carregarSerie(); }, [carregarSerie, tab]);
 
@@ -223,7 +224,8 @@ export default function CruzamentoFamiliaPage() {
   const abrirPopupEstoqueTipo = (s: SerieDef) => {
     const tipo = s.key.slice('estoque::'.length);
     if (tipo === 'Outras') return; // agregado de vários Tipos — não filtra por um só
-    setPopup({ titulo: `${s.label} — saldo atual`, params: { fonte: 'estoque', tipocarac: tipo } });
+    // grupo:'peca' espelha a série (só peças) — nunca listar máquinas no popup de Tipo.
+    setPopup({ titulo: `${s.label} — saldo atual`, params: { fonte: 'estoque', tipocarac: tipo, grupo: 'peca' } });
   };
 
   // Clique numa célula da TABELA DO MÊS por família → popup de composição.
@@ -381,6 +383,10 @@ export default function CruzamentoFamiliaPage() {
             <input type="checkbox" checked={mostrarFatPecas} onChange={(e) => setMostrarFatPecas(e.target.checked)} />
             Faturamento (barra)
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Soma ao Estoque Máquina as máquinas que saíram em remessa de demonstração (ainda nossas)">
+            <input type="checkbox" checked={incluirDemo} onChange={(e) => setIncluirDemo(e.target.checked)} />
+            Incluir máquinas em demonstração
+          </label>
         </div>
 
         {serieErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieErro}</div>}
@@ -425,7 +431,7 @@ export default function CruzamentoFamiliaPage() {
             </div>
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
               NF Entrada = itens das notas de entrada do mês. NF Saída = vendas do mês. {dimensao === 'categoria' && 'Linha cheia = entrada, tracejada = saída; cada cor é uma categoria (top 6 + “Outras”). '}{dimensao === 'familia' && 'Linha cheia = entrada, tracejada = saída; cada cor é uma família (top 6 + “Outras”). '}{dimensao === 'tipocarac' && 'Linha cheia = entrada, tracejada = saída; cada cor é um Tipo (característica de produto_tipo; top 6 + “Outras”). Quem não tem Tipo cai em “Sem tipo”. '}
-              Estoque Peça/Máquina vem do <strong>snapshot mensal</strong> (valor congelado a cada captura): o mês atual mostra o saldo de hoje e os meses anteriores aparecem conforme o histórico for sendo gravado — meses sem snapshot ficam sem ponto. Famílias &quot;#N/D&quot;, &quot;Kit revisão&quot; e &quot;Ativo imobilizado&quot; são ignoradas. Clique numa célula para ver a composição.
+              Estoque Peça/Máquina vem do <strong>snapshot mensal</strong> (valor congelado a cada captura): o mês atual mostra o saldo de hoje e os meses anteriores aparecem conforme o histórico for sendo gravado — meses sem snapshot ficam sem ponto. Famílias &quot;#N/D&quot;, &quot;Kit revisão&quot; e &quot;Ativo imobilizado&quot; são ignoradas. {incluirDemo && <><strong>Estoque Máquina</strong> inclui as máquinas em <strong>demonstração</strong> (remessas em aberto, ainda nossas), somadas mês a mês pelas datas de saída/retorno. </>}Clique numa célula ou ponto para ver a composição.
             </p>
           </>
         )}

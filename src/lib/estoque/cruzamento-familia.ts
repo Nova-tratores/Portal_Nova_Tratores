@@ -165,6 +165,94 @@ async function carregarProdutos(conta: ContaFiltro): Promise<{
   return { estoquePorFamilia, famPorCodigo, famPorSKU };
 }
 
+// Parser flexível: aceita DD/MM/YYYY (Omie) e ISO. null se vazio/inválido.
+function parseDataFlex(s: unknown): Date | null {
+  const str = String(s ?? '').trim();
+  if (!str) return null;
+  if (str.includes('/')) {
+    const p = str.split('/');
+    if (p.length === 3) { const d = new Date(Number(p[2]), Number(p[1]) - 1, Number(p[0])); return isNaN(d.getTime()) ? null : d; }
+    return null;
+  }
+  const d = new Date(str);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+/** Movimento de máquina em demonstração (remessa em aberto ou já devolvida). */
+interface DemoMov { valor: number; saida: Date; entrada: Date | null }
+
+/**
+ * Máquinas em demonstração/consignação (CFOP 5.912/6.912): o Omie zera o saldo
+ * físico da máquina ao emitir a remessa, então ela some de `produtos.estoque`.
+ * Aqui recuperamos essas máquinas de `movimentacao_produtos` (mesma fonte da
+ * tela /visual-estoque/remessas e /conferencia-custos) para somar de volta ao
+ * "Estoque Máquina". Devolve os movimentos com data de saída e de retorno para
+ * a reconstrução mês a mês (uma máquina conta enquanto estava fora naquele fim
+ * de mês). Valor = valor_unitario da remessa (ou cmc como fallback) × qtde.
+ */
+async function carregarDemoMaquinas(conta: ContaFiltro): Promise<DemoMov[]> {
+  // 1) movimentos de demonstração (fora agora = Pendente; já devolvidos têm data_entrada)
+  const movs: Array<Record<string, unknown>> = [];
+  let offset = 0;
+  const LOTE = 1000;
+  while (true) {
+    let q = supabase.from('movimentacao_produtos')
+      .select('cod_produto,status,data_saida,data_entrada,valor_unitario,qtde,conta_omie')
+      .in('status', ['Pendente', 'Devolvida'])
+      .order('id');
+    if (conta) q = q.eq('conta_omie', String(conta).toLowerCase());
+    const { data, error } = await q.range(offset, offset + LOTE - 1);
+    if (error) return movs.length ? finalizarDemo(movs, conta) : []; // tabela ausente → sem demo
+    const lote = (data || []) as Array<Record<string, unknown>>;
+    movs.push(...lote);
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+  return finalizarDemo(movs, conta);
+}
+
+async function finalizarDemo(movs: Array<Record<string, unknown>>, conta: ContaFiltro): Promise<DemoMov[]> {
+  if (movs.length === 0) return [];
+  // 2) join com produtos (família p/ classificar máquina, cmc fallback, arquivado)
+  const cods = [...new Set(movs.map((m) => Number(m.cod_produto)).filter((n) => !isNaN(n)))];
+  const prod = new Map<string, { familia: string; cmc: number; arquivado: boolean; conta: string }>();
+  for (let i = 0; i < cods.length; i += 500) {
+    const batch = cods.slice(i, i + 500);
+    let q = supabase.from('produtos').select('codigo_produto,familia_nome,cmc,arquivado,conta_omie').in('codigo_produto', batch);
+    q = aplicarContaProdutos(q, conta);
+    const { data } = await q;
+    for (const p of (data || []) as Array<Record<string, unknown>>) {
+      const c = String(p.conta_omie ?? '').toLowerCase();
+      prod.set(`${c}:${p.codigo_produto}`, {
+        familia: String(p.familia_nome ?? '').trim() || SEM_FAMILIA,
+        cmc: num(p.cmc), arquivado: !!p.arquivado, conta: c,
+      });
+    }
+  }
+  const out: DemoMov[] = [];
+  for (const m of movs) {
+    const c = String(m.conta_omie ?? '').toLowerCase();
+    const p = prod.get(`${c}:${Number(m.cod_produto)}`);
+    if (!p || p.arquivado) continue;
+    if (classificarGrupo(p.familia) !== 'maquina') continue;
+    const saida = parseDataFlex(m.data_saida);
+    if (!saida) continue;
+    const vu = num(m.valor_unitario);
+    const valor = (vu > 0 ? vu : p.cmc) * (num(m.qtde) || 1);
+    if (valor <= 0) continue;
+    const entrada = String(m.status) === 'Devolvida' ? parseDataFlex(m.data_entrada) : null;
+    out.push({ valor, saida, entrada });
+  }
+  return out;
+}
+
+/** Σ do valor das máquinas em demonstração que estavam FORA no instante `ref`. */
+function demoForaEm(demo: DemoMov[], ref: Date): number {
+  let s = 0;
+  for (const d of demo) if (d.saida <= ref && (d.entrada == null || d.entrada > ref)) s += d.valor;
+  return s;
+}
+
 /** Resolve a família de um item de entrada: id interno (nCodProd) → SKU (cProd). */
 function resolverFamiliaEntrada(
   codigo: string,
@@ -836,6 +924,7 @@ export async function serieMensal(
   meses: Array<{ mes: number; ano: number }>,
   conta: ContaFiltro,
   dimensao: Dimensao = 'tipo',
+  incluirDemo = true,
 ): Promise<SerieMensalResult> {
   const { estoquePorFamilia, famPorCodigo, famPorSKU } = await carregarProdutos(conta);
 
@@ -846,6 +935,10 @@ export async function serieMensal(
     if (g === 'peca') estPeca += v.valor;
     else if (g === 'maquina') estMaq += v.valor;
   }
+
+  // Máquinas em demonstração (fora do saldo físico do Omie) — somadas de volta
+  // ao Estoque Máquina, mês a mês, quando o toggle estiver ligado.
+  const demo = incluirDemo ? await carregarDemoMaquinas(conta) : [];
 
   const { nomes } = await getIgnorarFiltro(conta);
   const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
@@ -885,20 +978,24 @@ export async function serieMensal(
     { key: 'estoque_maquina', label: 'Estoque Máquina', cor: '#d97706' },
   ];
 
+  const hoje = new Date();
   const pontos: PontoMensal[] = meses.map((m, i) => {
     const ponto: PontoMensal = { periodo: labelMes(m.mes, m.ano), mes: m.mes, ano: m.ano };
     // Faturamento do mês por grupo — campos extra p/ a barra opcional do
     // gráfico; NÃO entram em `series` (não viram linha nem coluna).
     ponto.faturamento_peca = Math.round(fluxos[i]?.saidaPeca ?? 0);
     ponto.faturamento_maquina = Math.round(fluxos[i]?.saidaMaq ?? 0);
+    // Máquinas em demonstração que estavam FORA no fim daquele mês (mês atual = hoje).
+    const ref = i === k - 1 ? hoje : new Date(m.ano, m.mes, 0, 23, 59, 59);
+    const demoMaq = demo.length ? demoForaEm(demo, ref) : 0;
     if (i === k - 1) {
       ponto.estoque_peca = Math.round(estPeca);
-      ponto.estoque_maquina = Math.round(estMaq);
+      ponto.estoque_maquina = Math.round(estMaq + demoMaq);
     } else {
       const s = snapMap.get(`${m.ano}-${m.mes}`);
       if (s) {
         ponto.estoque_peca = Math.round(s.peca);
-        ponto.estoque_maquina = Math.round(s.maquina);
+        ponto.estoque_maquina = Math.round(s.maquina + demoMaq);
       }
       // sem snapshot → não define as chaves (gap no gráfico)
     }
@@ -1013,6 +1110,8 @@ function passaFiltroGrupoFamCat(
 
 async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promise<ComposicaoResult> {
   const itens: ComposicaoItem[] = [];
+  // Mapa Tipo (característica) só quando o drill é por Tipo — igual entrada/saída.
+  const tipoPorCodigo = f.tipocarac ? await carregarTipoCaracteristica(conta) : {};
   let offset = 0;
   const LOTE = 1000;
   while (true) {
@@ -1024,7 +1123,8 @@ async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promi
     const lote = (data || []) as Array<Record<string, unknown>>;
     for (const p of lote) {
       const fam = String(p.familia_nome ?? '').trim() || SEM_FAMILIA;
-      if (!passaFiltroGrupoFamCat(f, fam, '')) continue;
+      const tipoC = tipoPorCodigo[String(p.codigo_produto ?? '')] || SEM_TIPO;
+      if (!passaFiltroGrupoFamCat(f, fam, '', tipoC)) continue;
       itens.push({
         codigo: String(p.codigo_produto ?? ''),
         descricao: String(p.descricao ?? ''),
@@ -1039,7 +1139,9 @@ async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promi
   itens.sort((a, b) => b.valor - a.valor);
   return {
     itens, total: itens.length, somaValor: itens.reduce((s, i) => s + i.valor, 0), fonte: 'estoque',
-    aviso: 'Saldo atual (snapshot do último sync). Nos meses passados o valor do gráfico é reconstruído e aproximado.',
+    aviso: f.tipocarac
+      ? 'Composição do saldo atual por Tipo (não reconstrói item-a-item os meses passados).'
+      : 'Saldo atual (snapshot do último sync). Nos meses passados o valor do gráfico é reconstruído e aproximado.',
   };
 }
 
