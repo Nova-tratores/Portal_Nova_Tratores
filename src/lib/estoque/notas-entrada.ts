@@ -7,7 +7,7 @@ import { supabase, filtroConta } from './supabase';
 import { omieRequest } from './omie';
 import { fmtD, fmtCnpjBR, sleep } from './utils';
 import { getIgnorarFiltro } from './ignorar-clientes';
-import { getCredentials, CONTA_DEFAULT, type Conta, type ContaFiltro } from './conta';
+import { getCredentials, getContasOmie, CONTA_DEFAULT, type Conta, type ContaFiltro } from './conta';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 
@@ -41,6 +41,145 @@ export function normalizarItensEntrada(itens: unknown): Array<{
       valor_total: num(it.valor_total),
     };
   });
+}
+
+/**
+ * Extrai de um item CRU do Omie (`det[]`) os DOIS códigos + descrição/qtd, para o
+ * export item-a-item. Espelha `parseItemEntrada` de cruzamento-familia.ts:
+ *   - `cod_omie` = `nfProdInt.nCodProd` (id interno do cadastro Omie; '' quando 0 /
+ *     item não vinculado a um produto);
+ *   - `sku`      = `prod.cProd` (código do fornecedor na NF).
+ * `normalizarItensEntrada` NÃO serve aqui porque descarta o nCodProd interno.
+ */
+function parseItemExport(raw: unknown): { cod_omie: string; sku: string; descricao: string; quantidade: number } {
+  const it = (raw || {}) as Record<string, unknown>;
+  const prod = (it.prod ?? null) as Record<string, unknown> | null;
+  if (prod) {
+    const nf = (it.nfProdInt ?? {}) as Record<string, unknown>;
+    const nCod = nf.nCodProd != null ? String(nf.nCodProd) : '';
+    return {
+      cod_omie: nCod && nCod !== '0' ? nCod : '',
+      sku: String(prod.cProd ?? ''),
+      descricao: String(prod.xProd ?? ''),
+      quantidade: num(prod.qCom ?? prod.qTrib),
+    };
+  }
+  // Fallback p/ formatos planos antigos.
+  return {
+    cod_omie: String(it.codigo_produto ?? ''),
+    sku: String(it.codigo ?? it.sku ?? ''),
+    descricao: String(it.descricao ?? ''),
+    quantidade: num(it.quantidade),
+  };
+}
+
+export interface LinhaExportNota {
+  conta: string;
+  numero_nf: string;
+  data_emissao: string;
+  cod_omie: string;
+  sku: string;
+  descricao: string;
+  quantidade: number;
+  fornecedor: string;
+  cnpj_fornecedor: string;
+}
+
+/**
+ * Varre TODAS as notas de entrada (paginando em lotes de 1000 por id) e devolve uma
+ * linha por ITEM, para exportar em CSV. Sem mês/ano => histórico inteiro (desde
+ * 11/2022). Aplica os mesmos filtros de texto (nf/fornecedor/descrição), o filtro
+ * de conta e a lista de fornecedores ignorados da listagem.
+ */
+export async function exportarItensNotasEntrada(
+  filtros: { mes?: number; ano?: number; nf?: string; fornecedor?: string; descricao?: string },
+  conta: ContaFiltro,
+): Promise<LinhaExportNota[]> {
+  const { nomes } = await getIgnorarFiltro(conta);
+  const ignorar = new Set(nomes.map((x) => String(x)));
+  const nf = lc(filtros.nf).trim();
+  const forn = lc(filtros.fornecedor).trim();
+  const termo = lc(filtros.descricao).trim();
+  const LOTE = 1000;
+
+  // 1ª passada: reúne as notas que passam nos filtros (menos o de fornecedor, que
+  // depende do nome resolvido) e coleta os CNPJs (da chave NFe) p/ resolver o nome.
+  interface NotaTmp { conta: string; numero_nf: string; data_emissao: string; nome: string; cnpj: string; itens: unknown[] }
+  const notas: NotaTmp[] = [];
+  const cnpjs = new Set<string>();
+  let offset = 0;
+  for (;;) {
+    let q = supabase
+      .from('notas_entrada')
+      .select('id,numero_nf,data_emissao,nome_emitente,emitente,complemento,conta_omie,itens,mes,ano')
+      .order('id', { ascending: true })
+      .range(offset, offset + LOTE - 1);
+    q = filtroConta(q, conta);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<Record<string, unknown>>;
+    for (const row of lote) {
+      const nome = String(row.nome_emitente ?? '').trim();
+      if (nome && ignorar.has(nome)) continue;
+      if (filtros.mes && Number(row.mes) !== filtros.mes) continue;
+      if (filtros.ano && Number(row.ano) !== filtros.ano) continue;
+      if (nf && !lc(row.numero_nf).includes(nf)) continue;
+      // CNPJ do fornecedor: da chave NFe (sempre presente) ou do emitente já gravado.
+      const compl = (row.complemento ?? {}) as Record<string, unknown>;
+      const emit = (row.emitente ?? {}) as Record<string, unknown>;
+      const cnpjRaw = cnpjFromChaveNFe(compl.cChaveNFe) || String(emit.cnpj_cpf ?? '').replace(/\D/g, '');
+      const cnpj = cnpjRaw && cnpjRaw.length >= 11 ? fmtCnpjBR(cnpjRaw) : '';
+      if (!nome && cnpj) cnpjs.add(cnpj);
+      notas.push({
+        conta: String(row.conta_omie ?? ''),
+        numero_nf: String(row.numero_nf ?? ''),
+        data_emissao: String(row.data_emissao ?? ''),
+        nome, cnpj,
+        itens: Array.isArray(row.itens) ? row.itens : [],
+      });
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+
+  // Resolve CNPJ -> nome via Clientes_Omie (coluna 'cpf/cnpj', formato BR), em lotes,
+  // p/ preencher o fornecedor das notas ainda não enriquecidas (sem custo de Omie).
+  const nomePorCnpj: Record<string, string> = {};
+  const cnpjArr = [...cnpjs];
+  for (let i = 0; i < cnpjArr.length; i += 100) {
+    const lote = cnpjArr.slice(i, i + 100);
+    const { data } = await supabase.from('Clientes_Omie').select('nome,"cpf/cnpj"').in('cpf/cnpj', lote);
+    (data as Array<Record<string, unknown>> | null)?.forEach((c) => {
+      const doc = String(c['cpf/cnpj'] ?? '');
+      const nm = String(c.nome ?? '');
+      if (doc && nm) nomePorCnpj[doc] = nm;
+    });
+  }
+
+  // 2ª passada: achata em uma linha por item, aplicando o fornecedor resolvido e os
+  // filtros de fornecedor/descrição.
+  const linhas: LinhaExportNota[] = [];
+  for (const n of notas) {
+    const fornecedor = n.nome || (n.cnpj ? (nomePorCnpj[n.cnpj] ?? '') : '');
+    if (fornecedor && ignorar.has(fornecedor)) continue;
+    if (forn && !lc(fornecedor).includes(forn)) continue;
+    for (const raw of n.itens) {
+      const item = parseItemExport(raw);
+      if (termo && !lc(item.descricao).includes(termo)) continue;
+      linhas.push({
+        conta: n.conta,
+        numero_nf: n.numero_nf,
+        data_emissao: n.data_emissao,
+        cod_omie: item.cod_omie,
+        sku: item.sku,
+        descricao: item.descricao,
+        quantidade: item.quantidade,
+        fornecedor,
+        cnpj_fornecedor: n.cnpj,
+      });
+    }
+  }
+  return linhas;
 }
 
 // ===== Categorias Omie (código → descrição), cache 30 min por conta =====
@@ -562,5 +701,135 @@ export function iniciarBackfillEnriquecimento(mes: number, ano: number, conta: C
   const prev = backfillEnrStatus[k];
   if (prev && prev.rodando) return { ok: false, erro: 'Backfill ja rodando para esta conta' };
   void enriquecerNotasMes(mes, ano, conta).catch(() => {});
+  return { ok: true };
+}
+
+// ===== Resolver fornecedores por CNPJ (job único, todo o histórico) =====
+// Diferente do enriquecimento por mês: varre TODAS as notas sem nome_emitente,
+// resolve cada CNPJ distinto UMA vez (Clientes_Omie em lote -> Omie API p/ o resto)
+// e grava nome_emitente em massa por CNPJ. Idempotente: reprocessa só o que falta.
+export interface ResolverFornStatus {
+  rodando: boolean;
+  etapa?: string;
+  conta?: string;
+  notas_sem_nome?: number;
+  cnpjs_distintos?: number;
+  cnpjs_resolvidos?: number;
+  via_clientes_omie?: number;
+  via_omie_api?: number;
+  omie_calls?: number;
+  notas_atualizadas?: number;
+  updates_erro?: number;
+  ultimo_erro?: string | null;
+  erro?: string | null;
+  finalizadoEm?: string | null;
+}
+
+const resolverForn: { atual: ResolverFornStatus } = { atual: { rodando: false } };
+
+export function getResolverFornStatus(): ResolverFornStatus {
+  return resolverForn.atual;
+}
+
+async function resolverFornecedoresPorCnpj(contaFiltro: ContaFiltro): Promise<void> {
+  const s: ResolverFornStatus = {
+    rodando: true, etapa: 'iniciando', notas_sem_nome: 0, cnpjs_distintos: 0, cnpjs_resolvidos: 0,
+    via_clientes_omie: 0, via_omie_api: 0, omie_calls: 0, notas_atualizadas: 0, updates_erro: 0,
+    ultimo_erro: null, erro: null, finalizadoEm: null,
+  };
+  resolverForn.atual = s;
+  try {
+    const contas: Conta[] = contaFiltro ? [contaFiltro] : getContasOmie().map((c) => c.id);
+    for (const conta of contas) {
+      s.conta = conta;
+
+      // 1) Varre as notas SEM nome, agrupando ids por CNPJ (da chave NFe / emitente).
+      s.etapa = `varrendo notas sem nome (${conta})`;
+      const idsPorCnpj = new Map<string, number[]>();
+      const LOTE = 1000;
+      let offset = 0;
+      for (;;) {
+        const { data, error } = await filtroConta(
+          supabase.from('notas_entrada').select('id,nome_emitente,emitente,complemento').order('id', { ascending: true }).range(offset, offset + LOTE - 1),
+          conta,
+        );
+        if (error) throw new Error(error.message);
+        const lote = (data || []) as Array<Record<string, unknown>>;
+        for (const row of lote) {
+          if (String(row.nome_emitente ?? '').trim()) continue; // já tem nome
+          const compl = (row.complemento ?? {}) as Record<string, unknown>;
+          const emit = (row.emitente ?? {}) as Record<string, unknown>;
+          const raw = cnpjFromChaveNFe(compl.cChaveNFe) || String(emit.cnpj_cpf ?? '').replace(/\D/g, '');
+          if (!raw || raw.length < 11) continue;
+          const cnpj = fmtCnpjBR(raw);
+          const arr = idsPorCnpj.get(cnpj);
+          if (arr) arr.push(row.id as number); else idsPorCnpj.set(cnpj, [row.id as number]);
+        }
+        if (lote.length < LOTE) break;
+        offset += LOTE;
+      }
+      s.notas_sem_nome = (s.notas_sem_nome || 0) + [...idsPorCnpj.values()].reduce((a, b) => a + b.length, 0);
+      s.cnpjs_distintos = (s.cnpjs_distintos || 0) + idsPorCnpj.size;
+
+      // 2a) Resolve nomes em lote via Clientes_Omie (barato, sem custo Omie).
+      const cnpjArr = [...idsPorCnpj.keys()];
+      const nomePorCnpj: Record<string, string> = {};
+      s.etapa = `resolvendo em Clientes_Omie (${conta})`;
+      for (let i = 0; i < cnpjArr.length; i += 100) {
+        if (resolverForn.atual !== s) return; // substituído/cancelado
+        const lote = cnpjArr.slice(i, i + 100);
+        const { data } = await supabase.from('Clientes_Omie').select('nome,"cpf/cnpj"').in('cpf/cnpj', lote);
+        (data as Array<Record<string, unknown>> | null)?.forEach((c) => {
+          const doc = String(c['cpf/cnpj'] ?? '');
+          const nm = String(c.nome ?? '').trim();
+          if (doc && nm && !nomePorCnpj[doc]) { nomePorCnpj[doc] = nm; s.via_clientes_omie = (s.via_clientes_omie || 0) + 1; }
+        });
+      }
+
+      // 2b) Consulta a Omie (ListarClientes por CNPJ) p/ os que faltaram.
+      s.etapa = `consultando Omie p/ CNPJs faltantes (${conta})`;
+      const faltantes = cnpjArr.filter((c) => !nomePorCnpj[c]);
+      for (const cnpj of faltantes) {
+        if (resolverForn.atual !== s) return;
+        try {
+          const r = await buscarClientePorCnpj(cnpj, conta, 10000);
+          s.omie_calls = (s.omie_calls || 0) + 1;
+          if (r) {
+            const nm = (r.razao_social || r.nome_fantasia) as string | undefined;
+            if (nm && String(nm).trim()) { nomePorCnpj[cnpj] = String(nm).trim(); s.via_omie_api = (s.via_omie_api || 0) + 1; }
+          }
+        } catch { s.omie_calls = (s.omie_calls || 0) + 1; }
+        await sleep(500);
+      }
+      s.cnpjs_resolvidos = (s.cnpjs_resolvidos || 0) + Object.keys(nomePorCnpj).length;
+
+      // 3) Grava nome_emitente em massa, por CNPJ (um update por lote de ids).
+      s.etapa = `gravando nomes (${conta})`;
+      for (const [cnpj, ids] of idsPorCnpj) {
+        if (resolverForn.atual !== s) return;
+        const nome = nomePorCnpj[cnpj];
+        if (!nome) continue;
+        for (let i = 0; i < ids.length; i += 200) {
+          const chunk = ids.slice(i, i + 200);
+          const { data, error } = await supabase.from('notas_entrada').update({ nome_emitente: nome }).in('id', chunk).select('id');
+          if (error) { s.updates_erro = (s.updates_erro || 0) + 1; s.ultimo_erro = error.message; }
+          else s.notas_atualizadas = (s.notas_atualizadas || 0) + (data?.length || 0);
+        }
+      }
+    }
+    s.etapa = 'finalizado';
+    s.rodando = false;
+    s.finalizadoEm = new Date().toISOString();
+  } catch (e) {
+    s.erro = (e as Error).message;
+    s.rodando = false;
+    s.finalizadoEm = new Date().toISOString();
+  }
+}
+
+/** Dispara o job de resolução de fornecedores em background (fire-and-forget). */
+export function iniciarResolverFornecedores(conta: ContaFiltro): { ok: boolean; erro?: string } {
+  if (resolverForn.atual.rodando) return { ok: false, erro: 'Resolução de fornecedores já em andamento' };
+  void resolverFornecedoresPorCnpj(conta).catch(() => {});
   return { ok: true };
 }
