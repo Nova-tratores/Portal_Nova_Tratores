@@ -20,6 +20,15 @@ interface SerieTipoResp { pontos: PontoMensal[]; series: SerieDef[]; estoqueAtua
 // R$ sem centavos (gráfico e popup).
 const fmtRS0 = (v: number): string => 'R$ ' + Math.round(v).toLocaleString('pt-BR');
 
+// Barras opcionais de faturamento (saída) por grupo, no eixo Y direito.
+const BARRA_PECA = { key: 'faturamento_peca', label: 'Faturamento peças', cor: '#dc2626' };
+const BARRA_MAQ = { key: 'faturamento_maquina', label: 'Faturamento máquina', cor: '#d97706' };
+// SerieDef sintético p/ o clique na barra de faturamento (não vive em `series`).
+const sinteticoFat = (key: string): SerieDef | null =>
+  key === 'faturamento_peca' ? { ...BARRA_PECA }
+  : key === 'faturamento_maquina' ? { ...BARRA_MAQ }
+  : null;
+
 interface Linha {
   familia: string;
   tipo: 'maquina' | 'peca' | 'ignorar';
@@ -84,6 +93,7 @@ export default function CruzamentoFamiliaPage() {
   const [serieCarregando, setSerieCarregando] = useState(false);
   const [serieErro, setSerieErro] = useState('');
   const [mostrarFatPecas, setMostrarFatPecas] = useState(false);
+  const [grupo, setGrupo] = useState<'peca' | 'maquina' | 'ambos'>('ambos');
 
   // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
   const [mesesTipo, setMesesTipo] = useState(12);
@@ -192,6 +202,9 @@ export default function CruzamentoFamiliaPage() {
     } else if (s.key.startsWith('nf_entrada_')) {
       params = { fonte: 'entrada', mes: mesN, ano: anoN, grupo: s.key.endsWith('peca') ? 'peca' : 'maquina' };
     } else if (s.key.startsWith('nf_saida_')) {
+      params = { fonte: 'saida', mes: mesN, ano: anoN, grupo: s.key.endsWith('peca') ? 'peca' : 'maquina' };
+    } else if (s.key === 'faturamento_peca' || s.key === 'faturamento_maquina') {
+      // Barra de faturamento = saída do mês por grupo.
       params = { fonte: 'saida', mes: mesN, ano: anoN, grupo: s.key.endsWith('peca') ? 'peca' : 'maquina' };
     } else if (s.key.startsWith('entrada::') || s.key.startsWith('saida::')) {
       const fonte: 'entrada' | 'saida' = s.key.startsWith('entrada::') ? 'entrada' : 'saida';
@@ -352,9 +365,21 @@ export default function CruzamentoFamiliaPage() {
         <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <Sel label="Período" value={meses} onChange={(v) => setMeses(parseInt(v))} options={[6, 12, 18, 24, 36, 48].map((m) => ({ value: m, label: m + ' meses' }))} />
           <Sel label="Entrada/Saída por" value={dimensao} onChange={(v) => setDimensao(v as Dimensao)} options={[{ value: 'tipo', label: 'Tipo (Peça/Máquina)' }, { value: 'categoria', label: 'Categoria' }, { value: 'familia', label: 'Família' }, { value: 'tipocarac', label: 'Tipo (característica)' }]} />
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: '.7rem', color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.03em' }}>Grupo</span>
+            <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 8, overflow: 'hidden' }}>
+              {([['peca', 'Peças'], ['maquina', 'Máquinas'], ['ambos', 'Ambos']] as const).map(([g, lbl]) => (
+                <button key={g} onClick={() => setGrupo(g)} style={{
+                  padding: '7px 12px', fontSize: '.8rem', border: 'none', cursor: 'pointer',
+                  background: grupo === g ? '#111' : '#fff', color: grupo === g ? '#fff' : '#555',
+                  borderLeft: g !== 'peca' ? '1px solid #ddd' : 'none',
+                }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
             <input type="checkbox" checked={mostrarFatPecas} onChange={(e) => setMostrarFatPecas(e.target.checked)} />
-            Faturamento de peças (barra)
+            Faturamento (barra)
           </label>
         </div>
 
@@ -364,7 +389,13 @@ export default function CruzamentoFamiliaPage() {
         {serie && !serieCarregando && (
           <>
             <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-              <SerieMensalChart dados={serie.pontos} series={serie.series} barKey={mostrarFatPecas ? 'faturamento_peca' : undefined} barLabel="Faturamento peças" barCor="#dc2626" />
+              <SerieMensalChart
+                dados={serie.pontos}
+                series={serie.series}
+                hideKeys={grupo === 'peca' ? ['estoque_maquina'] : grupo === 'maquina' ? ['estoque_peca'] : []}
+                bars={!mostrarFatPecas ? [] : grupo === 'maquina' ? [BARRA_MAQ] : grupo === 'peca' ? [BARRA_PECA] : [BARRA_PECA, BARRA_MAQ]}
+                onPointClick={(key, p) => { const s = serie.series.find((x) => x.key === key) ?? sinteticoFat(key); if (s) abrirPopupSerie(s, p); }}
+              />
             </div>
 
             <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
