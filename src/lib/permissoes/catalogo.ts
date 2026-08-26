@@ -27,11 +27,12 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   financeiro: 'Financeiro', dre: 'Financeiro',
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial',
+  decisoes: 'Comercial', 'gestao-vendas': 'Comercial',
   // Estoque
   'consulta-estoque': 'Estoque', estoque: 'Estoque', abastecimento: 'Estoque',
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
-  tickets: 'Outros',
+  tickets: 'Outros', 'war-room': 'Financeiro',
 };
 
 export function grupoDoModulo(id: string): string {
@@ -42,6 +43,16 @@ export function grupoDoModulo(id: string): string {
 // Ações granulares por módulo. Módulo sem entrada aqui = só liga/desliga (acesso total).
 // (Fase 1: só Requisições. Os demais entram aqui conforme forem enforçados.)
 export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
+  // Livro de Decisões + Solicitação de Compras. Cada ação = um PAPEL do
+  // workflow de alçadas (vendedor → diretoria → financeiro → comprador).
+  // 'gerencial' = ver o placar por decisor. Módulo puro 'decisoes' = todos os papéis.
+  decisoes: [
+    { id: 'comercial', label: 'Comercial — abrir Solicitação de Compra' },
+    { id: 'diretoria', label: 'Diretoria — ajustar lote/quantidade' },
+    { id: 'financeiro', label: 'Financeiro — dar parecer' },
+    { id: 'comprador', label: 'Comprador — registrar PC' },
+    { id: 'gerencial', label: 'Placar por decisor (ver todas)' },
+  ],
   requisicoes: [
     { id: 'criar', label: 'Criar requisição' },
     { id: 'editar', label: 'Editar requisição' },
@@ -143,6 +154,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'vencidos', label: 'Vencidos' },
     { id: 'curva-saldo', label: 'Curva de Saldo' },
     { id: 'fluxo', label: 'Fluxo' },
+    { id: 'movimentos', label: 'Movimentações CC' },
     { id: 'ciclo-caixa', label: 'Ciclo de Caixa' },
     { id: 'aderencia', label: 'Pontualidade' },
     { id: 'dre', label: 'DRE' },
@@ -197,11 +209,14 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   estoque: [
     { id: 'dashboard', label: 'Dashboard de Vendas' },
     { id: 'notas-entrada', label: 'Notas de Entrada' },
+    { id: 'recebimentos', label: 'Recebimentos' },
+    { id: 'movimentacao-produto', label: 'Movimentação de Produto' },
     { id: 'cadastro-produto', label: 'Cadastro de Produto' },
     { id: 'curva-abc', label: 'Curva ABC' },
     { id: 'giro-estoque', label: 'Giro de Estoque' },
+    { id: 'cruzamento-familia', label: 'Cruzamento por Família' },
+    { id: 'inteligencia-comercial', label: 'Inteligência Comercial' },
     { id: 'comissao', label: 'Comissão' },
-    { id: 'recebimentos', label: 'Recebimentos' },
     { id: 'admin', label: 'Admin' },
     { id: 'admin-cmc', label: 'Admin CMC' },
     { id: 'ignorar-clientes', label: 'Ignorar Clientes' },
