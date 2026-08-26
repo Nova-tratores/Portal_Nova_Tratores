@@ -30,6 +30,8 @@ export type VendaEnriquecida = VendaItem & {
   cliente_nome: string | null
   produto_familia_real: string | null
   categoria_descricao: string | null
+  // data de faturamento (data_emissao do pedido faturado, texto BR "DD/MM/YYYY")
+  data_faturamento: string | null
 }
 
 export type AjusteVenda = {
@@ -54,6 +56,9 @@ export type AjusteVenda = {
   desconto: number
   desconto_desc: string | null
   comissao_override_pct: number | null
+  // data prevista de pagamento da comissão (ISO "YYYY-MM-DD"); null = usa a regra
+  // (dia 20 do mês seguinte ao faturamento)
+  data_pagamento_comissao_override: string | null
   justificativa: string | null
   comissao_pct: number | null
   valor_comissao: number | null

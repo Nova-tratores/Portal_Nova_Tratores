@@ -34,6 +34,7 @@ type Body = {
   desconto_desc?: string | null
   comissao_override_pct?: number | null
   comissao_pct_base?: number // pct vigente quando não há override
+  data_pagamento_comissao_override?: string | null // ISO "YYYY-MM-DD"; null = regra
 }
 
 export async function POST(request: Request) {
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
     desconto_desc: body.desconto_desc ?? null,
     comissao_override_pct: override,
     comissao_pct: comissao_pct || 0,
+    data_pagamento_comissao_override: body.data_pagamento_comissao_override || null,
     valor_comissao: calc.valor_comissao,
     custo_total: calc.custo_total,
     venda_liquida: calc.venda_liquida,

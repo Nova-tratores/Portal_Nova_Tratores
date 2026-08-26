@@ -81,6 +81,32 @@ export function dataBrParaIso(s: string | null | undefined): string | null {
   return `${m[3]}-${m[2]}-${m[1]}`
 }
 
+// "YYYY-MM-DD" → "DD/MM/YYYY" (exibição)
+export function isoParaBr(s: string | null | undefined): string | null {
+  if (!s) return null
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (!m) return null
+  return `${m[3]}/${m[2]}/${m[1]}`
+}
+
+// Data prevista de pagamento da comissão: dia 20 do mês SEGUINTE ao faturamento
+// (faturou em ago → 20/set; dez → 20/jan do ano seguinte). Recebe a data de
+// faturamento em BR "DD/MM/YYYY" e devolve ISO "YYYY-MM-DD".
+export function dataPrevistaComissaoIso(faturamentoBr: string | null | undefined): string | null {
+  if (!faturamentoBr) return null
+  const m = faturamentoBr.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (!m) return null
+  let mes = Number(m[2])
+  let ano = Number(m[3])
+  if (mes === 12) {
+    mes = 1
+    ano += 1
+  } else {
+    mes += 1
+  }
+  return `${ano}-${String(mes).padStart(2, '0')}-20`
+}
+
 // ---------- agregações genéricas ----------
 
 export type Agregado = {

@@ -179,19 +179,23 @@ export async function buscarVendasEnriquecidas(
   }
 
   // vendas_itens.vendedor vem vazio do sync — o nome do vendedor vive em
-  // pedidos_venda_relatorio (por numero_venda + empresa)
+  // pedidos_venda_relatorio (por numero_venda + empresa). A data de faturamento
+  // (data_emissao, texto "DD/MM/YYYY") também vive lá e é resolvida pelo mesmo join.
   const vendedorPorPedido = new Map<string, string>()
+  const dataEmissaoPorPedido = new Map<string, string>()
   for (let i = 0; i < numPedidos.length; i += CHUNK) {
     const slice = numPedidos.slice(i, i + CHUNK)
     buscas.push(
       supabaseAdmin
         .from('pedidos_venda_relatorio')
-        .select('numero_venda, empresa, vendedor')
+        .select('numero_venda, empresa, vendedor, data_emissao')
         .in('numero_venda', slice)
         .then(({ data, error }) => {
           if (error) throw new Error(`pedidos_venda_relatorio: ${error.message}`)
           for (const p of data ?? []) {
-            if (p.vendedor) vendedorPorPedido.set(`${(p.empresa ?? '').toUpperCase()}|${p.numero_venda}`, p.vendedor)
+            const chave = `${(p.empresa ?? '').toUpperCase()}|${p.numero_venda}`
+            if (p.vendedor) vendedorPorPedido.set(chave, p.vendedor)
+            if (p.data_emissao) dataEmissaoPorPedido.set(chave, p.data_emissao)
           }
         }),
     )
@@ -248,6 +252,9 @@ export async function buscarVendasEnriquecidas(
     cliente_nome: nomeCliente(v),
     produto_familia_real: v.codigo_produto ? familias.get(v.codigo_produto) ?? null : null,
     categoria_descricao: v.codigo_categoria ? categorias.get(v.codigo_categoria) ?? null : null,
+    data_faturamento: v.numero_pedido
+      ? dataEmissaoPorPedido.get(`${(v.conta_omie ?? '').toUpperCase()}|${v.numero_pedido}`) ?? null
+      : null,
   }))
 }
 
