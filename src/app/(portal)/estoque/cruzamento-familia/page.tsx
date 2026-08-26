@@ -541,6 +541,8 @@ export default function CruzamentoFamiliaPage() {
           const fecham = comRes.filter((l) => Math.abs(l.residuo) < 5000).length;
           const fmtSig = (v: number | null): string => (v == null ? '—' : (v >= 0 ? '+' : '−') + 'R$ ' + Math.round(Math.abs(v)).toLocaleString('pt-BR'));
           const corRes = (v: number | null) => (v == null ? '#bbb' : Math.abs(v) < 5000 ? '#16a34a' : Math.abs(v) < 50000 ? '#d97706' : '#dc2626');
+          // Mesma cor do Estoque no gráfico (SerieMensalChart): Peça azul, Máquina laranja.
+          const corEstoque = g === 'peca' ? '#2563eb' : '#d97706';
           return (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 14 }}>
@@ -552,10 +554,10 @@ export default function CruzamentoFamiliaPage() {
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
                     <th style={thStyle}>Mês</th>
-                    <th style={thNum}>Estoque (fim)</th>
+                    <th style={{ ...thNum, color: corEstoque }}>Estoque (fim)</th>
+                    <th style={{ ...thNum, color: '#16a34a' }}>Entrada (custo)</th>
+                    <th style={{ ...thNum, color: '#dc2626' }}>Saída (custo/COGS)</th>
                     <th style={thNum}>Δ Estoque</th>
-                    <th style={thNum}>Entrada (custo)</th>
-                    <th style={thNum}>Saída (custo/COGS)</th>
                     <th style={thNum}>Fluxo (E−S)</th>
                     <th style={thNum}>Resíduo</th>
                   </tr></thead>
@@ -563,13 +565,13 @@ export default function CruzamentoFamiliaPage() {
                     {linhas.map((l, i) => (
                       <tr key={i}>
                         <td style={tdStyle}>{l.periodo}</td>
-                        <td style={tdNum}>{l.est == null ? '—' : fmtRS0(l.est)}</td>
-                        <td style={{ ...tdNum, color: l.varEst == null ? '#bbb' : l.varEst >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(l.varEst)}</td>
+                        <td style={{ ...tdNum, color: l.est == null ? '#bbb' : corEstoque }}>{l.est == null ? '—' : fmtRS0(l.est)}</td>
                         <td style={{ ...tdNum, color: l.entrada ? '#16a34a' : '#bbb', cursor: l.entrada ? 'pointer' : 'default' }}
                           onClick={() => l.entrada && abrirPopupSerie({ key: `nf_entrada_${g}`, label: `Entrada ${g === 'peca' ? 'Peça' : 'Máquina'}`, cor: '#16a34a' }, pts[i])}>
                           {l.entrada ? fmtRS0(l.entrada) : '—'}
                         </td>
                         <td style={{ ...tdNum, color: l.cogs ? '#dc2626' : '#bbb' }}>{l.cogs ? fmtRS0(l.cogs) : '—'}</td>
+                        <td style={{ ...tdNum, color: l.varEst == null ? '#bbb' : l.varEst >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(l.varEst)}</td>
                         <td style={{ ...tdNum, color: l.fluxo >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(l.fluxo)}</td>
                         <td style={{ ...tdNum, fontWeight: 700, color: corRes(l.residuo) }}>{fmtSig(l.residuo)}</td>
                       </tr>
