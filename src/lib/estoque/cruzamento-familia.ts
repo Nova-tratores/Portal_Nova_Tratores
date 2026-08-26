@@ -985,6 +985,12 @@ export async function serieMensal(
     // gráfico; NÃO entram em `series` (não viram linha nem coluna).
     ponto.faturamento_peca = Math.round(fluxos[i]?.saidaPeca ?? 0);
     ponto.faturamento_maquina = Math.round(fluxos[i]?.saidaMaq ?? 0);
+    // Entrada (custo NF) e Saída a CUSTO (COGS = cmc×qtd) por grupo — base p/ a
+    // aba Reconciliação (Estoque, Entrada e Saída todos a custo). Fora de `series`.
+    ponto.entrada_peca = Math.round(fluxos[i]?.entradaPeca ?? 0);
+    ponto.entrada_maquina = Math.round(fluxos[i]?.entradaMaq ?? 0);
+    ponto.cogs_peca = Math.round(fluxos[i]?.cogsPeca ?? 0);
+    ponto.cogs_maquina = Math.round(fluxos[i]?.cogsMaq ?? 0);
     // Máquinas em demonstração que estavam FORA no fim daquele mês (mês atual = hoje).
     const ref = i === k - 1 ? hoje : new Date(m.ano, m.mes, 0, 23, 59, 59);
     const demoMaq = demo.length ? demoForaEm(demo, ref) : 0;
