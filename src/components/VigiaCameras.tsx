@@ -11,7 +11,7 @@
 // loja também toca — salva no portal, o vigia relê em 30s.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Cctv, Bell, BellOff, Monitor, Save, History,
+  Cctv, Bell, BellOff, Monitor, Save,
   PersonStanding, Video, Check, X, Info, Tractor,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
@@ -396,68 +396,75 @@ export default function VigiaCameras() {
                   </ul>
                 </div>
 
-                {/* ÚLTIMOS DISPAROS */}
-                <div style={{ ...cartao, flex: 1 }}>
-                  <div style={tituloSecao}>
-                    <History size={14} />
-                    Últimos disparos
-                  </div>
-                  <div style={{ maxHeight: 300, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
-                    {/* Canal 5 só entra no log quando a IA CONFIRMOU trator —
-                        movimento comum dele (carro/pessoa) fica de fora */}
-                    {(status?.eventos || []).filter((ev) => ev.canal !== 5 || ev.codigo === 'Trator').length === 0 && (
-                      <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
-                        Nenhum disparo registrado ainda.
-                      </span>
-                    )}
-                    {(status?.eventos || []).filter((ev) => ev.canal !== 5 || ev.codigo === 'Trator').map((ev, i) => (
-                      <div key={i} style={{
-                        display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5,
-                        padding: '6px 8px', borderRadius: 8, background: 'var(--portal-bg-secondary)',
-                        border: '1px solid var(--portal-border)',
-                      }}>
-                        <span style={{
-                          width: 26, height: 26, borderRadius: 8, flexShrink: 0,
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          background: ev.codigo === 'Trator' ? 'rgba(234,88,12,0.14)'
-                            : ev.codigo === 'SmartMotionHuman' ? 'rgba(34,197,94,0.14)' : 'rgba(220,38,38,0.10)',
-                          color: ev.codigo === 'Trator' ? '#ea580c'
-                            : ev.codigo === 'SmartMotionHuman' ? '#16a34a' : '#dc2626',
+                {/* DISPAROS SEPARADOS POR CÂMERA (pedido 26/08) */}
+                {([
+                  {
+                    titulo: 'Porta do escritório — canal 4',
+                    icone: <PersonStanding size={14} />,
+                    lista: (status?.eventos || []).filter((ev) => ev.canal === 4),
+                    vazio: 'Ninguém chegou ainda.',
+                  },
+                  {
+                    titulo: 'Tratores — canal 5',
+                    icone: <Tractor size={14} />,
+                    lista: (status?.eventos || []).filter((ev) => ev.canal === 5 && ev.codigo === 'Trator'),
+                    vazio: 'Nenhum trator confirmado ainda.',
+                  },
+                ] as { titulo: string; icone: React.ReactNode; lista: Evento[]; vazio: string }[]).map((sec) => (
+                  <div key={sec.titulo} style={cartao}>
+                    <div style={tituloSecao}>
+                      {sec.icone}
+                      {sec.titulo}
+                    </div>
+                    <div style={{ maxHeight: 170, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      {sec.lista.length === 0 && (
+                        <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{sec.vazio}</span>
+                      )}
+                      {sec.lista.map((ev, i) => (
+                        <div key={i} style={{
+                          display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5,
+                          padding: '6px 8px', borderRadius: 8, background: 'var(--portal-bg-secondary)',
+                          border: '1px solid var(--portal-border)',
                         }}>
-                          {ev.codigo === 'Trator' ? <Tractor size={15} />
-                            : ev.codigo === 'SmartMotionHuman' ? <PersonStanding size={15} /> : <Video size={14} />}
-                        </span>
-                        {ev.fotoUrl && (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={ev.fotoUrl}
-                            alt=""
-                            title="Ver a foto do disparo"
-                            onClick={() => window.open(ev.fotoUrl!, '_blank', 'noopener')}
-                            style={{ width: 44, height: 33, objectFit: 'cover', borderRadius: 6, cursor: 'zoom-in', flexShrink: 0, border: '1px solid var(--portal-border)' }}
-                          />
-                        )}
-                        <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
-                            Canal {ev.canal} · {CANAIS_NOMES[ev.canal] || ''}
-                          </span>
                           <span style={{
-                            fontSize: 11,
+                            width: 26, height: 26, borderRadius: 8, flexShrink: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            background: ev.codigo === 'Trator' ? 'rgba(234,88,12,0.14)'
+                              : ev.codigo === 'SmartMotionHuman' ? 'rgba(34,197,94,0.14)' : 'rgba(220,38,38,0.10)',
                             color: ev.codigo === 'Trator' ? '#ea580c'
-                              : ev.codigo === 'SmartMotionHuman' ? '#16a34a' : 'var(--portal-text-secondary)',
-                            fontWeight: ev.codigo === 'Trator' ? 700 : 400,
+                              : ev.codigo === 'SmartMotionHuman' ? '#16a34a' : '#dc2626',
                           }}>
-                            {ev.codigo === 'Trator' ? 'Trator confirmado pela IA'
-                              : ev.codigo === 'SmartMotionHuman' ? 'Pessoa detectada' : 'Movimento detectado'}
+                            {ev.codigo === 'Trator' ? <Tractor size={15} />
+                              : ev.codigo === 'SmartMotionHuman' ? <PersonStanding size={15} /> : <Video size={14} />}
                           </span>
-                        </span>
-                        <span style={{ flexShrink: 0, color: 'var(--portal-text-secondary)', fontSize: 11.5 }}>
-                          {diaFmt(ev.quando)} {horaFmt(ev.quando)}
-                        </span>
-                      </div>
-                    ))}
+                          {ev.fotoUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={ev.fotoUrl}
+                              alt=""
+                              title="Ver a foto do disparo"
+                              onClick={() => window.open(ev.fotoUrl!, '_blank', 'noopener')}
+                              style={{ width: 44, height: 33, objectFit: 'cover', borderRadius: 6, cursor: 'zoom-in', flexShrink: 0, border: '1px solid var(--portal-border)' }}
+                            />
+                          )}
+                          <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                            <span style={{
+                              fontSize: 11.5, fontWeight: 600,
+                              color: ev.codigo === 'Trator' ? '#ea580c'
+                                : ev.codigo === 'SmartMotionHuman' ? '#16a34a' : 'var(--portal-text)',
+                            }}>
+                              {ev.codigo === 'Trator' ? 'Trator confirmado pela IA'
+                                : ev.codigo === 'SmartMotionHuman' ? 'Pessoa detectada' : 'Movimento detectado'}
+                            </span>
+                          </span>
+                          <span style={{ flexShrink: 0, color: 'var(--portal-text-secondary)', fontSize: 11.5 }}>
+                            {diaFmt(ev.quando)} {horaFmt(ev.quando)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
           </div>
