@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { escolherPpvAberto, ppvsDaOS, variantesDeCodigo } from '../os-ppv-regras'
+import { MOTIVOS_SAIDA } from '../../ppv/constants'
+import {
+  destinoTemPpv,
+  escolherPpvAberto,
+  MOTIVO_SAIDA_POR_DESTINO,
+  observacaoPpvRastreio,
+  ondeFoiParar,
+  ppvAceitaItem,
+  ppvsDaOS,
+  variantesDeCodigo,
+} from '../os-ppv-regras'
 
 const st = (pares: [string, string | null, boolean][]) =>
   new Map(pares.map(([id, status, faturado]) => [id, { status, faturado }]))
@@ -47,6 +57,97 @@ describe('leitura do vínculo OS → PPV', () => {
     expect(ppvsDaOS(null)).toEqual([])
     expect(ppvsDaOS('')).toEqual([])
     expect(ppvsDaOS(' , , ')).toEqual([])
+  })
+})
+
+describe('destinos que viram linha de pedido', () => {
+  it('OS, balcão e uso interno entram; o resto não', () => {
+    expect(destinoTemPpv('os')).toBe(true)
+    expect(destinoTemPpv('balcao')).toBe(true)
+    expect(destinoTemPpv('uso_interno')).toBe(true)
+    // 'ppv' fica de fora de propósito: lá a peça já foi escaneada DENTRO do
+    // pedido — lançar de novo duplicaria o item
+    expect(destinoTemPpv('ppv')).toBe(false)
+    expect(destinoTemPpv(null)).toBe(false)
+    expect(destinoTemPpv('')).toBe(false)
+  })
+
+  it('todo motivo de saída usado é um que o select do PPV conhece', () => {
+    // inventar um motivo ("Uso interno") criaria pedido com valor fora da
+    // lista: abrir o pedido na tela apagaria o campo silenciosamente
+    const validos = MOTIVOS_SAIDA.map((m) => m.value)
+    for (const [destino, motivo] of Object.entries(MOTIVO_SAIDA_POR_DESTINO)) {
+      expect(validos, `motivo de ${destino}`).toContain(motivo)
+    }
+  })
+
+  it('a observação diz de onde o pedido veio', () => {
+    expect(observacaoPpvRastreio('os', 'OS-0123')).toContain('OS-0123')
+    expect(observacaoPpvRastreio('balcao')).toContain('venda balcão')
+    expect(observacaoPpvRastreio('uso_interno')).toContain('uso interno')
+    for (const d of ['os', 'balcao', 'uso_interno'] as const) {
+      expect(observacaoPpvRastreio(d), d).toContain('rastreio de peças (QR)')
+    }
+  })
+
+  it('o id da OS já vem com prefixo — a frase não pode ficar gaga', () => {
+    expect(ondeFoiParar('os', 'OS-0123')).toBe('para a OS-0123')
+    expect(ondeFoiParar('os', 'OS-0123')).not.toContain('OS OS-')
+    // id sem prefixo (dado antigo) ainda ganha o "OS"
+    expect(ondeFoiParar('os', '0123')).toBe('para a OS 0123')
+  })
+
+  it('OS sem número não deixa a frase pendurada nem com "undefined"', () => {
+    for (const ref of [null, undefined, '', '   ']) {
+      const frase = observacaoPpvRastreio('os', ref)
+      expect(frase, String(ref)).not.toMatch(/undefined|null/)
+      expect(frase, String(ref)).not.toMatch(/\bOS\s*$/)
+      expect(frase, String(ref)).toContain('ordem de serviço')
+    }
+  })
+})
+
+describe('pedido ainda aceita item?', () => {
+  const cab = (over: Partial<Parameters<typeof ppvAceitaItem>[0]> = {}) => ({
+    status: 'Aguardando Para Faturar', Tipo_Pedido: 'Pedido',
+    pedido_omie: null, faturado_omie_em: null, ...over,
+  })
+
+  it('pedido aberto aceita', () => {
+    expect(ppvAceitaItem(cab())).toBe(true)
+  })
+
+  it('faturado não aceita — seria peça vendida sem nota', () => {
+    expect(ppvAceitaItem(cab({ faturado_omie_em: '2026-08-20T10:00:00Z' }))).toBe(false)
+  })
+
+  it('remessa já enviada ao Omie conta como fechada', () => {
+    expect(ppvAceitaItem(cab({ Tipo_Pedido: 'Remessa', pedido_omie: '4321' }))).toBe(false)
+    // remessa ainda não enviada segue aberta
+    expect(ppvAceitaItem(cab({ Tipo_Pedido: 'Remessa' }))).toBe(true)
+  })
+
+  it('status terminal não aceita (inclusive os nomes legados)', () => {
+    for (const s of ['Concluída', 'Cancelada', 'Fechado', 'Cancelado']) {
+      expect(ppvAceitaItem(cab({ status: s })), s).toBe(false)
+    }
+  })
+
+  it('concorda com escolherPpvAberto — as duas réguas não podem divergir', () => {
+    // escolherPpvAberto decide o pedido da OS; ppvAceitaItem valida o que a
+    // pessoa apontou no balcão. Se discordassem, o mesmo pedido seria aceito
+    // num caminho e recusado no outro.
+    const casos = [
+      cab(),
+      cab({ faturado_omie_em: '2026-08-20T10:00:00Z' }),
+      cab({ status: 'Cancelada' }),
+      cab({ Tipo_Pedido: 'Remessa', pedido_omie: '4321' }),
+    ]
+    for (const c of casos) {
+      const faturado = !!c.faturado_omie_em || (c.Tipo_Pedido === 'Remessa' && !!c.pedido_omie)
+      const viaOS = escolherPpvAberto(['PPV-0001'], st([['PPV-0001', c.status, faturado]]))
+      expect(!!viaOS, JSON.stringify(c)).toBe(ppvAceitaItem(c))
+    }
   })
 })
 

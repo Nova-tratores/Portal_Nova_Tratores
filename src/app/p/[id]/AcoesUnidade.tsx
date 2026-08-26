@@ -6,9 +6,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { authHeaders } from '@/lib/auth/client';
+import FormRetirada, { type DadosRetirada } from './FormRetirada';
 import type { DestinoTipo, UnidadeStatus } from '@/lib/pecas/unidades';
-
-interface OSAberta { id: string; cliente: string; status: string }
 
 const btn = (bg: string, cor = '#fff'): React.CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
@@ -40,16 +39,12 @@ export default function AcoesUnidade({ unidadeId, numero, status, destinoTipo, r
   const [senha, setSenha] = useState('');
   const [entrando, setEntrando] = useState(false);
 
-  // form de retirada
+  // form de retirada (destino, OS/pedido, criação de um ou de outro)
   const [formAberto, setFormAberto] = useState(false);
-  const [destino, setDestino] = useState<DestinoTipo>('os');
-  const [oss, setOss] = useState<OSAberta[]>([]);
-  const [osSel, setOsSel] = useState('');
-  const [filtroOs, setFiltroOs] = useState('');
-  const [obs, setObs] = useState('');
 
   const [enviando, setEnviando] = useState('');
   const [erro, setErro] = useState('');
+  const [recado, setRecado] = useState('');
 
   const carregarSessao = useCallback(async () => {
     try {
@@ -71,18 +66,6 @@ export default function AcoesUnidade({ unidadeId, numero, status, destinoTipo, r
   }, []);
 
   useEffect(() => { carregarSessao(); }, [carregarSessao]);
-
-  // OSs abertas pro select do destino (rota existente do PPV)
-  useEffect(() => {
-    if (!formAberto || oss.length > 0) return;
-    (async () => {
-      try {
-        const r = await fetch('/api/ppv/ordens-servico?abertas=1');
-        const j = await r.json();
-        if (r.ok && Array.isArray(j.ordens || j)) setOss(j.ordens || j);
-      } catch { /* select fica vazio; dá pra digitar depois */ }
-    })();
-  }, [formAberto, oss.length]);
 
   const entrar = async () => {
     setEntrando(true);
@@ -107,6 +90,16 @@ export default function AcoesUnidade({ unidadeId, numero, status, destinoTipo, r
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setErro(j.error || 'Falha na ação.'); return; }
+      // liberar devolve em que pedido a peça entrou (e o aviso quando algo não
+      // saiu redondo, ex.: peça sem preço de venda). Recarregar por cima disso
+      // apagaria o recado antes de alguém ler — só segue sozinho quando não há.
+      const recadoPpv = j.ppv
+        ? `${j.ppvCriado ? 'Pedido criado' : 'Peça lançada no pedido'} ${j.ppv}.`
+        : '';
+      if (recadoPpv || j.aviso) {
+        setRecado([recadoPpv, j.aviso].filter(Boolean).join(' '));
+        return;
+      }
       window.location.reload();
     } catch {
       setErro('Erro de conexão.');
@@ -154,45 +147,24 @@ export default function AcoesUnidade({ unidadeId, numero, status, destinoTipo, r
         Logado como <strong style={{ color: '#334155' }}>{nome}</strong>
       </div>
       {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 700, marginBottom: 8 }}>{erro}</div>}
+      {recado && (
+        <div style={{ background: '#ecfdf5', border: '1px solid #a7f3d0', borderRadius: 10, padding: '10px 12px', marginBottom: 10 }}>
+          <div style={{ fontSize: 12.5, color: '#065f46', fontWeight: 700, lineHeight: 1.5 }}>{recado}</div>
+          <button onClick={() => window.location.reload()} style={{ ...btnSec, marginTop: 8 }}>Atualizar a página</button>
+        </div>
+      )}
 
       {/* estoque → peguei */}
       {status === 'estoque' && !formAberto && (
         <button onClick={() => setFormAberto(true)} style={btn('#16a34a')}>🤚 Peguei esta peça</button>
       )}
       {status === 'estoque' && formAberto && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          <div style={{ fontSize: 13, fontWeight: 800, color: '#0f172a' }}>Pra onde vai a peça?</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {([['os', 'Ordem de serviço'], ['balcao', 'Venda balcão'], ['uso_interno', 'Uso interno']] as [DestinoTipo, string][]).map(([v, rot]) => (
-              <button key={v} onClick={() => setDestino(v)} style={{
-                padding: '7px 12px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
-                border: destino === v ? '2px solid #C41E2A' : '1px solid #cbd5e1',
-                background: destino === v ? '#fef2f2' : '#fff', color: destino === v ? '#C41E2A' : '#334155',
-              }}>{rot}</button>
-            ))}
-          </div>
-          {destino === 'os' && (
-            <>
-              <input placeholder="Filtrar OS (nº ou cliente)…" value={filtroOs} onChange={e => setFiltroOs(e.target.value)} style={inp} />
-              <select value={osSel} onChange={e => setOsSel(e.target.value)} style={inp}>
-                <option value="">Selecione a OS…</option>
-                {oss
-                  .filter(o => !filtroOs.trim() || `${o.id} ${o.cliente}`.toLowerCase().includes(filtroOs.trim().toLowerCase()))
-                  .slice(0, 80)
-                  .map(o => <option key={o.id} value={o.id}>{o.id} · {o.cliente}</option>)}
-              </select>
-            </>
-          )}
-          <input placeholder="Observação (opcional)" value={obs} onChange={e => setObs(e.target.value)} style={inp} />
-          <button
-            onClick={() => agir('retirar', { destino_tipo: destino, destino_os: destino === 'os' ? osSel : undefined, obs })}
-            disabled={!!enviando || (destino === 'os' && !osSel)}
-            style={btn('#16a34a')}
-          >
-            {enviando === 'retirar' ? 'Registrando…' : 'Confirmar retirada'}
-          </button>
-          <button onClick={() => setFormAberto(false)} style={btnSec}>Voltar</button>
-        </div>
+        <FormRetirada
+          nome={nome}
+          enviando={enviando === 'retirar'}
+          onConfirmar={(d: DadosRetirada) => agir('retirar', { ...d })}
+          onVoltar={() => setFormAberto(false)}
+        />
       )}
 
       {/* retirada_pendente */}

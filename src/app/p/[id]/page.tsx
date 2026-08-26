@@ -32,10 +32,15 @@ function fmtDataHora(iso: string | null | undefined): string {
 
 function fraseEvento(ev: UnidadeEvento): string {
   const p = (ev.payload || {}) as Record<string, string>;
+  // pedido apontado na retirada (balcão/uso interno) ou pedido a criar
+  const novo = (ev.payload || {}).ppv_novo as { cliente?: string } | undefined;
+  const pedido = p.ppv
+    ? ` · pedido ${p.ppv}`
+    : novo?.cliente ? ` · pedido novo para ${novo.cliente}` : '';
   const destino = p.destino_os
     ? `OS ${p.destino_os}`
     : p.destino_tipo
-      ? (DESTINO_LABEL[p.destino_tipo as DestinoTipo] || p.destino_tipo)
+      ? `${DESTINO_LABEL[p.destino_tipo as DestinoTipo] || p.destino_tipo}${pedido}`
       : '';
   switch (ev.tipo) {
     case 'criacao': return `Etiqueta impressa por ${ev.autor_nome || '—'}`;
@@ -51,9 +56,14 @@ function fraseEvento(ev: UnidadeEvento): string {
     case 'recuperacao': return `Recuperada pro estoque por ${ev.autor_nome || '—'}`;
     case 'observacao':
       if (p.origem === 'rastreio_ppv') {
+        // o pedido pode vir da OS, da venda balcão ou do uso interno
+        const onde = p.os
+          ? ` da OS ${p.os}`
+          : p.destino_tipo === 'balcao' ? ' (venda balcão)'
+            : p.destino_tipo === 'uso_interno' ? ' (uso interno)' : '';
         return p.ppv_criado
-          ? `Pedido ${p.ppv} criado para a OS ${p.os} e esta peça lançada nele`
-          : `Peça lançada no pedido ${p.ppv} da OS ${p.os}`;
+          ? `Pedido ${p.ppv} criado${onde} e esta peça lançada nele`
+          : `Peça lançada no pedido ${p.ppv}${onde}`;
       }
       return p.alerta === 'sem_correspondencia_relatorio'
         ? `Relatório da ${p.os || 'OS'} enviado sem mencionar esta peça — aguardando o departamento`
@@ -86,11 +96,16 @@ export default async function UnidadeQRPage({ params }: { params: Promise<{ id: 
     ...(u.alt_codigo ? [{ conta: u.alt_conta_omie || '', codigo: u.alt_codigo, descricao: u.alt_descricao || '', locacao: u.alt_locacao || '' }] : []),
   ];
 
-  const destinoTxt = u.destino_tipo === 'os'
+  // destino + o pedido onde a peça entrou (existe nos três destinos: o PPV da
+  // OS, ou o escolhido/criado na venda balcão e no uso interno)
+  const destinoBase = u.destino_tipo === 'os'
     ? `OS ${u.destino_os}`
     : u.destino_tipo
       ? DESTINO_LABEL[u.destino_tipo]
       : '';
+  const destinoTxt = destinoBase && u.destino_ppv && u.destino_tipo !== 'ppv'
+    ? `${destinoBase} · ${u.destino_ppv}`
+    : destinoBase;
 
   return (
     <div style={{ minHeight: '100vh', background: '#f1f5f9', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>

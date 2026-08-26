@@ -119,6 +119,10 @@ export async function transicionar(
     case 'retirar':
       patch.destino_tipo = extras.destino_tipo || null;
       patch.destino_os = extras.destino_os || null;
+      // pedido que a pessoa apontou na retirada (venda balcão / uso interno).
+      // Aqui é só a INTENÇÃO: a peça entra no pedido na liberação, quando ela
+      // sai de verdade — ver lib/pecas/os-ppv.
+      patch.destino_ppv = extras.destino_ppv || null;
       patch.destino_obs = extras.destino_obs || '';
       patch.retirado_por = ator.id;
       patch.retirado_por_nome = ator.nome;

@@ -353,12 +353,23 @@ export default function UnidadesRastreioPage() {
                   {u.retirado_por_nome || '—'}
                   {u.retirado_em && <div style={{ color: 'var(--portal-text-muted)' }}>{fmtDataHora(u.retirado_em)}</div>}
                 </td>
+                {/* Destino = pra onde a peça foi E em que pedido ela entrou.
+                    O pedido aparece SEMPRE que existir: peça de OS, de balcão
+                    ou de uso interno também viram linha de um PPV (o rastreio
+                    escolhe ou cria na liberação — ver lib/pecas/os-ppv). */}
                 <td style={{ padding: '7px 10px', fontSize: 11.5 }}>
                   {u.destino_tipo === 'os' && u.destino_os
                     ? <a href={`/pos?os=${encodeURIComponent(u.destino_os)}`} target="_blank" rel="noreferrer" style={{ color: '#0ea5e9', fontWeight: 700 }}>{u.destino_os}</a>
                     : u.destino_tipo === 'ppv' && u.destino_ppv
                       ? <a href={`/ppv?id=${encodeURIComponent(u.destino_ppv)}`} target="_blank" rel="noreferrer" style={{ color: '#0ea5e9', fontWeight: 700 }}>{u.destino_ppv}</a>
                       : u.destino_tipo ? DESTINO_LABEL[u.destino_tipo] : '—'}
+                  {u.destino_tipo !== 'ppv' && u.destino_ppv && (
+                    <div>
+                      <a href={`/ppv?id=${encodeURIComponent(u.destino_ppv)}`} target="_blank" rel="noreferrer"
+                        title="Pedido em que esta peça foi lançada"
+                        style={{ color: '#0ea5e9', fontWeight: 700 }}>{u.destino_ppv}</a>
+                    </div>
+                  )}
                   {u.destino_tipo === 'ppv' && u.venda_preco != null && (
                     <div style={{ color: '#166534', fontWeight: 700 }}>R$ {Number(u.venda_preco).toFixed(2).replace('.', ',')}</div>
                   )}

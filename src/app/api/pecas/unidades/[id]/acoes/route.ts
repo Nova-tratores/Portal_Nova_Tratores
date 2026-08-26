@@ -1,7 +1,13 @@
 // Rastreio de peças — TODAS as transições de estado de uma unidade, numa rota
 // só (a máquina de estados vive em lib/pecas/unidades-server.transicionar).
 //
-// body: { acao, destino_tipo?, destino_os?, obs?, motivo?, aplicar_direto? }
+// body: { acao, destino_tipo?, destino_os?, destino_ppv?, ppv_novo?, obs?,
+//         motivo?, aplicar_direto? }
+//
+// Na RETIRADA com destino venda balcão / uso interno a pessoa diz em que
+// pedido a peça vai entrar: `destino_ppv` (um PPV já aberto) OU `ppv_novo`
+// ({cliente, documento?, tecnico?}) pra abrir um. O pedido novo só nasce na
+// LIBERAÇÃO — retirada recusada não deixa pedido vazio pra trás.
 //
 // Quem pode o quê:
 //  - retirar: qualquer usuário autenticado (portal ou app dos mecânicos)
@@ -19,7 +25,7 @@ import {
   notificarResponsaveisPecas,
   notificarUsuario,
 } from '@/lib/pecas/unidades-server';
-import { vincularUnidadeLiberadaAoPpvDaOS } from '@/lib/pecas/os-ppv';
+import { destinoTemPpv, ppvAceitaItem, vincularUnidadeLiberadaAoPpv } from '@/lib/pecas/os-ppv';
 import { DESTINO_LABEL, type DestinoTipo, type UnidadeAcao } from '@/lib/pecas/unidades';
 
 export const runtime = 'nodejs';
@@ -39,7 +45,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const { data: unidade } = await supabase
       .from('peca_unidades')
-      .select('id, numero, codigo, descricao, conta_omie, status, destino_tipo, destino_os, retirado_por, retirado_por_nome')
+      .select('id, numero, codigo, descricao, conta_omie, status, destino_tipo, destino_os, destino_ppv, retirado_por, retirado_por_nome')
       .eq('id', id)
       .maybeSingle();
     if (!unidade) return NextResponse.json({ error: 'Unidade não encontrada.' }, { status: 404 });
@@ -81,13 +87,49 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (!os) throw httpErr(400, `OS ${destinoOs} não encontrada.`);
       }
 
+      // balcão / uso interno: a peça também vira linha de um pedido. Ou a
+      // pessoa aponta um aberto agora, ou diz pra qual cliente abrir um.
+      // (Na OS o pedido é o da própria OS — resolvido na liberação.)
+      let destinoPpv: string | null = null;
+      let ppvNovo: { cliente: string; documento: string; tecnico: string } | null = null;
+      if (destinoTipo === 'balcao' || destinoTipo === 'uso_interno') {
+        destinoPpv = String(body.destino_ppv || '').trim() || null;
+        if (destinoPpv) {
+          const { data: cab } = await supabase
+            .from('pedidos')
+            .select('id_pedido, status, Tipo_Pedido, pedido_omie, faturado_omie_em')
+            .eq('id_pedido', destinoPpv)
+            .maybeSingle();
+          if (!cab) throw httpErr(400, `Pedido ${destinoPpv} não encontrado.`);
+          if (!ppvAceitaItem(cab as any)) {
+            throw httpErr(400, `Pedido ${destinoPpv} já foi faturado ou fechado — escolha outro ou crie um novo.`);
+          }
+        } else {
+          const n = (body.ppv_novo || {}) as Record<string, unknown>;
+          const cliente = String(n.cliente || '').trim();
+          if (!cliente) {
+            throw httpErr(400, 'Escolha um pedido aberto ou informe o cliente para abrir um novo.');
+          }
+          ppvNovo = {
+            cliente,
+            documento: String(n.documento || '').trim(),
+            tecnico: String(n.tecnico || '').trim(),
+          };
+        }
+      }
+
       const r = await transicionar(id, 'retirar', ator, {
         destino_tipo: destinoTipo,
         destino_os: destinoOs,
+        destino_ppv: destinoPpv,
         destino_obs: String(body.obs || '').trim(),
+        // o pedido novo só nasce na liberação; até lá o pedido dele mora aqui
+        ...(ppvNovo ? { payload: { ppv_novo: ppvNovo } } : {}),
       });
 
-      const destinoTxt = destinoTipo === 'os' ? `OS ${destinoOs}` : DESTINO_LABEL[destinoTipo];
+      const destinoTxt = destinoTipo === 'os'
+        ? `OS ${destinoOs}`
+        : `${DESTINO_LABEL[destinoTipo]}${destinoPpv ? ` · ${destinoPpv}` : ppvNovo ? ` · pedido novo para ${ppvNovo.cliente}` : ''}`;
       await notificarResponsaveisPecas({
         titulo: `Retirada aguardando liberação — ${u.numero}`,
         descricao: `${u.codigo} · ${u.descricao || ''} · por ${quem.nome} · destino: ${destinoTxt}`,
@@ -105,13 +147,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     };
     const r = await transicionar(id, acao, ator, extras);
 
-    // LIBEROU peça com destino OS → ela precisa virar venda em algum lugar.
-    // Acha o PPV aberto da OS ou cria um vinculado, e lança a peça nele. Roda
-    // DEPOIS da transição e nunca a desfaz: a peça já saiu do balcão, e um PPV
-    // faltando é problema menor que estoque discordando da realidade.
-    let vinculo: Awaited<ReturnType<typeof vincularUnidadeLiberadaAoPpvDaOS>> | null = null;
-    if (acao === 'liberar' && u.destino_tipo === 'os' && u.destino_os) {
-      vinculo = await vincularUnidadeLiberadaAoPpvDaOS(id, u, { ...ator, email: quem.email });
+    // LIBEROU a peça → ela precisa virar venda em algum lugar. Acha o pedido
+    // (o aberto da OS, ou o que a pessoa apontou na retirada) ou cria um, e
+    // lança a peça nele. Roda DEPOIS da transição e nunca a desfaz: a peça já
+    // saiu do balcão, e um PPV faltando é problema menor que estoque
+    // discordando da realidade. Destino 'ppv' fica de fora — lá a peça já foi
+    // escaneada dentro do pedido, quem cuida é a conferência.
+    let vinculo: Awaited<ReturnType<typeof vincularUnidadeLiberadaAoPpv>> | null = null;
+    if (acao === 'liberar' && destinoTemPpv(u.destino_tipo)) {
+      vinculo = await vincularUnidadeLiberadaAoPpv(id, u, { ...ator, email: quem.email });
     }
 
     // notificações direcionadas

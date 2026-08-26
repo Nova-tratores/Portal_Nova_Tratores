@@ -45,11 +45,20 @@ export async function buscarCabecalhoPPV(idPPV: string): Promise<PPVCabecalho | 
 
 const SISTEMA: Ator = { id: null, nome: 'sistema (faturamento do PPV)' };
 
+// RESERVADAS pelo PPV — destino_tipo='ppv' é parte do filtro de propósito.
+//
+// Desde que o rastreio passou a anotar em `destino_ppv` o pedido onde a peça
+// FOI LANÇADA (peça de OS, venda balcão ou uso interno também ganham um PPV),
+// a coluna sozinha deixou de significar "esta unidade pertence ao fluxo do
+// PPV". Sem este .eq, cancelar um pedido mandaria pra devolução a peça que o
+// técnico já levou pela OS, e o faturamento aplicaria unidades que o relatório
+// do técnico ainda vai abater. Aqui só entram as que o scan reservou.
 async function unidadesDoPPV(idPPV: string): Promise<PecaUnidade[]> {
   const { data } = await supabase
     .from('peca_unidades')
     .select('*')
-    .eq('destino_ppv', idPPV);
+    .eq('destino_ppv', idPPV)
+    .eq('destino_tipo', 'ppv');
   return (data as PecaUnidade[]) || [];
 }
 
@@ -220,6 +229,7 @@ export async function listarPPVsDivergentes(): Promise<DivergenciaPPV[]> {
     .from('peca_unidades')
     .select('destino_ppv, status')
     .not('destino_ppv', 'is', null)
+    .eq('destino_tipo', 'ppv') // mesmo motivo de unidadesDoPPV: só as reservadas pelo scan
     .in('status', ['retirada_pendente', 'liberada', 'devolucao_pendente']);
   const porPPV = new Map<string, { reservadas: number; liberadas: number; em_devolucao: number }>();
   for (const u of (unidades as any[]) || []) {
