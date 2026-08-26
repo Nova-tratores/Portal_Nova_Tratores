@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
       ? body.canais.map((c: unknown) => Number(c)).filter((c: number) => c >= 1 && c <= 16)
       : [9];
     const config = {
-      canais: canais.length ? canais : [9],
+      ativo: body.ativo === true, // alto-falante do PC da loja (padrão: desligado)
+      canais: canais.length ? canais : [4, 5],
       som: ["dingdong", "campainha", "alerta", "sino"].includes(body.som) ? body.som : "dingdong",
       volume: Math.max(0, Math.min(100, Number(body.volume) || 80)),
       cooldownSeg: Math.max(5, Math.min(600, Number(body.cooldownSeg) || 30)),
@@ -72,11 +73,49 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Canais com FILTRO DE IA: o evento chega com foto e a IA de visão só
+// deixa passar se o alvo aparecer. Canal 5 (Lavador) = só TRATOR.
+const FILTROS: Record<number, "trator"> = { 5: "trator" };
+
+async function fotoTemTrator(fotoBase64: string): Promise<boolean | null> {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null; // sem chave → sem como filtrar
+  try {
+    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+        max_tokens: 3,
+        messages: [{
+          role: "user",
+          content: [
+            { type: "text", text: "Responda APENAS 'sim' ou 'nao'. Há um TRATOR ou máquina agrícola (não vale carro, caminhonete, moto ou caminhão comum) visível nesta imagem de câmera de segurança?" },
+            { type: "image_url", image_url: { url: `data:image/jpeg;base64,${fotoBase64}`, detail: "low" } },
+          ],
+        }],
+      }),
+    });
+    const j = await r.json();
+    const resposta = String(j?.choices?.[0]?.message?.content || "").toLowerCase();
+    return resposta.includes("sim");
+  } catch {
+    return null; // OpenAI fora do ar → não bloqueia
+  }
+}
+
 export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     if (body.token !== TOKEN_VIGIA) {
       return NextResponse.json({ error: "token inválido" }, { status: 401 });
+    }
+    // Canal com filtro de IA: só segue se a foto tiver o alvo (trator).
+    // Sem chave/sem resposta da IA, deixa passar como movimento comum.
+    if (body.evento?.canal && FILTROS[Number(body.evento.canal)] === "trator" && body.foto) {
+      const tem = await fotoTemTrator(String(body.foto));
+      if (tem === false) return NextResponse.json({ ok: true, filtrado: true });
+      if (tem === true) body.evento.codigo = "Trator";
     }
     const atual = (await lerJson(ARQ_STATUS)) || {};
     const eventos = Array.isArray(atual.eventos) ? (atual.eventos as unknown[]) : [];
@@ -86,6 +125,22 @@ export async function PUT(req: NextRequest) {
         canal: Number(body.evento.canal),
         codigo: String(body.evento.codigo || "VideoMotion"),
       });
+      // Avisa quem está com o portal aberto AGORA (som individual no
+      // navegador de cada um) — Supabase Realtime broadcast.
+      try {
+        const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+        await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/realtime/v1/api/broadcast`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", apikey: key, Authorization: `Bearer ${key}` },
+          body: JSON.stringify({
+            messages: [{
+              topic: "vigia-cameras",
+              event: "movimento",
+              payload: { canal: Number(body.evento.canal), codigo: String(body.evento.codigo || "VideoMotion") },
+            }],
+          }),
+        });
+      } catch { /* realtime fora do ar — o polling de 60s cobre */ }
     }
     const status = {
       atualizadoEm: new Date().toISOString(),

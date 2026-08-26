@@ -17,7 +17,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle, Columns,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket
+  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket, Cctv
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -182,7 +182,10 @@ const SONS_NOTIFICACAO = [
 
 export default function PortalLayout({ children }: { children: React.ReactNode }) {
   const { userProfile, setUserProfile, loading, handleLogout, bloqueio } = useAuth()
-  const { permissoes, isAdmin, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { permissoes, isAdmin, isDev, temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  // Vigia das câmeras: SÓ dev ou quem recebeu o módulo `cameras` no Admin
+  // (admin comum NÃO ganha de brinde — pedido do usuário, 26/08)
+  const temVigia = isDev || (permissoes?.modulos_permitidos ?? []).includes('cameras')
   const chatData = useChat(userProfile?.id)
   const notifData = useNotificacoes(userProfile?.id)
 
@@ -655,43 +658,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         {/* Right: chat + sino + user */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
 
-          {/* Tela dividida: dois sistemas lado a lado. Na /split o MESMO botão
-              vira o "voltar pra uma tela só" (abre o sistema do painel esquerdo).
-              Some quando o portal está DENTRO de um painel, pra não aninhar. */}
-          {!emIframe && (
-            <button
-              onClick={() => {
-                if (pathname === '/split') {
-                  let volta = '/dashboard'
-                  try { const s = JSON.parse(localStorage.getItem('portal-split') || '{}'); if (s.esq) volta = s.esq } catch { /* dashboard */ }
-                  window.location.href = volta
-                } else {
-                  window.location.href = '/split'
-                }
-              }}
-              title={pathname === '/split' ? 'Voltar pra uma tela só' : 'Tela dividida — dois sistemas lado a lado'}
-              style={{
-                position: 'relative',
-                background: pathname === '/split' ? '#dc2626' : 'var(--portal-bg-secondary)',
-                border: '1px solid var(--portal-border)',
-                color: pathname === '/split' ? '#fff' : 'var(--portal-text-secondary)',
-                cursor: 'pointer', padding: '11px', borderRadius: '12px',
-                display: 'flex', alignItems: 'center', transition: 'all 0.2s'
-              }}
-              onMouseEnter={(e) => { if (pathname !== '/split') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' } }}
-              onMouseLeave={(e) => { if (pathname !== '/split') { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' } }}
-            >
-              <Columns size={20} />
-            </button>
-          )}
-
-          {/* Vigia das câmeras (só aparece se o script da loja já reportou) */}
-          <VigiaCameras />
+          {/* Vigia das câmeras — o botão saiu do header (abre pelo Menu),
+              mas o componente fica montado pro modal + som em tempo real.
+              Só pra quem tem o módulo `cameras` (admins sempre veem). */}
+          {temVigia && <VigiaCameras />}
 
           {/* Caixa de e-mail do usuário (só aparece pra quem configurou o e-mail de envio) */}
           <CaixaEmail />
 
-          {/* Ícone Chat */}
+          {/* Ícone Chat — balão do NovaZap em vermelho, no botão padrão do header */}
           <button
             className="portal-chat-btn"
             onClick={() => setChatOpen(true)}
@@ -701,14 +676,17 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '11px', borderRadius: '12px',
               display: 'flex', alignItems: 'center', transition: 'all 0.2s'
             }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; e.currentTarget.style.color = 'var(--portal-text-secondary)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-hover)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)' }}
           >
-            <MessageCircle size={20} />
+            <svg width={20} height={20} viewBox="8 8 48 48" style={{ display: 'block' }}>
+              {/* balão vermelho com o fone vazado (aparece o fundo do botão) */}
+              <path fill="#D6212B" fillRule="evenodd" clipRule="evenodd" d="M32 11.5c-11.4 0-20.7 8.9-20.7 19.9 0 4 1.3 7.8 3.5 11L11.5 52.5l10.4-3.1c2.9 1.6 6.3 2.5 10.1 2.5 11.4 0 20.7-8.9 20.7-19.9S43.4 11.5 32 11.5zM26.1 22.9c.6-.1 1.2.2 1.5.7l2.2 3.8c.3.6.2 1.3-.3 1.8l-1.8 1.8c1.2 2.7 3.6 5.1 6.3 6.3l1.8-1.8c.5-.5 1.2-.6 1.8-.3l3.8 2.2c.5.3.8.9.7 1.5-.4 2.3-2.5 3.9-4.8 3.6-7.9-.9-14.1-7.1-15-15-.3-2.3 1.3-4.4 3.6-4.8z" />
+            </svg>
             {chatData.totalNaoLidas > 0 && (
               <span style={{
                 position: 'absolute', top: '-5px', right: '-5px', minWidth: 18, height: 18, borderRadius: 9,
-                background: '#dc2626', color: '#fff', fontSize: 10, fontWeight: 700,
+                background: '#22c55e', color: '#fff', fontSize: 10, fontWeight: 700,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', border: '2px solid var(--portal-header-bg)'
               }}>{chatData.totalNaoLidas > 99 ? '99+' : chatData.totalNaoLidas}</span>
             )}
@@ -791,6 +769,20 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   padding: 6, display: 'flex', flexDirection: 'column', gap: 2
                  }}>
                   {item(<Calendar size={18} />, 'Lembretes', () => setLembretesOpen(true))}
+                  {!emIframe && item(
+                    <Columns size={18} />,
+                    pathname === '/split' ? 'Voltar pra uma tela só' : 'Tela dividida',
+                    () => {
+                      if (pathname === '/split') {
+                        let volta = '/dashboard'
+                        try { const s = JSON.parse(localStorage.getItem('portal-split') || '{}'); if (s.esq) volta = s.esq } catch { /* dashboard */ }
+                        window.location.href = volta
+                      } else {
+                        window.location.href = '/split'
+                      }
+                    }
+                  )}
+                  {temVigia && item(<Cctv size={18} />, 'Vigia das câmeras', () => window.dispatchEvent(new Event('vigia-abrir')))}
                   {item(<Settings size={18} />, 'Configurações', () => { setConfigTab('perfil'); setConfigOpen(true) })}
                  </div>
                 </div>

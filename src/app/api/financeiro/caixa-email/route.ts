@@ -62,13 +62,21 @@ function mapearEstrutura(node: any, out: { html: string | null; texto: string | 
   const tipo = String(node.type || "").toLowerCase();
   const disp = String(node.disposition || "").toLowerCase();
   const nome = node.dispositionParameters?.filename || node.parameters?.name || "";
-  const ehAnexo = disp === "attachment" || (!!nome && !tipo.startsWith("multipart"));
+  const ehAnexo = disp === "attachment" || (!!nome && !tipo.startsWith("multipart") && !tipo.startsWith("text/"));
   if (ehAnexo && node.part) {
-    out.anexos.push({ part: node.part, nome: nome || `anexo_${out.anexos.length + 1}`, tipo, tamanho: node.size || 0 });
-  } else if (tipo === "text/html" && !out.html && node.part !== undefined) {
+    out.anexos.push({
+      part: node.part, nome: nome || `anexo_${out.anexos.length + 1}`, tipo,
+      tamanho: node.size || 0,
+      // Content-ID: imagem EMBUTIDA no HTML (assinaturas etc.) — vira
+      // data: URI dentro do corpo, em vez de chip de anexo solto.
+      cid: norm(node.id) || null,
+    });
+  } else if (tipo === "text/html" && !out.html) {
+    // E-mail de parte única não tem `part` — baixa como "TEXT" (o corpo
+    // inteiro). Era isso que fazia certos e-mails virarem "(sem conteúdo)".
     out.html = node.part || "TEXT";
     out.charsetHtml = String(node.parameters?.charset || "utf-8");
-  } else if (tipo === "text/plain" && !out.texto && node.part !== undefined) {
+  } else if (tipo === "text/plain" && !out.texto) {
     out.texto = node.part || "TEXT";
     out.charsetTexto = String(node.parameters?.charset || "utf-8");
   }
@@ -142,13 +150,34 @@ export async function GET(req: NextRequest) {
           let html: string | null = null, texto = "";
           if (est.html) html = decodificar(await baixarParte(client, uidParam, est.html), est.charsetHtml);
           else if (est.texto) texto = decodificar(await baixarParte(client, uidParam, est.texto), est.charsetTexto);
-          return { env, est, html, texto };
+
+          // Imagens EMBUTIDAS (src="cid:...") → baixa e injeta como data:
+          // URI no próprio HTML, igual o Gmail mostra. Limites pra não
+          // estourar a resposta: 500KB por imagem, 4MB no total.
+          const cidsUsados = new Set<string>();
+          if (html && /cid:/i.test(html)) {
+            let totalInline = 0;
+            for (const a of est.anexos) {
+              if (!a.cid || !a.tipo.startsWith("image/")) continue;
+              if (!html.toLowerCase().includes(`cid:${a.cid}`)) continue;
+              if (a.tamanho > 512000 || totalInline + a.tamanho > 4194304) continue;
+              try {
+                const buf = await baixarParte(client, uidParam, a.part);
+                totalInline += buf.length;
+                const dataUri = `data:${a.tipo};base64,${buf.toString("base64")}`;
+                html = html.replace(new RegExp(`cid:${a.cid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`, "gi"), dataUri);
+                cidsUsados.add(a.cid);
+              } catch { /* imagem embutida falhou — segue sem ela */ }
+            }
+          }
+          return { env, est, html, texto, cidsUsados: [...cidsUsados] };
         } finally { lock.release(); }
       });
       if (!det) return NextResponse.json({ error: "E-mail não encontrado." }, { status: 404 });
 
       const porMsgId = await mapaEnviados();
       const chamadoId = porMsgId.get(norm(det.env.inReplyTo)) ?? null;
+      const usados = new Set(det.cidsUsados || []);
       return NextResponse.json({
         assunto: det.env.subject || "(sem assunto)",
         de: det.env.from?.[0]?.name ? `${det.env.from[0].name} <${det.env.from[0].address}>` : (det.env.from?.[0]?.address || ""),
@@ -157,7 +186,10 @@ export async function GET(req: NextRequest) {
         html: det.html,
         texto: det.texto,
         chamadoId,
-        anexos: det.est.anexos.map((a: any) => ({ i: a.part, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho })),
+        // anexos de verdade — as imagens que já entraram no corpo ficam de fora
+        anexos: det.est.anexos
+          .filter((a: any) => !(a.cid && usados.has(a.cid)))
+          .map((a: any) => ({ i: a.part, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho })),
       });
     }
 

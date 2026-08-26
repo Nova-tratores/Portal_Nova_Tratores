@@ -76,3 +76,16 @@ export async function POST(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json({ ok: true })
 }
+
+// Desvincular o e-mail: apaga a config do PRÓPRIO usuário (a senha salva some;
+// os e-mails já enviados/registrados nos cards ficam).
+export async function DELETE(req: Request) {
+  const auth = await autenticar(req)
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  const { error } = await supabase
+    .from('financeiro_envio_config')
+    .delete()
+    .eq('user_id', auth.userId)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

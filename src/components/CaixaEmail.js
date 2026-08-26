@@ -160,6 +160,17 @@ export default function CaixaEmail() {
     setMarcando(false)
   }
 
+  // Desvincula o e-mail do portal (apaga a config; envios/histórico ficam)
+  const desvincular = async () => {
+    if (!confirm(`Desvincular o e-mail ${conta} do portal?\n\nA caixa some do header e o envio de boletos pelo seu e-mail para de funcionar até conectar de novo. (No Google nada muda — a senha de app continua ativa lá.)`)) return
+    try {
+      const r = await fetch('/api/financeiro/config-envio', { method: 'DELETE', headers: { ...(await authHeaders()) } })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || j.error) { alert(j.error || 'Falha ao desvincular.'); return }
+      setTemConfig(false); setConta(''); setEmails([]); setBadge(0); setOpen(false); setMsgAberta(null)
+    } catch { alert('Falha de conexão ao desvincular.') }
+  }
+
   const responder = async () => {
     if (!msgAberta || !resposta.trim() || enviandoResp) return
     setEnviandoResp(true); setRespOk('')
@@ -221,6 +232,10 @@ export default function CaixaEmail() {
               <button onClick={() => carregarCaixa(true)} disabled={carregando} title="Atualizar agora (busca direto na caixa)"
                 style={{ background: 'transparent', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', color: 'var(--portal-text-secondary)', display: 'flex' }}>
                 <RefreshCw size={14} className={carregando ? 'spin-envio' : ''} />
+              </button>
+              <button onClick={desvincular} title="Desvincular meu e-mail do portal"
+                style={{ background: 'transparent', border: '1px solid #fca5a5', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', color: '#dc2626', display: 'flex' }}>
+                <X size={14} />
               </button>
             </div>
           </div>
@@ -344,9 +359,28 @@ export default function CaixaEmail() {
                 <div style={{ padding: 30, textAlign: 'center', color: '#dc2626', fontSize: 13 }}>Não consegui carregar esta mensagem.</div>
               ) : (
                 <>
-                  {/* Anexos */}
+                  {/* HTML renderizado num iframe isolado (sem scripts), com
+                      visual de leitor de e-mail: fonte padrão, imagens
+                      contidas, links abrindo em aba nova. Texto puro = fallback */}
+                  {detalhe.html ? (
+                    <iframe
+                      title="email"
+                      sandbox="allow-popups allow-popups-to-escape-sandbox"
+                      srcDoc={`<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>
+                        body{margin:14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111;word-break:break-word;background:#fff}
+                        img{max-width:100%;height:auto}
+                        table{max-width:100%}
+                        a{color:#1a73e8}
+                        blockquote{border-left:3px solid #ddd;margin:8px 0;padding-left:10px;color:#555}
+                      </style></head><body>${detalhe.html}</body></html>`}
+                      style={{ width: '100%', height: '52vh', border: '1px solid var(--portal-border)', borderRadius: 10, background: '#ffffff' }}
+                    />
+                  ) : (
+                    <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13.5, margin: 0, padding: '12px 14px', background: 'var(--portal-bg-secondary)', borderRadius: 10, color: 'var(--portal-text)' }}>{detalhe.texto || '(sem conteúdo)'}</pre>
+                  )}
+                  {/* Anexos — embaixo do corpo, como no Gmail */}
                   {detalhe.anexos?.length > 0 && (
-                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12, paddingTop: 12, borderTop: '1px dashed var(--portal-border)' }}>
                       {detalhe.anexos.map((a) => (
                         <button key={a.i} onClick={() => baixarAnexo(a)} disabled={baixandoAnexo === a.i} style={chip} title={`Baixar (${fmtTamanho(a.tamanho)})`}>
                           {baixandoAnexo === a.i ? <RefreshCw size={13} className="spin-envio" /> : <Paperclip size={13} />}
@@ -354,17 +388,6 @@ export default function CaixaEmail() {
                         </button>
                       ))}
                     </div>
-                  )}
-                  {/* HTML renderizado num iframe isolado (sem scripts); texto puro como fallback */}
-                  {detalhe.html ? (
-                    <iframe
-                      title="email"
-                      sandbox=""
-                      srcDoc={detalhe.html}
-                      style={{ width: '100%', height: '48vh', border: '1px solid var(--portal-border)', borderRadius: 10, background: '#ffffff' }}
-                    />
-                  ) : (
-                    <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13.5, margin: 0, padding: '12px 14px', background: 'var(--portal-bg-secondary)', borderRadius: 10, color: 'var(--portal-text)' }}>{detalhe.texto || '(sem conteúdo)'}</pre>
                   )}
                   {(detalhe.chamadoId ?? msgAberta.chamadoId) != null && (
                     <button
