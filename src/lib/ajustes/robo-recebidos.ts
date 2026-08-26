@@ -31,15 +31,23 @@ function diasRecentes(): number {
 }
 const contaLow = (c: Conta): string => String(c).toLowerCase();
 
-/** Responsável fixo de PEÇAS da conta (recebimento_tipo_responsavel, tipo='pecas'). */
-async function responsavelPecas(conta: Conta): Promise<string | null> {
+/** Responsável pela CLASSIFICAÇÃO (confirmar família/localização/Tipo). Configurável em
+ *  recebimento_classificacao_responsavel; fallback = responsável de peças do recebimento. */
+async function responsavelClassificacao(conta: Conta): Promise<string | null> {
+  const low = contaLow(conta);
   const { data } = await supabase
+    .from('recebimento_classificacao_responsavel')
+    .select('responsavel_user_id')
+    .eq('conta_omie', low)
+    .maybeSingle();
+  if ((data as any)?.responsavel_user_id) return (data as any).responsavel_user_id;
+  const { data: fb } = await supabase
     .from('recebimento_tipo_responsavel')
     .select('responsavel_user_id')
-    .eq('conta_omie', contaLow(conta))
+    .eq('conta_omie', low)
     .eq('tipo', 'pecas')
     .maybeSingle();
-  return (data as any)?.responsavel_user_id || null;
+  return (fb as any)?.responsavel_user_id || null;
 }
 
 async function criarTarefa(userId: string, titulo: string, descricao: string): Promise<number | null> {
@@ -55,7 +63,7 @@ async function criarTarefa(userId: string, titulo: string, descricao: string): P
 /** Processa UMA conta. `dry` = só pré-visualiza (não muta nada). Retorna um resumo. */
 export async function classificarRecebidos(conta: Conta, opts: { dry?: boolean } = {}): Promise<any> {
   const t0 = Date.now();
-  const resp = await responsavelPecas(conta);
+  const resp = await responsavelClassificacao(conta);
   const corteTs = addDias(hoje(), -diasRecentes()).getTime();
 
   const produtos = await listarSemFamilia(conta, { force: true });

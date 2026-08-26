@@ -23,5 +23,17 @@ export async function POST(req: NextRequest) {
 
   const { error } = await supabase.from('financeiro_usu').update({ ativo }).eq('id', userId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ ok: true })
+
+  // Ao DESATIVAR: conta as tarefas abertas do usuário (viram órfãs) p/ o /admin
+  // avisar e oferecer reatribuição.
+  let tarefasAbertas = 0
+  if (!ativo) {
+    const { count } = await supabase
+      .from('portal_tarefas')
+      .select('id', { count: 'exact', head: true })
+      .eq('atribuido_a', userId)
+      .eq('concluida', false)
+    tarefasAbertas = count || 0
+  }
+  return NextResponse.json({ ok: true, tarefasAbertas })
 }

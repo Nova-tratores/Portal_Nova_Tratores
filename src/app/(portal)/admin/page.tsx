@@ -145,6 +145,8 @@ export default function AdminPage() {
   const [permissoes, setPermissoes] = useState<Record<string, Permissao>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState<string | null>(null)
+  // aviso de tarefas órfãs ao desativar um usuário (oferece reatribuição)
+  const [avisoOrfas, setAvisoOrfas] = useState<{ userId: string; nome: string; count: number } | null>(null)
   // Quais usuários estão com o painel de permissões expandido
   const [expandidoUsuario, setExpandidoUsuario] = useState<Set<string>>(new Set())
   const toggleExpandirUsuario = (id: string) => setExpandidoUsuario(prev => {
@@ -364,9 +366,14 @@ export default function AdminPage() {
         },
         body: JSON.stringify({ user_id: userId, ativo: novo }),
       })
+      const r = await res.json().catch(() => ({}))
       if (!res.ok) {
-        const r = await res.json().catch(() => ({}))
         throw new Error(r.error || 'Falha ao alterar status')
+      }
+      // desativou e havia tarefas abertas → oferecer reatribuição (senão ficam órfãs)
+      if (!novo && (r.tarefasAbertas || 0) > 0) {
+        const nome = usuarios.find(u => u.id === userId)?.nome || 'usuário'
+        setAvisoOrfas({ userId, nome, count: r.tarefasAbertas })
       }
     } catch (e: any) {
       // reverte
@@ -374,6 +381,25 @@ export default function AdminPage() {
       alert('Erro ao alterar status: ' + (e?.message || 'erro'))
     }
     setSaving(null)
+  }
+
+  // reatribui em massa as tarefas abertas do usuário desativado para outro
+  const reatribuirOrfas = async (para: string) => {
+    if (!avisoOrfas || !para) { setAvisoOrfas(null); return }
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const res = await fetch('/api/tarefas/reatribuir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token || ''}` },
+        body: JSON.stringify({ de_user_id: avisoOrfas.userId, para_user_id: para }),
+      })
+      const r = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(r.error || 'falha')
+      alert(`${r.reatribuidas || 0} tarefa(s) reatribuída(s).`)
+    } catch (e: any) {
+      alert('Erro ao reatribuir: ' + (e?.message || 'erro'))
+    }
+    setAvisoOrfas(null)
   }
 
   const criarUsuario = async () => {
@@ -429,6 +455,24 @@ export default function AdminPage() {
 
   return (
     <div style={{ padding: '32px 40px', fontFamily: 'Inter, sans-serif', background: 'var(--portal-bg)', minHeight: '100%' }}>
+      {avisoOrfas && (
+        <div onClick={() => setAvisoOrfas(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, maxWidth: 460, width: '100%', padding: 22, boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
+            <h3 style={{ margin: '0 0 8px', fontSize: '1rem', color: '#1e293b' }}>⚠️ {avisoOrfas.nome} tem {avisoOrfas.count} tarefa(s) aberta(s)</h3>
+            <p style={{ fontSize: '.85rem', color: '#475569', marginBottom: 14 }}>
+              Ao desativar, essas tarefas ficam <b>órfãs</b>. Reatribua para outra pessoa agora, ou deixe (elas aparecem na aba <b>Órfãs</b> de /tarefas).
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <select id="reatribuir-orfas-sel" defaultValue="" style={{ flex: 1, minWidth: 180, border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px', fontSize: '.85rem' }}>
+                <option value="">Reatribuir para…</option>
+                {usuarios.filter(u => u.ativo && u.id !== avisoOrfas.userId).map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+              </select>
+              <button onClick={() => { const v = (document.getElementById('reatribuir-orfas-sel') as HTMLSelectElement)?.value; if (v) reatribuirOrfas(v); }} style={{ padding: '8px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: 8, fontSize: '.85rem', cursor: 'pointer' }}>Reatribuir</button>
+              <button onClick={() => setAvisoOrfas(null)} style={{ padding: '8px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 8, fontSize: '.85rem', cursor: 'pointer' }}>Deixar por ora</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div style={{ marginBottom: '40px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
