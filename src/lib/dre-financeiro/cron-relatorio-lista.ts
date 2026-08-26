@@ -9,7 +9,7 @@
 // Config (env): RELATORIO_LISTA_EMAIL_TO (obrigatorio p/ enviar), _CC, _BCC,
 // RELATORIO_LISTA_DIAS (default 7). Email via SMTP_* (ver src/lib/ajustes/email).
 // ============================================================================
-import { enviarEmail, parseDestinatarios } from '@/lib/ajustes/email'
+import { enviarEmail, parseDestinatarios } from '@/lib/dre-financeiro/email'
 import { buscarTitulosLista } from '@/lib/dre-financeiro/lista'
 import { gerarPDFLista } from '@/lib/dre-financeiro/pdf-lista'
 import { gerarCSVLista } from '@/lib/dre-financeiro/csv-lista'
