@@ -97,10 +97,10 @@ export async function POST(req: NextRequest) {
 }
 
 // Canais com FILTRO DE IA: o evento chega com foto e a IA de visão só
-// deixa passar se o alvo aparecer. Canal 4 (porta) = só PESSOA;
-// Canal 5 (Lavador) = só TRATOR. (O SMD do DVR filtra as ações de alarme
-// dele, mas o evento cru vaza no fluxo — sombra/cachorro disparavam.)
-const FILTROS: Record<number, "trator" | "pessoa"> = { 4: "pessoa", 5: "trator" };
+// deixa passar se o alvo aparecer. Canal 5 (Lavador) = só TRATOR.
+// Canal 4 fica SÓ com a detecção do DVR (decisão do usuário 26/08 —
+// sem IA de pessoa; a foto ainda vai pro log).
+const FILTROS: Record<number, "trator" | "pessoa"> = { 5: "trator" };
 
 const PERGUNTAS: Record<string, string> = {
   trator: "Responda APENAS 'sim' ou 'nao'. Há um TRATOR ou máquina agrícola (não vale carro, caminhonete, moto ou caminhão comum) visível nesta imagem de câmera de segurança?",
