@@ -173,6 +173,13 @@ export default function VigiaCameras() {
     return () => window.removeEventListener('vigia-abrir', abrir)
   }, [])
 
+  // veio de uma notificação do sino (?vigia=1) → já abre o modal
+  useEffect(() => {
+    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('vigia') === '1') {
+      setAberto(true)
+    }
+  }, [])
+
   const online = status ? Date.now() - new Date(status.atualizadoEm).getTime() < 3 * 60 * 1000 : false
 
   const salvarGeral = async () => {
