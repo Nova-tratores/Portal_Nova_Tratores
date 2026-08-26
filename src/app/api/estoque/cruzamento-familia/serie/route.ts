@@ -13,9 +13,10 @@ export async function GET(req: NextRequest) {
   const dimRaw = sp.get('dimensao');
   const dimensao: Dimensao = dimRaw === 'categoria' || dimRaw === 'familia' || dimRaw === 'tipocarac' ? dimRaw : 'tipo';
   const conta = parseConta(sp.get('conta'));
+  const incluirDemo = sp.get('demo') !== '0'; // default ligado
 
   try {
-    const r = await serieMensal(ultimosMeses(n), conta, dimensao);
+    const r = await serieMensal(ultimosMeses(n), conta, dimensao, incluirDemo);
     return NextResponse.json(r);
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });
