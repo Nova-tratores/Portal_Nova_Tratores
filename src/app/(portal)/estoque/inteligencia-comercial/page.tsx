@@ -2,7 +2,7 @@
 // Inteligência Comercial: 3 abas (Compras / Clientes / Oportunidades-RFM) sobre
 // /api/estoque/inteligencia-comercial. Tabelas com cabeçalho ordenável + filtro
 // por coluna + export CSV. Todo o histórico, por conta (NOVA/CASTRO/Todas).
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, Fragment } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -46,10 +46,11 @@ function fmtCel(v: unknown, tipo: Tipo): string {
   return v == null ? '' : String(v);
 }
 
-function TabelaAnalise({ cols, rows, csvName, defaultSort }: { cols: Col[]; rows: Array<Record<string, unknown>>; csvName: string; defaultSort?: { key: string; dir: number } }) {
+function TabelaAnalise({ cols, rows, csvName, defaultSort, renderExpand, rowKey }: { cols: Col[]; rows: Array<Record<string, unknown>>; csvName: string; defaultSort?: { key: string; dir: number }; renderExpand?: (row: Record<string, unknown>) => React.ReactNode; rowKey?: (row: Record<string, unknown>) => string }) {
   const [sortKey, setSortKey] = useState(defaultSort?.key ?? cols[0].key);
   const [sortDir, setSortDir] = useState(defaultSort?.dir ?? 1);
   const [filtros, setFiltros] = useState<Record<string, string>>({});
+  const [aberta, setAberta] = useState<string | null>(null);
 
   const colByKey = useMemo(() => Object.fromEntries(cols.map((c) => [c.key, c])), [cols]);
 
@@ -109,13 +110,29 @@ function TabelaAnalise({ cols, rows, csvName, defaultSort }: { cols: Col[]; rows
             ))}</tr>
           </thead>
           <tbody>
-            {visiveis.map((r, i) => (
-              <tr key={i}>{cols.map((c) => (
-                <td key={c.key} style={{ ...tdStyle, textAlign: c.tipo === 'texto' ? 'left' : 'right', color: c.tipo === 'bool' && r[c.key] ? '#059669' : tdStyle.color, whiteSpace: c.key === 'fornecedores' || c.key === 'produtos_top' ? 'normal' : 'nowrap', maxWidth: c.key === 'fornecedores' || c.key === 'produtos_top' ? 340 : undefined }}>
-                  {fmtCel(c.get(r), c.tipo)}
-                </td>
-              ))}</tr>
-            ))}
+            {visiveis.map((r, i) => {
+              const k = rowKey ? rowKey(r) : String(i);
+              const isOpen = renderExpand && aberta === k;
+              return (
+                <Fragment key={k}>
+                  <tr onClick={renderExpand ? () => setAberta(isOpen ? null : k) : undefined} style={{ cursor: renderExpand ? 'pointer' : 'default', background: isOpen ? '#fff7f7' : undefined }}>
+                    {cols.map((c) => (
+                      <td key={c.key} style={{ ...tdStyle, textAlign: c.tipo === 'texto' ? 'left' : 'right', color: c.tipo === 'bool' && r[c.key] ? '#059669' : tdStyle.color, whiteSpace: c.key === 'fornecedores' || c.key === 'produtos_top' ? 'normal' : 'nowrap', maxWidth: c.key === 'fornecedores' || c.key === 'produtos_top' ? 340 : undefined }}>
+                        {c.key === cols[0].key && renderExpand ? <span style={{ color: '#dc2626', marginRight: 6 }}>{isOpen ? '▼' : '▶'}</span> : null}
+                        {fmtCel(c.get(r), c.tipo)}
+                      </td>
+                    ))}
+                  </tr>
+                  {isOpen && (
+                    <tr>
+                      <td colSpan={cols.length} style={{ padding: 0, background: '#fafafa', borderBottom: '1px solid #eee' }}>
+                        {renderExpand!(r)}
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -162,6 +179,142 @@ const COLS_OPORT: Col[] = [
   { key: 'rfm', label: 'RFM', tipo: 'num', get: (r) => r.rfm },
 ];
 
+// Toggle segmentado Peças / Máquinas / Ambos (re-segmenta a aba Clientes).
+type Grupo = 'ambos' | 'pecas' | 'maquinas';
+function ToggleGrupo({ grupo, onChange }: { grupo: Grupo; onChange: (g: Grupo) => void }) {
+  const opts: Array<[Grupo, string]> = [['pecas', 'Peças'], ['maquinas', 'Máquinas'], ['ambos', 'Ambos']];
+  return (
+    <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 8, overflow: 'hidden' }}>
+      {opts.map(([g, label]) => (
+        <button key={g} onClick={() => onChange(g)} style={{ padding: '7px 16px', border: 'none', background: grupo === g ? '#111' : '#fff', color: grupo === g ? '#fff' : '#555', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer' }}>{label}</button>
+      ))}
+    </div>
+  );
+}
+
+interface Motivo { id: number; nome: string }
+interface UltimoContato { resultado: string; motivo: string | null; observacao: string | null; autor_nome: string | null; data: string }
+interface ClienteProduto { codigo_cliente: string; conta: string; nome: string; telefone: string; n_compras: number; qtd: number; valor: number; ultima_compra: string | null; ultimo_contato: UltimoContato | null }
+type Resultado = 'vendeu' | 'nao_vendeu' | 'sem_resposta';
+const LABEL_RESULTADO: Record<Resultado, { txt: string; cor: string }> = {
+  vendeu: { txt: 'Vendeu', cor: '#059669' },
+  nao_vendeu: { txt: 'Não vendeu', cor: '#dc2626' },
+  sem_resposta: { txt: 'Sem resposta', cor: '#b45309' },
+};
+
+// Painel expandido de uma oportunidade (produto): clientes que compraram + CRM.
+function ExpandOportunidade({ produto, contaParam, motivos, autor }: {
+  produto: { codigo_produto: string; sku: string; descricao: string };
+  contaParam: string; motivos: Motivo[]; autor: { id: string; nome: string };
+}) {
+  const [dados, setDados] = useState<ClienteProduto[] | null>(null);
+  const [erro, setErro] = useState('');
+  const [formCli, setFormCli] = useState<string | null>(null); // 'CONTA|cod' com form aberto
+  const [resultado, setResultado] = useState<Resultado>('vendeu');
+  const [motivoId, setMotivoId] = useState<number | ''>('');
+  const [obs, setObs] = useState('');
+  const [salvando, setSalvando] = useState(false);
+
+  const carregar = useCallback(async () => {
+    setErro('');
+    try {
+      const r = await fetch(`/api/estoque/inteligencia-comercial/clientes-produto?produto=${encodeURIComponent(produto.codigo_produto)}${contaParam}`);
+      const d = await r.json();
+      if (d.erro) { setErro(d.erro); return; }
+      setDados(d.itens || []);
+    } catch (ex) { setErro('Erro: ' + (ex as Error).message); }
+  }, [produto.codigo_produto, contaParam]);
+
+  useEffect(() => { carregar(); }, [carregar]);
+
+  const abrirForm = (cli: ClienteProduto) => {
+    setFormCli(cli.conta + '|' + cli.codigo_cliente);
+    setResultado('vendeu'); setMotivoId(''); setObs('');
+  };
+
+  const salvar = async (cli: ClienteProduto) => {
+    if (resultado === 'nao_vendeu' && !motivoId) { alert('Escolha o motivo.'); return; }
+    setSalvando(true);
+    try {
+      const r = await fetch(`/api/estoque/inteligencia-comercial/contatos`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo_produto: produto.codigo_produto, sku: produto.sku, descricao_produto: produto.descricao,
+          codigo_cliente: cli.codigo_cliente, conta_omie: cli.conta, cliente_nome: cli.nome,
+          resultado, motivo_id: resultado === 'nao_vendeu' ? Number(motivoId) : null, observacao: obs || null,
+          autor_id: autor.id, autor_nome: autor.nome,
+        }),
+      });
+      const d = await r.json();
+      if (d.erro) { alert('Erro: ' + d.erro); return; }
+      setFormCli(null);
+      await carregar();
+    } catch (ex) { alert('Erro: ' + (ex as Error).message); }
+    finally { setSalvando(false); }
+  };
+
+  const cel: React.CSSProperties = { padding: '6px 10px', fontSize: '.78rem', color: '#444', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' };
+  const th2: React.CSSProperties = { padding: '6px 10px', fontSize: '.62rem', textTransform: 'uppercase', color: '#999', letterSpacing: '.5px', textAlign: 'left', fontWeight: 700 };
+
+  return (
+    <div style={{ padding: '12px 16px' }}>
+      <div style={{ fontSize: '.8rem', fontWeight: 700, color: '#333', marginBottom: 8 }}>Clientes que compraram {produto.sku} — {produto.descricao}</div>
+      {erro && <div style={{ color: '#dc2626', fontSize: '.78rem', marginBottom: 6 }}>{erro}</div>}
+      {!dados && !erro && <div style={{ color: '#888', fontSize: '.78rem' }}>Carregando clientes…</div>}
+      {dados && dados.length === 0 && <div style={{ color: '#888', fontSize: '.78rem' }}>Nenhum cliente com compra deste produto.</div>}
+      {dados && dados.length > 0 && (
+        <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>{['Cliente', 'Telefone', 'Nº compras', 'Última compra', 'Valor', 'Último contato', 'Ação'].map((h) => <th key={h} style={th2}>{h}</th>)}</tr></thead>
+            <tbody>
+              {dados.slice(0, 200).map((cli) => {
+                const chave = cli.conta + '|' + cli.codigo_cliente;
+                const uc = cli.ultimo_contato;
+                const badge = uc ? LABEL_RESULTADO[(uc.resultado as Resultado)] : null;
+                return (
+                  <Fragment key={chave}>
+                    <tr>
+                      <td style={cel}>{cli.nome}{cli.conta ? <span style={{ color: '#bbb' }}> · {cli.conta}</span> : null}</td>
+                      <td style={cel}>{cli.telefone || '—'}</td>
+                      <td style={{ ...cel, textAlign: 'right' }}>{cli.n_compras}</td>
+                      <td style={cel}>{cli.ultima_compra || '—'}</td>
+                      <td style={{ ...cel, textAlign: 'right' }}>{fmtRS(cli.valor)}</td>
+                      <td style={cel}>{badge ? <span style={{ color: badge.cor, fontWeight: 600 }}>{badge.txt}{uc?.motivo ? ` (${uc.motivo})` : ''}<span style={{ color: '#bbb', fontWeight: 400 }}> · {uc?.data?.slice(0, 10)}{uc?.autor_nome ? ' · ' + uc.autor_nome : ''}</span></span> : <span style={{ color: '#ccc' }}>—</span>}</td>
+                      <td style={cel}><button onClick={() => abrirForm(cli)} style={{ background: 'none', border: '1px solid #dc2626', color: '#dc2626', borderRadius: 6, padding: '3px 10px', fontSize: '.72rem', fontWeight: 600, cursor: 'pointer' }}>Registrar</button></td>
+                    </tr>
+                    {formCli === chave && (
+                      <tr>
+                        <td colSpan={7} style={{ background: '#fff7f7', padding: '10px 14px', borderBottom: '1px solid #eee' }}>
+                          <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                            {(Object.keys(LABEL_RESULTADO) as Resultado[]).map((res) => (
+                              <label key={res} style={{ fontSize: '.78rem', color: '#444', display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' }}>
+                                <input type="radio" checked={resultado === res} onChange={() => setResultado(res)} /> {LABEL_RESULTADO[res].txt}
+                              </label>
+                            ))}
+                            {resultado === 'nao_vendeu' && (
+                              <select value={motivoId} onChange={(e) => setMotivoId(e.target.value ? Number(e.target.value) : '')} style={{ padding: '6px 10px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: '.78rem' }}>
+                                <option value="">Motivo…</option>
+                                {motivos.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                              </select>
+                            )}
+                            <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="observação (opcional)" style={{ flex: 1, minWidth: 180, padding: '6px 10px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: '.78rem' }} />
+                            <button disabled={salvando} onClick={() => salvar(cli)} style={{ padding: '6px 16px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.76rem', fontWeight: 600, cursor: 'pointer' }}>{salvando ? 'Salvando…' : 'Salvar'}</button>
+                            <button onClick={() => setFormCli(null)} style={{ padding: '6px 12px', background: 'none', color: '#888', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: '.76rem', cursor: 'pointer' }}>Cancelar</button>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function InteligenciaComercialPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
@@ -172,11 +325,15 @@ export default function InteligenciaComercialPage() {
   const [meta, setMeta] = useState<Record<string, unknown>>({});
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
+  const [grupo, setGrupo] = useState<Grupo>('ambos');
+  const [motivos, setMotivos] = useState<Motivo[]>([]);
+  const [exportando, setExportando] = useState(false);
 
   const carregar = useCallback(async (ab: Aba) => {
     setCarregando(true); setErro('');
     try {
-      const r = await fetch(`/api/estoque/inteligencia-comercial?aba=${ab}${contaParam}`);
+      const gp = ab === 'clientes' && grupo !== 'ambos' ? `&grupo=${grupo}` : '';
+      const r = await fetch(`/api/estoque/inteligencia-comercial?aba=${ab}${gp}${contaParam}`);
       const d = await r.json();
       if (d.erro) { setErro(d.erro); return; }
       setDados((prev) => ({ ...prev, [ab]: d.itens || [] }));
@@ -186,11 +343,30 @@ export default function InteligenciaComercialPage() {
     } finally {
       setCarregando(false);
     }
-  }, [contaParam]);
+  }, [contaParam, grupo]);
 
-  // Recarrega ao trocar de aba ou de conta (invalida cache local ao mudar conta).
+  // Motivos do CRM (para o <select> do form de contato).
+  useEffect(() => { fetch('/api/estoque/inteligencia-comercial/contatos').then((r) => r.json()).then((d) => setMotivos(d.motivos || [])).catch(() => {}); }, []);
+  // Recarrega ao trocar de aba/conta (invalida cache local ao mudar conta).
   useEffect(() => { setDados({ compras: null, clientes: null, oportunidades: null }); }, [contaParam]);
-  useEffect(() => { if (dados[aba] == null) carregar(aba); /* eslint-disable-next-line */ }, [aba, contaParam]);
+  // Trocar o grupo invalida a aba Clientes (re-segmenta).
+  useEffect(() => { setDados((p) => ({ ...p, clientes: null })); }, [grupo]);
+  useEffect(() => { if (dados[aba] == null) carregar(aba); /* eslint-disable-next-line */ }, [aba, contaParam, grupo]);
+
+  const exportarOportunidades = useCallback(async () => {
+    setExportando(true);
+    try {
+      const r = await fetch(`/api/estoque/inteligencia-comercial?aba=export-oportunidades${contaParam}`);
+      const d = await r.json();
+      if (d.erro) { alert('Erro: ' + d.erro); return; }
+      const rows = (d.itens || []) as Array<Record<string, unknown>>;
+      const cell = (v: unknown) => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const linhas = [['SKU', 'Descrição', 'Estoque', 'Conta', 'Cliente', 'Telefone', 'Nº compras', 'Qtd', 'Valor', 'Última compra'].join(';')];
+      rows.forEach((x) => linhas.push([x.sku, x.descricao, x.estoque, x.conta, x.cliente, x.telefone, x.n_compras, String(x.qtd ?? '').replace('.', ','), String(x.valor ?? '').replace('.', ','), x.ultima_compra].map(cell).join(';')));
+      const blob = new Blob(['﻿' + linhas.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `oportunidades${conta ? '-' + conta : ''}.csv`; a.click(); URL.revokeObjectURL(url);
+    } catch (ex) { alert('Erro: ' + (ex as Error).message); } finally { setExportando(false); }
+  }, [contaParam, conta]);
 
   if (!permLoading && userProfile && !pode('estoque', 'inteligencia-comercial')) return <SemPermissao />;
 
@@ -220,9 +396,23 @@ export default function InteligenciaComercialPage() {
         ))}
       </div>
 
-      {aba === 'oportunidades' && typeof meta.na_hora === 'number' && !carregando && (
-        <div style={{ fontSize: '.8rem', color: '#059669', marginBottom: 10, fontWeight: 600 }}>
-          {Number(meta.na_hora)} {Number(meta.na_hora) === 1 ? 'produto está' : 'produtos estão'} na hora de vender (têm estoque e a venda está atrasada em relação ao ritmo).
+      {aba === 'clientes' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>Segmento</span>
+          <ToggleGrupo grupo={grupo} onChange={setGrupo} />
+        </div>
+      )}
+
+      {aba === 'oportunidades' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+          {typeof meta.na_hora === 'number' && !carregando && (
+            <span style={{ fontSize: '.8rem', color: '#059669', fontWeight: 600 }}>
+              {Number(meta.na_hora)} {Number(meta.na_hora) === 1 ? 'produto está' : 'produtos estão'} na hora de vender. Clique numa linha para ver os clientes e registrar o contato.
+            </span>
+          )}
+          <button onClick={exportarOportunidades} disabled={exportando} style={{ marginLeft: 'auto', padding: '7px 14px', border: '1px solid #e0e0e0', background: '#fff', color: '#666', borderRadius: 8, fontSize: '.76rem', fontWeight: 600, cursor: 'pointer' }}>
+            {exportando ? 'Gerando…' : 'Exportar oportunidades (lista de ligação)'}
+          </button>
         </div>
       )}
 
@@ -235,6 +425,15 @@ export default function InteligenciaComercialPage() {
           rows={rows}
           csvName={csvName}
           defaultSort={aba === 'oportunidades' ? { key: 'na_hora', dir: -1 } : { key: 'valor_total', dir: -1 }}
+          rowKey={aba === 'oportunidades' ? (r) => String(r.codigo_produto) : aba === 'clientes' ? (r) => String(r.conta) + '|' + String(r.codigo_cliente) : (r) => String(r.chave ?? r.sku)}
+          renderExpand={aba === 'oportunidades' ? (r) => (
+            <ExpandOportunidade
+              produto={{ codigo_produto: String(r.codigo_produto), sku: String(r.sku), descricao: String(r.descricao) }}
+              contaParam={contaParam}
+              motivos={motivos}
+              autor={{ id: userProfile?.id || '', nome: userProfile?.nome || '' }}
+            />
+          ) : undefined}
         />
       )}
       {conta === '' && <div style={{ fontSize: '.7rem', color: '#bbb', marginTop: 10 }}>Modo Todas (NOVA + CASTRO)</div>}
