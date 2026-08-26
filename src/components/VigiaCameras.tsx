@@ -38,7 +38,7 @@ const TOQUES = [
 
 type ConfigGeral = { ativo: boolean; canais: number[]; som: string; volume: number; cooldownSeg: number }
 type Pessoal = { ativo: boolean; canais: number[]; som: string; volume: number }
-type Evento = { quando: string; canal: number; codigo: string }
+type Evento = { quando: string; canal: number; codigo: string; fotoUrl?: string | null }
 type Status = { atualizadoEm: string; canais: number[]; eventos: Evento[] }
 
 const LS_PESSOAL = 'vigia-pessoal'
@@ -146,7 +146,12 @@ export default function VigiaCameras() {
         const p = pessoalRef.current
         setStatus((prev) => prev ? {
           ...prev,
-          eventos: [{ quando: new Date().toISOString(), canal: Number(payload?.canal) || 0, codigo: String(payload?.codigo || 'VideoMotion') }, ...(prev.eventos || [])].slice(0, 40),
+          eventos: [{
+            quando: new Date().toISOString(),
+            canal: Number(payload?.canal) || 0,
+            codigo: String(payload?.codigo || 'VideoMotion'),
+            fotoUrl: payload?.fotoUrl || null,
+          }, ...(prev.eventos || [])].slice(0, 40),
         } : prev)
         if (!p.ativo) return
         // só as câmeras que EU escolhi ouvir
@@ -454,6 +459,16 @@ export default function VigiaCameras() {
                           {ev.codigo === 'Trator' ? <Tractor size={15} />
                             : ev.codigo === 'SmartMotionHuman' ? <PersonStanding size={15} /> : <Video size={14} />}
                         </span>
+                        {ev.fotoUrl && (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={ev.fotoUrl}
+                            alt=""
+                            title="Ver a foto do disparo"
+                            onClick={() => window.open(ev.fotoUrl!, '_blank', 'noopener')}
+                            style={{ width: 44, height: 33, objectFit: 'cover', borderRadius: 6, cursor: 'zoom-in', flexShrink: 0, border: '1px solid var(--portal-border)' }}
+                          />
+                        )}
                         <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>
                             Canal {ev.canal} · {CANAIS_NOMES[ev.canal] || ''}

@@ -18,6 +18,7 @@ const supabase = createClient(
 const BUCKET = "anexos";
 const ARQ_CONFIG = "cameras/config.json";
 const ARQ_STATUS = "cameras/status.json";
+const ARQ_EVENTOS = "cameras/eventos.json"; // histórico separado do batimento
 const TOKEN_VIGIA = process.env.CAMERAS_TOKEN || "vigia-nt-6049";
 const MAX_EVENTOS = 40;
 
@@ -41,9 +42,30 @@ async function gravarJson(caminho: string, obj: unknown) {
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  const [config, status] = await Promise.all([lerJson(ARQ_CONFIG), lerJson(ARQ_STATUS)]);
+  const [config, status, eventosArq] = await Promise.all([
+    lerJson(ARQ_CONFIG),
+    lerJson(ARQ_STATUS),
+    lerJson(ARQ_EVENTOS),
+  ]);
+  // Eventos: primeiro do BANCO (fonte oficial); JSON é a reserva
+  let eventos: unknown[] = Array.isArray(eventosArq?.eventos) ? (eventosArq.eventos as unknown[]) : [];
+  try {
+    const { data: doBanco, error } = await supabase
+      .from("cameras_eventos")
+      .select("quando,canal,codigo,foto_url")
+      .order("quando", { ascending: false })
+      .limit(40);
+    if (!error && doBanco) {
+      eventos = doBanco.map((e) => ({
+        quando: e.quando, canal: e.canal, codigo: e.codigo, fotoUrl: e.foto_url,
+      }));
+    }
+  } catch { /* tabela ausente — fica no JSON */ }
   // no-store: nenhum navegador/proxy segura a lista de disparos antiga
-  return NextResponse.json({ config, status }, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(
+    { config, status: status ? { ...status, eventos } : null },
+    { headers: { "Cache-Control": "no-store" } }
+  );
 }
 
 export async function POST(req: NextRequest) {
@@ -118,16 +140,77 @@ export async function PUT(req: NextRequest) {
       if (tem === false) return NextResponse.json({ ok: true, filtrado: true });
       if (tem === true) body.evento.codigo = "Trator";
     }
-    const atual = (await lerJson(ARQ_STATUS)) || {};
-    const eventos = Array.isArray(atual.eventos) ? (atual.eventos as unknown[]) : [];
+
+    // ── EVENTO: histórico vive em arquivo PRÓPRIO (eventos.json), só
+    // tocado quando chega disparo — batimento não consegue mais zerar a
+    // lista. Leitura com repique: falhou uma vez, tenta de novo.
     if (body.evento && body.evento.canal) {
+      const canal = Number(body.evento.canal);
+      const arq = (await lerJson(ARQ_EVENTOS)) ?? (await lerJson(ARQ_EVENTOS)) ?? {};
+      const eventos = Array.isArray(arq.eventos) ? (arq.eventos as Record<string, unknown>[]) : [];
+
+      // Foto do disparo → storage (público), com URL guardada no evento
+      let fotoUrl: string | null = null;
+      let fotoPath: string | null = null;
+      if (body.foto) {
+        try {
+          const buf = Buffer.from(String(body.foto), "base64");
+          if (buf.length > 0 && buf.length < 512000) {
+            fotoPath = `cameras/fotos/${Date.now()}-c${canal}.jpg`;
+            const { error } = await supabase.storage
+              .from(BUCKET)
+              .upload(fotoPath, buf, { contentType: "image/jpeg", upsert: true, cacheControl: "3600" });
+            if (!error) {
+              fotoUrl = supabase.storage.from(BUCKET).getPublicUrl(fotoPath).data.publicUrl;
+            } else fotoPath = null;
+          }
+        } catch { /* sem foto — o disparo entra mesmo assim */ }
+      }
+
+      const codigoEv = String(body.evento.codigo || "VideoMotion");
       eventos.unshift({
         quando: new Date().toISOString(),
-        canal: Number(body.evento.canal),
-        codigo: String(body.evento.codigo || "VideoMotion"),
+        canal,
+        codigo: codigoEv,
+        fotoUrl,
+        fotoPath,
       });
-      // Avisa quem está com o portal aberto AGORA (som individual no
-      // navegador de cada um) — Supabase Realtime broadcast.
+
+      // BANCO (fonte oficial — planos futuros com os tratores usam daqui):
+      // insert best-effort; se a tabela ainda não existir, o JSON segura.
+      try {
+        await supabase.from("cameras_eventos").insert({
+          canal, codigo: codigoEv, foto_url: fotoUrl, foto_path: fotoPath,
+        });
+        // Limpeza: movimento comum some depois de 90 dias (foto junto);
+        // TRATOR fica pra sempre.
+        const corte = new Date(Date.now() - 90 * 24 * 3600 * 1000).toISOString();
+        const { data: velhos } = await supabase
+          .from("cameras_eventos")
+          .delete()
+          .lt("quando", corte)
+          .neq("codigo", "Trator")
+          .select("foto_path");
+        const fotosAntigas = (velhos || [])
+          .map((v: { foto_path: string | null }) => v.foto_path)
+          .filter((p: string | null): p is string => !!p && p.startsWith("cameras/fotos/"));
+        if (fotosAntigas.length) {
+          supabase.storage.from(BUCKET).remove(fotosAntigas).then(() => {}, () => {});
+        }
+      } catch { /* tabela ausente — rode sql de cameras_eventos */ }
+
+      // Mantém as últimas MAX_EVENTOS e apaga as fotos que caíram fora
+      const cortados = eventos.slice(MAX_EVENTOS);
+      const fotosVelhas = cortados
+        .map((e) => e.fotoPath)
+        .filter((p): p is string => typeof p === "string" && p.startsWith("cameras/fotos/"));
+      if (fotosVelhas.length) {
+        supabase.storage.from(BUCKET).remove(fotosVelhas).then(() => {}, () => {});
+      }
+      await gravarJson(ARQ_EVENTOS, { eventos: eventos.slice(0, MAX_EVENTOS) });
+
+      // Tempo real: quem estiver com o portal aberto vê a linha (e a foto)
+      // pingar na hora — o toque agora é opcional (SIM Play cuida do som).
       try {
         const key = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
         await fetch(`${process.env.NEXT_PUBLIC_SUPABASE_URL}/realtime/v1/api/broadcast`, {
@@ -137,20 +220,18 @@ export async function PUT(req: NextRequest) {
             messages: [{
               topic: "vigia-cameras",
               event: "movimento",
-              payload: { canal: Number(body.evento.canal), codigo: String(body.evento.codigo || "VideoMotion") },
+              payload: { canal, codigo: String(body.evento.codigo || "VideoMotion"), fotoUrl },
             }],
           }),
         });
-      } catch { /* realtime fora do ar — o polling de 60s cobre */ }
+      } catch { /* realtime fora do ar — o polling cobre */ }
     }
-    // (Sem notificação no sino — decisão do usuário 26/08: o log ao vivo
-    // no modal + o toque em tempo real já cobrem.)
-    const status = {
+
+    // Batimento: só o "estou vivo" + canais (nunca mexe no histórico)
+    await gravarJson(ARQ_STATUS, {
       atualizadoEm: new Date().toISOString(),
-      canais: Array.isArray(body.canais) ? body.canais : atual.canais || [],
-      eventos: eventos.slice(0, MAX_EVENTOS),
-    };
-    await gravarJson(ARQ_STATUS, status);
+      canais: Array.isArray(body.canais) ? body.canais : [],
+    });
     return NextResponse.json({ ok: true });
   } catch (e: unknown) {
     const msg = e instanceof Error ? e.message : "erro";
