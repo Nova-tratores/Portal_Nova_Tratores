@@ -84,6 +84,82 @@ export function novoIdMovimentacao(sorteio: number = Math.random()): number {
   return Math.floor(sorteio * 9_000_000_000) + 1_000_000_000
 }
 
+export interface CabecalhoPpvMin {
+  id_pedido: string
+  status: string | null
+  Tipo_Pedido: string | null
+  pedido_omie: string | null
+  faturado_omie_em: string | null
+  nf_numero?: string | null
+}
+
+export type RotuloFaturamento =
+  | 'Faturado'          // NF-e confirmada (faturado_omie_em)
+  | 'Remessa enviada'   // remessa no Omie: saiu com documento
+  | 'No Omie'           // pedido lançado no Omie, faturamento não confirmado aqui
+  | 'Cancelado'         // não faturou e não vai
+  | 'Sem nota'          // encerrado sem NENHUM vestígio de documento — alerta
+  | 'A faturar'         // ainda em aberto, fluxo normal
+
+export interface SituacaoFaturamento {
+  /**
+   * Saiu com documento fiscal. MESMA régua de ppvFaturado() (lib/pecas/
+   * ppv-conferencia), que é quem decide aplicar unidade no faturamento — os
+   * dois não podem divergir, senão o selo diz uma coisa e o sistema faz outra.
+   */
+  faturado: boolean
+  rotulo: RotuloFaturamento
+  /** merece atenção: peça saiu, pedido encerrou e não há vestígio de documento */
+  alerta: boolean
+  /** número da NF quando existe (só no caminho de faturamento) */
+  nf: string | null
+  em: string | null
+  /** número do pedido no Omie, quando houver */
+  omie: string | null
+}
+
+const CANCELADOS = ['Cancelada', 'Cancelado']
+
+/**
+ * Se a peça já virou nota — respondido pelo PEDIDO em que ela entrou.
+ *
+ * MEDIDO NO BANCO em 26/08/2026, e é o que dita os rótulos: `faturado_omie_em`
+ * existe em apenas 4 dos 447 pedidos (campo novo, de agosto/2026). O rastro
+ * histórico de "foi pro Omie" é `pedido_omie`, presente em 93 dos 133
+ * "Concluída". Tratar todo encerrado sem `faturado_omie_em` como pendência
+ * pintaria 281 pedidos normais de vermelho — alerta que ninguém olha.
+ *
+ * Por isso três leituras distintas em vez de sim/não: NF confirmada, lançado
+ * no Omie (sem confirmação aqui) e encerrado sem vestígio nenhum. Só o último
+ * é `alerta` — peça que saiu do estoque e o pedido fechou sem documento.
+ */
+export function situacaoFaturamentoPpv(cab: CabecalhoPpvMin): SituacaoFaturamento {
+  const nf = String(cab.nf_numero || '').trim() || null
+  const omie = String(cab.pedido_omie || '').trim() || null
+  const status = String(cab.status || '')
+  const base = { nf, em: null as string | null, omie }
+
+  if (cab.faturado_omie_em) {
+    return { ...base, faturado: true, rotulo: 'Faturado', alerta: false, em: cab.faturado_omie_em }
+  }
+  if (String(cab.Tipo_Pedido || '') === 'Remessa' && omie) {
+    return { ...base, faturado: true, rotulo: 'Remessa enviada', alerta: false }
+  }
+  if (CANCELADOS.includes(status)) {
+    return { ...base, faturado: false, rotulo: 'Cancelado', alerta: false, nf: null }
+  }
+  // lançado no Omie: `faturado` segue false (ppvFaturado só conta remessa),
+  // mas o rótulo não pode dizer "a faturar" nem acender alerta — é o estado
+  // normal de quase todo pedido concluído deste banco
+  if (omie) {
+    return { ...base, faturado: false, rotulo: 'No Omie', alerta: false }
+  }
+  if (PPV_STATUS_TERMINAIS.includes(status)) {
+    return { ...base, faturado: false, rotulo: 'Sem nota', alerta: true }
+  }
+  return { ...base, faturado: false, rotulo: 'A faturar', alerta: false }
+}
+
 /** Pedido ainda aceita item novo? (mesma régua de escolherPpvAberto) */
 export function ppvAceitaItem(cab: {
   status: string | null

@@ -17,6 +17,7 @@ import {
   type UnidadeStatus,
   type DestinoTipo,
 } from '@/lib/pecas/unidades';
+import { situacaoFaturamentoPpv, type SituacaoFaturamento } from '@/lib/pecas/os-ppv-regras';
 import AcoesUnidade from './AcoesUnidade';
 
 export const dynamic = 'force-dynamic';
@@ -112,6 +113,17 @@ export default async function UnidadeQRPage({ params }: { params: Promise<{ id: 
     ? `${destinoBase} · ${u.destino_ppv}`
     : destinoBase;
 
+  // "essa peça já virou nota?" — quem responde é o pedido em que ela entrou
+  let faturamento: SituacaoFaturamento | null = null;
+  if (u.destino_ppv) {
+    const { data: cab } = await supabase
+      .from('pedidos')
+      .select('id_pedido, status, Tipo_Pedido, pedido_omie, faturado_omie_em, nf_numero')
+      .eq('id_pedido', u.destino_ppv)
+      .maybeSingle();
+    if (cab) faturamento = situacaoFaturamentoPpv(cab as never);
+  }
+
   return (
     <div style={{ minHeight: '100vh', background: '#f1f5f9', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
       <div style={{ background: '#C41E2A', color: '#fff', padding: '14px 18px' }}>
@@ -148,6 +160,26 @@ export default async function UnidadeQRPage({ params }: { params: Promise<{ id: 
           {status === 'aplicada' && destinoTxt && (
             <div style={{ marginTop: 12, padding: '8px 12px', background: '#f8fafc', borderRadius: 10, fontSize: 12.5, color: '#334155' }}>
               Aplicada — {destinoTxt}{u.retirado_por_nome ? ` (retirada por ${u.retirado_por_nome})` : ''}
+            </div>
+          )}
+          {/* já virou nota? quem responde é o pedido em que a peça entrou */}
+          {faturamento && u.destino_ppv && (
+            <div style={{
+              marginTop: 10, padding: '8px 12px', borderRadius: 10, fontSize: 12.5,
+              background: faturamento.alerta ? '#fef2f2' : faturamento.faturado ? '#ecfdf5' : '#fffbeb',
+              border: `1px solid ${faturamento.alerta ? '#fecaca' : faturamento.faturado ? '#a7f3d0' : '#fde68a'}`,
+              color: faturamento.alerta ? '#991b1b' : faturamento.faturado ? '#065f46' : '#92400e',
+            }}>
+              <strong>{faturamento.alerta ? '⚠ ' : ''}{faturamento.rotulo}</strong>
+              {' — pedido '}{u.destino_ppv}
+              {faturamento.nf ? ` · NF ${faturamento.nf}` : ''}
+              {!faturamento.nf && faturamento.omie ? ` · Omie ${faturamento.omie}` : ''}
+              {faturamento.em ? ` · ${fmtDataHora(faturamento.em)}` : ''}
+              {faturamento.alerta && (
+                <div style={{ fontSize: 11.5, marginTop: 2 }}>
+                  O pedido foi encerrado sem ir ao Omie e sem gerar nota, e a peça já saiu do estoque.
+                </div>
+              )}
             </div>
           )}
         </div>

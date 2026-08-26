@@ -14,8 +14,9 @@ import SemPermissao from '@/components/SemPermissao'
 import QRUnidadeModal from '@/components/ppv/QRUnidadeModal'
 import PecasNav from '@/components/ppv/PecasNav'
 import { htmlFolha, qrSvg, urlDaUnidade, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
-import { STATUS_LABEL, STATUS_COR, DESTINO_LABEL, EMPRESA_LABEL, EMPRESA_COR, type PecaUnidade, type UnidadeStatus } from '@/lib/pecas/unidades'
+import { alvoDaUnidade, STATUS_LABEL, STATUS_COR, DESTINO_LABEL, EMPRESA_LABEL, EMPRESA_COR, type PecaUnidade, type UnidadeStatus } from '@/lib/pecas/unidades'
 import type { DivergenciaPPV } from '@/lib/pecas/ppv-vinculo'
+import type { SituacaoFaturamento } from '@/lib/pecas/os-ppv-regras'
 
 const ABAS: { id: string; rotulo: string; status: UnidadeStatus[] }[] = [
   { id: 'pendentes', rotulo: 'Aguardando liberação', status: ['retirada_pendente'] },
@@ -32,6 +33,40 @@ function fmtDataHora(iso: string | null): string {
   return new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
+// Cor por situação: verde/azul = saiu com documento; âmbar = fluxo normal em
+// aberto; VERMELHO só pro caso que precisa de gente — pedido encerrado sem
+// nota, com a peça já fora do estoque.
+const COR_FATURAMENTO: Record<string, { bg: string; cor: string }> = {
+  'Faturado': { bg: '#dcfce7', cor: '#166534' },
+  'Remessa enviada': { bg: '#dbeafe', cor: '#1e40af' },
+  'No Omie': { bg: '#e0e7ff', cor: '#3730a3' },
+  'A faturar': { bg: '#fef3c7', cor: '#92400e' },
+  'Sem nota': { bg: '#fee2e2', cor: '#991b1b' },
+  'Cancelado': { bg: '#f1f5f9', cor: '#64748b' },
+}
+
+function SeloFaturamento({ s }: { s: SituacaoFaturamento }) {
+  const c = COR_FATURAMENTO[s.rotulo] || COR_FATURAMENTO['A faturar']
+  const detalhe = [
+    s.nf ? `NF ${s.nf}` : '',
+    s.omie ? `pedido Omie ${s.omie}` : '',
+    s.em ? `em ${fmtDataHora(s.em)}` : '',
+  ].filter(Boolean).join(' · ')
+  return (
+    <span
+      title={s.alerta
+        ? 'O pedido foi encerrado sem ir ao Omie e sem gerar nota — e a peça já saiu do estoque'
+        : `Situação do pedido${detalhe ? `: ${detalhe}` : ''}`}
+      style={{
+        display: 'inline-block', fontSize: 9.5, fontWeight: 800, padding: '1px 8px',
+        borderRadius: 999, background: c.bg, color: c.cor, whiteSpace: 'nowrap',
+      }}
+    >
+      {s.alerta ? '⚠ ' : ''}{s.rotulo}{s.nf ? ` · NF ${s.nf}` : ''}
+    </span>
+  )
+}
+
 export default function UnidadesRastreioPage() {
   const { userProfile } = useAuth()
   const { pode, loading: pLoading } = usePermissoes(userProfile?.id)
@@ -44,6 +79,8 @@ export default function UnidadesRastreioPage() {
   // chegar por último, sobrescrevendo o resultado do termo atual)
   const seqRef = useRef(0)
   const [linhas, setLinhas] = useState<PecaUnidade[]>([])
+  // situação de faturamento por pedido citado nas linhas (vem junto da fila)
+  const [pedidos, setPedidos] = useState<Record<string, SituacaoFaturamento>>({})
   const [total, setTotal] = useState(0)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
@@ -85,6 +122,7 @@ export default function UnidadesRastreioPage() {
       if (!r.ok) throw new Error(j.error || 'Falha ao carregar')
       setLinhas(j.unidades || [])
       setTotal(j.total || 0)
+      setPedidos(j.pedidos || {})
       setSel(new Set())
     } catch (e) {
       if (seq === seqRef.current) setErro(String(e instanceof Error ? e.message : e))
@@ -334,7 +372,15 @@ export default function UnidadesRastreioPage() {
                     <input type="checkbox" checked={sel.has(u.id)} onChange={() => setSel(prev => { const s = new Set(prev); if (s.has(u.id)) s.delete(u.id); else s.add(u.id); return s })} />
                   </td>
                 )}
-                <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{u.numero}</td>
+                {/* o número é o caminho pra página de rastreio: o botão ↗ das
+                    Ações agora prioriza o pedido/OS, então o histórico da peça
+                    precisava continuar acessível de algum lugar óbvio */}
+                <td style={{ padding: '7px 10px', fontFamily: 'monospace', fontWeight: 700, whiteSpace: 'nowrap' }}>
+                  <a href={`/p/${u.id}`} target="_blank" rel="noreferrer" title="Abrir a página de rastreio desta peça"
+                    style={{ color: 'var(--portal-text)', textDecoration: 'none', borderBottom: '1px dotted var(--portal-text-muted)' }}>
+                    {u.numero}
+                  </a>
+                </td>
                 <td style={{ padding: '7px 10px' }}>
                   <span style={{ display: 'inline-block', fontSize: 9.5, fontWeight: 800, padding: '1px 8px', borderRadius: 999, color: '#fff', background: EMPRESA_COR[u.conta_omie] || '#6b7280', marginRight: 6 }}>
                     {u.conta_omie}
@@ -359,7 +405,7 @@ export default function UnidadesRastreioPage() {
                     escolhe ou cria na liberação — ver lib/pecas/os-ppv). */}
                 <td style={{ padding: '7px 10px', fontSize: 11.5 }}>
                   {u.destino_tipo === 'os' && u.destino_os
-                    ? <a href={`/pos?os=${encodeURIComponent(u.destino_os)}`} target="_blank" rel="noreferrer" style={{ color: '#0ea5e9', fontWeight: 700 }}>{u.destino_os}</a>
+                    ? <a href={`/pos?id=${encodeURIComponent(u.destino_os)}`} target="_blank" rel="noreferrer" style={{ color: '#0ea5e9', fontWeight: 700 }}>{u.destino_os}</a>
                     : u.destino_tipo === 'ppv' && u.destino_ppv
                       ? <a href={`/ppv?id=${encodeURIComponent(u.destino_ppv)}`} target="_blank" rel="noreferrer" style={{ color: '#0ea5e9', fontWeight: 700 }}>{u.destino_ppv}</a>
                       : u.destino_tipo ? DESTINO_LABEL[u.destino_tipo] : '—'}
@@ -369,6 +415,12 @@ export default function UnidadesRastreioPage() {
                         title="Pedido em que esta peça foi lançada"
                         style={{ color: '#0ea5e9', fontWeight: 700 }}>{u.destino_ppv}</a>
                     </div>
+                  )}
+                  {/* a peça já virou nota? a resposta é do PEDIDO em que ela
+                      entrou — serve pros três destinos, por isso fica aqui
+                      embaixo e não dentro de cada ramo */}
+                  {u.destino_ppv && pedidos[u.destino_ppv] && (
+                    <div style={{ marginTop: 3 }}><SeloFaturamento s={pedidos[u.destino_ppv]} /></div>
                   )}
                   {u.destino_tipo === 'ppv' && u.venda_preco != null && (
                     <div style={{ color: '#166534', fontWeight: 700 }}>R$ {Number(u.venda_preco).toFixed(2).replace('.', ',')}</div>
@@ -406,9 +458,16 @@ export default function UnidadesRastreioPage() {
                     <button onClick={() => reimprimir(u)} title="Reimprimir etiqueta (mesmo QR)" style={btnMini('#fff', '#334155')}>
                       <Printer size={12} />
                     </button>
-                    <a href={`/p/${u.id}`} target="_blank" rel="noreferrer" title="Abrir página de rastreio" style={{ ...btnMini('#fff', '#0ea5e9'), textDecoration: 'none' }}>
-                      <ExternalLink size={12} />
-                    </a>
+                    {/* atalho principal: pedido > OS > rastreio (a página de
+                        rastreio segue no número da unidade, à esquerda) */}
+                    {(() => {
+                      const alvo = alvoDaUnidade(u)
+                      return (
+                        <a href={alvo.href} target="_blank" rel="noreferrer" title={alvo.titulo} style={{ ...btnMini('#fff', '#0ea5e9'), textDecoration: 'none' }}>
+                          <ExternalLink size={12} />
+                        </a>
+                      )
+                    })()}
                   </div>
                 </td>
               </tr>

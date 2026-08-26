@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { MOTIVOS_SAIDA } from '../../ppv/constants'
+import { alvoDaUnidade } from '../unidades'
+import { ppvFaturado } from '../ppv-conferencia'
 import {
   destinoTemPpv,
   escolherPpvAberto,
@@ -10,6 +12,7 @@ import {
   ondeFoiParar,
   ppvAceitaItem,
   ppvsDaOS,
+  situacaoFaturamentoPpv,
   variantesDeCodigo,
 } from '../os-ppv-regras'
 
@@ -189,6 +192,133 @@ describe('pedido ainda aceita item?', () => {
       const viaOS = escolherPpvAberto(['PPV-0001'], st([['PPV-0001', c.status, faturado]]))
       expect(!!viaOS, JSON.stringify(c)).toBe(ppvAceitaItem(c))
     }
+  })
+})
+
+describe('a peça já virou nota?', () => {
+  const cab = (over = {}) => ({
+    id_pedido: 'PPV-0435', status: 'Aguardando Para Faturar', Tipo_Pedido: 'Pedido',
+    pedido_omie: null, faturado_omie_em: null, nf_numero: null, ...over,
+  })
+
+  it('faturado no Omie: saiu com nota, com número e data', () => {
+    const s = situacaoFaturamentoPpv(cab({ faturado_omie_em: '2026-08-26T18:00:00Z', nf_numero: '1234' }))
+    expect(s.faturado).toBe(true)
+    expect(s.rotulo).toBe('Faturado')
+    expect(s.nf).toBe('1234')
+    expect(s.em).toBe('2026-08-26T18:00:00Z')
+    expect(s.alerta).toBe(false)
+  })
+
+  it('remessa enviada ao Omie também saiu com documento', () => {
+    const s = situacaoFaturamentoPpv(cab({ Tipo_Pedido: 'Remessa', pedido_omie: '000000000007353' }))
+    expect(s.faturado).toBe(true)
+    expect(s.rotulo).toBe('Remessa enviada')
+  })
+
+  it('remessa SEM envio ainda está a faturar', () => {
+    expect(situacaoFaturamentoPpv(cab({ Tipo_Pedido: 'Remessa' })).rotulo).toBe('A faturar')
+    // pedido_omie em branco não conta como enviado
+    expect(situacaoFaturamentoPpv(cab({ Tipo_Pedido: 'Remessa', pedido_omie: '  ' })).rotulo).toBe('A faturar')
+  })
+
+  it('pedido aberto = a faturar, sem alarme', () => {
+    const s = situacaoFaturamentoPpv(cab())
+    expect(s.rotulo).toBe('A faturar')
+    expect(s.faturado).toBe(false)
+    expect(s.alerta).toBe(false)
+  })
+
+  it('cancelado não é alerta — não faturou e não vai', () => {
+    for (const st of ['Cancelada', 'Cancelado']) {
+      const s = situacaoFaturamentoPpv(cab({ status: st }))
+      expect(s.rotulo, st).toBe('Cancelado')
+      expect(s.alerta, st).toBe(false)
+    }
+  })
+
+  it('pedido LANÇADO no Omie não acende alerta — é o normal deste banco', () => {
+    // medido em 26/08/2026: faturado_omie_em existe em 4 de 447 pedidos, mas
+    // 93 dos 133 "Concluída" têm pedido_omie. Sem este ramo, 281 pedidos
+    // normais apareceriam como pendência e o alerta viraria ruído
+    for (const st of ['Concluída', 'Fechado', 'Enviado Omie']) {
+      const s = situacaoFaturamentoPpv(cab({ status: st, pedido_omie: '000000000007186' }))
+      expect(s.rotulo, st).toBe('No Omie')
+      expect(s.alerta, st).toBe(false)
+      expect(s.omie, st).toBe('000000000007186')
+    }
+  })
+
+  it('ENCERRADO sem vestígio nenhum é o caso que precisa de gente', () => {
+    // peça saiu do estoque, pedido fechou, não foi ao Omie e não virou nota
+    for (const st of ['Concluída', 'Fechado']) {
+      const s = situacaoFaturamentoPpv(cab({ status: st }))
+      expect(s.rotulo, st).toBe('Sem nota')
+      expect(s.alerta, st).toBe(true)
+      expect(s.faturado, st).toBe(false)
+    }
+  })
+
+  it('faturamento vence o status terminal (fecha DEPOIS de faturar)', () => {
+    const s = situacaoFaturamentoPpv(cab({ status: 'Fechado', faturado_omie_em: '2026-08-01T10:00:00Z' }))
+    expect(s.rotulo).toBe('Faturado')
+    expect(s.alerta).toBe(false)
+  })
+
+  it('cancelado vence o "No Omie" — pedido cancelado depois de lançado', () => {
+    const s = situacaoFaturamentoPpv(cab({ status: 'Cancelada', pedido_omie: '000000000007186' }))
+    expect(s.rotulo).toBe('Cancelado')
+    expect(s.alerta).toBe(false)
+  })
+
+  it('`faturado` não pode divergir de ppvFaturado — é quem aplica a unidade', () => {
+    const casos = [
+      cab(),
+      cab({ faturado_omie_em: '2026-08-26T18:00:00Z' }),
+      cab({ Tipo_Pedido: 'Remessa', pedido_omie: '7353' }),
+      cab({ Tipo_Pedido: 'Remessa' }),
+      cab({ pedido_omie: '000000000007186' }),   // Pedido no Omie: NÃO é faturado
+      cab({ status: 'Cancelada' }),
+    ]
+    for (const c of casos) {
+      expect(situacaoFaturamentoPpv(c).faturado, JSON.stringify(c)).toBe(ppvFaturado(c))
+    }
+  })
+
+  it('NF vazia não vira "NF " pendurado no selo', () => {
+    expect(situacaoFaturamentoPpv(cab({ faturado_omie_em: '2026-08-26T18:00:00Z', nf_numero: '  ' })).nf).toBeNull()
+  })
+})
+
+describe('atalho da unidade na fila de peças', () => {
+  const U = '5e7d3f11-307b-4a63-926c-651f75a887ff'
+
+  it('com pedido, vai pro PEDIDO — mesmo tendo OS junto', () => {
+    const a = alvoDaUnidade({ id: U, destino_ppv: 'PPV-0435', destino_os: 'OS-0713' })
+    expect(a.tipo).toBe('ppv')
+    expect(a.href).toBe('/ppv?id=PPV-0435')
+    expect(a.titulo).toContain('PPV-0435')
+  })
+
+  it('sem pedido mas com OS, vai pra OS — pelo parâmetro que /pos lê', () => {
+    const a = alvoDaUnidade({ id: U, destino_os: 'OS-0713' })
+    expect(a.tipo).toBe('os')
+    // /pos abre o drawer por searchParams.get("id"); com ?os= a tela abria o
+    // kanban e ignorava a OS (era assim o link da coluna Destino até 26/08)
+    expect(a.href).toBe('/pos?id=OS-0713')
+    expect(a.href).not.toContain('?os=')
+  })
+
+  it('sem nenhum dos dois, cai na página de rastreio', () => {
+    expect(alvoDaUnidade({ id: U })).toEqual({
+      href: `/p/${U}`, titulo: 'Abrir página de rastreio', tipo: 'rastreio',
+    })
+  })
+
+  it('string vazia e espaços não contam como vínculo', () => {
+    // destino_ppv:'' viraria "/ppv?id=" e abriria o kanban sem pedido nenhum
+    expect(alvoDaUnidade({ id: U, destino_ppv: '', destino_os: '  ' }).tipo).toBe('rastreio')
+    expect(alvoDaUnidade({ id: U, destino_ppv: null, destino_os: 'OS-1' }).tipo).toBe('os')
   })
 })
 

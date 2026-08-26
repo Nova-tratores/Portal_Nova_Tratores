@@ -6,6 +6,7 @@ import { randomUUID } from 'crypto';
 import { supabase } from '@/lib/pos/supabase';
 import { exigirPermissao } from '@/lib/ajustes/permissao-server';
 import { exigirSessao } from '@/lib/pecas/unidades-server';
+import { situacaoFaturamentoPpv } from '@/lib/pecas/os-ppv-regras';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -124,9 +125,39 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     if (soCount) return NextResponse.json({ total: count || 0 });
-    return NextResponse.json({ unidades: data || [], total: count ?? (data || []).length });
+    return NextResponse.json({
+      unidades: data || [],
+      total: count ?? (data || []).length,
+      // "essa peça já virou nota?" — a resposta mora no PEDIDO, não na unidade
+      pedidos: await situacaoDosPedidos((data as any[]) || []),
+    });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'erro' }, { status: httpDe(e) });
+  }
+}
+
+/**
+ * Situação de faturamento dos pedidos citados NAS LINHAS DESTA PÁGINA.
+ *
+ * Uma consulta só, pelos ids que apareceram (no máximo 200 linhas por página),
+ * em vez de uma por peça. Best-effort: se falhar, a fila continua aparecendo —
+ * só fica sem o selo, que é informação acessória.
+ */
+async function situacaoDosPedidos(unidades: any[]): Promise<Record<string, unknown>> {
+  const ids = [...new Set(unidades.map((u) => String(u?.destino_ppv || '').trim()).filter(Boolean))];
+  if (ids.length === 0) return {};
+  try {
+    const { data } = await supabase
+      .from('pedidos')
+      .select('id_pedido, status, Tipo_Pedido, pedido_omie, faturado_omie_em, nf_numero')
+      .in('id_pedido', ids);
+    const out: Record<string, unknown> = {};
+    for (const p of (data as any[]) || []) {
+      out[String(p.id_pedido)] = { ...situacaoFaturamentoPpv(p), status: String(p.status || '') };
+    }
+    return out;
+  } catch {
+    return {};
   }
 }
 

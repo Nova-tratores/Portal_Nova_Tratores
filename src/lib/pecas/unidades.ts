@@ -130,3 +130,34 @@ export const TRANSICOES: Record<UnidadeAcao, { de: UnidadeStatus[]; para: Unidad
 
 // comparação de códigos de peça (relatório do técnico × unidade)
 export const norm = (s: string | null | undefined) => String(s || '').trim().toUpperCase();
+
+export interface AlvoUnidade {
+  href: string;
+  titulo: string;
+  tipo: 'ppv' | 'os' | 'rastreio';
+}
+
+/**
+ * Pra onde o atalho de uma unidade leva na fila de peças.
+ *
+ * Ordem pedida pelo usuário: o PEDIDO primeiro, depois a OS, e só então a
+ * página de rastreio. Quem está na fila quer ver o documento comercial da
+ * peça — a página de rastreio é o que ele já tem na frente em forma de linha.
+ * Ela continua a um clique: o número da unidade linka pra lá.
+ *
+ * "Tem pedido" = `destino_ppv` preenchido, esteja ele aberto ou já faturado —
+ * pedido fechado é justamente o que alguém quer conferir quando a peça saiu.
+ */
+export function alvoDaUnidade(u: {
+  id: string;
+  destino_ppv?: string | null;
+  destino_os?: string | null;
+}): AlvoUnidade {
+  const ppv = String(u.destino_ppv || '').trim();
+  if (ppv) return { href: `/ppv?id=${encodeURIComponent(ppv)}`, titulo: `Abrir o pedido ${ppv}`, tipo: 'ppv' };
+  const os = String(u.destino_os || '').trim();
+  // é `?id=` mesmo, não `?os=`: /pos lê searchParams.get("id") pra abrir o
+  // drawer da OS (mesmo parâmetro dos links de notificação do módulo)
+  if (os) return { href: `/pos?id=${encodeURIComponent(os)}`, titulo: `Abrir a ${os}`, tipo: 'os' };
+  return { href: `/p/${u.id}`, titulo: 'Abrir página de rastreio', tipo: 'rastreio' };
+}
