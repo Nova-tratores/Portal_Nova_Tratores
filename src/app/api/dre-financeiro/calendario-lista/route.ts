@@ -1,16 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import {
-  CONTA_PADRAO,
-  TIPO_PADRAO,
-  TIPOS_VALIDOS,
-  tabelaPorTipo,
-  colunaNomePorTipo,
-  aplicarConta,
-  aplicarFiltrosExtras,
-  filtraPorStatus,
-  escondeVencidoAntigo,
-} from '@/lib/dre-financeiro/calc'
-import { hoje, statusDerivado } from '@/lib/dre-financeiro/dates'
+import { CONTA_PADRAO, TIPO_PADRAO, TIPOS_VALIDOS } from '@/lib/dre-financeiro/calc'
+import { buscarTitulosLista, type EixoLista } from '@/lib/dre-financeiro/lista'
 // @ts-ignore - modulo CommonJS sem tipos
 import { supabaseAdmin as supabase } from '@/lib/dre-financeiro/supabase'
 
@@ -48,7 +38,9 @@ function montaQuery(request: NextRequest): Record<string, string> {
 }
 
 // =============================================================================
-// API: lista de titulos por intervalo (de+ate) - alimenta a visao em lista
+// API: lista de titulos por intervalo (de+ate) - alimenta a visao em lista.
+// A busca em si vive em @/lib/dre-financeiro/lista (compartilhada com o cron
+// do relatorio semanal).
 // =============================================================================
 export async function GET(request: NextRequest) {
   if (!supabase) return NextResponse.json({ erro: 'Supabase nao configurado' }, { status: 500 })
@@ -57,68 +49,12 @@ export async function GET(request: NextRequest) {
     const tipo = pegaTipo(request)
     const q = montaQuery(request)
     const eixoRaw = request.nextUrl.searchParams.get('eixo')
-    const eixo = eixoRaw === 'emissao' || eixoRaw === 'inclusao' ? eixoRaw : 'vencimento'
-    const campoData = eixo === 'emissao' ? 'data_emissao' : eixo === 'inclusao' ? 'data_inclusao' : 'data_vencimento'
+    const eixo: EixoLista = eixoRaw === 'emissao' || eixoRaw === 'inclusao' ? eixoRaw : 'vencimento'
     const de = request.nextUrl.searchParams.get('de')
     const ate = request.nextUrl.searchParams.get('ate')
     if (!de || !ate) return NextResponse.json({ erro: 'informe de+ate' }, { status: 400 })
-    // data_inclusao e timestamp: estende o limite superior ate o fim do dia.
-    const ateQ = eixo === 'inclusao' ? `${ate} 23:59:59` : ate
 
-    const tipos = tipo === 'ambos' ? ['pagar', 'receber'] : [tipo]
-    const COLS = 'codigo_lancamento,conta_omie,numero_documento,numero_documento_fiscal,' +
-                 'numero_parcela,data_emissao,data_inclusao,data_vencimento,data_pagamento,valor_documento,' +
-                 'valor_pago,status_titulo,grupo_categoria,descricao_categoria,descricao_departamento'
-    const ref = hoje()
-
-    const todas: any[] = []
-    for (const t of tipos) {
-      const tabela = tabelaPorTipo(t)
-      const colNome = colunaNomePorTipo(t)
-      const PAGINA = 1000
-      let off = 0
-      for (;;) {
-        let query = supabase.from(tabela)
-          .select(`${COLS},${colNome}`)
-          .gte(campoData, de)
-          .lte(campoData, ateQ)
-          .order('codigo_lancamento', { ascending: true })
-          .range(off, off + PAGINA - 1)
-        query = aplicarConta(query, conta)
-        query = aplicarFiltrosExtras(query, q)
-        const { data, error } = await query
-        if (error) throw new Error(error.message)
-        const lote = data || []
-        lote.forEach((r: any) => todas.push({ ...r, _tipo: t, _nome: r[colNome] || null }))
-        if (lote.length < PAGINA) break
-        off += PAGINA
-      }
-    }
-
-    // escondeVencidoAntigo (por data_vencimento) so se aplica ao eixo vencimento;
-    // nos eixos emissao/inclusao a janela ja e por aquela coluna.
-    const semLixo = eixo === 'vencimento' ? escondeVencidoAntigo(todas, ref) : todas
-    const filtradas = filtraPorStatus(semLixo, q.status)
-    const titulos = filtradas.map((r: any) => ({
-      tipo: r._tipo,
-      codigo_lancamento: r.codigo_lancamento,
-      conta_omie: r.conta_omie,
-      nome_contraparte: r._nome,
-      numero_documento: r.numero_documento,
-      numero_documento_fiscal: r.numero_documento_fiscal,
-      numero_parcela: r.numero_parcela,
-      data_emissao: r.data_emissao,
-      data_inclusao: r.data_inclusao,
-      data_vencimento: r.data_vencimento,
-      data_pagamento: r.data_pagamento,
-      valor_documento: Number(r.valor_documento) || 0,
-      valor_pago: Number(r.valor_pago) || 0,
-      status_titulo: r.status_titulo,
-      status_derivado: statusDerivado(r, ref),
-      grupo_categoria: r.grupo_categoria,
-      descricao_categoria: r.descricao_categoria,
-      descricao_departamento: r.descricao_departamento
-    }))
+    const titulos = await buscarTitulosLista({ conta, tipo, de, ate, eixo, q })
     return NextResponse.json({ titulos, total: titulos.length })
   } catch (e: any) {
     console.error(e)
