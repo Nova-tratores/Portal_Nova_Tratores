@@ -4,6 +4,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { Copy, Printer, X } from 'lucide-react';
+import { urlDaUnidade, urlDaUnidadeLegivel } from '@/lib/ppv/etiquetas-html';
 
 export default function QRUnidadeModal({ unidadeId, numero, codigo, onClose }: {
   unidadeId: string;
@@ -13,12 +14,19 @@ export default function QRUnidadeModal({ unidadeId, numero, codigo, onClose }: {
 }) {
   const [dataUrl, setDataUrl] = useState('');
   const [copiado, setCopiado] = useState(false);
-  const url = typeof window !== 'undefined' ? `${window.location.origin}/p/${unidadeId}` : '';
+  // Dois usos do MESMO endereço, cada um na forma que serve:
+  //  · urlQR       — maiúscula, que é o que encolhe o QR (modo alfanumérico).
+  //                  Igual à da etiqueta: a unidade tem um endereço só.
+  //  · urlLegivel  — a de sempre, que é a que aparece e é copiada. Maiúscula
+  //                  colada numa conversa parece grito e não ajuda ninguém.
+  // As duas abrem a mesma página; a rota ignora a caixa.
+  const urlQR = typeof window !== 'undefined' ? urlDaUnidade(window.location.origin, unidadeId) : '';
+  const url = typeof window !== 'undefined' ? urlDaUnidadeLegivel(window.location.origin, unidadeId) : '';
 
   useEffect(() => {
-    if (!url) return;
-    QRCode.toDataURL(url, { width: 520, margin: 2 }).then(setDataUrl).catch(() => setDataUrl(''));
-  }, [url]);
+    if (!urlQR) return;
+    QRCode.toDataURL(urlQR, { width: 520, margin: 2 }).then(setDataUrl).catch(() => setDataUrl(''));
+  }, [urlQR]);
 
   const copiar = async () => {
     try {
@@ -49,6 +57,20 @@ export default function QRUnidadeModal({ unidadeId, numero, codigo, onClose }: {
           ? /* eslint-disable-next-line @next/next/no-img-element */
             <img src={dataUrl} alt="QR Code da unidade" style={{ width: 220, height: 220, display: 'block', margin: '0 auto' }} />
           : <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>Gerando…</div>}
+        {/* o endereço à vista e clicável: dá pra abrir na hora, conferir se é a
+            peça certa e copiar sabendo o que está copiando */}
+        {url && (
+          <a
+            href={url} target="_blank" rel="noreferrer"
+            title="Abrir a página de rastreio desta peça"
+            style={{
+              display: 'block', marginTop: 10, fontSize: 10.5, lineHeight: 1.4,
+              color: '#0ea5e9', wordBreak: 'break-all', textDecoration: 'none',
+            }}
+          >
+            {url}
+          </a>
+        )}
         <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 10 }}>
           <button onClick={copiar} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: '1px solid #cbd5e1', background: '#fff', color: '#334155', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
             <Copy size={13} /> {copiado ? 'Copiado!' : 'Copiar link'}

@@ -241,6 +241,22 @@ export function urlDaUnidade(origem: string, unidadeId: string): string {
   return `${origem}/p/${unidadeId}`.toUpperCase()
 }
 
+/**
+ * O MESMO endereço, na forma de sempre — é esta que se mostra e se copia.
+ *
+ * A maiúscula existe só pra encolher o QR; para gente ela não serve de nada e
+ * ainda parece grito quando colada numa conversa. As duas abrem a mesma página
+ * (a rota /p/[id] valida o UUID com regex /i e a coluna do Postgres é `uuid`,
+ * que ignora a caixa).
+ *
+ * Estão as duas AQUI de propósito: quando cada tela montava o endereço por
+ * conta, o modal do QR e a etiqueta passaram a gerar links diferentes pra mesma
+ * peça — e ninguém percebeu até alguém conferir na mão.
+ */
+export function urlDaUnidadeLegivel(origem: string, unidadeId: string): string {
+  return `${origem}/p/${unidadeId}`.toLowerCase()
+}
+
 export function qrSvg(modules: { size: number; data: ArrayLike<number> } | null | undefined): string {
   const n = modules?.size || 0
   if (!n || !modules) return ''
