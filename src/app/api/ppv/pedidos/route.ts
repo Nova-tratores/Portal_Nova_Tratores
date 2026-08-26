@@ -227,7 +227,10 @@ export async function PATCH(req: NextRequest) {
     const userName = dados.userName || "Sistema";
 
     await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${dados.id}`, "PATCH", payload);
-    if (dados.osId) await vincularPPVnaOS(dados.osId, dados.id);
+    // osId "" / "Nenhuma" = DESVINCULAR: o vincularPPVnaOS com ordem vazia
+    // remove o PPV da lista ID_PPV de todas as OS (antes o `if (dados.osId)`
+    // pulava a limpeza e o vínculo ficava preso na OS).
+    if (dados.osId !== undefined) await vincularPPVnaOS(dados.osId || "", dados.id);
 
     // PPV cancelado: solta as unidades rastreadas — reservas voltam ao
     // estoque; liberadas viram devolução pendente (conferência física)
