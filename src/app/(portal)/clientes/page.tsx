@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -59,6 +59,15 @@ function parseOmieTags(raw: any): string[] {
   } catch { return [] }
 }
 const REVISOES_HORAS = ['50h','300h','600h','900h','1200h','1500h','1800h','2100h','2400h','2700h','3000h']
+
+// Cache da PASTA do cliente (vive enquanto a aba estiver aberta):
+// reabrir um cliente é instantâneo — mostra o que já temos e re-busca por
+// baixo. O hover na lista pré-carrega; a pasta aberta revalida a cada 30s
+// e ao voltar pra aba.
+type DetalheCache = { ordens: any[]; pedidos: any[]; feedbacks: any[]; tags: string[]; lembretes: any[] }
+const cacheDetalhe = new Map<string, DetalheCache>()
+const prefetchando = new Set<string>()
+const chaveCliente = (c: { cod_cli: number | string; empresa: string }) => `${c.cod_cli}|${c.empresa}`
 
 function formatCNPJ(v: string) {
   if (!v) return ''
@@ -391,37 +400,95 @@ function ClientesPageInner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientes, urlClienteTratada])
 
-  const abrirDetalhe = async (cliente: Cliente) => {
-    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setLoadingDetalhe(true); setLembretesCliente([]); setEtiquetasCliente([]); setFeedbacksCliente([]); setTagsOmieCliente([]); setDescricaoCliente(''); setDescricaoLocal(''); setModalEtiqueta(false)
-    // Reflete o cliente aberto na URL (dá pra linkar/favoritar/voltar direto)
-    if (typeof window !== 'undefined') window.history.replaceState(null, '', `/clientes?cod=${cliente.cod_cli}&doc=${encodeURIComponent(cliente.cnpj_cpf || '')}`)
-    try { const res = await fetch(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`); const data = await res.json(); setOrdens(data.ordens || [])
-      setPedidos((data.pedidos || []).map((pv: any) => ({ ...pv, itens: typeof pv.itens === 'string' ? JSON.parse(pv.itens) : (pv.itens || []) })))
-    } catch {} setLoadingDetalhe(false)
-    // Feedbacks/atendimentos do cliente (modulo Feedbacks & CRM) — ligados por codigo_omie = cod_cli
-    try {
-      const { data: fbs } = await supabase
+  // Busca TUDO da pasta em PARALELO, aplicando cada pedaço assim que chega
+  // (e guardando no cache). Só aplica na tela se o cliente ainda for o aberto.
+  const chaveAbertaRef = useRef('')
+  const buscarDetalhe = useCallback(async (cliente: Cliente) => {
+    const chave = chaveCliente(cliente)
+    const aplicar = (parte: Partial<DetalheCache>) => {
+      const atual = cacheDetalhe.get(chave) || { ordens: [], pedidos: [], feedbacks: [], tags: [], lembretes: [] }
+      Object.assign(atual, parte)
+      cacheDetalhe.set(chave, atual)
+      if (chaveAbertaRef.current !== chave) return
+      if (parte.ordens !== undefined) setOrdens(parte.ordens)
+      if (parte.pedidos !== undefined) setPedidos(parte.pedidos)
+      if (parte.feedbacks !== undefined) setFeedbacksCliente(parte.feedbacks)
+      if (parte.tags !== undefined) setTagsOmieCliente(parte.tags)
+      if (parte.lembretes !== undefined) setLembretesCliente(parte.lembretes)
+    }
+    await Promise.all([
+      // OS + Pedidos (o grosso da pasta)
+      fetch(`/api/clientes?codCli=${cliente.cod_cli}&empresa=${encodeURIComponent(cliente.empresa)}`)
+        .then((res) => res.json())
+        .then((data) => aplicar({
+          ordens: data.ordens || [],
+          pedidos: (data.pedidos || []).map((pv: any) => ({ ...pv, itens: typeof pv.itens === 'string' ? JSON.parse(pv.itens) : (pv.itens || []) })),
+        }))
+        .catch(() => {})
+        .finally(() => { if (chaveAbertaRef.current === chave) setLoadingDetalhe(false) }),
+      // Feedbacks/atendimentos (modulo Feedbacks & CRM)
+      supabase
         .from('feedback_registros')
         .select('id,tipo,data_contato,status_atendimento,nota,acao,feedback,trator,atendente_nome,criado_em')
         .eq('codigo_omie', String(cliente.cod_cli))
         .order('criado_em', { ascending: false })
-      setFeedbacksCliente(fbs || [])
-    } catch {}
-    // Tags do Omie (mesmas do modulo Feedback) — espelho em portal_nt_clientes_cadastro_omie
-    try {
-      const { data: cad } = await supabase
+        .then(({ data: fbs }) => aplicar({ feedbacks: fbs || [] })),
+      // Tags do Omie (espelho em portal_nt_clientes_cadastro_omie)
+      supabase
         .from('portal_nt_clientes_cadastro_omie')
         .select('tags')
         .eq('cod_cli', cliente.cod_cli)
         .eq('empresa', cliente.empresa)
         .maybeSingle()
-      setTagsOmieCliente(parseOmieTags(cad?.tags))
-    } catch {}
-    if (cliente.cnpj_cpf) {
-      try { const res = await fetch(`/api/pos/lembretes?cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}`); const data = await res.json(); if (Array.isArray(data)) setLembretesCliente(data) } catch {}
-      carregarEtiquetasCliente(cliente.cnpj_cpf)
-    }
+        .then(({ data: cad }) => aplicar({ tags: parseOmieTags(cad?.tags) })),
+      // Lembretes de revisão (por CNPJ)
+      cliente.cnpj_cpf
+        ? fetch(`/api/pos/lembretes?cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}`)
+            .then((res) => res.json())
+            .then((data) => { if (Array.isArray(data)) aplicar({ lembretes: data }) })
+            .catch(() => {})
+        : Promise.resolve(),
+    ])
+  }, [])
+
+  // Pré-carrega a pasta quando o mouse passa na lista (clicar = instantâneo)
+  const prefetchDetalhe = (cliente: Cliente) => {
+    const chave = chaveCliente(cliente)
+    if (cacheDetalhe.has(chave) || prefetchando.has(chave)) return
+    prefetchando.add(chave)
+    buscarDetalhe(cliente).finally(() => prefetchando.delete(chave))
   }
+
+  const abrirDetalhe = async (cliente: Cliente) => {
+    const chave = chaveCliente(cliente)
+    chaveAbertaRef.current = chave
+    setSelectedCliente(cliente); setExpandedOS(null); setModalProjeto(null); setEmailsData({}); setEtiquetasCliente([]); setDescricaoCliente(''); setDescricaoLocal(''); setModalEtiqueta(false)
+    // Reflete o cliente aberto na URL (dá pra linkar/favoritar/voltar direto)
+    if (typeof window !== 'undefined') window.history.replaceState(null, '', `/clientes?cod=${cliente.cod_cli}&doc=${encodeURIComponent(cliente.cnpj_cpf || '')}`)
+    const emCache = cacheDetalhe.get(chave)
+    if (emCache) {
+      // Pasta abre NA HORA com o que já temos; a re-busca corre por baixo
+      setOrdens(emCache.ordens); setPedidos(emCache.pedidos); setFeedbacksCliente(emCache.feedbacks)
+      setTagsOmieCliente(emCache.tags); setLembretesCliente(emCache.lembretes)
+      setLoadingDetalhe(false)
+    } else {
+      setOrdens([]); setPedidos([]); setLembretesCliente([]); setFeedbacksCliente([]); setTagsOmieCliente([])
+      setLoadingDetalhe(true)
+    }
+    if (cliente.cnpj_cpf) carregarEtiquetasCliente(cliente.cnpj_cpf)
+    await buscarDetalhe(cliente)
+  }
+
+  // Pasta VIVA: revalida a cada 30s enquanto aberta e ao voltar pra aba
+  useEffect(() => {
+    if (!selectedCliente) return
+    const alvo = selectedCliente
+    const revalidar = () => buscarDetalhe(alvo)
+    const t = setInterval(revalidar, 30000)
+    const aoFocar = () => { if (document.visibilityState === 'visible') revalidar() }
+    document.addEventListener('visibilitychange', aoFocar)
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', aoFocar) }
+  }, [selectedCliente, buscarDetalhe])
 
   const abrirAnexar = (tipo: 'os' | 'pv') => { setAnexErro(''); setAnexNumero(''); setAnexFile(null); setAnexNfFile(null); setAnexPvVinc(''); setAnexPvFile(null); setAnexPvNfFile(null); setAnexInterno(false); setShowAnexar(tipo) }
   const anexarItem = async () => {
@@ -2784,7 +2851,7 @@ function ClientesPageInner() {
           {filtered.slice(0, 200).map((cli, idx) => (
             isMobile ? (
               // MOBILE: cartão (a grade de 8 colunas não cabe no celular)
-              <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)}
+              <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)} onMouseEnter={() => prefetchDetalhe(cli)}
                 style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: 14, cursor: 'pointer', boxShadow: '0 1px 2px var(--portal-shadow)' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 15, color: 'var(--portal-text)', fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{cli.nome_fantasia || cli.razao_social}</span>
@@ -2800,7 +2867,7 @@ function ClientesPageInner() {
                 </div>
               </div>
             ) : (
-            <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)}
+            <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)} onMouseEnter={() => prefetchDetalhe(cli)}
               style={{
                 display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px', columnGap: 16,
                 padding: '14px 20px', borderBottom: '1px solid var(--portal-border)', alignItems: 'center', cursor: 'pointer',
