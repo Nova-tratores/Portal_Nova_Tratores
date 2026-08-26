@@ -42,7 +42,8 @@ export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   const [config, status] = await Promise.all([lerJson(ARQ_CONFIG), lerJson(ARQ_STATUS)]);
-  return NextResponse.json({ config, status });
+  // no-store: nenhum navegador/proxy segura a lista de disparos antiga
+  return NextResponse.json({ config, status }, { headers: { "Cache-Control": "no-store" } });
 }
 
 export async function POST(req: NextRequest) {
