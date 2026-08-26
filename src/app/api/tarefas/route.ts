@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
       .select(`
         *,
         criador:financeiro_usu!portal_tarefas_criado_por_fkey(id, nome, avatar_url),
-        atribuido:financeiro_usu!portal_tarefas_atribuido_a_fkey(id, nome, avatar_url)
+        atribuido:financeiro_usu!portal_tarefas_atribuido_a_fkey(id, nome, avatar_url, ativo)
       `)
       .order('created_at', { ascending: false })
 

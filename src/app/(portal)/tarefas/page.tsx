@@ -14,6 +14,7 @@ interface PortalUser {
   id: string
   nome: string
   avatar_url: string
+  ativo?: boolean
 }
 
 interface Tarefa {
@@ -66,13 +67,13 @@ function formatDateRelative(d: string | null) {
 
 function TarefasPageInner() {
   const { userProfile } = useAuth()
-  const { pode } = usePermissoes(userProfile?.id)
+  const { pode, isAdmin } = usePermissoes(userProfile?.id)
   const podeCriar = pode('tarefas', 'criar')
   const podeConcluir = pode('tarefas', 'concluir')
   const [allTarefas, setAllTarefas] = useState<Tarefa[]>([])
   const [users, setUsers] = useState<PortalUser[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'minhas' | 'enviadas'>('minhas')
+  const [tab, setTab] = useState<'minhas' | 'enviadas' | 'orfas'>('minhas')
   const [showCreate, setShowCreate] = useState(false)
   const [search, setSearch] = useState('')
   const [showConcluidas, setShowConcluidas] = useState(false)
@@ -106,7 +107,10 @@ function TarefasPageInner() {
   const tarefasFiltradas = useMemo(() => {
     let filtered = allTarefas
 
-    if (userProfile?.id) {
+    if (tab === 'orfas') {
+      // tarefas ABERTAS de usuário INATIVO ou SEM responsável (rede de segurança do admin)
+      filtered = filtered.filter(t => !t.concluida && (t.atribuido_a == null || t.atribuido?.ativo === false))
+    } else if (userProfile?.id) {
       if (tab === 'minhas') {
         filtered = filtered.filter(t => t.atribuido_a === userProfile.id)
       } else if (tab === 'enviadas') {
@@ -154,6 +158,20 @@ function TarefasPageInner() {
     }
   }
 
+  // nº de tarefas órfãs (abertas de usuário inativo ou sem responsável) — badge da aba
+  const totalOrfas = useMemo(
+    () => allTarefas.filter(t => !t.concluida && (t.atribuido_a == null || t.atribuido?.ativo === false)).length,
+    [allTarefas],
+  )
+  // reatribui UMA tarefa (usa o PATCH que já aceita atribuido_a)
+  const reatribuir = async (id: number, para: string) => {
+    if (!para) return
+    setAllTarefas(prev => prev.map(t => (t.id === id ? { ...t, atribuido_a: para, atribuido: users.find(u => u.id === para) || t.atribuido } : t)))
+    try {
+      await fetch(`/api/tarefas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ atribuido_a: para }) })
+    } catch (err) { console.error(err); carregarTudo() }
+  }
+
   return (
     <div style={{ fontFamily: 'Montserrat, sans-serif', color: '#1a1a1a' }}>
       {/* Header */}
@@ -171,15 +189,15 @@ function TarefasPageInner() {
           </div>
 
           <div style={{ display: 'flex', background: '#f5f5f5', borderRadius: '10px', padding: '3px' }}>
-            {(['minhas', 'enviadas'] as const).map(t => (
+            {(['minhas', 'enviadas', ...(isAdmin ? ['orfas'] as const : [])] as const).map(t => (
               <button key={t} onClick={() => setTab(t)} style={{
                 padding: '8px 20px', borderRadius: '8px', border: 'none',
-                background: tab === t ? '#dc2626' : 'transparent',
+                background: tab === t ? (t === 'orfas' ? '#b45309' : '#dc2626') : 'transparent',
                 color: tab === t ? '#fff' : '#737373',
                 fontSize: '13px', fontWeight: '600', cursor: 'pointer',
                 transition: 'all 0.2s'
               }}>
-                {t === 'minhas' ? 'Minhas Tarefas' : 'Tarefas Enviadas'}
+                {t === 'minhas' ? 'Minhas Tarefas' : t === 'enviadas' ? 'Tarefas Enviadas' : `Órfãs${totalOrfas ? ` (${totalOrfas})` : ''}`}
               </button>
             ))}
           </div>
@@ -235,19 +253,30 @@ function TarefasPageInner() {
           <div style={{ padding: '60px', textAlign: 'center' }}>
             <ClipboardCheck size={48} color="#e5e5e5" style={{ margin: '0 auto 16px', display: 'block' }} />
             <p style={{ color: '#a3a3a3', fontSize: '15px' }}>
-              {search ? 'Nenhuma tarefa encontrada' : tab === 'minhas' ? 'Nenhuma tarefa atribuída a você' : 'Você ainda não enviou tarefas'}
+              {search ? 'Nenhuma tarefa encontrada' : tab === 'minhas' ? 'Nenhuma tarefa atribuída a você' : tab === 'orfas' ? 'Nenhuma tarefa órfã 🎉' : 'Você ainda não enviou tarefas'}
             </p>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
             {tarefasFiltradas.map(t => (
-              <TarefaCard
-                key={t.id}
-                tarefa={t}
-                onToggleDone={() => marcarConcluida(t.id, !t.concluida)}
-                showAssignee={tab === 'enviadas'}
-                onClick={() => setTarefaAberta(t)}
-              />
+              <div key={t.id}>
+                <TarefaCard
+                  tarefa={t}
+                  onToggleDone={() => marcarConcluida(t.id, !t.concluida)}
+                  showAssignee={tab === 'enviadas' || tab === 'orfas'}
+                  onClick={() => setTarefaAberta(t)}
+                />
+                {tab === 'orfas' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderTop: 'none', borderRadius: '0 0 8px 8px' }}>
+                    <span>{t.atribuido_a == null ? 'sem responsável' : `responsável inativo: ${t.atribuido?.nome || '—'}`} · reatribuir para</span>
+                    <select defaultValue="" onChange={(e) => reatribuir(t.id, e.target.value)}
+                      style={{ fontSize: 12, border: '1px solid #cbd5e1', borderRadius: 6, padding: '3px 6px', background: '#fff' }}>
+                      <option value="">(escolher)</option>
+                      {users.filter(u => u.ativo !== false).map(u => <option key={u.id} value={u.id}>{u.nome}</option>)}
+                    </select>
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         )}
