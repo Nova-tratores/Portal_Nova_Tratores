@@ -12,14 +12,10 @@ const nextConfig: NextConfig = {
   // package-lock.json perdido acima do repo (ex.: C:\Users\<user>), e aí
   // externos (pdfkit/pino/rimraf) não resolvem no build.
   turbopack: { root: __dirname },
-  // Etiquetas impressas entre 25 e 26/08/2026 levam o endereço da unidade em
-  // MAIÚSCULAS (era uma tentativa de encolher o QR). Domínio ignora caixa, mas
-  // caminho de rota do Next NÃO: essas etiquetas apontam pra /P/<uuid> e davam
-  // 404. Elas já estão coladas em peça no estoque e não dá pra reimprimir todas
-  // — este redirect é o que as mantém funcionando. Manter enquanto existirem.
-  async redirects() {
-    return [{ source: "/P/:id", destination: "/p/:id", permanent: false }];
-  },
+  // (O resgate das etiquetas com /P/ maiúsculo NÃO cabe aqui: o `source` de
+  //  redirects casa ignorando a caixa, então "/P/:id" pega também "/p/:id" e o
+  //  redirect aponta pra si mesmo — ERR_TOO_MANY_REDIRECTS. Está no
+  //  middleware.ts, onde a comparação é de string e respeita a caixa.)
   async headers() {
     return [
       {
