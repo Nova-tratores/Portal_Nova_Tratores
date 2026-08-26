@@ -1,0 +1,171 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e6]:
+      - generic [ref=e7]:
+        - button [ref=e8] [cursor=pointer]
+        - link [ref=e10] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=e11]
+      - generic [ref=e12]:
+        - button "Chat" [ref=e13] [cursor=pointer]
+        - button "10" [ref=e16] [cursor=pointer]
+        - button "Menu" [ref=e22] [cursor=pointer]
+        - generic "Meu perfil" [ref=e27] [cursor=pointer]:
+          - generic [ref=e29]:
+            - paragraph [ref=e30]: Henri Irneh
+            - paragraph [ref=e31]: Pós-Vendas
+    - generic [ref=e32]:
+      - generic [ref=e34]:
+        - paragraph [ref=e36]: Henri Irneh
+        - paragraph [ref=e37]: Pós-Vendas
+      - generic [ref=e38]:
+        - generic [ref=e39]:
+          - link "Dashboard" [ref=e40] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=e49] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=e55]:
+          - paragraph [ref=e56]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=e58] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=e65] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=e72] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=e78] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=e87] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=e94] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=e101] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=e108] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=e114] [cursor=pointer]:
+            - /url: /cronograma
+        - generic [ref=e120]:
+          - paragraph [ref=e121]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=e123] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=e131] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=e137] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=e144]:
+          - paragraph [ref=e145]: FINANCEIRO
+          - link "Financeiro" [ref=e147] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=e153] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=e159]:
+          - paragraph [ref=e160]: COMERCIAL
+          - link "Proposta Comercial" [ref=e162] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=e169] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Clientes" [ref=e176] [cursor=pointer]:
+            - /url: /clientes
+          - link "Supervisor Vendas" [ref=e183] [cursor=pointer]:
+            - /url: /supervisor-vendas
+          - link "Solicitações de Compras" [ref=e188] [cursor=pointer]:
+            - /url: /decisoes
+        - generic [ref=e196]:
+          - paragraph [ref=e197]: ESTOQUE
+          - link "Visual Estoque" [ref=e199] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=e205] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=e214] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Abastecimento" [ref=e219] [cursor=pointer]:
+            - /url: /abastecimento
+          - link "Omie em Massa" [ref=e226] [cursor=pointer]:
+            - /url: /omie-massa
+        - generic [ref=e231]:
+          - paragraph [ref=e232]: OUTROS
+          - link "Opa" [ref=e234] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=e240] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=e246] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=e263] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=e269] [cursor=pointer]:
+          - /url: /admin
+      - button "Sair do Portal" [ref=e276] [cursor=pointer]
+    - main [ref=e280]:
+      - navigation [ref=e281]:
+        - generic [ref=e282]:
+          - generic [ref=e283]:
+            - generic [ref=e284]: 🏭
+            - text: Estoque
+          - link "Consulta de Produto" [ref=e285] [cursor=pointer]:
+            - /url: /estoque
+        - generic [ref=e286]:
+          - generic [ref=e287]:
+            - generic [ref=e288]: 🔎
+            - text: Consulta
+          - link "Dashboard de Vendas" [ref=e289] [cursor=pointer]:
+            - /url: /estoque/dashboard
+          - link "Cadastro de Produto" [ref=e290] [cursor=pointer]:
+            - /url: /estoque/cadastro-produto
+          - link "Movimentação de Produto" [ref=e291] [cursor=pointer]:
+            - /url: /estoque/movimentacao-produto
+        - generic [ref=e292]:
+          - generic [ref=e293]:
+            - generic [ref=e294]: 📥
+            - text: Entradas
+          - link "Notas de Entrada" [ref=e295] [cursor=pointer]:
+            - /url: /estoque/notas-entrada
+          - link "Recebimentos" [ref=e296] [cursor=pointer]:
+            - /url: /estoque/recebimentos
+        - generic [ref=e297]:
+          - generic [ref=e298]:
+            - generic [ref=e299]: 📊
+            - text: Análise
+          - link "Curva ABC" [ref=e300] [cursor=pointer]:
+            - /url: /estoque/curva-abc
+          - link "Giro de Estoque" [ref=e301] [cursor=pointer]:
+            - /url: /estoque/giro-estoque
+          - link "Cruzamento por Família" [ref=e302] [cursor=pointer]:
+            - /url: /estoque/cruzamento-familia
+          - link "Inteligência Comercial" [ref=e303] [cursor=pointer]:
+            - /url: /estoque/inteligencia-comercial
+          - link "Comissão" [ref=e304] [cursor=pointer]:
+            - /url: /estoque/comissao
+        - generic [ref=e305]:
+          - generic [ref=e306]:
+            - generic [ref=e307]: ⚙️
+            - text: Admin
+          - link "Admin" [ref=e308] [cursor=pointer]:
+            - /url: /estoque/admin
+          - link "Admin CMC" [ref=e309] [cursor=pointer]:
+            - /url: /estoque/admin-cmc
+          - link "Ignorar Clientes" [ref=e310] [cursor=pointer]:
+            - /url: /estoque/ignorar-clientes
+      - generic [ref=e311]:
+        - generic [ref=e312]:
+          - generic [ref=e313]:
+            - heading "Inteligência Comercial" [level=1] [ref=e314]
+            - paragraph [ref=e315]: Compras por produto · Clientes · Oportunidades (RFM) — histórico desde 11/2022
+          - generic [ref=e316]:
+            - generic [ref=e317]: Conta
+            - combobox [ref=e318] [cursor=pointer]:
+              - option "Todas"
+              - option "Nova" [selected]
+              - option "Castro"
+        - link "← Busca" [ref=e320] [cursor=pointer]:
+          - /url: /estoque
+        - generic [ref=e321]:
+          - button "Compras" [ref=e322] [cursor=pointer]
+          - button "Clientes" [ref=e323] [cursor=pointer]
+          - button "Oportunidades (RFM)" [active] [ref=e324] [cursor=pointer]
+        - button "Exportar oportunidades (lista de ligação)" [ref=e326] [cursor=pointer]
+        - generic [ref=e327]: Calculando… (varre todo o histórico, pode levar alguns segundos)
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=e328]:
+      - generic [ref=e331]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=e338] [cursor=pointer]
+  - alert [ref=e342]

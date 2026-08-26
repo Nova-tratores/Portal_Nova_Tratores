@@ -26,8 +26,10 @@ const MODULOS = [
   { id: 'financeiro', label: 'Financeiro', color: '#dc2626' },
   { id: 'fotos-tecnicos', label: 'Fotos Técnicos', color: '#dc2626' },
   { id: 'garantias', label: 'Garantias', color: '#0ea5e9' },
+  { id: 'gestao-vendas', label: 'Gestão de Vendas', color: '#dc2626' },
   { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
+  { id: 'omie-massa', label: 'Omie em Massa', color: '#7c3aed' },
   { id: 'opa', label: 'Opa (Ocorrências)', color: '#dc2626' },
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#3b82f6' },
@@ -40,6 +42,7 @@ const MODULOS = [
   { id: 'tarefas', label: 'Tarefas', color: '#dc2626' },
   { id: 'tickets', label: 'Tickets', color: '#0891b2' },
   { id: 'tratorilson', label: 'Tratorilson (Chat IA)', color: '#ef4444' },
+  { id: 'war-room', label: 'War Room', color: '#b91c1c' },
 ]
 
 const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro']

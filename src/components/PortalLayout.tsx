@@ -14,7 +14,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Fuel, Ticket
+  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Fuel, Ticket, ShoppingCart
 } from 'lucide-react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -79,6 +79,7 @@ const navItems: NavItem[] = [
   { id: 'feedbacks', name: 'Feedbacks & CRM', href: '/feedbacks', icon: <Megaphone size={18} />, tag: 'CRM', gradient: '', group: 'comercial' },
   { id: 'clientes', name: 'Clientes', href: '/clientes', icon: <Building size={18} />, tag: 'CLIENTES', gradient: '', group: 'comercial' },
   { id: 'supervisor-vendas', name: 'Supervisor Vendas', href: '/supervisor-vendas', icon: <SlidersHorizontal size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },
+  { id: 'decisoes', name: 'Solicitações de Compras', href: '/decisoes', icon: <ShoppingCart size={18} />, tag: 'GOVERNANÇA', gradient: '', group: 'comercial' },
 
   // Estoque (vermelho)
   { id: 'consulta-estoque', name: 'Visual Estoque', href: '/visual-estoque', icon: <BarChart3 size={18} />, tag: 'VISUAL', gradient: '', group: 'estoque' },
@@ -87,6 +88,7 @@ const navItems: NavItem[] = [
   { id: 'abastecimento', name: 'Abastecimento', href: '/abastecimento', icon: <Fuel size={18} />, tag: 'FROTA', gradient: '', group: 'estoque' },
 
   // Outros (cinza)
+  { id: 'omie-massa', name: 'Omie em Massa', href: '/omie-massa', icon: <List size={18} />, tag: 'CADASTROS', gradient: '', group: 'estoque' },
   { id: 'opa', name: 'Opa', href: '/opa', icon: <AlertCircle size={18} />, tag: 'OCORRÊNCIAS', gradient: '', group: 'outros' },
   { id: 'atividades', name: 'Atividades', href: '/atividades', icon: <Activity size={18} />, tag: 'LOGS', gradient: '', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', href: 'https://dashboard-agro-sp-production.up.railway.app/', icon: <Wheat size={18} />, tag: 'AGRO', gradient: '', group: 'outros', external: true },
@@ -105,13 +107,14 @@ const NOTIF_ICONS: Record<string, import('react').ReactNode> = {
   admin: <Lock size={18} />,
   sistema: <Bell size={18} />,
   tickets: <Ticket size={18} />,
+  decisoes: <ShoppingCart size={18} />,
 }
 
 // Cor de acento por tipo de notificação
 const NOTIF_COLORS: Record<string, string> = {
   chat: '#3b82f6', financeiro: '#10b981', requisicao: '#f97316', revisao: '#0ea5e9',
   pos: '#0ea5e9', ppv: '#f97316', garantia: '#0ea5e9', proposta: '#8b5cf6',
-  admin: '#dc2626', sistema: '#6b7280', tickets: '#0891b2',
+  admin: '#dc2626', sistema: '#6b7280', tickets: '#0891b2', decisoes: '#7c3aed',
 }
 
 const timeAgo = (date: string) => {

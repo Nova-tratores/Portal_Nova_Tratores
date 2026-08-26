@@ -1,0 +1,233 @@
+- generic [active] [ref=f4e1]:
+  - generic [ref=f4e2]:
+    - banner [ref=f4e16]:
+      - generic [ref=f4e17]:
+        - button [ref=f4e18] [cursor=pointer]
+        - link [ref=f4e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f4e21]
+      - generic [ref=f4e22]:
+        - button "Chat" [ref=f4e23] [cursor=pointer]
+        - button "50" [ref=f4e26] [cursor=pointer]
+        - button "Menu" [ref=f4e32] [cursor=pointer]
+        - generic "Meu perfil" [ref=f4e37] [cursor=pointer]:
+          - generic [ref=f4e39]:
+            - paragraph [ref=f4e40]: Henri Irneh
+            - paragraph [ref=f4e41]: Pós-Vendas
+    - generic [ref=f4e42]:
+      - generic [ref=f4e44]:
+        - paragraph [ref=f4e46]: Henri Irneh
+        - paragraph [ref=f4e47]: Pós-Vendas
+      - generic [ref=f4e48]:
+        - generic [ref=f4e49]:
+          - link "Dashboard" [ref=f4e50] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f4e59] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f4e65]:
+          - paragraph [ref=f4e66]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f4e68] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f4e75] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f4e82] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f4e88] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f4e97] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f4e104] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f4e111] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f4e118] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f4e124] [cursor=pointer]:
+            - /url: /cronograma
+        - generic [ref=f4e130]:
+          - paragraph [ref=f4e131]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f4e133] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f4e141] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f4e147] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f4e154]:
+          - paragraph [ref=f4e155]: FINANCEIRO
+          - link "Financeiro" [ref=f4e157] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f4e163] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f4e169]:
+          - paragraph [ref=f4e170]: COMERCIAL
+          - link "Proposta Comercial" [ref=f4e172] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f4e179] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Clientes" [ref=f4e186] [cursor=pointer]:
+            - /url: /clientes
+          - link "Supervisor Vendas" [ref=f4e193] [cursor=pointer]:
+            - /url: /supervisor-vendas
+        - generic [ref=f4e198]:
+          - paragraph [ref=f4e199]: ESTOQUE
+          - link "Visual Estoque" [ref=f4e201] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f4e207] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f4e216] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Abastecimento" [ref=f4e221] [cursor=pointer]:
+            - /url: /abastecimento
+          - link "Omie em Massa" [ref=f4e228] [cursor=pointer]:
+            - /url: /omie-massa
+        - generic [ref=f4e233]:
+          - paragraph [ref=f4e234]: OUTROS
+          - link "Opa" [ref=f4e236] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f4e242] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f4e248] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f4e265] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f4e271] [cursor=pointer]:
+          - /url: /admin
+      - button "Sair do Portal" [ref=f4e278] [cursor=pointer]
+    - main [ref=f4e282]:
+      - generic [ref=f4e283]:
+        - generic [ref=f4e284]:
+          - generic [ref=f4e285]:
+            - heading "Dashboard de Vendas" [level=1] [ref=f4e286]
+            - paragraph [ref=f4e287]: Vendas por categoria, comparativo e histórico
+          - generic [ref=f4e288]:
+            - generic [ref=f4e289]: Conta
+            - combobox [ref=f4e290] [cursor=pointer]:
+              - option "Todas" [selected]
+              - option "Nova"
+              - option "Castro"
+        - generic [ref=f4e291]:
+          - link "← Busca" [ref=f4e292] [cursor=pointer]:
+            - /url: /estoque
+          - link "→ Curva ABC" [ref=f4e293] [cursor=pointer]:
+            - /url: /estoque/curva-abc
+          - link "→ Giro de Estoque" [ref=f4e294] [cursor=pointer]:
+            - /url: /estoque/giro-estoque
+          - link "→ Cruzamento de Família" [ref=f4e295] [cursor=pointer]:
+            - /url: /estoque/cruzamento-familia
+        - generic [ref=f4e296]:
+          - generic [ref=f4e297]:
+            - generic [ref=f4e298]: Período
+            - combobox [ref=f4e299]:
+              - option "Ano inteiro" [selected]
+              - option "Jan"
+              - option "Fev"
+              - option "Mar"
+              - option "Abr"
+              - option "Mai"
+              - option "Jun"
+              - option "Jul"
+              - option "Ago"
+              - option "Set"
+              - option "Out"
+              - option "Nov"
+              - option "Dez"
+          - generic [ref=f4e300]:
+            - generic [ref=f4e301]: Ano
+            - combobox [ref=f4e302]:
+              - option "2026" [selected]
+              - option "2025"
+              - option "2024"
+              - option "2023"
+          - generic [ref=f4e303]:
+            - generic [ref=f4e304]: Categoria
+            - combobox [ref=f4e305]:
+              - option "Todas" [selected]
+              - option "Revenda de Pecas Balcao"
+              - option "Revenda de Peças Oficina"
+          - generic [ref=f4e306]:
+            - button "venda" [ref=f4e307] [cursor=pointer]
+            - button "custo" [ref=f4e308] [cursor=pointer]
+            - button "margem" [ref=f4e309] [cursor=pointer]
+        - generic [ref=f4e310]: Ano corrente — 146/261 dias úteis (56%). Comparativos ajustados proporcionalmente; projeção exibida.
+        - generic [ref=f4e311]:
+          - generic [ref=f4e312]:
+            - generic [ref=f4e313]:
+              - generic [ref=f4e314]: Filtros
+              - generic [ref=f4e315]: R$ 183.806,78
+              - generic [ref=f4e316]: "Ano ant: +6,0%"
+              - generic [ref=f4e319]: "Projeção: R$ 328.586,09"
+              - generic [ref=f4e320]:
+                - button "histórico" [ref=f4e321] [cursor=pointer]
+                - button "vendas" [ref=f4e322] [cursor=pointer]
+            - generic [ref=f4e323]:
+              - generic [ref=f4e324]: Lubrificantes
+              - generic [ref=f4e325]: R$ 145.108,08
+              - generic [ref=f4e326]: "Ano ant: +5,9%"
+              - generic [ref=f4e329]: "Projeção: R$ 259.405,54"
+              - generic [ref=f4e330]:
+                - button "histórico" [ref=f4e331] [cursor=pointer]
+                - button "vendas" [ref=f4e332] [cursor=pointer]
+            - generic [ref=f4e333]:
+              - generic [ref=f4e334]: Embreagens e Bombas
+              - generic [ref=f4e335]: R$ 74.750,27
+              - generic [ref=f4e336]: "Ano ant: -18,6%"
+              - generic [ref=f4e339]: "Projeção: R$ 133.628,91"
+              - generic [ref=f4e340]:
+                - button "histórico" [ref=f4e341] [cursor=pointer]
+                - button "vendas" [ref=f4e342] [cursor=pointer]
+            - generic [ref=f4e343]:
+              - generic [ref=f4e344]: Cabos
+              - generic [ref=f4e345]: R$ 13.667,12
+              - generic [ref=f4e346]: "Ano ant: -25,5%"
+              - generic [ref=f4e349]: "Projeção: R$ 24.432,32"
+              - generic [ref=f4e350]:
+                - button "histórico" [ref=f4e351] [cursor=pointer]
+                - button "vendas" [ref=f4e352] [cursor=pointer]
+            - generic [ref=f4e353]:
+              - generic [ref=f4e354]: Correias
+              - generic [ref=f4e355]: R$ 4.183,42
+              - generic [ref=f4e356]: "Ano ant: -65,5%"
+              - generic [ref=f4e359]: "Projeção: R$ 7.478,58"
+              - generic [ref=f4e360]:
+                - button "histórico" [ref=f4e361] [cursor=pointer]
+                - button "vendas" [ref=f4e362] [cursor=pointer]
+            - generic [ref=f4e363]:
+              - generic [ref=f4e364]: Pecas Diversas
+              - generic [ref=f4e365]: R$ 971.495,53
+              - generic [ref=f4e366]: "Ano ant: +12,0%"
+              - generic [ref=f4e369]: "Projeção: R$ 1.736.714,61"
+              - generic [ref=f4e370]:
+                - button "histórico" [ref=f4e371] [cursor=pointer]
+                - button "vendas" [ref=f4e372] [cursor=pointer]
+          - generic [ref=f4e374]:
+            - generic [ref=f4e375]:
+              - generic [ref=f4e376]: Servicos
+              - generic [ref=f4e377]: R$ 344.650,04
+              - generic [ref=f4e378]: "HR: R$ 223.506,01 · KM: R$ 87.588,51 · Outros: R$ 39.023,22"
+              - generic [ref=f4e379]: "Interno: R$ 264.192,86"
+              - generic [ref=f4e380]: "Ano ant: +26,3%"
+              - generic [ref=f4e383]: "Projeção: R$ 1.088.410,94"
+              - generic [ref=f4e384]:
+                - button "histórico" [ref=f4e385] [cursor=pointer]
+                - button "vendas" [ref=f4e386] [cursor=pointer]
+            - generic [ref=f4e387]:
+              - generic [ref=f4e388]: Total Pecas
+              - generic [ref=f4e389]: R$ 1.393.011,20
+              - generic [ref=f4e390]: "Ano ant: +7,2%"
+              - generic [ref=f4e393]: "Projeção: R$ 2.490.246,05"
+              - generic [ref=f4e394]:
+                - button "histórico" [ref=f4e395] [cursor=pointer]
+                - button "vendas" [ref=f4e396] [cursor=pointer]
+            - generic [ref=f4e398]:
+              - generic [ref=f4e399]: Total Geral Servicos + Pecas
+              - generic [ref=f4e400]: R$ 1.737.661,24
+              - generic [ref=f4e401]: "Ano ant: -2,5%"
+              - generic [ref=f4e404]: "Projeção: R$ 3.106.367,01"
+              - generic [ref=f4e405]:
+                - button "histórico" [ref=f4e406] [cursor=pointer]
+                - button "vendas" [ref=f4e407] [cursor=pointer]
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f4e408]:
+      - generic [ref=f4e411]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=f4e11] [cursor=pointer]
+  - alert [ref=f4e15]

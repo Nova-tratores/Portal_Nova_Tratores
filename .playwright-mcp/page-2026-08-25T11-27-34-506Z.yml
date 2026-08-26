@@ -1,0 +1,136 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - banner [ref=f3e16]:
+      - generic [ref=f3e17]:
+        - button [ref=f3e18] [cursor=pointer]
+        - link [ref=f3e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f3e21]
+      - generic [ref=f3e22]:
+        - button "Chat" [ref=f3e23] [cursor=pointer]
+        - button "4" [ref=f3e26] [cursor=pointer]
+        - button "Menu" [ref=f3e32] [cursor=pointer]
+        - generic "Meu perfil" [ref=f3e37] [cursor=pointer]:
+          - generic [ref=f3e39]:
+            - paragraph [ref=f3e40]: Henri Irneh
+            - paragraph [ref=f3e41]: Pós-Vendas
+    - generic [ref=f3e42]:
+      - generic [ref=f3e44]:
+        - paragraph [ref=f3e46]: Henri Irneh
+        - paragraph [ref=f3e47]: Pós-Vendas
+      - generic [ref=f3e48]:
+        - generic [ref=f3e49]:
+          - link "Dashboard" [ref=f3e50] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f3e59] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f3e65]:
+          - paragraph [ref=f3e66]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f3e68] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f3e75] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f3e82] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f3e88] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f3e97] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f3e104] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f3e111] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f3e118] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f3e124] [cursor=pointer]:
+            - /url: /cronograma
+        - generic [ref=f3e130]:
+          - paragraph [ref=f3e131]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f3e133] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f3e141] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f3e147] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f3e154]:
+          - paragraph [ref=f3e155]: FINANCEIRO
+          - link "Financeiro" [ref=f3e157] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f3e163] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f3e169]:
+          - paragraph [ref=f3e170]: COMERCIAL
+          - link "Proposta Comercial" [ref=f3e172] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f3e179] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Clientes" [ref=f3e186] [cursor=pointer]:
+            - /url: /clientes
+          - link "Supervisor Vendas" [ref=f3e193] [cursor=pointer]:
+            - /url: /supervisor-vendas
+          - link "Solicitações de Compras" [ref=f3e198] [cursor=pointer]:
+            - /url: /decisoes
+        - generic [ref=f3e206]:
+          - paragraph [ref=f3e207]: ESTOQUE
+          - link "Visual Estoque" [ref=f3e209] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f3e215] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f3e222] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Abastecimento" [ref=f3e227] [cursor=pointer]:
+            - /url: /abastecimento
+          - link "Omie em Massa" [ref=f3e234] [cursor=pointer]:
+            - /url: /omie-massa
+        - generic [ref=f3e239]:
+          - paragraph [ref=f3e240]: OUTROS
+          - link "Opa" [ref=f3e242] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f3e248] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f3e254] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f3e271] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f3e277] [cursor=pointer]:
+          - /url: /admin
+      - button "Sair do Portal" [ref=f3e284] [cursor=pointer]
+    - main [ref=f3e288]:
+      - generic [ref=f3e289]:
+        - generic [ref=f3e290]:
+          - heading "Conferência de custo das máquinas" [level=1] [ref=f3e291]
+          - paragraph [ref=f3e292]: Máquinas no pátio e em demonstração/consignação, com o custo atual do portal. Ligue para cada fornecedor e registre o custo pago, acumulado e o custo atual na fábrica — salva automaticamente.
+        - generic [ref=f3e293]:
+          - generic [ref=f3e294]:
+            - button "Todas" [ref=f3e295] [cursor=pointer]
+            - button "Nova" [ref=f3e296] [cursor=pointer]
+            - button "Castro" [ref=f3e297] [cursor=pointer]
+          - textbox "Buscar código, descrição, família, fornecedor…" [ref=f3e302]
+          - generic [ref=f3e303]:
+            - button "Todas" [ref=f3e304] [cursor=pointer]
+            - button "No pátio" [ref=f3e305] [cursor=pointer]
+            - button "Demonstração" [ref=f3e306] [cursor=pointer]
+          - generic [ref=f3e307] [cursor=pointer]:
+            - checkbox "Só não contatados" [ref=f3e308]
+            - text: Só não contatados
+          - button "Exportar CSV" [ref=f3e309] [cursor=pointer]
+        - generic [ref=f3e313]:
+          - generic [ref=f3e314]: 0 máquinas
+          - generic [ref=f3e315]: "Custo portal (total): R$ 0,00"
+          - generic [ref=f3e316]: "Custo pago informado: R$ 0,00"
+          - generic [ref=f3e317]:
+            - text: "Contatados:"
+            - generic [ref=f3e318]: 0/0
+        - generic [ref=f3e319]: Carregando estoque de máquinas…
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f3e322]:
+      - generic [ref=f3e325]:
+        - img "Tratorilson"
+    - generic [ref=f3e329] [cursor=pointer]:
+      - generic [ref=f3e335]:
+        - generic [ref=f3e336]:
+          - generic [ref=f3e337]: OS OS-0702 enviada
+          - generic [ref=f3e338]: NOVA
+        - paragraph [ref=f3e339]: Danilo de Souza enviou o relatório técnico da OS OS-0702 (OCTAVIANO RAYMUNDO CAMARGO SILVA)
+      - button [ref=f3e340]
+  - button "Open Next.js Dev Tools" [ref=f3e11] [cursor=pointer]
+  - alert [ref=f3e15]

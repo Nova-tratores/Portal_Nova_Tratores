@@ -149,7 +149,7 @@ async function atualizarMetricasAbertas() {
 
 async function getOrdensParaKanban(): Promise<KanbanCard[]> {
   // Todas as queries em paralelo
-  const [{ data: ordens }, { data: logs }, { data: metricasAbertas }, { data: reqsNovas }, { data: relatorios }, { data: reqsSol }, { data: reqsAtt }] = await Promise.all([
+  const [{ data: ordens }, { data: logs }, { data: metricasAbertas }, { data: reqsNovas }, { data: relatorios }, { data: reqsSol }, { data: reqsAtt }, { data: projetosCron }] = await Promise.all([
     supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false }),
     supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao,Hora_Acao,acao,UsuEmail").order("id", { ascending: false }),
     supabase.from(TBL_METRICAS).select("id_ordem, dias").is("data_fim", null),
@@ -157,6 +157,8 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
     supabase.from("Ordem_Servico_Tecnicos").select("Ordem_Servico, NomResp"),
     supabase.from(TBL_REQ_SOL).select("IdReq, Material_Serv_Solicitado"),
     supabase.from(TBL_REQ_ATT).select("ReqREF, ReqValor"),
+    // Vínculo reverso do Cronograma: projetos que apontam para uma OS (leitura, não escreve na OS)
+    supabase.schema("cronograma").from("projetos").select("id, nome, os_ref").not("os_ref", "is", null),
   ]);
 
   const mapaAtraso: Record<string, number> = {};
@@ -188,6 +190,13 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
   (relatorios || []).forEach((r) => {
     const osId = String(r.Ordem_Servico || "");
     if (osId && r.NomResp) mapaRelTecnico[osId] = r.NomResp;
+  });
+
+  // Mapa reverso: Id_Ordem → projeto do Cronograma que o referencia
+  const mapaProjeto: Record<string, { id: string; nome: string }> = {};
+  (projetosCron || []).forEach((p) => {
+    const ref = String((p as { os_ref?: string }).os_ref || "");
+    if (ref) mapaProjeto[ref] = { id: String((p as { id: string }).id), nome: String((p as { nome: string }).nome) };
   });
 
   const mapaDatasFase: Record<string, string> = {};
@@ -245,6 +254,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       relTecnico: mapaRelTecnico[osId] || "",
       pendenciaMahindra: (safeGet(row, "pendencia_mahindra") as any) || null,
       servicoInterno: !!safeGet(row, "Servico_Interno"),
+      projetoCronograma: mapaProjeto[osId] || null,
     };
   });
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, memo, useCallback, useEffect } from "react";
+import Link from "next/link";
 import { PHASES } from "@/lib/pos/constants";
 import { diasEntre } from "@/lib/pos/utils";
 import type { KanbanCard } from "@/lib/pos/types";
@@ -26,6 +27,9 @@ const PHASE_COLORS: Record<string, string> = {
   "Executada": "#8B5CF6",
   "Relatório Concluído": "#A78BFA",
   "Relatório Concluído - Garantia": "#0D9488",
+  "Enviar Omie": "#F59E0B",
+  "Enviado Para Omie": "#0EA5E9",
+  "Preenchido Garantia": "#14B8A6",
   "Executada aguardando comercial": "#C084FC",
   "Concluída": "#10B981",
   "Cancelada": "#EF4444",
@@ -47,6 +51,9 @@ const PHASE_SHORT: Record<string, string> = {
   "Aguardando outros": "Aguard. Outros",
   "Executada": "Executada",
   "Relatório Concluído": "Rel. Concluído",
+  "Enviar Omie": "Enviar Omie",
+  "Enviado Para Omie": "Enviado Omie",
+  "Preenchido Garantia": "Preench. Garantia",
   "Executada aguardando comercial": "Aguard. Comercial",
   "Concluída": "Concluída",
   "Cancelada": "Cancelada",
@@ -90,6 +97,13 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#7C3AED", background: "#F3E8FF", border: "1px solid #DDD6FE", borderRadius: 5, padding: "1px 6px", textTransform: "uppercase" }}>
             <i className="fas fa-tools" style={{ marginRight: 3 }} />Interna
           </span>
+        )}
+        {o.projetoCronograma && (
+          <Link href={`/cronograma/${o.projetoCronograma.id}`} onClick={(e) => e.stopPropagation()}
+            title={`Projeto ${o.projetoCronograma.nome}`}
+            style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#0D9488", background: "#CCFBF1", border: "1px solid #99F6E4", borderRadius: 5, padding: "1px 6px", textTransform: "uppercase", textDecoration: "none" }}>
+            <i className="fas fa-diagram-project" style={{ marginRight: 3 }} />Cronograma
+          </Link>
         )}
         <span className="mini-card-valor">R$ {o.valor}</span>
       </div>
@@ -174,13 +188,15 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   );
 });
 
-// Fases abertas por padrão; só Concluída e Cancelada começam fechadas
-// (fases sem nenhuma ordem nem aparecem). Clica no cabeçalho pra abrir/fechar.
+// Fases abertas por padrão; só "Concluída" e "Cancelada" começam fechadas.
 const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
+// Fases que aparecem no quadro mas SEM mostrar a contagem no cabeçalho.
+const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
 export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
   const [escopo, setEscopo] = useState<"externas" | "internas">("externas");
+  const [tecnicoFiltro, setTecnicoFiltro] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
   // Tooltip com a Descrição do Serviço completa ao passar o mouse no card
@@ -193,6 +209,13 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     () => orders.filter((o) => (escopo === "internas" ? !!o.servicoInterno : !o.servicoInterno)),
     [orders, escopo]
   );
+
+  // Lista de técnicos disponíveis no escopo atual (para o filtro)
+  const tecnicos = useMemo(() => {
+    const set = new Set<string>();
+    for (const o of escopoOrders) { const t = (o.tecnico || "").trim(); if (t) set.add(t); }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [escopoOrders]);
 
   // Carrega quais OS têm garantia (para o ícone de escudo no card)
   useEffect(() => {
@@ -237,9 +260,10 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           o.cliente.toLowerCase().includes(searchLower) ||
           o.id.includes(searchLower) ||
           o.servSolicitado.toLowerCase().includes(searchLower)) &&
-        (!activePhase || o.status === activePhase)
+        (!activePhase || o.status === activePhase) &&
+        (!tecnicoFiltro || (o.tecnico || "").trim() === tecnicoFiltro)
     );
-  }, [escopoOrders, searchLower, activePhase]);
+  }, [escopoOrders, searchLower, activePhase, tecnicoFiltro]);
 
 
   // Group by phase for "Todas" view
@@ -255,7 +279,8 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         const comGar = items.filter((o) => garantiaMap[o.id]);
         if (semGar.length > 0) map[FASE_CONCLUIDO] = semGar;
         if (comGar.length > 0) map[FASE_CONCLUIDO_GAR] = comGar;
-      } else if (items.length > 0) {
+      } else if (phase === "Enviar Omie" || phase === "Enviado Para Omie" || phase === "Preenchido Garantia" || items.length > 0) {
+        // As filas do Tratorilson aparecem sempre (mesmo vazias).
         map[phase] = items;
       }
     }
@@ -279,7 +304,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           ]).map((t) => {
             const active = escopo === t.v;
             return (
-              <button key={t.v} onClick={() => { setEscopo(t.v); setActivePhase(""); }}
+              <button key={t.v} onClick={() => { setEscopo(t.v); setActivePhase(""); setTecnicoFiltro(""); }}
                 style={{
                   display: "flex", alignItems: "center", gap: 8, padding: "8px 22px", borderRadius: 8,
                   border: active ? `1.5px solid ${t.color}` : "1.5px solid transparent",
@@ -293,6 +318,36 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
               </button>
             );
           })}
+        </div>
+
+        {/* Filtro por técnico */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <i className="fas fa-user-cog" style={{ color: "var(--portal-text-secondary)", fontSize: 13 }} />
+          <select
+            value={tecnicoFiltro}
+            onChange={(e) => setTecnicoFiltro(e.target.value)}
+            title="Filtrar por técnico"
+            style={{
+              padding: "8px 12px", borderRadius: 8,
+              border: tecnicoFiltro ? "1.5px solid #1E3A5F" : "1.5px solid var(--border)",
+              background: "#fff", color: "var(--portal-text)", fontWeight: 600, fontSize: 13,
+              cursor: "pointer", maxWidth: 240,
+            }}
+          >
+            <option value="">Todos os técnicos</option>
+            {tecnicos.map((t) => (
+              <option key={t} value={t}>{t}</option>
+            ))}
+          </select>
+          {tecnicoFiltro && (
+            <button
+              onClick={() => setTecnicoFiltro("")}
+              title="Limpar filtro de técnico"
+              style={{ border: "none", background: "transparent", color: "var(--portal-text-secondary)", cursor: "pointer", fontSize: 16, lineHeight: 1, padding: 4 }}
+            >
+              <i className="fas fa-times" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -327,7 +382,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 </span>
                 <span className="phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
                 <span className="phase-group-name">{phase}</span>
-                <span className="phase-group-count">{items.length}</span>
+                {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
                 <div className="phase-group-line" />
               </div>
               {!collapsed.has(phase) && (

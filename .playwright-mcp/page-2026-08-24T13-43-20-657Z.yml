@@ -1,0 +1,1821 @@
+- generic [active] [ref=f18e1]:
+  - generic [ref=f18e2]:
+    - banner [ref=f18e16]:
+      - generic [ref=f18e17]:
+        - button [ref=f18e18] [cursor=pointer]
+        - link [ref=f18e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f18e21]
+        - link [ref=f18e23] [cursor=pointer]:
+          - /url: /propostas
+      - generic [ref=f18e28]:
+        - button "Tela dividida — dois sistemas lado a lado" [ref=f18e29] [cursor=pointer]
+        - button "Sua caixa de e-mail (henri.fhioni@gmail.com)" [ref=f18e33] [cursor=pointer]
+        - button "Chat" [ref=f18e37] [cursor=pointer]
+        - button "24" [ref=f18e40] [cursor=pointer]
+        - button "Menu" [ref=f18e46] [cursor=pointer]
+        - generic "Meu perfil" [ref=f18e51] [cursor=pointer]:
+          - generic [ref=f18e53]:
+            - paragraph [ref=f18e54]: Henri Irneh
+            - paragraph [ref=f18e55]: Pós-Vendas
+    - generic [ref=f18e56]:
+      - generic [ref=f18e58]:
+        - paragraph [ref=f18e60]: Henri Irneh
+        - paragraph [ref=f18e61]: Pós-Vendas
+      - generic [ref=f18e62]:
+        - generic [ref=f18e63]:
+          - link "Dashboard" [ref=f18e64] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f18e73] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f18e79]:
+          - paragraph [ref=f18e80]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f18e82] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f18e89] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f18e96] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f18e102] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f18e111] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f18e118] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f18e125] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f18e132] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f18e138] [cursor=pointer]:
+            - /url: /cronograma
+          - link "Clientes" [ref=f18e144] [cursor=pointer]:
+            - /url: /clientes
+        - generic [ref=f18e151]:
+          - paragraph [ref=f18e152]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f18e154] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f18e162] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f18e168] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f18e175]:
+          - paragraph [ref=f18e176]: FINANCEIRO
+          - link "Financeiro" [ref=f18e178] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f18e184] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f18e190]:
+          - paragraph [ref=f18e191]: COMERCIAL
+          - link "Proposta Comercial" [ref=f18e193] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f18e202] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Supervisor Vendas" [ref=f18e209] [cursor=pointer]:
+            - /url: /supervisor-vendas
+        - generic [ref=f18e214]:
+          - paragraph [ref=f18e215]: ESTOQUE
+          - link "Visual Estoque" [ref=f18e217] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f18e223] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f18e230] [cursor=pointer]:
+            - /url: /ajustes
+        - generic [ref=f18e235]:
+          - paragraph [ref=f18e236]: FROTA
+          - link "Frota" [ref=f18e238] [cursor=pointer]:
+            - /url: /frota
+          - link "Pendências Frota" [ref=f18e247] [cursor=pointer]:
+            - /url: /pendencias
+        - generic [ref=f18e253]:
+          - paragraph [ref=f18e254]: OUTROS
+          - link "Opa" [ref=f18e256] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f18e262] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f18e268] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f18e285] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f18e291] [cursor=pointer]:
+          - /url: /admin
+        - link "Tratorilson" [ref=f18e297] [cursor=pointer]:
+          - /url: /tratorilson
+      - button "Sair do Portal" [ref=f18e304] [cursor=pointer]
+    - main [ref=f18e308]:
+      - generic [ref=f18e309]:
+        - generic [ref=f18e311]:
+          - generic [ref=f18e313]:
+            - button "Propostas Cliente" [ref=f18e314] [cursor=pointer]
+            - button "Pedidos Fabrica" [ref=f18e320] [cursor=pointer]
+            - button "Resumo" [ref=f18e323] [cursor=pointer]
+            - button "Lixeira" [ref=f18e326] [cursor=pointer]
+          - generic [ref=f18e332]:
+            - button "Menu" [ref=f18e334] [cursor=pointer]
+            - button "Nova Proposta" [ref=f18e336] [cursor=pointer]
+        - generic [ref=f18e339]:
+          - generic [ref=f18e340]:
+            - generic [ref=f18e341]: Filtrar por cliente, ID, marca, modelo, cidade, valor ou status
+            - textbox "Digite cliente, ID, marca, modelo, cidade, valor ou status..." [ref=f18e344]
+          - generic [ref=f18e345]:
+            - generic [ref=f18e346]: "Atalhos:"
+            - button "Todas" [ref=f18e347] [cursor=pointer]
+            - button "Enviar proposta" [ref=f18e348] [cursor=pointer]
+            - button "Aguardando resposta cliente" [ref=f18e349] [cursor=pointer]
+            - button "Aguardando resposta banco" [ref=f18e350] [cursor=pointer]
+            - button "Concluída - vendido" [ref=f18e351] [cursor=pointer]
+            - button "Concluída - não vendido" [ref=f18e352] [cursor=pointer]
+            - button "FAB (pedido fábrica)" [ref=f18e353] [cursor=pointer]
+          - generic [ref=f18e354]:
+            - button "Criadas (no filtro) R$ 11.805.864,00 82 propostas" [ref=f18e2241] [cursor=pointer]:
+              - generic [ref=f18e2242]: Criadas (no filtro)
+              - generic [ref=f18e2243]: R$ 11.805.864,00
+              - generic [ref=f18e2244]: 82 propostas
+            - button "Previsão faturamento fábrica R$ 3.420.151,00 30 propostas" [ref=f18e2245] [cursor=pointer]:
+              - generic [ref=f18e2246]: Previsão faturamento fábrica
+              - generic [ref=f18e2247]: R$ 3.420.151,00
+              - generic [ref=f18e2248]: 30 propostas
+            - button "Aguardando banco R$ 898.597,00 7 propostas" [ref=f18e2249] [cursor=pointer]:
+              - generic [ref=f18e2250]: Aguardando banco
+              - generic [ref=f18e2251]: R$ 898.597,00
+              - generic [ref=f18e2252]: 7 propostas
+          - table [ref=f18e368]:
+            - rowgroup [ref=f18e369]:
+              - row [ref=f18e370]:
+                - columnheader "ID" [ref=f18e2253] [cursor=pointer]
+                - columnheader "Cliente" [ref=f18e2255] [cursor=pointer]
+                - columnheader "Vendedor" [ref=f18e2257] [cursor=pointer]
+                - columnheader "Marca / Modelo" [ref=f18e2259] [cursor=pointer]
+                - columnheader "Cidade" [ref=f18e2261] [cursor=pointer]
+                - columnheader "Valor" [ref=f18e2263] [cursor=pointer]
+                - columnheader "Status" [ref=f18e2265] [cursor=pointer]
+                - columnheader "Parado há ▼" [ref=f18e2267] [cursor=pointer]:
+                  - generic [ref=f18e2268]:
+                    - text: Parado há
+                    - generic [ref=f18e2269]: ▼
+                - columnheader "Termômetro" [ref=f18e2270] [cursor=pointer]
+                - columnheader "Criada em" [ref=f18e2272] [cursor=pointer]
+                - columnheader "Alterar" [ref=f18e392]
+            - rowgroup [ref=f18e393]:
+              - row [ref=f18e394] [cursor=pointer]:
+                - cell "#109" [ref=f18e395]
+                - cell "INSTITUTO RIO GRANDENSE DO ARROZ" [ref=f18e398]
+                - cell "JOAQUIM FERNANDO LEME" [ref=f18e399]
+                - cell "TRITUCAP 2.3F" [ref=f18e400]
+                - cell "CACHOEIRINHA (RS)" [ref=f18e402]
+                - cell "R$ 104.000,00" [ref=f18e403]
+                - cell "Enviar proposta" [ref=f18e405]
+                - cell "3 dias" [ref=f18e406]
+                - cell "10%" [ref=f18e407]
+                - cell "21/08/2026" [ref=f18e412]
+                - cell "Enviar proposta" [ref=f18e413]:
+                  - combobox [ref=f18e414]:
+                    - option "Enviar proposta" [selected]
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e415] [cursor=pointer]:
+                - cell "#101" [ref=f18e416]
+                - cell "OLINTO RODRIGUES DE ARRUDA E OUTRO ( SÃO DOMINGOS )" [ref=f18e419]
+                - cell "—" [ref=f18e420]
+                - cell "KUHN STRONGER 3200 HD" [ref=f18e422]
+                - cell "AGUDOS (SP)" [ref=f18e424]
+                - cell "R$ 1.329.900,00" [ref=f18e425]
+                - cell "Aguardando resposta cliente" [ref=f18e427]
+                - cell "3 dias" [ref=f18e428]
+                - cell "30%" [ref=f18e429]
+                - cell "21/08/2026" [ref=f18e434]
+                - cell "Aguardando resposta cliente" [ref=f18e435]:
+                  - combobox [ref=f18e436]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e437] [cursor=pointer]:
+                - cell "#100" [ref=f18e438]
+                - cell "BRUNO HIDEKI IOSHIDA ARIKITA" [ref=f18e441]
+                - cell "—" [ref=f18e442]
+                - cell "SOLOMAQ VELOX PRIME 600 D 3\"" [ref=f18e444]
+                - cell "TAQUARITUBA (SP)" [ref=f18e446]
+                - cell "R$ 42.784,00" [ref=f18e447]
+                - cell "Aguardando resposta cliente" [ref=f18e449]
+                - cell "3 dias" [ref=f18e450]
+                - cell "30%" [ref=f18e451]
+                - cell "21/08/2026" [ref=f18e456]
+                - cell "Aguardando resposta cliente" [ref=f18e457]:
+                  - combobox [ref=f18e458]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e459] [cursor=pointer]:
+                - cell "#99 FAB" [ref=f18e460]:
+                  - generic [ref=f18e461]:
+                    - generic [ref=f18e462]: "#99"
+                    - generic [ref=f18e463]: FAB
+                - cell "BRUNO HIDEKI IOSHIDA ARIKITA" [ref=f18e464]
+                - cell "—" [ref=f18e465]
+                - cell "SOLOMAQ VELOX PRIME 600 D 2\"" [ref=f18e467]
+                - cell "TAQUARITUBA (SP)" [ref=f18e469]
+                - cell "R$ 28.000,00" [ref=f18e470]
+                - cell "Aguardando resposta cliente" [ref=f18e472]
+                - cell "3 dias" [ref=f18e473]
+                - cell "30%" [ref=f18e474]
+                - cell "21/08/2026" [ref=f18e479]
+                - cell "Aguardando resposta cliente" [ref=f18e480]:
+                  - combobox [ref=f18e481]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e482] [cursor=pointer]:
+                - cell "#98" [ref=f18e483]
+                - cell "BRUNO HIDEKI IOSHIDA ARIKITA" [ref=f18e486]
+                - cell "—" [ref=f18e487]
+                - cell "SOLOMAQ VELOX PRIME 600 G 2\"" [ref=f18e489]
+                - cell "TAQUARITUBA (SP)" [ref=f18e491]
+                - cell "R$ 18.412,00" [ref=f18e492]
+                - cell "Aguardando resposta cliente" [ref=f18e494]
+                - cell "3 dias" [ref=f18e495]
+                - cell "30%" [ref=f18e496]
+                - cell "21/08/2026" [ref=f18e501]
+                - cell "Aguardando resposta cliente" [ref=f18e502]:
+                  - combobox [ref=f18e503]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e504] [cursor=pointer]:
+                - cell "#97 FAB" [ref=f18e505]:
+                  - generic [ref=f18e506]:
+                    - generic [ref=f18e507]: "#97"
+                    - generic [ref=f18e508]: FAB
+                - cell "BRUNO HIDEKI IOSHIDA ARIKITA" [ref=f18e509]
+                - cell "—" [ref=f18e510]
+                - cell "SOLOMAQ INJEFERD PRIME 3200 SL DNX" [ref=f18e512]
+                - cell "TAQUARITUBA (SP)" [ref=f18e514]
+                - cell "R$ 88.000,00" [ref=f18e515]
+                - cell "Aguardando resposta cliente" [ref=f18e517]
+                - cell "3 dias" [ref=f18e518]
+                - cell "30%" [ref=f18e519]
+                - cell "21/08/2026" [ref=f18e524]
+                - cell "Aguardando resposta cliente" [ref=f18e525]:
+                  - combobox [ref=f18e526]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e527] [cursor=pointer]:
+                - cell "#96 FAB" [ref=f18e528]:
+                  - generic [ref=f18e529]:
+                    - generic [ref=f18e530]: "#96"
+                    - generic [ref=f18e531]: FAB
+                - cell "BRUNO HIDEKI IOSHIDA ARIKITA" [ref=f18e532]
+                - cell "—" [ref=f18e533]
+                - cell "SOLOMAQ INJEFERD PRIME 1200 SL DNX" [ref=f18e535]
+                - cell "TAQUARITUBA (SP)" [ref=f18e537]
+                - cell "R$ 82.451,00" [ref=f18e538]
+                - cell "Aguardando resposta cliente" [ref=f18e540]
+                - cell "3 dias" [ref=f18e541]
+                - cell "30%" [ref=f18e542]
+                - cell "21/08/2026" [ref=f18e547]
+                - cell "Aguardando resposta cliente" [ref=f18e548]:
+                  - combobox [ref=f18e549]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e550] [cursor=pointer]:
+                - cell "#95 FAB" [ref=f18e551]:
+                  - generic [ref=f18e552]:
+                    - generic [ref=f18e553]: "#95"
+                    - generic [ref=f18e554]: FAB
+                - cell "BRUNO HIDEKI IOSHIDA ARIKITA" [ref=f18e555]
+                - cell "—" [ref=f18e556]
+                - cell "SOLOMAQ INJEFERD PRIME 2200 SL DNX" [ref=f18e558]
+                - cell "TAQUARITUBA (SP)" [ref=f18e560]
+                - cell "R$ 74.000,00" [ref=f18e561]
+                - cell "Aguardando resposta cliente" [ref=f18e563]
+                - cell "3 dias" [ref=f18e564]
+                - cell "30%" [ref=f18e565]
+                - cell "21/08/2026" [ref=f18e570]
+                - cell "Aguardando resposta cliente" [ref=f18e571]:
+                  - combobox [ref=f18e572]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e573] [cursor=pointer]:
+                - cell "#94" [ref=f18e574]
+                - cell "BRUNO HIDEKI IOSHIDA ARIKITA" [ref=f18e577]
+                - cell "—" [ref=f18e578]
+                - cell "SOLOMAQ INJEFERD PRIME 600 SL DNX" [ref=f18e580]
+                - cell "TAQUARITUBA (SP)" [ref=f18e582]
+                - cell "R$ 70.588,00" [ref=f18e583]
+                - cell "Aguardando resposta cliente" [ref=f18e585]
+                - cell "3 dias" [ref=f18e586]
+                - cell "30%" [ref=f18e587]
+                - cell "21/08/2026" [ref=f18e592]
+                - cell "Aguardando resposta cliente" [ref=f18e593]:
+                  - combobox [ref=f18e594]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e595] [cursor=pointer]:
+                - cell "#93" [ref=f18e596]
+                - cell "BRUNO HIDEKI IOSHIDA ARIKITA" [ref=f18e599]
+                - cell "—" [ref=f18e600]
+                - cell "SOLOMAQ INJEFER PLUS 1200 L DNX" [ref=f18e602]
+                - cell "TAQUARITUBA (SP)" [ref=f18e604]
+                - cell "R$ 58.831,00" [ref=f18e605]
+                - cell "Aguardando resposta cliente" [ref=f18e607]
+                - cell "3 dias" [ref=f18e608]
+                - cell "30%" [ref=f18e609]
+                - cell "21/08/2026" [ref=f18e614]
+                - cell "Aguardando resposta cliente" [ref=f18e615]:
+                  - combobox [ref=f18e616]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e617] [cursor=pointer]:
+                - cell "#92" [ref=f18e618]
+                - cell "ERICA PAULA BLESSA" [ref=f18e621]
+                - cell "—" [ref=f18e622]
+                - cell "MAHINDRA 6075" [ref=f18e624]
+                - cell "PIEDADE" [ref=f18e626]
+                - cell "R$ 166.000,00" [ref=f18e627]
+                - cell "Aguardando resposta banco" [ref=f18e629]
+                - cell "3 dias" [ref=f18e630]
+                - cell "60%" [ref=f18e631]
+                - cell "21/08/2026" [ref=f18e636]
+                - cell "Aguardando resposta banco" [ref=f18e637]:
+                  - combobox [ref=f18e638]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e639] [cursor=pointer]:
+                - cell "#91" [ref=f18e640]
+                - cell "AGRICIO CANO DE ARRUDA" [ref=f18e643]
+                - cell "—" [ref=f18e644]
+                - cell "MAHINDRA 6075" [ref=f18e646]
+                - cell "ITU (SP)" [ref=f18e648]
+                - cell "R$ 165.000,00" [ref=f18e649]
+                - cell "Aguardando resposta banco" [ref=f18e651]
+                - cell "3 dias" [ref=f18e652]
+                - cell "60%" [ref=f18e653]
+                - cell "21/08/2026" [ref=f18e658]
+                - cell "Aguardando resposta banco" [ref=f18e659]:
+                  - combobox [ref=f18e660]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e661] [cursor=pointer]:
+                - cell "#90" [ref=f18e662]
+                - cell "MAURICIO FERNANDES DIAS ( FAZENDA IPAUSSU )" [ref=f18e665]
+                - cell "—" [ref=f18e666]
+                - cell "KAMAQ 60 FULL HD FLEX" [ref=f18e668]
+                - cell "Taquarivai (SP)" [ref=f18e670]
+                - cell "R$ 37.000,00" [ref=f18e671]
+                - cell "Aguardando resposta cliente" [ref=f18e673]
+                - cell "3 dias" [ref=f18e674]
+                - cell "30%" [ref=f18e675]
+                - cell "21/08/2026" [ref=f18e680]
+                - cell "Aguardando resposta cliente" [ref=f18e681]:
+                  - combobox [ref=f18e682]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e683] [cursor=pointer]:
+                - cell "#89" [ref=f18e684]
+                - cell "GUSTAVO FRANCO" [ref=f18e687]
+                - cell "—" [ref=f18e688]
+                - cell "HERDER FLV 400" [ref=f18e690]
+                - cell "TAQUARITUBA" [ref=f18e692]
+                - cell "R$ 90.000,00" [ref=f18e693]
+                - cell "Aguardando resposta cliente" [ref=f18e695]
+                - cell "3 dias" [ref=f18e696]
+                - cell "30%" [ref=f18e697]
+                - cell "21/08/2026" [ref=f18e702]
+                - cell "Aguardando resposta cliente" [ref=f18e703]:
+                  - combobox [ref=f18e704]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e705] [cursor=pointer]:
+                - cell "#88" [ref=f18e706]
+                - cell "LUIS OTAVIO HANS SCHOLTEN" [ref=f18e709]
+                - cell "—" [ref=f18e710]
+                - cell "ORION T600" [ref=f18e712]
+                - cell "---" [ref=f18e714]
+                - cell "R$ 44.000,00" [ref=f18e715]
+                - cell "Aguardando resposta cliente" [ref=f18e717]
+                - cell "3 dias" [ref=f18e718]
+                - cell "30%" [ref=f18e719]
+                - cell "21/08/2026" [ref=f18e724]
+                - cell "Aguardando resposta cliente" [ref=f18e725]:
+                  - combobox [ref=f18e726]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e727] [cursor=pointer]:
+                - cell "#87" [ref=f18e728]
+                - cell "BRUNO HIDEKI IOSHIDA ARIKITA" [ref=f18e731]
+                - cell "—" [ref=f18e732]
+                - cell "GTM CT 5000" [ref=f18e734]
+                - cell "ARANDU (SP)" [ref=f18e736]
+                - cell "R$ 115.000,00" [ref=f18e737]
+                - cell "Aguardando resposta cliente" [ref=f18e739]
+                - cell "3 dias" [ref=f18e740]
+                - cell "30%" [ref=f18e741]
+                - cell "21/08/2026" [ref=f18e746]
+                - cell "Aguardando resposta cliente" [ref=f18e747]:
+                  - combobox [ref=f18e748]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e749] [cursor=pointer]:
+                - cell "#86" [ref=f18e750]
+                - cell "RAFAEL WERLE E OUTRO" [ref=f18e753]
+                - cell "—" [ref=f18e754]
+                - cell "VICON MAXIMA 600" [ref=f18e756]
+                - cell "PARANAPANEMA (SP)" [ref=f18e758]
+                - cell "R$ 22.570,00" [ref=f18e759]
+                - cell "Aguardando resposta cliente" [ref=f18e761]
+                - cell "3 dias" [ref=f18e762]
+                - cell "30%" [ref=f18e763]
+                - cell "21/08/2026" [ref=f18e768]
+                - cell "Aguardando resposta cliente" [ref=f18e769]:
+                  - combobox [ref=f18e770]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e771] [cursor=pointer]:
+                - cell "#85" [ref=f18e772]
+                - cell "ANA KRISHNA TUCUNDUVA FERREIRA" [ref=f18e775]
+                - cell "—" [ref=f18e776]
+                - cell "FMCOPLING GULIVER 4000 NA BI-LATERAL" [ref=f18e778]
+                - cell "OLEO (SP)" [ref=f18e780]
+                - cell "R$ 119.700,00" [ref=f18e781]
+                - cell "Aguardando resposta cliente" [ref=f18e783]
+                - cell "3 dias" [ref=f18e784]
+                - cell "30%" [ref=f18e785]
+                - cell "21/08/2026" [ref=f18e790]
+                - cell "Aguardando resposta cliente" [ref=f18e791]:
+                  - combobox [ref=f18e792]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e793] [cursor=pointer]:
+                - cell "#84" [ref=f18e794]
+                - cell "ANA KRISHNA TUCUNDUVA FERREIRA" [ref=f18e797]
+                - cell "—" [ref=f18e798]
+                - cell "FMCOPLING GULIVER 4000 NA" [ref=f18e800]
+                - cell "OLEO (SP)" [ref=f18e802]
+                - cell "R$ 109.000,00" [ref=f18e803]
+                - cell "Aguardando resposta cliente" [ref=f18e805]
+                - cell "3 dias" [ref=f18e806]
+                - cell "30%" [ref=f18e807]
+                - cell "21/08/2026" [ref=f18e812]
+                - cell "Aguardando resposta cliente" [ref=f18e813]:
+                  - combobox [ref=f18e814]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e815] [cursor=pointer]:
+                - cell "#83" [ref=f18e816]
+                - cell "ISIDORO JULIO COSTA" [ref=f18e819]
+                - cell "—" [ref=f18e820]
+                - cell "LUMA PODADORA RAPTOR 2500" [ref=f18e822]
+                - cell "OLEO (SP)" [ref=f18e824]
+                - cell "R$ 96.800,00" [ref=f18e825]
+                - cell "Aguardando resposta cliente" [ref=f18e827]
+                - cell "3 dias" [ref=f18e828]
+                - cell "30%" [ref=f18e829]
+                - cell "21/08/2026" [ref=f18e834]
+                - cell "Aguardando resposta cliente" [ref=f18e835]:
+                  - combobox [ref=f18e836]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e837] [cursor=pointer]:
+                - cell "#82" [ref=f18e838]
+                - cell "ISIDORO JULIO COSTA" [ref=f18e841]
+                - cell "—" [ref=f18e842]
+                - cell "KAMAQ KORT FIX 250" [ref=f18e844]
+                - cell "OLEO (SP)" [ref=f18e846]
+                - cell "R$ 64.000,00" [ref=f18e847]
+                - cell "Aguardando resposta cliente" [ref=f18e849]
+                - cell "3 dias" [ref=f18e850]
+                - cell "30%" [ref=f18e851]
+                - cell "21/08/2026" [ref=f18e856]
+                - cell "Aguardando resposta cliente" [ref=f18e857]:
+                  - combobox [ref=f18e858]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e859] [cursor=pointer]:
+                - cell "#81 FAB" [ref=f18e860]:
+                  - generic [ref=f18e861]:
+                    - generic [ref=f18e862]: "#81"
+                    - generic [ref=f18e863]: FAB
+                - cell "SILVIO DELPRETTI GRAÇA" [ref=f18e864]
+                - cell "—" [ref=f18e865]
+                - cell "SCHEMAQ TERREMOTO PREMIUM 7.0" [ref=f18e867]
+                - cell "PIRAJU (SP)" [ref=f18e869]
+                - cell "R$ 148.000,00" [ref=f18e870]
+                - cell "Aguardando resposta cliente" [ref=f18e872]
+                - cell "3 dias" [ref=f18e873]
+                - cell "30%" [ref=f18e874]
+                - cell "21/08/2026" [ref=f18e879]
+                - cell "Aguardando resposta cliente" [ref=f18e880]:
+                  - combobox [ref=f18e881]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e882] [cursor=pointer]:
+                - cell "#80" [ref=f18e883]
+                - cell "MARCELO SILVESTRE" [ref=f18e886]
+                - cell "—" [ref=f18e887]
+                - cell "MARISPAN L15" [ref=f18e889]
+                - cell "---" [ref=f18e891]
+                - cell "R$ 25.000,00" [ref=f18e892]
+                - cell "Aguardando resposta cliente" [ref=f18e894]
+                - cell "3 dias" [ref=f18e895]
+                - cell "30%" [ref=f18e896]
+                - cell "21/08/2026" [ref=f18e901]
+                - cell "Aguardando resposta cliente" [ref=f18e902]:
+                  - combobox [ref=f18e903]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e904] [cursor=pointer]:
+                - cell "#79" [ref=f18e905]
+                - cell "MARCELO SILVESTRE" [ref=f18e908]
+                - cell "—" [ref=f18e909]
+                - cell "MAHINDRA JIVO 2025" [ref=f18e911]
+                - cell "---" [ref=f18e913]
+                - cell "R$ 85.000,00" [ref=f18e914]
+                - cell "Aguardando resposta cliente" [ref=f18e916]
+                - cell "3 dias" [ref=f18e917]
+                - cell "30%" [ref=f18e918]
+                - cell "21/08/2026" [ref=f18e923]
+                - cell "Aguardando resposta cliente" [ref=f18e924]:
+                  - combobox [ref=f18e925]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e926] [cursor=pointer]:
+                - cell "#78" [ref=f18e927]
+                - cell "MAURICIO FERNANDES DIAS ( FAZENDA IPAUSSU )" [ref=f18e930]
+                - cell "—" [ref=f18e931]
+                - cell "MAHINDRA 7095 CAB" [ref=f18e933]
+                - cell "BERNARDINO DE CAMPOS (SP)" [ref=f18e935]
+                - cell "R$ 273.000,00" [ref=f18e936]
+                - cell "Aguardando resposta cliente" [ref=f18e938]
+                - cell "3 dias" [ref=f18e939]
+                - cell "30%" [ref=f18e940]
+                - cell "21/08/2026" [ref=f18e945]
+                - cell "Aguardando resposta cliente" [ref=f18e946]:
+                  - combobox [ref=f18e947]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e948] [cursor=pointer]:
+                - cell "#77" [ref=f18e949]
+                - cell "MAURICIO FERNANDES DIAS ( FAZENDA IPAUSSU )" [ref=f18e952]
+                - cell "—" [ref=f18e953]
+                - cell "MAHINDRA 7095 CAB" [ref=f18e955]
+                - cell "BERNARDINO DE CAMPOS (SP)" [ref=f18e957]
+                - cell "R$ 273.000,00" [ref=f18e958]
+                - cell "Aguardando resposta cliente" [ref=f18e960]
+                - cell "3 dias" [ref=f18e961]
+                - cell "30%" [ref=f18e962]
+                - cell "21/08/2026" [ref=f18e967]
+                - cell "Aguardando resposta cliente" [ref=f18e968]:
+                  - combobox [ref=f18e969]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e970] [cursor=pointer]:
+                - cell "#76" [ref=f18e971]
+                - cell "SILVIO DELPRETTI GRAÇA" [ref=f18e974]
+                - cell "—" [ref=f18e975]
+                - cell "SCHEMAQ LITE 4.0" [ref=f18e977]
+                - cell "PIRAJU (SP)" [ref=f18e979]
+                - cell "R$ 62.100,00" [ref=f18e980]
+                - cell "Aguardando resposta cliente" [ref=f18e982]
+                - cell "3 dias" [ref=f18e983]
+                - cell "30%" [ref=f18e984]
+                - cell "21/08/2026" [ref=f18e989]
+                - cell "Aguardando resposta cliente" [ref=f18e990]:
+                  - combobox [ref=f18e991]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e992] [cursor=pointer]:
+                - cell "#75 FAB" [ref=f18e993]:
+                  - generic [ref=f18e994]:
+                    - generic [ref=f18e995]: "#75"
+                    - generic [ref=f18e996]: FAB
+                - cell "SILVIO DELPRETTI GRAÇA" [ref=f18e997]
+                - cell "—" [ref=f18e998]
+                - cell "SCHEMAQ TERREMOTO PREMIUM 9.0" [ref=f18e1000]
+                - cell "PIRAJU (SP)" [ref=f18e1002]
+                - cell "R$ 194.000,00" [ref=f18e1003]
+                - cell "Aguardando resposta cliente" [ref=f18e1005]
+                - cell "3 dias" [ref=f18e1006]
+                - cell "30%" [ref=f18e1007]
+                - cell "21/08/2026" [ref=f18e1012]
+                - cell "Aguardando resposta cliente" [ref=f18e1013]:
+                  - combobox [ref=f18e1014]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1015] [cursor=pointer]:
+                - cell "#74" [ref=f18e1016]
+                - cell "SILVIO DELPRETTI GRAÇA" [ref=f18e1019]
+                - cell "—" [ref=f18e1020]
+                - cell "SCHEMAQ TERREMOTO PREMIUM 7.0" [ref=f18e1022]
+                - cell "PIRAJU (SP)" [ref=f18e1024]
+                - cell "R$ 150.700,00" [ref=f18e1025]
+                - cell "Aguardando resposta cliente" [ref=f18e1027]
+                - cell "3 dias" [ref=f18e1028]
+                - cell "30%" [ref=f18e1029]
+                - cell "21/08/2026" [ref=f18e1034]
+                - cell "Aguardando resposta cliente" [ref=f18e1035]:
+                  - combobox [ref=f18e1036]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1037] [cursor=pointer]:
+                - cell "#73" [ref=f18e1038]
+                - cell "RENAN CALDERON NISHIURA" [ref=f18e1041]
+                - cell "—" [ref=f18e1042]
+                - cell "MAHINDRA 6060" [ref=f18e1044]
+                - cell "PARAGUACU PAULISTA (SP)" [ref=f18e1046]
+                - cell "R$ 150.000,00" [ref=f18e1047]
+                - cell "Aguardando resposta cliente" [ref=f18e1049]
+                - cell "3 dias" [ref=f18e1050]
+                - cell "30%" [ref=f18e1051]
+                - cell "21/08/2026" [ref=f18e1056]
+                - cell "Aguardando resposta cliente" [ref=f18e1057]:
+                  - combobox [ref=f18e1058]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1059] [cursor=pointer]:
+                - cell "#72 FAB" [ref=f18e1060]:
+                  - generic [ref=f18e1061]:
+                    - generic [ref=f18e1062]: "#72"
+                    - generic [ref=f18e1063]: FAB
+                - cell "JOSE TARCISO FAULIN" [ref=f18e1064]
+                - cell "—" [ref=f18e1065]
+                - cell "IPACOL ASTRUS EPH500 5 HASTES" [ref=f18e1067]
+                - cell "PIRAJU (SP)" [ref=f18e1069]
+                - cell "R$ 149.197,00" [ref=f18e1070]
+                - cell "Aguardando resposta banco" [ref=f18e1072]
+                - cell "3 dias" [ref=f18e1073]
+                - cell "60%" [ref=f18e1074]
+                - cell "21/08/2026" [ref=f18e1079]
+                - cell "Aguardando resposta banco" [ref=f18e1080]:
+                  - combobox [ref=f18e1081]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1082] [cursor=pointer]:
+                - cell "#71" [ref=f18e1083]
+                - cell "EDUARDO BRITO" [ref=f18e1086]
+                - cell "—" [ref=f18e1087]
+                - cell "MAHINDRA 6060" [ref=f18e1089]
+                - cell "---" [ref=f18e1091]
+                - cell "R$ 153.000,00" [ref=f18e1092]
+                - cell "Aguardando resposta cliente" [ref=f18e1094]
+                - cell "3 dias" [ref=f18e1095]
+                - cell "30%" [ref=f18e1096]
+                - cell "21/08/2026" [ref=f18e1101]
+                - cell "Aguardando resposta cliente" [ref=f18e1102]:
+                  - combobox [ref=f18e1103]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1104] [cursor=pointer]:
+                - cell "#70 FAB" [ref=f18e1105]:
+                  - generic [ref=f18e1106]:
+                    - generic [ref=f18e1107]: "#70"
+                    - generic [ref=f18e1108]: FAB
+                - cell "EDUARDO BRITO" [ref=f18e1109]
+                - cell "—" [ref=f18e1110]
+                - cell "MARISPAN M85" [ref=f18e1112]
+                - cell "---" [ref=f18e1114]
+                - cell "R$ 66.727,00" [ref=f18e1115]
+                - cell "Aguardando resposta cliente" [ref=f18e1117]
+                - cell "3 dias" [ref=f18e1118]
+                - cell "30%" [ref=f18e1119]
+                - cell "21/08/2026" [ref=f18e1124]
+                - cell "Aguardando resposta cliente" [ref=f18e1125]:
+                  - combobox [ref=f18e1126]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1127] [cursor=pointer]:
+                - cell "#69" [ref=f18e1128]
+                - cell "EDUARDO BRITO" [ref=f18e1131]
+                - cell "—" [ref=f18e1132]
+                - cell "MARISPAN T81" [ref=f18e1134]
+                - cell "---" [ref=f18e1136]
+                - cell "R$ 50.923,00" [ref=f18e1137]
+                - cell "Aguardando resposta cliente" [ref=f18e1139]
+                - cell "3 dias" [ref=f18e1140]
+                - cell "30%" [ref=f18e1141]
+                - cell "21/08/2026" [ref=f18e1146]
+                - cell "Aguardando resposta cliente" [ref=f18e1147]:
+                  - combobox [ref=f18e1148]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1149] [cursor=pointer]:
+                - cell "#68 FAB" [ref=f18e1150]:
+                  - generic [ref=f18e1151]:
+                    - generic [ref=f18e1152]: "#68"
+                    - generic [ref=f18e1153]: FAB
+                - cell "EDUARDO BRITO" [ref=f18e1154]
+                - cell "—" [ref=f18e1155]
+                - cell "Mahindra 6075 BR" [ref=f18e1157]
+                - cell "---" [ref=f18e1159]
+                - cell "R$ 178.000,00" [ref=f18e1160]
+                - cell "Aguardando resposta cliente" [ref=f18e1162]
+                - cell "3 dias" [ref=f18e1163]
+                - cell "30%" [ref=f18e1164]
+                - cell "21/08/2026" [ref=f18e1169]
+                - cell "Aguardando resposta cliente" [ref=f18e1170]:
+                  - combobox [ref=f18e1171]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1172] [cursor=pointer]:
+                - cell "#67" [ref=f18e1173]
+                - cell "EDUARDO BRITO" [ref=f18e1176]
+                - cell "—" [ref=f18e1177]
+                - cell "MAHINDRA 6075 IMPORTADO" [ref=f18e1179]
+                - cell "---" [ref=f18e1181]
+                - cell "R$ 163.800,00" [ref=f18e1182]
+                - cell "Aguardando resposta cliente" [ref=f18e1184]
+                - cell "3 dias" [ref=f18e1185]
+                - cell "30%" [ref=f18e1186]
+                - cell "21/08/2026" [ref=f18e1191]
+                - cell "Aguardando resposta cliente" [ref=f18e1192]:
+                  - combobox [ref=f18e1193]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1194] [cursor=pointer]:
+                - cell "#64 FAB" [ref=f18e1195]:
+                  - generic [ref=f18e1196]:
+                    - generic [ref=f18e1197]: "#64"
+                    - generic [ref=f18e1198]: FAB
+                - cell "ANDRE GOBBO RIBEIRO" [ref=f18e1199]
+                - cell "—" [ref=f18e1200]
+                - cell "MAHINDRA 6075E CAB" [ref=f18e1202]
+                - cell "FARTURA (SP)" [ref=f18e1204]
+                - cell "R$ 255.000,00" [ref=f18e1205]
+                - cell "Aguardando resposta cliente" [ref=f18e1207]
+                - cell "3 dias" [ref=f18e1208]
+                - cell "30%" [ref=f18e1209]
+                - cell "21/08/2026" [ref=f18e1214]
+                - cell "Aguardando resposta cliente" [ref=f18e1215]:
+                  - combobox [ref=f18e1216]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1217] [cursor=pointer]:
+                - cell "#63" [ref=f18e1218]
+                - cell "JOAO BATISTA NUNES NETO" [ref=f18e1221]
+                - cell "—" [ref=f18e1222]
+                - cell "Mahindra 6075" [ref=f18e1224]
+                - cell "TAQUARITUBA (SP)" [ref=f18e1226]
+                - cell "R$ 175.000,00" [ref=f18e1227]
+                - cell "Aguardando resposta cliente" [ref=f18e1229]
+                - cell "3 dias" [ref=f18e1230]
+                - cell "30%" [ref=f18e1231]
+                - cell "21/08/2026" [ref=f18e1236]
+                - cell "Aguardando resposta cliente" [ref=f18e1237]:
+                  - combobox [ref=f18e1238]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1239] [cursor=pointer]:
+                - cell "#62" [ref=f18e1240]
+                - cell "PEDRO JOSE DE ALMEIDA NETO" [ref=f18e1243]
+                - cell "—" [ref=f18e1244]
+                - cell "MAHINDRA 6075E CAB" [ref=f18e1246]
+                - cell "FARTURA (SP)" [ref=f18e1248]
+                - cell "R$ 255.000,00" [ref=f18e1249]
+                - cell "Aguardando resposta cliente" [ref=f18e1251]
+                - cell "3 dias" [ref=f18e1252]
+                - cell "30%" [ref=f18e1253]
+                - cell "21/08/2026" [ref=f18e1258]
+                - cell "Aguardando resposta cliente" [ref=f18e1259]:
+                  - combobox [ref=f18e1260]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1261] [cursor=pointer]:
+                - cell "#61 FAB" [ref=f18e1262]:
+                  - generic [ref=f18e1263]:
+                    - generic [ref=f18e1264]: "#61"
+                    - generic [ref=f18e1265]: FAB
+                - cell "JOAO ANTONIO BIAZOTTI E OUTRA" [ref=f18e1266]
+                - cell "—" [ref=f18e1267]
+                - cell "VICON TRL 160H" [ref=f18e1269]
+                - cell "RIBEIRAO DO SUL (SP)" [ref=f18e1271]
+                - cell "R$ 28.600,00" [ref=f18e1272]
+                - cell "Concluída - vendido" [ref=f18e1274]
+                - cell "3 dias" [ref=f18e1275]
+                - cell "0%" [ref=f18e1276]
+                - cell "21/08/2026" [ref=f18e1280]
+                - cell "Concluída - vendido" [ref=f18e1281]:
+                  - combobox [ref=f18e1282]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido" [selected]
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1283] [cursor=pointer]:
+                - cell "#60" [ref=f18e1284]
+                - cell "ELOIR SIMOES DE ALMEIDA" [ref=f18e1287]
+                - cell "—" [ref=f18e1288]
+                - cell "VICON TRL 160H" [ref=f18e1290]
+                - cell "RIBEIRAO DO SUL (SP)" [ref=f18e1292]
+                - cell "R$ 28.600,00" [ref=f18e1293]
+                - cell "Concluída - vendido" [ref=f18e1295]
+                - cell "3 dias" [ref=f18e1296]
+                - cell "0%" [ref=f18e1297]
+                - cell "21/08/2026" [ref=f18e1301]
+                - cell "Concluída - vendido" [ref=f18e1302]:
+                  - combobox [ref=f18e1303]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido" [selected]
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1304] [cursor=pointer]:
+                - cell "#58" [ref=f18e1305]
+                - cell "MARCOS CLEBER TERUEL" [ref=f18e1308]
+                - cell "—" [ref=f18e1309]
+                - cell "MIAC MASTER CAFÉ 3E" [ref=f18e1311]
+                - cell "UBIRAJARA" [ref=f18e1313]
+                - cell "R$ 188.000,00" [ref=f18e1314]
+                - cell "Aguardando resposta banco" [ref=f18e1316]
+                - cell "3 dias" [ref=f18e1317]
+                - cell "60%" [ref=f18e1318]
+                - cell "21/08/2026" [ref=f18e1323]
+                - cell "Aguardando resposta banco" [ref=f18e1324]:
+                  - combobox [ref=f18e1325]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1326] [cursor=pointer]:
+                - cell "#57" [ref=f18e1327]
+                - cell "MUNICIPIO DE TIMBURI" [ref=f18e1330]
+                - cell "—" [ref=f18e1331]
+                - cell "BALDAN SULCADOR" [ref=f18e1333]
+                - cell "TIMBURI (SP)" [ref=f18e1335]
+                - cell "R$ 6.000,00" [ref=f18e1336]
+                - cell "Aguardando resposta cliente" [ref=f18e1338]
+                - cell "3 dias" [ref=f18e1339]
+                - cell "30%" [ref=f18e1340]
+                - cell "21/08/2026" [ref=f18e1345]
+                - cell "Aguardando resposta cliente" [ref=f18e1346]:
+                  - combobox [ref=f18e1347]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1348] [cursor=pointer]:
+                - cell "#56" [ref=f18e1349]
+                - cell "MUNICIPIO DE TIMBURI" [ref=f18e1352]
+                - cell "—" [ref=f18e1353]
+                - cell "BALDAN NVCR 32 DSC" [ref=f18e1355]
+                - cell "TIMBURI (SP)" [ref=f18e1357]
+                - cell "R$ 38.000,00" [ref=f18e1358]
+                - cell "Aguardando resposta cliente" [ref=f18e1360]
+                - cell "3 dias" [ref=f18e1361]
+                - cell "30%" [ref=f18e1362]
+                - cell "21/08/2026" [ref=f18e1367]
+                - cell "Aguardando resposta cliente" [ref=f18e1368]:
+                  - combobox [ref=f18e1369]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1370] [cursor=pointer]:
+                - cell "#55 FAB" [ref=f18e1371]:
+                  - generic [ref=f18e1372]:
+                    - generic [ref=f18e1373]: "#55"
+                    - generic [ref=f18e1374]: FAB
+                - cell "MUNICIPIO DE RIBEIRAO CLARO" [ref=f18e1375]
+                - cell "—" [ref=f18e1376]
+                - cell "JF C120 AT" [ref=f18e1378]
+                - cell "RIBEIRAO CLARO (PR)" [ref=f18e1380]
+                - cell "R$ 75.586,00" [ref=f18e1381]
+                - cell "Aguardando resposta cliente" [ref=f18e1383]
+                - cell "3 dias" [ref=f18e1384]
+                - cell "30%" [ref=f18e1385]
+                - cell "21/08/2026" [ref=f18e1390]
+                - cell "Aguardando resposta cliente" [ref=f18e1391]:
+                  - combobox [ref=f18e1392]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1393] [cursor=pointer]:
+                - cell "#54 FAB" [ref=f18e1394]:
+                  - generic [ref=f18e1395]:
+                    - generic [ref=f18e1396]: "#54"
+                    - generic [ref=f18e1397]: FAB
+                - cell "MUNICIPIO DE RIBEIRAO CLARO" [ref=f18e1398]
+                - cell "—" [ref=f18e1399]
+                - cell "TATU MARCHESAN PST FLEX 7/5E600" [ref=f18e1401]
+                - cell "RIBEIRAO CLARO (PR)" [ref=f18e1403]
+                - cell "R$ 151.048,00" [ref=f18e1404]
+                - cell "Aguardando resposta cliente" [ref=f18e1406]
+                - cell "3 dias" [ref=f18e1407]
+                - cell "30%" [ref=f18e1408]
+                - cell "21/08/2026" [ref=f18e1413]
+                - cell "Aguardando resposta cliente" [ref=f18e1414]:
+                  - combobox [ref=f18e1415]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1416] [cursor=pointer]:
+                - cell "#53" [ref=f18e1417]
+                - cell "MUNICIPIO DE RIBEIRAO CLARO" [ref=f18e1420]
+                - cell "—" [ref=f18e1421]
+                - cell "TATU MARCHESAN PST FLEX 7/6E500" [ref=f18e1423]
+                - cell "RIBEIRAO CLARO (PR)" [ref=f18e1425]
+                - cell "R$ 158.900,00" [ref=f18e1426]
+                - cell "Aguardando resposta cliente" [ref=f18e1428]
+                - cell "3 dias" [ref=f18e1429]
+                - cell "30%" [ref=f18e1430]
+                - cell "21/08/2026" [ref=f18e1435]
+                - cell "Aguardando resposta cliente" [ref=f18e1436]:
+                  - combobox [ref=f18e1437]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1438] [cursor=pointer]:
+                - cell "#52 FAB" [ref=f18e1439]:
+                  - generic [ref=f18e1440]:
+                    - generic [ref=f18e1441]: "#52"
+                    - generic [ref=f18e1442]: FAB
+                - cell "VALDENIR DO PRADO" [ref=f18e1443]
+                - cell "—" [ref=f18e1444]
+                - cell "MARISPAN T81" [ref=f18e1446]
+                - cell "FARTURA (SP)" [ref=f18e1448]
+                - cell "R$ 55.923,00" [ref=f18e1449]
+                - cell "Aguardando resposta cliente" [ref=f18e1451]
+                - cell "3 dias" [ref=f18e1452]
+                - cell "30%" [ref=f18e1453]
+                - cell "21/08/2026" [ref=f18e1458]
+                - cell "Aguardando resposta cliente" [ref=f18e1459]:
+                  - combobox [ref=f18e1460]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1461] [cursor=pointer]:
+                - cell "#51 FAB" [ref=f18e1462]:
+                  - generic [ref=f18e1463]:
+                    - generic [ref=f18e1464]: "#51"
+                    - generic [ref=f18e1465]: FAB
+                - cell "VALDENIR DO PRADO" [ref=f18e1466]
+                - cell "—" [ref=f18e1467]
+                - cell "MARISPAN M85" [ref=f18e1469]
+                - cell "FARTURA (SP)" [ref=f18e1471]
+                - cell "R$ 66.500,00" [ref=f18e1472]
+                - cell "Aguardando resposta cliente" [ref=f18e1474]
+                - cell "3 dias" [ref=f18e1475]
+                - cell "30%" [ref=f18e1476]
+                - cell "21/08/2026" [ref=f18e1481]
+                - cell "Aguardando resposta cliente" [ref=f18e1482]:
+                  - combobox [ref=f18e1483]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1484] [cursor=pointer]:
+                - cell "#50" [ref=f18e1485]
+                - cell "VALDENIR DO PRADO" [ref=f18e1488]
+                - cell "—" [ref=f18e1489]
+                - cell "MAHINDRA 7095" [ref=f18e1491]
+                - cell "FARTURA/SP" [ref=f18e1493]
+                - cell "R$ 222.000,00" [ref=f18e1494]
+                - cell "Aguardando resposta cliente" [ref=f18e1496]
+                - cell "3 dias" [ref=f18e1497]
+                - cell "30%" [ref=f18e1498]
+                - cell "21/08/2026" [ref=f18e1503]
+                - cell "Aguardando resposta cliente" [ref=f18e1504]:
+                  - combobox [ref=f18e1505]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1506] [cursor=pointer]:
+                - cell "#49 FAB" [ref=f18e1507]:
+                  - generic [ref=f18e1508]:
+                    - generic [ref=f18e1509]: "#49"
+                    - generic [ref=f18e1510]: FAB
+                - cell "VALDENIR DO PRADO" [ref=f18e1511]
+                - cell "—" [ref=f18e1512]
+                - cell "MARISPAN M65" [ref=f18e1514]
+                - cell "FARTURA/SP" [ref=f18e1516]
+                - cell "R$ 62.000,00" [ref=f18e1517]
+                - cell "Aguardando resposta cliente" [ref=f18e1519]
+                - cell "3 dias" [ref=f18e1520]
+                - cell "30%" [ref=f18e1521]
+                - cell "21/08/2026" [ref=f18e1526]
+                - cell "Aguardando resposta cliente" [ref=f18e1527]:
+                  - combobox [ref=f18e1528]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1529] [cursor=pointer]:
+                - cell "#48 FAB" [ref=f18e1530]:
+                  - generic [ref=f18e1531]:
+                    - generic [ref=f18e1532]: "#48"
+                    - generic [ref=f18e1533]: FAB
+                - cell "VALDENIR DO PRADO" [ref=f18e1534]
+                - cell "—" [ref=f18e1535]
+                - cell "MARISPAN T61" [ref=f18e1537]
+                - cell "FARTURA/SP" [ref=f18e1539]
+                - cell "R$ 46.352,00" [ref=f18e1540]
+                - cell "Aguardando resposta cliente" [ref=f18e1542]
+                - cell "3 dias" [ref=f18e1543]
+                - cell "30%" [ref=f18e1544]
+                - cell "21/08/2026" [ref=f18e1549]
+                - cell "Aguardando resposta cliente" [ref=f18e1550]:
+                  - combobox [ref=f18e1551]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1552] [cursor=pointer]:
+                - cell "#47 FAB" [ref=f18e1553]:
+                  - generic [ref=f18e1554]:
+                    - generic [ref=f18e1555]: "#47"
+                    - generic [ref=f18e1556]: FAB
+                - cell "CELSO CAMARGO GUAZZO E OUTRA" [ref=f18e1557]
+                - cell "—" [ref=f18e1558]
+                - cell "INCOMAGRI DELN 4000" [ref=f18e1560]
+                - cell "PIRAJU (SP)" [ref=f18e1562]
+                - cell "R$ 40.400,00" [ref=f18e1563]
+                - cell "Aguardando resposta banco" [ref=f18e1565]
+                - cell "3 dias" [ref=f18e1566]
+                - cell "60%" [ref=f18e1567]
+                - cell "21/08/2026" [ref=f18e1572]
+                - cell "Aguardando resposta banco" [ref=f18e1573]:
+                  - combobox [ref=f18e1574]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1575] [cursor=pointer]:
+                - cell "#46" [ref=f18e1576]
+                - cell "VALDENIR DO PRADO" [ref=f18e1579]
+                - cell "—" [ref=f18e1580]
+                - cell "Mahindra 6075" [ref=f18e1582]
+                - cell "Fartura/SP" [ref=f18e1584]
+                - cell "R$ 185.000,00" [ref=f18e1585]
+                - cell "Aguardando resposta cliente" [ref=f18e1587]
+                - cell "3 dias" [ref=f18e1588]
+                - cell "30%" [ref=f18e1589]
+                - cell "21/08/2026" [ref=f18e1594]
+                - cell "Aguardando resposta cliente" [ref=f18e1595]:
+                  - combobox [ref=f18e1596]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1597] [cursor=pointer]:
+                - cell "#45" [ref=f18e1598]
+                - cell "MUNICIPIO DE SANTA CRUZ DO RIO PARDO" [ref=f18e1601]
+                - cell "—" [ref=f18e1602]
+                - cell "Mahindra 6075 CAB" [ref=f18e1604]
+                - cell "SANTA CRUZ DO RIO PARDO (SP)" [ref=f18e1606]
+                - cell "R$ 260.000,00" [ref=f18e1607]
+                - cell "Aguardando resposta cliente" [ref=f18e1609]
+                - cell "3 dias" [ref=f18e1610]
+                - cell "30%" [ref=f18e1611]
+                - cell "21/08/2026" [ref=f18e1616]
+                - cell "Aguardando resposta cliente" [ref=f18e1617]:
+                  - combobox [ref=f18e1618]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1619] [cursor=pointer]:
+                - cell "#44 FAB" [ref=f18e1620]:
+                  - generic [ref=f18e1621]:
+                    - generic [ref=f18e1622]: "#44"
+                    - generic [ref=f18e1623]: FAB
+                - cell "Sem nome" [ref=f18e1624]
+                - cell "—" [ref=f18e1625]
+                - cell "KUHN ACCURA 12000" [ref=f18e1627]
+                - cell "---" [ref=f18e1629]
+                - cell "R$ 282.437,00" [ref=f18e1630]
+                - cell "Enviar proposta" [ref=f18e1632]
+                - cell "3 dias" [ref=f18e1633]
+                - cell "10%" [ref=f18e1634]
+                - cell "21/08/2026" [ref=f18e1639]
+                - cell "Enviar proposta" [ref=f18e1640]:
+                  - combobox [ref=f18e1641]:
+                    - option "Enviar proposta" [selected]
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1642] [cursor=pointer]:
+                - cell "#43" [ref=f18e1643]
+                - cell "JOSE TARCISO FAULIN ( fazenda pocinho I )" [ref=f18e1646]
+                - cell "—" [ref=f18e1647]
+                - cell "GANA DISCOVER X7" [ref=f18e1649]
+                - cell "PIRAJU (SP)" [ref=f18e1651]
+                - cell "R$ 142.200,00" [ref=f18e1652]
+                - cell "Aguardando resposta cliente" [ref=f18e1654]
+                - cell "3 dias" [ref=f18e1655]
+                - cell "30%" [ref=f18e1656]
+                - cell "21/08/2026" [ref=f18e1661]
+                - cell "Aguardando resposta cliente" [ref=f18e1662]:
+                  - combobox [ref=f18e1663]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1664] [cursor=pointer]:
+                - cell "#42" [ref=f18e1665]
+                - cell "JOSE TARCISO FAULIN ( fazenda pocinho I )" [ref=f18e1668]
+                - cell "—" [ref=f18e1669]
+                - cell "MX R38" [ref=f18e1671]
+                - cell "PIRAJU (SP)" [ref=f18e1673]
+                - cell "R$ 106.000,00" [ref=f18e1674]
+                - cell "Aguardando resposta cliente" [ref=f18e1676]
+                - cell "3 dias" [ref=f18e1677]
+                - cell "30%" [ref=f18e1678]
+                - cell "21/08/2026" [ref=f18e1683]
+                - cell "Aguardando resposta cliente" [ref=f18e1684]:
+                  - combobox [ref=f18e1685]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1686] [cursor=pointer]:
+                - cell "#41 FAB" [ref=f18e1687]:
+                  - generic [ref=f18e1688]:
+                    - generic [ref=f18e1689]: "#41"
+                    - generic [ref=f18e1690]: FAB
+                - cell "JOSE TARCISO FAULIN ( fazenda pocinho I )" [ref=f18e1691]
+                - cell "—" [ref=f18e1692]
+                - cell "NOGUEIRA FTN 2300" [ref=f18e1694]
+                - cell "PIRAJU (SP)" [ref=f18e1696]
+                - cell "R$ 190.000,00" [ref=f18e1697]
+                - cell "Aguardando resposta cliente" [ref=f18e1699]
+                - cell "3 dias" [ref=f18e1700]
+                - cell "30%" [ref=f18e1701]
+                - cell "21/08/2026" [ref=f18e1706]
+                - cell "Aguardando resposta cliente" [ref=f18e1707]:
+                  - combobox [ref=f18e1708]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1709] [cursor=pointer]:
+                - cell "#40 FAB" [ref=f18e1710]:
+                  - generic [ref=f18e1711]:
+                    - generic [ref=f18e1712]: "#40"
+                    - generic [ref=f18e1713]: FAB
+                - cell "JOSE TARCISO FAULIN ( fazenda pocinho I )" [ref=f18e1714]
+                - cell "—" [ref=f18e1715]
+                - cell "IPACOL ASTRUS EHP500 4 HASTES" [ref=f18e1717]
+                - cell "PIRAJU (SP)" [ref=f18e1719]
+                - cell "R$ 126.700,00" [ref=f18e1720]
+                - cell "Aguardando resposta cliente" [ref=f18e1722]
+                - cell "3 dias" [ref=f18e1723]
+                - cell "30%" [ref=f18e1724]
+                - cell "21/08/2026" [ref=f18e1729]
+                - cell "Aguardando resposta cliente" [ref=f18e1730]:
+                  - combobox [ref=f18e1731]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1732] [cursor=pointer]:
+                - cell "#39 FAB" [ref=f18e1733]:
+                  - generic [ref=f18e1734]:
+                    - generic [ref=f18e1735]: "#39"
+                    - generic [ref=f18e1736]: FAB
+                - cell "JOSE TARCISO FAULIN" [ref=f18e1737]
+                - cell "—" [ref=f18e1738]
+                - cell "SCHEMAQ TERREMOTO PREMIUM 7.0" [ref=f18e1740]
+                - cell "PIRAJU (SP)" [ref=f18e1742]
+                - cell "R$ 150.000,00" [ref=f18e1743]
+                - cell "Aguardando resposta banco" [ref=f18e1745]
+                - cell "3 dias" [ref=f18e1746]
+                - cell "60%" [ref=f18e1747]
+                - cell "21/08/2026" [ref=f18e1752]
+                - cell "Aguardando resposta banco" [ref=f18e1753]:
+                  - combobox [ref=f18e1754]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1755] [cursor=pointer]:
+                - cell "#36" [ref=f18e1756]
+                - cell "TIAGO ALESSANDRO MONTEIRO" [ref=f18e1759]
+                - cell "—" [ref=f18e1760]
+                - cell "Mahindra 6075" [ref=f18e1762]
+                - cell "PIRAJU (SP)" [ref=f18e1764]
+                - cell "R$ 185.000,00" [ref=f18e1765]
+                - cell "Concluída - não vendido" [ref=f18e1767]
+                - cell "3 dias" [ref=f18e1768]
+                - cell "0%" [ref=f18e1769]
+                - cell "21/08/2026" [ref=f18e1773]
+                - cell "Concluída - não vendido" [ref=f18e1774]:
+                  - combobox [ref=f18e1775]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido" [selected]
+              - row [ref=f18e1776] [cursor=pointer]:
+                - cell "#35 FAB" [ref=f18e1777]:
+                  - generic [ref=f18e1778]:
+                    - generic [ref=f18e1779]: "#35"
+                    - generic [ref=f18e1780]: FAB
+                - cell "COMPANHIA BRASILEIRA DE ALUMINIO ( CBA )" [ref=f18e1781]
+                - cell "—" [ref=f18e1782]
+                - cell "TADEU CT-5000" [ref=f18e1784]
+                - cell "PIRAJU (SP)" [ref=f18e1786]
+                - cell "R$ 31.800,00" [ref=f18e1787]
+                - cell "Aguardando resposta cliente" [ref=f18e1789]
+                - cell "3 dias" [ref=f18e1790]
+                - cell "30%" [ref=f18e1791]
+                - cell "21/08/2026" [ref=f18e1796]
+                - cell "Aguardando resposta cliente" [ref=f18e1797]:
+                  - combobox [ref=f18e1798]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1799] [cursor=pointer]:
+                - cell "#34" [ref=f18e1800]
+                - cell "COMPANHIA BRASILEIRA DE ALUMINIO ( CBA )" [ref=f18e1803]
+                - cell "—" [ref=f18e1804]
+                - cell "MAHINDRA 6075 CAB" [ref=f18e1806]
+                - cell "PIRAJU (SP)" [ref=f18e1808]
+                - cell "R$ 260.000,00" [ref=f18e1809]
+                - cell "Aguardando resposta cliente" [ref=f18e1811]
+                - cell "3 dias" [ref=f18e1812]
+                - cell "30%" [ref=f18e1813]
+                - cell "21/08/2026" [ref=f18e1818]
+                - cell "Aguardando resposta cliente" [ref=f18e1819]:
+                  - combobox [ref=f18e1820]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1821] [cursor=pointer]:
+                - cell "#33" [ref=f18e1822]
+                - cell "JOSE CARLOS RIBEIRO E OUTROS" [ref=f18e1825]
+                - cell "—" [ref=f18e1826]
+                - cell "VENTURA M250 L" [ref=f18e1828]
+                - cell "FARTURA (SP)" [ref=f18e1830]
+                - cell "R$ 31.000,00" [ref=f18e1831]
+                - cell "Aguardando resposta cliente" [ref=f18e1833]
+                - cell "3 dias" [ref=f18e1834]
+                - cell "30%" [ref=f18e1835]
+                - cell "21/08/2026" [ref=f18e1840]
+                - cell "Aguardando resposta cliente" [ref=f18e1841]:
+                  - combobox [ref=f18e1842]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1843] [cursor=pointer]:
+                - cell "#32" [ref=f18e1844]
+                - cell "JOSE CARLOS RIBEIRO E OUTROS" [ref=f18e1847]
+                - cell "—" [ref=f18e1848]
+                - cell "KUHN ACCURA 1200" [ref=f18e1850]
+                - cell "FARTURA (SP)" [ref=f18e1852]
+                - cell "R$ 24.000,00" [ref=f18e1853]
+                - cell "Aguardando resposta cliente" [ref=f18e1855]
+                - cell "3 dias" [ref=f18e1856]
+                - cell "30%" [ref=f18e1857]
+                - cell "21/08/2026" [ref=f18e1862]
+                - cell "Aguardando resposta cliente" [ref=f18e1863]:
+                  - combobox [ref=f18e1864]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1865] [cursor=pointer]:
+                - cell "#31" [ref=f18e1866]
+                - cell "JOAO PAULO ARAUJO VAN MELIS" [ref=f18e1869]
+                - cell "—" [ref=f18e1870]
+                - cell "HARAMAQ PROHMIX 1.9" [ref=f18e1872]
+                - cell "PARANAPANEMA (SP)" [ref=f18e1874]
+                - cell "R$ 105.975,00" [ref=f18e1875]
+                - cell "Aguardando resposta cliente" [ref=f18e1877]
+                - cell "3 dias" [ref=f18e1878]
+                - cell "30%" [ref=f18e1879]
+                - cell "21/08/2026" [ref=f18e1884]
+                - cell "Aguardando resposta cliente" [ref=f18e1885]:
+                  - combobox [ref=f18e1886]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1887] [cursor=pointer]:
+                - cell "#30" [ref=f18e1888]
+                - cell "MARCIO RODRIGO SCHINCH" [ref=f18e1891]
+                - cell "—" [ref=f18e1892]
+                - cell "TERRIS PILOTO ELETRICO" [ref=f18e1894]
+                - cell "CAMPOS NOVOS PAULISTA (SP)" [ref=f18e1896]
+                - cell "R$ 40.000,00" [ref=f18e1897]
+                - cell "Aguardando resposta banco" [ref=f18e1899]
+                - cell "3 dias" [ref=f18e1900]
+                - cell "60%" [ref=f18e1901]
+                - cell "21/08/2026" [ref=f18e1906]
+                - cell "Aguardando resposta banco" [ref=f18e1907]:
+                  - combobox [ref=f18e1908]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1909] [cursor=pointer]:
+                - cell "#29" [ref=f18e1910]
+                - cell "RENAN CALDERON NISHIURA" [ref=f18e1913]
+                - cell "—" [ref=f18e1914]
+                - cell "MAHINDRA 5050" [ref=f18e1916]
+                - cell "PARAGUACU PAULISTA (SP)" [ref=f18e1918]
+                - cell "R$ 145.000,00" [ref=f18e1919]
+                - cell "Aguardando resposta cliente" [ref=f18e1921]
+                - cell "3 dias" [ref=f18e1922]
+                - cell "30%" [ref=f18e1923]
+                - cell "21/08/2026" [ref=f18e1928]
+                - cell "Aguardando resposta cliente" [ref=f18e1929]:
+                  - combobox [ref=f18e1930]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1931] [cursor=pointer]:
+                - cell "#28 FAB" [ref=f18e1932]:
+                  - generic [ref=f18e1933]:
+                    - generic [ref=f18e1934]: "#28"
+                    - generic [ref=f18e1935]: FAB
+                - cell "JEFERSON MOACYR FAULIM" [ref=f18e1936]
+                - cell "—" [ref=f18e1937]
+                - cell "KUHN ACCURA 15000" [ref=f18e1939]
+                - cell "PIRAJU (SP)" [ref=f18e1941]
+                - cell "R$ 0,00" [ref=f18e1942]
+                - cell "Concluída - não vendido" [ref=f18e1944]
+                - cell "3 dias" [ref=f18e1945]
+                - cell "0%" [ref=f18e1946]
+                - cell "21/08/2026" [ref=f18e1950]
+                - cell "Concluída - não vendido" [ref=f18e1951]:
+                  - combobox [ref=f18e1952]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido" [selected]
+              - row [ref=f18e1953] [cursor=pointer]:
+                - cell "#27" [ref=f18e1954]
+                - cell "LUIZ CARLOS DA SILVA" [ref=f18e1957]
+                - cell "—" [ref=f18e1958]
+                - cell "PALINI ALVES COLHEPLUS TRACTION" [ref=f18e1960]
+                - cell "PIRAJU (SP)" [ref=f18e1962]
+                - cell "R$ 635.000,00" [ref=f18e1963]
+                - cell "Concluída - vendido" [ref=f18e1965]
+                - cell "3 dias" [ref=f18e1966]
+                - cell "0%" [ref=f18e1967]
+                - cell "21/08/2026" [ref=f18e1971]
+                - cell "Concluída - vendido" [ref=f18e1972]:
+                  - combobox [ref=f18e1973]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido" [selected]
+                    - option "Concluída - não vendido"
+              - row [ref=f18e1974] [cursor=pointer]:
+                - cell "#26 FAB" [ref=f18e1975]:
+                  - generic [ref=f18e1976]:
+                    - generic [ref=f18e1977]: "#26"
+                    - generic [ref=f18e1978]: FAB
+                - cell "LUIZ CARLOS DA SILVA" [ref=f18e1979]
+                - cell "—" [ref=f18e1980]
+                - cell "TDI COLHEDORA DE CAFÉ" [ref=f18e1982]
+                - cell "PIRAJU (SP)" [ref=f18e1984]
+                - cell "R$ 773.417,00" [ref=f18e1985]
+                - cell "Concluída - não vendido" [ref=f18e1987]
+                - cell "3 dias" [ref=f18e1988]
+                - cell "0%" [ref=f18e1989]
+                - cell "21/08/2026" [ref=f18e1993]
+                - cell "Concluída - não vendido" [ref=f18e1994]:
+                  - combobox [ref=f18e1995]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido" [selected]
+              - row [ref=f18e1996] [cursor=pointer]:
+                - cell "#25" [ref=f18e1997]
+                - cell "LUIZ CARLOS DA SILVA" [ref=f18e2000]
+                - cell "—" [ref=f18e2001]
+                - cell "TDI COLHEDORA DE CAFÉ" [ref=f18e2003]
+                - cell "PIRAJU (SP)" [ref=f18e2005]
+                - cell "R$ 801.430,00" [ref=f18e2006]
+                - cell "Concluída - não vendido" [ref=f18e2008]
+                - cell "3 dias" [ref=f18e2009]
+                - cell "0%" [ref=f18e2010]
+                - cell "21/08/2026" [ref=f18e2014]
+                - cell "Concluída - não vendido" [ref=f18e2015]:
+                  - combobox [ref=f18e2016]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido" [selected]
+              - row [ref=f18e2017] [cursor=pointer]:
+                - cell "#24" [ref=f18e2018]
+                - cell "BRUNO CORREA AIRES" [ref=f18e2021]
+                - cell "—" [ref=f18e2022]
+                - cell "Mahindra 6075 CAB" [ref=f18e2024]
+                - cell "IARAS (SP)" [ref=f18e2026]
+                - cell "R$ 260.000,00" [ref=f18e2027]
+                - cell "Aguardando resposta cliente" [ref=f18e2029]
+                - cell "3 dias" [ref=f18e2030]
+                - cell "30%" [ref=f18e2031]
+                - cell "21/08/2026" [ref=f18e2036]
+                - cell "Aguardando resposta cliente" [ref=f18e2037]:
+                  - combobox [ref=f18e2038]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e2039] [cursor=pointer]:
+                - cell "#23" [ref=f18e2040]
+                - cell "WAGNER FRANCISCO DA CONCEICAO E OUTRO" [ref=f18e2043]
+                - cell "—" [ref=f18e2044]
+                - cell "GANA DISCOVER X3" [ref=f18e2046]
+                - cell "PIRAJU" [ref=f18e2048]
+                - cell "R$ 48.000,00" [ref=f18e2049]
+                - cell "Aguardando resposta cliente" [ref=f18e2051]
+                - cell "3 dias" [ref=f18e2052]
+                - cell "30%" [ref=f18e2053]
+                - cell "21/08/2026" [ref=f18e2058]
+                - cell "Aguardando resposta cliente" [ref=f18e2059]:
+                  - combobox [ref=f18e2060]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e2061] [cursor=pointer]:
+                - cell "#20 FAB" [ref=f18e2062]:
+                  - generic [ref=f18e2063]:
+                    - generic [ref=f18e2064]: "#20"
+                    - generic [ref=f18e2065]: FAB
+                - cell "ELISA DONISETE GARBELOTI" [ref=f18e2066]
+                - cell "—" [ref=f18e2067]
+                - cell "CEMAG CBHM 2000" [ref=f18e2069]
+                - cell "FARTURA (SP)" [ref=f18e2071]
+                - cell "R$ 13,00" [ref=f18e2072]
+                - cell "Aguardando resposta cliente" [ref=f18e2074]
+                - cell "3 dias" [ref=f18e2075]
+                - cell "30%" [ref=f18e2076]
+                - cell "21/08/2026" [ref=f18e2081]
+                - cell "Aguardando resposta cliente" [ref=f18e2082]:
+                  - combobox [ref=f18e2083]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e2084] [cursor=pointer]:
+                - cell "#19 FAB" [ref=f18e2085]:
+                  - generic [ref=f18e2086]:
+                    - generic [ref=f18e2087]: "#19"
+                    - generic [ref=f18e2088]: FAB
+                - cell "ELISA DONISETE GARBELOTI" [ref=f18e2089]
+                - cell "—" [ref=f18e2090]
+                - cell "KUHN ARBO 260" [ref=f18e2092]
+                - cell "FARTURA (SP)" [ref=f18e2094]
+                - cell "R$ 21.500,00" [ref=f18e2095]
+                - cell "Aguardando resposta cliente" [ref=f18e2097]
+                - cell "3 dias" [ref=f18e2098]
+                - cell "30%" [ref=f18e2099]
+                - cell "21/08/2026" [ref=f18e2104]
+                - cell "Aguardando resposta cliente" [ref=f18e2105]:
+                  - combobox [ref=f18e2106]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e2107] [cursor=pointer]:
+                - cell "#18" [ref=f18e2108]
+                - cell "ELISA DONISETE GARBELOTI" [ref=f18e2111]
+                - cell "—" [ref=f18e2112]
+                - cell "VENTURA M250 L" [ref=f18e2114]
+                - cell "FARTURA (SP)" [ref=f18e2116]
+                - cell "R$ 30.500,00" [ref=f18e2117]
+                - cell "Aguardando resposta cliente" [ref=f18e2119]
+                - cell "3 dias" [ref=f18e2120]
+                - cell "30%" [ref=f18e2121]
+                - cell "21/08/2026" [ref=f18e2126]
+                - cell "Aguardando resposta cliente" [ref=f18e2127]:
+                  - combobox [ref=f18e2128]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente" [selected]
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f18e2129] [cursor=pointer]:
+                - cell "#17 FAB" [ref=f18e2130]:
+                  - generic [ref=f18e2131]:
+                    - generic [ref=f18e2132]: "#17"
+                    - generic [ref=f18e2133]: FAB
+                - cell "SANDRA AP. MARQUES DE LAZZARI E BENEDITO DE LAZZARI" [ref=f18e2134]
+                - cell "—" [ref=f18e2135]
+                - cell "VICON ATOM 100/70" [ref=f18e2137]
+                - cell "OLEO (SP)" [ref=f18e2139]
+                - cell "R$ 13.500,00" [ref=f18e2140]
+                - cell "Concluída - não vendido" [ref=f18e2142]
+                - cell "3 dias" [ref=f18e2143]
+                - cell "0%" [ref=f18e2144]
+                - cell "21/08/2026" [ref=f18e2148]
+                - cell "Concluída - não vendido" [ref=f18e2149]:
+                  - combobox [ref=f18e2150]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido" [selected]
+              - row [ref=f18e2151] [cursor=pointer]:
+                - cell "#16 FAB" [ref=f18e2152]:
+                  - generic [ref=f18e2153]:
+                    - generic [ref=f18e2154]: "#16"
+                    - generic [ref=f18e2155]: FAB
+                - cell "SANDRA AP. MARQUES DE LAZZARI E BENEDITO DE LAZZARI" [ref=f18e2156]
+                - cell "—" [ref=f18e2157]
+                - cell "IMEP 200L C/ LANÇA LATERAL" [ref=f18e2159]
+                - cell "OLEO (SP)" [ref=f18e2161]
+                - cell "R$ 20.000,00" [ref=f18e2162]
+                - cell "Concluída - vendido" [ref=f18e2164]
+                - cell "3 dias" [ref=f18e2165]
+                - cell "0%" [ref=f18e2166]
+                - cell "21/08/2026" [ref=f18e2170]
+                - cell "Concluída - vendido" [ref=f18e2171]:
+                  - combobox [ref=f18e2172]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido" [selected]
+                    - option "Concluída - não vendido"
+              - row [ref=f18e2173] [cursor=pointer]:
+                - cell "#15" [ref=f18e2174]
+                - cell "SANDRA AP. MARQUES DE LAZZARI E BENEDITO DE LAZZARI" [ref=f18e2177]
+                - cell "—" [ref=f18e2178]
+                - cell "KAMAQ KDD 110S" [ref=f18e2180]
+                - cell "OLEO (SP)" [ref=f18e2182]
+                - cell "R$ 15.000,00" [ref=f18e2183]
+                - cell "Concluída - vendido" [ref=f18e2185]
+                - cell "3 dias" [ref=f18e2186]
+                - cell "0%" [ref=f18e2187]
+                - cell "21/08/2026" [ref=f18e2191]
+                - cell "Concluída - vendido" [ref=f18e2192]:
+                  - combobox [ref=f18e2193]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido" [selected]
+                    - option "Concluída - não vendido"
+              - row [ref=f18e2194] [cursor=pointer]:
+                - cell "#14 FAB" [ref=f18e2195]:
+                  - generic [ref=f18e2196]:
+                    - generic [ref=f18e2197]: "#14"
+                    - generic [ref=f18e2198]: FAB
+                - cell "PAULO CESAR BELISARIO NAZARENO" [ref=f18e2199]
+                - cell "—" [ref=f18e2200]
+                - cell "KUHN ARBO 260" [ref=f18e2202]
+                - cell "TIMBURI (SP)" [ref=f18e2204]
+                - cell "R$ 21.000,00" [ref=f18e2205]
+                - cell "Concluída - vendido" [ref=f18e2207]
+                - cell "3 dias" [ref=f18e2208]
+                - cell "0%" [ref=f18e2209]
+                - cell "21/08/2026" [ref=f18e2213]
+                - cell "Concluída - vendido" [ref=f18e2214]:
+                  - combobox [ref=f18e2215]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido" [selected]
+                    - option "Concluída - não vendido"
+          - generic [ref=f18e2216]: 82 propostas
+        - generic [ref=f18e2275]:
+          - generic [ref=f18e2276]:
+            - 'heading "Edição da proposta #109" [level=2] [ref=f18e2279]':
+              - text: Edição da proposta
+              - generic [ref=f18e2280]: "#109"
+            - generic [ref=f18e2281]:
+              - button "Histórico" [ref=f18e2282] [cursor=pointer]
+              - button "Duplicar" [ref=f18e2287] [cursor=pointer]
+              - button "Lixeira" [ref=f18e2291] [cursor=pointer]
+              - button "Imprimir PDF" [ref=f18e2295] [cursor=pointer]
+              - button "Fechar" [ref=f18e2300] [cursor=pointer]
+          - generic [ref=f18e2305]:
+            - generic [ref=f18e2306]:
+              - generic [ref=f18e2307]: Termômetro
+              - slider [ref=f18e2308] [cursor=pointer]: "10"
+              - generic [ref=f18e2309]: 10%
+              - generic [ref=f18e2310]: (padrão da fase)
+            - generic [ref=f18e2311]: I. DADOS DO CLIENTE
+            - generic [ref=f18e2312]:
+              - generic [ref=f18e2313]:
+                - generic [ref=f18e2314]:
+                  - generic [ref=f18e2315]: NOME
+                  - textbox [ref=f18e2316]: INSTITUTO RIO GRANDENSE DO ARROZ
+                - generic [ref=f18e2317]:
+                  - generic [ref=f18e2318]: CPF / CNPJ
+                  - textbox [ref=f18e2319]: 92.854.876/0006-28
+                - generic [ref=f18e2320]:
+                  - generic [ref=f18e2321]: I.E. / MUN.
+                  - textbox [ref=f18e2322]: 177/0000744
+              - generic [ref=f18e2323]:
+                - generic [ref=f18e2324]:
+                  - generic [ref=f18e2325]: CIDADE
+                  - textbox [ref=f18e2326]: CACHOEIRINHA (RS)
+                - generic [ref=f18e2327]:
+                  - generic [ref=f18e2328]: BAIRRO
+                  - textbox [ref=f18e2329]: VILA CARLOS ANTONIO WILKENS
+                - generic [ref=f18e2330]:
+                  - generic [ref=f18e2331]: CEP
+                  - textbox [ref=f18e2332]
+              - generic [ref=f18e2333]:
+                - generic [ref=f18e2334]:
+                  - generic [ref=f18e2335]: ENDERECO COMPLETO
+                  - textbox [ref=f18e2336]: RUA AGRONOMO BONIFACIO CARVALHO, 1494
+                - generic [ref=f18e2337]:
+                  - generic [ref=f18e2338]: VENDEDOR
+                  - combobox [ref=f18e2339] [cursor=pointer]:
+                    - option "— sem vendedor —"
+                    - option "André Luiz Anibal"
+                    - option "Danilo Correa"
+                    - option "DOUGRAS BOMFIM"
+                    - option "HENRI (TESTE)"
+                    - option "JOAQUIM FERNANDO LEME" [selected]
+                    - option "LUCAS ENZ"
+                    - option "Luiz Fernando Sanches"
+                    - option "Paulo Magalhães de Carvalho"
+                    - option "PEDRO FAVARO"
+                    - option "RAFAEL DOMINGUES DOS REIS"
+                    - option "SADRAKE"
+            - generic [ref=f18e2340]: II. DADOS DO IMPLEMENTO
+            - img "Preview" [ref=f18e2342]
+            - generic [ref=f18e2343]:
+              - generic [ref=f18e2344]:
+                - generic [ref=f18e2345]:
+                  - generic [ref=f18e2346]: MARCA
+                  - textbox [ref=f18e2347]: TRITUCAP
+                - generic [ref=f18e2348]:
+                  - generic [ref=f18e2349]: MODELO
+                  - textbox [ref=f18e2350]: 2.3F
+                - generic [ref=f18e2351]:
+                  - generic [ref=f18e2352]: ANO
+                  - textbox [ref=f18e2353]: "2026"
+              - generic [ref=f18e2355]:
+                - generic [ref=f18e2356]: DESCRICAO TECNICA
+                - textbox [ref=f18e2357]: "TRITURADOR VEGETAL TRITUCAP 2.3F - Acoplamento aos Três pontos categoria II • Acionamento: Via tomada de potência (TDP) • Número de facas: 16 grandes e 2 pequenas • Número de martelos: Não se aplica • Potência TDP mínima: 75 CVs • Rotação mínima da TDP: 540 rpm 1. Largura de trabalho: 2.30 metros Potência requerida do trator: 100 CVs Altura do implemento: 1.50 metros Largura total: 2.70 metros Peso aproximado: 950 kg"
+            - generic [ref=f18e2358]: III. FINANCEIRO
+            - generic [ref=f18e2359]:
+              - generic [ref=f18e2360]:
+                - generic [ref=f18e2361]:
+                  - generic [ref=f18e2362]: VALOR TOTAL
+                  - textbox [ref=f18e2363]: 104.000,00
+                - generic [ref=f18e2364]:
+                  - generic [ref=f18e2365]: VALIDADE (DIAS)
+                  - textbox [ref=f18e2366]: Sem validade
+              - generic [ref=f18e2368]:
+                - generic [ref=f18e2369]: CONDICOES DE PAGAMENTO
+                - textbox [ref=f18e2370]: 50% no pedido e 50% no faturamento
+            - generic [ref=f18e2371]: IV. PEDIDO DE FÁBRICA
+            - generic [ref=f18e2373]:
+              - text: Vincular a um pedido de fábrica existente
+              - 'textbox "Buscar pedido por cliente, modelo ou #ID..." [ref=f18e2375]'
+          - button "Salvar alterações" [ref=f18e2377] [cursor=pointer]
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f18e2217]:
+      - generic [ref=f18e2378]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=f18e11] [cursor=pointer]
+  - alert [ref=f18e15]

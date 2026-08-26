@@ -1,0 +1,302 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e626]:
+            - generic [ref=f2e627]:
+              - button "" [ref=f2e628] [cursor=pointer]
+              - generic [ref=f2e630]: Novo Lançamento
+            - generic [ref=f2e631]:
+              - generic [ref=f2e632]:
+                - generic [ref=f2e633]:
+                  - generic [ref=f2e634]:
+                    - generic [ref=f2e635]: Tipo do Pedido
+                    - combobox [ref=f2e636]:
+                      - option "Pedido de Venda (PPV)" [selected]
+                      - option "Remessa (REM)"
+                  - generic [ref=f2e637]:
+                    - generic [ref=f2e638]: Motivo da Saída
+                    - combobox [ref=f2e639]:
+                      - option "Venda Balcão" [selected]
+                      - option "Orçamento Cliente"
+                      - option "Saída Técnico (Sem OS)"
+                      - option "Saída Técnico (Com OS)"
+                - generic [ref=f2e640]:
+                  - generic [ref=f2e641]: Técnico *
+                  - combobox [ref=f2e642]:
+                    - option "-- Selecione o técnico --" [selected]
+                    - option "ARTHUR"
+                    - option "CARIVALDO"
+                    - option "DANILO DE SOUZA"
+                    - option "FERNANDO LEONEL"
+                    - option "GABRIEL MORAES"
+                    - option "HENRI HIONI"
+                    - option "JOSE ANTONIO DE OLIVEIRA"
+                    - option "JOSE ORTIZ"
+                    - option "LUIZ FERNANDO"
+                    - option "NICOLAS DARIO"
+                    - option "PAULO MOTTA"
+                    - option "PEDRO MOTTA"
+                    - option "VINICIUS CORREA"
+                - generic [ref=f2e643]:
+                  - generic [ref=f2e644]: Cliente *
+                  - generic [ref=f2e646] [cursor=pointer]:
+                    - generic [ref=f2e647]: 
+                    - generic [ref=f2e648]: Clique aqui para buscar o cliente
+                - generic [ref=f2e649]:
+                  - generic [ref=f2e650]: Ordem de Serviço (opcional)
+                  - generic [ref=f2e652] [cursor=pointer]:
+                    - generic [ref=f2e653]: 
+                    - generic [ref=f2e654]: Clique aqui para vincular uma O.S.
+                - generic [ref=f2e655]:
+                  - generic [ref=f2e656]: Projeto (opcional)
+                  - textbox "Nome do projeto..." [ref=f2e657]
+                - generic [ref=f2e658]:
+                  - generic [ref=f2e659]: Observações (opcional)
+                  - textbox "Escreva aqui se precisar..." [ref=f2e660]
+                - generic [ref=f2e661]:
+                  - generic [ref=f2e662]: 
+                  - text: Kit de Revisão
+                - button " Importar Kit de Revisão Revisão, manutenção ou quadriciclo — escolha o modelo " [ref=f2e663] [cursor=pointer]:
+                  - generic [ref=f2e664]: 
+                  - generic [ref=f2e666]:
+                    - generic [ref=f2e667]: Importar Kit de Revisão
+                    - generic [ref=f2e668]: Revisão, manutenção ou quadriciclo — escolha o modelo
+                  - generic [ref=f2e669]: 
+                - generic [ref=f2e670]:
+                  - generic [ref=f2e671]: 
+                  - text: Adicionar Produto
+                - generic [ref=f2e674] [cursor=pointer]:
+                  - generic [ref=f2e675]: 
+                  - generic [ref=f2e676]: Clique para buscar produto
+                - generic [ref=f2e677]:
+                  - generic [ref=f2e678]:
+                    - generic [ref=f2e679]: Qtd
+                    - spinbutton [ref=f2e680]: "1"
+                  - button "+ Adicionar ao Carrinho" [ref=f2e681] [cursor=pointer]:
+                    - generic [ref=f2e682]: +
+                    - text: Adicionar ao Carrinho
+              - generic [ref=f2e683]:
+                - generic [ref=f2e684]:
+                  - generic [ref=f2e685]: 
+                  - generic [ref=f2e686]: Itens do Pedido
+                - generic [ref=f2e688]:
+                  - generic [ref=f2e689]: 
+                  - paragraph [ref=f2e690]: Nenhum produto adicionado
+                  - generic [ref=f2e691]: Busque produtos ou importe um kit de revisão
+                - generic [ref=f2e692]:
+                  - generic [ref=f2e693]:
+                    - generic [ref=f2e694]: Total
+                    - generic [ref=f2e695]: R$ 0,00
+                  - button " Finalizar Lançamento" [ref=f2e696] [cursor=pointer]:
+                    - generic [ref=f2e697]: 
+                    - text: Finalizar Lançamento
+        - generic [ref=f2e700]:
+          - generic [ref=f2e701]:
+            - generic [ref=f2e702]:
+              - generic [ref=f2e703]:
+                - generic [ref=f2e704]: 
+                - text: Buscar Cliente
+              - generic [ref=f2e976]: 20 encontrados
+            - button "" [ref=f2e706] [cursor=pointer]
+          - generic [ref=f2e709]:
+            - generic [ref=f2e710]: 
+            - textbox "Nome, CNPJ ou Cidade do cliente..." [active] [ref=f2e711]: jose carlos
+            - button "" [ref=f2e973] [cursor=pointer]
+          - generic [ref=f2e713]:
+            - table [ref=f2e977]:
+              - rowgroup [ref=f2e978]:
+                - row [ref=f2e979]:
+                  - columnheader "Cliente" [ref=f2e980]
+                  - columnheader "CNPJ / CPF" [ref=f2e981]
+                  - columnheader "Cidade" [ref=f2e982]
+            - table [ref=f2e984]:
+              - rowgroup [ref=f2e985]:
+                - row [ref=f2e986] [cursor=pointer]:
+                  - cell " JOSE CARLOS SPONTON MANHANI E OUTRA" [ref=f2e987]:
+                    - generic [ref=f2e988]: 
+                    - mark [ref=f2e989]: JOSE CARLOS
+                    - text: SPONTON MANHANI E OUTRA
+                  - cell "09.490.771/0001-89" [ref=f2e990]
+                  - cell "PROMISSAO (SP) - SP" [ref=f2e991]
+                - row [ref=f2e992] [cursor=pointer]:
+                  - cell " JOSE CARLOS TANI E OUTROS" [ref=f2e993]:
+                    - generic [ref=f2e994]: 
+                    - mark [ref=f2e995]: JOSE CARLOS
+                    - text: TANI E OUTROS
+                  - cell "17.948.751/0001-37" [ref=f2e996]
+                  - cell "AGUAS DE SANTA BARBARA (SP) - SP" [ref=f2e997]
+                - row [ref=f2e998] [cursor=pointer]:
+                  - cell " JOSE CARLOS RIBEIRO E OUTROS" [ref=f2e999]:
+                    - generic [ref=f2e1000]: 
+                    - mark [ref=f2e1001]: JOSE CARLOS
+                    - text: RIBEIRO E OUTROS
+                  - cell "08.005.678/0001-79" [ref=f2e1002]
+                  - cell "FARTURA (SP) - SP" [ref=f2e1003]
+                - row [ref=f2e1004] [cursor=pointer]:
+                  - cell " JOSE CARLOS FERNANDES" [ref=f2e1005]:
+                    - generic [ref=f2e1006]: 
+                    - mark [ref=f2e1007]: JOSE CARLOS
+                    - text: FERNANDES
+                  - cell "07.916.196/0006-12" [ref=f2e1008]
+                  - cell "ITAI (SP) - SP" [ref=f2e1009]
+                - row [ref=f2e1010] [cursor=pointer]:
+                  - cell " JOSE CARLOS FERNANDEZ" [ref=f2e1011]:
+                    - generic [ref=f2e1012]: 
+                    - mark [ref=f2e1013]: JOSE CARLOS
+                    - text: FERNANDEZ
+                  - cell "07.916.196/0002-99" [ref=f2e1014]
+                  - cell "ITAPEVA (SP) - SP" [ref=f2e1015]
+                - row [ref=f2e1016] [cursor=pointer]:
+                  - cell " JOSE CARLOS TOMAZ DE JESUS ( ZE DA VACA )" [ref=f2e1017]:
+                    - generic [ref=f2e1018]: 
+                    - mark [ref=f2e1019]: JOSE CARLOS
+                    - text: TOMAZ DE JESUS ( ZE DA VACA )
+                  - cell "034.612.768-80" [ref=f2e1020]
+                  - cell "ITAPEVA (SP) - SP" [ref=f2e1021]
+                - row [ref=f2e1022] [cursor=pointer]:
+                  - cell " JOSE CARLOS BORGES CAETANO" [ref=f2e1023]:
+                    - generic [ref=f2e1024]: 
+                    - mark [ref=f2e1025]: JOSE CARLOS
+                    - text: BORGES CAETANO
+                  - cell "269.141.748-49" [ref=f2e1026]
+                  - cell "SARUTAIA (SP) - SP" [ref=f2e1027]
+                - row [ref=f2e1028] [cursor=pointer]:
+                  - cell " JOSE CARLOS FERNANDES" [ref=f2e1029]:
+                    - generic [ref=f2e1030]: 
+                    - mark [ref=f2e1031]: JOSE CARLOS
+                    - text: FERNANDES
+                  - cell "07.916.196/0006-12" [ref=f2e1032]
+                  - cell "ITAI (SP) - SP" [ref=f2e1033]
+                - row [ref=f2e1034] [cursor=pointer]:
+                  - cell " JOSE CARLOS FERNANDEZ" [ref=f2e1035]:
+                    - generic [ref=f2e1036]: 
+                    - mark [ref=f2e1037]: JOSE CARLOS
+                    - text: FERNANDEZ
+                  - cell "07.916.196/0002-99" [ref=f2e1038]
+                  - cell "ITAPEVA (SP) - SP" [ref=f2e1039]
+                - row [ref=f2e1040] [cursor=pointer]:
+                  - cell " JOSE CARLOS TOMAZ DE JESUS ( ZE DA VACA )" [ref=f2e1041]:
+                    - generic [ref=f2e1042]: 
+                    - mark [ref=f2e1043]: JOSE CARLOS
+                    - text: TOMAZ DE JESUS ( ZE DA VACA )
+                  - cell "034.612.768-80" [ref=f2e1044]
+                  - cell "ITAPEVA (SP) - SP" [ref=f2e1045]
+                - row [ref=f2e1046] [cursor=pointer]:
+                  - cell " JOSE CARLOS FERNANDEZ" [ref=f2e1047]:
+                    - generic [ref=f2e1048]: 
+                    - mark [ref=f2e1049]: JOSE CARLOS
+                    - text: FERNANDEZ
+                  - cell "07.916.196/0023-13" [ref=f2e1050]
+                  - cell "IARAS (SP) - SP" [ref=f2e1051]
+                - row [ref=f2e1052] [cursor=pointer]:
+                  - cell " JOSE CARLOS CARDOSO" [ref=f2e1053]:
+                    - generic [ref=f2e1054]: 
+                    - mark [ref=f2e1055]: JOSE CARLOS
+                    - text: CARDOSO
+                  - cell "110.320.208-14" [ref=f2e1056]
+                  - cell "AGUAS DE SANTA BARBARA (SP) - SP" [ref=f2e1057]
+                - row [ref=f2e1058] [cursor=pointer]:
+                  - cell " JOSE CARLOS FERREIRA 03024301801" [ref=f2e1059]:
+                    - generic [ref=f2e1060]: 
+                    - mark [ref=f2e1061]: JOSE CARLOS
+                    - text: FERREIRA 03024301801
+                  - cell "17.138.977/0001-72" [ref=f2e1062]
+                  - cell "TEJUPA (SP) - SP" [ref=f2e1063]
+                - row [ref=f2e1064] [cursor=pointer]:
+                  - cell " JOSE CARLOS SPONTON MANHANI E OUTRA" [ref=f2e1065]:
+                    - generic [ref=f2e1066]: 
+                    - mark [ref=f2e1067]: JOSE CARLOS
+                    - text: SPONTON MANHANI E OUTRA
+                  - cell "09.490.771/0001-89" [ref=f2e1068]
+                  - cell "PROMISSAO (SP) - SP" [ref=f2e1069]
+                - row [ref=f2e1070] [cursor=pointer]:
+                  - cell " JOSE CARLOS RIBEIRO E OUTROS" [ref=f2e1071]:
+                    - generic [ref=f2e1072]: 
+                    - mark [ref=f2e1073]: JOSE CARLOS
+                    - text: RIBEIRO E OUTROS
+                  - cell "08.005.678/0001-79" [ref=f2e1074]
+                  - cell "FARTURA (SP) - SP" [ref=f2e1075]
+                - row [ref=f2e1076] [cursor=pointer]:
+                  - cell " JOSE CARLOS FERNANDEZ" [ref=f2e1077]:
+                    - generic [ref=f2e1078]: 
+                    - mark [ref=f2e1079]: JOSE CARLOS
+                    - text: FERNANDEZ
+                  - cell "07.916.196/0023-13" [ref=f2e1080]
+                  - cell "IARAS (SP) - SP" [ref=f2e1081]
+                - row [ref=f2e1082] [cursor=pointer]:
+                  - cell " JOSE CARLOS TANI E OUTROS" [ref=f2e1083]:
+                    - generic [ref=f2e1084]: 
+                    - mark [ref=f2e1085]: JOSE CARLOS
+                    - text: TANI E OUTROS
+                  - cell "17.948.751/0001-37" [ref=f2e1086]
+                  - cell "AGUAS DE SANTA BARBARA (SP) - SP" [ref=f2e1087]
+                - row [ref=f2e1088] [cursor=pointer]:
+                  - cell " JOSE CARLOS CARDOSO" [ref=f2e1089]:
+                    - generic [ref=f2e1090]: 
+                    - mark [ref=f2e1091]: JOSE CARLOS
+                    - text: CARDOSO
+                  - cell "110.320.208-14" [ref=f2e1092]
+                  - cell "AGUAS DE SANTA BARBARA (SP) - SP" [ref=f2e1093]
+                - row [ref=f2e1094] [cursor=pointer]:
+                  - cell " JOSE CARLOS BORGES CAETANO" [ref=f2e1095]:
+                    - generic [ref=f2e1096]: 
+                    - mark [ref=f2e1097]: JOSE CARLOS
+                    - text: BORGES CAETANO
+                  - cell "269.141.748-49" [ref=f2e1098]
+                  - cell "SARUTAIA (SP) - SP" [ref=f2e1099]
+                - row [ref=f2e1100] [cursor=pointer]:
+                  - cell " JOSE CARLOS FERREIRA 03024301801" [ref=f2e1101]:
+                    - generic [ref=f2e1102]: 
+                    - mark [ref=f2e1103]: JOSE CARLOS
+                    - text: FERREIRA 03024301801
+                  - cell "17.138.977/0001-72" [ref=f2e1104]
+                  - cell "TEJUPA (SP) - SP" [ref=f2e1105]
+  - alert [ref=f2e15]

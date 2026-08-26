@@ -139,6 +139,7 @@ export type SalvarAjusteBody = {
   desconto?: number
   comissao_override_pct?: number | null
   comissao_pct_base?: number
+  data_pagamento_comissao_override?: string | null
 }
 
 export async function salvarAjusteApi(conta: string, body: SalvarAjusteBody): Promise<AjusteVenda> {

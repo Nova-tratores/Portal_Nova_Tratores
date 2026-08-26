@@ -1,0 +1,57 @@
+- generic [ref=f3e2]:
+  - generic [ref=f3e3]:
+    - generic [ref=f3e4]:
+      - generic [ref=f3e5]:
+        - generic [ref=f3e6]: "NO"
+        - generic [ref=f3e7]: RP-007702018C91
+      - generic [ref=f3e8]: PAINEL DE INSTRUMENTOS 6075 IMPORTADO COMPLETO COM CHICOTE
+      - generic [ref=f3e9]:
+        - text: PRATELEIRA
+        - strong [ref=f3e10]: "3"
+        - text: · ANDAR
+        - strong [ref=f3e11]: A
+        - text: · CAIXA
+        - strong [ref=f3e12]: "01"
+    - generic [ref=f3e69]: 08/2026
+  - generic [ref=f3e70]:
+    - generic [ref=f3e71]:
+      - generic [ref=f3e72]:
+        - generic [ref=f3e73]: RP-007702018C91
+        - generic [ref=f3e74]: CA
+      - generic [ref=f3e75]: PAINEL DE INSTRUMENTOS 6075 IMP
+      - generic [ref=f3e76]:
+        - text: PRATELEIRA
+        - strong [ref=f3e77]: "3"
+        - text: · ANDAR
+        - strong [ref=f3e78]: A
+        - text: · CAIXA
+        - strong [ref=f3e79]: "01"
+    - generic [ref=f3e136]: 08/2026
+  - generic [ref=f3e137]:
+    - generic [ref=f3e138]:
+      - generic [ref=f3e139]:
+        - generic [ref=f3e140]: "NO"
+        - generic [ref=f3e141]: 5174125P
+      - generic [ref=f3e142]: FILTRO DE OLEO
+      - generic [ref=f3e143]:
+        - text: PRATELEIRA
+        - strong [ref=f3e144]: "12"
+        - text: · ANDAR
+        - strong [ref=f3e145]: B
+        - text: · CAIXA
+        - strong [ref=f3e146]: "27"
+    - generic [ref=f3e182]: 08/2026
+  - generic [ref=f3e183]:
+    - generic [ref=f3e184]:
+      - generic [ref=f3e185]:
+        - generic [ref=f3e186]: 2733317/1
+        - generic [ref=f3e187]: CA
+      - generic [ref=f3e188]: CORREIA
+      - generic [ref=f3e189]:
+        - text: PRATELEIRA
+        - strong [ref=f3e190]: "1"
+        - text: · ANDAR
+        - strong [ref=f3e191]: C
+        - text: · CAIXA
+        - strong [ref=f3e192]: "05"
+    - generic [ref=f3e231]: 08/2026

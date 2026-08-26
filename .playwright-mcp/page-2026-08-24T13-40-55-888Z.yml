@@ -1,0 +1,301 @@
+- generic [active] [ref=f17e1]:
+  - generic [ref=f17e2]:
+    - banner [ref=f17e6]:
+      - generic [ref=f17e7]:
+        - button [ref=f17e8] [cursor=pointer]
+        - link [ref=f17e10] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f17e11]
+        - link [ref=f17e13] [cursor=pointer]:
+          - /url: /propostas
+      - generic [ref=f17e18]:
+        - button "Tela dividida — dois sistemas lado a lado" [ref=f17e19] [cursor=pointer]
+        - button "Sua caixa de e-mail (henri.fhioni@gmail.com)" [ref=f17e23] [cursor=pointer]
+        - button "Chat" [ref=f17e27] [cursor=pointer]
+        - button "24" [ref=f17e30] [cursor=pointer]
+        - button "Menu" [ref=f17e36] [cursor=pointer]
+        - generic "Meu perfil" [ref=f17e41] [cursor=pointer]:
+          - generic [ref=f17e43]:
+            - paragraph [ref=f17e44]: Henri Irneh
+            - paragraph [ref=f17e45]: Pós-Vendas
+    - generic [ref=f17e46]:
+      - generic [ref=f17e48]:
+        - paragraph [ref=f17e50]: Henri Irneh
+        - paragraph [ref=f17e51]: Pós-Vendas
+      - generic [ref=f17e52]:
+        - generic [ref=f17e53]:
+          - link "Dashboard" [ref=f17e54] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f17e63] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f17e69]:
+          - paragraph [ref=f17e70]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f17e72] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f17e79] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f17e86] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f17e92] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f17e101] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f17e108] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f17e115] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f17e122] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f17e128] [cursor=pointer]:
+            - /url: /cronograma
+          - link "Clientes" [ref=f17e134] [cursor=pointer]:
+            - /url: /clientes
+        - generic [ref=f17e141]:
+          - paragraph [ref=f17e142]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f17e144] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f17e152] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f17e158] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f17e165]:
+          - paragraph [ref=f17e166]: FINANCEIRO
+          - link "Financeiro" [ref=f17e168] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f17e174] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f17e180]:
+          - paragraph [ref=f17e181]: COMERCIAL
+          - link "Proposta Comercial" [ref=f17e183] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f17e192] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Supervisor Vendas" [ref=f17e199] [cursor=pointer]:
+            - /url: /supervisor-vendas
+        - generic [ref=f17e204]:
+          - paragraph [ref=f17e205]: ESTOQUE
+          - link "Visual Estoque" [ref=f17e207] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f17e213] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f17e220] [cursor=pointer]:
+            - /url: /ajustes
+        - generic [ref=f17e225]:
+          - paragraph [ref=f17e226]: FROTA
+          - link "Frota" [ref=f17e228] [cursor=pointer]:
+            - /url: /frota
+          - link "Pendências Frota" [ref=f17e237] [cursor=pointer]:
+            - /url: /pendencias
+        - generic [ref=f17e243]:
+          - paragraph [ref=f17e244]: OUTROS
+          - link "Opa" [ref=f17e246] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f17e252] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f17e258] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f17e275] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f17e281] [cursor=pointer]:
+          - /url: /admin
+        - link "Tratorilson" [ref=f17e287] [cursor=pointer]:
+          - /url: /tratorilson
+      - button "Sair do Portal" [ref=f17e294] [cursor=pointer]
+    - main [ref=f17e298]:
+      - generic [ref=f17e299]:
+        - generic [ref=f17e301]:
+          - generic [ref=f17e303]:
+            - button "Propostas Cliente" [ref=f17e304] [cursor=pointer]
+            - button "Pedidos Fabrica" [ref=f17e310] [cursor=pointer]
+            - button "Resumo" [ref=f17e313] [cursor=pointer]
+            - button "Lixeira" [ref=f17e316] [cursor=pointer]
+          - generic [ref=f17e322]:
+            - button "Menu" [ref=f17e324] [cursor=pointer]
+            - button "Nova Proposta" [ref=f17e326] [cursor=pointer]
+        - generic [ref=f17e329]:
+          - generic [ref=f17e330]:
+            - generic [ref=f17e331]: Filtrar por cliente, ID, marca, modelo, cidade, valor ou status
+            - generic [ref=f17e332]:
+              - textbox "Digite cliente, ID, marca, modelo, cidade, valor ou status..." [ref=f17e334]
+              - button "Limpar" [ref=f17e2241]
+          - generic [ref=f17e335]:
+            - generic [ref=f17e336]: "Atalhos:"
+            - button "Todas" [ref=f17e337] [cursor=pointer]
+            - button "Enviar proposta" [ref=f17e338] [cursor=pointer]
+            - button "Aguardando resposta cliente" [ref=f17e339] [cursor=pointer]
+            - button "Aguardando resposta banco" [ref=f17e340] [cursor=pointer]
+            - button "Concluída - vendido" [ref=f17e341] [cursor=pointer]
+            - button "Concluída - não vendido" [ref=f17e342] [cursor=pointer]
+            - button "FAB (pedido fábrica)" [ref=f17e343] [cursor=pointer]
+          - generic [ref=f17e344]:
+            - button "Criadas (no filtro) R$ 898.597,00 7 propostas" [ref=f17e2245] [cursor=pointer]:
+              - generic [ref=f17e2246]: Criadas (no filtro)
+              - generic [ref=f17e2247]: R$ 898.597,00
+              - generic [ref=f17e2248]: 7 propostas
+            - button "Previsão faturamento fábrica R$ 339.597,00 3 propostas" [ref=f17e2249] [cursor=pointer]:
+              - generic [ref=f17e2250]: Previsão faturamento fábrica
+              - generic [ref=f17e2251]: R$ 339.597,00
+              - generic [ref=f17e2252]: 3 propostas
+            - button "Aguardando banco R$ 898.597,00 7 propostas" [ref=f17e2253] [cursor=pointer]:
+              - generic [ref=f17e2254]: Aguardando banco
+              - generic [ref=f17e2255]: R$ 898.597,00
+              - generic [ref=f17e2256]: 7 propostas
+          - table [ref=f17e358]:
+            - rowgroup [ref=f17e359]:
+              - row [ref=f17e360]:
+                - columnheader "ID" [ref=f17e2257] [cursor=pointer]
+                - columnheader "Cliente" [ref=f17e2259] [cursor=pointer]
+                - columnheader "Vendedor" [ref=f17e2261] [cursor=pointer]
+                - columnheader "Marca / Modelo" [ref=f17e2263] [cursor=pointer]
+                - columnheader "Cidade" [ref=f17e2265] [cursor=pointer]
+                - columnheader "Valor" [ref=f17e2267] [cursor=pointer]
+                - columnheader "Status" [ref=f17e2269] [cursor=pointer]
+                - columnheader "Parado há ▼" [ref=f17e2271] [cursor=pointer]:
+                  - generic [ref=f17e2272]:
+                    - text: Parado há
+                    - generic [ref=f17e2273]: ▼
+                - columnheader "Termômetro" [ref=f17e2274] [cursor=pointer]
+                - columnheader "Criada em" [ref=f17e2276] [cursor=pointer]
+                - columnheader "Alterar" [ref=f17e382]
+            - rowgroup [ref=f17e383]:
+              - row [ref=f17e607] [cursor=pointer]:
+                - cell "#92" [ref=f17e608]
+                - cell "ERICA PAULA BLESSA" [ref=f17e611]
+                - cell "—" [ref=f17e612]
+                - cell "MAHINDRA 6075" [ref=f17e614]
+                - cell "PIEDADE" [ref=f17e616]
+                - cell "R$ 166.000,00" [ref=f17e617]
+                - cell "Aguardando resposta banco" [ref=f17e619]
+                - cell "3 dias" [ref=f17e620]
+                - cell "60%" [ref=f17e621]
+                - cell "21/08/2026" [ref=f17e626]
+                - cell "Aguardando resposta banco" [ref=f17e627]:
+                  - combobox [ref=f17e628]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f17e629] [cursor=pointer]:
+                - cell "#91" [ref=f17e630]
+                - cell "AGRICIO CANO DE ARRUDA" [ref=f17e633]
+                - cell "—" [ref=f17e634]
+                - cell "MAHINDRA 6075" [ref=f17e636]
+                - cell "ITU (SP)" [ref=f17e638]
+                - cell "R$ 165.000,00" [ref=f17e639]
+                - cell "Aguardando resposta banco" [ref=f17e641]
+                - cell "3 dias" [ref=f17e642]
+                - cell "60%" [ref=f17e643]
+                - cell "21/08/2026" [ref=f17e648]
+                - cell "Aguardando resposta banco" [ref=f17e649]:
+                  - combobox [ref=f17e650]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f17e1049] [cursor=pointer]:
+                - cell "#72 FAB" [ref=f17e1050]:
+                  - generic [ref=f17e1051]:
+                    - generic [ref=f17e1052]: "#72"
+                    - generic [ref=f17e1053]: FAB
+                - cell "JOSE TARCISO FAULIN" [ref=f17e1054]
+                - cell "—" [ref=f17e1055]
+                - cell "IPACOL ASTRUS EPH500 5 HASTES" [ref=f17e1057]
+                - cell "PIRAJU (SP)" [ref=f17e1059]
+                - cell "R$ 149.197,00" [ref=f17e1060]
+                - cell "Aguardando resposta banco" [ref=f17e1062]
+                - cell "3 dias" [ref=f17e1063]
+                - cell "60%" [ref=f17e1064]
+                - cell "21/08/2026" [ref=f17e1069]
+                - cell "Aguardando resposta banco" [ref=f17e1070]:
+                  - combobox [ref=f17e1071]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f17e1294] [cursor=pointer]:
+                - cell "#58" [ref=f17e1295]
+                - cell "MARCOS CLEBER TERUEL" [ref=f17e1298]
+                - cell "—" [ref=f17e1299]
+                - cell "MIAC MASTER CAFÉ 3E" [ref=f17e1301]
+                - cell "UBIRAJARA" [ref=f17e1303]
+                - cell "R$ 188.000,00" [ref=f17e1304]
+                - cell "Aguardando resposta banco" [ref=f17e1306]
+                - cell "3 dias" [ref=f17e1307]
+                - cell "60%" [ref=f17e1308]
+                - cell "21/08/2026" [ref=f17e1313]
+                - cell "Aguardando resposta banco" [ref=f17e1314]:
+                  - combobox [ref=f17e1315]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f17e1542] [cursor=pointer]:
+                - cell "#47 FAB" [ref=f17e1543]:
+                  - generic [ref=f17e1544]:
+                    - generic [ref=f17e1545]: "#47"
+                    - generic [ref=f17e1546]: FAB
+                - cell "CELSO CAMARGO GUAZZO E OUTRA" [ref=f17e1547]
+                - cell "—" [ref=f17e1548]
+                - cell "INCOMAGRI DELN 4000" [ref=f17e1550]
+                - cell "PIRAJU (SP)" [ref=f17e1552]
+                - cell "R$ 40.400,00" [ref=f17e1553]
+                - cell "Aguardando resposta banco" [ref=f17e1555]
+                - cell "3 dias" [ref=f17e1556]
+                - cell "60%" [ref=f17e1557]
+                - cell "21/08/2026" [ref=f17e1562]
+                - cell "Aguardando resposta banco" [ref=f17e1563]:
+                  - combobox [ref=f17e1564]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f17e1722] [cursor=pointer]:
+                - cell "#39 FAB" [ref=f17e1723]:
+                  - generic [ref=f17e1724]:
+                    - generic [ref=f17e1725]: "#39"
+                    - generic [ref=f17e1726]: FAB
+                - cell "JOSE TARCISO FAULIN" [ref=f17e1727]
+                - cell "—" [ref=f17e1728]
+                - cell "SCHEMAQ TERREMOTO PREMIUM 7.0" [ref=f17e1730]
+                - cell "PIRAJU (SP)" [ref=f17e1732]
+                - cell "R$ 150.000,00" [ref=f17e1733]
+                - cell "Aguardando resposta banco" [ref=f17e1735]
+                - cell "3 dias" [ref=f17e1736]
+                - cell "60%" [ref=f17e1737]
+                - cell "21/08/2026" [ref=f17e1742]
+                - cell "Aguardando resposta banco" [ref=f17e1743]:
+                  - combobox [ref=f17e1744]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=f17e1877] [cursor=pointer]:
+                - cell "#30" [ref=f17e1878]
+                - cell "MARCIO RODRIGO SCHINCH" [ref=f17e1881]
+                - cell "—" [ref=f17e1882]
+                - cell "TERRIS PILOTO ELETRICO" [ref=f17e1884]
+                - cell "CAMPOS NOVOS PAULISTA (SP)" [ref=f17e1886]
+                - cell "R$ 40.000,00" [ref=f17e1887]
+                - cell "Aguardando resposta banco" [ref=f17e1889]
+                - cell "3 dias" [ref=f17e1890]
+                - cell "60%" [ref=f17e1891]
+                - cell "21/08/2026" [ref=f17e1896]
+                - cell "Aguardando resposta banco" [ref=f17e1897]:
+                  - combobox [ref=f17e1898]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+          - generic [ref=f17e2206]: 7 propostas
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f17e2207]:
+      - generic [ref=f17e2278]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=f17e2236] [cursor=pointer]
+  - alert [ref=f17e2240]

@@ -1,0 +1,42 @@
+- generic [ref=f2e2]:
+  - heading "Histórico de correções (mock local — verificação visual)" [level=1] [ref=f2e222]
+  - generic [ref=f2e223]:
+    - generic [ref=f2e224]: Origem
+    - combobox [ref=f2e225]:
+      - option "Todas"
+      - option "estoque negativo" [selected]
+      - option "dashboard (garantia)"
+      - option "recebimento"
+  - table [ref=f2e227]:
+    - rowgroup [ref=f2e228]:
+      - row [ref=f2e229]:
+        - columnheader "Quando ⇅" [ref=f2e230] [cursor=pointer]
+        - columnheader "Conta ⇅" [ref=f2e231] [cursor=pointer]
+        - columnheader "Origem ⇅" [ref=f2e232] [cursor=pointer]
+        - columnheader "Produto ⇅" [ref=f2e233] [cursor=pointer]
+        - columnheader "Local ⇅" [ref=f2e234] [cursor=pointer]
+        - columnheader "CMC anterior ⇅" [ref=f2e235] [cursor=pointer]
+        - columnheader "CMC aplicado ▲" [ref=f2e236] [cursor=pointer]
+        - columnheader "CMC sugerido ⇅" [ref=f2e237] [cursor=pointer]
+        - columnheader "NF origem ⇅" [ref=f2e238] [cursor=pointer]
+        - columnheader "Estrategia ⇅" [ref=f2e239] [cursor=pointer]
+        - columnheader "Ajuste Omie ⇅" [ref=f2e240] [cursor=pointer]
+        - columnheader "Status ⇅" [ref=f2e241] [cursor=pointer]
+        - columnheader "Por ⇅" [ref=f2e242] [cursor=pointer]
+        - columnheader "Acao" [ref=f2e243]
+    - rowgroup [ref=f2e244]:
+      - row [ref=f2e245]:
+        - cell "10/08/2026, 07:00:00" [ref=f2e246]
+        - cell "NOVA" [ref=f2e247]
+        - cell "estoque negativo" [ref=f2e248]
+        - cell "FILTRO-90 — Filtro óleo" [ref=f2e249]
+        - cell "Loja" [ref=f2e250]
+        - cell "R$ 0,00" [ref=f2e251]
+        - cell "R$ 12,50" [ref=f2e252]
+        - cell "R$ 12,50" [ref=f2e253]
+        - cell "123" [ref=f2e254]
+        - cell "ultima_nf" [ref=f2e255]
+        - cell "9001" [ref=f2e256]
+        - cell "aplicado" [ref=f2e257]
+        - cell "ana" [ref=f2e258]
+        - cell [ref=f2e259]

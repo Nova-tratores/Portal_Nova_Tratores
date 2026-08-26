@@ -19,9 +19,12 @@ import {
 import {
   calcular,
   classificarCmcRatio,
+  dataBrParaIso,
+  dataPrevistaComissaoIso,
   formatBRL,
   formatCompetencia,
   formatPercent,
+  isoParaBr,
   type LinhaAjuste,
 } from '@/lib/gestao-vendas/calculos'
 import { nomeEmpresaGV, type Vendedor, type VendaEnriquecida } from '@/lib/gestao-vendas/tipos'
@@ -33,6 +36,7 @@ type Edits = {
   desconto?: number
   comissao_override_pct?: number | null
   cmc_override?: number | null // CMC total corrigido à mão; null = usa snapshot
+  data_pagamento_comissao_override?: string | null // ISO; null = usa a regra (dia 20 mês seguinte)
 }
 
 // famílias de peças e #N/D começam desmarcadas (sobra praticamente todo o resto)
@@ -73,6 +77,17 @@ function statusDe(l: LinhaAjuste): string {
   return l.ajuste?.status ?? 'sem'
 }
 
+// data de faturamento (data_emissao do pedido faturado), texto BR ou null
+function faturamentoDe(l: LinhaAjuste): string | null {
+  return (l.venda as VendaEnriquecida).data_faturamento ?? null
+}
+
+// ISO efetivo da data prevista de pagamento da comissão: override manual, senão a
+// regra (dia 20 do mês seguinte ao faturamento). null quando não há faturamento.
+function prevComissaoIsoDe(l: LinhaAjuste): string | null {
+  return l.ajuste?.data_pagamento_comissao_override ?? dataPrevistaComissaoIso(faturamentoDe(l))
+}
+
 // CMC efetivo da linha: override manual (se houver) ou o snapshot do sync
 function cmcTotalDe(l: LinhaAjuste): number {
   return l.ajuste?.cmc_override ?? (l.venda.cmc_unitario ?? 0) * l.venda.quantidade
@@ -97,6 +112,7 @@ type ColKey =
   | 'produto'
   | 'cliente'
   | 'vendedor'
+  | 'faturamento'
   | 'cmc'
   | 'venda'
   | 'vmc'
@@ -105,6 +121,7 @@ type ColKey =
   | 'desc'
   | 'pc'
   | 'comissao'
+  | 'pgtoComissao'
   | 'mrgLoja'
   | 'status'
 
@@ -115,6 +132,7 @@ const COLUNAS: { key: ColKey; rotulo: string; numerica?: boolean }[] = [
   { key: 'produto', rotulo: 'Produto' },
   { key: 'cliente', rotulo: 'Cliente' },
   { key: 'vendedor', rotulo: 'Vendedor' },
+  { key: 'faturamento', rotulo: 'Faturamento' },
   { key: 'cmc', rotulo: 'CMC', numerica: true },
   { key: 'venda', rotulo: 'Venda', numerica: true },
   { key: 'vmc', rotulo: 'V−C', numerica: true },
@@ -123,6 +141,7 @@ const COLUNAS: { key: ColKey; rotulo: string; numerica?: boolean }[] = [
   { key: 'desc', rotulo: 'Desc', numerica: true },
   { key: 'pc', rotulo: '%C', numerica: true },
   { key: 'comissao', rotulo: 'Comissão', numerica: true },
+  { key: 'pgtoComissao', rotulo: 'Pgto Comissão' },
   { key: 'mrgLoja', rotulo: 'Mrg Loja', numerica: true },
   { key: 'status', rotulo: 'St' },
 ]
@@ -134,6 +153,7 @@ function valorColuna(l: LinhaAjuste, col: ColKey): string | number {
     case 'produto': return l.venda.descricao ?? ''
     case 'cliente': return l.venda.cliente_nome ?? `#${l.venda.codigo_cliente ?? ''}`
     case 'vendedor': return vendedorDe(l)
+    case 'faturamento': return dataBrParaIso(faturamentoDe(l)) ?? ''
     case 'cmc': return d.cmcTotal
     case 'venda': return l.venda.valor_total
     case 'vmc': return d.c.margem_bruta_valor
@@ -142,6 +162,7 @@ function valorColuna(l: LinhaAjuste, col: ColKey): string | number {
     case 'desc': return l.ajuste?.desconto ?? 0
     case 'pc': return l.ajuste?.comissao_override_pct ?? l.ajuste?.comissao_pct ?? 0
     case 'comissao': return d.c.valor_comissao
+    case 'pgtoComissao': return prevComissaoIsoDe(l) ?? ''
     case 'mrgLoja': return d.c.margem_loja_valor
     case 'status': return statusDe(l)
   }
@@ -273,6 +294,10 @@ export default function GvAjustesPage() {
             ? edits.comissao_override_pct
             : aj?.comissao_override_pct ?? null,
         comissao_pct_base: aj?.comissao_pct ?? 0,
+        data_pagamento_comissao_override:
+          edits.data_pagamento_comissao_override !== undefined
+            ? edits.data_pagamento_comissao_override
+            : aj?.data_pagamento_comissao_override ?? null,
       })
       aplicarAjusteSalvo(salvo)
       return { ok: true }
@@ -399,7 +424,9 @@ export default function GvAjustesPage() {
                       ))}
                     </select>
                   </th>
-                  <th colSpan={8} className="px-1 py-1 text-right font-normal">
+                  {/* Faturamento — sem filtro */}
+                  <th className="px-1 py-1 font-normal" />
+                  <th colSpan={10} className="px-1 py-1 text-right font-normal">
                     {filtroColunaAtivo && (
                       <button
                         type="button"
@@ -434,6 +461,7 @@ export default function GvAjustesPage() {
               <tfoot>
                 <tr className="border-t-2 border-gray-300 bg-gray-50 font-medium">
                   <td className="px-2 py-2" colSpan={4}>Total ({ordenadas.length} vendas)</td>
+                  <td /> {/* Faturamento */}
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.cmc)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.venda)}</td>
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.venda - totais.cmc)}</td>
@@ -442,6 +470,7 @@ export default function GvAjustesPage() {
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.desc)}</td>
                   <td />
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.comm)}</td>
+                  <td /> {/* Pgto Comissão */}
                   <td className="px-2 py-2 text-right tabular-nums">{formatBRL(totais.mLoja)}</td>
                   <td />
                 </tr>
@@ -672,12 +701,19 @@ function LinhaRow({
   const { venda, ajuste } = linha
   const clienteNome = venda.cliente_nome
   const cmcSnapshot = (venda.cmc_unitario ?? 0) * venda.quantidade
+  const faturamento = (venda as VendaEnriquecida).data_faturamento ?? null
+  // data prevista pela regra (dia 20 do mês seguinte ao faturamento)
+  const prevComissaoCalcIso = dataPrevistaComissaoIso(faturamento)
 
   const [vendedor, setVendedor] = useState(ajuste?.vendedor ?? '')
   const [custosExtras, setCustosExtras] = useState(String(ajuste?.custos_extras ?? 0))
   const [desconto, setDesconto] = useState(String(ajuste?.desconto ?? 0))
   const [commPct, setCommPct] = useState(String(ajuste?.comissao_override_pct ?? ajuste?.comissao_pct ?? 0))
   const [cmcOverride, setCmcOverride] = useState(ajuste?.cmc_override == null ? '' : String(ajuste.cmc_override))
+  // data prevista de pagamento da comissão (ISO): override ou o valor da regra
+  const [pgtoComissao, setPgtoComissao] = useState(
+    ajuste?.data_pagamento_comissao_override ?? prevComissaoCalcIso ?? '',
+  )
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
 
@@ -690,7 +726,8 @@ function LinhaRow({
     setDesconto(String(ajuste?.desconto ?? 0))
     setCommPct(String(ajuste?.comissao_override_pct ?? ajuste?.comissao_pct ?? 0))
     setCmcOverride(ajuste?.cmc_override == null ? '' : String(ajuste.cmc_override))
-  }, [ajuste])
+    setPgtoComissao(ajuste?.data_pagamento_comissao_override ?? prevComissaoCalcIso ?? '')
+  }, [ajuste, prevComissaoCalcIso])
 
   const calc = useMemo(
     () =>
@@ -754,6 +791,9 @@ function LinhaRow({
             </option>
           ))}
         </select>
+      </td>
+      <td className="px-2 py-1 tabular-nums text-gray-500" title="Data de faturamento (emissão da NF)">
+        {faturamento ?? '—'}
       </td>
       <td className="px-1 py-1">
         <input
@@ -823,6 +863,30 @@ function LinhaRow({
         />
       </td>
       <td className="px-2 py-1 text-right tabular-nums">{formatBRL(calc.valor_comissao)}</td>
+      <td className="px-1 py-1">
+        <input
+          type="date"
+          value={pgtoComissao}
+          onChange={(e) => setPgtoComissao(e.target.value)}
+          onBlur={(e) => {
+            const val = e.target.value // ISO 'YYYY-MM-DD' ou ''
+            const atual = ajuste?.data_pagamento_comissao_override ?? null
+            // vazio ou igual à data da regra → volta a usar a regra (null)
+            const novo = val === '' || val === prevComissaoCalcIso ? null : val
+            if (novo !== atual) save({ data_pagamento_comissao_override: novo })
+          }}
+          title={
+            (ajuste?.data_pagamento_comissao_override ?? null) != null
+              ? `Data ajustada à mão · regra (dia 20 do mês seguinte ao faturamento): ${isoParaBr(prevComissaoCalcIso) ?? '—'}`
+              : 'Previsão automática: dia 20 do mês seguinte ao faturamento. Edite para sobrescrever.'
+          }
+          className={`h-7 w-[130px] rounded-md border px-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-500 ${
+            (ajuste?.data_pagamento_comissao_override ?? null) != null
+              ? 'border-amber-300 font-medium text-amber-700 ring-1 ring-amber-300'
+              : 'border-gray-300 text-gray-600'
+          }`}
+        />
+      </td>
       <td
         className={`px-2 py-1 text-right font-medium tabular-nums ${calc.margem_loja_valor < 0 ? 'text-red-600' : ''}`}
       >

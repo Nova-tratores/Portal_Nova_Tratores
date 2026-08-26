@@ -3,11 +3,12 @@
 // Reusa /api/ppv/ordens-servico (seletor de OS) e /api/pos/requisicoes/grupos.
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { Wrench, ClipboardList, Search, X, Loader2, ExternalLink, Plus, FolderOpen } from 'lucide-react';
+import { Wrench, ClipboardList, Search, X, Loader2, ExternalLink, Plus, FolderOpen, ListPlus } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import {
   vincularProjeto, buscarOS, carregarOSvinculada, listarGruposReq, criarGrupoReq,
-  type ProjetoCompleto, type OSBuscaRow, type GrupoReq,
+  gerarTarefasDaOS, recalcular,
+  type ProjetoCompleto, type OSBuscaRow, type GrupoReq, type OSvinculada,
 } from '@/lib/cronograma/queries';
 
 export default function VinculosPanel({ pc, onChanged }: { pc: ProjetoCompleto; onChanged: () => void | Promise<void> }) {
@@ -22,10 +23,21 @@ export default function VinculosPanel({ pc, onChanged }: { pc: ProjetoCompleto; 
 // ── Ordem de Serviço ─────────────────────────────────────────────────
 function BlocoOS({ pc, onChanged }: { pc: ProjetoCompleto; onChanged: () => void | Promise<void> }) {
   const osRef = pc.projeto.os_ref;
-  const [det, setDet] = useState<{ id: string; cliente: string; status: string } | null>(null);
+  const [det, setDet] = useState<OSvinculada | null>(null);
   const [termo, setTermo] = useState('');
   const [res, setRes] = useState<OSBuscaRow[]>([]);
   const [busy, setBusy] = useState(false);
+  const [gerando, setGerando] = useState(false);
+
+  async function gerarTarefas() {
+    if (pc.tarefas.length > 0 && !confirm('O projeto já tem tarefas. Gerar as fases da OS mesmo assim?')) return;
+    setGerando(true);
+    try {
+      await gerarTarefasDaOS(pc.projeto.id, { inicio: det?.previsaoExecucao ?? null });
+      await recalcular(pc.projeto.id);
+      await onChanged();
+    } finally { setGerando(false); }
+  }
 
   useEffect(() => {
     if (osRef) carregarOSvinculada(osRef).then(setDet);
@@ -46,10 +58,16 @@ function BlocoOS({ pc, onChanged }: { pc: ProjetoCompleto; onChanged: () => void
           <Linha k="OS" v={det?.id ?? osRef} />
           <Linha k="Cliente" v={det?.cliente ?? '—'} />
           <Linha k="Status" v={det?.status ?? '—'} />
-          <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 10, flexWrap: 'wrap' }}>
             <Link href="/pos" style={link}><ExternalLink size={13} /> Abrir no Pós-Vendas</Link>
             <button onClick={remover} style={ghost}><X size={13} /> Remover</button>
           </div>
+          <button onClick={gerarTarefas} disabled={gerando} style={{ ...btn, marginTop: 8, width: '100%', justifyContent: 'center' }}>
+            {gerando ? <Loader2 size={14} className="animate-spin" /> : <ListPlus size={14} />} Gerar tarefas da OS
+          </button>
+          <p style={{ fontSize: 11, color: 'var(--portal-text-muted,#888)', marginTop: 6 }}>
+            Cria as fases padrão (Diagnóstico → Peças → Execução → Teste → Entrega) encadeadas, ancoradas na Previsão de Execução.
+          </p>
         </div>
       ) : (
         <div>

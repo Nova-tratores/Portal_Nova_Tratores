@@ -1,0 +1,111 @@
+- generic [active] [ref=f1e1]:
+  - button "Open Next.js Dev Tools" [ref=f1e45] [cursor=pointer]
+  - alert [ref=f1e49]
+  - generic [ref=f1e51]:
+    - banner [ref=f1e52]:
+      - generic [ref=f1e53]:
+        - button [ref=f1e54] [cursor=pointer]
+        - link [ref=f1e56] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f1e57]
+      - generic [ref=f1e58]:
+        - button "Chat" [ref=f1e59] [cursor=pointer]
+        - button "Notificações" [ref=f1e62] [cursor=pointer]
+        - button "Menu" [ref=f1e67] [cursor=pointer]
+        - generic "Meu perfil" [ref=f1e72] [cursor=pointer]:
+          - generic [ref=f1e77]:
+            - paragraph [ref=f1e78]: Setor de Peças
+            - paragraph [ref=f1e79]: Peças
+    - generic [ref=f1e80]:
+      - generic [ref=f1e82]:
+        - paragraph [ref=f1e88]: Setor de Peças
+        - paragraph [ref=f1e89]: Peças
+      - generic [ref=f1e90]:
+        - link "Dashboard" [ref=f1e92] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f1e103]:
+          - paragraph [ref=f1e104]: SERVIÇOS
+          - link "SAT Digital" [ref=f1e106] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f1e113]:
+          - paragraph [ref=f1e114]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f1e116] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f1e124]:
+          - paragraph [ref=f1e125]: OUTROS
+          - link "Opa" [ref=f1e127] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f1e134] [cursor=pointer]
+    - main [ref=f1e138]:
+      - generic [ref=f1e139]:
+        - generic [ref=f1e140]:
+          - generic [ref=f1e141]:
+            - button "Favoritos" [ref=f1e142] [cursor=pointer]
+            - button "Todos" [ref=f1e145] [cursor=pointer]
+            - button "Ocultar" [ref=f1e146] [cursor=pointer]
+          - generic [ref=f1e147]:
+            - button "Grade" [ref=f1e148] [cursor=pointer]
+            - button "Estilo Omie" [ref=f1e154] [cursor=pointer]
+            - button "Lista" [ref=f1e160] [cursor=pointer]
+          - textbox "Buscar..." [ref=f1e166]
+        - generic [ref=f1e167]:
+          - generic [ref=f1e168]:
+            - generic [ref=f1e174] [cursor=pointer]:
+              - generic [ref=f1e175]:
+                - generic [ref=f1e176]: Serviços
+                - generic [ref=f1e177]: "1"
+              - generic [ref=f1e178]: SAT Digital
+            - generic [ref=f1e183] [cursor=pointer]:
+              - button [ref=f1e185]
+              - generic [ref=f1e193]:
+                - generic [ref=f1e194]: SAT Digital
+                - generic [ref=f1e195]: Solicitações de atendimento técnico — Kanban e cards para o Pós-Vendas
+          - generic [ref=f1e196]:
+            - generic [ref=f1e203] [cursor=pointer]:
+              - generic [ref=f1e204]:
+                - generic [ref=f1e205]: Peças
+                - generic [ref=f1e206]: "1"
+              - generic [ref=f1e207]: Peças (Pedido de Venda)
+            - generic [ref=f1e212] [cursor=pointer]:
+              - button [ref=f1e214]
+              - generic [ref=f1e223]:
+                - generic [ref=f1e224]: Peças (Pedido de Venda)
+                - generic [ref=f1e225]: Pedidos de venda de peças, rastreamento e gestão
+          - generic [ref=f1e226]:
+            - generic [ref=f1e232] [cursor=pointer]:
+              - generic [ref=f1e233]:
+                - generic [ref=f1e234]: Comercial
+                - generic [ref=f1e235]: "1"
+              - generic [ref=f1e236]: Feedbacks & CRM
+            - generic [ref=f1e241] [cursor=pointer]:
+              - button [ref=f1e243]
+              - generic [ref=f1e251]:
+                - generic [ref=f1e252]: Feedbacks & CRM
+                - generic [ref=f1e253]: CRM/RFM, oportunidades automáticas de revisão, peças, up-sell e follow-up
+          - generic [ref=f1e254]:
+            - generic [ref=f1e259] [cursor=pointer]:
+              - generic [ref=f1e260]:
+                - generic [ref=f1e261]: Outros
+                - generic [ref=f1e262]: "1"
+              - generic [ref=f1e263]: Opa
+            - generic [ref=f1e268] [cursor=pointer]:
+              - button [ref=f1e270]
+              - generic [ref=f1e277]:
+                - generic [ref=f1e278]: Opa
+                - generic [ref=f1e279]: Sinalize ocorrências e coisas fora do lugar — todos veem até alguém resolver
+        - generic [ref=f1e281] [cursor=pointer]:
+          - generic [ref=f1e285]:
+            - generic [ref=f1e286]: OCORRÊNCIAS
+            - generic [ref=f1e287]: Opa
+            - generic [ref=f1e288]: Sinalize ocorrências e coisas fora do lugar — todos veem até alguém resolver
+          - generic [ref=f1e289]: 4 / 4
+        - generic [ref=f1e292]:
+          - button "Sincronizar com Omie" [ref=f1e293] [cursor=pointer]
+          - paragraph [ref=f1e299]: Nova Tratores © 2026 — Portal Corporativo v1.0
+    - generic [ref=f1e303]:
+      - generic [ref=f1e309]:
+        - generic [ref=f1e310]: Aviso Importante (1 de 9)
+        - generic [ref=f1e311]: Comercial
+      - generic [ref=f1e312]: hoje de manha desligamos nosso vendedor da regiao de Ourinhos o Leonardo onde agradecemos ele pelo tempo que trabalhou na Nova Tratores.
+      - generic [ref=f1e313]: Publicado por Joaquim Fernando Leme
+      - button "Confirmado" [ref=f1e314] [cursor=pointer]

@@ -1,0 +1,2714 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - banner [ref=f5e16]:
+      - generic [ref=f5e17]:
+        - button [ref=f5e18] [cursor=pointer]
+        - link [ref=f5e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f5e21]
+      - generic [ref=f5e22]:
+        - button "Chat" [ref=f5e23] [cursor=pointer]
+        - button "50" [ref=f5e26] [cursor=pointer]
+        - button "Menu" [ref=f5e32] [cursor=pointer]
+        - generic "Meu perfil" [ref=f5e37] [cursor=pointer]:
+          - generic [ref=f5e39]:
+            - paragraph [ref=f5e40]: Henri Irneh
+            - paragraph [ref=f5e41]: Pós-Vendas
+    - generic [ref=f5e42]:
+      - generic [ref=f5e44]:
+        - paragraph [ref=f5e46]: Henri Irneh
+        - paragraph [ref=f5e47]: Pós-Vendas
+      - generic [ref=f5e48]:
+        - generic [ref=f5e49]:
+          - link "Dashboard" [ref=f5e50] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f5e59] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f5e65]:
+          - paragraph [ref=f5e66]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f5e68] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f5e75] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f5e82] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f5e88] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f5e97] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f5e104] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f5e111] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f5e118] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f5e124] [cursor=pointer]:
+            - /url: /cronograma
+        - generic [ref=f5e130]:
+          - paragraph [ref=f5e131]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f5e133] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f5e141] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f5e147] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f5e154]:
+          - paragraph [ref=f5e155]: FINANCEIRO
+          - link "Financeiro" [ref=f5e157] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f5e163] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f5e169]:
+          - paragraph [ref=f5e170]: COMERCIAL
+          - link "Proposta Comercial" [ref=f5e172] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f5e179] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Clientes" [ref=f5e186] [cursor=pointer]:
+            - /url: /clientes
+          - link "Supervisor Vendas" [ref=f5e193] [cursor=pointer]:
+            - /url: /supervisor-vendas
+          - link "Solicitações de Compras" [ref=f5e198] [cursor=pointer]:
+            - /url: /decisoes
+        - generic [ref=f5e206]:
+          - paragraph [ref=f5e207]: ESTOQUE
+          - link "Visual Estoque" [ref=f5e209] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f5e215] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f5e222] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Abastecimento" [ref=f5e229] [cursor=pointer]:
+            - /url: /abastecimento
+          - link "Omie em Massa" [ref=f5e236] [cursor=pointer]:
+            - /url: /omie-massa
+        - generic [ref=f5e241]:
+          - paragraph [ref=f5e242]: OUTROS
+          - link "Opa" [ref=f5e244] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f5e250] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f5e256] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f5e273] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f5e279] [cursor=pointer]:
+          - /url: /admin
+      - button "Sair do Portal" [ref=f5e286] [cursor=pointer]
+    - main [ref=f5e290]:
+      - navigation [ref=f5e291]:
+        - generic [ref=f5e292]:
+          - generic [ref=f5e293]:
+            - generic [ref=f5e294]: 💰
+            - text: Financeiro
+          - link "Correção de contas" [ref=f5e295] [cursor=pointer]:
+            - /url: /ajustes/correcao-contas
+          - link "Baixar contas" [ref=f5e296] [cursor=pointer]:
+            - /url: /ajustes/baixa-contas
+          - link "Antecipações" [ref=f5e297] [cursor=pointer]:
+            - /url: /ajustes/antecipacoes
+          - link "Saúde mensal" [ref=f5e298] [cursor=pointer]:
+            - /url: /ajustes/saude-mensal
+        - generic [ref=f5e299]:
+          - generic [ref=f5e300]:
+            - generic [ref=f5e301]: 🏭
+            - text: Estoque
+          - link "Dashboard CMC" [ref=f5e302] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Ajuste de custos" [ref=f5e303] [cursor=pointer]:
+            - /url: /ajustes/ajuste-custos
+          - link "Devolução de compra" [ref=f5e304] [cursor=pointer]:
+            - /url: /ajustes/devolucao
+          - link "Inventário rotativo" [ref=f5e305] [cursor=pointer]:
+            - /url: /ajustes/inventario
+          - link "Contagem" [ref=f5e306] [cursor=pointer]:
+            - /url: /ajustes/inventario/contagem
+          - link "Características" [ref=f5e307] [cursor=pointer]:
+            - /url: /ajustes/caracteristicas
+          - link "Famílias" [ref=f5e308] [cursor=pointer]:
+            - /url: /ajustes/familias
+          - link "Descrições" [ref=f5e309] [cursor=pointer]:
+            - /url: /ajustes/descricoes
+          - link "Sistema/Sub-sistema" [ref=f5e310] [cursor=pointer]:
+            - /url: /ajustes/catalogo-caracteristicas
+          - link "Estoque negativo" [ref=f5e311] [cursor=pointer]:
+            - /url: /ajustes/negativos
+          - link "Recebimentos pendentes" [ref=f5e312] [cursor=pointer]:
+            - /url: /ajustes/recebimentos
+          - link "Remessas em aberto" [ref=f5e313] [cursor=pointer]:
+            - /url: /ajustes/remessas
+          - link "Movimentação de produto" [ref=f5e314] [cursor=pointer]:
+            - /url: /ajustes/movimentacao-produto
+          - link "Arquivo Mahindra" [ref=f5e315] [cursor=pointer]:
+            - /url: /ajustes/mahindra
+          - link "Alertas" [ref=f5e316] [cursor=pointer]:
+            - /url: /ajustes/alertas
+          - link "Histórico" [ref=f5e317] [cursor=pointer]:
+            - /url: /ajustes/historico
+        - generic [ref=f5e318]:
+          - generic [ref=f5e319]:
+            - generic [ref=f5e320]: 🛒
+            - text: Venda
+          - link "Pedidos abertos" [ref=f5e321] [cursor=pointer]:
+            - /url: /ajustes/pedidos
+          - link "Notas fiscais" [ref=f5e322] [cursor=pointer]:
+            - /url: /ajustes/notas
+      - generic [ref=f5e323]:
+        - generic [ref=f5e324]:
+          - heading "Histórico de correções" [level=1] [ref=f5e325]
+          - generic [ref=f5e326]:
+            - generic [ref=f5e327]:
+              - generic [ref=f5e328]: Origem
+              - combobox [ref=f5e329]:
+                - option "Todas"
+                - option "estoque negativo"
+                - option "garantia" [selected]
+                - option "ajuste de custo"
+                - option "manual"
+            - generic [ref=f5e330]:
+              - generic [ref=f5e331]: Codigo do produto
+              - 'textbox "ex: 1234567" [ref=f5e332]'
+            - button "Buscando…" [disabled] [ref=f5e333]
+            - generic [ref=f5e334]:
+              - generic [ref=f5e335]: Conta
+              - combobox [ref=f5e336] [cursor=pointer]:
+                - option "Todas" [selected]
+                - option "Nova"
+                - option "Castro"
+        - generic [ref=f5e337]:
+          - link "← Dashboard" [ref=f5e338] [cursor=pointer]:
+            - /url: /ajustes
+          - link "→ Ajuste de custos" [ref=f5e339] [cursor=pointer]:
+            - /url: /ajustes/ajuste-custos
+        - table [ref=f5e342]:
+          - rowgroup [ref=f5e343]:
+            - row [ref=f5e344]:
+              - columnheader "Quando ⇅" [ref=f5e345] [cursor=pointer]
+              - columnheader "Conta ⇅" [ref=f5e346] [cursor=pointer]
+              - columnheader "Origem ⇅" [ref=f5e347] [cursor=pointer]
+              - columnheader "Produto ⇅" [ref=f5e348] [cursor=pointer]
+              - columnheader "Local ⇅" [ref=f5e349] [cursor=pointer]
+              - columnheader "CMC anterior ⇅" [ref=f5e350] [cursor=pointer]
+              - columnheader "CMC aplicado ⇅" [ref=f5e351] [cursor=pointer]
+              - columnheader "CMC sugerido ⇅" [ref=f5e352] [cursor=pointer]
+              - columnheader "NF origem ⇅" [ref=f5e353] [cursor=pointer]
+              - columnheader "Estrategia ⇅" [ref=f5e354] [cursor=pointer]
+              - columnheader "Ajuste Omie ⇅" [ref=f5e355] [cursor=pointer]
+              - columnheader "Status ⇅" [ref=f5e356] [cursor=pointer]
+              - columnheader "Por ⇅" [ref=f5e357] [cursor=pointer]
+              - columnheader "Acao" [ref=f5e358]
+          - rowgroup [ref=f5e359]:
+            - row [ref=f5e360]:
+              - cell "07/08/2026, 12:42:27" [ref=f5e361]
+              - cell "NOVA" [ref=f5e362]
+              - cell "estoque negativo" [ref=f5e363]
+              - cell "RP-E007206626D1 FILTRO DE SUCCAO RP-E007206626D1" [ref=f5e365]:
+                - text: RP-E007206626D1
+                - generic [ref=f5e366]: FILTRO DE SUCCAO RP-E007206626D1
+              - cell "Fartura" [ref=f5e367]
+              - cell "R$ 0,00" [ref=f5e368]
+              - cell "-" [ref=f5e369]
+              - cell "R$ 251,83" [ref=f5e370]
+              - cell [ref=f5e371]
+              - cell "cmc_antes_de_negativo" [ref=f5e372]
+              - cell "-" [ref=f5e373]
+              - cell "erro" [ref=f5e374]
+              - cell "Henri Irneh" [ref=f5e375]
+              - cell [ref=f5e376]
+            - row [ref=f5e377]:
+              - cell "07/08/2026, 12:42:25" [ref=f5e378]
+              - cell "NOVA" [ref=f5e379]
+              - cell "estoque negativo" [ref=f5e380]
+              - cell "BRAKE LHM PLUS 12/1L ( AMBRA BRAKE )" [ref=f5e382]:
+                - text: BRAKE
+                - generic [ref=f5e383]: LHM PLUS 12/1L ( AMBRA BRAKE )
+              - cell "Fartura" [ref=f5e384]
+              - cell "R$ 0,00" [ref=f5e385]
+              - cell "-" [ref=f5e386]
+              - cell "R$ 80,00" [ref=f5e387]
+              - cell [ref=f5e388]
+              - cell "cmc_antes_de_negativo" [ref=f5e389]
+              - cell "-" [ref=f5e390]
+              - cell "erro" [ref=f5e391]
+              - cell "Henri Irneh" [ref=f5e392]
+              - cell [ref=f5e393]
+            - row [ref=f5e394]:
+              - cell "07/08/2026, 12:42:23" [ref=f5e395]
+              - cell "NOVA" [ref=f5e396]
+              - cell "estoque negativo" [ref=f5e397]
+              - cell "3388 ELEMENTO DE BORRACHA PARA ACOPLAMENTO MNC= HARAMAQ" [ref=f5e399]:
+                - text: "3388"
+                - generic [ref=f5e400]: ELEMENTO DE BORRACHA PARA ACOPLAMENTO MNC= HARAMAQ
+              - cell "Fartura" [ref=f5e401]
+              - cell "R$ 0,00" [ref=f5e402]
+              - cell "-" [ref=f5e403]
+              - cell "R$ 25,64" [ref=f5e404]
+              - cell [ref=f5e405]
+              - cell "cmc_antes_de_negativo" [ref=f5e406]
+              - cell "-" [ref=f5e407]
+              - cell "erro" [ref=f5e408]
+              - cell "Henri Irneh" [ref=f5e409]
+              - cell [ref=f5e410]
+            - row [ref=f5e411]:
+              - cell "07/08/2026, 12:42:21" [ref=f5e412]
+              - cell "NOVA" [ref=f5e413]
+              - cell "estoque negativo" [ref=f5e414]
+              - cell "6207TRAVA ROLAMENTO 6207 COM TRAVA" [ref=f5e416]:
+                - text: 6207TRAVA
+                - generic [ref=f5e417]: ROLAMENTO 6207 COM TRAVA
+              - cell "Estoque Balcão" [ref=f5e418]
+              - cell "R$ 70,00" [ref=f5e419]
+              - cell "R$ 70,00" [ref=f5e420]
+              - cell "R$ 70,00" [ref=f5e421]
+              - cell [ref=f5e422]
+              - cell "cmc_antes_de_negativo" [ref=f5e423]
+              - cell "2523935223" [ref=f5e424]
+              - cell "aplicado" [ref=f5e425]
+              - cell "Henri Irneh" [ref=f5e426]
+              - cell [ref=f5e427]:
+                - button "Reverter" [ref=f5e428] [cursor=pointer]
+            - row [ref=f5e429]:
+              - cell "07/08/2026, 12:42:19" [ref=f5e430]
+              - cell "NOVA" [ref=f5e431]
+              - cell "estoque negativo" [ref=f5e432]
+              - cell "RP-000031275B12 ROLAM EXT DO EIXO TRAS 32213" [ref=f5e434]:
+                - text: RP-000031275B12
+                - generic [ref=f5e435]: ROLAM EXT DO EIXO TRAS 32213
+              - cell "Estoque Balcão" [ref=f5e436]
+              - cell "R$ 256,28" [ref=f5e437]
+              - cell "R$ 256,28" [ref=f5e438]
+              - cell "R$ 256,28" [ref=f5e439]
+              - cell [ref=f5e440]
+              - cell "cmc_antes_de_negativo" [ref=f5e441]
+              - cell "2523935214" [ref=f5e442]
+              - cell "aplicado" [ref=f5e443]
+              - cell "Henri Irneh" [ref=f5e444]
+              - cell [ref=f5e445]:
+                - button "Reverter" [ref=f5e446] [cursor=pointer]
+            - row [ref=f5e447]:
+              - cell "07/08/2026, 12:42:16" [ref=f5e448]
+              - cell "NOVA" [ref=f5e449]
+              - cell "estoque negativo" [ref=f5e450]
+              - 'cell "AGCG-010049 ANCINHO HAYNOG 300 G2 ANO 2026 Nº DE SERIE: AGCG-010049" [ref=f5e452]':
+                - text: AGCG-010049
+                - generic [ref=f5e453]: "ANCINHO HAYNOG 300 G2 ANO 2026 Nº DE SERIE: AGCG-010049"
+              - cell "Estoque Balcão" [ref=f5e454]
+              - cell "R$ 27.189,00" [ref=f5e455]
+              - cell "R$ 27.189,00" [ref=f5e456]
+              - cell "R$ 27.189,00" [ref=f5e457]
+              - cell [ref=f5e458]
+              - cell "cmc_antes_de_negativo" [ref=f5e459]
+              - cell "2523935205" [ref=f5e460]
+              - cell "aplicado" [ref=f5e461]
+              - cell "Henri Irneh" [ref=f5e462]
+              - cell [ref=f5e463]:
+                - button "Reverter" [ref=f5e464] [cursor=pointer]
+            - row [ref=f5e465]:
+              - cell "07/08/2026, 12:42:14" [ref=f5e466]
+              - cell "NOVA" [ref=f5e467]
+              - cell "estoque negativo" [ref=f5e468]
+              - cell "5167937 DISCO CNH 5167937" [ref=f5e470]:
+                - text: "5167937"
+                - generic [ref=f5e471]: DISCO CNH 5167937
+              - cell "Estoque Balcão" [ref=f5e472]
+              - cell "R$ 336,36" [ref=f5e473]
+              - cell "R$ 352,19" [ref=f5e474]
+              - cell "R$ 352,19" [ref=f5e475]
+              - cell [ref=f5e476]
+              - cell "maior_cmc_compra" [ref=f5e477]
+              - cell "2523935200" [ref=f5e478]
+              - cell "aplicado" [ref=f5e479]
+              - cell "Henri Irneh" [ref=f5e480]
+              - cell [ref=f5e481]:
+                - button "Reverter" [ref=f5e482] [cursor=pointer]
+            - row [ref=f5e483]:
+              - cell "07/08/2026, 12:42:10" [ref=f5e484]
+              - cell "NOVA" [ref=f5e485]
+              - cell "estoque negativo" [ref=f5e486]
+              - cell "84579290 CAIXA ROLAMENTO ESFERAS CNH" [ref=f5e488]:
+                - text: "84579290"
+                - generic [ref=f5e489]: CAIXA ROLAMENTO ESFERAS CNH
+              - cell "Estoque Balcão" [ref=f5e490]
+              - cell "R$ 1.500,00" [ref=f5e491]
+              - cell "R$ 1.500,00" [ref=f5e492]
+              - cell "R$ 1.500,00" [ref=f5e493]
+              - cell [ref=f5e494]
+              - cell "cmc_antes_de_negativo" [ref=f5e495]
+              - cell "2523935188" [ref=f5e496]
+              - cell "aplicado" [ref=f5e497]
+              - cell "Henri Irneh" [ref=f5e498]
+              - cell [ref=f5e499]:
+                - button "Reverter" [ref=f5e500] [cursor=pointer]
+            - row [ref=f5e501]:
+              - cell "07/08/2026, 12:42:08" [ref=f5e502]
+              - cell "NOVA" [ref=f5e503]
+              - cell "estoque negativo" [ref=f5e504]
+              - cell "6303DDU ROLAMENTO 1* LINHA = 6303 = 727874P" [ref=f5e506]:
+                - text: 6303DDU
+                - generic [ref=f5e507]: ROLAMENTO 1* LINHA = 6303 = 727874P
+              - cell "Estoque Balcão" [ref=f5e508]
+              - cell "R$ 20,00" [ref=f5e509]
+              - cell "R$ 30,00" [ref=f5e510]
+              - cell "R$ 30,00" [ref=f5e511]
+              - cell [ref=f5e512]
+              - cell "cmc_antes_de_negativo" [ref=f5e513]
+              - cell "2523935177" [ref=f5e514]
+              - cell "aplicado" [ref=f5e515]
+              - cell "Henri Irneh" [ref=f5e516]
+              - cell [ref=f5e517]:
+                - button "Reverter" [ref=f5e518] [cursor=pointer]
+            - row [ref=f5e519]:
+              - cell "07/08/2026, 12:42:05" [ref=f5e520]
+              - cell "NOVA" [ref=f5e521]
+              - cell "estoque negativo" [ref=f5e522]
+              - cell "47430950 CJ.ROLAMENTO ESFERAS DA EMBREAGEM TL MODERNO = 47430950" [ref=f5e524]:
+                - text: "47430950"
+                - generic [ref=f5e525]: CJ.ROLAMENTO ESFERAS DA EMBREAGEM TL MODERNO = 47430950
+              - cell "Estoque Balcão" [ref=f5e526]
+              - cell "R$ 500,00" [ref=f5e527]
+              - cell "R$ 500,00" [ref=f5e528]
+              - cell "R$ 500,00" [ref=f5e529]
+              - cell [ref=f5e530]
+              - cell "cmc_antes_de_negativo" [ref=f5e531]
+              - cell "2523935159" [ref=f5e532]
+              - cell "aplicado" [ref=f5e533]
+              - cell "Henri Irneh" [ref=f5e534]
+              - cell [ref=f5e535]:
+                - button "Reverter" [ref=f5e536] [cursor=pointer]
+            - row [ref=f5e537]:
+              - cell "07/08/2026, 12:42:04" [ref=f5e538]
+              - cell "NOVA" [ref=f5e539]
+              - cell "estoque negativo" [ref=f5e540]
+              - cell "64395 EIXO DO ROTOR REPICADOR CFC" [ref=f5e542]:
+                - text: "64395"
+                - generic [ref=f5e543]: EIXO DO ROTOR REPICADOR CFC
+              - cell "Estoque Balcão" [ref=f5e544]
+              - cell "R$ 170,79" [ref=f5e545]
+              - cell "-" [ref=f5e546]
+              - cell "R$ 170,79" [ref=f5e547]
+              - cell [ref=f5e548]
+              - cell "manual" [ref=f5e549]
+              - cell "-" [ref=f5e550]
+              - cell "erro" [ref=f5e551]
+              - cell "Henri Irneh" [ref=f5e552]
+              - cell [ref=f5e553]
+            - row [ref=f5e554]:
+              - cell "07/08/2026, 12:42:02" [ref=f5e555]
+              - cell "NOVA" [ref=f5e556]
+              - cell "estoque negativo" [ref=f5e557]
+              - cell "CC20 LUVA CC20" [ref=f5e559]:
+                - text: CC20
+                - generic [ref=f5e560]: LUVA CC20
+              - cell "Estoque Balcão" [ref=f5e561]
+              - cell "R$ 70,00" [ref=f5e562]
+              - cell "-" [ref=f5e563]
+              - cell "R$ 70,00" [ref=f5e564]
+              - cell [ref=f5e565]
+              - cell "cmc_antes_de_negativo" [ref=f5e566]
+              - cell "-" [ref=f5e567]
+              - cell "erro" [ref=f5e568]
+              - cell "Henri Irneh" [ref=f5e569]
+              - cell [ref=f5e570]
+            - row [ref=f5e571]:
+              - cell "07/08/2026, 12:42:00" [ref=f5e572]
+              - cell "NOVA" [ref=f5e573]
+              - cell "estoque negativo" [ref=f5e574]
+              - cell "IMPL-600008/3 ACIONADOR IMPL.AGRIC.3/8 - 2 EST ( 1 MOLA / 1 C/DETENTE)" [ref=f5e576]:
+                - text: IMPL-600008/3
+                - generic [ref=f5e577]: ACIONADOR IMPL.AGRIC.3/8 - 2 EST ( 1 MOLA / 1 C/DETENTE)
+              - cell "Estoque Balcão" [ref=f5e578]
+              - cell "R$ 1.559,15" [ref=f5e579]
+              - cell "-" [ref=f5e580]
+              - cell "R$ 1.559,15" [ref=f5e581]
+              - cell [ref=f5e582]
+              - cell "cmc_antes_de_negativo" [ref=f5e583]
+              - cell "-" [ref=f5e584]
+              - cell "erro" [ref=f5e585]
+              - cell "Henri Irneh" [ref=f5e586]
+              - cell [ref=f5e587]
+            - row [ref=f5e588]:
+              - cell "07/08/2026, 12:41:58" [ref=f5e589]
+              - cell "NOVA" [ref=f5e590]
+              - cell "estoque negativo" [ref=f5e591]
+              - cell "MP023.00272 RETENTOR 01814 BRG" [ref=f5e593]:
+                - text: MP023.00272
+                - generic [ref=f5e594]: RETENTOR 01814 BRG
+              - cell "Estoque Balcão" [ref=f5e595]
+              - cell "R$ 30,71" [ref=f5e596]
+              - cell "-" [ref=f5e597]
+              - cell "R$ 30,71" [ref=f5e598]
+              - cell [ref=f5e599]
+              - cell "cmc_antes_de_negativo" [ref=f5e600]
+              - cell "-" [ref=f5e601]
+              - cell "erro" [ref=f5e602]
+              - cell "Henri Irneh" [ref=f5e603]
+              - cell [ref=f5e604]
+            - row [ref=f5e605]:
+              - cell "07/08/2026, 12:41:56" [ref=f5e606]
+              - cell "NOVA" [ref=f5e607]
+              - cell "estoque negativo" [ref=f5e608]
+              - cell "MP042.00462G JUNTA GROSSA 0,8 X d130 X d180" [ref=f5e610]:
+                - text: MP042.00462G
+                - generic [ref=f5e611]: JUNTA GROSSA 0,8 X d130 X d180
+              - cell "Estoque Balcão" [ref=f5e612]
+              - cell "R$ 16,83" [ref=f5e613]
+              - cell "-" [ref=f5e614]
+              - cell "R$ 16,83" [ref=f5e615]
+              - cell [ref=f5e616]
+              - cell "cmc_antes_de_negativo" [ref=f5e617]
+              - cell "-" [ref=f5e618]
+              - cell "erro" [ref=f5e619]
+              - cell "Henri Irneh" [ref=f5e620]
+              - cell [ref=f5e621]
+            - row [ref=f5e622]:
+              - cell "07/08/2026, 12:41:55" [ref=f5e623]
+              - cell "NOVA" [ref=f5e624]
+              - cell "estoque negativo" [ref=f5e625]
+              - cell "PI412.17599A EIXO DO PINHAO CX T ACABADO 21 ESTRIAS" [ref=f5e627]:
+                - text: PI412.17599A
+                - generic [ref=f5e628]: EIXO DO PINHAO CX T ACABADO 21 ESTRIAS
+              - cell "Estoque Balcão" [ref=f5e629]
+              - cell "R$ 681,49" [ref=f5e630]
+              - cell "-" [ref=f5e631]
+              - cell "R$ 681,49" [ref=f5e632]
+              - cell [ref=f5e633]
+              - cell "cmc_antes_de_negativo" [ref=f5e634]
+              - cell "-" [ref=f5e635]
+              - cell "erro" [ref=f5e636]
+              - cell "Henri Irneh" [ref=f5e637]
+              - cell [ref=f5e638]
+            - row [ref=f5e639]:
+              - cell "07/08/2026, 12:41:53" [ref=f5e640]
+              - cell "NOVA" [ref=f5e641]
+              - cell "estoque negativo" [ref=f5e642]
+              - cell "PI171.28807 JUNTA W2400 21 ESTRIAS 32.05.07B 320502D" [ref=f5e644]:
+                - text: PI171.28807
+                - generic [ref=f5e645]: JUNTA W2400 21 ESTRIAS 32.05.07B 320502D
+              - cell "Estoque Balcão" [ref=f5e646]
+              - cell "R$ 489,88" [ref=f5e647]
+              - cell "-" [ref=f5e648]
+              - cell "R$ 489,88" [ref=f5e649]
+              - cell [ref=f5e650]
+              - cell "cmc_antes_de_negativo" [ref=f5e651]
+              - cell "-" [ref=f5e652]
+              - cell "erro" [ref=f5e653]
+              - cell "Henri Irneh" [ref=f5e654]
+              - cell [ref=f5e655]
+            - row [ref=f5e656]:
+              - cell "07/08/2026, 12:41:51" [ref=f5e657]
+              - cell "NOVA" [ref=f5e658]
+              - cell "estoque negativo" [ref=f5e659]
+              - cell "000128 CJ MACANETA ARTICULADA ARAL (0111306072) = ARAL = 000128" [ref=f5e661]:
+                - text: "000128"
+                - generic [ref=f5e662]: CJ MACANETA ARTICULADA ARAL (0111306072) = ARAL = 000128
+              - cell "Estoque Balcão" [ref=f5e663]
+              - cell "R$ 302,83" [ref=f5e664]
+              - cell "-" [ref=f5e665]
+              - cell "R$ 302,83" [ref=f5e666]
+              - cell [ref=f5e667]
+              - cell "cmc_antes_de_negativo" [ref=f5e668]
+              - cell "-" [ref=f5e669]
+              - cell "erro" [ref=f5e670]
+              - cell "Henri Irneh" [ref=f5e671]
+              - cell [ref=f5e672]
+            - row [ref=f5e673]:
+              - cell "07/08/2026, 12:41:49" [ref=f5e674]
+              - cell "NOVA" [ref=f5e675]
+              - cell "estoque negativo" [ref=f5e676]
+              - cell "30208 ROLAMENTO 30208 = LA5013" [ref=f5e678]:
+                - text: "30208"
+                - generic [ref=f5e679]: ROLAMENTO 30208 = LA5013
+              - cell "Estoque Balcão" [ref=f5e680]
+              - cell "R$ 55,00" [ref=f5e681]
+              - cell "R$ 55,00" [ref=f5e682]
+              - cell "R$ 55,00" [ref=f5e683]
+              - cell [ref=f5e684]
+              - cell "cmc_antes_de_negativo" [ref=f5e685]
+              - cell "0" [ref=f5e686]
+              - cell "aplicado" [ref=f5e687]
+              - cell "Henri Irneh" [ref=f5e688]
+              - cell [ref=f5e689]:
+                - button "Reverter" [ref=f5e690] [cursor=pointer]
+            - row [ref=f5e691]:
+              - cell "07/08/2026, 12:41:46" [ref=f5e692]
+              - cell "NOVA" [ref=f5e693]
+              - cell "estoque negativo" [ref=f5e694]
+              - cell "LL8AEMHF2S0A10057 QUADRICICLO MODELO VENTURA M250 L ANO 2025 SERIE LL8AEMHF2S0A10057- COR BRANCO" [ref=f5e696]:
+                - text: LL8AEMHF2S0A10057
+                - generic [ref=f5e697]: QUADRICICLO MODELO VENTURA M250 L ANO 2025 SERIE LL8AEMHF2S0A10057- COR BRANCO
+              - cell "Estoque Balcão" [ref=f5e698]
+              - cell "R$ 22.900,00" [ref=f5e699]
+              - cell "R$ 22.900,00" [ref=f5e700]
+              - cell "R$ 22.900,00" [ref=f5e701]
+              - cell [ref=f5e702]
+              - cell "cmc_antes_de_negativo" [ref=f5e703]
+              - cell "0" [ref=f5e704]
+              - cell "aplicado" [ref=f5e705]
+              - cell "Henri Irneh" [ref=f5e706]
+              - cell [ref=f5e707]:
+                - button "Reverter" [ref=f5e708] [cursor=pointer]
+            - row [ref=f5e709]:
+              - cell "07/08/2026, 12:41:44" [ref=f5e710]
+              - cell "NOVA" [ref=f5e711]
+              - cell "estoque negativo" [ref=f5e712]
+              - cell "USADO-CANAM MX90 QUADRICICLO ATV CAN AM MODELO MX 90 CHASSI *RLVDGF401FVN00204*" [ref=f5e714]:
+                - text: USADO-CANAM MX90
+                - generic [ref=f5e715]: QUADRICICLO ATV CAN AM MODELO MX 90 CHASSI *RLVDGF401FVN00204*
+              - cell "Estoque Balcão" [ref=f5e716]
+              - cell "R$ 10.000,00" [ref=f5e717]
+              - cell "-" [ref=f5e718]
+              - cell "R$ 10.000,00" [ref=f5e719]
+              - cell [ref=f5e720]
+              - cell "cmc_antes_de_negativo" [ref=f5e721]
+              - cell "-" [ref=f5e722]
+              - cell "erro" [ref=f5e723]
+              - cell "Henri Irneh" [ref=f5e724]
+              - cell [ref=f5e725]
+            - row [ref=f5e726]:
+              - cell "07/08/2026, 12:41:43" [ref=f5e727]
+              - cell "NOVA" [ref=f5e728]
+              - cell "estoque negativo" [ref=f5e729]
+              - cell "RP-005553101R2 ANEL DA TAMPA DO ENCHIMENTO DO OLEO" [ref=f5e731]:
+                - text: RP-005553101R2
+                - generic [ref=f5e732]: ANEL DA TAMPA DO ENCHIMENTO DO OLEO
+              - cell "Estoque Balcão" [ref=f5e733]
+              - cell "R$ 7,47" [ref=f5e734]
+              - cell "-" [ref=f5e735]
+              - cell "R$ 1,69" [ref=f5e736]
+              - cell [ref=f5e737]
+              - cell "cmc_antes_de_negativo" [ref=f5e738]
+              - cell "-" [ref=f5e739]
+              - cell "erro" [ref=f5e740]
+              - cell "Henri Irneh" [ref=f5e741]
+              - cell [ref=f5e742]
+            - row [ref=f5e743]:
+              - cell "07/08/2026, 12:41:41" [ref=f5e744]
+              - cell "NOVA" [ref=f5e745]
+              - cell "estoque negativo" [ref=f5e746]
+              - cell "USAJACTO2120 PULVERIZADOR. ADVANCED JACTO 2000l SERIE 9900/2120" [ref=f5e748]:
+                - text: USAJACTO2120
+                - generic [ref=f5e749]: PULVERIZADOR. ADVANCED JACTO 2000l SERIE 9900/2120
+              - cell "Estoque Balcão" [ref=f5e750]
+              - cell "R$ 30.000,00" [ref=f5e751]
+              - cell "-" [ref=f5e752]
+              - cell "R$ 30.000,00" [ref=f5e753]
+              - cell [ref=f5e754]
+              - cell "cmc_antes_de_negativo" [ref=f5e755]
+              - cell "-" [ref=f5e756]
+              - cell "erro" [ref=f5e757]
+              - cell "Henri Irneh" [ref=f5e758]
+              - cell [ref=f5e759]
+            - row [ref=f5e760]:
+              - cell "07/08/2026, 12:41:39" [ref=f5e761]
+              - cell "NOVA" [ref=f5e762]
+              - cell "estoque negativo" [ref=f5e763]
+              - cell "CC21 TERMINAL F. QUADRADO 36,85MM C/ F. TRANSV. O8MM - - CC21" [ref=f5e765]:
+                - text: CC21
+                - generic [ref=f5e766]: TERMINAL F. QUADRADO 36,85MM C/ F. TRANSV. O8MM - - CC21
+              - cell "Estoque Balcão" [ref=f5e767]
+              - cell "R$ 57,50" [ref=f5e768]
+              - cell "-" [ref=f5e769]
+              - cell "R$ 57,50" [ref=f5e770]
+              - cell [ref=f5e771]
+              - cell "cmc_antes_de_negativo" [ref=f5e772]
+              - cell "-" [ref=f5e773]
+              - cell "erro" [ref=f5e774]
+              - cell "Henri Irneh" [ref=f5e775]
+              - cell [ref=f5e776]
+            - row [ref=f5e777]:
+              - cell "07/08/2026, 12:41:37" [ref=f5e778]
+              - cell "NOVA" [ref=f5e779]
+              - cell "estoque negativo" [ref=f5e780]
+              - cell "USA SEMEATO SEMEADEIRA SEMEATO USADA PERSONALE DRILL 21 LINHAS" [ref=f5e782]:
+                - text: USA SEMEATO
+                - generic [ref=f5e783]: SEMEADEIRA SEMEATO USADA PERSONALE DRILL 21 LINHAS
+              - cell "Estoque Balcão" [ref=f5e784]
+              - cell "R$ 4.004,00" [ref=f5e785]
+              - cell "R$ 4.004,00" [ref=f5e786]
+              - cell "R$ 4.004,00" [ref=f5e787]
+              - cell [ref=f5e788]
+              - cell "cmc_antes_de_negativo" [ref=f5e789]
+              - cell "2523935093" [ref=f5e790]
+              - cell "aplicado" [ref=f5e791]
+              - cell "Henri Irneh" [ref=f5e792]
+              - cell [ref=f5e793]:
+                - button "Reverter" [ref=f5e794] [cursor=pointer]
+            - row [ref=f5e795]:
+              - cell "07/08/2026, 12:41:35" [ref=f5e796]
+              - cell "NOVA" [ref=f5e797]
+              - cell "estoque negativo" [ref=f5e798]
+              - cell "RP-006051333C91PP BOMBA DE DAGUA 006051333C91 PARA 6075 = 12990042002 = RP-006051333C91PP" [ref=f5e800]:
+                - text: RP-006051333C91PP
+                - generic [ref=f5e801]: BOMBA DE DAGUA 006051333C91 PARA 6075 = 12990042002 = RP-006051333C91PP
+              - cell "Estoque Balcão" [ref=f5e802]
+              - cell "R$ 596,46" [ref=f5e803]
+              - cell "R$ 596,46" [ref=f5e804]
+              - cell "R$ 596,46" [ref=f5e805]
+              - cell [ref=f5e806]
+              - cell "cmc_antes_de_negativo" [ref=f5e807]
+              - cell "2523935080" [ref=f5e808]
+              - cell "aplicado" [ref=f5e809]
+              - cell "Henri Irneh" [ref=f5e810]
+              - cell [ref=f5e811]:
+                - button "Reverter" [ref=f5e812] [cursor=pointer]
+            - row [ref=f5e813]:
+              - cell "07/08/2026, 12:41:32" [ref=f5e814]
+              - cell "NOVA" [ref=f5e815]
+              - cell "estoque negativo" [ref=f5e816]
+              - cell "RP-007600359D1 MOLA ACELERADOR RP-007600359D1" [ref=f5e818]:
+                - text: RP-007600359D1
+                - generic [ref=f5e819]: MOLA ACELERADOR RP-007600359D1
+              - cell "Estoque Balcão" [ref=f5e820]
+              - cell "R$ 2,45" [ref=f5e821]
+              - cell "R$ 2,45" [ref=f5e822]
+              - cell "R$ 2,45" [ref=f5e823]
+              - cell [ref=f5e824]
+              - cell "cmc_antes_de_negativo" [ref=f5e825]
+              - cell "2523935077" [ref=f5e826]
+              - cell "aplicado" [ref=f5e827]
+              - cell "Henri Irneh" [ref=f5e828]
+              - cell [ref=f5e829]:
+                - button "Reverter" [ref=f5e830] [cursor=pointer]
+            - row [ref=f5e831]:
+              - cell "07/08/2026, 12:41:31" [ref=f5e832]
+              - cell "NOVA" [ref=f5e833]
+              - cell "estoque negativo" [ref=f5e834]
+              - cell "#2224589655 FILTRO DE OLEO DA TRANSMISSAO" [ref=f5e836]:
+                - text: "#2224589655"
+                - generic [ref=f5e837]: FILTRO DE OLEO DA TRANSMISSAO
+              - cell "Estoque Balcão" [ref=f5e838]
+              - cell "-" [ref=f5e839]
+              - cell "-" [ref=f5e840]
+              - cell "R$ 76,12" [ref=f5e841]
+              - cell [ref=f5e842]
+              - cell "cmc_antes_de_negativo" [ref=f5e843]
+              - cell "-" [ref=f5e844]
+              - cell "erro" [ref=f5e845]
+              - cell "Henri Irneh" [ref=f5e846]
+              - cell [ref=f5e847]
+            - row [ref=f5e848]:
+              - cell "07/08/2026, 12:41:29" [ref=f5e849]
+              - cell "NOVA" [ref=f5e850]
+              - cell "estoque negativo" [ref=f5e851]
+              - cell "7955-4082-EL FILTRO SEPARADOR( BIODIESEL) REF:7955-4082-EL DONALDSON FS19727 P550467" [ref=f5e853]:
+                - text: 7955-4082-EL
+                - generic [ref=f5e854]: FILTRO SEPARADOR( BIODIESEL) REF:7955-4082-EL DONALDSON FS19727 P550467
+              - cell "Estoque Balcão" [ref=f5e855]
+              - cell "R$ 167,68" [ref=f5e856]
+              - cell "R$ 167,68" [ref=f5e857]
+              - cell "R$ 167,68" [ref=f5e858]
+              - cell [ref=f5e859]
+              - cell "cmc_antes_de_negativo" [ref=f5e860]
+              - cell "2523935069" [ref=f5e861]
+              - cell "aplicado" [ref=f5e862]
+              - cell "Henri Irneh" [ref=f5e863]
+              - cell [ref=f5e864]:
+                - button "Reverter" [ref=f5e865] [cursor=pointer]
+            - row [ref=f5e866]:
+              - cell "07/08/2026, 12:41:27" [ref=f5e867]
+              - cell "NOVA" [ref=f5e868]
+              - cell "estoque negativo" [ref=f5e869]
+              - cell "0750117859 ROLAMENTO ZF = 0750.117.859" [ref=f5e871]:
+                - text: "0750117859"
+                - generic [ref=f5e872]: ROLAMENTO ZF = 0750.117.859
+              - cell "Estoque Balcão" [ref=f5e873]
+              - cell "R$ 108,00" [ref=f5e874]
+              - cell "-" [ref=f5e875]
+              - cell "R$ 108,00" [ref=f5e876]
+              - cell [ref=f5e877]
+              - cell "cmc_antes_de_negativo" [ref=f5e878]
+              - cell "-" [ref=f5e879]
+              - cell "erro" [ref=f5e880]
+              - cell "Henri Irneh" [ref=f5e881]
+              - cell [ref=f5e882]
+            - row [ref=f5e883]:
+              - cell "07/08/2026, 12:41:25" [ref=f5e884]
+              - cell "NOVA" [ref=f5e885]
+              - cell "estoque negativo" [ref=f5e886]
+              - cell "0204032343 FLUIDO DE FREIO DOT 3 500ML BFR" [ref=f5e888]:
+                - text: "0204032343"
+                - generic [ref=f5e889]: FLUIDO DE FREIO DOT 3 500ML BFR
+              - cell "Estoque Balcão" [ref=f5e890]
+              - cell "R$ 26,00" [ref=f5e891]
+              - cell "R$ 26,00" [ref=f5e892]
+              - cell "R$ 26,00" [ref=f5e893]
+              - cell [ref=f5e894]
+              - cell "cmc_antes_de_negativo" [ref=f5e895]
+              - cell "2523935057" [ref=f5e896]
+              - cell "aplicado" [ref=f5e897]
+              - cell "Henri Irneh" [ref=f5e898]
+              - cell [ref=f5e899]:
+                - button "Reverter" [ref=f5e900] [cursor=pointer]
+            - row [ref=f5e901]:
+              - cell "07/08/2026, 12:41:23" [ref=f5e902]
+              - cell "NOVA" [ref=f5e903]
+              - cell "estoque negativo" [ref=f5e904]
+              - cell "1342070 EIXO GRADE 2070" [ref=f5e906]:
+                - text: "1342070"
+                - generic [ref=f5e907]: EIXO GRADE 2070
+              - cell "Estoque Balcão" [ref=f5e908]
+              - cell "R$ 800,00" [ref=f5e909]
+              - cell "R$ 800,00" [ref=f5e910]
+              - cell "R$ 800,00" [ref=f5e911]
+              - cell [ref=f5e912]
+              - cell "maior_cmc_compra" [ref=f5e913]
+              - cell "0" [ref=f5e914]
+              - cell "aplicado" [ref=f5e915]
+              - cell "Henri Irneh" [ref=f5e916]
+              - cell [ref=f5e917]:
+                - button "Reverter" [ref=f5e918] [cursor=pointer]
+            - row [ref=f5e919]:
+              - cell "07/08/2026, 12:41:21" [ref=f5e920]
+              - cell "NOVA" [ref=f5e921]
+              - cell "estoque negativo" [ref=f5e922]
+              - cell "329HSBOND TRAVA ROSCA 329 = 1305HS10G = HSBOND 329H" [ref=f5e924]:
+                - text: 329HSBOND
+                - generic [ref=f5e925]: TRAVA ROSCA 329 = 1305HS10G = HSBOND 329H
+              - cell "Estoque Balcão" [ref=f5e926]
+              - cell "R$ 18,00" [ref=f5e927]
+              - cell "-" [ref=f5e928]
+              - cell "R$ 45,00" [ref=f5e929]
+              - cell [ref=f5e930]
+              - cell "cmc_antes_de_negativo" [ref=f5e931]
+              - cell "-" [ref=f5e932]
+              - cell "erro" [ref=f5e933]
+              - cell "Henri Irneh" [ref=f5e934]
+              - cell [ref=f5e935]
+            - row [ref=f5e936]:
+              - cell "07/08/2026, 12:41:19" [ref=f5e937]
+              - cell "NOVA" [ref=f5e938]
+              - cell "estoque negativo" [ref=f5e939]
+              - cell "RP-006509853U1 MOLA = RP-006509853U1 mudou para RP-006514948U1" [ref=f5e941]:
+                - text: RP-006509853U1
+                - generic [ref=f5e942]: MOLA = RP-006509853U1 mudou para RP-006514948U1
+              - cell "Estoque Balcão" [ref=f5e943]
+              - cell "R$ 4,22" [ref=f5e944]
+              - cell "-" [ref=f5e945]
+              - cell "R$ 4,22" [ref=f5e946]
+              - cell [ref=f5e947]
+              - cell "cmc_antes_de_negativo" [ref=f5e948]
+              - cell "-" [ref=f5e949]
+              - cell "erro" [ref=f5e950]
+              - cell "Henri Irneh" [ref=f5e951]
+              - cell [ref=f5e952]
+            - row [ref=f5e953]:
+              - cell "07/08/2026, 12:41:17" [ref=f5e954]
+              - cell "NOVA" [ref=f5e955]
+              - cell "estoque negativo" [ref=f5e956]
+              - cell "MP025.00293 ANEL E45" [ref=f5e958]:
+                - text: MP025.00293
+                - generic [ref=f5e959]: ANEL E45
+              - cell "Estoque Balcão" [ref=f5e960]
+              - cell "R$ 17,23" [ref=f5e961]
+              - cell "-" [ref=f5e962]
+              - cell "R$ 17,23" [ref=f5e963]
+              - cell [ref=f5e964]
+              - cell "cmc_antes_de_negativo" [ref=f5e965]
+              - cell "-" [ref=f5e966]
+              - cell "erro" [ref=f5e967]
+              - cell "Henri Irneh" [ref=f5e968]
+              - cell [ref=f5e969]
+            - row [ref=f5e970]:
+              - cell "07/08/2026, 12:41:16" [ref=f5e971]
+              - cell "NOVA" [ref=f5e972]
+              - cell "estoque negativo" [ref=f5e973]
+              - cell "MP042.00462F JUNTA FINA 0,4 X d130 X d180" [ref=f5e975]:
+                - text: MP042.00462F
+                - generic [ref=f5e976]: JUNTA FINA 0,4 X d130 X d180
+              - cell "Estoque Balcão" [ref=f5e977]
+              - cell "R$ 8,28" [ref=f5e978]
+              - cell "-" [ref=f5e979]
+              - cell "R$ 8,28" [ref=f5e980]
+              - cell [ref=f5e981]
+              - cell "cmc_antes_de_negativo" [ref=f5e982]
+              - cell "-" [ref=f5e983]
+              - cell "erro" [ref=f5e984]
+              - cell "Henri Irneh" [ref=f5e985]
+              - cell [ref=f5e986]
+            - row [ref=f5e987]:
+              - cell "07/08/2026, 12:41:13" [ref=f5e988]
+              - cell "NOVA" [ref=f5e989]
+              - cell "estoque negativo" [ref=f5e990]
+              - cell "RP-008004909Y92 ESPELHO RETROVISOR" [ref=f5e992]:
+                - text: RP-008004909Y92
+                - generic [ref=f5e993]: ESPELHO RETROVISOR
+              - cell "Estoque Balcão" [ref=f5e994]
+              - cell "R$ 3,99" [ref=f5e995]
+              - cell "R$ 128,78" [ref=f5e996]
+              - cell "R$ 128,78" [ref=f5e997]
+              - cell [ref=f5e998]
+              - cell "cmc_antes_de_negativo" [ref=f5e999]
+              - cell "2523935019" [ref=f5e1000]
+              - cell "aplicado" [ref=f5e1001]
+              - cell "Henri Irneh" [ref=f5e1002]
+              - cell [ref=f5e1003]:
+                - button "Reverter" [ref=f5e1004] [cursor=pointer]
+            - row [ref=f5e1005]:
+              - cell "07/08/2026, 12:41:11" [ref=f5e1006]
+              - cell "NOVA" [ref=f5e1007]
+              - cell "estoque negativo" [ref=f5e1008]
+              - cell "84257511 FILTRO DE OLEO HIDRAULICO" [ref=f5e1010]:
+                - text: "84257511"
+                - generic [ref=f5e1011]: FILTRO DE OLEO HIDRAULICO
+              - cell "Estoque Balcão" [ref=f5e1012]
+              - cell "R$ 250,00" [ref=f5e1013]
+              - cell "R$ 250,00" [ref=f5e1014]
+              - cell "R$ 250,00" [ref=f5e1015]
+              - cell [ref=f5e1016]
+              - cell "cmc_antes_de_negativo" [ref=f5e1017]
+              - cell "2523935008" [ref=f5e1018]
+              - cell "aplicado" [ref=f5e1019]
+              - cell "Henri Irneh" [ref=f5e1020]
+              - cell [ref=f5e1021]:
+                - button "Reverter" [ref=f5e1022] [cursor=pointer]
+            - row [ref=f5e1023]:
+              - cell "07/08/2026, 12:41:10" [ref=f5e1024]
+              - cell "NOVA" [ref=f5e1025]
+              - cell "estoque negativo" [ref=f5e1026]
+              - cell "RP-001082183R91 ROLAMENTO 20X47X14 = 6204DDU = RP-001082183R91 = ( do volante do motor )" [ref=f5e1028]:
+                - text: RP-001082183R91
+                - generic [ref=f5e1029]: ROLAMENTO 20X47X14 = 6204DDU = RP-001082183R91 = ( do volante do motor )
+              - cell "Estoque Balcão" [ref=f5e1030]
+              - cell "R$ 20,00" [ref=f5e1031]
+              - cell "-" [ref=f5e1032]
+              - cell "R$ 52,84" [ref=f5e1033]
+              - cell [ref=f5e1034]
+              - cell "cmc_antes_de_negativo" [ref=f5e1035]
+              - cell "-" [ref=f5e1036]
+              - cell "erro" [ref=f5e1037]
+              - cell "Henri Irneh" [ref=f5e1038]
+              - cell [ref=f5e1039]
+            - row [ref=f5e1040]:
+              - cell "07/08/2026, 12:41:08" [ref=f5e1041]
+              - cell "NOVA" [ref=f5e1042]
+              - cell "estoque negativo" [ref=f5e1043]
+              - cell "3410413 ENGATE RAPIDO 1/2" [ref=f5e1045]:
+                - text: "3410413"
+                - generic [ref=f5e1046]: ENGATE RAPIDO 1/2
+              - cell "Estoque Balcão" [ref=f5e1047]
+              - cell "R$ 60,00" [ref=f5e1048]
+              - cell "-" [ref=f5e1049]
+              - cell "R$ 770,00" [ref=f5e1050]
+              - cell [ref=f5e1051]
+              - cell "maior_cmc_compra" [ref=f5e1052]
+              - cell "-" [ref=f5e1053]
+              - cell "erro" [ref=f5e1054]
+              - cell "Henri Irneh" [ref=f5e1055]
+              - cell [ref=f5e1056]
+            - row [ref=f5e1057]:
+              - cell "07/08/2026, 12:41:06" [ref=f5e1058]
+              - cell "NOVA" [ref=f5e1059]
+              - cell "estoque negativo" [ref=f5e1060]
+              - cell "RP-007705736U91 PAINEL DE INSTRUMENTOS 6075 NACIONAL ( USAR O RP-007709429U91 )" [ref=f5e1062]:
+                - text: RP-007705736U91
+                - generic [ref=f5e1063]: PAINEL DE INSTRUMENTOS 6075 NACIONAL ( USAR O RP-007709429U91 )
+              - cell "Estoque Balcão" [ref=f5e1064]
+              - cell "R$ 1.686,13" [ref=f5e1065]
+              - cell "R$ 1.686,13" [ref=f5e1066]
+              - cell "R$ 1.686,13" [ref=f5e1067]
+              - cell [ref=f5e1068]
+              - cell "cmc_antes_de_negativo" [ref=f5e1069]
+              - cell "2523934987" [ref=f5e1070]
+              - cell "aplicado" [ref=f5e1071]
+              - cell "Henri Irneh" [ref=f5e1072]
+              - cell [ref=f5e1073]:
+                - button "Reverter" [ref=f5e1074] [cursor=pointer]
+            - row [ref=f5e1075]:
+              - cell "07/08/2026, 12:41:04" [ref=f5e1076]
+              - cell "NOVA" [ref=f5e1077]
+              - cell "estoque negativo" [ref=f5e1078]
+              - cell "MP027.09891 FUNDIDO PEDAL MENOR CF1034" [ref=f5e1080]:
+                - text: MP027.09891
+                - generic [ref=f5e1081]: FUNDIDO PEDAL MENOR CF1034
+              - cell "Estoque Balcão" [ref=f5e1082]
+              - cell "R$ 50,00" [ref=f5e1083]
+              - cell "-" [ref=f5e1084]
+              - cell "R$ 50,00" [ref=f5e1085]
+              - cell [ref=f5e1086]
+              - cell "cmc_antes_de_negativo" [ref=f5e1087]
+              - cell "-" [ref=f5e1088]
+              - cell "erro" [ref=f5e1089]
+              - cell "Henri Irneh" [ref=f5e1090]
+              - cell [ref=f5e1091]
+            - row [ref=f5e1092]:
+              - cell "07/08/2026, 12:41:02" [ref=f5e1093]
+              - cell "NOVA" [ref=f5e1094]
+              - cell "estoque negativo" [ref=f5e1095]
+              - cell "827265 COLA 334 = 827265 (ROXA) = HSBOND" [ref=f5e1097]:
+                - text: "827265"
+                - generic [ref=f5e1098]: COLA 334 = 827265 (ROXA) = HSBOND
+              - cell "Estoque Balcão" [ref=f5e1099]
+              - cell "R$ 35,00" [ref=f5e1100]
+              - cell "-" [ref=f5e1101]
+              - cell "R$ 45,96" [ref=f5e1102]
+              - cell [ref=f5e1103]
+              - cell "cmc_antes_de_negativo" [ref=f5e1104]
+              - cell "-" [ref=f5e1105]
+              - cell "erro" [ref=f5e1106]
+              - cell "Henri Irneh" [ref=f5e1107]
+              - cell [ref=f5e1108]
+            - row [ref=f5e1109]:
+              - cell "07/08/2026, 12:41:00" [ref=f5e1110]
+              - cell "NOVA" [ref=f5e1111]
+              - cell "estoque negativo" [ref=f5e1112]
+              - cell "RP-005557178R91 ROLAMENTO DE ROLETES" [ref=f5e1114]:
+                - text: RP-005557178R91
+                - generic [ref=f5e1115]: ROLAMENTO DE ROLETES
+              - cell "Estoque Balcão" [ref=f5e1116]
+              - cell "R$ 382,00" [ref=f5e1117]
+              - cell "-" [ref=f5e1118]
+              - cell "R$ 70,60" [ref=f5e1119]
+              - cell [ref=f5e1120]
+              - cell "cmc_antes_de_negativo" [ref=f5e1121]
+              - cell "-" [ref=f5e1122]
+              - cell "erro" [ref=f5e1123]
+              - cell "Henri Irneh" [ref=f5e1124]
+              - cell [ref=f5e1125]
+            - row [ref=f5e1126]:
+              - cell "07/08/2026, 12:40:58" [ref=f5e1127]
+              - cell "NOVA" [ref=f5e1128]
+              - cell "estoque negativo" [ref=f5e1129]
+              - cell "00000336 BATERIA CS 60D STANDARD" [ref=f5e1131]:
+                - text: "00000336"
+                - generic [ref=f5e1132]: BATERIA CS 60D STANDARD
+              - cell "Estoque Balcão" [ref=f5e1133]
+              - cell "R$ 267,04" [ref=f5e1134]
+              - cell "R$ 267,04" [ref=f5e1135]
+              - cell "R$ 267,04" [ref=f5e1136]
+              - cell [ref=f5e1137]
+              - cell "cmc_antes_de_negativo" [ref=f5e1138]
+              - cell "2523934959" [ref=f5e1139]
+              - cell "aplicado" [ref=f5e1140]
+              - cell "Henri Irneh" [ref=f5e1141]
+              - cell [ref=f5e1142]:
+                - button "Reverter" [ref=f5e1143] [cursor=pointer]
+            - row [ref=f5e1144]:
+              - cell "07/08/2026, 12:40:56" [ref=f5e1145]
+              - cell "NOVA" [ref=f5e1146]
+              - cell "estoque negativo" [ref=f5e1147]
+              - cell "5186640P BORRACHA DE VEDAÇÃO DA CABINE UNIVERSAL 5186640" [ref=f5e1149]:
+                - text: 5186640P
+                - generic [ref=f5e1150]: BORRACHA DE VEDAÇÃO DA CABINE UNIVERSAL 5186640
+              - cell "Estoque Balcão" [ref=f5e1151]
+              - cell "R$ 100,00" [ref=f5e1152]
+              - cell "-" [ref=f5e1153]
+              - cell "R$ 200,00" [ref=f5e1154]
+              - cell [ref=f5e1155]
+              - cell "cmc_antes_de_negativo" [ref=f5e1156]
+              - cell "-" [ref=f5e1157]
+              - cell "erro" [ref=f5e1158]
+              - cell "Henri Irneh" [ref=f5e1159]
+              - cell [ref=f5e1160]
+            - row [ref=f5e1161]:
+              - cell "07/08/2026, 12:40:54" [ref=f5e1162]
+              - cell "NOVA" [ref=f5e1163]
+              - cell "estoque negativo" [ref=f5e1164]
+              - cell "000460 Correia 13x1188 / 13X1190 = AX45" [ref=f5e1166]:
+                - text: "000460"
+                - generic [ref=f5e1167]: Correia 13x1188 / 13X1190 = AX45
+              - cell "Estoque Balcão" [ref=f5e1168]
+              - cell "R$ 63,75" [ref=f5e1169]
+              - cell "-" [ref=f5e1170]
+              - cell "R$ 60,00" [ref=f5e1171]
+              - cell [ref=f5e1172]
+              - cell "cmc_antes_de_negativo" [ref=f5e1173]
+              - cell "-" [ref=f5e1174]
+              - cell "erro" [ref=f5e1175]
+              - cell "Henri Irneh" [ref=f5e1176]
+              - cell [ref=f5e1177]
+            - row [ref=f5e1178]:
+              - cell "07/08/2026, 12:40:52" [ref=f5e1179]
+              - cell "NOVA" [ref=f5e1180]
+              - cell "estoque negativo" [ref=f5e1181]
+              - cell "000947 FLUIDO FREIO DOT4" [ref=f5e1183]:
+                - text: "000947"
+                - generic [ref=f5e1184]: FLUIDO FREIO DOT4
+              - cell "Estoque Balcão" [ref=f5e1185]
+              - cell "R$ 34,00" [ref=f5e1186]
+              - cell "R$ 34,00" [ref=f5e1187]
+              - cell "R$ 34,00" [ref=f5e1188]
+              - cell [ref=f5e1189]
+              - cell "cmc_antes_de_negativo" [ref=f5e1190]
+              - cell "2523934874" [ref=f5e1191]
+              - cell "aplicado" [ref=f5e1192]
+              - cell "Henri Irneh" [ref=f5e1193]
+              - cell [ref=f5e1194]:
+                - button "Reverter" [ref=f5e1195] [cursor=pointer]
+            - row [ref=f5e1196]:
+              - cell "07/08/2026, 12:40:50" [ref=f5e1197]
+              - cell "NOVA" [ref=f5e1198]
+              - cell "estoque negativo" [ref=f5e1199]
+              - cell "Y5605700 CONJ PUXADOR = Y5605700" [ref=f5e1201]:
+                - text: Y5605700
+                - generic [ref=f5e1202]: CONJ PUXADOR = Y5605700
+              - cell "Estoque Balcão" [ref=f5e1203]
+              - cell "R$ 16,51" [ref=f5e1204]
+              - cell "-" [ref=f5e1205]
+              - cell "R$ 19,29" [ref=f5e1206]
+              - cell [ref=f5e1207]
+              - cell "cmc_antes_de_negativo" [ref=f5e1208]
+              - cell "-" [ref=f5e1209]
+              - cell "erro" [ref=f5e1210]
+              - cell "Henri Irneh" [ref=f5e1211]
+              - cell [ref=f5e1212]
+            - row [ref=f5e1213]:
+              - cell "07/08/2026, 12:40:44" [ref=f5e1214]
+              - cell "NOVA" [ref=f5e1215]
+              - cell "estoque negativo" [ref=f5e1216]
+              - cell "RP-E000013797P04 BOMBA HIDRAULICA SERIE S TIII RP-E000013797P04" [ref=f5e1218]:
+                - text: RP-E000013797P04
+                - generic [ref=f5e1219]: BOMBA HIDRAULICA SERIE S TIII RP-E000013797P04
+              - cell "Estoque Balcão" [ref=f5e1220]
+              - cell "R$ 3.100,00" [ref=f5e1221]
+              - cell "-" [ref=f5e1222]
+              - cell "R$ 2.217,52" [ref=f5e1223]
+              - cell [ref=f5e1224]
+              - cell "cmc_antes_de_negativo" [ref=f5e1225]
+              - cell "-" [ref=f5e1226]
+              - cell "erro" [ref=f5e1227]
+              - cell "Henri Irneh" [ref=f5e1228]
+              - cell [ref=f5e1229]
+            - row [ref=f5e1230]:
+              - cell "07/08/2026, 12:40:42" [ref=f5e1231]
+              - cell "NOVA" [ref=f5e1232]
+              - cell "estoque negativo" [ref=f5e1233]
+              - cell "RP-006032446Y1 ELEMENTO DO FILTRO RP-006032446Y1" [ref=f5e1235]:
+                - text: RP-006032446Y1
+                - generic [ref=f5e1236]: ELEMENTO DO FILTRO RP-006032446Y1
+              - cell "Estoque Balcão" [ref=f5e1237]
+              - cell "R$ 103,86" [ref=f5e1238]
+              - cell "R$ 103,86" [ref=f5e1239]
+              - cell "R$ 103,86" [ref=f5e1240]
+              - cell [ref=f5e1241]
+              - cell "cmc_antes_de_negativo" [ref=f5e1242]
+              - cell "2523934851" [ref=f5e1243]
+              - cell "aplicado" [ref=f5e1244]
+              - cell "Henri Irneh" [ref=f5e1245]
+              - cell [ref=f5e1246]:
+                - button "Reverter" [ref=f5e1247] [cursor=pointer]
+            - row [ref=f5e1248]:
+              - cell "07/08/2026, 12:40:40" [ref=f5e1249]
+              - cell "NOVA" [ref=f5e1250]
+              - cell "estoque negativo" [ref=f5e1251]
+              - cell "HYDRA19YPF YPF HIDRO 19 10W30 BB 20LTS" [ref=f5e1253]:
+                - text: HYDRA19YPF
+                - generic [ref=f5e1254]: YPF HIDRO 19 10W30 BB 20LTS
+              - cell "Estoque Balcão" [ref=f5e1255]
+              - cell "-" [ref=f5e1256]
+              - cell "-" [ref=f5e1257]
+              - cell "R$ 288,90" [ref=f5e1258]
+              - cell [ref=f5e1259]
+              - cell "cmc_antes_de_negativo" [ref=f5e1260]
+              - cell "-" [ref=f5e1261]
+              - cell "erro" [ref=f5e1262]
+              - cell "Henri Irneh" [ref=f5e1263]
+              - cell [ref=f5e1264]
+            - row [ref=f5e1265]:
+              - cell "07/08/2026, 12:40:38" [ref=f5e1266]
+              - cell "NOVA" [ref=f5e1267]
+              - cell "estoque negativo" [ref=f5e1268]
+              - cell "RP-EL0801002808-A ELEMENTO FILTRO DECANTADOR R25-B = RC819 = RP-EL0801002808-A" [ref=f5e1270]:
+                - text: RP-EL0801002808-A
+                - generic [ref=f5e1271]: ELEMENTO FILTRO DECANTADOR R25-B = RC819 = RP-EL0801002808-A
+              - cell "Estoque Balcão" [ref=f5e1272]
+              - cell "R$ 122,22" [ref=f5e1273]
+              - cell "R$ 122,22" [ref=f5e1274]
+              - cell "R$ 122,22" [ref=f5e1275]
+              - cell [ref=f5e1276]
+              - cell "cmc_antes_de_negativo" [ref=f5e1277]
+              - cell "2523934844" [ref=f5e1278]
+              - cell "aplicado" [ref=f5e1279]
+              - cell "Henri Irneh" [ref=f5e1280]
+              - cell [ref=f5e1281]:
+                - button "Reverter" [ref=f5e1282] [cursor=pointer]
+            - row [ref=f5e1283]:
+              - cell "07/08/2026, 12:40:36" [ref=f5e1284]
+              - cell "NOVA" [ref=f5e1285]
+              - cell "estoque negativo" [ref=f5e1286]
+              - cell "B0766861 ELEMENTO FILT.OLEO MOTOR-6.10T B0766861=905411880011 = 905411880037" [ref=f5e1288]:
+                - text: B0766861
+                - generic [ref=f5e1289]: ELEMENTO FILT.OLEO MOTOR-6.10T B0766861=905411880011 = 905411880037
+              - cell "Estoque Balcão" [ref=f5e1290]
+              - cell "R$ 101,15" [ref=f5e1291]
+              - cell "-" [ref=f5e1292]
+              - cell "R$ 113,89" [ref=f5e1293]
+              - cell [ref=f5e1294]
+              - cell "cmc_antes_de_negativo" [ref=f5e1295]
+              - cell "-" [ref=f5e1296]
+              - cell "erro" [ref=f5e1297]
+              - cell "Henri Irneh" [ref=f5e1298]
+              - cell [ref=f5e1299]
+            - row [ref=f5e1300]:
+              - cell "07/08/2026, 12:40:34" [ref=f5e1301]
+              - cell "NOVA" [ref=f5e1302]
+              - cell "estoque negativo" [ref=f5e1303]
+              - cell "828217 PARAFUSO DO ARO 5/8X3 = 827217 = 1060P = 119050" [ref=f5e1305]:
+                - text: "828217"
+                - generic [ref=f5e1306]: PARAFUSO DO ARO 5/8X3 = 827217 = 1060P = 119050
+              - cell "Estoque Balcão" [ref=f5e1307]
+              - cell "R$ 15,00" [ref=f5e1308]
+              - cell "R$ 15,00" [ref=f5e1309]
+              - cell "R$ 15,00" [ref=f5e1310]
+              - cell [ref=f5e1311]
+              - cell "cmc_antes_de_negativo" [ref=f5e1312]
+              - cell "2523934824" [ref=f5e1313]
+              - cell "aplicado" [ref=f5e1314]
+              - cell "Henri Irneh" [ref=f5e1315]
+              - cell [ref=f5e1316]:
+                - button "Reverter" [ref=f5e1317] [cursor=pointer]
+            - row [ref=f5e1318]:
+              - cell "07/08/2026, 12:40:32" [ref=f5e1319]
+              - cell "NOVA" [ref=f5e1320]
+              - cell "estoque negativo" [ref=f5e1321]
+              - cell "RP-000377952R1 O RING = RP-000377952R1" [ref=f5e1323]:
+                - text: RP-000377952R1
+                - generic [ref=f5e1324]: O RING = RP-000377952R1
+              - cell "Estoque Balcão" [ref=f5e1325]
+              - cell "R$ 4,93" [ref=f5e1326]
+              - cell "R$ 4,93" [ref=f5e1327]
+              - cell "R$ 4,93" [ref=f5e1328]
+              - cell [ref=f5e1329]
+              - cell "cmc_antes_de_negativo" [ref=f5e1330]
+              - cell "2523934814" [ref=f5e1331]
+              - cell "aplicado" [ref=f5e1332]
+              - cell "Henri Irneh" [ref=f5e1333]
+              - cell [ref=f5e1334]:
+                - button "Reverter" [ref=f5e1335] [cursor=pointer]
+            - row [ref=f5e1336]:
+              - cell "07/08/2026, 12:40:29" [ref=f5e1337]
+              - cell "NOVA" [ref=f5e1338]
+              - cell "estoque negativo" [ref=f5e1339]
+              - cell "600-14 PNEU 600-14 R1 8L FORERUNNER = 600X14" [ref=f5e1341]:
+                - text: 600-14
+                - generic [ref=f5e1342]: PNEU 600-14 R1 8L FORERUNNER = 600X14
+              - cell "Estoque Balcão" [ref=f5e1343]
+              - cell "R$ 385,00" [ref=f5e1344]
+              - cell "R$ 385,00" [ref=f5e1345]
+              - cell "R$ 385,00" [ref=f5e1346]
+              - cell [ref=f5e1347]
+              - cell "cmc_antes_de_negativo" [ref=f5e1348]
+              - cell "2523934810" [ref=f5e1349]
+              - cell "aplicado" [ref=f5e1350]
+              - cell "Henri Irneh" [ref=f5e1351]
+              - cell [ref=f5e1352]:
+                - button "Reverter" [ref=f5e1353] [cursor=pointer]
+            - row [ref=f5e1354]:
+              - cell "07/08/2026, 12:40:27" [ref=f5e1355]
+              - cell "NOVA" [ref=f5e1356]
+              - cell "estoque negativo" [ref=f5e1357]
+              - cell "32650 JUNTA AGRICOLA BP MOD 106 COD.44BG6050007045" [ref=f5e1359]:
+                - text: "32650"
+                - generic [ref=f5e1360]: JUNTA AGRICOLA BP MOD 106 COD.44BG6050007045
+              - cell "Estoque Balcão" [ref=f5e1361]
+              - cell "R$ 186,41" [ref=f5e1362]
+              - cell "-" [ref=f5e1363]
+              - cell "R$ 186,41" [ref=f5e1364]
+              - cell [ref=f5e1365]
+              - cell "manual" [ref=f5e1366]
+              - cell "-" [ref=f5e1367]
+              - cell "erro" [ref=f5e1368]
+              - cell "Henri Irneh" [ref=f5e1369]
+              - cell [ref=f5e1370]
+            - row [ref=f5e1371]:
+              - cell "07/08/2026, 12:40:25" [ref=f5e1372]
+              - cell "NOVA" [ref=f5e1373]
+              - cell "estoque negativo" [ref=f5e1374]
+              - cell "000360 PARAF 5/8 X 2 1/2 RI" [ref=f5e1376]:
+                - text: "000360"
+                - generic [ref=f5e1377]: PARAF 5/8 X 2 1/2 RI
+              - cell "Estoque Balcão" [ref=f5e1378]
+              - cell "R$ 7,00" [ref=f5e1379]
+              - cell "-" [ref=f5e1380]
+              - cell "R$ 7,00" [ref=f5e1381]
+              - cell [ref=f5e1382]
+              - cell "cmc_antes_de_negativo" [ref=f5e1383]
+              - cell "-" [ref=f5e1384]
+              - cell "erro" [ref=f5e1385]
+              - cell "Henri Irneh" [ref=f5e1386]
+              - cell [ref=f5e1387]
+            - row [ref=f5e1388]:
+              - cell "07/08/2026, 12:40:24" [ref=f5e1389]
+              - cell "NOVA" [ref=f5e1390]
+              - cell "estoque negativo" [ref=f5e1391]
+              - cell "0396 FACA ROCADEIRA CM MF681/LAVRALE" [ref=f5e1393]:
+                - text: "0396"
+                - generic [ref=f5e1394]: FACA ROCADEIRA CM MF681/LAVRALE
+              - cell "Estoque Balcão" [ref=f5e1395]
+              - cell "R$ 105,00" [ref=f5e1396]
+              - cell "-" [ref=f5e1397]
+              - cell "R$ 105,00" [ref=f5e1398]
+              - cell [ref=f5e1399]
+              - cell "cmc_antes_de_negativo" [ref=f5e1400]
+              - cell "-" [ref=f5e1401]
+              - cell "erro" [ref=f5e1402]
+              - cell "Henri Irneh" [ref=f5e1403]
+              - cell [ref=f5e1404]
+            - row [ref=f5e1405]:
+              - cell "07/08/2026, 12:40:22" [ref=f5e1406]
+              - cell "NOVA" [ref=f5e1407]
+              - cell "estoque negativo" [ref=f5e1408]
+              - cell "004790 OLHAL MAHINDRA" [ref=f5e1410]:
+                - text: "004790"
+                - generic [ref=f5e1411]: OLHAL MAHINDRA
+              - cell "Estoque Balcão" [ref=f5e1412]
+              - cell "R$ 260,00" [ref=f5e1413]
+              - cell "-" [ref=f5e1414]
+              - cell "R$ 260,00" [ref=f5e1415]
+              - cell [ref=f5e1416]
+              - cell "cmc_antes_de_negativo" [ref=f5e1417]
+              - cell "-" [ref=f5e1418]
+              - cell "erro" [ref=f5e1419]
+              - cell "Henri Irneh" [ref=f5e1420]
+              - cell [ref=f5e1421]
+            - row [ref=f5e1422]:
+              - cell "07/08/2026, 12:40:20" [ref=f5e1423]
+              - cell "NOVA" [ref=f5e1424]
+              - cell "estoque negativo" [ref=f5e1425]
+              - cell "82015078 RETENTOR AS 50X80X10 DIN3760 ( = ao R2152652 )" [ref=f5e1427]:
+                - text: "82015078"
+                - generic [ref=f5e1428]: RETENTOR AS 50X80X10 DIN3760 ( = ao R2152652 )
+              - cell "Estoque Balcão" [ref=f5e1429]
+              - cell "R$ 116,94" [ref=f5e1430]
+              - cell "R$ 116,94" [ref=f5e1431]
+              - cell "R$ 116,94" [ref=f5e1432]
+              - cell [ref=f5e1433]
+              - cell "cmc_antes_de_negativo" [ref=f5e1434]
+              - cell "2523934713" [ref=f5e1435]
+              - cell "aplicado" [ref=f5e1436]
+              - cell "Henri Irneh" [ref=f5e1437]
+              - cell [ref=f5e1438]:
+                - button "Reverter" [ref=f5e1439] [cursor=pointer]
+            - row [ref=f5e1440]:
+              - cell "07/08/2026, 12:40:18" [ref=f5e1441]
+              - cell "NOVA" [ref=f5e1442]
+              - cell "estoque negativo" [ref=f5e1443]
+              - cell "CC36 CRUZETA CC36 = 5-121X" [ref=f5e1445]:
+                - text: CC36
+                - generic [ref=f5e1446]: CRUZETA CC36 = 5-121X
+              - cell "Estoque Balcão" [ref=f5e1447]
+              - cell "R$ 45,00" [ref=f5e1448]
+              - cell "-" [ref=f5e1449]
+              - cell "R$ 45,00" [ref=f5e1450]
+              - cell [ref=f5e1451]
+              - cell "cmc_antes_de_negativo" [ref=f5e1452]
+              - cell "-" [ref=f5e1453]
+              - cell "erro" [ref=f5e1454]
+              - cell "Henri Irneh" [ref=f5e1455]
+              - cell [ref=f5e1456]
+            - row [ref=f5e1457]:
+              - cell "07/08/2026, 12:40:16" [ref=f5e1458]
+              - cell "NOVA" [ref=f5e1459]
+              - cell "estoque negativo" [ref=f5e1460]
+              - cell "RP-007609741C2 VEDADOR DE OLEO 56X80X13.5 = RP-007609741C2 = RE282357" [ref=f5e1462]:
+                - text: RP-007609741C2
+                - generic [ref=f5e1463]: VEDADOR DE OLEO 56X80X13.5 = RP-007609741C2 = RE282357
+              - cell "Estoque Balcão" [ref=f5e1464]
+              - cell "R$ 14,76" [ref=f5e1465]
+              - cell "-" [ref=f5e1466]
+              - cell "R$ 98,60" [ref=f5e1467]
+              - cell [ref=f5e1468]
+              - cell "cmc_antes_de_negativo" [ref=f5e1469]
+              - cell "-" [ref=f5e1470]
+              - cell "erro" [ref=f5e1471]
+              - cell "Henri Irneh" [ref=f5e1472]
+              - cell [ref=f5e1473]
+            - row [ref=f5e1474]:
+              - cell "07/08/2026, 12:40:14" [ref=f5e1475]
+              - cell "NOVA" [ref=f5e1476]
+              - cell "estoque negativo" [ref=f5e1477]
+              - cell "13X1425 CORREIA 13X1425" [ref=f5e1479]:
+                - text: 13X1425
+                - generic [ref=f5e1480]: CORREIA 13X1425
+              - cell "Estoque Balcão" [ref=f5e1481]
+              - cell "R$ 100,00" [ref=f5e1482]
+              - cell "-" [ref=f5e1483]
+              - cell "R$ 100,00" [ref=f5e1484]
+              - cell [ref=f5e1485]
+              - cell "maior_cmc_compra" [ref=f5e1486]
+              - cell "-" [ref=f5e1487]
+              - cell "erro" [ref=f5e1488]
+              - cell "Henri Irneh" [ref=f5e1489]
+              - cell [ref=f5e1490]
+            - row [ref=f5e1491]:
+              - cell "07/08/2026, 12:40:12" [ref=f5e1492]
+              - cell "NOVA" [ref=f5e1493]
+              - cell "estoque negativo" [ref=f5e1494]
+              - cell "MP042.00469G JUNTA GROSSA 0,8 X d80 X 106" [ref=f5e1496]:
+                - text: MP042.00469G
+                - generic [ref=f5e1497]: JUNTA GROSSA 0,8 X d80 X 106
+              - cell "Estoque Balcão" [ref=f5e1498]
+              - cell "R$ 7,90" [ref=f5e1499]
+              - cell "-" [ref=f5e1500]
+              - cell "R$ 7,90" [ref=f5e1501]
+              - cell [ref=f5e1502]
+              - cell "cmc_antes_de_negativo" [ref=f5e1503]
+              - cell "-" [ref=f5e1504]
+              - cell "erro" [ref=f5e1505]
+              - cell "Henri Irneh" [ref=f5e1506]
+              - cell [ref=f5e1507]
+            - row [ref=f5e1508]:
+              - cell "07/08/2026, 12:40:10" [ref=f5e1509]
+              - cell "NOVA" [ref=f5e1510]
+              - cell "estoque negativo" [ref=f5e1511]
+              - cell "MP026.00325 PORCA KM 8" [ref=f5e1513]:
+                - text: MP026.00325
+                - generic [ref=f5e1514]: PORCA KM 8
+              - cell "Estoque Balcão" [ref=f5e1515]
+              - cell "R$ 56,57" [ref=f5e1516]
+              - cell "-" [ref=f5e1517]
+              - cell "R$ 56,57" [ref=f5e1518]
+              - cell [ref=f5e1519]
+              - cell "cmc_antes_de_negativo" [ref=f5e1520]
+              - cell "-" [ref=f5e1521]
+              - cell "erro" [ref=f5e1522]
+              - cell "Henri Irneh" [ref=f5e1523]
+              - cell [ref=f5e1524]
+            - row [ref=f5e1525]:
+              - cell "07/08/2026, 12:40:09" [ref=f5e1526]
+              - cell "NOVA" [ref=f5e1527]
+              - cell "estoque negativo" [ref=f5e1528]
+              - cell "MP026.00326 ARRUELA MB8" [ref=f5e1530]:
+                - text: MP026.00326
+                - generic [ref=f5e1531]: ARRUELA MB8
+              - cell "Estoque Balcão" [ref=f5e1532]
+              - cell "R$ 29,41" [ref=f5e1533]
+              - cell "-" [ref=f5e1534]
+              - cell "R$ 29,41" [ref=f5e1535]
+              - cell [ref=f5e1536]
+              - cell "cmc_antes_de_negativo" [ref=f5e1537]
+              - cell "-" [ref=f5e1538]
+              - cell "erro" [ref=f5e1539]
+              - cell "Henri Irneh" [ref=f5e1540]
+              - cell [ref=f5e1541]
+            - row [ref=f5e1542]:
+              - cell "07/08/2026, 12:40:07" [ref=f5e1543]
+              - cell "NOVA" [ref=f5e1544]
+              - cell "estoque negativo" [ref=f5e1545]
+              - cell "13X1250 CORREIA 13X1250 = AX48" [ref=f5e1547]:
+                - text: 13X1250
+                - generic [ref=f5e1548]: CORREIA 13X1250 = AX48
+              - cell "Estoque Balcão" [ref=f5e1549]
+              - cell "R$ 28,00" [ref=f5e1550]
+              - cell "-" [ref=f5e1551]
+              - cell "R$ 28,00" [ref=f5e1552]
+              - cell [ref=f5e1553]
+              - cell "maior_cmc_compra" [ref=f5e1554]
+              - cell "-" [ref=f5e1555]
+              - cell "erro" [ref=f5e1556]
+              - cell "Henri Irneh" [ref=f5e1557]
+              - cell [ref=f5e1558]
+            - row [ref=f5e1559]:
+              - cell "07/08/2026, 12:40:04" [ref=f5e1560]
+              - cell "NOVA" [ref=f5e1561]
+              - cell "estoque negativo" [ref=f5e1562]
+              - cell "CAV796 FILTRO CAV796 = 81248200 = 2710806 = 7340348 = PC2/255" [ref=f5e1564]:
+                - text: CAV796
+                - generic [ref=f5e1565]: FILTRO CAV796 = 81248200 = 2710806 = 7340348 = PC2/255
+              - cell "Estoque Balcão" [ref=f5e1566]
+              - cell "R$ 20,00" [ref=f5e1567]
+              - cell "-" [ref=f5e1568]
+              - cell "R$ 30,00" [ref=f5e1569]
+              - cell [ref=f5e1570]
+              - cell "cmc_antes_de_negativo" [ref=f5e1571]
+              - cell "-" [ref=f5e1572]
+              - cell "erro" [ref=f5e1573]
+              - cell "Henri Irneh" [ref=f5e1574]
+              - cell [ref=f5e1575]
+            - row [ref=f5e1576]:
+              - cell "07/08/2026, 12:40:02" [ref=f5e1577]
+              - cell "NOVA" [ref=f5e1578]
+              - cell "estoque negativo" [ref=f5e1579]
+              - cell "CAV796 FILTRO CAV796 = 81248200 = 2710806 = 7340348 = PC2/255" [ref=f5e1581]:
+                - text: CAV796
+                - generic [ref=f5e1582]: FILTRO CAV796 = 81248200 = 2710806 = 7340348 = PC2/255
+              - cell "Estoque Balcão" [ref=f5e1583]
+              - cell "R$ 20,00" [ref=f5e1584]
+              - cell "R$ 30,00" [ref=f5e1585]
+              - cell "R$ 30,00" [ref=f5e1586]
+              - cell [ref=f5e1587]
+              - cell "cmc_antes_de_negativo" [ref=f5e1588]
+              - cell "0" [ref=f5e1589]
+              - cell "aplicado" [ref=f5e1590]
+              - cell "Henri Irneh" [ref=f5e1591]
+              - cell [ref=f5e1592]:
+                - button "Reverter" [ref=f5e1593] [cursor=pointer]
+            - row [ref=f5e1594]:
+              - cell "07/08/2026, 12:40:00" [ref=f5e1595]
+              - cell "NOVA" [ref=f5e1596]
+              - cell "estoque negativo" [ref=f5e1597]
+              - cell "A4041130 BOMBA" [ref=f5e1599]:
+                - text: A4041130
+                - generic [ref=f5e1600]: BOMBA
+              - cell "Estoque Balcão" [ref=f5e1601]
+              - cell "R$ 19.219,71" [ref=f5e1602]
+              - cell "-" [ref=f5e1603]
+              - cell "R$ 19.219,71" [ref=f5e1604]
+              - cell [ref=f5e1605]
+              - cell "cmc_antes_de_negativo" [ref=f5e1606]
+              - cell "-" [ref=f5e1607]
+              - cell "erro" [ref=f5e1608]
+              - cell "Henri Irneh" [ref=f5e1609]
+              - cell [ref=f5e1610]
+            - row [ref=f5e1611]:
+              - cell "07/08/2026, 12:39:59" [ref=f5e1612]
+              - cell "NOVA" [ref=f5e1613]
+              - cell "estoque negativo" [ref=f5e1614]
+              - cell "RA-103150 ROLAMENTO CONICO RA-103150 = 819349/8193310" [ref=f5e1616]:
+                - text: RA-103150
+                - generic [ref=f5e1617]: ROLAMENTO CONICO RA-103150 = 819349/8193310
+              - cell "Estoque Balcão" [ref=f5e1618]
+              - cell "R$ 269,70" [ref=f5e1619]
+              - cell "-" [ref=f5e1620]
+              - cell "R$ 269,70" [ref=f5e1621]
+              - cell [ref=f5e1622]
+              - cell "cmc_antes_de_negativo" [ref=f5e1623]
+              - cell "-" [ref=f5e1624]
+              - cell "erro" [ref=f5e1625]
+              - cell "Henri Irneh" [ref=f5e1626]
+              - cell [ref=f5e1627]
+            - row [ref=f5e1628]:
+              - cell "07/08/2026, 12:39:57" [ref=f5e1629]
+              - cell "NOVA" [ref=f5e1630]
+              - cell "estoque negativo" [ref=f5e1631]
+              - cell "0300021012 DESCARBONIZANTE V12 BLACK PRIME 300ML" [ref=f5e1633]:
+                - text: "0300021012"
+                - generic [ref=f5e1634]: DESCARBONIZANTE V12 BLACK PRIME 300ML
+              - cell "Estoque Balcão" [ref=f5e1635]
+              - cell "R$ 34,38" [ref=f5e1636]
+              - cell "-" [ref=f5e1637]
+              - cell "R$ 34,38" [ref=f5e1638]
+              - cell [ref=f5e1639]
+              - cell "cmc_antes_de_negativo" [ref=f5e1640]
+              - cell "-" [ref=f5e1641]
+              - cell "erro" [ref=f5e1642]
+              - cell "Henri Irneh" [ref=f5e1643]
+              - cell [ref=f5e1644]
+            - row [ref=f5e1645]:
+              - cell "07/08/2026, 12:39:55" [ref=f5e1646]
+              - cell "NOVA" [ref=f5e1647]
+              - cell "estoque negativo" [ref=f5e1648]
+              - cell "17918 Limpa Contato" [ref=f5e1650]:
+                - text: "17918"
+                - generic [ref=f5e1651]: Limpa Contato
+              - cell "Estoque Balcão" [ref=f5e1652]
+              - cell "R$ 20,00" [ref=f5e1653]
+              - cell "R$ 20,00" [ref=f5e1654]
+              - cell "R$ 20,00" [ref=f5e1655]
+              - cell [ref=f5e1656]
+              - cell "cmc_antes_de_negativo" [ref=f5e1657]
+              - cell "2523934596" [ref=f5e1658]
+              - cell "aplicado" [ref=f5e1659]
+              - cell "Henri Irneh" [ref=f5e1660]
+              - cell [ref=f5e1661]:
+                - button "Reverter" [ref=f5e1662] [cursor=pointer]
+            - row [ref=f5e1663]:
+              - cell "07/08/2026, 12:39:53" [ref=f5e1664]
+              - cell "NOVA" [ref=f5e1665]
+              - cell "estoque negativo" [ref=f5e1666]
+              - cell "GYE30 ROLAMENTO GYE30 = UC206-30 = 5174609" [ref=f5e1668]:
+                - text: GYE30
+                - generic [ref=f5e1669]: ROLAMENTO GYE30 = UC206-30 = 5174609
+              - cell "Estoque Balcão" [ref=f5e1670]
+              - cell "R$ 80,00" [ref=f5e1671]
+              - cell "-" [ref=f5e1672]
+              - cell "R$ 80,00" [ref=f5e1673]
+              - cell [ref=f5e1674]
+              - cell "maior_cmc_compra" [ref=f5e1675]
+              - cell "-" [ref=f5e1676]
+              - cell "erro" [ref=f5e1677]
+              - cell "Henri Irneh" [ref=f5e1678]
+              - cell [ref=f5e1679]
+            - row [ref=f5e1680]:
+              - cell "07/08/2026, 12:39:51" [ref=f5e1681]
+              - cell "NOVA" [ref=f5e1682]
+              - cell "estoque negativo" [ref=f5e1683]
+              - cell "81003061 ROLAMENTO DE ESFERAS = 81003061 = 6206" [ref=f5e1685]:
+                - text: "81003061"
+                - generic [ref=f5e1686]: ROLAMENTO DE ESFERAS = 81003061 = 6206
+              - cell "Estoque Balcão" [ref=f5e1687]
+              - cell "R$ 15,77" [ref=f5e1688]
+              - cell "R$ 15,77" [ref=f5e1689]
+              - cell "R$ 15,77" [ref=f5e1690]
+              - cell [ref=f5e1691]
+              - cell "cmc_antes_de_negativo" [ref=f5e1692]
+              - cell "2523934579" [ref=f5e1693]
+              - cell "aplicado" [ref=f5e1694]
+              - cell "Henri Irneh" [ref=f5e1695]
+              - cell [ref=f5e1696]:
+                - button "Reverter" [ref=f5e1697] [cursor=pointer]
+            - row [ref=f5e1698]:
+              - cell "07/08/2026, 12:39:48" [ref=f5e1699]
+              - cell "NOVA" [ref=f5e1700]
+              - cell "estoque negativo" [ref=f5e1701]
+              - cell "002757 ABRACADEIRA 3/8X1/2 MANG GASOLINA" [ref=f5e1703]:
+                - text: "002757"
+                - generic [ref=f5e1704]: ABRACADEIRA 3/8X1/2 MANG GASOLINA
+              - cell "Estoque Balcão" [ref=f5e1705]
+              - cell "R$ 2,60" [ref=f5e1706]
+              - cell "R$ 2,60" [ref=f5e1707]
+              - cell "R$ 2,60" [ref=f5e1708]
+              - cell [ref=f5e1709]
+              - cell "cmc_antes_de_negativo" [ref=f5e1710]
+              - cell "2523934567" [ref=f5e1711]
+              - cell "aplicado" [ref=f5e1712]
+              - cell "Henri Irneh" [ref=f5e1713]
+              - cell [ref=f5e1714]:
+                - button "Reverter" [ref=f5e1715] [cursor=pointer]
+            - row [ref=f5e1716]:
+              - cell "07/08/2026, 12:39:46" [ref=f5e1717]
+              - cell "NOVA" [ref=f5e1718]
+              - cell "estoque negativo" [ref=f5e1719]
+              - cell "HS112CINZA HS112 - SILICONE CINZA OU PRETO = 112CINZA = HSBOND" [ref=f5e1721]:
+                - text: HS112CINZA
+                - generic [ref=f5e1722]: HS112 - SILICONE CINZA OU PRETO = 112CINZA = HSBOND
+              - cell "Estoque Balcão" [ref=f5e1723]
+              - cell "R$ 20,00" [ref=f5e1724]
+              - cell "-" [ref=f5e1725]
+              - cell "R$ 20,00" [ref=f5e1726]
+              - cell [ref=f5e1727]
+              - cell "maior_cmc_compra" [ref=f5e1728]
+              - cell "-" [ref=f5e1729]
+              - cell "erro" [ref=f5e1730]
+              - cell "Henri Irneh" [ref=f5e1731]
+              - cell [ref=f5e1732]
+            - row [ref=f5e1733]:
+              - cell "07/08/2026, 12:39:43" [ref=f5e1734]
+              - cell "NOVA" [ref=f5e1735]
+              - cell "estoque negativo" [ref=f5e1736]
+              - cell "20.02.0007 TERMINAL ESFERICO PARA JOYSTICK WALVOIL SCF031 - 3PER314610" [ref=f5e1738]:
+                - text: 20.02.0007
+                - generic [ref=f5e1739]: TERMINAL ESFERICO PARA JOYSTICK WALVOIL SCF031 - 3PER314610
+              - cell "Estoque Balcão" [ref=f5e1740]
+              - cell "R$ 170,00" [ref=f5e1741]
+              - cell "R$ 170,00" [ref=f5e1742]
+              - cell "R$ 170,00" [ref=f5e1743]
+              - cell [ref=f5e1744]
+              - cell "cmc_antes_de_negativo" [ref=f5e1745]
+              - cell "2523934551" [ref=f5e1746]
+              - cell "aplicado" [ref=f5e1747]
+              - cell "Henri Irneh" [ref=f5e1748]
+              - cell [ref=f5e1749]:
+                - button "Reverter" [ref=f5e1750] [cursor=pointer]
+            - row [ref=f5e1751]:
+              - cell "07/08/2026, 12:39:41" [ref=f5e1752]
+              - cell "NOVA" [ref=f5e1753]
+              - cell "estoque negativo" [ref=f5e1754]
+              - cell "RP-000012264P04 ROLAM CONICO RP-000012264P04" [ref=f5e1756]:
+                - text: RP-000012264P04
+                - generic [ref=f5e1757]: ROLAM CONICO RP-000012264P04
+              - cell "Estoque Balcão" [ref=f5e1758]
+              - cell "R$ 1.156,38" [ref=f5e1759]
+              - cell "-" [ref=f5e1760]
+              - cell "R$ 1.156,38" [ref=f5e1761]
+              - cell [ref=f5e1762]
+              - cell "cmc_antes_de_negativo" [ref=f5e1763]
+              - cell "-" [ref=f5e1764]
+              - cell "erro" [ref=f5e1765]
+              - cell "Henri Irneh" [ref=f5e1766]
+              - cell [ref=f5e1767]
+            - row [ref=f5e1768]:
+              - cell "07/08/2026, 12:39:39" [ref=f5e1769]
+              - cell "NOVA" [ref=f5e1770]
+              - cell "estoque negativo" [ref=f5e1771]
+              - cell "RA-E08001683741 CORREIA EM V (C/COMPRESSOR)RA-E080016837411 ( usa uma 1225 )" [ref=f5e1773]:
+                - text: RA-E08001683741
+                - generic [ref=f5e1774]: CORREIA EM V (C/COMPRESSOR)RA-E080016837411 ( usa uma 1225 )
+              - cell "Estoque Balcão" [ref=f5e1775]
+              - cell "R$ 134,72" [ref=f5e1776]
+              - cell "R$ 134,72" [ref=f5e1777]
+              - cell "R$ 134,72" [ref=f5e1778]
+              - cell [ref=f5e1779]
+              - cell "cmc_antes_de_negativo" [ref=f5e1780]
+              - cell "2523934515" [ref=f5e1781]
+              - cell "aplicado" [ref=f5e1782]
+              - cell "Henri Irneh" [ref=f5e1783]
+              - cell [ref=f5e1784]:
+                - button "Reverter" [ref=f5e1785] [cursor=pointer]
+            - row [ref=f5e1786]:
+              - cell "07/08/2026, 12:39:37" [ref=f5e1787]
+              - cell "NOVA" [ref=f5e1788]
+              - cell "estoque negativo" [ref=f5e1789]
+              - cell "B2020890 OLEO LUBRIFICANTE 15W40 20L KUHN B2020890" [ref=f5e1791]:
+                - text: B2020890
+                - generic [ref=f5e1792]: OLEO LUBRIFICANTE 15W40 20L KUHN B2020890
+              - cell "Estoque Balcão" [ref=f5e1793]
+              - cell "R$ 428,09" [ref=f5e1794]
+              - cell "R$ 428,09" [ref=f5e1795]
+              - cell "R$ 428,09" [ref=f5e1796]
+              - cell [ref=f5e1797]
+              - cell "cmc_antes_de_negativo" [ref=f5e1798]
+              - cell "2523934500" [ref=f5e1799]
+              - cell "aplicado" [ref=f5e1800]
+              - cell "Henri Irneh" [ref=f5e1801]
+              - cell [ref=f5e1802]:
+                - button "Reverter" [ref=f5e1803] [cursor=pointer]
+            - row [ref=f5e1804]:
+              - cell "07/08/2026, 12:39:35" [ref=f5e1805]
+              - cell "NOVA" [ref=f5e1806]
+              - cell "estoque negativo" [ref=f5e1807]
+              - cell "RP-SF0202066 PARAFUSO RODA TRASEIRA SEXT FL M14X1.5X3 - 5050" [ref=f5e1809]:
+                - text: RP-SF0202066
+                - generic [ref=f5e1810]: PARAFUSO RODA TRASEIRA SEXT FL M14X1.5X3 - 5050
+              - cell "Estoque Balcão" [ref=f5e1811]
+              - cell "R$ 12,54" [ref=f5e1812]
+              - cell "-" [ref=f5e1813]
+              - cell "R$ 12,54" [ref=f5e1814]
+              - cell [ref=f5e1815]
+              - cell "cmc_antes_de_negativo" [ref=f5e1816]
+              - cell "-" [ref=f5e1817]
+              - cell "erro" [ref=f5e1818]
+              - cell "Henri Irneh" [ref=f5e1819]
+              - cell [ref=f5e1820]
+            - row [ref=f5e1821]:
+              - cell "07/08/2026, 12:39:33" [ref=f5e1822]
+              - cell "NOVA" [ref=f5e1823]
+              - cell "estoque negativo" [ref=f5e1824]
+              - cell "RP-006518903U1 RETENTOR 150X180X15/16" [ref=f5e1826]:
+                - text: RP-006518903U1
+                - generic [ref=f5e1827]: RETENTOR 150X180X15/16
+              - cell "Estoque Balcão" [ref=f5e1828]
+              - cell "R$ 149,84" [ref=f5e1829]
+              - cell "R$ 149,84" [ref=f5e1830]
+              - cell "R$ 149,84" [ref=f5e1831]
+              - cell [ref=f5e1832]
+              - cell "cmc_antes_de_negativo" [ref=f5e1833]
+              - cell "2523934451" [ref=f5e1834]
+              - cell "aplicado" [ref=f5e1835]
+              - cell "Henri Irneh" [ref=f5e1836]
+              - cell [ref=f5e1837]:
+                - button "Reverter" [ref=f5e1838] [cursor=pointer]
+            - row [ref=f5e1839]:
+              - cell "07/08/2026, 12:39:25" [ref=f5e1840]
+              - cell "NOVA" [ref=f5e1841]
+              - cell "estoque negativo" [ref=f5e1842]
+              - cell "YC077001 BUCHA PANTOGRAFO INFERIOR YC077001" [ref=f5e1844]:
+                - text: YC077001
+                - generic [ref=f5e1845]: BUCHA PANTOGRAFO INFERIOR YC077001
+              - cell "Estoque Balcão" [ref=f5e1846]
+              - cell "R$ 25,82" [ref=f5e1847]
+              - cell "R$ 25,82" [ref=f5e1848]
+              - cell "R$ 25,82" [ref=f5e1849]
+              - cell [ref=f5e1850]
+              - cell "cmc_antes_de_negativo" [ref=f5e1851]
+              - cell "2523934435" [ref=f5e1852]
+              - cell "aplicado" [ref=f5e1853]
+              - cell "Henri Irneh" [ref=f5e1854]
+              - cell [ref=f5e1855]:
+                - button "Reverter" [ref=f5e1856] [cursor=pointer]
+            - row [ref=f5e1857]:
+              - cell "07/08/2026, 12:39:23" [ref=f5e1858]
+              - cell "NOVA" [ref=f5e1859]
+              - cell "estoque negativo" [ref=f5e1860]
+              - cell "RP-006000520F1 VALVULA ADMISSAO" [ref=f5e1862]:
+                - text: RP-006000520F1
+                - generic [ref=f5e1863]: VALVULA ADMISSAO
+              - cell "Estoque Balcão" [ref=f5e1864]
+              - cell "R$ 57,90" [ref=f5e1865]
+              - cell "R$ 57,90" [ref=f5e1866]
+              - cell "R$ 57,90" [ref=f5e1867]
+              - cell [ref=f5e1868]
+              - cell "cmc_antes_de_negativo" [ref=f5e1869]
+              - cell "2523934430" [ref=f5e1870]
+              - cell "aplicado" [ref=f5e1871]
+              - cell "Henri Irneh" [ref=f5e1872]
+              - cell [ref=f5e1873]:
+                - button "Reverter" [ref=f5e1874] [cursor=pointer]
+            - row [ref=f5e1875]:
+              - cell "07/08/2026, 12:39:21" [ref=f5e1876]
+              - cell "NOVA" [ref=f5e1877]
+              - cell "estoque negativo" [ref=f5e1878]
+              - cell "B0771252 OLEO HIDRAULICO ( OLEO 68 KUHN ) B0771252" [ref=f5e1880]:
+                - text: B0771252
+                - generic [ref=f5e1881]: OLEO HIDRAULICO ( OLEO 68 KUHN ) B0771252
+              - cell "Estoque Balcão" [ref=f5e1882]
+              - cell "R$ 264,83" [ref=f5e1883]
+              - cell "-" [ref=f5e1884]
+              - cell "R$ 621,14" [ref=f5e1885]
+              - cell [ref=f5e1886]
+              - cell "cmc_antes_de_negativo" [ref=f5e1887]
+              - cell "-" [ref=f5e1888]
+              - cell "erro" [ref=f5e1889]
+              - cell "Henri Irneh" [ref=f5e1890]
+              - cell [ref=f5e1891]
+            - row [ref=f5e1892]:
+              - cell "07/08/2026, 12:39:18" [ref=f5e1893]
+              - cell "NOVA" [ref=f5e1894]
+              - cell "estoque negativo" [ref=f5e1895]
+              - cell "0521047070 MANCAL A OLEO PARA GRADE" [ref=f5e1897]:
+                - text: "0521047070"
+                - generic [ref=f5e1898]: MANCAL A OLEO PARA GRADE
+              - cell "Estoque Balcão" [ref=f5e1899]
+              - cell "R$ 600,00" [ref=f5e1900]
+              - cell "R$ 600,00" [ref=f5e1901]
+              - cell "R$ 600,00" [ref=f5e1902]
+              - cell [ref=f5e1903]
+              - cell "cmc_antes_de_negativo" [ref=f5e1904]
+              - cell "2523934423" [ref=f5e1905]
+              - cell "aplicado" [ref=f5e1906]
+              - cell "Henri Irneh" [ref=f5e1907]
+              - cell [ref=f5e1908]:
+                - button "Reverter" [ref=f5e1909] [cursor=pointer]
+            - row [ref=f5e1910]:
+              - cell "07/08/2026, 12:39:16" [ref=f5e1911]
+              - cell "NOVA" [ref=f5e1912]
+              - cell "estoque negativo" [ref=f5e1913]
+              - cell "0521047070 MANCAL A OLEO PARA GRADE" [ref=f5e1915]:
+                - text: "0521047070"
+                - generic [ref=f5e1916]: MANCAL A OLEO PARA GRADE
+              - cell "Estoque Balcão" [ref=f5e1917]
+              - cell "R$ 600,00" [ref=f5e1918]
+              - cell "R$ 600,00" [ref=f5e1919]
+              - cell "R$ 600,00" [ref=f5e1920]
+              - cell [ref=f5e1921]
+              - cell "maior_cmc_compra" [ref=f5e1922]
+              - cell "0" [ref=f5e1923]
+              - cell "aplicado" [ref=f5e1924]
+              - cell "Henri Irneh" [ref=f5e1925]
+              - cell [ref=f5e1926]:
+                - button "Reverter" [ref=f5e1927] [cursor=pointer]
+            - row [ref=f5e1928]:
+              - cell "07/08/2026, 12:39:14" [ref=f5e1929]
+              - cell "NOVA" [ref=f5e1930]
+              - cell "estoque negativo" [ref=f5e1931]
+              - cell "Y5820390 PINO Ø16X118,5MM = Y5820390" [ref=f5e1933]:
+                - text: Y5820390
+                - generic [ref=f5e1934]: PINO Ø16X118,5MM = Y5820390
+              - cell "Estoque Balcão" [ref=f5e1935]
+              - cell "R$ 15,81" [ref=f5e1936]
+              - cell "R$ 15,81" [ref=f5e1937]
+              - cell "R$ 15,81" [ref=f5e1938]
+              - cell [ref=f5e1939]
+              - cell "cmc_antes_de_negativo" [ref=f5e1940]
+              - cell "2523934410" [ref=f5e1941]
+              - cell "aplicado" [ref=f5e1942]
+              - cell "Henri Irneh" [ref=f5e1943]
+              - cell [ref=f5e1944]:
+                - button "Reverter" [ref=f5e1945] [cursor=pointer]
+            - row [ref=f5e1946]:
+              - cell "07/08/2026, 12:39:12" [ref=f5e1947]
+              - cell "NOVA" [ref=f5e1948]
+              - cell "estoque negativo" [ref=f5e1949]
+              - cell "YD075015 PROLONGADOR CONDUTOR ADUBO - YD075015" [ref=f5e1951]:
+                - text: YD075015
+                - generic [ref=f5e1952]: PROLONGADOR CONDUTOR ADUBO - YD075015
+              - cell "Estoque Balcão" [ref=f5e1953]
+              - cell "R$ 3,80" [ref=f5e1954]
+              - cell "R$ 3,80" [ref=f5e1955]
+              - cell "R$ 3,80" [ref=f5e1956]
+              - cell [ref=f5e1957]
+              - cell "cmc_antes_de_negativo" [ref=f5e1958]
+              - cell "2523934391" [ref=f5e1959]
+              - cell "aplicado" [ref=f5e1960]
+              - cell "Henri Irneh" [ref=f5e1961]
+              - cell [ref=f5e1962]:
+                - button "Reverter" [ref=f5e1963] [cursor=pointer]
+            - row [ref=f5e1964]:
+              - cell "07/08/2026, 12:39:10" [ref=f5e1965]
+              - cell "NOVA" [ref=f5e1966]
+              - cell "estoque negativo" [ref=f5e1967]
+              - cell "RP-008012336U1 CABO DO ACELERADOR PE DO 6065 / 6075 = RP-008012336U1" [ref=f5e1969]:
+                - text: RP-008012336U1
+                - generic [ref=f5e1970]: CABO DO ACELERADOR PE DO 6065 / 6075 = RP-008012336U1
+              - cell "Estoque Balcão" [ref=f5e1971]
+              - cell "R$ 33,12" [ref=f5e1972]
+              - cell "-" [ref=f5e1973]
+              - cell "R$ 33,12" [ref=f5e1974]
+              - cell [ref=f5e1975]
+              - cell "cmc_antes_de_negativo" [ref=f5e1976]
+              - cell "-" [ref=f5e1977]
+              - cell "erro" [ref=f5e1978]
+              - cell "Henri Irneh" [ref=f5e1979]
+              - cell [ref=f5e1980]
+            - row [ref=f5e1981]:
+              - cell "07/08/2026, 12:39:08" [ref=f5e1982]
+              - cell "NOVA" [ref=f5e1983]
+              - cell "estoque negativo" [ref=f5e1984]
+              - cell "RA-E080010942351 CORREIA EM V (C/AIR CONDICIONADO)RA-E080010942351 ( usa duas 1425 )" [ref=f5e1986]:
+                - text: RA-E080010942351
+                - generic [ref=f5e1987]: CORREIA EM V (C/AIR CONDICIONADO)RA-E080010942351 ( usa duas 1425 )
+              - cell "Estoque Balcão" [ref=f5e1988]
+              - cell "R$ 160,07" [ref=f5e1989]
+              - cell "-" [ref=f5e1990]
+              - cell "R$ 160,07" [ref=f5e1991]
+              - cell [ref=f5e1992]
+              - cell "cmc_antes_de_negativo" [ref=f5e1993]
+              - cell "-" [ref=f5e1994]
+              - cell "erro" [ref=f5e1995]
+              - cell "Henri Irneh" [ref=f5e1996]
+              - cell [ref=f5e1997]
+            - row [ref=f5e1998]:
+              - cell "07/08/2026, 12:39:06" [ref=f5e1999]
+              - cell "NOVA" [ref=f5e2000]
+              - cell "estoque negativo" [ref=f5e2001]
+              - cell "#1973104099 FILTRO DE SUCCÃO RP-FP0807002161-0" [ref=f5e2003]:
+                - text: "#1973104099"
+                - generic [ref=f5e2004]: FILTRO DE SUCCÃO RP-FP0807002161-0
+              - cell "Estoque Balcão" [ref=f5e2005]
+              - cell "-" [ref=f5e2006]
+              - cell "-" [ref=f5e2007]
+              - cell "R$ 108,73" [ref=f5e2008]
+              - cell [ref=f5e2009]
+              - cell "cmc_antes_de_negativo" [ref=f5e2010]
+              - cell "-" [ref=f5e2011]
+              - cell "erro" [ref=f5e2012]
+              - cell "Henri Irneh" [ref=f5e2013]
+              - cell [ref=f5e2014]
+            - row [ref=f5e2015]:
+              - cell "07/08/2026, 12:39:05" [ref=f5e2016]
+              - cell "NOVA" [ref=f5e2017]
+              - cell "estoque negativo" [ref=f5e2018]
+              - cell "10W30/4 OLEO 10W30 GALÃO 4 LITROS" [ref=f5e2020]:
+                - text: 10W30/4
+                - generic [ref=f5e2021]: OLEO 10W30 GALÃO 4 LITROS
+              - cell "Estoque Balcão" [ref=f5e2022]
+              - cell "R$ 105,56" [ref=f5e2023]
+              - cell "-" [ref=f5e2024]
+              - cell "R$ 100,68" [ref=f5e2025]
+              - cell [ref=f5e2026]
+              - cell "cmc_antes_de_negativo" [ref=f5e2027]
+              - cell "-" [ref=f5e2028]
+              - cell "erro" [ref=f5e2029]
+              - cell "Henri Irneh" [ref=f5e2030]
+              - cell [ref=f5e2031]
+            - row [ref=f5e2032]:
+              - cell "07/08/2026, 12:39:02" [ref=f5e2033]
+              - cell "NOVA" [ref=f5e2034]
+              - cell "estoque negativo" [ref=f5e2035]
+              - cell "EM1/2 ENGATE MACHO FASTER 1/2 PADRAO" [ref=f5e2037]:
+                - text: EM1/2
+                - generic [ref=f5e2038]: ENGATE MACHO FASTER 1/2 PADRAO
+              - cell "Estoque Balcão" [ref=f5e2039]
+              - cell "R$ 25,00" [ref=f5e2040]
+              - cell "R$ 25,00" [ref=f5e2041]
+              - cell "R$ 25,00" [ref=f5e2042]
+              - cell [ref=f5e2043]
+              - cell "cmc_antes_de_negativo" [ref=f5e2044]
+              - cell "2523934368" [ref=f5e2045]
+              - cell "aplicado" [ref=f5e2046]
+              - cell "Henri Irneh" [ref=f5e2047]
+              - cell [ref=f5e2048]:
+                - button "Reverter" [ref=f5e2049] [cursor=pointer]
+            - row [ref=f5e2050]:
+              - cell "07/08/2026, 12:39:00" [ref=f5e2051]
+              - cell "NOVA" [ref=f5e2052]
+              - cell "estoque negativo" [ref=f5e2053]
+              - cell "6012 ROLAMENTO 6012-2RS TIMKEN" [ref=f5e2055]:
+                - text: "6012"
+                - generic [ref=f5e2056]: ROLAMENTO 6012-2RS TIMKEN
+              - cell "Estoque Balcão" [ref=f5e2057]
+              - cell "R$ 100,00" [ref=f5e2058]
+              - cell "-" [ref=f5e2059]
+              - cell "R$ 100,00" [ref=f5e2060]
+              - cell [ref=f5e2061]
+              - cell "cmc_antes_de_negativo" [ref=f5e2062]
+              - cell "-" [ref=f5e2063]
+              - cell "erro" [ref=f5e2064]
+              - cell "Henri Irneh" [ref=f5e2065]
+              - cell [ref=f5e2066]
+            - row [ref=f5e2067]:
+              - cell "07/08/2026, 12:38:58" [ref=f5e2068]
+              - cell "NOVA" [ref=f5e2069]
+              - cell "estoque negativo" [ref=f5e2070]
+              - cell "RP-006507939B1 ROLAMENTO 6207 = RP-006507939B1" [ref=f5e2072]:
+                - text: RP-006507939B1
+                - generic [ref=f5e2073]: ROLAMENTO 6207 = RP-006507939B1
+              - cell "Estoque Balcão" [ref=f5e2074]
+              - cell "R$ 45,00" [ref=f5e2075]
+              - cell "R$ 45,00" [ref=f5e2076]
+              - cell "R$ 45,00" [ref=f5e2077]
+              - cell [ref=f5e2078]
+              - cell "cmc_antes_de_negativo" [ref=f5e2079]
+              - cell "2523934359" [ref=f5e2080]
+              - cell "aplicado" [ref=f5e2081]
+              - cell "Henri Irneh" [ref=f5e2082]
+              - cell [ref=f5e2083]:
+                - button "Reverter" [ref=f5e2084] [cursor=pointer]
+            - row [ref=f5e2085]:
+              - cell "07/08/2026, 12:38:55" [ref=f5e2086]
+              - cell "NOVA" [ref=f5e2087]
+              - cell "estoque negativo" [ref=f5e2088]
+              - cell "RP-003066876R2 MOLA DE RETORNO DO PEDAL DO FREIO = RP-003066876R2" [ref=f5e2090]:
+                - text: RP-003066876R2
+                - generic [ref=f5e2091]: MOLA DE RETORNO DO PEDAL DO FREIO = RP-003066876R2
+              - cell "Estoque Balcão" [ref=f5e2092]
+              - cell "R$ 8,10" [ref=f5e2093]
+              - cell "R$ 8,10" [ref=f5e2094]
+              - cell "R$ 8,10" [ref=f5e2095]
+              - cell [ref=f5e2096]
+              - cell "cmc_antes_de_negativo" [ref=f5e2097]
+              - cell "2523934351" [ref=f5e2098]
+              - cell "aplicado" [ref=f5e2099]
+              - cell "Henri Irneh" [ref=f5e2100]
+              - cell [ref=f5e2101]:
+                - button "Reverter" [ref=f5e2102] [cursor=pointer]
+            - row [ref=f5e2103]:
+              - cell "07/08/2026, 12:38:54" [ref=f5e2104]
+              - cell "NOVA" [ref=f5e2105]
+              - cell "estoque negativo" [ref=f5e2106]
+              - cell "6015DDU ROLAMENTO PRIMEIRA LINHA 6015DDUC3" [ref=f5e2108]:
+                - text: 6015DDU
+                - generic [ref=f5e2109]: ROLAMENTO PRIMEIRA LINHA 6015DDUC3
+              - cell "Estoque Balcão" [ref=f5e2110]
+              - cell "R$ 160,00" [ref=f5e2111]
+              - cell "-" [ref=f5e2112]
+              - cell "R$ 150,00" [ref=f5e2113]
+              - cell [ref=f5e2114]
+              - cell "cmc_antes_de_negativo" [ref=f5e2115]
+              - cell "-" [ref=f5e2116]
+              - cell "erro" [ref=f5e2117]
+              - cell "Henri Irneh" [ref=f5e2118]
+              - cell [ref=f5e2119]
+            - row [ref=f5e2120]:
+              - cell "07/08/2026, 12:38:51" [ref=f5e2121]
+              - cell "NOVA" [ref=f5e2122]
+              - cell "estoque negativo" [ref=f5e2123]
+              - cell "RP-006024251Y1-NAC ELEMENTO DO FILTRO DE AR PRIMARIO 2025 RP-006024251Y1" [ref=f5e2125]:
+                - text: RP-006024251Y1-NAC
+                - generic [ref=f5e2126]: ELEMENTO DO FILTRO DE AR PRIMARIO 2025 RP-006024251Y1
+              - cell "Estoque Balcão" [ref=f5e2127]
+              - cell "R$ 85,59" [ref=f5e2128]
+              - cell "R$ 85,59" [ref=f5e2129]
+              - cell "R$ 85,59" [ref=f5e2130]
+              - cell [ref=f5e2131]
+              - cell "cmc_antes_de_negativo" [ref=f5e2132]
+              - cell "2523934333" [ref=f5e2133]
+              - cell "aplicado" [ref=f5e2134]
+              - cell "Henri Irneh" [ref=f5e2135]
+              - cell [ref=f5e2136]:
+                - button "Reverter" [ref=f5e2137] [cursor=pointer]
+            - row [ref=f5e2138]:
+              - cell "07/08/2026, 12:38:50" [ref=f5e2139]
+              - cell "NOVA" [ref=f5e2140]
+              - cell "estoque negativo" [ref=f5e2141]
+              - cell "6204DDU ROLAMENTO PRIMEIRA LINHA 6204DDUC3" [ref=f5e2143]:
+                - text: 6204DDU
+                - generic [ref=f5e2144]: ROLAMENTO PRIMEIRA LINHA 6204DDUC3
+              - cell "Estoque Balcão" [ref=f5e2145]
+              - cell "R$ 13,00" [ref=f5e2146]
+              - cell "-" [ref=f5e2147]
+              - cell "R$ 13,00" [ref=f5e2148]
+              - cell [ref=f5e2149]
+              - cell "cmc_antes_de_negativo" [ref=f5e2150]
+              - cell "-" [ref=f5e2151]
+              - cell "erro" [ref=f5e2152]
+              - cell "Henri Irneh" [ref=f5e2153]
+              - cell [ref=f5e2154]
+            - row [ref=f5e2155]:
+              - cell "07/08/2026, 12:38:48" [ref=f5e2156]
+              - cell "NOVA" [ref=f5e2157]
+              - cell "estoque negativo" [ref=f5e2158]
+              - cell "RP-FP0807002161-0 FILTRO DE SUCCAO = RP-FP0807002161-0" [ref=f5e2160]:
+                - text: RP-FP0807002161-0
+                - generic [ref=f5e2161]: FILTRO DE SUCCAO = RP-FP0807002161-0
+              - cell "Estoque Balcão" [ref=f5e2162]
+              - cell "R$ 180,01" [ref=f5e2163]
+              - cell "-" [ref=f5e2164]
+              - cell "R$ 134,96" [ref=f5e2165]
+              - cell [ref=f5e2166]
+              - cell "cmc_antes_de_negativo" [ref=f5e2167]
+              - cell "-" [ref=f5e2168]
+              - cell "erro" [ref=f5e2169]
+              - cell "Henri Irneh" [ref=f5e2170]
+              - cell [ref=f5e2171]
+            - row [ref=f5e2172]:
+              - cell "07/08/2026, 12:38:45" [ref=f5e2173]
+              - cell "NOVA" [ref=f5e2174]
+              - cell "estoque negativo" [ref=f5e2175]
+              - cell "81002047 ROLAMENTO 6204DDUC3 = 81002047 = 81002050 = 81002051 YP106204 KUHN" [ref=f5e2177]:
+                - text: "81002047"
+                - generic [ref=f5e2178]: ROLAMENTO 6204DDUC3 = 81002047 = 81002050 = 81002051 YP106204 KUHN
+              - cell "Estoque Balcão" [ref=f5e2179]
+              - cell "R$ 7,66" [ref=f5e2180]
+              - cell "R$ 7,66" [ref=f5e2181]
+              - cell "R$ 7,66" [ref=f5e2182]
+              - cell [ref=f5e2183]
+              - cell "cmc_antes_de_negativo" [ref=f5e2184]
+              - cell "2523934305" [ref=f5e2185]
+              - cell "aplicado" [ref=f5e2186]
+              - cell "Henri Irneh" [ref=f5e2187]
+              - cell [ref=f5e2188]:
+                - button "Reverter" [ref=f5e2189] [cursor=pointer]
+            - row [ref=f5e2190]:
+              - cell "21/07/2026, 11:10:29" [ref=f5e2191]
+              - cell "NOVA" [ref=f5e2192]
+              - cell "ajuste de custo" [ref=f5e2193]
+              - cell "RP-000016115P04 FILTRO OLEO TRANSMISSAO RP-000016115P04" [ref=f5e2195]:
+                - text: RP-000016115P04
+                - generic [ref=f5e2196]: FILTRO OLEO TRANSMISSAO RP-000016115P04
+              - cell "Estoque Balcão" [ref=f5e2197]
+              - cell "R$ 37,13" [ref=f5e2198]
+              - cell "R$ 47,85" [ref=f5e2199]
+              - cell "-" [ref=f5e2200]
+              - cell "MAHINDRA" [ref=f5e2201]
+              - cell [ref=f5e2203]
+              - cell "2519355446" [ref=f5e2204]
+              - cell "aplicado" [ref=f5e2205]
+              - cell "Henri Irneh" [ref=f5e2206]
+              - cell [ref=f5e2207]:
+                - button "Reverter" [ref=f5e2208] [cursor=pointer]
+            - row [ref=f5e2209]:
+              - cell "20/07/2026, 19:59:17" [ref=f5e2210]
+              - cell "NOVA" [ref=f5e2211]
+              - cell "estoque negativo" [ref=f5e2212]
+              - cell "RP-000020369E05 RETENTOR RP-000020369E05 = 42X72X8" [ref=f5e2214]:
+                - text: RP-000020369E05
+                - generic [ref=f5e2215]: RETENTOR RP-000020369E05 = 42X72X8
+              - cell "Estoque Balcão" [ref=f5e2216]
+              - cell "R$ 289,16" [ref=f5e2217]
+              - cell "R$ 47,62" [ref=f5e2218]
+              - cell "R$ 113,98" [ref=f5e2219]
+              - cell [ref=f5e2220]
+              - cell "cmc_antes_de_negativo" [ref=f5e2221]
+              - cell "2519268932" [ref=f5e2222]
+              - cell "aplicado" [ref=f5e2223]
+              - cell "Henri Irneh" [ref=f5e2224]
+              - cell [ref=f5e2225]:
+                - button "Reverter" [ref=f5e2226] [cursor=pointer]
+            - row [ref=f5e2227]:
+              - cell "20/07/2026, 19:27:11" [ref=f5e2228]
+              - cell "NOVA" [ref=f5e2229]
+              - cell "estoque negativo" [ref=f5e2230]
+              - cell "RP-006507939B1 ROLAMENTO 6207 = RP-006507939B1" [ref=f5e2232]:
+                - text: RP-006507939B1
+                - generic [ref=f5e2233]: ROLAMENTO 6207 = RP-006507939B1
+              - cell "Estoque Balcão" [ref=f5e2234]
+              - cell "R$ 45,00" [ref=f5e2235]
+              - cell "-" [ref=f5e2236]
+              - cell "R$ 45,00" [ref=f5e2237]
+              - cell [ref=f5e2238]
+              - cell "cmc_antes_de_negativo" [ref=f5e2239]
+              - cell "-" [ref=f5e2240]
+              - cell "erro" [ref=f5e2241]
+              - cell "Henri Irneh" [ref=f5e2242]
+              - cell [ref=f5e2243]
+            - row [ref=f5e2244]:
+              - cell "20/07/2026, 19:26:07" [ref=f5e2245]
+              - cell "NOVA" [ref=f5e2246]
+              - cell "estoque negativo" [ref=f5e2247]
+              - cell "RP-006507939B1 ROLAMENTO 6207 = RP-006507939B1" [ref=f5e2249]:
+                - text: RP-006507939B1
+                - generic [ref=f5e2250]: ROLAMENTO 6207 = RP-006507939B1
+              - cell "Estoque Balcão" [ref=f5e2251]
+              - cell "R$ 45,00" [ref=f5e2252]
+              - cell "R$ 38,65" [ref=f5e2253]
+              - cell "R$ 38,65" [ref=f5e2254]
+              - cell [ref=f5e2255]
+              - cell "cmc_antes_de_negativo" [ref=f5e2256]
+              - cell "2519261238" [ref=f5e2257]
+              - cell "aplicado" [ref=f5e2258]
+              - cell "Henri Irneh" [ref=f5e2259]
+              - cell [ref=f5e2260]:
+                - button "Reverter" [ref=f5e2261] [cursor=pointer]
+            - row [ref=f5e2262]:
+              - cell "20/07/2026, 19:25:22" [ref=f5e2263]
+              - cell "NOVA" [ref=f5e2264]
+              - cell "estoque negativo" [ref=f5e2265]
+              - cell "827265 COLA 334 = 827265 (ROXA) = HSBOND" [ref=f5e2267]:
+                - text: "827265"
+                - generic [ref=f5e2268]: COLA 334 = 827265 (ROXA) = HSBOND
+              - cell "Estoque Balcão" [ref=f5e2269]
+              - cell "R$ 40,00" [ref=f5e2270]
+              - cell "-" [ref=f5e2271]
+              - cell "R$ 40,00" [ref=f5e2272]
+              - cell [ref=f5e2273]
+              - cell "cmc_antes_de_negativo" [ref=f5e2274]
+              - cell "-" [ref=f5e2275]
+              - cell "erro" [ref=f5e2276]
+              - cell "Henri Irneh" [ref=f5e2277]
+              - cell [ref=f5e2278]
+            - row [ref=f5e2279]:
+              - cell "20/07/2026, 19:24:17" [ref=f5e2280]
+              - cell "NOVA" [ref=f5e2281]
+              - cell "estoque negativo" [ref=f5e2282]
+              - cell "827265 COLA 334 = 827265 (ROXA) = HSBOND" [ref=f5e2284]:
+                - text: "827265"
+                - generic [ref=f5e2285]: COLA 334 = 827265 (ROXA) = HSBOND
+              - cell "Estoque Balcão" [ref=f5e2286]
+              - cell "R$ 40,00" [ref=f5e2287]
+              - cell "R$ 45,96" [ref=f5e2288]
+              - cell "R$ 45,96" [ref=f5e2289]
+              - cell [ref=f5e2290]
+              - cell "cmc_antes_de_negativo" [ref=f5e2291]
+              - cell "2519260953" [ref=f5e2292]
+              - cell "aplicado" [ref=f5e2293]
+              - cell "Henri Irneh" [ref=f5e2294]
+              - cell [ref=f5e2295]:
+                - button "Reverter" [ref=f5e2296] [cursor=pointer]
+            - row [ref=f5e2297]:
+              - cell "20/07/2026, 18:50:28" [ref=f5e2298]
+              - cell "NOVA" [ref=f5e2299]
+              - cell "garantia" [ref=f5e2300]
+              - cell "RP-E007206626D1 FILTRO DE SUCCAO RP-E007206626D1" [ref=f5e2302]:
+                - text: RP-E007206626D1
+                - generic [ref=f5e2303]: FILTRO DE SUCCAO RP-E007206626D1
+              - cell "Estoque Balcão" [ref=f5e2304]
+              - cell "R$ 186,35" [ref=f5e2305]
+              - cell "R$ 193,12" [ref=f5e2306]
+              - cell "R$ 193,12" [ref=f5e2307]
+              - cell "000055693" [ref=f5e2308]
+              - cell [ref=f5e2309]
+              - cell "2519250170" [ref=f5e2310]
+              - cell "aplicado" [ref=f5e2311]
+              - cell "Henri Irneh" [ref=f5e2312]
+              - cell [ref=f5e2313]:
+                - button "Reverter" [ref=f5e2314] [cursor=pointer]
+            - row [ref=f5e2315]:
+              - cell "20/07/2026, 18:50:24" [ref=f5e2316]
+              - cell "NOVA" [ref=f5e2317]
+              - cell "garantia" [ref=f5e2318]
+              - cell "RP-E007206114D1 MANGOTE DE REDUCAO 6075 = RP-E007206114D1" [ref=f5e2320]:
+                - text: RP-E007206114D1
+                - generic [ref=f5e2321]: MANGOTE DE REDUCAO 6075 = RP-E007206114D1
+              - cell "Estoque Balcão" [ref=f5e2322]
+              - cell "R$ 24,84" [ref=f5e2323]
+              - cell "R$ 27,00" [ref=f5e2324]
+              - cell "R$ 27,00" [ref=f5e2325]
+              - cell "000055693" [ref=f5e2326]
+              - cell [ref=f5e2327]
+              - cell "2519250144" [ref=f5e2328]
+              - cell "aplicado" [ref=f5e2329]
+              - cell "Henri Irneh" [ref=f5e2330]
+              - cell [ref=f5e2331]:
+                - button "Reverter" [ref=f5e2332] [cursor=pointer]
+            - row [ref=f5e2333]:
+              - cell "20/07/2026, 18:50:20" [ref=f5e2334]
+              - cell "NOVA" [ref=f5e2335]
+              - cell "garantia" [ref=f5e2336]
+              - cell "RP-006500998C2 SUPORTE ROLAMENTO INTERMEDIARIO" [ref=f5e2338]:
+                - text: RP-006500998C2
+                - generic [ref=f5e2339]: SUPORTE ROLAMENTO INTERMEDIARIO
+              - cell "Estoque Balcão" [ref=f5e2340]
+              - cell "R$ 105,79" [ref=f5e2341]
+              - cell "R$ 252,83" [ref=f5e2342]
+              - cell "R$ 252,83" [ref=f5e2343]
+              - cell "000055693" [ref=f5e2344]
+              - cell [ref=f5e2345]
+              - cell "2519250124" [ref=f5e2346]
+              - cell "aplicado" [ref=f5e2347]
+              - cell "Henri Irneh" [ref=f5e2348]
+              - cell [ref=f5e2349]:
+                - button "Reverter" [ref=f5e2350] [cursor=pointer]
+            - row [ref=f5e2351]:
+              - cell "20/07/2026, 18:50:16" [ref=f5e2352]
+              - cell "NOVA" [ref=f5e2353]
+              - cell "garantia" [ref=f5e2354]
+              - cell "RP-000016115P04 FILTRO OLEO TRANSMISSAO RP-000016115P04" [ref=f5e2356]:
+                - text: RP-000016115P04
+                - generic [ref=f5e2357]: FILTRO OLEO TRANSMISSAO RP-000016115P04
+              - cell "Estoque Balcão" [ref=f5e2358]
+              - cell "R$ 35,45" [ref=f5e2359]
+              - cell "R$ 37,13" [ref=f5e2360]
+              - cell "R$ 37,13" [ref=f5e2361]
+              - cell "000055693" [ref=f5e2362]
+              - cell [ref=f5e2363]
+              - cell "2519250094" [ref=f5e2364]
+              - cell "aplicado" [ref=f5e2365]
+              - cell "Henri Irneh" [ref=f5e2366]
+              - cell [ref=f5e2367]:
+                - button "Reverter" [ref=f5e2368] [cursor=pointer]
+            - row [ref=f5e2369]:
+              - cell "16/07/2026, 17:29:07" [ref=f5e2370]
+              - cell "NOVA" [ref=f5e2371]
+              - cell "estoque negativo" [ref=f5e2372]
+              - cell "RP-000020369E05 RETENTOR RP-000020369E05 = 42X72X8" [ref=f5e2374]:
+                - text: RP-000020369E05
+                - generic [ref=f5e2375]: RETENTOR RP-000020369E05 = 42X72X8
+              - cell "Estoque Balcão" [ref=f5e2376]
+              - cell "R$ 186,91" [ref=f5e2377]
+              - cell "R$ 113,98" [ref=f5e2378]
+              - cell "R$ 113,98" [ref=f5e2379]
+              - cell [ref=f5e2380]
+              - cell "cmc_antes_de_negativo" [ref=f5e2381]
+              - cell "2517912257" [ref=f5e2382]
+              - cell "aplicado" [ref=f5e2383]
+              - cell "Henri Irneh" [ref=f5e2384]
+              - cell [ref=f5e2385]:
+                - button "Reverter" [ref=f5e2386] [cursor=pointer]
+            - row [ref=f5e2387]:
+              - cell "15/07/2026, 18:57:03" [ref=f5e2388]
+              - cell "NOVA" [ref=f5e2389]
+              - cell "estoque negativo" [ref=f5e2390]
+              - cell "10W30 YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO" [ref=f5e2392]:
+                - text: 10W30
+                - generic [ref=f5e2393]: YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO
+              - cell "Estoque Balcão" [ref=f5e2394]
+              - cell "R$ 545,33" [ref=f5e2395]
+              - cell "R$ 527,44" [ref=f5e2396]
+              - cell "R$ 527,44" [ref=f5e2397]
+              - cell [ref=f5e2398]
+              - cell "cmc_antes_de_negativo" [ref=f5e2399]
+              - cell "2517251792" [ref=f5e2400]
+              - cell "aplicado" [ref=f5e2401]
+              - cell "Henri Irneh" [ref=f5e2402]
+              - cell [ref=f5e2403]:
+                - button "Reverter" [ref=f5e2404] [cursor=pointer]
+            - row [ref=f5e2405]:
+              - cell "15/07/2026, 18:57:00" [ref=f5e2406]
+              - cell "NOVA" [ref=f5e2407]
+              - cell "estoque negativo" [ref=f5e2408]
+              - cell "10W30 YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO" [ref=f5e2410]:
+                - text: 10W30
+                - generic [ref=f5e2411]: YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO
+              - cell "Estoque Balcão" [ref=f5e2412]
+              - cell "R$ 545,33" [ref=f5e2413]
+              - cell "R$ 563,46" [ref=f5e2414]
+              - cell "R$ 563,46" [ref=f5e2415]
+              - cell [ref=f5e2416]
+              - cell "cmc_antes_de_negativo" [ref=f5e2417]
+              - cell "2517251783" [ref=f5e2418]
+              - cell "aplicado" [ref=f5e2419]
+              - cell "Henri Irneh" [ref=f5e2420]
+              - cell [ref=f5e2421]:
+                - button "Reverter" [ref=f5e2422] [cursor=pointer]
+            - row [ref=f5e2423]:
+              - cell "15/07/2026, 18:55:54" [ref=f5e2424]
+              - cell "NOVA" [ref=f5e2425]
+              - cell "estoque negativo" [ref=f5e2426]
+              - cell "10W30 YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO" [ref=f5e2428]:
+                - text: 10W30
+                - generic [ref=f5e2429]: YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO
+              - cell "Estoque Balcão" [ref=f5e2430]
+              - cell "R$ 545,33" [ref=f5e2431]
+              - cell "R$ 400,68" [ref=f5e2432]
+              - cell "R$ 400,68" [ref=f5e2433]
+              - cell [ref=f5e2434]
+              - cell "cmc_antes_de_negativo" [ref=f5e2435]
+              - cell "0" [ref=f5e2436]
+              - cell "aplicado" [ref=f5e2437]
+              - cell "Henri Irneh" [ref=f5e2438]
+              - cell [ref=f5e2439]:
+                - button "Reverter" [ref=f5e2440] [cursor=pointer]
+            - row [ref=f5e2441]:
+              - cell "15/07/2026, 18:55:51" [ref=f5e2442]
+              - cell "NOVA" [ref=f5e2443]
+              - cell "estoque negativo" [ref=f5e2444]
+              - cell "10W30 YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO" [ref=f5e2446]:
+                - text: 10W30
+                - generic [ref=f5e2447]: YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO
+              - cell "Estoque Balcão" [ref=f5e2448]
+              - cell "R$ 545,33" [ref=f5e2449]
+              - cell "R$ 399,04" [ref=f5e2450]
+              - cell "R$ 399,04" [ref=f5e2451]
+              - cell [ref=f5e2452]
+              - cell "cmc_antes_de_negativo" [ref=f5e2453]
+              - cell "0" [ref=f5e2454]
+              - cell "aplicado" [ref=f5e2455]
+              - cell "Henri Irneh" [ref=f5e2456]
+              - cell [ref=f5e2457]:
+                - button "Reverter" [ref=f5e2458] [cursor=pointer]
+            - row [ref=f5e2459]:
+              - cell "15/07/2026, 18:54:49" [ref=f5e2460]
+              - cell "NOVA" [ref=f5e2461]
+              - cell "estoque negativo" [ref=f5e2462]
+              - cell "242L LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L" [ref=f5e2464]:
+                - text: 242L
+                - generic [ref=f5e2465]: LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L
+              - cell "Estoque Balcão" [ref=f5e2466]
+              - cell "R$ 27,50" [ref=f5e2467]
+              - cell "R$ 23,14" [ref=f5e2468]
+              - cell "R$ 23,14" [ref=f5e2469]
+              - cell [ref=f5e2470]
+              - cell "cmc_antes_de_negativo" [ref=f5e2471]
+              - cell "2517251261" [ref=f5e2472]
+              - cell "aplicado" [ref=f5e2473]
+              - cell "Henri Irneh" [ref=f5e2474]
+              - cell [ref=f5e2475]:
+                - button "Reverter" [ref=f5e2476] [cursor=pointer]
+            - row [ref=f5e2477]:
+              - cell "15/07/2026, 18:54:47" [ref=f5e2478]
+              - cell "NOVA" [ref=f5e2479]
+              - cell "estoque negativo" [ref=f5e2480]
+              - cell "242L LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L" [ref=f5e2482]:
+                - text: 242L
+                - generic [ref=f5e2483]: LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L
+              - cell "Estoque Balcão" [ref=f5e2484]
+              - cell "R$ 27,50" [ref=f5e2485]
+              - cell "R$ 17,41" [ref=f5e2486]
+              - cell "R$ 17,41" [ref=f5e2487]
+              - cell [ref=f5e2488]
+              - cell "cmc_antes_de_negativo" [ref=f5e2489]
+              - cell "0" [ref=f5e2490]
+              - cell "aplicado" [ref=f5e2491]
+              - cell "Henri Irneh" [ref=f5e2492]
+              - cell [ref=f5e2493]:
+                - button "Reverter" [ref=f5e2494] [cursor=pointer]
+            - row [ref=f5e2495]:
+              - cell "15/07/2026, 18:54:39" [ref=f5e2496]
+              - cell "NOVA" [ref=f5e2497]
+              - cell "estoque negativo" [ref=f5e2498]
+              - cell "10W30 YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO" [ref=f5e2500]:
+                - text: 10W30
+                - generic [ref=f5e2501]: YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO
+              - cell "Estoque Balcão" [ref=f5e2502]
+              - cell "R$ 539,15" [ref=f5e2503]
+              - cell "R$ 406,48" [ref=f5e2504]
+              - cell "R$ 406,48" [ref=f5e2505]
+              - cell [ref=f5e2506]
+              - cell "cmc_antes_de_negativo" [ref=f5e2507]
+              - cell "2517251220" [ref=f5e2508]
+              - cell "aplicado" [ref=f5e2509]
+              - cell "Henri Irneh" [ref=f5e2510]
+              - cell [ref=f5e2511]:
+                - button "Reverter" [ref=f5e2512] [cursor=pointer]
+            - row [ref=f5e2513]:
+              - cell "15/07/2026, 18:53:34" [ref=f5e2514]
+              - cell "NOVA" [ref=f5e2515]
+              - cell "estoque negativo" [ref=f5e2516]
+              - cell "10W30 YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO" [ref=f5e2518]:
+                - text: 10W30
+                - generic [ref=f5e2519]: YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO
+              - cell "Estoque Balcão" [ref=f5e2520]
+              - cell "R$ 527,44" [ref=f5e2521]
+              - cell "R$ 400,68" [ref=f5e2522]
+              - cell "R$ 400,68" [ref=f5e2523]
+              - cell [ref=f5e2524]
+              - cell "cmc_antes_de_negativo" [ref=f5e2525]
+              - cell "2517250825" [ref=f5e2526]
+              - cell "aplicado" [ref=f5e2527]
+              - cell "Henri Irneh" [ref=f5e2528]
+              - cell [ref=f5e2529]:
+                - button "Reverter" [ref=f5e2530] [cursor=pointer]
+            - row [ref=f5e2531]:
+              - cell "15/07/2026, 18:53:31" [ref=f5e2532]
+              - cell "NOVA" [ref=f5e2533]
+              - cell "estoque negativo" [ref=f5e2534]
+              - cell "10W30 YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO" [ref=f5e2536]:
+                - text: 10W30
+                - generic [ref=f5e2537]: YPF HIDRO 19 10W30 BB 20LTS = EATON 10W30 = ARBOR 10W30 = ISAFLUIDO 434 TO
+              - cell "Estoque Balcão" [ref=f5e2538]
+              - cell "R$ 527,44" [ref=f5e2539]
+              - cell "R$ 399,04" [ref=f5e2540]
+              - cell "R$ 399,04" [ref=f5e2541]
+              - cell [ref=f5e2542]
+              - cell "cmc_antes_de_negativo" [ref=f5e2543]
+              - cell "2517250800" [ref=f5e2544]
+              - cell "aplicado" [ref=f5e2545]
+              - cell "Henri Irneh" [ref=f5e2546]
+              - cell [ref=f5e2547]:
+                - button "Reverter" [ref=f5e2548] [cursor=pointer]
+            - row [ref=f5e2549]:
+              - cell "15/07/2026, 18:52:42" [ref=f5e2550]
+              - cell "NOVA" [ref=f5e2551]
+              - cell "estoque negativo" [ref=f5e2552]
+              - cell "242L LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L" [ref=f5e2554]:
+                - text: 242L
+                - generic [ref=f5e2555]: LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L
+              - cell "Estoque Balcão" [ref=f5e2556]
+              - cell "R$ 27,50" [ref=f5e2557]
+              - cell "-" [ref=f5e2558]
+              - cell "R$ 23,14" [ref=f5e2559]
+              - cell [ref=f5e2560]
+              - cell "cmc_antes_de_negativo" [ref=f5e2561]
+              - cell "-" [ref=f5e2562]
+              - cell "erro" [ref=f5e2563]
+              - cell "Henri Irneh" [ref=f5e2564]
+              - cell [ref=f5e2565]
+            - row [ref=f5e2566]:
+              - cell "15/07/2026, 18:51:38" [ref=f5e2567]
+              - cell "NOVA" [ref=f5e2568]
+              - cell "estoque negativo" [ref=f5e2569]
+              - cell "242L LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L" [ref=f5e2571]:
+                - text: 242L
+                - generic [ref=f5e2572]: LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L
+              - cell "Estoque Balcão" [ref=f5e2573]
+              - cell "R$ 27,50" [ref=f5e2574]
+              - cell "R$ 17,41" [ref=f5e2575]
+              - cell "R$ 17,41" [ref=f5e2576]
+              - cell [ref=f5e2577]
+              - cell "cmc_antes_de_negativo" [ref=f5e2578]
+              - cell "2517249895" [ref=f5e2579]
+              - cell "aplicado" [ref=f5e2580]
+              - cell "Henri Irneh" [ref=f5e2581]
+              - cell [ref=f5e2582]:
+                - button "Reverter" [ref=f5e2583] [cursor=pointer]
+            - row [ref=f5e2584]:
+              - cell "15/07/2026, 18:50:42" [ref=f5e2585]
+              - cell "NOVA" [ref=f5e2586]
+              - cell "estoque negativo" [ref=f5e2587]
+              - cell "827265 COLA 334 = 827265 (ROXA) = HSBOND" [ref=f5e2589]:
+                - text: "827265"
+                - generic [ref=f5e2590]: COLA 334 = 827265 (ROXA) = HSBOND
+              - cell "Estoque Balcão" [ref=f5e2591]
+              - cell "R$ 40,00" [ref=f5e2592]
+              - cell "-" [ref=f5e2593]
+              - cell "R$ 40,00" [ref=f5e2594]
+              - cell [ref=f5e2595]
+              - cell "cmc_antes_de_negativo" [ref=f5e2596]
+              - cell "-" [ref=f5e2597]
+              - cell "erro" [ref=f5e2598]
+              - cell "Henri Irneh" [ref=f5e2599]
+              - cell [ref=f5e2600]
+            - row [ref=f5e2601]:
+              - cell "15/07/2026, 18:49:38" [ref=f5e2602]
+              - cell "NOVA" [ref=f5e2603]
+              - cell "estoque negativo" [ref=f5e2604]
+              - cell "827265 COLA 334 = 827265 (ROXA) = HSBOND" [ref=f5e2606]:
+                - text: "827265"
+                - generic [ref=f5e2607]: COLA 334 = 827265 (ROXA) = HSBOND
+              - cell "Estoque Balcão" [ref=f5e2608]
+              - cell "R$ 40,00" [ref=f5e2609]
+              - cell "R$ 45,96" [ref=f5e2610]
+              - cell "R$ 45,96" [ref=f5e2611]
+              - cell [ref=f5e2612]
+              - cell "cmc_antes_de_negativo" [ref=f5e2613]
+              - cell "2517249508" [ref=f5e2614]
+              - cell "aplicado" [ref=f5e2615]
+              - cell "Henri Irneh" [ref=f5e2616]
+              - cell [ref=f5e2617]:
+                - button "Reverter" [ref=f5e2618] [cursor=pointer]
+            - row [ref=f5e2619]:
+              - cell "15/07/2026, 18:48:52" [ref=f5e2620]
+              - cell "NOVA" [ref=f5e2621]
+              - cell "estoque negativo" [ref=f5e2622]
+              - cell "F110390 ROLAMENTO ESFERAS DUPLO 81102046 = F110390" [ref=f5e2624]:
+                - text: F110390
+                - generic [ref=f5e2625]: ROLAMENTO ESFERAS DUPLO 81102046 = F110390
+              - cell "Estoque Balcão" [ref=f5e2626]
+              - cell "R$ 32,22" [ref=f5e2627]
+              - cell "R$ 32,22" [ref=f5e2628]
+              - cell "R$ 32,22" [ref=f5e2629]
+              - cell [ref=f5e2630]
+              - cell "cmc_antes_de_negativo" [ref=f5e2631]
+              - cell "2517249353" [ref=f5e2632]
+              - cell "aplicado" [ref=f5e2633]
+              - cell "Henri Irneh" [ref=f5e2634]
+              - cell [ref=f5e2635]:
+                - button "Reverter" [ref=f5e2636] [cursor=pointer]
+            - row [ref=f5e2637]:
+              - cell "15/07/2026, 18:44:53" [ref=f5e2638]
+              - cell "NOVA" [ref=f5e2639]
+              - cell "garantia" [ref=f5e2640]
+              - cell "RP-007709429U91 PAINEL MSTAR P2 ( substitui o painel RP-007705736U91 )" [ref=f5e2642]:
+                - text: RP-007709429U91
+                - generic [ref=f5e2643]: PAINEL MSTAR P2 ( substitui o painel RP-007705736U91 )
+              - cell "Estoque Balcão" [ref=f5e2644]
+              - cell "R$ 611,25" [ref=f5e2645]
+              - cell "R$ 849,66" [ref=f5e2646]
+              - cell "R$ 849,66" [ref=f5e2647]
+              - cell "000055938" [ref=f5e2648]
+              - cell [ref=f5e2649]
+              - cell "2517248118" [ref=f5e2650]
+              - cell "aplicado" [ref=f5e2651]
+              - cell "Henri Irneh" [ref=f5e2652]
+              - cell [ref=f5e2653]:
+                - button "Reverter" [ref=f5e2654] [cursor=pointer]
+            - row [ref=f5e2655]:
+              - cell "15/07/2026, 18:44:50" [ref=f5e2656]
+              - cell "NOVA" [ref=f5e2657]
+              - cell "garantia" [ref=f5e2658]
+              - cell "RP-007608515V11 CABO FREIO DE MAO 5050 = RP-007608515V11" [ref=f5e2660]:
+                - text: RP-007608515V11
+                - generic [ref=f5e2661]: CABO FREIO DE MAO 5050 = RP-007608515V11
+              - cell "Estoque Balcão" [ref=f5e2662]
+              - cell "R$ 20,70" [ref=f5e2663]
+              - cell "R$ 116,03" [ref=f5e2664]
+              - cell "R$ 116,03" [ref=f5e2665]
+              - cell "000055938" [ref=f5e2666]
+              - cell [ref=f5e2667]
+              - cell "2517248098" [ref=f5e2668]
+              - cell "aplicado" [ref=f5e2669]
+              - cell "Henri Irneh" [ref=f5e2670]
+              - cell [ref=f5e2671]:
+                - button "Reverter" [ref=f5e2672] [cursor=pointer]
+            - row [ref=f5e2673]:
+              - cell "15/07/2026, 18:44:46" [ref=f5e2674]
+              - cell "NOVA" [ref=f5e2675]
+              - cell "garantia" [ref=f5e2676]
+              - cell "RP-006502304R1 MOLA = RP-006502304R1" [ref=f5e2678]:
+                - text: RP-006502304R1
+                - generic [ref=f5e2679]: MOLA = RP-006502304R1
+              - cell "Estoque Balcão" [ref=f5e2680]
+              - cell "R$ 2,81" [ref=f5e2681]
+              - cell "R$ 3,37" [ref=f5e2682]
+              - cell "R$ 3,37" [ref=f5e2683]
+              - cell "000055938" [ref=f5e2684]
+              - cell [ref=f5e2685]
+              - cell "2517248087" [ref=f5e2686]
+              - cell "aplicado" [ref=f5e2687]
+              - cell "Henri Irneh" [ref=f5e2688]
+              - cell [ref=f5e2689]:
+                - button "Reverter" [ref=f5e2690] [cursor=pointer]
+            - row [ref=f5e2691]:
+              - cell "15/07/2026, 18:44:43" [ref=f5e2692]
+              - cell "NOVA" [ref=f5e2693]
+              - cell "garantia" [ref=f5e2694]
+              - cell "RP-001082178R1 ESFERA DE ACO 10.3MM" [ref=f5e2696]:
+                - text: RP-001082178R1
+                - generic [ref=f5e2697]: ESFERA DE ACO 10.3MM
+              - cell "Estoque Balcão" [ref=f5e2698]
+              - cell "R$ 1,19" [ref=f5e2699]
+              - cell "R$ 1,30" [ref=f5e2700]
+              - cell "R$ 1,30" [ref=f5e2701]
+              - cell "000055938" [ref=f5e2702]
+              - cell [ref=f5e2703]
+              - cell "2517248078" [ref=f5e2704]
+              - cell "aplicado" [ref=f5e2705]
+              - cell "Henri Irneh" [ref=f5e2706]
+              - cell [ref=f5e2707]:
+                - button "Reverter" [ref=f5e2708] [cursor=pointer]
+            - row [ref=f5e2709]:
+              - cell "02/07/2026, 12:13:20" [ref=f5e2710]
+              - cell "NOVA" [ref=f5e2711]
+              - cell "estoque negativo" [ref=f5e2712]
+              - cell "242L LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L" [ref=f5e2714]:
+                - text: 242L
+                - generic [ref=f5e2715]: LITRO OLEO 15W40 CI4 URANIA OU IPIRANGA = 242L
+              - cell "Estoque Balcão" [ref=f5e2716]
+              - cell "R$ 27,50" [ref=f5e2717]
+              - cell "R$ 17,41" [ref=f5e2718]
+              - cell "R$ 17,41" [ref=f5e2719]
+              - cell [ref=f5e2720]
+              - cell "cmc_antes_de_negativo" [ref=f5e2721]
+              - cell "2511970398" [ref=f5e2722]
+              - cell "aplicado" [ref=f5e2723]
+              - cell "Henri Irneh" [ref=f5e2724]
+              - cell [ref=f5e2725]:
+                - button "Reverter" [ref=f5e2726] [cursor=pointer]
+            - row [ref=f5e2727]:
+              - cell "30/06/2026, 18:37:47" [ref=f5e2728]
+              - cell "NOVA" [ref=f5e2729]
+              - cell "estoque negativo" [ref=f5e2730]
+              - cell "F110390 ROLAMENTO ESFERAS DUPLO 81102046 = F110390" [ref=f5e2732]:
+                - text: F110390
+                - generic [ref=f5e2733]: ROLAMENTO ESFERAS DUPLO 81102046 = F110390
+              - cell "Estoque Balcão" [ref=f5e2734]
+              - cell "R$ 32,22" [ref=f5e2735]
+              - cell "R$ 30,00" [ref=f5e2736]
+              - cell "R$ 30,00" [ref=f5e2737]
+              - cell [ref=f5e2738]
+              - cell "cmc_antes_de_negativo" [ref=f5e2739]
+              - cell "2511001508" [ref=f5e2740]
+              - cell "aplicado" [ref=f5e2741]
+              - cell "app-estoque-negativo" [ref=f5e2742]
+              - cell [ref=f5e2743]:
+                - button "Reverter" [ref=f5e2744] [cursor=pointer]
+            - row [ref=f5e2745]:
+              - cell "22/06/2026, 16:50:41" [ref=f5e2746]
+              - cell "NOVA" [ref=f5e2747]
+              - cell "garantia" [ref=f5e2748]
+              - cell "RP-007636562D91 TAMPA DO TANQUE DE COMBUSTIVEL 6075 C/TANQUE EMBAIXO = RP-007636562D91" [ref=f5e2750]:
+                - text: RP-007636562D91
+                - generic [ref=f5e2751]: TAMPA DO TANQUE DE COMBUSTIVEL 6075 C/TANQUE EMBAIXO = RP-007636562D91
+              - cell "Estoque Balcão" [ref=f5e2752]
+              - cell "R$ 52,42" [ref=f5e2753]
+              - cell "R$ 59,93" [ref=f5e2754]
+              - cell "R$ 59,93" [ref=f5e2755]
+              - cell "000055012" [ref=f5e2756]
+              - cell [ref=f5e2757]
+              - cell "2508267253" [ref=f5e2758]
+              - cell "aplicado" [ref=f5e2759]
+              - cell "Henri Irneh" [ref=f5e2760]
+              - cell [ref=f5e2761]:
+                - button "Reverter" [ref=f5e2762] [cursor=pointer]
+            - row [ref=f5e2763]:
+              - cell "22/06/2026, 16:50:38" [ref=f5e2764]
+              - cell "NOVA" [ref=f5e2765]
+              - cell "garantia" [ref=f5e2766]
+              - cell "RP-006031350U91 MONTAGEM DO FILTRO DE COMBUSTIVEL MSTAR" [ref=f5e2768]:
+                - text: RP-006031350U91
+                - generic [ref=f5e2769]: MONTAGEM DO FILTRO DE COMBUSTIVEL MSTAR
+              - cell "Estoque Balcão" [ref=f5e2770]
+              - cell "R$ 134,57" [ref=f5e2771]
+              - cell "R$ 344,33" [ref=f5e2772]
+              - cell "R$ 344,33" [ref=f5e2773]
+              - cell "000055012" [ref=f5e2774]
+              - cell [ref=f5e2775]
+              - cell "2508267246" [ref=f5e2776]
+              - cell "aplicado" [ref=f5e2777]
+              - cell "Henri Irneh" [ref=f5e2778]
+              - cell [ref=f5e2779]:
+                - button "Reverter" [ref=f5e2780] [cursor=pointer]
+            - row [ref=f5e2781]:
+              - cell "22/06/2026, 16:50:35" [ref=f5e2782]
+              - cell "NOVA" [ref=f5e2783]
+              - cell "garantia" [ref=f5e2784]
+              - cell "RP-005557674R97 CABO DE PARADA DO MOTOR 5050" [ref=f5e2786]:
+                - text: RP-005557674R97
+                - generic [ref=f5e2787]: CABO DE PARADA DO MOTOR 5050
+              - cell "Estoque Balcão" [ref=f5e2788]
+              - cell "R$ 50,23" [ref=f5e2789]
+              - cell "R$ 87,96" [ref=f5e2790]
+              - cell "R$ 87,96" [ref=f5e2791]
+              - cell "000055012" [ref=f5e2792]
+              - cell [ref=f5e2793]
+              - cell "2508267223" [ref=f5e2794]
+              - cell "aplicado" [ref=f5e2795]
+              - cell "Henri Irneh" [ref=f5e2796]
+              - cell [ref=f5e2797]:
+                - button "Reverter" [ref=f5e2798] [cursor=pointer]
+            - row [ref=f5e2799]:
+              - cell "22/06/2026, 16:50:31" [ref=f5e2800]
+              - cell "NOVA" [ref=f5e2801]
+              - cell "garantia" [ref=f5e2802]
+              - cell "RP-000020320E05 JUNTA RP-000020320E05" [ref=f5e2804]:
+                - text: RP-000020320E05
+                - generic [ref=f5e2805]: JUNTA RP-000020320E05
+              - cell "Estoque Balcão" [ref=f5e2806]
+              - cell "R$ 16,43" [ref=f5e2807]
+              - cell "R$ 18,78" [ref=f5e2808]
+              - cell "R$ 18,78" [ref=f5e2809]
+              - cell "000055012" [ref=f5e2810]
+              - cell [ref=f5e2811]
+              - cell "2508267220" [ref=f5e2812]
+              - cell "aplicado" [ref=f5e2813]
+              - cell "Henri Irneh" [ref=f5e2814]
+              - cell [ref=f5e2815]:
+                - button "Reverter" [ref=f5e2816] [cursor=pointer]
+            - row [ref=f5e2817]:
+              - cell "11/06/2026, 18:17:01" [ref=f5e2818]
+              - cell "NOVA" [ref=f5e2819]
+              - cell "estoque negativo" [ref=f5e2820]
+              - cell "329HSBOND TRAVA ROSCA 329 = 1305HS10G = HSBOND 329H" [ref=f5e2822]:
+                - text: 329HSBOND
+                - generic [ref=f5e2823]: TRAVA ROSCA 329 = 1305HS10G = HSBOND 329H
+              - cell "Estoque Balcão" [ref=f5e2824]
+              - cell "R$ 10,00" [ref=f5e2825]
+              - cell "R$ 45,00" [ref=f5e2826]
+              - cell "R$ 45,00" [ref=f5e2827]
+              - cell [ref=f5e2828]
+              - cell "maior_cmc_compra" [ref=f5e2829]
+              - cell "2505227562" [ref=f5e2830]
+              - cell "aplicado" [ref=f5e2831]
+              - cell "app-estoque-negativo" [ref=f5e2832]
+              - cell [ref=f5e2833]:
+                - button "Reverter" [ref=f5e2834] [cursor=pointer]
+            - row [ref=f5e2835]:
+              - cell "05/06/2026, 18:51:29" [ref=f5e2836]
+              - cell "NOVA" [ref=f5e2837]
+              - cell "ajuste de custo" [ref=f5e2838]
+              - cell "P608666 FILTRO DE AR EXTERNO P608666 = B2068530" [ref=f5e2840]:
+                - text: P608666
+                - generic [ref=f5e2841]: FILTRO DE AR EXTERNO P608666 = B2068530
+              - cell "Estoque Balcão" [ref=f5e2842]
+              - cell "R$ 0,00" [ref=f5e2843]
+              - cell "R$ 7,77" [ref=f5e2844]
+              - cell "-" [ref=f5e2845]
+              - cell "TESTE E2E (auto)" [ref=f5e2846]
+              - cell [ref=f5e2848]
+              - cell "2498598236" [ref=f5e2849]
+              - cell "revertido" [ref=f5e2850]
+              - cell "ajuste-custos" [ref=f5e2851]
+              - cell [ref=f5e2852]
+            - row [ref=f5e2853]:
+              - cell "12/05/2026, 18:04:35" [ref=f5e2854]
+              - cell "NOVA" [ref=f5e2855]
+              - cell "garantia (legado)" [ref=f5e2856]
+              - cell "RP-006034348U1 FILTRO DE COMBUSTIVEL RP-006034348U1" [ref=f5e2858]:
+                - text: RP-006034348U1
+                - generic [ref=f5e2859]: FILTRO DE COMBUSTIVEL RP-006034348U1
+              - cell "Estoque Balcão" [ref=f5e2860]
+              - cell "R$ 150,56" [ref=f5e2861]
+              - cell "R$ 164,16" [ref=f5e2862]
+              - cell "R$ 164,16" [ref=f5e2863]
+              - cell "000053455" [ref=f5e2864]
+              - cell "cmc_movimento_anterior" [ref=f5e2865]
+              - cell "-" [ref=f5e2866]
+              - cell "aplicado" [ref=f5e2867]
+              - cell "app" [ref=f5e2868]
+              - cell [ref=f5e2869]:
+                - button "Reverter" [ref=f5e2870] [cursor=pointer]
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f5e2871]:
+      - generic [ref=f5e2874]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=f5e11] [cursor=pointer]
+  - alert [ref=f5e15]

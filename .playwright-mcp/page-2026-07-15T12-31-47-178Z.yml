@@ -1,0 +1,157 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e2724]:
+            - generic [ref=f2e2725]:
+              - generic [ref=f2e2726]:
+                - generic [ref=f2e2727]: 
+                - textbox "Buscar em 5050…" [ref=f2e3023]
+              - generic [ref=f2e2729]:
+                - button " Voltar" [ref=f2e3024] [cursor=pointer]:
+                  - generic [ref=f2e3025]: 
+                  - text: Voltar
+                - generic [ref=f2e2730] [cursor=pointer]: Catálogo
+                - generic [ref=f2e3026]: ›
+                - generic [ref=f2e3027] [cursor=pointer]: "5050"
+                - generic [ref=f2e3111]: ›
+                - generic [ref=f2e3112] [cursor=pointer]: Motor
+            - generic [ref=f2e3113]:
+              - button "TAMPA DO ALOJAMENTO DA VÁLVULA 5050MT01 TAMPA DO ALOJAMENTO DA VÁLVULA" [ref=f2e3114] [cursor=pointer]:
+                - img "TAMPA DO ALOJAMENTO DA VÁLVULA" [ref=f2e3116]
+                - generic [ref=f2e3117]:
+                  - generic [ref=f2e3118]: 5050MT01
+                  - generic [ref=f2e3119]: TAMPA DO ALOJAMENTO DA VÁLVULA
+              - button "SISTEMA DE EXAUSTÃO 5050MT02 SISTEMA DE EXAUSTÃO" [ref=f2e3120] [cursor=pointer]:
+                - img "SISTEMA DE EXAUSTÃO" [ref=f2e3122]
+                - generic [ref=f2e3123]:
+                  - generic [ref=f2e3124]: 5050MT02
+                  - generic [ref=f2e3125]: SISTEMA DE EXAUSTÃO
+              - button "SISTEMA DE ENTRADA DE AR 5050MT03 SISTEMA DE ENTRADA DE AR" [ref=f2e3126] [cursor=pointer]:
+                - img "SISTEMA DE ENTRADA DE AR" [ref=f2e3128]
+                - generic [ref=f2e3129]:
+                  - generic [ref=f2e3130]: 5050MT03
+                  - generic [ref=f2e3131]: SISTEMA DE ENTRADA DE AR
+              - button "SISTEMA DE ENTRADA DE AR - FILTRO DE AR SECO 5050MT04 SISTEMA DE ENTRADA DE AR - FILTRO DE AR SECO" [ref=f2e3132] [cursor=pointer]:
+                - img "SISTEMA DE ENTRADA DE AR - FILTRO DE AR SECO" [ref=f2e3134]
+                - generic [ref=f2e3135]:
+                  - generic [ref=f2e3136]: 5050MT04
+                  - generic [ref=f2e3137]: SISTEMA DE ENTRADA DE AR - FILTRO DE AR SECO
+              - button "TREM DE VÁLVULA- 4DI 5050MT05 TREM DE VÁLVULA- 4DI" [ref=f2e3138] [cursor=pointer]:
+                - img "TREM DE VÁLVULA- 4DI" [ref=f2e3140]
+                - generic [ref=f2e3141]:
+                  - generic [ref=f2e3142]: 5050MT05
+                  - generic [ref=f2e3143]: TREM DE VÁLVULA- 4DI
+              - button "TAMPA DIANTEIRA DO CÁRTER 5050MT06 TAMPA DIANTEIRA DO CÁRTER" [ref=f2e3144] [cursor=pointer]:
+                - img "TAMPA DIANTEIRA DO CÁRTER" [ref=f2e3146]
+                - generic [ref=f2e3147]:
+                  - generic [ref=f2e3148]: 5050MT06
+                  - generic [ref=f2e3149]: TAMPA DIANTEIRA DO CÁRTER
+              - button "CONJUNTO DA BIELA E BUCHA DO PISTÃO 5050MT07 CONJUNTO DA BIELA E BUCHA DO PISTÃO" [ref=f2e3150] [cursor=pointer]:
+                - img "CONJUNTO DA BIELA E BUCHA DO PISTÃO" [ref=f2e3152]
+                - generic [ref=f2e3153]:
+                  - generic [ref=f2e3154]: 5050MT07
+                  - generic [ref=f2e3155]: CONJUNTO DA BIELA E BUCHA DO PISTÃO
+              - button "FILTRO DE ÓLEO 5050MT08 FILTRO DE ÓLEO" [ref=f2e3156] [cursor=pointer]:
+                - img "FILTRO DE ÓLEO" [ref=f2e3158]
+                - generic [ref=f2e3159]:
+                  - generic [ref=f2e3160]: 5050MT08
+                  - generic [ref=f2e3161]: FILTRO DE ÓLEO
+              - button "SISTEMA DE ARREFECIMENTO 5050MT09 SISTEMA DE ARREFECIMENTO" [ref=f2e3162] [cursor=pointer]:
+                - img "SISTEMA DE ARREFECIMENTO" [ref=f2e3164]
+                - generic [ref=f2e3165]:
+                  - generic [ref=f2e3166]: 5050MT09
+                  - generic [ref=f2e3167]: SISTEMA DE ARREFECIMENTO
+              - button "CONJUNTO DO RADIADOR 5050MT10 CONJUNTO DO RADIADOR" [ref=f2e3168] [cursor=pointer]:
+                - img "CONJUNTO DO RADIADOR" [ref=f2e3170]
+                - generic [ref=f2e3171]:
+                  - generic [ref=f2e3172]: 5050MT10
+                  - generic [ref=f2e3173]: CONJUNTO DO RADIADOR
+              - button "VEDAÇÃO DO LADO DO RADIADOR 5050MT11 VEDAÇÃO DO LADO DO RADIADOR" [ref=f2e3174] [cursor=pointer]:
+                - img "VEDAÇÃO DO LADO DO RADIADOR" [ref=f2e3176]
+                - generic [ref=f2e3177]:
+                  - generic [ref=f2e3178]: 5050MT11
+                  - generic [ref=f2e3179]: VEDAÇÃO DO LADO DO RADIADOR
+              - button "CONJUNTO ACELERADOR 5050MT12 CONJUNTO ACELERADOR" [ref=f2e3180] [cursor=pointer]:
+                - img "CONJUNTO ACELERADOR" [ref=f2e3182]
+                - generic [ref=f2e3183]:
+                  - generic [ref=f2e3184]: 5050MT12
+                  - generic [ref=f2e3185]: CONJUNTO ACELERADOR
+              - button "MOTOR- COMPLETO, MEIO E KIT DE REPARO 5050MT13 MOTOR- COMPLETO, MEIO E KIT DE REPARO" [ref=f2e3186] [cursor=pointer]:
+                - img "MOTOR- COMPLETO, MEIO E KIT DE REPARO" [ref=f2e3188]
+                - generic [ref=f2e3189]:
+                  - generic [ref=f2e3190]: 5050MT13
+                  - generic [ref=f2e3191]: MOTOR- COMPLETO, MEIO E KIT DE REPARO
+              - button "CÁRTER COM TANQUE DE ÓLEO 4 DI 5050MT14 CÁRTER COM TANQUE DE ÓLEO 4 DI" [ref=f2e3192] [cursor=pointer]:
+                - img "CÁRTER COM TANQUE DE ÓLEO 4 DI" [ref=f2e3194]
+                - generic [ref=f2e3195]:
+                  - generic [ref=f2e3196]: 5050MT14
+                  - generic [ref=f2e3197]: CÁRTER COM TANQUE DE ÓLEO 4 DI
+              - button "SISTEMA DE LUBRIFICAÇÃO 5050MT15 SISTEMA DE LUBRIFICAÇÃO" [ref=f2e3198] [cursor=pointer]:
+                - img "SISTEMA DE LUBRIFICAÇÃO" [ref=f2e3200]
+                - generic [ref=f2e3201]:
+                  - generic [ref=f2e3202]: 5050MT15
+                  - generic [ref=f2e3203]: SISTEMA DE LUBRIFICAÇÃO
+              - button "CONJUNTO DO VIRABREQUIM - 4 DI 5050MT16 CONJUNTO DO VIRABREQUIM - 4 DI" [ref=f2e3204] [cursor=pointer]:
+                - img "CONJUNTO DO VIRABREQUIM - 4 DI" [ref=f2e3206]
+                - generic [ref=f2e3207]:
+                  - generic [ref=f2e3208]: 5050MT16
+                  - generic [ref=f2e3209]: CONJUNTO DO VIRABREQUIM - 4 DI
+              - button "SISTEMA DE INJEÇÃO DE COMBUSTÍVEL 5050MT17 SISTEMA DE INJEÇÃO DE COMBUSTÍVEL" [ref=f2e3210] [cursor=pointer]:
+                - img "SISTEMA DE INJEÇÃO DE COMBUSTÍVEL" [ref=f2e3212]
+                - generic [ref=f2e3213]:
+                  - generic [ref=f2e3214]: 5050MT17
+                  - generic [ref=f2e3215]: SISTEMA DE INJEÇÃO DE COMBUSTÍVEL
+              - button "CABEÇOTE 5050MT18 CABEÇOTE" [ref=f2e3216] [cursor=pointer]:
+                - img "CABEÇOTE" [ref=f2e3218]
+                - generic [ref=f2e3219]:
+                  - generic [ref=f2e3220]: 5050MT18
+                  - generic [ref=f2e3221]: CABEÇOTE
+  - alert [ref=f2e15]

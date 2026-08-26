@@ -1,0 +1,32 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e11] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=e12]
+    - generic [ref=e16]:
+      - button "Open issues overlay" [ref=e17]:
+        - generic [ref=e18]:
+          - generic [ref=e19]: "0"
+          - generic [ref=e20]: "1"
+        - generic [ref=e21]: Issue
+      - button "Collapse issues badge" [ref=e22]
+  - alert [ref=e6]
+  - generic [ref=e25]:
+    - generic [ref=e26]:
+      - img "Trator" [ref=e27]
+      - generic [ref=e29]:
+        - img "Nova Tratores" [ref=e30]
+        - paragraph [ref=e31]: Portal Corporativo de Gestão Integrada
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - img "Nova Tratores" [ref=e35]
+        - paragraph [ref=e36]: Acesso Corporativo
+      - generic [ref=e37]:
+        - button "Entrar" [ref=e38] [cursor=pointer]
+        - button "Cadastrar" [ref=e42] [cursor=pointer]
+      - generic [ref=e63]: E-mail ou senha incorretos.
+      - generic [ref=e46]:
+        - textbox "E-mail Corporativo" [ref=e51]: tutorial.pecas@novatratores.com.br
+        - generic [ref=e52]:
+          - textbox "Senha" [ref=e56]: Tutorial-PPV-2026!
+          - button [ref=e57] [cursor=pointer]
+        - button "ACESSAR PORTAL" [ref=e61] [cursor=pointer]
+      - paragraph [ref=e62]: NOVA TRATORES © 2026

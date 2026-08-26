@@ -8,6 +8,9 @@ import {
   temModuloTickets, registrarEvento, notificarTicket, garantirParticipante,
 } from '@/lib/tickets/server'
 import { STATUS_FINAIS, type Ticket, type TicketPlanoItem, type TicketVisibilidade } from '@/lib/tickets/constantes'
+import { type PayloadSC } from '@/lib/tickets/compras'
+import { carregarConfigCompras, avaliarBloqueio } from '@/lib/tickets/compras-server'
+import type { Autenticado } from '@/lib/auth/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -64,11 +67,26 @@ export async function GET(req: NextRequest) {
     query = query.in('id', idsParticipa).neq('responsavel_id', auth.userId).neq('solicitante_id', auth.userId)
   } else if (visao === 'gerencial') {
     if (!auth.isAdmin) return NextResponse.json({ error: 'Visão gerencial é restrita a administradores' }, { status: 403 })
+  } else if (visao === 'compras') {
+    // Pipeline da SC: todas as SCs que o usuário pode acompanhar. Papéis fixos
+    // (diretoria/financeiro/comprador) e admin veem o trilho inteiro; os demais,
+    // só as SCs onde são solicitante, responsável (a bola) ou participante.
+    query = query.eq('tipo', 'compras')
+    if (!auth.isAdmin) {
+      const config = await carregarConfigCompras()
+      const papeis = [config.diretoria_id, config.financeiro_id, config.comprador_id].filter(Boolean)
+      if (!papeis.includes(auth.userId)) {
+        const orParts = [`solicitante_id.eq.${auth.userId}`, `responsavel_id.eq.${auth.userId}`]
+        if (idsParticipa.length) orParts.push(`id.in.(${idsParticipa.join(',')})`)
+        query = query.or(orParts.join(','))
+      }
+    }
   } else {
     return NextResponse.json({ error: 'Visão inválida' }, { status: 400 })
   }
 
-  if (!incluirEncerrados) query = query.not('status', 'in', finais)
+  // A SC mostra também as etapas terminais (concluída/cancelada) no kanban.
+  if (!incluirEncerrados && visao !== 'compras') query = query.not('status', 'in', finais)
 
   const { data: tickets, error } = await query
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -114,6 +132,9 @@ export async function POST(req: NextRequest) {
   let body: Record<string, unknown>
   try { body = await req.json() } catch { return NextResponse.json({ error: 'JSON inválido' }, { status: 400 }) }
 
+  // Solicitação de Compras (tipo='compras') tem trilho e campos próprios.
+  if (body.tipo === 'compras') return criarSC(auth, body)
+
   const titulo = String(body.titulo || '').trim()
   const descricao = String(body.descricao || '').trim()
   const responsavelId = String(body.responsavel_id || '').trim()
@@ -152,6 +173,74 @@ export async function POST(req: NextRequest) {
     ticket, [responsavelId], auth.userId,
     `Novo ticket #${ticket.numero}: ${titulo}`,
     'Você é o responsável por este ticket.',
+  )
+
+  return NextResponse.json({ ticket })
+}
+
+// --------------------------------------------------------------------------
+// Criação de uma Solicitação de Compras. O vendedor (chamador) abre a SC; a
+// bola vai direto para a pessoa fixa da Diretoria (config). Emite o evento
+// imutável `sc_criada` e sinaliza (flag suave) se já nasce em bloqueio.
+// --------------------------------------------------------------------------
+async function criarSC(auth: Autenticado, body: Record<string, unknown>) {
+  const produto = String(body.produto || '').trim()
+  const clienteDestino = String(body.cliente_destino || '').trim()
+  const pvNumero = String(body.pv_numero || '').trim()
+  const descricao = String(body.descricao || '').trim()
+  const qtdSolicitada = Number(body.quantidade_solicitada)
+  const precoAlvo = body.preco_alvo != null && body.preco_alvo !== '' ? Number(body.preco_alvo) : undefined
+
+  if (!produto) return NextResponse.json({ error: 'Informe o produto' }, { status: 400 })
+  if (!Number.isFinite(qtdSolicitada) || qtdSolicitada <= 0) return NextResponse.json({ error: 'Informe a quantidade solicitada' }, { status: 400 })
+  if (!clienteDestino) return NextResponse.json({ error: 'Informe o cliente destino' }, { status: 400 })
+  if (!pvNumero) return NextResponse.json({ error: 'Informe o nº do PV' }, { status: 400 })
+  if (!descricao) return NextResponse.json({ error: 'Descreva a solicitação (fica registrado como origem, imutável)' }, { status: 400 })
+
+  const config = await carregarConfigCompras()
+  if (!config.diretoria_id) {
+    return NextResponse.json({ error: 'A Diretoria de Compras ainda não foi designada. Peça a um administrador para configurar os responsáveis das etapas.' }, { status: 400 })
+  }
+
+  const payload: PayloadSC = {
+    produto,
+    produto_codigo: String(body.produto_codigo || '').trim() || undefined,
+    quantidade_solicitada: qtdSolicitada,
+    preco_alvo: precoAlvo,
+    cliente_destino: clienteDestino,
+    pv_numero: pvNumero,
+  }
+  const bloqueio = await avaliarBloqueio(payload, config)
+  if (bloqueio) payload.bloqueio = bloqueio
+
+  const { data: criado, error } = await supabaseAdmin
+    .from('tickets')
+    .insert({
+      tipo: 'compras',
+      sc_etapa: 'diretoria',
+      status: 'aguardando_interno',
+      categoria: 'Compras',
+      titulo: `SC — ${produto}`,
+      descricao,
+      solicitante_id: auth.userId,
+      responsavel_id: config.diretoria_id,
+      payload,
+    })
+    .select('*')
+    .single()
+  if (error || !criado) return NextResponse.json({ error: error?.message || 'Falha ao criar' }, { status: 500 })
+
+  const ticket = criado as Ticket
+  await garantirParticipante(ticket.id, auth.userId, null)
+  await garantirParticipante(ticket.id, config.diretoria_id, auth.userId)
+  await registrarEvento(ticket.id, auth.userId, 'sc_criada', {
+    produto, quantidade_solicitada: qtdSolicitada, cliente_destino: clienteDestino,
+    pv_numero: pvNumero, ...(precoAlvo != null ? { preco_alvo: precoAlvo } : {}),
+  })
+  await notificarTicket(
+    ticket, [config.diretoria_id], auth.userId,
+    `Nova Solicitação de Compras #${ticket.numero}: ${produto}`,
+    'Você é a Diretoria responsável por avaliar esta SC.',
   )
 
   return NextResponse.json({ ticket })

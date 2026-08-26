@@ -1,0 +1,169 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e626]:
+            - generic [ref=f2e627]:
+              - button "" [ref=f2e628] [cursor=pointer]
+              - generic [ref=f2e630]: Novo Lançamento
+            - generic [ref=f2e631]:
+              - generic [ref=f2e632]:
+                - generic [ref=f2e633]:
+                  - generic [ref=f2e634]:
+                    - generic [ref=f2e635]: Tipo do Pedido
+                    - combobox [ref=f2e636]:
+                      - option "Pedido de Venda (PPV)" [selected]
+                      - option "Remessa (REM)"
+                  - generic [ref=f2e637]:
+                    - generic [ref=f2e638]: Motivo da Saída
+                    - combobox [ref=f2e639]:
+                      - option "Venda Balcão" [selected]
+                      - option "Orçamento Cliente"
+                      - option "Saída Técnico (Sem OS)"
+                      - option "Saída Técnico (Com OS)"
+                - generic [ref=f2e640]:
+                  - generic [ref=f2e641]: Técnico *
+                  - combobox [ref=f2e642]:
+                    - option "-- Selecione o técnico --"
+                    - option "ARTHUR"
+                    - option "CARIVALDO"
+                    - option "DANILO DE SOUZA"
+                    - option "FERNANDO LEONEL"
+                    - option "GABRIEL MORAES"
+                    - option "HENRI HIONI"
+                    - option "JOSE ANTONIO DE OLIVEIRA"
+                    - option "JOSE ORTIZ"
+                    - option "LUIZ FERNANDO"
+                    - option "NICOLAS DARIO"
+                    - option "PAULO MOTTA"
+                    - option "PEDRO MOTTA" [selected]
+                    - option "VINICIUS CORREA"
+                - generic [ref=f2e643]:
+                  - generic [ref=f2e644]: Cliente *
+                  - generic [ref=f2e646] [cursor=pointer]:
+                    - generic [ref=f2e647]: 
+                    - generic [ref=f2e1106]:
+                      - generic [ref=f2e1107]: JOSE CARLOS FERNANDES
+                      - generic [ref=f2e1108]: 07.916.196/0006-12 — ITAI (SP) - SP
+                - generic [ref=f2e649]:
+                  - generic [ref=f2e650]: Ordem de Serviço (opcional)
+                  - generic [ref=f2e652] [cursor=pointer]:
+                    - generic [ref=f2e653]: 
+                    - generic [ref=f2e654]: Clique aqui para vincular uma O.S.
+                - generic [ref=f2e655]:
+                  - generic [ref=f2e656]: Projeto (opcional)
+                  - textbox "Nome do projeto..." [ref=f2e657]
+                - generic [ref=f2e658]:
+                  - generic [ref=f2e659]: Observações (opcional)
+                  - textbox "Escreva aqui se precisar..." [ref=f2e660]
+                - generic [ref=f2e661]:
+                  - generic [ref=f2e662]: 
+                  - text: Kit de Revisão
+                - button " Importar Kit de Revisão Revisão, manutenção ou quadriciclo — escolha o modelo " [ref=f2e663] [cursor=pointer]:
+                  - generic [ref=f2e664]: 
+                  - generic [ref=f2e666]:
+                    - generic [ref=f2e667]: Importar Kit de Revisão
+                    - generic [ref=f2e668]: Revisão, manutenção ou quadriciclo — escolha o modelo
+                  - generic [ref=f2e669]: 
+                - generic [ref=f2e670]:
+                  - generic [ref=f2e671]: 
+                  - text: Adicionar Produto
+                - generic [ref=f2e674] [cursor=pointer]:
+                  - generic [ref=f2e675]: 
+                  - generic [ref=f2e676]: Clique para buscar produto
+                - generic [ref=f2e677]:
+                  - generic [ref=f2e678]:
+                    - generic [ref=f2e679]: Qtd
+                    - spinbutton [ref=f2e680]: "1"
+                  - button "+ Adicionar ao Carrinho" [ref=f2e681] [cursor=pointer]:
+                    - generic [ref=f2e682]: +
+                    - text: Adicionar ao Carrinho
+              - generic [ref=f2e683]:
+                - generic [ref=f2e684]:
+                  - generic [ref=f2e685]: 
+                  - generic [ref=f2e686]: Itens do Pedido
+                - generic [ref=f2e688]:
+                  - generic [ref=f2e689]: 
+                  - paragraph [ref=f2e690]: Nenhum produto adicionado
+                  - generic [ref=f2e691]: Busque produtos ou importe um kit de revisão
+                - generic [ref=f2e692]:
+                  - generic [ref=f2e693]:
+                    - generic [ref=f2e694]: Total
+                    - generic [ref=f2e695]: R$ 0,00
+                  - button " Finalizar Lançamento" [ref=f2e696] [cursor=pointer]:
+                    - generic [ref=f2e697]: 
+                    - text: Finalizar Lançamento
+        - generic [ref=f2e1110]:
+          - generic [ref=f2e1111]:
+            - heading "Pesquisar Produto" [level=2] [ref=f2e1112]
+            - generic [ref=f2e1113]:
+              - button " Catálogos" [ref=f2e1114]:
+                - generic [ref=f2e1115]: 
+                - text: Catálogos
+              - button "×" [ref=f2e1116]
+          - generic [ref=f2e1117]:
+            - generic [ref=f2e1118]:
+              - generic [ref=f2e1119]: 
+              - textbox "Codigo ou nome do produto..." [active] [ref=f2e1120]: filtro oleo
+              - button "Buscar" [ref=f2e1121]
+            - table [ref=f2e1123]:
+              - rowgroup [ref=f2e1124]:
+                - row [ref=f2e1125]:
+                  - columnheader "CODIGO" [ref=f2e1126]
+                  - columnheader "DESCRICAO" [ref=f2e1127]
+                  - columnheader "PRECO" [ref=f2e1128]
+                  - columnheader "EMPRESA" [ref=f2e1129]
+                  - columnheader "ORIGEM" [ref=f2e1130]
+              - rowgroup [ref=f2e1131]:
+                - row [ref=f2e1136]:
+                  - cell " Nenhum produto encontrado." [ref=f2e1137]:
+                    - generic [ref=f2e1138]: 
+                    - generic [ref=f2e1139]: Nenhum produto encontrado.
+  - alert [ref=f2e15]

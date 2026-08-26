@@ -1,0 +1,820 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [active] [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e118]:
+            - generic [ref=f2e119]:
+              - generic [ref=f2e120]: 
+              - textbox "Buscar ID, Cliente, Técnico..." [ref=f2e121]
+            - generic [ref=f2e122]:
+              - button " Todos" [ref=f2e123] [cursor=pointer]:
+                - generic [ref=f2e124]: 
+                - text: Todos
+              - button " Pedido de Venda" [ref=f2e125] [cursor=pointer]:
+                - generic [ref=f2e126]: 
+                - text: Pedido de Venda
+              - button " Remessa" [ref=f2e127] [cursor=pointer]:
+                - generic [ref=f2e128]: 
+                - text: Remessa
+            - generic [ref=f2e129]:
+              - combobox [ref=f2e130] [cursor=pointer]:
+                - option "Técnico" [selected]
+                - option "ARTHUR"
+                - option "CARIVALDO"
+                - option "DANILO DE SOUZA"
+                - option "FERNANDO LEONEL"
+                - option "GABRIEL MORAES"
+                - option "HENRI HIONI"
+                - option "JOSE ANTONIO DE OLIVEIRA"
+                - option "JOSE ORTIZ"
+                - option "LUIZ FERNANDO"
+                - option "NICOLAS DARIO"
+                - option "PAULO MOTTA"
+                - option "PEDRO MOTTA"
+                - option "VINICIUS CORREA"
+              - generic: 
+              - generic: 
+            - generic [ref=f2e132]:
+              - generic [ref=f2e133]: 
+              - textbox "Cliente..." [ref=f2e134]
+          - main [ref=f2e136]:
+            - generic [ref=f2e137]:
+              - generic [ref=f2e138] [cursor=pointer]:
+                - generic [ref=f2e139]: 
+                - generic [ref=f2e142]: Orçamento
+                - generic [ref=f2e143]: "7"
+              - generic [ref=f2e145]:
+                - generic [ref=f2e146] [cursor=pointer]:
+                  - combobox [ref=f2e148]:
+                    - option "Orçamento" [selected]
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e149]:
+                    - generic [ref=f2e150]: "#PPV-0201"
+                    - generic [ref=f2e151]: R$ 865,00
+                  - generic [ref=f2e152]: JOSE VALDIR DA SILVA
+                  - generic [ref=f2e153]:
+                    - generic [ref=f2e154]:
+                      - generic [ref=f2e155]: 
+                      - text: PEDRO MOTTA
+                    - generic [ref=f2e156]:
+                      - generic [ref=f2e157]: 
+                      - text: 23/04/2026 18:04
+                    - generic [ref=f2e158]: PPV
+                  - generic [ref=f2e159]:
+                    - generic [ref=f2e160]: Observação alterada
+                    - generic [ref=f2e161]:
+                      - generic [ref=f2e162]:
+                        - generic [ref=f2e163]: 
+                        - text: Vinicius Correa
+                      - generic [ref=f2e164]: 24/06/2026 19:48
+                - generic [ref=f2e165] [cursor=pointer]:
+                  - combobox [ref=f2e167]:
+                    - option "Orçamento" [selected]
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e168]:
+                    - generic [ref=f2e169]: "#PPV-0308"
+                    - generic [ref=f2e170]: R$ 12.131,00
+                  - generic [ref=f2e171]: ANA SILLA DE PAULA BERNARDES
+                  - generic [ref=f2e172]:
+                    - generic [ref=f2e173]:
+                      - generic [ref=f2e174]: 
+                      - text: NICOLAS DARIO
+                    - generic [ref=f2e175]:
+                      - generic [ref=f2e176]: 
+                      - text: 22/06/2026 10:59
+                    - generic [ref=f2e177]: PPV
+                  - generic [ref=f2e178]:
+                    - generic [ref=f2e179]: "Adicionou item: 1 un de B2026740"
+                    - generic [ref=f2e180]:
+                      - generic [ref=f2e181]:
+                        - generic [ref=f2e182]: 
+                        - text: Jose Ortiz
+                      - generic [ref=f2e183]: 22/06/2026 11:01
+                - generic [ref=f2e184] [cursor=pointer]:
+                  - combobox [ref=f2e186]:
+                    - option "Orçamento" [selected]
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e187]:
+                    - generic [ref=f2e188]: "#PPV-0346"
+                    - generic [ref=f2e189]: R$ 675,00
+                  - generic [ref=f2e190]: ONOFRE TRAJANO ALVES
+                  - generic [ref=f2e191]:
+                    - generic [ref=f2e192]:
+                      - generic [ref=f2e193]: 
+                      - text: FERNANDO LEONEL
+                    - generic [ref=f2e194]:
+                      - generic [ref=f2e195]: 
+                      - text: 14/07/2026 19:24
+                    - generic [ref=f2e196]: PPV
+                  - generic [ref=f2e197]:
+                    - generic [ref=f2e198]: "Status auto-sync: Aguardando → Orçamento (OS OS-0567: \"Orçamento\")"
+                    - generic [ref=f2e199]:
+                      - generic [ref=f2e200]:
+                        - generic [ref=f2e201]: 
+                        - text: sistema@ppv.local
+                      - generic [ref=f2e202]: 14/07/2026 19:24
+                - generic [ref=f2e203] [cursor=pointer]:
+                  - combobox [ref=f2e205]:
+                    - option "Orçamento" [selected]
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e206]:
+                    - generic [ref=f2e207]: "#PPV-0237"
+                    - generic [ref=f2e208]: R$ 1.035,00
+                  - generic [ref=f2e209]: JORGE ISHIZUKA
+                  - generic [ref=f2e210]: REVISÃO 1500H orçamento pedido por cliente, apenas as peças
+                  - generic [ref=f2e211]:
+                    - generic [ref=f2e212]:
+                      - generic [ref=f2e213]: 
+                      - text: ARTHUR
+                    - generic [ref=f2e214]:
+                      - generic [ref=f2e215]: 
+                      - text: 13/05/2026 18:30
+                    - generic [ref=f2e216]: PPV
+                - generic [ref=f2e217] [cursor=pointer]:
+                  - combobox [ref=f2e219]:
+                    - option "Orçamento" [selected]
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e220]:
+                    - generic [ref=f2e221]: "#PPV-0174"
+                    - generic [ref=f2e222]: R$ 1.170,00
+                  - generic [ref=f2e223]: MENSORI CONSERVAÇÂO INTELIGENTE DE INFRAESTRUTURA
+                  - generic [ref=f2e224]: Orçamento de filtros para Mensori
+                  - generic [ref=f2e225]:
+                    - generic [ref=f2e226]:
+                      - generic [ref=f2e227]: 
+                      - text: PAULO MOTTA
+                    - generic [ref=f2e228]:
+                      - generic [ref=f2e229]: 
+                      - text: 09/04/2026 13:34
+                    - generic [ref=f2e230]: PPV
+                - generic [ref=f2e231] [cursor=pointer]:
+                  - combobox [ref=f2e233]:
+                    - option "Orçamento" [selected]
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e234]:
+                    - generic [ref=f2e235]: "#PPV-0337"
+                    - generic [ref=f2e236]: R$ 1.901,00
+                  - generic [ref=f2e237]: IPAUSSU GABINETE PREFEITO
+                  - generic [ref=f2e238]:
+                    - generic [ref=f2e239]:
+                      - generic [ref=f2e240]: 
+                      - text: GABRIEL MORAES
+                    - generic [ref=f2e241]:
+                      - generic [ref=f2e242]: 
+                      - text: 07/07/2026 15:45
+                    - generic [ref=f2e243]: PPV
+                  - generic [ref=f2e244]:
+                    - generic [ref=f2e245]: "Status auto-sync: Aguardando → Orçamento (OS OS-0543: \"Orçamento\")"
+                    - generic [ref=f2e246]:
+                      - generic [ref=f2e247]:
+                        - generic [ref=f2e248]: 
+                        - text: sistema@ppv.local
+                      - generic [ref=f2e249]: 07/07/2026 15:45
+                - generic [ref=f2e250] [cursor=pointer]:
+                  - combobox [ref=f2e252]:
+                    - option "Orçamento" [selected]
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e253]:
+                    - generic [ref=f2e254]: "#REM-0005"
+                    - generic [ref=f2e255]: R$ 14.710,26
+                  - generic [ref=f2e256]: LUIZ CARLOS DA SILVA
+                  - generic [ref=f2e257]: troca do tanque accura Garantia
+                  - generic [ref=f2e258]:
+                    - generic [ref=f2e259]:
+                      - generic [ref=f2e260]: 
+                      - text: PEDRO MOTTA
+                    - generic [ref=f2e261]:
+                      - generic [ref=f2e262]: 
+                      - text: 06/05/2026 19:35
+                    - generic [ref=f2e263]: REM
+            - generic [ref=f2e264]:
+              - generic [ref=f2e265] [cursor=pointer]:
+                - generic [ref=f2e266]: 
+                - generic [ref=f2e269]: Orçamento enviado para o cliente e aguardando
+                - generic [ref=f2e270]: "1"
+              - generic [ref=f2e273] [cursor=pointer]:
+                - combobox [ref=f2e275]:
+                  - option "Orçamento"
+                  - option "Orç. Enviado" [selected]
+                  - option "Execução"
+                  - option "Diagnóstico"
+                  - option "Aguar. Peças"
+                  - option "Aguar. Comercial"
+                  - option "Aguar. Outros"
+                  - option "Aguar. Técnico"
+                  - option "Rel. Concluído"
+                  - option "Concluída"
+                  - option "Cancelada"
+                - generic [ref=f2e276]:
+                  - generic [ref=f2e277]: "#PPV-0347"
+                  - generic [ref=f2e278]: R$ 1.053,00
+                - generic [ref=f2e279]: EDMAR JOSE BERNARDES
+                - generic [ref=f2e280]:
+                  - generic [ref=f2e281]:
+                    - generic [ref=f2e282]: 
+                    - text: DANILO DE SOUZA
+                  - generic [ref=f2e283]:
+                    - generic [ref=f2e284]: 
+                    - text: 15/07/2026 11:19
+                  - generic [ref=f2e285]: PPV
+                - generic [ref=f2e286]:
+                  - generic [ref=f2e287]: "Adicionou item: 1 un de RP-006521100V01"
+                  - generic [ref=f2e288]:
+                    - generic [ref=f2e289]:
+                      - generic [ref=f2e290]: 
+                      - text: Jose Ortiz
+                    - generic [ref=f2e291]: 15/07/2026 11:42
+            - generic [ref=f2e292]:
+              - generic [ref=f2e293] [cursor=pointer]:
+                - generic [ref=f2e294]: 
+                - generic [ref=f2e297]: Execução
+                - generic [ref=f2e298]: "4"
+              - generic [ref=f2e300]:
+                - generic [ref=f2e301] [cursor=pointer]:
+                  - combobox [ref=f2e303]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução" [selected]
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e304]:
+                    - generic [ref=f2e305]: "#PPV-0154"
+                    - generic [ref=f2e306]: R$ 3.570,00
+                  - generic [ref=f2e307]: ADRIANO CORCOVIA
+                  - generic [ref=f2e308]: REV 2400 4589
+                  - generic [ref=f2e309]:
+                    - generic [ref=f2e310]:
+                      - generic [ref=f2e311]: 
+                      - text: DANILO DE SOUZA
+                    - generic [ref=f2e312]:
+                      - generic [ref=f2e313]: 
+                      - text: 30/03/2026 14:29
+                    - generic [ref=f2e314]: PPV
+                - generic [ref=f2e315] [cursor=pointer]:
+                  - combobox [ref=f2e317]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução" [selected]
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e318]:
+                    - generic [ref=f2e319]: "#PPV-0345"
+                    - generic [ref=f2e320]: R$ 695,00
+                  - generic [ref=f2e321]: ANGELO COSSOMATO NETO ( cnpj )
+                  - generic [ref=f2e322]: Gerado automaticamente pela OS OS-0564 (Revisão de 50 horas 2025 - Troca de Óleo do Motor, Troca de Filtro do Motor, Troca de Filtro do Combustível, Troca de Filtro do Hidráulico.)
+                  - generic [ref=f2e323]:
+                    - generic [ref=f2e324]:
+                      - generic [ref=f2e325]: 
+                      - text: GABRIEL MORAES
+                    - generic [ref=f2e326]:
+                      - generic [ref=f2e327]: 
+                      - text: 14/07/2026 12:41
+                    - generic [ref=f2e328]: PPV
+                  - generic [ref=f2e329]:
+                    - generic [ref=f2e330]: Status alterado para "Execução" (sync com OS-0564)
+                    - generic [ref=f2e331]:
+                      - generic [ref=f2e332]:
+                        - generic [ref=f2e333]: 
+                        - text: Sistema
+                      - generic [ref=f2e334]: 2026-07-15T10:25:55.244Z
+                - generic [ref=f2e335] [cursor=pointer]:
+                  - combobox [ref=f2e337]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução" [selected]
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e338]:
+                    - generic [ref=f2e339]: "#PPV-0343"
+                    - generic [ref=f2e340]: R$ 2.301,00
+                  - generic [ref=f2e341]: JOSE TARCISO FAULIN ( fazenda pocinho I )
+                  - generic [ref=f2e342]:
+                    - generic [ref=f2e343]:
+                      - generic [ref=f2e344]: 
+                      - text: DANILO DE SOUZA
+                    - generic [ref=f2e345]:
+                      - generic [ref=f2e346]: 
+                      - text: 13/07/2026 19:39
+                    - generic [ref=f2e347]: PPV
+                  - generic [ref=f2e348]:
+                    - generic [ref=f2e349]: Devolveu 1 un de RP-FP0807002161-0 (não usada) — via Tratorilson
+                    - generic [ref=f2e350]:
+                      - generic [ref=f2e351]:
+                        - generic [ref=f2e352]: 
+                        - text: Tratorilson (auto)
+                      - generic [ref=f2e353]: 14/07/2026 16:58
+                - generic [ref=f2e354] [cursor=pointer]:
+                  - combobox [ref=f2e356]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução" [selected]
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e357]:
+                    - generic [ref=f2e358]: "#PPV-0276"
+                    - generic [ref=f2e359]: R$ 5.099,60
+                  - generic [ref=f2e360]: JANE ANDREA BIONDO CORREIA
+                  - generic [ref=f2e361]:
+                    - generic [ref=f2e362]:
+                      - generic [ref=f2e363]: 
+                      - text: GABRIEL MORAES
+                    - generic [ref=f2e364]:
+                      - generic [ref=f2e365]: 
+                      - text: 05/06/2026 10:54
+                    - generic [ref=f2e366]: PPV
+                  - generic [ref=f2e367]:
+                    - generic [ref=f2e368]: "Desconto alterado: 0% → 5%"
+                    - generic [ref=f2e369]:
+                      - generic [ref=f2e370]:
+                        - generic [ref=f2e371]: 
+                        - text: Jose Ortiz
+                      - generic [ref=f2e372]: 08/06/2026 12:12
+            - generic [ref=f2e373]:
+              - generic [ref=f2e374] [cursor=pointer]:
+                - generic [ref=f2e375]: 
+                - generic [ref=f2e378]: Execução (Realizando Diagnóstico)
+                - generic [ref=f2e379]: "1"
+              - generic [ref=f2e382] [cursor=pointer]:
+                - combobox [ref=f2e384]:
+                  - option "Orçamento"
+                  - option "Orç. Enviado"
+                  - option "Execução"
+                  - option "Diagnóstico" [selected]
+                  - option "Aguar. Peças"
+                  - option "Aguar. Comercial"
+                  - option "Aguar. Outros"
+                  - option "Aguar. Técnico"
+                  - option "Rel. Concluído"
+                  - option "Concluída"
+                  - option "Cancelada"
+                - generic [ref=f2e385]:
+                  - generic [ref=f2e386]: "#PPV-0150"
+                  - generic [ref=f2e387]: R$ 776,08
+                - generic [ref=f2e388]: JOSE CARLOS FERNANDES
+                - generic [ref=f2e389]: Barulho no motor
+                - generic [ref=f2e390]:
+                  - generic [ref=f2e391]:
+                    - generic [ref=f2e392]: 
+                    - text: PEDRO MOTTA
+                  - generic [ref=f2e393]:
+                    - generic [ref=f2e394]: 
+                    - text: 30/03/2026 10:49
+                  - generic [ref=f2e395]: PPV
+                - generic [ref=f2e396]:
+                  - generic [ref=f2e397]: Status alterado para "Execução (Realizando Diagnóstico)" (sync com OS-0211)
+                  - generic [ref=f2e398]:
+                    - generic [ref=f2e399]:
+                      - generic [ref=f2e400]: 
+                      - text: Sistema
+                    - generic [ref=f2e401]: 2026-07-02T11:19:12.670Z
+            - generic [ref=f2e402]:
+              - generic [ref=f2e403] [cursor=pointer]:
+                - generic [ref=f2e404]: 
+                - generic [ref=f2e407]: Executada aguardando comercial
+                - generic [ref=f2e408]: "4"
+              - generic [ref=f2e410]:
+                - generic [ref=f2e411] [cursor=pointer]:
+                  - combobox [ref=f2e413]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial" [selected]
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e414]:
+                    - generic [ref=f2e415]: "#PPV-0344"
+                    - generic [ref=f2e416]: R$ 0,00
+                  - generic [ref=f2e417]: ROGERIO MINOZZI CORREA
+                  - generic [ref=f2e418]:
+                    - generic [ref=f2e419]:
+                      - generic [ref=f2e420]: 
+                      - text: PEDRO MOTTA
+                    - generic [ref=f2e421]:
+                      - generic [ref=f2e422]: 
+                      - text: 14/07/2026 10:52
+                    - generic [ref=f2e423]: PPV
+                  - generic [ref=f2e424]:
+                    - generic [ref=f2e425]: Devolveu 1 un de RP-E007206626D1 (não usada) — via Tratorilson
+                    - generic [ref=f2e426]:
+                      - generic [ref=f2e427]:
+                        - generic [ref=f2e428]: 
+                        - text: Tratorilson (auto)
+                      - generic [ref=f2e429]: 14/07/2026 16:03
+                - generic [ref=f2e430] [cursor=pointer]:
+                  - combobox [ref=f2e432]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial" [selected]
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e433]:
+                    - generic [ref=f2e434]: "#PPV-0340"
+                    - generic [ref=f2e435]: "-R$ 4.167,00"
+                  - generic [ref=f2e436]: DANIEL DIANAS RIBEIRO E OUTRO
+                  - generic [ref=f2e437]: REV 1200H
+                  - generic [ref=f2e438]:
+                    - generic [ref=f2e439]:
+                      - generic [ref=f2e440]: 
+                      - text: GABRIEL MORAES
+                    - generic [ref=f2e441]:
+                      - generic [ref=f2e442]: 
+                      - text: 13/07/2026 13:59
+                    - generic [ref=f2e443]: PPV
+                  - generic [ref=f2e444]:
+                    - generic [ref=f2e445]: Devolveu 1 un de HS112CINZA (não usada) — via Tratorilson
+                    - generic [ref=f2e446]:
+                      - generic [ref=f2e447]:
+                        - generic [ref=f2e448]: 
+                        - text: Tratorilson (auto)
+                      - generic [ref=f2e449]: 14/07/2026 11:29
+                - generic [ref=f2e450] [cursor=pointer]:
+                  - combobox [ref=f2e452]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial" [selected]
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e453]:
+                    - generic [ref=f2e454]: "#PPV-0338"
+                    - generic [ref=f2e455]: "-R$ 3.809,00"
+                  - generic [ref=f2e456]: ADRIANO CORCOVIA
+                  - generic [ref=f2e457]:
+                    - generic [ref=f2e458]:
+                      - generic [ref=f2e459]: 
+                      - text: DANILO DE SOUZA
+                    - generic [ref=f2e460]:
+                      - generic [ref=f2e461]: 
+                      - text: 07/07/2026 15:53
+                    - generic [ref=f2e462]: PPV
+                  - generic [ref=f2e463]:
+                    - generic [ref=f2e464]: Devolveu 1 un de 13X1215 (não usada) — via Tratorilson
+                    - generic [ref=f2e465]:
+                      - generic [ref=f2e466]:
+                        - generic [ref=f2e467]: 
+                        - text: Tratorilson (auto)
+                      - generic [ref=f2e468]: 14/07/2026 16:17
+                - generic [ref=f2e469] [cursor=pointer]:
+                  - combobox [ref=f2e471]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial" [selected]
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído"
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e472]:
+                    - generic [ref=f2e473]: "#PPV-0333"
+                    - generic [ref=f2e474]: R$ 6.085,00
+                  - generic [ref=f2e475]: FELIZARDO &amp; FELIZARDO SERVIÇOS DE MÃO DE OBRA LTDA
+                  - generic [ref=f2e476]: Gerado automaticamente pela OS OS-0537 (Revisão)
+                  - generic [ref=f2e477]:
+                    - generic [ref=f2e478]:
+                      - generic [ref=f2e479]: 
+                      - text: DANILO DE SOUZA
+                    - generic [ref=f2e480]:
+                      - generic [ref=f2e481]: 
+                      - text: 06/07/2026 11:21
+                    - generic [ref=f2e482]: PPV
+                  - generic [ref=f2e483]:
+                    - generic [ref=f2e484]: Devolveu 1 un de 006512071U1 (não usada) — via Tratorilson
+                    - generic [ref=f2e485]:
+                      - generic [ref=f2e486]:
+                        - generic [ref=f2e487]: 
+                        - text: Tratorilson (auto)
+                      - generic [ref=f2e488]: 14/07/2026 13:33
+            - generic [ref=f2e489]:
+              - generic [ref=f2e490] [cursor=pointer]:
+                - generic [ref=f2e491]: 
+                - generic [ref=f2e494]: Aguardando outros
+                - generic [ref=f2e495]: "1"
+              - generic [ref=f2e498] [cursor=pointer]:
+                - combobox [ref=f2e500]:
+                  - option "Orçamento"
+                  - option "Orç. Enviado"
+                  - option "Execução"
+                  - option "Diagnóstico"
+                  - option "Aguar. Peças"
+                  - option "Aguar. Comercial"
+                  - option "Aguar. Outros" [selected]
+                  - option "Aguar. Técnico"
+                  - option "Rel. Concluído"
+                  - option "Concluída"
+                  - option "Cancelada"
+                - generic [ref=f2e501]:
+                  - generic [ref=f2e502]: "#PPV-0307"
+                  - generic [ref=f2e503]: R$ 1.056,00
+                - generic [ref=f2e504]: JOSE CARLOS RIBEIRO E OUTROS
+                - generic [ref=f2e505]: Ref. Orçamento ORC-0022
+                - generic [ref=f2e506]:
+                  - generic [ref=f2e507]:
+                    - generic [ref=f2e508]: 
+                    - text: PAULO MOTTA
+                  - generic [ref=f2e509]:
+                    - generic [ref=f2e510]: 
+                    - text: 22/06/2026 10:49
+                  - generic [ref=f2e511]: PPV
+                - generic [ref=f2e512]:
+                  - generic [ref=f2e513]: Status alterado para "Aguardando outros" (sync com OS-0482)
+                  - generic [ref=f2e514]:
+                    - generic [ref=f2e515]:
+                      - generic [ref=f2e516]: 
+                      - text: Sistema
+                    - generic [ref=f2e517]: 2026-07-14T13:42:46.584Z
+            - generic [ref=f2e518]:
+              - generic [ref=f2e519] [cursor=pointer]:
+                - generic [ref=f2e520]: 
+                - generic [ref=f2e523]: Relatório Concluído
+                - generic [ref=f2e524]: "4"
+              - generic [ref=f2e526]:
+                - generic [ref=f2e527] [cursor=pointer]:
+                  - combobox [ref=f2e529]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído" [selected]
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e530]:
+                    - generic [ref=f2e531]: "#PPV-0264"
+                    - generic [ref=f2e532]: R$ 270,00
+                  - generic [ref=f2e533]: MOACIR ROSSETTI
+                  - generic [ref=f2e534]:
+                    - generic [ref=f2e535]:
+                      - generic [ref=f2e536]: 
+                      - text: DANILO DE SOUZA
+                    - generic [ref=f2e537]:
+                      - generic [ref=f2e538]: 
+                      - text: 27/05/2026 10:39
+                    - generic [ref=f2e539]: PPV
+                  - generic [ref=f2e540]:
+                    - generic [ref=f2e541]: Status alterado para "Relatório Concluído" (sync com OS-0395)
+                    - generic [ref=f2e542]:
+                      - generic [ref=f2e543]:
+                        - generic [ref=f2e544]: 
+                        - text: Sistema
+                      - generic [ref=f2e545]: 2026-05-28T16:33:18.463Z
+                - generic [ref=f2e546] [cursor=pointer]:
+                  - combobox [ref=f2e548]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído" [selected]
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e549]:
+                    - generic [ref=f2e550]: "#PPV-0303"
+                    - generic [ref=f2e551]: R$ 890,00
+                  - generic [ref=f2e552]: MARCELO AUGUSTO DE FREITAS
+                  - generic [ref=f2e553]:
+                    - generic [ref=f2e554]:
+                      - generic [ref=f2e555]: 
+                      - text: DANILO DE SOUZA
+                    - generic [ref=f2e556]:
+                      - generic [ref=f2e557]: 
+                      - text: 19/06/2026 20:13
+                    - generic [ref=f2e558]: PPV
+                  - generic [ref=f2e559]:
+                    - generic [ref=f2e560]: "Status auto-sync: Aguardando Para Faturar → Relatório Concluído (OS OS-0477: \"Relatório Concluído\")"
+                    - generic [ref=f2e561]:
+                      - generic [ref=f2e562]:
+                        - generic [ref=f2e563]: 
+                        - text: sistema@ppv.local
+                      - generic [ref=f2e564]: 22/06/2026 19:48
+                - generic [ref=f2e565] [cursor=pointer]:
+                  - combobox [ref=f2e567]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído" [selected]
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e568]:
+                    - generic [ref=f2e569]: "#PPV-0342"
+                    - generic [ref=f2e570]: R$ 2.031,00
+                  - generic [ref=f2e571]: PEDRO ALCANTARA RIBEIRO NETO E OUTRO
+                  - generic [ref=f2e572]:
+                    - generic [ref=f2e573]:
+                      - generic [ref=f2e574]: 
+                      - text: PEDRO MOTTA
+                    - generic [ref=f2e575]:
+                      - generic [ref=f2e576]: 
+                      - text: 13/07/2026 18:16
+                    - generic [ref=f2e577]: PPV
+                  - generic [ref=f2e578]:
+                    - generic [ref=f2e579]: "Status auto-sync: Aguardando Para Faturar → Relatório Concluído (OS OS-0559: \"Relatório Concluído\")"
+                    - generic [ref=f2e580]:
+                      - generic [ref=f2e581]:
+                        - generic [ref=f2e582]: 
+                        - text: sistema@ppv.local
+                      - generic [ref=f2e583]: 15/07/2026 07:50
+                - generic [ref=f2e584] [cursor=pointer]:
+                  - combobox [ref=f2e586]:
+                    - option "Orçamento"
+                    - option "Orç. Enviado"
+                    - option "Execução"
+                    - option "Diagnóstico"
+                    - option "Aguar. Peças"
+                    - option "Aguar. Comercial"
+                    - option "Aguar. Outros"
+                    - option "Aguar. Técnico"
+                    - option "Rel. Concluído" [selected]
+                    - option "Concluída"
+                    - option "Cancelada"
+                  - generic [ref=f2e587]:
+                    - generic [ref=f2e588]: "#PPV-0272"
+                    - generic [ref=f2e589]: R$ 1.437,08
+                  - generic [ref=f2e590]: AIRTON JOSE RIBEIRO NETO
+                  - generic [ref=f2e591]:
+                    - generic [ref=f2e592]:
+                      - generic [ref=f2e593]: 
+                      - text: PEDRO MOTTA
+                    - generic [ref=f2e594]:
+                      - generic [ref=f2e595]: 
+                      - text: 02/06/2026 11:03
+                    - generic [ref=f2e596]: PPV
+                  - generic [ref=f2e597]:
+                    - generic [ref=f2e598]: Status alterado para "Relatório Concluído" (sync com OS-0413)
+                    - generic [ref=f2e599]:
+                      - generic [ref=f2e600]:
+                        - generic [ref=f2e601]: 
+                        - text: Sistema
+                      - generic [ref=f2e602]: 2026-06-08T11:51:39.597Z
+            - generic [ref=f2e604] [cursor=pointer]:
+              - generic [ref=f2e605]: 
+              - generic [ref=f2e608]: Concluída
+              - generic [ref=f2e609]: "243"
+            - generic [ref=f2e612] [cursor=pointer]:
+              - generic [ref=f2e613]: 
+              - generic [ref=f2e616]: Cancelada
+              - generic [ref=f2e617]: "93"
+  - alert [ref=f2e15]

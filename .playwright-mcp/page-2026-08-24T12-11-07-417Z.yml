@@ -1,0 +1,366 @@
+- generic [ref=f7e1]:
+  - generic [ref=f7e2]:
+    - banner [ref=f7e7]:
+      - generic [ref=f7e8]:
+        - button [ref=f7e9] [cursor=pointer]
+        - link [ref=f7e11] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f7e12]
+        - link [ref=f7e14] [cursor=pointer]:
+          - /url: /propostas
+      - generic [ref=f7e19]:
+        - button "Tela dividida — dois sistemas lado a lado" [ref=f7e20] [cursor=pointer]
+        - button "Sua caixa de e-mail (henri.fhioni@gmail.com)" [ref=f7e1734] [cursor=pointer]
+        - button "Chat" [ref=f7e28] [cursor=pointer]
+        - button "24" [ref=f7e31] [cursor=pointer]
+        - button "Menu" [ref=f7e37] [cursor=pointer]
+        - generic "Meu perfil" [ref=f7e42] [cursor=pointer]:
+          - generic [ref=f7e44]:
+            - paragraph [ref=f7e45]: Henri Irneh
+            - paragraph [ref=f7e46]: Pós-Vendas
+    - generic [ref=f7e47]:
+      - generic [ref=f7e49]:
+        - paragraph [ref=f7e51]: Henri Irneh
+        - paragraph [ref=f7e52]: Pós-Vendas
+      - generic [ref=f7e53]:
+        - generic [ref=f7e54]:
+          - link "Dashboard" [ref=f7e55] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f7e64] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f7e70]:
+          - paragraph [ref=f7e71]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f7e73] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f7e80] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f7e87] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f7e93] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f7e102] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f7e109] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f7e116] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f7e123] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f7e129] [cursor=pointer]:
+            - /url: /cronograma
+          - link "Clientes" [ref=f7e135] [cursor=pointer]:
+            - /url: /clientes
+        - generic [ref=f7e142]:
+          - paragraph [ref=f7e143]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f7e145] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f7e153] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f7e159] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f7e166]:
+          - paragraph [ref=f7e167]: FINANCEIRO
+          - link "Financeiro" [ref=f7e169] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f7e175] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f7e181]:
+          - paragraph [ref=f7e182]: COMERCIAL
+          - link "Proposta Comercial" [ref=f7e184] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f7e193] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Supervisor Vendas" [ref=f7e200] [cursor=pointer]:
+            - /url: /supervisor-vendas
+        - generic [ref=f7e205]:
+          - paragraph [ref=f7e206]: ESTOQUE
+          - link "Visual Estoque" [ref=f7e208] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f7e214] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f7e221] [cursor=pointer]:
+            - /url: /ajustes
+        - generic [ref=f7e226]:
+          - paragraph [ref=f7e227]: FROTA
+          - link "Frota" [ref=f7e229] [cursor=pointer]:
+            - /url: /frota
+          - link "Pendências Frota" [ref=f7e238] [cursor=pointer]:
+            - /url: /pendencias
+        - generic [ref=f7e244]:
+          - paragraph [ref=f7e245]: OUTROS
+          - link "Opa" [ref=f7e247] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f7e253] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f7e259] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f7e276] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f7e282] [cursor=pointer]:
+          - /url: /admin
+        - link "Tratorilson" [ref=f7e288] [cursor=pointer]:
+          - /url: /tratorilson
+      - button "Sair do Portal" [ref=f7e295] [cursor=pointer]
+    - main [ref=f7e299]:
+      - generic [ref=f7e300]:
+        - generic [ref=f7e304]:
+          - button "Propostas Cliente" [ref=f7e305] [cursor=pointer]
+          - button "Pedidos Fabrica" [ref=f7e311] [cursor=pointer]
+          - button "Resumo" [ref=f7e314] [cursor=pointer]
+          - button "Lixeira" [ref=f7e317] [cursor=pointer]
+        - generic [ref=f7e1771]:
+          - generic [ref=f7e1772]:
+            - generic [ref=f7e1773]:
+              - generic [ref=f7e1774]: "Período:"
+              - button "Últimos 30 dias" [ref=f7e1775] [cursor=pointer]
+              - button "Últimos 90 dias" [ref=f7e1776] [cursor=pointer]
+              - button "Tudo" [active] [ref=f7e1777] [cursor=pointer]
+            - generic [ref=f7e1778]:
+              - generic [ref=f7e1779]: "Agrupar por:"
+              - button "Vendedor" [ref=f7e1780] [cursor=pointer]
+              - button "Marca" [ref=f7e1786] [cursor=pointer]
+              - button "Modelo" [ref=f7e1790] [cursor=pointer]
+              - button "Cidade" [ref=f7e1795] [cursor=pointer]
+          - table [ref=f7e1800]:
+            - rowgroup [ref=f7e1801]:
+              - row [ref=f7e1839]:
+                - columnheader "Marca" [ref=f7e2072] [cursor=pointer]
+                - columnheader "Propostas" [ref=f7e2074] [cursor=pointer]
+                - columnheader "Valor total ▼" [ref=f7e2076] [cursor=pointer]:
+                  - generic [ref=f7e2077]:
+                    - text: Valor total
+                    - generic [ref=f7e2078]: ▼
+                - columnheader "Em aberto" [ref=f7e2079] [cursor=pointer]
+                - columnheader "Vendidas" [ref=f7e2081] [cursor=pointer]
+                - columnheader "Perdidas" [ref=f7e2083] [cursor=pointer]
+            - rowgroup [ref=f7e1816]:
+              - row [ref=f7e1853]:
+                - cell "MAHINDRA" [ref=f7e1854]
+                - cell "13" [ref=f7e1855]
+                - cell "R$ 2.565.800,00" [ref=f7e1856]
+                - cell "13" [ref=f7e1857]
+                - cell "0" [ref=f7e1858]
+                - cell "0" [ref=f7e1859]
+              - row [ref=f7e1860]:
+                - cell "KUHN" [ref=f7e1861]
+                - cell "6" [ref=f7e1862]
+                - cell "R$ 1.678.837,00" [ref=f7e1863]
+                - cell "4" [ref=f7e1864]
+                - cell "1" [ref=f7e1865]
+                - cell "1" [ref=f7e1866]
+              - row [ref=f7e1867]:
+                - cell "TDI" [ref=f7e1868]
+                - cell "2" [ref=f7e1869]
+                - cell "R$ 1.574.847,00" [ref=f7e1870]
+                - cell "0" [ref=f7e1871]
+                - cell "0" [ref=f7e1872]
+                - cell "2" [ref=f7e1873]
+              - row [ref=f7e1874]:
+                - cell "Mahindra" [ref=f7e1875]
+                - cell "6" [ref=f7e1876]
+                - cell "R$ 1.243.000,00" [ref=f7e1877]
+                - cell "5" [ref=f7e1878]
+                - cell "0" [ref=f7e1879]
+                - cell "1" [ref=f7e1880]
+              - row [ref=f7e1881]:
+                - cell "SCHEMAQ" [ref=f7e1882]
+                - cell "5" [ref=f7e1883]
+                - cell "R$ 704.800,00" [ref=f7e1884]
+                - cell "5" [ref=f7e1885]
+                - cell "0" [ref=f7e1886]
+                - cell "0" [ref=f7e1887]
+              - row [ref=f7e1888]:
+                - cell "PALINI ALVES" [ref=f7e1889]
+                - cell "1" [ref=f7e1890]
+                - cell "R$ 635.000,00" [ref=f7e1891]
+                - cell "0" [ref=f7e1892]
+                - cell "1" [ref=f7e1893]
+                - cell "0" [ref=f7e1894]
+              - row [ref=f7e1895]:
+                - cell "SOLOMAQ" [ref=f7e1896]
+                - cell "8" [ref=f7e1897]
+                - cell "R$ 463.066,00" [ref=f7e1898]
+                - cell "8" [ref=f7e1899]
+                - cell "0" [ref=f7e1900]
+                - cell "0" [ref=f7e1901]
+              - row [ref=f7e1902]:
+                - cell "MARISPAN" [ref=f7e1903]
+                - cell "7" [ref=f7e1904]
+                - cell "R$ 373.425,00" [ref=f7e1905]
+                - cell "7" [ref=f7e1906]
+                - cell "0" [ref=f7e1907]
+                - cell "0" [ref=f7e1908]
+              - row [ref=f7e1909]:
+                - cell "TATU MARCHESAN" [ref=f7e1910]
+                - cell "2" [ref=f7e1911]
+                - cell "R$ 309.948,00" [ref=f7e1912]
+                - cell "2" [ref=f7e1913]
+                - cell "0" [ref=f7e1914]
+                - cell "0" [ref=f7e1915]
+              - row [ref=f7e1916]:
+                - cell "IPACOL" [ref=f7e1917]
+                - cell "2" [ref=f7e1918]
+                - cell "R$ 275.897,00" [ref=f7e1919]
+                - cell "2" [ref=f7e1920]
+                - cell "0" [ref=f7e1921]
+                - cell "0" [ref=f7e1922]
+              - row [ref=f7e1923]:
+                - cell "FMCOPLING" [ref=f7e1924]
+                - cell "2" [ref=f7e1925]
+                - cell "R$ 228.700,00" [ref=f7e1926]
+                - cell "2" [ref=f7e1927]
+                - cell "0" [ref=f7e1928]
+                - cell "0" [ref=f7e1929]
+              - row [ref=f7e1930]:
+                - cell "GANA" [ref=f7e1931]
+                - cell "2" [ref=f7e1932]
+                - cell "R$ 190.200,00" [ref=f7e1933]
+                - cell "2" [ref=f7e1934]
+                - cell "0" [ref=f7e1935]
+                - cell "0" [ref=f7e1936]
+              - row [ref=f7e1937]:
+                - cell "NOGUEIRA" [ref=f7e1938]
+                - cell "1" [ref=f7e1939]
+                - cell "R$ 190.000,00" [ref=f7e1940]
+                - cell "1" [ref=f7e1941]
+                - cell "0" [ref=f7e1942]
+                - cell "0" [ref=f7e1943]
+              - row [ref=f7e1944]:
+                - cell "MIAC" [ref=f7e1945]
+                - cell "1" [ref=f7e1946]
+                - cell "R$ 188.000,00" [ref=f7e1947]
+                - cell "1" [ref=f7e1948]
+                - cell "0" [ref=f7e1949]
+                - cell "0" [ref=f7e1950]
+              - row [ref=f7e1951]:
+                - cell "KAMAQ" [ref=f7e1952]
+                - cell "3" [ref=f7e1953]
+                - cell "R$ 116.000,00" [ref=f7e1954]
+                - cell "2" [ref=f7e1955]
+                - cell "1" [ref=f7e1956]
+                - cell "0" [ref=f7e1957]
+              - row [ref=f7e1958]:
+                - cell "GTM" [ref=f7e1959]
+                - cell "1" [ref=f7e1960]
+                - cell "R$ 115.000,00" [ref=f7e1961]
+                - cell "1" [ref=f7e1962]
+                - cell "0" [ref=f7e1963]
+                - cell "0" [ref=f7e1964]
+              - row [ref=f7e1965]:
+                - cell "MX" [ref=f7e1966]
+                - cell "1" [ref=f7e1967]
+                - cell "R$ 106.000,00" [ref=f7e1968]
+                - cell "1" [ref=f7e1969]
+                - cell "0" [ref=f7e1970]
+                - cell "0" [ref=f7e1971]
+              - row [ref=f7e1972]:
+                - cell "HARAMAQ" [ref=f7e1973]
+                - cell "1" [ref=f7e1974]
+                - cell "R$ 105.975,00" [ref=f7e1975]
+                - cell "1" [ref=f7e1976]
+                - cell "0" [ref=f7e1977]
+                - cell "0" [ref=f7e1978]
+              - row [ref=f7e1979]:
+                - cell "TRITUCAP" [ref=f7e1980]
+                - cell "1" [ref=f7e1981]
+                - cell "R$ 104.000,00" [ref=f7e1982]
+                - cell "1" [ref=f7e1983]
+                - cell "0" [ref=f7e1984]
+                - cell "0" [ref=f7e1985]
+              - row [ref=f7e1986]:
+                - cell "LUMA" [ref=f7e1987]
+                - cell "1" [ref=f7e1988]
+                - cell "R$ 96.800,00" [ref=f7e1989]
+                - cell "1" [ref=f7e1990]
+                - cell "0" [ref=f7e1991]
+                - cell "0" [ref=f7e1992]
+              - row [ref=f7e1993]:
+                - cell "VICON" [ref=f7e1994]
+                - cell "4" [ref=f7e1995]
+                - cell "R$ 93.270,00" [ref=f7e1996]
+                - cell "1" [ref=f7e1997]
+                - cell "2" [ref=f7e1998]
+                - cell "1" [ref=f7e1999]
+              - row [ref=f7e2000]:
+                - cell "HERDER" [ref=f7e2001]
+                - cell "1" [ref=f7e2002]
+                - cell "R$ 90.000,00" [ref=f7e2003]
+                - cell "1" [ref=f7e2004]
+                - cell "0" [ref=f7e2005]
+                - cell "0" [ref=f7e2006]
+              - row [ref=f7e2007]:
+                - cell "JF" [ref=f7e2008]
+                - cell "1" [ref=f7e2009]
+                - cell "R$ 75.586,00" [ref=f7e2010]
+                - cell "1" [ref=f7e2011]
+                - cell "0" [ref=f7e2012]
+                - cell "0" [ref=f7e2013]
+              - row [ref=f7e2014]:
+                - cell "VENTURA" [ref=f7e2015]
+                - cell "2" [ref=f7e2016]
+                - cell "R$ 61.500,00" [ref=f7e2017]
+                - cell "2" [ref=f7e2018]
+                - cell "0" [ref=f7e2019]
+                - cell "0" [ref=f7e2020]
+              - row [ref=f7e2021]:
+                - cell "ORION" [ref=f7e2022]
+                - cell "1" [ref=f7e2023]
+                - cell "R$ 44.000,00" [ref=f7e2024]
+                - cell "1" [ref=f7e2025]
+                - cell "0" [ref=f7e2026]
+                - cell "0" [ref=f7e2027]
+              - row [ref=f7e2028]:
+                - cell "BALDAN" [ref=f7e2029]
+                - cell "2" [ref=f7e2030]
+                - cell "R$ 44.000,00" [ref=f7e2031]
+                - cell "2" [ref=f7e2032]
+                - cell "0" [ref=f7e2033]
+                - cell "0" [ref=f7e2034]
+              - row [ref=f7e2035]:
+                - cell "INCOMAGRI" [ref=f7e2036]
+                - cell "1" [ref=f7e2037]
+                - cell "R$ 40.400,00" [ref=f7e2038]
+                - cell "1" [ref=f7e2039]
+                - cell "0" [ref=f7e2040]
+                - cell "0" [ref=f7e2041]
+              - row [ref=f7e2042]:
+                - cell "TERRIS" [ref=f7e2043]
+                - cell "1" [ref=f7e2044]
+                - cell "R$ 40.000,00" [ref=f7e2045]
+                - cell "1" [ref=f7e2046]
+                - cell "0" [ref=f7e2047]
+                - cell "0" [ref=f7e2048]
+              - row [ref=f7e2049]:
+                - cell "TADEU" [ref=f7e2050]
+                - cell "1" [ref=f7e2051]
+                - cell "R$ 31.800,00" [ref=f7e2052]
+                - cell "1" [ref=f7e2053]
+                - cell "0" [ref=f7e2054]
+                - cell "0" [ref=f7e2055]
+              - row [ref=f7e2056]:
+                - cell "IMEP" [ref=f7e2057]
+                - cell "1" [ref=f7e2058]
+                - cell "R$ 20.000,00" [ref=f7e2059]
+                - cell "0" [ref=f7e2060]
+                - cell "1" [ref=f7e2061]
+                - cell "0" [ref=f7e2062]
+              - row [ref=f7e2063]:
+                - cell "CEMAG" [ref=f7e2064]
+                - cell "1" [ref=f7e2065]
+                - cell "R$ 13,00" [ref=f7e2066]
+                - cell "1" [ref=f7e2067]
+                - cell "0" [ref=f7e2068]
+                - cell "0" [ref=f7e2069]
+            - rowgroup [ref=f7e1831]:
+              - row [ref=f7e2070]:
+                - cell "TOTAL (31 marcas)" [ref=f7e2071]
+                - cell "82" [ref=f7e1834]
+                - cell "R$ 11.805.864,00" [ref=f7e1835]
+                - cell "71" [ref=f7e1836]
+                - cell "6" [ref=f7e1837]
+                - cell "5" [ref=f7e1838]
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f7e1701]:
+      - generic [ref=f7e1752]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=f7e1730] [cursor=pointer]
+  - alert [ref=f7e6]

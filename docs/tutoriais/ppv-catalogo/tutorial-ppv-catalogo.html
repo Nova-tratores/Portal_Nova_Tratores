@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Tutorial — PPV e Catálogo de Peças | Portal Nova Tratores</title>
+<style>
+  @page { size: A4 portrait; margin: 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #1a202c; margin: 0; padding: 24px;
+    max-width: 860px; margin-left: auto; margin-right: auto;
+    font-size: 13.5px; line-height: 1.55;
+  }
+  @media print {
+    body { padding: 0; max-width: none; font-size: 12px; }
+    .no-print { display: none !important; }
+    .passo { break-inside: avoid; }
+    h2 { break-after: avoid; }
+  }
+
+  .capa {
+    border: 3px solid #b91c1c; border-radius: 14px;
+    padding: 28px 32px; margin-bottom: 28px;
+    background: #fff5f5;
+  }
+  .capa .marca { font-size: 13px; font-weight: 700; letter-spacing: 2px; color: #b91c1c; text-transform: uppercase; }
+  .capa h1 { margin: 6px 0 10px; font-size: 27px; line-height: 1.2; }
+  .capa p { margin: 0; color: #4a5568; }
+
+  h2 {
+    font-size: 20px; color: #b91c1c; border-bottom: 3px solid #b91c1c;
+    padding-bottom: 6px; margin: 38px 0 6px;
+  }
+  h2 .num { background: #b91c1c; color: #fff; border-radius: 8px; padding: 2px 12px; margin-right: 10px; font-size: 17px; }
+  .intro-secao { color: #4a5568; margin: 6px 0 18px; }
+
+  .passo { margin: 0 0 26px; }
+  .passo-titulo { display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px; }
+  .passo-num {
+    flex-shrink: 0; width: 30px; height: 30px; border-radius: 50%;
+    background: #b91c1c; color: #fff; font-weight: 800; font-size: 15px;
+    display: inline-flex; align-items: center; justify-content: center;
+    transform: translateY(6px);
+  }
+  .passo-titulo h3 { margin: 0; font-size: 16px; }
+  .passo p { margin: 4px 0; }
+  .passo ul, .passo ol { margin: 6px 0; padding-left: 22px; }
+  .passo li { margin: 3px 0; }
+
+  figure { margin: 10px 0 0; }
+  figure img {
+    width: 100%; height: auto; display: block;
+    border: 1.5px solid #cbd5e0; border-radius: 8px;
+  }
+  figure.menor img { max-width: 420px; }
+  figcaption { font-size: 11.5px; color: #718096; margin-top: 4px; font-style: italic; }
+
+  .dica {
+    background: #fffbeb; border: 1.5px solid #f6ad55; border-left: 6px solid #dd6b20;
+    border-radius: 8px; padding: 10px 14px; margin: 10px 0;
+  }
+  .dica b:first-child { color: #c05621; }
+  .atencao {
+    background: #fff5f5; border: 1.5px solid #fc8181; border-left: 6px solid #c53030;
+    border-radius: 8px; padding: 10px 14px; margin: 10px 0;
+  }
+  .atencao b:first-child { color: #c53030; }
+
+  code, .cod {
+    font-family: Consolas, monospace; background: #edf2f7; border-radius: 5px;
+    padding: 1px 6px; font-size: 0.92em;
+  }
+  .btn-ex {
+    display: inline-block; background: #b91c1c; color: #fff; font-weight: 700;
+    border-radius: 6px; padding: 1px 10px; font-size: 0.9em; white-space: nowrap;
+  }
+  .btn-claro {
+    display: inline-block; background: #fff; color: #1a202c; font-weight: 700;
+    border: 1.5px solid #a0aec0; border-radius: 6px; padding: 1px 10px; font-size: 0.9em; white-space: nowrap;
+  }
+
+  table.fases { border-collapse: collapse; width: 100%; margin: 8px 0; }
+  table.fases th, table.fases td { border: 1px solid #cbd5e0; padding: 5px 10px; text-align: left; }
+  table.fases th { background: #fff5f5; color: #b91c1c; }
+
+  .rodape { margin-top: 40px; padding-top: 12px; border-top: 2px solid #e2e8f0; color: #718096; font-size: 11.5px; }
+  .print-aviso {
+    background: #ebf8ff; border: 1.5px solid #63b3ed; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 24px; font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<div class="print-aviso no-print">
+  🖨️ <b>Para imprimir:</b> pressione <code>Ctrl + P</code>, escolha a impressora (ou "Salvar como PDF") e confirme.
+  Este aviso não sai na impressão.
+</div>
+
+<div class="capa">
+  <div class="marca">Nova Tratores · Portal Corporativo</div>
+  <h1>Tutorial — PPV e Catálogo de Peças</h1>
+  <p><b>Para o Setor de Peças.</b> Este guia mostra, passo a passo e com imagens do sistema,
+  como usar o módulo <b>PPV (Pedido de Peças para Venda)</b> e o <b>Catálogo de peças Mahindra</b> no portal.</p>
+</div>
+
+<!-- ================= PARTE 1 ================= -->
+<h2><span class="num">Parte 1</span> O módulo PPV</h2>
+<p class="intro-secao">
+  O PPV é onde ficam os <b>pedidos de peças</b> (venda balcão, peças para técnico, orçamentos de peças e remessas).
+  Cada pedido é um <b>card</b> que anda por <b>fases</b> (Orçamento → Execução → Concluída), acompanhando a O.S. quando estiver vinculada.
+</p>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">1</span><h3>Como abrir o PPV</h3></div>
+  <p>Entre no portal com o seu usuário. No <b>menu lateral</b> (botão ☰ no canto superior esquerdo), clique em
+  <b>PEÇAS → Peças (Pedido de Venda)</b>.</p>
+  <figure>
+    <img src="img/00-como-abrir-ppv.png" alt="Menu lateral com o item Peças (Pedido de Venda) destacado">
+    <figcaption>O item "Peças (Pedido de Venda)" fica no grupo PEÇAS do menu lateral (destacado em vermelho).</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">2</span><h3>A tela de Gestão (visão geral)</h3></div>
+  <p>Ao abrir, você vê todos os pedidos agrupados por fase. Cada card mostra o <b>número</b> (#PPV-0000 ou #REM-0000),
+  o <b>valor</b>, o <b>cliente</b>, o <b>técnico</b>, a <b>data</b> e a última movimentação.</p>
+  <figure>
+    <img src="img/01-menu-lateral-ppv.png" alt="Tela de gestão do PPV com os cards agrupados por fase">
+    <figcaption>Tela principal do PPV: os pedidos agrupados por fase (Orçamento, Execução, etc.).</figcaption>
+  </figure>
+  <table class="fases">
+    <tr><th>Fase</th><th>O que significa</th></tr>
+    <tr><td>Orçamento / Orç. Enviado</td><td>Pedido em cotação ou aguardando resposta do cliente</td></tr>
+    <tr><td>Execução / Diagnóstico</td><td>Serviço em andamento (peças em uso)</td></tr>
+    <tr><td>Aguar. Peças / Comercial / Técnico / Outros</td><td>Pedido parado esperando alguma coisa</td></tr>
+    <tr><td>Rel. Concluído / Concluída</td><td>Serviço finalizado</td></tr>
+    <tr><td>Cancelada</td><td>Pedido cancelado</td></tr>
+  </table>
+  <div class="dica"><b>Dica:</b> quando o pedido está vinculado a uma O.S., a fase <b>sincroniza sozinha</b> com o status
+  da O.S. (aparece "Status auto-sync" no card). Não precisa mover manualmente nesses casos.</div>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">3</span><h3>Filtros e busca</h3></div>
+  <p>Na barra abaixo do título você pode:</p>
+  <ul>
+    <li><b>Buscar</b> por número do PPV, nome do cliente ou técnico (campo da esquerda);</li>
+    <li>Filtrar por tipo: <span class="btn-claro">Todos</span> / <span class="btn-claro">Pedido de Venda</span> / <span class="btn-claro">Remessa</span>;</li>
+    <li>Filtrar por <b>Técnico</b> e por <b>Cliente</b> (campos da direita).</li>
+  </ul>
+  <figure>
+    <img src="img/02-filtros.png" alt="Barra de filtros do PPV destacada">
+    <figcaption>Barra de filtros (destacada em vermelho): busca, tipo, técnico e cliente.</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">4</span><h3>Mudar a fase de um pedido</h3></div>
+  <p>Cada card tem um <b>seletor de fase</b> na parte de cima. Basta clicar e escolher a nova fase — a mudança é salva na hora
+  e fica registrada no histórico do pedido.</p>
+  <figure class="menor">
+    <img src="img/03-mudar-fase-card.png" alt="Card do PPV com o seletor de fase destacado">
+    <figcaption>O seletor de fase fica no topo de cada card.</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">5</span><h3>Criar um novo pedido (Novo Lançamento)</h3></div>
+  <p>Clique no botão <span class="btn-ex">+ Novo Lançamento</span> no canto superior direito da tela do PPV. Preencha o formulário da esquerda:</p>
+  <ol>
+    <li><b>Tipo do Pedido:</b> <i>Pedido de Venda (PPV)</i> ou <i>Remessa (REM)</i>;</li>
+    <li><b>Motivo da Saída:</b> Venda Balcão, Orçamento Cliente, Saída Técnico (com ou sem O.S.);</li>
+    <li><b>Técnico</b> (obrigatório) — quem vai usar/levar as peças;</li>
+    <li><b>Cliente</b> (obrigatório) — clique no campo para abrir a busca (passo 6);</li>
+    <li><b>Ordem de Serviço</b> (opcional) — vincule a O.S. para o pedido acompanhar o status dela;</li>
+    <li><b>Projeto</b> e <b>Observações</b> (opcionais).</li>
+  </ol>
+  <figure>
+    <img src="img/05-form-novo-lancamento.png" alt="Formulário de novo lançamento vazio">
+    <figcaption>Formulário do Novo Lançamento: dados à esquerda, carrinho de itens à direita.</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">6</span><h3>Buscar o cliente</h3></div>
+  <p>Ao clicar no campo <b>Cliente</b>, abre a janela de busca. Digite parte do <b>nome</b>, do <b>CNPJ/CPF</b> ou da <b>cidade</b>
+  e clique no cliente certo na lista.</p>
+  <figure>
+    <img src="img/06-busca-cliente.png" alt="Janela de busca de cliente com resultados">
+    <figcaption>Busca de cliente: digite e clique na linha para selecionar.</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">7</span><h3>Adicionar produtos ao pedido</h3></div>
+  <p>Na seção <b>Adicionar Produto</b>, clique em "Clique para buscar produto". Digite o <b>código ou nome</b> da peça e tecle Enter.
+  A lista mostra o <b>preço</b>, a <b>empresa</b> (NOVA ou CASTRO) e a origem. Clique na linha para escolher a peça.</p>
+  <figure>
+    <img src="img/07-busca-produto.png" alt="Janela Pesquisar Produto com resultados de filtro">
+    <figcaption>Busca de produto. Repare no botão "Catálogos" no canto — ele abre o Catálogo Mahindra (Parte 2).</figcaption>
+  </figure>
+  <p>Depois de escolher, informe a <b>Qtd</b> e clique em <span class="btn-ex">+ Adicionar ao Carrinho</span>.
+  Repita para cada peça do pedido.</p>
+  <figure>
+    <img src="img/08-form-preenchido.png" alt="Formulário preenchido com cliente selecionado e um item no carrinho">
+    <figcaption>Pedido montado: cliente selecionado (verde) e item no carrinho com o total calculado.</figcaption>
+  </figure>
+  <div class="atencao"><b>Atenção:</b> só clique em <b>Finalizar Lançamento</b> quando o pedido estiver completo.
+  Ao finalizar, o sistema salva o pedido e já abre a <b>janela de impressão</b> do documento do PPV.</div>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">8</span><h3>Importar Kit de Revisão (atalho)</h3></div>
+  <p>Para revisões (50H, 300H, 600H, 900H, 1200H…), use o botão <b>Importar Kit de Revisão</b>.
+  Escolha o <b>modelo do trator</b> e as <b>horas</b> — todas as peças do kit entram no carrinho de uma vez.</p>
+  <figure>
+    <img src="img/09-importar-kit.png" alt="Janela de importar kit de revisão com kits por modelo e horas">
+    <figcaption>Kits prontos por modelo (2025, 5050, 6060…) e horas de revisão.</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">9</span><h3>Ver e editar um pedido existente</h3></div>
+  <p>Clique em qualquer <b>card</b> para abrir os detalhes. Nessa janela você pode:</p>
+  <ul>
+    <li><b>Imprimir</b> o documento do pedido (botão no topo);</li>
+    <li>Ver o <b>Log</b> (histórico de tudo que aconteceu no pedido);</li>
+    <li>Trocar a <b>fase</b>, o <b>técnico</b>, o <b>motivo</b>, a <b>O.S. vinculada</b> e o <b>cliente</b>;</li>
+    <li>Salvar com <span class="btn-ex">Salvar Alterações</span>.</li>
+  </ul>
+  <figure>
+    <img src="img/10-detalhes-ppv.png" alt="Janela de detalhes do PPV com dados do cliente e do pedido">
+    <figcaption>Detalhes do pedido: topo com Imprimir / Log / fase, dados do cliente e informações do pedido.</figcaption>
+  </figure>
+  <p>Descendo a tela, na seção <b>Itens & Materiais</b> dá para <b>adicionar mais peças</b>, importar kit, editar (ícone de lápis)
+  e registrar <b>devolução</b> de peça não usada (ícone de seta circular). Abaixo há também o campo de <b>Desconto</b>.</p>
+  <figure>
+    <img src="img/11-detalhes-itens.png" alt="Seção Itens e Materiais dentro dos detalhes do pedido">
+    <figcaption>Itens & Materiais: cada linha tem quantidade, saldo, preço, edição e botão de devolução.</figcaption>
+  </figure>
+</div>
+
+<!-- ================= PARTE 2 ================= -->
+<h2><span class="num">Parte 2</span> O Catálogo de Peças (Mahindra)</h2>
+<p class="intro-secao">
+  O Catálogo é o "livro de peças" digital: você navega pelo <b>trator → sistema → figura (vista explodida)</b>
+  e encontra o <b>código correto de cada peça</b>. E melhor: dá para montar um carrinho e gerar o PPV ou Orçamento direto de lá.
+</p>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">10</span><h3>Onde fica o Catálogo</h3></div>
+  <p>Dentro do PPV, clique no botão <span class="btn-ex">☰ Menu</span> (canto superior direito) e depois em <b>Catálogo</b>.</p>
+  <figure>
+    <img src="img/12-menu-catalogo.png" alt="Menu do PPV aberto com a opção Catálogo destacada">
+    <figcaption>Menu do PPV: além do Catálogo, aqui ficam Criar/Editar Produto, Gerenciar Kits e Sync Preços Omie.</figcaption>
+  </figure>
+  <div class="dica"><b>Dica:</b> o Catálogo também abre pelo botão <b>"Catálogos"</b> dentro da janela de busca de produto
+  (passo 7) — nesse caso, a peça escolhida já cai direto no lançamento que você está montando.</div>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">11</span><h3>Escolher o trator</h3></div>
+  <p>A primeira tela mostra os <b>modelos</b> (6075L, 5050, 6060…). Clique no trator do cliente.
+  O número de figuras indica o quanto o catálogo daquele modelo está completo.</p>
+  <figure>
+    <img src="img/13-catalogo-tratores.png" alt="Tela inicial do catálogo com os modelos de trator">
+    <figcaption>Modelos disponíveis no catálogo.</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">12</span><h3>Escolher o sistema</h3></div>
+  <p>Dentro do trator, as peças estão organizadas por <b>sistema</b>: Motor, Transmissão, Hidráulica, Elétrica, Freio, etc.
+  Clique no sistema onde a peça fica.</p>
+  <figure>
+    <img src="img/14-catalogo-sistemas.png" alt="Sistemas do trator 5050 no catálogo">
+    <figcaption>Sistemas do trator 5050 — use o "Voltar" ou o caminho (Catálogo › 5050) para navegar.</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">13</span><h3>Escolher a figura</h3></div>
+  <p>Cada sistema tem várias <b>figuras</b> (vistas explodidas). Escolha a que corresponde à parte do trator que você procura.</p>
+  <figure>
+    <img src="img/15-catalogo-figuras.png" alt="Figuras do sistema Motor">
+    <figcaption>Figuras do sistema Motor do 5050 (tampa de válvula, exaustão, filtro de ar, radiador…).</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">14</span><h3>Identificar a peça na vista explodida</h3></div>
+  <p>Na figura, cada peça tem um <b>número (REF)</b>. A lista da direita mostra <b>código Mahindra, nome e quantidade usada</b> no conjunto.</p>
+  <ul>
+    <li>Passe o mouse (ou clique) num <b>número da imagem</b> → a linha correspondente acende na lista;</li>
+    <li>Passe o mouse numa <b>linha da lista</b> → o número acende na imagem;</li>
+    <li>O <b>código em vermelho</b> é o código para orçar/vender a peça.</li>
+  </ul>
+  <figure>
+    <img src="img/16-catalogo-figura-detalhe.png" alt="Vista explodida do filtro de ar com a lista de peças ao lado">
+    <figcaption>Vista explodida + lista de peças. O botão vermelho <b>+</b> adiciona a peça ao carrinho.</figcaption>
+  </figure>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">15</span><h3>Montar o carrinho e gerar PPV ou Orçamento</h3></div>
+  <p>Clique no <b>+</b> de cada peça que o cliente precisa. Um botão <span class="btn-ex">🛒 Carrinho</span> aparece no canto inferior direito
+  com a contagem de itens.</p>
+  <figure>
+    <img src="img/17-catalogo-add-carrinho.png" alt="Catálogo com o botão flutuante do carrinho após adicionar peça">
+    <figcaption>Depois de adicionar peças, o botão do Carrinho aparece no canto inferior direito.</figcaption>
+  </figure>
+  <p>Abra o carrinho para: ajustar <b>quantidades</b>, remover itens, <b>buscar o cliente</b> e finalizar clicando em
+  <span class="btn-claro">Orçamento</span> ou <span class="btn-ex">PPV</span>.</p>
+  <figure>
+    <img src="img/18-catalogo-carrinho.png" alt="Carrinho do catálogo com cliente selecionado e botões Orçamento e PPV">
+    <figcaption>Carrinho do Catálogo: item, cliente selecionado e os dois botões de geração.</figcaption>
+  </figure>
+  <div class="dica"><b>Dica:</b> os <b>preços são puxados do Omie</b> automaticamente na hora de criar o documento —
+  você não precisa digitar preço nenhum. O PPV criado aparece na tela de Gestão, na fase Orçamento.</div>
+</div>
+
+<div class="passo">
+  <div class="passo-titulo"><span class="passo-num">16</span><h3>Busca rápida por nome ou código</h3></div>
+  <p>Se você já sabe o nome ou parte do código da peça, use o <b>campo de busca</b> no topo do Catálogo.
+  O resultado mostra em qual <b>figura</b> a peça aparece (link azul) — clique para abrir a vista explodida, ou clique no <b>+</b>
+  para jogar direto no carrinho.</p>
+  <figure>
+    <img src="img/19-catalogo-busca.png" alt="Resultado da busca por elemento filtrante no catálogo">
+    <figcaption>Busca por "elemento filtrante" dentro do trator 5050.</figcaption>
+  </figure>
+</div>
+
+<div class="atencao">
+  <b>Resumo rápido:</b>
+  <ul style="margin:6px 0 0;">
+    <li><b>Vender/atender balcão:</b> PPV → Novo Lançamento → técnico + cliente + peças → Finalizar.</li>
+    <li><b>Achar o código de uma peça:</b> Menu → Catálogo → trator → sistema → figura → código em vermelho.</li>
+    <li><b>Orçamento a partir do catálogo:</b> adicionar peças no carrinho → escolher cliente → botão Orçamento ou PPV.</li>
+    <li><b>Revisão:</b> Novo Lançamento → Importar Kit de Revisão → modelo + horas.</li>
+  </ul>
+</div>
+
+<div class="rodape">
+  Portal Nova Tratores — Tutorial PPV &amp; Catálogo · Julho/2026 ·
+  Dúvidas: fale com o administrador do portal ou pergunte ao assistente <b>Tratorilson</b> (balão de chat no canto da tela).
+</div>
+
+</body>
+</html>

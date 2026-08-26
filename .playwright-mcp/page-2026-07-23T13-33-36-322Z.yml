@@ -1,0 +1,252 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e7]:
+      - generic [ref=e8]:
+        - button [ref=e9] [cursor=pointer]
+        - link [ref=e11] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=e12]
+      - generic [ref=e13]:
+        - button "Chat" [ref=e14] [cursor=pointer]
+        - button "50" [ref=e17] [cursor=pointer]
+        - button "Menu" [ref=e23] [cursor=pointer]
+        - generic "Meu perfil" [ref=e28] [cursor=pointer]:
+          - generic [ref=e30]:
+            - paragraph [ref=e31]: Henri Irneh
+            - paragraph [ref=e32]: Pós-Vendas
+    - generic [ref=e33]:
+      - generic [ref=e35]:
+        - paragraph [ref=e37]: Henri Irneh
+        - paragraph [ref=e38]: Pós-Vendas
+      - generic [ref=e39]:
+        - generic [ref=e40]:
+          - link "Dashboard" [ref=e41] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=e50] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=e56]:
+          - paragraph [ref=e57]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=e59] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=e66] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=e73] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=e79] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=e88] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=e95] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=e102] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=e109] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=e115] [cursor=pointer]:
+            - /url: /cronograma
+        - generic [ref=e121]:
+          - paragraph [ref=e122]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=e124] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=e132] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=e138] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=e145]:
+          - paragraph [ref=e146]: FINANCEIRO
+          - link "Financeiro" [ref=e148] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=e154] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=e162]:
+          - paragraph [ref=e163]: COMERCIAL
+          - link "Proposta Comercial" [ref=e165] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=e172] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Clientes" [ref=e179] [cursor=pointer]:
+            - /url: /clientes
+          - link "Supervisor Vendas" [ref=e186] [cursor=pointer]:
+            - /url: /supervisor-vendas
+        - generic [ref=e191]:
+          - paragraph [ref=e192]: ESTOQUE
+          - link "Visual Estoque" [ref=e194] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=e200] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=e207] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Abastecimento" [ref=e212] [cursor=pointer]:
+            - /url: /abastecimento
+          - link "Omie em Massa" [ref=e219] [cursor=pointer]:
+            - /url: /omie-massa
+        - generic [ref=e224]:
+          - paragraph [ref=e225]: OUTROS
+          - link "Opa" [ref=e227] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=e233] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=e239] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=e256] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=e262] [cursor=pointer]:
+          - /url: /admin
+      - button "Sair do Portal" [ref=e269] [cursor=pointer]
+    - main [ref=e273]:
+      - generic [ref=e274]:
+        - generic [ref=e275]:
+          - generic [ref=e276]:
+            - generic [ref=e277]:
+              - generic [ref=e279]: DRE Financeiro
+              - 'button "Ajuda: o que é a tela Composição" [ref=e280] [cursor=pointer]': "?"
+            - generic [ref=e281]:
+              - generic [ref=e282]: Conta
+              - generic [ref=e283]:
+                - button "NOVA" [ref=e284] [cursor=pointer]
+                - button "CASTRO" [ref=e285] [cursor=pointer]
+                - button "TODAS" [ref=e286] [cursor=pointer]
+          - navigation [ref=e287]:
+            - link "🏠 Home" [ref=e289] [cursor=pointer]:
+              - /url: /dre-financeiro
+            - generic [ref=e290]:
+              - generic [ref=e291]: Caixa & Venc.
+              - link "📅 Calendário" [ref=e292] [cursor=pointer]:
+                - /url: /dre-financeiro/calendario
+              - link "⚠️ Vencidos" [ref=e293] [cursor=pointer]:
+                - /url: /dre-financeiro/vencidos
+              - link "📉 Curva de Saldo" [ref=e294] [cursor=pointer]:
+                - /url: /dre-financeiro/curva-saldo
+              - link "🌊 Fluxo" [ref=e295] [cursor=pointer]:
+                - /url: /dre-financeiro/fluxo
+            - generic [ref=e296]:
+              - generic [ref=e297]: Prazos & Efic.
+              - link "🔄 Ciclo de Caixa" [ref=e298] [cursor=pointer]:
+                - /url: /dre-financeiro/ciclo-caixa
+              - link "⏱️ Pontualidade" [ref=e299] [cursor=pointer]:
+                - /url: /dre-financeiro/aderencia
+            - generic [ref=e300]:
+              - generic [ref=e301]: Resultado
+              - link "📋 DRE" [ref=e302] [cursor=pointer]:
+                - /url: /dre-financeiro/dre
+              - link "🔬 Análise DRE" [ref=e303] [cursor=pointer]:
+                - /url: /dre-financeiro/analise-dre
+              - link "🧩 Composição" [ref=e304] [cursor=pointer]:
+                - /url: /dre-financeiro/composicao
+            - generic [ref=e305]:
+              - generic [ref=e306]: Patrimônio
+              - link "💰 Patrimônio" [ref=e307] [cursor=pointer]:
+                - /url: /dre-financeiro/patrimonio
+              - link "📊 Rentabilidade" [ref=e308] [cursor=pointer]:
+                - /url: /dre-financeiro/rentabilidade
+              - link "📈 Lucratividade" [ref=e309] [cursor=pointer]:
+                - /url: /dre-financeiro/lucratividade
+              - link "🧮 Margens" [ref=e310] [cursor=pointer]:
+                - /url: /dre-financeiro/margens
+              - link "🏗️ Estoque Pátio ↗" [ref=e311] [cursor=pointer]:
+                - /url: /visual-estoque/patio
+            - generic [ref=e312]:
+              - generic [ref=e313]: Comercial
+              - link "🏷️ Vendas/Modelo" [ref=e314] [cursor=pointer]:
+                - /url: /dre-financeiro/vendas-modelo
+              - link "👥 Clientes" [ref=e315] [cursor=pointer]:
+                - /url: /dre-financeiro/clientes
+            - generic [ref=e316]:
+              - generic [ref=e317]: Qualidade
+              - link "🛡️ Monitor" [ref=e318] [cursor=pointer]:
+                - /url: /dre-financeiro/monitor
+        - generic [ref=e319]:
+          - generic [ref=e320]:
+            - generic [ref=e321]: Período
+            - button "Mês" [pressed] [ref=e322] [cursor=pointer]
+            - button "Este ano (2026)" [ref=e323] [cursor=pointer]
+            - button "Ano passado (2025)" [ref=e324] [cursor=pointer]
+            - button "Últimos 3 anos" [ref=e325] [cursor=pointer]
+            - button "Personalizado" [ref=e326] [cursor=pointer]
+          - generic [ref=e327]:
+            - button "←" [ref=e328]
+            - heading "Julho 2026" [level=1] [ref=e329]
+            - button "→" [ref=e330]
+            - button "Hoje" [ref=e331]
+            - generic [ref=e332]: "Modo:"
+            - generic [ref=e333]:
+              - button "A Pagar" [ref=e334]
+              - button "A Receber" [ref=e335]
+              - button "Ambos" [ref=e336]
+            - generic [ref=e337]: A Receber
+          - generic [ref=e338]:
+            - generic [ref=e339]:
+              - generic [ref=e340]: Filtrar por natureza
+              - generic [ref=e341]: clique num cartão para ver só essa parte do período
+              - 'generic "Tira as devoluções dos dois lados: \"Devoluções de Vendas\" (saída) e \"Devoluções\" / \"DevoluçõeseOutras Saidas\" (entrada). Afeta o treemap, os KPIs, a faixa de natureza e a legenda." [ref=e342] [cursor=pointer]':
+                - checkbox "Esconder devoluções" [ref=e343]
+                - text: Esconder devoluções
+              - button "✕ Limpar filtro" [ref=e476] [cursor=pointer]
+            - generic [ref=e345]:
+              - button "Receitas ✓ R$ 425k 22.0% · 7 cat." [pressed] [ref=e477] [cursor=pointer]:
+                - generic [ref=e347]:
+                  - generic [ref=e349]: Receitas
+                  - generic [ref=e478]: ✓
+                - generic [ref=e350]: R$ 425k
+                - generic [ref=e351]: 22.0% · 7 cat.
+              - button "Custos R$ 918k 47.5% · 9 cat." [ref=e352] [cursor=pointer]:
+                - generic [ref=e353]: Custos
+                - generic [ref=e356]: R$ 918k
+                - generic [ref=e357]: 47.5% · 9 cat.
+              - button "Despesas R$ 317k 16.4% · 28 cat." [ref=e358] [cursor=pointer]:
+                - generic [ref=e359]: Despesas
+                - generic [ref=e362]: R$ 317k
+                - generic [ref=e363]: 16.4% · 28 cat.
+              - button "Deduções R$ 255k 13.2% · 2 cat." [ref=e364] [cursor=pointer]:
+                - generic [ref=e365]: Deduções
+                - generic [ref=e368]: R$ 255k
+                - generic [ref=e369]: 13.2% · 2 cat.
+              - button "Investimento R$ 17k 0.9% · 2 cat." [ref=e370] [cursor=pointer]:
+                - generic [ref=e371]: Investimento
+                - generic [ref=e374]: R$ 17k
+                - generic [ref=e375]: 0.9% · 2 cat.
+            - generic [ref=e376]:
+              - strong [ref=e377]: Custos
+              - text: = grupo "Despesas Diretas" do Omie (compra de mercadoria), pela
+              - strong [ref=e378]: data de vencimento do título
+              - text: . Não é o CMV da aba DRE, que é por competência e sai do CMC das vendas — os dois não batem por definição.
+              - strong [ref=e379]: Investimento
+              - text: é CAPEX e não entra no DRE.
+          - generic [ref=e380]:
+            - generic [ref=e381]:
+              - generic [ref=e382]: Total do período · Receitas
+              - generic [ref=e383]: R$ 424.751,84
+            - generic [ref=e384]:
+              - generic [ref=e385]: Grupos
+              - generic [ref=e386]: "2"
+            - generic [ref=e387]:
+              - generic [ref=e388]: Categorias
+              - generic [ref=e389]: "7"
+            - generic [ref=e390]:
+              - generic [ref=e391]: Top categoria
+              - generic [ref=e392]: Venda de Implementos
+              - generic [ref=e393]: R$ 190.946,65 (45.0%)
+          - generic [ref=e394]:
+            - generic [ref=e395]:
+              - generic [ref=e396]: Filtrar por grupo
+              - generic [ref=e397]: clique num grupo para remontar o treemap só com ele
+              - generic [ref=e398]:
+                - button "Todos" [ref=e399]
+                - button "Saídas" [ref=e400]
+                - button "Entradas" [ref=e401]
+            - generic [ref=e402]:
+              - button "Receitas Diretas R$ 425k" [ref=e805] [cursor=pointer]:
+                - generic [ref=e807]: Receitas Diretas
+                - generic [ref=e808]: R$ 425k
+              - button "Receitas Indiretas R$ 110" [ref=e809] [cursor=pointer]:
+                - generic [ref=e811]: Receitas Indiretas
+                - generic [ref=e812]: R$ 110
+          - generic [ref=e442]:
+            - text: Clique numa célula para ver os terceiros da categoria — e depois num cliente/fornecedor para ver os títulos que o compõem. Em categorias de receita há também a aba
+            - strong [ref=e443]: Por Modelo
+            - text: .
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=e444]:
+      - generic [ref=e487]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=e472] [cursor=pointer]
+  - alert [ref=e6]

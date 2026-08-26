@@ -1,0 +1,293 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e2724]:
+            - generic [ref=f2e2725]:
+              - generic [ref=f2e2726]:
+                - generic [ref=f2e2727]: 
+                - textbox "Buscar em 5050…" [ref=f2e3023]
+              - generic [ref=f2e2729]:
+                - button " Voltar" [ref=f2e3024] [cursor=pointer]:
+                  - generic [ref=f2e3025]: 
+                  - text: Voltar
+                - generic [ref=f2e2730] [cursor=pointer]: Catálogo
+                - generic [ref=f2e3026]: ›
+                - generic [ref=f2e3027] [cursor=pointer]: "5050"
+                - generic [ref=f2e3111]: ›
+                - generic [ref=f2e3112] [cursor=pointer]: Motor
+                - generic [ref=f2e3222]: ›
+                - generic [ref=f2e3223]: 5050MT04 · SISTEMA DE ENTRADA DE AR - FILTRO DE AR SECO
+            - generic [ref=f2e3224]:
+              - generic [ref=f2e3225]:
+                - generic [ref=f2e3226]:
+                  - generic [ref=f2e3227]: 5050MT04
+                  - generic [ref=f2e3228]: SISTEMA DE ENTRADA DE AR - FILTRO DE AR SECO
+                - generic [ref=f2e3229]:
+                  - img "SISTEMA DE ENTRADA DE AR - FILTRO DE AR SECO" [ref=f2e3465]
+                  - button "1" [ref=f2e3230] [cursor=pointer]
+                  - button "1" [ref=f2e3231] [cursor=pointer]
+                  - button "2" [ref=f2e3232] [cursor=pointer]
+                  - button "3" [ref=f2e3233] [cursor=pointer]
+                  - button "4" [ref=f2e3234] [cursor=pointer]
+                  - button "5" [ref=f2e3235] [cursor=pointer]
+                  - button "6" [ref=f2e3236] [cursor=pointer]
+                  - button "7" [ref=f2e3237] [cursor=pointer]
+                  - button "8" [ref=f2e3238] [cursor=pointer]
+                  - button "9" [ref=f2e3239] [cursor=pointer]
+                  - button "10" [ref=f2e3240] [cursor=pointer]
+                  - button "11" [ref=f2e3241] [cursor=pointer]
+                  - button "12" [ref=f2e3242] [cursor=pointer]
+                  - button "13" [ref=f2e3243] [cursor=pointer]
+                  - button "14" [ref=f2e3244] [cursor=pointer]
+                  - button "15" [ref=f2e3245] [cursor=pointer]
+                  - button "16" [ref=f2e3246] [cursor=pointer]
+                  - button "18" [ref=f2e3247] [cursor=pointer]
+                  - button "19" [ref=f2e3248] [cursor=pointer]
+                  - button "20" [ref=f2e3249] [cursor=pointer]
+                  - button "21" [ref=f2e3250] [cursor=pointer]
+                  - button "22" [ref=f2e3251] [cursor=pointer]
+                  - button "23" [ref=f2e3252] [cursor=pointer]
+                  - button "23" [ref=f2e3253] [cursor=pointer]
+                  - button "25" [ref=f2e3254] [cursor=pointer]
+                  - button "25" [ref=f2e3255] [cursor=pointer]
+                  - button "26" [ref=f2e3256] [cursor=pointer]
+              - generic [ref=f2e3257]:
+                - generic [ref=f2e3258]:
+                  - generic [ref=f2e3259]: Ref
+                  - generic [ref=f2e3260]: Código
+                  - generic [ref=f2e3261]: Nome
+                  - generic [ref=f2e3262]: Qtd
+                - generic [ref=f2e3264]:
+                  - generic [ref=f2e3265]:
+                    - generic [ref=f2e3266]: "1"
+                    - code [ref=f2e3268]: 006014929V91
+                    - generic [ref=f2e3269]: CONJUNTO DO FILTRO DE AR (DHRUV 4DI)
+                    - generic [ref=f2e3270]: 1 un
+                    - button "+" [ref=f2e3271] [cursor=pointer]
+                  - generic [ref=f2e3273]:
+                    - generic [ref=f2e3274]: "2"
+                    - code [ref=f2e3276]: 006011966B91
+                    - generic [ref=f2e3277]: CONJUNTO DA TAMPA
+                    - generic [ref=f2e3278]: 1 un
+                    - button "+" [ref=f2e3279] [cursor=pointer]
+                  - generic [ref=f2e3281]:
+                    - generic [ref=f2e3282]: "3"
+                    - code [ref=f2e3284]: 5050MT0401
+                    - generic [ref=f2e3285]: CONJUNTO DO TRINCO
+                    - generic [ref=f2e3286]: 3 un
+                    - button "+" [ref=f2e3287] [cursor=pointer]
+                  - generic [ref=f2e3289]:
+                    - generic [ref=f2e3290]: "4"
+                    - code [ref=f2e3292]: 006000455F1
+                    - generic [ref=f2e3293]: ELEMENTO FILTRANTE
+                    - generic [ref=f2e3294]: 1 un
+                    - button "+" [ref=f2e3295] [cursor=pointer]
+                  - generic [ref=f2e3297]:
+                    - generic [ref=f2e3298]: "5"
+                    - code [ref=f2e3300]: 006000456F1
+                    - generic [ref=f2e3301]: ELEMENTO FILTRANTE
+                    - generic [ref=f2e3302]: 1 un
+                    - button "+" [ref=f2e3303] [cursor=pointer]
+                  - generic [ref=f2e3305]:
+                    - generic [ref=f2e3306]: "6"
+                    - code [ref=f2e3308]: 006014956V91
+                    - generic [ref=f2e3309]: SUPORTE DO CONJUNTO DO FILTRO DE AR (DHRUV)
+                    - generic [ref=f2e3310]: 1 un
+                    - button "+" [ref=f2e3311] [cursor=pointer]
+                  - generic [ref=f2e3313]:
+                    - generic [ref=f2e3314]: "7"
+                    - code [ref=f2e3316]: 5050MT0402
+                    - generic [ref=f2e3317]: CORPO DO FILTRO DE AR
+                    - generic [ref=f2e3318]: 1 un
+                    - button "+" [ref=f2e3319] [cursor=pointer]
+                  - generic [ref=f2e3321]:
+                    - generic [ref=f2e3322]: "8"
+                    - code [ref=f2e3324]: 006000490F1
+                    - generic [ref=f2e3325]: Descarregador de Poeira
+                    - generic [ref=f2e3326]: 1 un
+                    - button "+" [ref=f2e3327] [cursor=pointer]
+                  - generic [ref=f2e3329]:
+                    - generic [ref=f2e3330]: "9"
+                    - code [ref=f2e3332]: 006000492F1
+                    - generic [ref=f2e3333]: Braçadeira do Descarregador de Poeira
+                    - generic [ref=f2e3334]: 1 un
+                    - button "+" [ref=f2e3335] [cursor=pointer]
+                  - generic [ref=f2e3337]:
+                    - generic [ref=f2e3338]: "10"
+                    - code [ref=f2e3340]: 000061197M01
+                    - generic [ref=f2e3341]: PORCA BORBOLETA (M6)
+                    - generic [ref=f2e3342]: 1 un
+                    - button "+" [ref=f2e3343] [cursor=pointer]
+                  - generic [ref=f2e3345]:
+                    - generic [ref=f2e3346]: "11"
+                    - code [ref=f2e3348]: 006025703V1
+                    - generic [ref=f2e3349]: MANGUEIRA PRÉ FILTRO (DHRUV)
+                    - generic [ref=f2e3350]: 1 un
+                    - button "+" [ref=f2e3351] [cursor=pointer]
+                  - generic [ref=f2e3353]:
+                    - generic [ref=f2e3354]: "12"
+                    - code [ref=f2e3356]: 006000329R91
+                    - generic [ref=f2e3357]: PRÉ FILTRO
+                    - generic [ref=f2e3358]: 1 un
+                    - button "+" [ref=f2e3359] [cursor=pointer]
+                  - generic [ref=f2e3361]:
+                    - generic [ref=f2e3362]: "13"
+                    - code [ref=f2e3364]: 006025454V11
+                    - generic [ref=f2e3365]: TUBO PRÉ FILTRO
+                    - generic [ref=f2e3366]: 1 un
+                    - button "+" [ref=f2e3367] [cursor=pointer]
+                  - generic [ref=f2e3369]:
+                    - generic [ref=f2e3370]: "14"
+                    - code [ref=f2e3372]: 005555585R91
+                    - generic [ref=f2e3373]: ABRAÇADEIRA DA MANGUEIRA
+                    - generic [ref=f2e3374]: 1 un
+                    - button "+" [ref=f2e3375] [cursor=pointer]
+                  - generic [ref=f2e3377]:
+                    - generic [ref=f2e3378]: "15"
+                    - code [ref=f2e3380]: "000020307E05"
+                    - generic [ref=f2e3381]: Parafuso sextavado FL M8X1.25X20X8.8
+                    - generic [ref=f2e3382]: 4 un
+                    - button "+" [ref=f2e3383] [cursor=pointer]
+                  - generic [ref=f2e3385]:
+                    - generic [ref=f2e3386]: "16"
+                    - code [ref=f2e3388]: 006004798F1
+                    - generic [ref=f2e3389]: Braçadeira da mangueira
+                    - generic [ref=f2e3390]: 3 un
+                    - button "+" [ref=f2e3391] [cursor=pointer]
+                  - generic [ref=f2e3393]:
+                    - generic [ref=f2e3394]: "18"
+                    - code [ref=f2e3396]: CP0300100010-0
+                    - generic [ref=f2e3397]: PARAFUSO (HEX FL M8 X 16)
+                    - generic [ref=f2e3398]: 2 un
+                    - button "+" [ref=f2e3399] [cursor=pointer]
+                  - generic [ref=f2e3401]:
+                    - generic [ref=f2e3402]: "19"
+                    - code [ref=f2e3404]: CP0300100022-0
+                    - generic [ref=f2e3405]: Parafuso flangeado cabeça hexagonal M8 x 25
+                    - generic [ref=f2e3406]: 1 un
+                    - button "+" [ref=f2e3407] [cursor=pointer]
+                  - generic [ref=f2e3409]:
+                    - generic [ref=f2e3410]: "20"
+                    - code [ref=f2e3412]: "000020739E05"
+                    - generic [ref=f2e3413]: Arruela plana para radiador
+                    - generic [ref=f2e3414]: 1 un
+                    - button "+" [ref=f2e3415] [cursor=pointer]
+                  - generic [ref=f2e3417]:
+                    - generic [ref=f2e3418]: "21"
+                    - code [ref=f2e3420]: 006022352V1
+                    - generic [ref=f2e3421]: MONTAGEM DO SUPORTE DO RADIADOR (DHRUV)
+                    - generic [ref=f2e3422]: 1 un
+                    - button "+" [ref=f2e3423] [cursor=pointer]
+                  - generic [ref=f2e3425]:
+                    - generic [ref=f2e3426]: "22"
+                    - code [ref=f2e3428]: 006023837V91
+                    - generic [ref=f2e3429]: MANGUEIRA DO CONJUNTO DO FILTRO DE AR (DHRUV 4 DI)
+                    - generic [ref=f2e3430]: 1 un
+                    - button "+" [ref=f2e3431] [cursor=pointer]
+                  - generic [ref=f2e3433]:
+                    - generic [ref=f2e3434]: "23"
+                    - code [ref=f2e3436]: 000013499P04
+                    - generic [ref=f2e3437]: Abraçadeira
+                    - generic [ref=f2e3438]: 1 un
+                    - button "+" [ref=f2e3439] [cursor=pointer]
+                  - generic [ref=f2e3441]:
+                    - generic [ref=f2e3442]: "25"
+                    - code [ref=f2e3444]: 006004797F1
+                    - generic [ref=f2e3445]: CLIP RADIADOR
+                    - generic [ref=f2e3446]: 4 un
+                    - button "+" [ref=f2e3447] [cursor=pointer]
+                  - generic [ref=f2e3449]:
+                    - generic [ref=f2e3450]: "26"
+                    - code [ref=f2e3452]: 008000579B91
+                    - generic [ref=f2e3453]: INDICADOR DE SERVIÇO
+                    - generic [ref=f2e3454]: 1 un
+                    - button "+" [ref=f2e3455] [cursor=pointer]
+                  - generic [ref=f2e3457]:
+                    - generic [ref=f2e3458]: "27"
+                    - code [ref=f2e3460]: 007637350V1
+                    - generic [ref=f2e3461]: BORRACHA DO PRÉ FILTRO
+                    - generic [ref=f2e3462]: 1 un
+                    - button "+" [ref=f2e3463] [cursor=pointer]
+            - generic [ref=f2e3473]:
+              - generic [ref=f2e3474]:
+                - generic [ref=f2e3475]:
+                  - generic [ref=f2e3476]: 
+                  - text: Carrinho (1)
+                - button "" [ref=f2e3477] [cursor=pointer]
+              - generic [ref=f2e3480]:
+                - generic [ref=f2e3481]:
+                  - generic [ref=f2e3482]: ELEMENTO FILTRANTE
+                  - code [ref=f2e3483]: 006000455F1
+                - generic [ref=f2e3484]:
+                  - button "−" [ref=f2e3485] [cursor=pointer]
+                  - textbox [ref=f2e3486]: "1"
+                  - button "+" [ref=f2e3487] [cursor=pointer]
+                - button "" [ref=f2e3488] [cursor=pointer]
+              - generic [ref=f2e3490]:
+                - generic [ref=f2e3491]: Cliente
+                - generic [ref=f2e3492]:
+                  - textbox "Buscar cliente (nome ou CNPJ)…" [active] [ref=f2e3493]: jose carlos fernandes
+                  - generic [ref=f2e3500]:
+                    - button "JOSE CARLOS FERNANDES 07.916.196/0006-12 · ITAI (SP) - SP" [ref=f2e3501] [cursor=pointer]:
+                      - generic [ref=f2e3502]: JOSE CARLOS FERNANDES
+                      - generic [ref=f2e3503]: 07.916.196/0006-12 · ITAI (SP) - SP
+                    - button "JOSE CARLOS FERNANDES 07.916.196/0006-12 · ITAI (SP) - SP" [ref=f2e3504] [cursor=pointer]:
+                      - generic [ref=f2e3505]: JOSE CARLOS FERNANDES
+                      - generic [ref=f2e3506]: 07.916.196/0006-12 · ITAI (SP) - SP
+                - generic [ref=f2e3494]:
+                  - button " Orçamento" [disabled] [ref=f2e3495] [cursor=pointer]:
+                    - generic [ref=f2e3496]: 
+                    - text: Orçamento
+                  - button " PPV" [disabled] [ref=f2e3497] [cursor=pointer]:
+                    - generic [ref=f2e3498]: 
+                    - text: PPV
+                - generic [ref=f2e3499]: Os preços são puxados do Omie ao criar o documento.
+  - alert [ref=f2e15]

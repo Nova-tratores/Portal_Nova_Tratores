@@ -1,0 +1,305 @@
+- generic [active] [ref=f11e1]:
+  - generic [ref=f11e2]:
+    - banner [ref=f11e16]:
+      - generic [ref=f11e17]:
+        - button [ref=f11e18] [cursor=pointer]
+        - link [ref=f11e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f11e21]
+        - link [ref=f11e23] [cursor=pointer]:
+          - /url: /propostas
+      - generic [ref=f11e28]:
+        - button "Tela dividida — dois sistemas lado a lado" [ref=f11e29] [cursor=pointer]
+        - button "Sua caixa de e-mail (henri.fhioni@gmail.com)" [ref=f11e33] [cursor=pointer]
+        - button "Chat" [ref=f11e37] [cursor=pointer]
+        - button "24" [ref=f11e40] [cursor=pointer]
+        - button "Menu" [ref=f11e46] [cursor=pointer]
+        - generic "Meu perfil" [ref=f11e51] [cursor=pointer]:
+          - generic [ref=f11e53]:
+            - paragraph [ref=f11e54]: Henri Irneh
+            - paragraph [ref=f11e55]: Pós-Vendas
+    - generic [ref=f11e56]:
+      - generic [ref=f11e58]:
+        - paragraph [ref=f11e60]: Henri Irneh
+        - paragraph [ref=f11e61]: Pós-Vendas
+      - generic [ref=f11e62]:
+        - generic [ref=f11e63]:
+          - link "Dashboard" [ref=f11e64] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f11e73] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f11e79]:
+          - paragraph [ref=f11e80]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f11e82] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f11e89] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f11e96] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f11e102] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f11e111] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f11e118] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f11e125] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f11e132] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f11e138] [cursor=pointer]:
+            - /url: /cronograma
+          - link "Clientes" [ref=f11e144] [cursor=pointer]:
+            - /url: /clientes
+        - generic [ref=f11e151]:
+          - paragraph [ref=f11e152]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f11e154] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f11e162] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f11e168] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f11e175]:
+          - paragraph [ref=f11e176]: FINANCEIRO
+          - link "Financeiro" [ref=f11e178] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f11e184] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f11e190]:
+          - paragraph [ref=f11e191]: COMERCIAL
+          - link "Proposta Comercial" [ref=f11e193] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f11e202] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Supervisor Vendas" [ref=f11e209] [cursor=pointer]:
+            - /url: /supervisor-vendas
+        - generic [ref=f11e214]:
+          - paragraph [ref=f11e215]: ESTOQUE
+          - link "Visual Estoque" [ref=f11e217] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f11e223] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f11e230] [cursor=pointer]:
+            - /url: /ajustes
+        - generic [ref=f11e235]:
+          - paragraph [ref=f11e236]: FROTA
+          - link "Frota" [ref=f11e238] [cursor=pointer]:
+            - /url: /frota
+          - link "Pendências Frota" [ref=f11e247] [cursor=pointer]:
+            - /url: /pendencias
+        - generic [ref=f11e253]:
+          - paragraph [ref=f11e254]: OUTROS
+          - link "Opa" [ref=f11e256] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f11e262] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f11e268] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f11e285] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f11e291] [cursor=pointer]:
+          - /url: /admin
+        - link "Tratorilson" [ref=f11e297] [cursor=pointer]:
+          - /url: /tratorilson
+      - button "Sair do Portal" [ref=f11e304] [cursor=pointer]
+    - main [ref=f11e308]:
+      - generic [ref=f11e309]:
+        - generic [ref=f11e311]:
+          - generic [ref=f11e313]:
+            - button "Propostas Cliente" [ref=f11e314] [cursor=pointer]
+            - button "Pedidos Fabrica" [ref=f11e320] [cursor=pointer]
+            - button "Resumo" [ref=f11e323] [cursor=pointer]
+            - button "Lixeira" [ref=f11e326] [cursor=pointer]
+          - generic [ref=f11e332]:
+            - button "Menu" [ref=f11e334] [cursor=pointer]
+            - button "Nova Proposta" [ref=f11e336] [cursor=pointer]
+        - generic [ref=f11e339]:
+          - generic [ref=f11e340]:
+            - generic [ref=f11e341]: Filtrar por cliente, ID, marca, modelo, cidade, valor ou status
+            - generic [ref=f11e342]:
+              - textbox "Digite cliente, ID, marca, modelo, cidade, valor ou status..." [ref=f11e344]: LUIZ CARLOS DA SILVA
+              - button "Limpar" [ref=f11e1715]
+          - table [ref=f11e346]:
+            - rowgroup [ref=f11e347]:
+              - row [ref=f11e348]:
+                - columnheader "ID" [ref=f11e1736] [cursor=pointer]
+                - columnheader "Cliente" [ref=f11e1738] [cursor=pointer]
+                - columnheader "Vendedor" [ref=f11e1740] [cursor=pointer]
+                - columnheader "Marca / Modelo" [ref=f11e1742] [cursor=pointer]
+                - columnheader "Cidade" [ref=f11e1744] [cursor=pointer]
+                - columnheader "Valor" [ref=f11e1746] [cursor=pointer]
+                - columnheader "Status" [ref=f11e1748] [cursor=pointer]
+                - columnheader "Parado há ▼" [ref=f11e1750] [cursor=pointer]:
+                  - generic [ref=f11e1751]:
+                    - text: Parado há
+                    - generic [ref=f11e1752]: ▼
+                - columnheader "Alterar" [ref=f11e366]
+            - rowgroup [ref=f11e367]:
+              - row [ref=f11e1511] [cursor=pointer]:
+                - cell "#27" [ref=f11e1512]
+                - cell "LUIZ CARLOS DA SILVA" [ref=f11e1515]
+                - cell "—" [ref=f11e1516]
+                - cell "PALINI ALVES COLHEPLUS TRACTION" [ref=f11e1518]
+                - cell "PIRAJU (SP)" [ref=f11e1520]
+                - cell "R$ 635.000,00" [ref=f11e1521]
+                - cell "Concluída - vendido" [ref=f11e1523]
+                - cell "3 dias" [ref=f11e1524]
+                - cell "Concluída - vendido" [ref=f11e1525]:
+                  - combobox [ref=f11e1526]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido" [selected]
+                    - option "Concluída - não vendido"
+              - row [ref=f11e1527] [cursor=pointer]:
+                - cell "#26 FAB" [ref=f11e1528]:
+                  - generic [ref=f11e1529]:
+                    - generic [ref=f11e1530]: "#26"
+                    - generic [ref=f11e1531]: FAB
+                - cell "LUIZ CARLOS DA SILVA" [ref=f11e1532]
+                - cell "—" [ref=f11e1533]
+                - cell "TDI COLHEDORA DE CAFÉ" [ref=f11e1535]
+                - cell "PIRAJU (SP)" [ref=f11e1537]
+                - cell "R$ 773.417,00" [ref=f11e1538]
+                - cell "Concluída - não vendido" [ref=f11e1540]
+                - cell "3 dias" [ref=f11e1541]
+                - cell "Concluída - não vendido" [ref=f11e1542]:
+                  - combobox [ref=f11e1543]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido" [selected]
+              - row [ref=f11e1544] [cursor=pointer]:
+                - cell "#25" [ref=f11e1545]
+                - cell "LUIZ CARLOS DA SILVA" [ref=f11e1548]
+                - cell "—" [ref=f11e1549]
+                - cell "TDI COLHEDORA DE CAFÉ" [ref=f11e1551]
+                - cell "PIRAJU (SP)" [ref=f11e1553]
+                - cell "R$ 801.430,00" [ref=f11e1554]
+                - cell "Concluída - não vendido" [ref=f11e1556]
+                - cell "3 dias" [ref=f11e1557]
+                - cell "Concluída - não vendido" [ref=f11e1558]:
+                  - combobox [ref=f11e1559]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco"
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido" [selected]
+          - generic [ref=f11e1709]: 3 propostas
+        - generic [ref=f11e1754]:
+          - generic [ref=f11e1755]:
+            - 'heading "Edição da proposta #25" [level=2] [ref=f11e1758]':
+              - text: Edição da proposta
+              - generic [ref=f11e1759]: "#25"
+            - generic [ref=f11e1760]:
+              - button "Histórico" [ref=f11e1761] [cursor=pointer]
+              - button "Duplicar" [ref=f11e1766] [cursor=pointer]
+              - button "Lixeira" [ref=f11e1770] [cursor=pointer]
+              - button "Imprimir PDF" [ref=f11e1774] [cursor=pointer]
+              - button "Fechar" [ref=f11e1779] [cursor=pointer]
+          - generic [ref=f11e1784]:
+            - generic [ref=f11e1785]: I. DADOS DO CLIENTE
+            - generic [ref=f11e1786]:
+              - generic [ref=f11e1787]:
+                - generic [ref=f11e1788]:
+                  - generic [ref=f11e1789]: NOME
+                  - textbox [ref=f11e1790]: LUIZ CARLOS DA SILVA
+                - generic [ref=f11e1791]:
+                  - generic [ref=f11e1792]: CPF / CNPJ
+                  - textbox [ref=f11e1793]: 08.521.306/0001-03
+                - generic [ref=f11e1794]:
+                  - generic [ref=f11e1795]: I.E. / MUN.
+                  - textbox [ref=f11e1796]: "537084898115"
+              - generic [ref=f11e1797]:
+                - generic [ref=f11e1798]:
+                  - generic [ref=f11e1799]: CIDADE
+                  - textbox [ref=f11e1800]: PIRAJU (SP)
+                - generic [ref=f11e1801]:
+                  - generic [ref=f11e1802]: BAIRRO
+                  - textbox [ref=f11e1803]: DOS FELIX
+                - generic [ref=f11e1804]:
+                  - generic [ref=f11e1805]: CEP
+                  - textbox [ref=f11e1806]
+              - generic [ref=f11e1807]:
+                - generic [ref=f11e1808]:
+                  - generic [ref=f11e1809]: ENDERECO COMPLETO
+                  - textbox [ref=f11e1810]: CHACARA PAZ DO SENHOR, S/N
+                - generic [ref=f11e1811]:
+                  - generic [ref=f11e1812]: VENDEDOR
+                  - combobox [ref=f11e1813] [cursor=pointer]:
+                    - option "— sem vendedor —" [selected]
+                    - option "André Luiz Anibal"
+                    - option "Danilo Correa"
+                    - option "DOUGRAS BOMFIM"
+                    - option "HENRI (TESTE)"
+                    - option "JOAQUIM FERNANDO LEME"
+                    - option "LUCAS ENZ"
+                    - option "Luiz Fernando Sanches"
+                    - option "Paulo Magalhães de Carvalho"
+                    - option "PEDRO FAVARO"
+                    - option "RAFAEL DOMINGUES DOS REIS"
+                    - option "SADRAKE"
+            - generic [ref=f11e1814]: II. DADOS DO IMPLEMENTO
+            - img "Preview" [ref=f11e1816]
+            - generic [ref=f11e1817]:
+              - generic [ref=f11e1818]:
+                - generic [ref=f11e1819]:
+                  - generic [ref=f11e1820]: MARCA
+                  - textbox [ref=f11e1821]: TDI
+                - generic [ref=f11e1822]:
+                  - generic [ref=f11e1823]: MODELO
+                  - textbox [ref=f11e1824]: COLHEDORA DE CAFÉ
+                - generic [ref=f11e1825]:
+                  - generic [ref=f11e1826]: ANO
+                  - textbox [ref=f11e1827]: "2026"
+              - generic [ref=f11e1829]:
+                - generic [ref=f11e1830]: DESCRICAO TECNICA
+                - textbox [ref=f11e1831]: COLHEDORA TRACIONADA MARCA TDI COM RESERVATORIO BASCULANTE DE 2000 LITROS E DESCARGA LATERAL, REBAIXA ATÉ 20 CM DO SOLO
+            - generic [ref=f11e1832]: III. FINANCEIRO
+            - generic [ref=f11e1833]:
+              - generic [ref=f11e1834]:
+                - generic [ref=f11e1835]:
+                  - generic [ref=f11e1836]: VALOR TOTAL
+                  - textbox [ref=f11e1837]: 801.430,00
+                - generic [ref=f11e1838]:
+                  - generic [ref=f11e1839]: VALIDADE (DIAS)
+                  - textbox [ref=f11e1840]: Sem validade
+              - generic [ref=f11e1842]:
+                - generic [ref=f11e1843]: CONDICOES DE PAGAMENTO
+                - textbox [ref=f11e1844]: À VISTA
+            - generic [ref=f11e1845]: IV. PEDIDO DE FÁBRICA
+            - generic [ref=f11e1847]:
+              - text: Vincular a um pedido de fábrica existente
+              - 'textbox "Buscar pedido por cliente, modelo ou #ID..." [ref=f11e1849]'
+            - generic [ref=f11e1850]: V. DESFECHO — MOTIVO DA PERDA
+            - generic [ref=f11e1851]:
+              - generic [ref=f11e1852]:
+                - generic [ref=f11e1853]:
+                  - generic [ref=f11e1854]: MOTIVO
+                  - combobox [ref=f11e1855] [cursor=pointer]:
+                    - option "— selecione —" [selected]
+                    - option "Preço"
+                    - option "Perdeu para concorrente"
+                    - option "Prazo de entrega"
+                    - option "Crédito negado"
+                    - option "Crédito aprovado parcial"
+                    - option "Cliente desistiu do projeto"
+                    - option "Sem resposta / sumiu"
+                    - option "Condição de pagamento"
+                    - option "Especificação técnica"
+                    - option "Outro"
+                - generic [ref=f11e1856]:
+                  - generic [ref=f11e1857]: CONCORRENTE
+                  - textbox [ref=f11e1858]
+                - generic [ref=f11e1859]:
+                  - generic [ref=f11e1860]: VALOR DELES (R$)
+                  - spinbutton [ref=f11e1861]
+              - generic [ref=f11e1863]:
+                - generic [ref=f11e1864]: OBSERVAÇÕES
+                - textbox "Mais informações sobre a perda..." [ref=f11e1865]
+          - button "Salvar alterações" [ref=f11e1867] [cursor=pointer]
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f11e1710]:
+      - generic [ref=f11e1713]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=f11e11] [cursor=pointer]
+  - alert [ref=f11e15]

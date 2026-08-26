@@ -1,0 +1,103 @@
+- generic [ref=f1e2]:
+  - generic [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - generic [ref=f1e5]:
+        - generic [ref=f1e6]: "NO"
+        - generic [ref=f1e7]: RP-1234
+      - generic [ref=f1e8]: FILTRO DE OLEO MOTOR
+      - generic [ref=f1e9]:
+        - text: PRATELEIRA
+        - strong [ref=f1e10]: "3"
+        - text: · ANDAR
+        - strong [ref=f1e11]: A
+    - generic [ref=f1e44]: 08/2026
+  - generic [ref=f1e45]:
+    - generic [ref=f1e46]:
+      - generic [ref=f1e47]:
+        - generic [ref=f1e48]: "NO"
+        - generic [ref=f1e49]: RP-5678
+      - generic [ref=f1e50]: JUNTA DO CABECOTE COMPLETA COM PARAFUSOS E ARRUELAS ESPECIAIS 6075
+      - generic [ref=f1e51]:
+        - text: PRATELEIRA
+        - strong [ref=f1e52]: "12"
+        - text: · ANDAR
+        - strong [ref=f1e53]: B
+        - text: · CAIXA
+        - strong [ref=f1e54]: "07"
+    - generic [ref=f1e87]: 08/2026
+  - generic [ref=f1e88]:
+    - generic [ref=f1e90]:
+      - generic [ref=f1e91]: "NO"
+      - generic [ref=f1e92]: RP-9
+    - generic [ref=f1e116]: 08/2026
+  - generic [ref=f1e117]:
+    - generic [ref=f1e118]:
+      - generic [ref=f1e119]:
+        - generic [ref=f1e120]: "NO"
+        - generic [ref=f1e121]: RP-0009
+      - generic [ref=f1e122]: CORREIA
+    - generic [ref=f1e155]: 08/2026
+  - generic [ref=f1e156]:
+    - generic [ref=f1e157]:
+      - generic [ref=f1e158]:
+        - generic [ref=f1e159]: "NO"
+        - generic [ref=f1e160]: "7386153900123"
+      - generic [ref=f1e161]: CONJUNTO DE EMBREAGEM COMPLETO MODELO 9500S REFORCADO
+      - generic [ref=f1e162]:
+        - text: PRATELEIRA
+        - strong [ref=f1e163]: "20"
+        - text: · CAIXA
+        - strong [ref=f1e164]: "15"
+    - generic [ref=f1e215]: 08/2026
+  - generic [ref=f1e216]:
+    - generic [ref=f1e217]:
+      - generic [ref=f1e218]:
+        - generic [ref=f1e219]: "NO"
+        - generic [ref=f1e220]: NO-1111
+      - generic [ref=f1e221]:
+        - generic [ref=f1e222]: BUCHA
+        - generic [ref=f1e223]:
+          - text: · PRAT
+          - strong [ref=f1e224]: "1"
+    - generic [ref=f1e257]:
+      - generic [ref=f1e258]:
+        - generic [ref=f1e259]: CA-2222
+        - generic [ref=f1e260]: CA
+      - generic [ref=f1e261]:
+        - generic [ref=f1e262]: RETENTOR TRASEIRO
+        - generic [ref=f1e263]:
+          - text: · PRAT
+          - strong [ref=f1e264]: "2"
+    - generic [ref=f1e297]: 08/2026
+  - generic [ref=f1e298]:
+    - generic [ref=f1e299]:
+      - generic [ref=f1e300]:
+        - generic [ref=f1e301]: CA-3030
+        - generic [ref=f1e302]: CA
+      - generic [ref=f1e303]: MANGUEIRA SUPERIOR DO RADIADOR
+      - generic [ref=f1e304]:
+        - text: PRATELEIRA
+        - strong [ref=f1e305]: "8"
+        - text: · ANDAR
+        - strong [ref=f1e306]: C
+    - generic [ref=f1e339]: 08/2026
+  - generic [ref=f1e340]:
+    - generic [ref=f1e341]:
+      - generic [ref=f1e342]:
+        - generic [ref=f1e343]: "NO"
+        - generic [ref=f1e344]: RP-4041
+      - generic [ref=f1e345]: PARAFUSO M10
+      - generic [ref=f1e346]:
+        - text: CAIXA
+        - strong [ref=f1e347]: "3"
+    - generic [ref=f1e380]: 08/2026
+  - generic [ref=f1e381]:
+    - generic [ref=f1e382]:
+      - generic [ref=f1e383]:
+        - generic [ref=f1e384]: "NO"
+        - generic [ref=f1e385]: RP-4042
+      - generic [ref=f1e386]: ARRUELA
+      - generic [ref=f1e387]:
+        - text: CAIXA
+        - strong [ref=f1e388]: "3"
+    - generic [ref=f1e421]: 08/2026

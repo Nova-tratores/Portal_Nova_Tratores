@@ -4,6 +4,7 @@
 // .schema('cronograma'). Mutações vão por RPC; recálculo via API Route.
 // ════════════════════════════════════════════════════════════════════
 import { supabase } from '@/lib/supabase';
+import { FASES_OS } from './os-template';
 
 const cron = () => supabase.schema('cronograma');
 
@@ -113,12 +114,37 @@ export async function buscarOS(termo: string): Promise<OSBuscaRow[]> {
   const r = await fetch(`/api/ppv/ordens-servico?${qs}`);
   return r.ok ? r.json() : [];
 }
-export async function carregarOSvinculada(osRef: string): Promise<{ id: string; cliente: string; status: string } | null> {
+export interface OSvinculada {
+  id: string; cliente: string; status: string;
+  previsaoExecucao: string | null; previsaoFaturamento: string | null;
+}
+export async function carregarOSvinculada(osRef: string): Promise<OSvinculada | null> {
   const { data } = await supabase.from('Ordem_Servico')
-    .select('Id_Ordem, Os_Cliente, Status').eq('Id_Ordem', osRef).maybeSingle();
+    .select('Id_Ordem, Os_Cliente, Status, Previsao_Execucao, Previsao_Faturamento')
+    .eq('Id_Ordem', osRef).maybeSingle();
   if (!data) return null;
-  const row = data as { Id_Ordem: string; Os_Cliente: string | null; Status: string | null };
-  return { id: row.Id_Ordem, cliente: row.Os_Cliente ?? 'Sem cliente', status: row.Status ?? '—' };
+  const row = data as { Id_Ordem: string; Os_Cliente: string | null; Status: string | null; Previsao_Execucao: string | null; Previsao_Faturamento: string | null };
+  return {
+    id: row.Id_Ordem, cliente: row.Os_Cliente ?? 'Sem cliente', status: row.Status ?? '—',
+    previsaoExecucao: row.Previsao_Execucao, previsaoFaturamento: row.Previsao_Faturamento,
+  };
+}
+
+// Gera as fases padrão (FASES_OS) encadeadas FS num projeto. A 1ª ancora em
+// `inicio` (Previsao_Execucao da OS) se informado. Reusa os RPCs existentes.
+export async function gerarTarefasDaOS(projetoId: string, opts: { inicio?: string | null }): Promise<number> {
+  let anterior: string | null = null;
+  for (let i = 0; i < FASES_OS.length; i++) {
+    const f = FASES_OS[i];
+    const id = await criarTarefa({
+      projetoId, nome: f.nome, duracao: f.duracao,
+      restricao: i === 0 && opts.inicio ? 'iniciar_nao_antes' : 'asap',
+      restricaoData: i === 0 ? (opts.inicio ?? null) : null,
+    });
+    if (anterior) await criarDependencia({ projetoId, predecessora: anterior, sucessora: id, tipo: 'FS' });
+    anterior = id;
+  }
+  return FASES_OS.length;
 }
 
 export interface GrupoReq { id: number; nome: string; status: string; membros: (number | string)[] }

@@ -73,6 +73,19 @@ function ehPeca(fam) {
   return /^pe[çc]/i.test(String(fam || '').normalize('NFD').replace(/[̀-ͯ]/g, ''))
 }
 
+// Aritmetica de meses 'YYYY-MM' (comparacao de periodos da visao FAMILIA).
+function mesAdd(m, delta) {
+  const [y, mm] = m.split('-').map(Number)
+  const d = new Date(y, mm - 1 + delta, 1)
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
+}
+function mesesSpan(de, ate) {
+  const [ya, ma] = de.split('-').map(Number)
+  const [yb, mb] = ate.split('-').map(Number)
+  return (yb - ya) * 12 + (mb - ma) + 1
+}
+function mesKeyIt(it) { return it.ano + '-' + String(it.mes).padStart(2, '0') }
+
 const POR_PAG = 50
 
 // Campos cuja ordenacao padrao e descendente (port fiel do array da fonte).
@@ -169,6 +182,38 @@ export default function MargensPage() {
   // faturamento de servicos, vindos de /api/dre-financeiro/margens/rateio.
   const [rateio, setRateio] = useState(null) // { porMes: { 'YYYY-MM': { despesas, servicos } } }
 
+  // ===== Comparacao de periodos (visao FAMILIA) =============================
+  // A = periodo mais antigo, B = mais recente; cards mostram A → B com delta.
+  // Fetch dedicado cobre do inicio mais antigo ate hoje (a API so tem 'desde');
+  // os recortes A e B sao feitos no client por ano/mes dos itens.
+  const [comparar, setComparar] = useState(false)
+  const [perA, setPerA] = useState({ de: '', ate: '' })
+  const [perB, setPerB] = useState({ de: '', ate: '' })
+  const [dadosComp, setDadosComp] = useState(null)
+  const [rateioComp, setRateioComp] = useState(null)
+  const [carregandoComp, setCarregandoComp] = useState(false)
+  const [popPeriodo, setPopPeriodo] = useState('B') // periodo mostrado na tabela do popup
+
+  // Liga/desliga a comparacao; na primeira vez preenche B = ultimos 6 meses e
+  // A = os 6 imediatamente anteriores.
+  function ligarComparacao() {
+    if (!comparar && (!perB.de || !perB.ate)) {
+      const hoje = new Date()
+      const fimB = hoje.getFullYear() + '-' + String(hoje.getMonth() + 1).padStart(2, '0')
+      const iniB = mesAdd(fimB, -5)
+      setPerB({ de: iniB, ate: fimB })
+      setPerA({ de: mesAdd(iniB, -6), ate: mesAdd(iniB, -1) })
+    }
+    setComparar((c) => !c)
+  }
+  // Atalho: A vira o periodo imediatamente anterior a B, com a mesma duracao.
+  function preencherAAnterior() {
+    if (!perB.de || !perB.ate) return
+    const n = mesesSpan(perB.de, perB.ate)
+    const ateA = mesAdd(perB.de, -1)
+    setPerA({ de: mesAdd(ateA, -(n - 1)), ate: ateA })
+  }
+
   // Ref do grafico mensal
   const refChart = useRef(null)
   const instChart = useRef(null)
@@ -223,6 +268,24 @@ export default function MargensPage() {
       .catch(() => setRateio(null))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dados])
+
+  // Fetch da comparacao de periodos: vendas desde o inicio mais antigo + rateio
+  // do intervalo inteiro. 'taxa' fora das deps (mesmo padrao do fetch principal).
+  useEffect(() => {
+    if (!comparar || !perA.de || !perA.ate || !perB.de || !perB.ate) return
+    const minDe = perA.de < perB.de ? perA.de : perB.de
+    const maxAte = perA.ate > perB.ate ? perA.ate : perB.ate
+    setCarregandoComp(true)
+    fetch('/api/dre-financeiro/margens?conta=' + conta + '&taxa=' + taxa + '&desde=' + minDe)
+      .then((r) => r.json())
+      .then((d) => { setCarregandoComp(false); if (!d.erro) setDadosComp(d) })
+      .catch(() => setCarregandoComp(false))
+    fetch('/api/dre-financeiro/margens/rateio?conta=' + conta + '&desde=' + minDe + '&ate=' + maxAte)
+      .then((r) => r.json())
+      .then((d) => setRateioComp(d && !d.erro && d.porMes ? d : null))
+      .catch(() => setRateioComp(null))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [comparar, perA, perB, conta])
 
   // =========================================================================
   // Lista filtrada (port fiel de filtrados()).
@@ -348,17 +411,20 @@ export default function MargensPage() {
     return Object.keys(out).length ? out : null
   })()
   // Despesa do mes atribuida a UMA venda (null quando o rateio nao carregou).
-  function despesaRateada(it) {
-    if (!fdPorMes) return null
-    const f = fdPorMes[it.ano + '-' + String(it.mes).padStart(2, '0')]
+  // Versoes com fdMap explicito servem a comparacao de periodos (fdComp).
+  function despesaRateadaFd(it, fdMap) {
+    if (!fdMap) return null
+    const f = fdMap[mesKeyIt(it)]
     return f ? it.receita * f.fd : null
   }
   // Margem liquida DRE de uma venda (%): (lucro real − despesa rateada)/receita.
-  function margemDrePct(it) {
-    const d = despesaRateada(it)
+  function margemDrePctFd(it, fdMap) {
+    const d = despesaRateadaFd(it, fdMap)
     if (d === null || !(it.receita > 0)) return null
     return ((it.margem_real - d) / it.receita) * 100
   }
+  function despesaRateada(it) { return despesaRateadaFd(it, fdPorMes) }
+  function margemDrePct(it) { return margemDrePctFd(it, fdPorMes) }
 
   // =========================================================================
   // Visao FAMILIA: agregacao por familia sobre TODAS as vendas do periodo.
@@ -387,6 +453,63 @@ export default function MargensPage() {
   })()
 
   // =========================================================================
+  // Comparacao A x B por familia (modo "Comparar periodos" da visao FAMILIA).
+  // =========================================================================
+  const dentroPeriodo = (it, p) => { const k = mesKeyIt(it); return k >= p.de && k <= p.ate }
+
+  // fd do intervalo comparado (denominador = receita total do mes no fetch
+  // dedicado + servicos), analogo ao fdPorMes do periodo principal.
+  const fdComp = (() => {
+    if (!comparar || !rateioComp || !rateioComp.porMes || !dadosComp) return null
+    const recMes = {}
+    ;(dadosComp.itens || []).forEach((it) => { const k = mesKeyIt(it); recMes[k] = (recMes[k] || 0) + it.receita })
+    const out = {}
+    Object.keys(recMes).forEach((k) => {
+      const r = rateioComp.porMes[k]
+      if (!r) return
+      const denom = recMes[k] + (Number(r.servicos) || 0)
+      if (denom > 0) out[k] = { fd: (Number(r.despesas) || 0) / denom }
+    })
+    return Object.keys(out).length ? out : null
+  })()
+
+  function agregarFamilias(itens, fdMap) {
+    const map = {}
+    itens.forEach((it) => {
+      const f = it.familia || '(sem familia)'
+      if (!map[f]) map[f] = { qtd: 0, receita: 0, cmv: 0, custo: 0, lucro: 0, desp: 0 }
+      map[f].qtd += 1
+      map[f].receita += it.receita
+      map[f].cmv += it.cmv
+      map[f].custo += it.cmv + it.custo_capital
+      map[f].lucro += it.margem_real
+      map[f].desp += despesaRateadaFd(it, fdMap) || 0
+    })
+    Object.values(map).forEach((x) => {
+      x.margem_pct = x.receita > 0 ? +((x.lucro / x.receita) * 100).toFixed(1) : 0
+      x.bruta_pct = x.receita > 0 ? +(((x.receita - x.cmv) / x.receita) * 100).toFixed(1) : 0
+      x.dre_pct = fdMap && x.receita > 0 ? +(((x.lucro - x.desp) / x.receita) * 100).toFixed(1) : null
+    })
+    return map
+  }
+
+  const compFamilias = (() => {
+    if (!comparar || !dadosComp) return null
+    const itens = dadosComp.itens || []
+    const aMap = agregarFamilias(itens.filter((it) => dentroPeriodo(it, perA)), fdComp)
+    const bMap = agregarFamilias(itens.filter((it) => dentroPeriodo(it, perB)), fdComp)
+    const famsAB = [...new Set([...Object.keys(aMap), ...Object.keys(bMap)])]
+    const arr = famsAB.map((f) => ({ familia: f, A: aMap[f] || null, B: bMap[f] || null }))
+    arr.sort((x, y) => ((y.B ? y.B.receita : 0) + (y.A ? y.A.receita : 0)) - ((x.B ? x.B.receita : 0) + (x.A ? x.A.receita : 0)))
+    return arr
+  })()
+  const compFamSel = comparar && famSel && compFamilias ? compFamilias.find((x) => x.familia === famSel) : null
+
+  // fd usado nas tabelas dos popups: comparacao (visao FAMILIA) usa o do
+  // intervalo comparado; nas demais situacoes, o do periodo principal.
+  const fdPopup = (comparar && visao === 'familia') ? fdComp : fdPorMes
+
+  // =========================================================================
   // Ordenacao das tabelas dos popups (cabecalhos clicaveis A-Z / Z-A).
   // 'data' ordena cronologicamente (dd/mm/yyyy -> yyyymmdd); 'margem_bruta_pct'
   // e calculada na hora (nao vem da API).
@@ -398,7 +521,7 @@ export default function MargensPage() {
       return (it.ano || 0) * 10000 + (it.mes || 0) * 100
     }
     if (campo === 'margem_bruta_pct') return it.receita > 0 ? ((it.receita - it.cmv) / it.receita) * 100 : -Infinity
-    if (campo === 'margem_dre_pct') { const v = margemDrePct(it); return v === null ? -Infinity : v }
+    if (campo === 'margem_dre_pct') { const v = margemDrePctFd(it, fdPopup); return v === null ? -Infinity : v }
     return it[campo]
   }
   function ordenarPopup(arr) {
@@ -428,9 +551,12 @@ export default function MargensPage() {
   }
 
   // Vendas que compoem a media da familia aberta no popup (ordenacao pelos
-  // cabecalhos; padrao = margem liquida, piores primeiro).
+  // cabecalhos; padrao = margem liquida, piores primeiro). Na comparacao, a
+  // tabela mostra o periodo escolhido no chip A/B (dados do fetch dedicado).
   const vendasFamSel = famSel
-    ? ordenarPopup(todos.filter((it) => (it.familia || '(sem familia)') === famSel))
+    ? ordenarPopup((comparar ? (dadosComp ? dadosComp.itens || [] : []) : todos)
+        .filter((it) => (it.familia || '(sem familia)') === famSel
+          && (!comparar || dentroPeriodo(it, popPeriodo === 'A' ? perA : perB))))
     : []
   const aggFamSel = famSel ? porFamilia.find((x) => x.familia === famSel) : null
 
@@ -820,11 +946,84 @@ export default function MargensPage() {
       {/* ===== Visao FAMILIA: media atual de cada familia ==================== */}
       {visao === 'familia' && (
         <div>
-          <button
-            onClick={() => setVisao('')}
-            className="mb-3 text-xs px-3 py-1.5 border border-slate-300 rounded bg-white hover:bg-slate-100 text-slate-600"
-          >← Escolher visualizacao</button>
-          {!dados ? (
+          <div className="flex items-center gap-2 mb-3 flex-wrap">
+            <button
+              onClick={() => setVisao('')}
+              className="text-xs px-3 py-1.5 border border-slate-300 rounded bg-white hover:bg-slate-100 text-slate-600"
+            >← Escolher visualizacao</button>
+            <button
+              onClick={ligarComparacao}
+              className={'text-xs px-3 py-1.5 border rounded ' + (comparar
+                ? 'border-blue-500 bg-blue-600 text-white hover:bg-blue-700'
+                : 'border-slate-300 bg-white hover:bg-slate-100 text-slate-600')}
+            >{comparar ? '✓ Comparando periodos' : 'Comparar periodos'}</button>
+            {comparar && (
+              <div className="flex items-center gap-1.5 text-xs text-slate-600 flex-wrap">
+                <span className="font-semibold">A:</span>
+                <input type="month" value={perA.de} onChange={(e) => setPerA({ ...perA, de: e.target.value })} className="border border-slate-300 rounded px-1 py-0.5" />
+                <span>até</span>
+                <input type="month" value={perA.ate} onChange={(e) => setPerA({ ...perA, ate: e.target.value })} className="border border-slate-300 rounded px-1 py-0.5" />
+                <span className="font-semibold ml-2">B:</span>
+                <input type="month" value={perB.de} onChange={(e) => setPerB({ ...perB, de: e.target.value })} className="border border-slate-300 rounded px-1 py-0.5" />
+                <span>até</span>
+                <input type="month" value={perB.ate} onChange={(e) => setPerB({ ...perB, ate: e.target.value })} className="border border-slate-300 rounded px-1 py-0.5" />
+                <button
+                  onClick={preencherAAnterior}
+                  title="Define A como o periodo imediatamente anterior a B, com a mesma duracao"
+                  className="px-2 py-0.5 border border-slate-300 rounded bg-white hover:bg-slate-100"
+                >A = anterior a B</button>
+                {carregandoComp && <span className="text-slate-400">Carregando...</span>}
+              </div>
+            )}
+          </div>
+
+          {comparar ? (
+            /* ---- Cards comparativos A → B -------------------------------- */
+            !dadosComp ? (
+              <div className="text-sm text-slate-500 py-8 text-center">Carregando comparacao...</div>
+            ) : !compFamilias || compFamilias.length === 0 ? (
+              <div className="text-sm text-slate-500 py-8 text-center">Nenhuma venda nos periodos escolhidos.</div>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {compFamilias.map(({ familia: f, A, B }) => {
+                  const dl = A && B ? +(B.margem_pct - A.margem_pct).toFixed(1) : null
+                  return (
+                    <button
+                      key={f}
+                      onClick={() => { setFamSel(f); setPopPeriodo('B'); abrirPopupOrdemPadrao() }}
+                      className="bg-white border border-slate-200 rounded-lg p-4 text-left hover:border-blue-400 hover:shadow transition-all"
+                    >
+                      <div className="text-xs text-slate-500 truncate" title={f}>
+                        {ehPeca(f) ? '🔩 ' : '⚙ '}{f}
+                      </div>
+                      <div className="mt-1 flex items-baseline gap-1 flex-wrap">
+                        <span className={'text-xl font-bold ' + (A ? corMargem(A.margem_pct) : 'text-slate-300')}>{A ? A.margem_pct.toFixed(1) + '%' : '—'}</span>
+                        <span className="text-slate-400 text-sm">→</span>
+                        <span className={'text-xl font-bold ' + (B ? corMargem(B.margem_pct) : 'text-slate-300')}>{B ? B.margem_pct.toFixed(1) + '%' : '—'}</span>
+                        {dl !== null && (
+                          <span className={'text-[11px] font-semibold ' + (dl > 0 ? 'text-emerald-600' : (dl < 0 ? 'text-red-600' : 'text-slate-400'))}>
+                            {dl > 0 ? '▲ +' : (dl < 0 ? '▼ ' : '= ')}{dl.toFixed(1)}pp
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        líquida (real) · bruta {A ? A.bruta_pct.toFixed(1) : '—'}% → {B ? B.bruta_pct.toFixed(1) : '—'}%
+                        {((A && A.dre_pct !== null) || (B && B.dre_pct !== null)) && (
+                          <> · DRE {A && A.dre_pct !== null ? A.dre_pct.toFixed(1) : '—'}% → {B && B.dre_pct !== null ? B.dre_pct.toFixed(1) : '—'}%</>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-slate-500 mt-1">
+                        A: {A ? A.qtd + ' vendas · venda ' + fmtBRLcurto(A.receita) + ' · lucro ' + fmtBRLcurto(A.lucro) : 'sem vendas'}
+                      </div>
+                      <div className="text-[11px] text-slate-500">
+                        B: {B ? B.qtd + ' vendas · venda ' + fmtBRLcurto(B.receita) + ' · lucro ' + fmtBRLcurto(B.lucro) : 'sem vendas'}
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          ) : !dados ? (
             <div className="text-sm text-slate-500 py-8 text-center">Carregando...</div>
           ) : porFamilia.length === 0 ? (
             <div className="text-sm text-slate-500 py-8 text-center">Nenhuma venda no periodo.</div>
@@ -1275,23 +1474,50 @@ export default function MargensPage() {
       )}
 
       {/* Popup de composicao da media da familia (visao FAMILIA) */}
-      {famSel && aggFamSel && (
+      {famSel && (comparar ? compFamSel : aggFamSel) && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setFamSel(null)} />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[96vw] max-w-[1500px] max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
+            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-3">
               <div>
                 <h2 className="font-semibold text-slate-800">{ehPeca(famSel) ? '🔩 ' : '⚙ '}{famSel}</h2>
-                <div className="text-xs text-slate-500 mt-0.5">
-                  Margem líquida (real) <b className={corMargem(aggFamSel.margem_pct)}>{aggFamSel.margem_pct.toFixed(1)}%</b>
-                  {' · '}bruta <b className={corMargem(aggFamSel.bruta_pct)}>{aggFamSel.bruta_pct.toFixed(1)}%</b>
-                  {aggFamSel.dre_pct !== null && <> · DRE <b className={corMargem(aggFamSel.dre_pct)}>{aggFamSel.dre_pct.toFixed(1)}%</b></>}
-                  {' · '}{aggFamSel.qtd} vendas
-                  {' · '}venda {fmtBRL(aggFamSel.receita)} · custo {fmtBRL(aggFamSel.custo)}
-                  {' · '}<span className={corMargem(aggFamSel.margem_pct)}>{fmtBRL(aggFamSel.lucro)} lucro</span>
-                </div>
+                {comparar && compFamSel ? (
+                  <div className="text-xs text-slate-500 mt-0.5 space-y-0.5">
+                    {[['A', perA, compFamSel.A], ['B', perB, compFamSel.B]].map(([rot, p, ag]) => (
+                      <div key={rot}>
+                        <b>{rot}</b> ({p.de} a {p.ate}):{' '}
+                        {ag ? (
+                          <>
+                            líquida <b className={corMargem(ag.margem_pct)}>{ag.margem_pct.toFixed(1)}%</b>
+                            {' · '}bruta <b className={corMargem(ag.bruta_pct)}>{ag.bruta_pct.toFixed(1)}%</b>
+                            {ag.dre_pct !== null && <> · DRE <b className={corMargem(ag.dre_pct)}>{ag.dre_pct.toFixed(1)}%</b></>}
+                            {' · '}{ag.qtd} vendas · venda {fmtBRL(ag.receita)} · custo {fmtBRL(ag.custo)}
+                            {' · '}<span className={corMargem(ag.margem_pct)}>{fmtBRL(ag.lucro)} lucro</span>
+                          </>
+                        ) : 'sem vendas no periodo'}
+                      </div>
+                    ))}
+                  </div>
+                ) : aggFamSel ? (
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    Margem líquida (real) <b className={corMargem(aggFamSel.margem_pct)}>{aggFamSel.margem_pct.toFixed(1)}%</b>
+                    {' · '}bruta <b className={corMargem(aggFamSel.bruta_pct)}>{aggFamSel.bruta_pct.toFixed(1)}%</b>
+                    {aggFamSel.dre_pct !== null && <> · DRE <b className={corMargem(aggFamSel.dre_pct)}>{aggFamSel.dre_pct.toFixed(1)}%</b></>}
+                    {' · '}{aggFamSel.qtd} vendas
+                    {' · '}venda {fmtBRL(aggFamSel.receita)} · custo {fmtBRL(aggFamSel.custo)}
+                    {' · '}<span className={corMargem(aggFamSel.margem_pct)}>{fmtBRL(aggFamSel.lucro)} lucro</span>
+                  </div>
+                ) : null}
               </div>
-              <button onClick={() => setFamSel(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+              <div className="flex items-center gap-2 shrink-0">
+                {comparar && (
+                  <div className="inline-flex rounded border border-slate-300 overflow-hidden text-[11px]" title="Periodo mostrado na tabela abaixo">
+                    <button onClick={() => setPopPeriodo('A')} className={'px-2.5 py-1 ' + (popPeriodo === 'A' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>A</button>
+                    <button onClick={() => setPopPeriodo('B')} className={'px-2.5 py-1 border-l border-slate-300 ' + (popPeriodo === 'B' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>B</button>
+                  </div>
+                )}
+                <button onClick={() => setFamSel(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+              </div>
             </div>
             <div className="overflow-y-auto">
               <div className="overflow-x-auto">
@@ -1308,14 +1534,14 @@ export default function MargensPage() {
                       <ThPop campo="margem_bruta_pct" rotulo="Mg bruta %" title="(receita − CMV) / receita" />
                       <ThPop campo="margem_real" rotulo="Lucro líq." />
                       <ThPop campo="margem_pct" rotulo="Mg líq. %" title="(receita − CMV − capital) / receita" />
-                      {fdPorMes && <ThPop campo="margem_dre_pct" rotulo="Mg DRE %" title="Liquida real − despesas do mes rateadas pela receita total (maquinas + pecas + servicos)" />}
+                      {fdPopup && <ThPop campo="margem_dre_pct" rotulo="Mg DRE %" title="Liquida real − despesas do mes rateadas pela receita total (maquinas + pecas + servicos)" />}
                     </tr>
                   </thead>
                   <tbody>
                     {vendasFamSel.map((it, idx) => {
                       const corMg = corMargem(it.margem_pct)
                       const brutaPct = it.receita > 0 ? ((it.receita - it.cmv) / it.receita) * 100 : 0
-                      const dre = margemDrePct(it)
+                      const dre = margemDrePctFd(it, fdPopup)
                       return (
                         <tr
                           key={idx}
@@ -1335,8 +1561,8 @@ export default function MargensPage() {
                           <td className={'px-3 py-1.5 text-right ' + corMargem(brutaPct)}>{brutaPct.toFixed(1)}%</td>
                           <td className={'px-3 py-1.5 text-right font-medium ' + corMg}>{fmtBRL(it.margem_real)}</td>
                           <td className={'px-3 py-1.5 text-right font-bold ' + corMg}>{it.margem_pct.toFixed(1)}%</td>
-                          {fdPorMes && (
-                            <td className={'px-3 py-1.5 text-right font-medium ' + (dre !== null ? corMargem(dre) : 'text-slate-300')} title={dre !== null ? 'despesa rateada ' + fmtBRL(despesaRateada(it)) : 'sem rateio para o mes'}>
+                          {fdPopup && (
+                            <td className={'px-3 py-1.5 text-right font-medium ' + (dre !== null ? corMargem(dre) : 'text-slate-300')} title={dre !== null ? 'despesa rateada ' + fmtBRL(despesaRateadaFd(it, fdPopup)) : 'sem rateio para o mes'}>
                               {dre !== null ? dre.toFixed(1) + '%' : '-'}
                             </td>
                           )}
@@ -1348,7 +1574,10 @@ export default function MargensPage() {
               </div>
             </div>
             <div className="px-3 py-2 border-t border-slate-200 text-[11px] text-slate-500">
-              {vendasFamSel.length} vendas compoem a media · ordenado por margem líquida (clique nos cabeçalhos para reordenar) · Mg DRE = com despesas do mês rateadas pela receita total (máquinas + peças + serviços) · clique numa linha para o detalhe completo
+              {comparar
+                ? vendasFamSel.length + ' vendas no período ' + popPeriodo + ' (' + (popPeriodo === 'A' ? perA.de + ' a ' + perA.ate : perB.de + ' a ' + perB.ate) + ') · use o chip A/B para alternar · '
+                : vendasFamSel.length + ' vendas compoem a media · '}
+              ordenado por margem líquida (clique nos cabeçalhos para reordenar) · Mg DRE = com despesas do mês rateadas pela receita total (máquinas + peças + serviços) · clique numa linha para o detalhe completo
             </div>
           </div>
         </>

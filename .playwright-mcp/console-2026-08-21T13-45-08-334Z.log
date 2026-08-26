@@ -1,0 +1,26 @@
+[     326ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     434ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[    2710ms] [LOG] [Chat] Realtime conectado @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[    2712ms] [LOG] [Notificações] Realtime conectado @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   87782ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   88526ms] [LOG] [Fast Refresh] done in 848ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   89354ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   89687ms] [LOG] [Fast Refresh] done in 440ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  121505ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  121695ms] [LOG] [Fast Refresh] done in 299ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  124462ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/lembretes?userId=8d43db92-0943-4c88-9a0b-b7f52a11ff55&tipo=vencidos:0
+[  125229ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  128571ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  131891ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  135226ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  138551ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  145895ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  153228ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  154459ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/lembretes?userId=8d43db92-0943-4c88-9a0b-b7f52a11ff55&tipo=vencidos:0
+[  160573ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  167911ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  175256ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  182588ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  182874ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/versao:0
+[  183128ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/lembretes?userId=8d43db92-0943-4c88-9a0b-b7f52a11ff55&tipo=vencidos:0
+[  189927ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=OmWgpP3DPR0riYMT1McGD' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878

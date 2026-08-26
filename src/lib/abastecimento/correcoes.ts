@@ -22,6 +22,12 @@ export const CORRECOES_PLACA: CorrecaoPlaca[] = [
   { de: 'EPX5253', para: 'FRS3H46', modelo: 'ETIOS', ate: '2026-06-30T23:59:59-03:00' },
 ];
 
+// Nome da frota no rodapé do relatório DBTrans -> filial_nome usado no portal
+// (mesmo texto que a operadora grava, pro filtro de filial não duplicar).
+export const FILIAL_POR_FROTA: Record<string, string> = {
+  'CASTRO PECAS': 'CASTRO PECAS E MAQUINAS AGRICOLAS LTDA',
+};
+
 // Correções de departamento POR MOTORISTA: quando o "Centro de custo veículo"
 // do cartão não bate com o departamento real da pessoa. Reatribui pelo nome do
 // motorista (normalizado), independentemente do veículo/cartão usado.

@@ -22,6 +22,14 @@ export type EventoTipo =
   | 'pedido_atualizacao'
   | 'edicao'
   | 'anexo'
+  // SC (tipo='compras') — cada decisão do trilho vira um evento imutável.
+  | 'sc_criada'
+  | 'qtd_alterada'
+  | 'parecer_financeiro'
+  | 'pc_emitido'
+  // War Room (tipo='war_room')
+  | 'wr_acao_criada'
+  | 'wr_decisao_vinculada'
 
 export interface Ticket {
   id: string
@@ -37,6 +45,7 @@ export interface Ticket {
   solicitante_id: string
   responsavel_id: string
   payload: Record<string, unknown>
+  sc_etapa: string | null // etapa do trilho da SC (NULL para ticket genérico)
   resolvido_em: string | null
   fechado_em: string | null
   ultima_atividade_em: string

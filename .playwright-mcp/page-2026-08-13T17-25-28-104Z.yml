@@ -1,0 +1,2114 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e15]:
+      - generic [ref=e16]:
+        - button [ref=e17] [cursor=pointer]
+        - link [ref=e19] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=e20]
+      - generic [ref=e21]:
+        - button "Chat" [ref=e22] [cursor=pointer]
+        - button "Notificações" [ref=e25] [cursor=pointer]
+        - button "Menu" [ref=e30] [cursor=pointer]
+        - generic "Meu perfil" [ref=e35] [cursor=pointer]:
+          - generic [ref=e37]:
+            - paragraph [ref=e38]: Henri Irneh
+            - paragraph [ref=e39]: Pós-Vendas
+    - generic [ref=e40]:
+      - generic [ref=e42]:
+        - paragraph [ref=e44]: Henri Irneh
+        - paragraph [ref=e45]: Pós-Vendas
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - link "Dashboard" [ref=e48] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=e57] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=e63]:
+          - paragraph [ref=e64]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=e66] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=e73] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=e80] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=e86] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=e95] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=e102] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=e109] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=e116] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=e122] [cursor=pointer]:
+            - /url: /cronograma
+        - generic [ref=e128]:
+          - paragraph [ref=e129]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=e131] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=e139] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=e145] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=e152]:
+          - paragraph [ref=e153]: FINANCEIRO
+          - link "Financeiro" [ref=e155] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=e161] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=e169]:
+          - paragraph [ref=e170]: COMERCIAL
+          - link "Proposta Comercial" [ref=e172] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=e179] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Clientes" [ref=e186] [cursor=pointer]:
+            - /url: /clientes
+          - link "Supervisor Vendas" [ref=e193] [cursor=pointer]:
+            - /url: /supervisor-vendas
+          - link "Solicitações de Compras" [ref=e198] [cursor=pointer]:
+            - /url: /decisoes
+        - generic [ref=e206]:
+          - paragraph [ref=e207]: ESTOQUE
+          - link "Visual Estoque" [ref=e209] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=e215] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=e222] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Abastecimento" [ref=e227] [cursor=pointer]:
+            - /url: /abastecimento
+          - link "Omie em Massa" [ref=e234] [cursor=pointer]:
+            - /url: /omie-massa
+        - generic [ref=e239]:
+          - paragraph [ref=e240]: OUTROS
+          - link "Opa" [ref=e242] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=e248] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=e254] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=e271] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=e277] [cursor=pointer]:
+          - /url: /admin
+      - button "Sair do Portal" [ref=e284] [cursor=pointer]
+    - main [ref=e288]:
+      - generic [ref=e289]:
+        - generic [ref=e290]:
+          - generic [ref=e291]:
+            - generic [ref=e292]:
+              - generic [ref=e294]: DRE Financeiro
+              - 'button "Ajuda: o que é a tela Calendário" [ref=e295] [cursor=pointer]': "?"
+            - generic [ref=e296]:
+              - generic [ref=e297]: Conta
+              - generic [ref=e298]:
+                - button "NOVA" [ref=e299] [cursor=pointer]
+                - button "CASTRO" [ref=e300] [cursor=pointer]
+                - button "TODAS" [ref=e301] [cursor=pointer]
+          - navigation [ref=e302]:
+            - link "🏠 Home" [ref=e304] [cursor=pointer]:
+              - /url: /dre-financeiro
+            - generic [ref=e305]:
+              - generic [ref=e306]: Caixa & Venc.
+              - link "📅 Calendário" [ref=e307] [cursor=pointer]:
+                - /url: /dre-financeiro/calendario
+              - link "⚠️ Vencidos" [ref=e308] [cursor=pointer]:
+                - /url: /dre-financeiro/vencidos
+              - link "📉 Curva de Saldo" [ref=e309] [cursor=pointer]:
+                - /url: /dre-financeiro/curva-saldo
+              - link "🌊 Fluxo" [ref=e310] [cursor=pointer]:
+                - /url: /dre-financeiro/fluxo
+            - generic [ref=e311]:
+              - generic [ref=e312]: Prazos & Efic.
+              - link "🔄 Ciclo de Caixa" [ref=e313] [cursor=pointer]:
+                - /url: /dre-financeiro/ciclo-caixa
+              - link "⏱️ Pontualidade" [ref=e314] [cursor=pointer]:
+                - /url: /dre-financeiro/aderencia
+            - generic [ref=e315]:
+              - generic [ref=e316]: Resultado
+              - link "📋 DRE" [ref=e317] [cursor=pointer]:
+                - /url: /dre-financeiro/dre
+              - link "🔬 Análise DRE" [ref=e318] [cursor=pointer]:
+                - /url: /dre-financeiro/analise-dre
+              - link "🧩 Composição" [ref=e319] [cursor=pointer]:
+                - /url: /dre-financeiro/composicao
+            - generic [ref=e320]:
+              - generic [ref=e321]: Patrimônio
+              - link "💰 Patrimônio" [ref=e322] [cursor=pointer]:
+                - /url: /dre-financeiro/patrimonio
+              - link "📊 Rentabilidade" [ref=e323] [cursor=pointer]:
+                - /url: /dre-financeiro/rentabilidade
+              - link "📈 Lucratividade" [ref=e324] [cursor=pointer]:
+                - /url: /dre-financeiro/lucratividade
+              - link "🧮 Margens" [ref=e325] [cursor=pointer]:
+                - /url: /dre-financeiro/margens
+              - link "🏗️ Estoque Pátio ↗" [ref=e326] [cursor=pointer]:
+                - /url: /visual-estoque/patio
+            - generic [ref=e327]:
+              - generic [ref=e328]: Comercial
+              - link "🏷️ Vendas/Modelo" [ref=e329] [cursor=pointer]:
+                - /url: /dre-financeiro/vendas-modelo
+              - link "👥 Clientes" [ref=e330] [cursor=pointer]:
+                - /url: /dre-financeiro/clientes
+            - generic [ref=e331]:
+              - generic [ref=e332]: Qualidade
+              - link "🛡️ Monitor" [ref=e333] [cursor=pointer]:
+                - /url: /dre-financeiro/monitor
+        - generic [ref=e335]:
+          - generic [ref=e336]:
+            - button "←" [ref=e337]
+            - heading "Agosto 2026" [level=1] [ref=e338]
+            - button "→" [ref=e339]
+            - button "Hoje" [ref=e340]
+            - generic [ref=e341]:
+              - button "Mes" [ref=e342]
+              - button "Ano" [ref=e343]
+              - button "Lista" [active] [ref=e344]
+            - group [ref=e345]:
+              - button "A Pagar" [ref=e346]
+              - button "A Receber" [ref=e347]
+              - button "Ambos" [ref=e348]
+            - group "Data usada para posicionar os titulos no calendario" [ref=e349]:
+              - button "Vencimento" [ref=e350]
+              - button "Emissao" [ref=e351]
+              - button "Criacao" [ref=e352]
+            - generic [ref=e353]: "Modo:"
+            - generic [ref=e354]: A Pagar
+            - generic [ref=e355]: ·
+            - generic [ref=e356]: por criacao
+            - button "Sincronizar" [ref=e357]
+          - generic [ref=e371]:
+            - combobox [ref=e372]:
+              - option "Todos os status" [selected]
+              - option "A vencer"
+              - option "Proximos 7 dias"
+              - option "Vencido"
+              - option "Liquidado"
+              - option "Pagamento parcial"
+            - combobox [ref=e373]:
+              - option "Todos os fornecedores" [selected]
+              - option "42.096.021 ANTONIO ROBERTO PEREIRA MARTINS"
+              - option "48.278.609 MARCELO FONSECA BUENO"
+              - option "55.536.850 ALESSANDRO RODRIGO RAIMUNDO"
+              - option "55.794.037 RODRIGO DE ARAUJO CASTRO JUNI"
+              - option "58.997.505 ALESSANDRO JOSE DO AMARAL CIRINO"
+              - option "61.849.573 JEFFERSON JOSE FIRMINO"
+              - option "A.A DE ALMEIDA EQUIPAMENTOS AGRO INDUSTRIAL"
+              - option "A3 INDUSTRIA DE MAQUINAS AGRICOLAS LTDA"
+              - option "ABRAHINDRA - ASSOCIACAO BRASILEIRA DAS CONCESSIONARIAS MAHINDRA"
+              - option "AC PIRAJU"
+              - option "ACOUGUE SAO JORGE"
+              - option "ADILSON FERNANDES FONSECA"
+              - option "ADILSON GONCALVES DE MENDONCA"
+              - option "AGRAMAQ"
+              - option "AGROGALAXY"
+              - option "Agrosystem"
+              - option "ALEX BUENO DE CAMARGO"
+              - option "ALEX FABIANO GARCIA"
+              - option "ALEXSANDER VICTORINO GUINHO"
+              - option "ANA CAROBA MOZINI POUSADA"
+              - option "ANA PAULA MIANO 34407488808"
+              - option "ANDRE LUIZ ANIBAL"
+              - option "ANTONIO BUENO (Nezão)"
+              - option "APICE ADMINISTRADORA DE CONSORCIO LTDA"
+              - option "ARMANDO VERRONE DEL MERCATO JUNIOR"
+              - option "ARTHUR LANGAME"
+              - option "ATRHOL - AGENCIA E TRANSPORTES HORIZONTINA LTDA"
+              - option "AUTO PECAS MART"
+              - option "AUTO POSTO 2001"
+              - option "AUTO POSTO BIZUNGA AVENID"
+              - option "AUTO SOCORRO NUNES LTDA"
+              - option "AUTO TINTAS PIRAJU"
+              - option "AV SOLUCOES AUTOMOTIVAS"
+              - option "BANCO BRASIL"
+              - option "BANCO DLL BRASIL S/A"
+              - option "BANCO VOTORANTIM S.A."
+              - option "BANDEIRANTE IND E COM DE MAQ LTDA"
+              - option "BARRACAO DO LANDICO"
+              - option "BAURU - EXPRESSO SAO MIGUEL S/A"
+              - option "BAURUFER AVARE"
+              - option "BAURUFER OURINHOS"
+              - option "BAVARIA COMERCIO DE EQUIPAMENTOS E PECAS P/ VEICULOS LT"
+              - option "BB CONSORCIOS"
+              - option "BENDITO POTE"
+              - option "BICICLETARIA SANTO ANTONIO"
+              - option "BISTECAO NA CHAPA"
+              - option "BLACK COLLORS CARTUCHOS E TONERS"
+              - option "BODIPASA - MTZ"
+              - option "BORRACHARIA MOVEL"
+              - option "BRADESCO EST UNIF"
+              - option "CACB CERTIFICADO DIGITAL JAU"
+              - option "CACIQUE-LOJA PIRAJU 04"
+              - option "CAMBARA BOMBAS DIESEL"
+              - option "CAMPINAS - EXPRESSO SAO MIGUEL S/A"
+              - option "CARIVALDO FABRICIO ROSA"
+              - option "CARLITO SOM &amp; ALARME"
+              - option "CARLOS ALBERTO PEDROTTI DE ANDRADE"
+              - option "CARLOS PNEUS"
+              - option "CARTORIO DE NOTAS E DE PROTESTOS"
+              - option "CARTORIO DE REGISTRO DE IMOVEIS E ANEXOS"
+              - option "CASA DO OLEO"
+              - option "CASA DOS PARAFUSOS"
+              - option "CASTRO PEÇAS E MAQUINAS AGRICOLAS LTDA"
+              - option "CEDNET"
+              - option "CELSO CAMARGO GUAZZO E OUTRA"
+              - option "CEMAG"
+              - option "CENTRO AUTOMOTIVO 2 IRMAOS"
+              - option "CENTRO DE INTEGRACAO EMPRESA ESCOLA CIE E"
+              - option "CES - COMERCIO DE PECAS PARA REPOSICAO LTDA"
+              - option "CHR AR CONDICIONADO E TRANSPORTES-RAFA"
+              - option "CHURRASCARIA BOLA BRANCA"
+              - option "CHURRASCARIA IRMAOS RODRIGUES"
+              - option "CITROSMAQ"
+              - option "CLELIA APARECIDA DE MORAES 29532707875"
+              - option "CLEUDENIRA BENEDITA NUNES DE OLIVEIRA"
+              - option "COMERCIAL DE PECAS AUTOMOTIVAS EMBREMAC"
+              - option "COMERCIAL OLIMPIA VALTRA VALMET"
+              - option "COMFORT INDUSTRIA E COMERCIO LTDA"
+              - option "COMPEL - BARUERI"
+              - option "COMPEL - SO"
+              - option "COMPER TRATORES LTDA"
+              - option "COMPER TRATORES LTDA"
+              - option "COMPLEXO TURISTICO POUSADA MATA NATIVA LTDA"
+              - option "CONTAINER LANCHE"
+              - option "CONTROLLAR"
+              - option "COPLACANA - TAQUARITUBA II"
+              - option "CPFL SANTA CRUZ"
+              - option "CRISTIANE APARECIDA RIBEIRO RESTAURANTE"
+              - option "CTM AUTRONICA SERVICE"
+              - option "D.E.R"
+              - option "DANIEL ANDREETTA"
+              - option "DANIEL DIANAS RIBEIRO E OUTRO"
+              - option "DANILO CORREA DE MEDEIROS"
+              - option "DANILO DE SOUZA"
+              - option "DERLI ANDRE DONEDA"
+              - option "DEVAIR SOARES DE OLIVEIRA"
+              - option "Disma"
+              - option "DOCUMENTO DE ARRECADACAO DE RECEITAS FERERAIS ( DARF)"
+              - option "DU DIESEL BOMBAS INJETORAS"
+              - option "DUTY PAPELARIA E LIMPEZA"
+              - option "ECT EMPRESA BRASILEIRA CORREIOS E TELEGRAFOS"
+              - option "EDJANIA MARIA DA SILVA"
+              - option "EDUARDO SILVEIRA 28560161899"
+              - option "EDUVALE FM"
+              - option "ELETROSERVICE - OURINHOS SP"
+              - option "ELIZANDRA MARCHESAN TONINI"
+              - option "EXPRESSO SAO MIGUEL"
+              - option "EXPRESSO SAO MIGUEL LTDA"
+              - option "EXPRESSO SAO MIGUEL LTDA"
+              - option "EXPRESSO SAO MIGUEL S/A"
+              - option "EXPRESSO SAO MIGUEL S/A"
+              - option "F.G.T.S"
+              - option "FABIO SUGUIMOTO &amp; ASSOCIADOS"
+              - option "FAVARO PNEUS"
+              - option "FERNANDO LEONEL"
+              - option "FLAVIO GARROTE WOLF"
+              - option "FORMIGONI E FILHOS LTDA"
+              - option "FUNFER - TONETI"
+              - option "GABRIEL GOMES DE MORAES"
+              - option "GABRIEL VICTOR DA MOTTA"
+              - option "GABRIELA SOARES DE ARANTES GENTIL"
+              - option "GALAX PAY"
+              - option "GALEGUINHOS"
+              - option "GEO AGRI TECNOLOGIA AGRICOLA LTDA"
+              - option "GERALDO N. RECKTENWALD E CIA LTDA - MATRIZ"
+              - option "GERSON AUTO PECAS"
+              - option "GOBBO PECAS E ACESSORIOS LTDA"
+              - option "GRUPO J2M - UNIDADE 01"
+              - option "GS DISTRIBIBUIDORA"
+              - option "GT motos"
+              - option "GTM PRUNING TECHNOLOGY"
+              - option "GUANDA BATERIAS LTDA"
+              - option "GUARUSHOP CNS COMERCIO VAREGISTA"
+              - option "HARAMAQ INDUSTRIA E COMERCIO DE MAQUINAS AGRICOLA LTDA"
+              - option "HELP INFORMATICA"
+              - option "HENRI FULANETO HIONI 42344635823"
+              - option "HIDRAMAT MATAO"
+              - option "HIGINO PEREIRA NETO"
+              - option "HOTEL CAICARA MATAO LTDA"
+              - option "HOTEL DAN INN ANHANGUERA LTDA."
+              - option "HOTEL ESPLANADA"
+              - option "HOTEL POUSADA CAMPOS VERDES"
+              - option "HOTEL SAO PAULO"
+              - option "HS HIDRO SYSTEMS"
+              - option "IGARAPE DISTRIBUIDORA AGRICOLA E COMERCIAL LTDA"
+              - option "IKEDA"
+              - option "IMPLEMENTOS AGRICOLAS MARISPAN LTDA"
+              - option "INCOMAC"
+              - option "INJETRON"
+              - option "INOVA IMAGEM"
+              - option "INTEGRACAO CONTABIL"
+              - option "INTEGRADA COOPERATIVA AGROINDUSTRIAL"
+              - option "IPVA"
+              - option "ITAU UNIBANCO"
+              - option "ITAU UNIBANCO HOLDING S.A."
+              - option "J.A.M. CACAMBAS"
+              - option "JA MANUTENCAO"
+              - option "JKS CENTRO AUTOMOTIVO"
+              - option "JOAO EMILIANO DOS SANTOS FILHO"
+              - option "JOAQUIM FERNANDO LEME"
+              - option "JORGE MAQUINAS"
+              - option "JOSE ANTONIO DE OLIVEIRA"
+              - option "JOSE ANTONIO VAZ ORTIZ"
+              - option "JOSE CARLOS FERREIRA 03024301801"
+              - option "JOSE DONIZETE ALVES RIBEIRO"
+              - option "JOSE HENRIQUE BERNARDINO GARROTE"
+              - option "JOSE SEBASTIAO ALVES &amp; CIA LTDA"
+              - option "JP CHAVES 24 HORAS"
+              - option "JULIANO A FERNANDES DA VANZO"
+              - option "KADU FERRAMENTAS"
+              - option "KAMAQ MAQUINAS E IMPLEMENTOS AGRICOLAS LTDA"
+              - option "KUHN DO BRASIL S/A - PF"
+              - option "KUHN-MONTANA"
+              - option "L DA SILVA CAMPOS CORREIA"
+              - option "LANCHONETE E CHURRASCARIA AVAREZAO"
+              - option "LANCHONETE ESPERANCA"
+              - option "LANCHONETE PARADA OBRIGATORIA"
+              - option "LE BORRACHEIRO"
+              - option "LEME ARTIGOS AUTOMOTIVOS LTDA"
+              - option "LEONARDO DE OLIVEIRA ABRANTES"
+              - option "LIBRA"
+              - option "LIONS INTITUICAO DE MEIOS DE PAGAMENTO S/A"
+              - option "LUIZ FERNANDO DE SOUZA"
+              - option "LUIZ FERNANDO SANCHEZ"
+              - option "LUMA IMPLEMENTOS AGRICOLAS LTDA"
+              - option "M E G SOLDERA LTDA"
+              - option "M E M REPARACAO"
+              - option "MAHINDRA DO BRASIL INDUSTRIAL LTDA"
+              - option "MANDALLA RESTAURANTE E CHURRASCARIA"
+              - option "MARCHESAN IMPLEMENTOS E MAQUINAS AGRICOLAS TATU S A"
+              - option "MARCIO ANTONIO MARQUES DA CUNHA"
+              - option "MARCO ANTONIO CONTI PAULO 03392403857"
+              - option "MARIA DO CARMO SILVA"
+              - option "MARIANO RAMOS DO VAL"
+              - option "MARINHO AUTOVIDROS"
+              - option "MARKET MIX MERCEARIA E UTILIDADES LTDA"
+              - option "MASCOTE CLINICA VETERINARIA"
+              - option "MATHEUS DE MELO ROSA"
+              - option "MAXXFORTE INDUSTRIA DE IMPLEMENTOS AGRICOLAS"
+              - option "MB COMERCIO IMPORTACAO LTDA"
+              - option "MECANICA 2 AMIGOS"
+              - option "MERCADO PAGO INSTITUICAO DE PAGAMENTO LTDA"
+              - option "MERCADO VITORIA"
+              - option "MFW MAQUINAS LTDA."
+              - option "MICA AUTO PEÇAS"
+              - option "MIGUEL ANGELO LEME"
+              - option "MILAZZO VEICULOS PECAS E SERVICOS LTDA"
+              - option "MOB DAY CANTIZANI"
+              - option "MOTO SPORT"
+              - option "MPR TORNO E SOLDA"
+              - option "MULTICAR PIRAJU SERVICOS E PECAS LTDA"
+              - option "NASCIMENTO &amp; GARCIA LANCHONETE"
+              - option "NELSON ARNO DALLENOGARE"
+              - option "NETO FILTROS E LUBRIFICANTES"
+              - option "NEW PRINT CARTUCHOS E TONERS"
+              - option "NIC. BR"
+              - option "NICOLAS DA SILVA DARIO"
+              - option "NICOLAU MAX SUPERMERCADOS"
+              - option "NICOLLY CAROLINE CARDOSO DE OLIVEIRA"
+              - option "NOGUEIRA"
+              - option "NOSSO CAMPO AGRICULTURE"
+              - option "NOSSO CAMPO MAQUINAS AGRICOLAS LTDA"
+              - option "O PIRATA"
+              - option "OCTAVIANO RAYMUNDO CAMARGO SILVA"
+              - option "ODONTOPREV S.A."
+              - option "OFICINA DO FRANCES"
+              - option "OFICINA JF"
+              - option "OMIEXPERIENCE LTDA."
+              - option "OURIDIESEL"
+              - option "OUROCARD"
+              - option "PALOMA RESTAURANTE E LANCHONETE LTDA"
+              - option "PAPELARIA CGC"
+              - option "PARADA PNEUS AUTO CENTER"
+              - option "PAULO JOAQUIM MOTTA"
+              - option "PAULO MAGALHAES DE CARVALHO"
+              - option "PEDRO CARLOS DE BARROS"
+              - option "Pedro Henrique Motta"
+              - option "PEDRO OSCAR FAVARO"
+              - option "PET SHOP ANIMAL FELIZ"
+              - option "PIRAJU COMERCIO DE PEÇAS"
+              - option "PIRAJU GABINETE PREFEITO"
+              - option "PIRAMAK"
+              - option "PLAMEN"
+              - option "POLICAR"
+              - option "POLLYANE DE CASTRO TONON"
+              - option "POSTO ESPLANADA"
+              - option "POSTO NASCIMENTO"
+              - option "POSTO TREVAO DE PIRAJU LTDA"
+              - option "POSTO TRIUNFO"
+              - option "PREFEITURA PIRAJU"
+              - option "PROESTE PIRAJU"
+              - option "Promissao I - Posto Peixinho"
+              - option "QUALICICLO AGRICOLA S/A"
+              - option "QUERO PASSAGEM VIAGENS E TURISMO LTDA"
+              - option "QUITANDA SAO JOSE MATRIZ"
+              - option "R.P"
+              - option "RECEITA FEDERAL"
+              - option "RESILLIENCE PRINT"
+              - option "RESTAURANTE"
+              - option "RESTAURANTE AMIGOS DA BR LTDA"
+              - option "RESTAURANTE CAFE TURCO"
+              - option "RESTAURANTE E LANCHONETE ALVORADA"
+              - option "RESTAURANTE E LANCHONETE PEIXE NA TELHA"
+              - option "RESTAURANTE E LANCHONETE SABOR DA TILAPIA"
+              - option "RESTAURANTE E LANCHONETE SERVE-BEM"
+              - option "RESTAURANTE E POUSADA DO ZEL"
+              - option "RESTAURANTE MADELIS"
+              - option "RESTAURANTE MONTE SINAI"
+              - option "RESTAURANTE POINT GRILL"
+              - option "RESTAURANTE RANCHO 53 LTDA"
+              - option "RJS PRESTACAO DE SERVICOS"
+              - option "RODNEY MATEUS DE OLIVEIRA"
+              - option "RODONAVES TRANSP E ENCOMENDAS LTDA"
+              - option "RODONAVES TRANSPORTES E ENCOMENDAS"
+              - option "RODONAVES TRANSPORTES E ENCOMENDAS LTDA"
+              - option "RODRIGO ALVES NOGUEIRA RESTAURANTES LTDA"
+              - option "RODRIGO VAZ RODRIGUES"
+              - option "ROLEX"
+              - option "RotaExata"
+              - option "ROTOPLASTYC"
+              - option "SABESP"
+              - option "SALVADOR FERREIRA LUZ"
+              - option "SANSON PNEUS"
+              - option "SANTA IZABEL AGRO INDUSTRIA LTDA"
+              - option "SANTIAGO GARROTE"
+              - option "SAO JOSE DOS PINHAIS - EXPRESSO SAO MIGUEL S/A"
+              - option "SCARAMBONI - RETIFICA DE CABECOTE"
+              - option "SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA"
+              - option "SE.TU - COMIDAS CASEIRAS"
+              - option "SEM PARAR INSTITUICAO DE PAGAMENTO LTDA"
+              - option "SILVA E SILVA COMERCIO DE VARIEDADES LTDA"
+              - option "SKINAO LANCHES E SALGADOS"
+              - option "SOL NASCENTE SALGADOS"
+              - option "SOROCABA - FLEXLUB"
+              - option "TABELIAO DE NOTAS E DE PROTESTO"
+              - option "TELEFONICA BRASIL S.A."
+              - option "TEP MAGAZINE COMERCIO VAREJISTA LTDA"
+              - option "TERRA NOVA RESTAURANTE"
+              - option "TERRIS TECNOLOGIA"
+              - option "TIO TOKO PIRAJU"
+              - option "TRACARTE - COMUNICACAO VISUAL"
+              - option "TRANS - BERNARDES LTDA (TRANS-RAPAL)"
+              - option "TRANS-BERNARDES CARGAS E ENCOMENDAS LTDA"
+              - option "TRANSPORTE ITAPIRENSE BERTINI LTDA"
+              - option "TRITUCAP"
+              - option "ULTRAGAZ CONTAINER"
+              - option "UNIAO DE TINTAS - PIRAJU LJ 008"
+              - option "UNIDAS LOCACOES E SERVICOS S/A"
+              - option "UNIPETRO OURINHOS DISTRIBUIDORA DE PETROLEO LTDA"
+              - option "VICON MAQUINAS AGRICOLAS LT"
+              - option "VIDRACARIA E SERRALHERIA BARROS"
+              - option "VIDROFERPIRAJU"
+              - option "Vinícius Côrrea Martins da Silva"
+              - option "VL"
+              - option "WENDLER GABRIEL FERRAZ POCARLI"
+              - option "ZANIVAN TRANSPORTE LTDA"
+            - combobox [ref=e374]:
+              - option "Todos os grupos" [selected]
+              - option "Despesas Administrativas"
+              - option "Despesas com Pessoal"
+              - option "Despesas de Vendas e Marketing"
+              - option "Despesas Diretas"
+              - option "Despesas Financeiras / Bancos"
+              - option "Devoluções de Vendas"
+              - option "Impostos e Taxas"
+              - option "Investimento"
+              - option "Outras Despesas"
+            - combobox [ref=e375]:
+              - option "Todas as categorias" [selected]
+              - option "13º Salário"
+              - option "Adiantamento"
+              - option "Adiantamento a Fornecedores"
+              - option "Advogados"
+              - option "Água e Esgoto"
+              - option "Almoxarifado / Limpeza"
+              - option "Assistência Médica"
+              - option "Bonificações"
+              - option "Brindes"
+              - option "Combustível"
+              - option "Comissões"
+              - option "Compra de Material de Consumo da Oficina"
+              - option "Compra de Serviços"
+              - option "Compra de Serviços para ATVs e UTVs"
+              - option "Compra de Serviços para Implementos"
+              - option "Compra de Serviços para Tratores de Outras Marcas"
+              - option "Compra de Serviços para Tratores Mahindra"
+              - option "Compras de Implementos para Revenda"
+              - option "Compras de Mercadorias para Manutenção de Tratores/Implementos"
+              - option "Compras de Peças para Revenda"
+              - option "Compras de Tratores para Revenda"
+              - option "Contabilidade"
+              - option "Contribuição Social"
+              - option "Despesas com Contratos (Cartório/Correios )"
+              - option "Despesas Jurídicas/Honorários Advocatício"
+              - option "Devoluções de Vendas de Mercadoria"
+              - option "Doações"
+              - option "Documentação (Correios, Cartório, etc)"
+              - option "Energia Elétrica"
+              - option "Entrada de mercadoria em demonstraçao"
+              - option "Envio de Peças (Correios, Transportadora)"
+              - option "FGTS"
+              - option "Frete"
+              - option "Frete (Retirada)"
+              - option "Hospedagem"
+              - option "INSS"
+              - option "IOF"
+              - option "IPTU"
+              - option "IPVA"
+              - option "IRPJ"
+              - option "IRRF"
+              - option "ISS"
+              - option "Juros sobre Empréstimos"
+              - option "Locação de Veiculo"
+              - option "Manutenção de Imobilizado"
+              - option "Manutenção de Veículos"
+              - option "Máquinas e Equipamentos"
+              - option "Marketing"
+              - option "Material de Escritório"
+              - option "Multa/Licenciamento Veicular"
+              - option "Multas"
+              - option "Outros Benefícios"
+              - option "Pagamento de Empréstimos"
+              - option "Pedagio"
+              - option "Recebimento de Peças Garantia/Outras Entradas"
+              - option "Rescisões"
+              - option "Saida de Mercadoria para Demonstração"
+              - option "Salários"
+              - option "Simples Nacional (DAS)"
+              - option "Sistemas e Informática"
+              - option "Tarifas Bancárias"
+              - option "Telefonia"
+              - option "Uniformes e EPI"
+              - option "Vale Refeição"
+              - option "Vale Transporte"
+              - option "Veículos"
+            - combobox [ref=e376]:
+              - option "Todos os departamentos" [selected]
+              - 'option "01. #Serviços em Tratores"'
+              - 'option "02. #Serviços em Implementos"'
+              - 'option "03. # Garantias"'
+              - 'option "04. # Oficina Frota"'
+              - option "05. Administrativo"
+              - 'option "05. # Quadriciclo"'
+              - option "06. Comercial Tratores"
+              - option "07. Comercial Implementos"
+              - option "08. Comercial Peças"
+              - option "09. Comercial Frota"
+              - option "11. Marketing_Eventos"
+              - option "Comercial (Sem Especificação)"
+              - option "Desativado (caminhões)"
+              - option "Oficina (Sem Especificação)"
+              - option "Sua Empresa"
+            - button "Limpar" [ref=e377]
+          - generic [ref=e895]:
+            - generic [ref=e896]:
+              - generic [ref=e897]:
+                - button "Mes" [ref=e898]
+                - button "Ano" [ref=e899]
+              - generic [ref=e900]: "149 titulos · Total: R$ 269.467,17"
+              - button "↓ Exportar CSV" [ref=e901]
+            - table [ref=e904]:
+              - rowgroup [ref=e905]:
+                - row [ref=e906]:
+                  - columnheader "Empresa ⇅" [ref=e907] [cursor=pointer]:
+                    - generic [ref=e908]:
+                      - text: Empresa
+                      - generic [ref=e909]: ⇅
+                  - columnheader "Terceiro ⇅" [ref=e910] [cursor=pointer]:
+                    - generic [ref=e911]:
+                      - text: Terceiro
+                      - generic [ref=e912]: ⇅
+                  - columnheader "Documento ⇅" [ref=e913] [cursor=pointer]:
+                    - generic [ref=e914]:
+                      - text: Documento
+                      - generic [ref=e915]: ⇅
+                  - columnheader "Vencimento ▲" [ref=e916] [cursor=pointer]:
+                    - generic [ref=e917]:
+                      - text: Vencimento
+                      - generic [ref=e918]: ▲
+                  - columnheader "Status ⇅" [ref=e919] [cursor=pointer]:
+                    - generic [ref=e920]:
+                      - text: Status
+                      - generic [ref=e921]: ⇅
+                  - columnheader "Valor ⇅" [ref=e922] [cursor=pointer]:
+                    - generic [ref=e923]:
+                      - text: Valor
+                      - generic [ref=e924]: ⇅
+              - rowgroup [ref=e925]:
+                - row [ref=e926] [cursor=pointer]:
+                  - cell "Nova" [ref=e927]
+                  - cell "CARLOS PNEUS Despesas Diretas · Compras de Peças para Revenda" [ref=e929]:
+                    - generic [ref=e930]: CARLOS PNEUS
+                    - generic [ref=e931]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000017927 · Parc 006/006" [ref=e932]
+                  - cell "20/01/2026" [ref=e933]
+                  - cell "Vencido" [ref=e934]
+                  - cell "R$ 370,00" [ref=e936]
+                - row [ref=e937] [cursor=pointer]:
+                  - cell "Nova" [ref=e938]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e940]:
+                    - generic [ref=e941]: BRADESCO EST UNIF
+                    - generic [ref=e942]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e943]
+                  - cell "31/03/2026" [ref=e944]
+                  - cell "Pago" [ref=e945]
+                  - cell "R$ 9.502,40" [ref=e947]
+                - row [ref=e948] [cursor=pointer]:
+                  - cell "Nova" [ref=e949]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e951]:
+                    - generic [ref=e952]: BRADESCO EST UNIF
+                    - generic [ref=e953]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e954]
+                  - cell "31/03/2026" [ref=e955]
+                  - cell "Pago" [ref=e956]
+                  - cell "R$ 960,00" [ref=e958]
+                - row [ref=e959] [cursor=pointer]:
+                  - cell "Nova" [ref=e960]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e962]:
+                    - generic [ref=e963]: BRADESCO EST UNIF
+                    - generic [ref=e964]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e965]
+                  - cell "30/04/2026" [ref=e966]
+                  - cell "Pago" [ref=e967]
+                  - cell "R$ 8.941,16" [ref=e969]
+                - row [ref=e970] [cursor=pointer]:
+                  - cell "Nova" [ref=e971]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e973]:
+                    - generic [ref=e974]: BRADESCO EST UNIF
+                    - generic [ref=e975]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e976]
+                  - cell "30/04/2026" [ref=e977]
+                  - cell "Pago" [ref=e978]
+                  - cell "R$ 1.092,00" [ref=e980]
+                - row [ref=e981] [cursor=pointer]:
+                  - cell "Nova" [ref=e982]
+                  - cell "BARRACAO DO LANDICO Despesas Diretas · Compras de Peças para Revenda" [ref=e984]:
+                    - generic [ref=e985]: BARRACAO DO LANDICO
+                    - generic [ref=e986]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000000990 · Parc 001/001" [ref=e987]
+                  - cell "13/05/2026" [ref=e988]
+                  - cell "Vencido" [ref=e989]
+                  - cell "R$ 80,91" [ref=e991]
+                - row [ref=e992] [cursor=pointer]:
+                  - cell "Nova" [ref=e993]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e995]:
+                    - generic [ref=e996]: BRADESCO EST UNIF
+                    - generic [ref=e997]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e998]
+                  - cell "31/05/2026" [ref=e999]
+                  - cell "Pago" [ref=e1000]
+                  - cell "R$ 9.530,65" [ref=e1002]
+                - row [ref=e1003] [cursor=pointer]:
+                  - cell "Nova" [ref=e1004]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e1006]:
+                    - generic [ref=e1007]: BRADESCO EST UNIF
+                    - generic [ref=e1008]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e1009]
+                  - cell "31/05/2026" [ref=e1010]
+                  - cell "Pago" [ref=e1011]
+                  - cell "R$ 926,00" [ref=e1013]
+                - row [ref=e1014] [cursor=pointer]:
+                  - cell "Nova" [ref=e1015]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e1017]:
+                    - generic [ref=e1018]: BRADESCO EST UNIF
+                    - generic [ref=e1019]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e1020]
+                  - cell "30/06/2026" [ref=e1021]
+                  - cell "Pago" [ref=e1022]
+                  - cell "R$ 10.499,60" [ref=e1024]
+                - row [ref=e1025] [cursor=pointer]:
+                  - cell "Nova" [ref=e1026]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e1028]:
+                    - generic [ref=e1029]: BRADESCO EST UNIF
+                    - generic [ref=e1030]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e1031]
+                  - cell "30/06/2026" [ref=e1032]
+                  - cell "Pago" [ref=e1033]
+                  - cell "R$ 848,00" [ref=e1035]
+                - row [ref=e1036] [cursor=pointer]:
+                  - cell "Nova" [ref=e1037]
+                  - cell "SAO JOSE DOS PINHAIS - EXPRESSO SAO MIGUEL S/A Despesas Diretas · Frete (Retirada)" [ref=e1039]:
+                    - generic [ref=e1040]: SAO JOSE DOS PINHAIS - EXPRESSO SAO MIGUEL S/A
+                    - generic [ref=e1041]: Despesas Diretas · Frete (Retirada)
+                  - cell "NF 000555941 · Parc 001/001" [ref=e1042]
+                  - cell "01/07/2026" [ref=e1043]
+                  - cell "Pago" [ref=e1044]
+                  - cell "R$ 119,23" [ref=e1046]
+                - row [ref=e1047] [cursor=pointer]:
+                  - cell "Nova" [ref=e1048]
+                  - cell "BARRACAO DO LANDICO Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos" [ref=e1050]:
+                    - generic [ref=e1051]: BARRACAO DO LANDICO
+                    - generic [ref=e1052]: Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos
+                  - cell "NF 000001016 · Parc 001/001" [ref=e1053]
+                  - cell "01/07/2026" [ref=e1054]
+                  - cell "Pago" [ref=e1055]
+                  - cell "R$ 30,11" [ref=e1057]
+                - row [ref=e1058] [cursor=pointer]:
+                  - cell "Nova" [ref=e1059]
+                  - cell "BARRACAO DO LANDICO Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos" [ref=e1061]:
+                    - generic [ref=e1062]: BARRACAO DO LANDICO
+                    - generic [ref=e1063]: Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos
+                  - cell "NF 000001026 · Parc 001/001" [ref=e1064]
+                  - cell "07/07/2026" [ref=e1065]
+                  - cell "Pago" [ref=e1066]
+                  - cell "R$ 79,66" [ref=e1068]
+                - row [ref=e1069] [cursor=pointer]:
+                  - cell "Nova" [ref=e1070]
+                  - cell "RODONAVES TRANSP E ENCOMENDAS LTDA Despesas Diretas · Frete (Retirada)" [ref=e1072]:
+                    - generic [ref=e1073]: RODONAVES TRANSP E ENCOMENDAS LTDA
+                    - generic [ref=e1074]: Despesas Diretas · Frete (Retirada)
+                  - cell "NF 062112214 · Parc 001/001" [ref=e1075]
+                  - cell "21/07/2026" [ref=e1076]
+                  - cell "Vencido" [ref=e1077]
+                  - cell "R$ 68,11" [ref=e1079]
+                - row [ref=e1080] [cursor=pointer]:
+                  - cell "Nova" [ref=e1081]
+                  - cell "Pedro Henrique Motta Despesas com Pessoal · Rescisões" [ref=e1083]:
+                    - generic [ref=e1084]: Pedro Henrique Motta
+                    - generic [ref=e1085]: Despesas com Pessoal · Rescisões
+                  - cell "Parc 001/001" [ref=e1086]
+                  - cell "22/07/2026" [ref=e1087]
+                  - cell "Pago" [ref=e1088]
+                  - cell "R$ 5.101,81" [ref=e1090]
+                - row [ref=e1091] [cursor=pointer]:
+                  - cell "Nova" [ref=e1092]
+                  - cell "BARRACAO DO LANDICO Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos" [ref=e1094]:
+                    - generic [ref=e1095]: BARRACAO DO LANDICO
+                    - generic [ref=e1096]: Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos
+                  - cell "NF 000001043 · Parc 001/001" [ref=e1097]
+                  - cell "22/07/2026" [ref=e1098]
+                  - cell "Pago" [ref=e1099]
+                  - cell "R$ 100,50" [ref=e1101]
+                - row [ref=e1102] [cursor=pointer]:
+                  - cell "Nova" [ref=e1103]
+                  - cell "RTE UBERABA Despesas Diretas · Frete (Retirada)" [ref=e1105]:
+                    - generic [ref=e1106]: RTE UBERABA
+                    - generic [ref=e1107]: Despesas Diretas · Frete (Retirada)
+                  - cell "NF 008922449 · Parc 001/001" [ref=e1108]
+                  - cell "27/07/2026" [ref=e1109]
+                  - cell "Vencido" [ref=e1110]
+                  - cell "R$ 129,01" [ref=e1112]
+                - row [ref=e1113] [cursor=pointer]:
+                  - cell "Nova" [ref=e1114]
+                  - cell "AUTO POSTO BIZUNGA AVENID Despesas de Vendas e Marketing · Combustível" [ref=e1116]:
+                    - generic [ref=e1117]: AUTO POSTO BIZUNGA AVENID
+                    - generic [ref=e1118]: Despesas de Vendas e Marketing · Combustível
+                  - cell "NF 000005683 · Parc 001/001" [ref=e1119]
+                  - cell "27/07/2026" [ref=e1120]
+                  - cell "Pago" [ref=e1121]
+                  - cell "R$ 239,81" [ref=e1123]
+                - row [ref=e1124] [cursor=pointer]:
+                  - cell "Nova" [ref=e1125]
+                  - cell "CENTRO DE INTEGRACAO EMPRESA ESCOLA CIE E Despesas com Pessoal · Outros Benefícios" [ref=e1127]:
+                    - generic [ref=e1128]: CENTRO DE INTEGRACAO EMPRESA ESCOLA CIE E
+                    - generic [ref=e1129]: Despesas com Pessoal · Outros Benefícios
+                  - cell "NF 3976372 · Parc 001/001" [ref=e1130]
+                  - cell "31/07/2026" [ref=e1131]
+                  - cell "Pago" [ref=e1132]
+                  - cell "R$ 129,00" [ref=e1134]
+                - row [ref=e1135] [cursor=pointer]:
+                  - cell "Nova" [ref=e1136]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e1138]:
+                    - generic [ref=e1139]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e1140]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019311 · Parc 001/002" [ref=e1141]
+                  - cell "31/07/2026" [ref=e1142]
+                  - cell "Vencido" [ref=e1143]
+                  - cell "R$ 120,00" [ref=e1145]
+                - row [ref=e1146] [cursor=pointer]:
+                  - cell "Nova" [ref=e1147]
+                  - cell "F.G.T.S Despesas com Pessoal · FGTS" [ref=e1149]:
+                    - generic [ref=e1150]: F.G.T.S
+                    - generic [ref=e1151]: Despesas com Pessoal · FGTS
+                  - cell "Parc 001/001" [ref=e1152]
+                  - cell "31/07/2026" [ref=e1153]
+                  - cell "Pago" [ref=e1154]
+                  - cell "R$ 658,75" [ref=e1156]
+                - row [ref=e1157] [cursor=pointer]:
+                  - cell "Nova" [ref=e1158]
+                  - cell "F.G.T.S Despesas com Pessoal · FGTS" [ref=e1160]:
+                    - generic [ref=e1161]: F.G.T.S
+                    - generic [ref=e1162]: Despesas com Pessoal · FGTS
+                  - cell "Parc 001/001" [ref=e1163]
+                  - cell "31/07/2026" [ref=e1164]
+                  - cell "Pago" [ref=e1165]
+                  - cell "R$ 566,68" [ref=e1167]
+                - row [ref=e1168] [cursor=pointer]:
+                  - cell "Nova" [ref=e1169]
+                  - cell "F.G.T.S Despesas com Pessoal · FGTS" [ref=e1171]:
+                    - generic [ref=e1172]: F.G.T.S
+                    - generic [ref=e1173]: Despesas com Pessoal · FGTS
+                  - cell "Parc 001/001" [ref=e1174]
+                  - cell "31/07/2026" [ref=e1175]
+                  - cell "Pago" [ref=e1176]
+                  - cell "R$ 675,65" [ref=e1178]
+                - row [ref=e1179] [cursor=pointer]:
+                  - cell "Nova" [ref=e1180]
+                  - cell "RECEITA FEDERAL Despesas com Pessoal · IRRF" [ref=e1182]:
+                    - generic [ref=e1183]: RECEITA FEDERAL
+                    - generic [ref=e1184]: Despesas com Pessoal · IRRF
+                  - cell "Parc 001/001" [ref=e1185]
+                  - cell "31/07/2026" [ref=e1186]
+                  - cell "Pago" [ref=e1187]
+                  - cell "R$ 1.472,50" [ref=e1189]
+                - row [ref=e1190] [cursor=pointer]:
+                  - cell "Nova" [ref=e1191]
+                  - cell "TRANS - BERNARDES LTDA (TRANS-RAPAL) Despesas Diretas · Frete (Retirada)" [ref=e1193]:
+                    - generic [ref=e1194]: TRANS - BERNARDES LTDA (TRANS-RAPAL)
+                    - generic [ref=e1195]: Despesas Diretas · Frete (Retirada)
+                  - cell "NF 001072793 · Parc 001/001" [ref=e1196]
+                  - cell "31/07/2026" [ref=e1197]
+                  - cell "Vencido" [ref=e1198]
+                  - cell "R$ 94,97" [ref=e1200]
+                - row [ref=e1201] [cursor=pointer]:
+                  - cell "Nova" [ref=e1202]
+                  - cell "RECEITA FEDERAL Despesas com Pessoal · IRRF" [ref=e1204]:
+                    - generic [ref=e1205]: RECEITA FEDERAL
+                    - generic [ref=e1206]: Despesas com Pessoal · IRRF
+                  - cell "Parc 001/001" [ref=e1207]
+                  - cell "31/07/2026" [ref=e1208]
+                  - cell "Pago" [ref=e1209]
+                  - cell "R$ 403,17" [ref=e1211]
+                - row [ref=e1212] [cursor=pointer]:
+                  - cell "Nova" [ref=e1213]
+                  - cell "RotaExata Despesas Administrativas · Manutenção de Veículos" [ref=e1215]:
+                    - generic [ref=e1216]: RotaExata
+                    - generic [ref=e1217]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 250779 · Parc 001/001" [ref=e1218]
+                  - cell "31/07/2026" [ref=e1219]
+                  - cell "Pago" [ref=e1220]
+                  - cell "R$ 1.160,00" [ref=e1222]
+                - row [ref=e1223] [cursor=pointer]:
+                  - cell "Nova" [ref=e1224]
+                  - cell "KUHN-MONTANA Despesas Diretas · Compras de Peças para Revenda" [ref=e1226]:
+                    - generic [ref=e1227]: KUHN-MONTANA
+                    - generic [ref=e1228]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000220199 · Parc 001/001" [ref=e1229]
+                  - cell "31/07/2026" [ref=e1230]
+                  - cell "Pago" [ref=e1231]
+                  - cell "R$ 2.818,92" [ref=e1233]
+                - row [ref=e1234] [cursor=pointer]:
+                  - cell "Nova" [ref=e1235]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e1237]:
+                    - generic [ref=e1238]: BRADESCO EST UNIF
+                    - generic [ref=e1239]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e1240]
+                  - cell "31/07/2026" [ref=e1241]
+                  - cell "Pago" [ref=e1242]
+                  - cell "R$ 11.701,55" [ref=e1244]
+                - row [ref=e1245] [cursor=pointer]:
+                  - cell "Nova" [ref=e1246]
+                  - cell "BRADESCO EST UNIF Impostos e Taxas · IOF" [ref=e1248]:
+                    - generic [ref=e1249]: BRADESCO EST UNIF
+                    - generic [ref=e1250]: Impostos e Taxas · IOF
+                  - cell "Parc 001/001" [ref=e1251]
+                  - cell "31/07/2026" [ref=e1252]
+                  - cell "Pago" [ref=e1253]
+                  - cell "R$ 755,00" [ref=e1255]
+                - row [ref=e1256] [cursor=pointer]:
+                  - cell "Nova" [ref=e1257]
+                  - cell "61.849.573 JEFFERSON JOSE FIRMINO Despesas Diretas · Compra de Serviços" [ref=e1259]:
+                    - generic [ref=e1260]: 61.849.573 JEFFERSON JOSE FIRMINO
+                    - generic [ref=e1261]: Despesas Diretas · Compra de Serviços
+                  - cell "NF 97 · Parc 001/001" [ref=e1262]
+                  - cell "31/07/2026" [ref=e1263]
+                  - cell "Pago" [ref=e1264]
+                  - cell "R$ 1.360,00" [ref=e1266]
+                - row [ref=e1267] [cursor=pointer]:
+                  - cell "Nova" [ref=e1268]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e1270]:
+                    - generic [ref=e1271]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e1272]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019311 · Parc 002/002" [ref=e1273]
+                  - cell "01/08/2026" [ref=e1274]
+                  - cell "Vencido" [ref=e1275]
+                  - cell "R$ 84,00" [ref=e1277]
+                - row [ref=e1278] [cursor=pointer]:
+                  - cell "Nova" [ref=e1279]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e1281]:
+                    - generic [ref=e1282]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e1283]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019314 · Parc 001/001" [ref=e1284]
+                  - cell "01/08/2026" [ref=e1285]
+                  - cell "Vencido" [ref=e1286]
+                  - cell "R$ 152,00" [ref=e1288]
+                - row [ref=e1289] [cursor=pointer]:
+                  - cell "Nova" [ref=e1290]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos" [ref=e1292]:
+                    - generic [ref=e1293]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e1294]: Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos
+                  - cell "NF 000019312 · Parc 001/001" [ref=e1295]
+                  - cell "01/08/2026" [ref=e1296]
+                  - cell "Vencido" [ref=e1297]
+                  - cell "R$ 121,00" [ref=e1299]
+                - row [ref=e1300] [cursor=pointer]:
+                  - cell "Nova" [ref=e1301]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos" [ref=e1303]:
+                    - generic [ref=e1304]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e1305]: Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos
+                  - cell "NF 000019313 · Parc 001/001" [ref=e1306]
+                  - cell "01/08/2026" [ref=e1307]
+                  - cell "Vencido" [ref=e1308]
+                  - cell "R$ 74,00" [ref=e1310]
+                - row [ref=e1311] [cursor=pointer]:
+                  - cell "Nova" [ref=e1312]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Diretas · Compra de Material de Consumo da Oficina" [ref=e1314]:
+                    - generic [ref=e1315]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e1316]: Despesas Diretas · Compra de Material de Consumo da Oficina
+                  - cell "NF 000019315 · Parc 001/001" [ref=e1317]
+                  - cell "01/08/2026" [ref=e1318]
+                  - cell "Vencido" [ref=e1319]
+                  - cell "R$ 27,00" [ref=e1321]
+                - row [ref=e1322] [cursor=pointer]:
+                  - cell "Nova" [ref=e1323]
+                  - cell "COPLACANA - TAQUARITUBA II Despesas Diretas · Compras de Peças para Revenda" [ref=e1325]:
+                    - generic [ref=e1326]: COPLACANA - TAQUARITUBA II
+                    - generic [ref=e1327]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000005006 · Parc 001/001" [ref=e1328]
+                  - cell "03/08/2026" [ref=e1329]
+                  - cell "Vencido" [ref=e1330]
+                  - cell "R$ 1.000,05" [ref=e1332]
+                - row [ref=e1333] [cursor=pointer]:
+                  - cell "Nova" [ref=e1334]
+                  - cell "D.E.R Despesas Financeiras / Bancos · Multas" [ref=e1336]:
+                    - generic [ref=e1337]: D.E.R
+                    - generic [ref=e1338]: Despesas Financeiras / Bancos · Multas
+                  - cell "Parc 001/001" [ref=e1339]
+                  - cell "03/08/2026" [ref=e1340]
+                  - cell "Pago" [ref=e1341]
+                  - cell "R$ 624,72" [ref=e1343]
+                - row [ref=e1344] [cursor=pointer]:
+                  - cell "Nova" [ref=e1345]
+                  - cell "EXPRESSO SAO MIGUEL S/A Despesas Diretas · Frete (Retirada)" [ref=e1347]:
+                    - generic [ref=e1348]: EXPRESSO SAO MIGUEL S/A
+                    - generic [ref=e1349]: Despesas Diretas · Frete (Retirada)
+                  - cell "NF 001979206 · Parc 001/001" [ref=e1350]
+                  - cell "04/08/2026" [ref=e1351]
+                  - cell "Vencido" [ref=e1352]
+                  - cell "R$ 97,10" [ref=e1354]
+                - row [ref=e1355] [cursor=pointer]:
+                  - cell "Nova" [ref=e1356]
+                  - cell "EDUARDO SILVEIRA 28560161899 Despesas Diretas · Compra de Serviços para Tratores de Outras Marcas" [ref=e1358]:
+                    - generic [ref=e1359]: EDUARDO SILVEIRA 28560161899
+                    - generic [ref=e1360]: Despesas Diretas · Compra de Serviços para Tratores de Outras Marcas
+                  - cell "NF 0000492 · Parc 001/001" [ref=e1361]
+                  - cell "04/08/2026" [ref=e1362]
+                  - cell "Pago" [ref=e1363]
+                  - cell "R$ 800,00" [ref=e1365]
+                - row [ref=e1366] [cursor=pointer]:
+                  - cell "Nova" [ref=e1367]
+                  - cell "EXPRESSO SAO MIGUEL S/A Despesas Diretas · Frete (Retirada)" [ref=e1369]:
+                    - generic [ref=e1370]: EXPRESSO SAO MIGUEL S/A
+                    - generic [ref=e1371]: Despesas Diretas · Frete (Retirada)
+                  - cell "NF 000464332 · Parc 001/001" [ref=e1372]
+                  - cell "04/08/2026" [ref=e1373]
+                  - cell "Vencido" [ref=e1374]
+                  - cell "R$ 113,77" [ref=e1376]
+                - row [ref=e1377] [cursor=pointer]:
+                  - cell "Nova" [ref=e1378]
+                  - cell "CARLOS PNEUS Despesas Diretas · Compras de Peças para Revenda" [ref=e1380]:
+                    - generic [ref=e1381]: CARLOS PNEUS
+                    - generic [ref=e1382]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000017927 · Parc 001/006" [ref=e1383]
+                  - cell "04/08/2026" [ref=e1384]
+                  - cell "Vencido" [ref=e1385]
+                  - cell "R$ 370,00" [ref=e1387]
+                - row [ref=e1388] [cursor=pointer]:
+                  - cell "Nova" [ref=e1389]
+                  - cell "TELEFONICA BRASIL S.A. Despesas Administrativas · Telefonia" [ref=e1391]:
+                    - generic [ref=e1392]: TELEFONICA BRASIL S.A.
+                    - generic [ref=e1393]: Despesas Administrativas · Telefonia
+                  - cell "Parc 001/001" [ref=e1394]
+                  - cell "05/08/2026" [ref=e1395]
+                  - cell "Pago" [ref=e1396]
+                  - cell "R$ 39,99" [ref=e1398]
+                - row [ref=e1399] [cursor=pointer]:
+                  - cell "Nova" [ref=e1400]
+                  - cell "NEOENERGIA ELEKTRO Despesas Administrativas · Telefonia" [ref=e1402]:
+                    - generic [ref=e1403]: NEOENERGIA ELEKTRO
+                    - generic [ref=e1404]: Despesas Administrativas · Telefonia
+                  - cell "Parc 001/001" [ref=e1405]
+                  - cell "05/08/2026" [ref=e1406]
+                  - cell "Pago" [ref=e1407]
+                  - cell "R$ 113,75" [ref=e1409]
+                - row [ref=e1410] [cursor=pointer]:
+                  - cell "Nova" [ref=e1411]
+                  - cell "PIRAMAK Despesas Administrativas · Manutenção de Imobilizado" [ref=e1413]:
+                    - generic [ref=e1414]: PIRAMAK
+                    - generic [ref=e1415]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 0002363 · Parc 001/001" [ref=e1416]
+                  - cell "05/08/2026" [ref=e1417]
+                  - cell "Pago" [ref=e1418]
+                  - cell "R$ 840,00" [ref=e1420]
+                - row [ref=e1421] [cursor=pointer]:
+                  - cell "Nova" [ref=e1422]
+                  - cell "SABESP Despesas Administrativas · Água e Esgoto" [ref=e1424]:
+                    - generic [ref=e1425]: SABESP
+                    - generic [ref=e1426]: Despesas Administrativas · Água e Esgoto
+                  - cell "Parc 001/001" [ref=e1427]
+                  - cell "05/08/2026" [ref=e1428]
+                  - cell "Pago" [ref=e1429]
+                  - cell "R$ 383,25" [ref=e1431]
+                - row [ref=e1432] [cursor=pointer]:
+                  - cell "Nova" [ref=e1433]
+                  - cell "IMPLEMENTOS AGRICOLAS MARISPAN LTDA Despesas Financeiras / Bancos · Juros sobre Empréstimos" [ref=e1435]:
+                    - generic [ref=e1436]: IMPLEMENTOS AGRICOLAS MARISPAN LTDA
+                    - generic [ref=e1437]: Despesas Financeiras / Bancos · Juros sobre Empréstimos
+                  - cell "Parc 001/001" [ref=e1438]
+                  - cell "06/08/2026" [ref=e1439]
+                  - cell "Pago" [ref=e1440]
+                  - cell "R$ 1.974,36" [ref=e1442]
+                - row [ref=e1443] [cursor=pointer]:
+                  - cell "Nova" [ref=e1444]
+                  - cell "CASA DOS PARAFUSOS Despesas Diretas · Compras de Peças para Revenda" [ref=e1446]:
+                    - generic [ref=e1447]: CASA DOS PARAFUSOS
+                    - generic [ref=e1448]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000026514 · Parc 001/001" [ref=e1449]
+                  - cell "10/08/2026" [ref=e1450]
+                  - cell "Pago" [ref=e1451]
+                  - cell "R$ 62,50" [ref=e1453]
+                - row [ref=e1454] [cursor=pointer]:
+                  - cell "Nova" [ref=e1455]
+                  - cell "MASCOTE CLINICA VETERINARIA Despesas Administrativas · Manutenção de Imobilizado" [ref=e1457]:
+                    - generic [ref=e1458]: MASCOTE CLINICA VETERINARIA
+                    - generic [ref=e1459]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 2038 · Parc 001/001" [ref=e1460]
+                  - cell "10/08/2026" [ref=e1461]
+                  - cell "Pago" [ref=e1462]
+                  - cell "R$ 360,00" [ref=e1464]
+                - row [ref=e1465] [cursor=pointer]:
+                  - cell "Nova" [ref=e1466]
+                  - cell "TELEFONICA BRASIL S.A. Despesas Administrativas · Telefonia" [ref=e1468]:
+                    - generic [ref=e1469]: TELEFONICA BRASIL S.A.
+                    - generic [ref=e1470]: Despesas Administrativas · Telefonia
+                  - cell "Parc 001/001" [ref=e1471]
+                  - cell "10/08/2026" [ref=e1472]
+                  - cell "Pago" [ref=e1473]
+                  - cell "R$ 77,59" [ref=e1475]
+                - row [ref=e1476] [cursor=pointer]:
+                  - cell "Nova" [ref=e1477]
+                  - cell "TELEFONICA BRASIL S.A. Despesas Administrativas · Telefonia" [ref=e1479]:
+                    - generic [ref=e1480]: TELEFONICA BRASIL S.A.
+                    - generic [ref=e1481]: Despesas Administrativas · Telefonia
+                  - cell "Parc 001/001" [ref=e1482]
+                  - cell "10/08/2026" [ref=e1483]
+                  - cell "Pago" [ref=e1484]
+                  - cell "R$ 89,52" [ref=e1486]
+                - row [ref=e1487] [cursor=pointer]:
+                  - cell "Nova" [ref=e1488]
+                  - cell "ABRAHINDRA - ASSOCIACAO BRASILEIRA DAS CONCESSIONARIAS MAHINDRA Despesas de Vendas e Marketing · Marketing" [ref=e1490]:
+                    - generic [ref=e1491]: ABRAHINDRA - ASSOCIACAO BRASILEIRA DAS CONCESSIONARIAS MAHINDRA
+                    - generic [ref=e1492]: Despesas de Vendas e Marketing · Marketing
+                  - cell "Parc 001/001" [ref=e1493]
+                  - cell "10/08/2026" [ref=e1494]
+                  - cell "Pago" [ref=e1495]
+                  - cell "R$ 1.621,00" [ref=e1497]
+                - row [ref=e1498] [cursor=pointer]:
+                  - cell "Nova" [ref=e1499]
+                  - cell "RotaExata Despesas Administrativas · Manutenção de Veículos" [ref=e1501]:
+                    - generic [ref=e1502]: RotaExata
+                    - generic [ref=e1503]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 2412 · Parc 001/001" [ref=e1504]
+                  - cell "10/08/2026" [ref=e1505]
+                  - cell "Pago" [ref=e1506]
+                  - cell "R$ 847,90" [ref=e1508]
+                - row [ref=e1509] [cursor=pointer]:
+                  - cell "Nova" [ref=e1510]
+                  - cell "R.P Despesas de Vendas e Marketing · Marketing" [ref=e1512]:
+                    - generic [ref=e1513]: R.P
+                    - generic [ref=e1514]: Despesas de Vendas e Marketing · Marketing
+                  - cell "NF 000000384 · Parc 001/001" [ref=e1515]
+                  - cell "10/08/2026" [ref=e1516]
+                  - cell "Pago" [ref=e1517]
+                  - cell "R$ 350,00" [ref=e1519]
+                - row [ref=e1520] [cursor=pointer]:
+                  - cell "Nova" [ref=e1521]
+                  - cell "RADIADORES AMANTINI LTDA. Despesas Diretas · Compra de Serviços para Implementos" [ref=e1523]:
+                    - generic [ref=e1524]: RADIADORES AMANTINI LTDA.
+                    - generic [ref=e1525]: Despesas Diretas · Compra de Serviços para Implementos
+                  - cell "NF 79 · Parc 001/001" [ref=e1526]
+                  - cell "10/08/2026" [ref=e1527]
+                  - cell "Pago" [ref=e1528]
+                  - cell "R$ 150,00" [ref=e1530]
+                - row [ref=e1531] [cursor=pointer]:
+                  - cell "Nova" [ref=e1532]
+                  - cell "GERSON AUTO PECAS Despesas Administrativas · Manutenção de Veículos" [ref=e1534]:
+                    - generic [ref=e1535]: GERSON AUTO PECAS
+                    - generic [ref=e1536]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 000001002 · Parc 001/001" [ref=e1537]
+                  - cell "10/08/2026" [ref=e1538]
+                  - cell "Vencido" [ref=e1539]
+                  - cell "R$ 15,00" [ref=e1541]
+                - row [ref=e1542] [cursor=pointer]:
+                  - cell "Nova" [ref=e1543]
+                  - cell "GERSON AUTO PECAS Despesas Administrativas · Manutenção de Veículos" [ref=e1545]:
+                    - generic [ref=e1546]: GERSON AUTO PECAS
+                    - generic [ref=e1547]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 000001001 · Parc 001/001" [ref=e1548]
+                  - cell "10/08/2026" [ref=e1549]
+                  - cell "Vencido" [ref=e1550]
+                  - cell "R$ 180,00" [ref=e1552]
+                - row [ref=e1553] [cursor=pointer]:
+                  - cell "Nova" [ref=e1554]
+                  - cell "GERSON AUTO PECAS Despesas Diretas · Compra de Serviços para ATVs e UTVs" [ref=e1556]:
+                    - generic [ref=e1557]: GERSON AUTO PECAS
+                    - generic [ref=e1558]: Despesas Diretas · Compra de Serviços para ATVs e UTVs
+                  - cell "NF 000001003 · Parc 001/001" [ref=e1559]
+                  - cell "10/08/2026" [ref=e1560]
+                  - cell "Vencido" [ref=e1561]
+                  - cell "R$ 194,00" [ref=e1563]
+                - row [ref=e1564] [cursor=pointer]:
+                  - cell "Nova" [ref=e1565]
+                  - cell "GERSON AUTO PECAS Despesas Administrativas · Manutenção de Veículos" [ref=e1567]:
+                    - generic [ref=e1568]: GERSON AUTO PECAS
+                    - generic [ref=e1569]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 000001004 · Parc 001/001" [ref=e1570]
+                  - cell "10/08/2026" [ref=e1571]
+                  - cell "Vencido" [ref=e1572]
+                  - cell "R$ 95,00" [ref=e1574]
+                - row [ref=e1575] [cursor=pointer]:
+                  - cell "Nova" [ref=e1576]
+                  - cell "MULTICAR PIRAJU SERVICOS E PECAS LTDA Investimento · Veículos" [ref=e1578]:
+                    - generic [ref=e1579]: MULTICAR PIRAJU SERVICOS E PECAS LTDA
+                    - generic [ref=e1580]: Investimento · Veículos
+                  - cell "NF 3925 · Parc 001/001" [ref=e1581]
+                  - cell "10/08/2026" [ref=e1582]
+                  - cell "Pago" [ref=e1583]
+                  - cell "R$ 80,00" [ref=e1585]
+                - row [ref=e1586] [cursor=pointer]:
+                  - cell "Nova" [ref=e1587]
+                  - cell "MULTICAR PIRAJU SERVICOS E PECAS LTDA Investimento · Veículos" [ref=e1589]:
+                    - generic [ref=e1590]: MULTICAR PIRAJU SERVICOS E PECAS LTDA
+                    - generic [ref=e1591]: Investimento · Veículos
+                  - cell "NF 3926 · Parc 001/001" [ref=e1592]
+                  - cell "10/08/2026" [ref=e1593]
+                  - cell "Pago" [ref=e1594]
+                  - cell "R$ 75,00" [ref=e1596]
+                - row [ref=e1597] [cursor=pointer]:
+                  - cell "Nova" [ref=e1598]
+                  - cell "GS DISTRIBIBUIDORA Despesas Administrativas · Material de Escritório" [ref=e1600]:
+                    - generic [ref=e1601]: GS DISTRIBIBUIDORA
+                    - generic [ref=e1602]: Despesas Administrativas · Material de Escritório
+                  - cell "NF 000043621 · Parc 001/001" [ref=e1603]
+                  - cell "11/08/2026" [ref=e1604]
+                  - cell "Vencido" [ref=e1605]
+                  - cell "R$ 22,00" [ref=e1607]
+                - row [ref=e1608] [cursor=pointer]:
+                  - cell "Nova" [ref=e1609]
+                  - cell "DESPACHANTE CARLINHOS Despesas Administrativas · Multa/Licenciamento Veicular" [ref=e1611]:
+                    - generic [ref=e1612]: DESPACHANTE CARLINHOS
+                    - generic [ref=e1613]: Despesas Administrativas · Multa/Licenciamento Veicular
+                  - cell "Parc 001/001" [ref=e1614]
+                  - cell "11/08/2026" [ref=e1615]
+                  - cell "Pago" [ref=e1616]
+                  - cell "R$ 295,00" [ref=e1618]
+                - row [ref=e1619] [cursor=pointer]:
+                  - cell "Nova" [ref=e1620]
+                  - cell "EXPRESSO SAO MIGUEL S/A Despesas Diretas · Frete (Retirada)" [ref=e1622]:
+                    - generic [ref=e1623]: EXPRESSO SAO MIGUEL S/A
+                    - generic [ref=e1624]: Despesas Diretas · Frete (Retirada)
+                  - cell "NF 000133684 · Parc 001/001" [ref=e1625]
+                  - cell "11/08/2026" [ref=e1626]
+                  - cell "Vencido" [ref=e1627]
+                  - cell "R$ 89,74" [ref=e1629]
+                - row [ref=e1630] [cursor=pointer]:
+                  - cell "Nova" [ref=e1631]
+                  - cell "BAURU - EXPRESSO SAO MIGUEL S/A Despesas Diretas · Frete (Retirada)" [ref=e1633]:
+                    - generic [ref=e1634]: BAURU - EXPRESSO SAO MIGUEL S/A
+                    - generic [ref=e1635]: Despesas Diretas · Frete (Retirada)
+                  - cell "NF 000032748 · Parc 001/001" [ref=e1636]
+                  - cell "11/08/2026" [ref=e1637]
+                  - cell "Vencido" [ref=e1638]
+                  - cell "R$ 75,56" [ref=e1640]
+                - row [ref=e1641] [cursor=pointer]:
+                  - cell "Nova" [ref=e1642]
+                  - cell "NICOLLY CAROLINE CARDOSO DE OLIVEIRA Despesas com Pessoal · Vale Transporte" [ref=e1644]:
+                    - generic [ref=e1645]: NICOLLY CAROLINE CARDOSO DE OLIVEIRA
+                    - generic [ref=e1646]: Despesas com Pessoal · Vale Transporte
+                  - cell "Parc 001/001" [ref=e1647]
+                  - cell "12/08/2026" [ref=e1648]
+                  - cell "Pago" [ref=e1649]
+                  - cell "R$ 180,00" [ref=e1651]
+                - row [ref=e1652] [cursor=pointer]:
+                  - cell "Nova" [ref=e1653]
+                  - cell "NICOLLY CAROLINE CARDOSO DE OLIVEIRA Despesas de Vendas e Marketing · Bonificações" [ref=e1655]:
+                    - generic [ref=e1656]: NICOLLY CAROLINE CARDOSO DE OLIVEIRA
+                    - generic [ref=e1657]: Despesas de Vendas e Marketing · Bonificações
+                  - cell "Parc 001/001" [ref=e1658]
+                  - cell "12/08/2026" [ref=e1659]
+                  - cell "Pago" [ref=e1660]
+                  - cell "R$ 220,00" [ref=e1662]
+                - row [ref=e1663] [cursor=pointer]:
+                  - cell "Nova" [ref=e1664]
+                  - cell "SEM LIMITES ROLAMENTOS E ACESS Despesas Diretas · Compras de Peças para Revenda" [ref=e1666]:
+                    - generic [ref=e1667]: SEM LIMITES ROLAMENTOS E ACESS
+                    - generic [ref=e1668]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000138355 · Parc 001/001" [ref=e1669]
+                  - cell "12/08/2026" [ref=e1670]
+                  - cell "Vencido" [ref=e1671]
+                  - cell "R$ 380,00" [ref=e1673]
+                - row [ref=e1674] [cursor=pointer]:
+                  - cell "Nova" [ref=e1675]
+                  - cell "67.500.605 PAULO JOAQUIM MOTTA Despesas Diretas · Compra de Serviços" [ref=e1677]:
+                    - generic [ref=e1678]: 67.500.605 PAULO JOAQUIM MOTTA
+                    - generic [ref=e1679]: Despesas Diretas · Compra de Serviços
+                  - cell "NF 4 · Parc 001/002" [ref=e1680]
+                  - cell "13/08/2026" [ref=e1681]
+                  - cell "Vencido" [ref=e1682]
+                  - cell "R$ 1.125,00" [ref=e1684]
+                - row [ref=e1685] [cursor=pointer]:
+                  - cell "Nova" [ref=e1686]
+                  - cell "MASCOTE CLINICA VETERINARIA Despesas Administrativas · Manutenção de Imobilizado" [ref=e1688]:
+                    - generic [ref=e1689]: MASCOTE CLINICA VETERINARIA
+                    - generic [ref=e1690]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 2039 · Parc 001/001" [ref=e1691]
+                  - cell "15/08/2026" [ref=e1692]
+                  - cell "Proximo" [ref=e1693]
+                  - cell "R$ 360,00" [ref=e1695]
+                - row [ref=e1696] [cursor=pointer]:
+                  - cell "Nova" [ref=e1697]
+                  - cell "67.500.605 PAULO JOAQUIM MOTTA Despesas Diretas · Compra de Serviços" [ref=e1699]:
+                    - generic [ref=e1700]: 67.500.605 PAULO JOAQUIM MOTTA
+                    - generic [ref=e1701]: Despesas Diretas · Compra de Serviços
+                  - cell "NF 4 · Parc 002/002" [ref=e1702]
+                  - cell "17/08/2026" [ref=e1703]
+                  - cell "Proximo" [ref=e1704]
+                  - cell "R$ 1.125,00" [ref=e1706]
+                - row [ref=e1707] [cursor=pointer]:
+                  - cell "Nova" [ref=e1708]
+                  - cell "A.A DE ALMEIDA EQUIPAMENTOS AGRO INDUSTRIAL Despesas Diretas · Compras de Peças para Revenda" [ref=e1710]:
+                    - generic [ref=e1711]: A.A DE ALMEIDA EQUIPAMENTOS AGRO INDUSTRIAL
+                    - generic [ref=e1712]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000059568 · Parc 001/001" [ref=e1713]
+                  - cell "18/08/2026" [ref=e1714]
+                  - cell "Proximo" [ref=e1715]
+                  - cell "R$ 406,75" [ref=e1717]
+                - row [ref=e1718] [cursor=pointer]:
+                  - cell "Nova" [ref=e1719]
+                  - cell "MPR TORNO E SOLDA Despesas Diretas · Compra de Serviços" [ref=e1721]:
+                    - generic [ref=e1722]: MPR TORNO E SOLDA
+                    - generic [ref=e1723]: Despesas Diretas · Compra de Serviços
+                  - cell "NF 187 · Parc 001/001" [ref=e1724]
+                  - cell "18/08/2026" [ref=e1725]
+                  - cell "Proximo" [ref=e1726]
+                  - cell "R$ 1.660,00" [ref=e1728]
+                - row [ref=e1729] [cursor=pointer]:
+                  - cell "Nova" [ref=e1730]
+                  - cell "MPR TORNO E SOLDA Despesas Diretas · Compra de Serviços" [ref=e1732]:
+                    - generic [ref=e1733]: MPR TORNO E SOLDA
+                    - generic [ref=e1734]: Despesas Diretas · Compra de Serviços
+                  - cell "NF 188 · Parc 001/001" [ref=e1735]
+                  - cell "18/08/2026" [ref=e1736]
+                  - cell "Proximo" [ref=e1737]
+                  - cell "R$ 1.190,00" [ref=e1739]
+                - row [ref=e1740] [cursor=pointer]:
+                  - cell "Nova" [ref=e1741]
+                  - cell "KADU FERRAMENTAS Despesas Diretas · Compra de Material de Consumo da Oficina" [ref=e1743]:
+                    - generic [ref=e1744]: KADU FERRAMENTAS
+                    - generic [ref=e1745]: Despesas Diretas · Compra de Material de Consumo da Oficina
+                  - cell "NF 000006071 · Parc 001/001" [ref=e1746]
+                  - cell "19/08/2026" [ref=e1747]
+                  - cell "Proximo" [ref=e1748]
+                  - cell "R$ 523,40" [ref=e1750]
+                - row [ref=e1751] [cursor=pointer]:
+                  - cell "Nova" [ref=e1752]
+                  - cell "PIRAJU GABINETE PREFEITO Outras Despesas · Adiantamento a Fornecedores" [ref=e1754]:
+                    - generic [ref=e1755]: PIRAJU GABINETE PREFEITO
+                    - generic [ref=e1756]: Outras Despesas · Adiantamento a Fornecedores
+                  - cell "Parc 001/001" [ref=e1757]
+                  - cell "20/08/2026" [ref=e1758]
+                  - cell "Proximo" [ref=e1759]
+                  - cell "R$ 2.673,46" [ref=e1761]
+                - row [ref=e1762] [cursor=pointer]:
+                  - cell "Nova" [ref=e1763]
+                  - cell "COMPEL - SO Despesas Diretas · Compras de Peças para Revenda" [ref=e1765]:
+                    - generic [ref=e1766]: COMPEL - SO
+                    - generic [ref=e1767]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000645428 · Parc 001/003" [ref=e1768]
+                  - cell "20/08/2026" [ref=e1769]
+                  - cell "Proximo" [ref=e1770]
+                  - cell "R$ 382,03" [ref=e1772]
+                - row [ref=e1773] [cursor=pointer]:
+                  - cell "Nova" [ref=e1774]
+                  - cell "COMFORT INDUSTRIA E COMERCIO LTDA Despesas Diretas · Compra de Serviços para ATVs e UTVs" [ref=e1776]:
+                    - generic [ref=e1777]: COMFORT INDUSTRIA E COMERCIO LTDA
+                    - generic [ref=e1778]: Despesas Diretas · Compra de Serviços para ATVs e UTVs
+                  - cell "NF 000016517 · Parc 001/001" [ref=e1779]
+                  - cell "20/08/2026" [ref=e1780]
+                  - cell "Proximo" [ref=e1781]
+                  - cell "R$ 1.687,53" [ref=e1783]
+                - row [ref=e1784] [cursor=pointer]:
+                  - cell "Nova" [ref=e1785]
+                  - cell "COMFORT INDUSTRIA E COMERCIO LTDA Despesas Diretas · Compra de Serviços para ATVs e UTVs" [ref=e1787]:
+                    - generic [ref=e1788]: COMFORT INDUSTRIA E COMERCIO LTDA
+                    - generic [ref=e1789]: Despesas Diretas · Compra de Serviços para ATVs e UTVs
+                  - cell "NF 000016516 · Parc 001/001" [ref=e1790]
+                  - cell "20/08/2026" [ref=e1791]
+                  - cell "Proximo" [ref=e1792]
+                  - cell "R$ 426,36" [ref=e1794]
+                - row [ref=e1795] [cursor=pointer]:
+                  - cell "Nova" [ref=e1796]
+                  - cell "COMFORT INDUSTRIA E COMERCIO LTDA Despesas Diretas · Compra de Serviços para ATVs e UTVs" [ref=e1798]:
+                    - generic [ref=e1799]: COMFORT INDUSTRIA E COMERCIO LTDA
+                    - generic [ref=e1800]: Despesas Diretas · Compra de Serviços para ATVs e UTVs
+                  - cell "NF 000016518 · Parc 001/001" [ref=e1801]
+                  - cell "20/08/2026" [ref=e1802]
+                  - cell "Proximo" [ref=e1803]
+                  - cell "R$ 2.236,13" [ref=e1805]
+                - row [ref=e1806] [cursor=pointer]:
+                  - cell "Nova" [ref=e1807]
+                  - cell "LIBRA Despesas Administrativas · Sistemas e Informática" [ref=e1809]:
+                    - generic [ref=e1810]: LIBRA
+                    - generic [ref=e1811]: Despesas Administrativas · Sistemas e Informática
+                  - cell "NF 470 · Parc 001/001" [ref=e1812]
+                  - cell "20/08/2026" [ref=e1813]
+                  - cell "Proximo" [ref=e1814]
+                  - cell "R$ 1.250,00" [ref=e1816]
+                - row [ref=e1817] [cursor=pointer]:
+                  - cell "Nova" [ref=e1818]
+                  - cell "FAVARO PNEUS Despesas Administrativas · Manutenção de Veículos" [ref=e1820]:
+                    - generic [ref=e1821]: FAVARO PNEUS
+                    - generic [ref=e1822]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 574 · Parc 001/001" [ref=e1823]
+                  - cell "20/08/2026" [ref=e1824]
+                  - cell "Proximo" [ref=e1825]
+                  - cell "R$ 35,00" [ref=e1827]
+                - row [ref=e1828] [cursor=pointer]:
+                  - cell "Nova" [ref=e1829]
+                  - cell "FAVARO PNEUS Despesas Administrativas · Manutenção de Veículos" [ref=e1831]:
+                    - generic [ref=e1832]: FAVARO PNEUS
+                    - generic [ref=e1833]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 576 · Parc 001/001" [ref=e1834]
+                  - cell "20/08/2026" [ref=e1835]
+                  - cell "Proximo" [ref=e1836]
+                  - cell "R$ 35,00" [ref=e1838]
+                - row [ref=e1839] [cursor=pointer]:
+                  - cell "Nova" [ref=e1840]
+                  - cell "FAVARO PNEUS Despesas Administrativas · Manutenção de Veículos" [ref=e1842]:
+                    - generic [ref=e1843]: FAVARO PNEUS
+                    - generic [ref=e1844]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 573 · Parc 001/001" [ref=e1845]
+                  - cell "20/08/2026" [ref=e1846]
+                  - cell "Proximo" [ref=e1847]
+                  - cell "R$ 225,00" [ref=e1849]
+                - row [ref=e1850] [cursor=pointer]:
+                  - cell "Nova" [ref=e1851]
+                  - cell "AUTO POSTO 2001 Despesas de Vendas e Marketing · Combustível" [ref=e1853]:
+                    - generic [ref=e1854]: AUTO POSTO 2001
+                    - generic [ref=e1855]: Despesas de Vendas e Marketing · Combustível
+                  - cell "NF 000015313 · Parc 001/001" [ref=e1856]
+                  - cell "20/08/2026" [ref=e1857]
+                  - cell "Proximo" [ref=e1858]
+                  - cell "R$ 792,99" [ref=e1860]
+                - row [ref=e1861] [cursor=pointer]:
+                  - cell "Nova" [ref=e1862]
+                  - cell "COMPEL - SO Despesas Diretas · Compras de Peças para Revenda" [ref=e1864]:
+                    - generic [ref=e1865]: COMPEL - SO
+                    - generic [ref=e1866]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000645428 · Parc 002/003" [ref=e1867]
+                  - cell "27/08/2026" [ref=e1868]
+                  - cell "A vencer" [ref=e1869]
+                  - cell "R$ 381,90" [ref=e1871]
+                - row [ref=e1872] [cursor=pointer]:
+                  - cell "Nova" [ref=e1873]
+                  - cell "KADU FERRAMENTAS Despesas Diretas · Compra de Material de Consumo da Oficina" [ref=e1875]:
+                    - generic [ref=e1876]: KADU FERRAMENTAS
+                    - generic [ref=e1877]: Despesas Diretas · Compra de Material de Consumo da Oficina
+                  - cell "NF 000006056 · Parc 001/001" [ref=e1878]
+                  - cell "27/08/2026" [ref=e1879]
+                  - cell "A vencer" [ref=e1880]
+                  - cell "R$ 476,50" [ref=e1882]
+                - row [ref=e1883] [cursor=pointer]:
+                  - cell "Nova" [ref=e1884]
+                  - cell "BODIPASA - MTZ Despesas Diretas · Compras de Peças para Revenda" [ref=e1886]:
+                    - generic [ref=e1887]: BODIPASA - MTZ
+                    - generic [ref=e1888]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000511050 · Parc 001/002" [ref=e1889]
+                  - cell "28/08/2026" [ref=e1890]
+                  - cell "A vencer" [ref=e1891]
+                  - cell "R$ 399,94" [ref=e1893]
+                - row [ref=e1894] [cursor=pointer]:
+                  - cell "Nova" [ref=e1895]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e1897]:
+                    - generic [ref=e1898]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e1899]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 2138 · Parc 001/003" [ref=e1900]
+                  - cell "01/09/2026" [ref=e1901]
+                  - cell "A vencer" [ref=e1902]
+                  - cell "R$ 2.420,00" [ref=e1904]
+                - row [ref=e1905] [cursor=pointer]:
+                  - cell "Nova" [ref=e1906]
+                  - cell "SEA RIVER MATRIZ PR Despesas Diretas · Compras de Peças para Revenda" [ref=e1908]:
+                    - generic [ref=e1909]: SEA RIVER MATRIZ PR
+                    - generic [ref=e1910]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000059192 · Parc 001/001" [ref=e1911]
+                  - cell "01/09/2026" [ref=e1912]
+                  - cell "A vencer" [ref=e1913]
+                  - cell "R$ 1.383,55" [ref=e1915]
+                - row [ref=e1916] [cursor=pointer]:
+                  - cell "Nova" [ref=e1917]
+                  - cell "PURIFICAIRE SOLUTION COMERCIO DE FILTROS LTDA Despesas Diretas · Compras de Peças para Revenda" [ref=e1919]:
+                    - generic [ref=e1920]: PURIFICAIRE SOLUTION COMERCIO DE FILTROS LTDA
+                    - generic [ref=e1921]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000001400 · Parc 001/001" [ref=e1922]
+                  - cell "01/09/2026" [ref=e1923]
+                  - cell "A vencer" [ref=e1924]
+                  - cell "R$ 742,00" [ref=e1926]
+                - row [ref=e1927] [cursor=pointer]:
+                  - cell "Nova" [ref=e1928]
+                  - cell "COMPEL - SO Despesas Diretas · Compras de Peças para Revenda" [ref=e1930]:
+                    - generic [ref=e1931]: COMPEL - SO
+                    - generic [ref=e1932]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000645428 · Parc 003/003" [ref=e1933]
+                  - cell "03/09/2026" [ref=e1934]
+                  - cell "A vencer" [ref=e1935]
+                  - cell "R$ 381,90" [ref=e1937]
+                - row [ref=e1938] [cursor=pointer]:
+                  - cell "Nova" [ref=e1939]
+                  - cell "ORION TECNOLOGIA E SISTEMAS AGRICOLAS LTDA * Despesas Diretas · Compras de Peças para Revenda" [ref=e1941]:
+                    - generic [ref=e1942]: ORION TECNOLOGIA E SISTEMAS AGRICOLAS LTDA *
+                    - generic [ref=e1943]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000008106 · Parc 001/001" [ref=e1944]
+                  - cell "03/09/2026" [ref=e1945]
+                  - cell "A vencer" [ref=e1946]
+                  - cell "R$ 490,00" [ref=e1948]
+                - row [ref=e1949] [cursor=pointer]:
+                  - cell "Nova" [ref=e1950]
+                  - cell "CES - COMERCIO DE PECAS PARA REPOSICAO LTDA Despesas Diretas · Compras de Peças para Revenda" [ref=e1952]:
+                    - generic [ref=e1953]: CES - COMERCIO DE PECAS PARA REPOSICAO LTDA
+                    - generic [ref=e1954]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000007118 · Parc 001/001" [ref=e1955]
+                  - cell "03/09/2026" [ref=e1956]
+                  - cell "A vencer" [ref=e1957]
+                  - cell "R$ 450,00" [ref=e1959]
+                - row [ref=e1960] [cursor=pointer]:
+                  - cell "Nova" [ref=e1961]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e1963]:
+                    - generic [ref=e1964]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e1965]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008077 · Parc 001/001" [ref=e1966]
+                  - cell "04/09/2026" [ref=e1967]
+                  - cell "A vencer" [ref=e1968]
+                  - cell "R$ 1.580,00" [ref=e1970]
+                - row [ref=e1971] [cursor=pointer]:
+                  - cell "Nova" [ref=e1972]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e1974]:
+                    - generic [ref=e1975]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e1976]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008081 · Parc 001/001" [ref=e1977]
+                  - cell "04/09/2026" [ref=e1978]
+                  - cell "A vencer" [ref=e1979]
+                  - cell "R$ 580,00" [ref=e1981]
+                - row [ref=e1982] [cursor=pointer]:
+                  - cell "Nova" [ref=e1983]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e1985]:
+                    - generic [ref=e1986]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e1987]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008082 · Parc 001/001" [ref=e1988]
+                  - cell "04/09/2026" [ref=e1989]
+                  - cell "A vencer" [ref=e1990]
+                  - cell "R$ 760,00" [ref=e1992]
+                - row [ref=e1993] [cursor=pointer]:
+                  - cell "Nova" [ref=e1994]
+                  - cell "NOGUEIRA Despesas Diretas · Compras de Implementos para Revenda" [ref=e1996]:
+                    - generic [ref=e1997]: NOGUEIRA
+                    - generic [ref=e1998]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000127911 · Parc 001/003" [ref=e1999]
+                  - cell "04/09/2026" [ref=e2000]
+                  - cell "A vencer" [ref=e2001]
+                  - cell "R$ 9.063,08" [ref=e2003]
+                - row [ref=e2004] [cursor=pointer]:
+                  - cell "Nova" [ref=e2005]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2007]:
+                    - generic [ref=e2008]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2009]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 2139 · Parc 001/001" [ref=e2010]
+                  - cell "05/09/2026" [ref=e2011]
+                  - cell "A vencer" [ref=e2012]
+                  - cell "R$ 275,00" [ref=e2014]
+                - row [ref=e2015] [cursor=pointer]:
+                  - cell "Nova" [ref=e2016]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2018]:
+                    - generic [ref=e2019]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2020]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008090 · Parc 001/001" [ref=e2021]
+                  - cell "05/09/2026" [ref=e2022]
+                  - cell "A vencer" [ref=e2023]
+                  - cell "R$ 2.367,00" [ref=e2025]
+                - row [ref=e2026] [cursor=pointer]:
+                  - cell "Nova" [ref=e2027]
+                  - cell "AUTO PECAS MART Despesas Administrativas · Manutenção de Veículos" [ref=e2029]:
+                    - generic [ref=e2030]: AUTO PECAS MART
+                    - generic [ref=e2031]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 002098638 · Parc 001/002" [ref=e2032]
+                  - cell "05/09/2026" [ref=e2033]
+                  - cell "A vencer" [ref=e2034]
+                  - cell "R$ 16,62" [ref=e2036]
+                - row [ref=e2037] [cursor=pointer]:
+                  - cell "Nova" [ref=e2038]
+                  - cell "AUTO PECAS MART Despesas Administrativas · Manutenção de Veículos" [ref=e2040]:
+                    - generic [ref=e2041]: AUTO PECAS MART
+                    - generic [ref=e2042]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 002098636 · Parc 001/002" [ref=e2043]
+                  - cell "05/09/2026" [ref=e2044]
+                  - cell "A vencer" [ref=e2045]
+                  - cell "R$ 98,84" [ref=e2047]
+                - row [ref=e2048] [cursor=pointer]:
+                  - cell "Nova" [ref=e2049]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2051]:
+                    - generic [ref=e2052]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2053]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008098 · Parc 001/001" [ref=e2054]
+                  - cell "05/09/2026" [ref=e2055]
+                  - cell "A vencer" [ref=e2056]
+                  - cell "R$ 530,00" [ref=e2058]
+                - row [ref=e2059] [cursor=pointer]:
+                  - cell "Nova" [ref=e2060]
+                  - cell "COMERCIAL OLIMPIA VALTRA VALMET Despesas Diretas · Compras de Peças para Revenda" [ref=e2062]:
+                    - generic [ref=e2063]: COMERCIAL OLIMPIA VALTRA VALMET
+                    - generic [ref=e2064]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000823761 · Parc 001/001" [ref=e2065]
+                  - cell "07/09/2026" [ref=e2066]
+                  - cell "A vencer" [ref=e2067]
+                  - cell "R$ 1.215,00" [ref=e2069]
+                - row [ref=e2070] [cursor=pointer]:
+                  - cell "Nova" [ref=e2071]
+                  - cell "CAMBARA BOMBAS DIESEL Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos" [ref=e2073]:
+                    - generic [ref=e2074]: CAMBARA BOMBAS DIESEL
+                    - generic [ref=e2075]: Despesas Diretas · Compras de Mercadorias para Manutenção de Tratores/Implementos
+                  - cell "NF 000043435 · Parc 001/001" [ref=e2076]
+                  - cell "09/09/2026" [ref=e2077]
+                  - cell "A vencer" [ref=e2078]
+                  - cell "R$ 480,00" [ref=e2080]
+                - row [ref=e2081] [cursor=pointer]:
+                  - cell "Nova" [ref=e2082]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2084]:
+                    - generic [ref=e2085]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2086]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008122 · Parc 001/001" [ref=e2087]
+                  - cell "09/09/2026" [ref=e2088]
+                  - cell "A vencer" [ref=e2089]
+                  - cell "R$ 970,00" [ref=e2091]
+                - row [ref=e2092] [cursor=pointer]:
+                  - cell "Nova" [ref=e2093]
+                  - cell "NOSSO CAMPO MAQUINAS AGRICOLAS LTDA Despesas Diretas · Compras de Peças para Revenda" [ref=e2095]:
+                    - generic [ref=e2096]: NOSSO CAMPO MAQUINAS AGRICOLAS LTDA
+                    - generic [ref=e2097]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000023398 · Parc 001/001" [ref=e2098]
+                  - cell "09/09/2026" [ref=e2099]
+                  - cell "A vencer" [ref=e2100]
+                  - cell "R$ 743,40" [ref=e2102]
+                - row [ref=e2103] [cursor=pointer]:
+                  - cell "Nova" [ref=e2104]
+                  - cell "M&amp;H Acessorios Despesas Diretas · Compra de Serviços para ATVs e UTVs" [ref=e2106]:
+                    - generic [ref=e2107]: M&amp;H Acessorios
+                    - generic [ref=e2108]: Despesas Diretas · Compra de Serviços para ATVs e UTVs
+                  - cell "NF 000000223 · Parc 001/001" [ref=e2109]
+                  - cell "09/09/2026" [ref=e2110]
+                  - cell "A vencer" [ref=e2111]
+                  - cell "R$ 56,00" [ref=e2113]
+                - row [ref=e2114] [cursor=pointer]:
+                  - cell "Nova" [ref=e2115]
+                  - cell "M&amp;H Acessorios Despesas Administrativas · Manutenção de Veículos" [ref=e2117]:
+                    - generic [ref=e2118]: M&amp;H Acessorios
+                    - generic [ref=e2119]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 000000224 · Parc 001/001" [ref=e2120]
+                  - cell "09/09/2026" [ref=e2121]
+                  - cell "A vencer" [ref=e2122]
+                  - cell "R$ 84,00" [ref=e2124]
+                - row [ref=e2125] [cursor=pointer]:
+                  - cell "Nova" [ref=e2126]
+                  - cell "MAXXFORTE INDUSTRIA DE IMPLEMENTOS AGRICOLAS Despesas Diretas · Compras de Peças para Revenda" [ref=e2128]:
+                    - generic [ref=e2129]: MAXXFORTE INDUSTRIA DE IMPLEMENTOS AGRICOLAS
+                    - generic [ref=e2130]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000008463 · Parc 001/001" [ref=e2131]
+                  - cell "10/09/2026" [ref=e2132]
+                  - cell "A vencer" [ref=e2133]
+                  - cell "R$ 300,00" [ref=e2135]
+                - row [ref=e2136] [cursor=pointer]:
+                  - cell "Nova" [ref=e2137]
+                  - cell "COMPER TRATORES LTDA Despesas Diretas · Compras de Peças para Revenda" [ref=e2139]:
+                    - generic [ref=e2140]: COMPER TRATORES LTDA
+                    - generic [ref=e2141]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000125726 · Parc 001/001" [ref=e2142]
+                  - cell "10/09/2026" [ref=e2143]
+                  - cell "A vencer" [ref=e2144]
+                  - cell "R$ 1.250,00" [ref=e2146]
+                - row [ref=e2147] [cursor=pointer]:
+                  - cell "Nova" [ref=e2148]
+                  - cell "MULTICAR PIRAJU SERVICOS E PECAS LTDA Investimento · Veículos" [ref=e2150]:
+                    - generic [ref=e2151]: MULTICAR PIRAJU SERVICOS E PECAS LTDA
+                    - generic [ref=e2152]: Investimento · Veículos
+                  - cell "NF 3925 · Parc 001/001" [ref=e2153]
+                  - cell "10/09/2026" [ref=e2154]
+                  - cell "A vencer" [ref=e2155]
+                  - cell "R$ 80,00" [ref=e2157]
+                - row [ref=e2158] [cursor=pointer]:
+                  - cell "Nova" [ref=e2159]
+                  - cell "MULTICAR PIRAJU SERVICOS E PECAS LTDA Investimento · Veículos" [ref=e2161]:
+                    - generic [ref=e2162]: MULTICAR PIRAJU SERVICOS E PECAS LTDA
+                    - generic [ref=e2163]: Investimento · Veículos
+                  - cell "NF 3926 · Parc 001/001" [ref=e2164]
+                  - cell "10/09/2026" [ref=e2165]
+                  - cell "A vencer" [ref=e2166]
+                  - cell "R$ 75,00" [ref=e2168]
+                - row [ref=e2169] [cursor=pointer]:
+                  - cell "Nova" [ref=e2170]
+                  - cell "SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA Despesas Diretas · Compras de Implementos para Revenda" [ref=e2172]:
+                    - generic [ref=e2173]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e2174]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000038948 · Parc 001/005" [ref=e2175]
+                  - cell "10/09/2026" [ref=e2176]
+                  - cell "A vencer" [ref=e2177]
+                  - cell "R$ 10.373,27" [ref=e2179]
+                - row [ref=e2180] [cursor=pointer]:
+                  - cell "Nova" [ref=e2181]
+                  - cell "BODIPASA - MTZ Despesas Diretas · Compras de Peças para Revenda" [ref=e2183]:
+                    - generic [ref=e2184]: BODIPASA - MTZ
+                    - generic [ref=e2185]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000511050 · Parc 002/002" [ref=e2186]
+                  - cell "11/09/2026" [ref=e2187]
+                  - cell "A vencer" [ref=e2188]
+                  - cell "R$ 399,94" [ref=e2190]
+                - row [ref=e2191] [cursor=pointer]:
+                  - cell "Nova" [ref=e2192]
+                  - cell "INCOMAC Despesas Diretas · Compras de Peças para Revenda" [ref=e2194]:
+                    - generic [ref=e2195]: INCOMAC
+                    - generic [ref=e2196]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000022141 · Parc 001/001" [ref=e2197]
+                  - cell "11/09/2026" [ref=e2198]
+                  - cell "A vencer" [ref=e2199]
+                  - cell "R$ 231,00" [ref=e2201]
+                - row [ref=e2202] [cursor=pointer]:
+                  - cell "Nova" [ref=e2203]
+                  - cell "VICON MAQUINAS AGRICOLAS LT Despesas Diretas · Compras de Implementos para Revenda" [ref=e2205]:
+                    - generic [ref=e2206]: VICON MAQUINAS AGRICOLAS LT
+                    - generic [ref=e2207]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000098109 · Parc 001/002" [ref=e2208]
+                  - cell "11/09/2026" [ref=e2209]
+                  - cell "A vencer" [ref=e2210]
+                  - cell "R$ 12.125,00" [ref=e2212]
+                - row [ref=e2213] [cursor=pointer]:
+                  - cell "Nova" [ref=e2214]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2216]:
+                    - generic [ref=e2217]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2218]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008130 · Parc 001/001" [ref=e2219]
+                  - cell "12/09/2026" [ref=e2220]
+                  - cell "A vencer" [ref=e2221]
+                  - cell "R$ 2.190,00" [ref=e2223]
+                - row [ref=e2224] [cursor=pointer]:
+                  - cell "Nova" [ref=e2225]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2227]:
+                    - generic [ref=e2228]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2229]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008138 · Parc 003/006" [ref=e2230]
+                  - cell "12/09/2026" [ref=e2231]
+                  - cell "A vencer" [ref=e2232]
+                  - cell "R$ 9.666,67" [ref=e2234]
+                - row [ref=e2235] [cursor=pointer]:
+                  - cell "Nova" [ref=e2236]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2238]:
+                    - generic [ref=e2239]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2240]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 001/010" [ref=e2241]
+                  - cell "12/09/2026" [ref=e2242]
+                  - cell "A vencer" [ref=e2243]
+                  - cell "R$ 55,32" [ref=e2245]
+                - row [ref=e2246] [cursor=pointer]:
+                  - cell "Nova" [ref=e2247]
+                  - cell "CARLOS PNEUS Despesas Diretas · Compras de Peças para Revenda" [ref=e2249]:
+                    - generic [ref=e2250]: CARLOS PNEUS
+                    - generic [ref=e2251]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000017927 · Parc 002/006" [ref=e2252]
+                  - cell "20/09/2026" [ref=e2253]
+                  - cell "A vencer" [ref=e2254]
+                  - cell "R$ 370,00" [ref=e2256]
+                - row [ref=e2257] [cursor=pointer]:
+                  - cell "Nova" [ref=e2258]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2260]:
+                    - generic [ref=e2261]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2262]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 2138 · Parc 002/003" [ref=e2263]
+                  - cell "30/09/2026" [ref=e2264]
+                  - cell "A vencer" [ref=e2265]
+                  - cell "R$ 2.420,00" [ref=e2267]
+                - row [ref=e2268] [cursor=pointer]:
+                  - cell "Nova" [ref=e2269]
+                  - cell "NOGUEIRA Despesas Diretas · Compras de Implementos para Revenda" [ref=e2271]:
+                    - generic [ref=e2272]: NOGUEIRA
+                    - generic [ref=e2273]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000127911 · Parc 002/003" [ref=e2274]
+                  - cell "04/10/2026" [ref=e2275]
+                  - cell "A vencer" [ref=e2276]
+                  - cell "R$ 9.063,08" [ref=e2278]
+                - row [ref=e2279] [cursor=pointer]:
+                  - cell "Nova" [ref=e2280]
+                  - cell "AUTO PECAS MART Despesas Administrativas · Manutenção de Veículos" [ref=e2282]:
+                    - generic [ref=e2283]: AUTO PECAS MART
+                    - generic [ref=e2284]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 002098638 · Parc 002/002" [ref=e2285]
+                  - cell "05/10/2026" [ref=e2286]
+                  - cell "A vencer" [ref=e2287]
+                  - cell "R$ 16,62" [ref=e2289]
+                - row [ref=e2290] [cursor=pointer]:
+                  - cell "Nova" [ref=e2291]
+                  - cell "AUTO PECAS MART Despesas Administrativas · Manutenção de Veículos" [ref=e2293]:
+                    - generic [ref=e2294]: AUTO PECAS MART
+                    - generic [ref=e2295]: Despesas Administrativas · Manutenção de Veículos
+                  - cell "NF 002098636 · Parc 002/002" [ref=e2296]
+                  - cell "05/10/2026" [ref=e2297]
+                  - cell "A vencer" [ref=e2298]
+                  - cell "R$ 98,84" [ref=e2300]
+                - row [ref=e2301] [cursor=pointer]:
+                  - cell "Nova" [ref=e2302]
+                  - cell "MULTICAR PIRAJU SERVICOS E PECAS LTDA Investimento · Veículos" [ref=e2304]:
+                    - generic [ref=e2305]: MULTICAR PIRAJU SERVICOS E PECAS LTDA
+                    - generic [ref=e2306]: Investimento · Veículos
+                  - cell "NF 3925 · Parc 001/001" [ref=e2307]
+                  - cell "10/10/2026" [ref=e2308]
+                  - cell "A vencer" [ref=e2309]
+                  - cell "R$ 80,00" [ref=e2311]
+                - row [ref=e2312] [cursor=pointer]:
+                  - cell "Nova" [ref=e2313]
+                  - cell "MULTICAR PIRAJU SERVICOS E PECAS LTDA Investimento · Veículos" [ref=e2315]:
+                    - generic [ref=e2316]: MULTICAR PIRAJU SERVICOS E PECAS LTDA
+                    - generic [ref=e2317]: Investimento · Veículos
+                  - cell "NF 3926 · Parc 001/001" [ref=e2318]
+                  - cell "10/10/2026" [ref=e2319]
+                  - cell "A vencer" [ref=e2320]
+                  - cell "R$ 75,00" [ref=e2322]
+                - row [ref=e2323] [cursor=pointer]:
+                  - cell "Nova" [ref=e2324]
+                  - cell "SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA Despesas Diretas · Compras de Implementos para Revenda" [ref=e2326]:
+                    - generic [ref=e2327]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e2328]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000038948 · Parc 002/005" [ref=e2329]
+                  - cell "10/10/2026" [ref=e2330]
+                  - cell "A vencer" [ref=e2331]
+                  - cell "R$ 10.373,27" [ref=e2333]
+                - row [ref=e2334] [cursor=pointer]:
+                  - cell "Nova" [ref=e2335]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2337]:
+                    - generic [ref=e2338]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2339]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 002/010" [ref=e2340]
+                  - cell "12/10/2026" [ref=e2341]
+                  - cell "A vencer" [ref=e2342]
+                  - cell "R$ 55,32" [ref=e2344]
+                - row [ref=e2345] [cursor=pointer]:
+                  - cell "Nova" [ref=e2346]
+                  - cell "VICON MAQUINAS AGRICOLAS LT Despesas Diretas · Compras de Implementos para Revenda" [ref=e2348]:
+                    - generic [ref=e2349]: VICON MAQUINAS AGRICOLAS LT
+                    - generic [ref=e2350]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000098109 · Parc 002/002" [ref=e2351]
+                  - cell "13/10/2026" [ref=e2352]
+                  - cell "A vencer" [ref=e2353]
+                  - cell "R$ 12.125,00" [ref=e2355]
+                - row [ref=e2356] [cursor=pointer]:
+                  - cell "Nova" [ref=e2357]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2359]:
+                    - generic [ref=e2360]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2361]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008138 · Parc 004/006" [ref=e2362]
+                  - cell "14/10/2026" [ref=e2363]
+                  - cell "A vencer" [ref=e2364]
+                  - cell "R$ 9.666,67" [ref=e2366]
+                - row [ref=e2367] [cursor=pointer]:
+                  - cell "Nova" [ref=e2368]
+                  - cell "CARLOS PNEUS Despesas Diretas · Compras de Peças para Revenda" [ref=e2370]:
+                    - generic [ref=e2371]: CARLOS PNEUS
+                    - generic [ref=e2372]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000017927 · Parc 003/006" [ref=e2373]
+                  - cell "20/10/2026" [ref=e2374]
+                  - cell "A vencer" [ref=e2375]
+                  - cell "R$ 370,00" [ref=e2377]
+                - row [ref=e2378] [cursor=pointer]:
+                  - cell "Nova" [ref=e2379]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2381]:
+                    - generic [ref=e2382]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2383]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 2138 · Parc 003/003" [ref=e2384]
+                  - cell "30/10/2026" [ref=e2385]
+                  - cell "A vencer" [ref=e2386]
+                  - cell "R$ 2.420,00" [ref=e2388]
+                - row [ref=e2389] [cursor=pointer]:
+                  - cell "Nova" [ref=e2390]
+                  - cell "NOGUEIRA Despesas Diretas · Compras de Implementos para Revenda" [ref=e2392]:
+                    - generic [ref=e2393]: NOGUEIRA
+                    - generic [ref=e2394]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000127911 · Parc 003/003" [ref=e2395]
+                  - cell "03/11/2026" [ref=e2396]
+                  - cell "A vencer" [ref=e2397]
+                  - cell "R$ 9.063,07" [ref=e2399]
+                - row [ref=e2400] [cursor=pointer]:
+                  - cell "Nova" [ref=e2401]
+                  - cell "SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA Despesas Diretas · Compras de Implementos para Revenda" [ref=e2403]:
+                    - generic [ref=e2404]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e2405]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000038948 · Parc 003/005" [ref=e2406]
+                  - cell "09/11/2026" [ref=e2407]
+                  - cell "A vencer" [ref=e2408]
+                  - cell "R$ 10.373,27" [ref=e2410]
+                - row [ref=e2411] [cursor=pointer]:
+                  - cell "Nova" [ref=e2412]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2414]:
+                    - generic [ref=e2415]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2416]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008138 · Parc 005/006" [ref=e2417]
+                  - cell "11/11/2026" [ref=e2418]
+                  - cell "A vencer" [ref=e2419]
+                  - cell "R$ 9.666,67" [ref=e2421]
+                - row [ref=e2422] [cursor=pointer]:
+                  - cell "Nova" [ref=e2423]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2425]:
+                    - generic [ref=e2426]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2427]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 003/010" [ref=e2428]
+                  - cell "12/11/2026" [ref=e2429]
+                  - cell "A vencer" [ref=e2430]
+                  - cell "R$ 55,32" [ref=e2432]
+                - row [ref=e2433] [cursor=pointer]:
+                  - cell "Nova" [ref=e2434]
+                  - cell "CARLOS PNEUS Despesas Diretas · Compras de Peças para Revenda" [ref=e2436]:
+                    - generic [ref=e2437]: CARLOS PNEUS
+                    - generic [ref=e2438]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000017927 · Parc 004/006" [ref=e2439]
+                  - cell "20/11/2026" [ref=e2440]
+                  - cell "A vencer" [ref=e2441]
+                  - cell "R$ 370,00" [ref=e2443]
+                - row [ref=e2444] [cursor=pointer]:
+                  - cell "Nova" [ref=e2445]
+                  - cell "SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA Despesas Diretas · Compras de Implementos para Revenda" [ref=e2447]:
+                    - generic [ref=e2448]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e2449]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000038948 · Parc 004/005" [ref=e2450]
+                  - cell "09/12/2026" [ref=e2451]
+                  - cell "A vencer" [ref=e2452]
+                  - cell "R$ 10.373,27" [ref=e2454]
+                - row [ref=e2455] [cursor=pointer]:
+                  - cell "Nova" [ref=e2456]
+                  - cell "BANCO VOTORANTIM S.A. Despesas Financeiras / Bancos · Pagamento de Empréstimos" [ref=e2458]:
+                    - generic [ref=e2459]: BANCO VOTORANTIM S.A.
+                    - generic [ref=e2460]: Despesas Financeiras / Bancos · Pagamento de Empréstimos
+                  - cell "NF 00008138 · Parc 006/006" [ref=e2461]
+                  - cell "11/12/2026" [ref=e2462]
+                  - cell "A vencer" [ref=e2463]
+                  - cell "R$ 9.666,65" [ref=e2465]
+                - row [ref=e2466] [cursor=pointer]:
+                  - cell "Nova" [ref=e2467]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2469]:
+                    - generic [ref=e2470]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2471]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 004/010" [ref=e2472]
+                  - cell "12/12/2026" [ref=e2473]
+                  - cell "A vencer" [ref=e2474]
+                  - cell "R$ 55,32" [ref=e2476]
+                - row [ref=e2477] [cursor=pointer]:
+                  - cell "Nova" [ref=e2478]
+                  - cell "CARLOS PNEUS Despesas Diretas · Compras de Peças para Revenda" [ref=e2480]:
+                    - generic [ref=e2481]: CARLOS PNEUS
+                    - generic [ref=e2482]: Despesas Diretas · Compras de Peças para Revenda
+                  - cell "NF 000017927 · Parc 005/006" [ref=e2483]
+                  - cell "20/12/2026" [ref=e2484]
+                  - cell "A vencer" [ref=e2485]
+                  - cell "R$ 370,00" [ref=e2487]
+                - row [ref=e2488] [cursor=pointer]:
+                  - cell "Nova" [ref=e2489]
+                  - cell "SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA Despesas Diretas · Compras de Implementos para Revenda" [ref=e2491]:
+                    - generic [ref=e2492]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e2493]: Despesas Diretas · Compras de Implementos para Revenda
+                  - cell "NF 000038948 · Parc 005/005" [ref=e2494]
+                  - cell "08/01/2027" [ref=e2495]
+                  - cell "A vencer" [ref=e2496]
+                  - cell "R$ 10.373,27" [ref=e2498]
+                - row [ref=e2499] [cursor=pointer]:
+                  - cell "Nova" [ref=e2500]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2502]:
+                    - generic [ref=e2503]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2504]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 005/010" [ref=e2505]
+                  - cell "12/01/2027" [ref=e2506]
+                  - cell "A vencer" [ref=e2507]
+                  - cell "R$ 55,32" [ref=e2509]
+                - row [ref=e2510] [cursor=pointer]:
+                  - cell "Nova" [ref=e2511]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2513]:
+                    - generic [ref=e2514]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2515]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 006/010" [ref=e2516]
+                  - cell "12/02/2027" [ref=e2517]
+                  - cell "A vencer" [ref=e2518]
+                  - cell "R$ 55,32" [ref=e2520]
+                - row [ref=e2521] [cursor=pointer]:
+                  - cell "Nova" [ref=e2522]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2524]:
+                    - generic [ref=e2525]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2526]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 007/010" [ref=e2527]
+                  - cell "12/03/2027" [ref=e2528]
+                  - cell "A vencer" [ref=e2529]
+                  - cell "R$ 55,32" [ref=e2531]
+                - row [ref=e2532] [cursor=pointer]:
+                  - cell "Nova" [ref=e2533]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2535]:
+                    - generic [ref=e2536]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2537]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 008/010" [ref=e2538]
+                  - cell "12/04/2027" [ref=e2539]
+                  - cell "A vencer" [ref=e2540]
+                  - cell "R$ 55,32" [ref=e2542]
+                - row [ref=e2543] [cursor=pointer]:
+                  - cell "Nova" [ref=e2544]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2546]:
+                    - generic [ref=e2547]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2548]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 009/010" [ref=e2549]
+                  - cell "12/05/2027" [ref=e2550]
+                  - cell "A vencer" [ref=e2551]
+                  - cell "R$ 55,32" [ref=e2553]
+                - row [ref=e2554] [cursor=pointer]:
+                  - cell "Nova" [ref=e2555]
+                  - cell "UNIAO DE TINTAS - PIRAJU LJ 008 Despesas Administrativas · Manutenção de Imobilizado" [ref=e2557]:
+                    - generic [ref=e2558]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e2559]: Despesas Administrativas · Manutenção de Imobilizado
+                  - cell "NF 000019383 · Parc 010/010" [ref=e2560]
+                  - cell "12/06/2027" [ref=e2561]
+                  - cell "A vencer" [ref=e2562]
+                  - cell "R$ 55,40" [ref=e2564]
+          - complementary [ref=e492]:
+            - generic [ref=e493]:
+              - heading "Titulos criados em 13/08/2026" [level=2] [ref=e731]
+              - button "×" [ref=e495]
+            - generic [ref=e496]:
+              - generic [ref=e497]:
+                - generic [ref=e732]: 17 titulos
+                - generic [ref=e733]: R$ 76.669,63
+              - generic [ref=e734]:
+                - generic [ref=e735]:
+                  - generic [ref=e736]:
+                    - generic [ref=e737]: VICON MAQUINAS AGRICOLAS LT
+                    - generic [ref=e738]:
+                      - generic [ref=e739]: R$ 12.125,00
+                      - generic [ref=e740]: A vencer
+                  - generic [ref=e741]: "Doc: 000098109/2 · NF: 000098109 · Parc: 002/002 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e742]:
+                  - generic [ref=e743]:
+                    - generic [ref=e744]: VICON MAQUINAS AGRICOLAS LT
+                    - generic [ref=e745]:
+                      - generic [ref=e746]: R$ 12.125,00
+                      - generic [ref=e747]: A vencer
+                  - generic [ref=e748]: "Doc: 000098109/1 · NF: 000098109 · Parc: 001/002 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e749]:
+                  - generic [ref=e750]:
+                    - generic [ref=e751]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e752]:
+                      - generic [ref=e753]: R$ 10.373,27
+                      - generic [ref=e754]: A vencer
+                  - generic [ref=e755]: "Doc: 000038948/2 · NF: 000038948 · Parc: 002/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e756]:
+                  - generic [ref=e757]:
+                    - generic [ref=e758]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e759]:
+                      - generic [ref=e760]: R$ 10.373,27
+                      - generic [ref=e761]: A vencer
+                  - generic [ref=e762]: "Doc: 000038948/4 · NF: 000038948 · Parc: 004/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e763]:
+                  - generic [ref=e764]:
+                    - generic [ref=e765]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e766]:
+                      - generic [ref=e767]: R$ 10.373,27
+                      - generic [ref=e768]: A vencer
+                  - generic [ref=e769]: "Doc: 000038948/5 · NF: 000038948 · Parc: 005/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e770]:
+                  - generic [ref=e771]:
+                    - generic [ref=e772]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e773]:
+                      - generic [ref=e774]: R$ 10.373,27
+                      - generic [ref=e775]: A vencer
+                  - generic [ref=e776]: "Doc: 000038948/3 · NF: 000038948 · Parc: 003/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e777]:
+                  - generic [ref=e778]:
+                    - generic [ref=e779]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e780]:
+                      - generic [ref=e781]: R$ 10.373,27
+                      - generic [ref=e782]: A vencer
+                  - generic [ref=e783]: "Doc: 000038948/1 · NF: 000038948 · Parc: 001/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e784]:
+                  - generic [ref=e785]:
+                    - generic [ref=e786]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e787]:
+                      - generic [ref=e788]: R$ 55,40
+                      - generic [ref=e789]: A vencer
+                  - generic [ref=e790]: "Doc: 000019383/10 · NF: 000019383 · Parc: 010/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e791]:
+                  - generic [ref=e792]:
+                    - generic [ref=e793]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e794]:
+                      - generic [ref=e795]: R$ 55,32
+                      - generic [ref=e796]: A vencer
+                  - generic [ref=e797]: "Doc: 000019383/2 · NF: 000019383 · Parc: 002/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e798]:
+                  - generic [ref=e799]:
+                    - generic [ref=e800]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e801]:
+                      - generic [ref=e802]: R$ 55,32
+                      - generic [ref=e803]: A vencer
+                  - generic [ref=e804]: "Doc: 000019383/4 · NF: 000019383 · Parc: 004/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e805]:
+                  - generic [ref=e806]:
+                    - generic [ref=e807]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e808]:
+                      - generic [ref=e809]: R$ 55,32
+                      - generic [ref=e810]: A vencer
+                  - generic [ref=e811]: "Doc: 000019383/5 · NF: 000019383 · Parc: 005/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e812]:
+                  - generic [ref=e813]:
+                    - generic [ref=e814]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e815]:
+                      - generic [ref=e816]: R$ 55,32
+                      - generic [ref=e817]: A vencer
+                  - generic [ref=e818]: "Doc: 000019383/6 · NF: 000019383 · Parc: 006/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e819]:
+                  - generic [ref=e820]:
+                    - generic [ref=e821]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e822]:
+                      - generic [ref=e823]: R$ 55,32
+                      - generic [ref=e824]: A vencer
+                  - generic [ref=e825]: "Doc: 000019383/7 · NF: 000019383 · Parc: 007/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e826]:
+                  - generic [ref=e827]:
+                    - generic [ref=e828]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e829]:
+                      - generic [ref=e830]: R$ 55,32
+                      - generic [ref=e831]: A vencer
+                  - generic [ref=e832]: "Doc: 000019383/8 · NF: 000019383 · Parc: 008/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e833]:
+                  - generic [ref=e834]:
+                    - generic [ref=e835]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e836]:
+                      - generic [ref=e837]: R$ 55,32
+                      - generic [ref=e838]: A vencer
+                  - generic [ref=e839]: "Doc: 000019383/9 · NF: 000019383 · Parc: 009/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e840]:
+                  - generic [ref=e841]:
+                    - generic [ref=e842]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e843]:
+                      - generic [ref=e844]: R$ 55,32
+                      - generic [ref=e845]: A vencer
+                  - generic [ref=e846]: "Doc: 000019383/1 · NF: 000019383 · Parc: 001/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e847]:
+                  - generic [ref=e848]:
+                    - generic [ref=e849]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e850]:
+                      - generic [ref=e851]: R$ 55,32
+                      - generic [ref=e852]: A vencer
+                  - generic [ref=e853]: "Doc: 000019383/3 · NF: 000019383 · Parc: 003/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=e498]:
+      - generic [ref=e854]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=e11] [cursor=pointer]
+  - alert [ref=e511]

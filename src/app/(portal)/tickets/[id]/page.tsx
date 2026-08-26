@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Send, User as UserIcon, Users, CalendarDays, Tag, Building2, Lock, Globe,
   ArrowRightLeft, BellRing, Plus, X, MessageSquare, CircleDot, PenLine, Paperclip,
-  CheckCircle2, RotateCcw, Ban, Clock,
+  CheckCircle2, RotateCcw, Ban, Clock, ShoppingCart, Package,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -18,8 +18,10 @@ import {
   STATUS_INFO, STATUS_FINAIS, statusDisponiveis, diasParado, prazoVencido,
   type Ticket, type TicketEvento, type TicketParticipante, type TicketStatus, type UsuarioMin,
 } from '@/lib/tickets/constantes'
+import { SC_ETAPA_INFO, type PayloadSC, type ScEtapa } from '@/lib/tickets/compras'
 import StatusBadge from '@/components/tickets/StatusBadge'
 import UserSelect from '@/components/tickets/UserSelect'
+import PainelCompras from '@/components/tickets/compras/PainelCompras'
 
 const EVENTO_ICONE: Record<string, React.ReactNode> = {
   criacao: <CircleDot size={14} />,
@@ -31,6 +33,10 @@ const EVENTO_ICONE: Record<string, React.ReactNode> = {
   pedido_atualizacao: <BellRing size={14} />,
   edicao: <PenLine size={14} />,
   anexo: <Paperclip size={14} />,
+  sc_criada: <ShoppingCart size={14} />,
+  qtd_alterada: <Package size={14} />,
+  parecer_financeiro: <PenLine size={14} />,
+  pc_emitido: <CheckCircle2 size={14} />,
 }
 
 const ROTULO_STATUS_ACAO: Partial<Record<TicketStatus, { rotulo: string; icone: React.ReactNode; destaque?: boolean }>> = {
@@ -107,17 +113,20 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
   const participantesAtivos = useMemo(() => participantes.filter((p) => !p.removido_em), [participantes])
   const souParticipante = participantesAtivos.some((p) => p.user_id === uid)
   const encerrado = !!ticket && STATUS_FINAIS.includes(ticket.status)
+  const ehSC = !!ticket && ticket.tipo === 'compras'
+  const scPayload = (ticket?.payload || {}) as PayloadSC
+  const scInfo = ehSC && ticket?.sc_etapa ? SC_ETAPA_INFO[ticket.sc_etapa as ScEtapa] : null
 
   const nome = useCallback((userId: string | null | undefined) => {
     if (!userId) return 'Sistema'
     return usuarios[userId]?.nome || 'Usuário'
   }, [usuarios])
 
-  const acao = async (payload: Record<string, unknown>, aposOk?: () => void) => {
+  const poster = (endpoint: string) => async (payload: Record<string, unknown>, aposOk?: () => void) => {
     setErroAcao('')
     setAgindo(true)
     try {
-      const res = await fetch(`/api/tickets/${id}/acoes`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify(payload),
@@ -132,6 +141,8 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
       setAgindo(false)
     }
   }
+  const acao = poster(`/api/tickets/${id}/acoes`)
+  const acaoCompras = poster(`/api/tickets/${id}/compras`)
 
   if (carregando) {
     return <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando ticket...</div>
@@ -151,7 +162,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
   const vencido = prazoVencido(ticket.prazo, ticket.status)
   const proximosStatus = statusDisponiveis(ticket.status, souResponsavel, souSolicitante, isAdmin)
   const podeComentar = !encerrado && (souResponsavel || souSolicitante || souParticipante || isAdmin || ticket.visibilidade === 'publico')
-  const podeTransferir = !encerrado && (souResponsavel || souSolicitante || isAdmin)
+  const podeTransferir = !ehSC && !encerrado && (souResponsavel || souSolicitante || isAdmin)
   const podeCutucar = !encerrado && !souResponsavel && (souSolicitante || souParticipante || isAdmin)
   const podeEditar = !encerrado && (souResponsavel || souSolicitante || isAdmin)
   const podeVisibilidade = souSolicitante || isAdmin
@@ -181,7 +192,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)', marginBottom: 4 }}>
-              TICKET #{ticket.numero}
+              {ehSC ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ShoppingCart size={11} /> SC #{ticket.numero}</span> : <>TICKET #{ticket.numero}</>}
               {ticket.visibilidade === 'privado'
                 ? <span style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={11} /> privado</span>
                 : <span style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Globe size={11} /> visível a todos</span>}
@@ -197,44 +208,51 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
               </span>
             </div>
           </div>
-          <StatusBadge status={ticket.status} tamanho={13} />
+          {scInfo
+            ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999, fontSize: 13, fontWeight: 700, color: scInfo.cor, background: scInfo.fundo, whiteSpace: 'nowrap' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: scInfo.cor }} /> {scInfo.label}
+              </span>
+            : <StatusBadge status={ticket.status} tamanho={13} />}
         </div>
 
         {/* Ações */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
-          {proximosStatus.map((s) => {
-            const cfg = ROTULO_STATUS_ACAO[s]
-            if (!cfg) return null
-            const rotulo = s === 'em_andamento' && ticket.status === 'resolvido' && souSolicitante && !souResponsavel
-              ? 'Contestar (reabrir)' : cfg.rotulo
-            return (
-              <button key={s} disabled={agindo} style={botaoAcao(cfg.destaque)}
-                onClick={() => {
-                  if (s === 'cancelado' && !window.confirm('Cancelar este ticket? Essa ação encerra a demanda.')) return
-                  acao({ acao: 'status', para: s })
-                }}>
-                {cfg.icone} {rotulo}
+        <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
+          {ehSC && <PainelCompras ticket={ticket} uid={uid} isAdmin={isAdmin} agindo={agindo} onAcao={acaoCompras} />}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: ehSC ? 12 : 0 }}>
+            {!ehSC && proximosStatus.map((s) => {
+              const cfg = ROTULO_STATUS_ACAO[s]
+              if (!cfg) return null
+              const rotulo = s === 'em_andamento' && ticket.status === 'resolvido' && souSolicitante && !souResponsavel
+                ? 'Contestar (reabrir)' : cfg.rotulo
+              return (
+                <button key={s} disabled={agindo} style={botaoAcao(cfg.destaque)}
+                  onClick={() => {
+                    if (s === 'cancelado' && !window.confirm('Cancelar este ticket? Essa ação encerra a demanda.')) return
+                    acao({ acao: 'status', para: s })
+                  }}>
+                  {cfg.icone} {rotulo}
+                </button>
+              )
+            })}
+            {podeTransferir && (
+              <button disabled={agindo} style={botaoAcao()} onClick={() => { setNovoResponsavel(''); setModalTransferir(true) }}>
+                <ArrowRightLeft size={14} /> Transferir
               </button>
-            )
-          })}
-          {podeTransferir && (
-            <button disabled={agindo} style={botaoAcao()} onClick={() => { setNovoResponsavel(''); setModalTransferir(true) }}>
-              <ArrowRightLeft size={14} /> Transferir
-            </button>
-          )}
-          {podeCutucar && (
-            <button disabled={agindo} style={botaoAcao()}
-              onClick={() => acao({ acao: 'pedir_atualizacao' })}
-              title="Registra a cobrança na timeline (visível a todos) e notifica o responsável">
-              <BellRing size={14} /> Pedir atualização
-            </button>
-          )}
-          {podeVisibilidade && (
-            <button disabled={agindo} style={botaoAcao()}
-              onClick={() => acao({ acao: 'visibilidade', para: ticket.visibilidade === 'privado' ? 'publico' : 'privado' })}>
-              {ticket.visibilidade === 'privado' ? <><Globe size={14} /> Tornar visível</> : <><Lock size={14} /> Tornar privado</>}
-            </button>
-          )}
+            )}
+            {podeCutucar && (
+              <button disabled={agindo} style={botaoAcao()}
+                onClick={() => acao({ acao: 'pedir_atualizacao' })}
+                title="Registra a cobrança na timeline (visível a todos) e notifica o responsável">
+                <BellRing size={14} /> Pedir atualização
+              </button>
+            )}
+            {podeVisibilidade && (
+              <button disabled={agindo} style={botaoAcao()}
+                onClick={() => acao({ acao: 'visibilidade', para: ticket.visibilidade === 'privado' ? 'publico' : 'privado' })}>
+                {ticket.visibilidade === 'privado' ? <><Globe size={14} /> Tornar visível</> : <><Lock size={14} /> Tornar privado</>}
+              </button>
+            )}
+          </div>
         </div>
         {erroAcao && (
           <div style={{ marginTop: 10, padding: '9px 12px', borderRadius: 8, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600 }}>
@@ -282,6 +300,22 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
                   texto = <>editou {campos.map((c) => c === 'terceiro_envolvido' ? 'terceiro' : c).join(', ')}</>
                 }
               }
+              // --- eventos da SC (o livro de decisões) ---
+              else if (e.tipo === 'sc_criada') texto = e.payload.reenvio
+                ? <>reenviou a solicitação à Diretoria</>
+                : <>abriu a solicitação de compras — <strong>{String(e.payload.quantidade_solicitada ?? '')}× {String(e.payload.produto || '')}</strong>{e.payload.cliente_destino ? <> p/ {String(e.payload.cliente_destino)}</> : null}</>
+              else if (e.tipo === 'qtd_alterada') texto = e.payload.devolvido
+                ? <>devolveu ao vendedor{e.payload.justificativa ? <> — {String(e.payload.justificativa)}</> : null}</>
+                : <>definiu a quantidade: {String(e.payload.de ?? '?')} → <strong>{String(e.payload.para ?? '')}</strong>{e.payload.justificativa ? <> — {String(e.payload.justificativa)}</> : null}</>
+              else if (e.tipo === 'parecer_financeiro') {
+                if (e.payload.devolucao) texto = <>devolveu ao Financeiro{e.payload.texto ? <> — {String(e.payload.texto)}</> : null}</>
+                else {
+                  const d = String(e.payload.decisao || '')
+                  const rot = d === 'reprovado' ? 'reprovou' : d === 'ressalva' ? 'aprovou com ressalva' : 'aprovou'
+                  texto = <>{rot} (parecer){e.payload.texto ? <>: {String(e.payload.texto)}</> : null}{e.payload.prazo_compromisso ? <> · compromisso até {new Date(String(e.payload.prazo_compromisso) + 'T12:00:00').toLocaleDateString('pt-BR')}</> : null}</>
+                }
+              }
+              else if (e.tipo === 'pc_emitido') texto = <>emitiu o Pedido de Compra <strong>{String(e.payload.pedido_omie_numero || '')}</strong>{e.payload.condicoes ? <> — {String(e.payload.condicoes)}</> : null}</>
 
               return (
                 <div key={e.id} style={{ display: 'flex', gap: 10, padding: '7px 0' }}>
@@ -358,6 +392,29 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
 
         {/* Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {ehSC && (
+            <div style={cartao}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: 'var(--portal-text-secondary,#555)', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 10 }}>
+                <ShoppingCart size={13} /> Dados da compra
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
+                <span><strong style={{ color: 'var(--portal-text,#111)' }}>{scPayload.produto || '—'}</strong>{scPayload.produto_codigo ? <span style={{ color: 'var(--portal-text-muted,#999)' }}> · {scPayload.produto_codigo}</span> : null}</span>
+                <span>Qtd solicitada: <strong>{scPayload.quantidade_solicitada ?? '—'}</strong>{scPayload.quantidade_aprovada != null ? <> · aprovada: <strong>{scPayload.quantidade_aprovada}</strong></> : null}</span>
+                {scPayload.preco_alvo != null && <span>Preço-alvo: {Number(scPayload.preco_alvo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
+                {scPayload.valor_unitario != null && <span>Valor unitário: {Number(scPayload.valor_unitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
+                {scPayload.valor_total != null && <span>Total: <strong>{Number(scPayload.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span>}
+                {scPayload.cliente_destino && <span>Cliente: {scPayload.cliente_destino}</span>}
+                {scPayload.pv_numero && <span>PV: {scPayload.pv_numero}</span>}
+                {scPayload.pedido_omie_numero && <span>Pedido de compra: <strong>{scPayload.pedido_omie_numero}</strong></span>}
+                {scPayload.prazo_compromisso && <span>Compromisso até {new Date(scPayload.prazo_compromisso + 'T12:00:00').toLocaleDateString('pt-BR')}</span>}
+                {scPayload.bloqueio && (
+                  <span style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginTop: 2, color: '#b45309', fontWeight: 600 }}>
+                    <Package size={13} style={{ flexShrink: 0, marginTop: 2 }} /> Sinalizada: {scPayload.bloqueio.motivo}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
           <div style={cartao}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-secondary,#555)', textTransform: 'uppercase', letterSpacing: .4 }}>Detalhes</span>

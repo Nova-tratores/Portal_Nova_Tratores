@@ -203,6 +203,10 @@ interface VendaRow extends ItemVenda {
   descricao?: string | null;
   codigo_produto?: string | null;
   valor_unitario?: number | string | null;
+  /** Cliente + conta: usados pela coluna "NF" do popup de vendas (resolve o DANFE). */
+  codigo_cliente?: number | string | null;
+  nome_cliente?: string | null;
+  conta_omie?: string | null;
   /** Só nas listagens que selecionam a coluna (usado pelo CMC do próprio mês). */
   mes?: number | null;
 }
@@ -283,7 +287,7 @@ export async function listarVendas(
     let q = filtroConta(
       supabase
         .from('vendas_itens')
-        .select('mes,numero_pedido,data_pedido,descricao,codigo_produto,quantidade,valor_unitario,valor_total,tipo,familia,codigo_categoria,cmc_unitario')
+        .select('mes,numero_pedido,data_pedido,descricao,codigo_produto,quantidade,valor_unitario,valor_total,tipo,familia,codigo_categoria,cmc_unitario,codigo_cliente,nome_cliente,conta_omie')
         .eq('ano', ano),
       conta,
     );

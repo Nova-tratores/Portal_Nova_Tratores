@@ -1,0 +1,8 @@
+[    5187ms] [VERBOSE] [DOM] Input elements should have autocomplete attributes (suggested: "current-password"): (More info: https://goo.gl/9p2vKq) %o @ https://portal.novatratores.com/login:0
+[   42002ms] [WARNING] @supabase/gotrue-js: Lock "lock:sb-citrhumdkfivdzbmayde-auth-token" was not released within 5000ms. This may indicate an orphaned lock from a component unmount (e.g., React Strict Mode). Forcefully acquiring the lock to recover. @ https://portal.novatratores.com/_next/static/chunks/6db105e2db1094f7.js:23
+[   42089ms] [WARNING] @supabase/gotrue-js: Lock "lock:sb-citrhumdkfivdzbmayde-auth-token" was not released within 5000ms. This may indicate an orphaned lock from a component unmount (e.g., React Strict Mode). Forcefully acquiring the lock to recover. @ https://portal.novatratores.com/_next/static/chunks/6db105e2db1094f7.js:23
+[   42096ms] Lock broken by another request with the 'steal' option.
+[   42681ms] [WARNING] @supabase/gotrue-js: Lock "lock:sb-citrhumdkfivdzbmayde-auth-token" was not released within 5000ms. This may indicate an orphaned lock from a component unmount (e.g., React Strict Mode). Forcefully acquiring the lock to recover. @ https://portal.novatratores.com/_next/static/chunks/6db105e2db1094f7.js:23
+[   42682ms] Lock broken by another request with the 'steal' option.
+[   48316ms] [LOG] [Chat] Realtime conectado @ https://portal.novatratores.com/_next/static/chunks/383acbc971e77699.js:60
+[   48321ms] [LOG] [Notificações] Realtime conectado @ https://portal.novatratores.com/_next/static/chunks/383acbc971e77699.js:60

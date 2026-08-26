@@ -1,0 +1,23 @@
+- generic [active] [ref=f1e1]:
+  - button "Open Next.js Dev Tools" [ref=f1e7] [cursor=pointer]
+  - alert [ref=f1e11]
+  - generic [ref=f1e12]:
+    - generic [ref=f1e13]:
+      - img "Trator" [ref=f1e14]
+      - generic [ref=f1e16]:
+        - img "Nova Tratores" [ref=f1e17]
+        - paragraph [ref=f1e18]: Portal Corporativo de Gestão Integrada
+    - generic [ref=f1e20]:
+      - generic [ref=f1e21]:
+        - img "Nova Tratores" [ref=f1e22]
+        - paragraph [ref=f1e23]: Acesso Corporativo
+      - generic [ref=f1e24]:
+        - button "Entrar" [ref=f1e25] [cursor=pointer]
+        - button "Cadastrar" [ref=f1e29] [cursor=pointer]
+      - generic [ref=f1e33]:
+        - textbox "E-mail Corporativo" [ref=f1e38]
+        - generic [ref=f1e39]:
+          - textbox "Senha" [ref=f1e43]
+          - button [ref=f1e44] [cursor=pointer]
+        - button "ACESSAR PORTAL" [ref=f1e48] [cursor=pointer]
+      - paragraph [ref=f1e49]: NOVA TRATORES © 2026

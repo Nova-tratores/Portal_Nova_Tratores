@@ -1,0 +1,215 @@
+- generic [active] [ref=f13e1]:
+  - generic [ref=f13e2]:
+    - banner [ref=f13e16]:
+      - generic [ref=f13e17]:
+        - button [ref=f13e18] [cursor=pointer]
+        - link [ref=f13e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f13e21]
+        - link [ref=f13e23] [cursor=pointer]:
+          - /url: /propostas
+      - generic [ref=f13e28]:
+        - button "Tela dividida — dois sistemas lado a lado" [ref=f13e29] [cursor=pointer]
+        - button "Sua caixa de e-mail (henri.fhioni@gmail.com)" [ref=f13e33] [cursor=pointer]
+        - button "Chat" [ref=f13e37] [cursor=pointer]
+        - button "24" [ref=f13e40] [cursor=pointer]
+        - button "Menu" [ref=f13e46] [cursor=pointer]
+        - generic "Meu perfil" [ref=f13e51] [cursor=pointer]:
+          - generic [ref=f13e53]:
+            - paragraph [ref=f13e54]: Henri Irneh
+            - paragraph [ref=f13e55]: Pós-Vendas
+    - generic [ref=f13e56]:
+      - generic [ref=f13e58]:
+        - paragraph [ref=f13e60]: Henri Irneh
+        - paragraph [ref=f13e61]: Pós-Vendas
+      - generic [ref=f13e62]:
+        - generic [ref=f13e63]:
+          - link "Dashboard" [ref=f13e64] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f13e73] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f13e79]:
+          - paragraph [ref=f13e80]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f13e82] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f13e89] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f13e96] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f13e102] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f13e111] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f13e118] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f13e125] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f13e132] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f13e138] [cursor=pointer]:
+            - /url: /cronograma
+          - link "Clientes" [ref=f13e144] [cursor=pointer]:
+            - /url: /clientes
+        - generic [ref=f13e151]:
+          - paragraph [ref=f13e152]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f13e154] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f13e162] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f13e168] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f13e175]:
+          - paragraph [ref=f13e176]: FINANCEIRO
+          - link "Financeiro" [ref=f13e178] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f13e184] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f13e190]:
+          - paragraph [ref=f13e191]: COMERCIAL
+          - link "Proposta Comercial" [ref=f13e193] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f13e202] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Supervisor Vendas" [ref=f13e209] [cursor=pointer]:
+            - /url: /supervisor-vendas
+        - generic [ref=f13e214]:
+          - paragraph [ref=f13e215]: ESTOQUE
+          - link "Visual Estoque" [ref=f13e217] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f13e223] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f13e230] [cursor=pointer]:
+            - /url: /ajustes
+        - generic [ref=f13e235]:
+          - paragraph [ref=f13e236]: FROTA
+          - link "Frota" [ref=f13e238] [cursor=pointer]:
+            - /url: /frota
+          - link "Pendências Frota" [ref=f13e247] [cursor=pointer]:
+            - /url: /pendencias
+        - generic [ref=f13e253]:
+          - paragraph [ref=f13e254]: OUTROS
+          - link "Opa" [ref=f13e256] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f13e262] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f13e268] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f13e285] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f13e291] [cursor=pointer]:
+          - /url: /admin
+        - link "Tratorilson" [ref=f13e297] [cursor=pointer]:
+          - /url: /tratorilson
+      - button "Sair do Portal" [ref=f13e304] [cursor=pointer]
+    - main [ref=f13e308]:
+      - generic [ref=f13e309]:
+        - generic [ref=f13e311]:
+          - generic [ref=f13e313]:
+            - button "Propostas Cliente" [ref=f13e314] [cursor=pointer]
+            - button "Pedidos Fabrica" [ref=f13e320] [cursor=pointer]
+            - button "Resumo" [ref=f13e323] [cursor=pointer]
+            - button "Lixeira" [ref=f13e326] [cursor=pointer]
+          - generic [ref=f13e332]:
+            - button "Menu" [ref=f13e334] [cursor=pointer]
+            - button "Novo Pedido" [ref=f13e1734] [cursor=pointer]
+        - generic [ref=f13e1735]:
+          - generic [ref=f13e1737]:
+            - textbox "Buscar por cliente, modelo ou ID..." [ref=f13e1739]
+            - combobox [ref=f13e1740]:
+              - option "Todas as fases" [selected]
+              - option "Proposta solicitada"
+              - option "Proposta Recebida"
+              - option "Pedido Feito / Aguardando Maq"
+              - option "Proposta Concluida/ Maquina Recebida"
+              - option "Aguardando faturamento da fábrica"
+              - option "Faturado por nós"
+          - generic [ref=f13e1741]:
+            - button "Proposta solicitada (0)" [ref=f13e1742]:
+              - text: Proposta solicitada
+              - generic [ref=f13e1743]: (0)
+            - button "Proposta Recebida (0)" [ref=f13e1744]:
+              - text: Proposta Recebida
+              - generic [ref=f13e1745]: (0)
+            - button "Pedido Feito / Aguardando Maq (0)" [ref=f13e1746]:
+              - text: Pedido Feito / Aguardando Maq
+              - generic [ref=f13e1747]: (0)
+            - button "Proposta Concluida/ Maquina Recebida (1)" [ref=f13e1748]:
+              - text: Proposta Concluida/ Maquina Recebida
+              - generic [ref=f13e1749]: (1)
+            - button "Aguardando faturamento da fábrica (0)" [ref=f13e1750]:
+              - text: Aguardando faturamento da fábrica
+              - generic [ref=f13e1751]: (0)
+            - button "Faturado por nós (0)" [ref=f13e1752]:
+              - text: Faturado por nós
+              - generic [ref=f13e1753]: (0)
+            - generic [ref=f13e1754]:
+              - text: "Em aberto:"
+              - strong [ref=f13e1755]: "1"
+              - text: pedidos
+          - table [ref=f13e1757]:
+            - rowgroup [ref=f13e1758]:
+              - row [ref=f13e1759]:
+                - columnheader "ID" [ref=f13e1760]
+                - columnheader "Cliente" [ref=f13e1761]
+                - columnheader "Vendedor" [ref=f13e1762]
+                - columnheader "Marca / Modelo" [ref=f13e1763]
+                - columnheader "Status" [ref=f13e1764]
+                - columnheader "Parado há" [ref=f13e1765]
+                - columnheader "Alterar Fase" [ref=f13e1766]
+            - rowgroup [ref=f13e1767]:
+              - row [ref=f13e1768] [cursor=pointer]:
+                - cell "#6 CONVERTIDO" [ref=f13e1769]:
+                  - generic [ref=f13e1770]:
+                    - generic [ref=f13e1771]: "#6"
+                    - generic [ref=f13e1772]: CONVERTIDO
+                - cell "---" [ref=f13e1773]
+                - cell "ARTHUR CEREAL" [ref=f13e1774]
+                - cell "VICON ATOM 100/70" [ref=f13e1775]
+                - cell "Pasta verde Proposta Concluida/ Maquina Recebida" [ref=f13e1777]:
+                  - generic [ref=f13e1778]:
+                    - generic "Pasta verde" [ref=f13e1779]
+                    - generic [ref=f13e1780]: Proposta Concluida/ Maquina Recebida
+                - cell "3 dias" [ref=f13e1781]
+                - cell "Proposta Concluida/ Maquina Recebida" [ref=f13e1782]:
+                  - combobox [ref=f13e1783]:
+                    - option "Proposta solicitada"
+                    - option "Proposta Recebida"
+                    - option "Pedido Feito / Aguardando Maq"
+                    - option "Proposta Concluida/ Maquina Recebida" [selected]
+                    - option "Aguardando faturamento da fábrica"
+                    - option "Faturado por nós"
+          - generic [ref=f13e1784]: 1 pedido
+        - generic [ref=f13e1787]:
+          - generic [ref=f13e1788]:
+            - 'heading "VISUALIZACAO DE REGISTRO #6" [level=2] [ref=f13e1790]'
+            - button "FECHAR" [ref=f13e1791] [cursor=pointer]
+          - generic [ref=f13e1793]:
+            - generic [ref=f13e1794]:
+              - generic [ref=f13e1795]: LOGISTICA FABRICA
+              - generic [ref=f13e1796]:
+                - generic [ref=f13e1797]:
+                  - generic [ref=f13e1798]: VENDEDOR FABRICA
+                  - textbox [disabled] [ref=f13e1799]: ARTHUR CEREAL
+                - generic [ref=f13e1800]:
+                  - generic [ref=f13e1801]: CLIENTE INTERESSADO
+                  - textbox [ref=f13e1802]
+            - generic [ref=f13e1803]:
+              - generic [ref=f13e1804]: FASE E VALOR
+              - generic [ref=f13e1805]:
+                - generic [ref=f13e1806]:
+                  - generic [ref=f13e1807]: VALOR FINAL (R$)
+                  - spinbutton [disabled] [ref=f13e1808]: "120000"
+                - generic [ref=f13e1809]:
+                  - generic [ref=f13e1810]: FASE ATUAL
+                  - textbox [disabled] [ref=f13e1811]: Proposta Concluida/ Maquina Recebida
+            - generic [ref=f13e1812]:
+              - generic [ref=f13e1813]: PROPOSTA DE CLIENTE VINCULADA
+              - generic [ref=f13e1815]:
+                - text: VINCULAR A UMA PROPOSTA DE CLIENTE EXISTENTE (SEM PEDIDO)
+                - 'textbox "Buscar por cliente, modelo ou #ID..." [ref=f13e1817]'
+          - paragraph [ref=f13e1819]: ESTE CARD ESTA BLOQUEADO PARA EDICAO POIS JA FOI GERADA UMA PROPOSTA COMERCIAL.
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f13e1710]:
+      - generic [ref=f13e1785]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=f13e11] [cursor=pointer]
+  - alert [ref=f13e15]

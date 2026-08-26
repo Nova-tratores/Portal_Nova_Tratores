@@ -1,0 +1,213 @@
+- generic [active] [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - text: "🖨️ Para imprimir: pressione"
+    - code [ref=f3e3]: Ctrl + P
+    - text: ", escolha a impressora (ou \"Salvar como PDF\") e confirme. Este aviso não sai na impressão."
+  - generic [ref=f3e4]:
+    - generic [ref=f3e5]: Nova Tratores · Portal Corporativo
+    - heading "Tutorial — PPV e Catálogo de Peças" [level=1] [ref=f3e6]
+    - paragraph [ref=f3e7]: Para o Setor de Peças. Este guia mostra, passo a passo e com imagens do sistema, como usar o módulo PPV (Pedido de Peças para Venda) e o Catálogo de peças Mahindra no portal.
+  - heading "Parte 1 O módulo PPV" [level=2] [ref=f3e8]
+  - paragraph [ref=f3e9]: O PPV é onde ficam os pedidos de peças (venda balcão, peças para técnico, orçamentos de peças e remessas). Cada pedido é um card que anda por fases (Orçamento → Execução → Concluída), acompanhando a O.S. quando estiver vinculada.
+  - generic [ref=f3e10]:
+    - generic [ref=f3e11]:
+      - generic [ref=f3e12]: "1"
+      - heading "Como abrir o PPV" [level=3] [ref=f3e13]
+    - paragraph [ref=f3e14]: Entre no portal com o seu usuário. No menu lateral (botão ☰ no canto superior esquerdo), clique em PEÇAS → Peças (Pedido de Venda).
+    - figure "O item \"Peças (Pedido de Venda)\" fica no grupo PEÇAS do menu lateral (destacado em vermelho)." [ref=f3e15]:
+      - img "Menu lateral com o item Peças (Pedido de Venda) destacado" [ref=f3e16]
+  - generic [ref=f3e18]:
+    - generic [ref=f3e19]:
+      - generic [ref=f3e20]: "2"
+      - heading "A tela de Gestão (visão geral)" [level=3] [ref=f3e21]
+    - paragraph [ref=f3e22]: "Ao abrir, você vê todos os pedidos agrupados por fase. Cada card mostra o número (#PPV-0000 ou #REM-0000), o valor, o cliente, o técnico, a data e a última movimentação."
+    - 'figure "Tela principal do PPV: os pedidos agrupados por fase (Orçamento, Execução, etc.)." [ref=f3e23]':
+      - img "Tela de gestão do PPV com os cards agrupados por fase" [ref=f3e24]
+    - table [ref=f3e26]:
+      - rowgroup [ref=f3e27]:
+        - row [ref=f3e28]:
+          - columnheader "Fase" [ref=f3e29]
+          - columnheader "O que significa" [ref=f3e30]
+        - row [ref=f3e31]:
+          - cell "Orçamento / Orç. Enviado" [ref=f3e32]
+          - cell "Pedido em cotação ou aguardando resposta do cliente" [ref=f3e33]
+        - row [ref=f3e34]:
+          - cell "Execução / Diagnóstico" [ref=f3e35]
+          - cell "Serviço em andamento (peças em uso)" [ref=f3e36]
+        - row [ref=f3e37]:
+          - cell "Aguar. Peças / Comercial / Técnico / Outros" [ref=f3e38]
+          - cell "Pedido parado esperando alguma coisa" [ref=f3e39]
+        - row [ref=f3e40]:
+          - cell "Rel. Concluído / Concluída" [ref=f3e41]
+          - cell "Serviço finalizado" [ref=f3e42]
+        - row [ref=f3e43]:
+          - cell "Cancelada" [ref=f3e44]
+          - cell "Pedido cancelado" [ref=f3e45]
+    - generic [ref=f3e46]: "Dica: quando o pedido está vinculado a uma O.S., a fase sincroniza sozinha com o status da O.S. (aparece \"Status auto-sync\" no card). Não precisa mover manualmente nesses casos."
+  - generic [ref=f3e47]:
+    - generic [ref=f3e48]:
+      - generic [ref=f3e49]: "3"
+      - heading "Filtros e busca" [level=3] [ref=f3e50]
+    - paragraph [ref=f3e51]: "Na barra abaixo do título você pode:"
+    - list [ref=f3e52]:
+      - listitem [ref=f3e53]: Buscar por número do PPV, nome do cliente ou técnico (campo da esquerda);
+      - listitem [ref=f3e54]:
+        - text: "Filtrar por tipo:"
+        - generic [ref=f3e55]: Todos
+        - text: /
+        - generic [ref=f3e56]: Pedido de Venda
+        - text: /
+        - generic [ref=f3e57]: Remessa
+        - text: ;
+      - listitem [ref=f3e58]: Filtrar por Técnico e por Cliente (campos da direita).
+    - 'figure "Barra de filtros (destacada em vermelho): busca, tipo, técnico e cliente." [ref=f3e59]':
+      - img "Barra de filtros do PPV destacada" [ref=f3e60]
+  - generic [ref=f3e62]:
+    - generic [ref=f3e63]:
+      - generic [ref=f3e64]: "4"
+      - heading "Mudar a fase de um pedido" [level=3] [ref=f3e65]
+    - paragraph [ref=f3e66]: Cada card tem um seletor de fase na parte de cima. Basta clicar e escolher a nova fase — a mudança é salva na hora e fica registrada no histórico do pedido.
+    - figure "O seletor de fase fica no topo de cada card." [ref=f3e67]:
+      - img "Card do PPV com o seletor de fase destacado" [ref=f3e68]
+  - generic [ref=f3e70]:
+    - generic [ref=f3e71]:
+      - generic [ref=f3e72]: "5"
+      - heading "Criar um novo pedido (Novo Lançamento)" [level=3] [ref=f3e73]
+    - paragraph [ref=f3e74]:
+      - text: Clique no botão
+      - generic [ref=f3e75]: + Novo Lançamento
+      - text: "no canto superior direito da tela do PPV. Preencha o formulário da esquerda:"
+    - list [ref=f3e76]:
+      - listitem [ref=f3e77]: "Tipo do Pedido: Pedido de Venda (PPV) ou Remessa (REM);"
+      - listitem [ref=f3e78]: "Motivo da Saída: Venda Balcão, Orçamento Cliente, Saída Técnico (com ou sem O.S.);"
+      - listitem [ref=f3e79]: Técnico (obrigatório) — quem vai usar/levar as peças;
+      - listitem [ref=f3e80]: Cliente (obrigatório) — clique no campo para abrir a busca (passo 6);
+      - listitem [ref=f3e81]: Ordem de Serviço (opcional) — vincule a O.S. para o pedido acompanhar o status dela;
+      - listitem [ref=f3e82]: Projeto e Observações (opcionais).
+    - 'figure "Formulário do Novo Lançamento: dados à esquerda, carrinho de itens à direita." [ref=f3e83]':
+      - img "Formulário de novo lançamento vazio" [ref=f3e84]
+  - generic [ref=f3e86]:
+    - generic [ref=f3e87]:
+      - generic [ref=f3e88]: "6"
+      - heading "Buscar o cliente" [level=3] [ref=f3e89]
+    - paragraph [ref=f3e90]: Ao clicar no campo Cliente, abre a janela de busca. Digite parte do nome, do CNPJ/CPF ou da cidade e clique no cliente certo na lista.
+    - 'figure "Busca de cliente: digite e clique na linha para selecionar." [ref=f3e91]':
+      - img "Janela de busca de cliente com resultados" [ref=f3e92]
+  - generic [ref=f3e94]:
+    - generic [ref=f3e95]:
+      - generic [ref=f3e96]: "7"
+      - heading "Adicionar produtos ao pedido" [level=3] [ref=f3e97]
+    - paragraph [ref=f3e98]: Na seção Adicionar Produto, clique em "Clique para buscar produto". Digite o código ou nome da peça e tecle Enter. A lista mostra o preço, a empresa (NOVA ou CASTRO) e a origem. Clique na linha para escolher a peça.
+    - figure "Busca de produto. Repare no botão \"Catálogos\" no canto — ele abre o Catálogo Mahindra (Parte 2)." [ref=f3e99]:
+      - img "Janela Pesquisar Produto com resultados de filtro" [ref=f3e100]
+    - paragraph [ref=f3e102]:
+      - text: Depois de escolher, informe a Qtd e clique em
+      - generic [ref=f3e103]: + Adicionar ao Carrinho
+      - text: . Repita para cada peça do pedido.
+    - 'figure "Pedido montado: cliente selecionado (verde) e item no carrinho com o total calculado." [ref=f3e104]':
+      - img "Formulário preenchido com cliente selecionado e um item no carrinho" [ref=f3e105]
+    - generic [ref=f3e107]: "Atenção: só clique em Finalizar Lançamento quando o pedido estiver completo. Ao finalizar, o sistema salva o pedido e já abre a janela de impressão do documento do PPV."
+  - generic [ref=f3e108]:
+    - generic [ref=f3e109]:
+      - generic [ref=f3e110]: "8"
+      - heading "Importar Kit de Revisão (atalho)" [level=3] [ref=f3e111]
+    - paragraph [ref=f3e112]: Para revisões (50H, 300H, 600H, 900H, 1200H…), use o botão Importar Kit de Revisão. Escolha o modelo do trator e as horas — todas as peças do kit entram no carrinho de uma vez.
+    - figure "Kits prontos por modelo (2025, 5050, 6060…) e horas de revisão." [ref=f3e113]:
+      - img "Janela de importar kit de revisão com kits por modelo e horas" [ref=f3e114]
+  - generic [ref=f3e116]:
+    - generic [ref=f3e117]:
+      - generic [ref=f3e118]: "9"
+      - heading "Ver e editar um pedido existente" [level=3] [ref=f3e119]
+    - paragraph [ref=f3e120]: "Clique em qualquer card para abrir os detalhes. Nessa janela você pode:"
+    - list [ref=f3e121]:
+      - listitem [ref=f3e122]: Imprimir o documento do pedido (botão no topo);
+      - listitem [ref=f3e123]: Ver o Log (histórico de tudo que aconteceu no pedido);
+      - listitem [ref=f3e124]: Trocar a fase, o técnico, o motivo, a O.S. vinculada e o cliente;
+      - listitem [ref=f3e125]:
+        - text: Salvar com
+        - generic [ref=f3e126]: Salvar Alterações
+        - text: .
+    - 'figure "Detalhes do pedido: topo com Imprimir / Log / fase, dados do cliente e informações do pedido." [ref=f3e127]':
+      - img "Janela de detalhes do PPV com dados do cliente e do pedido" [ref=f3e128]
+    - paragraph [ref=f3e130]: Descendo a tela, na seção Itens & Materiais dá para adicionar mais peças, importar kit, editar (ícone de lápis) e registrar devolução de peça não usada (ícone de seta circular). Abaixo há também o campo de Desconto.
+    - 'figure "Itens & Materiais: cada linha tem quantidade, saldo, preço, edição e botão de devolução." [ref=f3e131]':
+      - img "Seção Itens e Materiais dentro dos detalhes do pedido" [ref=f3e132]
+  - heading "Parte 2 O Catálogo de Peças (Mahindra)" [level=2] [ref=f3e134]
+  - paragraph [ref=f3e135]: "O Catálogo é o \"livro de peças\" digital: você navega pelo trator → sistema → figura (vista explodida) e encontra o código correto de cada peça. E melhor: dá para montar um carrinho e gerar o PPV ou Orçamento direto de lá."
+  - generic [ref=f3e136]:
+    - generic [ref=f3e137]:
+      - generic [ref=f3e138]: "10"
+      - heading "Onde fica o Catálogo" [level=3] [ref=f3e139]
+    - paragraph [ref=f3e140]:
+      - text: Dentro do PPV, clique no botão
+      - generic [ref=f3e141]: ☰ Menu
+      - text: (canto superior direito) e depois em Catálogo.
+    - 'figure "Menu do PPV: além do Catálogo, aqui ficam Criar/Editar Produto, Gerenciar Kits e Sync Preços Omie." [ref=f3e142]':
+      - img "Menu do PPV aberto com a opção Catálogo destacada" [ref=f3e143]
+    - generic [ref=f3e145]: "Dica: o Catálogo também abre pelo botão \"Catálogos\" dentro da janela de busca de produto (passo 7) — nesse caso, a peça escolhida já cai direto no lançamento que você está montando."
+  - generic [ref=f3e146]:
+    - generic [ref=f3e147]:
+      - generic [ref=f3e148]: "11"
+      - heading "Escolher o trator" [level=3] [ref=f3e149]
+    - paragraph [ref=f3e150]: A primeira tela mostra os modelos (6075L, 5050, 6060…). Clique no trator do cliente. O número de figuras indica o quanto o catálogo daquele modelo está completo.
+    - figure "Modelos disponíveis no catálogo." [ref=f3e151]:
+      - img "Tela inicial do catálogo com os modelos de trator" [ref=f3e152]
+  - generic [ref=f3e154]:
+    - generic [ref=f3e155]:
+      - generic [ref=f3e156]: "12"
+      - heading "Escolher o sistema" [level=3] [ref=f3e157]
+    - paragraph [ref=f3e158]: "Dentro do trator, as peças estão organizadas por sistema: Motor, Transmissão, Hidráulica, Elétrica, Freio, etc. Clique no sistema onde a peça fica."
+    - figure "Sistemas do trator 5050 — use o \"Voltar\" ou o caminho (Catálogo › 5050) para navegar." [ref=f3e159]:
+      - img "Sistemas do trator 5050 no catálogo" [ref=f3e160]
+  - generic [ref=f3e162]:
+    - generic [ref=f3e163]:
+      - generic [ref=f3e164]: "13"
+      - heading "Escolher a figura" [level=3] [ref=f3e165]
+    - paragraph [ref=f3e166]: Cada sistema tem várias figuras (vistas explodidas). Escolha a que corresponde à parte do trator que você procura.
+    - figure "Figuras do sistema Motor do 5050 (tampa de válvula, exaustão, filtro de ar, radiador…)." [ref=f3e167]:
+      - img "Figuras do sistema Motor" [ref=f3e168]
+  - generic [ref=f3e170]:
+    - generic [ref=f3e171]:
+      - generic [ref=f3e172]: "14"
+      - heading "Identificar a peça na vista explodida" [level=3] [ref=f3e173]
+    - paragraph [ref=f3e174]: Na figura, cada peça tem um número (REF). A lista da direita mostra código Mahindra, nome e quantidade usada no conjunto.
+    - list [ref=f3e175]:
+      - listitem [ref=f3e176]: Passe o mouse (ou clique) num número da imagem → a linha correspondente acende na lista;
+      - listitem [ref=f3e177]: Passe o mouse numa linha da lista → o número acende na imagem;
+      - listitem [ref=f3e178]: O código em vermelho é o código para orçar/vender a peça.
+    - figure "Vista explodida + lista de peças. O botão vermelho + adiciona a peça ao carrinho." [ref=f3e179]:
+      - img "Vista explodida do filtro de ar com a lista de peças ao lado" [ref=f3e180]
+  - generic [ref=f3e182]:
+    - generic [ref=f3e183]:
+      - generic [ref=f3e184]: "15"
+      - heading "Montar o carrinho e gerar PPV ou Orçamento" [level=3] [ref=f3e185]
+    - paragraph [ref=f3e186]:
+      - text: Clique no + de cada peça que o cliente precisa. Um botão
+      - generic [ref=f3e187]: 🛒 Carrinho
+      - text: aparece no canto inferior direito com a contagem de itens.
+    - figure "Depois de adicionar peças, o botão do Carrinho aparece no canto inferior direito." [ref=f3e188]:
+      - img "Catálogo com o botão flutuante do carrinho após adicionar peça" [ref=f3e189]
+    - paragraph [ref=f3e191]:
+      - text: "Abra o carrinho para: ajustar quantidades, remover itens, buscar o cliente e finalizar clicando em"
+      - generic [ref=f3e192]: Orçamento
+      - text: ou
+      - generic [ref=f3e193]: PPV
+      - text: .
+    - 'figure "Carrinho do Catálogo: item, cliente selecionado e os dois botões de geração." [ref=f3e194]':
+      - img "Carrinho do catálogo com cliente selecionado e botões Orçamento e PPV" [ref=f3e195]
+    - generic [ref=f3e197]: "Dica: os preços são puxados do Omie automaticamente na hora de criar o documento — você não precisa digitar preço nenhum. O PPV criado aparece na tela de Gestão, na fase Orçamento."
+  - generic [ref=f3e198]:
+    - generic [ref=f3e199]:
+      - generic [ref=f3e200]: "16"
+      - heading "Busca rápida por nome ou código" [level=3] [ref=f3e201]
+    - paragraph [ref=f3e202]: Se você já sabe o nome ou parte do código da peça, use o campo de busca no topo do Catálogo. O resultado mostra em qual figura a peça aparece (link azul) — clique para abrir a vista explodida, ou clique no + para jogar direto no carrinho.
+    - figure "Busca por \"elemento filtrante\" dentro do trator 5050." [ref=f3e203]:
+      - img "Resultado da busca por elemento filtrante no catálogo" [ref=f3e204]
+  - generic [ref=f3e206]:
+    - text: "Resumo rápido:"
+    - list [ref=f3e207]:
+      - listitem [ref=f3e208]: "Vender/atender balcão: PPV → Novo Lançamento → técnico + cliente + peças → Finalizar."
+      - listitem [ref=f3e209]: "Achar o código de uma peça: Menu → Catálogo → trator → sistema → figura → código em vermelho."
+      - listitem [ref=f3e210]: "Orçamento a partir do catálogo: adicionar peças no carrinho → escolher cliente → botão Orçamento ou PPV."
+      - listitem [ref=f3e211]: "Revisão: Novo Lançamento → Importar Kit de Revisão → modelo + horas."
+  - generic [ref=f3e212]: "Portal Nova Tratores — Tutorial PPV & Catálogo · Julho/2026 · Dúvidas: fale com o administrador do portal ou pergunte ao assistente Tratorilson (balão de chat no canto da tela)."

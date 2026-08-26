@@ -1,0 +1,351 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e626]:
+            - generic [ref=f2e627]:
+              - button "" [ref=f2e628] [cursor=pointer]
+              - generic [ref=f2e630]: Novo Lançamento
+            - generic [ref=f2e631]:
+              - generic [ref=f2e632]:
+                - generic [ref=f2e633]:
+                  - generic [ref=f2e634]:
+                    - generic [ref=f2e635]: Tipo do Pedido
+                    - combobox [ref=f2e636]:
+                      - option "Pedido de Venda (PPV)" [selected]
+                      - option "Remessa (REM)"
+                  - generic [ref=f2e637]:
+                    - generic [ref=f2e638]: Motivo da Saída
+                    - combobox [ref=f2e639]:
+                      - option "Venda Balcão" [selected]
+                      - option "Orçamento Cliente"
+                      - option "Saída Técnico (Sem OS)"
+                      - option "Saída Técnico (Com OS)"
+                - generic [ref=f2e640]:
+                  - generic [ref=f2e641]: Técnico *
+                  - combobox [ref=f2e642]:
+                    - option "-- Selecione o técnico --"
+                    - option "ARTHUR"
+                    - option "CARIVALDO"
+                    - option "DANILO DE SOUZA"
+                    - option "FERNANDO LEONEL"
+                    - option "GABRIEL MORAES"
+                    - option "HENRI HIONI"
+                    - option "JOSE ANTONIO DE OLIVEIRA"
+                    - option "JOSE ORTIZ"
+                    - option "LUIZ FERNANDO"
+                    - option "NICOLAS DARIO"
+                    - option "PAULO MOTTA"
+                    - option "PEDRO MOTTA" [selected]
+                    - option "VINICIUS CORREA"
+                - generic [ref=f2e643]:
+                  - generic [ref=f2e644]: Cliente *
+                  - generic [ref=f2e646] [cursor=pointer]:
+                    - generic [ref=f2e647]: 
+                    - generic [ref=f2e1106]:
+                      - generic [ref=f2e1107]: JOSE CARLOS FERNANDES
+                      - generic [ref=f2e1108]: 07.916.196/0006-12 — ITAI (SP) - SP
+                - generic [ref=f2e649]:
+                  - generic [ref=f2e650]: Ordem de Serviço (opcional)
+                  - generic [ref=f2e652] [cursor=pointer]:
+                    - generic [ref=f2e653]: 
+                    - generic [ref=f2e654]: Clique aqui para vincular uma O.S.
+                - generic [ref=f2e655]:
+                  - generic [ref=f2e656]: Projeto (opcional)
+                  - textbox "Nome do projeto..." [ref=f2e657]
+                - generic [ref=f2e658]:
+                  - generic [ref=f2e659]: Observações (opcional)
+                  - textbox "Escreva aqui se precisar..." [ref=f2e660]
+                - generic [ref=f2e661]:
+                  - generic [ref=f2e662]: 
+                  - text: Kit de Revisão
+                - button " Importar Kit de Revisão Revisão, manutenção ou quadriciclo — escolha o modelo " [active] [ref=f2e663] [cursor=pointer]:
+                  - generic [ref=f2e664]: 
+                  - generic [ref=f2e666]:
+                    - generic [ref=f2e667]: Importar Kit de Revisão
+                    - generic [ref=f2e668]: Revisão, manutenção ou quadriciclo — escolha o modelo
+                  - generic [ref=f2e669]: 
+                - generic [ref=f2e670]:
+                  - generic [ref=f2e671]: 
+                  - text: Adicionar Produto
+                - generic [ref=f2e674] [cursor=pointer]:
+                  - generic [ref=f2e675]: 
+                  - generic [ref=f2e1623]: Clique para buscar produto
+                - generic [ref=f2e677]:
+                  - generic [ref=f2e678]:
+                    - generic [ref=f2e679]: Qtd
+                    - spinbutton [ref=f2e680]: "1"
+                  - button "+ Adicionar ao Carrinho" [ref=f2e681] [cursor=pointer]:
+                    - generic [ref=f2e682]: +
+                    - text: Adicionar ao Carrinho
+              - generic [ref=f2e683]:
+                - generic [ref=f2e684]:
+                  - generic [ref=f2e685]: 
+                  - generic [ref=f2e686]: Itens do Pedido
+                  - generic [ref=f2e1624]: "1"
+                - generic [ref=f2e1625]:
+                  - generic [ref=f2e1626]:
+                    - generic [ref=f2e1627]: RP-006025734Y91NOVA
+                    - generic [ref=f2e1628]: FILTRO DE OLEO LUBRIFICANTE RP-006025734Y91
+                    - generic [ref=f2e1629]: R$ 140,00 / un.
+                  - generic [ref=f2e1630]:
+                    - button "−" [disabled] [ref=f2e1631]
+                    - spinbutton [ref=f2e1632]: "1"
+                    - button "+" [ref=f2e1633] [cursor=pointer]
+                  - generic [ref=f2e1634]: R$ 140,00
+                  - button "" [ref=f2e1635] [cursor=pointer]
+                - generic [ref=f2e692]:
+                  - generic [ref=f2e693]:
+                    - generic [ref=f2e694]: Total
+                    - generic [ref=f2e695]: R$ 140,00
+                  - button " Finalizar Lançamento" [ref=f2e696] [cursor=pointer]:
+                    - generic [ref=f2e697]: 
+                    - text: Finalizar Lançamento
+            - generic [ref=f2e1638]:
+              - generic [ref=f2e1639]:
+                - generic [ref=f2e1646]:
+                  - heading "Importar Kit de Revisão" [level=2] [ref=f2e1647]
+                  - paragraph [ref=f2e1648]: Selecione um kit para popular os itens
+                - button "×" [ref=f2e1649] [cursor=pointer]
+              - textbox "Buscar trator, horas, tipo..." [ref=f2e1655]
+              - generic [ref=f2e1656]:
+                - generic [ref=f2e1657]:
+                  - generic [ref=f2e1658]: "2025"
+                  - generic [ref=f2e1659]:
+                    - button "1200HRevisão 11 produtos" [ref=f2e1660] [cursor=pointer]:
+                      - generic [ref=f2e1662]:
+                        - generic [ref=f2e1663]: 1200HRevisão
+                        - generic [ref=f2e1664]: 11 produtos
+                    - button "300HRevisão 6 produtos" [ref=f2e1668] [cursor=pointer]:
+                      - generic [ref=f2e1670]:
+                        - generic [ref=f2e1671]: 300HRevisão
+                        - generic [ref=f2e1672]: 6 produtos
+                    - button "50HRevisão 4 produtos" [ref=f2e1676] [cursor=pointer]:
+                      - generic [ref=f2e1678]:
+                        - generic [ref=f2e1679]: 50HRevisão
+                        - generic [ref=f2e1680]: 4 produtos
+                    - button "600HRevisão 6 produtos" [ref=f2e1684] [cursor=pointer]:
+                      - generic [ref=f2e1686]:
+                        - generic [ref=f2e1687]: 600HRevisão
+                        - generic [ref=f2e1688]: 6 produtos
+                    - button "900HRevisão 9 produtos" [ref=f2e1692] [cursor=pointer]:
+                      - generic [ref=f2e1694]:
+                        - generic [ref=f2e1695]: 900HRevisão
+                        - generic [ref=f2e1696]: 9 produtos
+                - generic [ref=f2e1700]:
+                  - generic [ref=f2e1701]: "5050"
+                  - generic [ref=f2e1702]:
+                    - button "1200HRevisão 10 produtos" [ref=f2e1703] [cursor=pointer]:
+                      - generic [ref=f2e1705]:
+                        - generic [ref=f2e1706]: 1200HRevisão
+                        - generic [ref=f2e1707]: 10 produtos
+                    - button "300HRevisão 7 produtos" [ref=f2e1711] [cursor=pointer]:
+                      - generic [ref=f2e1713]:
+                        - generic [ref=f2e1714]: 300HRevisão
+                        - generic [ref=f2e1715]: 7 produtos
+                    - button "50HRevisão 5 produtos" [ref=f2e1719] [cursor=pointer]:
+                      - generic [ref=f2e1721]:
+                        - generic [ref=f2e1722]: 50HRevisão
+                        - generic [ref=f2e1723]: 5 produtos
+                    - button "600HRevisão 7 produtos" [ref=f2e1727] [cursor=pointer]:
+                      - generic [ref=f2e1729]:
+                        - generic [ref=f2e1730]: 600HRevisão
+                        - generic [ref=f2e1731]: 7 produtos
+                    - button "900HRevisão 8 produtos" [ref=f2e1735] [cursor=pointer]:
+                      - generic [ref=f2e1737]:
+                        - generic [ref=f2e1738]: 900HRevisão
+                        - generic [ref=f2e1739]: 8 produtos
+                - generic [ref=f2e1743]:
+                  - generic [ref=f2e1744]: "6060"
+                  - generic [ref=f2e1745]:
+                    - button "1200HRevisão 14 produtos" [ref=f2e1746] [cursor=pointer]:
+                      - generic [ref=f2e1748]:
+                        - generic [ref=f2e1749]: 1200HRevisão
+                        - generic [ref=f2e1750]: 14 produtos
+                    - button "300HRevisão 10 produtos" [ref=f2e1754] [cursor=pointer]:
+                      - generic [ref=f2e1756]:
+                        - generic [ref=f2e1757]: 300HRevisão
+                        - generic [ref=f2e1758]: 10 produtos
+                    - button "50HRevisão 7 produtos" [ref=f2e1762] [cursor=pointer]:
+                      - generic [ref=f2e1764]:
+                        - generic [ref=f2e1765]: 50HRevisão
+                        - generic [ref=f2e1766]: 7 produtos
+                    - button "600HRevisão 10 produtos" [ref=f2e1770] [cursor=pointer]:
+                      - generic [ref=f2e1772]:
+                        - generic [ref=f2e1773]: 600HRevisão
+                        - generic [ref=f2e1774]: 10 produtos
+                    - button "900HRevisão 10 produtos" [ref=f2e1778] [cursor=pointer]:
+                      - generic [ref=f2e1780]:
+                        - generic [ref=f2e1781]: 900HRevisão
+                        - generic [ref=f2e1782]: 10 produtos
+                - generic [ref=f2e1786]:
+                  - generic [ref=f2e1787]: 6075/6065
+                  - generic [ref=f2e1788]:
+                    - button "1200HRevisão 11 produtos" [ref=f2e1789] [cursor=pointer]:
+                      - generic [ref=f2e1791]:
+                        - generic [ref=f2e1792]: 1200HRevisão
+                        - generic [ref=f2e1793]: 11 produtos
+                    - button "300HRevisão 8 produtos" [ref=f2e1797] [cursor=pointer]:
+                      - generic [ref=f2e1799]:
+                        - generic [ref=f2e1800]: 300HRevisão
+                        - generic [ref=f2e1801]: 8 produtos
+                    - button "50HRevisão 5 produtos" [ref=f2e1805] [cursor=pointer]:
+                      - generic [ref=f2e1807]:
+                        - generic [ref=f2e1808]: 50HRevisão
+                        - generic [ref=f2e1809]: 5 produtos
+                    - button "600HRevisão 8 produtos" [ref=f2e1813] [cursor=pointer]:
+                      - generic [ref=f2e1815]:
+                        - generic [ref=f2e1816]: 600HRevisão
+                        - generic [ref=f2e1817]: 8 produtos
+                    - button "900HRevisão 8 produtos" [ref=f2e1821] [cursor=pointer]:
+                      - generic [ref=f2e1823]:
+                        - generic [ref=f2e1824]: 900HRevisão
+                        - generic [ref=f2e1825]: 8 produtos
+                - generic [ref=f2e1829]:
+                  - generic [ref=f2e1830]: "7095"
+                  - generic [ref=f2e1831]:
+                    - button "1200HRevisão 14 produtos" [ref=f2e1832] [cursor=pointer]:
+                      - generic [ref=f2e1834]:
+                        - generic [ref=f2e1835]: 1200HRevisão
+                        - generic [ref=f2e1836]: 14 produtos
+                    - button "300HRevisão 12 produtos" [ref=f2e1840] [cursor=pointer]:
+                      - generic [ref=f2e1842]:
+                        - generic [ref=f2e1843]: 300HRevisão
+                        - generic [ref=f2e1844]: 12 produtos
+                    - button "50HRevisão 10 produtos" [ref=f2e1848] [cursor=pointer]:
+                      - generic [ref=f2e1850]:
+                        - generic [ref=f2e1851]: 50HRevisão
+                        - generic [ref=f2e1852]: 10 produtos
+                    - button "600HRevisão 12 produtos" [ref=f2e1856] [cursor=pointer]:
+                      - generic [ref=f2e1858]:
+                        - generic [ref=f2e1859]: 600HRevisão
+                        - generic [ref=f2e1860]: 12 produtos
+                    - button "900HRevisão 12 produtos" [ref=f2e1864] [cursor=pointer]:
+                      - generic [ref=f2e1866]:
+                        - generic [ref=f2e1867]: 900HRevisão
+                        - generic [ref=f2e1868]: 12 produtos
+                - generic [ref=f2e1872]:
+                  - generic [ref=f2e1873]: 8000/9200/9500
+                  - generic [ref=f2e1874]:
+                    - button "1200HRevisão 15 produtos" [ref=f2e1875] [cursor=pointer]:
+                      - generic [ref=f2e1877]:
+                        - generic [ref=f2e1878]: 1200HRevisão
+                        - generic [ref=f2e1879]: 15 produtos
+                    - button "300HRevisão 13 produtos" [ref=f2e1883] [cursor=pointer]:
+                      - generic [ref=f2e1885]:
+                        - generic [ref=f2e1886]: 300HRevisão
+                        - generic [ref=f2e1887]: 13 produtos
+                    - button "50HRevisão 11 produtos" [ref=f2e1891] [cursor=pointer]:
+                      - generic [ref=f2e1893]:
+                        - generic [ref=f2e1894]: 50HRevisão
+                        - generic [ref=f2e1895]: 11 produtos
+                    - button "600HRevisão 13 produtos" [ref=f2e1899] [cursor=pointer]:
+                      - generic [ref=f2e1901]:
+                        - generic [ref=f2e1902]: 600HRevisão
+                        - generic [ref=f2e1903]: 13 produtos
+                    - button "900HRevisão 13 produtos" [ref=f2e1907] [cursor=pointer]:
+                      - generic [ref=f2e1909]:
+                        - generic [ref=f2e1910]: 900HRevisão
+                        - generic [ref=f2e1911]: 13 produtos
+                - generic [ref=f2e1915]:
+                  - generic [ref=f2e1916]: LANDFORCE 550
+                  - button "RevisãoQuadriciclo 4 produtos" [ref=f2e1918] [cursor=pointer]:
+                    - generic [ref=f2e1920]:
+                      - generic [ref=f2e1921]: RevisãoQuadriciclo
+                      - generic [ref=f2e1922]: 4 produtos
+                - generic [ref=f2e1926]:
+                  - generic [ref=f2e1927]: LANDFORCE 650
+                  - button "RevisãoQuadriciclo 4 produtos" [ref=f2e1929] [cursor=pointer]:
+                    - generic [ref=f2e1931]:
+                      - generic [ref=f2e1932]: RevisãoQuadriciclo
+                      - generic [ref=f2e1933]: 4 produtos
+                - generic [ref=f2e1937]:
+                  - generic [ref=f2e1938]: M250
+                  - button "RevisãoQuadriciclo 3 produtos" [ref=f2e1940] [cursor=pointer]:
+                    - generic [ref=f2e1942]:
+                      - generic [ref=f2e1943]: RevisãoQuadriciclo
+                      - generic [ref=f2e1944]: 3 produtos
+                - generic [ref=f2e1948]:
+                  - generic [ref=f2e1949]: M400
+                  - button "RevisãoQuadriciclo 3 produtos" [ref=f2e1951] [cursor=pointer]:
+                    - generic [ref=f2e1953]:
+                      - generic [ref=f2e1954]: RevisãoQuadriciclo
+                      - generic [ref=f2e1955]: 3 produtos
+                - generic [ref=f2e1959]:
+                  - generic [ref=f2e1960]: M420
+                  - button "RevisãoQuadriciclo 3 produtos" [ref=f2e1962] [cursor=pointer]:
+                    - generic [ref=f2e1964]:
+                      - generic [ref=f2e1965]: RevisãoQuadriciclo
+                      - generic [ref=f2e1966]: 3 produtos
+                - generic [ref=f2e1970]:
+                  - generic [ref=f2e1971]: M500
+                  - button "RevisãoQuadriciclo 3 produtos" [ref=f2e1973] [cursor=pointer]:
+                    - generic [ref=f2e1975]:
+                      - generic [ref=f2e1976]: RevisãoQuadriciclo
+                      - generic [ref=f2e1977]: 3 produtos
+                - generic [ref=f2e1981]:
+                  - generic [ref=f2e1982]: M550
+                  - button "RevisãoQuadriciclo 3 produtos" [ref=f2e1984] [cursor=pointer]:
+                    - generic [ref=f2e1986]:
+                      - generic [ref=f2e1987]: RevisãoQuadriciclo
+                      - generic [ref=f2e1988]: 3 produtos
+                - generic [ref=f2e1992]:
+                  - generic [ref=f2e1993]: M570
+                  - button "RevisãoQuadriciclo 4 produtos" [ref=f2e1995] [cursor=pointer]:
+                    - generic [ref=f2e1997]:
+                      - generic [ref=f2e1998]: RevisãoQuadriciclo
+                      - generic [ref=f2e1999]: 4 produtos
+                - generic [ref=f2e2003]:
+                  - generic [ref=f2e2004]: TBOSS 550
+                  - button "RevisãoQuadriciclo 5 produtos" [ref=f2e2006] [cursor=pointer]:
+                    - generic [ref=f2e2008]:
+                      - generic [ref=f2e2009]: RevisãoQuadriciclo
+                      - generic [ref=f2e2010]: 5 produtos
+  - alert [ref=f2e15]

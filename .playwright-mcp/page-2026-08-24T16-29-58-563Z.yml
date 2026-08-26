@@ -1,0 +1,296 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e7]:
+      - generic [ref=e8]:
+        - button [ref=e9] [cursor=pointer]
+        - link [ref=e11] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=e12]
+        - link [ref=e14] [cursor=pointer]:
+          - /url: /propostas
+      - generic [ref=e19]:
+        - button "Tela dividida — dois sistemas lado a lado" [ref=e20] [cursor=pointer]
+        - button "Sua caixa de e-mail (henri.fhioni@gmail.com)" [ref=e24] [cursor=pointer]
+        - button "Chat" [ref=e28] [cursor=pointer]
+        - button "Notificações" [ref=e31] [cursor=pointer]
+        - button "Menu" [ref=e36] [cursor=pointer]
+        - generic "Meu perfil" [ref=e41] [cursor=pointer]:
+          - generic [ref=e43]:
+            - paragraph [ref=e44]: Henri Irneh
+            - paragraph [ref=e45]: Pós-Vendas
+    - generic [ref=e46]:
+      - generic [ref=e48]:
+        - paragraph [ref=e50]: Henri Irneh
+        - paragraph [ref=e51]: Pós-Vendas
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - link "Dashboard" [ref=e54] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=e63] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=e69]:
+          - paragraph [ref=e70]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=e72] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=e79] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=e86] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=e92] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=e101] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=e108] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=e115] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=e122] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=e128] [cursor=pointer]:
+            - /url: /cronograma
+          - link "Clientes" [ref=e134] [cursor=pointer]:
+            - /url: /clientes
+        - generic [ref=e141]:
+          - paragraph [ref=e142]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=e144] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=e152] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=e158] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=e165]:
+          - paragraph [ref=e166]: FINANCEIRO
+          - link "Financeiro" [ref=e168] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=e174] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=e180]:
+          - paragraph [ref=e181]: COMERCIAL
+          - link "Proposta Comercial" [ref=e183] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=e192] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Supervisor Vendas" [ref=e199] [cursor=pointer]:
+            - /url: /supervisor-vendas
+        - generic [ref=e204]:
+          - paragraph [ref=e205]: ESTOQUE
+          - link "Visual Estoque" [ref=e207] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=e213] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=e220] [cursor=pointer]:
+            - /url: /ajustes
+        - generic [ref=e225]:
+          - paragraph [ref=e226]: FROTA
+          - link "Frota" [ref=e228] [cursor=pointer]:
+            - /url: /frota
+          - link "Pendências Frota" [ref=e237] [cursor=pointer]:
+            - /url: /pendencias
+        - generic [ref=e243]:
+          - paragraph [ref=e244]: OUTROS
+          - link "Opa" [ref=e246] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=e252] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=e258] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=e275] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=e281] [cursor=pointer]:
+          - /url: /admin
+        - link "Tratorilson" [ref=e287] [cursor=pointer]:
+          - /url: /tratorilson
+      - button "Sair do Portal" [ref=e294] [cursor=pointer]
+    - main [ref=e298]:
+      - generic [ref=e299]:
+        - generic [ref=e301]:
+          - generic [ref=e303]:
+            - button "Propostas Cliente" [ref=e304] [cursor=pointer]
+            - button "Pedidos Fabrica" [ref=e310] [cursor=pointer]
+            - button "Resumo" [ref=e313] [cursor=pointer]
+            - button "Lixeira" [ref=e316] [cursor=pointer]
+          - generic [ref=e322]:
+            - button "Menu" [ref=e324] [cursor=pointer]
+            - button "Nova Proposta" [ref=e326] [cursor=pointer]
+        - generic [ref=e329]:
+          - generic [ref=e330]:
+            - generic [ref=e331]: Filtrar por cliente, ID, marca, modelo, cidade, valor ou status
+            - generic [ref=e332]:
+              - textbox "Digite cliente, ID, marca, modelo, cidade, valor ou status..." [ref=e334]
+              - button "Limpar" [ref=e2195]
+          - generic [ref=e335]:
+            - generic [ref=e336]: "Atalhos:"
+            - button "Todas" [ref=e337] [cursor=pointer]
+            - button "Enviar proposta" [ref=e338] [cursor=pointer]
+            - button "Aguardando resposta cliente" [ref=e339] [cursor=pointer]
+            - button "Aguardando resposta banco" [ref=e340] [cursor=pointer]
+            - button "Concluída - vendido" [ref=e341] [cursor=pointer]
+            - button "Concluída - não vendido" [ref=e342] [cursor=pointer]
+            - button "FAB (pedido fábrica)" [ref=e343] [cursor=pointer]
+          - generic [ref=e344]:
+            - generic [ref=e345]:
+              - generic [ref=e346]: Previsão de faturamento
+              - generic [ref=e347]: R$ 539.158,20
+              - generic [ref=e348]: ponderada pelo termômetro (em aberto)
+            - button "Criadas (no filtro) R$ 898.597,00 7 propostas" [ref=e2199] [cursor=pointer]:
+              - generic [ref=e2200]: Criadas (no filtro)
+              - generic [ref=e2201]: R$ 898.597,00
+              - generic [ref=e2202]: 7 propostas
+            - button "Previsão faturamento fábrica R$ 0,00 0 propostas" [ref=e2203] [cursor=pointer]:
+              - generic [ref=e2204]: Previsão faturamento fábrica
+              - generic [ref=e2205]: R$ 0,00
+              - generic [ref=e2206]: 0 propostas
+            - button "Aguardando banco R$ 898.597,00 7 propostas" [ref=e2207] [cursor=pointer]:
+              - generic [ref=e2208]: Aguardando banco
+              - generic [ref=e2209]: R$ 898.597,00
+              - generic [ref=e2210]: 7 propostas
+          - table [ref=e362]:
+            - rowgroup [ref=e363]:
+              - row [ref=e364]:
+                - columnheader "ID" [ref=e2211] [cursor=pointer]
+                - columnheader "Cliente" [ref=e2213] [cursor=pointer]
+                - columnheader "Vendedor" [ref=e2215] [cursor=pointer]
+                - columnheader "Marca / Modelo" [ref=e2217] [cursor=pointer]
+                - columnheader "Cidade" [ref=e2219] [cursor=pointer]
+                - columnheader "Valor" [ref=e2221] [cursor=pointer]
+                - columnheader "Status" [ref=e2223] [cursor=pointer]
+                - columnheader "Parado há ▼" [ref=e2225] [cursor=pointer]:
+                  - generic [ref=e2226]:
+                    - text: Parado há
+                    - generic [ref=e2227]: ▼
+                - columnheader "Termômetro" [ref=e2228] [cursor=pointer]
+                - columnheader "Criada em" [ref=e2230] [cursor=pointer]
+                - columnheader "Alterar" [ref=e386]
+            - rowgroup [ref=e387]:
+              - row [ref=e607] [cursor=pointer]:
+                - cell "#92" [ref=e608]
+                - cell "ERICA PAULA BLESSA" [ref=e611]
+                - cell "—" [ref=e612]
+                - cell "MAHINDRA 6075" [ref=e614]
+                - cell "PIEDADE" [ref=e616]
+                - cell "R$ 166.000,00" [ref=e617]
+                - cell "Aguardando resposta banco" [ref=e619]
+                - cell "3 dias" [ref=e620]
+                - cell "60%" [ref=e621]
+                - cell "21/08/2026" [ref=e626]
+                - cell "Aguardando resposta banco" [ref=e627]:
+                  - combobox [ref=e628]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=e629] [cursor=pointer]:
+                - cell "#91" [ref=e630]
+                - cell "AGRICIO CANO DE ARRUDA" [ref=e633]
+                - cell "—" [ref=e634]
+                - cell "MAHINDRA 6075" [ref=e636]
+                - cell "ITU (SP)" [ref=e638]
+                - cell "R$ 165.000,00" [ref=e639]
+                - cell "Aguardando resposta banco" [ref=e641]
+                - cell "3 dias" [ref=e642]
+                - cell "60%" [ref=e643]
+                - cell "21/08/2026" [ref=e648]
+                - cell "Aguardando resposta banco" [ref=e649]:
+                  - combobox [ref=e650]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=e1047] [cursor=pointer]:
+                - cell "#72" [ref=e1048]
+                - cell "JOSE TARCISO FAULIN" [ref=e1051]
+                - cell "—" [ref=e1052]
+                - cell "IPACOL ASTRUS EPH500 5 HASTES" [ref=e1054]
+                - cell "PIRAJU (SP)" [ref=e1056]
+                - cell "R$ 149.197,00" [ref=e1057]
+                - cell "Aguardando resposta banco" [ref=e1059]
+                - cell "3 dias" [ref=e1060]
+                - cell "60%" [ref=e1061]
+                - cell "21/08/2026" [ref=e1066]
+                - cell "Aguardando resposta banco" [ref=e1067]:
+                  - combobox [ref=e1068]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=e1287] [cursor=pointer]:
+                - cell "#58" [ref=e1288]
+                - cell "MARCOS CLEBER TERUEL" [ref=e1291]
+                - cell "—" [ref=e1292]
+                - cell "MIAC MASTER CAFÉ 3E" [ref=e1294]
+                - cell "UBIRAJARA" [ref=e1296]
+                - cell "R$ 188.000,00" [ref=e1297]
+                - cell "Aguardando resposta banco" [ref=e1299]
+                - cell "3 dias" [ref=e1300]
+                - cell "60%" [ref=e1301]
+                - cell "21/08/2026" [ref=e1306]
+                - cell "Aguardando resposta banco" [ref=e1307]:
+                  - combobox [ref=e1308]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=e1529] [cursor=pointer]:
+                - cell "#47" [ref=e1530]
+                - cell "CELSO CAMARGO GUAZZO E OUTRA" [ref=e1533]
+                - cell "—" [ref=e1534]
+                - cell "INCOMAGRI DELN 4000" [ref=e1536]
+                - cell "PIRAJU (SP)" [ref=e1538]
+                - cell "R$ 40.400,00" [ref=e1539]
+                - cell "Aguardando resposta banco" [ref=e1541]
+                - cell "3 dias" [ref=e1542]
+                - cell "60%" [ref=e1543]
+                - cell "21/08/2026" [ref=e1548]
+                - cell "Aguardando resposta banco" [ref=e1549]:
+                  - combobox [ref=e1550]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=e1705] [cursor=pointer]:
+                - cell "#39" [ref=e1706]
+                - cell "JOSE TARCISO FAULIN" [ref=e1709]
+                - cell "—" [ref=e1710]
+                - cell "SCHEMAQ TERREMOTO PREMIUM 7.0" [ref=e1712]
+                - cell "PIRAJU (SP)" [ref=e1714]
+                - cell "R$ 150.000,00" [ref=e1715]
+                - cell "Aguardando resposta banco" [ref=e1717]
+                - cell "3 dias" [ref=e1718]
+                - cell "60%" [ref=e1719]
+                - cell "21/08/2026" [ref=e1724]
+                - cell "Aguardando resposta banco" [ref=e1725]:
+                  - combobox [ref=e1726]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+              - row [ref=e1858] [cursor=pointer]:
+                - cell "#30" [ref=e1859]
+                - cell "MARCIO RODRIGO SCHINCH" [ref=e1862]
+                - cell "—" [ref=e1863]
+                - cell "TERRIS PILOTO ELETRICO" [ref=e1865]
+                - cell "CAMPOS NOVOS PAULISTA (SP)" [ref=e1867]
+                - cell "R$ 40.000,00" [ref=e1868]
+                - cell "Aguardando resposta banco" [ref=e1870]
+                - cell "3 dias" [ref=e1871]
+                - cell "60%" [ref=e1872]
+                - cell "21/08/2026" [ref=e1877]
+                - cell "Aguardando resposta banco" [ref=e1878]:
+                  - combobox [ref=e1879]:
+                    - option "Enviar proposta"
+                    - option "Aguardando resposta cliente"
+                    - option "Aguardando resposta banco" [selected]
+                    - option "Concluída - vendido"
+                    - option "Concluída - não vendido"
+          - generic [ref=e2180]: 7 propostas
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=e2181]:
+      - generic [ref=e2184]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=e2191] [cursor=pointer]
+  - alert [ref=e6]

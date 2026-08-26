@@ -1,0 +1,85 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e2724]:
+            - generic [ref=f2e2726]:
+              - generic [ref=f2e2727]: 
+              - textbox "Buscar em 5050…" [active] [ref=f2e3023]: elemento filtrante
+              - button "" [ref=f2e3514] [cursor=pointer]
+            - generic [ref=f2e3516]:
+              - generic [ref=f2e3517]: 3 resultado(s) para “elemento filtrante” em 5050
+              - generic [ref=f2e3518]:
+                - generic [ref=f2e3520]:
+                  - code [ref=f2e3521]: 006000455F1
+                  - generic [ref=f2e3522]:
+                    - generic [ref=f2e3523]: ELEMENTO FILTRANTE
+                    - button "Motor · 5050MT04 SISTEMA DE ENTRADA DE AR - FILTRO DE AR SECO →" [ref=f2e3524] [cursor=pointer]
+                  - generic [ref=f2e3525]: 1 un
+                  - button "+" [ref=f2e3526] [cursor=pointer]
+                - generic [ref=f2e3528]:
+                  - code [ref=f2e3529]: 006000456F1
+                  - generic [ref=f2e3530]:
+                    - generic [ref=f2e3531]: ELEMENTO FILTRANTE
+                    - button "Motor · 5050MT04 SISTEMA DE ENTRADA DE AR - FILTRO DE AR SECO →" [ref=f2e3532] [cursor=pointer]
+                  - generic [ref=f2e3533]: 1 un
+                  - button "+" [ref=f2e3534] [cursor=pointer]
+                - generic [ref=f2e3536]:
+                  - code [ref=f2e3537]: 006020810V1
+                  - generic [ref=f2e3538]:
+                    - generic [ref=f2e3539]: ELEMENTO FILTRANTE DE COMBUSTÍVEL (DHRUV)
+                    - button "Motor · 5050MT17 SISTEMA DE INJEÇÃO DE COMBUSTÍVEL →" [ref=f2e3540] [cursor=pointer]
+                  - generic [ref=f2e3541]: 2 un
+                  - button "+" [ref=f2e3542] [cursor=pointer]
+            - button " Carrinho 1" [ref=f2e3511] [cursor=pointer]:
+              - generic [ref=f2e3512]: 
+              - text: Carrinho
+              - generic [ref=f2e3513]: "1"
+  - alert [ref=f2e15]

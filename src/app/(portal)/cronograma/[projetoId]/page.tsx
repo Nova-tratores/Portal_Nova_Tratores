@@ -6,13 +6,13 @@ import { useParams } from 'next/navigation';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import { ChevronLeft, RefreshCw, Plus, AlertTriangle, Loader2, Flag, BarChart3, Repeat, Link2 } from 'lucide-react';
 import {
-  carregarProjeto, recalcular, atualizarTarefa,
+  carregarProjeto, recalcular, atualizarTarefa, carregarOSvinculada,
   type ProjetoCompleto,
 } from '@/lib/cronograma/queries';
 import { paraFrappe, montarEntradaMotor, calendarioDaTarefa } from '@/lib/cronograma/adaptador';
 import { calcular, diasUteisEntre, type ErroMotor } from '@/lib/cronograma/motor';
 import { detectarConflitos } from '@/lib/cronograma/conflitos';
-import type { ViewMode } from '@/components/cronograma/GanttView';
+import type { ViewMode, Marcador } from '@/components/cronograma/GanttView';
 
 const GanttView = dynamic(() => import('@/components/cronograma/GanttView'), { ssr: false });
 const TarefaDrawer = dynamic(() => import('@/components/cronograma/TarefaDrawer'), { ssr: false });
@@ -32,6 +32,7 @@ export default function TimelineProjetoPage() {
   const [erros, setErros] = useState<ErroMotor[]>([]);
   const [drawer, setDrawer] = useState<{ tarefaId: string | null } | null>(null);
   const [painel, setPainel] = useState<'analise' | 'recorrencia' | 'vinculos' | null>(null);
+  const [marcadores, setMarcadores] = useState<Marcador[]>([]);
 
   const carregar = useCallback(async () => {
     try { setPc(await carregarProjeto(projetoId)); }
@@ -41,6 +42,18 @@ export default function TimelineProjetoPage() {
 
   useEffect(() => { carregar(); }, [carregar]);
   useRefreshOnFocus(carregar); // recarrega ao voltar o foco (no lugar do Realtime)
+
+  // datas da OS vinculada → faixas verticais na timeline (holidays)
+  const osRef = pc?.projeto.os_ref;
+  useEffect(() => {
+    if (!osRef) { setMarcadores([]); return; }
+    carregarOSvinculada(osRef).then((os) => {
+      const m: Marcador[] = [];
+      if (os?.previsaoExecucao) m.push({ date: os.previsaoExecucao, name: 'Prev. Execução', color: '#2563eb' });
+      if (os?.previsaoFaturamento) m.push({ date: os.previsaoFaturamento, name: 'Prev. Faturamento', color: '#16a34a' });
+      setMarcadores(m);
+    });
+  }, [osRef]);
 
   // Nota: NÃO usamos postgres_changes aqui. Assinar Realtime num schema
   // não-`public` derrubava a conexão Realtime compartilhada (quebrava o
@@ -179,6 +192,7 @@ export default function TimelineProjetoPage() {
         <GanttView
           tasks={frappeTasks}
           viewMode={viewMode}
+          marcadores={marcadores}
           onDateChange={onDateChange}
           onClick={(id) => setDrawer({ tarefaId: id })}
         />
@@ -204,7 +218,8 @@ export default function TimelineProjetoPage() {
       <p style={{ marginTop: 10, fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>
         Barras em <span style={{ color: '#dc2626', fontWeight: 600 }}>vermelho</span> = caminho crítico;
         contorno <span style={{ color: '#f59e0b', fontWeight: 600 }}>laranja</span> = recurso em conflito.
-        Arraste para mover/redimensionar; clique para editar.
+        {marcadores.length > 0 && <> Faixas <span style={{ color: '#2563eb', fontWeight: 600 }}>azul</span>/<span style={{ color: '#16a34a', fontWeight: 600 }}>verde</span> = datas da OS (Prev. Execução/Faturamento).</>}
+        {' '}Arraste para mover/redimensionar; clique para editar.
       </p>
 
       {painel === 'analise' && <AnalisePanel pc={pc} onChanged={recalcEReload} />}

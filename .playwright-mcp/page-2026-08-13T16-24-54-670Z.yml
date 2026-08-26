@@ -1,0 +1,439 @@
+- generic [active] [ref=f5e1]:
+  - generic [ref=f5e2]:
+    - banner [ref=f5e16]:
+      - generic [ref=f5e17]:
+        - button [ref=f5e18] [cursor=pointer]
+        - link [ref=f5e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f5e21]
+      - generic [ref=f5e22]:
+        - button "Chat" [ref=f5e23] [cursor=pointer]
+        - button "50" [ref=f5e26] [cursor=pointer]
+        - button "Menu" [ref=f5e32] [cursor=pointer]
+        - generic "Meu perfil" [ref=f5e37] [cursor=pointer]:
+          - generic [ref=f5e39]:
+            - paragraph [ref=f5e40]: Henri Irneh
+            - paragraph [ref=f5e41]: Pós-Vendas
+    - generic [ref=f5e42]:
+      - generic [ref=f5e44]:
+        - paragraph [ref=f5e46]: Henri Irneh
+        - paragraph [ref=f5e47]: Pós-Vendas
+      - generic [ref=f5e48]:
+        - generic [ref=f5e49]:
+          - link "Dashboard" [ref=f5e50] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f5e59] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f5e65]:
+          - paragraph [ref=f5e66]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f5e68] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f5e75] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f5e82] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f5e88] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f5e97] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f5e104] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f5e111] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f5e118] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f5e124] [cursor=pointer]:
+            - /url: /cronograma
+        - generic [ref=f5e130]:
+          - paragraph [ref=f5e131]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f5e133] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f5e141] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f5e147] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f5e154]:
+          - paragraph [ref=f5e155]: FINANCEIRO
+          - link "Financeiro" [ref=f5e157] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f5e163] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f5e169]:
+          - paragraph [ref=f5e170]: COMERCIAL
+          - link "Proposta Comercial" [ref=f5e172] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f5e179] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Clientes" [ref=f5e186] [cursor=pointer]:
+            - /url: /clientes
+          - link "Supervisor Vendas" [ref=f5e193] [cursor=pointer]:
+            - /url: /supervisor-vendas
+          - link "Solicitações de Compras" [ref=f5e198] [cursor=pointer]:
+            - /url: /decisoes
+        - generic [ref=f5e206]:
+          - paragraph [ref=f5e207]: ESTOQUE
+          - link "Visual Estoque" [ref=f5e209] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f5e215] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f5e222] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Abastecimento" [ref=f5e229] [cursor=pointer]:
+            - /url: /abastecimento
+          - link "Omie em Massa" [ref=f5e236] [cursor=pointer]:
+            - /url: /omie-massa
+        - generic [ref=f5e241]:
+          - paragraph [ref=f5e242]: OUTROS
+          - link "Opa" [ref=f5e244] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f5e250] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f5e256] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f5e273] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f5e279] [cursor=pointer]:
+          - /url: /admin
+      - button "Sair do Portal" [ref=f5e286] [cursor=pointer]
+    - main [ref=f5e290]:
+      - navigation [ref=f5e291]:
+        - generic [ref=f5e292]:
+          - generic [ref=f5e293]:
+            - generic [ref=f5e294]: 💰
+            - text: Financeiro
+          - link "Correção de contas" [ref=f5e295] [cursor=pointer]:
+            - /url: /ajustes/correcao-contas
+          - link "Baixar contas" [ref=f5e296] [cursor=pointer]:
+            - /url: /ajustes/baixa-contas
+          - link "Antecipações" [ref=f5e297] [cursor=pointer]:
+            - /url: /ajustes/antecipacoes
+          - link "Saúde mensal" [ref=f5e298] [cursor=pointer]:
+            - /url: /ajustes/saude-mensal
+        - generic [ref=f5e299]:
+          - generic [ref=f5e300]:
+            - generic [ref=f5e301]: 🏭
+            - text: Estoque
+          - link "Dashboard CMC" [ref=f5e302] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Ajuste de custos" [ref=f5e303] [cursor=pointer]:
+            - /url: /ajustes/ajuste-custos
+          - link "Devolução de compra" [ref=f5e304] [cursor=pointer]:
+            - /url: /ajustes/devolucao
+          - link "Inventário rotativo" [ref=f5e305] [cursor=pointer]:
+            - /url: /ajustes/inventario
+          - link "Contagem" [ref=f5e306] [cursor=pointer]:
+            - /url: /ajustes/inventario/contagem
+          - link "Características" [ref=f5e307] [cursor=pointer]:
+            - /url: /ajustes/caracteristicas
+          - link "Famílias" [ref=f5e308] [cursor=pointer]:
+            - /url: /ajustes/familias
+          - link "Descrições" [ref=f5e309] [cursor=pointer]:
+            - /url: /ajustes/descricoes
+          - link "Sistema/Sub-sistema" [ref=f5e310] [cursor=pointer]:
+            - /url: /ajustes/catalogo-caracteristicas
+          - link "Estoque negativo" [ref=f5e311] [cursor=pointer]:
+            - /url: /ajustes/negativos
+          - link "Recebimentos pendentes" [ref=f5e312] [cursor=pointer]:
+            - /url: /ajustes/recebimentos
+          - link "Remessas em aberto" [ref=f5e313] [cursor=pointer]:
+            - /url: /ajustes/remessas
+          - link "Movimentação de produto" [ref=f5e314] [cursor=pointer]:
+            - /url: /ajustes/movimentacao-produto
+          - link "Arquivo Mahindra" [ref=f5e315] [cursor=pointer]:
+            - /url: /ajustes/mahindra
+          - link "Alertas" [ref=f5e316] [cursor=pointer]:
+            - /url: /ajustes/alertas
+          - link "Histórico" [ref=f5e317] [cursor=pointer]:
+            - /url: /ajustes/historico
+        - generic [ref=f5e318]:
+          - generic [ref=f5e319]:
+            - generic [ref=f5e320]: 🛒
+            - text: Venda
+          - link "Pedidos abertos" [ref=f5e321] [cursor=pointer]:
+            - /url: /ajustes/pedidos
+          - link "Notas fiscais" [ref=f5e322] [cursor=pointer]:
+            - /url: /ajustes/notas
+      - generic [ref=f5e323]:
+        - generic [ref=f5e324]:
+          - heading "Histórico de correções" [level=1] [ref=f5e325]
+          - generic [ref=f5e326]:
+            - generic [ref=f5e327]:
+              - generic [ref=f5e328]: Origem
+              - combobox [ref=f5e329]:
+                - option "Todas"
+                - option "estoque negativo"
+                - option "garantia" [selected]
+                - option "ajuste de custo"
+                - option "manual"
+            - generic [ref=f5e330]:
+              - generic [ref=f5e331]: Codigo do produto
+              - 'textbox "ex: 1234567" [ref=f5e332]'
+            - button "Buscar" [ref=f5e2876] [cursor=pointer]
+            - generic [ref=f5e334]:
+              - generic [ref=f5e335]: Conta
+              - combobox [ref=f5e336] [cursor=pointer]:
+                - option "Todas" [selected]
+                - option "Nova"
+                - option "Castro"
+        - generic [ref=f5e337]:
+          - link "← Dashboard" [ref=f5e338] [cursor=pointer]:
+            - /url: /ajustes
+          - link "→ Ajuste de custos" [ref=f5e339] [cursor=pointer]:
+            - /url: /ajustes/ajuste-custos
+        - table [ref=f5e342]:
+          - rowgroup [ref=f5e343]:
+            - row [ref=f5e344]:
+              - columnheader "Quando ⇅" [ref=f5e345] [cursor=pointer]
+              - columnheader "Conta ⇅" [ref=f5e346] [cursor=pointer]
+              - columnheader "Origem ⇅" [ref=f5e347] [cursor=pointer]
+              - columnheader "Produto ⇅" [ref=f5e348] [cursor=pointer]
+              - columnheader "Local ⇅" [ref=f5e349] [cursor=pointer]
+              - columnheader "CMC anterior ⇅" [ref=f5e350] [cursor=pointer]
+              - columnheader "CMC aplicado ⇅" [ref=f5e351] [cursor=pointer]
+              - columnheader "CMC sugerido ⇅" [ref=f5e352] [cursor=pointer]
+              - columnheader "NF origem ⇅" [ref=f5e353] [cursor=pointer]
+              - columnheader "Estrategia ⇅" [ref=f5e354] [cursor=pointer]
+              - columnheader "Ajuste Omie ⇅" [ref=f5e355] [cursor=pointer]
+              - columnheader "Status ⇅" [ref=f5e356] [cursor=pointer]
+              - columnheader "Por ⇅" [ref=f5e357] [cursor=pointer]
+              - columnheader "Acao" [ref=f5e358]
+          - rowgroup [ref=f5e359]:
+            - row [ref=f5e2297]:
+              - cell "20/07/2026, 18:50:28" [ref=f5e2298]
+              - cell "NOVA" [ref=f5e2299]
+              - cell "garantia" [ref=f5e2300]
+              - cell "RP-E007206626D1 FILTRO DE SUCCAO RP-E007206626D1" [ref=f5e2302]:
+                - text: RP-E007206626D1
+                - generic [ref=f5e2303]: FILTRO DE SUCCAO RP-E007206626D1
+              - cell "Estoque Balcão" [ref=f5e2304]
+              - cell "R$ 186,35" [ref=f5e2305]
+              - cell "R$ 193,12" [ref=f5e2306]
+              - cell "R$ 193,12" [ref=f5e2307]
+              - cell "000055693" [ref=f5e2308]
+              - cell [ref=f5e2309]
+              - cell "2519250170" [ref=f5e2310]
+              - cell "aplicado" [ref=f5e2311]
+              - cell "Henri Irneh" [ref=f5e2312]
+              - cell [ref=f5e2313]:
+                - button "Reverter" [ref=f5e2314] [cursor=pointer]
+            - row [ref=f5e2315]:
+              - cell "20/07/2026, 18:50:24" [ref=f5e2316]
+              - cell "NOVA" [ref=f5e2317]
+              - cell "garantia" [ref=f5e2318]
+              - cell "RP-E007206114D1 MANGOTE DE REDUCAO 6075 = RP-E007206114D1" [ref=f5e2320]:
+                - text: RP-E007206114D1
+                - generic [ref=f5e2321]: MANGOTE DE REDUCAO 6075 = RP-E007206114D1
+              - cell "Estoque Balcão" [ref=f5e2322]
+              - cell "R$ 24,84" [ref=f5e2323]
+              - cell "R$ 27,00" [ref=f5e2324]
+              - cell "R$ 27,00" [ref=f5e2325]
+              - cell "000055693" [ref=f5e2326]
+              - cell [ref=f5e2327]
+              - cell "2519250144" [ref=f5e2328]
+              - cell "aplicado" [ref=f5e2329]
+              - cell "Henri Irneh" [ref=f5e2330]
+              - cell [ref=f5e2331]:
+                - button "Reverter" [ref=f5e2332] [cursor=pointer]
+            - row [ref=f5e2333]:
+              - cell "20/07/2026, 18:50:20" [ref=f5e2334]
+              - cell "NOVA" [ref=f5e2335]
+              - cell "garantia" [ref=f5e2336]
+              - cell "RP-006500998C2 SUPORTE ROLAMENTO INTERMEDIARIO" [ref=f5e2338]:
+                - text: RP-006500998C2
+                - generic [ref=f5e2339]: SUPORTE ROLAMENTO INTERMEDIARIO
+              - cell "Estoque Balcão" [ref=f5e2340]
+              - cell "R$ 105,79" [ref=f5e2341]
+              - cell "R$ 252,83" [ref=f5e2342]
+              - cell "R$ 252,83" [ref=f5e2343]
+              - cell "000055693" [ref=f5e2344]
+              - cell [ref=f5e2345]
+              - cell "2519250124" [ref=f5e2346]
+              - cell "aplicado" [ref=f5e2347]
+              - cell "Henri Irneh" [ref=f5e2348]
+              - cell [ref=f5e2349]:
+                - button "Reverter" [ref=f5e2350] [cursor=pointer]
+            - row [ref=f5e2351]:
+              - cell "20/07/2026, 18:50:16" [ref=f5e2352]
+              - cell "NOVA" [ref=f5e2353]
+              - cell "garantia" [ref=f5e2354]
+              - cell "RP-000016115P04 FILTRO OLEO TRANSMISSAO RP-000016115P04" [ref=f5e2356]:
+                - text: RP-000016115P04
+                - generic [ref=f5e2357]: FILTRO OLEO TRANSMISSAO RP-000016115P04
+              - cell "Estoque Balcão" [ref=f5e2358]
+              - cell "R$ 35,45" [ref=f5e2359]
+              - cell "R$ 37,13" [ref=f5e2360]
+              - cell "R$ 37,13" [ref=f5e2361]
+              - cell "000055693" [ref=f5e2362]
+              - cell [ref=f5e2363]
+              - cell "2519250094" [ref=f5e2364]
+              - cell "aplicado" [ref=f5e2365]
+              - cell "Henri Irneh" [ref=f5e2366]
+              - cell [ref=f5e2367]:
+                - button "Reverter" [ref=f5e2368] [cursor=pointer]
+            - row [ref=f5e2637]:
+              - cell "15/07/2026, 18:44:53" [ref=f5e2638]
+              - cell "NOVA" [ref=f5e2639]
+              - cell "garantia" [ref=f5e2640]
+              - cell "RP-007709429U91 PAINEL MSTAR P2 ( substitui o painel RP-007705736U91 )" [ref=f5e2642]:
+                - text: RP-007709429U91
+                - generic [ref=f5e2643]: PAINEL MSTAR P2 ( substitui o painel RP-007705736U91 )
+              - cell "Estoque Balcão" [ref=f5e2644]
+              - cell "R$ 611,25" [ref=f5e2645]
+              - cell "R$ 849,66" [ref=f5e2646]
+              - cell "R$ 849,66" [ref=f5e2647]
+              - cell "000055938" [ref=f5e2648]
+              - cell [ref=f5e2649]
+              - cell "2517248118" [ref=f5e2650]
+              - cell "aplicado" [ref=f5e2651]
+              - cell "Henri Irneh" [ref=f5e2652]
+              - cell [ref=f5e2653]:
+                - button "Reverter" [ref=f5e2654] [cursor=pointer]
+            - row [ref=f5e2655]:
+              - cell "15/07/2026, 18:44:50" [ref=f5e2656]
+              - cell "NOVA" [ref=f5e2657]
+              - cell "garantia" [ref=f5e2658]
+              - cell "RP-007608515V11 CABO FREIO DE MAO 5050 = RP-007608515V11" [ref=f5e2660]:
+                - text: RP-007608515V11
+                - generic [ref=f5e2661]: CABO FREIO DE MAO 5050 = RP-007608515V11
+              - cell "Estoque Balcão" [ref=f5e2662]
+              - cell "R$ 20,70" [ref=f5e2663]
+              - cell "R$ 116,03" [ref=f5e2664]
+              - cell "R$ 116,03" [ref=f5e2665]
+              - cell "000055938" [ref=f5e2666]
+              - cell [ref=f5e2667]
+              - cell "2517248098" [ref=f5e2668]
+              - cell "aplicado" [ref=f5e2669]
+              - cell "Henri Irneh" [ref=f5e2670]
+              - cell [ref=f5e2671]:
+                - button "Reverter" [ref=f5e2672] [cursor=pointer]
+            - row [ref=f5e2673]:
+              - cell "15/07/2026, 18:44:46" [ref=f5e2674]
+              - cell "NOVA" [ref=f5e2675]
+              - cell "garantia" [ref=f5e2676]
+              - cell "RP-006502304R1 MOLA = RP-006502304R1" [ref=f5e2678]:
+                - text: RP-006502304R1
+                - generic [ref=f5e2679]: MOLA = RP-006502304R1
+              - cell "Estoque Balcão" [ref=f5e2680]
+              - cell "R$ 2,81" [ref=f5e2681]
+              - cell "R$ 3,37" [ref=f5e2682]
+              - cell "R$ 3,37" [ref=f5e2683]
+              - cell "000055938" [ref=f5e2684]
+              - cell [ref=f5e2685]
+              - cell "2517248087" [ref=f5e2686]
+              - cell "aplicado" [ref=f5e2687]
+              - cell "Henri Irneh" [ref=f5e2688]
+              - cell [ref=f5e2689]:
+                - button "Reverter" [ref=f5e2690] [cursor=pointer]
+            - row [ref=f5e2691]:
+              - cell "15/07/2026, 18:44:43" [ref=f5e2692]
+              - cell "NOVA" [ref=f5e2693]
+              - cell "garantia" [ref=f5e2694]
+              - cell "RP-001082178R1 ESFERA DE ACO 10.3MM" [ref=f5e2696]:
+                - text: RP-001082178R1
+                - generic [ref=f5e2697]: ESFERA DE ACO 10.3MM
+              - cell "Estoque Balcão" [ref=f5e2698]
+              - cell "R$ 1,19" [ref=f5e2699]
+              - cell "R$ 1,30" [ref=f5e2700]
+              - cell "R$ 1,30" [ref=f5e2701]
+              - cell "000055938" [ref=f5e2702]
+              - cell [ref=f5e2703]
+              - cell "2517248078" [ref=f5e2704]
+              - cell "aplicado" [ref=f5e2705]
+              - cell "Henri Irneh" [ref=f5e2706]
+              - cell [ref=f5e2707]:
+                - button "Reverter" [ref=f5e2708] [cursor=pointer]
+            - row [ref=f5e2745]:
+              - cell "22/06/2026, 16:50:41" [ref=f5e2746]
+              - cell "NOVA" [ref=f5e2747]
+              - cell "garantia" [ref=f5e2748]
+              - cell "RP-007636562D91 TAMPA DO TANQUE DE COMBUSTIVEL 6075 C/TANQUE EMBAIXO = RP-007636562D91" [ref=f5e2750]:
+                - text: RP-007636562D91
+                - generic [ref=f5e2751]: TAMPA DO TANQUE DE COMBUSTIVEL 6075 C/TANQUE EMBAIXO = RP-007636562D91
+              - cell "Estoque Balcão" [ref=f5e2752]
+              - cell "R$ 52,42" [ref=f5e2753]
+              - cell "R$ 59,93" [ref=f5e2754]
+              - cell "R$ 59,93" [ref=f5e2755]
+              - cell "000055012" [ref=f5e2756]
+              - cell [ref=f5e2757]
+              - cell "2508267253" [ref=f5e2758]
+              - cell "aplicado" [ref=f5e2759]
+              - cell "Henri Irneh" [ref=f5e2760]
+              - cell [ref=f5e2761]:
+                - button "Reverter" [ref=f5e2762] [cursor=pointer]
+            - row [ref=f5e2763]:
+              - cell "22/06/2026, 16:50:38" [ref=f5e2764]
+              - cell "NOVA" [ref=f5e2765]
+              - cell "garantia" [ref=f5e2766]
+              - cell "RP-006031350U91 MONTAGEM DO FILTRO DE COMBUSTIVEL MSTAR" [ref=f5e2768]:
+                - text: RP-006031350U91
+                - generic [ref=f5e2769]: MONTAGEM DO FILTRO DE COMBUSTIVEL MSTAR
+              - cell "Estoque Balcão" [ref=f5e2770]
+              - cell "R$ 134,57" [ref=f5e2771]
+              - cell "R$ 344,33" [ref=f5e2772]
+              - cell "R$ 344,33" [ref=f5e2773]
+              - cell "000055012" [ref=f5e2774]
+              - cell [ref=f5e2775]
+              - cell "2508267246" [ref=f5e2776]
+              - cell "aplicado" [ref=f5e2777]
+              - cell "Henri Irneh" [ref=f5e2778]
+              - cell [ref=f5e2779]:
+                - button "Reverter" [ref=f5e2780] [cursor=pointer]
+            - row [ref=f5e2781]:
+              - cell "22/06/2026, 16:50:35" [ref=f5e2782]
+              - cell "NOVA" [ref=f5e2783]
+              - cell "garantia" [ref=f5e2784]
+              - cell "RP-005557674R97 CABO DE PARADA DO MOTOR 5050" [ref=f5e2786]:
+                - text: RP-005557674R97
+                - generic [ref=f5e2787]: CABO DE PARADA DO MOTOR 5050
+              - cell "Estoque Balcão" [ref=f5e2788]
+              - cell "R$ 50,23" [ref=f5e2789]
+              - cell "R$ 87,96" [ref=f5e2790]
+              - cell "R$ 87,96" [ref=f5e2791]
+              - cell "000055012" [ref=f5e2792]
+              - cell [ref=f5e2793]
+              - cell "2508267223" [ref=f5e2794]
+              - cell "aplicado" [ref=f5e2795]
+              - cell "Henri Irneh" [ref=f5e2796]
+              - cell [ref=f5e2797]:
+                - button "Reverter" [ref=f5e2798] [cursor=pointer]
+            - row [ref=f5e2799]:
+              - cell "22/06/2026, 16:50:31" [ref=f5e2800]
+              - cell "NOVA" [ref=f5e2801]
+              - cell "garantia" [ref=f5e2802]
+              - cell "RP-000020320E05 JUNTA RP-000020320E05" [ref=f5e2804]:
+                - text: RP-000020320E05
+                - generic [ref=f5e2805]: JUNTA RP-000020320E05
+              - cell "Estoque Balcão" [ref=f5e2806]
+              - cell "R$ 16,43" [ref=f5e2807]
+              - cell "R$ 18,78" [ref=f5e2808]
+              - cell "R$ 18,78" [ref=f5e2809]
+              - cell "000055012" [ref=f5e2810]
+              - cell [ref=f5e2811]
+              - cell "2508267220" [ref=f5e2812]
+              - cell "aplicado" [ref=f5e2813]
+              - cell "Henri Irneh" [ref=f5e2814]
+              - cell [ref=f5e2815]:
+                - button "Reverter" [ref=f5e2816] [cursor=pointer]
+            - row [ref=f5e2853]:
+              - cell "12/05/2026, 18:04:35" [ref=f5e2854]
+              - cell "NOVA" [ref=f5e2855]
+              - cell "garantia (legado)" [ref=f5e2856]
+              - cell "RP-006034348U1 FILTRO DE COMBUSTIVEL RP-006034348U1" [ref=f5e2858]:
+                - text: RP-006034348U1
+                - generic [ref=f5e2859]: FILTRO DE COMBUSTIVEL RP-006034348U1
+              - cell "Estoque Balcão" [ref=f5e2860]
+              - cell "R$ 150,56" [ref=f5e2861]
+              - cell "R$ 164,16" [ref=f5e2862]
+              - cell "R$ 164,16" [ref=f5e2863]
+              - cell "000053455" [ref=f5e2864]
+              - cell "cmc_movimento_anterior" [ref=f5e2865]
+              - cell "-" [ref=f5e2866]
+              - cell "aplicado" [ref=f5e2867]
+              - cell "app" [ref=f5e2868]
+              - cell [ref=f5e2869]:
+                - button "Reverter" [ref=f5e2870] [cursor=pointer]
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f5e2871]:
+      - generic [ref=f5e2874]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=f5e11] [cursor=pointer]
+  - alert [ref=f5e15]

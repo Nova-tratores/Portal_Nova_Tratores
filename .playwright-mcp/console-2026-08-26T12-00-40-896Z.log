@@ -1,0 +1,32 @@
+[     368ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[     549ms] [LOG] [HMR] connected @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[    2144ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[    2278ms] [LOG] [Fast Refresh] done in 236ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[    2715ms] [LOG] [Chat] Realtime conectado @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[    2715ms] [LOG] [Notificações] Realtime conectado @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[    9300ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   20012ms] [LOG] [Fast Refresh] done in 10815ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   20124ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   22349ms] [LOG] [Fast Refresh] done in 2331ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   32945ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   36744ms] [LOG] [Fast Refresh] done in 3900ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   48675ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   48855ms] [LOG] [Fast Refresh] done in 287ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   70450ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   70668ms] [LOG] [Fast Refresh] done in 324ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   75250ms] [LOG] [Fast Refresh] rebuilding @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[   75409ms] [LOG] [Fast Refresh] done in 263ms @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_f3530cac._.js:2297
+[  101903ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  105261ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  108608ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  111958ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  115314ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  122667ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  124305ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/lembretes?userId=8d43db92-0943-4c88-9a0b-b7f52a11ff55&tipo=vencidos:0
+[  130011ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  137344ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  144707ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  152062ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  154318ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/api/lembretes?userId=8d43db92-0943-4c88-9a0b-b7f52a11ff55&tipo=vencidos:0
+[  159416ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878
+[  166769ms] [ERROR] WebSocket connection to 'ws://localhost:3000/_next/webpack-hmr?id=NT4KtDU-TG0yv6jHSrOk_' failed: Error in connection establishment: net::ERR_CONNECTION_REFUSED @ http://localhost:3000/_next/static/chunks/node_modules_next_dist_client_17643121._.js:10878

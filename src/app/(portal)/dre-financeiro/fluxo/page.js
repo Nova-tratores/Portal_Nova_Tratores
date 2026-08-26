@@ -149,8 +149,8 @@ export default function FluxoPage() {
   const ANOS_DISPONIVEIS = anosDisponiveis()
 
   // --- Estado de controles (espelha as vars do IIFE da fonte) ---------------
-  // TIPO replicado localmente (na fonte vinha do header global). Default 'pagar'.
-  const [tipo, setTipo] = useState('pagar') // 'pagar' | 'receber' | 'ambos'
+  // TIPO replicado localmente (na fonte vinha do header global). Default 'ambos'.
+  const [tipo, setTipo] = useState('ambos') // 'pagar' | 'receber' | 'ambos'
 
   // periodo: 'mes' | 'ytd' | 'ano-anterior' | 'ano' | 'todo' | 'custom' | 'comparar'
   const hoje = new Date()
@@ -180,6 +180,8 @@ export default function FluxoPage() {
   const [modalTitulo, setModalTitulo] = useState('Top terceiros')
   const [modalSubtitulo, setModalSubtitulo] = useState('') // HTML (port fiel do innerHTML)
   const [modalCorpo, setModalCorpo] = useState({ tipo: 'vazio' }) // descreve o conteudo a renderizar
+  // 2º popup (empilhado): drill de maquinas/produtos de um fornecedor do Treemap
+  const [drillMaq, setDrillMaq] = useState(null)
 
   // Refs de graficos
   const sankeyRef = useRef(null)
@@ -315,12 +317,12 @@ export default function FluxoPage() {
     const elChart = sankeyRef.current
     elChart.style.height = alturaCalc + 'px'
 
-    if (!sankeyInst.current) {
-      sankeyInst.current = window.echarts.init(elChart)
-    } else {
-      sankeyInst.current.resize()
-    }
-    sankeyInst.current.setOption({
+    // Init robusto: reaproveita a instancia ligada AO nó atual (evita instancia
+    // orfã num nó detached após remonte) e nunca faz init duplo no mesmo nó.
+    let inst = window.echarts.getInstanceByDom(elChart)
+    if (!inst) inst = window.echarts.init(elChart)
+    sankeyInst.current = inst
+    inst.setOption({
       tooltip: {
         trigger: 'item', formatter: function (params) {
           if (params.dataType === 'edge') {
@@ -345,15 +347,40 @@ export default function FluxoPage() {
     }, true)
 
     // Click: edge ou node -> abre modal com titulos que compoem aquele fluxo.
-    sankeyInst.current.off('click')
-    sankeyInst.current.on('click', function (params) {
+    inst.off('click')
+    inst.on('click', function (params) {
       let alvo = null
       if (params.dataType === 'edge') alvo = nodeById[params.data.target]
       else if (params.dataType === 'node') alvo = params.data
       if (alvo) abrirFluxoDetalhe(alvo)
     })
+
+    // No primeiro paint o container pode ainda estar com largura 0 (transição de
+    // rota / layout não assentado) -> canvas 0×0 -> Sankey em branco. Um resize no
+    // próximo frame corrige a medição depois que o layout estabiliza.
+    if (typeof requestAnimationFrame === 'function') {
+      requestAnimationFrame(() => { if (sankeyInst.current) sankeyInst.current.resize() })
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chartReady, dadosSankey, ehComparar, modo])
+
+  // Observa o container do Sankey: quando ele ganha largura (0 -> real, após o
+  // layout assentar) reajusta o gráfico. Cobre o "às vezes em branco ao abrir".
+  useEffect(() => {
+    if (modo !== 'sankey' || ehComparar) return
+    const el = sankeyRef.current
+    if (!el || typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(() => { if (sankeyInst.current) sankeyInst.current.resize() })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [modo, ehComparar, chartReady])
+
+  // Ao sair da visão Sankey (troca de modo/comparar), descarta a instância para
+  // não deixar um gráfico ligado a um nó já removido do DOM.
+  useEffect(() => {
+    if (modo === 'sankey' && !ehComparar) return
+    if (sankeyInst.current) { sankeyInst.current.dispose(); sankeyInst.current = null }
+  }, [modo, ehComparar])
 
   // Resize do Sankey quando a janela muda
   useEffect(() => {
@@ -511,17 +538,47 @@ export default function FluxoPage() {
     if (!node || !node.categorias[categoria]) { setModalCorpo({ tipo: 'sem-dados' }); return }
     const terceirosObj = node.categorias[categoria].terceiros || {}
     const lista = Object.entries(terceirosObj).map((pp) => ({ nome: pp[0], valor: pp[1] })).sort((a, b) => b.valor - a.valor)
-    setModalCorpo({ tipo: 'terceiros', lista, tp, grupo })
+    setModalCorpo({ tipo: 'terceiros', lista, tp, grupo, categoria })
   }
 
   function fecharModal() { setModalAberto(false) }
 
-  // Esc fecha o modal (port fiel do keydown da fonte)
+  // =========================================================================
+  // Drill 2º nível (Treemap): clicar num fornecedor abre um popup com as
+  // maquinas/produtos (descricao, qtd, valor) que compoem aquele valor.
+  // =========================================================================
+  function abrirDrillMaquinas(terceiro, tp, grupo, categoria) {
+    const pr = resolverPeriodo()
+    if (!pr.de || !pr.ate) return
+    setDrillMaq({ terceiro, tp, loading: true, itens: [], totalTitulo: 0, totalItens: 0, semDetalhe: false, erro: null })
+    const qs = 'conta=' + conta + '&tipo=' + tp + '&de=' + pr.de + '&ate=' + pr.ate
+      + '&grupo=' + encodeURIComponent(grupo || '') + '&categoria=' + encodeURIComponent(categoria || '')
+      + '&terceiro=' + encodeURIComponent(terceiro || '')
+    fetch('/api/dre-financeiro/composicao/produtos?' + qs)
+      .then((r) => r.json())
+      .then((d) => {
+        if (d.erro) { setDrillMaq({ terceiro, tp, loading: false, itens: [], totalTitulo: 0, totalItens: 0, semDetalhe: false, erro: d.erro }); return }
+        setDrillMaq({
+          terceiro, tp, loading: false, erro: null,
+          itens: d.itens || [], totalTitulo: d.totalTitulo || 0, totalItens: d.totalItens || 0,
+          semDetalhe: !!d.semDetalhe,
+        })
+      })
+      .catch((e) => setDrillMaq({ terceiro, tp, loading: false, itens: [], totalTitulo: 0, totalItens: 0, semDetalhe: false, erro: e.message }))
+  }
+
+  function fecharDrillMaq() { setDrillMaq(null) }
+
+  // Esc fecha primeiro o drill de maquinas (se aberto); senao o modal.
   useEffect(() => {
-    function onKey(e) { if (e.key === 'Escape') fecharModal() }
+    function onKey(e) {
+      if (e.key !== 'Escape') return
+      if (drillMaq) { setDrillMaq(null); return }
+      fecharModal()
+    }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [])
+  }, [drillMaq])
 
   // =========================================================================
   // COMPARATIVO ano-a-ano (port fiel de carregarComparar/renderComparativo)
@@ -949,7 +1006,26 @@ export default function FluxoPage() {
               <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">×</button>
             </div>
             <div className="p-5 overflow-y-auto">
-              <ModalCorpo corpo={modalCorpo} />
+              <ModalCorpo corpo={modalCorpo} onTerceiro={abrirDrillMaquinas} />
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* 2º popup (empilhado): maquinas/produtos que compoem o fornecedor */}
+      {drillMaq && (
+        <>
+          <div className="fixed inset-0 bg-black/40 z-[60]" onClick={fecharDrillMaq} />
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
+            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-2">
+              <div className="min-w-0">
+                <h2 className="font-semibold text-slate-800 truncate">{drillMaq.terceiro}</h2>
+                <div className="text-xs text-slate-500 mt-0.5">Maquinas / produtos que compoem o valor</div>
+              </div>
+              <button onClick={fecharDrillMaq} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0">×</button>
+            </div>
+            <div className="p-5 overflow-y-auto">
+              <DrillMaquinas d={drillMaq} />
             </div>
           </div>
         </>
@@ -963,7 +1039,7 @@ export default function FluxoPage() {
 // (Sankey) ou a lista de top terceiros (Treemap). Port fiel da montagem de HTML
 // da fonte, convertido para JSX.
 // ===========================================================================
-function ModalCorpo({ corpo }) {
+function ModalCorpo({ corpo, onTerceiro }) {
   if (!corpo || corpo.tipo === 'vazio') return null
   if (corpo.tipo === 'carregando') return <div className="text-slate-500 text-sm">Carregando...</div>
   if (corpo.tipo === 'erro') return <div className="text-red-600 text-sm">{corpo.msg}</div>
@@ -1029,7 +1105,7 @@ function ModalCorpo({ corpo }) {
 
   // --- Top terceiros (Treemap): barras horizontais --------------------------
   if (corpo.tipo === 'terceiros') {
-    const { lista, tp, grupo } = corpo
+    const { lista, tp, grupo, categoria } = corpo
     const top = lista.slice(0, 10)
     const totalCat = lista.reduce((s, t) => s + t.valor, 0)
     const maxVal = top[0] ? top[0].valor : 1
@@ -1041,7 +1117,10 @@ function ModalCorpo({ corpo }) {
           const pct = totalCat > 0 ? (100 * t.valor / totalCat) : 0
           const barPct = (100 * t.valor / maxVal)
           return (
-            <div key={i} className="border border-slate-200 rounded-lg p-3">
+            <button key={i} type="button"
+              onClick={() => onTerceiro && onTerceiro(t.nome, tp, grupo, categoria)}
+              title="Ver maquinas/produtos que compoem este valor"
+              className="w-full text-left border border-slate-200 rounded-lg p-3 hover:border-slate-400 hover:bg-slate-50 transition-colors cursor-pointer">
               <div className="flex items-start justify-between gap-2 mb-1">
                 <div className="font-medium text-slate-800 text-sm flex items-center gap-2">
                   <span className="text-xs text-slate-400 font-mono">{i + 1}.</span><span>{t.nome}</span>
@@ -1054,7 +1133,7 @@ function ModalCorpo({ corpo }) {
                 </div>
                 <div className="text-right font-bold text-slate-800 text-sm whitespace-nowrap">{fmtBRL(t.valor)}</div>
               </div>
-            </div>
+            </button>
           )
         })}
         {lista.length > 10 && (
@@ -1065,4 +1144,66 @@ function ModalCorpo({ corpo }) {
   }
 
   return null
+}
+
+// ===========================================================================
+// Conteudo do 2º popup: maquinas/produtos (descricao, qtd, valor) que compoem
+// o valor de um fornecedor. Os valores vem da NF-e de entrada e podem divergir
+// um pouco do valor do quadrante (frete/impostos/rateio de duplicata).
+// ===========================================================================
+function DrillMaquinas({ d }) {
+  if (!d) return null
+  if (d.loading) return <div className="text-slate-500 text-sm">Carregando...</div>
+  if (d.erro) return <div className="text-red-600 text-sm">Erro: {d.erro}</div>
+  if (d.semDetalhe) {
+    return <div className="text-slate-500 text-sm">Sem detalhamento de itens para contas a receber.</div>
+  }
+
+  const itens = d.itens || []
+  const divergencia = Math.abs((d.totalItens || 0) - (d.totalTitulo || 0))
+  const mostraDivergencia = (d.totalTitulo || 0) > 0 && divergencia / d.totalTitulo > 0.01
+
+  return (
+    <>
+      <div className="grid grid-cols-2 gap-2 mb-3">
+        <div className="bg-slate-50 border border-slate-200 rounded p-2">
+          <div className="text-[10px] uppercase text-slate-500">Valor no fluxo</div>
+          <div className="text-lg font-bold text-slate-800">{fmtBRL(d.totalTitulo || 0)}</div>
+        </div>
+        <div className="bg-slate-50 border border-slate-200 rounded p-2">
+          <div className="text-[10px] uppercase text-slate-500">Soma dos itens (NF-e)</div>
+          <div className="text-lg font-bold text-slate-800">{fmtBRL(d.totalItens || 0)}</div>
+        </div>
+      </div>
+      {mostraDivergencia && (
+        <div className="text-[11px] text-slate-500 mb-3">
+          A soma dos itens da NF-e pode diferir do valor no fluxo (frete, impostos ou rateio de duplicatas).
+        </div>
+      )}
+      {itens.length === 0 ? (
+        <div className="text-slate-500 text-sm">Sem itens de NF-e para este fornecedor no periodo (ex.: notas de servico/frete sem itens).</div>
+      ) : (
+        <div className="border border-slate-200 rounded overflow-hidden overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead className="bg-slate-50 text-slate-600">
+              <tr>
+                <th className="text-left px-2 py-1">Maquina / produto</th>
+                <th className="text-right px-2 py-1 whitespace-nowrap">Qtd</th>
+                <th className="text-right px-2 py-1 whitespace-nowrap">Valor</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.map((it, i) => (
+                <tr key={i} className="border-t border-slate-100">
+                  <td className="px-2 py-1 text-slate-800">{it.descricao}</td>
+                  <td className="px-2 py-1 text-right text-slate-600 whitespace-nowrap">{it.qtd ? it.qtd.toLocaleString('pt-BR') : '-'}</td>
+                  <td className="px-2 py-1 text-right font-medium text-slate-800 whitespace-nowrap">{fmtBRL(it.valor)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )
 }

@@ -1,0 +1,133 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e2724]:
+            - generic [ref=f2e2725]:
+              - generic [ref=f2e2726]:
+                - generic [ref=f2e2727]: 
+                - textbox "Buscar em 5050…" [ref=f2e3023]
+              - generic [ref=f2e2729]:
+                - button " Voltar" [ref=f2e3024] [cursor=pointer]:
+                  - generic [ref=f2e3025]: 
+                  - text: Voltar
+                - generic [ref=f2e2730] [cursor=pointer]: Catálogo
+                - generic [ref=f2e3026]: ›
+                - generic [ref=f2e3027] [cursor=pointer]: "5050"
+            - generic [ref=f2e3028]:
+              - generic [ref=f2e3029]:
+                - img "5050" [ref=f2e3032]
+                - generic [ref=f2e3033]:
+                  - generic [ref=f2e3034]: Trator
+                  - generic [ref=f2e3035]: "5050"
+                  - generic [ref=f2e3036]: 102 figuras · 12 sistemas
+              - generic [ref=f2e3037]: Sistemas
+              - generic [ref=f2e3038]:
+                - button "Motor Motor 18 figuras" [ref=f2e3039] [cursor=pointer]:
+                  - img "Motor" [ref=f2e3041]
+                  - generic [ref=f2e3042]:
+                    - generic [ref=f2e3043]: Motor
+                    - generic [ref=f2e3044]: 18 figuras
+                - button "TRANSMISSÃO TRANSMISSÃO 18 figuras" [ref=f2e3045] [cursor=pointer]:
+                  - img "TRANSMISSÃO" [ref=f2e3047]
+                  - generic [ref=f2e3048]:
+                    - generic [ref=f2e3049]: TRANSMISSÃO
+                    - generic [ref=f2e3050]: 18 figuras
+                - button "HIDRÁULICA HIDRÁULICA 16 figuras" [ref=f2e3051] [cursor=pointer]:
+                  - img "HIDRÁULICA" [ref=f2e3053]
+                  - generic [ref=f2e3054]:
+                    - generic [ref=f2e3055]: HIDRÁULICA
+                    - generic [ref=f2e3056]: 16 figuras
+                - button "Lataria Lataria 13 figuras" [ref=f2e3057] [cursor=pointer]:
+                  - img "Lataria" [ref=f2e3059]
+                  - generic [ref=f2e3060]:
+                    - generic [ref=f2e3061]: Lataria
+                    - generic [ref=f2e3062]: 13 figuras
+                - button "ELÉTRICA ELÉTRICA 11 figuras" [ref=f2e3063] [cursor=pointer]:
+                  - img "ELÉTRICA" [ref=f2e3065]
+                  - generic [ref=f2e3066]:
+                    - generic [ref=f2e3067]: ELÉTRICA
+                    - generic [ref=f2e3068]: 11 figuras
+                - button "EIXO DIANTEIRO EIXO DIANTEIRO 10 figuras" [ref=f2e3069] [cursor=pointer]:
+                  - img "EIXO DIANTEIRO" [ref=f2e3071]
+                  - generic [ref=f2e3072]:
+                    - generic [ref=f2e3073]: EIXO DIANTEIRO
+                    - generic [ref=f2e3074]: 10 figuras
+                - button "DIFERENCIAL DIFERENCIAL 3 figuras" [ref=f2e3075] [cursor=pointer]:
+                  - img "DIFERENCIAL" [ref=f2e3077]
+                  - generic [ref=f2e3078]:
+                    - generic [ref=f2e3079]: DIFERENCIAL
+                    - generic [ref=f2e3080]: 3 figuras
+                - button "EMBREAGEM EMBREAGEM 4 figuras" [ref=f2e3081] [cursor=pointer]:
+                  - img "EMBREAGEM" [ref=f2e3083]
+                  - generic [ref=f2e3084]:
+                    - generic [ref=f2e3085]: EMBREAGEM
+                    - generic [ref=f2e3086]: 4 figuras
+                - button "FREIO FREIO 5 figuras" [ref=f2e3087] [cursor=pointer]:
+                  - img "FREIO" [ref=f2e3089]
+                  - generic [ref=f2e3090]:
+                    - generic [ref=f2e3091]: FREIO
+                    - generic [ref=f2e3092]: 5 figuras
+                - button "ASSENTO DO OPERADOR ASSENTO DO OPERADOR 2 figuras" [ref=f2e3093] [cursor=pointer]:
+                  - img "ASSENTO DO OPERADOR" [ref=f2e3095]
+                  - generic [ref=f2e3096]:
+                    - generic [ref=f2e3097]: ASSENTO DO OPERADOR
+                    - generic [ref=f2e3098]: 2 figuras
+                - button "DIREÇÃO DIREÇÃO 1 figura" [ref=f2e3099] [cursor=pointer]:
+                  - img "DIREÇÃO" [ref=f2e3101]
+                  - generic [ref=f2e3102]:
+                    - generic [ref=f2e3103]: DIREÇÃO
+                    - generic [ref=f2e3104]: 1 figura
+                - button "RODAS DIANTEIRAS E TRASEIRAS RODAS DIANTEIRAS E TRASEIRAS 1 figura" [ref=f2e3105] [cursor=pointer]:
+                  - img "RODAS DIANTEIRAS E TRASEIRAS" [ref=f2e3107]
+                  - generic [ref=f2e3108]:
+                    - generic [ref=f2e3109]: RODAS DIANTEIRAS E TRASEIRAS
+                    - generic [ref=f2e3110]: 1 figura
+  - alert [ref=f2e15]

@@ -75,6 +75,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // ----------------------------------------------------------- transferir
   if (acao === 'transferir') {
+    if (ticket.tipo === 'compras') return erro('Solicitação de Compras segue o trilho de aprovação — use as ações da SC.')
     if (encerrado) return erro('Ticket encerrado — não pode ser transferido.')
     if (!souResponsavel && !souSolicitante && !auth.isAdmin) {
       return erro('Só o responsável atual ou o solicitante podem transferir.', 403)
@@ -105,6 +106,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // --------------------------------------------------------------- status
   if (acao === 'status') {
+    if (ticket.tipo === 'compras') return erro('Solicitação de Compras segue o trilho de aprovação — use as ações da SC.')
     const para = String(body.para || '') as TicketStatus
     if (!STATUS_INFO[para]) return erro('Status inválido')
     const invalida = validarTransicao(ticket, para, auth)

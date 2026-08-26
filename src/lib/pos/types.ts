@@ -65,6 +65,7 @@ export interface KanbanCard {
   relTecnico: string;
   pendenciaMahindra?: PendenciaMahindra | null;
   servicoInterno: boolean;
+  projetoCronograma?: { id: string; nome: string } | null;
 }
 
 export interface ClienteOption {

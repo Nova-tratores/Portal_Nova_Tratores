@@ -43,7 +43,7 @@ const COL_MES_PX = 92 // cada coluna de mes
 const OFFSET_GRAFICO_PX = COL_CONTA_PX + 3 * COL_AUX_PX // 550 — padding-left do canvas do grafico
 
 const PALETA = ['#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#10b981', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16']
-const PALETA_TREEMAP = ['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#0ea5e9', '#a3e635']
+const PALETA_TREEMAP =['#3b82f6', '#ef4444', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#84cc16', '#0ea5e9', '#a3e635']
 // Marcadores distintos por familia: ajudam a diferenciar linhas sobrepostas na
 // aba "Margens por Familia" (margens proximas tendem a colar umas nas outras).
 const FAM_POINT_STYLES = ['circle', 'rect', 'triangle', 'rectRot', 'star', 'crossRot']
@@ -142,8 +142,8 @@ function agregarDRE(consolidado, chaves) {
 // Defaults: jan/2023 ate mes anterior ao atual (igual setupDefaults da fonte)
 function defaultsPeriodo() {
   const hoje = new Date()
-  const fim = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)
-  const ini = new Date(2023, 0, 1)
+  const fim = new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1) // último mês fechado
+  const ini = new Date(fim.getFullYear(), 0, 1)                    // janeiro do ano do fim
   const ym = (d) => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0')
   return { de: ym(ini), ate: ym(fim) }
 }
@@ -184,6 +184,11 @@ function carregarChartLib() {
 export default function DrePage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
+
+  // "Exportar CSV" restrito a um único usuário (gate de UI). O email vem de
+  // financeiro_usu (select '*' do useAuth), gravado no login. Ficheiro .js -> sem cast.
+  const EMAIL_EXPORTA_CSV = 'financeiro@novatratores.com.br'
+  const podeExportarCSV = (userProfile?.email ?? '').toLowerCase() === EMAIL_EXPORTA_CSV
   // A tela DRE e sempre consolidada (NOVA + CASTRO); a conta selecionada e
   // importada por consistencia com o BRIEF, mas o original nao filtra por conta.
   useDreConta()
@@ -209,7 +214,7 @@ export default function DrePage() {
   const [regime, setRegime] = useState('competencia') // 'competencia' | 'omie'
   const [modoExibicao, setModoExibicao] = useState('rs') // 'rs' | 'pct'
   const [granularidade, setGranularidade] = useState('mes') // 'mes' | 'ano'
-  const [escalaDespesas, setEscalaDespesas] = useState('auto') // 'auto' | 'full'
+  const [escalaDespesas, setEscalaDespesas] = useState('log') // 'log' | 'auto' | 'full'
   const [nivelDespesas, setNivelDespesas] = useState('conta') // 'conta' | 'categoria'
 
   const [desde, setDesde] = useState(def.de)
@@ -943,9 +948,26 @@ export default function DrePage() {
         },
         scales: {
           x: { offset: true, grid: { display: false } },
-          y: {
+          // Log (default): pontos que estouram muito (ex.: parcelas de emprestimo)
+          // continuam visiveis sem achatar as demais linhas.
+          y: escalaDespesas === 'log' ? {
+            type: 'logarithmic',
+            ticks: { callback: (v) => fmtBRLs(v) },
+          } : {
             min: 0,
             max: (escalaDespesas === 'auto' && clamp) ? clamp.teto : undefined,
+            ticks: { callback: (v) => fmtBRLs(v) },
+          },
+          // Espelho do eixo Y no lado direito: o grafico e' largo e rola na
+          // horizontal - quem esta na ponta direita tambem precisa da regua.
+          y2: {
+            position: 'right',
+            type: escalaDespesas === 'log' ? 'logarithmic' : 'linear',
+            afterDataLimits: (axis) => {
+              const y = axis.chart.scales.y
+              if (y) { axis.min = y.min; axis.max = y.max }
+            },
+            grid: { drawOnChartArea: false },
             ticks: { callback: (v) => fmtBRLs(v) },
           },
         },
@@ -1792,9 +1814,11 @@ export default function DrePage() {
             <label className="text-[10px]">
               <input type="checkbox" checked={mostrarMeses} onChange={(e) => setMostrarMeses(e.target.checked)} /> mostrar meses
             </label>
-            <button onClick={exportarDreCSV}
-              className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs rounded"
-              title="Exporta a tabela DRE em CSV (UTF-8 com BOM, valores em R$)">Exportar CSV</button>
+            {podeExportarCSV && (
+              <button onClick={exportarDreCSV}
+                className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs rounded"
+                title="Exporta a tabela DRE em CSV (UTF-8 com BOM, valores em R$)">Exportar CSV</button>
+            )}
           </div>
         </div>
 
@@ -1858,9 +1882,11 @@ export default function DrePage() {
                   className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (nivelDespesas === 'categoria' ? tgAtivo : tgInativo)}>Categoria</button>
               </div>
               <div className="inline-flex rounded border border-slate-300 overflow-hidden"
-                title="Legível: limita o teto do eixo Y para que lançamentos fora da curva não achatem o gráfico. Completa: mostra a escala inteira.">
+                title="Log: escala logarítmica — pontos que estouram muito continuam visíveis sem achatar as demais linhas. Legível: limita o teto do eixo Y (linear). Completa: escala linear inteira.">
+                <button onClick={() => setEscalaDespesas('log')}
+                  className={'px-2 py-0.5 text-[10px] ' + (escalaDespesas === 'log' ? tgAtivo : tgInativo)}>Log</button>
                 <button onClick={() => setEscalaDespesas('auto')}
-                  className={'px-2 py-0.5 text-[10px] ' + (escalaDespesas === 'auto' ? tgAtivo : tgInativo)}>Legível</button>
+                  className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (escalaDespesas === 'auto' ? tgAtivo : tgInativo)}>Legível</button>
                 <button onClick={() => setEscalaDespesas('full')}
                   className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (escalaDespesas === 'full' ? tgAtivo : tgInativo)}>Completa</button>
               </div>

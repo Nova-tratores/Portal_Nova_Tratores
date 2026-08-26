@@ -1,0 +1,149 @@
+- generic [active] [ref=f8e1]:
+  - generic [ref=f8e2]:
+    - banner [ref=f8e3]:
+      - generic [ref=f8e4]:
+        - button [ref=f8e5] [cursor=pointer]
+        - link [ref=f8e7] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f8e8]
+        - link [ref=f8e10] [cursor=pointer]:
+          - /url: /propostas
+      - generic [ref=f8e15]:
+        - button "Tela dividida — dois sistemas lado a lado" [ref=f8e16] [cursor=pointer]
+        - button "Conectar meu e-mail no portal" [ref=f8e20] [cursor=pointer]
+        - button "Chat" [ref=f8e24] [cursor=pointer]
+        - button "24" [ref=f8e27] [cursor=pointer]
+        - button "Menu" [ref=f8e33] [cursor=pointer]
+        - generic "Meu perfil" [ref=f8e38] [cursor=pointer]:
+          - generic [ref=f8e40]:
+            - paragraph [ref=f8e41]: Henri Irneh
+            - paragraph [ref=f8e42]: Pós-Vendas
+    - generic [ref=f8e43]:
+      - generic [ref=f8e45]:
+        - paragraph [ref=f8e47]: Henri Irneh
+        - paragraph [ref=f8e48]: Pós-Vendas
+      - generic [ref=f8e49]:
+        - generic [ref=f8e50]:
+          - link "Dashboard" [ref=f8e51] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f8e60] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f8e66]:
+          - paragraph [ref=f8e67]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f8e69] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f8e76] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f8e83] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f8e89] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f8e98] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f8e105] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f8e112] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f8e119] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f8e125] [cursor=pointer]:
+            - /url: /cronograma
+          - link "Clientes" [ref=f8e131] [cursor=pointer]:
+            - /url: /clientes
+        - generic [ref=f8e138]:
+          - paragraph [ref=f8e139]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f8e141] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f8e149] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f8e155] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f8e162]:
+          - paragraph [ref=f8e163]: FINANCEIRO
+          - link "Financeiro" [ref=f8e165] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f8e171] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f8e177]:
+          - paragraph [ref=f8e178]: COMERCIAL
+          - link "Proposta Comercial" [ref=f8e180] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f8e189] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Supervisor Vendas" [ref=f8e196] [cursor=pointer]:
+            - /url: /supervisor-vendas
+        - generic [ref=f8e201]:
+          - paragraph [ref=f8e202]: ESTOQUE
+          - link "Visual Estoque" [ref=f8e204] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f8e210] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f8e217] [cursor=pointer]:
+            - /url: /ajustes
+        - generic [ref=f8e222]:
+          - paragraph [ref=f8e223]: FROTA
+          - link "Frota" [ref=f8e225] [cursor=pointer]:
+            - /url: /frota
+          - link "Pendências Frota" [ref=f8e234] [cursor=pointer]:
+            - /url: /pendencias
+        - generic [ref=f8e240]:
+          - paragraph [ref=f8e241]: OUTROS
+          - link "Opa" [ref=f8e243] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f8e249] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f8e255] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f8e272] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f8e278] [cursor=pointer]:
+          - /url: /admin
+        - link "Tratorilson" [ref=f8e284] [cursor=pointer]:
+          - /url: /tratorilson
+      - button "Sair do Portal" [ref=f8e291] [cursor=pointer]
+    - main [ref=f8e295]:
+      - generic [ref=f8e296]:
+        - generic [ref=f8e298]:
+          - generic [ref=f8e300]:
+            - button "Propostas Cliente" [ref=f8e301] [cursor=pointer]
+            - button "Pedidos Fabrica" [ref=f8e307] [cursor=pointer]
+            - button "Resumo" [ref=f8e310] [cursor=pointer]
+            - button "Lixeira" [ref=f8e313] [cursor=pointer]
+          - generic [ref=f8e319]:
+            - button "Menu" [ref=f8e321] [cursor=pointer]
+            - button "Nova Proposta" [ref=f8e323] [cursor=pointer]
+        - generic [ref=f8e326]:
+          - generic [ref=f8e327]:
+            - generic [ref=f8e328]: Filtrar por cliente, ID, marca, modelo, cidade, valor ou status
+            - textbox "Digite cliente, ID, marca, modelo, cidade, valor ou status..." [ref=f8e331]
+          - table [ref=f8e333]:
+            - rowgroup [ref=f8e334]:
+              - row [ref=f8e335]:
+                - columnheader "ID" [ref=f8e336] [cursor=pointer]
+                - columnheader "Cliente" [ref=f8e338] [cursor=pointer]
+                - columnheader "Vendedor" [ref=f8e340] [cursor=pointer]
+                - columnheader "Marca / Modelo" [ref=f8e342] [cursor=pointer]
+                - columnheader "Cidade" [ref=f8e344] [cursor=pointer]
+                - columnheader "Valor" [ref=f8e346] [cursor=pointer]
+                - columnheader "Status" [ref=f8e348] [cursor=pointer]
+                - columnheader "Parado há ▼" [ref=f8e350] [cursor=pointer]:
+                  - generic [ref=f8e351]:
+                    - text: Parado há
+                    - generic [ref=f8e352]: ▼
+                - columnheader "Alterar" [ref=f8e353]
+            - rowgroup [ref=f8e354]:
+              - row [ref=f8e355]:
+                - cell "Nenhuma proposta encontrada" [ref=f8e356]
+          - generic [ref=f8e357]: 0 propostas
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f8e358]:
+      - generic [ref=f8e361]:
+        - img "Tratorilson"
+    - generic [ref=f8e365] [cursor=pointer]:
+      - generic [ref=f8e371]:
+        - generic [ref=f8e372]:
+          - generic [ref=f8e373]: OS OS-0697 enviada
+          - generic [ref=f8e374]: NOVA
+        - paragraph [ref=f8e375]: Fernando Leonel enviou o relatório técnico da OS OS-0697 (NOVA TRATORES MAQUINAS AGRICOLAS LTDA)
+      - button [ref=f8e376]
+  - button "Open Next.js Dev Tools" [ref=f8e387] [cursor=pointer]
+  - alert [ref=f8e391]

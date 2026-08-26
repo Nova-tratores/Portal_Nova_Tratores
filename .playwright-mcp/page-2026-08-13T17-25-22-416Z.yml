@@ -1,0 +1,857 @@
+- generic [ref=e1]:
+  - generic [ref=e2]:
+    - banner [ref=e15]:
+      - generic [ref=e16]:
+        - button [ref=e17] [cursor=pointer]
+        - link [ref=e19] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=e20]
+      - generic [ref=e21]:
+        - button "Chat" [ref=e22] [cursor=pointer]
+        - button "Notificações" [ref=e25] [cursor=pointer]
+        - button "Menu" [ref=e30] [cursor=pointer]
+        - generic "Meu perfil" [ref=e35] [cursor=pointer]:
+          - generic [ref=e37]:
+            - paragraph [ref=e38]: Henri Irneh
+            - paragraph [ref=e39]: Pós-Vendas
+    - generic [ref=e40]:
+      - generic [ref=e42]:
+        - paragraph [ref=e44]: Henri Irneh
+        - paragraph [ref=e45]: Pós-Vendas
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - link "Dashboard" [ref=e48] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=e57] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=e63]:
+          - paragraph [ref=e64]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=e66] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=e73] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=e80] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=e86] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=e95] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=e102] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=e109] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=e116] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=e122] [cursor=pointer]:
+            - /url: /cronograma
+        - generic [ref=e128]:
+          - paragraph [ref=e129]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=e131] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=e139] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=e145] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=e152]:
+          - paragraph [ref=e153]: FINANCEIRO
+          - link "Financeiro" [ref=e155] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=e161] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=e169]:
+          - paragraph [ref=e170]: COMERCIAL
+          - link "Proposta Comercial" [ref=e172] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=e179] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Clientes" [ref=e186] [cursor=pointer]:
+            - /url: /clientes
+          - link "Supervisor Vendas" [ref=e193] [cursor=pointer]:
+            - /url: /supervisor-vendas
+          - link "Solicitações de Compras" [ref=e198] [cursor=pointer]:
+            - /url: /decisoes
+        - generic [ref=e206]:
+          - paragraph [ref=e207]: ESTOQUE
+          - link "Visual Estoque" [ref=e209] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=e215] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=e222] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Abastecimento" [ref=e227] [cursor=pointer]:
+            - /url: /abastecimento
+          - link "Omie em Massa" [ref=e234] [cursor=pointer]:
+            - /url: /omie-massa
+        - generic [ref=e239]:
+          - paragraph [ref=e240]: OUTROS
+          - link "Opa" [ref=e242] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=e248] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=e254] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=e271] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=e277] [cursor=pointer]:
+          - /url: /admin
+      - button "Sair do Portal" [ref=e284] [cursor=pointer]
+    - main [ref=e288]:
+      - generic [ref=e289]:
+        - generic [ref=e290]:
+          - generic [ref=e291]:
+            - generic [ref=e292]:
+              - generic [ref=e294]: DRE Financeiro
+              - 'button "Ajuda: o que é a tela Calendário" [ref=e295] [cursor=pointer]': "?"
+            - generic [ref=e296]:
+              - generic [ref=e297]: Conta
+              - generic [ref=e298]:
+                - button "NOVA" [ref=e299] [cursor=pointer]
+                - button "CASTRO" [ref=e300] [cursor=pointer]
+                - button "TODAS" [ref=e301] [cursor=pointer]
+          - navigation [ref=e302]:
+            - link "🏠 Home" [ref=e304] [cursor=pointer]:
+              - /url: /dre-financeiro
+            - generic [ref=e305]:
+              - generic [ref=e306]: Caixa & Venc.
+              - link "📅 Calendário" [ref=e307] [cursor=pointer]:
+                - /url: /dre-financeiro/calendario
+              - link "⚠️ Vencidos" [ref=e308] [cursor=pointer]:
+                - /url: /dre-financeiro/vencidos
+              - link "📉 Curva de Saldo" [ref=e309] [cursor=pointer]:
+                - /url: /dre-financeiro/curva-saldo
+              - link "🌊 Fluxo" [ref=e310] [cursor=pointer]:
+                - /url: /dre-financeiro/fluxo
+            - generic [ref=e311]:
+              - generic [ref=e312]: Prazos & Efic.
+              - link "🔄 Ciclo de Caixa" [ref=e313] [cursor=pointer]:
+                - /url: /dre-financeiro/ciclo-caixa
+              - link "⏱️ Pontualidade" [ref=e314] [cursor=pointer]:
+                - /url: /dre-financeiro/aderencia
+            - generic [ref=e315]:
+              - generic [ref=e316]: Resultado
+              - link "📋 DRE" [ref=e317] [cursor=pointer]:
+                - /url: /dre-financeiro/dre
+              - link "🔬 Análise DRE" [ref=e318] [cursor=pointer]:
+                - /url: /dre-financeiro/analise-dre
+              - link "🧩 Composição" [ref=e319] [cursor=pointer]:
+                - /url: /dre-financeiro/composicao
+            - generic [ref=e320]:
+              - generic [ref=e321]: Patrimônio
+              - link "💰 Patrimônio" [ref=e322] [cursor=pointer]:
+                - /url: /dre-financeiro/patrimonio
+              - link "📊 Rentabilidade" [ref=e323] [cursor=pointer]:
+                - /url: /dre-financeiro/rentabilidade
+              - link "📈 Lucratividade" [ref=e324] [cursor=pointer]:
+                - /url: /dre-financeiro/lucratividade
+              - link "🧮 Margens" [ref=e325] [cursor=pointer]:
+                - /url: /dre-financeiro/margens
+              - link "🏗️ Estoque Pátio ↗" [ref=e326] [cursor=pointer]:
+                - /url: /visual-estoque/patio
+            - generic [ref=e327]:
+              - generic [ref=e328]: Comercial
+              - link "🏷️ Vendas/Modelo" [ref=e329] [cursor=pointer]:
+                - /url: /dre-financeiro/vendas-modelo
+              - link "👥 Clientes" [ref=e330] [cursor=pointer]:
+                - /url: /dre-financeiro/clientes
+            - generic [ref=e331]:
+              - generic [ref=e332]: Qualidade
+              - link "🛡️ Monitor" [ref=e333] [cursor=pointer]:
+                - /url: /dre-financeiro/monitor
+        - generic [ref=e335]:
+          - generic [ref=e336]:
+            - button "←" [ref=e337]
+            - heading "Agosto 2026" [level=1] [ref=e338]
+            - button "→" [ref=e339]
+            - button "Hoje" [ref=e340]
+            - generic [ref=e341]:
+              - button "Mes" [ref=e342]
+              - button "Ano" [ref=e343]
+              - button "Lista" [ref=e344]
+            - group [ref=e345]:
+              - button "A Pagar" [ref=e346]
+              - button "A Receber" [ref=e347]
+              - button "Ambos" [ref=e348]
+            - group "Data usada para posicionar os titulos no calendario" [ref=e349]:
+              - button "Vencimento" [ref=e350]
+              - button "Emissao" [ref=e351]
+              - button "Criacao" [ref=e352]
+            - generic [ref=e353]: "Modo:"
+            - generic [ref=e354]: A Pagar
+            - generic [ref=e355]: ·
+            - generic [ref=e356]: por criacao
+            - button "Sincronizar" [ref=e357]
+          - generic [ref=e358]:
+            - generic [ref=e359]:
+              - generic [ref=e360]: A vencer no mes
+              - generic [ref=e361]: R$ 185,5k
+            - generic [ref=e362]:
+              - generic [ref=e363]: Vencido
+              - generic [ref=e364]: R$ 5,1k
+            - generic [ref=e365]:
+              - generic [ref=e366]: Pago no mes
+              - generic [ref=e367]: R$ 78,9k
+            - generic [ref=e368]:
+              - generic [ref=e369]: Proximos 7 dias
+              - generic [ref=e370]: R$ 16,1k
+          - generic [ref=e371]:
+            - combobox [ref=e372]:
+              - option "Todos os status" [selected]
+              - option "A vencer"
+              - option "Proximos 7 dias"
+              - option "Vencido"
+              - option "Liquidado"
+              - option "Pagamento parcial"
+            - combobox [ref=e373]:
+              - option "Todos os fornecedores" [selected]
+              - option "42.096.021 ANTONIO ROBERTO PEREIRA MARTINS"
+              - option "48.278.609 MARCELO FONSECA BUENO"
+              - option "55.536.850 ALESSANDRO RODRIGO RAIMUNDO"
+              - option "55.794.037 RODRIGO DE ARAUJO CASTRO JUNI"
+              - option "58.997.505 ALESSANDRO JOSE DO AMARAL CIRINO"
+              - option "61.849.573 JEFFERSON JOSE FIRMINO"
+              - option "A.A DE ALMEIDA EQUIPAMENTOS AGRO INDUSTRIAL"
+              - option "A3 INDUSTRIA DE MAQUINAS AGRICOLAS LTDA"
+              - option "ABRAHINDRA - ASSOCIACAO BRASILEIRA DAS CONCESSIONARIAS MAHINDRA"
+              - option "AC PIRAJU"
+              - option "ACOUGUE SAO JORGE"
+              - option "ADILSON FERNANDES FONSECA"
+              - option "ADILSON GONCALVES DE MENDONCA"
+              - option "AGRAMAQ"
+              - option "AGROGALAXY"
+              - option "Agrosystem"
+              - option "ALEX BUENO DE CAMARGO"
+              - option "ALEX FABIANO GARCIA"
+              - option "ALEXSANDER VICTORINO GUINHO"
+              - option "ANA CAROBA MOZINI POUSADA"
+              - option "ANA PAULA MIANO 34407488808"
+              - option "ANDRE LUIZ ANIBAL"
+              - option "ANTONIO BUENO (Nezão)"
+              - option "APICE ADMINISTRADORA DE CONSORCIO LTDA"
+              - option "ARMANDO VERRONE DEL MERCATO JUNIOR"
+              - option "ARTHUR LANGAME"
+              - option "ATRHOL - AGENCIA E TRANSPORTES HORIZONTINA LTDA"
+              - option "AUTO PECAS MART"
+              - option "AUTO POSTO 2001"
+              - option "AUTO POSTO BIZUNGA AVENID"
+              - option "AUTO SOCORRO NUNES LTDA"
+              - option "AUTO TINTAS PIRAJU"
+              - option "AV SOLUCOES AUTOMOTIVAS"
+              - option "BANCO BRASIL"
+              - option "BANCO DLL BRASIL S/A"
+              - option "BANCO VOTORANTIM S.A."
+              - option "BANDEIRANTE IND E COM DE MAQ LTDA"
+              - option "BARRACAO DO LANDICO"
+              - option "BAURU - EXPRESSO SAO MIGUEL S/A"
+              - option "BAURUFER AVARE"
+              - option "BAURUFER OURINHOS"
+              - option "BAVARIA COMERCIO DE EQUIPAMENTOS E PECAS P/ VEICULOS LT"
+              - option "BB CONSORCIOS"
+              - option "BENDITO POTE"
+              - option "BICICLETARIA SANTO ANTONIO"
+              - option "BISTECAO NA CHAPA"
+              - option "BLACK COLLORS CARTUCHOS E TONERS"
+              - option "BODIPASA - MTZ"
+              - option "BORRACHARIA MOVEL"
+              - option "BRADESCO EST UNIF"
+              - option "CACB CERTIFICADO DIGITAL JAU"
+              - option "CACIQUE-LOJA PIRAJU 04"
+              - option "CAMBARA BOMBAS DIESEL"
+              - option "CAMPINAS - EXPRESSO SAO MIGUEL S/A"
+              - option "CARIVALDO FABRICIO ROSA"
+              - option "CARLITO SOM &amp; ALARME"
+              - option "CARLOS ALBERTO PEDROTTI DE ANDRADE"
+              - option "CARLOS PNEUS"
+              - option "CARTORIO DE NOTAS E DE PROTESTOS"
+              - option "CARTORIO DE REGISTRO DE IMOVEIS E ANEXOS"
+              - option "CASA DO OLEO"
+              - option "CASA DOS PARAFUSOS"
+              - option "CASTRO PEÇAS E MAQUINAS AGRICOLAS LTDA"
+              - option "CEDNET"
+              - option "CELSO CAMARGO GUAZZO E OUTRA"
+              - option "CEMAG"
+              - option "CENTRO AUTOMOTIVO 2 IRMAOS"
+              - option "CENTRO DE INTEGRACAO EMPRESA ESCOLA CIE E"
+              - option "CES - COMERCIO DE PECAS PARA REPOSICAO LTDA"
+              - option "CHR AR CONDICIONADO E TRANSPORTES-RAFA"
+              - option "CHURRASCARIA BOLA BRANCA"
+              - option "CHURRASCARIA IRMAOS RODRIGUES"
+              - option "CITROSMAQ"
+              - option "CLELIA APARECIDA DE MORAES 29532707875"
+              - option "CLEUDENIRA BENEDITA NUNES DE OLIVEIRA"
+              - option "COMERCIAL DE PECAS AUTOMOTIVAS EMBREMAC"
+              - option "COMERCIAL OLIMPIA VALTRA VALMET"
+              - option "COMFORT INDUSTRIA E COMERCIO LTDA"
+              - option "COMPEL - BARUERI"
+              - option "COMPEL - SO"
+              - option "COMPER TRATORES LTDA"
+              - option "COMPER TRATORES LTDA"
+              - option "COMPLEXO TURISTICO POUSADA MATA NATIVA LTDA"
+              - option "CONTAINER LANCHE"
+              - option "CONTROLLAR"
+              - option "COPLACANA - TAQUARITUBA II"
+              - option "CPFL SANTA CRUZ"
+              - option "CRISTIANE APARECIDA RIBEIRO RESTAURANTE"
+              - option "CTM AUTRONICA SERVICE"
+              - option "D.E.R"
+              - option "DANIEL ANDREETTA"
+              - option "DANIEL DIANAS RIBEIRO E OUTRO"
+              - option "DANILO CORREA DE MEDEIROS"
+              - option "DANILO DE SOUZA"
+              - option "DERLI ANDRE DONEDA"
+              - option "DEVAIR SOARES DE OLIVEIRA"
+              - option "Disma"
+              - option "DOCUMENTO DE ARRECADACAO DE RECEITAS FERERAIS ( DARF)"
+              - option "DU DIESEL BOMBAS INJETORAS"
+              - option "DUTY PAPELARIA E LIMPEZA"
+              - option "ECT EMPRESA BRASILEIRA CORREIOS E TELEGRAFOS"
+              - option "EDJANIA MARIA DA SILVA"
+              - option "EDUARDO SILVEIRA 28560161899"
+              - option "EDUVALE FM"
+              - option "ELETROSERVICE - OURINHOS SP"
+              - option "ELIZANDRA MARCHESAN TONINI"
+              - option "EXPRESSO SAO MIGUEL"
+              - option "EXPRESSO SAO MIGUEL LTDA"
+              - option "EXPRESSO SAO MIGUEL LTDA"
+              - option "EXPRESSO SAO MIGUEL S/A"
+              - option "EXPRESSO SAO MIGUEL S/A"
+              - option "F.G.T.S"
+              - option "FABIO SUGUIMOTO &amp; ASSOCIADOS"
+              - option "FAVARO PNEUS"
+              - option "FERNANDO LEONEL"
+              - option "FLAVIO GARROTE WOLF"
+              - option "FORMIGONI E FILHOS LTDA"
+              - option "FUNFER - TONETI"
+              - option "GABRIEL GOMES DE MORAES"
+              - option "GABRIEL VICTOR DA MOTTA"
+              - option "GABRIELA SOARES DE ARANTES GENTIL"
+              - option "GALAX PAY"
+              - option "GALEGUINHOS"
+              - option "GEO AGRI TECNOLOGIA AGRICOLA LTDA"
+              - option "GERALDO N. RECKTENWALD E CIA LTDA - MATRIZ"
+              - option "GERSON AUTO PECAS"
+              - option "GOBBO PECAS E ACESSORIOS LTDA"
+              - option "GRUPO J2M - UNIDADE 01"
+              - option "GS DISTRIBIBUIDORA"
+              - option "GT motos"
+              - option "GTM PRUNING TECHNOLOGY"
+              - option "GUANDA BATERIAS LTDA"
+              - option "GUARUSHOP CNS COMERCIO VAREGISTA"
+              - option "HARAMAQ INDUSTRIA E COMERCIO DE MAQUINAS AGRICOLA LTDA"
+              - option "HELP INFORMATICA"
+              - option "HENRI FULANETO HIONI 42344635823"
+              - option "HIDRAMAT MATAO"
+              - option "HIGINO PEREIRA NETO"
+              - option "HOTEL CAICARA MATAO LTDA"
+              - option "HOTEL DAN INN ANHANGUERA LTDA."
+              - option "HOTEL ESPLANADA"
+              - option "HOTEL POUSADA CAMPOS VERDES"
+              - option "HOTEL SAO PAULO"
+              - option "HS HIDRO SYSTEMS"
+              - option "IGARAPE DISTRIBUIDORA AGRICOLA E COMERCIAL LTDA"
+              - option "IKEDA"
+              - option "IMPLEMENTOS AGRICOLAS MARISPAN LTDA"
+              - option "INCOMAC"
+              - option "INJETRON"
+              - option "INOVA IMAGEM"
+              - option "INTEGRACAO CONTABIL"
+              - option "INTEGRADA COOPERATIVA AGROINDUSTRIAL"
+              - option "IPVA"
+              - option "ITAU UNIBANCO"
+              - option "ITAU UNIBANCO HOLDING S.A."
+              - option "J.A.M. CACAMBAS"
+              - option "JA MANUTENCAO"
+              - option "JKS CENTRO AUTOMOTIVO"
+              - option "JOAO EMILIANO DOS SANTOS FILHO"
+              - option "JOAQUIM FERNANDO LEME"
+              - option "JORGE MAQUINAS"
+              - option "JOSE ANTONIO DE OLIVEIRA"
+              - option "JOSE ANTONIO VAZ ORTIZ"
+              - option "JOSE CARLOS FERREIRA 03024301801"
+              - option "JOSE DONIZETE ALVES RIBEIRO"
+              - option "JOSE HENRIQUE BERNARDINO GARROTE"
+              - option "JOSE SEBASTIAO ALVES &amp; CIA LTDA"
+              - option "JP CHAVES 24 HORAS"
+              - option "JULIANO A FERNANDES DA VANZO"
+              - option "KADU FERRAMENTAS"
+              - option "KAMAQ MAQUINAS E IMPLEMENTOS AGRICOLAS LTDA"
+              - option "KUHN DO BRASIL S/A - PF"
+              - option "KUHN-MONTANA"
+              - option "L DA SILVA CAMPOS CORREIA"
+              - option "LANCHONETE E CHURRASCARIA AVAREZAO"
+              - option "LANCHONETE ESPERANCA"
+              - option "LANCHONETE PARADA OBRIGATORIA"
+              - option "LE BORRACHEIRO"
+              - option "LEME ARTIGOS AUTOMOTIVOS LTDA"
+              - option "LEONARDO DE OLIVEIRA ABRANTES"
+              - option "LIBRA"
+              - option "LIONS INTITUICAO DE MEIOS DE PAGAMENTO S/A"
+              - option "LUIZ FERNANDO DE SOUZA"
+              - option "LUIZ FERNANDO SANCHEZ"
+              - option "LUMA IMPLEMENTOS AGRICOLAS LTDA"
+              - option "M E G SOLDERA LTDA"
+              - option "M E M REPARACAO"
+              - option "MAHINDRA DO BRASIL INDUSTRIAL LTDA"
+              - option "MANDALLA RESTAURANTE E CHURRASCARIA"
+              - option "MARCHESAN IMPLEMENTOS E MAQUINAS AGRICOLAS TATU S A"
+              - option "MARCIO ANTONIO MARQUES DA CUNHA"
+              - option "MARCO ANTONIO CONTI PAULO 03392403857"
+              - option "MARIA DO CARMO SILVA"
+              - option "MARIANO RAMOS DO VAL"
+              - option "MARINHO AUTOVIDROS"
+              - option "MARKET MIX MERCEARIA E UTILIDADES LTDA"
+              - option "MASCOTE CLINICA VETERINARIA"
+              - option "MATHEUS DE MELO ROSA"
+              - option "MAXXFORTE INDUSTRIA DE IMPLEMENTOS AGRICOLAS"
+              - option "MB COMERCIO IMPORTACAO LTDA"
+              - option "MECANICA 2 AMIGOS"
+              - option "MERCADO PAGO INSTITUICAO DE PAGAMENTO LTDA"
+              - option "MERCADO VITORIA"
+              - option "MFW MAQUINAS LTDA."
+              - option "MICA AUTO PEÇAS"
+              - option "MIGUEL ANGELO LEME"
+              - option "MILAZZO VEICULOS PECAS E SERVICOS LTDA"
+              - option "MOB DAY CANTIZANI"
+              - option "MOTO SPORT"
+              - option "MPR TORNO E SOLDA"
+              - option "MULTICAR PIRAJU SERVICOS E PECAS LTDA"
+              - option "NASCIMENTO &amp; GARCIA LANCHONETE"
+              - option "NELSON ARNO DALLENOGARE"
+              - option "NETO FILTROS E LUBRIFICANTES"
+              - option "NEW PRINT CARTUCHOS E TONERS"
+              - option "NIC. BR"
+              - option "NICOLAS DA SILVA DARIO"
+              - option "NICOLAU MAX SUPERMERCADOS"
+              - option "NICOLLY CAROLINE CARDOSO DE OLIVEIRA"
+              - option "NOGUEIRA"
+              - option "NOSSO CAMPO AGRICULTURE"
+              - option "NOSSO CAMPO MAQUINAS AGRICOLAS LTDA"
+              - option "O PIRATA"
+              - option "OCTAVIANO RAYMUNDO CAMARGO SILVA"
+              - option "ODONTOPREV S.A."
+              - option "OFICINA DO FRANCES"
+              - option "OFICINA JF"
+              - option "OMIEXPERIENCE LTDA."
+              - option "OURIDIESEL"
+              - option "OUROCARD"
+              - option "PALOMA RESTAURANTE E LANCHONETE LTDA"
+              - option "PAPELARIA CGC"
+              - option "PARADA PNEUS AUTO CENTER"
+              - option "PAULO JOAQUIM MOTTA"
+              - option "PAULO MAGALHAES DE CARVALHO"
+              - option "PEDRO CARLOS DE BARROS"
+              - option "Pedro Henrique Motta"
+              - option "PEDRO OSCAR FAVARO"
+              - option "PET SHOP ANIMAL FELIZ"
+              - option "PIRAJU COMERCIO DE PEÇAS"
+              - option "PIRAJU GABINETE PREFEITO"
+              - option "PIRAMAK"
+              - option "PLAMEN"
+              - option "POLICAR"
+              - option "POLLYANE DE CASTRO TONON"
+              - option "POSTO ESPLANADA"
+              - option "POSTO NASCIMENTO"
+              - option "POSTO TREVAO DE PIRAJU LTDA"
+              - option "POSTO TRIUNFO"
+              - option "PREFEITURA PIRAJU"
+              - option "PROESTE PIRAJU"
+              - option "Promissao I - Posto Peixinho"
+              - option "QUALICICLO AGRICOLA S/A"
+              - option "QUERO PASSAGEM VIAGENS E TURISMO LTDA"
+              - option "QUITANDA SAO JOSE MATRIZ"
+              - option "R.P"
+              - option "RECEITA FEDERAL"
+              - option "RESILLIENCE PRINT"
+              - option "RESTAURANTE"
+              - option "RESTAURANTE AMIGOS DA BR LTDA"
+              - option "RESTAURANTE CAFE TURCO"
+              - option "RESTAURANTE E LANCHONETE ALVORADA"
+              - option "RESTAURANTE E LANCHONETE PEIXE NA TELHA"
+              - option "RESTAURANTE E LANCHONETE SABOR DA TILAPIA"
+              - option "RESTAURANTE E LANCHONETE SERVE-BEM"
+              - option "RESTAURANTE E POUSADA DO ZEL"
+              - option "RESTAURANTE MADELIS"
+              - option "RESTAURANTE MONTE SINAI"
+              - option "RESTAURANTE POINT GRILL"
+              - option "RESTAURANTE RANCHO 53 LTDA"
+              - option "RJS PRESTACAO DE SERVICOS"
+              - option "RODNEY MATEUS DE OLIVEIRA"
+              - option "RODONAVES TRANSP E ENCOMENDAS LTDA"
+              - option "RODONAVES TRANSPORTES E ENCOMENDAS"
+              - option "RODONAVES TRANSPORTES E ENCOMENDAS LTDA"
+              - option "RODRIGO ALVES NOGUEIRA RESTAURANTES LTDA"
+              - option "RODRIGO VAZ RODRIGUES"
+              - option "ROLEX"
+              - option "RotaExata"
+              - option "ROTOPLASTYC"
+              - option "SABESP"
+              - option "SALVADOR FERREIRA LUZ"
+              - option "SANSON PNEUS"
+              - option "SANTA IZABEL AGRO INDUSTRIA LTDA"
+              - option "SANTIAGO GARROTE"
+              - option "SAO JOSE DOS PINHAIS - EXPRESSO SAO MIGUEL S/A"
+              - option "SCARAMBONI - RETIFICA DE CABECOTE"
+              - option "SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA"
+              - option "SE.TU - COMIDAS CASEIRAS"
+              - option "SEM PARAR INSTITUICAO DE PAGAMENTO LTDA"
+              - option "SILVA E SILVA COMERCIO DE VARIEDADES LTDA"
+              - option "SKINAO LANCHES E SALGADOS"
+              - option "SOL NASCENTE SALGADOS"
+              - option "SOROCABA - FLEXLUB"
+              - option "TABELIAO DE NOTAS E DE PROTESTO"
+              - option "TELEFONICA BRASIL S.A."
+              - option "TEP MAGAZINE COMERCIO VAREJISTA LTDA"
+              - option "TERRA NOVA RESTAURANTE"
+              - option "TERRIS TECNOLOGIA"
+              - option "TIO TOKO PIRAJU"
+              - option "TRACARTE - COMUNICACAO VISUAL"
+              - option "TRANS - BERNARDES LTDA (TRANS-RAPAL)"
+              - option "TRANS-BERNARDES CARGAS E ENCOMENDAS LTDA"
+              - option "TRANSPORTE ITAPIRENSE BERTINI LTDA"
+              - option "TRITUCAP"
+              - option "ULTRAGAZ CONTAINER"
+              - option "UNIAO DE TINTAS - PIRAJU LJ 008"
+              - option "UNIDAS LOCACOES E SERVICOS S/A"
+              - option "UNIPETRO OURINHOS DISTRIBUIDORA DE PETROLEO LTDA"
+              - option "VICON MAQUINAS AGRICOLAS LT"
+              - option "VIDRACARIA E SERRALHERIA BARROS"
+              - option "VIDROFERPIRAJU"
+              - option "Vinícius Côrrea Martins da Silva"
+              - option "VL"
+              - option "WENDLER GABRIEL FERRAZ POCARLI"
+              - option "ZANIVAN TRANSPORTE LTDA"
+            - combobox [ref=e374]:
+              - option "Todos os grupos" [selected]
+              - option "Despesas Administrativas"
+              - option "Despesas com Pessoal"
+              - option "Despesas de Vendas e Marketing"
+              - option "Despesas Diretas"
+              - option "Despesas Financeiras / Bancos"
+              - option "Devoluções de Vendas"
+              - option "Impostos e Taxas"
+              - option "Investimento"
+              - option "Outras Despesas"
+            - combobox [ref=e375]:
+              - option "Todas as categorias" [selected]
+              - option "13º Salário"
+              - option "Adiantamento"
+              - option "Adiantamento a Fornecedores"
+              - option "Advogados"
+              - option "Água e Esgoto"
+              - option "Almoxarifado / Limpeza"
+              - option "Assistência Médica"
+              - option "Bonificações"
+              - option "Brindes"
+              - option "Combustível"
+              - option "Comissões"
+              - option "Compra de Material de Consumo da Oficina"
+              - option "Compra de Serviços"
+              - option "Compra de Serviços para ATVs e UTVs"
+              - option "Compra de Serviços para Implementos"
+              - option "Compra de Serviços para Tratores de Outras Marcas"
+              - option "Compra de Serviços para Tratores Mahindra"
+              - option "Compras de Implementos para Revenda"
+              - option "Compras de Mercadorias para Manutenção de Tratores/Implementos"
+              - option "Compras de Peças para Revenda"
+              - option "Compras de Tratores para Revenda"
+              - option "Contabilidade"
+              - option "Contribuição Social"
+              - option "Despesas com Contratos (Cartório/Correios )"
+              - option "Despesas Jurídicas/Honorários Advocatício"
+              - option "Devoluções de Vendas de Mercadoria"
+              - option "Doações"
+              - option "Documentação (Correios, Cartório, etc)"
+              - option "Energia Elétrica"
+              - option "Entrada de mercadoria em demonstraçao"
+              - option "Envio de Peças (Correios, Transportadora)"
+              - option "FGTS"
+              - option "Frete"
+              - option "Frete (Retirada)"
+              - option "Hospedagem"
+              - option "INSS"
+              - option "IOF"
+              - option "IPTU"
+              - option "IPVA"
+              - option "IRPJ"
+              - option "IRRF"
+              - option "ISS"
+              - option "Juros sobre Empréstimos"
+              - option "Locação de Veiculo"
+              - option "Manutenção de Imobilizado"
+              - option "Manutenção de Veículos"
+              - option "Máquinas e Equipamentos"
+              - option "Marketing"
+              - option "Material de Escritório"
+              - option "Multa/Licenciamento Veicular"
+              - option "Multas"
+              - option "Outros Benefícios"
+              - option "Pagamento de Empréstimos"
+              - option "Pedagio"
+              - option "Recebimento de Peças Garantia/Outras Entradas"
+              - option "Rescisões"
+              - option "Saida de Mercadoria para Demonstração"
+              - option "Salários"
+              - option "Simples Nacional (DAS)"
+              - option "Sistemas e Informática"
+              - option "Tarifas Bancárias"
+              - option "Telefonia"
+              - option "Uniformes e EPI"
+              - option "Vale Refeição"
+              - option "Vale Transporte"
+              - option "Veículos"
+            - combobox [ref=e376]:
+              - option "Todos os departamentos" [selected]
+              - 'option "01. #Serviços em Tratores"'
+              - 'option "02. #Serviços em Implementos"'
+              - 'option "03. # Garantias"'
+              - 'option "04. # Oficina Frota"'
+              - option "05. Administrativo"
+              - 'option "05. # Quadriciclo"'
+              - option "06. Comercial Tratores"
+              - option "07. Comercial Implementos"
+              - option "08. Comercial Peças"
+              - option "09. Comercial Frota"
+              - option "11. Marketing_Eventos"
+              - option "Comercial (Sem Especificação)"
+              - option "Desativado (caminhões)"
+              - option "Oficina (Sem Especificação)"
+              - option "Sua Empresa"
+            - button "Limpar" [ref=e377]
+          - generic [ref=e378]:
+            - generic [ref=e379]:
+              - generic [ref=e380]: Dom
+              - generic [ref=e381]: Seg
+              - generic [ref=e382]: Ter
+              - generic [ref=e383]: Qua
+              - generic [ref=e384]: Qui
+              - generic [ref=e385]: Sex
+              - generic [ref=e386]: Sab
+            - generic [ref=e387]:
+              - generic [ref=e394] [cursor=pointer]: "1"
+              - generic [ref=e397] [cursor=pointer]: "2"
+              - generic [ref=e400] [cursor=pointer]:
+                - generic [ref=e401]:
+                  - generic [ref=e402]: "3"
+                  - generic [ref=e521]:
+                    - generic "vencido" [ref=e855]
+                    - generic "a vencer" [ref=e856]
+                    - generic "pago" [ref=e857]
+                - generic [ref=e858]: R$ 16,8k
+                - generic [ref=e859]: 20 titulos
+              - generic [ref=e403] [cursor=pointer]:
+                - generic [ref=e404]:
+                  - generic [ref=e405]: "4"
+                  - generic [ref=e526]:
+                    - generic "vencido" [ref=e860]
+                    - generic "a vencer" [ref=e861]
+                    - generic "pago" [ref=e862]
+                - generic [ref=e863]: R$ 12,8k
+                - generic [ref=e864]: 16 titulos
+              - generic [ref=e406] [cursor=pointer]:
+                - generic [ref=e407]:
+                  - generic [ref=e408]: "5"
+                  - generic [ref=e531]:
+                    - generic "vencido" [ref=e865]
+                    - generic "a vencer" [ref=e866]
+                    - generic "pago" [ref=e867]
+                - generic [ref=e868]: R$ 61,3k
+                - generic [ref=e869]: 18 titulos
+              - generic [ref=e409] [cursor=pointer]:
+                - generic [ref=e410]:
+                  - generic [ref=e411]: "6"
+                  - generic "a vencer" [ref=e870]
+                - generic [ref=e871]: R$ 231
+                - generic [ref=e872]: 4 titulos
+              - generic [ref=e412] [cursor=pointer]:
+                - generic [ref=e413]:
+                  - generic [ref=e414]: "7"
+                  - generic [ref=e540]:
+                    - generic "a vencer" [ref=e873]
+                    - generic "pago" [ref=e874]
+                - generic [ref=e875]: R$ 1,6k
+                - generic [ref=e876]: 5 titulos
+              - generic [ref=e415] [cursor=pointer]: "8"
+              - generic [ref=e418] [cursor=pointer]: "9"
+              - generic [ref=e421] [cursor=pointer]:
+                - generic [ref=e422]:
+                  - generic [ref=e423]: "10"
+                  - generic [ref=e553]:
+                    - generic "vencido" [ref=e877]
+                    - generic "a vencer" [ref=e878]
+                    - generic "pago" [ref=e879]
+                - generic [ref=e880]: R$ 10,2k
+                - generic [ref=e881]: 10 titulos
+              - generic [ref=e424] [cursor=pointer]:
+                - generic [ref=e425]:
+                  - generic [ref=e426]: "11"
+                  - generic [ref=e558]:
+                    - generic "vencido" [ref=e882]
+                    - generic "a vencer" [ref=e883]
+                    - generic "pago" [ref=e884]
+                - generic [ref=e885]: R$ 9,0k
+                - generic [ref=e886]: 18 titulos
+              - generic [ref=e427] [cursor=pointer]:
+                - generic [ref=e428]:
+                  - generic [ref=e429]: "12"
+                  - generic [ref=e563]:
+                    - generic "vencido" [ref=e887]
+                    - generic "a vencer" [ref=e888]
+                    - generic "pago" [ref=e889]
+                - generic [ref=e890]: R$ 80,9k
+                - generic [ref=e891]: 41 titulos
+              - generic [ref=e430] [cursor=pointer]:
+                - generic [ref=e431]:
+                  - generic [ref=e432]: "13"
+                  - generic "a vencer" [ref=e892]
+                - generic [ref=e893]: R$ 76,7k
+                - generic [ref=e894]: 17 titulos
+              - generic [ref=e433] [cursor=pointer]: "14"
+              - generic [ref=e436] [cursor=pointer]: "15"
+              - generic [ref=e439] [cursor=pointer]: "16"
+              - generic [ref=e442] [cursor=pointer]: "17"
+              - generic [ref=e445] [cursor=pointer]: "18"
+              - generic [ref=e448] [cursor=pointer]: "19"
+              - generic [ref=e451] [cursor=pointer]: "20"
+              - generic [ref=e454] [cursor=pointer]: "21"
+              - generic [ref=e457] [cursor=pointer]: "22"
+              - generic [ref=e460] [cursor=pointer]: "23"
+              - generic [ref=e463] [cursor=pointer]: "24"
+              - generic [ref=e466] [cursor=pointer]: "25"
+              - generic [ref=e469] [cursor=pointer]: "26"
+              - generic [ref=e472] [cursor=pointer]: "27"
+              - generic [ref=e475] [cursor=pointer]: "28"
+              - generic [ref=e478] [cursor=pointer]: "29"
+              - generic [ref=e481] [cursor=pointer]: "30"
+              - generic [ref=e484] [cursor=pointer]: "31"
+          - complementary [ref=e492]:
+            - generic [ref=e493]:
+              - heading "Titulos criados em 13/08/2026" [level=2] [ref=e731]
+              - button "×" [active] [ref=e495]
+            - generic [ref=e496]:
+              - generic [ref=e497]:
+                - generic [ref=e732]: 17 titulos
+                - generic [ref=e733]: R$ 76.669,63
+              - generic [ref=e734]:
+                - generic [ref=e735]:
+                  - generic [ref=e736]:
+                    - generic [ref=e737]: VICON MAQUINAS AGRICOLAS LT
+                    - generic [ref=e738]:
+                      - generic [ref=e739]: R$ 12.125,00
+                      - generic [ref=e740]: A vencer
+                  - generic [ref=e741]: "Doc: 000098109/2 · NF: 000098109 · Parc: 002/002 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e742]:
+                  - generic [ref=e743]:
+                    - generic [ref=e744]: VICON MAQUINAS AGRICOLAS LT
+                    - generic [ref=e745]:
+                      - generic [ref=e746]: R$ 12.125,00
+                      - generic [ref=e747]: A vencer
+                  - generic [ref=e748]: "Doc: 000098109/1 · NF: 000098109 · Parc: 001/002 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e749]:
+                  - generic [ref=e750]:
+                    - generic [ref=e751]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e752]:
+                      - generic [ref=e753]: R$ 10.373,27
+                      - generic [ref=e754]: A vencer
+                  - generic [ref=e755]: "Doc: 000038948/2 · NF: 000038948 · Parc: 002/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e756]:
+                  - generic [ref=e757]:
+                    - generic [ref=e758]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e759]:
+                      - generic [ref=e760]: R$ 10.373,27
+                      - generic [ref=e761]: A vencer
+                  - generic [ref=e762]: "Doc: 000038948/4 · NF: 000038948 · Parc: 004/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e763]:
+                  - generic [ref=e764]:
+                    - generic [ref=e765]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e766]:
+                      - generic [ref=e767]: R$ 10.373,27
+                      - generic [ref=e768]: A vencer
+                  - generic [ref=e769]: "Doc: 000038948/5 · NF: 000038948 · Parc: 005/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e770]:
+                  - generic [ref=e771]:
+                    - generic [ref=e772]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e773]:
+                      - generic [ref=e774]: R$ 10.373,27
+                      - generic [ref=e775]: A vencer
+                  - generic [ref=e776]: "Doc: 000038948/3 · NF: 000038948 · Parc: 003/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e777]:
+                  - generic [ref=e778]:
+                    - generic [ref=e779]: SCHEMAQ INDUSTRIA DE IMPLEMENTOS AGRICOLAS LTDA
+                    - generic [ref=e780]:
+                      - generic [ref=e781]: R$ 10.373,27
+                      - generic [ref=e782]: A vencer
+                  - generic [ref=e783]: "Doc: 000038948/1 · NF: 000038948 · Parc: 001/005 · Despesas Diretas · Compras de Implementos para Revenda · 07. Comercial Implementos"
+                - generic [ref=e784]:
+                  - generic [ref=e785]:
+                    - generic [ref=e786]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e787]:
+                      - generic [ref=e788]: R$ 55,40
+                      - generic [ref=e789]: A vencer
+                  - generic [ref=e790]: "Doc: 000019383/10 · NF: 000019383 · Parc: 010/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e791]:
+                  - generic [ref=e792]:
+                    - generic [ref=e793]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e794]:
+                      - generic [ref=e795]: R$ 55,32
+                      - generic [ref=e796]: A vencer
+                  - generic [ref=e797]: "Doc: 000019383/2 · NF: 000019383 · Parc: 002/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e798]:
+                  - generic [ref=e799]:
+                    - generic [ref=e800]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e801]:
+                      - generic [ref=e802]: R$ 55,32
+                      - generic [ref=e803]: A vencer
+                  - generic [ref=e804]: "Doc: 000019383/4 · NF: 000019383 · Parc: 004/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e805]:
+                  - generic [ref=e806]:
+                    - generic [ref=e807]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e808]:
+                      - generic [ref=e809]: R$ 55,32
+                      - generic [ref=e810]: A vencer
+                  - generic [ref=e811]: "Doc: 000019383/5 · NF: 000019383 · Parc: 005/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e812]:
+                  - generic [ref=e813]:
+                    - generic [ref=e814]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e815]:
+                      - generic [ref=e816]: R$ 55,32
+                      - generic [ref=e817]: A vencer
+                  - generic [ref=e818]: "Doc: 000019383/6 · NF: 000019383 · Parc: 006/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e819]:
+                  - generic [ref=e820]:
+                    - generic [ref=e821]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e822]:
+                      - generic [ref=e823]: R$ 55,32
+                      - generic [ref=e824]: A vencer
+                  - generic [ref=e825]: "Doc: 000019383/7 · NF: 000019383 · Parc: 007/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e826]:
+                  - generic [ref=e827]:
+                    - generic [ref=e828]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e829]:
+                      - generic [ref=e830]: R$ 55,32
+                      - generic [ref=e831]: A vencer
+                  - generic [ref=e832]: "Doc: 000019383/8 · NF: 000019383 · Parc: 008/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e833]:
+                  - generic [ref=e834]:
+                    - generic [ref=e835]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e836]:
+                      - generic [ref=e837]: R$ 55,32
+                      - generic [ref=e838]: A vencer
+                  - generic [ref=e839]: "Doc: 000019383/9 · NF: 000019383 · Parc: 009/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e840]:
+                  - generic [ref=e841]:
+                    - generic [ref=e842]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e843]:
+                      - generic [ref=e844]: R$ 55,32
+                      - generic [ref=e845]: A vencer
+                  - generic [ref=e846]: "Doc: 000019383/1 · NF: 000019383 · Parc: 001/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+                - generic [ref=e847]:
+                  - generic [ref=e848]:
+                    - generic [ref=e849]: UNIAO DE TINTAS - PIRAJU LJ 008
+                    - generic [ref=e850]:
+                      - generic [ref=e851]: R$ 55,32
+                      - generic [ref=e852]: A vencer
+                  - generic [ref=e853]: "Doc: 000019383/3 · NF: 000019383 · Parc: 003/010 · Despesas Administrativas · Manutenção de Imobilizado · 05. Administrativo"
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=e498]:
+      - generic [ref=e854]:
+        - img "Tratorilson"
+  - button "Open Next.js Dev Tools" [ref=e11] [cursor=pointer]
+  - alert [ref=e511]

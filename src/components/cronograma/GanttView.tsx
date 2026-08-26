@@ -7,33 +7,44 @@ import './frappe-gantt.css';
 
 export type ViewMode = 'Day' | 'Week' | 'Month';
 
+export interface Marcador { date: string; name: string; color: string }
+
 interface Props {
   tasks: FrappeTask[];
   viewMode?: ViewMode;
   readonly?: boolean;
+  marcadores?: Marcador[];
   onDateChange?: (id: string, start: Date, end: Date) => void;
   onClick?: (id: string) => void;
 }
 
-export default function GanttView({ tasks, viewMode = 'Day', readonly, onDateChange, onClick }: Props) {
+export default function GanttView({ tasks, viewMode = 'Day', readonly, marcadores, onDateChange, onClick }: Props) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const el = ref.current;
     if (!el || tasks.length === 0) return;
     el.innerHTML = '';
+    // datas da OS como faixas verticais (opção nativa `holidays`; a label usa a chave `name`).
+    const holidays: Record<string, unknown> = { 'var(--g-weekend-highlight-color)': 'weekend' };
+    for (const m of marcadores ?? []) {
+      const arr = (holidays[m.color] as { date: string; name: string }[]) ?? [];
+      arr.push({ date: m.date, name: m.name });
+      holidays[m.color] = arr;
+    }
     // eslint-disable-next-line no-new
     new Gantt(el, tasks, {
       view_mode: viewMode,
       readonly: !!readonly,
       infinite_padding: false,
+      holidays,
       on_click: (t) => onClick?.(String(t.id)),
       on_date_change: (t, start, end) => onDateChange?.(String(t.id), start, end),
     });
     return () => {
       if (el) el.innerHTML = '';
     };
-  }, [tasks, viewMode, readonly, onDateChange, onClick]);
+  }, [tasks, viewMode, readonly, marcadores, onDateChange, onClick]);
 
   if (tasks.length === 0) {
     return (

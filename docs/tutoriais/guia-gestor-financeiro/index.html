@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Guia do Gestor — Financeiro & Estoque | Nova Tratores</title>
+<style>
+  :root {
+    --paper:#F6F3ED; --card:#FFFFFF; --card-2:#FBF8F2;
+    --ink:#221E19; --ink-soft:#5C5449; --ink-faint:#8A8072;
+    --line:#E4DDD0; --line-strong:#D3C9B7;
+    --accent:#A5382A; --accent-ink:#8A2C20; --accent-soft:#F1E2DE;
+    --good:#2E7D4F; --good-bg:#E7F0E9; --good-line:#BFD9C9;
+    --warn:#B07914; --warn-bg:#F6ECD5; --warn-line:#E5D2A3;
+    --bad:#C0392B; --bad-bg:#F8E5E1; --bad-line:#EAC4BC;
+    --shadow:0 1px 2px rgba(40,30,20,.04), 0 6px 20px rgba(40,30,20,.06);
+    --serif:'Iowan Old Style','Palatino Linotype',Palatino,'Book Antiqua',Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    --mono:'SFMono-Regular',ui-monospace,'Cascadia Mono','Consolas','Liberation Mono',monospace;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --paper:#16140F; --card:#211D17; --card-2:#1C1912;
+      --ink:#EFE8DB; --ink-soft:#B3A997; --ink-faint:#877D6C;
+      --line:#322C22; --line-strong:#40392C;
+      --accent:#E1836F; --accent-ink:#E9A091; --accent-soft:#2E211C;
+      --good:#79C69A; --good-bg:#1B2A21; --good-line:#2E4436;
+      --warn:#DDB35A; --warn-bg:#2C2413; --warn-line:#4A3D1D;
+      --bad:#E8897C; --bad-bg:#2E1B18; --bad-line:#4C2C26;
+      --shadow:0 1px 2px rgba(0,0,0,.3), 0 6px 22px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --paper:#F6F3ED; --card:#FFFFFF; --card-2:#FBF8F2;
+    --ink:#221E19; --ink-soft:#5C5449; --ink-faint:#8A8072;
+    --line:#E4DDD0; --line-strong:#D3C9B7;
+    --accent:#A5382A; --accent-ink:#8A2C20; --accent-soft:#F1E2DE;
+    --good:#2E7D4F; --good-bg:#E7F0E9; --good-line:#BFD9C9;
+    --warn:#B07914; --warn-bg:#F6ECD5; --warn-line:#E5D2A3;
+    --bad:#C0392B; --bad-bg:#F8E5E1; --bad-line:#EAC4BC;
+  }
+  :root[data-theme="dark"]{
+    --paper:#16140F; --card:#211D17; --card-2:#1C1912;
+    --ink:#EFE8DB; --ink-soft:#B3A997; --ink-faint:#877D6C;
+    --line:#322C22; --line-strong:#40392C;
+    --accent:#E1836F; --accent-ink:#E9A091; --accent-soft:#2E211C;
+    --good:#79C69A; --good-bg:#1B2A21; --good-line:#2E4436;
+    --warn:#DDB35A; --warn-bg:#2C2413; --warn-line:#4A3D1D;
+    --bad:#E8897C; --bad-bg:#2E1B18; --bad-line:#4C2C26;
+  }
+
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:var(--sans);font-size:17px;line-height:1.7;
+    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;}
+  .wrap{max-width:760px;margin:0 auto;padding:0 22px 96px;}
+  p{margin:0 0 1em;}
+  strong{color:var(--ink);font-weight:650;}
+  a{color:var(--accent-ink);}
+
+  header.top{max-width:760px;margin:0 auto;padding:52px 22px 26px;}
+  .eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 14px;
+    display:flex;align-items:center;gap:10px;}
+  .eyebrow::before{content:"";width:26px;height:2px;background:var(--accent);display:inline-block;}
+  h1{font-family:var(--serif);font-weight:600;font-size:clamp(2rem,6vw,3rem);
+    line-height:1.08;letter-spacing:-.01em;margin:0 0 .35em;text-wrap:balance;}
+  .lede{font-size:1.18rem;line-height:1.55;color:var(--ink-soft);max-width:60ch;margin:0;}
+  .meta{margin-top:26px;padding-top:18px;border-top:1px solid var(--line);
+    font-family:var(--mono);font-size:12.5px;color:var(--ink-faint);
+    display:flex;flex-wrap:wrap;gap:6px 22px;}
+
+  section{margin-top:56px;}
+  .chapno{font-family:var(--mono);font-size:12px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--accent);margin:0 0 8px;}
+  h2{font-family:var(--serif);font-weight:600;font-size:1.72rem;line-height:1.15;
+    letter-spacing:-.01em;margin:0 0 .5em;text-wrap:balance;}
+  h3{font-family:var(--sans);font-weight:650;font-size:1.06rem;
+    letter-spacing:.005em;margin:1.8em 0 .5em;}
+
+  .flow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin:26px 0 8px;}
+  @media(max-width:620px){.flow{grid-template-columns:1fr;}}
+  .num{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:18px 18px 20px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
+  .num::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--tone,var(--accent));}
+  .num .tag{font-family:var(--mono);font-size:11.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--tone,var(--accent));font-weight:600;}
+  .num .big{font-family:var(--serif);font-size:1.5rem;margin:.35em 0 .2em;color:var(--ink);}
+  .num .sub{font-size:.9rem;color:var(--ink-soft);line-height:1.45;}
+  .num.sell{--tone:var(--good);} .num.cost{--tone:var(--warn);}
+  .num.buy{--tone:#6B4CC6;}
+  @media (prefers-color-scheme:dark){.num.buy{--tone:#B6A0F0;}}
+  :root[data-theme="dark"] .num.buy{--tone:#B6A0F0;}
+  :root[data-theme="light"] .num.buy{--tone:#6B4CC6;}
+
+  .callout{border-radius:14px;padding:20px 22px;margin:24px 0;border:1px solid;}
+  .callout .k{font-family:var(--mono);font-size:11.5px;letter-spacing:.12em;
+    text-transform:uppercase;font-weight:600;margin:0 0 8px;display:block;}
+  .callout p:last-child{margin-bottom:0;}
+  .myth{background:var(--bad-bg);border-color:var(--bad-line);}
+  .myth .k{color:var(--bad);}
+  .fact{background:var(--good-bg);border-color:var(--good-line);}
+  .fact .k{color:var(--good);}
+  .note{background:var(--warn-bg);border-color:var(--warn-line);}
+  .note .k{color:var(--warn);}
+
+  .sig{border-top:1px solid var(--line);padding:18px 0;display:grid;
+    grid-template-columns:auto 1fr;gap:2px 16px;align-items:baseline;}
+  .sig:last-child{border-bottom:1px solid var(--line);}
+  .dot{width:13px;height:13px;border-radius:50%;grid-row:span 2;align-self:center;
+    background:conic-gradient(var(--good) 0 33%, var(--warn) 33% 66%, var(--bad) 66% 100%);}
+  .sig .name{font-weight:650;font-size:1.02rem;}
+  .sig .desc{color:var(--ink-soft);font-size:.95rem;grid-column:2;}
+  .sig .thr{grid-column:2;margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;}
+  .chip{font-family:var(--mono);font-size:11.5px;padding:3px 9px;border-radius:20px;
+    border:1px solid;white-space:nowrap;}
+  .chip.g{color:var(--good);background:var(--good-bg);border-color:var(--good-line);}
+  .chip.a{color:var(--warn);background:var(--warn-bg);border-color:var(--warn-line);}
+  .chip.b{color:var(--bad);background:var(--bad-bg);border-color:var(--bad-line);}
+
+  .tablewrap{overflow-x:auto;margin:24px 0;border:1px solid var(--line);border-radius:14px;background:var(--card);}
+  table{border-collapse:collapse;width:100%;font-size:.97rem;min-width:460px;}
+  th,td{text-align:left;padding:13px 18px;border-bottom:1px solid var(--line);vertical-align:top;}
+  thead th{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--ink-faint);font-weight:600;background:var(--card-2);}
+  tbody tr:last-child td{border-bottom:none;}
+  td.q{color:var(--ink);}
+  td.dest{font-weight:600;color:var(--accent-ink);white-space:nowrap;}
+  .badge{font-family:var(--mono);font-size:12px;background:var(--accent-soft);color:var(--accent-ink);
+    padding:2px 8px;border-radius:6px;border:1px solid var(--line-strong);}
+
+  ul.clean{margin:.4em 0 1em;padding-left:1.15em;}
+  ul.clean li{margin:.4em 0;}
+  .arrow{color:var(--ink-faint);font-family:var(--mono);}
+  footer{margin-top:64px;padding-top:22px;border-top:2px solid var(--accent);
+    font-size:.9rem;color:var(--ink-faint);}
+  footer .mono{font-family:var(--mono);font-size:12px;}
+  @media print{
+    body{background:#fff;font-size:12pt;}
+    .num,.callout,.tablewrap{box-shadow:none;break-inside:avoid;}
+    section{break-inside:avoid-page;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <p class="eyebrow">Nova Tratores · Guia de bolso</p>
+  <h1>Entendendo os seus números</h1>
+  <p class="lede">Um guia curto, em linguagem de dono, para ler o Financeiro e o Estoque
+  do portal com confiança — e saber exatamente qual tela abrir para cada pergunta.</p>
+  <div class="meta">
+    <span>5 capítulos</span>
+    <span>Leitura ~8 min</span>
+    <span>Guarde este link</span>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <p style="font-size:1.05rem;color:var(--ink-soft);margin-top:8px;">
+  Você tem a sensação de pilotar um avião com botões demais. É justo: são muitas telas.
+  Mas a maioria delas responde a uma pergunta simples do dia a dia. Este guia traduz os
+  números que mais importam e mostra que <strong>você não precisa entender as 17 abas —
+  precisa saber qual delas abrir.</strong></p>
+
+  <section>
+    <p class="chapno">Capítulo 1</p>
+    <h2>As três perguntas do estoque</h2>
+    <p>No dashboard de estoque você vê <strong>quanto vendeu</strong> e <strong>quanto isso
+    custou</strong>. Falta um terceiro número que você sente falta com razão: <strong>quanto
+    comprou</strong>. São três coisas diferentes — e confundi-las é o erro mais comum.</p>
+
+    <div class="flow">
+      <div class="num buy">
+        <span class="tag">Comprei</span>
+        <div class="big">Entrou mercadoria</div>
+        <div class="sub">O que você pagou aos fornecedores no período. Sai do caixa na hora —
+        mesmo que a peça fique meses na prateleira.</div>
+      </div>
+      <div class="num sell">
+        <span class="tag">Faturei</span>
+        <div class="big">Saiu venda</div>
+        <div class="sub">O preço pelo qual você vendeu. É a receita, o número de cima.</div>
+      </div>
+      <div class="num cost">
+        <span class="tag">Custou (CMV)</span>
+        <div class="big">Custo do que vendi</div>
+        <div class="sub">Quanto custou <em>especificamente aquilo que saiu</em>. Só entra na
+        conta quando a peça é vendida.</div>
+      </div>
+    </div>
+
+    <div class="callout note">
+      <span class="k">A pegadinha que engana todo mundo</span>
+      <p><strong>Comprei ≠ Custou.</strong> Se você compra R$ 100 mil em peças mas só vende
+      metade, o <em>Comprei</em> foi 100 mil (saiu do caixa) e o <em>Custou</em> foi 50 mil
+      (só o que saiu da prateleira). A outra metade virou <strong>estoque parado</strong> —
+      dinheiro seu dormindo no depósito. Por isso são três números, não dois: o
+      <em>Comprei</em> mostra o caixa, o <em>Custou</em> mostra o resultado.</p>
+    </div>
+
+    <p>Agora a tela mostra os <strong>três</strong>: Faturei, Custou e o novo
+    <span class="badge">Comprei · só peças</span> — as entradas de peças (NF) no período, na
+    mesma base do Custou (só peças) para serem comparáveis. O card fica em <strong>indigo</strong>
+    de propósito: é dinheiro que <em>sai</em>, não venda. Ele respeita o período e a conta, traz
+    comparativo de mês/ano anterior e leva às <strong>Notas de Entrada</strong> para o detalhe.
+    Um lembrete: o número depende do sync de compras ter rodado o período — meses ainda não
+    sincronizados aparecem zerados até o cron passar.</p>
+  </section>
+
+  <section>
+    <p class="chapno">Capítulo 2</p>
+    <h2>Competência × Caixa, sem mistério</h2>
+    <p>Essa é a dúvida que mais atrapalha na leitura da DRE. Existe uma crença comum que vale
+    corrigir de vez:</p>
+
+    <div class="callout myth">
+      <span class="k">O que muita gente pensa</span>
+      <p>“Competência é quando eu <strong>criei</strong> a conta a pagar. Se eu lançar hoje
+      todos os salários do ano, a DRE vai mostrar um valor absurdo neste mês.”</p>
+    </div>
+
+    <div class="callout fact">
+      <span class="k">Como funciona de verdade aqui</span>
+      <p>Competência é <strong>o mês a que o custo pertence</strong> — não quando você digitou.
+      No portal, a DRE por competência coloca cada despesa no mês da <strong>data de emissão do
+      título</strong>. Não é a data em que você criou, nem a data de vencimento.</p>
+      <p style="margin-top:.7em">Ou seja: lançar os 12 salários de uma vez <strong>não infla o mês
+      atual</strong>, desde que cada um seja emitido no seu próprio mês (salário de março com
+      emissão em março, e assim por diante). O sistema espalha certinho, um por mês.</p>
+    </div>
+
+    <p>O único jeito de “estourar” um mês seria digitar todos com a <strong>mesma data de emissão
+    de hoje</strong> — mas isso seria erro de lançamento, e aconteceria em qualquer sistema
+    contábil do mundo. A régua a vigiar é a <strong>data de emissão</strong>.</p>
+
+    <h3>E o outro regime, o “Caixa”?</h3>
+    <p>No botão da DRE você alterna entre <strong>Competência</strong> e <strong>Caixa (Omie)</strong>.
+    A diferença em uma frase:</p>
+    <ul class="clean">
+      <li><strong>Competência</strong> <span class="arrow">→</span> o custo aparece no mês em que
+      <em>aconteceu</em> (pela emissão). Serve para saber se o mês <em>deu lucro</em>.</li>
+      <li><strong>Caixa</strong> <span class="arrow">→</span> o valor aparece no mês em que
+      <em>o dinheiro entrou ou saiu</em> (pelo pagamento). Serve para saber se <em>sobrou dinheiro</em>.</li>
+    </ul>
+
+    <div class="callout note">
+      <span class="k">Uma limitação honesta</span>
+      <p>O sistema não tem um campo próprio de “data de competência” — ele a <strong>deduz</strong>
+      da data de emissão. Funciona bem para a grande maioria dos casos, mas é bom você saber que é
+      uma dedução inteligente, não um carimbo contábil formal.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="chapno">Capítulo 3</p>
+    <h2>O semáforo de Saúde Financeira</h2>
+    <p>No topo da Home do Financeiro há sete luzinhas. Cada uma é 🟢 saudável, 🟡 atenção ou
+    🔴 crítico, com uma <strong>seta</strong> ao lado: <strong>▲ melhorando</strong> ou
+    <strong>▼ piorando</strong>. Detalhe importante: a seta mostra a tendência da <em>saúde</em>,
+    não do número cru — por isso “juros subindo” aparece como seta para baixo (piora), mesmo o
+    valor tendo aumentado. Clique em qualquer luz para ir à tela que detalha aquele número.</p>
+
+    <div class="sig"><span class="dot"></span>
+      <span class="name">Cobertura 30 dias</span>
+      <span class="desc">Tenho a receber o suficiente para pagar o que vence nos próximos 30 dias?</span>
+      <span class="thr"><span class="chip g">confortável</span><span class="chip a">apertado</span><span class="chip b">descoberto</span></span>
+    </div>
+    <div class="sig"><span class="dot"></span>
+      <span class="name">Juros de antecipação</span>
+      <span class="desc">Quanto estou pagando por antecipar (descontar) duplicatas. É o custo de pegar o dinheiro antes.</span>
+      <span class="thr"><span class="chip g">&lt; R$ 100/mês</span><span class="chip b">subindo</span></span>
+    </div>
+    <div class="sig"><span class="dot"></span>
+      <span class="name">Ciclo de Caixa (CCC)</span>
+      <span class="desc">Quantos dias o dinheiro fica preso entre pagar o fornecedor e receber do cliente. Menos é melhor.</span>
+      <span class="thr"><span class="chip g">&lt; 30 dias</span><span class="chip a">&lt; 60 dias</span><span class="chip b">≥ 60 dias</span></span>
+    </div>
+    <div class="sig"><span class="dot"></span>
+      <span class="name">Inadimplência 90+</span>
+      <span class="desc">Quanto da minha carteira está vencido há mais de 90 dias — o que dificilmente entra.</span>
+      <span class="thr"><span class="chip a">≥ 25%</span><span class="chip b">≥ 50%</span></span>
+    </div>
+    <div class="sig"><span class="dot"></span>
+      <span class="name">Resultado líquido</span>
+      <span class="desc">O mês fechado deu lucro ou prejuízo, e para onde está indo (média dos últimos 3 meses).</span>
+      <span class="thr"><span class="chip b">negativo</span><span class="chip a">piorando</span></span>
+    </div>
+    <div class="sig"><span class="dot"></span>
+      <span class="name">Margem líquida</span>
+      <span class="desc">Quantos centavos de cada real vendido sobram no fim. O alerta olha a queda, em pontos.</span>
+      <span class="thr"><span class="chip a">cai ≥ 1 p.p.</span><span class="chip b">cai ≥ 3 p.p.</span></span>
+    </div>
+    <div class="sig"><span class="dot"></span>
+      <span class="name">Despesas financeiras</span>
+      <span class="desc">Juros e tarifas de banco. Subindo de forma consistente = sinal de deterioração.</span>
+      <span class="thr"><span class="chip g">&lt; R$ 100</span><span class="chip b">subindo</span></span>
+    </div>
+
+    <p style="margin-top:20px">A <strong>pílula ao lado do título</strong> (“Saudável / Atenção /
+    Crítico”) mostra sempre o <em>pior</em> dos sete sinais — é o seu resumo de um segundo. Se ela
+    está vermelha, ao menos uma luz precisa de olhada.</p>
+  </section>
+
+  <section>
+    <p class="chapno">Capítulo 4</p>
+    <h2>Quero saber X → abro a aba Y</h2>
+    <p>São 17 abas, mas você raramente precisa de mais de uma por vez. Guarde esta tabela: comece
+    pela <strong>pergunta</strong>, ela te leva à porta certa.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr><th>A sua pergunta</th><th>Abra</th></tr>
+        </thead>
+        <tbody>
+          <tr><td class="q">Este mês deu lucro ou prejuízo?</td><td class="dest">DRE · Resultado do mês</td></tr>
+          <tr><td class="q">Como estou de saúde no geral, num relance?</td><td class="dest">Home (semáforo)</td></tr>
+          <tr><td class="q">Tenho dinheiro para pagar as contas que vêm?</td><td class="dest">Cobertura · Calendário · Fluxo</td></tr>
+          <tr><td class="q">Quem me deve e está atrasado?</td><td class="dest">Vencidos</td></tr>
+          <tr><td class="q">Meu dinheiro está preso em estoque ou em prazo?</td><td class="dest">Ciclo de Caixa</td></tr>
+          <tr><td class="q">Estou pagando em dia o que prometi?</td><td class="dest">Pontualidade</td></tr>
+          <tr><td class="q">Qual produto ou máquina dá mais margem?</td><td class="dest">Margens · Composição</td></tr>
+          <tr><td class="q">Onde meu dinheiro está gastando, por categoria?</td><td class="dest">Composição</td></tr>
+          <tr><td class="q">O que mudou de um mês para o outro (e por quê)?</td><td class="dest">Análise DRE</td></tr>
+          <tr><td class="q">Meus melhores e piores clientes?</td><td class="dest">Clientes</td></tr>
+          <tr><td class="q">Os números estão batendo / confiáveis?</td><td class="dest">Monitor</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="color:var(--ink-soft);font-size:.95rem">Dica: em qualquer aba, o botão
+    <strong>“?”</strong> no cabeçalho abre uma explicação da própria tela — “o que mostra”,
+    “como usar” e os termos. Este guia é o mapa; o “?” é a legenda de cada sala.</p>
+  </section>
+
+  <section>
+    <p class="chapno">Capítulo 5</p>
+    <h2>Posso confiar nesse número?</h2>
+    <p>Vale saber de onde os números vêm — assim, quando algo parecer estranho, você sabe onde
+    olhar em vez de desconfiar de tudo.</p>
+    <ul class="clean">
+      <li><strong>A origem é sempre a Omie.</strong> O portal copia os dados da Omie para um banco
+      próprio (para ficar rápido) e faz as contas em cima disso. Se um lançamento está errado na
+      Omie, ele chega errado aqui.</li>
+      <li><strong>A aba Monitor é o seu fiscal.</strong> Ela roda testes de consistência e aponta
+      divergências — é o primeiro lugar a checar quando um total não faz sentido.</li>
+      <li><strong>O seletor NOVA / CASTRO / Todas muda tudo.</strong> Se um valor “sumiu” ou
+      “dobrou”, confira antes qual empresa está selecionada no topo. É a causa nº 1 de susto.</li>
+    </ul>
+
+    <div class="callout fact">
+      <span class="k">A ideia para levar</span>
+      <p>Você não tem um sistema complicado demais — tem um sistema <strong>completo</strong>. A
+      diferença entre os dois é só ter o mapa na mão. Comece sempre pela <strong>pergunta</strong>,
+      não pela tela: a pergunta te leva à porta certa, e o resto pode ficar fechado até você
+      precisar.</p>
+    </div>
+  </section>
+
+  <footer>
+    <p class="mono">Guia do Gestor · Financeiro &amp; Estoque · Portal Nova Tratores</p>
+    <p>Material explicativo, sem dados reais — os valores citados são exemplos. Para números ao
+    vivo, use as telas do portal. Feito para consulta; guarde este link.</p>
+  </footer>
+
+</div>
+</body>
+</html>

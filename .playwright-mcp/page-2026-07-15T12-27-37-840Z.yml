@@ -1,0 +1,313 @@
+- generic [active] [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e2724]:
+            - generic [ref=f2e2725]:
+              - generic [ref=f2e2726]:
+                - generic [ref=f2e2727]: 
+                - textbox "Buscar peça por nome ou código…" [ref=f2e2728]
+              - generic [ref=f2e2729]: Catálogo
+            - generic [ref=f2e2732]:
+              - generic [ref=f2e2733]: Tratores
+              - generic [ref=f2e2734]:
+                - button "6075L 6075L 84 figuras · Mahindra " [ref=f2e2735] [cursor=pointer]:
+                  - img "6075L" [ref=f2e2737]
+                  - generic [ref=f2e2738]:
+                    - generic [ref=f2e2739]:
+                      - generic [ref=f2e2740]: 6075L
+                      - generic [ref=f2e2741]: 84 figuras · Mahindra
+                    - generic [ref=f2e2742]: 
+                - button "5050 5050 102 figuras · Mahindra " [ref=f2e2743] [cursor=pointer]:
+                  - img "5050" [ref=f2e2745]
+                  - generic [ref=f2e2746]:
+                    - generic [ref=f2e2747]:
+                      - generic [ref=f2e2748]: "5050"
+                      - generic [ref=f2e2749]: 102 figuras · Mahindra
+                    - generic [ref=f2e2750]: 
+                - button "ARBO 2000-MAOZINHA-G ARBO 2000-MAOZINHA-G 0 figuras · Mahindra " [ref=f2e2751] [cursor=pointer]:
+                  - img "ARBO 2000-MAOZINHA-G" [ref=f2e2753]
+                  - generic [ref=f2e2754]:
+                    - generic [ref=f2e2755]:
+                      - generic [ref=f2e2756]: ARBO 2000-MAOZINHA-G
+                      - generic [ref=f2e2757]: 0 figuras · Mahindra
+                    - generic [ref=f2e2758]: 
+                - button "STRONGER 3200 HD STRONGER 3200 HD 0 figuras · Mahindra " [ref=f2e2759] [cursor=pointer]:
+                  - img "STRONGER 3200 HD" [ref=f2e2761]
+                  - generic [ref=f2e2762]:
+                    - generic [ref=f2e2763]:
+                      - generic [ref=f2e2764]: STRONGER 3200 HD
+                      - generic [ref=f2e2765]: 0 figuras · Mahindra
+                    - generic [ref=f2e2766]: 
+                - button "86-110 86-110 0 figuras · Mahindra " [ref=f2e2767] [cursor=pointer]:
+                  - img "86-110" [ref=f2e2769]
+                  - generic [ref=f2e2770]:
+                    - generic [ref=f2e2771]:
+                      - generic [ref=f2e2772]: 86-110
+                      - generic [ref=f2e2773]: 0 figuras · Mahindra
+                    - generic [ref=f2e2774]: 
+                - button "STRONGER HD STRONGER HD 0 figuras · Mahindra " [ref=f2e2775] [cursor=pointer]:
+                  - img "STRONGER HD" [ref=f2e2777]
+                  - generic [ref=f2e2778]:
+                    - generic [ref=f2e2779]:
+                      - generic [ref=f2e2780]: STRONGER HD
+                      - generic [ref=f2e2781]: 0 figuras · Mahindra
+                    - generic [ref=f2e2782]: 
+                - button "KAPINA CITRUS 2300R KAPINA CITRUS 2300R 0 figuras · Mahindra " [ref=f2e2783] [cursor=pointer]:
+                  - img "KAPINA CITRUS 2300R" [ref=f2e2785]
+                  - generic [ref=f2e2786]:
+                    - generic [ref=f2e2787]:
+                      - generic [ref=f2e2788]: KAPINA CITRUS 2300R
+                      - generic [ref=f2e2789]: 0 figuras · Mahindra
+                    - generic [ref=f2e2790]: 
+                - button "6060 P2 6060 P2 107 figuras · Mahindra " [ref=f2e2791] [cursor=pointer]:
+                  - img "6060 P2" [ref=f2e2793]
+                  - generic [ref=f2e2794]:
+                    - generic [ref=f2e2795]:
+                      - generic [ref=f2e2796]: 6060 P2
+                      - generic [ref=f2e2797]: 107 figuras · Mahindra
+                    - generic [ref=f2e2798]: 
+                - button "Jivo 2025 Jivo 2025 0 figuras · Mahindra " [ref=f2e2799] [cursor=pointer]:
+                  - img "Jivo 2025" [ref=f2e2801]
+                  - generic [ref=f2e2802]:
+                    - generic [ref=f2e2803]:
+                      - generic [ref=f2e2804]: Jivo 2025
+                      - generic [ref=f2e2805]: 0 figuras · Mahindra
+                    - generic [ref=f2e2806]: 
+                - button "ACCURA 1200 ACCURA 1200 0 figuras · Mahindra " [ref=f2e2807] [cursor=pointer]:
+                  - img "ACCURA 1200" [ref=f2e2809]
+                  - generic [ref=f2e2810]:
+                    - generic [ref=f2e2811]:
+                      - generic [ref=f2e2812]: ACCURA 1200
+                      - generic [ref=f2e2813]: 0 figuras · Mahindra
+                    - generic [ref=f2e2814]: 
+                - button "6065 P1 6065 P1 88 figuras · Mahindra " [ref=f2e2815] [cursor=pointer]:
+                  - img "6065 P1" [ref=f2e2817]
+                  - generic [ref=f2e2818]:
+                    - generic [ref=f2e2819]:
+                      - generic [ref=f2e2820]: 6065 P1
+                      - generic [ref=f2e2821]: 88 figuras · Mahindra
+                    - generic [ref=f2e2822]: 
+                - button "ACCURA 12000 ACCURA 12000 0 figuras · Mahindra " [ref=f2e2823] [cursor=pointer]:
+                  - img "ACCURA 12000" [ref=f2e2825]
+                  - generic [ref=f2e2826]:
+                    - generic [ref=f2e2827]:
+                      - generic [ref=f2e2828]: ACCURA 12000
+                      - generic [ref=f2e2829]: 0 figuras · Mahindra
+                    - generic [ref=f2e2830]: 
+                - button "6065 P2 6065 P2 100 figuras · Mahindra " [ref=f2e2831] [cursor=pointer]:
+                  - img "6065 P2" [ref=f2e2833]
+                  - generic [ref=f2e2834]:
+                    - generic [ref=f2e2835]:
+                      - generic [ref=f2e2836]: 6065 P2
+                      - generic [ref=f2e2837]: 100 figuras · Mahindra
+                    - generic [ref=f2e2838]: 
+                - button "6075 P1 6075 P1 142 figuras · Mahindra " [ref=f2e2839] [cursor=pointer]:
+                  - img "6075 P1" [ref=f2e2841]
+                  - generic [ref=f2e2842]:
+                    - generic [ref=f2e2843]:
+                      - generic [ref=f2e2844]: 6075 P1
+                      - generic [ref=f2e2845]: 142 figuras · Mahindra
+                    - generic [ref=f2e2846]: 
+                - button "8000S / 9500S 8000S / 9500S 41 figuras · Mahindra " [ref=f2e2847] [cursor=pointer]:
+                  - img "8000S / 9500S" [ref=f2e2849]
+                  - generic [ref=f2e2850]:
+                    - generic [ref=f2e2851]:
+                      - generic [ref=f2e2852]: 8000S / 9500S
+                      - generic [ref=f2e2853]: 41 figuras · Mahindra
+                    - generic [ref=f2e2854]: 
+                - button "ACCURA 1600 ACCURA 1600 0 figuras · Mahindra " [ref=f2e2855] [cursor=pointer]:
+                  - img "ACCURA 1600" [ref=f2e2857]
+                  - generic [ref=f2e2858]:
+                    - generic [ref=f2e2859]:
+                      - generic [ref=f2e2860]: ACCURA 1600
+                      - generic [ref=f2e2861]: 0 figuras · Mahindra
+                    - generic [ref=f2e2862]: 
+                - button "6075 P2 6075 P2 101 figuras · Mahindra " [ref=f2e2863] [cursor=pointer]:
+                  - img "6075 P2" [ref=f2e2865]
+                  - generic [ref=f2e2866]:
+                    - generic [ref=f2e2867]:
+                      - generic [ref=f2e2868]: 6075 P2
+                      - generic [ref=f2e2869]: 101 figuras · Mahindra
+                    - generic [ref=f2e2870]: 
+                - button "ARBO 2000L - 840 - G ARBO 2000L - 840 - G 0 figuras · Mahindra " [ref=f2e2871] [cursor=pointer]:
+                  - img "ARBO 2000L - 840 - G" [ref=f2e2873]
+                  - generic [ref=f2e2874]:
+                    - generic [ref=f2e2875]:
+                      - generic [ref=f2e2876]: ARBO 2000L - 840 - G
+                      - generic [ref=f2e2877]: 0 figuras · Mahindra
+                    - generic [ref=f2e2878]: 
+                - button "BOXER 2000 H BOXER 2000 H 0 figuras · Mahindra " [ref=f2e2879] [cursor=pointer]:
+                  - img "BOXER 2000 H" [ref=f2e2881]
+                  - generic [ref=f2e2882]:
+                    - generic [ref=f2e2883]:
+                      - generic [ref=f2e2884]: BOXER 2000 H
+                      - generic [ref=f2e2885]: 0 figuras · Mahindra
+                    - generic [ref=f2e2886]: 
+                - button "FIGHTER 2500 FIGHTER 2500 0 figuras · Mahindra " [ref=f2e2887] [cursor=pointer]:
+                  - img "FIGHTER 2500" [ref=f2e2889]
+                  - generic [ref=f2e2890]:
+                    - generic [ref=f2e2891]:
+                      - generic [ref=f2e2892]: FIGHTER 2500
+                      - generic [ref=f2e2893]: 0 figuras · Mahindra
+                    - generic [ref=f2e2894]: 
+                - button "GRAIN MAX 19000 GRAIN MAX 19000 0 figuras · Mahindra " [ref=f2e2895] [cursor=pointer]:
+                  - img "GRAIN MAX 19000" [ref=f2e2897]
+                  - generic [ref=f2e2898]:
+                    - generic [ref=f2e2899]:
+                      - generic [ref=f2e2900]: GRAIN MAX 19000
+                      - generic [ref=f2e2901]: 0 figuras · Mahindra
+                    - generic [ref=f2e2902]: 
+                - button "ROAT2 3400 ROAT2 3400 0 figuras · Mahindra " [ref=f2e2903] [cursor=pointer]:
+                  - img "ROAT2 3400" [ref=f2e2905]
+                  - generic [ref=f2e2906]:
+                    - generic [ref=f2e2907]:
+                      - generic [ref=f2e2908]: ROAT2 3400
+                      - generic [ref=f2e2909]: 0 figuras · Mahindra
+                    - generic [ref=f2e2910]: 
+                - button "KAPINA CITRUS 2600 R KAPINA CITRUS 2600 R 0 figuras · Mahindra " [ref=f2e2911] [cursor=pointer]:
+                  - img "KAPINA CITRUS 2600 R" [ref=f2e2913]
+                  - generic [ref=f2e2914]:
+                    - generic [ref=f2e2915]:
+                      - generic [ref=f2e2916]: KAPINA CITRUS 2600 R
+                      - generic [ref=f2e2917]: 0 figuras · Mahindra
+                    - generic [ref=f2e2918]: 
+                - button "KAPINA CITRUS 3101/E KAPINA CITRUS 3101/E 0 figuras · Mahindra " [ref=f2e2919] [cursor=pointer]:
+                  - img "KAPINA CITRUS 3101/E" [ref=f2e2921]
+                  - generic [ref=f2e2922]:
+                    - generic [ref=f2e2923]:
+                      - generic [ref=f2e2924]: KAPINA CITRUS 3101/E
+                      - generic [ref=f2e2925]: 0 figuras · Mahindra
+                    - generic [ref=f2e2926]: 
+                - button "KAPINA CLASSIC 1200 KAPINA CLASSIC 1200 0 figuras · Mahindra " [ref=f2e2927] [cursor=pointer]:
+                  - img "KAPINA CLASSIC 1200" [ref=f2e2929]
+                  - generic [ref=f2e2930]:
+                    - generic [ref=f2e2931]:
+                      - generic [ref=f2e2932]: KAPINA CLASSIC 1200
+                      - generic [ref=f2e2933]: 0 figuras · Mahindra
+                    - generic [ref=f2e2934]: 
+                - button "KAPINA CLASSIC 1300 KAPINA CLASSIC 1300 0 figuras · Mahindra " [ref=f2e2935] [cursor=pointer]:
+                  - img "KAPINA CLASSIC 1300" [ref=f2e2937]
+                  - generic [ref=f2e2938]:
+                    - generic [ref=f2e2939]:
+                      - generic [ref=f2e2940]: KAPINA CLASSIC 1300
+                      - generic [ref=f2e2941]: 0 figuras · Mahindra
+                    - generic [ref=f2e2942]: 
+                - button "KAPINA CLASSIC 1500 KAPINA CLASSIC 1500 0 figuras · Mahindra " [ref=f2e2943] [cursor=pointer]:
+                  - img "KAPINA CLASSIC 1500" [ref=f2e2945]
+                  - generic [ref=f2e2946]:
+                    - generic [ref=f2e2947]:
+                      - generic [ref=f2e2948]: KAPINA CLASSIC 1500
+                      - generic [ref=f2e2949]: 0 figuras · Mahindra
+                    - generic [ref=f2e2950]: 
+                - button "KAPINA CLASSIC 1700 KAPINA CLASSIC 1700 0 figuras · Mahindra " [ref=f2e2951] [cursor=pointer]:
+                  - img "KAPINA CLASSIC 1700" [ref=f2e2953]
+                  - generic [ref=f2e2954]:
+                    - generic [ref=f2e2955]:
+                      - generic [ref=f2e2956]: KAPINA CLASSIC 1700
+                      - generic [ref=f2e2957]: 0 figuras · Mahindra
+                    - generic [ref=f2e2958]: 
+                - button "KAPINA PRO 2000 KAPINA PRO 2000 0 figuras · Mahindra " [ref=f2e2959] [cursor=pointer]:
+                  - img "KAPINA PRO 2000" [ref=f2e2961]
+                  - generic [ref=f2e2962]:
+                    - generic [ref=f2e2963]:
+                      - generic [ref=f2e2964]: KAPINA PRO 2000
+                      - generic [ref=f2e2965]: 0 figuras · Mahindra
+                    - generic [ref=f2e2966]: 
+                - button "550 LandForce 550 LandForce 93 figuras · Mahindra " [ref=f2e2967] [cursor=pointer]:
+                  - img "550 LandForce" [ref=f2e2969]
+                  - generic [ref=f2e2970]:
+                    - generic [ref=f2e2971]:
+                      - generic [ref=f2e2972]: 550 LandForce
+                      - generic [ref=f2e2973]: 93 figuras · Mahindra
+                    - generic [ref=f2e2974]: 
+                - button "650 LandForce 650 LandForce 86 figuras · Mahindra " [ref=f2e2975] [cursor=pointer]:
+                  - img "650 LandForce" [ref=f2e2977]
+                  - generic [ref=f2e2978]:
+                    - generic [ref=f2e2979]:
+                      - generic [ref=f2e2980]: 650 LandForce
+                      - generic [ref=f2e2981]: 86 figuras · Mahindra
+                    - generic [ref=f2e2982]: 
+                - button " 500 Promax 56 figuras · Mahindra " [ref=f2e2983] [cursor=pointer]:
+                  - generic [ref=f2e2984]: 
+                  - generic [ref=f2e2986]:
+                    - generic [ref=f2e2987]:
+                      - generic [ref=f2e2988]: 500 Promax
+                      - generic [ref=f2e2989]: 56 figuras · Mahindra
+                    - generic [ref=f2e2990]: 
+                - button " M250 0 figuras · Mahindra " [ref=f2e2991] [cursor=pointer]:
+                  - generic [ref=f2e2992]: 
+                  - generic [ref=f2e2994]:
+                    - generic [ref=f2e2995]:
+                      - generic [ref=f2e2996]: M250
+                      - generic [ref=f2e2997]: 0 figuras · Mahindra
+                    - generic [ref=f2e2998]: 
+                - button " M570 0 figuras · Mahindra " [ref=f2e2999] [cursor=pointer]:
+                  - generic [ref=f2e3000]: 
+                  - generic [ref=f2e3002]:
+                    - generic [ref=f2e3003]:
+                      - generic [ref=f2e3004]: M570
+                      - generic [ref=f2e3005]: 0 figuras · Mahindra
+                    - generic [ref=f2e3006]: 
+                - button " T-ARCHON 550 0 figuras · Mahindra " [ref=f2e3007] [cursor=pointer]:
+                  - generic [ref=f2e3008]: 
+                  - generic [ref=f2e3010]:
+                    - generic [ref=f2e3011]:
+                      - generic [ref=f2e3012]: T-ARCHON 550
+                      - generic [ref=f2e3013]: 0 figuras · Mahindra
+                    - generic [ref=f2e3014]: 
+                - button " T-BOSS 550 0 figuras · Mahindra " [ref=f2e3015] [cursor=pointer]:
+                  - generic [ref=f2e3016]: 
+                  - generic [ref=f2e3018]:
+                    - generic [ref=f2e3019]:
+                      - generic [ref=f2e3020]: T-BOSS 550
+                      - generic [ref=f2e3021]: 0 figuras · Mahindra
+                    - generic [ref=f2e3022]: 
+  - alert [ref=f2e15]

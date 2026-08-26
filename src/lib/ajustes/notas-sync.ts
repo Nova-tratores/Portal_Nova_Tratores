@@ -48,6 +48,7 @@ function linhaNota(conta: Conta, tipo: 'produto' | 'servico', n: any, agoraISO: 
     cliente_nome: n.clienteNome || null,
     cliente_doc: n.clienteDoc ? String(n.clienteDoc).replace(/\D/g, '') : null,
     qtde_itens: Array.isArray(n.itens) ? n.itens.length : 0,
+    n_id_pedido: n.nIdPedido != null ? (Number(n.nIdPedido) || null) : null,
     updated_at: agoraISO,
   };
 }

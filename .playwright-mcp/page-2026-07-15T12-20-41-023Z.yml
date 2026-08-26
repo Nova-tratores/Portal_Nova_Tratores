@@ -1,0 +1,653 @@
+- generic [ref=f2e1]:
+  - generic [ref=f2e2]:
+    - banner [ref=f2e16]:
+      - generic [ref=f2e17]:
+        - button [ref=f2e18] [cursor=pointer]
+        - link [ref=f2e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f2e21]
+      - generic [ref=f2e22]:
+        - button "Chat" [ref=f2e23] [cursor=pointer]
+        - button "Notificações" [ref=f2e26] [cursor=pointer]
+        - button "Menu" [ref=f2e31] [cursor=pointer]
+        - generic "Meu perfil" [ref=f2e36] [cursor=pointer]:
+          - generic [ref=f2e41]:
+            - paragraph [ref=f2e42]: Setor de Peças
+            - paragraph [ref=f2e43]: Peças
+    - generic [ref=f2e44]:
+      - generic [ref=f2e46]:
+        - paragraph [ref=f2e52]: Setor de Peças
+        - paragraph [ref=f2e53]: Peças
+      - generic [ref=f2e54]:
+        - link "Dashboard" [ref=f2e56] [cursor=pointer]:
+          - /url: /dashboard
+        - generic [ref=f2e65]:
+          - paragraph [ref=f2e66]: SERVIÇOS
+          - link "SAT Digital" [ref=f2e68] [cursor=pointer]:
+            - /url: /sat
+        - generic [ref=f2e75]:
+          - paragraph [ref=f2e76]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f2e78] [cursor=pointer]:
+            - /url: /ppv
+        - generic [ref=f2e88]:
+          - paragraph [ref=f2e89]: OUTROS
+          - link "Opa" [ref=f2e91] [cursor=pointer]:
+            - /url: /opa
+      - button "Sair do Portal" [ref=f2e98] [cursor=pointer]
+    - main [ref=f2e102]:
+      - generic [ref=f2e103]:
+        - generic [ref=f2e104]:
+          - generic [ref=f2e105]:
+            - generic [ref=f2e106]: 
+            - generic [ref=f2e108]: NOVA PPV
+          - generic [ref=f2e109]:
+            - button " Novo Lançamento" [ref=f2e110] [cursor=pointer]:
+              - generic [ref=f2e111]: 
+              - text: Novo Lançamento
+            - button " Menu " [ref=f2e113] [cursor=pointer]:
+              - generic [ref=f2e114]: 
+              - text: Menu
+              - generic [ref=f2e115]: 
+        - main [ref=f2e116]:
+          - generic [ref=f2e626]:
+            - generic [ref=f2e627]:
+              - button "" [ref=f2e628] [cursor=pointer]
+              - generic [ref=f2e630]: Novo Lançamento
+            - generic [ref=f2e631]:
+              - generic [ref=f2e632]:
+                - generic [ref=f2e633]:
+                  - generic [ref=f2e634]:
+                    - generic [ref=f2e635]: Tipo do Pedido
+                    - combobox [ref=f2e636]:
+                      - option "Pedido de Venda (PPV)" [selected]
+                      - option "Remessa (REM)"
+                  - generic [ref=f2e637]:
+                    - generic [ref=f2e638]: Motivo da Saída
+                    - combobox [ref=f2e639]:
+                      - option "Venda Balcão" [selected]
+                      - option "Orçamento Cliente"
+                      - option "Saída Técnico (Sem OS)"
+                      - option "Saída Técnico (Com OS)"
+                - generic [ref=f2e640]:
+                  - generic [ref=f2e641]: Técnico *
+                  - combobox [ref=f2e642]:
+                    - option "-- Selecione o técnico --"
+                    - option "ARTHUR"
+                    - option "CARIVALDO"
+                    - option "DANILO DE SOUZA"
+                    - option "FERNANDO LEONEL"
+                    - option "GABRIEL MORAES"
+                    - option "HENRI HIONI"
+                    - option "JOSE ANTONIO DE OLIVEIRA"
+                    - option "JOSE ORTIZ"
+                    - option "LUIZ FERNANDO"
+                    - option "NICOLAS DARIO"
+                    - option "PAULO MOTTA"
+                    - option "PEDRO MOTTA" [selected]
+                    - option "VINICIUS CORREA"
+                - generic [ref=f2e643]:
+                  - generic [ref=f2e644]: Cliente *
+                  - generic [ref=f2e646] [cursor=pointer]:
+                    - generic [ref=f2e647]: 
+                    - generic [ref=f2e1106]:
+                      - generic [ref=f2e1107]: JOSE CARLOS FERNANDES
+                      - generic [ref=f2e1108]: 07.916.196/0006-12 — ITAI (SP) - SP
+                - generic [ref=f2e649]:
+                  - generic [ref=f2e650]: Ordem de Serviço (opcional)
+                  - generic [ref=f2e652] [cursor=pointer]:
+                    - generic [ref=f2e653]: 
+                    - generic [ref=f2e654]: Clique aqui para vincular uma O.S.
+                - generic [ref=f2e655]:
+                  - generic [ref=f2e656]: Projeto (opcional)
+                  - textbox "Nome do projeto..." [ref=f2e657]
+                - generic [ref=f2e658]:
+                  - generic [ref=f2e659]: Observações (opcional)
+                  - textbox "Escreva aqui se precisar..." [ref=f2e660]
+                - generic [ref=f2e661]:
+                  - generic [ref=f2e662]: 
+                  - text: Kit de Revisão
+                - button " Importar Kit de Revisão Revisão, manutenção ou quadriciclo — escolha o modelo " [ref=f2e663] [cursor=pointer]:
+                  - generic [ref=f2e664]: 
+                  - generic [ref=f2e666]:
+                    - generic [ref=f2e667]: Importar Kit de Revisão
+                    - generic [ref=f2e668]: Revisão, manutenção ou quadriciclo — escolha o modelo
+                  - generic [ref=f2e669]: 
+                - generic [ref=f2e670]:
+                  - generic [ref=f2e671]: 
+                  - text: Adicionar Produto
+                - generic [ref=f2e674] [cursor=pointer]:
+                  - generic [ref=f2e675]: 
+                  - generic [ref=f2e676]: Clique para buscar produto
+                - generic [ref=f2e677]:
+                  - generic [ref=f2e678]:
+                    - generic [ref=f2e679]: Qtd
+                    - spinbutton [ref=f2e680]: "1"
+                  - button "+ Adicionar ao Carrinho" [ref=f2e681] [cursor=pointer]:
+                    - generic [ref=f2e682]: +
+                    - text: Adicionar ao Carrinho
+              - generic [ref=f2e683]:
+                - generic [ref=f2e684]:
+                  - generic [ref=f2e685]: 
+                  - generic [ref=f2e686]: Itens do Pedido
+                - generic [ref=f2e688]:
+                  - generic [ref=f2e689]: 
+                  - paragraph [ref=f2e690]: Nenhum produto adicionado
+                  - generic [ref=f2e691]: Busque produtos ou importe um kit de revisão
+                - generic [ref=f2e692]:
+                  - generic [ref=f2e693]:
+                    - generic [ref=f2e694]: Total
+                    - generic [ref=f2e695]: R$ 0,00
+                  - button " Finalizar Lançamento" [ref=f2e696] [cursor=pointer]:
+                    - generic [ref=f2e697]: 
+                    - text: Finalizar Lançamento
+        - generic [ref=f2e1110]:
+          - generic [ref=f2e1111]:
+            - heading "Pesquisar Produto" [level=2] [ref=f2e1112]
+            - generic [ref=f2e1113]:
+              - button " Catálogos" [ref=f2e1114]:
+                - generic [ref=f2e1115]: 
+                - text: Catálogos
+              - button "×" [ref=f2e1116]
+          - generic [ref=f2e1117]:
+            - generic [ref=f2e1118]:
+              - generic [ref=f2e1119]: 
+              - textbox "Codigo ou nome do produto..." [active] [ref=f2e1120]: filtro
+              - button "Buscar" [ref=f2e1121]
+            - generic [ref=f2e1140]: 40 resultados encontrados
+            - table [ref=f2e1123]:
+              - rowgroup [ref=f2e1124]:
+                - row [ref=f2e1125]:
+                  - columnheader "CODIGO" [ref=f2e1126]
+                  - columnheader "DESCRICAO" [ref=f2e1127]
+                  - columnheader "PRECO" [ref=f2e1128]
+                  - columnheader "EMPRESA" [ref=f2e1129]
+                  - columnheader "ORIGEM" [ref=f2e1130]
+              - rowgroup [ref=f2e1131]:
+                - row [ref=f2e1141] [cursor=pointer]:
+                  - cell "B0768656" [ref=f2e1142]
+                  - cell [ref=f2e1143]:
+                    - generic "FILTRO DE SUCCAO 25 l/min." [ref=f2e1144]:
+                      - mark [ref=f2e1145]: FILTRO
+                      - text: DE SUCCAO 25 l/min.
+                  - cell "R$ 103,273 " [ref=f2e1146]:
+                    - generic [ref=f2e1147]:
+                      - generic [ref=f2e1148]: R$ 103,273
+                      - button "" [ref=f2e1149]
+                  - cell "NOVA" [ref=f2e1151]
+                  - cell "ESTOQUE" [ref=f2e1152]
+                - row [ref=f2e1153] [cursor=pointer]:
+                  - cell "RP-006025734Y91" [ref=f2e1154]
+                  - cell [ref=f2e1155]:
+                    - generic "FILTRO DE OLEO LUBRIFICANTE RP-006025734Y91" [ref=f2e1156]:
+                      - mark [ref=f2e1157]: FILTRO
+                      - text: DE OLEO LUBRIFICANTE RP-006025734Y91
+                  - cell "R$ 140,00 " [ref=f2e1158]:
+                    - generic [ref=f2e1159]:
+                      - generic [ref=f2e1160]: R$ 140,00
+                      - button "" [ref=f2e1161]
+                  - cell "NOVA" [ref=f2e1163]
+                  - cell "ESTOQUE" [ref=f2e1164]
+                - row [ref=f2e1165] [cursor=pointer]:
+                  - cell "86197" [ref=f2e1166]
+                  - cell [ref=f2e1167]:
+                    - generic "CH SACA FILTRO CINTA - 18B" [ref=f2e1168]:
+                      - text: CH SACA
+                      - mark [ref=f2e1169]: FILTRO
+                      - text: CINTA - 18B
+                  - cell "R$ 45,00 " [ref=f2e1170]:
+                    - generic [ref=f2e1171]:
+                      - generic [ref=f2e1172]: R$ 45,00
+                      - button "" [ref=f2e1173]
+                  - cell "NOVA" [ref=f2e1175]
+                  - cell "ESTOQUE" [ref=f2e1176]
+                - row [ref=f2e1177] [cursor=pointer]:
+                  - cell "001561" [ref=f2e1178]
+                  - cell [ref=f2e1179]:
+                    - generic "FILTRO DE CABINE LA120 MAHLE ACP303" [ref=f2e1180]:
+                      - mark [ref=f2e1181]: FILTRO
+                      - text: DE CABINE LA120 MAHLE ACP303
+                  - cell "R$ 45,00 " [ref=f2e1182]:
+                    - generic [ref=f2e1183]:
+                      - generic [ref=f2e1184]: R$ 45,00
+                      - button "" [ref=f2e1185]
+                  - cell "NOVA" [ref=f2e1187]
+                  - cell "ESTOQUE" [ref=f2e1188]
+                - row [ref=f2e1189] [cursor=pointer]:
+                  - cell "48028387" [ref=f2e1190]
+                  - cell [ref=f2e1191]:
+                    - generic "FILTRO COMB 48028387 = 84348882" [ref=f2e1192]:
+                      - mark [ref=f2e1193]: FILTRO
+                      - text: COMB 48028387 = 84348882
+                  - cell "R$ 0,00 " [ref=f2e1194]:
+                    - generic [ref=f2e1195]:
+                      - generic [ref=f2e1196]: R$ 0,00
+                      - button "" [ref=f2e1197]
+                  - cell "CASTRO" [ref=f2e1199]
+                  - cell "ESTOQUE" [ref=f2e1200]
+                - row [ref=f2e1201] [cursor=pointer]:
+                  - cell "87344135P" [ref=f2e1202]
+                  - cell [ref=f2e1203]:
+                    - generic "FILTRO AR EXTERNO = 87344135P = ARS6223 = 6223618" [ref=f2e1204]:
+                      - mark [ref=f2e1205]: FILTRO
+                      - text: AR EXTERNO = 87344135P = ARS6223 = 6223618
+                  - cell "R$ 120,00 " [ref=f2e1206]:
+                    - generic [ref=f2e1207]:
+                      - generic [ref=f2e1208]: R$ 120,00
+                      - button "" [ref=f2e1209]
+                  - cell "NOVA" [ref=f2e1211]
+                  - cell "ESTOQUE" [ref=f2e1212]
+                - row [ref=f2e1213] [cursor=pointer]:
+                  - cell "FCI1660" [ref=f2e1214]
+                  - cell [ref=f2e1215]:
+                    - generic "FILTRO COMBUSTIVEL FCI1660 REF. GI04/7" [ref=f2e1216]:
+                      - mark [ref=f2e1217]: FILTRO
+                      - text: COMBUSTIVEL FCI1660 REF. GI04/7
+                  - cell "R$ 25,00 " [ref=f2e1218]:
+                    - generic [ref=f2e1219]:
+                      - generic [ref=f2e1220]: R$ 25,00
+                      - button "" [ref=f2e1221]
+                  - cell "NOVA" [ref=f2e1223]
+                  - cell "ESTOQUE" [ref=f2e1224]
+                - row [ref=f2e1225] [cursor=pointer]:
+                  - cell "RP-006008904B1" [ref=f2e1226]
+                  - cell [ref=f2e1227]:
+                    - generic "ELEMENTO DO FILTRO DE COMBUSTIVEL RP-006008904B1" [ref=f2e1228]:
+                      - text: ELEMENTO DO
+                      - mark [ref=f2e1229]: FILTRO
+                      - text: DE COMBUSTIVEL RP-006008904B1
+                  - cell "R$ 120,00 " [ref=f2e1230]:
+                    - generic [ref=f2e1231]:
+                      - generic [ref=f2e1232]: R$ 120,00
+                      - button "" [ref=f2e1233]
+                  - cell "NOVA" [ref=f2e1235]
+                  - cell "ESTOQUE" [ref=f2e1236]
+                - row [ref=f2e1237] [cursor=pointer]:
+                  - cell "86954" [ref=f2e1238]
+                  - cell [ref=f2e1239]:
+                    - generic "CH SACA FILTRO CINTA -18I" [ref=f2e1240]:
+                      - text: CH SACA
+                      - mark [ref=f2e1241]: FILTRO
+                      - text: CINTA -18I
+                  - cell "R$ 40,00 " [ref=f2e1242]:
+                    - generic [ref=f2e1243]:
+                      - generic [ref=f2e1244]: R$ 40,00
+                      - button "" [ref=f2e1245]
+                  - cell "NOVA" [ref=f2e1247]
+                  - cell "ESTOQUE" [ref=f2e1248]
+                - row [ref=f2e1249] [cursor=pointer]:
+                  - cell "RP-006016642V91" [ref=f2e1250]
+                  - cell [ref=f2e1251]:
+                    - generic "FILTRO OLEO DO MOTOR RP-006016642V91" [ref=f2e1252]:
+                      - mark [ref=f2e1253]: FILTRO
+                      - text: OLEO DO MOTOR RP-006016642V91
+                  - cell "R$ 140,00 " [ref=f2e1254]:
+                    - generic [ref=f2e1255]:
+                      - generic [ref=f2e1256]: R$ 140,00
+                      - button "" [ref=f2e1257]
+                  - cell "NOVA" [ref=f2e1259]
+                  - cell "ESTOQUE" [ref=f2e1260]
+                - row [ref=f2e1261] [cursor=pointer]:
+                  - cell "RP-007202697C91" [ref=f2e1262]
+                  - cell [ref=f2e1263]:
+                    - generic "FILTRO DE SUCCAO COMPLETO 6060" [ref=f2e1264]:
+                      - mark [ref=f2e1265]: FILTRO
+                      - text: DE SUCCAO COMPLETO 6060
+                  - cell "R$ 91,85 " [ref=f2e1266]:
+                    - generic [ref=f2e1267]:
+                      - generic [ref=f2e1268]: R$ 91,85
+                      - button "" [ref=f2e1269]
+                  - cell "NOVA" [ref=f2e1271]
+                  - cell "ESTOQUE" [ref=f2e1272]
+                - row [ref=f2e1273] [cursor=pointer]:
+                  - cell "500058316" [ref=f2e1274]
+                  - cell [ref=f2e1275]:
+                    - generic "FILTRO DE COMBUSTIVE" [ref=f2e1276]:
+                      - mark [ref=f2e1277]: FILTRO
+                      - text: DE COMBUSTIVE
+                  - cell "R$ 63,00 " [ref=f2e1278]:
+                    - generic [ref=f2e1279]:
+                      - generic [ref=f2e1280]: R$ 63,00
+                      - button "" [ref=f2e1281]
+                  - cell "CASTRO" [ref=f2e1283]
+                  - cell "ESTOQUE" [ref=f2e1284]
+                - row [ref=f2e1285] [cursor=pointer]:
+                  - cell "425959" [ref=f2e1286]
+                  - cell [ref=f2e1287]:
+                    - generic "FILTRO JACTO 425959=525832" [ref=f2e1288]:
+                      - mark [ref=f2e1289]: FILTRO
+                      - text: JACTO 425959=525832
+                  - cell "R$ 200,00 " [ref=f2e1290]:
+                    - generic [ref=f2e1291]:
+                      - generic [ref=f2e1292]: R$ 200,00
+                      - button "" [ref=f2e1293]
+                  - cell "CASTRO" [ref=f2e1295]
+                  - cell "ESTOQUE" [ref=f2e1296]
+                - row [ref=f2e1297] [cursor=pointer]:
+                  - cell "215580" [ref=f2e1298]
+                  - cell [ref=f2e1299]:
+                    - generic "FILTRO SEDIMENTADORCOMPLETO 215580" [ref=f2e1300]:
+                      - mark [ref=f2e1301]: FILTRO
+                      - text: SEDIMENTADORCOMPLETO 215580
+                  - cell "R$ 166,12 " [ref=f2e1302]:
+                    - generic [ref=f2e1303]:
+                      - generic [ref=f2e1304]: R$ 166,12
+                      - button "" [ref=f2e1305]
+                  - cell "CASTRO" [ref=f2e1307]
+                  - cell "ESTOQUE" [ref=f2e1308]
+                - row [ref=f2e1309] [cursor=pointer]:
+                  - cell "015845" [ref=f2e1310]
+                  - cell [ref=f2e1311]:
+                    - generic "FILTRO SEDIMENTADOR FORD / MB" [ref=f2e1312]:
+                      - mark [ref=f2e1313]: FILTRO
+                      - text: SEDIMENTADOR FORD / MB
+                  - cell "R$ 158,65 " [ref=f2e1314]:
+                    - generic [ref=f2e1315]:
+                      - generic [ref=f2e1316]: R$ 158,65
+                      - button "" [ref=f2e1317]
+                  - cell "CASTRO" [ref=f2e1319]
+                  - cell "ESTOQUE" [ref=f2e1320]
+                - row [ref=f2e1321] [cursor=pointer]:
+                  - cell "84465100" [ref=f2e1322]
+                  - cell [ref=f2e1323]:
+                    - generic "FILTRO DE AR CNH 84465100" [ref=f2e1324]:
+                      - mark [ref=f2e1325]: FILTRO
+                      - text: DE AR CNH 84465100
+                  - cell "R$ 450,00 " [ref=f2e1326]:
+                    - generic [ref=f2e1327]:
+                      - generic [ref=f2e1328]: R$ 450,00
+                      - button "" [ref=f2e1329]
+                  - cell "CASTRO" [ref=f2e1331]
+                  - cell "ESTOQUE" [ref=f2e1332]
+                - row [ref=f2e1333] [cursor=pointer]:
+                  - cell "M015727" [ref=f2e1334]
+                  - cell [ref=f2e1335]:
+                    - generic "FILTRO COMBUSTIVEL (26) = YANMAR" [ref=f2e1336]:
+                      - mark [ref=f2e1337]: FILTRO
+                      - text: COMBUSTIVEL (26) = YANMAR
+                  - cell "R$ 180,36 " [ref=f2e1338]:
+                    - generic [ref=f2e1339]:
+                      - generic [ref=f2e1340]: R$ 180,36
+                      - button "" [ref=f2e1341]
+                  - cell "NOVA" [ref=f2e1343]
+                  - cell "ESTOQUE" [ref=f2e1344]
+                - row [ref=f2e1345] [cursor=pointer]:
+                  - cell "RP-007638053U11" [ref=f2e1346]
+                  - cell [ref=f2e1347]:
+                    - generic "SUPORTE DO FILTRO DE AR" [ref=f2e1348]:
+                      - text: SUPORTE DO
+                      - mark [ref=f2e1349]: FILTRO
+                      - text: DE AR
+                  - cell "R$ 113,46 " [ref=f2e1350]:
+                    - generic [ref=f2e1351]:
+                      - generic [ref=f2e1352]: R$ 113,46
+                      - button "" [ref=f2e1353]
+                  - cell "NOVA" [ref=f2e1355]
+                  - cell "ESTOQUE" [ref=f2e1356]
+                - row [ref=f2e1357] [cursor=pointer]:
+                  - cell "242510" [ref=f2e1358]
+                  - cell [ref=f2e1359]:
+                    - generic "FILTRO DO HIDRAULICO VALMET" [ref=f2e1360]:
+                      - mark [ref=f2e1361]: FILTRO
+                      - text: DO HIDRAULICO VALMET
+                  - cell "R$ 0,00 " [ref=f2e1362]:
+                    - generic [ref=f2e1363]:
+                      - generic [ref=f2e1364]: R$ 0,00
+                      - button "" [ref=f2e1365]
+                  - cell "CASTRO" [ref=f2e1367]
+                  - cell "ESTOQUE" [ref=f2e1368]
+                - row [ref=f2e1369] [cursor=pointer]:
+                  - cell "DQ24057" [ref=f2e1370]
+                  - cell [ref=f2e1371]:
+                    - generic "FILTRO DE COMBUSTIVEL DQ24057" [ref=f2e1372]:
+                      - mark [ref=f2e1373]: FILTRO
+                      - text: DE COMBUSTIVEL DQ24057
+                  - cell "R$ 135,00 " [ref=f2e1374]:
+                    - generic [ref=f2e1375]:
+                      - generic [ref=f2e1376]: R$ 135,00
+                      - button "" [ref=f2e1377]
+                  - cell "CASTRO" [ref=f2e1379]
+                  - cell "ESTOQUE" [ref=f2e1380]
+                - row [ref=f2e1381] [cursor=pointer]:
+                  - cell "M015576" [ref=f2e1382]
+                  - cell [ref=f2e1383]:
+                    - generic "FILTRO AR EXTERNO (26) = YANMAR" [ref=f2e1384]:
+                      - mark [ref=f2e1385]: FILTRO
+                      - text: AR EXTERNO (26) = YANMAR
+                  - cell "R$ 420,84 " [ref=f2e1386]:
+                    - generic [ref=f2e1387]:
+                      - generic [ref=f2e1388]: R$ 420,84
+                      - button "" [ref=f2e1389]
+                  - cell "NOVA" [ref=f2e1391]
+                  - cell "ESTOQUE" [ref=f2e1392]
+                - row [ref=f2e1393] [cursor=pointer]:
+                  - cell "1851766" [ref=f2e1394]
+                  - cell [ref=f2e1395]:
+                    - generic "FILTRO LUBRIFICANTE MF50X E 65X" [ref=f2e1396]:
+                      - mark [ref=f2e1397]: FILTRO
+                      - text: LUBRIFICANTE MF50X E 65X
+                  - cell "R$ 40,00 " [ref=f2e1398]:
+                    - generic [ref=f2e1399]:
+                      - generic [ref=f2e1400]: R$ 40,00
+                      - button "" [ref=f2e1401]
+                  - cell "CASTRO" [ref=f2e1403]
+                  - cell "ESTOQUE" [ref=f2e1404]
+                - row [ref=f2e1405] [cursor=pointer]:
+                  - cell "RP-000016115P04-NAC" [ref=f2e1406]
+                  - cell [ref=f2e1407]:
+                    - generic "FILTRO DE OLEO DA TRANSMISSAO" [ref=f2e1408]:
+                      - mark [ref=f2e1409]: FILTRO
+                      - text: DE OLEO DA TRANSMISSAO
+                  - cell "R$ 150,00 " [ref=f2e1410]:
+                    - generic [ref=f2e1411]:
+                      - generic [ref=f2e1412]: R$ 150,00
+                      - button "" [ref=f2e1413]
+                  - cell "NOVA" [ref=f2e1415]
+                  - cell "ESTOQUE" [ref=f2e1416]
+                - row [ref=f2e1417] [cursor=pointer]:
+                  - cell "B2022070" [ref=f2e1418]
+                  - cell [ref=f2e1419]:
+                    - generic "FILTRO DE AR INTERNO B2022070" [ref=f2e1420]:
+                      - mark [ref=f2e1421]: FILTRO
+                      - text: DE AR INTERNO B2022070
+                  - cell "R$ 140,00 " [ref=f2e1422]:
+                    - generic [ref=f2e1423]:
+                      - generic [ref=f2e1424]: R$ 140,00
+                      - button "" [ref=f2e1425]
+                  - cell "NOVA" [ref=f2e1427]
+                  - cell "ESTOQUE" [ref=f2e1428]
+                - row [ref=f2e1429] [cursor=pointer]:
+                  - cell "PSC493" [ref=f2e1430]
+                  - cell [ref=f2e1431]:
+                    - generic "FILTRO COMBUSTIVEL PSC493 = WK950/30 MAN" [ref=f2e1432]:
+                      - mark [ref=f2e1433]: FILTRO
+                      - text: COMBUSTIVEL PSC493 = WK950/30 MAN
+                  - cell "R$ 140,00 " [ref=f2e1434]:
+                    - generic [ref=f2e1435]:
+                      - generic [ref=f2e1436]: R$ 140,00
+                      - button "" [ref=f2e1437]
+                  - cell "NOVA" [ref=f2e1439]
+                  - cell "ESTOQUE" [ref=f2e1440]
+                - row [ref=f2e1441] [cursor=pointer]:
+                  - cell "874339" [ref=f2e1442]
+                  - cell [ref=f2e1443]:
+                    - generic "PORCA DO FILTRO DE LINHA" [ref=f2e1444]:
+                      - text: PORCA DO
+                      - mark [ref=f2e1445]: FILTRO
+                      - text: DE LINHA
+                  - cell "R$ 0,00 " [ref=f2e1446]:
+                    - generic [ref=f2e1447]:
+                      - generic [ref=f2e1448]: R$ 0,00
+                      - button "" [ref=f2e1449]
+                  - cell "CASTRO" [ref=f2e1451]
+                  - cell "ESTOQUE" [ref=f2e1452]
+                - row [ref=f2e1453] [cursor=pointer]:
+                  - cell "87726699" [ref=f2e1454]
+                  - cell [ref=f2e1455]:
+                    - generic "FILTRO AR CABINE 87726699" [ref=f2e1456]:
+                      - mark [ref=f2e1457]: FILTRO
+                      - text: AR CABINE 87726699
+                  - cell "R$ 234,851 " [ref=f2e1458]:
+                    - generic [ref=f2e1459]:
+                      - generic [ref=f2e1460]: R$ 234,851
+                      - button "" [ref=f2e1461]
+                  - cell "CASTRO" [ref=f2e1463]
+                  - cell "ESTOQUE" [ref=f2e1464]
+                - row [ref=f2e1465] [cursor=pointer]:
+                  - cell "PSC410" [ref=f2e1466]
+                  - cell [ref=f2e1467]:
+                    - generic "FILTRO COMBUSTIVEL PSC410" [ref=f2e1468]:
+                      - mark [ref=f2e1469]: FILTRO
+                      - text: COMBUSTIVEL PSC410
+                  - cell "R$ 60,885 " [ref=f2e1470]:
+                    - generic [ref=f2e1471]:
+                      - generic [ref=f2e1472]: R$ 60,885
+                      - button "" [ref=f2e1473]
+                  - cell "NOVA" [ref=f2e1475]
+                  - cell "ESTOQUE" [ref=f2e1476]
+                - row [ref=f2e1477] [cursor=pointer]:
+                  - cell "PSC75" [ref=f2e1478]
+                  - cell [ref=f2e1479]:
+                    - generic "FILTRO COMBUSTIVEL PSC75" [ref=f2e1480]:
+                      - mark [ref=f2e1481]: FILTRO
+                      - text: COMBUSTIVEL PSC75
+                  - cell "R$ 140,00 " [ref=f2e1482]:
+                    - generic [ref=f2e1483]:
+                      - generic [ref=f2e1484]: R$ 140,00
+                      - button "" [ref=f2e1485]
+                  - cell "NOVA" [ref=f2e1487]
+                  - cell "ESTOQUE" [ref=f2e1488]
+                - row [ref=f2e1489] [cursor=pointer]:
+                  - cell "47863571" [ref=f2e1490]
+                  - cell [ref=f2e1491]:
+                    - generic "FILTRO AR CABINE CNH 47863571 = 87426675 = 48075258" [ref=f2e1492]:
+                      - mark [ref=f2e1493]: FILTRO
+                      - text: AR CABINE CNH 47863571 = 87426675 = 48075258
+                  - cell "R$ 286,823 " [ref=f2e1494]:
+                    - generic [ref=f2e1495]:
+                      - generic [ref=f2e1496]: R$ 286,823
+                      - button "" [ref=f2e1497]
+                  - cell "CASTRO" [ref=f2e1499]
+                  - cell "ESTOQUE" [ref=f2e1500]
+                - row [ref=f2e1501] [cursor=pointer]:
+                  - cell "JX0708A" [ref=f2e1502]
+                  - cell [ref=f2e1503]:
+                    - generic "FILTRO DE OLEO = ITO = JX0708A" [ref=f2e1504]:
+                      - mark [ref=f2e1505]: FILTRO
+                      - text: DE OLEO = ITO = JX0708A
+                  - cell "R$ 180,523 " [ref=f2e1506]:
+                    - generic [ref=f2e1507]:
+                      - generic [ref=f2e1508]: R$ 180,523
+                      - button "" [ref=f2e1509]
+                  - cell "CASTRO" [ref=f2e1511]
+                  - cell "ESTOQUE" [ref=f2e1512]
+                - row [ref=f2e1513] [cursor=pointer]:
+                  - cell "SG254.55.036-2" [ref=f2e1514]
+                  - cell [ref=f2e1515]:
+                    - generic "FILTRO DE OLEO HIDRAULICO = ITO = SG254.55.036-2" [ref=f2e1516]:
+                      - mark [ref=f2e1517]: FILTRO
+                      - text: DE OLEO HIDRAULICO = ITO = SG254.55.036-2
+                  - cell "R$ 173,001 " [ref=f2e1518]:
+                    - generic [ref=f2e1519]:
+                      - generic [ref=f2e1520]: R$ 173,001
+                      - button "" [ref=f2e1521]
+                  - cell "CASTRO" [ref=f2e1523]
+                  - cell "ESTOQUE" [ref=f2e1524]
+                - row [ref=f2e1525] [cursor=pointer]:
+                  - cell "80693400" [ref=f2e1526]
+                  - cell [ref=f2e1527]:
+                    - generic "FILTRO HIDRAULICO BM = 80634900 = PSH974" [ref=f2e1528]:
+                      - mark [ref=f2e1529]: FILTRO
+                      - text: HIDRAULICO BM = 80634900 = PSH974
+                  - cell "R$ 121,526 " [ref=f2e1530]:
+                    - generic [ref=f2e1531]:
+                      - generic [ref=f2e1532]: R$ 121,526
+                      - button "" [ref=f2e1533]
+                  - cell "CASTRO" [ref=f2e1535]
+                  - cell "ESTOQUE" [ref=f2e1536]
+                - row [ref=f2e1537] [cursor=pointer]:
+                  - cell "RP-006021191Y1" [ref=f2e1538]
+                  - cell [ref=f2e1539]:
+                    - generic "TUBO FILTRO PARA BOMBA FEED RP-006021191Y1" [ref=f2e1540]:
+                      - text: TUBO
+                      - mark [ref=f2e1541]: FILTRO
+                      - text: PARA BOMBA FEED RP-006021191Y1
+                  - cell "R$ 0,00 " [ref=f2e1542]:
+                    - generic [ref=f2e1543]:
+                      - generic [ref=f2e1544]: R$ 0,00
+                      - button "" [ref=f2e1545]
+                  - cell "NOVA" [ref=f2e1547]
+                  - cell "ESTOQUE" [ref=f2e1548]
+                - row [ref=f2e1549] [cursor=pointer]:
+                  - cell "1WDE344010" [ref=f2e1550]
+                  - cell [ref=f2e1551]:
+                    - generic "ELEMENTO DO FILTRO DE OLEO CONJUNTO" [ref=f2e1552]:
+                      - text: ELEMENTO DO
+                      - mark [ref=f2e1553]: FILTRO
+                      - text: DE OLEO CONJUNTO
+                  - cell "R$ 137,00 " [ref=f2e1554]:
+                    - generic [ref=f2e1555]:
+                      - generic [ref=f2e1556]: R$ 137,00
+                      - button "" [ref=f2e1557]
+                  - cell "CASTRO" [ref=f2e1559]
+                  - cell "ESTOQUE" [ref=f2e1560]
+                - row [ref=f2e1561] [cursor=pointer]:
+                  - cell "RP-000051460D01" [ref=f2e1562]
+                  - cell [ref=f2e1563]:
+                    - generic "FILTRO DA DIRECAO HIDRAULICA RP-000051460D01" [ref=f2e1564]:
+                      - mark [ref=f2e1565]: FILTRO
+                      - text: DA DIRECAO HIDRAULICA RP-000051460D01
+                  - cell "R$ 0,00 " [ref=f2e1566]:
+                    - generic [ref=f2e1567]:
+                      - generic [ref=f2e1568]: R$ 0,00
+                      - button "" [ref=f2e1569]
+                  - cell "NOVA" [ref=f2e1571]
+                  - cell "ESTOQUE" [ref=f2e1572]
+                - row [ref=f2e1573] [cursor=pointer]:
+                  - cell "CAV796" [ref=f2e1574]
+                  - cell [ref=f2e1575]:
+                    - generic "FILTRO CAV796 = 81248200 = 2710806 = 7340348 = PC2/255" [ref=f2e1576]:
+                      - mark [ref=f2e1577]: FILTRO
+                      - text: CAV796 = 81248200 = 2710806 = 7340348 = PC2/255
+                  - cell "R$ 30,00 " [ref=f2e1578]:
+                    - generic [ref=f2e1579]:
+                      - generic [ref=f2e1580]: R$ 30,00
+                      - button "" [ref=f2e1581]
+                  - cell "NOVA" [ref=f2e1583]
+                  - cell "ESTOQUE" [ref=f2e1584]
+                - row [ref=f2e1585] [cursor=pointer]:
+                  - cell "ACW5494810SH" [ref=f2e1586]
+                  - cell [ref=f2e1587]:
+                    - generic "FILTRO AR P/CABINE CARVAO ATIVADO LIN-A4" [ref=f2e1588]:
+                      - mark [ref=f2e1589]: FILTRO
+                      - text: AR P/CABINE CARVAO ATIVADO LIN-A4
+                  - cell "R$ 190,00 " [ref=f2e1590]:
+                    - generic [ref=f2e1591]:
+                      - generic [ref=f2e1592]: R$ 190,00
+                      - button "" [ref=f2e1593]
+                  - cell "NOVA" [ref=f2e1595]
+                  - cell "ESTOQUE" [ref=f2e1596]
+                - row [ref=f2e1597] [cursor=pointer]:
+                  - cell "82824884" [ref=f2e1598]
+                  - cell [ref=f2e1599]:
+                    - generic "FILTRO OLEO HIDRAULIC TT = PSH828 / 82824884" [ref=f2e1600]:
+                      - mark [ref=f2e1601]: FILTRO
+                      - text: OLEO HIDRAULIC TT = PSH828 / 82824884
+                  - cell "R$ 145,112 " [ref=f2e1602]:
+                    - generic [ref=f2e1603]:
+                      - generic [ref=f2e1604]: R$ 145,112
+                      - button "" [ref=f2e1605]
+                  - cell "CASTRO" [ref=f2e1607]
+                  - cell "ESTOQUE" [ref=f2e1608]
+                - row [ref=f2e1609] [cursor=pointer]:
+                  - cell "48075253" [ref=f2e1610]
+                  - cell [ref=f2e1611]:
+                    - generic "FILTRO HIDRAULICO 48075253 / 84465103 / PSH111 / P550388" [ref=f2e1612]:
+                      - mark [ref=f2e1613]: FILTRO
+                      - text: HIDRAULICO 48075253 / 84465103 / PSH111 / P550388
+                  - cell "R$ 150,00 " [ref=f2e1614]:
+                    - generic [ref=f2e1615]:
+                      - generic [ref=f2e1616]: R$ 150,00
+                      - button "" [ref=f2e1617]
+                  - cell "CASTRO" [ref=f2e1619]
+                  - cell "ESTOQUE" [ref=f2e1620]
+  - alert [ref=f2e15]

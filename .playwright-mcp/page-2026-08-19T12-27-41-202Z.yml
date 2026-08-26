@@ -1,0 +1,85 @@
+- generic [ref=f5e2]:
+  - generic [ref=f5e3]:
+    - generic [ref=f5e4]:
+      - generic [ref=f5e5]:
+        - generic [ref=f5e6]: "NO"
+        - generic [ref=f5e7]: RP-007702018C91
+      - generic [ref=f5e8]: PAINEL DE INSTRUMENTOS 6075 IMPORTADO COMPLETO
+      - generic [ref=f5e9]:
+        - text: PRATELEIRA
+        - strong [ref=f5e10]: "3"
+        - text: · ANDAR
+        - strong [ref=f5e11]: A
+        - text: · CAIXA
+        - strong [ref=f5e12]: "01"
+    - generic [ref=f5e69]: 08/2026
+  - generic [ref=f5e70]:
+    - generic [ref=f5e71]:
+      - generic [ref=f5e72]:
+        - generic [ref=f5e73]: RP-007702018C91
+        - generic [ref=f5e74]: CA
+      - generic [ref=f5e75]: PAINEL DE INSTRUMENTOS 6075 IMP
+      - generic [ref=f5e76]:
+        - text: PRATELEIRA
+        - strong [ref=f5e77]: "3"
+        - text: · ANDAR
+        - strong [ref=f5e78]: A
+        - text: · CAIXA
+        - strong [ref=f5e79]: "01"
+    - generic [ref=f5e136]: 08/2026
+  - generic [ref=f5e137]:
+    - generic [ref=f5e138]:
+      - generic [ref=f5e139]:
+        - generic [ref=f5e140]: "NO"
+        - generic [ref=f5e141]: 5174125P
+      - generic [ref=f5e142]: FILTRO DE OLEO
+      - generic [ref=f5e143]:
+        - text: PRATELEIRA
+        - strong [ref=f5e144]: "12"
+        - text: · ANDAR
+        - strong [ref=f5e145]: B
+        - text: · CAIXA
+        - strong [ref=f5e146]: "27"
+    - generic [ref=f5e182]: 08/2026
+  - generic [ref=f5e183]:
+    - generic [ref=f5e184]:
+      - generic [ref=f5e185]:
+        - generic [ref=f5e186]: 2733317/1
+        - generic [ref=f5e187]: CA
+      - generic [ref=f5e188]: CORREIA
+      - generic [ref=f5e189]:
+        - text: PRATELEIRA
+        - strong [ref=f5e190]: "1"
+        - text: · ANDAR
+        - strong [ref=f5e191]: C
+        - text: · CAIXA
+        - strong [ref=f5e192]: "05"
+    - generic [ref=f5e231]: 08/2026
+  - generic [ref=f5e232]:
+    - generic [ref=f5e233]:
+      - generic [ref=f5e234]:
+        - generic [ref=f5e235]: "NO"
+        - generic [ref=f5e236]: ABC-123
+      - generic [ref=f5e237]: MANGUEIRA
+      - generic [ref=f5e238]:
+        - text: PRATELEIRA
+        - strong [ref=f5e239]: "9"
+        - text: · ANDAR
+        - strong [ref=f5e240]: D
+        - text: · CAIXA
+        - strong [ref=f5e241]: "14"
+    - generic [ref=f5e274]: 08/2026
+  - generic [ref=f5e275]:
+    - generic [ref=f5e276]:
+      - generic [ref=f5e277]:
+        - generic [ref=f5e278]: XYZ-9
+        - generic [ref=f5e279]: CA
+      - generic [ref=f5e280]: PARAFUSO
+      - generic [ref=f5e281]:
+        - text: PRATELEIRA
+        - strong [ref=f5e282]: "2"
+        - text: · ANDAR
+        - strong [ref=f5e283]: E
+        - text: · CAIXA
+        - strong [ref=f5e284]: "30"
+    - generic [ref=f5e311]: 08/2026

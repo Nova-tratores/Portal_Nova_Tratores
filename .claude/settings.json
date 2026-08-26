@@ -4,14 +4,18 @@
       "Bash(curl -s \"https://portalnovatratores-production.up.railway.app/api/pos/rastreamento?acao=veiculos\" --max-time 20)",
       "Bash(curl -s \"https://portalnovatratores-production.up.railway.app/api/pos/rastreamento?acao=veiculos_mapa\" --max-time 30)",
       "Bash(git clone *)",
-      "Bash(node --check public/mapa-geral/js/routes.js)"
+      "Bash(node --check public/mapa-geral/js/routes.js)",
+      "Read(//c/wt-geo/src/lib/ppv/**)"
     ],
     "additionalDirectories": [
       "C:\\projetos\\vendas-pwa\\src\\pages",
       "C:\\projetos\\vendas-pwa\\src\\hooks",
       "c:\\projetos\\mecanicos\\src\\app\\(tecnico)\\opa",
       "c:\\projetos\\mecanicos\\src\\app\\(tecnico)",
-      "c:\\projetos\\mecanicos\\src\\hooks"
+      "c:\\projetos\\mecanicos\\src\\hooks",
+      "C:\\wt-etiq3\\src\\components\\ppv",
+      "C:\\wt-geo\\src\\lib\\ppv",
+      "C:\\nt-estq\\src\\app\\(portal)\\estoque"
     ]
   }
 }

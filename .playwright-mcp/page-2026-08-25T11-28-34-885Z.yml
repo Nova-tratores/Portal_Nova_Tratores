@@ -1,0 +1,529 @@
+- generic [ref=f3e1]:
+  - generic [ref=f3e2]:
+    - banner [ref=f3e16]:
+      - generic [ref=f3e17]:
+        - button [ref=f3e18] [cursor=pointer]
+        - link [ref=f3e20] [cursor=pointer]:
+          - /url: /dashboard
+          - img "Nova Tratores" [ref=f3e21]
+      - generic [ref=f3e22]:
+        - button "Chat" [ref=f3e23] [cursor=pointer]
+        - button "4" [ref=f3e26] [cursor=pointer]
+        - button "Menu" [ref=f3e32] [cursor=pointer]
+        - generic "Meu perfil" [ref=f3e37] [cursor=pointer]:
+          - generic [ref=f3e39]:
+            - paragraph [ref=f3e40]: Henri Irneh
+            - paragraph [ref=f3e41]: Pós-Vendas
+    - generic [ref=f3e42]:
+      - generic [ref=f3e44]:
+        - paragraph [ref=f3e46]: Henri Irneh
+        - paragraph [ref=f3e47]: Pós-Vendas
+      - generic [ref=f3e48]:
+        - generic [ref=f3e49]:
+          - link "Dashboard" [ref=f3e50] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Tickets" [ref=f3e59] [cursor=pointer]:
+            - /url: /tickets
+        - generic [ref=f3e65]:
+          - paragraph [ref=f3e66]: SERVIÇOS
+          - link "Pós-Vendas (OS)" [ref=f3e68] [cursor=pointer]:
+            - /url: /pos
+          - link "Garantias" [ref=f3e75] [cursor=pointer]:
+            - /url: /garantias
+          - link "Controle de Revisões" [ref=f3e82] [cursor=pointer]:
+            - /url: /revisoes
+          - link "Janela Mecânico" [ref=f3e88] [cursor=pointer]:
+            - /url: /mecanicos
+          - link "SAT Digital" [ref=f3e97] [cursor=pointer]:
+            - /url: /sat
+          - link "Mapeamento Técnico" [ref=f3e104] [cursor=pointer]:
+            - /url: /mapa-geral
+          - link "Fotos Técnicos" [ref=f3e111] [cursor=pointer]:
+            - /url: /fotos-tecnicos
+          - link "Lousa Virtual" [ref=f3e118] [cursor=pointer]:
+            - /url: /lousa
+          - link "Cronograma" [ref=f3e124] [cursor=pointer]:
+            - /url: /cronograma
+        - generic [ref=f3e130]:
+          - paragraph [ref=f3e131]: PEÇAS
+          - link "Peças (Pedido de Venda)" [ref=f3e133] [cursor=pointer]:
+            - /url: /ppv
+          - link "Orçamentos" [ref=f3e141] [cursor=pointer]:
+            - /url: /orcamentos
+          - link "Requisições" [ref=f3e147] [cursor=pointer]:
+            - /url: /requisicoes
+        - generic [ref=f3e154]:
+          - paragraph [ref=f3e155]: FINANCEIRO
+          - link "Financeiro" [ref=f3e157] [cursor=pointer]:
+            - /url: /financeiro
+          - link "DRE Financeiro" [ref=f3e163] [cursor=pointer]:
+            - /url: /dre-financeiro
+        - generic [ref=f3e169]:
+          - paragraph [ref=f3e170]: COMERCIAL
+          - link "Proposta Comercial" [ref=f3e172] [cursor=pointer]:
+            - /url: /propostas
+          - link "Feedbacks & CRM" [ref=f3e179] [cursor=pointer]:
+            - /url: /feedbacks
+          - link "Clientes" [ref=f3e186] [cursor=pointer]:
+            - /url: /clientes
+          - link "Supervisor Vendas" [ref=f3e193] [cursor=pointer]:
+            - /url: /supervisor-vendas
+          - link "Solicitações de Compras" [ref=f3e198] [cursor=pointer]:
+            - /url: /decisoes
+        - generic [ref=f3e206]:
+          - paragraph [ref=f3e207]: ESTOQUE
+          - link "Visual Estoque" [ref=f3e209] [cursor=pointer]:
+            - /url: /visual-estoque
+          - link "Consulta Estoque" [ref=f3e215] [cursor=pointer]:
+            - /url: /estoque
+          - link "Ajustes Estoque" [ref=f3e222] [cursor=pointer]:
+            - /url: /ajustes
+          - link "Abastecimento" [ref=f3e227] [cursor=pointer]:
+            - /url: /abastecimento
+          - link "Omie em Massa" [ref=f3e234] [cursor=pointer]:
+            - /url: /omie-massa
+        - generic [ref=f3e239]:
+          - paragraph [ref=f3e240]: OUTROS
+          - link "Opa" [ref=f3e242] [cursor=pointer]:
+            - /url: /opa
+          - link "Atividades" [ref=f3e248] [cursor=pointer]:
+            - /url: /atividades
+          - link "Dashboard Agro" [ref=f3e254] [cursor=pointer]:
+            - /url: "#"
+        - link "Sincronizações" [ref=f3e271] [cursor=pointer]:
+          - /url: /agendamentos
+        - link "Administração" [ref=f3e277] [cursor=pointer]:
+          - /url: /admin
+      - button "Sair do Portal" [ref=f3e284] [cursor=pointer]
+    - main [ref=f3e288]:
+      - generic [ref=f3e289]:
+        - generic [ref=f3e290]:
+          - heading "Conferência de custo das máquinas" [level=1] [ref=f3e291]
+          - paragraph [ref=f3e292]: Máquinas no pátio e em demonstração/consignação, com o custo atual do portal. Ligue para cada fornecedor e registre o custo pago, acumulado e o custo atual na fábrica — salva automaticamente.
+        - generic [ref=f3e293]:
+          - generic [ref=f3e294]:
+            - button "Todas" [ref=f3e295] [cursor=pointer]
+            - button "Nova" [ref=f3e296] [cursor=pointer]
+            - button "Castro" [ref=f3e297] [cursor=pointer]
+          - textbox "Buscar código, descrição, família, fornecedor…" [ref=f3e302]
+          - generic [ref=f3e303]:
+            - button "Todas" [ref=f3e304] [cursor=pointer]
+            - button "No pátio" [ref=f3e305] [cursor=pointer]
+            - button "Demonstração" [active] [ref=f3e306] [cursor=pointer]
+          - generic [ref=f3e307] [cursor=pointer]:
+            - checkbox "Só não contatados" [ref=f3e308]
+            - text: Só não contatados
+          - button "Exportar CSV" [ref=f3e309] [cursor=pointer]
+        - generic [ref=f3e313]:
+          - generic [ref=f3e314]: 17 máquinas
+          - generic [ref=f3e315]: "Custo portal (total): R$ 1.718.743,35"
+          - generic [ref=f3e316]: "Custo pago informado: R$ 0,00"
+          - generic [ref=f3e317]:
+            - text: "Contatados:"
+            - generic [ref=f3e318]: 0/17
+          - generic [ref=f3e346]: "Em demonstração: 17"
+        - table [ref=f3e347]:
+          - rowgroup [ref=f3e348]:
+            - row [ref=f3e349]:
+              - columnheader "Código" [ref=f3e350]
+              - columnheader "Descrição" [ref=f3e351]
+              - columnheader "Família" [ref=f3e352]
+              - columnheader "Origem" [ref=f3e353]
+              - columnheader "Dias estq." [ref=f3e354]
+              - columnheader "Custo portal" [ref=f3e355]
+              - columnheader "Fornecedor" [ref=f3e356]
+              - columnheader "Custo pago" [ref=f3e357]
+              - columnheader "Custo acum." [ref=f3e358]
+              - columnheader "Custo fábrica" [ref=f3e359]
+              - columnheader "Contatado" [ref=f3e360]
+              - columnheader "Obs." [ref=f3e361]
+          - rowgroup [ref=f3e362]:
+            - row [ref=f3e1376]:
+              - cell "20478" [ref=f3e364]
+              - cell "(4/6) EQUIPAMENTO ORION GREY LINE G300 nro de série 20478" [ref=f3e365]
+              - cell "Implemento Novo" [ref=f3e367]
+              - cell "Demonstração NOVA TRATORES MAQUINAS AGRICOLAS LTDA" [ref=f3e1377]:
+                - generic "Em demonstração para NOVA TRATORES MAQUINAS AGRICOLAS LTDA · remessa 123" [ref=f3e1378]:
+                  - generic [ref=f3e1379]: Demonstração
+                  - generic [ref=f3e1380]: NOVA TRATORES MAQUINAS AGRICOLAS LTDA
+              - cell "355" [ref=f3e1381]
+              - cell "R$ 33.200,00" [ref=f3e371]
+              - cell [ref=f3e372]:
+                - textbox "—" [ref=f3e373]
+              - cell [ref=f3e374]:
+                - spinbutton "—" [ref=f3e375]
+              - cell [ref=f3e376]:
+                - spinbutton "—" [ref=f3e377]
+              - cell [ref=f3e378]:
+                - spinbutton "—" [ref=f3e379]
+              - cell [ref=f3e380]:
+                - checkbox [ref=f3e381]
+              - cell [ref=f3e382]:
+                - textbox "—" [ref=f3e384]
+            - row [ref=f3e981]:
+              - cell "KBRA1014P40B01743" [ref=f3e982]
+              - cell "ACCURA 1600 FERTILIZADOR KUHN ACIONAMENTO HIDRAULICO,C/DISCO S6 (FAIXA 24/36M). ANO FAB 2026 SERIE KBRA1014P40B01743" [ref=f3e983]
+              - cell "Distribuidor" [ref=f3e985]
+              - cell "Demonstração ASPIPP" [ref=f3e986]:
+                - generic "Em demonstração para ASPIPP · remessa 3730" [ref=f3e987]:
+                  - generic [ref=f3e988]: Demonstração
+                  - generic [ref=f3e989]: ASPIPP
+              - cell "6" [ref=f3e990]
+              - cell "R$ 38.285,10" [ref=f3e991]
+              - cell [ref=f3e992]:
+                - textbox "—" [ref=f3e993]
+              - cell [ref=f3e994]:
+                - spinbutton "—" [ref=f3e995]
+              - cell [ref=f3e996]:
+                - spinbutton "—" [ref=f3e997]
+              - cell [ref=f3e998]:
+                - spinbutton "—" [ref=f3e999]
+              - cell [ref=f3e1000]:
+                - checkbox [ref=f3e1001]
+              - cell [ref=f3e1002]:
+                - textbox "—" [ref=f3e1004]
+            - row [ref=f3e1005]:
+              - cell "KMBA1062V00A00455" [ref=f3e1006]
+              - 'cell "ARBO 2000-MAOZINHA-P KUHN COM:ESPALDEIRA 12X3,C/ELETRICO 2S,C/RODADO 11L15, ANO 2025 SERIE: KMBA1062V00A00455" [ref=f3e1007]'
+              - cell "Pulverizador" [ref=f3e1009]
+              - cell "Demonstração ASPIPP" [ref=f3e1010]:
+                - generic "Em demonstração para ASPIPP · remessa 3735" [ref=f3e1011]:
+                  - generic [ref=f3e1012]: Demonstração
+                  - generic [ref=f3e1013]: ASPIPP
+              - cell "6" [ref=f3e1014]
+              - cell "R$ 82.712,78" [ref=f3e1015]
+              - cell [ref=f3e1016]:
+                - textbox "—" [ref=f3e1017]
+              - cell [ref=f3e1018]:
+                - spinbutton "—" [ref=f3e1019]
+              - cell [ref=f3e1020]:
+                - spinbutton "—" [ref=f3e1021]
+              - cell [ref=f3e1022]:
+                - spinbutton "—" [ref=f3e1023]
+              - cell [ref=f3e1024]:
+                - checkbox [ref=f3e1025]
+              - cell [ref=f3e1026]:
+                - textbox "—" [ref=f3e1028]
+            - row [ref=f3e1029]:
+              - cell "KMBA1061P80A00467" [ref=f3e1030]
+              - 'cell "ARBO 2000L - 900 - P KUHN C.ELETRICO 2 SECOES,C/RODADO 11L15,C/BOMBA PISTOES 125L/MIN ANO 2025 SERIE: KMBA1061P80A00467" [ref=f3e1031]'
+              - cell "Pulverizador" [ref=f3e1033]
+              - cell "Demonstração ASPIPP" [ref=f3e1034]:
+                - generic "Em demonstração para ASPIPP · remessa 3731" [ref=f3e1035]:
+                  - generic [ref=f3e1036]: Demonstração
+                  - generic [ref=f3e1037]: ASPIPP
+              - cell "6" [ref=f3e1038]
+              - cell "R$ 66.103,73" [ref=f3e1039]
+              - cell [ref=f3e1040]:
+                - textbox "—" [ref=f3e1041]
+              - cell [ref=f3e1042]:
+                - spinbutton "—" [ref=f3e1043]
+              - cell [ref=f3e1044]:
+                - spinbutton "—" [ref=f3e1045]
+              - cell [ref=f3e1046]:
+                - spinbutton "—" [ref=f3e1047]
+              - cell [ref=f3e1048]:
+                - checkbox [ref=f3e1049]
+              - cell [ref=f3e1050]:
+                - textbox "—" [ref=f3e1052]
+            - row [ref=f3e1053]:
+              - cell "17020" [ref=f3e1054]
+              - cell "BATEDOR DE COVAS MARCA VICON MODELO BC-1000 SERIE 17020 ANO.FAB 2026" [ref=f3e1055]
+              - cell "Implemento Novo" [ref=f3e1057]
+              - cell "Demonstração LUIZ CARLOS DA SILVA" [ref=f3e1058]:
+                - generic "Em demonstração para LUIZ CARLOS DA SILVA · remessa 3738" [ref=f3e1059]:
+                  - generic [ref=f3e1060]: Demonstração
+                  - generic [ref=f3e1061]: LUIZ CARLOS DA SILVA
+              - cell "4" [ref=f3e1062]
+              - cell "R$ 46.104,00" [ref=f3e1063]
+              - cell [ref=f3e1064]:
+                - textbox "—" [ref=f3e1065]
+              - cell [ref=f3e1066]:
+                - spinbutton "—" [ref=f3e1067]
+              - cell [ref=f3e1068]:
+                - spinbutton "—" [ref=f3e1069]
+              - cell [ref=f3e1070]:
+                - spinbutton "—" [ref=f3e1071]
+              - cell [ref=f3e1072]:
+                - checkbox [ref=f3e1073]
+              - cell [ref=f3e1074]:
+                - textbox "—" [ref=f3e1076]
+            - row [ref=f3e1077]:
+              - cell "14" [ref=f3e1078]
+              - cell "COLHEDORA DE CAFÉ MODELO PA-COLHEPLUS TRACTION, TRACIONADA Nro SERIE 14" [ref=f3e1079]
+              - cell "Implemento Novo" [ref=f3e1081]
+              - cell "Demonstração LUIZ CARLOS DA SILVA" [ref=f3e1082]:
+                - generic "Em demonstração para LUIZ CARLOS DA SILVA · remessa 3699" [ref=f3e1083]:
+                  - generic [ref=f3e1084]: Demonstração
+                  - generic [ref=f3e1085]: LUIZ CARLOS DA SILVA
+              - cell "40" [ref=f3e1086]
+              - cell "R$ 558.000,00" [ref=f3e1087]
+              - cell [ref=f3e1088]:
+                - textbox "—" [ref=f3e1089]
+              - cell [ref=f3e1090]:
+                - spinbutton "—" [ref=f3e1091]
+              - cell [ref=f3e1092]:
+                - spinbutton "—" [ref=f3e1093]
+              - cell [ref=f3e1094]:
+                - spinbutton "—" [ref=f3e1095]
+              - cell [ref=f3e1096]:
+                - checkbox [ref=f3e1097]
+              - cell [ref=f3e1098]:
+                - textbox "—" [ref=f3e1100]
+            - row [ref=f3e1101]:
+              - cell "PA 00618-1" [ref=f3e1102]
+              - cell "KIT GT-500 GPS guia de aplicacao para maquinas agricola com sup articulado" [ref=f3e1103]
+              - cell "Agricultura de Precisão" [ref=f3e1105]
+              - cell "Demonstração NOVA TRATORES MAQUINAS AGRICOLAS LTDA" [ref=f3e1106]:
+                - generic "Em demonstração para NOVA TRATORES MAQUINAS AGRICOLAS LTDA · remessa 3641" [ref=f3e1107]:
+                  - generic [ref=f3e1108]: Demonstração
+                  - generic [ref=f3e1109]: NOVA TRATORES MAQUINAS AGRICOLAS LTDA
+              - cell "104" [ref=f3e1110]
+              - cell "R$ 5.763,00" [ref=f3e1111]
+              - cell [ref=f3e1112]:
+                - textbox "—" [ref=f3e1113]
+              - cell [ref=f3e1114]:
+                - spinbutton "—" [ref=f3e1115]
+              - cell [ref=f3e1116]:
+                - spinbutton "—" [ref=f3e1117]
+              - cell [ref=f3e1118]:
+                - spinbutton "—" [ref=f3e1119]
+              - cell [ref=f3e1120]:
+                - checkbox [ref=f3e1121]
+              - cell [ref=f3e1122]:
+                - textbox "—" [ref=f3e1124]
+            - row [ref=f3e1125]:
+              - cell "PA 00618-2" [ref=f3e1126]
+              - cell "KIT GT-500 GPS guia de aplicacao para maquinas agricola com suporte articulado PA00618-2" [ref=f3e1127]
+              - cell "Agricultura de Precisão" [ref=f3e1129]
+              - cell "Demonstração NOVA TRATORES MAQUINAS AGRICOLAS LTDA" [ref=f3e1130]:
+                - generic "Em demonstração para NOVA TRATORES MAQUINAS AGRICOLAS LTDA · remessa 3651" [ref=f3e1131]:
+                  - generic [ref=f3e1132]: Demonstração
+                  - generic [ref=f3e1133]: NOVA TRATORES MAQUINAS AGRICOLAS LTDA
+              - cell "95" [ref=f3e1134]
+              - cell "R$ 5.000,00" [ref=f3e1135]
+              - cell [ref=f3e1136]:
+                - textbox "—" [ref=f3e1137]
+              - cell [ref=f3e1138]:
+                - spinbutton "—" [ref=f3e1139]
+              - cell [ref=f3e1140]:
+                - spinbutton "—" [ref=f3e1141]
+              - cell [ref=f3e1142]:
+                - spinbutton "—" [ref=f3e1143]
+              - cell [ref=f3e1144]:
+                - checkbox [ref=f3e1145]
+              - cell [ref=f3e1146]:
+                - textbox "—" [ref=f3e1148]
+            - row [ref=f3e1149]:
+              - cell "1-LL8AATHW2T0A00085" [ref=f3e1150]
+              - cell "QUADRICICLO MODELO VENTURA LAND FORCE L550 ANO 2025 SERIE LL8AATHW2T0A00085 - COR CINZA CEST 25.003.0" [ref=f3e1151]
+              - cell "ATV E UTV" [ref=f3e1153]
+              - cell "Demonstração NOVA TRATORES MAQUINAS AGRICOLAS LTDA" [ref=f3e1154]:
+                - generic "Em demonstração para NOVA TRATORES MAQUINAS AGRICOLAS LTDA · remessa 3705" [ref=f3e1155]:
+                  - generic [ref=f3e1156]: Demonstração
+                  - generic [ref=f3e1157]: NOVA TRATORES MAQUINAS AGRICOLAS LTDA
+              - cell "35" [ref=f3e1158]
+              - cell "R$ 60.000,00" [ref=f3e1159]
+              - cell [ref=f3e1160]:
+                - textbox "—" [ref=f3e1161]
+              - cell [ref=f3e1162]:
+                - spinbutton "—" [ref=f3e1163]
+              - cell [ref=f3e1164]:
+                - spinbutton "—" [ref=f3e1165]
+              - cell [ref=f3e1166]:
+                - spinbutton "—" [ref=f3e1167]
+              - cell [ref=f3e1168]:
+                - checkbox [ref=f3e1169]
+              - cell [ref=f3e1170]:
+                - textbox "—" [ref=f3e1172]
+            - row [ref=f3e1173]:
+              - cell "LL8AEMHF2S0A10057" [ref=f3e1174]
+              - cell "QUADRICICLO MODELO VENTURA M250 L ANO 2025 SERIE LL8AEMHF2S0A10057- COR BRANCO" [ref=f3e1175]
+              - cell "ATV E UTV" [ref=f3e1177]
+              - cell "Demonstração NOVA TRATORES MAQUINAS AGRICOLAS LTDA" [ref=f3e1178]:
+                - generic "Em demonstração para NOVA TRATORES MAQUINAS AGRICOLAS LTDA · remessa 3705" [ref=f3e1179]:
+                  - generic [ref=f3e1180]: Demonstração
+                  - generic [ref=f3e1181]: NOVA TRATORES MAQUINAS AGRICOLAS LTDA
+              - cell "35" [ref=f3e1182]
+              - cell "R$ 22.900,00" [ref=f3e1183]
+              - cell [ref=f3e1184]:
+                - textbox "—" [ref=f3e1185]
+              - cell [ref=f3e1186]:
+                - spinbutton "—" [ref=f3e1187]
+              - cell [ref=f3e1188]:
+                - spinbutton "—" [ref=f3e1189]
+              - cell [ref=f3e1190]:
+                - spinbutton "—" [ref=f3e1191]
+              - cell [ref=f3e1192]:
+                - checkbox [ref=f3e1193]
+              - cell [ref=f3e1194]:
+                - textbox "—" [ref=f3e1196]
+            - row [ref=f3e1197]:
+              - cell "SRF-359" [ref=f3e1198]
+              - cell "ROLO FACA MARCA SCHEMAQ MODELO TERREMOTO 7000 Nro SERIE SRF-359" [ref=f3e1199]
+              - cell "Implemento Novo" [ref=f3e1201]
+              - cell "Demonstração ASPIPP" [ref=f3e1202]:
+                - generic "Em demonstração para ASPIPP · remessa 3737" [ref=f3e1203]:
+                  - generic [ref=f3e1204]: Demonstração
+                  - generic [ref=f3e1205]: ASPIPP
+              - cell "4" [ref=f3e1206]
+              - cell "R$ 156.349,00" [ref=f3e1207]
+              - cell [ref=f3e1208]:
+                - textbox "—" [ref=f3e1209]
+              - cell [ref=f3e1210]:
+                - spinbutton "—" [ref=f3e1211]
+              - cell [ref=f3e1212]:
+                - spinbutton "—" [ref=f3e1213]
+              - cell [ref=f3e1214]:
+                - spinbutton "—" [ref=f3e1215]
+              - cell [ref=f3e1216]:
+                - checkbox [ref=f3e1217]
+              - cell [ref=f3e1218]:
+                - textbox "—" [ref=f3e1220]
+            - row [ref=f3e1221]:
+              - cell "KBRA1064T70A00116" [ref=f3e1222]
+              - cell "SKARIFIC 11 HASTES (30CM) ESCARIFICADOR DE SOLO KU" [ref=f3e1223]
+              - cell "Subsolador/Escarificador/Terraceador" [ref=f3e1225]
+              - cell "Demonstração ASPIPP" [ref=f3e1226]:
+                - generic "Em demonstração para ASPIPP · remessa 3729" [ref=f3e1227]:
+                  - generic [ref=f3e1228]: Demonstração
+                  - generic [ref=f3e1229]: ASPIPP
+              - cell "6" [ref=f3e1230]
+              - cell "R$ 123.785,00" [ref=f3e1231]
+              - cell [ref=f3e1232]:
+                - textbox "—" [ref=f3e1233]
+              - cell [ref=f3e1234]:
+                - spinbutton "—" [ref=f3e1235]
+              - cell [ref=f3e1236]:
+                - spinbutton "—" [ref=f3e1237]
+              - cell [ref=f3e1238]:
+                - spinbutton "—" [ref=f3e1239]
+              - cell [ref=f3e1240]:
+                - checkbox [ref=f3e1241]
+              - cell [ref=f3e1242]:
+                - textbox "—" [ref=f3e1244]
+            - row [ref=f3e1245]:
+              - cell "69940135" [ref=f3e1246]
+              - 'cell "TRITURADOR TRITUCAP 1.8F TDF 540 RPM 69940135 | Serie(s): 69940135" [ref=f3e1247]'
+              - cell "TRINCHA" [ref=f3e1249]
+              - cell "Demonstração ASPIPP" [ref=f3e1250]:
+                - generic "Em demonstração para ASPIPP · remessa 3736" [ref=f3e1251]:
+                  - generic [ref=f3e1252]: Demonstração
+                  - generic [ref=f3e1253]: ASPIPP
+              - cell "6" [ref=f3e1254]
+              - cell "R$ 88.000,00" [ref=f3e1255]
+              - cell [ref=f3e1256]:
+                - textbox "—" [ref=f3e1257]
+              - cell [ref=f3e1258]:
+                - spinbutton "—" [ref=f3e1259]
+              - cell [ref=f3e1260]:
+                - spinbutton "—" [ref=f3e1261]
+              - cell [ref=f3e1262]:
+                - spinbutton "—" [ref=f3e1263]
+              - cell [ref=f3e1264]:
+                - checkbox [ref=f3e1265]
+              - cell [ref=f3e1266]:
+                - textbox "—" [ref=f3e1268]
+            - row [ref=f3e1269]:
+              - cell "MBNUZA2WFSZF00778" [ref=f3e1270]
+              - 'cell "VEICULO NOVO MAHINDRA 5050 4WD 14.9X28R1 2025 MOTOR: ZSE6CPF4850|CILIND. CHAS:MBNUZA2WFSZF00778" [ref=f3e1271]'
+              - cell "Trator Novo" [ref=f3e1273]
+              - cell "Demonstração ASPIPP" [ref=f3e1274]:
+                - generic "Em demonstração para ASPIPP · remessa 3733" [ref=f3e1275]:
+                  - generic [ref=f3e1276]: Demonstração
+                  - generic [ref=f3e1277]: ASPIPP
+              - cell "6" [ref=f3e1278]
+              - cell "R$ 106.898,28" [ref=f3e1279]
+              - cell [ref=f3e1280]:
+                - textbox "—" [ref=f3e1281]
+              - cell [ref=f3e1282]:
+                - spinbutton "—" [ref=f3e1283]
+              - cell [ref=f3e1284]:
+                - spinbutton "—" [ref=f3e1285]
+              - cell [ref=f3e1286]:
+                - spinbutton "—" [ref=f3e1287]
+              - cell [ref=f3e1288]:
+                - checkbox [ref=f3e1289]
+              - cell [ref=f3e1290]:
+                - textbox "—" [ref=f3e1292]
+            - row [ref=f3e1293]:
+              - cell "MDI07513ES0006198" [ref=f3e1294]
+              - 'cell "VEICULO NOVO MAHINDRA 6075E-BR-CAB PH2 V 2025 MOTOR: NSA7ACE0069|CILIND. CHAS:MDI07513ES0006198" [ref=f3e1295]'
+              - cell "Trator Novo" [ref=f3e1297]
+              - cell "Demonstração ASPIPP" [ref=f3e1298]:
+                - generic "Em demonstração para ASPIPP · remessa 3732" [ref=f3e1299]:
+                  - generic [ref=f3e1300]: Demonstração
+                  - generic [ref=f3e1301]: ASPIPP
+              - cell "6" [ref=f3e1302]
+              - cell "R$ 238.905,19" [ref=f3e1303]
+              - cell [ref=f3e1304]:
+                - textbox "—" [ref=f3e1305]
+              - cell [ref=f3e1306]:
+                - spinbutton "—" [ref=f3e1307]
+              - cell [ref=f3e1308]:
+                - spinbutton "—" [ref=f3e1309]
+              - cell [ref=f3e1310]:
+                - spinbutton "—" [ref=f3e1311]
+              - cell [ref=f3e1312]:
+                - checkbox [ref=f3e1313]
+              - cell [ref=f3e1314]:
+                - textbox "—" [ref=f3e1316]
+            - row [ref=f3e1317]:
+              - cell "MBN1KGCBFTGL02378" [ref=f3e1318]
+              - 'cell "VEICULO NOVO MAHINDRA TRATOR JIVO 2025 2026 MOTOR: TR2025OD4WDPSEX|CILIND. CHAS:MBN1KGCBFTGL02378" [ref=f3e1319]'
+              - cell "Trator Novo" [ref=f3e1321]
+              - cell "Demonstração ASPIPP" [ref=f3e1322]:
+                - generic "Em demonstração para ASPIPP · remessa 3734" [ref=f3e1323]:
+                  - generic [ref=f3e1324]: Demonstração
+                  - generic [ref=f3e1325]: ASPIPP
+              - cell "6" [ref=f3e1326]
+              - cell "R$ 73.237,26" [ref=f3e1327]
+              - cell [ref=f3e1328]:
+                - textbox "—" [ref=f3e1329]
+              - cell [ref=f3e1330]:
+                - spinbutton "—" [ref=f3e1331]
+              - cell [ref=f3e1332]:
+                - spinbutton "—" [ref=f3e1333]
+              - cell [ref=f3e1334]:
+                - spinbutton "—" [ref=f3e1335]
+              - cell [ref=f3e1336]:
+                - checkbox [ref=f3e1337]
+              - cell [ref=f3e1338]:
+                - textbox "—" [ref=f3e1340]
+            - row [ref=f3e1341]:
+              - cell "BRAT2022090143" [ref=f3e1342]
+              - cell "VENTURA BRAT ANO 2025 SERIE BRAT2022090143 - COR AZUL" [ref=f3e1343]
+              - cell "ATV E UTV" [ref=f3e1345]
+              - cell "Demonstração NOVA TRATORES MAQUINAS AGRICOLAS LTDA" [ref=f3e1346]:
+                - generic "Em demonstração para NOVA TRATORES MAQUINAS AGRICOLAS LTDA · remessa 3656" [ref=f3e1347]:
+                  - generic [ref=f3e1348]: Demonstração
+                  - generic [ref=f3e1349]: NOVA TRATORES MAQUINAS AGRICOLAS LTDA
+              - cell "89" [ref=f3e1350]
+              - cell "R$ 13.500,00" [ref=f3e1351]
+              - cell [ref=f3e1352]:
+                - textbox "—" [ref=f3e1353]
+              - cell [ref=f3e1354]:
+                - spinbutton "—" [ref=f3e1355]
+              - cell [ref=f3e1356]:
+                - spinbutton "—" [ref=f3e1357]
+              - cell [ref=f3e1358]:
+                - spinbutton "—" [ref=f3e1359]
+              - cell [ref=f3e1360]:
+                - checkbox [ref=f3e1361]
+              - cell [ref=f3e1362]:
+                - textbox "—" [ref=f3e1364]
+    - generic "Arraste para mover · clique para falar com o Tratorilson" [ref=f3e322]:
+      - generic [ref=f3e1365]:
+        - img "Tratorilson"
+  - generic [ref=f3e10] [cursor=pointer]:
+    - button "Open Next.js Dev Tools" [ref=f3e11]
+    - generic [ref=f3e1366]:
+      - button "Open issues overlay" [ref=f3e1367]:
+        - generic [ref=f3e1368]:
+          - generic [ref=f3e1369]: "1"
+          - generic [ref=f3e1370]: "2"
+        - generic [ref=f3e1371]:
+          - text: Issue
+          - generic [ref=f3e1372]: s
+      - button "Collapse issues badge" [ref=f3e1373]
+  - alert [ref=f3e15]
