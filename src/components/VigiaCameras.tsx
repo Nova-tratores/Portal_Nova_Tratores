@@ -430,12 +430,12 @@ export default function VigiaCameras() {
                             width: 26, height: 26, borderRadius: 8, flexShrink: 0,
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             background: ev.codigo === 'Trator' ? 'rgba(234,88,12,0.14)'
-                              : ev.codigo === 'SmartMotionHuman' ? 'rgba(34,197,94,0.14)' : 'rgba(220,38,38,0.10)',
+                              : (ev.codigo === 'SmartMotionHuman' || ev.codigo === 'Pessoa') ? 'rgba(34,197,94,0.14)' : 'rgba(220,38,38,0.10)',
                             color: ev.codigo === 'Trator' ? '#ea580c'
-                              : ev.codigo === 'SmartMotionHuman' ? '#16a34a' : '#dc2626',
+                              : (ev.codigo === 'SmartMotionHuman' || ev.codigo === 'Pessoa') ? '#16a34a' : '#dc2626',
                           }}>
                             {ev.codigo === 'Trator' ? <Tractor size={15} />
-                              : ev.codigo === 'SmartMotionHuman' ? <PersonStanding size={15} /> : <Video size={14} />}
+                              : (ev.codigo === 'SmartMotionHuman' || ev.codigo === 'Pessoa') ? <PersonStanding size={15} /> : <Video size={14} />}
                           </span>
                           {ev.fotoUrl && (
                             // eslint-disable-next-line @next/next/no-img-element
@@ -451,10 +451,10 @@ export default function VigiaCameras() {
                             <span style={{
                               fontSize: 11.5, fontWeight: 600,
                               color: ev.codigo === 'Trator' ? '#ea580c'
-                                : ev.codigo === 'SmartMotionHuman' ? '#16a34a' : 'var(--portal-text)',
+                                : (ev.codigo === 'SmartMotionHuman' || ev.codigo === 'Pessoa') ? '#16a34a' : 'var(--portal-text)',
                             }}>
                               {ev.codigo === 'Trator' ? 'Trator confirmado pela IA'
-                                : ev.codigo === 'SmartMotionHuman' ? 'Pessoa detectada' : 'Movimento detectado'}
+                                : (ev.codigo === 'SmartMotionHuman' || ev.codigo === 'Pessoa') ? 'Pessoa detectada' : 'Movimento detectado'}
                             </span>
                           </span>
                           <span style={{ flexShrink: 0, color: 'var(--portal-text-secondary)', fontSize: 11.5 }}>

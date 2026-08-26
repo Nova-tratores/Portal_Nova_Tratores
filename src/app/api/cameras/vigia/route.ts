@@ -97,10 +97,17 @@ export async function POST(req: NextRequest) {
 }
 
 // Canais com FILTRO DE IA: o evento chega com foto e a IA de visão só
-// deixa passar se o alvo aparecer. Canal 5 (Lavador) = só TRATOR.
-const FILTROS: Record<number, "trator"> = { 5: "trator" };
+// deixa passar se o alvo aparecer. Canal 4 (porta) = só PESSOA;
+// Canal 5 (Lavador) = só TRATOR. (O SMD do DVR filtra as ações de alarme
+// dele, mas o evento cru vaza no fluxo — sombra/cachorro disparavam.)
+const FILTROS: Record<number, "trator" | "pessoa"> = { 4: "pessoa", 5: "trator" };
 
-async function fotoTemTrator(fotoBase64: string): Promise<boolean | null> {
+const PERGUNTAS: Record<string, string> = {
+  trator: "Responda APENAS 'sim' ou 'nao'. Há um TRATOR ou máquina agrícola (não vale carro, caminhonete, moto ou caminhão comum) visível nesta imagem de câmera de segurança?",
+  pessoa: "Responda APENAS 'sim' ou 'nao'. Há uma PESSOA (ser humano em pé ou andando; não vale cachorro, carro ou sombra) visível nesta imagem de câmera de segurança?",
+};
+
+async function fotoTemAlvo(alvo: "trator" | "pessoa", fotoBase64: string): Promise<boolean | null> {
   const key = process.env.OPENAI_API_KEY;
   if (!key) return null; // sem chave → sem como filtrar
   try {
@@ -113,7 +120,7 @@ async function fotoTemTrator(fotoBase64: string): Promise<boolean | null> {
         messages: [{
           role: "user",
           content: [
-            { type: "text", text: "Responda APENAS 'sim' ou 'nao'. Há um TRATOR ou máquina agrícola (não vale carro, caminhonete, moto ou caminhão comum) visível nesta imagem de câmera de segurança?" },
+            { type: "text", text: PERGUNTAS[alvo] },
             { type: "image_url", image_url: { url: `data:image/jpeg;base64,${fotoBase64}`, detail: "low" } },
           ],
         }],
@@ -133,12 +140,13 @@ export async function PUT(req: NextRequest) {
     if (body.token !== TOKEN_VIGIA) {
       return NextResponse.json({ error: "token inválido" }, { status: 401 });
     }
-    // Canal com filtro de IA: só segue se a foto tiver o alvo (trator).
+    // Canal com filtro de IA: só segue se a foto tiver o alvo.
     // Sem chave/sem resposta da IA, deixa passar como movimento comum.
-    if (body.evento?.canal && FILTROS[Number(body.evento.canal)] === "trator" && body.foto) {
-      const tem = await fotoTemTrator(String(body.foto));
+    const alvoFiltro = body.evento?.canal ? FILTROS[Number(body.evento.canal)] : undefined;
+    if (alvoFiltro && body.foto) {
+      const tem = await fotoTemAlvo(alvoFiltro, String(body.foto));
       if (tem === false) return NextResponse.json({ ok: true, filtrado: true });
-      if (tem === true) body.evento.codigo = "Trator";
+      if (tem === true) body.evento.codigo = alvoFiltro === "trator" ? "Trator" : "Pessoa";
     }
 
     // ── EVENTO: histórico vive em arquivo PRÓPRIO (eventos.json), só
