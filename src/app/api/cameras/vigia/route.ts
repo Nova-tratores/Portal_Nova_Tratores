@@ -142,49 +142,12 @@ export async function PUT(req: NextRequest) {
         });
       } catch { /* realtime fora do ar — o polling de 60s cobre */ }
     }
-    // Sino do portal: avisa QUEM TEM O MÓDULO (dev ou módulo `cameras`),
-    // com folga de 10 min por canal pra não inundar as notificações.
-    const ultimaNotif: Record<string, string> =
-      (atual.ultimaNotif as Record<string, string>) || {};
-    if (body.evento?.canal) {
-      const canal = Number(body.evento.canal);
-      const anterior = ultimaNotif[String(canal)] ? new Date(ultimaNotif[String(canal)]).getTime() : 0;
-      if (Date.now() - anterior > 10 * 60 * 1000) {
-        ultimaNotif[String(canal)] = new Date().toISOString();
-        try {
-          const { data: perms } = await supabase
-            .from("portal_permissoes")
-            .select("user_id,is_dev,modulos_permitidos");
-          const alvos = (perms || []).filter(
-            (p: { is_dev?: boolean; modulos_permitidos?: string[] }) =>
-              p.is_dev === true ||
-              (Array.isArray(p.modulos_permitidos) && p.modulos_permitidos.includes("cameras"))
-          );
-          if (alvos.length) {
-            const trator = body.evento.codigo === "Trator";
-            const nomes: Record<number, string> = { 4: "porta do escritório", 5: "Lavador" };
-            const onde = nomes[canal] || `canal ${canal}`;
-            await supabase.from("portal_notificacoes").insert(
-              alvos.map((a: { user_id: string }) => ({
-                user_id: a.user_id,
-                tipo: "cameras",
-                titulo: trator ? "Trator passando no Lavador" : `Movimento na ${onde}`,
-                descricao: trator
-                  ? "A IA confirmou um trator na câmera do lavador (canal 5)."
-                  : `O vigia das câmeras detectou movimento (canal ${canal}).`,
-                link: "/dashboard?vigia=1",
-              }))
-            );
-          }
-        } catch { /* sino é best-effort — o toque em tempo real já saiu */ }
-      }
-    }
-
+    // (Sem notificação no sino — decisão do usuário 26/08: o log ao vivo
+    // no modal + o toque em tempo real já cobrem.)
     const status = {
       atualizadoEm: new Date().toISOString(),
       canais: Array.isArray(body.canais) ? body.canais : atual.canais || [],
       eventos: eventos.slice(0, MAX_EVENTOS),
-      ultimaNotif,
     };
     await gravarJson(ARQ_STATUS, status);
     return NextResponse.json({ ok: true });

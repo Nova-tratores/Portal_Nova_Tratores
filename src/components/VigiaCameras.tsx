@@ -120,7 +120,11 @@ export default function VigiaCameras() {
 
   const carregar = useCallback(async () => {
     try {
-      const r = await fetch('/api/cameras/vigia', { headers: { ...(await authHeaders()) } })
+      // ts + no-store: sem cache de navegador segurando a lista antiga
+      const r = await fetch(`/api/cameras/vigia?ts=${Date.now()}`, {
+        headers: { ...(await authHeaders()) },
+        cache: 'no-store',
+      })
       if (!r.ok) return
       const j = await r.json()
       if (j.status) { setStatus(j.status); setExiste(true) }
@@ -130,7 +134,7 @@ export default function VigiaCameras() {
 
   useEffect(() => {
     carregar()
-    const t = setInterval(carregar, 60000)
+    const t = setInterval(carregar, 20000)
     return () => clearInterval(t)
   }, [carregar])
 
