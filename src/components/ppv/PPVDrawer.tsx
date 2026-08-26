@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, type CSSProperties } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import type { PPVDetalhes, LogEntry } from "@/lib/ppv/types";
 import type { ComunicacaoSefaz } from "@/lib/ppv/omie";
@@ -524,7 +524,20 @@ export default function PPVDrawer({
     setParcelas(calcularParcelas(numParcelas, previsaoFat, totalFinal));
   }, [numParcelas, previsaoFat, totalFinal]);
 
-  // Departamentos + listas (categorias/contas/etapas) do banco — uma vez ao abrir.
+  // Conta Omie do pedido = maioria dos itens (mesma regra do envio em
+  // lib/ppv/omie.ts): item da "Primária/Castro" conta pro CASTRO.
+  // Os cenários fiscais são POR CONTA — o Castro tem "Padrão", a Nova "VENDA".
+  const contaPedido = useMemo(() => {
+    let nova = 0, castro = 0;
+    (details?.produtos || []).forEach((p) => {
+      if (!p.empresa) return;
+      if (/primari|castro/i.test(p.empresa)) castro += 1; else nova += 1;
+    });
+    return castro > nova ? "CASTRO" : "NOVA";
+  }, [details]);
+
+  // Departamentos + listas (categorias/contas/etapas/cenários) do banco —
+  // recarrega se a conta do pedido mudar (itens do Castro chegaram depois).
   useEffect(() => {
     if (!open) return;
     (async () => {
@@ -532,7 +545,7 @@ export default function PPVDrawer({
         const h = { ...(await authHeaders()) };
         const [rd, rl] = await Promise.all([
           fetch(`/api/ppv/departamentos`, { headers: h }),
-          fetch(`/api/ppv/listas-pedido`, { headers: h }),
+          fetch(`/api/ppv/listas-pedido?conta=${contaPedido}`, { headers: h }),
         ]);
         const jd = await rd.json();
         if (rd.ok) setDepartamentos(jd.departamentos || []); else console.error("[PPV departamentos]", jd?.error);
@@ -542,14 +555,21 @@ export default function PPVDrawer({
           // Conta corrente começa no Bradesco (se o usuário ainda não escolheu).
           const br = (jl.contasCorrentes || []).find((c: { descricao?: string }) => /bradesco/i.test(c.descricao || ""));
           if (br) setInfoContaCorrente((prev) => prev || br.codigo);
-          // Cenário fiscal padrão: o "VENDA" (ou o 1º da lista) se ainda não escolhido.
-          const cens = jl.cenarios || [];
-          const venda = cens.find((c: { descricao?: string }) => /^venda\b/i.test(c.descricao || "")) || cens[0];
-          if (venda) setCenarioFiscal((prev) => prev || venda.codigo);
+          // Cenário fiscal padrão da conta: "Padrão" no Castro, "VENDA" na Nova.
+          // Se o cenário salvo não existir/estiver inativo nesta conta (ex.:
+          // VENDA da Nova num pedido do Castro), troca pelo padrão da conta —
+          // evita o erro do Omie "Cenário Fiscal está inativo".
+          const cens: { codigo: string; descricao?: string }[] = jl.cenarios || [];
+          const alvo = contaPedido === "CASTRO" ? /padr/i : /^venda\b/i;
+          const def = cens.find((c) => alvo.test(c.descricao || "")) || cens[0];
+          setCenarioFiscal((prev) => {
+            if (prev && cens.some((c) => c.codigo === prev)) return prev;
+            return def?.codigo || prev;
+          });
         } else console.error("[PPV listas-pedido]", jl?.error);
       } catch (e) { console.error("[PPV listas]", e); }
     })();
-  }, [open]);
+  }, [open, contaPedido]);
 
   // Marca/desmarca um departamento e redistribui igualmente entre os selecionados.
   const toggleDepto = (codigo: string) => {
