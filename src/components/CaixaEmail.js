@@ -217,15 +217,15 @@ export default function CaixaEmail() {
       {open && (
         <div style={{ position: 'absolute', top: 52, right: 0, width: 440, maxWidth: '94vw', maxHeight: '72vh', overflowY: 'auto', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', padding: 12, zIndex: 3000 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px 10px' }}>
-            <Mail size={15} style={{ color: '#16a34a' }} />
-            <div style={{ minWidth: 0 }}>
-              <b style={{ fontSize: 13.5, color: 'var(--portal-text)', display: 'block' }}>Sua caixa de entrada</b>
-              <span style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', wordBreak: 'break-all' }}>{conta}</span>
+            <Mail size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <b style={{ fontSize: 13.5, color: 'var(--portal-text)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sua caixa de entrada</b>
+              <span title={conta} style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conta}</span>
             </div>
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+            <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
               {(badge > 0 || emails.some((e) => e.naoLida)) && (
                 <button onClick={() => marcarLida(null)} disabled={marcando} title="Marcar TODAS como lidas"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, background: 'transparent', border: '1px solid #16a34a', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', color: '#16a34a', fontSize: 11.5, fontWeight: 700 }}>
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', background: 'transparent', border: '1px solid #16a34a', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', color: '#16a34a', fontSize: 11.5, fontWeight: 700 }}>
                   <CheckCheck size={13} /> {marcando ? '...' : 'todas lidas'}
                 </button>
               )}
