@@ -1,0 +1,20 @@
+# DRE Financeiro — Relatorio semanal da Lista (titulos criados nos ultimos 7
+# dias, NOVA + CASTRO). Envia 2 emails (Pagar / Receber), cada um com PDF + CSV.
+# Roda toda segunda 07:00 BRT (10:00 UTC). Tambem acionavel manualmente.
+name: DRE Financeiro - Relatorio semanal (Lista)
+
+on:
+  schedule:
+    - cron: '0 10 * * 1'   # Segunda 07:00 BRT (10:00 UTC)
+  workflow_dispatch: {}
+
+jobs:
+  relatorio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar relatorio semanal da Lista
+        run: |
+          curl -fsS --max-time 300 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/dre-financeiro/cron/relatorio-lista" \
+            -w "\nrelatorio-lista: HTTP %{http_code}\n"
