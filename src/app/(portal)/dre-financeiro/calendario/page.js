@@ -118,7 +118,7 @@ const LCOLS = [
   { key: 'empresa', label: 'Empresa', align: 'left' },
   { key: 'nome', label: 'Terceiro', align: 'left' },
   { key: 'doc', label: 'Documento', align: 'left' },
-  { key: 'venc', label: 'Vencimento', align: 'left' },
+  { key: 'data', label: 'Vencimento', align: 'left' },
   { key: 'status', label: 'Status', align: 'left' },
   { key: 'valor', label: 'Valor', align: 'right' },
 ]
@@ -158,7 +158,7 @@ export default function CalendarioPage() {
   const [listaDados, setListaDados] = useState([])
   const [listaCarregando, setListaCarregando] = useState(false)
   const [erroLista, setErroLista] = useState('')
-  const [lSort, setLSort] = useState({ col: 'venc', dir: 'asc' })
+  const [lSort, setLSort] = useState({ col: 'data', dir: 'asc' })
 
   // --- Drawer ---------------------------------------------------------------
   const [drawerAberto, setDrawerAberto] = useState(false)
@@ -531,7 +531,7 @@ export default function CalendarioPage() {
       case 'empresa': return empresaLabel(t.conta_omie)
       case 'nome': return (t.nome_contraparte || '').toLowerCase()
       case 'doc': return (t.numero_documento_fiscal || t.numero_documento || '')
-      case 'venc': return t.data_vencimento || ''
+      case 'data': return dataDe(t)
       case 'status': return t.status_derivado || ''
       case 'valor': return Number(t.valor_documento) || 0
       default: return ''
@@ -545,7 +545,7 @@ export default function CalendarioPage() {
       let r
       if (typeof va === 'number' && typeof vb === 'number') r = va - vb
       else r = String(va).localeCompare(String(vb), 'pt-BR', { numeric: true, sensitivity: 'base' })
-      if (r === 0) r = (a.data_vencimento || '').localeCompare(b.data_vencimento || '')
+      if (r === 0) r = dataDe(a).localeCompare(dataDe(b))
       return r * dir
     })
     return arr
@@ -553,7 +553,7 @@ export default function CalendarioPage() {
   function clicarLSort(k) {
     setLSort((prev) => {
       if (k === prev.col) return { col: k, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-      return { col: k, dir: (k === 'valor' || k === 'venc') ? 'desc' : 'asc' }
+      return { col: k, dir: (k === 'valor' || k === 'data') ? 'desc' : 'asc' }
     })
   }
   function LSeta({ k }) {
@@ -568,14 +568,14 @@ export default function CalendarioPage() {
     const arr = listaOrdenada()
     const sep = ';'
     const head = ['Empresa', 'Tipo', 'Terceiro', 'Documento', 'NF', 'Parcela', 'Grupo', 'Categoria', 'Departamento',
-      'Emissao', 'Vencimento', 'Pagamento', 'Status', 'Valor documento', 'Valor pago']
+      'Emissao', 'Criacao', 'Vencimento', 'Pagamento', 'Status', 'Valor documento', 'Valor pago']
     function cell(v) { v = (v == null ? '' : String(v)); return /[";\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v }
     function num(n) { return (Number(n) || 0).toFixed(2).replace('.', ',') }
     const linhas = arr.map((t) => [
       empresaLabel(t.conta_omie), t.tipo === 'receber' ? 'Receber' : 'Pagar',
       t.nome_contraparte || '', t.numero_documento || '', t.numero_documento_fiscal || '', t.numero_parcela || '',
       t.grupo_categoria || '', t.descricao_categoria || '', t.descricao_departamento || '',
-      fmtBRdata(t.data_emissao), fmtBRdata(t.data_vencimento), fmtBRdata(t.data_pagamento),
+      fmtBRdata(t.data_emissao), fmtBRdata(String(t.data_inclusao || '').slice(0, 10)), fmtBRdata(t.data_vencimento), fmtBRdata(t.data_pagamento),
       t.status_derivado || '', num(t.valor_documento), num(t.valor_pago),
     ].map(cell).join(sep))
     const csv = '﻿' + [head.join(sep)].concat(linhas).join('\r\n')
@@ -591,6 +591,13 @@ export default function CalendarioPage() {
 
   // --- Estado de gate de permissao (BRIEF item 1) ---------------------------
   if (!loading && !loadingPerm && userProfile && (!temAcesso('financeiro') && !pode('dre', 'calendario'))) return <SemPermissao />
+
+  // Coluna de data da Lista segue o eixo selecionado (Vencimento/Emissao/Criacao).
+  // data_inclusao e timestamp -> usar so a fatia de data (YYYY-MM-DD).
+  const eixoCampo = eixo === 'emissao' ? 'data_emissao' : eixo === 'inclusao' ? 'data_inclusao' : 'data_vencimento'
+  const eixoLabel = eixo === 'emissao' ? 'Emissão' : eixo === 'inclusao' ? 'Criação' : 'Vencimento'
+  const dataDe = (t) => String((t && t[eixoCampo]) || '').slice(0, 10)
+  const lcols = LCOLS.map((c) => (c.key === 'data' ? { ...c, label: eixoLabel } : c))
 
   // Resumo / total da visao Lista
   const listaArr = listaOrdenada()
@@ -875,7 +882,7 @@ export default function CalendarioPage() {
                 <table className="w-full text-base text-slate-800">
                   <thead>
                     <tr className="text-xs uppercase tracking-wide text-slate-600 bg-slate-50 border-b border-slate-200">
-                      {LCOLS.map((c) => (
+                      {lcols.map((c) => (
                         <th
                           key={c.key}
                           onClick={() => clicarLSort(c.key)}
@@ -892,7 +899,7 @@ export default function CalendarioPage() {
                       return (
                         <tr
                           key={t.codigo_lancamento || i}
-                          onClick={() => { if (t.data_vencimento) abrirDrawer(t.data_vencimento) }}
+                          onClick={() => { const d = dataDe(t); if (d) abrirDrawer(d) }}
                           className="border-b border-slate-100 hover:bg-blue-50 cursor-pointer"
                         >
                           <td className="px-4 py-2.5"><EmpresaBadge c={t.conta_omie} /></td>
@@ -904,7 +911,7 @@ export default function CalendarioPage() {
                             {sub && <div className="text-xs text-slate-500">{sub}</div>}
                           </td>
                           <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{docDe(t)}</td>
-                          <td className="px-4 py-2.5 text-slate-800 whitespace-nowrap">{fmtBRdata(t.data_vencimento)}</td>
+                          <td className="px-4 py-2.5 text-slate-800 whitespace-nowrap">{fmtBRdata(dataDe(t))}</td>
                           <td className="px-4 py-2.5"><StatusBadge s={t.status_derivado} /></td>
                           <td className="px-4 py-2.5 text-right font-bold text-slate-900 whitespace-nowrap">{fmtBRLfull(t.valor_documento)}</td>
                         </tr>
