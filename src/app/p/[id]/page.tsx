@@ -49,9 +49,15 @@ function fraseEvento(ev: UnidadeEvento): string {
     case 'cancelamento': return `Cancelada por ${ev.autor_nome || '—'}${p.motivo ? ` — ${p.motivo}` : ''}`;
     case 'extravio': return `Marcada como extraviada por ${ev.autor_nome || '—'}`;
     case 'recuperacao': return `Recuperada pro estoque por ${ev.autor_nome || '—'}`;
-    case 'observacao': return p.alerta === 'sem_correspondencia_relatorio'
-      ? `Relatório da ${p.os || 'OS'} enviado sem mencionar esta peça — aguardando o departamento`
-      : 'Observação do sistema';
+    case 'observacao':
+      if (p.origem === 'rastreio_ppv') {
+        return p.ppv_criado
+          ? `Pedido ${p.ppv} criado para a OS ${p.os} e esta peça lançada nele`
+          : `Peça lançada no pedido ${p.ppv} da OS ${p.os}`;
+      }
+      return p.alerta === 'sem_correspondencia_relatorio'
+        ? `Relatório da ${p.os || 'OS'} enviado sem mencionar esta peça — aguardando o departamento`
+        : 'Observação do sistema';
     default: return ev.tipo;
   }
 }

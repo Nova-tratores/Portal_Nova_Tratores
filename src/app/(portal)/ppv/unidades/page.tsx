@@ -47,6 +47,7 @@ export default function UnidadesRastreioPage() {
   const [total, setTotal] = useState(0)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
+  const [recado, setRecado] = useState('')
   const [agindo, setAgindo] = useState('')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [qrModal, setQrModal] = useState<PecaUnidade | null>(null)
@@ -106,13 +107,22 @@ export default function UnidadesRastreioPage() {
     })
     const j = await r.json().catch(() => ({}))
     if (!r.ok) throw new Error(j.error || 'Falha na ação')
+    return j as { ppv?: string; ppvCriado?: boolean; aviso?: string }
   }
 
   const agir = async (u: PecaUnidade, acao: string, extra: Record<string, unknown> = {}) => {
     setAgindo(`${u.id}:${acao}`)
     setErro('')
+    setRecado('')
     try {
-      await postAcao(u.id, acao, extra, await authHeaders())
+      const j = await postAcao(u.id, acao, extra, await authHeaders())
+      // liberar peça de OS lança ela no PPV sozinho — dizer QUAL pedido, senão
+      // o lançamento acontece invisível e alguém lança de novo na mão
+      if (j.ppv) {
+        setRecado(`${u.numero} entrou no pedido ${j.ppv}${j.ppvCriado ? ' (criado agora para esta OS)' : ''}.${j.aviso ? ` ${j.aviso}` : ''}`)
+      } else if (j.aviso) {
+        setErro(j.aviso)
+      }
     } catch (e) {
       setErro(String(e instanceof Error ? e.message : e))
     } finally {
@@ -215,6 +225,18 @@ export default function UnidadesRastreioPage() {
       </div>
 
       {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
+      {recado && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, padding: '9px 12px',
+          borderRadius: 9, fontSize: 12.5, fontWeight: 600,
+          color: '#15803d', background: 'rgba(22,163,74,.10)', border: '1px solid rgba(22,163,74,.28)',
+        }}>
+          <Check size={14} /> {recado}
+          <button onClick={() => setRecado('')} style={{ marginLeft: 'auto', border: 'none', background: 'none', cursor: 'pointer', color: 'inherit', display: 'flex' }}>
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       {/* Lote */}
       {aba === 'pendentes' && podeLiberar && sel.size > 0 && (

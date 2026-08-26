@@ -19,6 +19,7 @@ import {
   notificarResponsaveisPecas,
   notificarUsuario,
 } from '@/lib/pecas/unidades-server';
+import { vincularUnidadeLiberadaAoPpvDaOS } from '@/lib/pecas/os-ppv';
 import { DESTINO_LABEL, type DestinoTipo, type UnidadeAcao } from '@/lib/pecas/unidades';
 
 export const runtime = 'nodejs';
@@ -104,6 +105,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     };
     const r = await transicionar(id, acao, ator, extras);
 
+    // LIBEROU peça com destino OS → ela precisa virar venda em algum lugar.
+    // Acha o PPV aberto da OS ou cria um vinculado, e lança a peça nele. Roda
+    // DEPOIS da transição e nunca a desfaz: a peça já saiu do balcão, e um PPV
+    // faltando é problema menor que estoque discordando da realidade.
+    let vinculo: Awaited<ReturnType<typeof vincularUnidadeLiberadaAoPpvDaOS>> | null = null;
+    if (acao === 'liberar' && u.destino_tipo === 'os' && u.destino_os) {
+      vinculo = await vincularUnidadeLiberadaAoPpvDaOS(id, u, { ...ator, email: quem.email });
+    }
+
     // notificações direcionadas
     if (acao === 'liberar' && u.retirado_por && u.retirado_por !== quem.id) {
       await notificarUsuario(u.retirado_por, {
@@ -128,7 +138,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       });
     }
 
-    return NextResponse.json({ ok: true, status: r.para });
+    return NextResponse.json({
+      ok: true,
+      status: r.para,
+      ...(vinculo?.ppv ? { ppv: vinculo.ppv, ppvCriado: vinculo.criado } : {}),
+      ...(vinculo?.aviso ? { aviso: vinculo.aviso } : {}),
+    });
   } catch (e) {
     const status = (e as { http?: number })?.http || 500;
     return NextResponse.json({ error: e instanceof Error ? e.message : 'erro' }, { status });
