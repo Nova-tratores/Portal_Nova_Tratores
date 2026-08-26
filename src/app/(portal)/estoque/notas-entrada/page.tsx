@@ -22,6 +22,7 @@ interface Nota {
 interface NotasResp { notas: Nota[]; total: number; pagina: number; porPagina: number; totalPaginas: number; erro?: string }
 interface Titulo { numero_documento: string; data_vencimento: string; valor_documento: number; status_titulo: string; data_pagamento?: string; valor_pago?: number }
 interface BackfillStatus { rodando: boolean; etapa?: string; processadas?: number; total?: number; emitentes_preenchidos?: number; categorias_preenchidas?: number; finalizadoEm?: string | null; erro?: string | null }
+interface ResolverStatus { rodando: boolean; etapa?: string; conta?: string; notas_sem_nome?: number; cnpjs_distintos?: number; cnpjs_resolvidos?: number; via_clientes_omie?: number; via_omie_api?: number; omie_calls?: number; notas_atualizadas?: number; finalizadoEm?: string | null; erro?: string | null }
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600, whiteSpace: 'nowrap' };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
@@ -45,7 +46,10 @@ export default function NotasEntradaPage() {
   const [expandida, setExpandida] = useState<number | null>(null);
   const [titulos, setTitulos] = useState<Record<number, Titulo[] | 'loading'>>({});
   const [backfill, setBackfill] = useState<BackfillStatus | null>(null);
+  const [exportando, setExportando] = useState(false);
+  const [resolver, setResolver] = useState<ResolverStatus | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollResolverRef = useRef<ReturnType<typeof setInterval> | null>(null);
   // Seleção (marcar/somar) — abrange todas as páginas do período filtrado.
   const [selecionados, setSelecionados] = useState<Set<number>>(new Set());
   const [valorPorId, setValorPorId] = useState<Record<number, number>>({});
@@ -168,7 +172,54 @@ export default function NotasEntradaPage() {
     pollStatus();
   }, [mes, ano, contaParam, pollStatus]);
 
-  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); }, []);
+  // Export CSV item-a-item. Passa só os filtros de TEXTO ativos (nf/fornecedor/
+  // descrição) e a conta — sem mês/ano, para trazer todo o histórico (desde 11/2022).
+  const exportarCSV = useCallback(async () => {
+    setExportando(true);
+    try {
+      const parts: string[] = [];
+      if (nf.trim()) parts.push(`nf=${encodeURIComponent(nf.trim())}`);
+      if (fornecedor.trim()) parts.push(`fornecedor=${encodeURIComponent(fornecedor.trim())}`);
+      if (descricao.trim()) parts.push(`descricao=${encodeURIComponent(descricao.trim())}`);
+      const qs = (parts.length ? '&' + parts.join('&') : '') + contaParam;
+      const r = await fetch(`/api/estoque/notas-entrada/export?_=1${qs}`);
+      if (!r.ok) { const d = await r.json().catch(() => ({})); alert('Erro ao exportar: ' + (d.erro || r.status)); return; }
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'notas-entrada-itens.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (ex) {
+      alert('Erro ao exportar: ' + (ex as Error).message);
+    } finally {
+      setExportando(false);
+    }
+  }, [nf, fornecedor, descricao, contaParam]);
+
+  // Job "Resolver fornecedores": busca nome_emitente por CNPJ (Clientes_Omie + Omie)
+  // em todo o histórico. Fire-and-forget no servidor; a tela só faz polling.
+  const pollResolver = useCallback(() => {
+    if (pollResolverRef.current) clearInterval(pollResolverRef.current);
+    pollResolverRef.current = setInterval(async () => {
+      const r = await fetch(`/api/estoque/notas-entrada/resolver-fornecedores/status`);
+      const d = (await r.json()) as ResolverStatus;
+      setResolver(d);
+      if (!d.rodando && pollResolverRef.current) { clearInterval(pollResolverRef.current); pollResolverRef.current = null; carregar(); }
+    }, 2500);
+  }, [carregar]);
+
+  const iniciarResolver = useCallback(async () => {
+    if (!confirm('Buscar o nome dos fornecedores por CNPJ em todo o histórico (NOVA + CASTRO)?\n\nRoda em segundo plano e pode levar vários minutos (consulta a Omie). É seguro fechar a página — o processo continua no servidor.')) return;
+    const r = await fetch(`/api/estoque/notas-entrada/resolver-fornecedores${contaParam}`, { method: 'POST' });
+    const d = await r.json();
+    if (!d.ok && !d.status?.rodando) { alert(d.erro || 'Não foi possível iniciar'); return; }
+    setResolver(d.status || { rodando: true, etapa: 'iniciando' });
+    pollResolver();
+  }, [contaParam, pollResolver]);
+
+  useEffect(() => () => { if (pollRef.current) clearInterval(pollRef.current); if (pollResolverRef.current) clearInterval(pollResolverRef.current); }, []);
 
   if (!permLoading && userProfile && !pode('estoque', 'notas-entrada')) return <SemPermissao />;
 
@@ -205,7 +256,13 @@ export default function NotasEntradaPage() {
           <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Descrição do produto</label>
           <input value={descricao} onChange={(e) => { setDescricao(e.target.value); setPagina(1); }} placeholder="ex.: filtro, óleo, engate" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 220 }} />
         </div>
-        <button onClick={iniciarBackfill} disabled={backfill?.rodando} style={{ padding: '9px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#666', borderRadius: 8, fontSize: '.78rem', fontWeight: 600, cursor: backfill?.rodando ? 'not-allowed' : 'pointer', marginLeft: 'auto' }}>
+        <button onClick={exportarCSV} disabled={exportando} title="Baixa um CSV com todas as notas de entrada, item a item (todo o histórico desde 11/2022, respeitando os filtros de texto e a conta)." style={{ padding: '9px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#666', borderRadius: 8, fontSize: '.78rem', fontWeight: 600, cursor: exportando ? 'wait' : 'pointer', marginLeft: 'auto' }}>
+          {exportando ? 'Gerando…' : 'Exportar CSV (todas as notas)'}
+        </button>
+        <button onClick={iniciarResolver} disabled={resolver?.rodando} title="Busca o NOME de todos os fornecedores por CNPJ (Clientes_Omie + Omie) em todo o histórico, NOVA + CASTRO. Grava nome_emitente de forma permanente. Roda em segundo plano." style={{ padding: '9px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#666', borderRadius: 8, fontSize: '.78rem', fontWeight: 600, cursor: resolver?.rodando ? 'not-allowed' : 'pointer' }}>
+          {resolver?.rodando ? 'Resolvendo fornecedores…' : 'Resolver fornecedores (nomes)'}
+        </button>
+        <button onClick={iniciarBackfill} disabled={backfill?.rodando} style={{ padding: '9px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#666', borderRadius: 8, fontSize: '.78rem', fontWeight: 600, cursor: backfill?.rodando ? 'not-allowed' : 'pointer' }}>
           {backfill?.rodando ? 'Enriquecendo…' : 'Enriquecer emitente/categoria'}
         </button>
       </div>
@@ -215,6 +272,16 @@ export default function NotasEntradaPage() {
           Backfill: {backfill.etapa} {backfill.total ? `(${backfill.processadas || 0}/${backfill.total})` : ''}
           {backfill.finalizadoEm && !backfill.rodando ? ` — concluído: ${backfill.emitentes_preenchidos || 0} emitentes, ${backfill.categorias_preenchidas || 0} categorias` : ''}
           {backfill.erro ? ` — erro: ${backfill.erro}` : ''}
+        </div>
+      )}
+
+      {resolver && (
+        <div style={{ fontSize: '.75rem', color: resolver.erro ? '#dc2626' : '#999', marginBottom: 12 }}>
+          Resolver fornecedores: {resolver.etapa}{resolver.conta ? ` [${resolver.conta}]` : ''}
+          {typeof resolver.cnpjs_distintos === 'number' ? ` — ${resolver.cnpjs_resolvidos || 0}/${resolver.cnpjs_distintos} CNPJs resolvidos` : ''}
+          {resolver.omie_calls ? `, ${resolver.omie_calls} consultas Omie` : ''}
+          {resolver.finalizadoEm && !resolver.rodando ? ` — concluído: ${resolver.notas_atualizadas || 0} notas atualizadas (${resolver.via_clientes_omie || 0} via cadastro, ${resolver.via_omie_api || 0} via Omie)` : ''}
+          {resolver.erro ? ` — erro: ${resolver.erro}` : ''}
         </div>
       )}
 
