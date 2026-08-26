@@ -11,8 +11,8 @@
 // loja também toca — salva no portal, o vigia relê em 30s.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
-  Cctv, Bell, BellOff, Volume2, Play, Monitor, Save, History,
-  PersonStanding, Video, Check, Music2, X, Info, Tractor,
+  Cctv, Bell, BellOff, Monitor, Save, History,
+  PersonStanding, Video, Check, X, Info, Tractor,
 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { supabase } from '@/lib/supabase'
@@ -29,15 +29,13 @@ const CANAIS_ZONAS: Record<number, string> = {
   5: 'só quando passa TRATOR (a IA confere a foto)',
 }
 
-const TOQUES = [
-  { id: 'dingdong', nome: 'Ding-dong' },
-  { id: 'campainha', nome: 'Campainha' },
-  { id: 'alerta', nome: 'Alerta (3 bipes)' },
-  { id: 'sino', nome: 'Sino' },
-]
+// Toque fixo (pedido do usuário 26/08: sem escolha de som/volume — a
+// chavinha decide se toca ou não; campainha em volume alto)
+const TOQUE_FIXO = 'campainha'
+const VOLUME_FIXO = 90
 
 type ConfigGeral = { ativo: boolean; canais: number[]; som: string; volume: number; cooldownSeg: number }
-type Pessoal = { ativo: boolean; canais: number[]; som: string; volume: number }
+type Pessoal = { ativo: boolean; canais: number[] }
 type Evento = { quando: string; canal: number; codigo: string; fotoUrl?: string | null }
 type Status = { atualizadoEm: string; canais: number[]; eventos: Evento[] }
 
@@ -49,10 +47,8 @@ function lerPessoal(): Pessoal {
     return {
       ativo: salvo.ativo === true, // começa DESLIGADO — cada um liga o seu
       canais: Array.isArray(salvo.canais) && salvo.canais.length ? salvo.canais.map(Number) : [5], // canal 5 = o básico de todos
-      som: salvo.som || 'dingdong',
-      volume: Number(salvo.volume) || 80,
     }
-  } catch { return { ativo: false, canais: [5], som: 'dingdong', volume: 80 } }
+  } catch { return { ativo: false, canais: [5] } }
 }
 
 // Toques sintetizados no navegador (mesmas receitas do vigia da loja)
@@ -104,7 +100,7 @@ export default function VigiaCameras() {
   const [aberto, setAberto] = useState(false)
   const [status, setStatus] = useState<Status | null>(null)
   const [geral, setGeral] = useState<ConfigGeral>({ ativo: false, canais: [4, 5], som: 'dingdong', volume: 80, cooldownSeg: 30 })
-  const [pessoal, setPessoal] = useState<Pessoal>({ ativo: false, canais: [5], som: 'dingdong', volume: 80 })
+  const [pessoal, setPessoal] = useState<Pessoal>({ ativo: false, canais: [5] })
   const [salvando, setSalvando] = useState(false)
   const [salvo, setSalvo] = useState(false)
   const pessoalRef = useRef(pessoal)
@@ -161,7 +157,7 @@ export default function VigiaCameras() {
         // não metralha: no máximo um toque a cada 8s neste navegador
         if (Date.now() - ultimoSomRef.current < 8000) return
         ultimoSomRef.current = Date.now()
-        tocarToque(p.som, p.volume)
+        tocarToque(TOQUE_FIXO, VOLUME_FIXO)
       })
       .subscribe()
     return () => { supabase.removeChannel(ch) }
@@ -325,34 +321,6 @@ export default function VigiaCameras() {
                         </button>
                       )
                     })}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, opacity: pessoal.ativo ? 1 : 0.5 }}>
-                    <Music2 size={15} style={{ flexShrink: 0, color: 'var(--portal-text-secondary)' }} />
-                    <select
-                      value={pessoal.som}
-                      disabled={!pessoal.ativo}
-                      onChange={(e) => salvarPessoal({ ...pessoal, som: e.target.value })}
-                      style={{ ...caixaInput, flex: 1 }}
-                    >
-                      {TOQUES.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-                    </select>
-                    <button
-                      onClick={() => tocarToque(pessoal.som, pessoal.volume)}
-                      title="Ouvir o meu toque"
-                      style={{ ...caixaInput, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}
-                    >
-                      <Play size={13} /> ouvir
-                    </button>
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: pessoal.ativo ? 1 : 0.5 }}>
-                    <Volume2 size={15} style={{ flexShrink: 0, color: 'var(--portal-text-secondary)' }} />
-                    <input
-                      type="range" min={5} max={100} value={pessoal.volume}
-                      disabled={!pessoal.ativo}
-                      onChange={(e) => salvarPessoal({ ...pessoal, volume: Number(e.target.value) })}
-                      style={{ flex: 1, accentColor: '#dc2626' }}
-                    />
-                    <span style={{ fontSize: 12, fontWeight: 700, width: 38, textAlign: 'right' }}>{pessoal.volume}%</span>
                   </div>
                 </div>
 
