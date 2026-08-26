@@ -225,36 +225,23 @@ export function code128Svg(texto: string, alturaMm: number): string {
  * numa folha de 30 etiquetas).
  */
 /**
- * URL da unidade EM MAIÚSCULAS, de propósito.
+ * Endereço da unidade — UM só, usado no QR, no link visível e no "copiar".
  *
- * O QR tem um modo "alfanumérico" que empacota 2 caracteres a cada 11 bits, mas
- * ele só aceita A-Z, 0-9 e alguns símbolos — uma única minúscula joga a string
- * inteira pro modo byte, com 8 bits por caractere. Só de subir a caixa, o QR
- * desta URL cai de 37 pra 33 módulos, o que faz cada módulo passar de 0,26 pra
- * 0,30mm no mesmo espaço físico. É a diferença entre ler e não ler.
+ * ⚠ NÃO TENTE DEIXAR MAIÚSCULO. Já foi tentado em 25/08/2026 e quebrou tudo:
+ * o QR tem um modo alfanumérico que empacota 2 caracteres a cada 11 bits (só
+ * A-Z e 0-9), e passar a URL pra caixa alta derrubava o código de 37 pra 33
+ * módulos. Só que isso maiusculiza também o CAMINHO: vira /P/<uuid>, e rota do
+ * Next é case-sensitive — todas as etiquetas passaram a dar 404 ao escanear.
+ * (Domínio e esquema ignoram caixa; caminho não.)
  *
- * Seguro nos dois lados: esquema e domínio são case-insensitive por definição,
- * e a rota /p/[id] valida o UUID com regex /i e compara com coluna `uuid` do
- * Postgres, que também ignora a caixa.
+ * Maiusculizar só o UUID, mantendo /p/ minúsculo, foi medido: continua em 37
+ * módulos, ou seja, ganho ZERO. O truque só funcionava quebrando a rota.
+ *
+ * A legibilidade veio pelo tamanho: 10,5mm na zona de baixo dão 0,284mm por
+ * módulo, acima do piso prático de 0,25mm.
  */
 export function urlDaUnidade(origem: string, unidadeId: string): string {
-  return `${origem}/p/${unidadeId}`.toUpperCase()
-}
-
-/**
- * O MESMO endereço, na forma de sempre — é esta que se mostra e se copia.
- *
- * A maiúscula existe só pra encolher o QR; para gente ela não serve de nada e
- * ainda parece grito quando colada numa conversa. As duas abrem a mesma página
- * (a rota /p/[id] valida o UUID com regex /i e a coluna do Postgres é `uuid`,
- * que ignora a caixa).
- *
- * Estão as duas AQUI de propósito: quando cada tela montava o endereço por
- * conta, o modal do QR e a etiqueta passaram a gerar links diferentes pra mesma
- * peça — e ninguém percebeu até alguém conferir na mão.
- */
-export function urlDaUnidadeLegivel(origem: string, unidadeId: string): string {
-  return `${origem}/p/${unidadeId}`.toLowerCase()
+  return `${origem}/p/${unidadeId}`
 }
 
 export function qrSvg(modules: { size: number; data: ArrayLike<number> } | null | undefined): string {

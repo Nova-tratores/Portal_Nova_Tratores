@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { Copy, Printer, X } from 'lucide-react';
-import { urlDaUnidade, urlDaUnidadeLegivel } from '@/lib/ppv/etiquetas-html';
+import { urlDaUnidade } from '@/lib/ppv/etiquetas-html';
 
 export default function QRUnidadeModal({ unidadeId, numero, codigo, onClose }: {
   unidadeId: string;
@@ -14,19 +14,14 @@ export default function QRUnidadeModal({ unidadeId, numero, codigo, onClose }: {
 }) {
   const [dataUrl, setDataUrl] = useState('');
   const [copiado, setCopiado] = useState(false);
-  // Dois usos do MESMO endereço, cada um na forma que serve:
-  //  · urlQR       — maiúscula, que é o que encolhe o QR (modo alfanumérico).
-  //                  Igual à da etiqueta: a unidade tem um endereço só.
-  //  · urlLegivel  — a de sempre, que é a que aparece e é copiada. Maiúscula
-  //                  colada numa conversa parece grito e não ajuda ninguém.
-  // As duas abrem a mesma página; a rota ignora a caixa.
-  const urlQR = typeof window !== 'undefined' ? urlDaUnidade(window.location.origin, unidadeId) : '';
-  const url = typeof window !== 'undefined' ? urlDaUnidadeLegivel(window.location.origin, unidadeId) : '';
+  // MESMA função da etiqueta: a unidade tem um endereço só no portal inteiro.
+  // Cada tela montando o seu foi o que fez QR e link divergirem antes.
+  const url = typeof window !== 'undefined' ? urlDaUnidade(window.location.origin, unidadeId) : '';
 
   useEffect(() => {
-    if (!urlQR) return;
-    QRCode.toDataURL(urlQR, { width: 520, margin: 2 }).then(setDataUrl).catch(() => setDataUrl(''));
-  }, [urlQR]);
+    if (!url) return;
+    QRCode.toDataURL(url, { width: 520, margin: 2 }).then(setDataUrl).catch(() => setDataUrl(''));
+  }, [url]);
 
   const copiar = async () => {
     try {

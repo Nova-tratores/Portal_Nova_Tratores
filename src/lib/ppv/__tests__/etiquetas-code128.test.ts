@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import QRCode from 'qrcode'
-import { code128Svg, codewords128, qrSvg, urlDaUnidade, urlDaUnidadeLegivel } from '../etiquetas-html'
+import { code128Svg, codewords128, qrSvg, urlDaUnidade } from '../etiquetas-html'
 
 // Faz o papel do LEITOR: reconstrói o texto a partir dos code words, do mesmo
 // jeito que uma pistola de balcão faria. Barcode que "encolheu" mas lê errado
@@ -113,34 +113,35 @@ describe('code128 (subsets B + C)', () => {
 
 describe('endereço da unidade', () => {
   const UUID = '8f1c2d62-de35-4187-a26f-ee31a60f411a'
+  const ORIGEM = 'https://portal.novatratores.com.br'
 
-  it('é MAIÚSCULO — é o que deixa o QR no modo alfanumérico', () => {
-    // uma minúscula sozinha joga a string toda pro modo byte (8 bits/char em
-    // vez de 5,5) e o QR engorda de 33 pra 37 módulos no mesmo espaço físico
-    const url = urlDaUnidade('https://portal.novatratores.com.br', UUID)
-    expect(url).toBe(`HTTPS://PORTAL.NOVATRATORES.COM.BR/P/${UUID.toUpperCase()}`)
-    expect(url).toBe(url.toUpperCase())
+  it('o CAMINHO fica minúsculo — rota do Next é case-sensitive', () => {
+    // Deixar a URL toda em caixa alta encolhia o QR (modo alfanumérico), mas
+    // maiusculizava o caminho junto: /P/<uuid> não é rota, e TODA etiqueta
+    // impressa passou a dar 404 ao escanear. Este teste existe pra impedir
+    // que a "otimização" volte.
+    const url = urlDaUnidade(ORIGEM, UUID)
+    expect(url).toBe(`${ORIGEM}/p/${UUID}`)
+    expect(url).toContain('/p/')
+    expect(url).not.toContain('/P/')
   })
 
-  it('o QR maiúsculo é MENOR que o minúsculo, com a mesma correção de erro', () => {
-    const maiusc = QRCode.create(urlDaUnidade('https://portal.novatratores.com.br', UUID), { errorCorrectionLevel: 'M' })
-    const minusc = QRCode.create(`https://portal.novatratores.com.br/p/${UUID}`, { errorCorrectionLevel: 'M' })
-    expect(maiusc.modules.size).toBeLessThan(minusc.modules.size)
+  it('maiusculizar só o UUID não encolhe nada — o truque não tinha meio-termo', () => {
+    const normal = QRCode.create(urlDaUnidade(ORIGEM, UUID), { errorCorrectionLevel: 'M' })
+    const soUuid = QRCode.create(`${ORIGEM}/p/${UUID.toUpperCase()}`, { errorCorrectionLevel: 'M' })
+    expect(soUuid.modules.size).toBe(normal.modules.size)
   })
 
-  it('a versão legível é a mesma página, só que sem gritar', () => {
-    // é ela que aparece e é copiada; a maiúscula serve só pro QR
-    const legivel = urlDaUnidadeLegivel('https://portal.novatratores.com.br', UUID)
-    expect(legivel).toBe(`https://portal.novatratores.com.br/p/${UUID}`)
-    // mesmo endereço, ignorando a caixa — que é como a rota compara
-    expect(legivel.toUpperCase()).toBe(urlDaUnidade('https://portal.novatratores.com.br', UUID))
+  it('cabe legível nos 10,5mm da etiqueta', () => {
+    const mods = QRCode.create(urlDaUnidade(ORIGEM, UUID), { errorCorrectionLevel: 'M' }).modules.size
+    // 0,25mm por módulo é o piso prático de leitura (impressora + celular)
+    expect(10.5 / mods).toBeGreaterThanOrEqual(0.25)
   })
 
   it('a mesma unidade dá o MESMO endereço, venha de onde vier', () => {
     // etiqueta, modal do QR e reimpressão avulsa usam esta função — quando cada
     // tela montava o link por conta, saíam endereços diferentes pra mesma peça
-    expect(urlDaUnidade('https://portal.novatratores.com.br', UUID))
-      .toBe(urlDaUnidade('https://portal.novatratores.com.br', UUID.toUpperCase()))
+    expect(urlDaUnidade(ORIGEM, UUID)).toBe(`${ORIGEM}/p/${UUID}`)
   })
 })
 
