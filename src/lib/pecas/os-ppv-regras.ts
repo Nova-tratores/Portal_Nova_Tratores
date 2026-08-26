@@ -48,6 +48,42 @@ export function observacaoPpvRastreio(destino: DestinoComPpv, referencia?: strin
   return `Criado pelo sistema de rastreio de peças (QR) ao liberar peça ${ondeFoiParar(destino, referencia)}`
 }
 
+/**
+ * Linha de item do pedido (tabela `movimentacoes`).
+ *
+ * `Id` É OBRIGATÓRIO E NÃO TEM DEFAULT no banco: a coluna é NOT NULL e não é
+ * serial/identity, então quem insere precisa gerar o número — é o que o resto
+ * do módulo PPV já faz. Omitir dava 23502 e o item sumia calado (foi assim que
+ * o PPV-0434 nasceu vazio). Por isso o payload é montado aqui, num lugar só e
+ * com teste em cima.
+ */
+export function linhaMovimentacao(p: {
+  ppv: string
+  codigo: string
+  descricao: string | null
+  preco: number
+  tecnico: string
+  dataHora: string
+  id: number
+}): Record<string, unknown> {
+  return {
+    Id: p.id,
+    Id_PPV: p.ppv,
+    Data_Hora: p.dataHora,
+    Tecnico: p.tecnico,
+    TipoMovimento: 'Saída',
+    CodProduto: p.codigo,
+    Descricao: p.descricao || p.codigo,
+    Qtde: '1',
+    Preco: p.preco,
+  }
+}
+
+/** Id de movimentação no mesmo formato do módulo (10 dígitos). */
+export function novoIdMovimentacao(sorteio: number = Math.random()): number {
+  return Math.floor(sorteio * 9_000_000_000) + 1_000_000_000
+}
+
 /** Pedido ainda aceita item novo? (mesma régua de escolherPpvAberto) */
 export function ppvAceitaItem(cab: {
   status: string | null

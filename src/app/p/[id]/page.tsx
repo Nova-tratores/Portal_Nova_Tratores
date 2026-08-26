@@ -61,6 +61,11 @@ function fraseEvento(ev: UnidadeEvento): string {
           ? ` da OS ${p.os}`
           : p.destino_tipo === 'balcao' ? ' (venda balcão)'
             : p.destino_tipo === 'uso_interno' ? ' (uso interno)' : '';
+        // item_lancado ausente = evento anterior a 26/08/2026, quando o item
+        // podia falhar e a frase ainda dizia que tinha entrado
+        if ((ev.payload || {}).item_lancado === false) {
+          return `Pedido ${p.ppv}${onde} ligado a esta peça, mas o item NÃO foi lançado — incluir manualmente`;
+        }
         return p.ppv_criado
           ? `Pedido ${p.ppv} criado${onde} e esta peça lançada nele`
           : `Peça lançada no pedido ${p.ppv}${onde}`;

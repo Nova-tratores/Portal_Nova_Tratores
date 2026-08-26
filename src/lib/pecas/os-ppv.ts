@@ -24,7 +24,9 @@ import { registrarLog } from '@/lib/ppv/queries'
 import {
   destinoTemPpv,
   escolherPpvAberto,
+  linhaMovimentacao,
   MOTIVO_SAIDA_POR_DESTINO,
+  novoIdMovimentacao,
   observacaoPpvRastreio,
   ondeFoiParar,
   ppvAceitaItem,
@@ -34,14 +36,17 @@ import {
 } from './os-ppv-regras'
 
 export {
-  destinoTemPpv, escolherPpvAberto, MOTIVO_SAIDA_POR_DESTINO,
-  observacaoPpvRastreio, ondeFoiParar, ppvAceitaItem, ppvsDaOS, variantesDeCodigo,
+  destinoTemPpv, escolherPpvAberto, linhaMovimentacao, MOTIVO_SAIDA_POR_DESTINO,
+  novoIdMovimentacao, observacaoPpvRastreio, ondeFoiParar, ppvAceitaItem,
+  ppvsDaOS, variantesDeCodigo,
 }
 
 export interface ResultadoVinculo {
   ppv: string | null
   /** o PPV foi criado agora por causa desta peça */
   criado: boolean
+  /** a peça entrou MESMO como item do pedido (false = pedido existe, item não) */
+  item: boolean
   /** preço unitário aplicado (0 = peça sem preço de venda cadastrado) */
   preco: number
   aviso: string | null
@@ -63,7 +68,7 @@ export interface IntencaoPpv {
   tecnico?: string
 }
 
-const VAZIO: ResultadoVinculo = { ppv: null, criado: false, preco: 0, aviso: null }
+const VAZIO: ResultadoVinculo = { ppv: null, criado: false, item: false, preco: 0, aviso: null }
 
 /**
  * Garante o PPV do destino, adiciona a peça liberada nele, anota o pedido na
@@ -88,14 +93,15 @@ export async function vincularUnidadeLiberadaAoPpv(
 
   const quePeca = `${u.codigo}${u.descricao ? ` · ${u.descricao}` : ''}`
   const ondeVai = ondeFoiParar(destino, u.destino_os)
-  // histórico DO PEDIDO: quem abrir o PPV entende de onde veio a linha
-  await registrarLog(
-    r.ppv,
-    r.criado
+  // histórico DO PEDIDO: quem abrir o PPV entende de onde veio a linha — e se
+  // o item NÃO entrou, o log diz isso em vez de afirmar o contrário
+  const oQueAconteceu = !r.item
+    ? `ATENÇÃO: pedido ligado ao rastreio de peças (QR) — unidade ${u.numero}, peça ${quePeca} — mas o item NÃO foi lançado; inclua manualmente`
+    : r.criado
       ? `Pedido criado pelo rastreio de peças (QR) ao liberar ${u.numero} ${ondeVai} — peça ${quePeca}`
-      : `Peça ${quePeca} adicionada pelo rastreio de peças (QR) — unidade ${u.numero}, liberada por ${ator.nome}`,
-    ator.email || 'rastreio@ppv.local',
-  ).catch(() => { /* log é acessório */ })
+      : `Peça ${quePeca} adicionada pelo rastreio de peças (QR) — unidade ${u.numero}, liberada por ${ator.nome}`
+  await registrarLog(r.ppv, oQueAconteceu, ator.email || 'rastreio@ppv.local')
+    .catch(() => { /* log é acessório */ })
 
   // histórico DA UNIDADE: fecha o rastro do outro lado, em /p/<id>
   await supabase.from('peca_unidade_eventos').insert({
@@ -107,6 +113,7 @@ export async function vincularUnidadeLiberadaAoPpv(
       origem: 'rastreio_ppv',
       ppv: r.ppv,
       ppv_criado: r.criado,
+      item_lancado: r.item,
       destino_tipo: destino,
       ...(u.destino_os ? { os: u.destino_os } : {}),
       preco: r.preco,
@@ -128,13 +135,22 @@ async function executar(
     if (!achado.ppv) return achado
 
     const preco = await precoDeVenda(u.codigo)
-    const ok = await inserirMovimentacao(achado.ppv, u, preco, achado.tecnico)
-    if (!ok) {
-      return { ppv: achado.ppv, criado: achado.criado, preco, aviso: `Pedido ${achado.ppv} pronto, mas a peça não entrou — lance manualmente.` }
+    const r = await inserirMovimentacao(achado.ppv, u, preco, achado.tecnico)
+    if (!r.ok) {
+      // com o motivo junto: "não entrou" sem causa já custou um PPV vazio que
+      // ninguém soube explicar até alguém ir ler o log do banco
+      return {
+        ppv: achado.ppv,
+        criado: achado.criado,
+        item: false,
+        preco,
+        aviso: `Pedido ${achado.ppv} pronto, mas a peça NÃO entrou nele — lance manualmente.${r.erro ? ` (${r.erro})` : ''}`,
+      }
     }
     return {
       ppv: achado.ppv,
       criado: achado.criado,
+      item: true,
       preco,
       aviso: preco > 0 ? null : 'Peça sem preço de venda cadastrado: entrou por R$ 0,00.',
     }
@@ -143,7 +159,7 @@ async function executar(
   }
 }
 
-interface Achado { ppv: string | null; criado: boolean; preco: number; aviso: string | null; tecnico: string }
+interface Achado { ppv: string | null; criado: boolean; item: boolean; preco: number; aviso: string | null; tecnico: string }
 
 // ── destino OS ─────────────────────────────────────────────────────────────
 
@@ -178,7 +194,7 @@ async function ppvDaOS(u: UnidadeMinima, quemNome: string): Promise<Achado> {
     }
     ppv = escolherPpvAberto(ids, mapa)
   }
-  if (ppv) return { ppv, criado: false, preco: 0, aviso: null, tecnico }
+  if (ppv) return { ppv, criado: false, item: false, preco: 0, aviso: null, tecnico }
 
   // 2) não tem: cria um já vinculado (mesma regra da tela da OS)
   const novo = await criarPedido({
@@ -195,7 +211,7 @@ async function ppvDaOS(u: UnidadeMinima, quemNome: string): Promise<Achado> {
 
   const listaNova = os.ID_PPV ? `${os.ID_PPV},${novo}` : novo
   await supabase.from('Ordem_Servico').update({ ID_PPV: listaNova }).eq('Id_Ordem', idOs)
-  return { ppv: novo, criado: true, preco: 0, aviso: null, tecnico }
+  return { ppv: novo, criado: true, item: false, preco: 0, aviso: null, tecnico }
 }
 
 // ── destinos balcão / uso interno ──────────────────────────────────────────
@@ -222,7 +238,7 @@ async function ppvAvulso(
     if (!ppvAceitaItem(cab as any)) {
       return { ...nada, aviso: `Pedido ${escolhido} já foi faturado/fechado — lance a peça manualmente em outro pedido.` }
     }
-    return { ppv: escolhido, criado: false, preco: 0, aviso: null, tecnico: String((cab as any).tecnico || '') }
+    return { ppv: escolhido, criado: false, item: false, preco: 0, aviso: null, tecnico: String((cab as any).tecnico || '') }
   }
 
   // (b) pediu pra criar: os dados do cliente ficaram no evento da retirada
@@ -240,7 +256,7 @@ async function ppvAvulso(
     quemNome,
   })
   if (!novo) return { ...nada, aviso: 'Não consegui criar o pedido — a peça saiu sem entrar em pedido.' }
-  return { ppv: novo, criado: true, preco: 0, aviso: null, tecnico: intencao.tecnico || '' }
+  return { ppv: novo, criado: true, item: false, preco: 0, aviso: null, tecnico: intencao.tecnico || '' }
 }
 
 /**
@@ -325,20 +341,28 @@ async function precoDeVenda(codigo: string): Promise<number> {
   return Number.isFinite(p) && p > 0 ? p : 0
 }
 
-async function inserirMovimentacao(ppv: string, u: UnidadeMinima, preco: number, tecnico: string): Promise<boolean> {
-  const { error } = await supabase.from('movimentacoes').insert({
-    Id_PPV: ppv,
-    Data_Hora: dataHoraBR(),
-    Tecnico: tecnico,
-    TipoMovimento: 'Saída',
-    CodProduto: u.codigo,
-    Descricao: u.descricao || u.codigo,
-    Qtde: '1',
-    Preco: preco,
-  })
-  if (error) return false
-  await recalcularTotal(ppv)
-  return true
+async function inserirMovimentacao(
+  ppv: string,
+  u: UnidadeMinima,
+  preco: number,
+  tecnico: string,
+): Promise<{ ok: boolean; erro?: string }> {
+  const dataHora = dataHoraBR()
+  let ultimo = ''
+  // o Id é sorteado (convenção do módulo): na colisão com um já existente o
+  // banco recusa, então tenta de novo em vez de perder a peça
+  for (let tentativa = 0; tentativa < 3; tentativa++) {
+    const { error } = await supabase.from('movimentacoes').insert(
+      linhaMovimentacao({ ppv, codigo: u.codigo, descricao: u.descricao, preco, tecnico, dataHora, id: novoIdMovimentacao() }),
+    )
+    if (!error) {
+      await recalcularTotal(ppv)
+      return { ok: true }
+    }
+    ultimo = error.message
+    if (error.code !== '23505') break // não é colisão de Id: repetir não ajuda
+  }
+  return { ok: false, erro: ultimo }
 }
 
 /** Total do pedido = soma das saídas menos devoluções (mesma conta do módulo). */

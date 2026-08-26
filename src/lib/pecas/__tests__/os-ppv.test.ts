@@ -3,7 +3,9 @@ import { MOTIVOS_SAIDA } from '../../ppv/constants'
 import {
   destinoTemPpv,
   escolherPpvAberto,
+  linhaMovimentacao,
   MOTIVO_SAIDA_POR_DESTINO,
+  novoIdMovimentacao,
   observacaoPpvRastreio,
   ondeFoiParar,
   ppvAceitaItem,
@@ -104,6 +106,45 @@ describe('destinos que viram linha de pedido', () => {
       expect(frase, String(ref)).not.toMatch(/\bOS\s*$/)
       expect(frase, String(ref)).toContain('ordem de serviço')
     }
+  })
+})
+
+describe('linha de item do pedido (movimentacoes)', () => {
+  const linha = (over = {}) => linhaMovimentacao({
+    ppv: 'PPV-0434', codigo: 'RP-007206155C91', descricao: 'BOMBA HIDRAULICA TANDEM',
+    preco: 3700, tecnico: 'VINICIUS CORREA', dataHora: '26/08/2026 18:41', id: 1234567890, ...over,
+  })
+
+  it('SEMPRE leva Id — a coluna é NOT NULL sem default', () => {
+    // sem isto o insert morre com 23502 e a peça some do pedido sem ninguém
+    // ver: foi exatamente o que deixou o PPV-0434 vazio em 26/08/2026
+    const l = linha()
+    expect(l).toHaveProperty('Id')
+    expect(l.Id).toBe(1234567890)
+    expect(typeof l.Id).toBe('number')
+  })
+
+  it('o id sorteado tem 10 dígitos, como os do módulo', () => {
+    for (const s of [0, 0.5, 0.999999]) {
+      const id = novoIdMovimentacao(s)
+      expect(id, String(s)).toBeGreaterThanOrEqual(1_000_000_000)
+      expect(id, String(s)).toBeLessThan(10_000_000_000)
+      expect(Number.isInteger(id), String(s)).toBe(true)
+    }
+  })
+
+  it('sai como saída de 1 unidade com o preço encontrado', () => {
+    const l = linha()
+    expect(l.TipoMovimento).toBe('Saída')
+    expect(l.Qtde).toBe('1')
+    expect(l.Preco).toBe(3700)
+    expect(l.Id_PPV).toBe('PPV-0434')
+    expect(l.CodProduto).toBe('RP-007206155C91')
+  })
+
+  it('peça sem descrição cai no código — nunca linha em branco no pedido', () => {
+    expect(linha({ descricao: null }).Descricao).toBe('RP-007206155C91')
+    expect(linha({ descricao: '' }).Descricao).toBe('RP-007206155C91')
   })
 })
 
