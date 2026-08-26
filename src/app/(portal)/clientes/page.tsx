@@ -2867,13 +2867,13 @@ function ClientesPageInner() {
                 </div>
               </div>
             ) : (
-            <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)} onMouseEnter={() => prefetchDetalhe(cli)}
+            <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)}
               style={{
                 display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px', columnGap: 16,
                 padding: '14px 20px', borderBottom: '1px solid var(--portal-border)', alignItems: 'center', cursor: 'pointer',
                 fontSize: 14, color: 'var(--portal-text)', transition: 'background 0.15s'
               }}
-              onMouseEnter={ev => { ev.currentTarget.style.background = 'var(--portal-bg-hover)' }}
+              onMouseEnter={ev => { ev.currentTarget.style.background = 'var(--portal-bg-hover)'; prefetchDetalhe(cli) }}
               onMouseLeave={ev => { ev.currentTarget.style.background = 'transparent' }}>
               {/* Espaço para a foto do cliente (placeholder com iniciais até anexar) */}
               <div title="Foto do cliente" style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)', overflow: 'hidden', flexShrink: 0 }}>
