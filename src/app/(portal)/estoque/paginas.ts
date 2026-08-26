@@ -34,6 +34,7 @@ export const PAGINAS_ESTOQUE: PaginaEstoque[] = [
   { key: 'curva-abc', label: 'Curva ABC', href: '/estoque/curva-abc', grupo: 'analise' },
   { key: 'giro-estoque', label: 'Giro de Estoque', href: '/estoque/giro-estoque', grupo: 'analise' },
   { key: 'cruzamento-familia', label: 'Cruzamento por Família', href: '/estoque/cruzamento-familia', grupo: 'analise' },
+  { key: 'inteligencia-comercial', label: 'Inteligência Comercial', href: '/estoque/inteligencia-comercial', grupo: 'analise' },
   { key: 'comissao', label: 'Comissão', href: '/estoque/comissao', grupo: 'analise' },
   // Admin
   { key: 'admin', label: 'Admin', href: '/estoque/admin', grupo: 'admin' },

@@ -225,6 +225,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'curva-abc', label: 'Curva ABC' },
     { id: 'giro-estoque', label: 'Giro de Estoque' },
     { id: 'cruzamento-familia', label: 'Cruzamento por Família' },
+    { id: 'inteligencia-comercial', label: 'Inteligência Comercial' },
     { id: 'comissao', label: 'Comissão' },
     { id: 'admin', label: 'Admin' },
     { id: 'admin-cmc', label: 'Admin CMC' },
