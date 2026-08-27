@@ -11,15 +11,18 @@ import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 
-type Aba = 'compras' | 'clientes' | 'oportunidades';
+type Aba = 'compras' | 'clientes' | 'oportunidades' | 'sugestoes-sazonais';
 const ABAS: Array<{ id: Aba; label: string }> = [
   { id: 'compras', label: 'Compras' },
   { id: 'clientes', label: 'Clientes' },
   { id: 'oportunidades', label: 'Oportunidades (RFM)' },
+  { id: 'sugestoes-sazonais', label: 'Sugestões (sazonal)' },
 ];
 
 type Tipo = 'texto' | 'num' | 'moeda' | 'data' | 'bool';
-interface Col { key: string; label: string; tipo: Tipo; get: (r: Record<string, unknown>) => unknown }
+// `get` devolve o valor usado para ordenar/filtrar/CSV; `fmt` (opcional) só troca
+// a exibição na célula (ex.: status numérico -> "Na época"), sem afetar a ordenação.
+interface Col { key: string; label: string; tipo: Tipo; get: (r: Record<string, unknown>) => unknown; fmt?: (r: Record<string, unknown>) => string }
 
 const MAX_RENDER = 500;
 
@@ -30,10 +33,27 @@ const filtroInput: React.CSSProperties = { width: '100%', padding: '4px 6px', bo
 
 const parseBR = (s: string): number => { const p = s.split('/'); return p.length === 3 ? new Date(+p[2], +p[1] - 1, +p[0]).getTime() : 0; };
 
-// Filtro por coluna: termo numérico => igualdade exata; texto => substring; case-insensitive.
+// Filtro por coluna:
+//   - operador (>, >=, <, <=, =) + número => comparação numérica (ex.: ">100", "<=5");
+//   - termo numérico puro => igualdade exata;
+//   - texto => substring; case-insensitive.
 function casaFiltro(valor: unknown, termo: string): boolean {
   const t = termo.trim().toLowerCase();
   if (!t) return true;
+  // Operador no início do termo → compara o valor numérico da célula.
+  const op = t.match(/^(>=|<=|>|<|=)\s*(-?\d+(?:[.,]\d+)?)$/);
+  if (op) {
+    const alvo = parseFloat(op[2].replace(',', '.'));
+    const nv = Number(valor);
+    if (!Number.isFinite(nv) || !Number.isFinite(alvo)) return false;
+    switch (op[1]) {
+      case '>': return nv > alvo;
+      case '>=': return nv >= alvo;
+      case '<': return nv < alvo;
+      case '<=': return nv <= alvo;
+      default: return nv === alvo; // '='
+    }
+  }
   const v = String(valor ?? '').toLowerCase();
   if (/^\d+([.,]\d+)?$/.test(t)) { return v.replace(/\./g, '').replace(',', '.') === t.replace(',', '.') || v === t; }
   return v.includes(t);
@@ -105,7 +125,14 @@ function TabelaAnalise({ cols, rows, csvName, defaultSort, renderExpand, rowKey 
             ))}</tr>
             <tr>{cols.map((c) => (
               <th key={c.key} style={thFiltro}>
-                <input value={filtros[c.key] || ''} onChange={(e) => setFiltros((f) => ({ ...f, [c.key]: e.target.value }))} placeholder="filtrar" style={filtroInput} onClick={(e) => e.stopPropagation()} />
+                <input
+                  value={filtros[c.key] || ''}
+                  onChange={(e) => setFiltros((f) => ({ ...f, [c.key]: e.target.value }))}
+                  placeholder={c.tipo === 'num' || c.tipo === 'moeda' ? 'ex: >100' : 'filtrar'}
+                  title={c.tipo === 'num' || c.tipo === 'moeda' ? 'Use operadores: >100, >=100, <100, <=100, =100 — ou digite um valor exato' : 'Filtrar por texto'}
+                  style={filtroInput}
+                  onClick={(e) => e.stopPropagation()}
+                />
               </th>
             ))}</tr>
           </thead>
@@ -119,7 +146,7 @@ function TabelaAnalise({ cols, rows, csvName, defaultSort, renderExpand, rowKey 
                     {cols.map((c) => (
                       <td key={c.key} style={{ ...tdStyle, textAlign: c.tipo === 'texto' ? 'left' : 'right', color: c.tipo === 'bool' && r[c.key] ? '#059669' : tdStyle.color, whiteSpace: c.key === 'fornecedores' || c.key === 'produtos_top' ? 'normal' : 'nowrap', maxWidth: c.key === 'fornecedores' || c.key === 'produtos_top' ? 340 : undefined }}>
                         {c.key === cols[0].key && renderExpand ? <span style={{ color: '#dc2626', marginRight: 6 }}>{isOpen ? '▼' : '▶'}</span> : null}
-                        {fmtCel(c.get(r), c.tipo)}
+                        {c.fmt ? c.fmt(r) : fmtCel(c.get(r), c.tipo)}
                       </td>
                     ))}
                   </tr>
@@ -179,6 +206,30 @@ const COLS_OPORT: Col[] = [
   { key: 'rfm', label: 'RFM', tipo: 'num', get: (r) => r.rfm },
 ];
 
+const STATUS_ORD: Record<string, number> = { na_epoca: 0, chegando: 1, fora: 2 };
+function fmtStatusSazonal(r: Record<string, unknown>): string {
+  const st = String(r.status);
+  const dias = r.dias_para_epoca == null ? null : Number(r.dias_para_epoca);
+  const ja = r.ja_comprou_ciclo ? ' · já comprou' : '';
+  if (st === 'na_epoca') return '🟢 Na época' + ja;
+  if (st === 'chegando') return `🟡 Chega em ~${dias} d` + ja;
+  return dias != null ? `⚪ Em ${dias} d` : '⚪ Fora';
+}
+
+const COLS_SUGESTOES: Col[] = [
+  { key: 'cliente', label: 'Cliente', tipo: 'texto', get: (r) => r.cliente },
+  { key: 'telefone', label: 'Telefone', tipo: 'texto', get: (r) => r.telefone },
+  { key: 'grupo', label: 'Grupo (peça)', tipo: 'texto', get: (r) => r.grupo },
+  { key: 'status', label: 'Quando', tipo: 'num', get: (r) => STATUS_ORD[String(r.status)] ?? 9, fmt: fmtStatusSazonal },
+  { key: 'mes_tipico', label: 'Mês típico', tipo: 'texto', get: (r) => r.mes_tipico },
+  { key: 'janela_label', label: 'Janela', tipo: 'texto', get: (r) => r.janela_label },
+  { key: 'concentracao', label: 'Concentração', tipo: 'num', get: (r) => r.concentracao, fmt: (r) => Math.round(Number(r.concentracao) * 100) + '%' },
+  { key: 'anos_recorrencia', label: 'Anos', tipo: 'num', get: (r) => r.anos_recorrencia },
+  { key: 'n_compras', label: 'Nº compras', tipo: 'num', get: (r) => r.n_compras },
+  { key: 'valor_total', label: 'Valor total', tipo: 'moeda', get: (r) => r.valor_total },
+  { key: 'ultima_compra', label: 'Última compra', tipo: 'data', get: (r) => r.ultima_compra },
+];
+
 // Toggle segmentado Peças / Máquinas / Ambos (re-segmenta a aba Clientes).
 type Grupo = 'ambos' | 'pecas' | 'maquinas';
 function ToggleGrupo({ grupo, onChange }: { grupo: Grupo; onChange: (g: Grupo) => void }) {
@@ -201,6 +252,72 @@ const LABEL_RESULTADO: Record<Resultado, { txt: string; cor: string }> = {
   nao_vendeu: { txt: 'Não vendeu', cor: '#dc2626' },
   sem_resposta: { txt: 'Sem resposta', cor: '#b45309' },
 };
+
+interface AlvoContato { codigo_produto: string; sku: string; descricao: string; codigo_cliente: string; conta: string; cliente_nome: string; ultimo_contato: UltimoContato | null }
+
+// Botão + form inline + badge para registrar um contato do CRM (POST /contatos).
+// Estado próprio por instância — usado no expand de Sugestões e no expand por cliente.
+function RegistrarContato({ alvo, motivos, autor, dica }: { alvo: AlvoContato; motivos: Motivo[]; autor: { id: string; nome: string }; dica?: string }) {
+  const [aberto, setAberto] = useState(false);
+  const [resultado, setResultado] = useState<Resultado>('vendeu');
+  const [motivoId, setMotivoId] = useState<number | ''>('');
+  const [obs, setObs] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [ultimo, setUltimo] = useState<UltimoContato | null>(alvo.ultimo_contato);
+
+  const salvar = async () => {
+    if (resultado === 'nao_vendeu' && !motivoId) { alert('Escolha o motivo.'); return; }
+    setSalvando(true);
+    try {
+      const r = await fetch(`/api/estoque/inteligencia-comercial/contatos`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          codigo_produto: alvo.codigo_produto, sku: alvo.sku, descricao_produto: alvo.descricao,
+          codigo_cliente: alvo.codigo_cliente, conta_omie: alvo.conta, cliente_nome: alvo.cliente_nome,
+          resultado, motivo_id: resultado === 'nao_vendeu' ? Number(motivoId) : null, observacao: obs || null,
+          autor_id: autor.id, autor_nome: autor.nome,
+        }),
+      });
+      const d = await r.json();
+      if (d.erro) { alert('Erro: ' + d.erro); return; }
+      setUltimo({ resultado, motivo: resultado === 'nao_vendeu' ? (motivos.find((m) => m.id === Number(motivoId))?.nome || null) : null, observacao: obs || null, autor_nome: autor.nome, data: new Date().toISOString() });
+      setAberto(false); setObs(''); setMotivoId('');
+    } catch (ex) { alert('Erro: ' + (ex as Error).message); }
+    finally { setSalvando(false); }
+  };
+
+  const badge = ultimo ? LABEL_RESULTADO[(ultimo.resultado as Resultado)] : null;
+
+  if (!aberto) {
+    return (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button onClick={() => setAberto(true)} style={{ background: 'none', border: '1px solid #dc2626', color: '#dc2626', borderRadius: 6, padding: '5px 14px', fontSize: '.76rem', fontWeight: 600, cursor: 'pointer' }}>{ultimo ? 'Atualizar contato' : 'Registrar contato'}</button>
+        {badge && <span style={{ fontSize: '.74rem' }}>último: <span style={{ color: badge.cor, fontWeight: 600 }}>{badge.txt}{ultimo?.motivo ? ` (${ultimo.motivo})` : ''}</span><span style={{ color: '#bbb' }}> · {ultimo?.data?.slice(0, 10)}{ultimo?.autor_nome ? ' · ' + ultimo.autor_nome : ''}</span></span>}
+      </div>
+    );
+  }
+  return (
+    <div style={{ background: '#fff7f7', padding: '10px 14px', borderRadius: 8, border: '1px solid #eee' }}>
+      <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+        {(Object.keys(LABEL_RESULTADO) as Resultado[]).map((res) => (
+          <label key={res} style={{ fontSize: '.78rem', color: '#444', display: 'flex', gap: 4, alignItems: 'center', cursor: 'pointer' }}>
+            <input type="radio" checked={resultado === res} onChange={() => setResultado(res)} /> {LABEL_RESULTADO[res].txt}
+          </label>
+        ))}
+        {resultado === 'nao_vendeu' && (
+          <select value={motivoId} onChange={(e) => setMotivoId(e.target.value ? Number(e.target.value) : '')} style={{ padding: '6px 10px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: '.78rem' }}>
+            <option value="">Motivo…</option>
+            {motivos.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+          </select>
+        )}
+        <input value={obs} onChange={(e) => setObs(e.target.value)} placeholder="observação (opcional)" style={{ flex: 1, minWidth: 180, padding: '6px 10px', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: '.78rem' }} />
+        <button disabled={salvando} onClick={salvar} style={{ padding: '6px 16px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.76rem', fontWeight: 600, cursor: 'pointer' }}>{salvando ? 'Salvando…' : 'Salvar'}</button>
+        <button onClick={() => setAberto(false)} style={{ padding: '6px 12px', background: 'none', color: '#888', border: '1px solid #e0e0e0', borderRadius: 6, fontSize: '.76rem', cursor: 'pointer' }}>Cancelar</button>
+      </div>
+      {dica && <div style={{ fontSize: '.68rem', color: '#aaa', marginTop: 6 }}>{dica}</div>}
+    </div>
+  );
+}
 
 // Painel expandido de uma oportunidade (produto): clientes que compraram + CRM.
 function ExpandOportunidade({ produto, contaParam, motivos, autor }: {
@@ -315,13 +432,162 @@ function ExpandOportunidade({ produto, contaParam, motivos, autor }: {
   );
 }
 
+interface SugestaoSku { codigo_produto: string; sku: string; descricao: string; n_compras: number; qtd: number; valor: number; ultima_compra: string | null }
+
+// Painel expandido de uma sugestão sazonal (cliente × grupo): peças específicas
+// que o cliente costuma comprar + registrar contato (contra a peça representativa).
+function ExpandSugestao({ row, motivos, autor }: {
+  row: Record<string, unknown>; motivos: Motivo[]; autor: { id: string; nome: string };
+}) {
+  const skus = (row.skus as SugestaoSku[] | undefined) || [];
+  const rep = { codigo_produto: String(row.representante_codigo_produto || ''), sku: String(row.representante_sku || ''), descricao: String(row.representante_descricao || '') };
+  const cel: React.CSSProperties = { padding: '6px 10px', fontSize: '.78rem', color: '#444', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' };
+  const th2: React.CSSProperties = { padding: '6px 10px', fontSize: '.62rem', textTransform: 'uppercase', color: '#999', letterSpacing: '.5px', textAlign: 'left', fontWeight: 700 };
+
+  return (
+    <div style={{ padding: '12px 16px' }}>
+      <div style={{ fontSize: '.8rem', fontWeight: 700, color: '#333', marginBottom: 4 }}>
+        {String(row.cliente || '')} · costuma comprar <span style={{ color: '#dc2626' }}>{String(row.grupo)}</span> em {String(row.mes_tipico)} (janela {String(row.janela_label)})
+      </div>
+      <div style={{ fontSize: '.74rem', color: '#888', marginBottom: 10 }}>
+        {String(row.telefone) || 'sem telefone'} · {String(row.anos_recorrencia)} anos comprando · {Math.round(Number(row.concentracao) * 100)}% concentrado na janela
+      </div>
+
+      {skus.length > 0 && (
+        <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 8, marginBottom: 10 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>{['Peça (SKU)', 'Descrição', 'Nº compras', 'Qtd', 'Valor', 'Última compra'].map((h) => <th key={h} style={th2}>{h}</th>)}</tr></thead>
+            <tbody>
+              {skus.slice(0, 100).map((s) => (
+                <tr key={s.codigo_produto}>
+                  <td style={cel}>{s.sku}</td>
+                  <td style={{ ...cel, whiteSpace: 'normal', maxWidth: 340 }}>{s.descricao}</td>
+                  <td style={{ ...cel, textAlign: 'right' }}>{s.n_compras}</td>
+                  <td style={{ ...cel, textAlign: 'right' }}>{s.qtd}</td>
+                  <td style={{ ...cel, textAlign: 'right' }}>{fmtRS(s.valor)}</td>
+                  <td style={cel}>{s.ultima_compra || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <RegistrarContato
+        alvo={{ ...rep, codigo_cliente: String(row.codigo_cliente || ''), conta: String(row.conta || ''), cliente_nome: String(row.cliente || ''), ultimo_contato: (row.ultimo_contato as UltimoContato | null) || null }}
+        motivos={motivos}
+        autor={autor}
+        dica={`O contato é registrado na peça principal (${rep.sku}) deste grupo.`}
+      />
+    </div>
+  );
+}
+
+interface GrupoCliente {
+  grupo: string; is_tipo: boolean; sazonal: boolean; mes_tipico: string | null; janela_label: string | null;
+  concentracao: number; anos_recorrencia: number; n_compras: number; qtd_total: number; valor_total: number;
+  ultima_compra: string | null; status: string; dias_para_epoca: number | null; ja_comprou_ciclo: boolean;
+  representante_codigo_produto: string; representante_sku: string; representante_descricao: string;
+  ultimo_contato: UltimoContato | null; skus: SugestaoSku[];
+}
+
+// Painel expandido de um CLIENTE (aba Clientes): os tipos de peça que ele compra
+// por época — sazonais primeiro (com "na época?"), depois os demais tipos — cada um
+// abrindo os SKUs específicos + registrar contato. Fonte: /sugestoes-cliente.
+function ExpandClienteSugestoes({ row, contaParam, motivos, autor }: {
+  row: Record<string, unknown>; contaParam: string; motivos: Motivo[]; autor: { id: string; nome: string };
+}) {
+  const codCliente = String(row.codigo_cliente || '');
+  const clienteNome = String(row.nome || '');
+  const [dados, setDados] = useState<GrupoCliente[] | null>(null);
+  const [erro, setErro] = useState('');
+  const [verOutros, setVerOutros] = useState(false);
+
+  useEffect(() => {
+    let vivo = true;
+    setErro('');
+    fetch(`/api/estoque/inteligencia-comercial/sugestoes-cliente?cliente=${encodeURIComponent(codCliente)}${contaParam}`)
+      .then((r) => r.json())
+      .then((d) => { if (!vivo) return; if (d.erro) setErro(d.erro); else setDados(d.itens || []); })
+      .catch((ex) => { if (vivo) setErro('Erro: ' + (ex as Error).message); });
+    return () => { vivo = false; };
+  }, [codCliente, contaParam]);
+
+  const sazonais = (dados || []).filter((g) => g.sazonal);
+  const outros = (dados || []).filter((g) => !g.sazonal);
+
+  const cardStyle: React.CSSProperties = { background: '#fff', border: '1px solid #eee', borderRadius: 8, padding: '10px 12px', marginBottom: 8 };
+  const cel: React.CSSProperties = { padding: '5px 8px', fontSize: '.74rem', color: '#555', whiteSpace: 'nowrap' };
+  const th2: React.CSSProperties = { padding: '5px 8px', fontSize: '.6rem', textTransform: 'uppercase', color: '#aaa', letterSpacing: '.5px', textAlign: 'left', fontWeight: 700 };
+
+  const renderGrupo = (g: GrupoCliente) => (
+    <div key={g.representante_codigo_produto + g.grupo} style={cardStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 6 }}>
+        <span style={{ fontWeight: 700, color: '#333', fontSize: '.82rem' }}>{g.grupo}</span>
+        {g.sazonal && <span style={{ fontSize: '.74rem' }}>{fmtStatusSazonal(g as unknown as Record<string, unknown>)}</span>}
+        {g.sazonal && <span style={{ fontSize: '.72rem', color: '#888' }}>· {g.mes_tipico} (janela {g.janela_label}) · {Math.round(g.concentracao * 100)}% · {g.anos_recorrencia} anos</span>}
+        <span style={{ fontSize: '.72rem', color: '#aaa', marginLeft: 'auto' }}>{g.n_compras} compras · {fmtRS(g.valor_total)} · última {g.ultima_compra || '—'}</span>
+      </div>
+      {g.skus.length > 0 && (
+        <div style={{ overflowX: 'auto', marginBottom: 8 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>{['Peça (SKU)', 'Descrição', 'Nº compras', 'Valor', 'Última'].map((h) => <th key={h} style={th2}>{h}</th>)}</tr></thead>
+            <tbody>
+              {g.skus.slice(0, 50).map((s) => (
+                <tr key={s.codigo_produto}>
+                  <td style={cel}>{s.sku}</td>
+                  <td style={{ ...cel, whiteSpace: 'normal', maxWidth: 320 }}>{s.descricao}</td>
+                  <td style={{ ...cel, textAlign: 'right' }}>{s.n_compras}</td>
+                  <td style={{ ...cel, textAlign: 'right' }}>{fmtRS(s.valor)}</td>
+                  <td style={cel}>{s.ultima_compra || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <RegistrarContato
+        alvo={{ codigo_produto: g.representante_codigo_produto, sku: g.representante_sku, descricao: g.representante_descricao, codigo_cliente: codCliente, conta: String(row.conta || ''), cliente_nome: clienteNome, ultimo_contato: g.ultimo_contato }}
+        motivos={motivos}
+        autor={autor}
+        dica={`O contato é registrado na peça principal (${g.representante_sku}) deste grupo.`}
+      />
+    </div>
+  );
+
+  return (
+    <div style={{ padding: '12px 16px' }}>
+      {erro && <div style={{ color: '#dc2626', fontSize: '.78rem', marginBottom: 6 }}>{erro}</div>}
+      {!dados && !erro && <div style={{ color: '#888', fontSize: '.78rem' }}>Analisando o histórico de {clienteNome}…</div>}
+      {dados && (
+        <>
+          <div style={{ fontSize: '.8rem', fontWeight: 700, color: '#333', marginBottom: 8 }}>
+            {sazonais.length > 0
+              ? `${sazonais.length} ${sazonais.length === 1 ? 'tipo sazonal detectado' : 'tipos sazonais detectados'} para ${clienteNome}`
+              : `Sem padrão sazonal claro para ${clienteNome}`}
+          </div>
+          {sazonais.map(renderGrupo)}
+          {outros.length > 0 && (
+            <div style={{ marginTop: 8 }}>
+              <button onClick={() => setVerOutros((v) => !v)} style={{ background: 'none', border: '1px solid #e0e0e0', color: '#666', borderRadius: 6, padding: '5px 12px', fontSize: '.74rem', fontWeight: 600, cursor: 'pointer' }}>
+                {verOutros ? 'Ocultar' : 'Ver'} outros {outros.length} {outros.length === 1 ? 'tipo comprado' : 'tipos comprados'} (sem época definida)
+              </button>
+              {verOutros && <div style={{ marginTop: 8 }}>{outros.map(renderGrupo)}</div>}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function InteligenciaComercialPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const [aba, setAba] = useState<Aba>('compras');
-  const [dados, setDados] = useState<Record<Aba, Array<Record<string, unknown>> | null>>({ compras: null, clientes: null, oportunidades: null });
+  const [dados, setDados] = useState<Record<Aba, Array<Record<string, unknown>> | null>>({ compras: null, clientes: null, oportunidades: null, 'sugestoes-sazonais': null });
   const [meta, setMeta] = useState<Record<string, unknown>>({});
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
@@ -348,7 +614,7 @@ export default function InteligenciaComercialPage() {
   // Motivos do CRM (para o <select> do form de contato).
   useEffect(() => { fetch('/api/estoque/inteligencia-comercial/contatos').then((r) => r.json()).then((d) => setMotivos(d.motivos || [])).catch(() => {}); }, []);
   // Recarrega ao trocar de aba/conta (invalida cache local ao mudar conta).
-  useEffect(() => { setDados({ compras: null, clientes: null, oportunidades: null }); }, [contaParam]);
+  useEffect(() => { setDados({ compras: null, clientes: null, oportunidades: null, 'sugestoes-sazonais': null }); }, [contaParam]);
   // Trocar o grupo invalida a aba Clientes (re-segmenta).
   useEffect(() => { setDados((p) => ({ ...p, clientes: null })); }, [grupo]);
   useEffect(() => { if (dados[aba] == null) carregar(aba); /* eslint-disable-next-line */ }, [aba, contaParam, grupo]);
@@ -371,7 +637,7 @@ export default function InteligenciaComercialPage() {
   if (!permLoading && userProfile && !pode('estoque', 'inteligencia-comercial')) return <SemPermissao />;
 
   const rows = dados[aba] || [];
-  const cols = aba === 'compras' ? COLS_COMPRAS : aba === 'clientes' ? COLS_CLIENTES : COLS_OPORT;
+  const cols = aba === 'compras' ? COLS_COMPRAS : aba === 'clientes' ? COLS_CLIENTES : aba === 'sugestoes-sazonais' ? COLS_SUGESTOES : COLS_OPORT;
   const csvName = `inteligencia-${aba}${conta ? '-' + conta : ''}.csv`;
 
   return (
@@ -379,7 +645,7 @@ export default function InteligenciaComercialPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Inteligência Comercial</h1>
-          <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 0 }}>Compras por produto · Clientes · Oportunidades (RFM) — histórico desde 11/2022</p>
+          <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 0 }}>Compras por produto · Clientes · Oportunidades (RFM) · Sugestões sazonais — histórico desde 11/2022</p>
         </div>
         <ContaSelector />
       </div>
@@ -400,6 +666,7 @@ export default function InteligenciaComercialPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
           <span style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', fontWeight: 700 }}>Segmento</span>
           <ToggleGrupo grupo={grupo} onChange={setGrupo} />
+          <span style={{ fontSize: '.75rem', color: '#059669', fontWeight: 600 }}>Clique num cliente para ver os tipos de peça que ele compra por época (sugestão de venda) e registrar o contato.</span>
         </div>
       )}
 
@@ -416,6 +683,20 @@ export default function InteligenciaComercialPage() {
         </div>
       )}
 
+      {aba === 'sugestoes-sazonais' && !carregando && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+          {rows.length > 0 && (() => {
+            const n = rows.filter((r) => r.status !== 'fora' && !r.ja_comprou_ciclo).length;
+            return (
+              <span style={{ fontSize: '.8rem', color: '#059669', fontWeight: 600 }}>
+                {n} {n === 1 ? 'sugestão está' : 'sugestões estão'} na época ou chegando. Clique numa linha para ver as peças e registrar o contato.
+              </span>
+            );
+          })()}
+          <span style={{ fontSize: '.72rem', color: '#aaa' }}>Padrão detectado por cliente × grupo de peça (Tipo, ex.: “Discos”; sem Tipo cai no SKU). Requer ≥2 anos comprando na mesma época.</span>
+        </div>
+      )}
+
       {erro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{erro}</div>}
       {carregando && <div style={{ color: '#888', fontSize: '.85rem', padding: '20px 0' }}>Calculando… (varre todo o histórico, pode levar alguns segundos)</div>}
 
@@ -424,8 +705,8 @@ export default function InteligenciaComercialPage() {
           cols={cols}
           rows={rows}
           csvName={csvName}
-          defaultSort={aba === 'oportunidades' ? { key: 'na_hora', dir: -1 } : { key: 'valor_total', dir: -1 }}
-          rowKey={aba === 'oportunidades' ? (r) => String(r.codigo_produto) : aba === 'clientes' ? (r) => String(r.conta) + '|' + String(r.codigo_cliente) : (r) => String(r.chave ?? r.sku)}
+          defaultSort={aba === 'oportunidades' ? { key: 'na_hora', dir: -1 } : aba === 'sugestoes-sazonais' ? { key: 'status', dir: 1 } : { key: 'valor_total', dir: -1 }}
+          rowKey={aba === 'oportunidades' ? (r) => String(r.codigo_produto) : aba === 'sugestoes-sazonais' ? (r) => String(r.conta) + '|' + String(r.codigo_cliente) + '|' + String(r.grupo) : aba === 'clientes' ? (r) => String(r.conta) + '|' + String(r.codigo_cliente) : (r) => String(r.chave ?? r.sku)}
           renderExpand={aba === 'oportunidades' ? (r) => (
             <ExpandOportunidade
               produto={{ codigo_produto: String(r.codigo_produto), sku: String(r.sku), descricao: String(r.descricao) }}
@@ -433,6 +714,10 @@ export default function InteligenciaComercialPage() {
               motivos={motivos}
               autor={{ id: userProfile?.id || '', nome: userProfile?.nome || '' }}
             />
+          ) : aba === 'sugestoes-sazonais' ? (r) => (
+            <ExpandSugestao row={r} motivos={motivos} autor={{ id: userProfile?.id || '', nome: userProfile?.nome || '' }} />
+          ) : aba === 'clientes' ? (r) => (
+            <ExpandClienteSugestoes row={r} contaParam={contaParam} motivos={motivos} autor={{ id: userProfile?.id || '', nome: userProfile?.nome || '' }} />
           ) : undefined}
         />
       )}

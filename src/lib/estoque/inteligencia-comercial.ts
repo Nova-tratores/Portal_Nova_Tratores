@@ -10,6 +10,7 @@
 
 import { supabase, filtroConta } from './supabase';
 import { type Conta, type ContaFiltro } from './conta';
+import { carregarTipoCaracteristica } from './cruzamento-familia';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 const LOTE = 1000;
@@ -575,4 +576,385 @@ export async function registrarContato(p: ContatoInput): Promise<{ ok: true; id:
   const { data, error } = await supabase.from('oportunidade_contatos').insert(row).select('id').single();
   if (error) throw new Error(error.message);
   return { ok: true, id: (data as { id: number }).id };
+}
+
+// ===================== Aba 4 — Sugestões (sazonal por cliente) =====================
+// Detecta, por cliente × grupo de peça, a ÉPOCA DO ANO em que ele costuma comprar
+// (ex.: "Fulano compra discos em set/out todo ano") e alerta quando a época chega.
+// Grupo = característica "Tipo" (produto_tipo.tipo, ex.: "Discos"); peça sem Tipo
+// cai no próprio SKU. Só peças. Reusa parseDataBR/diasEntre/resolverNomesClientes.
+
+// --- Parâmetros do motor (ajustar aqui se o resultado ficar ruidoso) ---
+const SAZ_MIN_ANOS = 2;          // precisa comprar em ≥ 2 anos distintos p/ virar padrão
+const SAZ_MIN_CONCENTRACAO = 0.5; // ≥ 50% das compras dentro da janela de pico (3 meses)
+const SAZ_LEAD_DIAS = 45;         // antecedência: "chegando" começa 45 dias antes da janela
+const SAZ_JA_COMPROU_DIAS = 100;  // se comprou na janela há ≤ 100 dias, marca "já comprou"
+
+const MESES_PT = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
+const MESES_PT_LONGO = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+// Dia-do-ano acumulado do 1º dia de cada mês (ano não bissexto; aproximação p/ ciclo).
+const CUM_DIAS = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+const mod12 = (m: number): number => ((m % 12) + 12) % 12; // 0..11 a partir de índice 0-based
+
+// Análise sazonal de UM grupo (cliente×tipo): recebe as compras distintas (mês/ano)
+// e a data da última compra; devolve pico/janela/concentração/status + flag `sazonal`
+// (≥2 anos e ≥50% concentrado). Usado tanto pela aba Sugestões quanto pela visão por
+// cliente. `null` se não há nenhuma compra.
+export interface AnaliseSazonal {
+  sazonal: boolean;
+  anos: number;
+  pico_mes: number;      // 1..12
+  janela: number[];      // 3 meses (1..12), em ordem [pico-1, pico, pico+1]
+  concentracao: number;  // 0..1
+  mes_tipico: string;
+  janela_label: string;
+  status: 'na_epoca' | 'chegando' | 'fora';
+  dias_para_epoca: number | null;
+  ja_comprou_ciclo: boolean;
+}
+
+function analisarGrupoSazonal(pedidos: Array<{ mes: number; ano: number }>, ultima: Date | null, agora: Date, mesHoje: number, diaHoje: number, lead: number): AnaliseSazonal | null {
+  if (pedidos.length === 0) return null;
+  const anos = new Set(pedidos.map((p) => p.ano)).size;
+  const hist = new Array(12).fill(0) as number[];
+  for (const p of pedidos) hist[p.mes - 1]++;
+  const total = pedidos.length;
+  let picoIdx = 0, melhor = -1;
+  for (let c = 0; c < 12; c++) {
+    const soma = hist[mod12(c - 1)] + hist[c] + hist[mod12(c + 1)];
+    if (soma > melhor) { melhor = soma; picoIdx = c; }
+  }
+  const concentracao = total > 0 ? melhor / total : 0;
+  const janela = [mod12(picoIdx - 1) + 1, picoIdx + 1, mod12(picoIdx + 1) + 1];
+  const janelaSet = new Set(janela);
+  const hojeDoy = CUM_DIAS[mesHoje - 1] + (diaHoje - 1);
+  const inicioDoy = CUM_DIAS[janela[0] - 1]; // 1º dia do 1º mês da janela
+  let diasAteInicio = inicioDoy - hojeDoy; if (diasAteInicio < 0) diasAteInicio += 365;
+  const naEpoca = janelaSet.has(mesHoje);
+  let status: AnaliseSazonal['status'];
+  let diasParaEpoca: number | null;
+  if (naEpoca) { status = 'na_epoca'; diasParaEpoca = 0; }
+  else if (diasAteInicio <= lead) { status = 'chegando'; diasParaEpoca = diasAteInicio; }
+  else { status = 'fora'; diasParaEpoca = diasAteInicio; }
+  const mesUltima = ultima ? ultima.getMonth() + 1 : null;
+  const diasDesde = ultima ? diasEntre(agora, ultima) : null;
+  const jaComprou = !!(mesUltima && janelaSet.has(mesUltima) && diasDesde != null && diasDesde <= SAZ_JA_COMPROU_DIAS);
+  const sazonal = pedidos.length >= SAZ_MIN_ANOS && anos >= SAZ_MIN_ANOS && concentracao >= SAZ_MIN_CONCENTRACAO;
+  return {
+    sazonal, anos, pico_mes: picoIdx + 1, janela, concentracao,
+    mes_tipico: MESES_PT_LONGO[picoIdx], janela_label: janela.map((m) => MESES_PT[m - 1]).join('–'),
+    status, dias_para_epoca: diasParaEpoca, ja_comprou_ciclo: jaComprou,
+  };
+}
+
+// Último contato do CRM (mais recente por `codigo_produto|CONTA|codigo_cliente`) para
+// um conjunto de peças representativas. Degrada p/ mapa vazio se a tabela não existir.
+async function carregarUltimosContatos(repCods: string[]): Promise<Map<string, UltimoContato>> {
+  const map = new Map<string, UltimoContato>();
+  const cods = [...new Set(repCods.filter(Boolean))];
+  if (cods.length === 0) return map;
+  const motivos = await mapaMotivos();
+  for (let i = 0; i < cods.length; i += 300) {
+    const slice = cods.slice(i, i + 300);
+    const { data, error } = await supabase.from('oportunidade_contatos')
+      .select('codigo_produto,codigo_cliente,conta_omie,resultado,motivo_id,observacao,autor_nome,created_at')
+      .in('codigo_produto', slice).order('created_at', { ascending: false });
+    if (error) break;
+    for (const c of (data || []) as Array<Record<string, unknown>>) {
+      const chave = String(c.codigo_produto ?? '') + '|' + String(c.conta_omie ?? '').toUpperCase() + '|' + String(c.codigo_cliente ?? '');
+      if (map.has(chave)) continue; // já é o mais recente (ordenado desc)
+      map.set(chave, {
+        resultado: String(c.resultado),
+        motivo: c.motivo_id != null ? (motivos.get(Number(c.motivo_id)) || null) : null,
+        observacao: c.observacao ? String(c.observacao) : null,
+        autor_nome: c.autor_nome ? String(c.autor_nome) : null,
+        data: String(c.created_at),
+      });
+    }
+  }
+  return map;
+}
+
+export interface SugestaoSkuRow { codigo_produto: string; sku: string; descricao: string; n_compras: number; qtd: number; valor: number; ultima_compra: string | null }
+
+export interface SugestaoSazonalRow {
+  conta: string;
+  codigo_cliente: string;
+  cliente: string;
+  telefone: string;
+  grupo: string;              // rótulo: "Discos" (Tipo) ou descrição/SKU no fallback
+  is_tipo: boolean;           // true = agrupado por característica Tipo; false = SKU avulso
+  mes_tipico: string;         // "Outubro"
+  janela_label: string;       // "set–out–nov"
+  concentracao: number;       // 0..1
+  anos_recorrencia: number;
+  n_compras: number;
+  qtd_total: number;
+  valor_total: number;
+  ultima_compra: string | null;
+  status: 'na_epoca' | 'chegando' | 'fora';
+  dias_para_epoca: number | null; // dias até o início da janela (0 se na época)
+  ja_comprou_ciclo: boolean;
+  representante_codigo_produto: string;
+  representante_sku: string;
+  representante_descricao: string;
+  ultimo_contato: UltimoContato | null;
+  skus: SugestaoSkuRow[];     // peças específicas daquele grupo que o cliente compra (p/ o expand)
+}
+
+export async function sugestoesSazonais(conta: ContaFiltro, opts?: { mes?: number; dia?: number; lead?: number }): Promise<{ itens: SugestaoSazonalRow[]; total: number; sugeridas: number }> {
+  const produtos = await carregarProdutosMap(conta);
+  const tipoMap = await carregarTipoCaracteristica(conta); // codigo_produto -> "Tipo"
+
+  interface PedidoInfo { mes: number; ano: number }
+  interface SkuAgg { valor: number; qtd: number; desc: string; pedidos: Set<string>; ultima: Date | null; ultimaStr: string | null }
+  interface Agg {
+    conta: string; codigo: string; grupoKey: string; isTipo: boolean; rotulo: string;
+    pedidoMes: Map<string, PedidoInfo>;          // numero_pedido -> mês/ano (compras distintas)
+    valor: number; qtd: number;
+    ultima: Date | null; ultimaStr: string | null;
+    skus: Map<string, SkuAgg>;                    // codigo_produto -> agregado
+    nomeFallback: string;
+  }
+  const agg = new Map<string, Agg>();
+  const codsPorConta = new Map<string, Set<number>>();
+
+  let off = 0;
+  for (;;) {
+    const { data, error } = await filtroConta(
+      supabase.from('vendas_itens').select('codigo_produto,codigo_cliente,nome_cliente,numero_pedido,quantidade,valor_total,data_pedido,familia,descricao,conta_omie').order('id', { ascending: true }),
+      conta,
+    ).range(off, off + LOTE - 1);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<Record<string, unknown>>;
+    for (const v of lote) {
+      if (!passaGrupo(v.familia, 'pecas')) continue; // só peças
+      const cod = String(v.codigo_cliente ?? '').trim();
+      if (!cod || !/^\d+$/.test(cod)) continue;
+      const codProd = String(v.codigo_produto ?? '').trim();
+      if (!codProd) continue;
+      const dt = parseDataBR(v.data_pedido);
+      if (!dt) continue; // sem data não dá para inferir época
+      const contaV = String(v.conta_omie ?? '').toUpperCase();
+      const cad = produtos.get(codProd);
+      const tipo = (tipoMap[codProd] || '').trim();
+      const sku = cad?.sku || codProd;
+      const grupoKey = tipo ? 'tipo:' + norm(tipo) : 'sku:' + sku;
+      const chave = contaV + '|' + cod + '|' + grupoKey;
+      let a = agg.get(chave);
+      if (!a) {
+        a = { conta: contaV, codigo: cod, grupoKey, isTipo: !!tipo, rotulo: tipo || (cad?.descricao || sku), pedidoMes: new Map(), valor: 0, qtd: 0, ultima: null, ultimaStr: null, skus: new Map(), nomeFallback: '' };
+        agg.set(chave, a);
+      }
+      const ped = String(v.numero_pedido ?? '').trim();
+      if (ped && !a.pedidoMes.has(ped)) a.pedidoMes.set(ped, { mes: dt.getMonth() + 1, ano: dt.getFullYear() });
+      const valor = num(v.valor_total), qtd = num(v.quantidade);
+      a.valor += valor; a.qtd += qtd;
+      if (!a.ultima || dt > a.ultima) { a.ultima = dt; a.ultimaStr = String(v.data_pedido); }
+      let s = a.skus.get(codProd);
+      if (!s) { s = { valor: 0, qtd: 0, desc: cad?.descricao || String(v.descricao ?? '') || codProd, pedidos: new Set(), ultima: null, ultimaStr: null }; a.skus.set(codProd, s); }
+      s.valor += valor; s.qtd += qtd; if (ped) s.pedidos.add(ped);
+      if (!s.ultima || dt > s.ultima) { s.ultima = dt; s.ultimaStr = String(v.data_pedido); }
+      if (!a.nomeFallback && v.nome_cliente) a.nomeFallback = String(v.nome_cliente).trim();
+      if (!codsPorConta.has(contaV)) codsPorConta.set(contaV, new Set());
+      codsPorConta.get(contaV)!.add(Number(cod));
+    }
+    if (lote.length < LOTE) break;
+    off += LOTE;
+  }
+
+  // "Hoje" (ou mês/dia simulado via opts) para calcular a proximidade da época.
+  const agora = new Date();
+  const mesHoje = opts?.mes && opts.mes >= 1 && opts.mes <= 12 ? opts.mes : agora.getMonth() + 1;
+  const diaHoje = opts?.dia && opts.dia >= 1 && opts.dia <= 31 ? opts.dia : agora.getDate();
+  const lead = opts?.lead && opts.lead > 0 ? opts.lead : SAZ_LEAD_DIAS;
+
+  // Só grupos com padrão sazonal viram linha da aba.
+  interface Pre { a: Agg; an: AnaliseSazonal; rep: string; repSku: string; repDesc: string }
+  const pres: Pre[] = [];
+  for (const a of agg.values()) {
+    const an = analisarGrupoSazonal([...a.pedidoMes.values()], a.ultima, agora, mesHoje, diaHoje, lead);
+    if (!an || !an.sazonal) continue;
+    // Representante = SKU de maior valor dentro do grupo (usado no CRM).
+    let rep = '', repSku = '', repDesc = '', repVal = -1;
+    for (const [codP, s] of a.skus) if (s.valor > repVal) { repVal = s.valor; rep = codP; repSku = (produtos.get(codP)?.sku) || codP; repDesc = s.desc; }
+    pres.push({ a, an, rep, repSku, repDesc });
+  }
+
+  const contatoPorChave = await carregarUltimosContatos(pres.map((p) => p.rep));
+  const nomes = await resolverNomesClientes(codsPorConta);
+
+  const itens: SugestaoSazonalRow[] = pres.map((p) => {
+    const a = p.a;
+    const info = nomes.get(a.conta + '|' + a.codigo);
+    const skus: SugestaoSkuRow[] = [...a.skus.entries()]
+      .map(([codP, s]) => ({ codigo_produto: codP, sku: (produtos.get(codP)?.sku) || codP, descricao: s.desc, n_compras: s.pedidos.size, qtd: s.qtd, valor: s.valor, ultima_compra: s.ultimaStr }))
+      .sort((x, y) => y.valor - x.valor);
+    return {
+      conta: a.conta,
+      codigo_cliente: a.codigo,
+      cliente: info?.nome || a.nomeFallback || ('#' + a.codigo),
+      telefone: info?.telefone || '',
+      grupo: a.rotulo,
+      is_tipo: a.isTipo,
+      mes_tipico: p.an.mes_tipico,
+      janela_label: p.an.janela_label,
+      concentracao: p.an.concentracao,
+      anos_recorrencia: p.an.anos,
+      n_compras: a.pedidoMes.size,
+      qtd_total: a.qtd,
+      valor_total: a.valor,
+      ultima_compra: a.ultimaStr,
+      status: p.an.status,
+      dias_para_epoca: p.an.dias_para_epoca,
+      ja_comprou_ciclo: p.an.ja_comprou_ciclo,
+      representante_codigo_produto: p.rep,
+      representante_sku: p.repSku,
+      representante_descricao: p.repDesc,
+      ultimo_contato: contatoPorChave.get(p.rep + '|' + a.conta + '|' + a.codigo) || null,
+      skus,
+    };
+  });
+
+  // Default: na época / chegando primeiro; já comprou desce; depois concentração, anos, valor.
+  const ordemStatus: Record<SugestaoSazonalRow['status'], number> = { na_epoca: 0, chegando: 1, fora: 2 };
+  itens.sort((x, y) =>
+    (ordemStatus[x.status] - ordemStatus[y.status]) ||
+    (Number(x.ja_comprou_ciclo) - Number(y.ja_comprou_ciclo)) ||
+    (y.concentracao - x.concentracao) ||
+    (y.anos_recorrencia - x.anos_recorrencia) ||
+    (y.valor_total - x.valor_total),
+  );
+  const sugeridas = itens.filter((i) => i.status !== 'fora' && !i.ja_comprou_ciclo).length;
+  return { itens, total: itens.length, sugeridas };
+}
+
+// ===== Sugestões sazonais de UM cliente (para o expand da aba Clientes) =====
+// Mesma matemática, mas o scan de vendas é filtrado por codigo_cliente (barato).
+// Devolve TODOS os grupos de peça que o cliente compra: os sazonais (com época)
+// no topo e o resto ("outros tipos") marcado com sazonal=false.
+export interface GrupoClienteRow {
+  grupo: string;
+  is_tipo: boolean;
+  sazonal: boolean;
+  mes_tipico: string | null;
+  janela_label: string | null;
+  concentracao: number;
+  anos_recorrencia: number;
+  n_compras: number;
+  qtd_total: number;
+  valor_total: number;
+  ultima_compra: string | null;
+  status: 'na_epoca' | 'chegando' | 'fora';
+  dias_para_epoca: number | null;
+  ja_comprou_ciclo: boolean;
+  representante_codigo_produto: string;
+  representante_sku: string;
+  representante_descricao: string;
+  ultimo_contato: UltimoContato | null;
+  skus: SugestaoSkuRow[];
+}
+
+export async function sugestoesSazonaisCliente(conta: ContaFiltro, codigoCliente: string, opts?: { mes?: number; lead?: number }): Promise<{ cliente: string; conta: string; itens: GrupoClienteRow[]; sazonais: number }> {
+  const cod = String(codigoCliente || '').trim();
+  if (!cod || !/^\d+$/.test(cod)) throw new Error('cliente inválido');
+  const produtos = await carregarProdutosMap(conta);
+  const tipoMap = await carregarTipoCaracteristica(conta);
+
+  interface PedidoInfo { mes: number; ano: number }
+  interface SkuAgg { valor: number; qtd: number; desc: string; pedidos: Set<string>; ultima: Date | null; ultimaStr: string | null }
+  interface Agg { conta: string; grupoKey: string; isTipo: boolean; rotulo: string; pedidoMes: Map<string, PedidoInfo>; valor: number; qtd: number; ultima: Date | null; ultimaStr: string | null; skus: Map<string, SkuAgg> }
+  const agg = new Map<string, Agg>();
+  let contaCli = '';
+  let nomeFallback = '';
+
+  let off = 0;
+  for (;;) {
+    const { data, error } = await filtroConta(
+      supabase.from('vendas_itens').select('codigo_produto,codigo_cliente,nome_cliente,numero_pedido,quantidade,valor_total,data_pedido,familia,descricao,conta_omie').eq('codigo_cliente', cod).order('id', { ascending: true }),
+      conta,
+    ).range(off, off + LOTE - 1);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<Record<string, unknown>>;
+    for (const v of lote) {
+      if (!passaGrupo(v.familia, 'pecas')) continue; // só peças
+      const codProd = String(v.codigo_produto ?? '').trim();
+      if (!codProd) continue;
+      const dt = parseDataBR(v.data_pedido);
+      if (!dt) continue;
+      contaCli = String(v.conta_omie ?? '').toUpperCase();
+      if (!nomeFallback && v.nome_cliente) nomeFallback = String(v.nome_cliente).trim();
+      const cad = produtos.get(codProd);
+      const tipo = (tipoMap[codProd] || '').trim();
+      const sku = cad?.sku || codProd;
+      const grupoKey = tipo ? 'tipo:' + norm(tipo) : 'sku:' + sku;
+      let a = agg.get(grupoKey);
+      if (!a) { a = { conta: contaCli, grupoKey, isTipo: !!tipo, rotulo: tipo || (cad?.descricao || sku), pedidoMes: new Map(), valor: 0, qtd: 0, ultima: null, ultimaStr: null, skus: new Map() }; agg.set(grupoKey, a); }
+      const ped = String(v.numero_pedido ?? '').trim();
+      if (ped && !a.pedidoMes.has(ped)) a.pedidoMes.set(ped, { mes: dt.getMonth() + 1, ano: dt.getFullYear() });
+      const valor = num(v.valor_total), qtd = num(v.quantidade);
+      a.valor += valor; a.qtd += qtd;
+      if (!a.ultima || dt > a.ultima) { a.ultima = dt; a.ultimaStr = String(v.data_pedido); }
+      let s = a.skus.get(codProd);
+      if (!s) { s = { valor: 0, qtd: 0, desc: cad?.descricao || String(v.descricao ?? '') || codProd, pedidos: new Set(), ultima: null, ultimaStr: null }; a.skus.set(codProd, s); }
+      s.valor += valor; s.qtd += qtd; if (ped) s.pedidos.add(ped);
+      if (!s.ultima || dt > s.ultima) { s.ultima = dt; s.ultimaStr = String(v.data_pedido); }
+    }
+    if (lote.length < LOTE) break;
+    off += LOTE;
+  }
+
+  const agora = new Date();
+  const mesHoje = opts?.mes && opts.mes >= 1 && opts.mes <= 12 ? opts.mes : agora.getMonth() + 1;
+  const lead = opts?.lead && opts.lead > 0 ? opts.lead : SAZ_LEAD_DIAS;
+
+  interface Pre { a: Agg; an: AnaliseSazonal; rep: string; repSku: string; repDesc: string }
+  const pres: Pre[] = [];
+  for (const a of agg.values()) {
+    const an = analisarGrupoSazonal([...a.pedidoMes.values()], a.ultima, agora, mesHoje, agora.getDate(), lead);
+    if (!an) continue;
+    let rep = '', repSku = '', repDesc = '', repVal = -1;
+    for (const [codP, s] of a.skus) if (s.valor > repVal) { repVal = s.valor; rep = codP; repSku = (produtos.get(codP)?.sku) || codP; repDesc = s.desc; }
+    pres.push({ a, an, rep, repSku, repDesc });
+  }
+
+  const contatoPorChave = await carregarUltimosContatos(pres.map((p) => p.rep));
+
+  const itens: GrupoClienteRow[] = pres.map((p) => {
+    const a = p.a;
+    const skus: SugestaoSkuRow[] = [...a.skus.entries()]
+      .map(([codP, s]) => ({ codigo_produto: codP, sku: (produtos.get(codP)?.sku) || codP, descricao: s.desc, n_compras: s.pedidos.size, qtd: s.qtd, valor: s.valor, ultima_compra: s.ultimaStr }))
+      .sort((x, y) => y.valor - x.valor);
+    return {
+      grupo: a.rotulo,
+      is_tipo: a.isTipo,
+      sazonal: p.an.sazonal,
+      mes_tipico: p.an.sazonal ? p.an.mes_tipico : null,
+      janela_label: p.an.sazonal ? p.an.janela_label : null,
+      concentracao: p.an.concentracao,
+      anos_recorrencia: p.an.anos,
+      n_compras: a.pedidoMes.size,
+      qtd_total: a.qtd,
+      valor_total: a.valor,
+      ultima_compra: a.ultimaStr,
+      status: p.an.status,
+      dias_para_epoca: p.an.dias_para_epoca,
+      ja_comprou_ciclo: p.an.ja_comprou_ciclo,
+      representante_codigo_produto: p.rep,
+      representante_sku: p.repSku,
+      representante_descricao: p.repDesc,
+      ultimo_contato: contatoPorChave.get(p.rep + '|' + a.conta + '|' + cod) || null,
+      skus,
+    };
+  });
+
+  // Sazonais na época/chegando primeiro; depois demais sazonais; depois não-sazonais por valor.
+  const ordemStatus: Record<GrupoClienteRow['status'], number> = { na_epoca: 0, chegando: 1, fora: 2 };
+  itens.sort((x, y) =>
+    (Number(y.sazonal) - Number(x.sazonal)) ||
+    (ordemStatus[x.status] - ordemStatus[y.status]) ||
+    (Number(x.ja_comprou_ciclo) - Number(y.ja_comprou_ciclo)) ||
+    (y.valor_total - x.valor_total),
+  );
+  return { cliente: nomeFallback || ('#' + cod), conta: contaCli, itens, sazonais: itens.filter((i) => i.sazonal).length };
 }
