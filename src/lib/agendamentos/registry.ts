@@ -109,6 +109,17 @@ export const AGENDAMENTOS: Agendamento[] = [
     arquivo: '.github/workflows/ajustes-sync-notas.yml',
   },
   {
+    nome: 'Classificar produtos recebidos (robô)',
+    modulo: 'Ajustes',
+    fonte: 'github',
+    cron: '0 8,13 * * *',
+    frequencia: '2x ao dia',
+    horarioBRT: '05:00 e 10:00 BRT',
+    alvo: 'GET /api/ajustes/cron/classificar-recebidos',
+    arquivo: '.github/workflows/ajustes-classificar-recebidos.yml',
+    obs: 'Recém-recebidos sem família <R$10k → Peças + tarefas de confirmação. Backup 13:00 pq o GitHub às vezes pula o horário.',
+  },
+  {
     nome: 'Sync contas pagar/receber',
     modulo: 'DRE',
     fonte: 'github',

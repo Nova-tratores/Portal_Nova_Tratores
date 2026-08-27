@@ -3,8 +3,15 @@ name: Ajustes - Classificar produtos recebidos (robô)
 # Robô diário: produtos recém-recebidos SEM FAMÍLIA e com valor < R$10.000 →
 # família "Peças" + sugere o "Tipo:" + cria tarefas (confirmar localização/Tipo)
 # para o responsável de peças em /tarefas.
-# Chama /api/ajustes/cron/classificar-recebidos (fire-and-forget). 1×/dia às 08:00
-# UTC (~05:00 BRT), fora dos outros crons. Requer secrets PORTAL_URL e CRON_SECRET.
+# Chama /api/ajustes/cron/classificar-recebidos (fire-and-forget). Requer secrets
+# PORTAL_URL e CRON_SECRET.
+#
+# Roda 2×/dia (08:00 + 13:00 UTC) DE PROPÓSITO: o scheduler do GitHub Actions é
+# best-effort e às vezes atrasa muito ou PULA o horário sob carga (ex.: 27/08/2026
+# o run das 08:00 não disparou). O robô é idempotente — produto já com família não
+# reaparece —, então a 2ª passada roda vazia se a 1ª já pegou tudo; se a 1ª pulou,
+# a 2ª cobre o dia. Não duplicar in-process (instrumentation.ts) p/ não disputar a
+# mesma chave Omie do AlterarProduto.
 
 on:
   workflow_dispatch:
@@ -14,7 +21,8 @@ on:
         required: false
         default: ''
   schedule:
-    - cron: '0 8 * * *'   # diário 08:00 UTC ≈ 05:00 BRT
+    - cron: '0 8 * * *'    # diário 08:00 UTC ≈ 05:00 BRT
+    - cron: '0 13 * * *'   # backup 13:00 UTC ≈ 10:00 BRT (cobre o dia se o 1º pular)
 
 jobs:
   classificar-recebidos:
