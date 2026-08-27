@@ -187,17 +187,31 @@ export default function VigiaCameras() {
 
   const online = status ? Date.now() - new Date(status.atualizadoEm).getTime() < 3 * 60 * 1000 : false
 
-  const salvarGeral = async () => {
+  const salvarGeralCom = async (cfg: ConfigGeral) => {
     setSalvando(true); setSalvo(false)
     try {
       const r = await fetch('/api/cameras/vigia', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify(geral),
+        body: JSON.stringify(cfg),
       })
       if (r.ok) { setSalvo(true); setTimeout(() => setSalvo(false), 2500) }
     } catch { /* sem rede */ }
     setSalvando(false)
+  }
+
+  const salvarGeral = () => salvarGeralCom(geral)
+
+  // DESLIGA-GERAL do canal 5 (tratores): salva NA HORA — o vigia relê em
+  // até 30s e para de mandar; não toca em nenhum PC de ninguém.
+  const canal5Ligado = geral.canais.includes(5)
+  const alternarCanal5 = () => {
+    const canais = canal5Ligado
+      ? geral.canais.filter((c) => c !== 5)
+      : [...geral.canais, 5].sort((a, b) => a - b)
+    const novo = { ...geral, canais }
+    setGeral(novo)
+    salvarGeralCom(novo)
   }
 
   const toggleCanal = (c: number) => {
@@ -329,6 +343,19 @@ export default function VigiaCameras() {
                   <div style={tituloSecao}>
                     <Monitor size={14} />
                     Configuração geral — vale pra loja
+                  </div>
+                  {/* Chave-geral do trator: desliga pra TODO MUNDO na hora */}
+                  <div style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10,
+                    padding: '9px 12px', borderRadius: 10, marginBottom: 12,
+                    border: `1px solid ${canal5Ligado ? '#ea580c' : 'var(--portal-border)'}`,
+                    background: canal5Ligado ? 'rgba(234,88,12,0.10)' : 'var(--portal-bg-secondary)',
+                  }}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13.5, fontWeight: 700 }}>
+                      <Tractor size={16} style={{ color: canal5Ligado ? '#ea580c' : 'var(--portal-text-secondary)' }} />
+                      Aviso de trator (canal 5) — geral
+                    </span>
+                    <Chave ligada={canal5Ligado} onClick={alternarCanal5} />
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginBottom: 8 }}>
                     Câmeras vigiadas

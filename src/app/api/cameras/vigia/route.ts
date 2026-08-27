@@ -102,35 +102,73 @@ export async function POST(req: NextRequest) {
 // sem IA de pessoa; a foto ainda vai pro log).
 const FILTROS: Record<number, "trator" | "pessoa"> = { 5: "trator" };
 
-const PERGUNTAS: Record<string, string> = {
-  trator: "Responda APENAS 'sim' ou 'nao'. Há um TRATOR ou máquina agrícola (não vale carro, caminhonete, moto ou caminhão comum) visível nesta imagem de câmera de segurança?",
-  pessoa: "Responda APENAS 'sim' ou 'nao'. Há uma PESSOA (ser humano em pé ou andando; não vale cachorro, carro ou sombra) visível nesta imagem de câmera de segurança?",
+const ALVO_DESCRICAO: Record<string, string> = {
+  trator: "um TRATOR ou máquina agrícola NO PÁTIO CENTRAL de piso sextavado (a área de circulação no centro/direita da imagem). NÃO CONTE máquinas estacionadas no canto superior esquerdo, na rua ao fundo, nem atrás do portão — só trator que está NA ÁREA DE PASSAGEM do pátio. Carro, caminhonete, moto, caminhão e pessoa não valem",
+  pessoa: "uma PESSOA (ser humano em pé ou andando; não vale cachorro, carro ou sombra)",
 };
 
-async function fotoTemAlvo(alvo: "trator" | "pessoa", fotoBase64: string): Promise<boolean | null> {
+type CaixaAlvo = { x: number; y: number; w: number; h: number };
+
+// Pergunta pra IA se o alvo aparece E ONDE (caixa em % da imagem) — a
+// caixa vira o círculo vermelho desenhado na foto do log.
+async function analisarFoto(
+  alvo: "trator" | "pessoa",
+  fotoBase64: string
+): Promise<{ tem: boolean | null; box: CaixaAlvo | null }> {
   const key = process.env.OPENAI_API_KEY;
-  if (!key) return null; // sem chave → sem como filtrar
+  if (!key) return { tem: null, box: null }; // sem chave → sem como filtrar
   try {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
       body: JSON.stringify({
         model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-        max_tokens: 3,
+        max_tokens: 80,
+        response_format: { type: "json_object" },
         messages: [{
           role: "user",
           content: [
-            { type: "text", text: PERGUNTAS[alvo] },
+            { type: "text", text: `Analise a imagem de câmera de segurança. Responda APENAS JSON no formato {"tem": true, "x": 0, "y": 0, "w": 0, "h": 0}. "tem" = true somente se houver ${ALVO_DESCRICAO[alvo]} visível. x,y = canto superior esquerdo e w,h = largura/altura do retângulo que envolve o alvo, em PORCENTAGEM (0-100) da imagem. Se não houver, responda {"tem": false}.` },
             { type: "image_url", image_url: { url: `data:image/jpeg;base64,${fotoBase64}`, detail: "low" } },
           ],
         }],
       }),
     });
     const j = await r.json();
-    const resposta = String(j?.choices?.[0]?.message?.content || "").toLowerCase();
-    return resposta.includes("sim");
+    const bruto = JSON.parse(String(j?.choices?.[0]?.message?.content || "{}"));
+    const tem = bruto?.tem === true;
+    let box: CaixaAlvo | null = null;
+    if (tem && Number.isFinite(Number(bruto.w)) && Number(bruto.w) > 0) {
+      const clamp = (v: unknown) => Math.max(0, Math.min(100, Number(v) || 0));
+      box = { x: clamp(bruto.x), y: clamp(bruto.y), w: clamp(bruto.w), h: clamp(bruto.h) };
+    }
+    return { tem, box };
   } catch {
-    return null; // OpenAI fora do ar → não bloqueia
+    return { tem: null, box: null }; // OpenAI fora do ar → não bloqueia
+  }
+}
+
+// Desenha a elipse vermelha em volta do alvo (sharp compõe um SVG por cima)
+async function circularNaFoto(buf: Buffer, box: CaixaAlvo): Promise<Buffer> {
+  try {
+    const sharp = (await import("sharp")).default;
+    const meta = await sharp(buf).metadata();
+    const W = meta.width || 0;
+    const H = meta.height || 0;
+    if (!W || !H) return buf;
+    const cx = ((box.x + box.w / 2) / 100) * W;
+    const cy = ((box.y + box.h / 2) / 100) * H;
+    const rx = Math.max(28, ((box.w / 2) / 100) * W * 1.18);
+    const ry = Math.max(28, ((box.h / 2) / 100) * H * 1.18);
+    const traco = Math.max(4, Math.round(W / 160));
+    const svg = Buffer.from(
+      `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg">` +
+      `<ellipse cx="${cx.toFixed(0)}" cy="${cy.toFixed(0)}" rx="${rx.toFixed(0)}" ry="${ry.toFixed(0)}" ` +
+      `fill="none" stroke="#ff2d2d" stroke-width="${traco}" opacity="0.9"/></svg>`
+    );
+    return await sharp(buf).composite([{ input: svg }]).jpeg({ quality: 82 }).toBuffer();
+  } catch {
+    return buf; // sem círculo — a foto original entra mesmo assim
   }
 }
 
@@ -142,11 +180,15 @@ export async function PUT(req: NextRequest) {
     }
     // Canal com filtro de IA: só segue se a foto tiver o alvo.
     // Sem chave/sem resposta da IA, deixa passar como movimento comum.
+    let caixaAlvo: CaixaAlvo | null = null;
     const alvoFiltro = body.evento?.canal ? FILTROS[Number(body.evento.canal)] : undefined;
     if (alvoFiltro && body.foto) {
-      const tem = await fotoTemAlvo(alvoFiltro, String(body.foto));
-      if (tem === false) return NextResponse.json({ ok: true, filtrado: true });
-      if (tem === true) body.evento.codigo = alvoFiltro === "trator" ? "Trator" : "Pessoa";
+      const analise = await analisarFoto(alvoFiltro, String(body.foto));
+      if (analise.tem === false) return NextResponse.json({ ok: true, filtrado: true });
+      if (analise.tem === true) {
+        body.evento.codigo = alvoFiltro === "trator" ? "Trator" : "Pessoa";
+        caixaAlvo = analise.box;
+      }
     }
 
     // ── EVENTO: histórico vive em arquivo PRÓPRIO (eventos.json), só
@@ -162,7 +204,9 @@ export async function PUT(req: NextRequest) {
       let fotoPath: string | null = null;
       if (body.foto) {
         try {
-          const buf = Buffer.from(String(body.foto), "base64");
+          let buf: Buffer = Buffer.from(String(body.foto), "base64");
+          // Alvo localizado pela IA → circula na foto antes de guardar
+          if (caixaAlvo) buf = await circularNaFoto(buf, caixaAlvo);
           if (buf.length > 0 && buf.length < 512000) {
             fotoPath = `cameras/fotos/${Date.now()}-c${canal}.jpg`;
             const { error } = await supabase.storage
