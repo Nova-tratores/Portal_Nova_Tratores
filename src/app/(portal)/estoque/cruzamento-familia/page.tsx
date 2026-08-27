@@ -44,6 +44,23 @@ const sinteticoFat = (key: string): SerieDef | null =>
   : key === 'faturamento_maquina' ? { ...BARRA_MAQ }
   : null;
 
+// Ordenação das tabelas de meses (clique no cabeçalho → A→Z/Z→A). `col='mes'`
+// ordena cronologicamente (ano×100+mes); qualquer outra coluna ordena pelo número.
+type PSort = { col: string | null; dir: 1 | -1 };
+function ordPontos<T>(rows: T[], s: PSort): T[] {
+  if (!s.col) return rows;
+  const c = s.col;
+  const val = (r: T): number => {
+    const o = r as Record<string, unknown>;
+    return c === 'mes' ? Number(o.ano ?? 0) * 100 + Number(o.mes ?? 0) : Number(o[c] ?? 0);
+  };
+  return [...rows].sort((a, b) => { const x = val(a), y = val(b); return x < y ? -s.dir : x > y ? s.dir : 0; });
+}
+const toggleSort = (s: PSort, col: string): PSort =>
+  s.col === col ? { col, dir: (s.dir === 1 ? -1 : 1) as 1 | -1 } : { col, dir: col === 'mes' ? 1 : -1 };
+const seta = (s: PSort, col: string): string => (s.col === col ? (s.dir === 1 ? ' ▲' : ' ▼') : '');
+const thClick: React.CSSProperties = { cursor: 'pointer', userSelect: 'none' };
+
 interface Linha {
   familia: string;
   tipo: 'maquina' | 'peca' | 'ignorar';
@@ -111,6 +128,10 @@ export default function CruzamentoFamiliaPage() {
   const [grupo, setGrupo] = useState<'peca' | 'maquina' | 'ambos'>('ambos');
   const [incluirDemo, setIncluirDemo] = useState(true);
   const [grupoRec, setGrupoRec] = useState<'peca' | 'maquina'>('peca');
+  // Ordenação (clique no cabeçalho) das tabelas de meses.
+  const [sortGraf, setSortGraf] = useState<PSort>({ col: 'mes', dir: 1 });
+  const [sortTipo, setSortTipo] = useState<PSort>({ col: 'mes', dir: 1 });
+  const [sortRec, setSortRec] = useState<PSort>({ col: 'mes', dir: 1 });
   // Aba "Reconciliação" (razão de estoque — estoque_movimentos)
   const [recon, setRecon] = useState<ReconResp | null>(null);
   const [reconCarregando, setReconCarregando] = useState(false);
@@ -445,11 +466,11 @@ export default function CruzamentoFamiliaPage() {
             <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead><tr>
-                  <th style={thStyle}>Mês</th>
-                  {serie.series.map((s) => <th key={s.key} style={{ ...thNum, color: s.cor }}>{s.label}</th>)}
+                  <th style={{ ...thStyle, ...thClick }} onClick={() => setSortGraf((s) => toggleSort(s, 'mes'))}>Mês{seta(sortGraf, 'mes')}</th>
+                  {serie.series.map((s) => <th key={s.key} style={{ ...thNum, ...thClick, color: s.cor }} onClick={() => setSortGraf((st) => toggleSort(st, s.key))}>{s.label}{seta(sortGraf, s.key)}</th>)}
                 </tr></thead>
                 <tbody>
-                  {serie.pontos.map((p, i) => (
+                  {ordPontos(serie.pontos, sortGraf).map((p, i) => (
                     <tr key={i}>
                       <td style={tdStyle}>{p.periodo}</td>
                       {serie.series.map((s) => {
@@ -504,11 +525,11 @@ export default function CruzamentoFamiliaPage() {
                 <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
                   <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                     <thead><tr>
-                      <th style={thStyle}>Mês</th>
-                      {serieTipo.series.map((s) => <th key={s.key} style={{ ...thNum, color: s.cor }}>{s.label}</th>)}
+                      <th style={{ ...thStyle, ...thClick }} onClick={() => setSortTipo((s) => toggleSort(s, 'mes'))}>Mês{seta(sortTipo, 'mes')}</th>
+                      {serieTipo.series.map((s) => <th key={s.key} style={{ ...thNum, ...thClick, color: s.cor }} onClick={() => setSortTipo((st) => toggleSort(st, s.key))}>{s.label}{seta(sortTipo, s.key)}</th>)}
                     </tr></thead>
                     <tbody>
-                      {serieTipo.pontos.map((p, i) => (
+                      {ordPontos(serieTipo.pontos, sortTipo).map((p, i) => (
                         <tr key={i}>
                           <td style={tdStyle}>{p.periodo}</td>
                           {serieTipo.series.map((s) => {
@@ -580,13 +601,13 @@ export default function CruzamentoFamiliaPage() {
               <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
-                    <th style={thStyle}>Mês</th>
-                    <th style={{ ...thNum, color: corEstoque }}>Estoque (fim)</th>
-                    {cols.map((b) => <th key={b} style={{ ...thNum, color: BUCKET_INFO[b]?.cor || '#666' }}>{BUCKET_INFO[b]?.label || b}</th>)}
-                    <th style={thNum}>Δ Estoque</th>
+                    <th style={{ ...thStyle, ...thClick }} onClick={() => setSortRec((s) => toggleSort(s, 'mes'))}>Mês{seta(sortRec, 'mes')}</th>
+                    <th style={{ ...thNum, ...thClick, color: corEstoque }} onClick={() => setSortRec((s) => toggleSort(s, 'estoqueFim'))}>Estoque (fim){seta(sortRec, 'estoqueFim')}</th>
+                    {cols.map((b) => <th key={b} style={{ ...thNum, ...thClick, color: BUCKET_INFO[b]?.cor || '#666' }} onClick={() => setSortRec((s) => toggleSort(s, b))}>{BUCKET_INFO[b]?.label || b}{seta(sortRec, b)}</th>)}
+                    <th style={{ ...thNum, ...thClick }} onClick={() => setSortRec((s) => toggleSort(s, 'deltaEstoque'))}>Δ Estoque{seta(sortRec, 'deltaEstoque')}</th>
                   </tr></thead>
                   <tbody>
-                    {recon.pontos.map((p, i) => (
+                    {ordPontos(recon.pontos, sortRec).map((p, i) => (
                       <tr key={i}>
                         <td style={tdStyle}>{p.periodo}</td>
                         <td style={{ ...tdNum, color: p.estoqueFim == null ? '#bbb' : corEstoque }}>{p.estoqueFim == null ? '—' : fmtRS0(p.estoqueFim as number)}</td>
