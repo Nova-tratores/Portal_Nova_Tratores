@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
-import { comprasPorProduto, clientesResumo, oportunidadesRFM, exportarOportunidadesClientes, sugestoesSazonais, type GrupoFamilia } from '@/lib/estoque/inteligencia-comercial';
+import { comprasPorProduto, clientesResumo, oportunidadesRFM, exportarOportunidadesClientes, sugestoesSazonais, sugestoesPorProduto, type GrupoFamilia } from '@/lib/estoque/inteligencia-comercial';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 // Agregados do módulo Inteligência Comercial.
-// ?aba=compras|clientes|oportunidades|export-oportunidades|sugestoes-sazonais
-//   (+ conta; clientes aceita &grupo=; sugestoes-sazonais aceita &mes=&lead=).
+// ?aba=compras|clientes|oportunidades|export-oportunidades|sugestoes-sazonais|sugestoes-produto
+//   (+ conta; clientes aceita &grupo=; sugestoes-* aceita &mes=&lead=).
 export async function GET(req: NextRequest) {
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const aba = (req.nextUrl.searchParams.get('aba') || 'compras').toLowerCase();
@@ -24,6 +24,12 @@ export async function GET(req: NextRequest) {
       const mes = sp.get('mes') ? Number(sp.get('mes')) : undefined;
       const lead = sp.get('lead') ? Number(sp.get('lead')) : undefined;
       return NextResponse.json(await sugestoesSazonais(conta, { mes, lead }));
+    }
+    if (aba === 'sugestoes-produto') {
+      const sp = req.nextUrl.searchParams;
+      const mes = sp.get('mes') ? Number(sp.get('mes')) : undefined;
+      const lead = sp.get('lead') ? Number(sp.get('lead')) : undefined;
+      return NextResponse.json(await sugestoesPorProduto(conta, { mes, lead }));
     }
     return NextResponse.json(await comprasPorProduto(conta));
   } catch (e) {

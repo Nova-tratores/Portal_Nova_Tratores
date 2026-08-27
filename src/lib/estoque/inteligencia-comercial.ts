@@ -958,3 +958,233 @@ export async function sugestoesSazonaisCliente(conta: ContaFiltro, codigoCliente
   );
   return { cliente: nomeFallback || ('#' + cod), conta: contaCli, itens, sazonais: itens.filter((i) => i.sazonal).length };
 }
+
+// ===================== Aba 5 — Sugestões POR PRODUTO (por Tipo de peça) =====================
+// Espelho da visão por cliente: cada linha é um GRUPO de peça (Tipo, ex.: "Discos";
+// sem Tipo cai no SKU), com a época em que ELE vende (agregada entre todos os clientes)
+// + quantos clientes estão na época agora (padrão sazonal pessoal). O expand lista os
+// clientes que compram aquele grupo (via clientesPorGrupo) para ligar/registrar contato.
+
+export interface SugestaoProdutoRow {
+  grupo: string;
+  is_tipo: boolean;
+  tipo_param: string;              // p/ o expand: Tipo (se is_tipo) ou codigo_produto (fallback SKU)
+  sazonal: boolean;                // o PRODUTO tem época detectável
+  mes_tipico: string | null;
+  janela_label: string | null;
+  concentracao: number;
+  status: 'na_epoca' | 'chegando' | 'fora';
+  dias_para_epoca: number | null;
+  n_clientes: number;              // clientes distintos que compram o grupo
+  n_clientes_epoca: number;        // clientes com padrão sazonal pessoal na época/chegando (não já comprou)
+  n_vendas: number;                // pedidos distintos (todos os clientes)
+  qtd_total: number;
+  valor_total: number;
+  ultima_venda: string | null;
+}
+
+export async function sugestoesPorProduto(conta: ContaFiltro, opts?: { mes?: number; lead?: number }): Promise<{ itens: SugestaoProdutoRow[]; total: number; sugeridas: number }> {
+  const produtos = await carregarProdutosMap(conta);
+  const tipoMap = await carregarTipoCaracteristica(conta);
+
+  interface CliAgg { pedidoMes: Map<string, { mes: number; ano: number }>; ultima: Date | null }
+  interface GrpAgg { isTipo: boolean; rotulo: string; repProd: string; pedidosGlobal: Map<string, { mes: number; ano: number }>; valor: number; qtd: number; ultima: Date | null; ultimaStr: string | null; clientes: Map<string, CliAgg> }
+  const agg = new Map<string, GrpAgg>();
+
+  let off = 0;
+  for (;;) {
+    const { data, error } = await filtroConta(
+      supabase.from('vendas_itens').select('codigo_produto,codigo_cliente,numero_pedido,quantidade,valor_total,data_pedido,familia,conta_omie').order('id', { ascending: true }),
+      conta,
+    ).range(off, off + LOTE - 1);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<Record<string, unknown>>;
+    for (const v of lote) {
+      if (!passaGrupo(v.familia, 'pecas')) continue;
+      const cod = String(v.codigo_cliente ?? '').trim();
+      if (!cod || !/^\d+$/.test(cod)) continue;
+      const codProd = String(v.codigo_produto ?? '').trim();
+      if (!codProd) continue;
+      const dt = parseDataBR(v.data_pedido);
+      if (!dt) continue;
+      const contaV = String(v.conta_omie ?? '').toUpperCase();
+      const cad = produtos.get(codProd);
+      const tipo = (tipoMap[codProd] || '').trim();
+      const sku = cad?.sku || codProd;
+      const grupoKey = tipo ? 'tipo:' + norm(tipo) : 'sku:' + sku;
+      let g = agg.get(grupoKey);
+      if (!g) { g = { isTipo: !!tipo, rotulo: tipo || (cad?.descricao || sku), repProd: codProd, pedidosGlobal: new Map(), valor: 0, qtd: 0, ultima: null, ultimaStr: null, clientes: new Map() }; agg.set(grupoKey, g); }
+      const ped = String(v.numero_pedido ?? '').trim();
+      const mesAno = { mes: dt.getMonth() + 1, ano: dt.getFullYear() };
+      if (ped && !g.pedidosGlobal.has(ped)) g.pedidosGlobal.set(ped, mesAno);
+      g.valor += num(v.valor_total); g.qtd += num(v.quantidade);
+      if (!g.ultima || dt > g.ultima) { g.ultima = dt; g.ultimaStr = String(v.data_pedido); }
+      const chaveCli = contaV + '|' + cod;
+      let c = g.clientes.get(chaveCli);
+      if (!c) { c = { pedidoMes: new Map(), ultima: null }; g.clientes.set(chaveCli, c); }
+      if (ped && !c.pedidoMes.has(ped)) c.pedidoMes.set(ped, mesAno);
+      if (!c.ultima || dt > c.ultima) c.ultima = dt;
+    }
+    if (lote.length < LOTE) break;
+    off += LOTE;
+  }
+
+  const agora = new Date();
+  const mesHoje = opts?.mes && opts.mes >= 1 && opts.mes <= 12 ? opts.mes : agora.getMonth() + 1;
+  const diaHoje = agora.getDate();
+  const lead = opts?.lead && opts.lead > 0 ? opts.lead : SAZ_LEAD_DIAS;
+
+  const itens: SugestaoProdutoRow[] = [];
+  for (const g of agg.values()) {
+    const prodAn = analisarGrupoSazonal([...g.pedidosGlobal.values()], g.ultima, agora, mesHoje, diaHoje, lead);
+    if (!prodAn) continue;
+    let nEpoca = 0;
+    for (const c of g.clientes.values()) {
+      const an = analisarGrupoSazonal([...c.pedidoMes.values()], c.ultima, agora, mesHoje, diaHoje, lead);
+      if (an && an.sazonal && (an.status === 'na_epoca' || an.status === 'chegando') && !an.ja_comprou_ciclo) nEpoca++;
+    }
+    itens.push({
+      grupo: g.rotulo,
+      is_tipo: g.isTipo,
+      tipo_param: g.isTipo ? g.rotulo : g.repProd,
+      sazonal: prodAn.sazonal,
+      mes_tipico: prodAn.sazonal ? prodAn.mes_tipico : null,
+      janela_label: prodAn.sazonal ? prodAn.janela_label : null,
+      concentracao: prodAn.concentracao,
+      status: prodAn.status,
+      dias_para_epoca: prodAn.dias_para_epoca,
+      n_clientes: g.clientes.size,
+      n_clientes_epoca: nEpoca,
+      n_vendas: g.pedidosGlobal.size,
+      qtd_total: g.qtd,
+      valor_total: g.valor,
+      ultima_venda: g.ultimaStr,
+    });
+  }
+
+  // Mais clientes na época primeiro (sinal acionável); depois produto sazonal/status; depois valor.
+  // (Tipos amplos como "Filtros" vendem o ano todo no agregado, mas têm muitos clientes
+  //  com padrão pessoal na época — é isso que interessa priorizar.)
+  const ordemStatus: Record<SugestaoProdutoRow['status'], number> = { na_epoca: 0, chegando: 1, fora: 2 };
+  itens.sort((x, y) =>
+    (y.n_clientes_epoca - x.n_clientes_epoca) ||
+    (Number(y.sazonal) - Number(x.sazonal)) ||
+    (ordemStatus[x.status] - ordemStatus[y.status]) ||
+    (y.valor_total - x.valor_total),
+  );
+  return { itens, total: itens.length, sugeridas: itens.filter((i) => i.n_clientes_epoca > 0).length };
+}
+
+// Clientes que compram um GRUPO (Tipo ou SKU) — para o expand da aba por produto.
+// sel.tipo = nome do Tipo (resolve os codigo_produto via produto_tipo); ou sel.produto = codigo_produto.
+export interface ClienteGrupoRow {
+  codigo_cliente: string; conta: string; cliente: string; telefone: string;
+  n_compras: number; qtd: number; valor: number; ultima_compra: string | null;
+  sazonal: boolean; status: 'na_epoca' | 'chegando' | 'fora'; dias_para_epoca: number | null; ja_comprou_ciclo: boolean;
+  mes_tipico: string | null; janela_label: string | null; concentracao: number; anos_recorrencia: number;
+  representante_codigo_produto: string; representante_sku: string; representante_descricao: string;
+  ultimo_contato: UltimoContato | null;
+}
+
+export async function clientesPorGrupo(conta: ContaFiltro, sel: { tipo?: string; produto?: string }, opts?: { mes?: number; lead?: number }): Promise<{ grupo: string; itens: ClienteGrupoRow[] }> {
+  const produtos = await carregarProdutosMap(conta);
+  let targetCods: string[] = [];
+  let grupoLabel = '';
+  if (sel.tipo) {
+    const tipoMap = await carregarTipoCaracteristica(conta);
+    const alvo = norm(sel.tipo);
+    grupoLabel = sel.tipo;
+    for (const [codP, tp] of Object.entries(tipoMap)) if (norm(tp) === alvo) targetCods.push(codP);
+  } else if (sel.produto) {
+    targetCods = [String(sel.produto)];
+    const cad = produtos.get(String(sel.produto));
+    grupoLabel = cad?.descricao || cad?.sku || String(sel.produto);
+  } else {
+    throw new Error('informe tipo ou produto');
+  }
+  if (targetCods.length === 0) return { grupo: grupoLabel, itens: [] };
+
+  interface SkuAgg { valor: number; qtd: number; desc: string }
+  interface CliAgg { conta: string; cod: string; pedidoMes: Map<string, { mes: number; ano: number }>; valor: number; qtd: number; ultima: Date | null; ultimaStr: string | null; skus: Map<string, SkuAgg>; nomeFallback: string }
+  const agg = new Map<string, CliAgg>();
+  const codsPorConta = new Map<string, Set<number>>();
+
+  for (let i = 0; i < targetCods.length; i += 200) {
+    const slice = targetCods.slice(i, i + 200);
+    let off = 0;
+    for (;;) {
+      const { data, error } = await filtroConta(
+        supabase.from('vendas_itens').select('codigo_produto,codigo_cliente,nome_cliente,numero_pedido,quantidade,valor_total,data_pedido,descricao,conta_omie').in('codigo_produto', slice).order('id', { ascending: true }),
+        conta,
+      ).range(off, off + LOTE - 1);
+      if (error) throw new Error(error.message);
+      const lote = (data || []) as Array<Record<string, unknown>>;
+      for (const v of lote) {
+        const cod = String(v.codigo_cliente ?? '').trim();
+        if (!cod || !/^\d+$/.test(cod)) continue;
+        const dt = parseDataBR(v.data_pedido);
+        if (!dt) continue;
+        const contaV = String(v.conta_omie ?? '').toUpperCase();
+        const chave = contaV + '|' + cod;
+        let a = agg.get(chave);
+        if (!a) { a = { conta: contaV, cod, pedidoMes: new Map(), valor: 0, qtd: 0, ultima: null, ultimaStr: null, skus: new Map(), nomeFallback: '' }; agg.set(chave, a); }
+        const ped = String(v.numero_pedido ?? '').trim();
+        if (ped && !a.pedidoMes.has(ped)) a.pedidoMes.set(ped, { mes: dt.getMonth() + 1, ano: dt.getFullYear() });
+        const valor = num(v.valor_total), qtd = num(v.quantidade);
+        a.valor += valor; a.qtd += qtd;
+        if (!a.ultima || dt > a.ultima) { a.ultima = dt; a.ultimaStr = String(v.data_pedido); }
+        const codProd = String(v.codigo_produto ?? '');
+        let s = a.skus.get(codProd);
+        if (!s) { s = { valor: 0, qtd: 0, desc: (produtos.get(codProd)?.descricao) || String(v.descricao ?? '') || codProd }; a.skus.set(codProd, s); }
+        s.valor += valor; s.qtd += qtd;
+        if (!a.nomeFallback && v.nome_cliente) a.nomeFallback = String(v.nome_cliente).trim();
+        if (!codsPorConta.has(contaV)) codsPorConta.set(contaV, new Set());
+        codsPorConta.get(contaV)!.add(Number(cod));
+      }
+      if (lote.length < LOTE) break;
+      off += LOTE;
+    }
+  }
+
+  const agora = new Date();
+  const mesHoje = opts?.mes && opts.mes >= 1 && opts.mes <= 12 ? opts.mes : agora.getMonth() + 1;
+  const lead = opts?.lead && opts.lead > 0 ? opts.lead : SAZ_LEAD_DIAS;
+
+  interface Pre { a: CliAgg; an: AnaliseSazonal; rep: string; repSku: string; repDesc: string }
+  const pres: Pre[] = [];
+  for (const a of agg.values()) {
+    const an = analisarGrupoSazonal([...a.pedidoMes.values()], a.ultima, agora, mesHoje, agora.getDate(), lead);
+    if (!an) continue;
+    let rep = '', repSku = '', repDesc = '', repVal = -1;
+    for (const [codP, s] of a.skus) if (s.valor > repVal) { repVal = s.valor; rep = codP; repSku = (produtos.get(codP)?.sku) || codP; repDesc = s.desc; }
+    pres.push({ a, an, rep, repSku, repDesc });
+  }
+
+  const contatoPorChave = await carregarUltimosContatos(pres.map((p) => p.rep));
+  const nomes = await resolverNomesClientes(codsPorConta);
+
+  const itens: ClienteGrupoRow[] = pres.map((p) => {
+    const a = p.a;
+    const info = nomes.get(a.conta + '|' + a.cod);
+    return {
+      codigo_cliente: a.cod, conta: a.conta,
+      cliente: info?.nome || a.nomeFallback || ('#' + a.cod),
+      telefone: info?.telefone || '',
+      n_compras: a.pedidoMes.size, qtd: a.qtd, valor: a.valor, ultima_compra: a.ultimaStr,
+      sazonal: p.an.sazonal, status: p.an.status, dias_para_epoca: p.an.dias_para_epoca, ja_comprou_ciclo: p.an.ja_comprou_ciclo,
+      mes_tipico: p.an.sazonal ? p.an.mes_tipico : null, janela_label: p.an.sazonal ? p.an.janela_label : null,
+      concentracao: p.an.concentracao, anos_recorrencia: p.an.anos,
+      representante_codigo_produto: p.rep, representante_sku: p.repSku, representante_descricao: p.repDesc,
+      ultimo_contato: contatoPorChave.get(p.rep + '|' + a.conta + '|' + a.cod) || null,
+    };
+  });
+
+  const ordemStatus: Record<ClienteGrupoRow['status'], number> = { na_epoca: 0, chegando: 1, fora: 2 };
+  itens.sort((x, y) =>
+    (Number(y.sazonal) - Number(x.sazonal)) ||
+    (ordemStatus[x.status] - ordemStatus[y.status]) ||
+    (Number(x.ja_comprou_ciclo) - Number(y.ja_comprou_ciclo)) ||
+    (y.valor - x.valor),
+  );
+  return { grupo: grupoLabel, itens };
+}

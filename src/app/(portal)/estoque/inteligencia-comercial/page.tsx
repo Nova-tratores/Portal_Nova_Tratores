@@ -11,12 +11,13 @@ import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 
-type Aba = 'compras' | 'clientes' | 'oportunidades' | 'sugestoes-sazonais';
+type Aba = 'compras' | 'clientes' | 'oportunidades' | 'sugestoes-sazonais' | 'sugestoes-produto';
 const ABAS: Array<{ id: Aba; label: string }> = [
   { id: 'compras', label: 'Compras' },
   { id: 'clientes', label: 'Clientes' },
   { id: 'oportunidades', label: 'Oportunidades (RFM)' },
   { id: 'sugestoes-sazonais', label: 'Sugestões (sazonal)' },
+  { id: 'sugestoes-produto', label: 'Sugestões por produto' },
 ];
 
 type Tipo = 'texto' | 'num' | 'moeda' | 'data' | 'bool';
@@ -228,6 +229,20 @@ const COLS_SUGESTOES: Col[] = [
   { key: 'n_compras', label: 'Nº compras', tipo: 'num', get: (r) => r.n_compras },
   { key: 'valor_total', label: 'Valor total', tipo: 'moeda', get: (r) => r.valor_total },
   { key: 'ultima_compra', label: 'Última compra', tipo: 'data', get: (r) => r.ultima_compra },
+];
+
+const COLS_SUGESTOES_PRODUTO: Col[] = [
+  { key: 'grupo', label: 'Grupo (peça)', tipo: 'texto', get: (r) => r.grupo },
+  // Status só faz sentido quando o PRODUTO tem época no agregado; senão "—".
+  { key: 'status', label: 'Quando (produto)', tipo: 'num', get: (r) => (r.sazonal ? STATUS_ORD[String(r.status)] ?? 9 : 9), fmt: (r) => (r.sazonal ? fmtStatusSazonal(r) : '—') },
+  { key: 'mes_tipico', label: 'Mês típico', tipo: 'texto', get: (r) => r.mes_tipico || '—' },
+  { key: 'janela_label', label: 'Janela', tipo: 'texto', get: (r) => r.janela_label || '—' },
+  { key: 'concentracao', label: 'Concentração', tipo: 'num', get: (r) => r.concentracao, fmt: (r) => Math.round(Number(r.concentracao) * 100) + '%' },
+  { key: 'n_clientes_epoca', label: 'Clientes na época', tipo: 'num', get: (r) => r.n_clientes_epoca },
+  { key: 'n_clientes', label: 'Nº clientes', tipo: 'num', get: (r) => r.n_clientes },
+  { key: 'n_vendas', label: 'Nº vendas', tipo: 'num', get: (r) => r.n_vendas },
+  { key: 'valor_total', label: 'Valor total', tipo: 'moeda', get: (r) => r.valor_total },
+  { key: 'ultima_venda', label: 'Última venda', tipo: 'data', get: (r) => r.ultima_venda },
 ];
 
 // Toggle segmentado Peças / Máquinas / Ambos (re-segmenta a aba Clientes).
@@ -581,13 +596,101 @@ function ExpandClienteSugestoes({ row, contaParam, motivos, autor }: {
   );
 }
 
+interface ClienteGrupo {
+  codigo_cliente: string; conta: string; cliente: string; telefone: string;
+  n_compras: number; qtd: number; valor: number; ultima_compra: string | null;
+  sazonal: boolean; status: string; dias_para_epoca: number | null; ja_comprou_ciclo: boolean;
+  mes_tipico: string | null; janela_label: string | null; concentracao: number; anos_recorrencia: number;
+  representante_codigo_produto: string; representante_sku: string; representante_descricao: string;
+  ultimo_contato: UltimoContato | null;
+}
+
+// Painel expandido de um GRUPO/Tipo (aba "Sugestões por produto"): os clientes que
+// compram aquele grupo, com o status sazonal de cada um + registrar contato.
+// Fonte: /clientes-grupo (por Tipo ou por SKU).
+function ExpandProdutoClientes({ row, contaParam, motivos, autor }: {
+  row: Record<string, unknown>; contaParam: string; motivos: Motivo[]; autor: { id: string; nome: string };
+}) {
+  const isTipo = !!row.is_tipo;
+  const param = String(row.tipo_param || '');
+  const grupo = String(row.grupo || '');
+  const [dados, setDados] = useState<ClienteGrupo[] | null>(null);
+  const [erro, setErro] = useState('');
+  const [soEpoca, setSoEpoca] = useState(true);
+
+  useEffect(() => {
+    let vivo = true;
+    setErro('');
+    const q = isTipo ? `tipo=${encodeURIComponent(param)}` : `produto=${encodeURIComponent(param)}`;
+    fetch(`/api/estoque/inteligencia-comercial/clientes-grupo?${q}${contaParam}`)
+      .then((r) => r.json())
+      .then((d) => { if (!vivo) return; if (d.erro) setErro(d.erro); else setDados(d.itens || []); })
+      .catch((ex) => { if (vivo) setErro('Erro: ' + (ex as Error).message); });
+    return () => { vivo = false; };
+  }, [isTipo, param, contaParam]);
+
+  const noEpoca = (c: ClienteGrupo) => c.sazonal && (c.status === 'na_epoca' || c.status === 'chegando') && !c.ja_comprou_ciclo;
+  const lista = (dados || []).filter((c) => !soEpoca || noEpoca(c));
+
+  const cel: React.CSSProperties = { padding: '6px 10px', fontSize: '.78rem', color: '#444', borderBottom: '1px solid #f0f0f0', whiteSpace: 'nowrap' };
+  const th2: React.CSSProperties = { padding: '6px 10px', fontSize: '.62rem', textTransform: 'uppercase', color: '#999', letterSpacing: '.5px', textAlign: 'left', fontWeight: 700 };
+
+  return (
+    <div style={{ padding: '12px 16px' }}>
+      <div style={{ fontSize: '.8rem', fontWeight: 700, color: '#333', marginBottom: 4 }}>
+        Clientes que compram <span style={{ color: '#dc2626' }}>{grupo}</span>
+        {row.sazonal ? <span style={{ color: '#888', fontWeight: 400 }}> · vende em {String(row.mes_tipico)} (janela {String(row.janela_label)})</span> : null}
+      </div>
+      {erro && <div style={{ color: '#dc2626', fontSize: '.78rem', marginBottom: 6 }}>{erro}</div>}
+      {!dados && !erro && <div style={{ color: '#888', fontSize: '.78rem' }}>Carregando clientes…</div>}
+      {dados && (
+        <>
+          <label style={{ fontSize: '.74rem', color: '#555', display: 'flex', gap: 6, alignItems: 'center', cursor: 'pointer', marginBottom: 8 }}>
+            <input type="checkbox" checked={soEpoca} onChange={(e) => setSoEpoca(e.target.checked)} /> Só clientes na época/chegando ({(dados || []).filter(noEpoca).length})
+          </label>
+          {lista.length === 0 ? (
+            <div style={{ color: '#888', fontSize: '.78rem' }}>{soEpoca ? 'Nenhum cliente na época agora. Desmarque para ver todos.' : 'Nenhum cliente.'}</div>
+          ) : (
+            <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 8 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead><tr>{['Cliente', 'Telefone', 'Quando', 'Mês típico', 'Nº compras', 'Valor', 'Última', 'Ação'].map((h) => <th key={h} style={th2}>{h}</th>)}</tr></thead>
+                <tbody>
+                  {lista.slice(0, 200).map((c) => (
+                    <tr key={c.conta + '|' + c.codigo_cliente}>
+                      <td style={{ ...cel, whiteSpace: 'normal', maxWidth: 260 }}>{c.cliente}{c.conta ? <span style={{ color: '#bbb' }}> · {c.conta}</span> : null}</td>
+                      <td style={cel}>{c.telefone || '—'}</td>
+                      <td style={cel}>{c.sazonal ? fmtStatusSazonal(c as unknown as Record<string, unknown>) : <span style={{ color: '#ccc' }}>sem padrão</span>}</td>
+                      <td style={cel}>{c.mes_tipico || '—'}</td>
+                      <td style={{ ...cel, textAlign: 'right' }}>{c.n_compras}</td>
+                      <td style={{ ...cel, textAlign: 'right' }}>{fmtRS(c.valor)}</td>
+                      <td style={cel}>{c.ultima_compra || '—'}</td>
+                      <td style={cel}>
+                        <RegistrarContato
+                          alvo={{ codigo_produto: c.representante_codigo_produto, sku: c.representante_sku, descricao: c.representante_descricao, codigo_cliente: c.codigo_cliente, conta: c.conta, cliente_nome: c.cliente, ultimo_contato: c.ultimo_contato }}
+                          motivos={motivos}
+                          autor={autor}
+                          dica={`Registrado na peça ${c.representante_sku} que ${c.cliente} costuma comprar.`}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function InteligenciaComercialPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { conta, contaParam } = useConta();
 
   const [aba, setAba] = useState<Aba>('compras');
-  const [dados, setDados] = useState<Record<Aba, Array<Record<string, unknown>> | null>>({ compras: null, clientes: null, oportunidades: null, 'sugestoes-sazonais': null });
+  const [dados, setDados] = useState<Record<Aba, Array<Record<string, unknown>> | null>>({ compras: null, clientes: null, oportunidades: null, 'sugestoes-sazonais': null, 'sugestoes-produto': null });
   const [meta, setMeta] = useState<Record<string, unknown>>({});
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState('');
@@ -614,7 +717,7 @@ export default function InteligenciaComercialPage() {
   // Motivos do CRM (para o <select> do form de contato).
   useEffect(() => { fetch('/api/estoque/inteligencia-comercial/contatos').then((r) => r.json()).then((d) => setMotivos(d.motivos || [])).catch(() => {}); }, []);
   // Recarrega ao trocar de aba/conta (invalida cache local ao mudar conta).
-  useEffect(() => { setDados({ compras: null, clientes: null, oportunidades: null, 'sugestoes-sazonais': null }); }, [contaParam]);
+  useEffect(() => { setDados({ compras: null, clientes: null, oportunidades: null, 'sugestoes-sazonais': null, 'sugestoes-produto': null }); }, [contaParam]);
   // Trocar o grupo invalida a aba Clientes (re-segmenta).
   useEffect(() => { setDados((p) => ({ ...p, clientes: null })); }, [grupo]);
   useEffect(() => { if (dados[aba] == null) carregar(aba); /* eslint-disable-next-line */ }, [aba, contaParam, grupo]);
@@ -637,7 +740,7 @@ export default function InteligenciaComercialPage() {
   if (!permLoading && userProfile && !pode('estoque', 'inteligencia-comercial')) return <SemPermissao />;
 
   const rows = dados[aba] || [];
-  const cols = aba === 'compras' ? COLS_COMPRAS : aba === 'clientes' ? COLS_CLIENTES : aba === 'sugestoes-sazonais' ? COLS_SUGESTOES : COLS_OPORT;
+  const cols = aba === 'compras' ? COLS_COMPRAS : aba === 'clientes' ? COLS_CLIENTES : aba === 'sugestoes-sazonais' ? COLS_SUGESTOES : aba === 'sugestoes-produto' ? COLS_SUGESTOES_PRODUTO : COLS_OPORT;
   const csvName = `inteligencia-${aba}${conta ? '-' + conta : ''}.csv`;
 
   return (
@@ -645,7 +748,7 @@ export default function InteligenciaComercialPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Inteligência Comercial</h1>
-          <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 0 }}>Compras por produto · Clientes · Oportunidades (RFM) · Sugestões sazonais — histórico desde 11/2022</p>
+          <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 0 }}>Compras · Clientes · Oportunidades (RFM) · Sugestões sazonais (por cliente e por produto) — histórico desde 11/2022</p>
         </div>
         <ContaSelector />
       </div>
@@ -697,6 +800,20 @@ export default function InteligenciaComercialPage() {
         </div>
       )}
 
+      {aba === 'sugestoes-produto' && !carregando && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10, flexWrap: 'wrap' }}>
+          {rows.length > 0 && (() => {
+            const n = rows.filter((r) => Number(r.n_clientes_epoca) > 0).length;
+            return (
+              <span style={{ fontSize: '.8rem', color: '#059669', fontWeight: 600 }}>
+                {n} {n === 1 ? 'grupo de peça tem' : 'grupos de peça têm'} clientes na época de comprar. Clique numa linha para ver os clientes e registrar o contato.
+              </span>
+            );
+          })()}
+          <span style={{ fontSize: '.72rem', color: '#aaa' }}>Por Tipo de peça (ex.: “Discos”; sem Tipo cai no SKU): época de venda do produto + clientes que compram, marcando quem está na época.</span>
+        </div>
+      )}
+
       {erro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{erro}</div>}
       {carregando && <div style={{ color: '#888', fontSize: '.85rem', padding: '20px 0' }}>Calculando… (varre todo o histórico, pode levar alguns segundos)</div>}
 
@@ -705,8 +822,8 @@ export default function InteligenciaComercialPage() {
           cols={cols}
           rows={rows}
           csvName={csvName}
-          defaultSort={aba === 'oportunidades' ? { key: 'na_hora', dir: -1 } : aba === 'sugestoes-sazonais' ? { key: 'status', dir: 1 } : { key: 'valor_total', dir: -1 }}
-          rowKey={aba === 'oportunidades' ? (r) => String(r.codigo_produto) : aba === 'sugestoes-sazonais' ? (r) => String(r.conta) + '|' + String(r.codigo_cliente) + '|' + String(r.grupo) : aba === 'clientes' ? (r) => String(r.conta) + '|' + String(r.codigo_cliente) : (r) => String(r.chave ?? r.sku)}
+          defaultSort={aba === 'oportunidades' ? { key: 'na_hora', dir: -1 } : aba === 'sugestoes-sazonais' ? { key: 'status', dir: 1 } : aba === 'sugestoes-produto' ? { key: 'n_clientes_epoca', dir: -1 } : { key: 'valor_total', dir: -1 }}
+          rowKey={aba === 'oportunidades' ? (r) => String(r.codigo_produto) : aba === 'sugestoes-sazonais' ? (r) => String(r.conta) + '|' + String(r.codigo_cliente) + '|' + String(r.grupo) : aba === 'sugestoes-produto' ? (r) => String(r.is_tipo) + '|' + String(r.tipo_param) : aba === 'clientes' ? (r) => String(r.conta) + '|' + String(r.codigo_cliente) : (r) => String(r.chave ?? r.sku)}
           renderExpand={aba === 'oportunidades' ? (r) => (
             <ExpandOportunidade
               produto={{ codigo_produto: String(r.codigo_produto), sku: String(r.sku), descricao: String(r.descricao) }}
@@ -718,6 +835,8 @@ export default function InteligenciaComercialPage() {
             <ExpandSugestao row={r} motivos={motivos} autor={{ id: userProfile?.id || '', nome: userProfile?.nome || '' }} />
           ) : aba === 'clientes' ? (r) => (
             <ExpandClienteSugestoes row={r} contaParam={contaParam} motivos={motivos} autor={{ id: userProfile?.id || '', nome: userProfile?.nome || '' }} />
+          ) : aba === 'sugestoes-produto' ? (r) => (
+            <ExpandProdutoClientes row={r} contaParam={contaParam} motivos={motivos} autor={{ id: userProfile?.id || '', nome: userProfile?.nome || '' }} />
           ) : undefined}
         />
       )}
