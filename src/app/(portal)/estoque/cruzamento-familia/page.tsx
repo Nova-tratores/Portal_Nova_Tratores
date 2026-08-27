@@ -16,6 +16,20 @@ type Tab = 'mes' | 'grafico' | 'estoqueTipo' | 'reconciliacao';
 type Dimensao = 'tipo' | 'categoria' | 'familia' | 'tipocarac';
 interface SerieResp { pontos: PontoMensal[]; series: SerieDef[]; dimensao: Dimensao; estoqueAtual: { peca: number; maquina: number }; erro?: string }
 interface SerieTipoResp { pontos: PontoMensal[]; series: SerieDef[]; estoqueAtual: Record<string, number>; erro?: string }
+interface PontoRecon { periodo: string; ano: number; mes: number; estoqueFim: number | null; deltaEstoque: number; [bucket: string]: number | string | null }
+interface ReconResp { pontos: PontoRecon[]; buckets: string[]; estoqueAtual: number; totalMovimentos: number; erro?: string }
+// Labels/cores/sinal dos buckets do razão (Reconciliação).
+const BUCKET_INFO: Record<string, { label: string; cor: string }> = {
+  compra: { label: 'Compra', cor: '#16a34a' },
+  entrada_nf: { label: 'Entrada NF', cor: '#16a34a' },
+  devolucao_venda: { label: 'Devol. venda', cor: '#16a34a' },
+  frete: { label: 'Frete', cor: '#0891b2' },
+  venda: { label: 'Venda (COGS)', cor: '#dc2626' },
+  remessa: { label: 'Remessa', cor: '#d97706' },
+  devolucao_compra: { label: 'Devol. compra', cor: '#dc2626' },
+  ajuste: { label: 'Ajuste', cor: '#7c3aed' },
+  outro: { label: 'Outro', cor: '#9ca3af' },
+};
 
 // R$ sem centavos (gráfico e popup).
 const fmtRS0 = (v: number): string => 'R$ ' + Math.round(v).toLocaleString('pt-BR');
@@ -96,6 +110,10 @@ export default function CruzamentoFamiliaPage() {
   const [grupo, setGrupo] = useState<'peca' | 'maquina' | 'ambos'>('ambos');
   const [incluirDemo, setIncluirDemo] = useState(true);
   const [grupoRec, setGrupoRec] = useState<'peca' | 'maquina'>('peca');
+  // Aba "Reconciliação" (razão de estoque — estoque_movimentos)
+  const [recon, setRecon] = useState<ReconResp | null>(null);
+  const [reconCarregando, setReconCarregando] = useState(false);
+  const [reconErro, setReconErro] = useState('');
 
   // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
   const [mesesTipo, setMesesTipo] = useState(12);
@@ -139,7 +157,24 @@ export default function CruzamentoFamiliaPage() {
     }
   }, [meses, dimensao, incluirDemo, contaParam]);
 
-  useEffect(() => { if (tab === 'grafico' || tab === 'reconciliacao') carregarSerie(); }, [carregarSerie, tab]);
+  useEffect(() => { if (tab === 'grafico') carregarSerie(); }, [carregarSerie, tab]);
+
+  const carregarRecon = useCallback(async () => {
+    setReconCarregando(true);
+    setReconErro('');
+    try {
+      const r = await fetch(`/api/estoque/cruzamento-familia/reconciliacao?meses=${meses}&grupo=${grupoRec}${contaParam}`);
+      const d = (await r.json()) as ReconResp;
+      if (d.erro) { setReconErro(d.erro); setRecon(null); return; }
+      setRecon(d);
+    } catch (ex) {
+      setReconErro('Erro: ' + (ex as Error).message);
+    } finally {
+      setReconCarregando(false);
+    }
+  }, [meses, grupoRec, contaParam]);
+
+  useEffect(() => { if (tab === 'reconciliacao') carregarRecon(); }, [carregarRecon, tab]);
 
   const carregarSerieTipo = useCallback(async () => {
     setSerieTipoCarregando(true);
@@ -518,74 +553,50 @@ export default function CruzamentoFamiliaPage() {
           </div>
         </div>
 
-        {serieErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieErro}</div>}
-        {serieCarregando && <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>}
+        {reconErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{reconErro}</div>}
+        {reconCarregando && <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>}
 
-        {serie && !serieCarregando && (() => {
-          const g = grupoRec;
-          const pts = serie.pontos;
-          const val = (p: PontoMensal, k: string): number | null => (p[k] == null ? null : Number(p[k]));
-          const linhas = pts.map((p, i) => {
-            const est = val(p, `estoque_${g}`);
-            const estPrev = i > 0 ? val(pts[i - 1], `estoque_${g}`) : null;
-            // Entrada = só COMPRA REAL (CFOP de compra, a custo CMC). Retorno/devolução/
-            // garantia/transferência vão na coluna "não-compra" (fora do Fluxo).
-            const entrada = Number(p[`entrada_compra_${g}`] || 0);
-            const naoCompra = Number(p[`entrada_naocompra_${g}`] || 0);
-            const cogs = Number(p[`cogs_${g}`] || 0);
-            const fluxo = entrada - cogs;
-            const varEst = est != null && estPrev != null ? est - estPrev : null;
-            const residuo = varEst == null ? null : varEst - fluxo;
-            return { periodo: String(p.periodo), est, varEst, entrada, naoCompra, cogs, fluxo, residuo };
-          });
-          const comRes = linhas.filter((l) => l.residuo != null) as Array<{ residuo: number }>;
-          const resAcum = comRes.reduce((s, l) => s + l.residuo, 0);
-          const resMedAbs = comRes.length ? comRes.reduce((s, l) => s + Math.abs(l.residuo), 0) / comRes.length : 0;
-          const fecham = comRes.filter((l) => Math.abs(l.residuo) < 5000).length;
-          const fmtSig = (v: number | null): string => (v == null ? '—' : (v >= 0 ? '+' : '−') + 'R$ ' + Math.round(Math.abs(v)).toLocaleString('pt-BR'));
-          const corRes = (v: number | null) => (v == null ? '#bbb' : Math.abs(v) < 5000 ? '#16a34a' : Math.abs(v) < 50000 ? '#d97706' : '#dc2626');
-          // Mesma cor do Estoque no gráfico (SerieMensalChart): Peça azul, Máquina laranja.
-          const corEstoque = g === 'peca' ? '#2563eb' : '#d97706';
+        {recon && !reconCarregando && (() => {
+          const fmtSig = (v: number): string => (v >= 0 ? '+' : '−') + 'R$ ' + Math.round(Math.abs(v)).toLocaleString('pt-BR');
+          const cols = recon.buckets;
+          if (recon.totalMovimentos === 0) {
+            return <div style={{ color: '#888', fontSize: '.9rem', padding: '24px 4px' }}>
+              Sem movimentos no razão para <strong>{grupoRec === 'peca' ? 'Peças' : 'Máquinas'}</strong> ainda. Rode o backfill do razão de estoque (<code>/api/estoque/movimentos/sync?conta={contaParam.replace('&conta=', '') || 'nova'}&grupo={grupoRec}</code>) até <em>restantes = 0</em>.
+            </div>;
+          }
+          // Totais do período por bucket (para os cards).
+          const tot = (b: string) => recon.pontos.reduce((s, p) => s + Number(p[b] || 0), 0);
+          const corEstoque = grupoRec === 'peca' ? '#2563eb' : '#d97706';
           return (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 12, marginBottom: 14 }}>
-                <Resumo titulo="Resíduo acumulado" valor={fmtSig(resAcum)} sub="Δ Estoque − (Entrada − Saída a custo)" cor={Math.abs(resAcum) > 50000 ? '#dc2626' : '#333'} />
-                <Resumo titulo="Resíduo médio/mês" valor={'R$ ' + Math.round(resMedAbs).toLocaleString('pt-BR')} sub="média absoluta" />
-                <Resumo titulo="Meses que fecham" valor={`${fecham} de ${comRes.length}`} sub="|resíduo| < R$ 5 mil" />
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12, marginBottom: 14 }}>
+                <Resumo titulo="Estoque hoje" valor={fmtRS0(recon.estoqueAtual)} sub="âncora do razão (real)" cor={corEstoque} />
+                {cols.includes('compra') && <Resumo titulo="Compras (período)" valor={fmtRS0(tot('compra'))} sub="a custo" cor="#16a34a" />}
+                {cols.includes('venda') && <Resumo titulo="Vendas / COGS" valor={fmtSig(tot('venda'))} sub="custo dos vendidos" cor="#dc2626" />}
+                {cols.includes('ajuste') && <Resumo titulo="Ajustes de estoque" valor={fmtSig(tot('ajuste'))} sub="inventário/CMC" cor="#7c3aed" />}
               </div>
               <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
                     <th style={thStyle}>Mês</th>
                     <th style={{ ...thNum, color: corEstoque }}>Estoque (fim)</th>
-                    <th style={{ ...thNum, color: '#16a34a' }}>Entrada (compra)</th>
-                    <th style={{ ...thNum, color: '#9ca3af' }} title="Retorno de demonstração, devolução de venda, garantia recebida e transferência entre lojas — não são compra, ficam fora do Fluxo/Resíduo.">Não-compra</th>
-                    <th style={{ ...thNum, color: '#dc2626' }}>Saída (custo/COGS)</th>
+                    {cols.map((b) => <th key={b} style={{ ...thNum, color: BUCKET_INFO[b]?.cor || '#666' }}>{BUCKET_INFO[b]?.label || b}</th>)}
                     <th style={thNum}>Δ Estoque</th>
-                    <th style={thNum}>Fluxo (E−S)</th>
-                    <th style={thNum}>Resíduo</th>
                   </tr></thead>
                   <tbody>
-                    {linhas.map((l, i) => (
+                    {recon.pontos.map((p, i) => (
                       <tr key={i}>
-                        <td style={tdStyle}>{l.periodo}</td>
-                        <td style={{ ...tdNum, color: l.est == null ? '#bbb' : corEstoque }}>{l.est == null ? '—' : fmtRS0(l.est)}</td>
-                        <td style={{ ...tdNum, color: l.entrada ? '#16a34a' : '#bbb', cursor: l.entrada ? 'pointer' : 'default' }}
-                          onClick={() => l.entrada && abrirPopupSerie({ key: `nf_entrada_${g}`, label: `Entrada ${g === 'peca' ? 'Peça' : 'Máquina'}`, cor: '#16a34a' }, pts[i])}>
-                          {l.entrada ? fmtRS0(l.entrada) : '—'}
-                        </td>
-                        <td style={{ ...tdNum, color: l.naoCompra ? '#9ca3af' : '#ddd' }}>{l.naoCompra ? fmtRS0(l.naoCompra) : '—'}</td>
-                        <td style={{ ...tdNum, color: l.cogs ? '#dc2626' : '#bbb' }}>{l.cogs ? fmtRS0(l.cogs) : '—'}</td>
-                        <td style={{ ...tdNum, color: l.varEst == null ? '#bbb' : l.varEst >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(l.varEst)}</td>
-                        <td style={{ ...tdNum, color: l.fluxo >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(l.fluxo)}</td>
-                        <td style={{ ...tdNum, fontWeight: 700, color: corRes(l.residuo) }}>{fmtSig(l.residuo)}</td>
+                        <td style={tdStyle}>{p.periodo}</td>
+                        <td style={{ ...tdNum, color: p.estoqueFim == null ? '#bbb' : corEstoque }}>{p.estoqueFim == null ? '—' : fmtRS0(p.estoqueFim as number)}</td>
+                        {cols.map((b) => { const v = Number(p[b] || 0); return <td key={b} style={{ ...tdNum, color: v ? (BUCKET_INFO[b]?.cor || '#444') : '#ddd' }}>{v ? fmtSig(v) : '—'}</td>; })}
+                        <td style={{ ...tdNum, fontWeight: 700, color: (p.deltaEstoque as number) >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(p.deltaEstoque as number)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
-                Reconciliação em <strong>custo (CMC)</strong>: Estoque, <strong>Entrada (só compra real — CFOP de compra, a custo CMC que já embute impostos/frete)</strong> e <strong>Saída a custo (COGS = CMC × qtd)</strong> — todos na mesma base. A coluna <strong>Não-compra</strong> (retorno de demonstração, devolução de venda, garantia recebida, transferência entre lojas) fica <strong>fora</strong> do Fluxo/Resíduo. <strong>Resíduo</strong> = Δ Estoque − (Entrada − Saída) = o que <strong>não fecha</strong> no mês, agora sinalizando de fato <strong>saída não registrada</strong> (OS interna/frota, cortesia) ou <strong>ajuste de inventário/CMC</strong>. Atenção: a Saída aqui é o <strong>custo</strong> dos itens vendidos, <strong>não a receita</strong> (faturamento). Meses sem snapshot de estoque não têm Δ nem resíduo. {g === 'maquina' && 'Obs.: compras de máquina muitas vezes não passam por NF de entrada, então a Entrada de máquina é incompleta — leia o resíduo com ressalva.'}
+                Reconciliação pelo <strong>livro-razão de estoque da Omie</strong> (MovimentoEstoque). Cada mês mostra a variação do <strong>valor</strong> de estoque decomposta por tipo de movimento, a custo CMC: <strong>Compra</strong>, <strong>Venda (COGS)</strong>, <strong>Ajuste</strong> (inventário/correção de CMC), <strong>Remessa</strong> (demonstração/consignação), <strong>Frete</strong> (capitalizado no custo), <strong>Devoluções</strong>. A soma dos tipos <strong>é</strong> o Δ Estoque do mês — não sobra resíduo, pois todo movimento está contabilizado. O <strong>Estoque (fim)</strong> é reconstruído do próprio razão, ancorado no estoque real de hoje. Substitui o cálculo anterior por snapshot (que não fechava).
               </p>
             </>
           );

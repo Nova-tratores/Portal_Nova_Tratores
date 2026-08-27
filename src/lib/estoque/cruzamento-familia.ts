@@ -52,58 +52,30 @@ function passaTipo(familia: string, filtro: TipoFamilia): boolean {
 }
 
 /** Extrai código interno, descrição, qtd e valor de um item de nota de entrada
- *  (estrutura crua do Omie: item.prod.* + item.nfProdInt.nCodProd).
- *  - `valor`  = mercadoria pura (vProd) — base histórica usada pelo Gráfico Mensal.
- *  - `valorCmc` = custo que a Omie lançou no estoque (nCMCUnitario×qtd, já com os
- *    impostos/frete marcados como "custo de estoque"; cai p/ vTotItem→vProd). Mesma
- *    régua do snapshot e do COGS — usado SÓ pela aba Reconciliação.
- *  - `cfop` = CFOP do item, p/ separar compra real de retorno/devolução/transferência. */
-function parseItemEntrada(it: Record<string, unknown>): { codigo: string; sku: string; descricao: string; qtd: number; valor: number; valorCmc: number; cfop: string } {
+ *  (estrutura crua do Omie: item.prod.* + item.nfProdInt.nCodProd). */
+function parseItemEntrada(it: Record<string, unknown>): { codigo: string; sku: string; descricao: string; qtd: number; valor: number } {
   const prod = (it.prod ?? null) as Record<string, unknown> | null;
   if (prod) {
     const nf = (it.nfProdInt ?? {}) as Record<string, unknown>;
     // nCodProd = id interno Omie (0 quando o item não foi vinculado a um produto);
     // cProd = código do fornecedor/SKU. Tratamos 0/'' como "sem id interno".
     const nCod = nf.nCodProd != null ? String(nf.nCodProd) : '';
-    const qtd = num(prod.qCom);
-    const vProd = num(prod.vProd ?? prod.vTotItem);
-    const cmcUnit = num(prod.nCMCUnitario);
-    const valorCmc = cmcUnit > 0 ? cmcUnit * qtd : (num(prod.vTotItem) || vProd);
     return {
       codigo: nCod && nCod !== '0' ? nCod : '',
       sku: String(prod.cProd ?? ''),
       descricao: String(prod.xProd ?? ''),
-      qtd,
-      valor: vProd,
-      valorCmc,
-      cfop: String(prod.CFOP ?? ''),
+      qtd: num(prod.qCom),
+      valor: num(prod.vProd ?? prod.vTotItem),
     };
   }
-  // Fallback p/ formatos planos antigos (sem CFOP → tratado como compra).
-  const v = num(it.valor_total);
+  // Fallback p/ formatos planos antigos.
   return {
     codigo: String(it.codigo_produto ?? ''),
     sku: String(it.codigo ?? it.sku ?? ''),
     descricao: String(it.descricao ?? ''),
     qtd: num(it.quantidade),
-    valor: v,
-    valorCmc: v,
-    cfop: '',
+    valor: num(it.valor_total),
   };
-}
-
-/** CFOP de COMPRA que forma estoque de revenda/industrialização (entra no Fluxo da
- *  Reconciliação). 1.1xx/2.1xx = compras; 1.401/1.403/2.401/2.403 = compra c/ ST.
- *  Fica de FORA: retorno (1.9xx/2.9xx), devolução (1.2xx, 1.411), transferência
- *  (1.152/2.152) e remessas — que hoje inflam a Entrada. CFOP vazio (formato antigo
- *  sem prod) = tratado como compra p/ não regredir dados legados. */
-function ehCompraEstoque(cfop: string): boolean {
-  const d = String(cfop || '').replace(/\D/g, '');
-  if (!d) return true;
-  if (d.length < 4) return false;
-  const p = d.slice(0, 2);
-  if (p === '11' || p === '21') return true;
-  return d === '1401' || d === '1403' || d === '2401' || d === '2403';
 }
 
 export interface FamiliaLinha {
@@ -559,10 +531,6 @@ const MAX_CATEGORIAS = 6;
 interface FluxoMes {
   // por grupo (peça/máquina) — usado p/ estoque e p/ modo "tipo"
   entradaPeca: number; entradaMaq: number;
-  // aba Reconciliação: entrada a custo CMC separada em compra real (entra no Fluxo)
-  // vs não-compra (retorno/devolução/garantia/transferência — só informativa).
-  entradaCompraPeca: number; entradaCompraMaq: number;
-  entradaNaoCompraPeca: number; entradaNaoCompraMaq: number;
   cogsPeca: number; cogsMaq: number;
   saidaPeca: number; saidaMaq: number;
   // por categoria
@@ -580,9 +548,8 @@ async function notasDoMes(
   mes: number, ano: number, conta: ContaFiltro,
   famPorCodigo: Record<string, string>, famPorSKU: Record<string, string>,
   tipoPorCodigo: Record<string, string>, escaped: string | null,
-): Promise<{ entradaPeca: number; entradaMaq: number; entradaCompraPeca: number; entradaCompraMaq: number; entradaNaoCompraPeca: number; entradaNaoCompraMaq: number; entradaPorCat: Record<string, number>; entradaPorFam: Record<string, number>; entradaPorTipoCarac: Record<string, number> }> {
+): Promise<{ entradaPeca: number; entradaMaq: number; entradaPorCat: Record<string, number>; entradaPorFam: Record<string, number>; entradaPorTipoCarac: Record<string, number> }> {
   let entradaPeca = 0, entradaMaq = 0;
-  let entradaCompraPeca = 0, entradaCompraMaq = 0, entradaNaoCompraPeca = 0, entradaNaoCompraMaq = 0;
   const entradaPorCat: Record<string, number> = {};
   const entradaPorFam: Record<string, number> = {};
   const entradaPorTipoCarac: Record<string, number> = {};
@@ -597,20 +564,13 @@ async function notasDoMes(
     const lote = (data || []) as Array<{ categoria: unknown; itens: unknown }>;
     for (const nota of lote) {
       const cat = String(nota.categoria ?? '').trim() || SEM_CATEGORIA;
-      // Garantia recebida NÃO é compra de estoque (reforço à regra por CFOP).
-      const catNaoCompra = /garantia/i.test(cat);
       const itens = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of itens) {
-        const { codigo, sku, valor, valorCmc, cfop } = parseItemEntrada(it);
+        const { codigo, sku, valor } = parseItemEntrada(it);
         const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU);
         const g = classificarGrupo(fam);
         if (g === 'peca') entradaPeca += valor;
         else if (g === 'maquina') entradaMaq += valor;
-        // Reconciliação (custo CMC): compra real (CFOP de compra e não-garantia) entra
-        // no Fluxo; o resto (retorno/devolução/transferência/garantia) fica à parte.
-        const compra = ehCompraEstoque(cfop) && !catNaoCompra;
-        if (g === 'peca') { if (compra) entradaCompraPeca += valorCmc; else entradaNaoCompraPeca += valorCmc; }
-        else if (g === 'maquina') { if (compra) entradaCompraMaq += valorCmc; else entradaNaoCompraMaq += valorCmc; }
         // categoria/família/tipo: só conta o que não é ignorado (mesma base do "tipo")
         if (g !== 'ignorar') {
           entradaPorCat[cat] = (entradaPorCat[cat] || 0) + valor;
@@ -623,7 +583,7 @@ async function notasDoMes(
     if (lote.length < LOTE) break;
     offset += LOTE;
   }
-  return { entradaPeca, entradaMaq, entradaCompraPeca, entradaCompraMaq, entradaNaoCompraPeca, entradaNaoCompraMaq, entradaPorCat, entradaPorFam, entradaPorTipoCarac };
+  return { entradaPeca, entradaMaq, entradaPorCat, entradaPorFam, entradaPorTipoCarac };
 }
 
 async function vendasDoMes(
@@ -1012,8 +972,6 @@ export async function serieMensal(
     ]);
     fluxos.push({
       entradaPeca: nota.entradaPeca, entradaMaq: nota.entradaMaq,
-      entradaCompraPeca: nota.entradaCompraPeca, entradaCompraMaq: nota.entradaCompraMaq,
-      entradaNaoCompraPeca: nota.entradaNaoCompraPeca, entradaNaoCompraMaq: nota.entradaNaoCompraMaq,
       cogsPeca: venda.cogsPeca, cogsMaq: venda.cogsMaq,
       saidaPeca: venda.saidaPeca, saidaMaq: venda.saidaMaq,
       entradaPorCat: nota.entradaPorCat, saidaPorCat: venda.saidaPorCat,
@@ -1049,12 +1007,6 @@ export async function serieMensal(
     // aba Reconciliação (Estoque, Entrada e Saída todos a custo). Fora de `series`.
     ponto.entrada_peca = Math.round(fluxos[i]?.entradaPeca ?? 0);
     ponto.entrada_maquina = Math.round(fluxos[i]?.entradaMaq ?? 0);
-    // Entrada a custo CMC separada em compra real (entra no resíduo) e não-compra
-    // (retorno/devolução/garantia — só informativa). Usada só pela aba Reconciliação.
-    ponto.entrada_compra_peca = Math.round(fluxos[i]?.entradaCompraPeca ?? 0);
-    ponto.entrada_compra_maquina = Math.round(fluxos[i]?.entradaCompraMaq ?? 0);
-    ponto.entrada_naocompra_peca = Math.round(fluxos[i]?.entradaNaoCompraPeca ?? 0);
-    ponto.entrada_naocompra_maquina = Math.round(fluxos[i]?.entradaNaoCompraMaq ?? 0);
     ponto.cogs_peca = Math.round(fluxos[i]?.cogsPeca ?? 0);
     ponto.cogs_maquina = Math.round(fluxos[i]?.cogsMaq ?? 0);
     // Máquinas em demonstração que estavam FORA no fim daquele mês (mês atual = hoje).
