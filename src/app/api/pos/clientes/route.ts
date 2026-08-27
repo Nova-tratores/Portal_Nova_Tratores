@@ -22,13 +22,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ nome: "Não encontrado" });
   }
 
-  const listOmie = (await supabaseFetchAll<Record<string, string>>(TBL_CLIENTES)).map((c) => ({
-    chave: "OMIE:" + (c.id_omie || c.id_cliente),
-    display: (c.nome_fantasia || c.razao_social) + " [CNPJ/CPF: " + (c.cnpj_cpf || "---") + "] (OMIE)",
-  }));
+  const listOmie = (await supabaseFetchAll<Record<string, string>>(TBL_CLIENTES))
+    // Cliente INATIVO no Omie não aparece pra escolher (nem cria OS)
+    .filter((c) => String(c.inativo || "").toUpperCase() !== "S")
+    .map((c) => ({
+      chave: "OMIE:" + (c.id_omie || c.id_cliente),
+      display: (c.nome_fantasia || c.razao_social) + " [CNPJ/CPF: " + (c.cnpj_cpf || "---") + "] (OMIE)",
+      razao: c.razao_social || "",
+      fantasia: c.nome_fantasia || "",
+      cnpj: c.cnpj_cpf || "",
+      endereco: [c.endereco, c.bairro, c.cidade].filter(Boolean).join(", "),
+    }));
   const listManual = (await supabaseFetchAll<Record<string, string>>(TBL_CLIENTES_MANUAIS)).map((c) => ({
     chave: "MANUAL:" + (c.id || c.id_cliente),
     display: (c.Cli_Nome || "Sem Nome") + " [CNPJ/CPF: " + (c.Cli_Cpf_Cnpj || "---") + "] (MANUAL)",
+    razao: c.Cli_Nome || "",
+    fantasia: "",
+    cnpj: c.Cli_Cpf_Cnpj || "",
+    endereco: [c.Cli_Endereco, c.Cli_Cidade].filter(Boolean).join(", "),
   }));
 
   const todos = [...listOmie, ...listManual].sort((a, b) => a.display.localeCompare(b.display));

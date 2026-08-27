@@ -72,6 +72,11 @@ export interface KanbanCard {
 export interface ClienteOption {
   chave: string;
   display: string;
+  // Exibição rica no seletor (CNPJ, endereço, razão e fantasia)
+  razao?: string;
+  fantasia?: string;
+  cnpj?: string;
+  endereco?: string;
 }
 
 export interface ClienteDados {

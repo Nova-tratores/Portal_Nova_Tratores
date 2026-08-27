@@ -1089,8 +1089,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           <div key={c.chave} className="client-search-item" onClick={() => { selectCliente(c.chave); setClienteFilter(""); }}>
                             <i className="fas fa-user-circle" style={S_SEARCH_ICON} />
                             <div style={S_CLIENT_ITEM_WRAP}>
-                              <div style={S_CLIENT_ITEM_NAME}>{c.display.split("[")[0].trim()}</div>
-                              <div style={S_CLIENT_ITEM_SUB}>{c.display.includes("[") ? c.display.substring(c.display.indexOf("[")) : ""}</div>
+                              <div style={S_CLIENT_ITEM_NAME}>{c.fantasia || c.razao || c.display.split("[")[0].trim()}</div>
+                              {c.razao && c.fantasia && c.razao.trim().toLowerCase() !== c.fantasia.trim().toLowerCase() && (
+                                <div style={S_CLIENT_ITEM_SUB}>{c.razao}</div>
+                              )}
+                              <div style={S_CLIENT_ITEM_SUB}>
+                                {c.cnpj || "sem CNPJ"}{c.endereco ? ` · ${c.endereco}` : ""}
+                              </div>
                             </div>
                           </div>
                         ))}

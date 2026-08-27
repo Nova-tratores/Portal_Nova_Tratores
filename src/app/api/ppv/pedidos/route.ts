@@ -17,6 +17,7 @@ import { criarPedidoSchema, editarPedidoSchema } from "@/lib/ppv/schemas";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { soltarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
 import { exigirAcessoModulo } from "@/lib/ajustes/permissao-server";
+import { motivoClienteInativo } from "@/lib/clientes/inativo";
 
 // GET - Listar kanban OU buscar por ID
 export async function GET(req: NextRequest) {
@@ -85,6 +86,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 });
     }
     const dadosPPV = parsed.data;
+
+    // Cliente inativo no Omie NÃO cria PPV (checa no espelho local)
+    const motivoInativo = await motivoClienteInativo(dadosPPV.cliente);
+    if (motivoInativo) {
+      return NextResponse.json({ error: motivoInativo }, { status: 400 });
+    }
 
     const tipo = dadosPPV.tipoPedido;
     const dataFormatada = formatarDataBR(new Date().toISOString(), true);

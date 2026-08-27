@@ -38,6 +38,8 @@ export interface ProdutoBusca {
 
 export interface ClienteBusca {
   nome: string;
+  razao?: string;
+  fantasia?: string;
   documento: string;
   endereco: string;
   cidade: string;

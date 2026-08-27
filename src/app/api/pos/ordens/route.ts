@@ -4,6 +4,7 @@ import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
+import { motivoClienteInativo } from "@/lib/clientes/inativo";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
@@ -363,6 +364,12 @@ async function gerarPPVId(): Promise<string> {
 
 export async function POST(req: NextRequest) {
   const dados = await req.json();
+
+  // Cliente inativo no Omie NÃO cria OS (checa no espelho local)
+  const motivoInativo = await motivoClienteInativo(dados.nomeCliente, dados.cpfCliente);
+  if (motivoInativo) {
+    return NextResponse.json({ error: motivoInativo }, { status: 400 });
+  }
 
   const { data: resId } = await supabase.from(TBL_OS).select("Id_Ordem").order("Id_Ordem", { ascending: false }).limit(1);
   let ultimoNum = 0;

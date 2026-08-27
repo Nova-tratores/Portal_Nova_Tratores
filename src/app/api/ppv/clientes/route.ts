@@ -29,6 +29,8 @@ export async function GET(req: NextRequest) {
       ].filter(Boolean);
       resultados.push({
         nome: String(row.nome_fantasia || row.razao_social || "Sem Nome").trim(),
+        razao: String(row.razao_social || "").trim(),
+        fantasia: String(row.nome_fantasia || "").trim(),
         documento: String(row.cnpj_cpf || "").trim(),
         endereco: partes.join(", "),
         cidade: [String(row.cidade || "").trim(), String(row.estado || "").trim()].filter(Boolean).join(" - "),

@@ -160,7 +160,7 @@ export default function ModalBuscaCliente({ open, onClose, onSelect }: Props) {
                     <tr style={{ background: "var(--ppv-primary-light)" }}>
                       <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)" }}>Cliente</th>
                       <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)", width: 160 }}>CNPJ / CPF</th>
-                      <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)", width: 150 }}>Cidade</th>
+                      <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)", width: 260 }}>Endereço</th>
                     </tr>
                   </thead>
                 </table>
@@ -178,10 +178,17 @@ export default function ModalBuscaCliente({ open, onClose, onSelect }: Props) {
                         >
                           <td style={{ padding: "12px 16px", fontSize: 13, fontWeight: 600, color: "var(--ppv-text)" }}>
                             <i className="fas fa-user" style={{ marginRight: 8, fontSize: 11, color: "var(--ppv-accent)" }} />
-                            {highlightMatch(c.nome)}
+                            {highlightMatch(c.fantasia || c.nome)}
+                            {c.razao && c.razao.trim().toLowerCase() !== (c.fantasia || c.nome).trim().toLowerCase() && (
+                              <div style={{ fontSize: 11.5, fontWeight: 400, color: "var(--ppv-text-light)", marginTop: 2, marginLeft: 19 }}>
+                                {highlightMatch(c.razao)}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: "12px 16px", fontSize: 13, fontFamily: "monospace", color: "var(--ppv-text-light)", width: 160 }}>{highlightMatch(c.documento)}</td>
-                          <td style={{ padding: "12px 16px", fontSize: 13, color: "var(--ppv-text-light)", width: 150 }}>{c.cidade || "—"}</td>
+                          <td style={{ padding: "12px 16px", fontSize: 12.5, color: "var(--ppv-text-light)", width: 260 }}>
+                            {[c.endereco, c.cidade].filter(Boolean).join(" — ") || "—"}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
