@@ -20,10 +20,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!osRes?.length) return NextResponse.json({ error: `OS ${idOs} não encontrada.` }, { status: 404 });
   const os = osRes[0];
 
-  // próximo id PPV (mesma lógica da criação de OS)
+  // próximo id PPV (mesma lógica da criação de OS). O filtro "PPV-%" é no
+  // BANCO: "REM-..." ordena acima de "PPV-..." como texto, então os 50 últimos
+  // viram só remessas quando elas passarem de 50 — e a numeração recomeçaria
+  // do 0001, colidindo com pedido existente.
   const { data: ultimos } = await supabase
     .from(TBL_PEDIDOS)
     .select("id_pedido")
+    .like("id_pedido", "PPV-%")
     .order("id_pedido", { ascending: false })
     .limit(50);
   let maxNum = 0;

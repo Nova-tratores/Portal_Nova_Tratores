@@ -293,9 +293,14 @@ async function criarPedido(p: {
   quemNome: string
 }): Promise<string | null> {
   const prefixo = p.tipo === 'Remessa' ? 'REM' : 'PPV'
+  // filtra o PREFIXO no banco, não depois: "REM-..." ordena ACIMA de "PPV-..."
+  // como texto, então pegar os N últimos e filtrar em JS devolve só remessas
+  // assim que elas passarem de N — e a numeração de PPV recomeçaria do 1,
+  // colidindo com pedido existente.
   const { data: ultimos } = await supabase
     .from('pedidos')
     .select('id_pedido')
+    .like('id_pedido', `${prefixo}-%`)
     .order('id_pedido', { ascending: false })
     .limit(50)
   let maxNum = 0

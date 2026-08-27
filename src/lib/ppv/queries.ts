@@ -232,8 +232,13 @@ export async function vincularPPVnaOS(idOrdem: string, idPPV: string): Promise<v
 export async function gerarProximoId(prefixo: string): Promise<string> {
   let ultimoNum = 0;
   try {
+    // O PREFIXO entra no filtro do banco, não só no filter() abaixo: como
+    // texto, "REM-..." ordena ACIMA de "PPV-...", então os 50 últimos podem
+    // ser só remessas assim que elas passarem de 50 — e aí a numeração de PPV
+    // recomeçaria do 0001, colidindo com pedido existente. (Hoje são 12
+    // remessas; o filtro tira o prazo de validade da conta.)
     const res = await supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PEDIDOS}?select=id_pedido&order=id_pedido.desc&limit=50`
+      `${TBL_PEDIDOS}?select=id_pedido&id_pedido=like.${encodeURIComponent(`${prefixo}-*`)}&order=id_pedido.desc&limit=50`
     );
     const idsValidos = res
       .map((r) => String(getValorInsensivel(r, "id_pedido") || ""))

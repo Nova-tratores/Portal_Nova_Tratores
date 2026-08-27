@@ -345,8 +345,11 @@ async function registrarLog(osId: string, acao: string, statusPara: string | nul
   });
 }
 
+// O filtro "PPV-%" é no BANCO: "REM-..." ordena acima de "PPV-..." como texto,
+// então os 50 últimos viram só remessas quando elas passarem de 50 — e a
+// numeração de PPV recomeçaria do 0001, colidindo com pedido existente.
 async function gerarPPVId(): Promise<string> {
-  const { data } = await supabase.from(TBL_PEDIDOS).select("id_pedido").order("id_pedido", { ascending: false }).limit(50);
+  const { data } = await supabase.from(TBL_PEDIDOS).select("id_pedido").like("id_pedido", "PPV-%").order("id_pedido", { ascending: false }).limit(50);
   let maxNum = 0;
   (data || []).forEach((row) => {
     const match = String(row.id_pedido || "").match(/^PPV-(\d+)$/);
