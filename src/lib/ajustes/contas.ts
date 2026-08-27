@@ -145,6 +145,46 @@ export async function obterCategorias(conta: Conta): Promise<any[]> {
   return lista;
 }
 
+// Conta quantas vezes cada categoria (cCategCompra) foi usada em recebimentos de NF-e
+// da conta (fonte: espelho recebimentos_nfe.dados_raw->infoAdicionais->>cCategCompra —
+// 1:1 com o que a tela grava). Paginado (teto 1000/pág do PostgREST), cache 12h.
+async function usoCategoriasReceb(conta: Conta): Promise<Record<string, number>> {
+  const chave = `categorias_uso:${conta}`;
+  const hit = cache.get<Record<string, number>>(chave);
+  if (hit) return hit.valor;
+  const low = String(conta).toLowerCase();
+  const mapa: Record<string, number> = {};
+  try {
+    const PAG = 1000;
+    for (let from = 0; ; from += PAG) {
+      const { data, error } = await supabase
+        .from('recebimentos_nfe')
+        .select('cat:dados_raw->infoAdicionais->>cCategCompra')
+        .eq('conta_omie', low)
+        .order('id_receb', { ascending: true })
+        .range(from, from + PAG - 1);
+      if (error) { console.warn('[categorias_uso]', error.message); break; }
+      const rows = (data || []) as Array<{ cat: string | null }>;
+      for (const r of rows) { const c = r.cat; if (c) mapa[c] = (mapa[c] || 0) + 1; }
+      if (rows.length < PAG) break;
+    }
+  } catch (e: any) {
+    console.warn('[categorias_uso]', e?.message || e);
+  }
+  cache.set(chave, mapa, 43200);
+  return mapa;
+}
+
+// Categorias (ativas, do Omie) enriquecidas com `uso` (frequência em recebimentos) e
+// ordenadas pelas mais usadas primeiro, empate por código. Alimenta o combobox de
+// "Categoria da compra" no fluxo de dar entrada.
+export async function categoriasComUso(conta: Conta): Promise<any[]> {
+  const [cats, uso] = await Promise.all([obterCategorias(conta), usoCategoriasReceb(conta)]);
+  return (cats || [])
+    .map((c) => ({ ...c, uso: uso[c.codigo] || 0 }))
+    .sort((a, b) => (b.uso - a.uso) || String(a.codigo || '').localeCompare(String(b.codigo || '')));
+}
+
 export async function obterDepartamentos(conta: Conta): Promise<any[]> {
   const chave = `departamentos:${conta}`;
   const hit = cache.get<any[]>(chave);
