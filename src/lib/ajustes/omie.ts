@@ -884,6 +884,24 @@ export async function consultarRecebimento(conta: Conta, idReceb: number | strin
   };
 }
 
+// Lê a observação atual (observacoes.cObs) de um recebimento, para poder ANEXAR sem
+// perder o que já existe. ConsultarRecebimento aceita nIdReceb OU cChaveNfe (não os dois).
+export async function consultarObservacaoReceb(
+  conta: Conta,
+  ref: { idReceb?: number | string | null; chaveNFe?: string | null },
+): Promise<string | null> {
+  const param: Record<string, any> = ref.idReceb != null && ref.idReceb !== ''
+    ? { nIdReceb: Number(ref.idReceb) || ref.idReceb }
+    : { cChaveNfe: String(ref.chaveNFe || '') };
+  if (!param.nIdReceb && !param.cChaveNfe) throw new Error('informe idReceb ou chaveNFe');
+  const data: any = await omieRequest('/produtos/recebimentonfe/', 'ConsultarRecebimento', param, conta);
+  if (data && data.faultstring) throw new Error(data.faultstring);
+  const rec = (data && (data.recebimento || data.recebimentos || data)) || {};
+  const obs = rec.observacoes;
+  const cObs = obs && (obs.cObs ?? obs.cObservacoes);
+  return cObs != null && String(cObs).trim() !== '' ? String(cObs) : null;
+}
+
 // Detalhe FINANCEIRO de um recebimento (para pre-preencher a UI de dar-entrada):
 // categoria/conta/data (infoAdicionais) + parcelas que a NF ja traz do XML.
 export interface RecebFinanceiro {
