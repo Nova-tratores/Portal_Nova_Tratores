@@ -99,3 +99,53 @@ export async function reconciliacaoLedger(
 
   return { pontos, buckets, estoqueAtual: Math.round(estoqueAtual), totalMovimentos: porMes.size };
 }
+
+export interface DetalheItem { codigo_produto: number; sku: string; descricao: string; movimentos: number; qtde: number; efeito: number }
+export interface DetalheResult { itens: DetalheItem[]; total: number; somaEfeito: number; bucket: string }
+
+/**
+ * Composição de UMA célula (conta/grupo/ano/mês/bucket): os movimentos do razão
+ * que somam aquele valor, agregados por produto (com SKU/descrição). Se bucket
+ * vazio, traz TODOS os buckets do mês (= Δ Estoque do mês).
+ */
+export async function detalheBucket(
+  conta: Conta, grupo: 'peca' | 'maquina', ano: number, mes: number, bucket: string,
+): Promise<DetalheResult> {
+  const porProduto = new Map<number, { mov: number; qtde: number; efeito: number }>();
+  let offset = 0;
+  for (;;) {
+    let q = supabase.from('estoque_movimentos')
+      .select('codigo_produto,efeito,qtde_entrada,qtde_saida')
+      .eq('conta_omie', contaLow(conta)).eq('grupo', grupo).eq('ano', ano).eq('mes', mes).eq('cancelado', false);
+    if (bucket) q = q.eq('bucket', bucket);
+    const { data, error } = await q.range(offset, offset + 999);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<{ codigo_produto: number; efeito: number; qtde_entrada: number; qtde_saida: number }>;
+    for (const r of lote) {
+      const cur = porProduto.get(r.codigo_produto) || { mov: 0, qtde: 0, efeito: 0 };
+      cur.mov += 1;
+      cur.qtde += num(r.qtde_entrada) - num(r.qtde_saida);
+      cur.efeito += num(r.efeito);
+      porProduto.set(r.codigo_produto, cur);
+    }
+    if (lote.length < 1000) break;
+    offset += 1000;
+  }
+  // Rótulos (SKU/descrição) via produtos.
+  const ids = [...porProduto.keys()];
+  const info = new Map<number, { sku: string; descricao: string }>();
+  for (let i = 0; i < ids.length; i += 300) {
+    const chunk = ids.slice(i, i + 300);
+    const { data } = await supabase.from('produtos').select('codigo_produto,codigo,descricao').in('codigo_produto', chunk);
+    for (const p of (data || []) as Array<{ codigo_produto: number; codigo: string; descricao: string }>) {
+      info.set(Number(p.codigo_produto), { sku: p.codigo || '', descricao: p.descricao || '' });
+    }
+  }
+  const itens: DetalheItem[] = ids.map((id) => {
+    const a = porProduto.get(id)!;
+    const inf = info.get(id) || { sku: '', descricao: '' };
+    return { codigo_produto: id, sku: inf.sku, descricao: inf.descricao, movimentos: a.mov, qtde: Math.round(a.qtde * 100) / 100, efeito: Math.round(a.efeito) };
+  }).sort((x, y) => Math.abs(y.efeito) - Math.abs(x.efeito));
+  const somaEfeito = itens.reduce((s, it) => s + it.efeito, 0);
+  return { itens, total: itens.length, somaEfeito, bucket };
+}

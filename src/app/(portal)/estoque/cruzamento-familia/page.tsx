@@ -11,6 +11,7 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import SerieMensalChart, { type PontoMensal, type SerieDef } from '@/components/estoque/SerieMensalChart';
 import ComposicaoModal, { type ComposicaoParams } from '@/components/estoque/ComposicaoModal';
+import RazaoDetalheModal, { type DetalheParams } from '@/components/estoque/RazaoDetalheModal';
 
 type Tab = 'mes' | 'grafico' | 'estoqueTipo' | 'reconciliacao';
 type Dimensao = 'tipo' | 'categoria' | 'familia' | 'tipocarac';
@@ -114,6 +115,7 @@ export default function CruzamentoFamiliaPage() {
   const [recon, setRecon] = useState<ReconResp | null>(null);
   const [reconCarregando, setReconCarregando] = useState(false);
   const [reconErro, setReconErro] = useState('');
+  const [reconPopup, setReconPopup] = useState<{ titulo: string; params: DetalheParams } | null>(null);
 
   // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
   const [mesesTipo, setMesesTipo] = useState(12);
@@ -588,15 +590,21 @@ export default function CruzamentoFamiliaPage() {
                       <tr key={i}>
                         <td style={tdStyle}>{p.periodo}</td>
                         <td style={{ ...tdNum, color: p.estoqueFim == null ? '#bbb' : corEstoque }}>{p.estoqueFim == null ? '—' : fmtRS0(p.estoqueFim as number)}</td>
-                        {cols.map((b) => { const v = Number(p[b] || 0); return <td key={b} style={{ ...tdNum, color: v ? (BUCKET_INFO[b]?.cor || '#444') : '#ddd' }}>{v ? fmtSig(v) : '—'}</td>; })}
-                        <td style={{ ...tdNum, fontWeight: 700, color: (p.deltaEstoque as number) >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(p.deltaEstoque as number)}</td>
+                        {cols.map((b) => { const v = Number(p[b] || 0); return (
+                          <td key={b} style={{ ...tdNum, color: v ? (BUCKET_INFO[b]?.cor || '#444') : '#ddd', cursor: v ? 'pointer' : 'default' }}
+                            onClick={() => v && setReconPopup({ titulo: `${BUCKET_INFO[b]?.label || b} — ${p.periodo}`, params: { grupo: grupoRec, ano: p.ano, mes: p.mes, bucket: b } })}>
+                            {v ? fmtSig(v) : '—'}
+                          </td>
+                        ); })}
+                        <td style={{ ...tdNum, fontWeight: 700, color: (p.deltaEstoque as number) >= 0 ? '#16a34a' : '#dc2626', cursor: p.deltaEstoque ? 'pointer' : 'default' }}
+                          onClick={() => p.deltaEstoque && setReconPopup({ titulo: `Δ Estoque — ${p.periodo} (todos os movimentos)`, params: { grupo: grupoRec, ano: p.ano, mes: p.mes, bucket: '' } })}>{fmtSig(p.deltaEstoque as number)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
               <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
-                Reconciliação pelo <strong>livro-razão de estoque da Omie</strong> (MovimentoEstoque). Cada mês mostra a variação do <strong>valor</strong> de estoque decomposta por tipo de movimento, a custo CMC: <strong>Compra</strong>, <strong>Venda (COGS)</strong>, <strong>Ajuste</strong> (inventário/correção de CMC), <strong>Remessa</strong> (demonstração/consignação), <strong>Frete</strong> (capitalizado no custo), <strong>Devoluções</strong>. A soma dos tipos <strong>é</strong> o Δ Estoque do mês — não sobra resíduo, pois todo movimento está contabilizado. O <strong>Estoque (fim)</strong> é reconstruído do próprio razão, ancorado no estoque real de hoje. Substitui o cálculo anterior por snapshot (que não fechava).
+                Reconciliação pelo <strong>livro-razão de estoque da Omie</strong> (MovimentoEstoque). Cada mês mostra a variação do <strong>valor</strong> de estoque decomposta por tipo de movimento, a custo CMC: <strong>Compra</strong>, <strong>Venda (COGS)</strong>, <strong>Ajuste</strong> (inventário/correção de CMC), <strong>Remessa</strong> (demonstração/consignação), <strong>Frete</strong> (capitalizado no custo), <strong>Devoluções</strong>. A soma dos tipos <strong>é</strong> o Δ Estoque do mês — não sobra resíduo, pois todo movimento está contabilizado. O <strong>Estoque (fim)</strong> é reconstruído do próprio razão, ancorado no estoque real de hoje. Substitui o cálculo anterior por snapshot (que não fechava). <strong>Clique em qualquer célula</strong> para ver os produtos que compõem o valor.
               </p>
             </>
           );
@@ -606,6 +614,9 @@ export default function CruzamentoFamiliaPage() {
 
       {popup && (
         <ComposicaoModal titulo={popup.titulo} params={popup.params} contaParam={contaParam} onClose={() => setPopup(null)} />
+      )}
+      {reconPopup && (
+        <RazaoDetalheModal titulo={reconPopup.titulo} params={reconPopup.params} contaParam={contaParam} onClose={() => setReconPopup(null)} />
       )}
     </div>
   );
