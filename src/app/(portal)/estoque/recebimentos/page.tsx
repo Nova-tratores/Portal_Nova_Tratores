@@ -789,6 +789,67 @@ function BuscaProduto({ conta, termoInicial, valor, onSelecionar, disabled }: {
   );
 }
 
+// ---------- combobox de categoria (mais usadas primeiro + busca por nome) ----------
+// Substitui o <select> simples: as opções chegam já ordenadas por uso (do backend);
+// digitar filtra por código+descrição sobre a lista JÁ carregada (sem fetch por tecla).
+function ComboCategoria({ value, options, onChange }: {
+  value: string; options: OpcaoCat[]; onChange: (codigo: string) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const [termo, setTermo] = useState('');
+  const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const atual = options.find((c) => c.codigo === value) || null;
+  const t = norm(termo.trim());
+  const filtradas = t
+    ? options.filter((c) => norm(`${c.codigo} ${c.descricao}`).includes(t))
+    : options;
+  // índice da 1ª sem uso: separa o bloco "mais usadas" do resto (só quando não filtrando).
+  const corte = !t ? filtradas.findIndex((c) => !(c.uso && c.uso > 0)) : -1;
+  const rotulo = atual ? `${atual.codigo} — ${atual.descricao}` : (value ? `${value} (atual)` : '');
+
+  return (
+    <span style={{ position: 'relative', display: 'block' }}>
+      <input
+        type="text"
+        value={aberto ? termo : rotulo}
+        placeholder={value ? rotulo : '(não classificar) — digite p/ buscar'}
+        onFocus={() => { setTermo(''); setAberto(true); }}
+        onChange={(e) => { setTermo(e.target.value); setAberto(true); }}
+        onBlur={() => setTimeout(() => setAberto(false), 150)}
+        style={{ ...selStyle, width: '100%', maxWidth: 'none' }}
+      />
+      {aberto && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 60, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,.12)', maxHeight: 260, overflowY: 'auto' }}>
+          <div onMouseDown={() => { onChange(''); setAberto(false); }}
+            style={{ padding: '6px 8px', fontSize: '.72rem', cursor: 'pointer', color: '#64748b', borderBottom: '1px solid #f1f5f9' }}>
+            (não classificar)
+          </div>
+          {filtradas.length === 0 && (
+            <div style={{ padding: '6px 8px', fontSize: '.7rem', color: '#94a3b8' }}>nenhuma categoria encontrada</div>
+          )}
+          {filtradas.map((c, i) => (
+            <Fragment key={c.codigo}>
+              {i === 0 && corte !== 0 && (c.uso ?? 0) > 0 && (
+                <div style={{ padding: '3px 8px', fontSize: '.6rem', color: '#b45309', background: '#fffbeb', textTransform: 'uppercase', letterSpacing: '.4px' }}>★ mais usadas</div>
+              )}
+              {corte > 0 && i === corte && (
+                <div style={{ padding: '3px 8px', fontSize: '.6rem', color: '#94a3b8', background: '#f8fafc', textTransform: 'uppercase', letterSpacing: '.4px' }}>demais categorias</div>
+              )}
+              <div onMouseDown={() => { onChange(c.codigo); setAberto(false); }}
+                style={{ padding: '5px 8px', fontSize: '.72rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9', background: c.codigo === value ? '#eff6ff' : '#fff' }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = c.codigo === value ? '#eff6ff' : '#fff')}>
+                <b style={{ fontFamily: 'monospace' }}>{c.codigo}</b> — {c.descricao}
+                {(c.uso ?? 0) > 0 && <span style={{ color: '#94a3b8' }}> · {c.uso}×</span>}
+              </div>
+            </Fragment>
+          ))}
+        </div>
+      )}
+    </span>
+  );
+}
+
 // ---------- modal "dar entrada" ----------
 // ---- datas: Omie usa DD/MM/AAAA; <input type=date> usa AAAA-MM-DD ----
 function brToIso(s?: string | null): string {
@@ -805,7 +866,7 @@ function isoToBR(s?: string | null): string {
 }
 function hojeIso(): string { return new Date().toISOString().slice(0, 10); }
 // tipos da seção financeira (Fase 3)
-interface OpcaoCat { codigo: string; descricao: string }
+interface OpcaoCat { codigo: string; descricao: string; uso?: number }
 interface OpcaoCC { codigo: number; descricao: string }
 interface ParcelaEdit { dVenc: string; valor: number; pct: number } // dVenc em ISO
 
@@ -914,7 +975,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
       setFinCarregando(true);
       try {
         const [cats, ccs, fin] = await Promise.all([
-          fetch(`/api/ajustes/categorias?conta=${encodeURIComponent(conta)}`).then((x) => x.json()).catch(() => ({})),
+          fetch(`/api/ajustes/categorias?conta=${encodeURIComponent(conta)}&comUso=1`).then((x) => x.json()).catch(() => ({})),
           fetch(`/api/ajustes/contas-correntes?conta=${encodeURIComponent(conta)}`).then((x) => x.json()).catch(() => ({})),
           fetch(`/api/ajustes/recebimentos/${r.idReceb}/financeiro?conta=${encodeURIComponent(conta)}`).then((x) => x.json()).catch(() => ({})),
         ]);
@@ -1202,11 +1263,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 10, marginBottom: 10 }}>
               <label style={{ fontSize: '.72rem', color: '#475569' }}>Categoria da compra
-                <select value={categoria} onChange={(e) => setCategoria(e.target.value)} style={selStyle}>
-                  <option value="">(não classificar)</option>
-                  {categoria && !categorias.some((c) => c.codigo === categoria) && <option value={categoria}>{categoria} (atual)</option>}
-                  {categorias.map((c) => <option key={c.codigo} value={c.codigo}>{c.codigo} — {c.descricao}</option>)}
-                </select>
+                <ComboCategoria value={categoria} options={categorias} onChange={setCategoria} />
               </label>
               <label style={{ fontSize: '.72rem', color: '#475569' }}>Conta corrente
                 <select value={contaCC} onChange={(e) => setContaCC(e.target.value)} style={selStyle}>
