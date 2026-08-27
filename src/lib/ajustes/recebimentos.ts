@@ -72,6 +72,66 @@ export function logEntradaReceb(row: {
     });
 }
 
+// Lista o histórico de ações desta tela (dar entrada / correção de custo) a partir de
+// recebimento_entrada_log, enriquecido com o espelho recebimentos_nfe (fornecedor/valor/
+// emissão/chave) para exibição. userId presente = só as do usuário (escopo "minhas").
+export interface EntradaLogRow {
+  id: number; idReceb: number | null; numeroNFe: string | null; serie: string | null;
+  tipo: string | null; acao: string; userNome: string | null; createdAt: string;
+  fornecedor: string | null; valor: number | null; emissao: string | null;
+  chaveNFe: string | null; status: string | null; descStatus: string | null;
+}
+export async function listarEntradasLog(args: {
+  conta: Conta; userId?: string | null; de?: string | null; ate?: string | null;
+}): Promise<EntradaLogRow[]> {
+  const low = contaLow(args.conta);
+  let q = supabase
+    .from('recebimento_entrada_log')
+    .select('id,id_receb,numero_nfe,tipo,acao,user_id,user_nome,resultado,created_at')
+    .eq('conta_omie', low)
+    .in('acao', ['dar_entrada', 'correcao_cmc'])
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (args.userId) q = q.eq('user_id', args.userId);
+  if (args.de) q = q.gte('created_at', args.de);
+  if (args.ate) q = q.lte('created_at', `${args.ate}T23:59:59`);
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  const logs = (data || []) as any[];
+
+  // Enriquecer com o espelho por id_receb (fornecedor/valor/emissão/chave/status).
+  const ids = Array.from(new Set(logs.map((l) => l.id_receb).filter((x) => x != null)));
+  const esp: Record<string, any> = {};
+  if (ids.length) {
+    const { data: recs } = await supabase
+      .from('recebimentos_nfe')
+      .select('id_receb,numero_nfe,serie_nfe,chave_nfe,fornecedor_razao,fornecedor,total_nfe,emissao_nfe,status')
+      .eq('conta_omie', low)
+      .in('id_receb', ids);
+    for (const r of (recs || []) as any[]) esp[String(r.id_receb)] = r;
+  }
+
+  return logs.map((l) => {
+    const e = l.id_receb != null ? esp[String(l.id_receb)] : null;
+    return {
+      id: l.id,
+      idReceb: l.id_receb ?? null,
+      numeroNFe: l.numero_nfe ?? (e?.numero_nfe ?? null),
+      serie: e?.serie_nfe ?? null,
+      tipo: l.tipo ?? null,
+      acao: l.acao,
+      userNome: l.user_nome ?? null,
+      createdAt: l.created_at,
+      fornecedor: e?.fornecedor_razao || e?.fornecedor || null,
+      valor: e?.total_nfe ?? null,
+      emissao: e?.emissao_nfe ?? null,
+      chaveNFe: e?.chave_nfe ?? null,
+      status: e?.status ?? null,
+      descStatus: l.resultado?.descStatus ?? null,
+    };
+  });
+}
+
 /**
  * Transferencia: grava o responsavel (usuario real do Portal) de um recebimento
  * em recebimento_meta (upsert por conta_omie,id_receb). userId null = desatribui.
