@@ -100,6 +100,29 @@ export async function reconciliacaoLedger(
   return { pontos, buckets, estoqueAtual: Math.round(estoqueAtual), totalMovimentos: porMes.size };
 }
 
+/**
+ * Valor de estoque (R$) por mês reconstruído do razão, para uso do Gráfico Mensal
+ * (mesma base da aba Reconciliação). Âncora = estoque real de hoje; para trás,
+ * subtrai o Δ de cada mês. `temDados=false` quando não há movimentos do grupo no
+ * razão (aí o chamador deve cair no snapshot). `meses` em ordem ascendente.
+ */
+export async function estoqueLedgerPorMes(
+  meses: Array<{ ano: number; mes: number }>, conta: Conta, grupo: 'peca' | 'maquina',
+): Promise<{ valorPorMes: Map<string, number>; temDados: boolean }> {
+  const [estoqueAtual, porMes] = await Promise.all([estoqueAtualGrupo(conta, grupo), agregarRazao(conta, grupo)]);
+  const deltas = meses.map((m) => {
+    const mm = porMes.get(`${m.ano}-${m.mes}`); if (!mm) return 0;
+    let d = 0; for (const v of mm.values()) d += v; return Math.round(d);
+  });
+  const valores = new Array<number>(meses.length);
+  for (let i = meses.length - 1; i >= 0; i--) {
+    valores[i] = i === meses.length - 1 ? Math.round(estoqueAtual) : valores[i + 1] - deltas[i + 1];
+  }
+  const valorPorMes = new Map<string, number>();
+  meses.forEach((m, i) => valorPorMes.set(`${m.ano}-${m.mes}`, valores[i]));
+  return { valorPorMes, temDados: porMes.size > 0 };
+}
+
 export interface DetalheItem { codigo_produto: number; sku: string; descricao: string; movimentos: number; qtde: number; efeito: number }
 export interface DetalheResult { itens: DetalheItem[]; total: number; somaEfeito: number; bucket: string }
 

@@ -8,6 +8,7 @@
 // último sync) — não há histórico mensal de saldo.
 
 import { supabase, filtroConta } from './supabase';
+import { estoqueLedgerPorMes } from './reconciliacao';
 import { getIgnorarFiltro } from './ignorar-clientes';
 import { buscarCategoriasOmie } from './notas-entrada';
 import { buscarPosicaoEstoqueBulkOmie } from './produtos-sync';
@@ -989,6 +990,13 @@ export async function serieMensal(
   if (conta && k > 0) {
     try { await upsertSnapshot(conta, meses[k - 1].mes, meses[k - 1].ano, estoquePorFamilia); } catch { /* segue sem persistir */ }
   }
+  // Estoque pelo LIVRO-RAZÃO (mesma base da aba Reconciliação), quando há dados no
+  // razão para o grupo — assim as duas abas mostram o MESMO estoque. Sem dados
+  // (ex.: máquinas ainda sem backfill) ou conta "Ambas" → cai no snapshot. Só p/
+  // conta específica (o razão é por conta).
+  const [ledPeca, ledMaq] = conta
+    ? await Promise.all([estoqueLedgerPorMes(meses, conta, 'peca'), estoqueLedgerPorMes(meses, conta, 'maquina')])
+    : [null, null];
 
   // Séries (estoque sempre peça/máquina) + entrada/saída conforme a dimensão.
   const series: SerieDef[] = [
@@ -1012,17 +1020,17 @@ export async function serieMensal(
     // Máquinas em demonstração que estavam FORA no fim daquele mês (mês atual = hoje).
     const ref = i === k - 1 ? hoje : new Date(m.ano, m.mes, 0, 23, 59, 59);
     const demoMaq = demo.length ? demoForaEm(demo, ref) : 0;
-    if (i === k - 1) {
-      ponto.estoque_peca = Math.round(estPeca);
-      ponto.estoque_maquina = Math.round(estMaq + demoMaq);
-    } else {
-      const s = snapMap.get(`${m.ano}-${m.mes}`);
-      if (s) {
-        ponto.estoque_peca = Math.round(s.peca);
-        ponto.estoque_maquina = Math.round(s.maquina + demoMaq);
-      }
-      // sem snapshot → não define as chaves (gap no gráfico)
-    }
+    const chaveMes = `${m.ano}-${m.mes}`;
+    const s = snapMap.get(chaveMes);
+    // Estoque Peça: razão (se houver) senão snapshot/ao-vivo.
+    if (ledPeca?.temDados) ponto.estoque_peca = Math.round(ledPeca.valorPorMes.get(chaveMes) ?? 0);
+    else if (i === k - 1) ponto.estoque_peca = Math.round(estPeca);
+    else if (s) ponto.estoque_peca = Math.round(s.peca);
+    // Estoque Máquina: razão (se houver) senão snapshot/ao-vivo; demo somada por cima.
+    if (ledMaq?.temDados) ponto.estoque_maquina = Math.round((ledMaq.valorPorMes.get(chaveMes) ?? 0) + demoMaq);
+    else if (i === k - 1) ponto.estoque_maquina = Math.round(estMaq + demoMaq);
+    else if (s) ponto.estoque_maquina = Math.round(s.maquina + demoMaq);
+    // sem fonte → não define as chaves (gap no gráfico)
     return ponto;
   });
 

@@ -19,7 +19,7 @@ function dataBRdefault(offMonths: number): string {
 
 async function handle(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
-  const conta = parseConta(sp.get('conta')) ?? 'NOVA';
+  const conta = parseConta((sp.get('conta') || '').toUpperCase()) ?? 'NOVA';
   const grupo = sp.get('grupo') === 'maquina' ? 'maquina' : 'peca';
   const batch = Math.min(200, Math.max(1, parseInt(sp.get('batch') || '60') || 60));
   const dataDeBR = sp.get('desde') || dataBRdefault(18);
