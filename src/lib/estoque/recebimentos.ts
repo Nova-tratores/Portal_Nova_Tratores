@@ -452,34 +452,71 @@ function num(v: unknown): number {
   return isNaN(n) ? 0 : n;
 }
 
-// Constrói a linha de recebimentos_nfe a partir de um registro cru da Omie.
-// PARSING DEFENSIVO — chaves incertas testadas via pick().
-function recebOmieParaRow(reg: Json, contaLowStr: string): RecebRow | null {
-  const cab = (pick<Json>(reg, 'cabecalho', 'cabec') as Json) || reg;
-  const ide = (pick<Json>(reg, 'ide', 'identificacao') as Json) || {};
-  const forn = (pick<Json>(reg, 'fornecedor', 'emitente') as Json) || {};
+// Deriva o status legível ('Faturada'/'Recebida'/'Cancelada') a partir dos flags de
+// infoCadastro (fonte da verdade da Omie), com fallback pela etapa. Os consumidores do
+// espelho filtram por essas strings (.eq('status','Faturada'/'Recebida'), .neq('Cancelada')).
+function statusReceb(info: Json, etapa: string): string {
+  if (String(pick(info, 'cCancelada') ?? '') === 'S') return 'Cancelada';
+  if (String(pick(info, 'cRecebido') ?? '') === 'S') return 'Recebida';
+  if (String(pick(info, 'cFaturado') ?? '') === 'S') return 'Faturada';
+  const e = String(etapa || '').replace(/\D/g, '');
+  if (e === '60' || e === '80') return 'Recebida';
+  if (e === '40') return 'Faturada';
+  return '';
+}
 
-  const idReceb = num(pick(reg, 'nIdReceb', 'idReceb', 'nId') ?? pick(cab, 'nIdReceb', 'idReceb', 'nId'));
+// Achata um item de itensRecebimento (cExibirDetalhes:'S') para o objeto plano que os
+// consumidores do espelho leem: itemInfo (recebimentos-omie), parseItem (DRE composição),
+// classificarReceb (cCFOP/cDescricao) e remessas-sync (cCFOP + nCodProduto).
+function itemRecebParaProduto(it: Json): Json {
+  const cabec = (pick<Json>(it, 'itensCabec') as Json) || {};
+  const ajustes = (pick<Json>(it, 'itensAjustes') as Json) || {};
+  return {
+    nSequencia: num(pick(cabec, 'nSequencia')),
+    cCodigo: String(pick(cabec, 'cCodigoProduto') ?? ''),
+    nCodProduto: num(pick(cabec, 'nIdProduto')),
+    cDescricao: String(pick(cabec, 'cDescricaoProduto') ?? ''),
+    cNCM: String(pick(cabec, 'cNCM') ?? ''),
+    cCFOP: String(pick(cabec, 'cCFOP') ?? ''),
+    cCFOPEntrada: String(pick(ajustes, 'cCFOPEntrada') ?? ''),
+    nQtde: num(pick(cabec, 'nQtdeNFe') ?? pick(ajustes, 'nQtdeRecebida')),
+    nValUnit: num(pick(cabec, 'nPrecoUnit')),
+    vTotal: num(pick(cabec, 'vTotalItem')),
+    cAdicionarNovo: String(pick(cabec, 'cAdicionarNovo') ?? ''),
+    cAssociarExistente: String(pick(cabec, 'cAssociarExistente') ?? ''),
+  };
+}
+
+// Constrói a linha de recebimentos_nfe a partir de um registro cru da Omie
+// (ListarRecebimentos com cExibirDetalhes:'S'). Shape: { cabec, infoCadastro,
+// infoAdicionais, itensRecebimento, ... }. pick() defensivo mantido para robustez.
+function recebOmieParaRow(reg: Json, contaLowStr: string): RecebRow | null {
+  const cab = (pick<Json>(reg, 'cabec', 'cabecalho') as Json) || reg;
+  const info = (pick<Json>(reg, 'infoCadastro') as Json) || {};
+  const infoAdic = (pick<Json>(reg, 'infoAdicionais') as Json) || {};
+
+  const idReceb = num(pick(cab, 'nIdReceb', 'idReceb') ?? pick(reg, 'nIdReceb', 'idReceb'));
   if (!idReceb) return null;
 
-  const chave = String(pick(reg, 'cChaveNfe', 'cChaveNFe', 'chave_nfe') ?? pick(cab, 'cChaveNfe', 'cChaveNFe') ?? pick(ide, 'cChaveNfe', 'cChaveNFe') ?? '');
-  const numeroNfe = String(pick(reg, 'nNF', 'numero_nfe', 'cNumero') ?? pick(ide, 'nNF', 'numero') ?? pick(cab, 'nNF', 'numero') ?? '');
-  const serieNfe = String(pick(reg, 'serie', 'serie_nfe', 'cSerie') ?? pick(ide, 'serie') ?? pick(cab, 'serie') ?? '');
-  const emissao = dataParaIso(pick(reg, 'dEmi', 'data_emissao', 'dDtEmissao') ?? pick(ide, 'dEmi', 'dEmissao') ?? pick(cab, 'dEmi'));
-  const etapa = String(pick(reg, 'cEtapa', 'etapa') ?? pick(cab, 'cEtapa', 'etapa') ?? '');
-  const status = String(pick(reg, 'cDescEtapa', 'status', 'cEtapaDescr') ?? pick(cab, 'cDescEtapa', 'status') ?? '');
+  const chave = String(pick(cab, 'cChaveNFe', 'cChaveNfe') ?? pick(reg, 'cChaveNFe', 'cChaveNfe') ?? '');
+  const numeroNfe = String(pick(cab, 'cNumeroNFe', 'nNF') ?? '');
+  const serieNfe = String(pick(cab, 'cSerieNFe', 'serie') ?? '');
+  const emissao = dataParaIso(pick(cab, 'dEmissaoNFe', 'dEmi'));
+  const etapa = String(pick(cab, 'cEtapa') ?? '');
+  const status = statusReceb(info, etapa);
 
   // id_fornecedor é bigint na tabela real — mantém numérico (0 = desconhecido).
-  const idFornecedor = num(pick(reg, 'nCodFor', 'id_fornecedor', 'codigo_cliente_fornecedor') ?? pick(forn, 'nCodFor', 'codigo_cliente_fornecedor'));
-  const fornecedor = String(pick(reg, 'cNomeFor', 'fornecedor', 'cNome') ?? pick(forn, 'cNomeFor', 'cNome', 'nome_fantasia') ?? '');
-  const fornecedorRazao = String(pick(reg, 'cRazaoFor', 'fornecedor_razao', 'cRazao') ?? pick(forn, 'cRazaoFor', 'cRazao', 'razao_social') ?? '');
-  const fornecedorCnpj = String(pick(reg, 'cCnpjFor', 'fornecedor_cnpj', 'cnpj_cpf') ?? pick(forn, 'cCnpjFor', 'cnpj_cpf') ?? '');
-  const totalNfe = num(pick(reg, 'nValorNF', 'total_nfe', 'nValor', 'nTotal') ?? pick(cab, 'nValorNF', 'nValor'));
+  const idFornecedor = num(pick(cab, 'nIdFornecedor', 'nCodFor'));
+  const fornecedor = String(pick(cab, 'cNome', 'cNomeFor') ?? '');
+  const fornecedorRazao = String(pick(cab, 'cRazaoSocial', 'cRazaoFor') ?? '');
+  const fornecedorCnpj = String(pick(cab, 'cCNPJ_CPF', 'cCnpjFor') ?? '');
+  const totalNfe = num(pick(cab, 'nValorNFe', 'nValorNF'));
 
-  const produtosRaw = pick<unknown>(reg, 'produtos', 'det', 'itens', 'listaProdutos');
-  const maquinasRaw = pick<unknown>(reg, 'maquinas', 'listaMaquinas');
-  const produtos = Array.isArray(produtosRaw) ? (produtosRaw as Json[]) : [];
-  const maquinas = Array.isArray(maquinasRaw) ? (maquinasRaw as Json[]) : [];
+  const itensRaw = pick<unknown>(reg, 'itensRecebimento', 'produtos', 'itens');
+  const itens = Array.isArray(itensRaw) ? (itensRaw as Json[]) : [];
+  const produtos = itens.map(itemRecebParaProduto);
+  // O ListarRecebimentos não separa máquinas — NF de fornecedor é peças/almoxarifado.
+  const maquinas: Json[] = [];
 
   return {
     id_receb: idReceb,
@@ -491,7 +528,9 @@ function recebOmieParaRow(reg: Json, contaLowStr: string): RecebRow | null {
     etapa: etapa || null,
     status: status || null,
     id_fornecedor: idFornecedor || null,
-    dados_raw: reg,
+    // dados_raw enxuto: só cabeçalho + auditoria (evita inflar a tabela com os blocos de
+    // imposto de itensRecebimento). Carrega cUsuarioInc/dInc p/ uso futuro ("quem deu entrada").
+    dados_raw: { cabec: cab, infoCadastro: info, infoAdicionais: infoAdic },
     fornecedor: fornecedor || null,
     fornecedor_razao: fornecedorRazao || null,
     fornecedor_cnpj: fornecedorCnpj || null,
@@ -505,10 +544,12 @@ function recebOmieParaRow(reg: Json, contaLowStr: string): RecebRow | null {
 
 interface ListarRecebOmieResp {
   faultstring?: string;
+  nTotalPaginas?: number;
+  nTotalRegistros?: number;
   total_de_paginas?: number;
   nTotPaginas?: number;
-  recebimento_cadastro?: Json[];
   recebimentos?: Json[];
+  recebimento_cadastro?: Json[];
   cadastros?: Json[];
 }
 
@@ -531,7 +572,9 @@ export async function sincronizarRecebimentos(conta: Conta): Promise<RecebSyncEs
       const r = await omieRequest<ListarRecebOmieResp>(
         URL_RECEBIMENTO,
         'ListarRecebimentos',
-        { pagina: pag, registros_por_pagina: 50, apenas_importado_api: 'N' },
+        // Contrato atual da Omie (rcbtoListarRequest): nPagina/nRegistrosPorPagina;
+        // cExibirDetalhes:'S' traz itensRecebimento (senão a lista vem sem itens).
+        { nPagina: pag, nRegistrosPorPagina: 50, cExibirDetalhes: 'S', cOrdenarPor: 'CODIGO' },
         { conta, retries: 3, maxWaitMs: 120_000 },
       );
       if (r.faultstring) {
@@ -540,7 +583,7 @@ export async function sincronizarRecebimentos(conta: Conta): Promise<RecebSyncEs
         estado.erro = r.faultstring;
         break;
       }
-      const lista = (r.recebimento_cadastro || r.recebimentos || r.cadastros || []) as Json[];
+      const lista = (r.recebimentos || r.recebimento_cadastro || r.cadastros || []) as Json[];
       if (lista.length === 0) break;
 
       const rows: RecebRow[] = [];
@@ -558,7 +601,7 @@ export async function sincronizarRecebimentos(conta: Conta): Promise<RecebSyncEs
       }
       estado.paginas = pag;
 
-      const totalPag = r.total_de_paginas || r.nTotPaginas || 0;
+      const totalPag = r.nTotalPaginas || r.total_de_paginas || r.nTotPaginas || 0;
       if (totalPag && pag >= totalPag) break;
       if (lista.length < 50) break;
       pag++;

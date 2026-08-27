@@ -13,7 +13,7 @@ import { supabase } from './supabase';
 import * as cache from './cache';
 import { getConfig } from './config';
 import { analisarRecebimentosPendentes } from './analise';
-import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos, formatarCfopEntrada } from './omie';
+import { alterarRecebimentoItens, alterarRecebimentoCabec, concluirRecebimento, obterPosicaoEstoqueProduto, listarRecebimentos, formatarCfopEntrada, consultarObservacaoReceb } from './omie';
 import type { AlterarCabecArgs } from './omie';
 import { hoje, addDias, fmtBR, parseAnyDate } from './dates';
 
@@ -30,6 +30,16 @@ function diasRecentes(): number {
 // modulo /ajustes e MAIUSCULA. Esta ponte e obrigatoria p/ casar com recebimento_meta.
 function contaLow(c: Conta): string {
   return String(c).toLowerCase();
+}
+
+/** Data+hora atual no fuso de São Paulo, formato "DD/MM/AAAA HH:mm" (p/ carimbo Omie). */
+function agoraBR(): string {
+  const p = new Intl.DateTimeFormat('pt-BR', {
+    timeZone: 'America/Sao_Paulo',
+    day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date());
+  const g = (t: string) => p.find((x) => x.type === t)?.value ?? '';
+  return `${g('day')}/${g('month')}/${g('year')} ${g('hour')}:${g('minute')}`;
 }
 
 /** Grava log interno (Supabase) de uma acao desta tela. Best-effort, nao bloqueia. */
@@ -619,16 +629,33 @@ export async function darEntradaRecebimento(b: DarEntradaArgs): Promise<any> {
     alterado = await alterarRecebimentoItens(conta, { idReceb, chaveNFe, itens: itensEditar });
   }
 
+  // Carimbo "quem deu entrada" na OBSERVACAO do Omie (o portal já registra em
+  // recebimento_entrada_log; no Omie a conclusão via API aparece só como "WEBSERVICE").
+  // ANEXA ao que já existe (lê a observação atual e concatena), sem duplicar.
+  let observacoesFinal: string | null = b.observacoes ?? null;
+  const quemEntrada = (b.userNome ?? b.criadoPor ?? '').trim();
+  if (quemEntrada) {
+    const carimbo = `Entrada dada por ${quemEntrada} (portal) em ${agoraBR()}`;
+    let obsAtual: string | null = null;
+    try { obsAtual = await consultarObservacaoReceb(conta, { idReceb, chaveNFe }); } catch { /* best-effort */ }
+    // idempotência: se já houver um carimbo deste mesmo usuário, não anexa de novo.
+    if (!(obsAtual && obsAtual.includes(`Entrada dada por ${quemEntrada} (portal)`))) {
+      observacoesFinal = [obsAtual, b.observacoes, carimbo].filter((s) => s && String(s).trim()).join('\n');
+    } else {
+      observacoesFinal = [obsAtual, b.observacoes].filter((s) => s && String(s).trim()).join('\n') || null;
+    }
+  }
+
   // passe 3: campos de CABECALHO (categoria/conta/data, observacoes, parcelas) numa
   // chamada SEPARADA (validado: AlterarRecebimento aceita infoAdicionais/observacoes/
   // parcelasEditar sem itensRecebimentoEditar). infoAdicionais e' all-or-nothing.
   let cabecAlterado: any = null;
-  if (b.infoAdicionais || b.observacoes != null || b.parcelas) {
+  if (b.infoAdicionais || observacoesFinal != null || b.parcelas) {
     try {
       cabecAlterado = await alterarRecebimentoCabec(conta, {
         idReceb, chaveNFe,
         infoAdicionais: b.infoAdicionais ?? null,
-        observacoes: b.observacoes ?? null,
+        observacoes: observacoesFinal ?? null,
         parcelasEditar: b.parcelas ?? null,
       });
     } catch (e: any) {
