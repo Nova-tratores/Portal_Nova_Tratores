@@ -259,13 +259,16 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
                     <div style={{ flex: 1, overflow: 'auto', display: 'flex', flexDirection: 'column', gap: 5 }}>
                       {preview.produtos.map((p) => {
                         const on = !!sel[p.codigo]
+                        // divs + larguras explícitas + cores #111111/#8a8a8a:
+                        // imunes às regras globais do POS/modo escuro que
+                        // espremiam os spans numa coluninha vertical
                         return (
-                          <label key={p.codigo} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 11px', borderRadius: 9, border: `1px solid ${on ? '#f5c99a' : '#eee'}`, background: on ? '#fff' : '#fafafa', cursor: 'pointer' }}>
-                            <input type="checkbox" checked={on} onChange={(e) => setSel((s) => ({ ...s, [p.codigo]: e.target.checked }))} />
-                            <span style={{ flex: 1, minWidth: 0 }}>
-                              <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#1a1a1a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.descricao}</span>
-                              <span style={{ display: 'block', fontSize: 11, color: '#a3a3a3' }}>{p.codigo} · {p.quantidade}x · R$ {p.preco.toFixed(2)}</span>
-                            </span>
+                          <label key={p.codigo} style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 9, border: `1px solid ${on ? '#f5c99a' : '#eee'}`, background: on ? '#fff' : '#fafafa', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={on} style={{ flexShrink: 0, width: 16, height: 16 }} onChange={(e) => setSel((s) => ({ ...s, [p.codigo]: e.target.checked }))} />
+                            <div style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textAlign: 'left' }}>
+                              <div style={{ fontSize: 13, fontWeight: 600, color: '#111111', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.descricao || p.codigo}</div>
+                              <div style={{ fontSize: 11, color: '#8a8a8a', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.codigo} · {p.quantidade}x · R$ {p.preco.toFixed(2)}</div>
+                            </div>
                           </label>
                         )
                       })}
