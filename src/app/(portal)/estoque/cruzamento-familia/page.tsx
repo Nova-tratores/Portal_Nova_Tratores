@@ -528,12 +528,15 @@ export default function CruzamentoFamiliaPage() {
           const linhas = pts.map((p, i) => {
             const est = val(p, `estoque_${g}`);
             const estPrev = i > 0 ? val(pts[i - 1], `estoque_${g}`) : null;
-            const entrada = Number(p[`entrada_${g}`] || 0);
+            // Entrada = só COMPRA REAL (CFOP de compra, a custo CMC). Retorno/devolução/
+            // garantia/transferência vão na coluna "não-compra" (fora do Fluxo).
+            const entrada = Number(p[`entrada_compra_${g}`] || 0);
+            const naoCompra = Number(p[`entrada_naocompra_${g}`] || 0);
             const cogs = Number(p[`cogs_${g}`] || 0);
             const fluxo = entrada - cogs;
             const varEst = est != null && estPrev != null ? est - estPrev : null;
             const residuo = varEst == null ? null : varEst - fluxo;
-            return { periodo: String(p.periodo), est, varEst, entrada, cogs, fluxo, residuo };
+            return { periodo: String(p.periodo), est, varEst, entrada, naoCompra, cogs, fluxo, residuo };
           });
           const comRes = linhas.filter((l) => l.residuo != null) as Array<{ residuo: number }>;
           const resAcum = comRes.reduce((s, l) => s + l.residuo, 0);
@@ -555,7 +558,8 @@ export default function CruzamentoFamiliaPage() {
                   <thead><tr>
                     <th style={thStyle}>Mês</th>
                     <th style={{ ...thNum, color: corEstoque }}>Estoque (fim)</th>
-                    <th style={{ ...thNum, color: '#16a34a' }}>Entrada (custo)</th>
+                    <th style={{ ...thNum, color: '#16a34a' }}>Entrada (compra)</th>
+                    <th style={{ ...thNum, color: '#9ca3af' }} title="Retorno de demonstração, devolução de venda, garantia recebida e transferência entre lojas — não são compra, ficam fora do Fluxo/Resíduo.">Não-compra</th>
                     <th style={{ ...thNum, color: '#dc2626' }}>Saída (custo/COGS)</th>
                     <th style={thNum}>Δ Estoque</th>
                     <th style={thNum}>Fluxo (E−S)</th>
@@ -570,6 +574,7 @@ export default function CruzamentoFamiliaPage() {
                           onClick={() => l.entrada && abrirPopupSerie({ key: `nf_entrada_${g}`, label: `Entrada ${g === 'peca' ? 'Peça' : 'Máquina'}`, cor: '#16a34a' }, pts[i])}>
                           {l.entrada ? fmtRS0(l.entrada) : '—'}
                         </td>
+                        <td style={{ ...tdNum, color: l.naoCompra ? '#9ca3af' : '#ddd' }}>{l.naoCompra ? fmtRS0(l.naoCompra) : '—'}</td>
                         <td style={{ ...tdNum, color: l.cogs ? '#dc2626' : '#bbb' }}>{l.cogs ? fmtRS0(l.cogs) : '—'}</td>
                         <td style={{ ...tdNum, color: l.varEst == null ? '#bbb' : l.varEst >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(l.varEst)}</td>
                         <td style={{ ...tdNum, color: l.fluxo >= 0 ? '#16a34a' : '#dc2626' }}>{fmtSig(l.fluxo)}</td>
@@ -580,7 +585,7 @@ export default function CruzamentoFamiliaPage() {
                 </table>
               </div>
               <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
-                Reconciliação em <strong>custo</strong>: Estoque, Entrada (valor da NF de entrada) e <strong>Saída a custo (COGS = CMC × qtd)</strong> — todos na mesma base. <strong>Resíduo</strong> = Δ Estoque − (Entrada − Saída) = o que <strong>não fecha</strong> no mês. Resíduo grande costuma ser <strong>saída não registrada</strong> (OS interna/frota, garantia, cortesia), <strong>ajuste de inventário</strong> ou diferença de <strong>base de valoração</strong>. Atenção: a Saída aqui é o <strong>custo</strong> dos itens vendidos, <strong>não a receita</strong> (faturamento). Meses sem snapshot de estoque não têm Δ nem resíduo. {g === 'maquina' && 'Obs.: compras de máquina muitas vezes não passam por NF de entrada, então a Entrada de máquina é incompleta — leia o resíduo com ressalva.'}
+                Reconciliação em <strong>custo (CMC)</strong>: Estoque, <strong>Entrada (só compra real — CFOP de compra, a custo CMC que já embute impostos/frete)</strong> e <strong>Saída a custo (COGS = CMC × qtd)</strong> — todos na mesma base. A coluna <strong>Não-compra</strong> (retorno de demonstração, devolução de venda, garantia recebida, transferência entre lojas) fica <strong>fora</strong> do Fluxo/Resíduo. <strong>Resíduo</strong> = Δ Estoque − (Entrada − Saída) = o que <strong>não fecha</strong> no mês, agora sinalizando de fato <strong>saída não registrada</strong> (OS interna/frota, cortesia) ou <strong>ajuste de inventário/CMC</strong>. Atenção: a Saída aqui é o <strong>custo</strong> dos itens vendidos, <strong>não a receita</strong> (faturamento). Meses sem snapshot de estoque não têm Δ nem resíduo. {g === 'maquina' && 'Obs.: compras de máquina muitas vezes não passam por NF de entrada, então a Entrada de máquina é incompleta — leia o resíduo com ressalva.'}
               </p>
             </>
           );
