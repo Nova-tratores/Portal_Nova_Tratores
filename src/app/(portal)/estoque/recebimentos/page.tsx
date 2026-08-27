@@ -239,6 +239,8 @@ export default function RecebimentosPage() {
   const [tipoFiltro, setTipoFiltro] = useState('');
   const [respFiltro, setRespFiltro] = useState<'todas' | 'me' | '__nenhum__'>('todas');
   const [soGarantia, setSoGarantia] = useState(false);
+  // modo da tela: pendentes (default) x "Entradas feitas" (histórico do log)
+  const [modo, setModo] = useState<'pendentes' | 'entradas'>('pendentes');
 
   // ordenacao/filtro por coluna (nivel NF)
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 } | null>(null);
@@ -384,6 +386,15 @@ export default function RecebimentosPage() {
         </div>
       ) : (
         <>
+          {/* Alternância: Pendentes | Entradas feitas */}
+          <div style={{ display: 'flex', gap: 12, marginBottom: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+            <Toggle value={modo} onChange={(v) => setModo(v as 'pendentes' | 'entradas')}
+              options={[{ v: 'pendentes', l: 'Pendentes' }, { v: 'entradas', l: 'Entradas feitas' }]} />
+          </div>
+          {modo === 'entradas' && (
+            <EntradasView conta={conta} userId={userProfile?.id || null} />
+          )}
+          {modo === 'pendentes' && (<>
           {/* Atalhos rápidos: chips por tipo */}
           <div style={{ display: 'flex', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
             {TIPOS_CHIP.map((t) => (
@@ -481,6 +492,7 @@ export default function RecebimentosPage() {
               Recalcula tudo na Omie ignorando o cache — leva ~1-2 min. Use só quando precisar do estado mais recente; a lista normal já vem do cache.
             </span>
           </div>
+          </>)}
         </>
       )}
 
@@ -578,6 +590,101 @@ function NotaFiscalAcoes({ chave, idReceb, conta }: { chave?: string | null; idR
       {chaveDig && <button type="button" onClick={consultarSefaz} title="Copia a chave e abre a consulta pública da SEFAZ" style={btn}>consultar (SEFAZ)</button>}
       <button type="button" onClick={verDanfe} disabled={carregando} style={{ ...btn, opacity: carregando ? 0.6 : 1, cursor: carregando ? 'wait' : 'pointer' }}>{carregando ? '…' : 'ver DANFE'}</button>
     </span>
+  );
+}
+
+// ---------- visão "Entradas feitas" (histórico do recebimento_entrada_log) ----------
+interface EntradaLog {
+  id: number; idReceb: number | null; numeroNFe: string | null; serie: string | null;
+  tipo: string | null; acao: string; userNome: string | null; createdAt: string;
+  fornecedor: string | null; valor: number | null; emissao: string | null;
+  chaveNFe: string | null; status: string | null; descStatus: string | null;
+}
+function fmtDataHora(iso?: string | null): string {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return String(iso);
+  return d.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function EntradasView({ conta, userId }: { conta: string; userId: string | null }) {
+  const [escopo, setEscopo] = useState<'minhas' | 'equipe'>('minhas');
+  const [linhas, setLinhas] = useState<EntradaLog[]>([]);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  useEffect(() => {
+    if (!conta) return;
+    let cancel = false;
+    setCarregando(true); setErro('');
+    let qs = `conta=${encodeURIComponent(conta)}&escopo=${escopo}`;
+    if (escopo === 'minhas' && userId) qs += `&userId=${encodeURIComponent(userId)}`;
+    fetch(`/api/ajustes/recebimentos/entradas?${qs}`)
+      .then((r) => r.json())
+      .then((d) => { if (cancel) return; if (d.erro) setErro(d.erro); else setLinhas((d.entradas || []) as EntradaLog[]); })
+      .catch((e) => { if (!cancel) setErro(String(e?.message || e)); })
+      .finally(() => { if (!cancel) setCarregando(false); });
+    return () => { cancel = true; };
+  }, [conta, escopo, userId]);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+        <Toggle value={escopo} onChange={(v) => setEscopo(v as 'minhas' | 'equipe')}
+          options={[{ v: 'minhas', l: 'Minhas' }, { v: 'equipe', l: 'Equipe' }]} />
+        <span style={{ fontSize: '.72rem', color: '#64748b' }}>
+          {carregando ? 'carregando…' : `${linhas.length} ${linhas.length === 1 ? 'registro' : 'registros'}`}
+        </span>
+        {!userId && escopo === 'minhas' && <span style={{ fontSize: '.68rem', color: '#b45309' }}>(sem usuário identificado — use "Equipe")</span>}
+      </div>
+
+      {erro && <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem' }}>{erro}</div>}
+
+      {linhas.length === 0 && !carregando ? (
+        <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 40, textAlign: 'center', color: '#94a3b8' }}>
+          {escopo === 'minhas' ? 'Você ainda não deu entrada em nenhuma nota por aqui.' : 'Nenhuma entrada registrada nesta conta.'}
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+            <thead>
+              <tr>
+                <th style={thStyle}>NF</th>
+                <th style={thStyle}>Fornecedor</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Valor</th>
+                <th style={thStyle}>Tipo</th>
+                <th style={thStyle}>Ação</th>
+                <th style={thStyle}>Quando</th>
+                <th style={thStyle}>Quem</th>
+                <th style={thStyle}>NF-e</th>
+              </tr>
+            </thead>
+            <tbody>
+              {linhas.map((l) => {
+                const ehCorrecao = l.acao === 'correcao_cmc';
+                return (
+                  <tr key={l.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                    <td style={{ ...tdStyle, fontWeight: 600, color: '#1e293b' }}>NF {l.numeroNFe || '?'}{l.serie ? `/${l.serie}` : ''}</td>
+                    <td style={tdStyle} title={l.fornecedor || ''}>{l.fornecedor || <span style={{ color: '#cbd5e1' }}>—</span>}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtBRL(l.valor)}</td>
+                    <td style={tdStyle}>
+                      {l.tipo ? <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fff', border: `1px solid ${TIPO_COR[l.tipo] || '#cbd5e1'}`, color: TIPO_COR[l.tipo] || '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>{TIPO_LABEL[l.tipo] || l.tipo}</span> : <span style={{ color: '#cbd5e1' }}>—</span>}
+                    </td>
+                    <td style={tdStyle}>
+                      <span style={{ fontSize: '.68rem', padding: '2px 8px', borderRadius: 6, whiteSpace: 'nowrap', background: ehCorrecao ? '#fef3c7' : '#dcfce7', color: ehCorrecao ? '#92400e' : '#166534' }}>
+                        {ehCorrecao ? 'correção de custo' : 'entrada'}
+                      </span>
+                    </td>
+                    <td style={{ ...tdStyle, whiteSpace: 'nowrap', fontSize: '.75rem', color: '#64748b' }}>{fmtDataHora(l.createdAt)}</td>
+                    <td style={{ ...tdStyle, whiteSpace: 'nowrap' }}>{l.userNome || '—'}</td>
+                    <td style={tdStyle}><NotaFiscalAcoes chave={l.chaveNFe} idReceb={l.idReceb} conta={conta} /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
 
