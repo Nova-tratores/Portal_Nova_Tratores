@@ -920,7 +920,7 @@ export default function PPVDrawer({
                       {/* ── Cabeçalho estilo Omie ── */}
                       <div className="ppv-omie-head" style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 4, padding: "12px 14px", marginBottom: 12 }}>
                         {/* Cliente + Consulta de Crédito + Previsão de Faturamento */}
-                        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
+                        <div className="ppv-g-cliente" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
                           <div>
                             <label style={labelOmie}>Cliente</label>
                             <div style={{ display: "flex", gap: 8 }}>
@@ -952,7 +952,7 @@ export default function PPVDrawer({
                         </div>
 
                         {/* Totais estilo Omie (caixas cinza) — sem IPI/ICMS ST, com Custo (CMC) */}
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 12 }}>
+                        <div className="ppv-g-totais" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 12 }}>
                           <div>
                             <div style={rotOmie}>Total de Mercadorias</div>
                             <div style={boxOmie}>{formatarMoeda(totalSemDesconto)}</div>
@@ -995,7 +995,7 @@ export default function PPVDrawer({
                         </div>
 
                         {/* Vendedor · Número de Parcelas · Cenário Fiscal */}
-                        <div style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
+                        <div className="ppv-g-vendedor" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
                           <div>
                             <label style={labelOmie}>Vendedor</label>
                             <div style={{ display: "flex", gap: 8 }}>
@@ -1120,7 +1120,7 @@ export default function PPVDrawer({
                   {abaAtiva === "Informações sobre" && (
                   <div className="ppv-card">
                     <div className="ppv-card-title"><i className="fas fa-file-invoice-dollar" /> Informações Adicionais (Omie)</div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1.3fr 1.3fr 0.9fr", gap: 16 }}>
+                    <div className="ppv-g-empilha" style={{ display: "grid", gridTemplateColumns: "1.3fr 1.3fr 0.9fr", gap: 16 }}>
                       <div>
                         <label>Categoria</label>
                         <select value={infoCategoria} onChange={(e) => setInfoCategoria(e.target.value)} style={{ marginBottom: 0 }}>
@@ -1142,7 +1142,7 @@ export default function PPVDrawer({
                         </select>
                       </div>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1.1fr 0.8fr", gap: 16, marginTop: 16 }}>
+                    <div className="ppv-g-empilha" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1.1fr 0.8fr", gap: 16, marginTop: 16 }}>
                       <div>
                         <label>N° do Pedido do Cliente <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#94a3b8" }}>(POS vinculado)</span></label>
                         <input type="text" value={modalOSDisplay} readOnly onClick={onBuscaOS} placeholder="Clique para vincular O.S." title="Vincular O.S. (POS) ao PPV" style={{ marginBottom: 0, fontWeight: 600, cursor: "pointer" }} />
@@ -1340,9 +1340,9 @@ export default function PPVDrawer({
 
                     {/* Lista de produtos — tabela estilo Omie */}
                     {produtosComSaldo.length > 0 && (
-                      <div style={{ border: "1px solid var(--ppv-border, #E2E8F0)", borderRadius: 4, overflow: "hidden" }}>
+                      <div className="ppv-tabela-itens" style={{ border: "1px solid var(--ppv-border, #E2E8F0)", borderRadius: 4, overflow: "hidden" }}>
                         {/* Cabeçalho */}
-                        <div style={{ display: "grid", gridTemplateColumns: "150px 60px minmax(140px,1fr) 130px 116px 116px 210px 44px", gap: 10, alignItems: "center", padding: "9px 16px", background: "#edeae4", borderBottom: "1px solid #d8d2c6", fontSize: 12, fontWeight: 600, color: "#5f574c", letterSpacing: 0.2 }}>
+                        <div className="ppv-item-linha" style={{ display: "grid", gridTemplateColumns: "150px 60px minmax(140px,1fr) 130px 116px 116px 210px 44px", gap: 10, alignItems: "center", padding: "9px 16px", background: "#edeae4", borderBottom: "1px solid #d8d2c6", fontSize: 12, fontWeight: 600, color: "#5f574c", letterSpacing: 0.2 }}>
                           <span>Produto <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "center" }}>Qtd <span style={{ color: "#b7b0a3" }}>»</span></span><span>Descrição <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Custo (CMC) <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Preço un. <span style={{ color: "#b7b0a3" }}>»</span></span><span style={{ textAlign: "right" }}>Total <span style={{ color: "#b7b0a3" }}>»</span></span><span>Categoria <span style={{ color: "#b7b0a3" }}>»</span></span><span />
                         </div>
                         {produtosComSaldo.map((p, i) => {
@@ -1351,7 +1351,7 @@ export default function PPVDrawer({
                           const editando = editandoPrecoCod === p.codigo;
                           const isPrimario = (p.empresa || "").toLowerCase().includes("primari");
                           return (
-                            <div key={p.codigo} style={{ display: "grid", gridTemplateColumns: "150px 60px minmax(140px,1fr) 130px 116px 116px 210px 44px", gap: 10, alignItems: "center", padding: "12px 16px", borderBottom: i < produtosComSaldo.length - 1 ? "1px solid #E2E8F0" : "none", background: itemSelecionado === p.codigo ? "#fff2df" : isDevolvido ? "#FAFAFA" : "#fff", opacity: isDevolvido ? 0.7 : 1, fontSize: 14 }}>
+                            <div key={p.codigo} className="ppv-item-linha" style={{ display: "grid", gridTemplateColumns: "150px 60px minmax(140px,1fr) 130px 116px 116px 210px 44px", gap: 10, alignItems: "center", padding: "12px 16px", borderBottom: i < produtosComSaldo.length - 1 ? "1px solid #E2E8F0" : "none", background: itemSelecionado === p.codigo ? "#fff2df" : isDevolvido ? "#FAFAFA" : "#fff", opacity: isDevolvido ? 0.7 : 1, fontSize: 14 }}>
                               {/* Produto */}
                               <div style={{ minWidth: 0, display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
                                 <button type="button" onClick={() => setDetalheProd({ codigo: p.codigo, descricao: p.descricao, conta: isPrimario ? "CASTRO" : "NOVA", quantidade: p.saldo, preco: p.preco })}

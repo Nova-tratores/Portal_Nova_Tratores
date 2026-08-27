@@ -2740,6 +2740,60 @@ body {
   .ppv-status-grid { grid-template-columns: repeat(3, 1fr); }
   .ppv-values-grid { grid-template-columns: 1fr; }
   .ppv-summary-total { font-size: 18px; }
+
+  /* ===== Drawer do pedido no CELULAR =====
+     O que quebrava: .ppv-action-rail tem 210px FIXOS ao lado do conteúdo.
+     Numa tela de 390px sobravam ~180px pro pedido inteiro — as abas viravam
+     lista vertical e os campos ficavam num filete. Aqui a coluna de ações vira
+     uma BARRA INFERIOR (padrão de app), e o conteúdo fica com a largura toda.
+     Os três primeiros botões da barra já são, na ordem do DOM, os que a
+     oficina usa no balcão: Salvar, Incluir e Liberação (QR). */
+  .ppv-modal-container,
+  .ppv-modal-container.fs { flex-direction: column; }
+  .ppv-modal-container.fs .ppv-drawer { flex: 1; min-height: 0; max-height: none; }
+
+  .ppv-action-rail {
+    width: auto; align-self: auto; flex-shrink: 0;
+    flex-direction: row; gap: 4px;
+    border-left: none; border-top: 1px solid #E2E8F0;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px));
+    overflow-x: auto; overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+  /* rolagem horizontal sem barra à mostra (o corte do último item já indica) */
+  .ppv-action-rail::-webkit-scrollbar { height: 0; }
+  .ppv-rail-btn {
+    flex-direction: column; justify-content: center; gap: 4px;
+    min-width: 76px; width: auto; flex-shrink: 0;
+    padding: 8px 6px; font-size: 10.5px; line-height: 1.2; text-align: center;
+  }
+  .ppv-rail-btn i { width: auto; font-size: 18px; }
+  .ppv-rail-sep { width: 1px; height: auto; margin: 6px 4px; flex-shrink: 0; }
+
+  /* topo: título, nº do pedido e fase deixam de disputar a mesma linha */
+  .ppv-omie-topbar { padding: 8px 12px; gap: 8px; flex-wrap: wrap; }
+  .ppv-omie-title { font-size: 15px; }
+  .ppv-omie-fase { max-width: 100%; flex: 1; }
+  .ppv-omie-head { padding: 12px !important; }
+
+  /* Os grids do cabeçalho são inline no componente (React serializa em
+     style=""), então só !important alcança. Sem isto o "Total de Mercadorias"
+     e o "Valor Total" ficam em colunas de ~80px. */
+  .ppv-g-cliente,
+  .ppv-g-vendedor,
+  .ppv-g-empilha { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .ppv-g-totais { grid-template-columns: repeat(2, 1fr) !important; gap: 10px !important; }
+
+  /* Itens da venda: 8 colunas fixas somam ~970px. Em vez de espremer (o que
+     tornaria código e preço ilegíveis), a tabela rola na horizontal DENTRO da
+     própria caixa — a página não ganha rolagem lateral. */
+  .ppv-tabela-itens { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .ppv-tabela-itens .ppv-item-linha { min-width: 940px; }
+
+  /* iOS dá zoom sozinho em campo com fonte < 16px, e o zoom não volta */
+  .ppv-drawer input,
+  .ppv-drawer select,
+  .ppv-drawer textarea { font-size: 16px; }
 }
 
 /* ============================================
