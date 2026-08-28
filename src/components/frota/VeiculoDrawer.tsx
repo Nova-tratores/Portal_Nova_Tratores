@@ -613,6 +613,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
               {/* Mapa de SISTEMAS (taxonomia) — azulejo vermelho piscando = pendência aberta */}
               <SistemasVeiculo
                 placa={placa}
+                veiculo={v}
                 onAbrirHistorico={(sistema) => {
                   // clique num ponto com pendência: abre o Histórico já filtrado
                   setFiltroSistemaHist(sistema);

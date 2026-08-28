@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import DiagramaVeiculo from '@/components/frota/DiagramaVeiculo';
+import { silhuetaDoVeiculo } from '@/lib/frota/silhueta';
 import {
   contarPorGravidade, GRAVIDADES, GRAVIDADE_AJUDA,
   GRAVIDADE_COR, GRAVIDADE_LABEL, type ContagemGravidade,
@@ -47,8 +48,10 @@ const ICONE_SISTEMA: Record<string, any> = {
 
 const fmtData = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString('pt-BR') : '—');
 
-export default function SistemasVeiculo({ placa, onAbrirHistorico }: {
+export default function SistemasVeiculo({ placa, veiculo, onAbrirHistorico }: {
   placa: string;
+  /** marca/modelo do carro — decide QUAL desenho aparece no mapa */
+  veiculo?: { tipo_veiculo?: string | null; marca?: string | null; modelo?: string | null; descricao?: string | null } | null;
   /** clique num ponto ACESO do mapa: o pai leva pro Histórico de pendências
    *  filtrado nesse sistema. Sem o callback, o mapa só faz o drill-down local. */
   onAbrirHistorico?: (sistema: string) => void;
@@ -205,6 +208,7 @@ export default function SistemasVeiculo({ placa, onAbrirHistorico }: {
           carro. Clicar num ponto abre o mesmo drill-down do azulejo. */}
       <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--portal-border)' }}>
         <DiagramaVeiculo
+          tipo={silhuetaDoVeiculo(veiculo || {})}
           porSistema={gravPorSistema}
           selecionado={sistemaSel}
           onSelecionar={(s) => {
