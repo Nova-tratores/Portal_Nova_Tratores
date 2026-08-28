@@ -29,6 +29,29 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
   const oculto = new Set(hideKeys ?? []);
   const linhas = series.filter((s) => !s.soTabela && !oculto.has(s.key));
   const temBarras = !!bars && bars.length > 0;
+
+  // Escala log: ancora o domínio nas DÉCADAS reais dos dados (10^floor(min) →
+  // 10^ceil(max)) em vez de [1, auto] — assim não desperdiça metade do gráfico no
+  // vão vazio abaixo do menor valor. Rótulos por magnitude (R$ 1k / 10k / 100k / 1M).
+  let logDomain: [number, number] | undefined;
+  if (logScale) {
+    let vmin = Infinity, vmax = -Infinity;
+    for (const p of dados) for (const s of linhas) {
+      const v = Number(p[s.key]);
+      if (Number.isFinite(v) && v > 0) { if (v < vmin) vmin = v; if (v > vmax) vmax = v; }
+    }
+    if (vmin !== Infinity && vmax > 0) {
+      logDomain = [Math.pow(10, Math.floor(Math.log10(vmin))), Math.pow(10, Math.ceil(Math.log10(vmax)))];
+    }
+  }
+  const fmtEixo = (v: number): string => {
+    if (logScale) {
+      if (v >= 1e6) return 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'M';
+      if (v >= 1e3) return 'R$ ' + (v / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'k';
+      return 'R$ ' + Math.round(v).toLocaleString('pt-BR');
+    }
+    return 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k';
+  };
   const cursor = onPointClick ? 'pointer' : undefined;
   // Recharts passa o dado do clique em formatos diferentes por versão/elemento
   // (Bar/Line/activeDot). Aceita `.payload` OU o próprio ponto (tem `periodo`),
@@ -50,8 +73,8 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
         <ComposedChart data={dados} margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
           <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
-          <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70}
-            {...(logScale ? { scale: 'log' as const, domain: [1, 'auto'] as [number, string], allowDataOverflow: true } : {})} />
+          <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={fmtEixo} width={70}
+            {...(logScale && logDomain ? { scale: 'log' as const, domain: logDomain, allowDataOverflow: true } : {})} />
           {temBarras && (
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
           )}
