@@ -3,6 +3,7 @@
 // backend) — Estoque Peça/Máquina + NF Entrada/Saída por tipo ou por categoria.
 // Valores em R$ SEM centavos. Recharts.
 
+import { useState } from 'react';
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export interface SerieDef { key: string; label: string; cor: string; dash?: boolean; soTabela?: boolean }
@@ -29,6 +30,17 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
   const oculto = new Set(hideKeys ?? []);
   const linhas = series.filter((s) => !s.soTabela && !oculto.has(s.key));
   const temBarras = !!bars && bars.length > 0;
+
+  // Destaque interativo: hover/clique na legenda ou na linha realça uma série e
+  // apaga (dim) as demais. Clique "fixa" (pin) até clicar de novo; hover é volátil.
+  const [pinned, setPinned] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const ativo = pinned ?? hovered;
+  const keyDe = (o: unknown): string | undefined => {
+    const x = o as { dataKey?: unknown; payload?: { dataKey?: unknown } } | null;
+    const k = x?.dataKey ?? x?.payload?.dataKey;
+    return k != null ? String(k) : undefined;
+  };
 
   // Escala log: ancora o domínio nas DÉCADAS reais dos dados (10^floor(min) →
   // 10^ceil(max)) em vez de [1, auto] — assim não desperdiça metade do gráfico no
@@ -79,23 +91,33 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
           )}
           <Tooltip formatter={(v: number, name: string) => [fmtRS(v), name]} />
-          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Legend wrapperStyle={{ fontSize: 11, cursor: 'pointer' }}
+            onClick={(o) => { const k = keyDe(o); if (k) setPinned((p) => (p === k ? null : k)); }}
+            onMouseEnter={(o) => setHovered(keyDe(o) ?? null)}
+            onMouseLeave={() => setHovered(null)} />
           {temBarras && bars!.map((b) => (
             <Bar key={b.key} yAxisId="right" dataKey={b.key} name={b.label} fill={b.cor} fillOpacity={0.28}
               cursor={cursor} onClick={clique(b.key)} />
           ))}
-          {linhas.map((s) => (
+          {linhas.map((s) => {
+            const dim = ativo != null && ativo !== s.key;   // outra série está em foco → apaga esta
+            const foco = ativo === s.key;
+            const op = dim ? 0.1 : 1;
+            return (
             <Line yAxisId="left" key={s.key} type="monotone" dataKey={s.key} name={s.label} stroke={s.cor}
-              strokeWidth={2} strokeDasharray={s.dash ? '5 4' : undefined}
+              strokeWidth={foco ? 3.5 : 2} strokeOpacity={op} strokeDasharray={s.dash ? '5 4' : undefined}
+              isAnimationActive={false}
+              onMouseEnter={() => setHovered(s.key)} onMouseLeave={() => setHovered(null)}
               // dot customizado: recebe o payload (ponto) direto → clique confiável.
               dot={(p: { cx?: number; cy?: number; index?: number; payload?: PontoMensal }) => (
                 typeof p.cx === 'number' && typeof p.cy === 'number'
-                  ? <circle key={p.index} cx={p.cx} cy={p.cy} r={3} fill={s.cor} stroke="#fff" strokeWidth={1}
+                  ? <circle key={p.index} cx={p.cx} cy={p.cy} r={foco ? 3.5 : 3} fill={s.cor} fillOpacity={op} stroke="#fff" strokeWidth={1} strokeOpacity={op}
                       cursor={cursor} onClick={() => { if (onPointClick && p.payload) onPointClick(s.key, p.payload); }} />
                   : <g key={p.index} />
               )}
               activeDot={{ r: 5, cursor, onClick: clique(s.key) }} />
-          ))}
+            );
+          })}
         </ComposedChart>
       </ResponsiveContainer>
     </div>

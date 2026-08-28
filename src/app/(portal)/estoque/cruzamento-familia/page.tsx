@@ -142,6 +142,7 @@ export default function CruzamentoFamiliaPage() {
   const [mesesTipo, setMesesTipo] = useState(12);
   const [incluirSemTipo, setIncluirSemTipo] = useState(false);
   const [logScale, setLogScale] = useState(false); // eixo Y logarítmico (gráficos)
+  const [ocultarDominantes, setOcultarDominantes] = useState(false); // esconde "Sem tipo"+"Outras" do gráfico
   const [serieTipo, setSerieTipo] = useState<SerieTipoResp | null>(null);
   const [serieTipoCarregando, setSerieTipoCarregando] = useState(false);
   const [serieTipoErro, setSerieTipoErro] = useState('');
@@ -528,6 +529,10 @@ export default function CruzamentoFamiliaPage() {
             <input type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
             Escala log
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Esconde as linhas 'Sem tipo' e 'Outras' do gráfico — as demais reescalam e ficam mais legíveis">
+            <input type="checkbox" checked={ocultarDominantes} onChange={(e) => setOcultarDominantes(e.target.checked)} />
+            Ocultar &quot;Sem tipo&quot; + &quot;Outras&quot;
+          </label>
         </div>
 
         {serieTipoErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieTipoErro}</div>}
@@ -543,6 +548,7 @@ export default function CruzamentoFamiliaPage() {
               <>
                 <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
                   <SerieMensalChart dados={serieTipo.pontos} series={serieTipo.series} logScale={logScale}
+                    hideKeys={ocultarDominantes ? ['estoque::Sem tipo', 'estoque::Outras'] : []}
                     onPointClick={(key, p) => { const s = serieTipo.series.find((x) => x.key === key); if (s) abrirPopupEstoqueTipo(s, p); }} />
                 </div>
 
@@ -575,7 +581,7 @@ export default function CruzamentoFamiliaPage() {
             )}
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
               Saldo (R$) de estoque das <strong>Peças</strong>, por característica <strong>&quot;Tipo:&quot;</strong> (tabela produto_tipo; top 20 + &ldquo;Outras&rdquo;). Quem não tem Tipo cai em &ldquo;Sem tipo&rdquo;.
-              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver a composição item-a-item; nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong> para enxergar as linhas menores quando &ldquo;Sem tipo/Outras&rdquo; dominam.
+              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver a composição item-a-item; nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong> para enxergar as linhas menores; <strong>passe o mouse ou clique</strong> numa linha/legenda para destacá-la (clique fixa/solta); e <strong>Ocultar &ldquo;Sem tipo&rdquo; + &ldquo;Outras&rdquo;</strong> para as demais reescalarem.
             </p>
           </>
         )}
