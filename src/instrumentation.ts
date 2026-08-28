@@ -97,5 +97,23 @@ export async function register(): Promise<void> {
     log('tratorilson auto-processamento LIGADO (a cada 10min) — envio ao Omie é manual');
   }
 
+  // Vigia de saúde dos robôs: alerta os admins no sino se um cron crítico PARAR.
+  // Lê o heartbeat no Supabase (não depende do GITHUB_TOKEN) e não toca chave
+  // Omie — só lê + escreve notificação —, então roda seguro aqui in-process. SÓ
+  // produção (não spammar no localhost de dev, que compartilha o mesmo banco).
+  if (process.env.NODE_ENV === 'production') {
+    const { checarSaudeCrons } = await import('./lib/agendamentos/heartbeat');
+    const rodarVigia = async () => {
+      try {
+        const r = await checarSaudeCrons();
+        if (r.alertados.length) log(`vigia-saude: alertou admins sobre ${r.alertados.join(', ')}`);
+      } catch (e) { log('vigia-saude falhou: ' + (e as Error).message); }
+    };
+    const UMA_HORA = 60 * 60 * 1000;
+    setInterval(() => { rodarVigia().catch(() => {}); }, UMA_HORA);
+    setTimeout(() => { rodarVigia().catch(() => {}); }, 15 * 60 * 1000); // 1ª rodada ~15min após o boot
+    log('vigia de saúde dos robôs LIGADO (a cada 1h) — alerta admins se um cron parar');
+  }
+
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }

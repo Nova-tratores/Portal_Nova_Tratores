@@ -21,6 +21,7 @@ import { sleep } from './omie';
 import { hoje, addDias, parseAnyDate } from './dates';
 import { listarSemFamilia, alterarFamiliaProduto } from './familias';
 import { sugerirTipoDaDescricao } from './caracteristicas';
+import { baterHeartbeat } from '@/lib/agendamentos/heartbeat';
 
 const FAMILIA_PECAS = 5553603814;         // codigo_familia "Peças" (mesma nas 2 empresas)
 const LIMIAR_MAQUINA = 10000;             // >= 10k = máquina (ignora)
@@ -142,6 +143,13 @@ export async function classificarRecebidosTodasContas(opts: { dry?: boolean } = 
   for (const c of getContasOmie()) {
     try { out[c.id] = await classificarRecebidos(c.id, opts); }
     catch (e: any) { out[c.id] = { erro: e?.message || String(e) }; }
+  }
+  // Carimba o "sinal de vida" do robô (só em rodada real, não em dry-run). É o que
+  // o vigia de saúde lê pra alertar os admins se o robô parar de rodar.
+  if (!opts.dry) {
+    const reclass = Object.values(out).reduce((s: number, r: any) => s + (r?.reclassificados || 0), 0);
+    const erro = Object.values(out).some((r: any) => r?.erro);
+    await baterHeartbeat('classificar-recebidos', { status: erro ? 'erro' : 'ok', meta: { reclassificados: reclass, contas: out } });
   }
   return out;
 }
