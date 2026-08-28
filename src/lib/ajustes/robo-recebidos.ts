@@ -23,7 +23,11 @@ import { listarSemFamilia, alterarFamiliaProduto } from './familias';
 import { sugerirTipoDaDescricao } from './caracteristicas';
 import { baterHeartbeat } from '@/lib/agendamentos/heartbeat';
 
-const FAMILIA_PECAS = 5553603814;         // codigo_familia "Peças" (mesma nas 2 empresas)
+// codigo_familia "Peças" — é POR EMPRESA no Omie (NÃO é o mesmo nas duas!).
+// CASTRO=5553603814, NOVA=2130452767. Usar o código errado faz o AlterarProduto
+// falhar 100% (verificado 28/08/2026: NOVA tinha 15 alvos, 15 falhas). Confirmado
+// pelo nº de produtos por código: nova/2130452767=4739, nova/5553603814=0.
+const FAMILIA_PECAS: Record<string, number> = { castro: 5553603814, nova: 2130452767 };
 const LIMIAR_MAQUINA = 10000;             // >= 10k = máquina (ignora)
 const THROTTLE_MS = 700;                   // respeita rate-limit da Omie (AlterarProduto)
 function diasRecentes(): number {
@@ -31,6 +35,9 @@ function diasRecentes(): number {
   return Number.isFinite(n) && n > 0 ? n : 15;
 }
 const contaLow = (c: Conta): string => String(c).toLowerCase();
+function familiaPecas(conta: Conta): number | null {
+  return FAMILIA_PECAS[contaLow(conta)] ?? null;
+}
 
 /** Responsável pela CLASSIFICAÇÃO (confirmar família/localização/Tipo). Configurável em
  *  recebimento_classificacao_responsavel; fallback = responsável de peças do recebimento. */
@@ -87,10 +94,16 @@ export async function classificarRecebidos(conta: Conta, opts: { dry?: boolean }
     return { conta, dry: true, semResponsavel: !resp, diasRecentes: diasRecentes(), totalSemFamilia: produtos.length, alvosRecentes: alvos.length, amostra, duracaoMs: Date.now() - t0 };
   }
 
+  const codFamiliaPecas = familiaPecas(conta);
+  if (!codFamiliaPecas) {
+    return { conta, semResponsavel: !resp, totalSemFamilia: produtos.length, alvosRecentes: alvos.length,
+      reclassificados: 0, tarefas: 0, falhas: 0, erro: `sem codigo_familia 'Peças' mapeado p/ ${conta}`, duracaoMs: Date.now() - t0 };
+  }
+
   let reclassificados = 0, tarefas = 0, falhas = 0;
   for (const p of alvos) {
     try {
-      await alterarFamiliaProduto(conta, p.codigo_produto, FAMILIA_PECAS);
+      await alterarFamiliaProduto(conta, p.codigo_produto, codFamiliaPecas);
       reclassificados++;
     } catch (e: any) {
       falhas++;
