@@ -141,12 +141,13 @@ export default function CruzamentoFamiliaPage() {
   // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
   const [mesesTipo, setMesesTipo] = useState(12);
   const [incluirSemTipo, setIncluirSemTipo] = useState(false);
+  const [logScale, setLogScale] = useState(false); // eixo Y logarítmico (gráficos)
   const [serieTipo, setSerieTipo] = useState<SerieTipoResp | null>(null);
   const [serieTipoCarregando, setSerieTipoCarregando] = useState(false);
   const [serieTipoErro, setSerieTipoErro] = useState('');
 
   // Popup de composição (clique em célula).
-  const [popup, setPopup] = useState<{ titulo: string; params: ComposicaoParams } | null>(null);
+  const [popup, setPopup] = useState<{ titulo: string; params: ComposicaoParams; resumo?: { valor: number } } | null>(null);
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -278,18 +279,26 @@ export default function CruzamentoFamiliaPage() {
     if (params) setPopup({ titulo: `${s.label} — ${s.key.startsWith('estoque') ? 'saldo atual' : labelMes}`, params });
   };
 
-  // Clique numa célula da aba "Estoque por Tipo" → composição do saldo atual daquele Tipo.
-  // (Só saldo atual: a composição por mês passado não é reconstruível item-a-item.)
-  const abrirPopupEstoqueTipo = (s: SerieDef) => {
+  // Clique numa célula da aba "Estoque por Tipo" → composição daquele Tipo NAQUELE mês.
+  // Mês atual = saldo ao vivo (lista item-a-item de `produtos`); meses passados só têm o
+  // valor agregado do snapshot (não dá pra reconstruir os itens) → abre em modo "resumo".
+  const abrirPopupEstoqueTipo = (s: SerieDef, p: PontoMensal) => {
     const tipo = s.key.slice('estoque::'.length);
+    const ehMesAtual = Number(p.mes) === agora.getMonth() + 1 && Number(p.ano) === agora.getFullYear();
+    const valorCel = Number(p[s.key] || 0);
+    // Meses passados: mostra só o valor da célula (snapshot), sem lista de produtos.
+    if (!ehMesAtual) {
+      setPopup({ titulo: `${s.label} — ${p.periodo}`, params: { fonte: 'estoque', grupo: 'peca' }, resumo: { valor: valorCel } });
+      return;
+    }
     // grupo:'peca' espelha a série (só peças) — nunca listar máquinas no popup de Tipo.
     if (tipo === 'Outras') {
       // "Outras" = agregado de vários Tipos → filtra por "não é nenhum dos mostrados".
       const mostrados = (serieTipo?.series || []).map((x) => x.key.slice('estoque::'.length)).filter((t) => t !== 'Outras');
-      setPopup({ titulo: 'Outras — saldo atual', params: { fonte: 'estoque', grupo: 'peca', tipocaracExceto: mostrados, incluirSemTipo } });
+      setPopup({ titulo: `Outras — ${p.periodo} (saldo atual)`, params: { fonte: 'estoque', grupo: 'peca', tipocaracExceto: mostrados, incluirSemTipo } });
       return;
     }
-    setPopup({ titulo: `${s.label} — saldo atual`, params: { fonte: 'estoque', tipocarac: tipo, grupo: 'peca' } });
+    setPopup({ titulo: `${s.label} — ${p.periodo} (saldo atual)`, params: { fonte: 'estoque', tipocarac: tipo, grupo: 'peca' } });
   };
 
   // Clique numa célula da TABELA DO MÊS por família → popup de composição.
@@ -451,6 +460,10 @@ export default function CruzamentoFamiliaPage() {
             <input type="checkbox" checked={incluirDemo} onChange={(e) => setIncluirDemo(e.target.checked)} />
             Incluir máquinas em demonstração
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
+            <input type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
+            Escala log
+          </label>
         </div>
 
         {serieErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieErro}</div>}
@@ -464,6 +477,7 @@ export default function CruzamentoFamiliaPage() {
                 series={serie.series}
                 hideKeys={grupo === 'peca' ? ['estoque_maquina'] : grupo === 'maquina' ? ['estoque_peca'] : []}
                 bars={!mostrarFatPecas ? [] : grupo === 'maquina' ? [BARRA_MAQ] : grupo === 'peca' ? [BARRA_PECA] : [BARRA_PECA, BARRA_MAQ]}
+                logScale={logScale}
                 onPointClick={(key, p) => { const s = serie.series.find((x) => x.key === key) ?? sinteticoFat(key); if (s) abrirPopupSerie(s, p); }}
               />
             </div>
@@ -510,6 +524,10 @@ export default function CruzamentoFamiliaPage() {
             <input type="checkbox" checked={incluirSemTipo} onChange={(e) => setIncluirSemTipo(e.target.checked)} />
             Incluir &quot;Sem tipo&quot;
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
+            <input type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
+            Escala log
+          </label>
         </div>
 
         {serieTipoErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{serieTipoErro}</div>}
@@ -524,7 +542,8 @@ export default function CruzamentoFamiliaPage() {
             ) : (
               <>
                 <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-                  <SerieMensalChart dados={serieTipo.pontos} series={serieTipo.series} />
+                  <SerieMensalChart dados={serieTipo.pontos} series={serieTipo.series} logScale={logScale}
+                    onPointClick={(key, p) => { const s = serieTipo.series.find((x) => x.key === key); if (s) abrirPopupEstoqueTipo(s, p); }} />
                 </div>
 
                 <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
@@ -542,7 +561,7 @@ export default function CruzamentoFamiliaPage() {
                             const clic = v !== 0;
                             return (
                               <td key={s.key} style={{ ...tdNum, color: v ? s.cor : '#bbb', cursor: clic ? 'pointer' : 'default' }}
-                                onClick={() => clic && abrirPopupEstoqueTipo(s)}>
+                                onClick={() => clic && abrirPopupEstoqueTipo(s, p)}>
                                 {v ? fmtRS0(v) : '—'}
                               </td>
                             );
@@ -556,7 +575,7 @@ export default function CruzamentoFamiliaPage() {
             )}
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
               Saldo (R$) de estoque das <strong>Peças</strong>, por característica <strong>&quot;Tipo:&quot;</strong> (tabela produto_tipo; top 20 + &ldquo;Outras&rdquo;). Quem não tem Tipo cai em &ldquo;Sem tipo&rdquo;.
-              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula para ver a composição do saldo atual daquele Tipo.
+              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver a composição item-a-item; nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong> para enxergar as linhas menores quando &ldquo;Sem tipo/Outras&rdquo; dominam.
             </p>
           </>
         )}
@@ -639,7 +658,7 @@ export default function CruzamentoFamiliaPage() {
       )}
 
       {popup && (
-        <ComposicaoModal titulo={popup.titulo} params={popup.params} contaParam={contaParam} onClose={() => setPopup(null)} />
+        <ComposicaoModal titulo={popup.titulo} params={popup.params} resumo={popup.resumo} contaParam={contaParam} onClose={() => setPopup(null)} />
       )}
       {reconPopup && (
         <RazaoDetalheModal titulo={reconPopup.titulo} params={reconPopup.params} contaParam={contaParam} onClose={() => setReconPopup(null)} />

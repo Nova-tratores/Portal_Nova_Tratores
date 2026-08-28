@@ -28,8 +28,11 @@ interface ComposicaoResp {
 const fmtRS0 = (v: number) => 'R$ ' + Math.round(v).toLocaleString('pt-BR');
 const fmtQtd = (n: number) => (Math.abs(n % 1) < 1e-9 ? n.toLocaleString('pt-BR') : n.toLocaleString('pt-BR', { maximumFractionDigits: 2 }));
 
-export default function ComposicaoModal({ titulo, params, contaParam, onClose }: {
+export default function ComposicaoModal({ titulo, params, contaParam, onClose, resumo }: {
   titulo: string; params: ComposicaoParams; contaParam: string; onClose: () => void;
+  // Modo "resumo": só o valor agregado (sem item-a-item). Usado no Estoque por Tipo
+  // de meses PASSADOS — a composição item-a-item não é reconstruível do snapshot.
+  resumo?: { valor: number };
 }) {
   const [dados, setDados] = useState<ComposicaoResp | null>(null);
   const [carregando, setCarregando] = useState(true);
@@ -37,6 +40,13 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose }:
 
   useEffect(() => {
     let vivo = true;
+    // Meses passados do Estoque por Tipo: mostra só o valor do snapshot, sem fetch.
+    if (resumo) {
+      setDados({ itens: [], total: 0, somaValor: resumo.valor, fonte: params.fonte, aviso: 'Composição item-a-item indisponível para meses passados — o valor vem do snapshot mensal (só o mês atual tem a lista de produtos).' });
+      setCarregando(false);
+      setErro('');
+      return () => { vivo = false; };
+    }
     (async () => {
       setCarregando(true);
       setErro('');
@@ -62,7 +72,7 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose }:
       }
     })();
     return () => { vivo = false; };
-  }, [params, contaParam]);
+  }, [params, contaParam, resumo]);
 
   const refLabel = params.fonte === 'entrada' ? 'NF' : params.fonte === 'saida' ? 'Pedido' : '';
 
@@ -72,7 +82,7 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose }:
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '16px 20px', borderBottom: '1px solid #eee' }}>
           <div>
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#333' }}>{titulo}</h3>
-            {dados && <div style={{ fontSize: '.78rem', color: '#888', marginTop: 4 }}>{dados.total} item(ns) · total {fmtRS0(dados.somaValor)}</div>}
+            {dados && <div style={{ fontSize: '.78rem', color: '#888', marginTop: 4 }}>{resumo ? `total ${fmtRS0(dados.somaValor)}` : `${dados.total} item(ns) · total ${fmtRS0(dados.somaValor)}`}</div>}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', lineHeight: 1, cursor: 'pointer', color: '#999' }}>×</button>
         </div>
@@ -84,7 +94,7 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose }:
             <>
               {dados.aviso && <div style={{ color: '#d97706', fontSize: '.74rem', marginBottom: 10 }}>⚠ {dados.aviso}</div>}
               {dados.itens.length === 0 ? (
-                <div style={{ color: '#888', fontSize: '.85rem' }}>Nenhum item compõe este valor.</div>
+                <div style={{ color: '#888', fontSize: '.85rem' }}>{resumo ? 'Sem lista de produtos para este mês.' : 'Nenhum item compõe este valor.'}</div>
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>

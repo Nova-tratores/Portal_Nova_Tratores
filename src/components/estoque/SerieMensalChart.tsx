@@ -12,11 +12,12 @@ const fmtRS = (v: number) => 'R$ ' + Math.round(Number(v)).toLocaleString('pt-BR
 
 export interface BarraDef { key: string; label: string; cor: string }
 
-export default function SerieMensalChart({ dados, series, altura = 360, hideKeys, bars, onPointClick }: {
+export default function SerieMensalChart({ dados, series, altura = 360, hideKeys, bars, onPointClick, logScale }: {
   dados: PontoMensal[]; series: SerieDef[]; altura?: number;
   hideKeys?: string[];          // chaves de linha a esconder (ex.: filtro de grupo)
   bars?: BarraDef[];            // barras no eixo Y direito (ex.: faturamento)
   onPointClick?: (key: string, ponto: PontoMensal) => void; // clique num ponto/barra
+  logScale?: boolean;           // eixo Y em escala logarítmica (valores ≤0 não plotam)
 }) {
   if (!dados || dados.length === 0) {
     return (
@@ -49,7 +50,8 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
         <ComposedChart data={dados} margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
           <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
-          <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
+          <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70}
+            {...(logScale ? { scale: 'log' as const, domain: [1, 'auto'] as [number, string], allowDataOverflow: true } : {})} />
           {temBarras && (
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
           )}
