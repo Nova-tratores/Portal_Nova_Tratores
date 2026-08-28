@@ -527,6 +527,14 @@ export interface SerieMensalResult {
 const PALETA_CAT = ['#2563eb', '#d97706', '#16a34a', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d'];
 const COR_OUTRAS = '#9ca3af';
 const MAX_CATEGORIAS = 6;
+// Aba "Estoque por Tipo" mostra MAIS Tipos que o gráfico de entrada/saída → paleta
+// dedicada de 20 cores distintas (as demais reciclam via módulo).
+const MAX_TIPOS = 20;
+const PALETA_TIPO = [
+  '#2563eb', '#d97706', '#16a34a', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d',
+  '#ea580c', '#0d9488', '#9333ea', '#ca8a04', '#e11d48', '#2dd4bf', '#7c2d12', '#4338ca',
+  '#15803d', '#b45309', '#be123c', '#1d4ed8',
+];
 
 /** Fluxos de um mês (nota + venda), com quebra por grupo e por categoria. */
 interface FluxoMes {
@@ -906,17 +914,17 @@ export async function serieEstoqueTipo(
   // demais linhas; por padrão fica fora da exibição (estoqueAtual mantém o valor).
   const exibir = (tipo: string) => incluirSemTipo || tipo !== SEM_TIPO;
 
-  // Tipos a exibir: top 6 por total no período (ao vivo + snapshots) + "Outras".
+  // Tipos a exibir: top 20 por total no período (ao vivo + snapshots) + "Outras".
   const totalPorTipo: Record<string, number> = {};
   for (const [tipo, v] of Object.entries(estoquePorTipo)) { if (exibir(tipo)) totalPorTipo[tipo] = (totalPorTipo[tipo] || 0) + v.valor; }
   for (const rec of snapMap.values()) {
     for (const [tipo, v] of Object.entries(rec)) { if (exibir(tipo)) totalPorTipo[tipo] = (totalPorTipo[tipo] || 0) + v; }
   }
   const ordenados = Object.entries(totalPorTipo).sort((a, b) => b[1] - a[1]).map(([t]) => t);
-  const top = ordenados.slice(0, MAX_CATEGORIAS);
+  const top = ordenados.slice(0, MAX_TIPOS);
   const temOutras = ordenados.length > top.length;
   const tipoLista = temOutras ? [...top, 'Outras'] : top;
-  const corDe = (idx: number, t: string) => (t === 'Outras' ? COR_OUTRAS : PALETA_CAT[idx % PALETA_CAT.length]);
+  const corDe = (idx: number, t: string) => (t === 'Outras' ? COR_OUTRAS : PALETA_TIPO[idx % PALETA_TIPO.length]);
   const mapTipo = (t: string): string => (top.includes(t) ? t : 'Outras');
 
   const series: SerieDef[] = tipoLista.map((t, idx) => ({ key: 'estoque::' + t, label: t, cor: corDe(idx, t) }));
