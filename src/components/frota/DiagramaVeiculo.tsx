@@ -62,18 +62,22 @@ function Glifo({ sistema }: { sistema: string }) {
 }
 
 // ── silhuetas ──────────────────────────────────────────────────────────────
+// Estilo SILHUETA CHEIA (referência que o usuário mandou): corpo preenchido com
+// vidros VAZADOS de verdade — buraco no path (fill-rule evenodd), não retângulo
+// branco por cima. A diferença aparece no modo escuro: um retângulo branco
+// ficaria branco; o buraco deixa o fundo do card passar.
+//
+// Cada roda é uma rosca (pneu cheio + miolo vazado) desenhada em cima da caixa
+// de roda, que é um entalhe do MESMO raio no corpo — por isso a roda encaixa
+// exata e não sobra degrau. Mexer no raio de uma exige mexer no da outra.
 function Roda({ cx, cy, r }: { cx: number; cy: number; r: number }) {
-  const raios = [0, 45, 90, 135, 180, 225, 270, 315];
+  const rin = r * 0.42;
+  const anel = (raio: number) =>
+    `M${cx - raio} ${cy}a${raio} ${raio} 0 1 0 ${2 * raio} 0a${raio} ${raio} 0 1 0 ${-2 * raio} 0Z`;
   return (
-    <g fill="none" stroke="currentColor">
-      <circle cx={cx} cy={cy} r={r} strokeWidth="3" />
-      <circle cx={cx} cy={cy} r={r * 0.74} strokeWidth="2.2" opacity="0.85" />
-      <circle cx={cx} cy={cy} r={r * 0.29} strokeWidth="2.4" />
-      {raios.map((a) => {
-        const rad = (a * Math.PI) / 180;
-        return <line key={a} x1={cx + r * 0.29 * Math.cos(rad)} y1={cy + r * 0.29 * Math.sin(rad)}
-          x2={cx + r * 0.68 * Math.cos(rad)} y2={cy + r * 0.68 * Math.sin(rad)} strokeWidth="2" opacity="0.7" />;
-      })}
+    <g fill="currentColor">
+      <path fillRule="evenodd" d={`${anel(r)}${anel(rin)}`} />
+      <circle cx={cx} cy={cy} r={r * 0.16} />
     </g>
   );
 }
@@ -87,29 +91,16 @@ const CARRO: Silhueta = {
   viewBox: '-160 14 1160 400', chao: 'M100 305 H660',
   rodas: [{ cx: 212, cy: 272, r: 33 }, { cx: 548, cy: 272, r: 33 }],
   corpo: (
-    <>
-      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-        <path d="M126 272C120 266 118 256 119 246C120 234 126 228 138 226L240 216L252 212L316 146C322 141 329 139 338 139L462 139C472 139 479 142 485 149L536 196L616 202C630 204 638 210 638 222L638 262C638 268 634 272 628 272" />
-        <path d="M126 272 L179 272" />
-        <path d="M245 272 L515 272" />
-        <path d="M581 272 L628 272" />
-        <path d="M179 272 A33 33 0 0 1 245 272" />
-        <path d="M515 272 A33 33 0 0 1 581 272" />
-      </g>
-      <g fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round">
-        <path d="M266 192 L322 152 L364 151 L364 192 Z" />
-        <path d="M374 151 L438 150 L438 191 L374 191 Z" />
-        <path d="M448 150 L462 150C468 150 472 152 476 157L504 190 L448 190 Z" />
-      </g>
-      <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" opacity="0.9">
-        <path d="M369 151 L369 270" /><path d="M443 150 L443 270" />
-        <path d="M330 210 h24" strokeWidth="3.4" strokeLinecap="round" />
-        <path d="M404 209 h24" strokeWidth="3.4" strokeLinecap="round" />
-        <path d="M124 236 h24 v13 H124 Z" />
-        <path d="M612 210 h20 v13 h-20 Z" />
-        <path d="M247 262 H513" strokeWidth="2.2" opacity="0.55" />
-      </g>
-    </>
+    <path fill="currentColor" fillRule="evenodd" d="
+      M126 272 C120 266 118 256 119 246 C120 234 126 228 138 226
+      L240 216 L252 212 L316 146 C322 141 329 139 338 139
+      L462 139 C472 139 479 142 485 149 L536 196 L616 202
+      C630 204 638 210 638 222 L638 262 C638 268 634 272 628 272
+      L581 272 A33 33 0 0 0 515 272 L245 272 A33 33 0 0 0 179 272 L126 272 Z
+      M284 194 L322 154 L360 153 L360 194 Z
+      M372 153 L436 152 L436 193 L372 193 Z
+      M448 152 L462 152 C468 152 472 154 476 159 L502 192 L448 192 Z
+    " />
   ),
   pontos: [
     { sistema: 'Motor', rotulo: 'Motor', x: 174, y: 234, lx: -20, ly: 110, anchor: 'end' },
@@ -131,30 +122,16 @@ const PICAPE: Silhueta = {
   viewBox: '-160 14 1160 400', chao: 'M100 305 H660',
   rodas: [{ cx: 212, cy: 272, r: 33 }, { cx: 548, cy: 272, r: 33 }],
   corpo: (
-    <>
-      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-        <path d="M126 272C120 266 118 254 119 244C120 232 126 226 138 224L236 214L248 210L306 144C312 139 319 137 328 137L424 137C434 137 441 141 446 149L474 196L474 204L638 204L638 262C638 268 634 272 628 272" />
-        <path d="M126 272 L179 272" />
-        <path d="M245 272 L515 272" />
-        <path d="M581 272 L628 272" />
-        <path d="M179 272 A33 33 0 0 1 245 272" />
-        <path d="M515 272 A33 33 0 0 1 581 272" />
-        <path d="M474 204 L474 272" strokeWidth="2.6" />
-        <path d="M624 204 L624 272" strokeWidth="2.4" />
-        <path d="M486 218 H612" strokeWidth="1.8" opacity="0.5" />
-        <path d="M515 272 A33 33 0 0 1 581 272" strokeWidth="2.2" opacity="0.7" />
-      </g>
-      <g fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round">
-        <path d="M258 190 L312 150 L352 149 L352 190 Z" />
-        <path d="M362 149 L422 148C428 148 432 151 435 156L454 188 L362 188 Z" />
-      </g>
-      <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" opacity="0.9">
-        <path d="M357 149 L357 270" />
-        <path d="M322 208 h24" strokeWidth="3.4" strokeLinecap="round" />
-        <path d="M124 234 h24 v13 H124 Z" />
-        <path d="M247 262 H470" strokeWidth="2.2" opacity="0.55" />
-      </g>
-    </>
+    <path fill="currentColor" fillRule="evenodd" d="
+      M126 272 C120 266 118 254 119 244 C120 232 126 226 138 224
+      L236 214 L248 210 L306 144 C312 139 319 137 328 137
+      L424 137 C434 137 441 141 446 149 L474 196 L474 204
+      L638 204 L638 262 C638 268 634 272 628 272
+      L581 272 A33 33 0 0 0 515 272 L245 272 A33 33 0 0 0 179 272 L126 272 Z
+      M278 192 L312 152 L350 151 L350 192 Z
+      M362 151 L422 150 C428 150 432 153 435 158 L452 190 L362 190 Z
+      M488 216 L610 216 L610 258 L488 258 Z
+    " />
   ),
   pontos: [
     { sistema: 'Motor', rotulo: 'Motor', x: 174, y: 232, lx: -20, ly: 110, anchor: 'end' },
@@ -174,79 +151,47 @@ const PICAPE: Silhueta = {
 
 const CAMINHAO: Silhueta = {
   viewBox: '-165 18 1215 432', chao: 'M60 318 H730',
-  rodas: [{ cx: 172, cy: 282, r: 35 }, { cx: 542, cy: 282, r: 35 }, { cx: 626, cy: 282, r: 35 }],
+  rodas: [{ cx: 178, cy: 262, r: 36 }, { cx: 516, cy: 262, r: 36 }, { cx: 600, cy: 262, r: 36 }],
   corpo: (
-    <>
-      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-        {/* cabine alta na frente */}
-        <path d="M84 250L84 150C84 142 90 136 98 136L232 136C242 136 248 142 250 150L262 214L262 250" />
-        {/* chassi e baú */}
-        <path d="M262 250 L262 262 L700 262" />
-        <path d="M290 262 L290 128 L700 128 L700 262" />
-        <path d="M84 250 L84 262 L137 262" />
-        <path d="M207 262 L262 262" />
-        <path d="M137 262 A35 35 0 0 1 207 262" />
-        <path d="M507 262 A35 35 0 0 1 577 262" />
-        <path d="M591 262 A35 35 0 0 1 661 262" />
-      </g>
-      <g fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round">
-        <path d="M98 150L230 150L240 196L98 196Z" />
-        <path d="M300 140 L690 140 L690 250 L300 250 Z" opacity="0.75" />
-        <path d="M300 196 H690" strokeWidth="1.8" opacity="0.5" />
-      </g>
-      <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" opacity="0.9">
-        <path d="M110 214h24" strokeWidth="3.4" strokeLinecap="round" />
-        <path d="M88 226h20v16H88Z" />
-        <path d="M262 214 L290 214" opacity="0.6" />
-      </g>
-    </>
+    <path fill="currentColor" fillRule="evenodd" d="
+      M112 262 C112 250 110 158 116 150 C119 146 124 144 131 144
+      L246 144 C253 144 258 148 260 156 L272 212 L272 126 L640 126 L640 262
+      L636 262 A36 36 0 0 0 564 262 L552 262 A36 36 0 0 0 480 262
+      L214 262 A36 36 0 0 0 142 262 L112 262 Z
+      M130 158 L242 158 L250 202 L130 202 Z
+      M296 148 L618 148 L618 168 L296 168 Z
+    " />
   ),
   pontos: [
-    { sistema: 'Motor', rotulo: 'Motor', x: 150, y: 250, lx: -30, ly: 120, anchor: 'end' },
-    { sistema: 'Elétrica', rotulo: 'Elétrica / bateria', x: 232, y: 250, lx: -30, ly: 250, anchor: 'end' },
+    { sistema: 'Motor', rotulo: 'Motor', x: 196, y: 232, lx: -30, ly: 120, anchor: 'end' },
+    { sistema: 'Elétrica', rotulo: 'Elétrica / bateria', x: 150, y: 244, lx: -30, ly: 250, anchor: 'end' },
     { sistema: 'Ar-condicionado', rotulo: 'Ar-condicionado', x: 108, y: 172, lx: 96, ly: 62, anchor: 'middle' },
     { sistema: 'Direção', rotulo: 'Volante / direção', x: 168, y: 208, lx: 250, ly: 62, anchor: 'middle' },
     { sistema: 'Interior', rotulo: 'Cabine / interior', x: 208, y: 172, lx: 400, ly: 62, anchor: 'middle' },
-    { sistema: 'Itens de segurança', rotulo: 'Cintos / segurança', x: 302, y: 176, lx: 560, ly: 62, anchor: 'middle' },
+    { sistema: 'Itens de segurança', rotulo: 'Cintos / segurança', x: 232, y: 180, lx: 560, ly: 62, anchor: 'middle' },
     { sistema: 'Outros', rotulo: 'Baú / carga', x: 494, y: 176, lx: 862, ly: 140, anchor: 'start' },
-    { sistema: 'Carroceria', rotulo: 'Carroceria', x: 660, y: 214, lx: 862, ly: 250, anchor: 'start' },
-    { sistema: 'Freios', rotulo: 'Freios', x: 172, y: 282, lx: 130, ly: 404, anchor: 'middle' },
-    { sistema: 'Transmissão', rotulo: 'Câmbio', x: 300, y: 274, lx: 330, ly: 404, anchor: 'middle' },
-    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 430, y: 274, lx: 500, ly: 404, anchor: 'middle' },
-    { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 584, y: 282, lx: 700, ly: 404, anchor: 'middle' },
+    { sistema: 'Carroceria', rotulo: 'Carroceria', x: 618, y: 232, lx: 862, ly: 250, anchor: 'start' },
+    { sistema: 'Freios', rotulo: 'Freios', x: 178, y: 262, lx: 130, ly: 404, anchor: 'middle' },
+    { sistema: 'Transmissão', rotulo: 'Câmbio', x: 320, y: 248, lx: 330, ly: 404, anchor: 'middle' },
+    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 430, y: 248, lx: 500, ly: 404, anchor: 'middle' },
+    { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 558, y: 262, lx: 700, ly: 404, anchor: 'middle' },
   ],
 };
 
 const MOTO: Silhueta = {
   viewBox: '-165 18 1215 432', chao: 'M120 318 H660',
-  rodas: [{ cx: 236, cy: 258, r: 60 }, { cx: 556, cy: 258, r: 60 }],
+  rodas: [{ cx: 230, cy: 262, r: 54 }, { cx: 560, cy: 262, r: 54 }],
   corpo: (
-    <>
-      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-        {/* garfo dianteiro (dois tubos) até a mesa, e guidão */}
-        <path d="M236 258 L292 152" />
-        <path d="M248 262 L302 158" strokeWidth="2.2" opacity="0.75" />
-        <path d="M270 150 L330 138" strokeWidth="3.4" />
-        <path d="M292 152 L300 168" strokeWidth="2.4" />
-        {/* farol */}
-        <path d="M272 168C260 176 258 190 264 200L288 184Z" strokeWidth="2.4" />
-        {/* quadro: tubo superior + tubo do berço */}
-        <path d="M300 168 L392 182 L470 186" />
-        <path d="M306 188 L344 226 L420 230" />
-        {/* tanque */}
-        <path d="M312 176C340 158 380 156 404 166L406 190L346 200L312 192Z" />
-        {/* banco + rabeta */}
-        <path d="M406 178C440 168 478 166 502 172L508 186L470 194L408 196Z" />
-        {/* motor */}
-        <path d="M344 200 L410 204 L416 244 L350 240Z" strokeWidth="2.6" />
-        {/* balança traseira até o eixo */}
-        <path d="M420 232 L556 258" strokeWidth="2.8" />
-        {/* amortecedor traseiro */}
-        <path d="M462 188 L492 244" strokeWidth="2.6" />
-        {/* escapamento */}
-        <path d="M416 236C462 244 512 250 546 252" strokeWidth="2.6" />
-      </g>
-    </>
+    <g fill="currentColor">
+      <path d="M224 262 L268 158 L284 164 L240 268 Z" />
+      <path d="M256 148 L336 134 L338 148 L258 162 Z" />
+      <path d="M282 178 C306 160 352 156 396 166 L402 186 L344 196 L296 190 Z" />
+      <path d="M404 168 L486 166 C504 166 514 172 516 182 L470 190 L410 192 Z" />
+      <path d="M348 200 L404 204 L412 246 L352 242 Z" />
+      <path d="M412 226 L564 258 L560 272 L408 240 Z" />
+      <path d="M416 238 C470 248 518 254 552 256 L550 266 C514 264 462 256 412 246 Z" />
+      <path d="M452 186 L490 242 L478 250 L440 194 Z" />
+    </g>
   ),
   pontos: [
     { sistema: 'Direção', rotulo: 'Guidão / direção', x: 296, y: 150, lx: 236, ly: 52, anchor: 'middle' },
@@ -263,32 +208,28 @@ const MOTO: Silhueta = {
 
 const CARRETA: Silhueta = {
   viewBox: '-165 18 1215 432', chao: 'M120 318 H660',
-  rodas: [{ cx: 430, cy: 282, r: 33 }],
+  rodas: [{ cx: 430, cy: 262, r: 34 }],
   corpo: (
-    <>
-      <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-        {/* caixa */}
-        <path d="M280 176 L620 176 L620 262 L280 262 Z" />
-        {/* chassi + lança de engate */}
-        <path d="M280 250 L190 250 L160 236" />
-        <circle cx="152" cy="232" r="10" strokeWidth="2.6" />
-        <path d="M280 262 L395 262" />
-        <path d="M465 262 L620 262" />
-        <path d="M395 262 A33 33 0 0 1 465 262" />
-        {/* pé de apoio */}
-        <path d="M300 262 L300 300 M286 300 H314" strokeWidth="2.6" />
-      </g>
-      <g fill="none" stroke="currentColor" strokeWidth="2" opacity="0.55">
-        <path d="M280 216 H620" />
-      </g>
-    </>
+    <g fill="currentColor">
+      <path fillRule="evenodd" d="
+        M280 168 L622 168 L622 262 L464 262 A34 34 0 0 0 396 262 L280 262 Z
+        M296 184 L606 184 L606 246 L296 246 Z
+      " />
+      <path d="M280 232 L188 232 L162 222 L157 234 L184 246 L280 246 Z" />
+      <path fillRule="evenodd" d="
+        M150 228 a11 11 0 1 0 22 0 a11 11 0 1 0 -22 0 Z
+        M156 228 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0 Z
+      " />
+      <path d="M292 262 L304 262 L304 298 L292 298 Z" />
+      <path d="M280 300 L316 300 L316 308 L280 308 Z" />
+    </g>
   ),
   pontos: [
     { sistema: 'Outros', rotulo: 'Carga / outros', x: 448, y: 200, lx: 560, ly: 66, anchor: 'middle' },
     { sistema: 'Carroceria', rotulo: 'Carroceria / engate', x: 300, y: 190, lx: 180, ly: 66, anchor: 'middle' },
     { sistema: 'Itens de segurança', rotulo: 'Itens de segurança', x: 600, y: 240, lx: 862, ly: 200, anchor: 'start' },
-    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 500, y: 268, lx: 560, ly: 404, anchor: 'middle' },
-    { sistema: 'Freios', rotulo: 'Freios', x: 430, y: 282, lx: 330, ly: 404, anchor: 'middle' },
+    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 508, y: 250, lx: 560, ly: 404, anchor: 'middle' },
+    { sistema: 'Freios', rotulo: 'Freios', x: 430, y: 262, lx: 330, ly: 404, anchor: 'middle' },
     { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 372, y: 250, lx: 160, ly: 404, anchor: 'middle' },
   ],
 };
