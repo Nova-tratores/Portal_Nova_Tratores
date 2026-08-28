@@ -33,6 +33,10 @@ interface HistoricoMesPonto {
   /** Só no card Serviços: split OS com NFS-e × internas (null quando os_mensal ainda não tem o split). */
   valorNota?: number | null;
   valorInterno?: number | null;
+  /** Só no card Serviços: contagem de OS do mês (toggle "Qtd de OS"). null quando os_mensal ainda não tem o count. */
+  qtdeOS?: number | null;
+  qtdeNota?: number | null;
+  qtdeInterno?: number | null;
 }
 
 export interface HistoricoResult {
@@ -87,26 +91,29 @@ export async function montarHistorico(
     }
   }
 
-  type OSMensalRow = { mes: number; ano: number; valor_total: number; valor_nota: number | null; valor_interno: number | null };
+  type OSMensalRow = { mes: number; ano: number; valor_total: number; valor_nota: number | null; valor_interno: number | null; qtde_os: number | null; qtde_os_nota: number | null; qtde_os_interno: number | null };
   let todosOS: OSMensalRow[] = [];
   if (catKey === 'servico' || catKey === 'totalGeral') {
     for (const ano of anos) {
-      const { data } = await filtroConta(supabase.from('os_mensal').select('mes,ano,valor_total,valor_nota,valor_interno').eq('ano', ano), conta);
+      const { data } = await filtroConta(supabase.from('os_mensal').select('mes,ano,valor_total,valor_nota,valor_interno,qtde_os,qtde_os_nota,qtde_os_interno').eq('ano', ano), conta);
       if (data) todosOS = todosOS.concat(data as OSMensalRow[]);
     }
     if (!conta) {
-      // "Todas": soma por mês; split só quando TODAS as contas do mês têm o split (senão null).
-      const agregado: Record<string, { total: number; nota: number | null; interno: number | null }> = {};
+      // "Todas": soma por mês; split/count só quando TODAS as contas do mês têm o valor (senão null).
+      const agregado: Record<string, { total: number; nota: number | null; interno: number | null; qtde: number | null; qtdeNota: number | null; qtdeInterno: number | null }> = {};
       todosOS.forEach((o) => {
         const k = o.mes + '/' + o.ano;
-        const a = (agregado[k] ||= { total: 0, nota: 0, interno: 0 });
+        const a = (agregado[k] ||= { total: 0, nota: 0, interno: 0, qtde: 0, qtdeNota: 0, qtdeInterno: 0 });
         a.total += num(o.valor_total);
         a.nota = a.nota != null && o.valor_nota != null ? a.nota + num(o.valor_nota) : null;
         a.interno = a.interno != null && o.valor_interno != null ? a.interno + num(o.valor_interno) : null;
+        a.qtde = a.qtde != null && o.qtde_os != null ? a.qtde + num(o.qtde_os) : null;
+        a.qtdeNota = a.qtdeNota != null && o.qtde_os_nota != null ? a.qtdeNota + num(o.qtde_os_nota) : null;
+        a.qtdeInterno = a.qtdeInterno != null && o.qtde_os_interno != null ? a.qtdeInterno + num(o.qtde_os_interno) : null;
       });
       todosOS = Object.keys(agregado).map((k) => {
         const p = k.split('/');
-        return { mes: parseInt(p[0]), ano: parseInt(p[1]), valor_total: agregado[k].total, valor_nota: agregado[k].nota, valor_interno: agregado[k].interno };
+        return { mes: parseInt(p[0]), ano: parseInt(p[1]), valor_total: agregado[k].total, valor_nota: agregado[k].nota, valor_interno: agregado[k].interno, qtde_os: agregado[k].qtde, qtde_os_nota: agregado[k].qtdeNota, qtde_os_interno: agregado[k].qtdeInterno };
       });
     }
   }
@@ -132,6 +139,9 @@ export async function montarHistorico(
     if (catKey === 'servico') {
       ponto.valorNota = osMes ? (osMes.valor_nota == null ? null : num(osMes.valor_nota)) : null;
       ponto.valorInterno = osMes ? (osMes.valor_interno == null ? null : num(osMes.valor_interno)) : null;
+      ponto.qtdeOS = osMes ? (osMes.qtde_os == null ? null : num(osMes.qtde_os)) : null;
+      ponto.qtdeNota = osMes ? (osMes.qtde_os_nota == null ? null : num(osMes.qtde_os_nota)) : null;
+      ponto.qtdeInterno = osMes ? (osMes.qtde_os_interno == null ? null : num(osMes.qtde_os_interno)) : null;
     }
     return ponto;
   });

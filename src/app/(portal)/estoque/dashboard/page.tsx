@@ -73,7 +73,7 @@ interface TendPonto { label: string; mes: number; ano: number; pecas: number; se
 /** Ponto de uma janela comparativa (-1/-2 anos) — gráficos "Comparar" abaixo. */
 interface CompPonto { label: string; mes: number; ano: number; pecas: number; pecasBalcao: number; pecasOficina: number; servicos: number }
 interface Comparativos { a1: CompPonto[]; a2: CompPonto[] }
-interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null }
+interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null; qtdeOS?: number | null; qtdeNota?: number | null; qtdeInterno?: number | null }
 interface HistResp { catKey: string; nome: string; meses: HistMes[]; erro?: string }
 interface VendaRow {
   numero_pedido?: string; data_pedido?: string; descricao?: string; codigo_produto?: string;
@@ -156,6 +156,7 @@ export default function DashboardPage() {
 
   const [histCard, setHistCard] = useState<string | null>(null);
   const [hist, setHist] = useState<HistResp | null>(null);
+  const [histMetric, setHistMetric] = useState<'valor' | 'qtd'>('valor');
 
   const [vendas, setVendas] = useState<VendaRow[] | null>(null);
   const [vendasCard, setVendasCard] = useState<{ nome: string } | null>(null);
@@ -249,6 +250,7 @@ export default function DashboardPage() {
   const abrirHistorico = useCallback(async (catKey: string) => {
     setHistCard(catKey);
     setHist(null);
+    setHistMetric('valor');
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
     const r = await fetch(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
     const d = (await r.json()) as HistResp;
@@ -729,23 +731,59 @@ export default function DashboardPage() {
       {/* Histórico */}
       {histCard != null && (
         <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, margin: '18px 0' }}>
-          <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, marginBottom: 12 }}>Histórico — {hist?.nome ? fixLabel(hist.nome) : '…'}</h2>
+          {(() => {
+            const temQtd = histCard === 'servico' && !!hist && hist.meses.some((m) => m.qtdeOS != null);
+            return (
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
+                <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Histórico — {hist?.nome ? fixLabel(hist.nome) : '…'}</h2>
+                {temQtd && (
+                  <div style={{ display: 'inline-flex', border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden' }}>
+                    {(['valor', 'qtd'] as const).map((op) => (
+                      <button
+                        key={op}
+                        onClick={() => setHistMetric(op)}
+                        style={{
+                          border: 'none', cursor: 'pointer', padding: '5px 12px', fontSize: '.85rem', fontWeight: 600,
+                          background: histMetric === op ? '#2563eb' : '#fff', color: histMetric === op ? '#fff' : '#374151',
+                        }}
+                      >{op === 'valor' ? 'Valor de OS' : 'Qtd de OS'}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
           {!hist ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div> : (() => {
             const temSplit = hist.meses.some((m) => m.valorNota != null);
             const custoTodoZero = hist.meses.every((m) => !m.custo);
+            const modoQtd = histCard === 'servico' && histMetric === 'qtd';
             return (
               <div style={{ width: '100%', height: 340 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={hist.meses}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="label" tick={{ fontSize: 13 }} />
-                    <YAxis tick={{ fontSize: 13 }} tickFormatter={(v) => fmtMil(v)} width={88} />
-                    <Tooltip formatter={(v: number) => fmtRS(v)} />
+                    {modoQtd ? (
+                      <YAxis tick={{ fontSize: 13 }} tickFormatter={(v) => String(v)} width={48} allowDecimals={false} />
+                    ) : (
+                      <YAxis tick={{ fontSize: 13 }} tickFormatter={(v) => fmtMil(v)} width={88} />
+                    )}
+                    <Tooltip formatter={(v: number) => (modoQtd ? `${v} OS` : fmtRS(v))} />
                     <Legend wrapperStyle={{ fontSize: 14 }} />
-                    <Line type="monotone" dataKey="valor" name="Venda" stroke="#111827" strokeWidth={2} dot={false} />
-                    {!custoTodoZero && <Line type="monotone" dataKey="custo" name="Custo" stroke="#888" strokeWidth={1.5} dot={false} />}
-                    {temSplit && <Line type="monotone" dataKey="valorNota" name="Com nota" stroke="#2563eb" strokeWidth={1.5} dot={false} />}
-                    {temSplit && <Line type="monotone" dataKey="valorInterno" name="Interno" stroke="#f59e0b" strokeWidth={1.5} dot={false} />}
+                    {modoQtd ? (
+                      <>
+                        <Line type="monotone" dataKey="qtdeOS" name="Total OS" stroke="#111827" strokeWidth={2} dot={false} />
+                        <Line type="monotone" dataKey="qtdeNota" name="Com nota" stroke="#2563eb" strokeWidth={1.5} dot={false} />
+                        <Line type="monotone" dataKey="qtdeInterno" name="Interno" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
+                      </>
+                    ) : (
+                      <>
+                        <Line type="monotone" dataKey="valor" name="Venda" stroke="#111827" strokeWidth={2} dot={false} />
+                        {!custoTodoZero && <Line type="monotone" dataKey="custo" name="Custo" stroke="#888" strokeWidth={1.5} dot={false} />}
+                        {temSplit && <Line type="monotone" dataKey="valorNota" name="Com nota" stroke="#2563eb" strokeWidth={1.5} dot={false} />}
+                        {temSplit && <Line type="monotone" dataKey="valorInterno" name="Interno" stroke="#f59e0b" strokeWidth={1.5} dot={false} />}
+                      </>
+                    )}
                   </LineChart>
                 </ResponsiveContainer>
               </div>

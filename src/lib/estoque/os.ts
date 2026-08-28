@@ -247,7 +247,7 @@ async function classificarNfseOS(lista: OSFaturada[], conta: Conta): Promise<Set
  * separando com nota × interno. `completo=false` → a listagem da Omie veio
  * truncada e os totais estão SUBESTIMADOS (não gravar em os_mensal).
  */
-export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Promise<{ total: number; nota: number; interno: number; internoRetorno: number; internoPuro: number; completo: boolean }> {
+export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Promise<{ total: number; nota: number; interno: number; internoRetorno: number; internoPuro: number; qtde: number; qtdeNota: number; qtdeInterno: number; completo: boolean }> {
   const { lista: todas, completo } = await buscarTodasOSDetalhado(conta);
   const overrides = await lerOverridesOS();
   const dtDe = parseDataBR(de);
@@ -300,7 +300,10 @@ export async function buscarOSPeriodo(de: string, ate: string, conta: Conta): Pr
       internoRetorno += f.valor;
     }
   });
-  return { total, nota, interno: total - nota, internoRetorno, internoPuro, completo };
+  // Contagem de OS (etapa 60) do período: total, com NFS-e e internas (o resto).
+  const qtde = faturadas.length;
+  const qtdeNota = faturadas.reduce((n, f) => n + (comNota.has(f.nCodOS) ? 1 : 0), 0);
+  return { total, nota, interno: total - nota, internoRetorno, internoPuro, qtde, qtdeNota, qtdeInterno: qtde - qtdeNota, completo };
 }
 
 function agendarRefreshOSMesAtual(mes: number, ano: number, conta: Conta): void {
@@ -312,7 +315,7 @@ function agendarRefreshOSMesAtual(mes: number, ano: number, conta: Conta): void 
       const de = fmtD(new Date(ano, mes - 1, 1));
       const t = await buscarOSPeriodo(de, hoje, conta);
       if (!t.completo) throw new Error('ListarOS truncado — os_mensal preservado');
-      await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+      await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, qtde_os: t.qtde, qtde_os_nota: t.qtdeNota, qtde_os_interno: t.qtdeInterno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
       await sincronizarServicosItens(mes, ano, conta);
       await salvarControleCache('os', mes, ano, hoje, conta);
     } catch (e) {
@@ -332,7 +335,7 @@ function agendarRefreshOSPassado(mes: number, ano: number, conta: Conta): void {
       const ate = fmtD(new Date(ano, mes, 0));
       const t = await buscarOSPeriodo(de, ate, conta);
       if (!t.completo) throw new Error('ListarOS truncado — os_mensal preservado');
-      await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+      await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, qtde_os: t.qtde, qtde_os_nota: t.qtdeNota, qtde_os_interno: t.qtdeInterno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
       await sincronizarServicosItens(mes, ano, conta);
       // Marca a data do re-sync — mês recém-fechado re-sincroniza só 1x/dia (ver obterTotaisOS).
       await salvarControleCache('os', mes, ano, fmtD(new Date()), conta);
@@ -403,7 +406,7 @@ export async function obterTotaisOS(mes: number, ano: number, conta: ContaFiltro
     const t = await buscarOSPeriodo(de, hoje, conta);
     // Listagem truncada: serve o parcial nesta request, mas não persiste nada.
     if (!t.completo) return { total: t.total, nota: t.nota, interno: t.interno, ...split(t) };
-    await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
+    await supabase.from('os_mensal').upsert({ mes, ano, valor_total: t.total, valor_nota: t.nota, valor_interno: t.interno, valor_interno_retorno: t.internoRetorno, valor_interno_puro: t.internoPuro, qtde_os: t.qtde, qtde_os_nota: t.qtdeNota, qtde_os_interno: t.qtdeInterno, conta_omie: conta }, { onConflict: 'mes,ano,conta_omie' });
     void sincronizarServicosItens(mes, ano, conta).catch(() => {});
     await salvarControleCache('os', mes, ano, hoje, conta);
     return { total: t.total, nota: t.nota, interno: t.interno, ...split(t) };
