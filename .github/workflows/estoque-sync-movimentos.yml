@@ -1,0 +1,24 @@
+name: Estoque - Sync Livro-Razão de Movimentos (diário)
+
+# Mantém o livro-razão de estoque (estoque_movimentos) atualizado: re-sincroniza a
+# janela recente dos produtos que se moveram no mês (compra/venda/ajuste/...), fonte
+# da aba Reconciliação e do Estoque do Gráfico Mensal. Idempotente (upsert por hash).
+# O endpoint responde na hora (fire-and-forget) e segue sincronizando em background.
+# Requer secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '20 5 * * *'    # todo dia às 05:20 UTC (~02:20 BRT)
+  workflow_dispatch: {}       # permite rodar manualmente pelo botão "Run workflow"
+
+jobs:
+  sync-movimentos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Disparar sync incremental do razão (peças NOVA+CASTRO)
+        run: |
+          curl -fsS --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/movimentos/cron?grupo=peca&dias=60" \
+            -w "\nsync-movimentos: HTTP %{http_code}\n"

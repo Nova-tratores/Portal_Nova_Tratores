@@ -160,3 +160,80 @@ export async function sincronizarLote(
   }
   return { feitos: alvo.length, restantes: faltam.length - alvo.length, totalGrupo: produtos.length, movimentos };
 }
+
+function dataBR(d: Date): string {
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+}
+
+/** Produtos (peça) com movimento no MÊS CORRENTE — o conjunto que muda no dia a dia:
+ *  vendidos (vendas_itens) ∪ comprados (notas_entrada) ∪ já com movimento no razão. */
+async function ativosDoMes(conta: Conta, grupo: 'peca' | 'maquina'): Promise<Set<number>> {
+  const now = new Date();
+  const mes = now.getMonth() + 1, ano = now.getFullYear();
+  const grupoSet = new Set((await listarProdutos(conta, grupo)).map((p) => p.codigo_produto));
+  const ativos = new Set<number>();
+  const add = (c: unknown) => { const n = Number(c); if (grupoSet.has(n)) ativos.add(n); };
+  // vendas do mês (ATENÇÃO: vendas_itens/notas_entrada usam conta_omie MAIÚSCULO,
+  // ao contrário de produtos/estoque_movimentos que usam minúsculo).
+  for (let off = 0; ; off += 1000) {
+    const { data } = await supabase.from('vendas_itens').select('codigo_produto').eq('conta_omie', String(conta)).eq('ano', ano).eq('mes', mes).range(off, off + 999);
+    const lote = (data || []) as Array<{ codigo_produto: unknown }>;
+    lote.forEach((r) => add(r.codigo_produto));
+    if (lote.length < 1000) break;
+  }
+  // compras do mês (notas_entrada: itens[].nfProdInt.nCodProd)
+  for (let off = 0; ; off += 500) {
+    const { data } = await supabase.from('notas_entrada').select('itens').eq('conta_omie', String(conta)).eq('mes', mes).eq('ano', ano).range(off, off + 499);
+    const lote = (data || []) as Array<{ itens: unknown }>;
+    for (const n of lote) {
+      const itens = Array.isArray(n.itens) ? (n.itens as Array<Record<string, unknown>>) : [];
+      for (const it of itens) add((it.nfProdInt as Record<string, unknown> | undefined)?.nCodProd);
+    }
+    if (lote.length < 500) break;
+  }
+  // já com movimento no razão neste mês
+  for (let off = 0; ; off += 1000) {
+    const { data } = await supabase.from(TBL).select('codigo_produto').eq('conta_omie', contaLow(conta)).eq('grupo', grupo).eq('ano', ano).eq('mes', mes).range(off, off + 999);
+    const lote = (data || []) as Array<{ codigo_produto: unknown }>;
+    lote.forEach((r) => ativos.add(Number(r.codigo_produto)));
+    if (lote.length < 1000) break;
+  }
+  return ativos;
+}
+
+/**
+ * Sync INCREMENTAL (cron diário): re-puxa a janela recente dos produtos com movimento
+ * no mês, dos mais DESATUALIZADOS primeiro (round-robin via sincronizado_em), até o
+ * tempo acabar. Idempotente (upsert por mov_hash). Se não terminar num dia, o próximo
+ * continua de onde parou.
+ */
+export async function sincronizarIncremental(
+  conta: Conta, opts: { grupo?: 'peca' | 'maquina'; janelaDias?: number; maxMs?: number } = {},
+): Promise<{ conta: Conta; grupo: string; candidatos: number; feitos: number; movimentos: number; restantes: number; segundos: number }> {
+  const grupo = opts.grupo ?? 'peca';
+  const janelaDias = opts.janelaDias ?? 60;
+  const maxMs = opts.maxMs ?? 13 * 60 * 1000;
+  const t0 = Date.now();
+  const hoje = new Date();
+  const desde = new Date(hoje.getTime() - janelaDias * 86400_000);
+  const ativos = [...await ativosDoMes(conta, grupo)];
+  // família por código (p/ gravar) e ordem por desatualizado (sincronizado_em asc).
+  const famPor = new Map((await listarProdutos(conta, grupo)).map((p) => [p.codigo_produto, p.familia]));
+  const staleMap = new Map<number, string>();
+  for (let off = 0; ; off += 1000) {
+    const { data } = await supabase.from(TBL_SYNC).select('codigo_produto,sincronizado_em').eq('conta_omie', contaLow(conta)).range(off, off + 999);
+    const lote = (data || []) as Array<{ codigo_produto: number; sincronizado_em: string }>;
+    lote.forEach((r) => staleMap.set(Number(r.codigo_produto), r.sincronizado_em));
+    if (lote.length < 1000) break;
+  }
+  ativos.sort((a, b) => (staleMap.get(a) || '').localeCompare(staleMap.get(b) || '')); // vazio (novo) primeiro
+  let feitos = 0, movimentos = 0;
+  for (const cod of ativos) {
+    if (Date.now() - t0 > maxMs) break;
+    try { movimentos += await sincronizarMovimentosProduto(conta, cod, famPor.get(cod) ?? null, grupo, dataBR(desde), dataBR(hoje)); }
+    catch (e) { console.error(`[mov-incremental ${conta} ${cod}] ${(e as Error).message}`); }
+    feitos++;
+    await sleep(900);
+  }
+  return { conta, grupo, candidatos: ativos.length, feitos, movimentos, restantes: ativos.length - feitos, segundos: Math.round((Date.now() - t0) / 1000) };
+}
