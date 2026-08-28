@@ -16,6 +16,7 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { temModuloPendencias } from '@/lib/frota/server';
 import { sincronizarPendencias } from '@/lib/frota/pendencias-sync';
+import { ehGravidade } from '@/lib/frota/gravidade';
 
 export const runtime = 'nodejs';
 
@@ -35,8 +36,36 @@ const erroTabela = (msg: string) =>
     ? 'Tabelas de pendências ainda não criadas — aplique sql/frota-pendencias.sql no Supabase.'
     : msg;
 
-const SELECT_PEND =
-  'id, veiculo_id, placa, origem, origem_ref, titulo, descricao, componente_id, data_ocorrencia, status, aberta_por, aberta_em, resolvida_por, resolvida_em, resolucao, vinculo_tipo, vinculo_ref, foto_url, km, responsavel';
+// '*' e não a lista de colunas: a coluna `gravidade` chega pela migração
+// sql/frota-gravidade-e-checklist.sql, e o deploy é automático a partir do main.
+// Com a lista explícita, pedir uma coluna que ainda não existe derruba a tela
+// inteira de pendências até alguém rodar o SQL; com '*' a tela funciona nos
+// dois momentos — antes da migração cada pendência só cai no padrão do
+// componente (lib/frota/gravidade.ts).
+const SELECT_PEND = '*';
+
+/**
+ * Grava respeitando a possibilidade de a coluna `gravidade` ainda não existir.
+ *
+ * Mesmo motivo do SELECT '*': o deploy sai do main automaticamente e a migração
+ * é rodada à mão. Abrir a pendência importa mais que classificar o risco —
+ * então, se o banco não conhecer a coluna, a operação vai adiante SEM ela em
+ * vez de falhar. Quando a migração roda, passa a gravar normalmente, sem
+ * mudança de código.
+ */
+type Escrita = { data: unknown; error: { message: string } | null };
+async function gravarComGravidade(
+  executar: (extra: Record<string, unknown>) => PromiseLike<Escrita>,
+  gravidadeBruta: unknown,
+): Promise<Escrita> {
+  const g = ehGravidade(gravidadeBruta) ? gravidadeBruta : null;
+  if (g === null) return executar({});
+  const r = await executar({ gravidade: g });
+  if (r.error && /gravidade/i.test(r.error.message) && /column|coluna/i.test(r.error.message)) {
+    return executar({});
+  }
+  return r;
+}
 
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
@@ -72,25 +101,25 @@ export async function POST(req: NextRequest) {
   if (!responsavel) return NextResponse.json({ error: 'Responsável (usuário do portal) é obrigatório.' }, { status: 400 });
 
   const nome = await nomeDoUsuario(auth.userId, auth.email ?? null);
-  const { data, error } = await supabase
-    .from('frota_pendencias')
-    .insert({
-      placa,
-      veiculo_id: body.veiculo_id || null,
-      origem: 'manual',
-      origem_ref: null,
-      titulo,
-      descricao: String(body.descricao || '').trim() || null,
-      componente_id: body.componente_id || null,
-      data_ocorrencia: body.data_ocorrencia || null,
-      km: body.km != null && String(body.km).trim() !== '' ? Number(String(body.km).replace(/\D/g, '')) || null : null,
-      responsavel,
-      foto_url: String(body.foto_url || '').trim() || null,
-      status: 'aberta',
-      aberta_por: nome,
-    })
-    .select(SELECT_PEND)
-    .single();
+  const base = {
+    placa,
+    veiculo_id: body.veiculo_id || null,
+    origem: 'manual',
+    origem_ref: null,
+    titulo,
+    descricao: String(body.descricao || '').trim() || null,
+    componente_id: body.componente_id || null,
+    data_ocorrencia: body.data_ocorrencia || null,
+    km: body.km != null && String(body.km).trim() !== '' ? Number(String(body.km).replace(/\D/g, '')) || null : null,
+    responsavel,
+    foto_url: String(body.foto_url || '').trim() || null,
+    status: 'aberta',
+    aberta_por: nome,
+  };
+  const { data, error } = await gravarComGravidade(
+    (extra) => supabase.from('frota_pendencias').insert({ ...base, ...extra }).select(SELECT_PEND).single(),
+    body.gravidade,
+  );
 
   if (error) return NextResponse.json({ error: erroTabela(error.message) }, { status: 500 });
   return NextResponse.json({ pendencia: data });
@@ -130,13 +159,19 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ pendencia: data });
   }
 
+  // classificar = definir o componente e/ou o grau de perigo. Os dois juntos
+  // porque é a mesma pergunta ("o que é e quão sério é") e a tela pede junto.
   if (body.acao === 'classificar') {
-    const { data, error } = await supabase
-      .from('frota_pendencias')
-      .update({ componente_id: body.componente_id || null })
-      .eq('id', body.id)
-      .select(SELECT_PEND)
-      .single();
+    const mudaComponente = Object.prototype.hasOwnProperty.call(body, 'componente_id');
+    const { data, error } = await gravarComGravidade(
+      (extra) => supabase
+        .from('frota_pendencias')
+        .update({ ...(mudaComponente ? { componente_id: body.componente_id || null } : {}), ...extra })
+        .eq('id', body.id)
+        .select(SELECT_PEND)
+        .single(),
+      body.gravidade,
+    );
     if (error) return NextResponse.json({ error: erroTabela(error.message) }, { status: 500 });
     return NextResponse.json({ pendencia: data });
   }

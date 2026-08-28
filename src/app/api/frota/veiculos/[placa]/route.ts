@@ -30,6 +30,8 @@ const EDITAVEIS = new Set([
   'observacoes', 'seguradora', 'placa_exibicao', 'proprietario', 'equipamentos',
   'exercicio_crlv', 'id_projeto_omie', 'id_projeto_omie_castro',
   'fipe_codigo', 'fipe_ano_codigo', 'senha_cartao_veloe',
+  // desligar o checklist mensal deste carro (motivo é opcional)
+  'checklist_desativado', 'checklist_desativado_motivo',
 ]);
 
 async function acharVeiculo(placaParam: string) {
@@ -196,8 +198,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ pl
     upd.campos_manuais = [...new Set([...(v.campos_manuais || []), ...travar])];
   }
 
+  // Ligar/desligar o checklist carimba quem e quando — a pergunta "por que este
+  // carro parou de fazer checklist?" precisa ter resposta meses depois.
+  if ('checklist_desativado' in upd) {
+    const desligando = upd.checklist_desativado === true;
+    upd.checklist_desativado = desligando;
+    upd.checklist_desativado_em = desligando ? new Date().toISOString() : null;
+    upd.checklist_desativado_por = desligando ? (auth.email || auth.userId || 'portal') : null;
+    if (!desligando) upd.checklist_desativado_motivo = null;
+  }
+
   const { error } = await supabase.from('frota_veiculos').update(upd).eq('id', v.id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // migração pendente: aqui NÃO dá pra seguir em silêncio como nas leituras —
+    // a pessoa clicou num botão e ficaria achando que desligou o checklist
+    if (/checklist_desativado/i.test(error.message)) {
+      return NextResponse.json(
+        { error: 'Falta aplicar a migração sql/frota-gravidade-e-checklist.sql no Supabase para desligar o checklist por veículo.' },
+        { status: 409 },
+      );
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   // Projeto Omie editado? Espelha na SupaPlacas — é de lá que o
   // omie-contapagar resolve o projeto das requisições veiculares.

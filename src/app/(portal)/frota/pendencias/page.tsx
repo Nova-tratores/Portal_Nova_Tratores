@@ -17,6 +17,10 @@ import {
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
 import { formatarHodometro } from '@/lib/requisicoes/campos';
+import {
+  gravidadePadrao, GRAVIDADES, GRAVIDADE_AJUDA, GRAVIDADE_COR, GRAVIDADE_LABEL,
+  type Gravidade,
+} from '@/lib/frota/gravidade';
 
 interface Veiculo {
   id: string; placa: string | null; modelo?: string | null; marca?: string | null;
@@ -73,6 +77,10 @@ export default function FrotaPendenciasPage() {
   const [nTitulo, setNTitulo] = useState('');
   const [nSistema, setNSistema] = useState('');
   const [nCompId, setNCompId] = useState('');
+  const [nGravidade, setNGravidade] = useState<Gravidade>('media');
+  // "toquei no seletor de gravidade": depois disso, trocar o componente NÃO
+  // sobrescreve o que a pessoa escolheu — seria apagar a decisão dela
+  const [gravidadeTocada, setGravidadeTocada] = useState(false);
   const [nData, setNData] = useState(() => new Date().toISOString().slice(0, 10));
   const [nDesc, setNDesc] = useState('');
   const [nResp, setNResp] = useState('');
@@ -175,6 +183,13 @@ export default function FrotaPendenciasPage() {
 
   const compPorId = useMemo(() => new Map(componentes.map((c) => [c.id, c])), [componentes]);
 
+  // Escolheu/trocou o componente → sugere o grau de perigo dele. Só enquanto a
+  // pessoa não tiver mexido no seletor (senão a sugestão apagaria a escolha).
+  useEffect(() => {
+    if (gravidadeTocada) return;
+    setNGravidade(gravidadePadrao(nCompId ? compPorId.get(nCompId) : null));
+  }, [nCompId, compPorId, gravidadeTocada]);
+
   const todosGrupos = useMemo<Map<string, Grupo>>(() => {
     const porPlaca = new Map<string, Grupo>();
     for (const r of registradas) {
@@ -242,12 +257,12 @@ export default function FrotaPendenciasPage() {
     try {
       const r = await fetch('/api/frota/pendencias', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ placa: aberto.placa, veiculo_id: aberto.veiculoId, titulo: nTitulo.trim(), descricao: nDesc.trim(), componente_id: nCompId || null, data_ocorrencia: nData || null, responsavel: nResp.trim() }),
+        body: JSON.stringify({ placa: aberto.placa, veiculo_id: aberto.veiculoId, titulo: nTitulo.trim(), descricao: nDesc.trim(), componente_id: nCompId || null, data_ocorrencia: nData || null, responsavel: nResp.trim(), gravidade: nGravidade }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Falha ao salvar.');
       setRegistradas((prev) => [d.pendencia, ...prev]);
-      setNovaAberta(false); setNTitulo(''); setNDesc(''); setNSistema(''); setNCompId('');
+      setNovaAberta(false); setNTitulo(''); setNDesc(''); setNSistema(''); setNCompId(''); setGravidadeTocada(false);
     } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
     setSalvandoNova(false);
   };
@@ -632,7 +647,7 @@ export default function FrotaPendenciasPage() {
                     <Wrench size={13} /> Pendências em aberto ({aberto.abertas.length})
                   </div>
                   {!avisoTabela && (
-                    <button onClick={() => { setNovaAberta(true); setNTitulo(''); setNDesc(''); setNResp(''); setNSistema(''); setNCompId(''); setNData(new Date().toISOString().slice(0, 10)); }}
+                    <button onClick={() => { setNovaAberta(true); setNTitulo(''); setNDesc(''); setNResp(''); setNSistema(''); setNCompId(''); setGravidadeTocada(false); setNData(new Date().toISOString().slice(0, 10)); }}
                       style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 0, border: 'none', cursor: 'pointer', background: '#1e40af', color: '#fff', fontSize: 12, fontWeight: 700 }}>
                       <Plus size={13} /> Registrar pendência
                     </button>
@@ -646,6 +661,39 @@ export default function FrotaPendenciasPage() {
                       <input style={inp} spellCheck lang="pt-BR" value={nTitulo} onChange={(e) => setNTitulo(e.target.value)} placeholder="Ex: Câmbio raspando na 3ª marcha" autoFocus />
                     </div>
                     {seletorComponente(nSistema, setNSistema, nCompId, setNCompId)}
+                    {/* Grau de perigo: vem SUGERIDO pelo componente escolhido e
+                        pode ser corrigido aqui. É o que separa "farol queimado"
+                        de "direção falhando" na contagem do carro. */}
+                    <div>
+                      <label style={lbl}>
+                        Grau de perigo
+                        <span style={{ fontWeight: 500, color: 'var(--portal-text-muted)' }}>
+                          {' '}— sugerido pelo componente, ajuste se o caso for outro
+                        </span>
+                      </label>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {GRAVIDADES.map((g) => {
+                          const c = GRAVIDADE_COR[g];
+                          const sel = nGravidade === g;
+                          return (
+                            <button key={g} type="button" onClick={() => { setNGravidade(g); setGravidadeTocada(true); }} title={GRAVIDADE_AJUDA[g]}
+                              style={{
+                                display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 0,
+                                border: `1.5px solid ${sel ? c.forte : 'var(--portal-border)'}`,
+                                background: sel ? c.bg : 'transparent',
+                                color: sel ? c.cor : 'var(--portal-text-secondary)',
+                                fontSize: 13, fontWeight: sel ? 800 : 600, cursor: 'pointer',
+                              }}>
+                              <span style={{ width: 9, height: 9, borderRadius: 999, background: c.forte }} />
+                              {GRAVIDADE_LABEL[g]}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 5, lineHeight: 1.5 }}>
+                        {GRAVIDADE_AJUDA[nGravidade]}
+                      </div>
+                    </div>
                     <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10 }}>
                       <div>
                         <label style={lbl}>Data da ocorrência</label>

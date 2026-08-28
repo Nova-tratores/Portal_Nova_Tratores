@@ -31,6 +31,31 @@ async function nomeDoUsuario(userId: string, email: string | null): Promise<stri
 }
 
 // Confere se o veículo é mesmo "não-vinculado" (sem responsável na Frota e sem técnico).
+/**
+ * Veículo que NÃO deve mais entrar na rotina de checklist.
+ *
+ * Duas razões: saiu da frota (vendido/arquivado/inativo) ou foi desligado à
+ * mão (`checklist_desativado` — ex.: carro parado no pátio). A trava fica AQUI,
+ * no início do checklist, e não só na tela: o checklist também é aberto pelo
+ * app dos mecânicos, e esconder o botão no portal não impediria nada.
+ *
+ * Tolerante à migração pendente: sem a coluna, o `select('*')` devolve a linha
+ * sem ela e só a regra de ativo/status vale.
+ */
+async function checklistBloqueado(placaCanon: string): Promise<string | null> {
+  const { data: v } = await supabase.from('frota_veiculos').select('*').eq('placa', placaCanon).maybeSingle();
+  if (!v) return null; // veículo fora do cadastro: mantém o comportamento de antes
+  const status = String((v as any).status || '').toLowerCase();
+  if ((v as any).ativo === false || status === 'vendido' || status === 'arquivado') {
+    return 'Veículo inativo (vendido/arquivado) — não faz mais checklist mensal.';
+  }
+  if ((v as any).checklist_desativado === true) {
+    const motivo = String((v as any).checklist_desativado_motivo || '').trim();
+    return `Checklist desativado neste veículo${motivo ? ` — ${motivo}` : '.'}`;
+  }
+  return null;
+}
+
 async function estaVinculado(placaCanon: string): Promise<boolean> {
   const { data: veic } = await supabase.from('frota_veiculos').select('id').eq('placa', placaCanon).maybeSingle();
   if (veic) {
@@ -114,6 +139,8 @@ export async function POST(req: NextRequest) {
   if (action === 'iniciar') {
     const placa = resolverPlaca(body.placa || '');
     if (!placa) return NextResponse.json({ error: 'Placa inválida' }, { status: 400 });
+    const bloqueio = await checklistBloqueado(placa);
+    if (bloqueio) return NextResponse.json({ error: bloqueio }, { status: 400 });
     if (await estaVinculado(placa)) {
       return NextResponse.json({ error: 'Este veículo tem responsável — o checklist é feito por quem é responsável.' }, { status: 400 });
     }

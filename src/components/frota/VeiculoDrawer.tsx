@@ -412,7 +412,39 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
     } finally { setBusy(''); }
   };
 
+  // Liga/desliga o checklist mensal deste carro. Pedir motivo ao DESLIGAR: seis
+  // meses depois, "por que este carro não faz checklist?" precisa de resposta.
+  const alternarChecklist = async () => {
+    const v = det?.veiculo;
+    if (!v) return;
+    const desligando = v.checklist_desativado !== true;
+    let motivo = '';
+    if (desligando) {
+      const resp = prompt('Desativar o checklist mensal deste veículo.\nPor quê? (ex.: parado no pátio, aguardando venda)');
+      if (resp === null) return; // cancelou
+      motivo = resp.trim();
+    } else if (!confirm('Voltar a pedir o checklist mensal deste veículo?')) return;
+
+    setBusy('checklist');
+    try {
+      const r = await fetch(`/api/frota/veiculos/${encodeURIComponent(placa)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ checklist_desativado: desligando, checklist_desativado_motivo: desligando ? motivo : '' }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { alert(d.error || 'Falha ao mudar o checklist.'); return; }
+      await carregar();
+      onMudou?.();
+    } finally { setBusy(''); }
+  };
+
   const v = det?.veiculo;
+  // Fora da frota: some com a seção de checklist (pedido do usuário). A mesma
+  // régua do servidor em /api/frota/checklist — se divergirem, a tela esconde
+  // o botão de um carro que o app dos mecânicos ainda aceita, ou o contrário.
+  const foraDaFrota = !!v && (v.ativo === false || v.status === 'vendido' || v.status === 'arquivado');
+  const checklistDesligado = v?.checklist_desativado === true;
   // período aberto "cru" (mesmo se o nome for placeholder tipo "Vazio")
   const respAberto = det?.responsaveis.find((r) => r.fim === null) || null;
   // responsável REAL: ignora nomes-placeholder — aí o carro conta como sem responsável
@@ -1041,14 +1073,39 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                 )}
               </Secao>
 
-              {/* Checklists mensais (NT Mecânico) */}
+              {/* Checklists mensais (NT Mecânico).
+                  Carro fora da frota (vendido/arquivado/inativo) não mostra
+                  esta seção: não há checklist a fazer nem decisão a tomar. Já o
+                  DESLIGADO à mão continua aparecendo — senão não haveria por
+                  onde religar. A trava de verdade é no servidor
+                  (/api/frota/checklist), porque o app dos mecânicos também abre
+                  checklist e esconder botão aqui não impediria nada. */}
+              {!foraDaFrota && (
               <Secao titulo={`Checklists mensais (${det.checklists?.length || 0})`} icone={<ClipboardCheck size={14} />}>
-                {semResponsavel && (
+                {checklistDesligado ? (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, background: '#fef3c7', border: '1px solid #fde68a', borderRadius: 0, padding: '8px 12px' }}>
+                    <ClipboardCheck size={14} style={{ color: '#92400e', flexShrink: 0, marginTop: 2 }} />
+                    <div style={{ fontSize: 12.5, color: '#92400e', lineHeight: 1.5 }}>
+                      <strong>Checklist desativado neste veículo.</strong>
+                      {v.checklist_desativado_motivo ? ` ${v.checklist_desativado_motivo}` : ''}
+                      {v.checklist_desativado_por ? ` (por ${v.checklist_desativado_por})` : ''}
+                    </div>
+                  </div>
+                ) : semResponsavel && (
                   <a href={`/frota/checklist/${encodeURIComponent(v.placa)}`} target="_blank" rel="noopener noreferrer"
                     title="Veículo sem responsável — fazer/ver o checklist do mês (preenchimento pelo celular)"
                     style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 0, background: '#1e40af', color: '#fff', fontSize: 13.5, fontWeight: 700, textDecoration: 'none' }}>
                     <ClipboardCheck size={14} /> Checklist do mês
                   </a>
+                )}
+                {podeEditar && (
+                  <button onClick={alternarChecklist} disabled={busy === 'checklist'}
+                    title={checklistDesligado
+                      ? 'Voltar a pedir o checklist mensal deste veículo'
+                      : 'Parar de pedir o checklist mensal deste veículo (ex.: carro parado no pátio)'}
+                    style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 0, border: `1px solid ${checklistDesligado ? '#bbf7d0' : '#fecaca'}`, background: checklistDesligado ? '#f0fdf4' : '#fef2f2', color: checklistDesligado ? '#166534' : '#b91c1c', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                    {busy === 'checklist' ? 'Salvando…' : checklistDesligado ? 'Reativar checklist' : 'Desativar checklist'}
+                  </button>
                 )}
                 {(det.checklists || []).length === 0 ? (
                   <span style={{ fontSize: 12, color: 'var(--portal-text)' }}>
@@ -1082,6 +1139,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   </div>
                 )}
               </Secao>
+              )}
 
               {/* Custos 12m */}
               <Secao titulo="Custos (últimos 12 meses)" icone={<DollarSign size={14} />}>

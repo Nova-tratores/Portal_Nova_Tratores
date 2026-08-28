@@ -11,6 +11,11 @@ import {
   Snowflake, Waves, Wrench, Zap, AlertTriangle, ChevronDown,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
+import DiagramaVeiculo from '@/components/frota/DiagramaVeiculo';
+import {
+  contarPorGravidade, GRAVIDADES, GRAVIDADE_AJUDA,
+  GRAVIDADE_COR, GRAVIDADE_LABEL, type ContagemGravidade,
+} from '@/lib/frota/gravidade';
 
 interface Componente {
   id: string; sistema: string; subsistema: string | null; componente: string | null;
@@ -20,6 +25,9 @@ interface Pend {
   id: string; placa: string; origem: string; titulo: string; descricao: string | null;
   componente_id: string | null; status: string; aberta_por: string | null; aberta_em: string;
   data_ocorrencia: string | null;
+  // opcional: a coluna chega pela migração frota-gravidade-e-checklist.sql —
+  // sem ela, a gravidade sai do padrão do componente
+  gravidade?: string | null;
 }
 
 const ICONE_SISTEMA: Record<string, any> = {
@@ -90,6 +98,17 @@ export default function SistemasVeiculo({ placa }: { placa: string }) {
     return m;
   }, [pendencias, compPorId]);
 
+  // placar de perigo: do carro inteiro e de cada sistema
+  const placar = useMemo(() => contarPorGravidade(pendencias, compPorId), [pendencias, compPorId]);
+  const gravPorSistema = useMemo(() => {
+    const m = new Map<string, ContagemGravidade>();
+    for (const [sistema, lista] of pendPorSistema) {
+      if (sistema === '__sem__') continue;
+      m.set(sistema, contarPorGravidade(lista, compPorId));
+    }
+    return m;
+  }, [pendPorSistema, compPorId]);
+
   if (erro) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 0, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 13.5 }}>
@@ -110,6 +129,25 @@ export default function SistemasVeiculo({ placa }: { placa: string }) {
         </a>
       </div>
 
+      {/* PLACAR de perigo do carro — a pergunta que a contagem crua não
+          respondia: sete itens leves não é o mesmo que uma pendência crítica */}
+      {placar.total > 0 && (
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+          {GRAVIDADES.slice().reverse().map((g) => {
+            const n = placar[g];
+            if (n === 0) return null;
+            const c = GRAVIDADE_COR[g];
+            return (
+              <span key={g} title={GRAVIDADE_AJUDA[g]}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '4px 10px', borderRadius: 0, background: c.bg, color: c.cor, fontSize: 12, fontWeight: 800 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 999, background: c.forte }} />
+                {n} {GRAVIDADE_LABEL[g].toLowerCase()}{n > 1 ? 's' : ''}
+              </span>
+            );
+          })}
+        </div>
+      )}
+
       {/* grade de azulejos */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: 8 }}>
         {sistemas.map((s) => {
@@ -117,22 +155,28 @@ export default function SistemasVeiculo({ placa }: { placa: string }) {
           const pend = pendPorSistema.get(s) || [];
           const problema = pend.length > 0;
           const ativo = sistemaSel === s;
+          // a cor do azulejo passa a ser a da PIOR gravidade do sistema: antes
+          // todo azulejo com pendência ficava igualmente vermelho
+          const pior = gravPorSistema.get(s)?.pior || null;
+          const cg = pior ? GRAVIDADE_COR[pior] : null;
           return (
-            <button key={s} onClick={() => { setSistemaSel(ativo ? null : s); setSubSel(null); }} title={problema ? `${pend.length} pendência(s) em ${s}` : s}
-              className={problema ? 'sist-blink' : undefined}
+            <button key={s} onClick={() => { setSistemaSel(ativo ? null : s); setSubSel(null); }}
+              title={problema ? `${pend.length} pendência(s) em ${s} — pior: ${GRAVIDADE_LABEL[pior!]}` : s}
+              // só o que é grave/crítico pisca: piscar tudo não chama atenção pra nada
+              className={pior === 'grave' || pior === 'critica' ? 'sist-blink' : undefined}
               style={{
                 position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
                 gap: 6, padding: '12px 6px 10px', borderRadius: 0, cursor: 'pointer',
-                background: problema ? '#fef2f2' : 'var(--portal-bg-card)',
-                border: `1.5px solid ${ativo ? '#1e40af' : problema ? '#fca5a5' : 'var(--portal-border)'}`,
-                color: problema ? '#dc2626' : 'var(--portal-text-secondary)', transition: 'transform .12s',
+                background: cg ? cg.bg : 'var(--portal-bg-card)',
+                border: `1.5px solid ${ativo ? '#1e40af' : cg ? cg.forte : 'var(--portal-border)'}`,
+                color: cg ? cg.cor : 'var(--portal-text-secondary)', transition: 'transform .12s',
               }}
               onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}>
-              <Icone size={24} color={problema ? '#dc2626' : '#1e40af'} strokeWidth={1.6} />
+              <Icone size={24} color={cg ? cg.forte : '#1e40af'} strokeWidth={1.6} />
               <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2 }}>{s}</span>
               {problema && (
-                <span style={{ position: 'absolute', top: 5, right: 5, minWidth: 17, height: 17, borderRadius: 999, background: '#dc2626', color: '#fff', fontSize: 10.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', fontVariantNumeric: 'tabular-nums' }}>
+                <span style={{ position: 'absolute', top: 5, right: 5, minWidth: 17, height: 17, borderRadius: 999, background: cg!.forte, color: '#fff', fontSize: 10.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', fontVariantNumeric: 'tabular-nums' }}>
                   {pend.length}
                 </span>
               )}
@@ -150,6 +194,16 @@ export default function SistemasVeiculo({ placa }: { placa: string }) {
             </span>
           </button>
         )}
+      </div>
+
+      {/* MAPA ilustrado — mesma informação dos azulejos, mas mostrando ONDE no
+          carro. Clicar num ponto abre o mesmo drill-down do azulejo. */}
+      <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px solid var(--portal-border)' }}>
+        <DiagramaVeiculo
+          porSistema={gravPorSistema}
+          selecionado={sistemaSel}
+          onSelecionar={(s) => { setSistemaSel(sistemaSel === s ? null : s); setSubSel(null); }}
+        />
       </div>
 
       {/* drill-down: SUBSISTEMAS do sistema clicado (também azulejos) */}

@@ -78,6 +78,13 @@ export interface FrotaVeiculo {
   campos_manuais: string[];
   ausente_na_origem: boolean;
   visto_em: string | null;
+  // Checklist mensal desligado À MÃO neste carro (carro vendido/inativo já sai
+  // da rotina por `ativo`/`status`). Opcionais porque a coluna chega pela
+  // migração sql/frota-gravidade-e-checklist.sql — antes dela vêm undefined.
+  checklist_desativado?: boolean | null;
+  checklist_desativado_motivo?: string | null;
+  checklist_desativado_em?: string | null;
+  checklist_desativado_por?: string | null;
 }
 
 export interface VeiculoLista extends FrotaVeiculo {
