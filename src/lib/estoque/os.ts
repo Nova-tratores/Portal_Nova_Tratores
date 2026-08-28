@@ -792,7 +792,7 @@ export async function obterTiposComNotaMes(mes: number | null, ano: number, cont
     temItens = true;
     const notaMap = await buscarTemNotaMap([...new Set(itens.map((r) => r.ncod_os).filter(Boolean))], c);
     for (const it of itens) {
-      if (!notaMap.get(it.ncod_os)) continue; // sem nota (ou não verificada) = interno
+      if (!notaMap.get(it.ncod_os)?.tem_nota) continue; // só tem_nota=true entra; false/ausente = interno
       if (it.tipo === 'HR') soma.hr += it.valor_total;
       else if (it.tipo === 'KM') soma.km += it.valor_total;
       else soma.outros += it.valor_total;
