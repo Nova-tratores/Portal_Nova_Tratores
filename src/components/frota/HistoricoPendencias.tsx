@@ -43,10 +43,13 @@ const fmtDataBonita = (s: string) => {
   return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 };
 
-export default function HistoricoPendencias({ placa, aba, onResumo }: {
+export default function HistoricoPendencias({ placa, aba, onResumo, filtroSistema, onLimparFiltro }: {
   placa: string;
   aba: 'hist' | 'timeline' | null;              // qual painel mostrar (null = nenhum)
   onResumo?: (r: { total: number; abertas: number; eventos: number }) => void; // contadores pras abas do pai
+  /** veio de um clique no mapa do veículo: mostra só as abertas deste sistema */
+  filtroSistema?: string | null;
+  onLimparFiltro?: () => void;
 }) {
   const [pendencias, setPendencias] = useState<Pend[]>([]);
   const [requisicoes, setRequisicoes] = useState<Req[]>([]);
@@ -87,8 +90,14 @@ export default function HistoricoPendencias({ placa, aba, onResumo }: {
     return c ? [c.sistema, c.subsistema, c.componente].filter(Boolean).join(' › ') : '';
   };
 
-  const abertas = pendencias.filter((p) => p.status === 'aberta');
+  const todasAbertas = pendencias.filter((p) => p.status === 'aberta');
   const resolvidas = pendencias.filter((p) => p.status === 'resolvida');
+  // clique no mapa do veículo → mostra só as abertas daquele sistema. O
+  // contador das abas (onResumo) segue com o TOTAL: o filtro é da lista, não
+  // do carro, e mudar o número da aba junto faria parecer que sumiu pendência.
+  const abertas = filtroSistema
+    ? todasAbertas.filter((p) => (p.componente_id ? compPorId.get(p.componente_id)?.sistema : undefined) === filtroSistema)
+    : todasAbertas;
 
   const eventos = useMemo<Evento[]>(() => {
     const evs: Evento[] = [];
@@ -144,7 +153,7 @@ export default function HistoricoPendencias({ placa, aba, onResumo }: {
     if (!pronto) return;
     onResumo?.({
       total: pendencias.length + requisicoes.length + ordens.length,
-      abertas: abertas.length,
+      abertas: todasAbertas.length, // o contador da aba é do CARRO, não da lista filtrada
       eventos: eventos.length,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,6 +194,20 @@ export default function HistoricoPendencias({ placa, aba, onResumo }: {
       {/* ══════════ ABA 1: HISTÓRICO DE PENDÊNCIAS ══════════ */}
       {aba === 'hist' && (
         <div style={{ padding: '14px 4px 0', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {/* veio de um clique no mapa: diz POR QUE a lista está curta e deixa
+              voltar — sem isto pareceria que as outras pendências sumiram */}
+          {filtroSistema && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', padding: '7px 10px' }}>
+              <Wrench size={13} />
+              <span style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>
+                Mostrando só <b>{filtroSistema}</b> — {abertas.length} de {todasAbertas.length} aberta{todasAbertas.length > 1 ? 's' : ''}
+              </span>
+              <button onClick={() => onLimparFiltro?.()}
+                style={{ marginLeft: 'auto', border: 'none', background: 'transparent', color: '#2563eb', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                ver todas
+              </button>
+            </div>
+          )}
           {abertas.map((p) => (
             <div key={p.id} style={{ border: '1px solid var(--portal-border)', borderLeft: '4px solid #dc2626', padding: '10px 12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>

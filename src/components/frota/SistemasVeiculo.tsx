@@ -47,7 +47,12 @@ const ICONE_SISTEMA: Record<string, any> = {
 
 const fmtData = (s: string | null | undefined) => (s ? new Date(s).toLocaleDateString('pt-BR') : '—');
 
-export default function SistemasVeiculo({ placa }: { placa: string }) {
+export default function SistemasVeiculo({ placa, onAbrirHistorico }: {
+  placa: string;
+  /** clique num ponto ACESO do mapa: o pai leva pro Histórico de pendências
+   *  filtrado nesse sistema. Sem o callback, o mapa só faz o drill-down local. */
+  onAbrirHistorico?: (sistema: string) => void;
+}) {
   const [componentes, setComponentes] = useState<Componente[]>([]);
   const [pendencias, setPendencias] = useState<Pend[]>([]);
   const [pronto, setPronto] = useState(false);
@@ -202,7 +207,13 @@ export default function SistemasVeiculo({ placa }: { placa: string }) {
         <DiagramaVeiculo
           porSistema={gravPorSistema}
           selecionado={sistemaSel}
-          onSelecionar={(s) => { setSistemaSel(sistemaSel === s ? null : s); setSubSel(null); }}
+          onSelecionar={(s) => {
+            // ponto ACESO vai direto pro histórico (é onde se resolve a
+            // pendência); ponto apagado não tem o que mostrar lá, então
+            // mantém o drill-down de subsistemas aqui mesmo
+            if (onAbrirHistorico && (gravPorSistema.get(s)?.total || 0) > 0) { onAbrirHistorico(s); return; }
+            setSistemaSel(sistemaSel === s ? null : s); setSubSel(null);
+          }}
         />
       </div>
 

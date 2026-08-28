@@ -286,6 +286,8 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
   const [usuariosPortal, setUsuariosPortal] = useState<{ id: string; nome: string; avatar_url: string | null }[]>([]);
   // abas da Ficha (estilo Chrome): Visão geral × Histórico de pendências × Linha do tempo
   const [abaFicha, setAbaFicha] = useState<'geral' | 'hist' | 'timeline'>('geral');
+  // sistema clicado no mapa do veículo — filtra o Histórico de pendências
+  const [filtroSistemaHist, setFiltroSistemaHist] = useState<string | null>(null);
   const [resumoHist, setResumoHist] = useState<{ total: number; abertas: number; eventos: number } | null>(null);
   useEffect(() => {
     (async () => {
@@ -609,7 +611,14 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
           {det && v && (
             <>
               {/* Mapa de SISTEMAS (taxonomia) — azulejo vermelho piscando = pendência aberta */}
-              <SistemasVeiculo placa={placa} />
+              <SistemasVeiculo
+                placa={placa}
+                onAbrirHistorico={(sistema) => {
+                  // clique num ponto com pendência: abre o Histórico já filtrado
+                  setFiltroSistemaHist(sistema);
+                  setAbaFicha('hist');
+                }}
+              />
 
               {/* ── ABAS da Ficha (estilo Chrome) ── */}
               <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '8px 4px 0', background: 'var(--portal-bg-secondary)' }}>
@@ -618,7 +627,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   ['hist', `Histórico de pendências${resumoHist ? ` (${resumoHist.total})` : ''}`],
                   ['timeline', `Linha do tempo${resumoHist ? ` (${resumoHist.eventos})` : ''}`],
                 ] as ['geral' | 'hist' | 'timeline', string][]).map(([chave, rotulo]) => (
-                  <button key={chave} onClick={() => setAbaFicha(chave)}
+                  <button key={chave} onClick={() => { setAbaFicha(chave); setFiltroSistemaHist(null); }}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', cursor: 'pointer',
                       fontSize: 13, fontWeight: abaFicha === chave ? 700 : 500, color: 'var(--portal-text)', border: 'none',
@@ -642,7 +651,9 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
               </div>
 
               {/* Histórico/Linha do tempo (o componente também alimenta os contadores das abas) */}
-              <HistoricoPendencias placa={placa} aba={abaFicha === 'geral' ? null : abaFicha} onResumo={setResumoHist} />
+              <HistoricoPendencias placa={placa} aba={abaFicha === 'geral' ? null : abaFicha} onResumo={setResumoHist}
+                filtroSistema={abaFicha === 'hist' ? filtroSistemaHist : null}
+                onLimparFiltro={() => setFiltroSistemaHist(null)} />
 
               {abaFicha === 'geral' && (<>
 
