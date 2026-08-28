@@ -81,93 +81,94 @@ function Roda({ cx, cy, r }: { cx: number; cy: number; r: number }) {
 interface Silhueta { viewBox: string; chao: string; corpo: React.ReactNode; rodas: { cx: number; cy: number; r: number }[]; pontos: Ponto[] }
 
 const CARRO: Silhueta = {
-  viewBox: '-165 18 1215 432', chao: 'M60 318 H720',
-  rodas: [{ cx: 181, cy: 286, r: 31 }, { cx: 560, cy: 286, r: 31 }],
+  // Proporção refeita em 28/08: a 1ª versão tinha 4,8:1 de comprimento por
+  // altura (sedã real fica perto de 3,4:1) e balanço traseiro maior que o
+  // dianteiro — saía com cara de limusine rabuda.
+  viewBox: '-160 14 1160 400', chao: 'M100 305 H660',
+  rodas: [{ cx: 212, cy: 272, r: 33 }, { cx: 548, cy: 272, r: 33 }],
   corpo: (
     <>
       <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-        <path d="M80 268C80 240 84 232 108 226L206 208C232 176 252 158 286 152L452 148C486 148 508 158 528 176L582 214L658 226C686 232 700 244 700 262L700 276C700 282 696 286 690 286L664 286" />
-        <path d="M212 286 L529 286" />
-        <path d="M591 286 L664 286" />
-        <path d="M150 286 L92 286C84 286 80 282 80 276Z" />
-        <path d="M150 286 A31 31 0 0 1 212 286" />
-        <path d="M529 286 A31 31 0 0 1 591 286" />
+        <path d="M126 272C120 266 118 256 119 246C120 234 126 228 138 226L240 216L252 212L316 146C322 141 329 139 338 139L462 139C472 139 479 142 485 149L536 196L616 202C630 204 638 210 638 222L638 262C638 268 634 272 628 272" />
+        <path d="M126 272 L179 272" />
+        <path d="M245 272 L515 272" />
+        <path d="M581 272 L628 272" />
+        <path d="M179 272 A33 33 0 0 1 245 272" />
+        <path d="M515 272 A33 33 0 0 1 581 272" />
       </g>
       <g fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round">
-        <path d="M232 204L268 168C274 162 282 160 292 160L360 158L360 204Z" />
-        <path d="M372 158L440 156L440 202L372 202Z" />
-        <path d="M452 156L470 156C486 157 496 162 506 172L534 202L452 202Z" />
+        <path d="M266 192 L322 152 L364 151 L364 192 Z" />
+        <path d="M374 151 L438 150 L438 191 L374 191 Z" />
+        <path d="M448 150 L462 150C468 150 472 152 476 157L504 190 L448 190 Z" />
       </g>
       <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" opacity="0.9">
-        <path d="M366 158L366 284" /><path d="M446 156L446 284" />
-        <path d="M300 226h26" strokeWidth="3.4" strokeLinecap="round" />
-        <path d="M392 224h26" strokeWidth="3.4" strokeLinecap="round" />
-        <path d="M232 200l-20-6v10z" />
-        <path d="M84 244h24v14H84Z" />
-        <path d="M660 236C676 238 686 244 690 252L660 250Z" />
-        <path d="M214 279H527" strokeWidth="2.4" opacity="0.7" />
+        <path d="M369 151 L369 270" /><path d="M443 150 L443 270" />
+        <path d="M330 210 h24" strokeWidth="3.4" strokeLinecap="round" />
+        <path d="M404 209 h24" strokeWidth="3.4" strokeLinecap="round" />
+        <path d="M124 236 h24 v13 H124 Z" />
+        <path d="M612 210 h20 v13 h-20 Z" />
+        <path d="M247 262 H513" strokeWidth="2.2" opacity="0.55" />
       </g>
     </>
   ),
   pontos: [
-    { sistema: 'Motor', rotulo: 'Motor', x: 158, y: 246, lx: -30, ly: 108, anchor: 'end' },
-    { sistema: 'Elétrica', rotulo: 'Elétrica / bateria', x: 112, y: 264, lx: -30, ly: 236, anchor: 'end' },
-    { sistema: 'Ar-condicionado', rotulo: 'Ar-condicionado', x: 252, y: 214, lx: 150, ly: 66, anchor: 'middle' },
-    { sistema: 'Direção', rotulo: 'Volante / direção', x: 306, y: 192, lx: 330, ly: 48, anchor: 'middle' },
-    { sistema: 'Interior', rotulo: 'Bancos / interior', x: 404, y: 186, lx: 520, ly: 48, anchor: 'middle' },
-    { sistema: 'Itens de segurança', rotulo: 'Cintos / segurança', x: 470, y: 200, lx: 700, ly: 66, anchor: 'middle' },
-    { sistema: 'Outros', rotulo: 'Porta-malas / outros', x: 638, y: 240, lx: 862, ly: 150, anchor: 'start' },
-    { sistema: 'Carroceria', rotulo: 'Carroceria', x: 676, y: 272, lx: 862, ly: 268, anchor: 'start' },
-    { sistema: 'Freios', rotulo: 'Freios', x: 181, y: 286, lx: 130, ly: 404, anchor: 'middle' },
-    { sistema: 'Transmissão', rotulo: 'Câmbio', x: 352, y: 292, lx: 336, ly: 404, anchor: 'middle' },
-    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 470, y: 294, lx: 520, ly: 404, anchor: 'middle' },
-    { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 560, y: 286, lx: 706, ly: 404, anchor: 'middle' },
+    { sistema: 'Motor', rotulo: 'Motor', x: 174, y: 234, lx: -20, ly: 110, anchor: 'end' },
+    { sistema: 'Elétrica', rotulo: 'Elétrica / bateria', x: 140, y: 258, lx: -20, ly: 250, anchor: 'end' },
+    { sistema: 'Ar-condicionado', rotulo: 'Ar-condicionado', x: 282, y: 206, lx: 172, ly: 58, anchor: 'middle' },
+    { sistema: 'Direção', rotulo: 'Volante / direção', x: 332, y: 184, lx: 342, ly: 42, anchor: 'middle' },
+    { sistema: 'Interior', rotulo: 'Bancos / interior', x: 408, y: 176, lx: 512, ly: 42, anchor: 'middle' },
+    { sistema: 'Itens de segurança', rotulo: 'Cintos / segurança', x: 466, y: 190, lx: 680, ly: 58, anchor: 'middle' },
+    { sistema: 'Outros', rotulo: 'Porta-malas / outros', x: 596, y: 224, lx: 800, ly: 150, anchor: 'start' },
+    { sistema: 'Carroceria', rotulo: 'Carroceria', x: 626, y: 256, lx: 800, ly: 258, anchor: 'start' },
+    { sistema: 'Freios', rotulo: 'Freios', x: 212, y: 272, lx: 164, ly: 380, anchor: 'middle' },
+    { sistema: 'Transmissão', rotulo: 'Câmbio', x: 358, y: 278, lx: 352, ly: 380, anchor: 'middle' },
+    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 470, y: 280, lx: 522, ly: 380, anchor: 'middle' },
+    { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 548, y: 272, lx: 690, ly: 380, anchor: 'middle' },
   ],
 };
 
 const PICAPE: Silhueta = {
-  viewBox: '-165 18 1215 432', chao: 'M60 318 H720',
-  rodas: [{ cx: 181, cy: 286, r: 31 }, { cx: 560, cy: 286, r: 31 }],
+  viewBox: '-160 14 1160 400', chao: 'M100 305 H660',
+  rodas: [{ cx: 212, cy: 272, r: 33 }, { cx: 548, cy: 272, r: 33 }],
   corpo: (
     <>
       <g fill="none" stroke="currentColor" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round">
-        {/* frente + cabine curta + caçamba aberta atrás */}
-        <path d="M80 262C80 236 84 228 108 222L204 204C228 174 246 158 278 152L400 150C428 152 442 164 456 182L482 216L700 216L700 276C700 282 696 286 690 286L664 286" />
-        <path d="M212 286 L529 286" />
-        <path d="M591 286 L664 286" />
-        <path d="M150 286 L92 286C84 286 80 282 80 270Z" />
-        <path d="M150 286 A31 31 0 0 1 212 286" />
-        <path d="M529 286 A31 31 0 0 1 591 286" />
-        {/* borda e nervuras da caçamba */}
-        <path d="M482 216 L482 286" strokeWidth="2.4" />
-        <path d="M496 228 H690" strokeWidth="2" opacity="0.55" />
+        <path d="M126 272C120 266 118 254 119 244C120 232 126 226 138 224L236 214L248 210L306 144C312 139 319 137 328 137L424 137C434 137 441 141 446 149L474 196L474 204L638 204L638 262C638 268 634 272 628 272" />
+        <path d="M126 272 L179 272" />
+        <path d="M245 272 L515 272" />
+        <path d="M581 272 L628 272" />
+        <path d="M179 272 A33 33 0 0 1 245 272" />
+        <path d="M515 272 A33 33 0 0 1 581 272" />
+        <path d="M474 204 L474 272" strokeWidth="2.6" />
+        <path d="M624 204 L624 272" strokeWidth="2.4" />
+        <path d="M486 218 H612" strokeWidth="1.8" opacity="0.5" />
+        <path d="M515 272 A33 33 0 0 1 581 272" strokeWidth="2.2" opacity="0.7" />
       </g>
       <g fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinejoin="round">
-        <path d="M228 200L262 166C268 160 276 158 286 158L344 157L344 200Z" />
-        <path d="M356 157L400 156C418 158 428 166 436 178L452 200L356 200Z" />
+        <path d="M258 190 L312 150 L352 149 L352 190 Z" />
+        <path d="M362 149 L422 148C428 148 432 151 435 156L454 188 L362 188 Z" />
       </g>
       <g fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" opacity="0.9">
-        <path d="M350 157L350 284" />
-        <path d="M288 226h26" strokeWidth="3.4" strokeLinecap="round" />
-        <path d="M228 196l-20-6v10z" />
-        <path d="M84 240h24v14H84Z" />
-        <path d="M214 279H478" strokeWidth="2.4" opacity="0.7" />
+        <path d="M357 149 L357 270" />
+        <path d="M322 208 h24" strokeWidth="3.4" strokeLinecap="round" />
+        <path d="M124 234 h24 v13 H124 Z" />
+        <path d="M247 262 H470" strokeWidth="2.2" opacity="0.55" />
       </g>
     </>
   ),
   pontos: [
-    { sistema: 'Motor', rotulo: 'Motor', x: 156, y: 242, lx: -30, ly: 108, anchor: 'end' },
-    { sistema: 'Elétrica', rotulo: 'Elétrica / bateria', x: 112, y: 262, lx: -30, ly: 236, anchor: 'end' },
-    { sistema: 'Ar-condicionado', rotulo: 'Ar-condicionado', x: 248, y: 212, lx: 150, ly: 66, anchor: 'middle' },
-    { sistema: 'Direção', rotulo: 'Volante / direção', x: 300, y: 190, lx: 322, ly: 48, anchor: 'middle' },
-    { sistema: 'Interior', rotulo: 'Bancos / interior', x: 388, y: 186, lx: 508, ly: 48, anchor: 'middle' },
-    { sistema: 'Itens de segurança', rotulo: 'Cintos / segurança', x: 440, y: 204, lx: 690, ly: 66, anchor: 'middle' },
-    { sistema: 'Outros', rotulo: 'Caçamba / outros', x: 600, y: 244, lx: 862, ly: 150, anchor: 'start' },
-    { sistema: 'Carroceria', rotulo: 'Carroceria', x: 676, y: 268, lx: 862, ly: 268, anchor: 'start' },
-    { sistema: 'Freios', rotulo: 'Freios', x: 181, y: 286, lx: 130, ly: 404, anchor: 'middle' },
-    { sistema: 'Transmissão', rotulo: 'Câmbio', x: 346, y: 292, lx: 336, ly: 404, anchor: 'middle' },
-    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 470, y: 294, lx: 520, ly: 404, anchor: 'middle' },
-    { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 560, y: 286, lx: 706, ly: 404, anchor: 'middle' },
+    { sistema: 'Motor', rotulo: 'Motor', x: 174, y: 232, lx: -20, ly: 110, anchor: 'end' },
+    { sistema: 'Elétrica', rotulo: 'Elétrica / bateria', x: 140, y: 256, lx: -20, ly: 250, anchor: 'end' },
+    { sistema: 'Ar-condicionado', rotulo: 'Ar-condicionado', x: 276, y: 204, lx: 172, ly: 58, anchor: 'middle' },
+    { sistema: 'Direção', rotulo: 'Volante / direção', x: 324, y: 182, lx: 336, ly: 42, anchor: 'middle' },
+    { sistema: 'Interior', rotulo: 'Bancos / interior', x: 398, y: 174, lx: 508, ly: 42, anchor: 'middle' },
+    { sistema: 'Itens de segurança', rotulo: 'Cintos / segurança', x: 444, y: 192, lx: 676, ly: 58, anchor: 'middle' },
+    { sistema: 'Outros', rotulo: 'Caçamba / outros', x: 590, y: 224, lx: 800, ly: 150, anchor: 'start' },
+    { sistema: 'Carroceria', rotulo: 'Carroceria', x: 626, y: 254, lx: 800, ly: 258, anchor: 'start' },
+    { sistema: 'Freios', rotulo: 'Freios', x: 212, y: 272, lx: 164, ly: 380, anchor: 'middle' },
+    { sistema: 'Transmissão', rotulo: 'Câmbio', x: 352, y: 278, lx: 352, ly: 380, anchor: 'middle' },
+    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 470, y: 280, lx: 522, ly: 380, anchor: 'middle' },
+    { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 548, y: 272, lx: 690, ly: 380, anchor: 'middle' },
   ],
 };
 
