@@ -3,12 +3,16 @@ import { silhuetaDoVeiculo, SISTEMAS_FORA, type TipoSilhueta } from '../silhueta
 
 // modelos REAIS do cadastro (28/08/2026) — se a regra quebrar, quebra aqui
 const FROTA: [string, TipoSilhueta][] = [
-  ['VW FOX 1.0 GII', 'carro'],
-  ['VW NOVO GOL 1.0 CITY', 'carro'],
+  // hatches (a maior parte dos carros da frota)
+  ['VW FOX 1.0 GII', 'hatch'],
+  ['VW NOVO GOL 1.0 CITY', 'hatch'],
+  ['ONIX', 'hatch'],
+  ['POLO', 'hatch'],
+  ['ETIOS', 'hatch'],
+  // sedãs
   ['VW VOYAGE MPI', 'carro'],
-  ['ONIX', 'carro'],
-  ['POLO', 'carro'],
   ['ETIOS SEDAN', 'carro'],
+  // picapes
   ['FIAT STRADA WORKING', 'picape'],
   ['VW SAVEIRO ROBUST', 'picape'],
   ['CHEVROLET MONTANA LS', 'picape'],
@@ -16,17 +20,20 @@ const FROTA: [string, TipoSilhueta][] = [
   ['FIAT TORO VOLCANO 4X4 2.0 16V TB 4P AUT', 'picape'],
   ['RAMPAGE', 'picape'],
   ['SW4 HILLUX', 'picape'],
+  // caminhões
   ['VW FORD/CARGO 1517 E', 'caminhao'],
   ['FORD C2428 PMERECHIM 8X2', 'caminhao'],
+  // motos
   ['BMW R 1250 GS ADVENTURE PREMIUM BLACK', 'moto'],
   ['TENERE 250', 'moto'],
+  // carreta
   ['CARRETA CARRETINHA', 'carreta'],
-  // SUVs não têm desenho próprio: caem no carro, que é o corpo mais próximo
-  ['CHEV TRAILBLAZER PRE D4A', 'carro'],
-  ['I/GM CAPTIVA SPORT V6AWD', 'carro'],
-  ['CHEV TRACKER T A LTZ', 'carro'],
-  ['JEEP CONQUEROR OVR TD380', 'carro'],
-  ['RENEGADE SPORT', 'carro'],
+  // SUVs: carroceria de DOIS volumes — caem no hatch, que é o desenho mais próximo
+  ['CHEV TRAILBLAZER PRE D4A', 'hatch'],
+  ['I/GM CAPTIVA SPORT V6AWD', 'hatch'],
+  ['CHEV TRACKER T A LTZ', 'hatch'],
+  ['JEEP CONQUEROR OVR TD380', 'hatch'],
+  ['RENEGADE SPORT', 'hatch'],
 ]
 
 describe('silhueta pelo modelo (frota real)', () => {
@@ -45,6 +52,18 @@ describe('silhueta pelo modelo (frota real)', () => {
     expect(silhuetaDoVeiculo({ modelo: 'BMW R 1250 GS ADVENTURE PREMIUM BLACK' })).toBe('moto')
   })
 
+  it('"CARGO" contém "argo" — o caminhão tem que vencer o hatch', () => {
+    // é a ordem das regras (caminhão antes de hatch) que impede o Cargo 1517
+    // de virar um Fiat Argo
+    expect(silhuetaDoVeiculo({ modelo: 'VW FORD/CARGO 1517 E' })).toBe('caminhao')
+  })
+
+  it('"ETIOS SEDAN" é sedã; "ETIOS" sozinho é hatch', () => {
+    // a regra explícita de sedã roda antes do termo "etios" do hatch
+    expect(silhuetaDoVeiculo({ modelo: 'ETIOS SEDAN' })).toBe('carro')
+    expect(silhuetaDoVeiculo({ modelo: 'ETIOS' })).toBe('hatch')
+  })
+
   it('tipo_veiculo declarado manda sobre o texto do modelo', () => {
     expect(silhuetaDoVeiculo({ tipo_veiculo: 'moto', modelo: 'VW FOX 1.0 GII' })).toBe('moto')
     expect(silhuetaDoVeiculo({ tipo_veiculo: 'caminhao', modelo: 'ONIX' })).toBe('caminhao')
@@ -55,6 +74,7 @@ describe('silhueta pelo modelo (frota real)', () => {
     // precisa continuar decidindo nesses casos
     expect(silhuetaDoVeiculo({ tipo_veiculo: 'carro', modelo: 'VW SAVEIRO ROBUST' })).toBe('picape')
     expect(silhuetaDoVeiculo({ tipo_veiculo: 'carro', modelo: 'FIAT STRADA FIRE FLEX' })).toBe('picape')
+    expect(silhuetaDoVeiculo({ tipo_veiculo: 'carro', modelo: 'VW FOX 1.0 GII' })).toBe('hatch')
   })
 
   it('acento e caixa não mudam o resultado', () => {
@@ -87,8 +107,8 @@ describe('sistemas que não existem no tipo', () => {
     }
   })
 
-  it('carro, picape e caminhão têm todos os sistemas', () => {
-    for (const t of ['carro', 'picape', 'caminhao'] as TipoSilhueta[]) {
+  it('carro, hatch, picape e caminhão têm todos os sistemas', () => {
+    for (const t of ['carro', 'hatch', 'picape', 'caminhao'] as TipoSilhueta[]) {
       expect(SISTEMAS_FORA[t], t).toEqual([])
     }
   })

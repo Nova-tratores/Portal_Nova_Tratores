@@ -1,26 +1,28 @@
 // Qual desenho representa o veículo no mapa da Ficha.
 //
-// A frota NÃO é só de carro (conferido no cadastro em 28/08/2026): tem ~11
-// carros, ~12 picapes, 5 SUVs, 2 caminhões (Ford C2428 e VW Cargo 1517),
-// 2 motos (BMW R 1250 GS e Ténéré 250) e 1 carreta. Desenhar um sedã para a
-// BMW seria informação errada, não só feia.
+// A frota NÃO é só de carro (conferido no cadastro em 28/08/2026): tem hatches
+// (Fox, Gol, Polo, Onix, Etios), sedãs (Voyage, Etios Sedan), ~12 picapes,
+// SUVs, 2 caminhões (Ford C2428 e VW Cargo 1517), 2 motos (BMW R 1250 GS e
+// Ténéré 250) e 1 carreta. Desenhar um sedã para a BMW seria informação
+// errada, não só feia.
 //
-// Por que NÃO buscar a foto real do modelo na internet: os pontos do mapa têm
-// coordenadas presas a um desenho CONHECIDO (o volante fica onde eu sei que
-// está a cabine). Em imagem de terceiro, cada foto tem ângulo e enquadramento
-// diferentes, então volante, câmbio e molas cairiam em lugares errados — o
-// mapa deixaria de ser mapa. Fora a dependência externa e o direito de imagem.
+// Os DESENHOS seguem a prancha de referência que o usuário mandou (sedã,
+// hatch, picape, caminhão rígido, carretinha e moto de rua) — recriados à mão
+// em SVG, nunca importando imagem: os pontos do mapa têm coordenadas presas a
+// um traço conhecido, e imagem de terceiro tem enquadramento imprevisível.
 //
 // PURO: sem import de servidor, testável no vitest.
 
-export type TipoSilhueta = 'carro' | 'picape' | 'caminhao' | 'moto' | 'carreta'
+export type TipoSilhueta = 'carro' | 'hatch' | 'picape' | 'caminhao' | 'moto' | 'carreta'
 
 const semAcento = (s: string) =>
   String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
 
-// Modelos da frota agrupados por carroceria. A ordem IMPORTA: "carreta" antes
-// de qualquer outra (uma "carreta carretinha" não é caminhão), e moto antes de
-// picape porque "GS ADVENTURE" não pode casar com nada de picape.
+// Modelos da frota agrupados por carroceria. A ORDEM IMPORTA:
+//  - "carreta" antes de tudo (uma "carreta carretinha" não é caminhão);
+//  - moto antes de picape ("GS ADVENTURE" não pode casar com picape);
+//  - caminhão antes de hatch ("CARGO" contém "argo"!);
+//  - sedã explícito antes de hatch ("ETIOS SEDAN" contém "etios").
 const REGRAS: { tipo: TipoSilhueta; termos: string[] }[] = [
   { tipo: 'carreta', termos: ['carreta', 'carretinha', 'reboque', 'semi reboque', 'semirreboque'] },
   {
@@ -33,6 +35,17 @@ const REGRAS: { tipo: TipoSilhueta; termos: string[] }[] = [
     termos: ['caminhao', 'cargo', 'c2428', 'vuc', 'truck', 'bitrem', 'atego', 'accelo',
       'constellation', 'worker', 'delivery', '1517', '2428'],
   },
+  // sedã explícito — segura o "ETIOS SEDAN" antes de o termo "etios" (hatch) pegar
+  { tipo: 'carro', termos: ['sedan', 'seda ', 'voyage', 'virtus', 'prisma', 'cronos', 'grand siena', 'logan', 'cobalt'] },
+  {
+    tipo: 'hatch',
+    // hatches da frota + SUVs: SUV é carroceria de DOIS volumes — o hatch é o
+    // desenho mais próximo, não o sedã
+    termos: ['fox', 'gol', 'onix', 'polo', 'etios', 'argo', 'mobi', 'kwid', 'sandero', 'celta',
+      'uno', 'hb20', 'up!', 'fit',
+      'tracker', 'renegade', 'trailblazer', 'captiva', 'conqueror', 'compass', 'duster',
+      'ecosport', 'creta', 'nivus', 't-cross', 'tcross'],
+  },
   {
     tipo: 'picape',
     termos: ['strada', 'saveiro', 'montana', 's10', 's-10', 'toro', 'rampage', 'hilux', 'hillux',
@@ -42,9 +55,9 @@ const REGRAS: { tipo: TipoSilhueta; termos: string[] }[] = [
 
 /**
  * Escolhe a silhueta pelo que o cadastro diz. `tipo_veiculo` é preenchido em
- * poucos veículos (10 de 38 no cadastro), então o texto de marca/modelo é a
- * fonte principal — e o fallback é 'carro', que é o corpo mais próximo de
- * SUV e de qualquer modelo desconhecido.
+ * poucos veículos (10 de 38 no cadastro) e traz 'carro' até em picape, então
+ * só manda quando declara um tipo ESPECÍFICO; o texto de marca/modelo é a
+ * fonte principal. Fallback: 'carro' (sedã).
  */
 export function silhuetaDoVeiculo(v: {
   tipo_veiculo?: string | null
@@ -53,7 +66,7 @@ export function silhuetaDoVeiculo(v: {
   descricao?: string | null
 }): TipoSilhueta {
   const declarado = semAcento(v.tipo_veiculo || '')
-  for (const t of ['carreta', 'moto', 'caminhao', 'picape'] as TipoSilhueta[]) {
+  for (const t of ['carreta', 'moto', 'caminhao', 'picape', 'hatch'] as TipoSilhueta[]) {
     if (declarado === t) return t
   }
   const texto = semAcento([v.marca, v.modelo, v.descricao].filter(Boolean).join(' '))
@@ -68,6 +81,7 @@ export function silhuetaDoVeiculo(v: {
 /** Sistemas que NÃO existem naquele tipo — não ganham ponto no desenho. */
 export const SISTEMAS_FORA: Record<TipoSilhueta, string[]> = {
   carro: [],
+  hatch: [],
   picape: [],
   caminhao: [],
   // moto não tem cabine nem porta-malas; ar-condicionado e carroceria também não
