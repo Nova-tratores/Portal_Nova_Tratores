@@ -282,8 +282,13 @@ export default function CruzamentoFamiliaPage() {
   // (Só saldo atual: a composição por mês passado não é reconstruível item-a-item.)
   const abrirPopupEstoqueTipo = (s: SerieDef) => {
     const tipo = s.key.slice('estoque::'.length);
-    if (tipo === 'Outras') return; // agregado de vários Tipos — não filtra por um só
     // grupo:'peca' espelha a série (só peças) — nunca listar máquinas no popup de Tipo.
+    if (tipo === 'Outras') {
+      // "Outras" = agregado de vários Tipos → filtra por "não é nenhum dos mostrados".
+      const mostrados = (serieTipo?.series || []).map((x) => x.key.slice('estoque::'.length)).filter((t) => t !== 'Outras');
+      setPopup({ titulo: 'Outras — saldo atual', params: { fonte: 'estoque', grupo: 'peca', tipocaracExceto: mostrados, incluirSemTipo } });
+      return;
+    }
     setPopup({ titulo: `${s.label} — saldo atual`, params: { fonte: 'estoque', tipocarac: tipo, grupo: 'peca' } });
   };
 
@@ -534,7 +539,7 @@ export default function CruzamentoFamiliaPage() {
                           <td style={tdStyle}>{p.periodo}</td>
                           {serieTipo.series.map((s) => {
                             const v = Number(p[s.key] || 0);
-                            const clic = v !== 0 && s.key !== 'estoque::Outras';
+                            const clic = v !== 0;
                             return (
                               <td key={s.key} style={{ ...tdNum, color: v ? s.cor : '#bbb', cursor: clic ? 'pointer' : 'default' }}
                                 onClick={() => clic && abrirPopupEstoqueTipo(s)}>

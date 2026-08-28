@@ -1123,10 +1123,14 @@ export interface ComposicaoFiltro {
   categoria?: string;
   familia?: string;
   tipocarac?: string;
+  // "Outras" da aba Estoque por Tipo = todos os Tipos que NÃO são os mostrados
+  // (tipocaracExceto). incluirSemTipo controla se "Sem tipo" entra em "Outras".
+  tipocaracExceto?: string[];
+  incluirSemTipo?: boolean;
 }
 
 function passaFiltroGrupoFamCat(
-  args: { grupo?: string; familia?: string; categoria?: string; tipocarac?: string },
+  args: { grupo?: string; familia?: string; categoria?: string; tipocarac?: string; tipocaracExceto?: string[]; incluirSemTipo?: boolean },
   fam: string,
   cat: string,
   tipo: string = '',
@@ -1135,6 +1139,11 @@ function passaFiltroGrupoFamCat(
   if (args.grupo && classificarGrupo(fam) !== args.grupo) return false;
   if (args.categoria && cat !== args.categoria) return false;
   if (args.tipocarac && (tipo || SEM_TIPO) !== args.tipocarac) return false;
+  if (args.tipocaracExceto) {
+    const t = tipo || SEM_TIPO;
+    if (args.tipocaracExceto.includes(t)) return false;          // é um dos Tipos mostrados
+    if (t === SEM_TIPO && !args.incluirSemTipo) return false;     // "Sem tipo" oculto não entra em "Outras"
+  }
   // exclui os ignorados (mesma base da série), exceto ao drilar uma família específica
   if (!args.familia && classificarGrupo(fam) === 'ignorar') return false;
   return true;
@@ -1143,7 +1152,7 @@ function passaFiltroGrupoFamCat(
 async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promise<ComposicaoResult> {
   const itens: ComposicaoItem[] = [];
   // Mapa Tipo (característica) só quando o drill é por Tipo — igual entrada/saída.
-  const tipoPorCodigo = f.tipocarac ? await carregarTipoCaracteristica(conta) : {};
+  const tipoPorCodigo = (f.tipocarac || f.tipocaracExceto) ? await carregarTipoCaracteristica(conta) : {};
   let offset = 0;
   const LOTE = 1000;
   while (true) {
@@ -1171,7 +1180,7 @@ async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promi
   itens.sort((a, b) => b.valor - a.valor);
   return {
     itens, total: itens.length, somaValor: itens.reduce((s, i) => s + i.valor, 0), fonte: 'estoque',
-    aviso: f.tipocarac
+    aviso: (f.tipocarac || f.tipocaracExceto)
       ? 'Composição do saldo atual por Tipo (não reconstrói item-a-item os meses passados).'
       : 'Saldo atual (snapshot do último sync). Nos meses passados o valor do gráfico é reconstruído e aproximado.',
   };
@@ -1179,7 +1188,7 @@ async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promi
 
 async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promise<ComposicaoResult> {
   const { famPorCodigo, famPorSKU } = await carregarProdutos(conta);
-  const tipoPorCodigo = f.tipocarac ? await carregarTipoCaracteristica(conta) : {};
+  const tipoPorCodigo = (f.tipocarac || f.tipocaracExceto) ? await carregarTipoCaracteristica(conta) : {};
   const { nomes } = await getIgnorarFiltro(conta);
   const escaped = nomes.length > 0 ? '(' + nomes.map((n) => '"' + String(n).replace(/"/g, '') + '"').join(',') + ')' : null;
   const itens: ComposicaoItem[] = [];
@@ -1212,7 +1221,7 @@ async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promi
 
 async function composicaoSaida(conta: ContaFiltro, f: ComposicaoFiltro): Promise<ComposicaoResult> {
   const { famPorCodigo } = await carregarProdutos(conta);
-  const tipoPorCodigo = f.tipocarac ? await carregarTipoCaracteristica(conta) : {};
+  const tipoPorCodigo = (f.tipocarac || f.tipocaracExceto) ? await carregarTipoCaracteristica(conta) : {};
   const catMap = await buscarCategoriasOmie(conta ?? CONTA_DEFAULT);
   const itens: ComposicaoItem[] = [];
   let offset = 0;

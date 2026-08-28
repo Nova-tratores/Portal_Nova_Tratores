@@ -13,6 +13,8 @@ export interface ComposicaoParams {
   categoria?: string;
   familia?: string;
   tipocarac?: string;
+  tipocaracExceto?: string[];  // "Outras" = Tipos que NÃO estão nesta lista
+  incluirSemTipo?: boolean;
 }
 
 interface ComposicaoItem {
@@ -47,6 +49,7 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose }:
         if (params.categoria) qs.set('categoria', params.categoria);
         if (params.familia) qs.set('familia', params.familia);
         if (params.tipocarac) qs.set('tipocarac', params.tipocarac);
+        if (params.tipocaracExceto) { qs.set('tipocarac_exceto', JSON.stringify(params.tipocaracExceto)); qs.set('semtipo', params.incluirSemTipo ? '1' : '0'); }
         const r = await fetch(`/api/estoque/cruzamento-familia/composicao?${qs.toString()}${contaParam}`);
         const d = (await r.json()) as ComposicaoResp;
         if (!vivo) return;
