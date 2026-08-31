@@ -4,10 +4,14 @@
 // O estoque de cada mês é derivado do próprio razão, ancorado no estoque REAL de
 // hoje (Σ produtos.valor_estoque) — não usa o snapshot (que não fechava).
 import { supabase } from './supabase';
-import { type Conta } from './conta';
+import { type Conta, type ContaFiltro } from './conta';
+import { classificarGrupo } from './cruzamento-familia';
 
 const contaLow = (c: Conta): string => String(c).toLowerCase();
+const contaUp = (c: Conta): string => String(c).toUpperCase(); // vendas_itens usa conta MAIÚSCULA
 const num = (v: unknown): number => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+// `conta` undefined = TODAS (Nova+Castro, sem filtro por conta_omie); o filtro é
+// aplicado inline em cada query (produtos/estoque_movimentos = minúsculo; vendas_itens = MAIÚSCULO).
 
 // Ordem/labels dos buckets (entradas primeiro, depois saídas, depois ajustes).
 export const BUCKETS: Array<{ key: string; label: string; sinal: 1 | -1 }> = [
@@ -23,15 +27,18 @@ export const BUCKETS: Array<{ key: string; label: string; sinal: 1 | -1 }> = [
 ];
 
 export interface PontoRecon { periodo: string; ano: number; mes: number; estoqueFim: number | null; deltaEstoque: number; [bucket: string]: number | string | null }
-export interface ReconResult { pontos: PontoRecon[]; buckets: string[]; estoqueAtual: number; totalMovimentos: number }
+// Total do período por bucket (e pseudo-bucket `venda_fat`), nas 3 métricas.
+export interface TotalMetrica { valor: number; nf: number; itens: number }
+export interface ReconResult { pontos: PontoRecon[]; buckets: string[]; estoqueAtual: number; totalMovimentos: number; totais: Record<string, TotalMetrica> }
 
 const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'];
 
 /** Estoque atual (R$) do grupo, direto de `produtos` — âncora da série. */
-async function estoqueAtualGrupo(conta: Conta, grupo: 'peca' | 'maquina'): Promise<number> {
+async function estoqueAtualGrupo(conta: ContaFiltro, grupo: 'peca' | 'maquina'): Promise<number> {
   let total = 0, offset = 0;
   for (;;) {
-    let q = supabase.from('produtos').select('valor_estoque').eq('conta_omie', contaLow(conta));
+    let q = supabase.from('produtos').select('valor_estoque');
+    if (conta) q = q.eq('conta_omie', contaLow(conta));
     q = grupo === 'peca' ? q.ilike('familia_nome', '%peça%') : q.not('familia_nome', 'ilike', '%peça%');
     const { data, error } = await q.range(offset, offset + 999);
     if (error) throw new Error(error.message);
@@ -43,23 +50,34 @@ async function estoqueAtualGrupo(conta: Conta, grupo: 'peca' | 'maquina'): Promi
   return total;
 }
 
-/** Agrega efeito por (ano,mes,bucket) do razão, para o grupo/conta. */
-async function agregarRazao(conta: Conta, grupo: 'peca' | 'maquina'): Promise<Map<string, Map<string, number>>> {
-  const porMes = new Map<string, Map<string, number>>();
+// Célula agregada do razão: valor (efeito R$), NFs distintas (num_doc) e itens (qtde).
+interface AggCell { valor: number; nfs: Set<string>; itens: number }
+
+/** Agrega efeito/NF/itens por (ano,mes,bucket) do razão, para o grupo/conta(s). */
+async function agregarRazao(conta: ContaFiltro, grupo: 'peca' | 'maquina'): Promise<Map<string, Map<string, AggCell>>> {
+  const porMes = new Map<string, Map<string, AggCell>>();
   let offset = 0;
   for (;;) {
-    const { data, error } = await supabase.from('estoque_movimentos')
-      .select('ano,mes,bucket,efeito')
-      .eq('conta_omie', contaLow(conta)).eq('grupo', grupo).eq('cancelado', false)
-      .range(offset, offset + 999);
+    let q = supabase.from('estoque_movimentos').select('ano,mes,bucket,efeito,num_doc,qtde_entrada,qtde_saida,conta_omie');
+    if (conta) q = q.eq('conta_omie', contaLow(conta));
+    // .order() estável (PK) é obrigatório: sem ele o range() do PostgREST repete/perde
+    // linhas e infla as somas — mais grave em TODAS (Nova+Castro, ~53k linhas).
+    const { data, error } = await q.eq('grupo', grupo).eq('cancelado', false).order('mov_hash').range(offset, offset + 999);
     if (error) throw new Error(error.message);
-    const lote = (data || []) as Array<{ ano: number; mes: number; bucket: string; efeito: number }>;
+    const lote = (data || []) as Array<{ ano: number; mes: number; bucket: string; efeito: number; num_doc: string | number | null; qtde_entrada: number; qtde_saida: number; conta_omie: string }>;
     for (const r of lote) {
       const k = `${r.ano}-${r.mes}`;
       if (!porMes.has(k)) porMes.set(k, new Map());
       const mm = porMes.get(k)!;
       const b = r.bucket || 'outro';
-      mm.set(b, (mm.get(b) || 0) + num(r.efeito));
+      let cell = mm.get(b);
+      if (!cell) { cell = { valor: 0, nfs: new Set(), itens: 0 }; mm.set(b, cell); }
+      cell.valor += num(r.efeito);
+      // Magnitude de itens movimentados (entrada/saída podem vir com sinal); o card
+      // "Qtd itens" mostra quantos itens entraram/saíram, sempre positivo.
+      cell.itens += Math.abs(num(r.qtde_entrada)) + Math.abs(num(r.qtde_saida));
+      // NF distinta por conta (num_doc pode repetir entre Nova e Castro).
+      if (r.num_doc != null && r.num_doc !== '') cell.nfs.add(`${r.conta_omie}:${r.num_doc}`);
     }
     if (lote.length < 1000) break;
     offset += 1000;
@@ -68,24 +86,67 @@ async function agregarRazao(conta: Conta, grupo: 'peca' | 'maquina'): Promise<Ma
 }
 
 /**
+ * Faturamento (RECEITA) de vendas do grupo, por período pedido — de `vendas_itens`
+ * (conta MAIÚSCULA). Base diferente do bucket `venda` do razão (que é COGS/custo).
+ * `nf` = pedidos distintos (a tabela só tem nº de pedido, não nº de NF).
+ */
+async function faturamentoPorGrupo(
+  meses: Array<{ ano: number; mes: number }>, conta: ContaFiltro, grupo: 'peca' | 'maquina',
+): Promise<TotalMetrica> {
+  const alvo = new Set(meses.map((m) => `${m.ano}-${m.mes}`));
+  let valor = 0, itens = 0;
+  const nfs = new Set<string>();
+  let offset = 0;
+  for (;;) {
+    let q = supabase.from('vendas_itens').select('ano,mes,valor_total,quantidade,numero_pedido,familia,conta_omie');
+    if (conta) q = q.eq('conta_omie', contaUp(conta));
+    const { data, error } = await q.range(offset, offset + 999);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<{ ano: number; mes: number; valor_total: number; quantidade: number; numero_pedido: string | number | null; familia: string | null; conta_omie: string }>;
+    for (const r of lote) {
+      if (!alvo.has(`${r.ano}-${r.mes}`)) continue;
+      if (classificarGrupo(String(r.familia ?? '')) !== grupo) continue; // mesmo recorte do razão
+      valor += num(r.valor_total);
+      itens += num(r.quantidade);
+      // Pedido distinto por conta (numero_pedido pode repetir entre Nova e Castro).
+      if (r.numero_pedido != null && r.numero_pedido !== '') nfs.add(`${r.conta_omie}:${r.numero_pedido}`);
+    }
+    if (lote.length < 1000) break;
+    offset += 1000;
+  }
+  return { valor: Math.round(valor), nf: nfs.size, itens: Math.round(itens) };
+}
+
+/**
  * Série mensal da Reconciliação (razão) para os `meses` pedidos (ordenados asc).
  * Estoque derivado do razão, ancorado no estoque real de hoje (último mês = âncora).
  */
 export async function reconciliacaoLedger(
-  meses: Array<{ ano: number; mes: number }>, conta: Conta, grupo: 'peca' | 'maquina',
+  meses: Array<{ ano: number; mes: number }>, conta: ContaFiltro, grupo: 'peca' | 'maquina',
 ): Promise<ReconResult> {
-  const [estoqueAtual, porMes] = await Promise.all([estoqueAtualGrupo(conta, grupo), agregarRazao(conta, grupo)]);
+  const [estoqueAtual, porMes, fat] = await Promise.all([
+    estoqueAtualGrupo(conta, grupo),
+    agregarRazao(conta, grupo),
+    faturamentoPorGrupo(meses, conta, grupo),
+  ]);
 
   const bucketsPresentes = new Set<string>();
   for (const mm of porMes.values()) for (const b of mm.keys()) bucketsPresentes.add(b);
   const buckets = BUCKETS.map((b) => b.key).filter((k) => bucketsPresentes.has(k));
 
-  // Δ e decomposição por mês.
+  // Δ e decomposição por mês (valor). NF/itens vão nos totais do período (cards).
   const pontos: PontoRecon[] = meses.map((m) => {
-    const mm = porMes.get(`${m.ano}-${m.mes}`) || new Map<string, number>();
+    const mm = porMes.get(`${m.ano}-${m.mes}`) || new Map<string, AggCell>();
     let delta = 0;
     const p: PontoRecon = { periodo: `${MESES_ABREV[m.mes - 1]}/${String(m.ano).slice(2)}`, ano: m.ano, mes: m.mes, estoqueFim: null, deltaEstoque: 0 };
-    for (const b of buckets) { const v = Math.round(mm.get(b) || 0); p[b] = v; delta += v; }
+    for (const b of buckets) {
+      const cell = mm.get(b);
+      const v = Math.round(cell?.valor || 0);
+      p[b] = v; delta += v;
+      // Métricas alternativas por mês (para o toggle da tabela): NF distintas e itens.
+      p[`nf::${b}`] = cell?.nfs.size || 0;
+      p[`itens::${b}`] = Math.round(cell?.itens || 0);
+    }
     p.deltaEstoque = Math.round(delta);
     return p;
   });
@@ -97,7 +158,28 @@ export async function reconciliacaoLedger(
     else pontos[i].estoqueFim = Math.round((pontos[i + 1].estoqueFim as number) - (pontos[i + 1].deltaEstoque as number));
   }
 
-  return { pontos, buckets, estoqueAtual: Math.round(estoqueAtual), totalMovimentos: porMes.size };
+  // Totais do período por bucket, nas 3 métricas (valor/NF distintas/itens) — usados
+  // nos cards. NF é distinct de num_doc UNINDO os meses pedidos (não soma de mensais).
+  const totais: Record<string, TotalMetrica> = {};
+  const nfSets: Record<string, Set<string>> = {};
+  for (const m of meses) {
+    const mm = porMes.get(`${m.ano}-${m.mes}`);
+    if (!mm) continue;
+    for (const [b, cell] of mm) {
+      if (!totais[b]) { totais[b] = { valor: 0, nf: 0, itens: 0 }; nfSets[b] = new Set(); }
+      totais[b].valor += cell.valor;
+      totais[b].itens += cell.itens;
+      for (const d of cell.nfs) nfSets[b].add(d);
+    }
+  }
+  for (const b of Object.keys(totais)) {
+    totais[b].valor = Math.round(totais[b].valor);
+    totais[b].itens = Math.round(totais[b].itens);
+    totais[b].nf = nfSets[b].size;
+  }
+  totais.venda_fat = fat; // faturamento (receita), pseudo-bucket fora da tabela
+
+  return { pontos, buckets, estoqueAtual: Math.round(estoqueAtual), totalMovimentos: porMes.size, totais };
 }
 
 /**
@@ -107,12 +189,12 @@ export async function reconciliacaoLedger(
  * razão (aí o chamador deve cair no snapshot). `meses` em ordem ascendente.
  */
 export async function estoqueLedgerPorMes(
-  meses: Array<{ ano: number; mes: number }>, conta: Conta, grupo: 'peca' | 'maquina',
+  meses: Array<{ ano: number; mes: number }>, conta: ContaFiltro, grupo: 'peca' | 'maquina',
 ): Promise<{ valorPorMes: Map<string, number>; temDados: boolean }> {
   const [estoqueAtual, porMes] = await Promise.all([estoqueAtualGrupo(conta, grupo), agregarRazao(conta, grupo)]);
   const deltas = meses.map((m) => {
     const mm = porMes.get(`${m.ano}-${m.mes}`); if (!mm) return 0;
-    let d = 0; for (const v of mm.values()) d += v; return Math.round(d);
+    let d = 0; for (const c of mm.values()) d += c.valor; return Math.round(d);
   });
   const valores = new Array<number>(meses.length);
   for (let i = meses.length - 1; i >= 0; i--) {
@@ -132,16 +214,16 @@ export interface DetalheResult { itens: DetalheItem[]; total: number; somaEfeito
  * vazio, traz TODOS os buckets do mês (= Δ Estoque do mês).
  */
 export async function detalheBucket(
-  conta: Conta, grupo: 'peca' | 'maquina', ano: number, mes: number, bucket: string,
+  conta: ContaFiltro, grupo: 'peca' | 'maquina', ano: number, mes: number, bucket: string,
 ): Promise<DetalheResult> {
   const porProduto = new Map<number, { mov: number; qtde: number; efeito: number }>();
   let offset = 0;
   for (;;) {
-    let q = supabase.from('estoque_movimentos')
-      .select('codigo_produto,efeito,qtde_entrada,qtde_saida')
-      .eq('conta_omie', contaLow(conta)).eq('grupo', grupo).eq('ano', ano).eq('mes', mes).eq('cancelado', false);
+    let q = supabase.from('estoque_movimentos').select('codigo_produto,efeito,qtde_entrada,qtde_saida');
+    if (conta) q = q.eq('conta_omie', contaLow(conta));
+    q = q.eq('grupo', grupo).eq('ano', ano).eq('mes', mes).eq('cancelado', false);
     if (bucket) q = q.eq('bucket', bucket);
-    const { data, error } = await q.range(offset, offset + 999);
+    const { data, error } = await q.order('mov_hash').range(offset, offset + 999);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<{ codigo_produto: number; efeito: number; qtde_entrada: number; qtde_saida: number }>;
     for (const r of lote) {

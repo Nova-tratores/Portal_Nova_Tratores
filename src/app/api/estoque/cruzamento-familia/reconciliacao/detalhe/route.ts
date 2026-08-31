@@ -10,7 +10,7 @@ export const maxDuration = 60;
 // vazio = todos (Δ Estoque do mês).
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
-  const conta = parseConta((sp.get('conta') || '').toUpperCase()) ?? 'NOVA';
+  const conta = parseConta((sp.get('conta') || '').toUpperCase()); // undefined = TODAS
   const grupo = sp.get('grupo') === 'maquina' ? 'maquina' : 'peca';
   const ano = parseInt(sp.get('ano') || '0') || 0;
   const mes = parseInt(sp.get('mes') || '0') || 0;

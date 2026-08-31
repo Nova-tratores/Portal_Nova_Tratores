@@ -13,7 +13,7 @@ export const maxDuration = 60;
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams;
   const n = Math.min(48, Math.max(2, parseInt(sp.get('meses') || '12') || 12));
-  const conta = parseConta((sp.get('conta') || '').toUpperCase()) ?? 'NOVA';
+  const conta = parseConta((sp.get('conta') || '').toUpperCase()); // undefined = TODAS (Nova+Castro)
   const grupo = sp.get('grupo') === 'maquina' ? 'maquina' : 'peca';
   try {
     const r = await reconciliacaoLedger(ultimosMeses(n), conta, grupo);
