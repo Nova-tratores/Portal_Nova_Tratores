@@ -68,6 +68,7 @@ const chaveCrono = (p: PontoMensal) => Number(p.ano || 0) * 100 + Number(p.mes |
 // Persistência da seleção de Tipos (por usuário): Supabase portal_ui_prefs + cache localStorage.
 const CHAVE_PREF_TIPOS = 'cruzamento-tipos';
 const TIPOS_KEY = (uid: string) => `cruzamento-tipos-${uid}`;
+const SEM_TIPO_LABEL = 'Sem tipo';
 
 // Valor da série no mês mais recente (cronológico) que tem dado — usado p/ ranquear.
 function ultimoValorCronologico(pontos: PontoMensal[], key: string): number {
@@ -148,7 +149,7 @@ interface Linha {
   saidas_valor: number;
 }
 interface Totais {
-  estoque_qtd: number; estoque_valor: number;
+  estoque_qtd: number; estoque_valor: number; estoque_venda: number;
   entradas_qtd: number; entradas_valor: number;
   saidas_qtd: number; saidas_valor: number;
 }
@@ -217,9 +218,8 @@ export default function CruzamentoFamiliaPage() {
 
   // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
   const [mesesTipo, setMesesTipo] = useState(12);
-  const [incluirSemTipo, setIncluirSemTipo] = useState(false);
+  const incluirSemTipo = true; // "Sem tipo" sempre no pool; visibilidade é pelo seletor de Tipos
   const [logScale, setLogScale] = useState(false); // eixo Y logarítmico (gráficos)
-  const [linlogTipo, setLinlogTipo] = useState(false); // eixo Y "linlog" (symlog: linear até 30k, log acima) — só nesta aba
   const [normalizarTipo, setNormalizarTipo] = useState(false); // gráfico normalizado a índice base 100 (só nesta aba)
   const [modoTipo, setModoTipo] = useState<'linhas' | 'mini'>('linhas'); // "linhas" = 1 gráfico; "mini" = small multiples (1 por Tipo)
   const [trimestralTipo, setTrimestralTipo] = useState(false); // agrega o gráfico de linhas por trimestre (fim de trimestre)
@@ -363,19 +363,18 @@ export default function CruzamentoFamiliaPage() {
   };
 
   // Clique numa célula da aba "Estoque por Tipo" → composição daquele Tipo NAQUELE mês.
-  // Mês atual = saldo ao vivo (lista item-a-item de `produtos`); meses passados só têm o
-  // valor agregado do snapshot (não dá pra reconstruir os itens) → abre em modo "resumo".
+  // Mês atual = saldo ao vivo (lista item-a-item de `produtos`); meses passados são
+  // RECONSTRUÍDOS do razão (estoque_movimentos) — a lib decide pelo mes/ano.
   const abrirPopupEstoqueTipo = (s: SerieDef, p: PontoMensal) => {
     const tipo = s.key.slice('estoque::'.length);
     const ehMesAtual = Number(p.mes) === agora.getMonth() + 1 && Number(p.ano) === agora.getFullYear();
-    const valorCel = Number(p[s.key] || 0);
-    // Meses passados: mostra só o valor da célula (snapshot), sem lista de produtos.
-    if (!ehMesAtual) {
-      setPopup({ titulo: `${s.label} — ${p.periodo}`, params: { fonte: 'estoque', grupo: 'peca' }, resumo: { valor: valorCel } });
-      return;
-    }
     // grupo:'peca' espelha a série (só peças) — nunca listar máquinas no popup de Tipo.
-    setPopup({ titulo: `${s.label} — ${p.periodo} (saldo atual)`, params: { fonte: 'estoque', tipocarac: tipo, grupo: 'peca' } });
+    setPopup({
+      titulo: `${s.label} — ${p.periodo}${ehMesAtual ? ' (saldo atual)' : ' (reconstruído)'}`,
+      params: ehMesAtual
+        ? { fonte: 'estoque', tipocarac: tipo, grupo: 'peca' }
+        : { fonte: 'estoque', tipocarac: tipo, grupo: 'peca', mes: Number(p.mes), ano: Number(p.ano) },
+    });
   };
 
   // Clique numa célula da TABELA DO MÊS por família → popup de composição.
@@ -415,12 +414,18 @@ export default function CruzamentoFamiliaPage() {
   }, [userProfile?.id]);
 
   // Inicializa a seleção quando os Tipos chegam: a salva (filtrada aos disponíveis)
-  // ou, se vazia, os 8 maiores por valor atual.
+  // ou, se vazia, os 8 maiores por valor atual + "Sem tipo" (padrão da tela).
   useEffect(() => {
     if (tiposSelecionados !== null || tiposDisponiveis.length === 0 || tiposSalvos === null) return;
     const disp = new Set(tiposDisponiveis.map((tt) => tt.nome));
     const salvos = tiposSalvos.filter((tt) => disp.has(tt));
-    const inicial = salvos.length > 0 ? salvos : tiposDisponiveis.slice(0, 8).map((tt) => tt.nome);
+    let inicial: string[];
+    if (salvos.length > 0) {
+      inicial = salvos;
+    } else {
+      const top8 = tiposDisponiveis.slice(0, 8).map((tt) => tt.nome);
+      inicial = disp.has(SEM_TIPO_LABEL) && !top8.includes(SEM_TIPO_LABEL) ? [...top8, SEM_TIPO_LABEL] : top8;
+    }
     setTiposSelecionados(new Set(inicial));
   }, [tiposDisponiveis, tiposSalvos, tiposSelecionados]);
 
@@ -500,7 +505,8 @@ export default function CruzamentoFamiliaPage() {
       {t && !carregando && (
         <>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(170px, 1fr))', gap: 12, marginBottom: 18 }}>
-            <Resumo titulo="Valor em estoque" valor={fmtRS(t.estoque_valor)} sub={`${fmtQtd(t.estoque_qtd)} un · saldo atual`} />
+            <Resumo titulo="Valor em estoque" valor={fmtRS(t.estoque_valor)} sub={`${fmtQtd(t.estoque_qtd)} un · a CUSTO (CMC)`} />
+            <Resumo titulo="Valor de venda (estoque)" valor={fmtRS(t.estoque_venda)} sub={t.estoque_venda > 0 && t.estoque_valor > 0 ? `saldo × preço de venda · margem ${Math.round((1 - t.estoque_valor / t.estoque_venda) * 100)}%` : 'saldo × preço de venda'} cor="#2563eb" />
             <Resumo titulo="Entradas do mês" valor={fmtRS(t.entradas_valor)} sub={`${fmtQtd(t.entradas_qtd)} un`} cor="#16a34a" />
             <Resumo titulo="Saídas (vendas) do mês" valor={fmtRS(t.saidas_valor)} sub={`${fmtQtd(t.saidas_qtd)} un`} cor="#dc2626" />
             <Resumo titulo="Entradas − Saídas" valor={fmtRS(t.entradas_valor - t.saidas_valor)} sub="movimento líquido do mês" cor={t.entradas_valor - t.saidas_valor >= 0 ? '#16a34a' : '#dc2626'} />
@@ -566,7 +572,7 @@ export default function CruzamentoFamiliaPage() {
             </table>
           </div>
           <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
-            Estoque = saldo atual × CMC (snapshot do último sync, não histórico do mês). Saídas = vendas do mês. Entradas = itens das notas de entrada do mês, com família resolvida pelo código do produto.
+            Valor em estoque = saldo atual × CMC (custo, snapshot do último sync). Valor de venda (estoque) = saldo × preço de venda (produtos.valor_unitario) — quanto o estoque valeria se vendido a preço de tabela; a margem no card compara os dois. Saídas = vendas do mês. Entradas = itens das notas de entrada do mês, com família resolvida pelo código do produto.
           </p>
         </>
       )}
@@ -677,18 +683,6 @@ export default function CruzamentoFamiliaPage() {
               ))}
             </div>
           )}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Traz o bucket 'Sem tipo' para o conjunto de Tipos escolhíveis no seletor.">
-            <input type="checkbox" checked={incluirSemTipo} onChange={(e) => setIncluirSemTipo(e.target.checked)} />
-            Incluir &quot;Sem tipo&quot;
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: (normalizarTipo || modoTipo === 'mini') ? '#bbb' : '#555', cursor: (normalizarTipo || modoTipo === 'mini') ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={modoTipo === 'mini' ? 'Não se aplica aos mini-gráficos (cada quadro já se auto-escala)' : normalizarTipo ? 'Desligue "Normalizar (índice 100)" para usar escala log' : undefined}>
-            <input type="checkbox" checked={logScale} disabled={normalizarTipo || modoTipo === 'mini'} onChange={(e) => setLogScale(e.target.checked)} />
-            Escala log
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: (normalizarTipo || modoTipo === 'mini') ? '#bbb' : '#555', cursor: (normalizarTipo || modoTipo === 'mini') ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={modoTipo === 'mini' ? 'Não se aplica aos mini-gráficos (cada quadro já se auto-escala)' : normalizarTipo ? 'Desligue "Normalizar (índice 100)" para usar escala linlog' : "Escala 'linlog' (symlog): de 0 a R$ 30k o eixo é bem espaçado (linear); acima disso comprime (log). Boa para ver as linhas pequenas sem esmagar as grandes."}>
-            <input type="checkbox" checked={linlogTipo} disabled={normalizarTipo || modoTipo === 'mini'} onChange={(e) => setLinlogTipo(e.target.checked)} />
-            Escala linlog
-          </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: modoTipo === 'mini' ? '#bbb' : '#555', cursor: modoTipo === 'mini' ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={modoTipo === 'mini' ? 'Não se aplica aos mini-gráficos' : 'Cada Tipo começa em 100 no 1º mês em que tem saldo; a curva mostra a variação % relativa. Tira o tamanho absoluto da jogada — ótimo para desembolar linhas de magnitudes muito diferentes.'}>
             <input type="checkbox" checked={normalizarTipo} disabled={modoTipo === 'mini'} onChange={(e) => setNormalizarTipo(e.target.checked)} />
             Normalizar (índice 100)
@@ -717,7 +711,7 @@ export default function CruzamentoFamiliaPage() {
                   <SerieMensalChart
                     dados={chartLinhasTipo.pontos}
                     series={chartLinhasTipo.series}
-                    logScale={normalizarTipo ? false : logScale} linlog={normalizarTipo ? false : linlogTipo} indice={normalizarTipo}
+                    indice={normalizarTipo}
                     ocultarDots rotulosDireita
                     onPointClick={(key, p) => {
                       const s = serieTipo.series.find((x) => x.key === key);
@@ -809,7 +803,7 @@ export default function CruzamentoFamiliaPage() {
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
               Saldo (R$) de estoque das <strong>Peças</strong>, por característica <strong>&quot;Tipo:&quot;</strong> (tabela produto_tipo). Quem não tem Tipo cai em &ldquo;Sem tipo&rdquo;.
               Use o <strong>seletor &ldquo;Tipos&rdquo;</strong> para escolher quais Tipos aparecem (gráfico, tabela e mini) — a lista mostra o valor atual de cada um (os <strong>zerados</strong> ficam sinalizados), tem busca e atalhos Top 8 / Todos / Limpar; sua escolha fica <strong>salva</strong>. Assim dá pra flagrar os Tipos que <strong>morreram</strong> (a linha cai a zero) sem eles ficarem escondidos numa &ldquo;Outras&rdquo;.
-              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver os <strong>produtos</strong> daquele Tipo (marque &ldquo;mostrar zerados&rdquo; para ver os que acabaram); nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong>/<strong>linlog</strong> ou <strong>Normalizar (índice 100)</strong> para comparar linhas de tamanhos diferentes; <strong>passe o mouse ou clique</strong> numa linha para destacá-la.
+              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores vêm do <strong>snapshot mensal</strong> — meses sem snapshot ficam sem ponto. <strong>Clique em qualquer célula</strong> (Tipo × mês) para ver os <strong>produtos</strong> que compõem aquele valor: no mês atual é ao vivo; nos meses passados é <strong>reconstruído do razão</strong> (estoque_movimentos), aproximado. Marque &ldquo;mostrar produtos zerados&rdquo; no popup para ver os que acabaram. Use <strong>Normalizar (índice 100)</strong> para comparar linhas de tamanhos diferentes; <strong>passe o mouse</strong> numa linha para destacá-la.
               O gráfico <strong>Linhas</strong> traz o nome de cada Tipo <strong>na ponta da linha</strong> (sem legenda) e sem bolinhas; use <strong>Mini-gráficos</strong> para 1 quadro por Tipo, ou <strong>Trimestral</strong> (fim de trimestre, 48→16 pontos). Na tabela, a coluna <strong>Mês</strong> fica congelada nas duas pontas, com <strong>Total</strong> (soma dos Tipos à vista) à direita; o <strong>triângulo ▲/▼</strong> por célula indica se subiu (verde) ou desceu (vermelho) ante o mês anterior.
             </p>
           </>

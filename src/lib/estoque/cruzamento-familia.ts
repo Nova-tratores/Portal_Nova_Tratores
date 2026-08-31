@@ -84,6 +84,7 @@ export interface FamiliaLinha {
   tipo: Grupo;
   estoque_qtd: number;
   estoque_valor: number;
+  estoque_venda: number; // estoque valorado a PREÇO DE VENDA (saldo × valor_unitario)
   entradas_qtd: number;
   entradas_valor: number;
   saidas_qtd: number;
@@ -93,6 +94,7 @@ export interface FamiliaLinha {
 export interface CruzamentoTotais {
   estoque_qtd: number;
   estoque_valor: number;
+  estoque_venda: number;
   entradas_qtd: number;
   entradas_valor: number;
   saidas_qtd: number;
@@ -110,6 +112,7 @@ export interface CruzamentoResult {
 interface Acc {
   estoque_qtd: number;
   estoque_valor: number;
+  estoque_venda: number;
   entradas_qtd: number;
   entradas_valor: number;
   saidas_qtd: number;
@@ -117,7 +120,7 @@ interface Acc {
 }
 
 function novoAcc(): Acc {
-  return { estoque_qtd: 0, estoque_valor: 0, entradas_qtd: 0, entradas_valor: 0, saidas_qtd: 0, saidas_valor: 0 };
+  return { estoque_qtd: 0, estoque_valor: 0, estoque_venda: 0, entradas_qtd: 0, entradas_valor: 0, saidas_qtd: 0, saidas_valor: 0 };
 }
 
 // A tabela `produtos` grava conta_omie em MINÚSCULO; filtroConta usa o valor cru
@@ -132,22 +135,22 @@ function aplicarContaProdutos<T>(query: T, conta: ContaFiltro): T {
  * mapa código→família (fonte única para reconciliar entradas e vendas).
  */
 async function carregarProdutos(conta: ContaFiltro): Promise<{
-  estoquePorFamilia: Record<string, { qtd: number; valor: number }>;
+  estoquePorFamilia: Record<string, { qtd: number; valor: number; venda: number }>;
   famPorCodigo: Record<string, string>;
   famPorSKU: Record<string, string>;
 }> {
-  const estoquePorFamilia: Record<string, { qtd: number; valor: number }> = {};
+  const estoquePorFamilia: Record<string, { qtd: number; valor: number; venda: number }> = {};
   const famPorCodigo: Record<string, string> = {};
   const famPorSKU: Record<string, string> = {}; // produtos.codigo (SKU, minúsculo) → família
   let offset = 0;
   const LOTE = 1000;
   while (true) {
     const { data, error } = await aplicarContaProdutos(
-      supabase.from('produtos').select('codigo_produto,codigo,familia_nome,estoque,valor_estoque'),
+      supabase.from('produtos').select('codigo_produto,codigo,familia_nome,estoque,valor_estoque,valor_unitario'),
       conta,
     ).order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
-    const lote = (data || []) as Array<{ codigo_produto: unknown; codigo: unknown; familia_nome: unknown; estoque: unknown; valor_estoque: unknown }>;
+    const lote = (data || []) as Array<{ codigo_produto: unknown; codigo: unknown; familia_nome: unknown; estoque: unknown; valor_estoque: unknown; valor_unitario: unknown }>;
     for (const p of lote) {
       const cod = String(p.codigo_produto);
       const fam = String(p.familia_nome ?? '').trim() || SEM_FAMILIA;
@@ -156,9 +159,12 @@ async function carregarProdutos(conta: ContaFiltro): Promise<{
       if (sku) famPorSKU[sku] = fam;
       const qtd = num(p.estoque);
       const valor = num(p.valor_estoque);
-      if (!estoquePorFamilia[fam]) estoquePorFamilia[fam] = { qtd: 0, valor: 0 };
+      // Valor de VENDA do estoque = saldo × preço de venda (produtos.valor_unitario, do cadastro Omie).
+      const venda = qtd * num(p.valor_unitario);
+      if (!estoquePorFamilia[fam]) estoquePorFamilia[fam] = { qtd: 0, valor: 0, venda: 0 };
       estoquePorFamilia[fam].qtd += qtd;
       estoquePorFamilia[fam].valor += valor;
+      estoquePorFamilia[fam].venda += venda;
     }
     if (lote.length < LOTE) break;
     offset += LOTE;
@@ -439,6 +445,7 @@ export async function cruzamentoPorFamilia(
     const a = garantir(fam);
     a.estoque_qtd += v.qtd;
     a.estoque_valor += v.valor;
+    a.estoque_venda += v.venda;
   }
   for (const [fam, v] of Object.entries(entradas.porFamilia)) {
     const a = garantir(fam);
@@ -458,6 +465,7 @@ export async function cruzamentoPorFamilia(
       tipo: classificarGrupo(familia),
       estoque_qtd: a.estoque_qtd,
       estoque_valor: a.estoque_valor,
+      estoque_venda: a.estoque_venda,
       entradas_qtd: a.entradas_qtd,
       entradas_valor: a.entradas_valor,
       saidas_qtd: a.saidas_qtd,
@@ -471,12 +479,13 @@ export async function cruzamentoPorFamilia(
   const totais: CruzamentoTotais = linhas.reduce<CruzamentoTotais>((t, l) => {
     t.estoque_qtd += l.estoque_qtd;
     t.estoque_valor += l.estoque_valor;
+    t.estoque_venda += l.estoque_venda;
     t.entradas_qtd += l.entradas_qtd;
     t.entradas_valor += l.entradas_valor;
     t.saidas_qtd += l.saidas_qtd;
     t.saidas_valor += l.saidas_valor;
     return t;
-  }, { estoque_qtd: 0, estoque_valor: 0, entradas_qtd: 0, entradas_valor: 0, saidas_qtd: 0, saidas_valor: 0 });
+  }, { estoque_qtd: 0, estoque_valor: 0, estoque_venda: 0, entradas_qtd: 0, entradas_valor: 0, saidas_qtd: 0, saidas_valor: 0 });
 
   return { linhas, totais, mes, ano, entradasSemFamilia: entradas.semFamilia };
 }
@@ -1268,8 +1277,90 @@ async function composicaoSaida(conta: ContaFiltro, f: ComposicaoFiltro): Promise
   return { itens, total: itens.length, somaValor: itens.reduce((s, i) => s + i.valor, 0), fonte: 'saida' };
 }
 
+// Reconstrói a composição item-a-item de um Tipo num MÊS PASSADO a partir do
+// razão (estoque_movimentos). Valor de cada produto no FIM do mês M = valor atual
+// − Σ efeito dos movimentos POSTERIORES a M (mesma lógica da Reconciliação, que
+// fecha 100% no agregado); qtd = estoque atual − Σ (entrada − saída) após M.
+// Produto sem histórico no razão fica com o valor atual (aproximação).
+async function composicaoEstoqueMes(conta: ContaFiltro, f: ComposicaoFiltro): Promise<ComposicaoResult> {
+  const ano = f.ano!, mes = f.mes!;
+  const alvo = ano * 100 + mes;
+  const tipoPorCodigo = await carregarTipoCaracteristica(conta);
+
+  // 1) Produtos do Tipo (peça), estado ATUAL.
+  const atual = new Map<string, { descricao: string; familia: string; estoque: number; valor: number }>();
+  let offset = 0;
+  const LOTE = 1000;
+  while (true) {
+    const { data, error } = await aplicarContaProdutos(
+      supabase.from('produtos').select('codigo_produto,descricao,familia_nome,estoque,valor_estoque'),
+      conta,
+    ).order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
+    if (error) throw new Error(error.message);
+    const lote = (data || []) as Array<Record<string, unknown>>;
+    for (const p of lote) {
+      const fam = String(p.familia_nome ?? '').trim() || SEM_FAMILIA;
+      if (classificarGrupo(fam) !== 'peca') continue;
+      const cod = String(p.codigo_produto ?? '');
+      const tipoC = tipoPorCodigo[cod] || SEM_TIPO;
+      if (f.tipocarac && tipoC !== f.tipocarac) continue;
+      atual.set(cod, { descricao: String(p.descricao ?? ''), familia: fam, estoque: num(p.estoque), valor: num(p.valor_estoque) });
+    }
+    if (lote.length < LOTE) break;
+    offset += LOTE;
+  }
+
+  // 2) Movimentos POSTERIORES a M, só dos produtos do Tipo (índice conta_omie+codigo_produto).
+  const apos = new Map<string, { efeito: number; qtd: number }>();
+  const ids = [...atual.keys()].map(Number);
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    let off = 0;
+    while (true) {
+      let q = supabase.from('estoque_movimentos').select('codigo_produto,ano,mes,efeito,qtde_entrada,qtde_saida').in('codigo_produto', chunk).eq('cancelado', false).gte('ano', ano);
+      if (conta) q = q.eq('conta_omie', String(conta).toLowerCase());
+      const { data, error } = await q.order('mov_hash').range(off, off + 999);
+      if (error) throw new Error(error.message);
+      const lote = (data || []) as Array<{ codigo_produto: number; ano: number; mes: number; efeito: number; qtde_entrada: number; qtde_saida: number }>;
+      for (const r of lote) {
+        if ((Number(r.ano) * 100 + Number(r.mes)) <= alvo) continue; // só POSTERIORES a M
+        const cod = String(r.codigo_produto);
+        const cur = apos.get(cod) || { efeito: 0, qtd: 0 };
+        cur.efeito += num(r.efeito);
+        cur.qtd += num(r.qtde_entrada) - num(r.qtde_saida);
+        apos.set(cod, cur);
+      }
+      if (lote.length < 1000) break;
+      off += 1000;
+    }
+  }
+
+  // 3) Reconstrói o saldo de fim de mês por produto.
+  const itens: ComposicaoItem[] = [];
+  for (const [cod, a] of atual) {
+    const d = apos.get(cod) || { efeito: 0, qtd: 0 };
+    const valor = a.valor - d.efeito;
+    const qtd = a.estoque - d.qtd;
+    if (!f.zerados && qtd === 0 && Math.round(valor) === 0) continue;
+    itens.push({ codigo: cod, descricao: a.descricao, familia: a.familia, qtd: Math.round(qtd * 100) / 100, valor: Math.round(valor) });
+  }
+  itens.sort((x, y) => y.valor - x.valor);
+  return {
+    itens, total: itens.length, somaValor: itens.reduce((s, i) => s + i.valor, 0), fonte: 'estoque',
+    aviso: 'Reconstruído do razão de estoque (estoque_movimentos): saldo de fim de mês por produto. Aproximado — produtos sem histórico no razão usam o saldo atual.',
+  };
+}
+
 export async function composicao(conta: ContaFiltro, f: ComposicaoFiltro): Promise<ComposicaoResult> {
-  if (f.fonte === 'estoque') return composicaoEstoque(conta, f);
+  if (f.fonte === 'estoque') {
+    // Mês PASSADO (mes+ano informados e não é o mês corrente) → reconstrói do razão.
+    if (f.mes && f.ano) {
+      const now = new Date();
+      const ehAtual = f.mes === now.getMonth() + 1 && f.ano === now.getFullYear();
+      if (!ehAtual) return composicaoEstoqueMes(conta, f);
+    }
+    return composicaoEstoque(conta, f);
+  }
   if (f.fonte === 'entrada') return composicaoEntrada(conta, f);
   return composicaoSaida(conta, f);
 }
