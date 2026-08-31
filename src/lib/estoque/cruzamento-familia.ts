@@ -1164,10 +1164,15 @@ async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promi
   let offset = 0;
   const LOTE = 1000;
   while (true) {
+    // estoque != 0 (positivos E negativos). O valor da célula (carregarEstoquePorTipo)
+    // soma TODOS os produtos, inclusive os de estoque NEGATIVO (peça vendida a
+    // descoberto, valorada negativa pela Omie). Se aqui filtrássemos só `> 0`, a
+    // lista mostraria só positivos e NUNCA fecharia com o total da célula (ex.: Tipo
+    // com saldo líquido negativo). `!= 0` faz o somaValor bater com a célula.
     const { data, error } = await aplicarContaProdutos(
       supabase.from('produtos').select('codigo_produto,descricao,familia_nome,estoque,valor_estoque'),
       conta,
-    ).gt('estoque', 0).order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
+    ).neq('estoque', 0).order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<Record<string, unknown>>;
     for (const p of lote) {

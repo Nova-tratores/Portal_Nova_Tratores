@@ -527,7 +527,7 @@ export default function CruzamentoFamiliaPage() {
         <div style={{ display: 'flex', gap: 16, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <Sel label="Período" value={mesesTipo} onChange={(v) => setMesesTipo(parseInt(v))} options={[6, 12, 18, 24, 36, 48].map((m) => ({ value: m, label: m + ' meses' }))} />
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
-            <input type="checkbox" checked={incluirSemTipo} onChange={(e) => setIncluirSemTipo(e.target.checked)} />
+            <input type="checkbox" checked={incluirSemTipo} onChange={(e) => { setIncluirSemTipo(e.target.checked); if (e.target.checked) setOcultarDominantes(false); }} />
             Incluir &quot;Sem tipo&quot;
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
@@ -539,7 +539,7 @@ export default function CruzamentoFamiliaPage() {
             Escala linlog
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Esconde as linhas 'Sem tipo' e 'Outras' do gráfico — as demais reescalam e ficam mais legíveis">
-            <input type="checkbox" checked={ocultarDominantes} onChange={(e) => setOcultarDominantes(e.target.checked)} />
+            <input type="checkbox" checked={ocultarDominantes} onChange={(e) => { setOcultarDominantes(e.target.checked); if (e.target.checked) setIncluirSemTipo(false); }} />
             Ocultar &quot;Sem tipo&quot; + &quot;Outras&quot;
           </label>
         </div>
@@ -593,15 +593,19 @@ export default function CruzamentoFamiliaPage() {
                   const stickyLeft = (bg: string): React.CSSProperties => ({ position: 'sticky', left: 0, zIndex: 1, background: bg, boxShadow: '2px 0 5px -3px rgba(0,0,0,.18)' });
                   const stickyMesDir = (bg: string): React.CSSProperties => ({ position: 'sticky', right: TOTAL_W, zIndex: 1, background: bg });
                   const stickyTotal = (bg: string): React.CSSProperties => ({ position: 'sticky', right: 0, zIndex: 1, background: bg, boxShadow: '-3px 0 5px -3px rgba(0,0,0,.18)' });
-                  return (
-                <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
-                  <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
-                    <thead><tr>
+                  // Linha de cabeçalho (nomes dos Tipos) — repetida no rodapé (tfoot).
+                  const headerRow = (
+                    <tr>
                       <th style={{ ...thStyle, ...thClick, ...stickyLeft('#fafafa'), zIndex: 3, minWidth: MES_W }} onClick={() => setSortTipo((s) => toggleSort(s, 'mes'))}>Mês{seta(sortTipo, 'mes')}</th>
                       {serieTipo.series.map((s) => <th key={s.key} style={{ ...thNum, ...thClick, color: s.cor }} onClick={() => setSortTipo((st) => toggleSort(st, s.key))}>{s.label}{seta(sortTipo, s.key)}</th>)}
                       <th style={{ ...thNum, ...thClick, ...stickyMesDir('#fafafa'), zIndex: 3, textAlign: 'left', minWidth: MES_W }} onClick={() => setSortTipo((s) => toggleSort(s, 'mes'))}>Mês{seta(sortTipo, 'mes')}</th>
                       <th style={{ ...thNum, ...thClick, ...stickyTotal('#f2f2f2'), zIndex: 3, color: '#111', minWidth: TOTAL_W }} onClick={() => setSortTipo((s) => toggleSort(s, '__total'))}>Total{seta(sortTipo, '__total')}</th>
-                    </tr></thead>
+                    </tr>
+                  );
+                  return (
+                <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
+                  <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
+                    <thead>{headerRow}</thead>
                     <tbody>
                       {ordPontos(pontosTot, sortTipo).map((p, i) => {
                         const bg = rowBg(i);
@@ -628,6 +632,7 @@ export default function CruzamentoFamiliaPage() {
                         );
                       })}
                     </tbody>
+                    <tfoot>{headerRow}</tfoot>
                   </table>
                 </div>
                   );
