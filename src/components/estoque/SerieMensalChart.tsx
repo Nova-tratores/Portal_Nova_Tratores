@@ -5,6 +5,11 @@
 
 import { useState } from 'react';
 import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+// Escala "linlog" (symlog): linear até ~R$ 30k e comprimida (log) acima disso.
+// Vem do mesmo pacote que a Recharts usa internamente (evita mismatch de versão).
+import { scaleSymlog } from 'victory-vendor/d3-scale';
+
+const LINLOG_CONSTANTE = 30000; // faixa ~linear de 0 a 30k; acima comprime
 
 export interface SerieDef { key: string; label: string; cor: string; dash?: boolean; soTabela?: boolean }
 export type PontoMensal = Record<string, number | string>;
@@ -13,12 +18,13 @@ const fmtRS = (v: number) => 'R$ ' + Math.round(Number(v)).toLocaleString('pt-BR
 
 export interface BarraDef { key: string; label: string; cor: string }
 
-export default function SerieMensalChart({ dados, series, altura = 360, hideKeys, bars, onPointClick, logScale }: {
+export default function SerieMensalChart({ dados, series, altura = 360, hideKeys, bars, onPointClick, logScale, linlog }: {
   dados: PontoMensal[]; series: SerieDef[]; altura?: number;
   hideKeys?: string[];          // chaves de linha a esconder (ex.: filtro de grupo)
   bars?: BarraDef[];            // barras no eixo Y direito (ex.: faturamento)
   onPointClick?: (key: string, ponto: PontoMensal) => void; // clique num ponto/barra
   logScale?: boolean;           // eixo Y em escala logarítmica (valores ≤0 não plotam)
+  linlog?: boolean;             // eixo Y "linlog" (symlog): linear até 30k, log acima. Tem precedência sobre logScale.
 }) {
   if (!dados || dados.length === 0) {
     return (
@@ -46,7 +52,7 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
   // 10^ceil(max)) em vez de [1, auto] — assim não desperdiça metade do gráfico no
   // vão vazio abaixo do menor valor. Rótulos por magnitude (R$ 1k / 10k / 100k / 1M).
   let logDomain: [number, number] | undefined;
-  if (logScale) {
+  if (logScale || linlog) {
     let vmin = Infinity, vmax = -Infinity;
     for (const p of dados) for (const s of linhas) {
       const v = Number(p[s.key]);
@@ -56,8 +62,12 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
       logDomain = [Math.pow(10, Math.floor(Math.log10(vmin))), Math.pow(10, Math.ceil(Math.log10(vmax)))];
     }
   }
+  // symlog: instância d3 (constante = fim da faixa linear). Recharts só ajusta domain/range.
+  const symScale = linlog ? scaleSymlog().constant(LINLOG_CONSTANTE) : undefined;
+  const symDomain: [number, number] | undefined =
+    linlog && logDomain ? [0, logDomain[1]] : undefined;
   const fmtEixo = (v: number): string => {
-    if (logScale) {
+    if (logScale || linlog) {
       if (v >= 1e6) return 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'M';
       if (v >= 1e3) return 'R$ ' + (v / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'k';
       return 'R$ ' + Math.round(v).toLocaleString('pt-BR');
@@ -86,7 +96,11 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
           <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
           <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={fmtEixo} width={70}
-            {...(logScale && logDomain ? { scale: 'log' as const, domain: logDomain, allowDataOverflow: true } : {})} />
+            {...(linlog && symScale && symDomain
+              ? { scale: symScale as unknown as 'linear', domain: symDomain, allowDataOverflow: true }
+              : logScale && logDomain
+                ? { scale: 'log' as const, domain: logDomain, allowDataOverflow: true }
+                : {})} />
           {temBarras && (
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
           )}

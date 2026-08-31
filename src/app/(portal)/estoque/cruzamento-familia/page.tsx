@@ -18,7 +18,9 @@ type Dimensao = 'tipo' | 'categoria' | 'familia' | 'tipocarac';
 interface SerieResp { pontos: PontoMensal[]; series: SerieDef[]; dimensao: Dimensao; estoqueAtual: { peca: number; maquina: number }; erro?: string }
 interface SerieTipoResp { pontos: PontoMensal[]; series: SerieDef[]; estoqueAtual: Record<string, number>; erro?: string }
 interface PontoRecon { periodo: string; ano: number; mes: number; estoqueFim: number | null; deltaEstoque: number; [bucket: string]: number | string | null }
-interface ReconResp { pontos: PontoRecon[]; buckets: string[]; estoqueAtual: number; totalMovimentos: number; erro?: string }
+interface TotalMetrica { valor: number; nf: number; itens: number }
+interface ReconResp { pontos: PontoRecon[]; buckets: string[]; estoqueAtual: number; totalMovimentos: number; totais?: Record<string, TotalMetrica>; erro?: string }
+type MetricaRec = 'valor' | 'nf' | 'itens';
 // Labels/cores/sinal dos buckets do razão (Reconciliação).
 const BUCKET_INFO: Record<string, { label: string; cor: string }> = {
   compra: { label: 'Compra', cor: '#16a34a' },
@@ -137,12 +139,15 @@ export default function CruzamentoFamiliaPage() {
   const [reconCarregando, setReconCarregando] = useState(false);
   const [reconErro, setReconErro] = useState('');
   const [reconPopup, setReconPopup] = useState<{ titulo: string; params: DetalheParams } | null>(null);
+  const [metricaRec, setMetricaRec] = useState<MetricaRec>('valor'); // cards: Valor R$ / Qtd NF / Qtd itens
 
   // Aba "Estoque por Tipo" (saldo de Peças por característica "Tipo:")
   const [mesesTipo, setMesesTipo] = useState(12);
   const [incluirSemTipo, setIncluirSemTipo] = useState(false);
   const [logScale, setLogScale] = useState(false); // eixo Y logarítmico (gráficos)
+  const [linlogTipo, setLinlogTipo] = useState(false); // eixo Y "linlog" (symlog: linear até 30k, log acima) — só nesta aba
   const [ocultarDominantes, setOcultarDominantes] = useState(false); // esconde "Sem tipo"+"Outras" do gráfico
+  const [hoverLinhaTipo, setHoverLinhaTipo] = useState<number | null>(null); // realce da linha sob o mouse (tabela)
   const [serieTipo, setSerieTipo] = useState<SerieTipoResp | null>(null);
   const [serieTipoCarregando, setSerieTipoCarregando] = useState(false);
   const [serieTipoErro, setSerieTipoErro] = useState('');
@@ -529,6 +534,10 @@ export default function CruzamentoFamiliaPage() {
             <input type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
             Escala log
           </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Escala 'linlog' (symlog): de 0 a R$ 30k o eixo é bem espaçado (linear); acima disso comprime (log). Boa para ver as linhas pequenas sem esmagar as grandes.">
+            <input type="checkbox" checked={linlogTipo} onChange={(e) => setLinlogTipo(e.target.checked)} />
+            Escala linlog
+          </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Esconde as linhas 'Sem tipo' e 'Outras' do gráfico — as demais reescalam e ficam mais legíveis">
             <input type="checkbox" checked={ocultarDominantes} onChange={(e) => setOcultarDominantes(e.target.checked)} />
             Ocultar &quot;Sem tipo&quot; + &quot;Outras&quot;
@@ -547,41 +556,88 @@ export default function CruzamentoFamiliaPage() {
             ) : (
               <>
                 <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-                  <SerieMensalChart dados={serieTipo.pontos} series={serieTipo.series} logScale={logScale}
+                  <SerieMensalChart dados={serieTipo.pontos} series={serieTipo.series} logScale={logScale} linlog={linlogTipo}
                     hideKeys={ocultarDominantes ? ['estoque::Sem tipo', 'estoque::Outras'] : []}
                     onPointClick={(key, p) => { const s = serieTipo.series.find((x) => x.key === key); if (s) abrirPopupEstoqueTipo(s, p); }} />
                 </div>
 
+                {(() => {
+                  // Colunas congeladas + Total + triângulo de tendência (vs mês anterior).
+                  const MES_W = 92, TOTAL_W = 134;
+                  const chave = (p: PontoMensal) => Number(p.ano || 0) * 100 + Number(p.mes || 0);
+                  const totalDe = (p: PontoMensal) => serieTipo.series.reduce((a, s) => a + Number(p[s.key] || 0), 0);
+                  // Aumenta cada ponto com __total (p/ ordenar e mostrar a coluna Total).
+                  const pontosTot: PontoMensal[] = serieTipo.pontos.map((p) => ({ ...p, __total: totalDe(p) }));
+                  // Ordem cronológica real (independe da ordenação da tabela) p/ achar o mês anterior.
+                  const crono = [...pontosTot].sort((a, b) => chave(a) - chave(b));
+                  const idxCrono = new Map(crono.map((p, k) => [chave(p), k]));
+                  const valorAnterior = (p: PontoMensal, key: string): number | null => {
+                    const k = idxCrono.get(chave(p));
+                    if (k == null || k === 0) return null;
+                    return Number(crono[k - 1][key] || 0);
+                  };
+                  // Triângulo ▲/▼ (subiu/desceu vs mês anterior), verde/vermelho a 30% de opacidade.
+                  const triangulo = (atual: number, key: string, p: PontoMensal) => {
+                    if (!atual) return null;
+                    const ant = valorAnterior(p, key);
+                    if (ant == null || atual === ant) return null;
+                    const subiu = atual > ant;
+                    return (
+                      <span aria-hidden style={{ opacity: 0.3, marginRight: 4, fontSize: '.62rem', color: subiu ? '#16a34a' : '#dc2626' }}
+                        title={`${subiu ? 'Subiu' : 'Desceu'} vs mês anterior (${fmtRS0(ant)})`}>
+                        {subiu ? '▲' : '▼'}
+                      </span>
+                    );
+                  };
+                  const rowBg = (i: number) => (hoverLinhaTipo === i ? '#eaf2fb' : '#fff');
+                  const stickyLeft = (bg: string): React.CSSProperties => ({ position: 'sticky', left: 0, zIndex: 1, background: bg, boxShadow: '2px 0 5px -3px rgba(0,0,0,.18)' });
+                  const stickyMesDir = (bg: string): React.CSSProperties => ({ position: 'sticky', right: TOTAL_W, zIndex: 1, background: bg });
+                  const stickyTotal = (bg: string): React.CSSProperties => ({ position: 'sticky', right: 0, zIndex: 1, background: bg, boxShadow: '-3px 0 5px -3px rgba(0,0,0,.18)' });
+                  return (
                 <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
-                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0 }}>
                     <thead><tr>
-                      <th style={{ ...thStyle, ...thClick }} onClick={() => setSortTipo((s) => toggleSort(s, 'mes'))}>Mês{seta(sortTipo, 'mes')}</th>
+                      <th style={{ ...thStyle, ...thClick, ...stickyLeft('#fafafa'), zIndex: 3, minWidth: MES_W }} onClick={() => setSortTipo((s) => toggleSort(s, 'mes'))}>Mês{seta(sortTipo, 'mes')}</th>
                       {serieTipo.series.map((s) => <th key={s.key} style={{ ...thNum, ...thClick, color: s.cor }} onClick={() => setSortTipo((st) => toggleSort(st, s.key))}>{s.label}{seta(sortTipo, s.key)}</th>)}
+                      <th style={{ ...thNum, ...thClick, ...stickyMesDir('#fafafa'), zIndex: 3, textAlign: 'left', minWidth: MES_W }} onClick={() => setSortTipo((s) => toggleSort(s, 'mes'))}>Mês{seta(sortTipo, 'mes')}</th>
+                      <th style={{ ...thNum, ...thClick, ...stickyTotal('#f2f2f2'), zIndex: 3, color: '#111', minWidth: TOTAL_W }} onClick={() => setSortTipo((s) => toggleSort(s, '__total'))}>Total{seta(sortTipo, '__total')}</th>
                     </tr></thead>
                     <tbody>
-                      {ordPontos(serieTipo.pontos, sortTipo).map((p, i) => (
-                        <tr key={i}>
-                          <td style={tdStyle}>{p.periodo}</td>
+                      {ordPontos(pontosTot, sortTipo).map((p, i) => {
+                        const bg = rowBg(i);
+                        const total = Number(p.__total || 0);
+                        return (
+                        <tr key={i} onMouseEnter={() => setHoverLinhaTipo(i)} onMouseLeave={() => setHoverLinhaTipo(null)}
+                          style={{ background: hoverLinhaTipo === i ? '#eaf2fb' : 'transparent' }}>
+                          <td style={{ ...tdStyle, ...stickyLeft(bg), fontWeight: 600 }}>{p.periodo}</td>
                           {serieTipo.series.map((s) => {
                             const v = Number(p[s.key] || 0);
                             const clic = v !== 0;
                             return (
-                              <td key={s.key} style={{ ...tdNum, color: v ? s.cor : '#bbb', cursor: clic ? 'pointer' : 'default' }}
+                              <td key={s.key} style={{ ...tdNum, color: v ? s.cor : '#bbb', cursor: clic ? 'pointer' : 'default', background: hoverLinhaTipo === i ? '#eaf2fb' : 'transparent' }}
                                 onClick={() => clic && abrirPopupEstoqueTipo(s, p)}>
-                                {v ? fmtRS0(v) : '—'}
+                                {v ? <>{triangulo(v, s.key, p)}{fmtRS0(v)}</> : '—'}
                               </td>
                             );
                           })}
+                          <td style={{ ...tdStyle, ...stickyMesDir(bg), fontWeight: 600 }}>{p.periodo}</td>
+                          <td style={{ ...tdNum, ...stickyTotal(bg), fontWeight: 700, color: '#111' }}>
+                            {total ? <>{triangulo(total, '__total', p)}{fmtRS0(total)}</> : '—'}
+                          </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
+                  );
+                })()}
               </>
             )}
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
               Saldo (R$) de estoque das <strong>Peças</strong>, por característica <strong>&quot;Tipo:&quot;</strong> (tabela produto_tipo; top 20 + &ldquo;Outras&rdquo;). Quem não tem Tipo cai em &ldquo;Sem tipo&rdquo;.
-              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver a composição item-a-item; nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong> para enxergar as linhas menores; <strong>passe o mouse ou clique</strong> numa linha/legenda para destacá-la (clique fixa/solta); e <strong>Ocultar &ldquo;Sem tipo&rdquo; + &ldquo;Outras&rdquo;</strong> para as demais reescalarem.
+              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver a composição item-a-item; nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong> ou <strong>Escala linlog</strong> (linear até R$ 30k, comprimida acima) para enxergar as linhas menores; <strong>passe o mouse ou clique</strong> numa linha/legenda para destacá-la (clique fixa/solta); e <strong>Ocultar &ldquo;Sem tipo&rdquo; + &ldquo;Outras&rdquo;</strong> para as demais reescalarem.
+              Na tabela: a coluna <strong>Mês</strong> fica congelada na esquerda e repetida (também congelada) na direita, junto de <strong>Total</strong> (soma dos tipos); o <strong>triângulo ▲/▼</strong> em cada célula indica se o valor subiu (verde) ou desceu (vermelho) ante o mês anterior.
             </p>
           </>
         )}
@@ -604,6 +660,18 @@ export default function CruzamentoFamiliaPage() {
               ))}
             </div>
           </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span style={{ fontSize: '.7rem', color: '#888', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.03em' }}>Cards</span>
+            <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 8, overflow: 'hidden' }}>
+              {([['valor', 'Valor'], ['nf', 'Qtd NF'], ['itens', 'Qtd itens']] as const).map(([m, lbl], idx) => (
+                <button key={m} onClick={() => setMetricaRec(m)} style={{
+                  padding: '7px 12px', fontSize: '.8rem', border: 'none', cursor: 'pointer',
+                  background: metricaRec === m ? '#111' : '#fff', color: metricaRec === m ? '#fff' : '#555',
+                  borderLeft: idx !== 0 ? '1px solid #ddd' : 'none',
+                }}>{lbl}</button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {reconErro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{reconErro}</div>}
@@ -617,16 +685,36 @@ export default function CruzamentoFamiliaPage() {
               Sem movimentos no razão para <strong>{grupoRec === 'peca' ? 'Peças' : 'Máquinas'}</strong> ainda. Rode o backfill do razão de estoque (<code>/api/estoque/movimentos/sync?conta={contaParam.replace('&conta=', '') || 'nova'}&grupo={grupoRec}</code>) até <em>restantes = 0</em>.
             </div>;
           }
-          // Totais do período por bucket (para os cards).
-          const tot = (b: string) => recon.pontos.reduce((s, p) => s + Number(p[b] || 0), 0);
+          // Totais do período por bucket (para os cards), na métrica escolhida.
+          // `met` lê recon.totais (valor R$ / NF distintas / itens); null = card sem dado.
+          const met = (key: string): number | null => {
+            const t = recon.totais?.[key];
+            if (!t) return null;
+            return metricaRec === 'valor' ? t.valor : metricaRec === 'nf' ? t.nf : t.itens;
+          };
+          const fmtMet = (v: number, sig = false): string =>
+            metricaRec === 'valor' ? (sig ? fmtSig(v) : fmtRS0(v)) : Math.round(v).toLocaleString('pt-BR');
+          // Sub-rótulo: no modo Valor mantém o texto original; em NF/itens explica a métrica.
+          const subMet = (base: string, nfLbl = 'qtd NF'): string =>
+            metricaRec === 'valor' ? base : metricaRec === 'nf' ? nfLbl : 'qtd itens';
           const corEstoque = grupoRec === 'peca' ? '#2563eb' : '#d97706';
+          const cardBucket = (key: string, titulo: string, cor: string, subBase: string, sig = false) => {
+            const v = met(key);
+            if (v == null) return null;
+            return <Resumo key={key} titulo={titulo} valor={fmtMet(v, sig)} sub={subMet(subBase)} cor={cor} />;
+          };
+          const fatVal = met('venda_fat');
           return (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12, marginBottom: 14 }}>
-                <Resumo titulo="Estoque hoje" valor={fmtRS0(recon.estoqueAtual)} sub="âncora do razão (real)" cor={corEstoque} />
-                {cols.includes('compra') && <Resumo titulo="Compras (período)" valor={fmtRS0(tot('compra'))} sub="a custo" cor="#16a34a" />}
-                {cols.includes('venda') && <Resumo titulo="Vendas / COGS" valor={fmtSig(tot('venda'))} sub="custo dos vendidos" cor="#dc2626" />}
-                {cols.includes('ajuste') && <Resumo titulo="Ajustes de estoque" valor={fmtSig(tot('ajuste'))} sub="inventário/CMC" cor="#7c3aed" />}
+                {/* Estoque hoje só faz sentido em R$ (saldo); em NF/itens fica n/d. */}
+                <Resumo titulo="Estoque hoje" valor={metricaRec === 'valor' ? fmtRS0(recon.estoqueAtual) : '—'} sub={metricaRec === 'valor' ? 'âncora do razão (real)' : 'só em R$'} cor={corEstoque} />
+                {fatVal != null && <Resumo titulo="Faturamento de vendas" valor={fmtMet(fatVal)} sub={subMet('receita da venda', 'qtd NF/pedidos')} cor="#16a34a" />}
+                {cardBucket('venda', 'Vendas / COGS', '#dc2626', 'custo dos vendidos', true)}
+                {cardBucket('devolucao_venda', 'Devolução de venda', '#16a34a', 'a custo (entra)', true)}
+                {cardBucket('devolucao_compra', 'Devolução de compra', '#dc2626', 'a custo (sai)', true)}
+                {cardBucket('compra', 'Compras (período)', '#16a34a', 'a custo')}
+                {cardBucket('ajuste', 'Ajustes de estoque', '#7c3aed', 'inventário/CMC', true)}
               </div>
               <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -656,6 +744,12 @@ export default function CruzamentoFamiliaPage() {
               </div>
               <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
                 Reconciliação pelo <strong>livro-razão de estoque da Omie</strong> (MovimentoEstoque). Cada mês mostra a variação do <strong>valor</strong> de estoque decomposta por tipo de movimento, a custo CMC: <strong>Compra</strong>, <strong>Venda (COGS)</strong>, <strong>Ajuste</strong> (inventário/correção de CMC), <strong>Remessa</strong> (demonstração/consignação), <strong>Frete</strong> (capitalizado no custo), <strong>Devoluções</strong>. A soma dos tipos <strong>é</strong> o Δ Estoque do mês — não sobra resíduo, pois todo movimento está contabilizado. O <strong>Estoque (fim)</strong> é reconstruído do próprio razão, ancorado no estoque real de hoje. Substitui o cálculo anterior por snapshot (que não fechava). <strong>Clique em qualquer célula</strong> para ver os produtos que compõem o valor.
+              </p>
+              <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 8 }}>
+                <strong>Cards × tabela:</strong> os cards acima respeitam o botão <strong>Valor / Qtd NF / Qtd itens</strong> (a tabela abaixo é sempre em R$). O card <strong>Faturamento de vendas</strong> é a <strong>receita</strong> da venda (o que o cliente pagou, de <code>vendas_itens</code>) — diferente de <strong>Vendas / COGS</strong>, que é o custo do que saiu do estoque. As <strong>devoluções</strong> vêm do razão (a custo CMC).
+              </p>
+              <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 8 }}>
+                <strong>Por que o «Estoque hoje» daqui difere do «Estoque» do Gráfico mensal?</strong> Este card mostra <strong>um grupo por vez</strong> (Peças <em>ou</em> Máquinas) e <strong>não</strong> soma as máquinas em demonstração. Já o Gráfico mensal traça <strong>duas linhas</strong> (Peças + Máquinas) e a linha de Máquina <strong>inclui as máquinas em demonstração</strong> (remessas em aberto, ainda nossas). Por isso os totais não batem: são recortes diferentes do mesmo estoque, não um erro.
               </p>
             </>
           );
