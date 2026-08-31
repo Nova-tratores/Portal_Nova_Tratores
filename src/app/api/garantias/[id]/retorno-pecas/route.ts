@@ -8,6 +8,9 @@ import { registrarEvento, notificarTecnico, notificarGarantistas } from '@/lib/g
 // e move a garantia para 'aguardando_servico' (ou finaliza 'rejeitada' se a
 // fábrica recusou tudo).
 // body: { pecas_aprovadas: string[], valor_pago_pecas?, motivo_recusa?, garantista_nome? }
+// Caso especial `sem_pecas: true` (garantia SÓ DE SERVIÇO — ex.: peça
+// reaproveitada direto no cliente): pula a etapa das peças e segue pro fluxo
+// do ressarcimento das horas/km. Só vale sem nenhuma peça cadastrada.
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
@@ -64,6 +67,53 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const rejeitadasIdsList = todasPecas.filter((p) => !idsAprovados.has(p.id)).map((p) => p.id);
   const agora = new Date().toISOString();
   const ator = body.garantista_nome || 'Garantista';
+
+  // ── Garantia SÓ DE SERVIÇO (sem peças): pula a etapa das peças ────────────
+  if (body.sem_pecas === true) {
+    if (todasPecas.length > 0) {
+      return NextResponse.json(
+        { error: 'Esta garantia tem peças cadastradas — registre o resultado por peça.' },
+        { status: 400 }
+      );
+    }
+    const update: Record<string, unknown> = {
+      status: 'aguardando_servico',
+      pecas_retorno_em: agora,
+      valor_pago_pecas: 0,
+      updated_at: agora,
+    };
+    if (body.garantista_nome) update.garantista_nome = body.garantista_nome;
+
+    const { data, error } = await supabase
+      .from(TBL_GARANTIAS)
+      .update(update)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) {
+      console.error('Erro ao pular a etapa das peças:', error.message);
+      return NextResponse.json({ error: 'Falha ao registrar a garantia sem peças.' }, { status: 500 });
+    }
+
+    await registrarEvento(id, {
+      tipo: 'retorno_pecas',
+      statusAnterior: 'enviada',
+      statusNovo: 'aguardando_servico',
+      ator,
+      detalhe: 'Garantia sem peças (só serviço — peça reaproveitada no cliente): etapa das peças pulada, segue pro ressarcimento das horas/km',
+    });
+    await notificarTecnico(g.tecnico_nome, {
+      titulo: `Garantia ${g.numero}: sem peças — só o serviço`,
+      descricao: `A OS ${g.id_ordem} não envolve peças da fábrica. Com o serviço executado, o garantista solicita o ressarcimento das horas e km.`,
+      link: `/os/${g.id_ordem}`,
+    });
+    await notificarGarantistas({
+      titulo: `Garantia ${g.numero} sem peças — aguardando o ressarcimento`,
+      descricao: `OS ${g.id_ordem} · só serviço (horas/km). Solicite o ressarcimento quando o serviço estiver executado.`,
+      link: `/garantias?id=${id}`,
+    });
+    return NextResponse.json({ garantia: data });
+  }
 
   // ── Fábrica recusou todas as peças → garantia finaliza rejeitada ──────────
   if (aprovadasIdsList.length === 0) {

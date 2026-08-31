@@ -1386,7 +1386,35 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     />
                   </Secao>
 
-                  {naFabricaDuasEtapas ? (
+                  {naFabricaDuasEtapas && g.pecas.length === 0 ? (
+                    /* SÓ SERVIÇO: nenhuma peça cadastrada (ex.: peça reaproveitada
+                       direto no cliente) — pula a etapa das peças */
+                    <Secao titulo="Retorno das peças (1ª etapa)" icone={<Package size={14} />}>
+                      <div style={{ fontSize: 12, color: '#0369a1', background: '#e0f2fe', border: '1px solid #7dd3fc', padding: '8px 10px', borderRadius: 8, lineHeight: 1.55 }}>
+                        Esta garantia <strong>não tem peças cadastradas</strong> — caso de peça
+                        reaproveitada direto no cliente (só serviço). Dá pra pular a etapa das
+                        peças e seguir direto pro <strong>ressarcimento das horas e km</strong>.
+                      </div>
+                      <button
+                        onClick={() =>
+                          chamar('retorno_pecas', `/api/garantias/${garantiaId}/retorno-pecas`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ sem_pecas: true, garantista_nome: userName }),
+                          })
+                        }
+                        disabled={!!busy || !podeFinalizar}
+                        title={!podeFinalizar ? MSG_SEM_PERMISSAO : undefined}
+                        style={btn('linear-gradient(135deg,#0d9488,#0f766e)', !!busy || !podeFinalizar)}
+                      >
+                        {busy === 'retorno_pecas' ? <Loader2 size={15} className="spin" /> : <CheckCircle2 size={15} />}
+                        Sem peças — seguir pro ressarcimento (só serviço)
+                      </button>
+                      <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                        Se era pra ter peças, cadastre-as na seção de peças antes — esta ação não tem volta pela tela.
+                      </span>
+                    </Secao>
+                  ) : naFabricaDuasEtapas ? (
                     /* 1ª etapa: fábrica respondeu sobre as PEÇAS */
                     <Secao titulo="Retorno das peças (1ª etapa)" icone={<Package size={14} />}>
                       <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>
