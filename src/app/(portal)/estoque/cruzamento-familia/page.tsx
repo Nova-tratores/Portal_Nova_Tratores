@@ -10,6 +10,7 @@ import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import SerieMensalChart, { type PontoMensal, type SerieDef } from '@/components/estoque/SerieMensalChart';
+import SerieSmallMultiples from '@/components/estoque/SerieSmallMultiples';
 import ComposicaoModal, { type ComposicaoParams } from '@/components/estoque/ComposicaoModal';
 import RazaoDetalheModal, { type DetalheParams } from '@/components/estoque/RazaoDetalheModal';
 
@@ -171,6 +172,7 @@ export default function CruzamentoFamiliaPage() {
   const [logScale, setLogScale] = useState(false); // eixo Y logarítmico (gráficos)
   const [linlogTipo, setLinlogTipo] = useState(false); // eixo Y "linlog" (symlog: linear até 30k, log acima) — só nesta aba
   const [normalizarTipo, setNormalizarTipo] = useState(false); // gráfico normalizado a índice base 100 (só nesta aba)
+  const [modoTipo, setModoTipo] = useState<'linhas' | 'mini'>('linhas'); // "linhas" = 1 gráfico; "mini" = small multiples (1 por Tipo)
   const [ocultarDominantes, setOcultarDominantes] = useState(false); // esconde "Sem tipo"+"Outras" do gráfico
   const [hoverLinhaTipo, setHoverLinhaTipo] = useState<number | null>(null); // realce da linha sob o mouse (tabela)
   const [serieTipo, setSerieTipo] = useState<SerieTipoResp | null>(null);
@@ -551,20 +553,28 @@ export default function CruzamentoFamiliaPage() {
       <>
         <div style={{ display: 'flex', gap: 16, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <Sel label="Período" value={mesesTipo} onChange={(v) => setMesesTipo(parseInt(v))} options={[6, 12, 18, 24, 36, 48].map((m) => ({ value: m, label: m + ' meses' }))} />
+          <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 8, overflow: 'hidden', paddingBottom: 0 }} title="Muitos Tipos embolam num gráfico só. 'Mini-gráficos' mostra 1 quadro por Tipo (cada um auto-escalado) — bem mais legível.">
+            {([['linhas', 'Linhas'], ['mini', 'Mini-gráficos']] as [typeof modoTipo, string][]).map(([m, lbl]) => (
+              <button key={m} onClick={() => setModoTipo(m)} type="button"
+                style={{ border: 'none', padding: '8px 13px', fontSize: '.78rem', fontWeight: 700, cursor: 'pointer', background: modoTipo === m ? '#dc2626' : '#fff', color: modoTipo === m ? '#fff' : '#666' }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
             <input type="checkbox" checked={incluirSemTipo} onChange={(e) => { setIncluirSemTipo(e.target.checked); if (e.target.checked) setOcultarDominantes(false); }} />
             Incluir &quot;Sem tipo&quot;
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: normalizarTipo ? '#bbb' : '#555', cursor: normalizarTipo ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={normalizarTipo ? 'Desligue "Normalizar (índice 100)" para usar escala log' : undefined}>
-            <input type="checkbox" checked={logScale} disabled={normalizarTipo} onChange={(e) => setLogScale(e.target.checked)} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: (normalizarTipo || modoTipo === 'mini') ? '#bbb' : '#555', cursor: (normalizarTipo || modoTipo === 'mini') ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={modoTipo === 'mini' ? 'Não se aplica aos mini-gráficos (cada quadro já se auto-escala)' : normalizarTipo ? 'Desligue "Normalizar (índice 100)" para usar escala log' : undefined}>
+            <input type="checkbox" checked={logScale} disabled={normalizarTipo || modoTipo === 'mini'} onChange={(e) => setLogScale(e.target.checked)} />
             Escala log
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: normalizarTipo ? '#bbb' : '#555', cursor: normalizarTipo ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={normalizarTipo ? 'Desligue "Normalizar (índice 100)" para usar escala linlog' : "Escala 'linlog' (symlog): de 0 a R$ 30k o eixo é bem espaçado (linear); acima disso comprime (log). Boa para ver as linhas pequenas sem esmagar as grandes."}>
-            <input type="checkbox" checked={linlogTipo} disabled={normalizarTipo} onChange={(e) => setLinlogTipo(e.target.checked)} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: (normalizarTipo || modoTipo === 'mini') ? '#bbb' : '#555', cursor: (normalizarTipo || modoTipo === 'mini') ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={modoTipo === 'mini' ? 'Não se aplica aos mini-gráficos (cada quadro já se auto-escala)' : normalizarTipo ? 'Desligue "Normalizar (índice 100)" para usar escala linlog' : "Escala 'linlog' (symlog): de 0 a R$ 30k o eixo é bem espaçado (linear); acima disso comprime (log). Boa para ver as linhas pequenas sem esmagar as grandes."}>
+            <input type="checkbox" checked={linlogTipo} disabled={normalizarTipo || modoTipo === 'mini'} onChange={(e) => setLinlogTipo(e.target.checked)} />
             Escala linlog
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Cada Tipo começa em 100 no 1º mês em que tem saldo; a curva mostra a variação % relativa. Tira o tamanho absoluto da jogada — ótimo para desembolar linhas de magnitudes muito diferentes.">
-            <input type="checkbox" checked={normalizarTipo} onChange={(e) => setNormalizarTipo(e.target.checked)} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: modoTipo === 'mini' ? '#bbb' : '#555', cursor: modoTipo === 'mini' ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={modoTipo === 'mini' ? 'Não se aplica aos mini-gráficos' : 'Cada Tipo começa em 100 no 1º mês em que tem saldo; a curva mostra a variação % relativa. Tira o tamanho absoluto da jogada — ótimo para desembolar linhas de magnitudes muito diferentes.'}>
+            <input type="checkbox" checked={normalizarTipo} disabled={modoTipo === 'mini'} onChange={(e) => setNormalizarTipo(e.target.checked)} />
             Normalizar (índice 100)
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Esconde as linhas 'Sem tipo' e 'Outras' do gráfico — as demais reescalam e ficam mais legíveis">
@@ -585,6 +595,13 @@ export default function CruzamentoFamiliaPage() {
             ) : (
               <>
                 <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
+                  {modoTipo === 'mini' ? (
+                    <SerieSmallMultiples
+                      dados={serieTipo.pontos}
+                      series={ocultarDominantes ? serieTipo.series.filter((s) => s.key !== 'estoque::Sem tipo' && s.key !== 'estoque::Outras') : serieTipo.series}
+                      onCellClick={(key, p) => { const s = serieTipo.series.find((x) => x.key === key); if (s) abrirPopupEstoqueTipo(s, p); }}
+                    />
+                  ) : (
                   <SerieMensalChart
                     dados={normalizarTipo ? normalizarIndice(serieTipo.pontos, serieTipo.series) : serieTipo.pontos}
                     series={serieTipo.series}
@@ -596,6 +613,7 @@ export default function CruzamentoFamiliaPage() {
                       const orig = serieTipo.pontos.find((o) => Number(o.mes) === Number(p.mes) && Number(o.ano) === Number(p.ano)) ?? p;
                       if (s) abrirPopupEstoqueTipo(s, orig);
                     }} />
+                  )}
                 </div>
 
                 {(() => {
