@@ -62,6 +62,71 @@ function normalizarIndice(pontos: PontoMensal[], series: SerieDef[]): PontoMensa
   });
 }
 
+const COR_OUTRAS_GRAF = '#9ca3af';
+const chaveCrono = (p: PontoMensal) => Number(p.ano || 0) * 100 + Number(p.mes || 0);
+
+// Valor da série no mês mais recente (cronológico) que tem dado — usado p/ ranquear.
+function ultimoValorCronologico(pontos: PontoMensal[], key: string): number {
+  let best = -Infinity, val = 0;
+  for (const p of pontos) {
+    const v = Number(p[key]);
+    if (!Number.isFinite(v)) continue;
+    const c = chaveCrono(p);
+    if (c > best) { best = c; val = v; }
+  }
+  return best === -Infinity ? 0 : val;
+}
+
+// Reduz o gráfico às N maiores séries (pelo ÚLTIMO valor) + "Outras" (soma do resto).
+// foldResto=false: descarta o resto em vez de agrupar (usado quando "Ocultar Sem tipo+Outras").
+function reduzirTopN(pontos: PontoMensal[], series: SerieDef[], n: number, foldResto = true): { pontos: PontoMensal[]; series: SerieDef[] } {
+  const semOutras = series.filter((s) => !s.key.endsWith('::Outras'));
+  const rank = [...semOutras].sort((a, b) => ultimoValorCronologico(pontos, b.key) - ultimoValorCronologico(pontos, a.key));
+  const top = rank.slice(0, n);
+  const topKeys = new Set(top.map((s) => s.key));
+  const restoKeys = series.filter((s) => !topKeys.has(s.key)).map((s) => s.key); // demovidas + "Outras" da API
+  if (restoKeys.length === 0) return { pontos, series: top };
+  const novosPontos = pontos.map((p) => {
+    const np: PontoMensal = { ...p };
+    let soma = 0, tem = false;
+    for (const k of restoKeys) { const v = Number(p[k]); if (Number.isFinite(v)) { soma += v; tem = true; } delete np[k]; }
+    if (foldResto && tem) np['estoque::Outras'] = Math.round(soma);
+    return np;
+  });
+  const novasSeries: SerieDef[] = foldResto ? [...top, { key: 'estoque::Outras', label: 'Outras', cor: COR_OUTRAS_GRAF }] : top;
+  return { pontos: novosPontos, series: novasSeries };
+}
+
+// Agrega por TRIMESTRE. Como é SALDO (não soma), o valor do trimestre = último mês
+// definido dentro dele, por série. Guarda mes/ano do mês real de fim de trimestre p/
+// o clique voltar ao ponto mensal (popup de composição). periodo vira "T{q}/{AA}".
+function agregarTrimestral(pontos: PontoMensal[], series: SerieDef[]): PontoMensal[] {
+  const crono = [...pontos].sort((a, b) => chaveCrono(a) - chaveCrono(b));
+  const grupos = new Map<string, PontoMensal[]>();
+  for (const p of crono) {
+    const q = Math.floor((Number(p.mes) - 1) / 3) + 1;
+    const gk = `${p.ano}-T${q}`;
+    let arr = grupos.get(gk); if (!arr) { arr = []; grupos.set(gk, arr); }
+    arr.push(p);
+  }
+  const out: PontoMensal[] = [];
+  for (const ps of grupos.values()) {
+    const ano = Number(ps[0].ano);
+    const q = Math.floor((Number(ps[0].mes) - 1) / 3) + 1;
+    const ultimoReal = ps[ps.length - 1];
+    const np: PontoMensal = { periodo: `T${q}/${String(ano).slice(2)}`, ano, mes: Number(ultimoReal.mes) };
+    for (const s of series) {
+      for (let i = ps.length - 1; i >= 0; i--) {
+        const v = Number(ps[i][s.key]);
+        if (Number.isFinite(v)) { np[s.key] = v; break; }
+      }
+    }
+    out.push(np);
+  }
+  out.sort((a, b) => chaveCrono(a) - chaveCrono(b));
+  return out;
+}
+
 // Barras opcionais de faturamento (saída) por grupo, no eixo Y direito.
 const BARRA_PECA = { key: 'faturamento_peca', label: 'Faturamento peças', cor: '#dc2626' };
 const BARRA_MAQ = { key: 'faturamento_maquina', label: 'Faturamento máquina', cor: '#d97706' };
@@ -173,6 +238,7 @@ export default function CruzamentoFamiliaPage() {
   const [linlogTipo, setLinlogTipo] = useState(false); // eixo Y "linlog" (symlog: linear até 30k, log acima) — só nesta aba
   const [normalizarTipo, setNormalizarTipo] = useState(false); // gráfico normalizado a índice base 100 (só nesta aba)
   const [modoTipo, setModoTipo] = useState<'linhas' | 'mini'>('linhas'); // "linhas" = 1 gráfico; "mini" = small multiples (1 por Tipo)
+  const [trimestralTipo, setTrimestralTipo] = useState(false); // agrega o gráfico de linhas por trimestre (fim de trimestre)
   const [ocultarDominantes, setOcultarDominantes] = useState(false); // esconde "Sem tipo"+"Outras" do gráfico
   const [hoverLinhaTipo, setHoverLinhaTipo] = useState<number | null>(null); // realce da linha sob o mouse (tabela)
   const [serieTipo, setSerieTipo] = useState<SerieTipoResp | null>(null);
@@ -342,6 +408,19 @@ export default function CruzamentoFamiliaPage() {
     const nomeFonte = fonte === 'estoque' ? 'Estoque (saldo atual)' : fonte === 'entrada' ? `Entradas ${MESES[mes - 1]}/${ano}` : `Saídas ${MESES[mes - 1]}/${ano}`;
     setPopup({ titulo: `${l.familia} — ${nomeFonte}`, params });
   };
+
+  // Pipeline do gráfico "Linhas" da aba Estoque por Tipo: (oculta dominantes) →
+  // (trimestral) → reduz a top 8 (+ "Outras", ranqueado por último valor) → (normaliza).
+  const chartLinhasTipo = useMemo(() => {
+    if (!serieTipo) return { pontos: [] as PontoMensal[], series: [] as SerieDef[] };
+    let series = serieTipo.series;
+    if (ocultarDominantes) series = series.filter((s) => s.key !== 'estoque::Sem tipo' && s.key !== 'estoque::Outras');
+    let pontos = trimestralTipo ? agregarTrimestral(serieTipo.pontos, series) : serieTipo.pontos;
+    const red = reduzirTopN(pontos, series, 8, !ocultarDominantes);
+    pontos = red.pontos; series = red.series;
+    if (normalizarTipo) pontos = normalizarIndice(pontos, series);
+    return { pontos, series };
+  }, [serieTipo, ocultarDominantes, trimestralTipo, normalizarTipo]);
 
   if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
 
@@ -561,6 +640,16 @@ export default function CruzamentoFamiliaPage() {
               </button>
             ))}
           </div>
+          {modoTipo === 'linhas' && (
+            <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 8, overflow: 'hidden' }} title="Agrega o gráfico por trimestre (saldo de fim de trimestre): 48 pontos viram 16, a tendência aparece.">
+              {([[false, 'Mensal'], [true, 'Trimestral']] as [boolean, string][]).map(([v, lbl]) => (
+                <button key={lbl} onClick={() => setTrimestralTipo(v)} type="button"
+                  style={{ border: 'none', padding: '8px 13px', fontSize: '.78rem', fontWeight: 700, cursor: 'pointer', background: trimestralTipo === v ? '#dc2626' : '#fff', color: trimestralTipo === v ? '#fff' : '#666' }}>
+                  {lbl}
+                </button>
+              ))}
+            </div>
+          )}
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
             <input type="checkbox" checked={incluirSemTipo} onChange={(e) => { setIncluirSemTipo(e.target.checked); if (e.target.checked) setOcultarDominantes(false); }} />
             Incluir &quot;Sem tipo&quot;
@@ -603,13 +692,13 @@ export default function CruzamentoFamiliaPage() {
                     />
                   ) : (
                   <SerieMensalChart
-                    dados={normalizarTipo ? normalizarIndice(serieTipo.pontos, serieTipo.series) : serieTipo.pontos}
-                    series={serieTipo.series}
+                    dados={chartLinhasTipo.pontos}
+                    series={chartLinhasTipo.series}
                     logScale={normalizarTipo ? false : logScale} linlog={normalizarTipo ? false : linlogTipo} indice={normalizarTipo}
-                    hideKeys={ocultarDominantes ? ['estoque::Sem tipo', 'estoque::Outras'] : []}
+                    ocultarDots rotulosDireita
                     onPointClick={(key, p) => {
                       const s = serieTipo.series.find((x) => x.key === key);
-                      // Quando normalizado, `p` traz o índice — usa o ponto ORIGINAL (R$) no popup.
+                      // p pode ser trimestral/normalizado — usa o ponto mensal ORIGINAL (R$) no popup.
                       const orig = serieTipo.pontos.find((o) => Number(o.mes) === Number(p.mes) && Number(o.ano) === Number(p.ano)) ?? p;
                       if (s) abrirPopupEstoqueTipo(s, orig);
                     }} />
@@ -697,7 +786,7 @@ export default function CruzamentoFamiliaPage() {
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
               Saldo (R$) de estoque das <strong>Peças</strong>, por característica <strong>&quot;Tipo:&quot;</strong> (tabela produto_tipo; top 20 + &ldquo;Outras&rdquo;). Quem não tem Tipo cai em &ldquo;Sem tipo&rdquo;.
               O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver a composição item-a-item; nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong> ou <strong>Escala linlog</strong> (linear até R$ 30k, comprimida acima) para enxergar as linhas menores, ou <strong>Normalizar (índice 100)</strong> — cada Tipo começa em 100 no 1º mês e a curva mostra a variação % relativa (tira o tamanho absoluto da jogada, ótimo para desembolar séries de magnitudes muito diferentes); <strong>passe o mouse ou clique</strong> numa linha/legenda para destacá-la (clique fixa/solta); e <strong>Ocultar &ldquo;Sem tipo&rdquo; + &ldquo;Outras&rdquo;</strong> para as demais reescalarem.
-              Na tabela: a coluna <strong>Mês</strong> fica congelada na esquerda e repetida (também congelada) na direita, junto de <strong>Total</strong> (soma dos tipos); o <strong>triângulo ▲/▼</strong> em cada célula indica se o valor subiu (verde) ou desceu (vermelho) ante o mês anterior.
+              O gráfico <strong>Linhas</strong> mostra os <strong>8 maiores Tipos</strong> (pelo valor do mês mais recente) + &ldquo;Outras&rdquo;, com o nome de cada um <strong>na ponta da linha</strong> (sem legenda) e sem as bolinhas; use <strong>Mini-gráficos</strong> para ver 1 quadro por Tipo, ou <strong>Trimestral</strong> para agregar por fim de trimestre (48→16 pontos). Na tabela (sempre mensal, todos os Tipos): a coluna <strong>Mês</strong> fica congelada na esquerda e repetida (também congelada) na direita, junto de <strong>Total</strong> (soma dos tipos); o <strong>triângulo ▲/▼</strong> em cada célula indica se o valor subiu (verde) ou desceu (vermelho) ante o mês anterior.
             </p>
           </>
         )}

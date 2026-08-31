@@ -4,7 +4,7 @@
 // Valores em R$ SEM centavos. Recharts.
 
 import { useState } from 'react';
-import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ComposedChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Customized } from 'recharts';
 // Escala "linlog" (symlog): linear até ~R$ 30k e comprimida (log) acima disso.
 // Vem do mesmo pacote que a Recharts usa internamente (evita mismatch de versão).
 import { scaleSymlog } from 'victory-vendor/d3-scale';
@@ -18,7 +18,7 @@ const fmtRS = (v: number) => 'R$ ' + Math.round(Number(v)).toLocaleString('pt-BR
 
 export interface BarraDef { key: string; label: string; cor: string }
 
-export default function SerieMensalChart({ dados, series, altura = 360, hideKeys, bars, onPointClick, logScale, linlog, indice }: {
+export default function SerieMensalChart({ dados, series, altura = 360, hideKeys, bars, onPointClick, logScale, linlog, indice, ocultarDots, rotulosDireita }: {
   dados: PontoMensal[]; series: SerieDef[]; altura?: number;
   hideKeys?: string[];          // chaves de linha a esconder (ex.: filtro de grupo)
   bars?: BarraDef[];            // barras no eixo Y direito (ex.: faturamento)
@@ -26,6 +26,8 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
   logScale?: boolean;           // eixo Y em escala logarítmica (valores ≤0 não plotam)
   linlog?: boolean;             // eixo Y "linlog" (symlog): linear até 30k, log acima. Tem precedência sobre logScale.
   indice?: boolean;             // dados já normalizados a índice base 100 → eixo/tooltip sem R$ (número puro)
+  ocultarDots?: boolean;        // não desenha bolinha em cada ponto (mantém só o activeDot no hover)
+  rotulosDireita?: boolean;     // esconde a Legend e rotula o nome de cada série na PONTA da linha
 }) {
   if (!dados || dados.length === 0) {
     return (
@@ -91,10 +93,52 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
     const p = args.map(pontoDe).find(Boolean);
     if (p) onPointClick?.(key, p);
   };
+
+  // Rótulos na ponta da linha (em vez de legenda). `<Customized>` recebe as escalas
+  // dos eixos → posiciona o nome no ÚLTIMO ponto definido de cada série, com de-colisão
+  // vertical simples (empurra 12px pra baixo quando dois nomes colam). Clique isola a série.
+  const RotulosPonta = (cp: {
+    xAxisMap?: Record<string, { scale?: (v: unknown) => number; bandwidth?: () => number }>;
+    yAxisMap?: Record<string, { scale?: (v: unknown) => number }>;
+    offset?: { top?: number; height?: number };
+  }) => {
+    const xAxis = cp.xAxisMap ? cp.xAxisMap[Object.keys(cp.xAxisMap)[0]] : undefined;
+    const yAxis = cp.yAxisMap ? (cp.yAxisMap['left'] ?? cp.yAxisMap[Object.keys(cp.yAxisMap)[0]]) : undefined;
+    if (!xAxis?.scale || !yAxis?.scale) return null;
+    const xScale = xAxis.scale, yScale = yAxis.scale;
+    const bw = typeof xAxis.bandwidth === 'function' ? xAxis.bandwidth() : 0;
+    const marcas: Array<{ key: string; label: string; cor: string; x: number; y: number; foco: boolean; dim: boolean }> = [];
+    for (const s of linhas) {
+      let lastIdx = -1;
+      for (let i = 0; i < dados.length; i++) { if (Number.isFinite(Number(dados[i][s.key]))) lastIdx = i; }
+      if (lastIdx < 0) continue;
+      const x = Number(xScale(dados[lastIdx].periodo)) + bw / 2;
+      const y = Number(yScale(Number(dados[lastIdx][s.key])));
+      if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+      marcas.push({ key: s.key, label: s.label, cor: s.cor, x, y, foco: ativo === s.key, dim: ativo != null && ativo !== s.key });
+    }
+    // de-colisão: ordena por y e garante gap mínimo empurrando pra baixo.
+    marcas.sort((a, b) => a.y - b.y);
+    const GAP = 12;
+    for (let i = 1; i < marcas.length; i++) { if (marcas[i].y - marcas[i - 1].y < GAP) marcas[i].y = marcas[i - 1].y + GAP; }
+    return (
+      <g>
+        {marcas.map((m) => (
+          <text key={m.key} x={m.x + 7} y={m.y + 3} fontSize={10.5} fontWeight={m.foco ? 800 : 600}
+            fill={m.cor} fillOpacity={m.dim ? 0.25 : 1} style={{ cursor: 'pointer' }}
+            onClick={() => setPinned((p) => (p === m.key ? null : m.key))}
+            onMouseEnter={() => setHovered(m.key)} onMouseLeave={() => setHovered(null)}>
+            {m.label}
+          </text>
+        ))}
+      </g>
+    );
+  };
+
   return (
     <div style={{ width: '100%', height: altura }}>
       <ResponsiveContainer width="100%" height="100%">
-        <ComposedChart data={dados} margin={{ top: 8, right: 16, bottom: 4, left: 8 }}>
+        <ComposedChart data={dados} margin={{ top: 8, right: rotulosDireita ? 120 : 16, bottom: 4, left: 8 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
           <XAxis dataKey="periodo" tick={{ fontSize: 11 }} />
           <YAxis yAxisId="left" tick={{ fontSize: 11 }} tickFormatter={fmtEixo} width={70}
@@ -107,10 +151,12 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
           )}
           <Tooltip formatter={(v: number, name: string) => [indice ? `${Math.round(v)} (base 100)` : fmtRS(v), name]} />
-          <Legend wrapperStyle={{ fontSize: 11, cursor: 'pointer' }}
-            onClick={(o) => { const k = keyDe(o); if (k) setPinned((p) => (p === k ? null : k)); }}
-            onMouseEnter={(o) => setHovered(keyDe(o) ?? null)}
-            onMouseLeave={() => setHovered(null)} />
+          {!rotulosDireita && (
+            <Legend wrapperStyle={{ fontSize: 11, cursor: 'pointer' }}
+              onClick={(o) => { const k = keyDe(o); if (k) setPinned((p) => (p === k ? null : k)); }}
+              onMouseEnter={(o) => setHovered(keyDe(o) ?? null)}
+              onMouseLeave={() => setHovered(null)} />
+          )}
           {temBarras && bars!.map((b) => (
             <Bar key={b.key} yAxisId="right" dataKey={b.key} name={b.label} fill={b.cor} fillOpacity={0.28}
               cursor={cursor} onClick={clique(b.key)} />
@@ -125,7 +171,8 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
               isAnimationActive={false}
               onMouseEnter={() => setHovered(s.key)} onMouseLeave={() => setHovered(null)}
               // dot customizado: recebe o payload (ponto) direto → clique confiável.
-              dot={(p: { cx?: number; cy?: number; index?: number; payload?: PontoMensal }) => (
+              // ocultarDots → sem bolinha em cada ponto (fica só o activeDot no hover).
+              dot={ocultarDots ? false : (p: { cx?: number; cy?: number; index?: number; payload?: PontoMensal }) => (
                 typeof p.cx === 'number' && typeof p.cy === 'number'
                   ? <circle key={p.index} cx={p.cx} cy={p.cy} r={foco ? 3.5 : 3} fill={s.cor} fillOpacity={op} stroke="#fff" strokeWidth={1} strokeOpacity={op}
                       cursor={cursor} onClick={() => { if (onPointClick && p.payload) onPointClick(s.key, p.payload); }} />
@@ -134,6 +181,7 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
               activeDot={{ r: 5, cursor, onClick: clique(s.key) }} />
             );
           })}
+          {rotulosDireita && <Customized component={RotulosPonta} />}
         </ComposedChart>
       </ResponsiveContainer>
     </div>
