@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
     tipocarac: sp.get('tipocarac') || undefined,
     tipocaracExceto: (() => { const s = sp.get('tipocarac_exceto'); if (!s) return undefined; try { const a = JSON.parse(s); return Array.isArray(a) ? a.map(String) : undefined; } catch { return undefined; } })(),
     incluirSemTipo: sp.get('semtipo') === '1',
+    zerados: sp.get('zerados') === '1',
   };
 
   if ((fonte === 'entrada' || fonte === 'saida') && (!f.mes || !f.ano)) {

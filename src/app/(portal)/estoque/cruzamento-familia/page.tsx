@@ -1,7 +1,7 @@
 'use client';
 // Cruzamento por família: estoque atual × entradas do mês × saídas (vendas) do mês.
 // Consome /api/estoque/cruzamento-familia.
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -11,6 +11,7 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import SerieMensalChart, { type PontoMensal, type SerieDef } from '@/components/estoque/SerieMensalChart';
 import SerieSmallMultiples from '@/components/estoque/SerieSmallMultiples';
+import TipoPicker, { type TipoOpt } from '@/components/estoque/TipoPicker';
 import ComposicaoModal, { type ComposicaoParams } from '@/components/estoque/ComposicaoModal';
 import RazaoDetalheModal, { type DetalheParams } from '@/components/estoque/RazaoDetalheModal';
 
@@ -62,8 +63,11 @@ function normalizarIndice(pontos: PontoMensal[], series: SerieDef[]): PontoMensa
   });
 }
 
-const COR_OUTRAS_GRAF = '#9ca3af';
 const chaveCrono = (p: PontoMensal) => Number(p.ano || 0) * 100 + Number(p.mes || 0);
+
+// Persistência da seleção de Tipos (por usuário): Supabase portal_ui_prefs + cache localStorage.
+const CHAVE_PREF_TIPOS = 'cruzamento-tipos';
+const TIPOS_KEY = (uid: string) => `cruzamento-tipos-${uid}`;
 
 // Valor da série no mês mais recente (cronológico) que tem dado — usado p/ ranquear.
 function ultimoValorCronologico(pontos: PontoMensal[], key: string): number {
@@ -75,26 +79,6 @@ function ultimoValorCronologico(pontos: PontoMensal[], key: string): number {
     if (c > best) { best = c; val = v; }
   }
   return best === -Infinity ? 0 : val;
-}
-
-// Reduz o gráfico às N maiores séries (pelo ÚLTIMO valor) + "Outras" (soma do resto).
-// foldResto=false: descarta o resto em vez de agrupar (usado quando "Ocultar Sem tipo+Outras").
-function reduzirTopN(pontos: PontoMensal[], series: SerieDef[], n: number, foldResto = true): { pontos: PontoMensal[]; series: SerieDef[] } {
-  const semOutras = series.filter((s) => !s.key.endsWith('::Outras'));
-  const rank = [...semOutras].sort((a, b) => ultimoValorCronologico(pontos, b.key) - ultimoValorCronologico(pontos, a.key));
-  const top = rank.slice(0, n);
-  const topKeys = new Set(top.map((s) => s.key));
-  const restoKeys = series.filter((s) => !topKeys.has(s.key)).map((s) => s.key); // demovidas + "Outras" da API
-  if (restoKeys.length === 0) return { pontos, series: top };
-  const novosPontos = pontos.map((p) => {
-    const np: PontoMensal = { ...p };
-    let soma = 0, tem = false;
-    for (const k of restoKeys) { const v = Number(p[k]); if (Number.isFinite(v)) { soma += v; tem = true; } delete np[k]; }
-    if (foldResto && tem) np['estoque::Outras'] = Math.round(soma);
-    return np;
-  });
-  const novasSeries: SerieDef[] = foldResto ? [...top, { key: 'estoque::Outras', label: 'Outras', cor: COR_OUTRAS_GRAF }] : top;
-  return { pontos: novosPontos, series: novasSeries };
 }
 
 // Agrega por TRIMESTRE. Como é SALDO (não soma), o valor do trimestre = último mês
@@ -239,7 +223,7 @@ export default function CruzamentoFamiliaPage() {
   const [normalizarTipo, setNormalizarTipo] = useState(false); // gráfico normalizado a índice base 100 (só nesta aba)
   const [modoTipo, setModoTipo] = useState<'linhas' | 'mini'>('linhas'); // "linhas" = 1 gráfico; "mini" = small multiples (1 por Tipo)
   const [trimestralTipo, setTrimestralTipo] = useState(false); // agrega o gráfico de linhas por trimestre (fim de trimestre)
-  const [ocultarDominantes, setOcultarDominantes] = useState(false); // esconde "Sem tipo"+"Outras" do gráfico
+  const [tiposSelecionados, setTiposSelecionados] = useState<Set<string> | null>(null); // Tipos escolhidos (null = ainda não inicializado; default = top 8)
   const [hoverLinhaTipo, setHoverLinhaTipo] = useState<number | null>(null); // realce da linha sob o mouse (tabela)
   const [serieTipo, setSerieTipo] = useState<SerieTipoResp | null>(null);
   const [serieTipoCarregando, setSerieTipoCarregando] = useState(false);
@@ -391,12 +375,6 @@ export default function CruzamentoFamiliaPage() {
       return;
     }
     // grupo:'peca' espelha a série (só peças) — nunca listar máquinas no popup de Tipo.
-    if (tipo === 'Outras') {
-      // "Outras" = agregado de vários Tipos → filtra por "não é nenhum dos mostrados".
-      const mostrados = (serieTipo?.series || []).map((x) => x.key.slice('estoque::'.length)).filter((t) => t !== 'Outras');
-      setPopup({ titulo: `Outras — ${p.periodo} (saldo atual)`, params: { fonte: 'estoque', grupo: 'peca', tipocaracExceto: mostrados, incluirSemTipo } });
-      return;
-    }
     setPopup({ titulo: `${s.label} — ${p.periodo} (saldo atual)`, params: { fonte: 'estoque', tipocarac: tipo, grupo: 'peca' } });
   };
 
@@ -409,18 +387,66 @@ export default function CruzamentoFamiliaPage() {
     setPopup({ titulo: `${l.familia} — ${nomeFonte}`, params });
   };
 
-  // Pipeline do gráfico "Linhas" da aba Estoque por Tipo: (oculta dominantes) →
-  // (trimestral) → reduz a top 8 (+ "Outras", ranqueado por último valor) → (normaliza).
+  // Tipos disponíveis (todos), ordenados pelo valor ATUAL (estoqueAtual) desc — o
+  // seletor mostra os maiores primeiro e sinaliza os zerados.
+  const tiposDisponiveis = useMemo<TipoOpt[]>(() => {
+    if (!serieTipo) return [];
+    return serieTipo.series
+      .map((s) => ({ nome: s.label, cor: s.cor, valor: Number(serieTipo.estoqueAtual?.[s.label] ?? 0) }))
+      .sort((a, b) => b.valor - a.valor);
+  }, [serieTipo]);
+
+  // Carrega a seleção salva (Supabase ui-prefs + fallback localStorage) uma vez.
+  const tiposSalvosRef = useRef<string[] | null>(null);
+  const [tiposSalvos, setTiposSalvos] = useState<string[] | null>(null);
+  useEffect(() => {
+    const uid = userProfile?.id;
+    if (!uid || tiposSalvosRef.current !== null) return;
+    tiposSalvosRef.current = [];
+    (async () => {
+      let tipos: string[] | null = null;
+      try {
+        const r = await fetch(`/api/perfil/ui-prefs?user_id=${encodeURIComponent(uid)}&chave=${CHAVE_PREF_TIPOS}`);
+        if (r.ok) { const d = await r.json(); if (d.valor && Array.isArray(d.valor.tipos)) tipos = d.valor.tipos.map(String); }
+      } catch { /* fallback */ }
+      if (!tipos) { try { const raw = localStorage.getItem(TIPOS_KEY(uid)); if (raw) { const a = JSON.parse(raw); if (Array.isArray(a)) tipos = a.map(String); } } catch { /* ignore */ } }
+      setTiposSalvos(tipos ?? []);
+    })();
+  }, [userProfile?.id]);
+
+  // Inicializa a seleção quando os Tipos chegam: a salva (filtrada aos disponíveis)
+  // ou, se vazia, os 8 maiores por valor atual.
+  useEffect(() => {
+    if (tiposSelecionados !== null || tiposDisponiveis.length === 0 || tiposSalvos === null) return;
+    const disp = new Set(tiposDisponiveis.map((tt) => tt.nome));
+    const salvos = tiposSalvos.filter((tt) => disp.has(tt));
+    const inicial = salvos.length > 0 ? salvos : tiposDisponiveis.slice(0, 8).map((tt) => tt.nome);
+    setTiposSelecionados(new Set(inicial));
+  }, [tiposDisponiveis, tiposSalvos, tiposSelecionados]);
+
+  const aplicarTipos = (sel: Set<string>) => {
+    setTiposSelecionados(sel);
+    const uid = userProfile?.id; if (!uid) return;
+    const arr = Array.from(sel);
+    try { localStorage.setItem(TIPOS_KEY(uid), JSON.stringify(arr)); } catch { /* ignore */ }
+    try { fetch('/api/perfil/ui-prefs', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: uid, chave: CHAVE_PREF_TIPOS, valor: { tipos: arr } }) }); } catch { /* best-effort */ }
+  };
+
+  // Séries escolhidas (ordem da API preservada). Enquanto inicializa, mostra top 8.
+  const seriesSelecionadas = useMemo<SerieDef[]>(() => {
+    if (!serieTipo) return [];
+    if (!tiposSelecionados) return serieTipo.series.slice(0, 8);
+    return serieTipo.series.filter((s) => tiposSelecionados.has(s.label));
+  }, [serieTipo, tiposSelecionados]);
+
+  // Pipeline do gráfico "Linhas": Tipos escolhidos → (trimestral) → (normaliza).
   const chartLinhasTipo = useMemo(() => {
     if (!serieTipo) return { pontos: [] as PontoMensal[], series: [] as SerieDef[] };
-    let series = serieTipo.series;
-    if (ocultarDominantes) series = series.filter((s) => s.key !== 'estoque::Sem tipo' && s.key !== 'estoque::Outras');
+    const series = seriesSelecionadas;
     let pontos = trimestralTipo ? agregarTrimestral(serieTipo.pontos, series) : serieTipo.pontos;
-    const red = reduzirTopN(pontos, series, 8, !ocultarDominantes);
-    pontos = red.pontos; series = red.series;
     if (normalizarTipo) pontos = normalizarIndice(pontos, series);
     return { pontos, series };
-  }, [serieTipo, ocultarDominantes, trimestralTipo, normalizarTipo]);
+  }, [serieTipo, seriesSelecionadas, trimestralTipo, normalizarTipo]);
 
   if (!permLoading && userProfile && !temAcesso('estoque')) return <SemPermissao />;
 
@@ -632,6 +658,7 @@ export default function CruzamentoFamiliaPage() {
       <>
         <div style={{ display: 'flex', gap: 16, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
           <Sel label="Período" value={mesesTipo} onChange={(v) => setMesesTipo(parseInt(v))} options={[6, 12, 18, 24, 36, 48].map((m) => ({ value: m, label: m + ' meses' }))} />
+          <TipoPicker tipos={tiposDisponiveis} selecionados={tiposSelecionados ?? new Set(seriesSelecionadas.map((s) => s.label))} onChange={aplicarTipos} />
           <div style={{ display: 'flex', border: '1px solid #ddd', borderRadius: 8, overflow: 'hidden', paddingBottom: 0 }} title="Muitos Tipos embolam num gráfico só. 'Mini-gráficos' mostra 1 quadro por Tipo (cada um auto-escalado) — bem mais legível.">
             {([['linhas', 'Linhas'], ['mini', 'Mini-gráficos']] as [typeof modoTipo, string][]).map(([m, lbl]) => (
               <button key={m} onClick={() => setModoTipo(m)} type="button"
@@ -650,8 +677,8 @@ export default function CruzamentoFamiliaPage() {
               ))}
             </div>
           )}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
-            <input type="checkbox" checked={incluirSemTipo} onChange={(e) => { setIncluirSemTipo(e.target.checked); if (e.target.checked) setOcultarDominantes(false); }} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Traz o bucket 'Sem tipo' para o conjunto de Tipos escolhíveis no seletor.">
+            <input type="checkbox" checked={incluirSemTipo} onChange={(e) => setIncluirSemTipo(e.target.checked)} />
             Incluir &quot;Sem tipo&quot;
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: (normalizarTipo || modoTipo === 'mini') ? '#bbb' : '#555', cursor: (normalizarTipo || modoTipo === 'mini') ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={modoTipo === 'mini' ? 'Não se aplica aos mini-gráficos (cada quadro já se auto-escala)' : normalizarTipo ? 'Desligue "Normalizar (índice 100)" para usar escala log' : undefined}>
@@ -665,10 +692,6 @@ export default function CruzamentoFamiliaPage() {
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: modoTipo === 'mini' ? '#bbb' : '#555', cursor: modoTipo === 'mini' ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={modoTipo === 'mini' ? 'Não se aplica aos mini-gráficos' : 'Cada Tipo começa em 100 no 1º mês em que tem saldo; a curva mostra a variação % relativa. Tira o tamanho absoluto da jogada — ótimo para desembolar linhas de magnitudes muito diferentes.'}>
             <input type="checkbox" checked={normalizarTipo} disabled={modoTipo === 'mini'} onChange={(e) => setNormalizarTipo(e.target.checked)} />
             Normalizar (índice 100)
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Esconde as linhas 'Sem tipo' e 'Outras' do gráfico — as demais reescalam e ficam mais legíveis">
-            <input type="checkbox" checked={ocultarDominantes} onChange={(e) => { setOcultarDominantes(e.target.checked); if (e.target.checked) setIncluirSemTipo(false); }} />
-            Ocultar &quot;Sem tipo&quot; + &quot;Outras&quot;
           </label>
         </div>
 
@@ -687,7 +710,7 @@ export default function CruzamentoFamiliaPage() {
                   {modoTipo === 'mini' ? (
                     <SerieSmallMultiples
                       dados={serieTipo.pontos}
-                      series={ocultarDominantes ? serieTipo.series.filter((s) => s.key !== 'estoque::Sem tipo' && s.key !== 'estoque::Outras') : serieTipo.series}
+                      series={seriesSelecionadas}
                       onCellClick={(key, p) => { const s = serieTipo.series.find((x) => x.key === key); if (s) abrirPopupEstoqueTipo(s, p); }}
                     />
                   ) : (
@@ -709,7 +732,7 @@ export default function CruzamentoFamiliaPage() {
                   // Colunas congeladas + Total + triângulo de tendência (vs mês anterior).
                   const MES_W = 92, TOTAL_W = 134;
                   const chave = (p: PontoMensal) => Number(p.ano || 0) * 100 + Number(p.mes || 0);
-                  const totalDe = (p: PontoMensal) => serieTipo.series.reduce((a, s) => a + Number(p[s.key] || 0), 0);
+                  const totalDe = (p: PontoMensal) => seriesSelecionadas.reduce((a, s) => a + Number(p[s.key] || 0), 0);
                   // Aumenta cada ponto com __total (p/ ordenar e mostrar a coluna Total).
                   const pontosTot: PontoMensal[] = serieTipo.pontos.map((p) => ({ ...p, __total: totalDe(p) }));
                   // Ordem cronológica real (independe da ordenação da tabela) p/ achar o mês anterior.
@@ -741,7 +764,7 @@ export default function CruzamentoFamiliaPage() {
                   const headerRow = (
                     <tr>
                       <th style={{ ...thStyle, ...thClick, ...stickyLeft('#fafafa'), zIndex: 3, minWidth: MES_W }} onClick={() => setSortTipo((s) => toggleSort(s, 'mes'))}>Mês{seta(sortTipo, 'mes')}</th>
-                      {serieTipo.series.map((s) => <th key={s.key} style={{ ...thNum, ...thClick, color: s.cor }} onClick={() => setSortTipo((st) => toggleSort(st, s.key))}>{s.label}{seta(sortTipo, s.key)}</th>)}
+                      {seriesSelecionadas.map((s) => <th key={s.key} style={{ ...thNum, ...thClick, color: s.cor }} onClick={() => setSortTipo((st) => toggleSort(st, s.key))}>{s.label}{seta(sortTipo, s.key)}</th>)}
                       <th style={{ ...thNum, ...thClick, ...stickyMesDir('#fafafa'), zIndex: 3, textAlign: 'left', minWidth: MES_W }} onClick={() => setSortTipo((s) => toggleSort(s, 'mes'))}>Mês{seta(sortTipo, 'mes')}</th>
                       <th style={{ ...thNum, ...thClick, ...stickyTotal('#f2f2f2'), zIndex: 3, color: '#111', minWidth: TOTAL_W }} onClick={() => setSortTipo((s) => toggleSort(s, '__total'))}>Total{seta(sortTipo, '__total')}</th>
                     </tr>
@@ -758,7 +781,7 @@ export default function CruzamentoFamiliaPage() {
                         <tr key={i} onMouseEnter={() => setHoverLinhaTipo(i)} onMouseLeave={() => setHoverLinhaTipo(null)}
                           style={{ background: hoverLinhaTipo === i ? '#eaf2fb' : 'transparent' }}>
                           <td style={{ ...tdStyle, ...stickyLeft(bg), fontWeight: 600 }}>{p.periodo}</td>
-                          {serieTipo.series.map((s) => {
+                          {seriesSelecionadas.map((s) => {
                             const v = Number(p[s.key] || 0);
                             const clic = v !== 0;
                             return (
@@ -784,9 +807,10 @@ export default function CruzamentoFamiliaPage() {
               </>
             )}
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
-              Saldo (R$) de estoque das <strong>Peças</strong>, por característica <strong>&quot;Tipo:&quot;</strong> (tabela produto_tipo; top 20 + &ldquo;Outras&rdquo;). Quem não tem Tipo cai em &ldquo;Sem tipo&rdquo;.
-              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver a composição item-a-item; nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong> ou <strong>Escala linlog</strong> (linear até R$ 30k, comprimida acima) para enxergar as linhas menores, ou <strong>Normalizar (índice 100)</strong> — cada Tipo começa em 100 no 1º mês e a curva mostra a variação % relativa (tira o tamanho absoluto da jogada, ótimo para desembolar séries de magnitudes muito diferentes); <strong>passe o mouse ou clique</strong> numa linha/legenda para destacá-la (clique fixa/solta); e <strong>Ocultar &ldquo;Sem tipo&rdquo; + &ldquo;Outras&rdquo;</strong> para as demais reescalarem.
-              O gráfico <strong>Linhas</strong> mostra os <strong>8 maiores Tipos</strong> (pelo valor do mês mais recente) + &ldquo;Outras&rdquo;, com o nome de cada um <strong>na ponta da linha</strong> (sem legenda) e sem as bolinhas; use <strong>Mini-gráficos</strong> para ver 1 quadro por Tipo, ou <strong>Trimestral</strong> para agregar por fim de trimestre (48→16 pontos). Na tabela (sempre mensal, todos os Tipos): a coluna <strong>Mês</strong> fica congelada na esquerda e repetida (também congelada) na direita, junto de <strong>Total</strong> (soma dos tipos); o <strong>triângulo ▲/▼</strong> em cada célula indica se o valor subiu (verde) ou desceu (vermelho) ante o mês anterior.
+              Saldo (R$) de estoque das <strong>Peças</strong>, por característica <strong>&quot;Tipo:&quot;</strong> (tabela produto_tipo). Quem não tem Tipo cai em &ldquo;Sem tipo&rdquo;.
+              Use o <strong>seletor &ldquo;Tipos&rdquo;</strong> para escolher quais Tipos aparecem (gráfico, tabela e mini) — a lista mostra o valor atual de cada um (os <strong>zerados</strong> ficam sinalizados), tem busca e atalhos Top 8 / Todos / Limpar; sua escolha fica <strong>salva</strong>. Assim dá pra flagrar os Tipos que <strong>morreram</strong> (a linha cai a zero) sem eles ficarem escondidos numa &ldquo;Outras&rdquo;.
+              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver os <strong>produtos</strong> daquele Tipo (marque &ldquo;mostrar zerados&rdquo; para ver os que acabaram); nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong>/<strong>linlog</strong> ou <strong>Normalizar (índice 100)</strong> para comparar linhas de tamanhos diferentes; <strong>passe o mouse ou clique</strong> numa linha para destacá-la.
+              O gráfico <strong>Linhas</strong> traz o nome de cada Tipo <strong>na ponta da linha</strong> (sem legenda) e sem bolinhas; use <strong>Mini-gráficos</strong> para 1 quadro por Tipo, ou <strong>Trimestral</strong> (fim de trimestre, 48→16 pontos). Na tabela, a coluna <strong>Mês</strong> fica congelada nas duas pontas, com <strong>Total</strong> (soma dos Tipos à vista) à direita; o <strong>triângulo ▲/▼</strong> por célula indica se subiu (verde) ou desceu (vermelho) ante o mês anterior.
             </p>
           </>
         )}

@@ -37,6 +37,10 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose, r
   const [dados, setDados] = useState<ComposicaoResp | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
+  // Só faz sentido no drill de UM Tipo do estoque atual: mostra também os produtos
+  // que ACABARAM (estoque zerado) — ajuda a ver o que saiu de linha.
+  const [zerados, setZerados] = useState(false);
+  const podeZerados = !resumo && params.fonte === 'estoque' && !!params.tipocarac;
 
   useEffect(() => {
     let vivo = true;
@@ -60,6 +64,7 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose, r
         if (params.familia) qs.set('familia', params.familia);
         if (params.tipocarac) qs.set('tipocarac', params.tipocarac);
         if (params.tipocaracExceto) { qs.set('tipocarac_exceto', JSON.stringify(params.tipocaracExceto)); qs.set('semtipo', params.incluirSemTipo ? '1' : '0'); }
+        if (zerados) qs.set('zerados', '1');
         const r = await fetch(`/api/estoque/cruzamento-familia/composicao?${qs.toString()}${contaParam}`);
         const d = (await r.json()) as ComposicaoResp;
         if (!vivo) return;
@@ -72,7 +77,7 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose, r
       }
     })();
     return () => { vivo = false; };
-  }, [params, contaParam, resumo]);
+  }, [params, contaParam, resumo, zerados]);
 
   const refLabel = params.fonte === 'entrada' ? 'NF' : params.fonte === 'saida' ? 'Pedido' : '';
 
@@ -83,6 +88,12 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose, r
           <div>
             <h3 style={{ margin: 0, fontSize: '1rem', fontWeight: 700, color: '#333' }}>{titulo}</h3>
             {dados && <div style={{ fontSize: '.78rem', color: '#888', marginTop: 4 }}>{resumo ? `total ${fmtRS0(dados.somaValor)}` : `${dados.total} item(ns) · total ${fmtRS0(dados.somaValor)}`}</div>}
+            {podeZerados && (
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: '.74rem', color: '#555', cursor: 'pointer', marginTop: 6 }} title="Inclui produtos com estoque zerado — os que acabaram. Somam R$0 (não mudam o total).">
+                <input type="checkbox" checked={zerados} onChange={(e) => setZerados(e.target.checked)} />
+                Mostrar produtos zerados (os que acabaram)
+              </label>
+            )}
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.4rem', lineHeight: 1, cursor: 'pointer', color: '#999' }}>×</button>
         </div>
@@ -117,17 +128,20 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose, r
                     </tr>
                   </thead>
                   <tbody>
-                    {dados.itens.map((it, i) => (
-                      <tr key={i}>
+                    {dados.itens.map((it, i) => {
+                      const zerado = it.qtd === 0;
+                      return (
+                      <tr key={i} style={zerado ? { color: '#b91c1c', background: '#fef2f2' } : undefined} title={zerado ? 'Estoque zerado (acabou)' : undefined}>
                         {refLabel && <td style={tdS}>{it.ref || '—'}</td>}
                         <td style={tdS}>{it.codigo}</td>
-                        <td style={tdS}>{it.descricao || '—'}</td>
+                        <td style={tdS}>{it.descricao || '—'}{zerado && ' · acabou'}</td>
                         <td style={tdS}>{it.familia}</td>
                         <td style={tdS}>{it.categoria || '—'}</td>
                         <td style={{ ...tdS, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtQtd(it.qtd)}</td>
                         <td style={{ ...tdS, textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 600 }}>{fmtRS0(it.valor)}</td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                 </table>
               )}

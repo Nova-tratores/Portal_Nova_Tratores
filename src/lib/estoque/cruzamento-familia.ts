@@ -527,9 +527,8 @@ export interface SerieMensalResult {
 const PALETA_CAT = ['#2563eb', '#d97706', '#16a34a', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d'];
 const COR_OUTRAS = '#9ca3af';
 const MAX_CATEGORIAS = 6;
-// Aba "Estoque por Tipo" mostra MAIS Tipos que o gráfico de entrada/saída → paleta
-// dedicada de 20 cores distintas (as demais reciclam via módulo).
-const MAX_TIPOS = 20;
+// Aba "Estoque por Tipo": paleta dedicada de 20 cores distintas (as demais reciclam
+// via módulo — o padrão do seletor mostra 8, e o rótulo na ponta desambigua).
 const PALETA_TIPO = [
   '#2563eb', '#d97706', '#16a34a', '#dc2626', '#7c3aed', '#0891b2', '#db2777', '#65a30d',
   '#ea580c', '#0d9488', '#9333ea', '#ca8a04', '#e11d48', '#2dd4bf', '#7c2d12', '#4338ca',
@@ -914,20 +913,17 @@ export async function serieEstoqueTipo(
   // demais linhas; por padrão fica fora da exibição (estoqueAtual mantém o valor).
   const exibir = (tipo: string) => incluirSemTipo || tipo !== SEM_TIPO;
 
-  // Tipos a exibir: top 20 por total no período (ao vivo + snapshots) + "Outras".
+  // TODOS os Tipos (ao vivo + snapshots), ordenados por total no período. Sem bucket
+  // "Outras" — a seleção de quais Tipos exibir é feita no cliente (seletor de Tipos),
+  // e assim os Tipos que "morreram" (zeraram o estoque) ficam visíveis/escolhíveis.
   const totalPorTipo: Record<string, number> = {};
   for (const [tipo, v] of Object.entries(estoquePorTipo)) { if (exibir(tipo)) totalPorTipo[tipo] = (totalPorTipo[tipo] || 0) + v.valor; }
   for (const rec of snapMap.values()) {
     for (const [tipo, v] of Object.entries(rec)) { if (exibir(tipo)) totalPorTipo[tipo] = (totalPorTipo[tipo] || 0) + v; }
   }
-  const ordenados = Object.entries(totalPorTipo).sort((a, b) => b[1] - a[1]).map(([t]) => t);
-  const top = ordenados.slice(0, MAX_TIPOS);
-  const temOutras = ordenados.length > top.length;
-  const tipoLista = temOutras ? [...top, 'Outras'] : top;
-  const corDe = (idx: number, t: string) => (t === 'Outras' ? COR_OUTRAS : PALETA_TIPO[idx % PALETA_TIPO.length]);
-  const mapTipo = (t: string): string => (top.includes(t) ? t : 'Outras');
+  const tipoLista = Object.entries(totalPorTipo).sort((a, b) => b[1] - a[1]).map(([t]) => t);
 
-  const series: SerieDef[] = tipoLista.map((t, idx) => ({ key: 'estoque::' + t, label: t, cor: corDe(idx, t) }));
+  const series: SerieDef[] = tipoLista.map((t, idx) => ({ key: 'estoque::' + t, label: t, cor: PALETA_TIPO[idx % PALETA_TIPO.length] }));
 
   const pontos: PontoMensal[] = meses.map((m, i) => {
     const ponto: PontoMensal = { periodo: labelMes(m.mes, m.ano), mes: m.mes, ano: m.ano };
@@ -935,9 +931,8 @@ export async function serieEstoqueTipo(
     if (fonte) {
       for (const t of tipoLista) ponto['estoque::' + t] = 0;
       for (const [t, v] of Object.entries(fonte)) {
-        if (!exibir(t)) continue; // "Sem tipo" oculto não entra (nem em "Outras")
-        const key = 'estoque::' + mapTipo(t);
-        ponto[key] = Math.round((ponto[key] as number || 0) + v);
+        if (!exibir(t)) continue; // "Sem tipo" oculto não entra
+        ponto['estoque::' + t] = Math.round((ponto['estoque::' + t] as number || 0) + v);
       }
     }
     // sem fonte (mês passado sem snapshot) → não define chaves (gap no gráfico)
@@ -1135,6 +1130,9 @@ export interface ComposicaoFiltro {
   // (tipocaracExceto). incluirSemTipo controla se "Sem tipo" entra em "Outras".
   tipocaracExceto?: string[];
   incluirSemTipo?: boolean;
+  // fonte='estoque': inclui também produtos com estoque ZERADO (os que "acabaram") —
+  // ajuda a ver quais produtos de um Tipo ficaram sem estoque. Somam R$0 (total intacto).
+  zerados?: boolean;
 }
 
 function passaFiltroGrupoFamCat(
@@ -1169,10 +1167,13 @@ async function composicaoEstoque(conta: ContaFiltro, f: ComposicaoFiltro): Promi
     // descoberto, valorada negativa pela Omie). Se aqui filtrássemos só `> 0`, a
     // lista mostraria só positivos e NUNCA fecharia com o total da célula (ex.: Tipo
     // com saldo líquido negativo). `!= 0` faz o somaValor bater com a célula.
-    const { data, error } = await aplicarContaProdutos(
+    // zerados: inclui também estoque=0 (produtos que acabaram) — somam R$0.
+    let q = aplicarContaProdutos(
       supabase.from('produtos').select('codigo_produto,descricao,familia_nome,estoque,valor_estoque'),
       conta,
-    ).neq('estoque', 0).order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
+    );
+    if (!f.zerados) q = q.neq('estoque', 0);
+    const { data, error } = await q.order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
     const lote = (data || []) as Array<Record<string, unknown>>;
     for (const p of lote) {
