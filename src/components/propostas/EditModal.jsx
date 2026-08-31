@@ -10,7 +10,7 @@ import { STATUS_PERDIDO } from './MotivoPerdaModal'
 
 // Colunas que só existem na view v_formulario (aging/cores). NÃO podem ir num
 // INSERT/UPDATE da tabela "Formulario" — o PostgREST recusa coluna inexistente.
-const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade', 'vendedor_nome', 'fabrica_custo', 'fabrica_pedido_id']
+const COLS_VIEW = ['status_ui', 'dias_na_fase', 'dias_total', 'cor_hex', 'em_aberto', 'status_ordem', 'probabilidade', 'vendedor_nome', 'fabrica_custo', 'fabrica_pedido_id', 'tag_nome', 'tag_cor']
 const semColsView = (obj) => { const o = { ...obj }; for (const k of COLS_VIEW) delete o[k]; return o }
 
 export default function EditModal({ proposal, onClose }) {
@@ -20,6 +20,7 @@ export default function EditModal({ proposal, onClose }) {
   const [showHist, setShowHist] = useState(false)
   const [listaVendedores, setListaVendedores] = useState([])
   const [listaMotivos, setListaMotivos] = useState([])
+  const [listaTags, setListaTags] = useState([])
   const [listaPedidos, setListaPedidos] = useState([])   // pedidos de fábrica (p/ vincular)
   const [buscaPed, setBuscaPed] = useState('')
   const [showPed, setShowPed] = useState(false)
@@ -53,6 +54,8 @@ export default function EditModal({ proposal, onClose }) {
     if (mots) setListaMotivos(mots)
     const { data: peds } = await supabase.from('v_proposta_fabrica').select('id,cliente,marca,modelo,status').order('id', { ascending: false })
     if (peds) setListaPedidos(peds)
+    const { data: tags } = await supabase.from('proposta_tags').select('*').order('nome')
+    if (tags) setListaTags(tags)
   }
 
   // Fecha o dropdown de busca de pedido ao clicar fora.
@@ -330,6 +333,7 @@ export default function EditModal({ proposal, onClose }) {
     payload.motivo_perda_id = formData.motivo_perda_id ? Number(formData.motivo_perda_id) : null   // smallint: '' quebra
     payload.concorrente_valor = formData.concorrente_valor ? Number(formData.concorrente_valor) : null  // numeric: '' quebra
     payload.termometro = (formData.termometro === '' || formData.termometro == null) ? null : Number(formData.termometro)  // smallint 0-100
+    payload.tag_id = formData.tag_id ? Number(formData.tag_id) : null  // FK proposta_tags(id); '' quebra
     const { error } = await supabase.from('Formulario').update(payload).eq('id', proposal.id)
     if (!error) {
       if (alteracoes.length) await log({ sistema: 'Proposta Comercial', acao: 'editar', entidade: 'proposta', entidade_id: String(proposal.id), entidade_label: formData.Cliente || proposal.Cliente, detalhes: { alteracoes } })
@@ -404,6 +408,14 @@ export default function EditModal({ proposal, onClose }) {
                   <select value={formData.vendedor_id ?? ''} onChange={e => setFormData({ ...formData, vendedor_id: e.target.value })} className={`${inputStyle} cursor-pointer`}>
                     <option value="">— sem vendedor —</option>
                     {listaVendedores.map(v => <option key={v.id} value={v.id}>{v.nome}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex border-t border-zinc-100">
+                <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>TAG / GRUPO</label>
+                  <select value={formData.tag_id ?? ''} onChange={e => setFormData({ ...formData, tag_id: e.target.value })} className={`${inputStyle} cursor-pointer`}>
+                    <option value="">— sem tag —</option>
+                    {listaTags.map(t => <option key={t.id} value={t.id}>{t.nome}</option>)}
                   </select>
                 </div>
               </div>

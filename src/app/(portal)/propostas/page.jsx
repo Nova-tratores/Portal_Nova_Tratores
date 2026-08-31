@@ -5,7 +5,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { supabase } from '@/lib/supabase'
-import { Plus, Trash2, RefreshCw, Factory, Users, FileDown, Menu, ChevronDown, List, LayoutGrid, Check, BarChart3 } from 'lucide-react'
+import { Plus, Trash2, RefreshCw, Factory, Users, FileDown, Menu, ChevronDown, List, LayoutGrid, Check, BarChart3, Tag } from 'lucide-react'
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import dynamic from 'next/dynamic'
 
@@ -25,6 +25,7 @@ const AutopropelidoModal = dynamic(() => import('@/components/propostas/Autoprop
 const AutopropelidoEditModal = dynamic(() => import('@/components/propostas/AutopropelidoEditModal'), { ssr: false })
 const Lixeira = dynamic(() => import('@/components/propostas/Lixeira'), { ssr: false })
 const ResumoPropostas = dynamic(() => import('@/components/propostas/ResumoPropostas'), { ssr: false })
+const ModalTags = dynamic(() => import('@/components/propostas/ModalTags'), { ssr: false })
 
 // Parse seguro de valor monetário
 function parseValor(val) {
@@ -65,6 +66,7 @@ function PropostaComercialPageInner() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuEnt, setMenuEnt] = useState(null) // entidade expandida no menu (cliente/trator/implemento)
   const [modoVisao, setModoVisao] = useState('tabela') // 'tabela' | 'kanban' (só na aba de propostas cliente)
+  const [showTags, setShowTags] = useState(false)
   const menuRef = useRef(null)
   const fecharMenu = () => { setMenuOpen(false); setMenuEnt(null) }
   useEffect(() => {
@@ -298,6 +300,10 @@ function PropostaComercialPageInner() {
                       className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[15px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50">
                       <FileDown size={15} className={gerando ? 'animate-bounce' : ''} /> {gerando ? 'Gerando...' : 'Imprimir relatório'}
                     </button>
+                    <button onClick={() => { setShowTags(true); fecharMenu() }} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}
+                      className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[15px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+                      <Tag size={15} /> Gerenciar Tags
+                    </button>
                     {view === 'clientes' && (
                       <>
                         <div className="my-1.5 border-t border-zinc-100" />
@@ -342,6 +348,7 @@ function PropostaComercialPageInner() {
       </div>
 
       {/* MODAIS */}
+      {showTags && <ModalTags open={showTags} onClose={() => setShowTags(false)} />}
       {modals.newFab && <FactoryFormModal onClose={() => setModals({ ...modals, newFab: false })} />}
       {modals.editFab && <FactoryEditModal order={selected} onClose={() => setModals({ ...modals, editFab: false })} onConvert={convertToCli} />}
       {modals.newCli && <FormModal initialData={selected} onClose={() => { setModals({ ...modals, newCli: false }); setSelected(null) }} />}

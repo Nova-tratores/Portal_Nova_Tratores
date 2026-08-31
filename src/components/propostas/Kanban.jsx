@@ -267,6 +267,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       <div className="text-base font-semibold text-zinc-800">{card.Cliente || 'Sem nome'}</div>
                       <div className="text-sm text-zinc-600 mt-0.5">{card.Marca} {card.Modelo}</div>
                       <div className="text-sm text-zinc-400">{card.Cidade || '---'}</div>
+                      {card.tag_nome && <span className="inline-block mt-1.5" style={{ background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 700 }}>{card.tag_nome}</span>}
                       {card.vendedor_nome && <div className="text-xs text-zinc-500 mt-0.5">Vendedor: {card.vendedor_nome}</div>}
                       <div className="flex items-center justify-between mt-1">
                         <div className={`text-xs ${agingCor(card.dias_na_fase)}`}>parado há {agingTexto(card.dias_na_fase)}</div>
@@ -296,6 +297,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                 <Th k="vendedor_nome" label="Vendedor" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <Th k="maquina" label="Marca / Modelo" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <Th k="Cidade" label="Cidade" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
+                <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide">Tag</th>
                 <Th k="valor" label="Valor" className="text-right px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <Th k="status" label="Status" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <Th k="dias_na_fase" label="Parado há" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
@@ -306,7 +308,7 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
             </thead>
             <tbody>
               {filtradas.length === 0 ? (
-                <tr><td colSpan={11} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
+                <tr><td colSpan={12} className="text-center py-12 text-zinc-400 text-base font-medium">Nenhuma proposta encontrada</td></tr>
               ) : (
                 ordenadas.map(card => {
                   const isFromFactory = card.fabrica_pedido_id != null
@@ -329,6 +331,11 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                       </td>
                       <td className="px-5 py-4">
                         <span className="text-base text-zinc-500">{card.Cidade || '---'}</span>
+                      </td>
+                      <td className="px-5 py-4">
+                        {card.tag_nome
+                          ? <span style={{ background: (card.tag_cor || '#64748b') + '22', color: card.tag_cor || '#64748b', padding: '2px 10px', borderRadius: 8, fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap' }}>{card.tag_nome}</span>
+                          : <span className="text-zinc-300">—</span>}
                       </td>
                       <td className="px-5 py-4 text-right">
                         <span className="text-lg font-bold text-red-600">R$ {formatBRL(card.Valor_Total)}</span>
