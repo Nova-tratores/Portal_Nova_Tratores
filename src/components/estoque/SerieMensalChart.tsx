@@ -18,13 +18,14 @@ const fmtRS = (v: number) => 'R$ ' + Math.round(Number(v)).toLocaleString('pt-BR
 
 export interface BarraDef { key: string; label: string; cor: string }
 
-export default function SerieMensalChart({ dados, series, altura = 360, hideKeys, bars, onPointClick, logScale, linlog }: {
+export default function SerieMensalChart({ dados, series, altura = 360, hideKeys, bars, onPointClick, logScale, linlog, indice }: {
   dados: PontoMensal[]; series: SerieDef[]; altura?: number;
   hideKeys?: string[];          // chaves de linha a esconder (ex.: filtro de grupo)
   bars?: BarraDef[];            // barras no eixo Y direito (ex.: faturamento)
   onPointClick?: (key: string, ponto: PontoMensal) => void; // clique num ponto/barra
   logScale?: boolean;           // eixo Y em escala logarítmica (valores ≤0 não plotam)
   linlog?: boolean;             // eixo Y "linlog" (symlog): linear até 30k, log acima. Tem precedência sobre logScale.
+  indice?: boolean;             // dados já normalizados a índice base 100 → eixo/tooltip sem R$ (número puro)
 }) {
   if (!dados || dados.length === 0) {
     return (
@@ -67,6 +68,7 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
   const symDomain: [number, number] | undefined =
     linlog && logDomain ? [0, logDomain[1]] : undefined;
   const fmtEixo = (v: number): string => {
+    if (indice) return Math.round(v).toLocaleString('pt-BR'); // índice base 100 (sem R$)
     if (logScale || linlog) {
       if (v >= 1e6) return 'R$ ' + (v / 1e6).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'M';
       if (v >= 1e3) return 'R$ ' + (v / 1e3).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + 'k';
@@ -104,7 +106,7 @@ export default function SerieMensalChart({ dados, series, altura = 360, hideKeys
           {temBarras && (
             <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} tickFormatter={(v: number) => 'R$ ' + Math.round(v / 1000).toLocaleString('pt-BR') + 'k'} width={70} />
           )}
-          <Tooltip formatter={(v: number, name: string) => [fmtRS(v), name]} />
+          <Tooltip formatter={(v: number, name: string) => [indice ? `${Math.round(v)} (base 100)` : fmtRS(v), name]} />
           <Legend wrapperStyle={{ fontSize: 11, cursor: 'pointer' }}
             onClick={(o) => { const k = keyDe(o); if (k) setPinned((p) => (p === k ? null : k)); }}
             onMouseEnter={(o) => setHovered(keyDe(o) ?? null)}

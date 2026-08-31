@@ -94,7 +94,15 @@ export default function ComposicaoModal({ titulo, params, contaParam, onClose, r
             <>
               {dados.aviso && <div style={{ color: '#d97706', fontSize: '.74rem', marginBottom: 10 }}>⚠ {dados.aviso}</div>}
               {dados.itens.length === 0 ? (
-                <div style={{ color: '#888', fontSize: '.85rem' }}>{resumo ? 'Sem lista de produtos para este mês.' : 'Nenhum item compõe este valor.'}</div>
+                resumo ? (
+                  <div style={{ padding: '10px 0 4px' }}>
+                    <div style={{ fontSize: '.72rem', color: '#888', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 4 }}>Saldo do snapshot deste mês</div>
+                    <div style={{ fontSize: '1.7rem', fontWeight: 800, color: dados.somaValor < 0 ? '#dc2626' : '#333' }}>{fmtRS0(dados.somaValor)}</div>
+                    <div style={{ color: '#888', fontSize: '.78rem', marginTop: 6 }}>A lista item-a-item só existe para o mês atual (ao vivo). Nos meses passados guardamos apenas este total por Tipo.</div>
+                  </div>
+                ) : (
+                  <div style={{ color: '#888', fontSize: '.85rem' }}>Nenhum item compõe este valor.</div>
+                )
               ) : (
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead>

@@ -37,6 +37,30 @@ const BUCKET_INFO: Record<string, { label: string; cor: string }> = {
 // R$ sem centavos (gráfico e popup).
 const fmtRS0 = (v: number): string => 'R$ ' + Math.round(v).toLocaleString('pt-BR');
 
+// Normaliza cada série a um ÍNDICE base 100 no primeiro mês (cronológico) em que ela
+// tem valor > 0. Tira o tamanho absoluto da jogada → séries de magnitudes muito
+// diferentes ficam comparáveis (a curva mostra a variação %, não o valor em R$).
+function normalizarIndice(pontos: PontoMensal[], series: SerieDef[]): PontoMensal[] {
+  const chave = (p: PontoMensal) => Number(p.ano || 0) * 100 + Number(p.mes || 0);
+  const crono = [...pontos].sort((a, b) => chave(a) - chave(b));
+  const base: Record<string, number> = {};
+  for (const s of series) {
+    for (const p of crono) {
+      const v = Number(p[s.key]);
+      if (Number.isFinite(v) && v > 0) { base[s.key] = v; break; }
+    }
+  }
+  return pontos.map((p) => {
+    const np: PontoMensal = { periodo: p.periodo, mes: p.mes, ano: p.ano };
+    for (const s of series) {
+      const b = base[s.key];
+      const v = Number(p[s.key]);
+      if (b && Number.isFinite(v)) np[s.key] = Math.round((v / b) * 100);
+    }
+    return np;
+  });
+}
+
 // Barras opcionais de faturamento (saída) por grupo, no eixo Y direito.
 const BARRA_PECA = { key: 'faturamento_peca', label: 'Faturamento peças', cor: '#dc2626' };
 const BARRA_MAQ = { key: 'faturamento_maquina', label: 'Faturamento máquina', cor: '#d97706' };
@@ -146,6 +170,7 @@ export default function CruzamentoFamiliaPage() {
   const [incluirSemTipo, setIncluirSemTipo] = useState(false);
   const [logScale, setLogScale] = useState(false); // eixo Y logarítmico (gráficos)
   const [linlogTipo, setLinlogTipo] = useState(false); // eixo Y "linlog" (symlog: linear até 30k, log acima) — só nesta aba
+  const [normalizarTipo, setNormalizarTipo] = useState(false); // gráfico normalizado a índice base 100 (só nesta aba)
   const [ocultarDominantes, setOcultarDominantes] = useState(false); // esconde "Sem tipo"+"Outras" do gráfico
   const [hoverLinhaTipo, setHoverLinhaTipo] = useState<number | null>(null); // realce da linha sob o mouse (tabela)
   const [serieTipo, setSerieTipo] = useState<SerieTipoResp | null>(null);
@@ -530,13 +555,17 @@ export default function CruzamentoFamiliaPage() {
             <input type="checkbox" checked={incluirSemTipo} onChange={(e) => { setIncluirSemTipo(e.target.checked); if (e.target.checked) setOcultarDominantes(false); }} />
             Incluir &quot;Sem tipo&quot;
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }}>
-            <input type="checkbox" checked={logScale} onChange={(e) => setLogScale(e.target.checked)} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: normalizarTipo ? '#bbb' : '#555', cursor: normalizarTipo ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={normalizarTipo ? 'Desligue "Normalizar (índice 100)" para usar escala log' : undefined}>
+            <input type="checkbox" checked={logScale} disabled={normalizarTipo} onChange={(e) => setLogScale(e.target.checked)} />
             Escala log
           </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Escala 'linlog' (symlog): de 0 a R$ 30k o eixo é bem espaçado (linear); acima disso comprime (log). Boa para ver as linhas pequenas sem esmagar as grandes.">
-            <input type="checkbox" checked={linlogTipo} onChange={(e) => setLinlogTipo(e.target.checked)} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: normalizarTipo ? '#bbb' : '#555', cursor: normalizarTipo ? 'not-allowed' : 'pointer', paddingBottom: 9 }} title={normalizarTipo ? 'Desligue "Normalizar (índice 100)" para usar escala linlog' : "Escala 'linlog' (symlog): de 0 a R$ 30k o eixo é bem espaçado (linear); acima disso comprime (log). Boa para ver as linhas pequenas sem esmagar as grandes."}>
+            <input type="checkbox" checked={linlogTipo} disabled={normalizarTipo} onChange={(e) => setLinlogTipo(e.target.checked)} />
             Escala linlog
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Cada Tipo começa em 100 no 1º mês em que tem saldo; a curva mostra a variação % relativa. Tira o tamanho absoluto da jogada — ótimo para desembolar linhas de magnitudes muito diferentes.">
+            <input type="checkbox" checked={normalizarTipo} onChange={(e) => setNormalizarTipo(e.target.checked)} />
+            Normalizar (índice 100)
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#555', cursor: 'pointer', paddingBottom: 9 }} title="Esconde as linhas 'Sem tipo' e 'Outras' do gráfico — as demais reescalam e ficam mais legíveis">
             <input type="checkbox" checked={ocultarDominantes} onChange={(e) => { setOcultarDominantes(e.target.checked); if (e.target.checked) setIncluirSemTipo(false); }} />
@@ -556,9 +585,17 @@ export default function CruzamentoFamiliaPage() {
             ) : (
               <>
                 <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 16, marginBottom: 12 }}>
-                  <SerieMensalChart dados={serieTipo.pontos} series={serieTipo.series} logScale={logScale} linlog={linlogTipo}
+                  <SerieMensalChart
+                    dados={normalizarTipo ? normalizarIndice(serieTipo.pontos, serieTipo.series) : serieTipo.pontos}
+                    series={serieTipo.series}
+                    logScale={normalizarTipo ? false : logScale} linlog={normalizarTipo ? false : linlogTipo} indice={normalizarTipo}
                     hideKeys={ocultarDominantes ? ['estoque::Sem tipo', 'estoque::Outras'] : []}
-                    onPointClick={(key, p) => { const s = serieTipo.series.find((x) => x.key === key); if (s) abrirPopupEstoqueTipo(s, p); }} />
+                    onPointClick={(key, p) => {
+                      const s = serieTipo.series.find((x) => x.key === key);
+                      // Quando normalizado, `p` traz o índice — usa o ponto ORIGINAL (R$) no popup.
+                      const orig = serieTipo.pontos.find((o) => Number(o.mes) === Number(p.mes) && Number(o.ano) === Number(p.ano)) ?? p;
+                      if (s) abrirPopupEstoqueTipo(s, orig);
+                    }} />
                 </div>
 
                 {(() => {
@@ -641,7 +678,7 @@ export default function CruzamentoFamiliaPage() {
             )}
             <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 10 }}>
               Saldo (R$) de estoque das <strong>Peças</strong>, por característica <strong>&quot;Tipo:&quot;</strong> (tabela produto_tipo; top 20 + &ldquo;Outras&rdquo;). Quem não tem Tipo cai em &ldquo;Sem tipo&rdquo;.
-              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver a composição item-a-item; nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong> ou <strong>Escala linlog</strong> (linear até R$ 30k, comprimida acima) para enxergar as linhas menores; <strong>passe o mouse ou clique</strong> numa linha/legenda para destacá-la (clique fixa/solta); e <strong>Ocultar &ldquo;Sem tipo&rdquo; + &ldquo;Outras&rdquo;</strong> para as demais reescalarem.
+              O mês atual mostra o saldo de hoje (ao vivo); os meses anteriores aparecem conforme o <strong>snapshot mensal</strong> for sendo gravado — meses sem snapshot ficam sem ponto. Clique numa célula do <strong>mês atual</strong> para ver a composição item-a-item; nos meses passados o clique mostra só o valor do snapshot (a lista de produtos não é guardada). Use <strong>Escala log</strong> ou <strong>Escala linlog</strong> (linear até R$ 30k, comprimida acima) para enxergar as linhas menores, ou <strong>Normalizar (índice 100)</strong> — cada Tipo começa em 100 no 1º mês e a curva mostra a variação % relativa (tira o tamanho absoluto da jogada, ótimo para desembolar séries de magnitudes muito diferentes); <strong>passe o mouse ou clique</strong> numa linha/legenda para destacá-la (clique fixa/solta); e <strong>Ocultar &ldquo;Sem tipo&rdquo; + &ldquo;Outras&rdquo;</strong> para as demais reescalarem.
               Na tabela: a coluna <strong>Mês</strong> fica congelada na esquerda e repetida (também congelada) na direita, junto de <strong>Total</strong> (soma dos tipos); o <strong>triângulo ▲/▼</strong> em cada célula indica se o valor subiu (verde) ou desceu (vermelho) ante o mês anterior.
             </p>
           </>
@@ -709,6 +746,13 @@ export default function CruzamentoFamiliaPage() {
             return <Resumo key={key} titulo={titulo} valor={fmtMet(v, sig)} sub={subMet(subBase)} cor={cor} />;
           };
           const fatVal = met('venda_fat');
+          // Valor de UMA célula da tabela (por mês/bucket) na métrica escolhida.
+          const cellVal = (p: PontoRecon, b: string): number =>
+            metricaRec === 'valor' ? Number(p[b] || 0)
+            : metricaRec === 'nf' ? Number(p[`nf::${b}`] || 0)
+            : Number(p[`itens::${b}`] || 0);
+          const fmtCell = (v: number): string => (metricaRec === 'valor' ? fmtSig(v) : v.toLocaleString('pt-BR'));
+          const soValor = metricaRec === 'valor'; // Estoque(fim)/Δ só existem em R$
           return (
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(160px,1fr))', gap: 12, marginBottom: 14 }}>
@@ -721,6 +765,11 @@ export default function CruzamentoFamiliaPage() {
                 {cardBucket('compra', 'Compras (período)', '#16a34a', 'a custo')}
                 {cardBucket('ajuste', 'Ajustes de estoque', '#7c3aed', 'inventário/CMC', true)}
               </div>
+              {!soValor && (
+                <div style={{ fontSize: '.72rem', color: '#888', margin: '0 2px 6px' }}>
+                  Colunas de movimento em <strong>{metricaRec === 'nf' ? 'quantidade de NF (documentos distintos)' : 'quantidade de itens movimentados'}</strong>. Estoque (fim) e Δ só existem em R$.
+                </div>
+              )}
               <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
@@ -733,15 +782,15 @@ export default function CruzamentoFamiliaPage() {
                     {ordPontos(recon.pontos, sortRec).map((p, i) => (
                       <tr key={i}>
                         <td style={tdStyle}>{p.periodo}</td>
-                        <td style={{ ...tdNum, color: p.estoqueFim == null ? '#bbb' : corEstoque }}>{p.estoqueFim == null ? '—' : fmtRS0(p.estoqueFim as number)}</td>
-                        {cols.map((b) => { const v = Number(p[b] || 0); return (
-                          <td key={b} style={{ ...tdNum, color: v ? (BUCKET_INFO[b]?.cor || '#444') : '#ddd', cursor: v ? 'pointer' : 'default' }}
-                            onClick={() => v && setReconPopup({ titulo: `${BUCKET_INFO[b]?.label || b} — ${p.periodo}`, params: { grupo: grupoRec, ano: p.ano, mes: p.mes, bucket: b } })}>
-                            {v ? fmtSig(v) : '—'}
+                        <td style={{ ...tdNum, color: !soValor || p.estoqueFim == null ? '#bbb' : corEstoque }}>{!soValor || p.estoqueFim == null ? '—' : fmtRS0(p.estoqueFim as number)}</td>
+                        {cols.map((b) => { const v = cellVal(p, b); const clic = v !== 0; return (
+                          <td key={b} style={{ ...tdNum, color: v ? (BUCKET_INFO[b]?.cor || '#444') : '#ddd', cursor: clic ? 'pointer' : 'default' }}
+                            onClick={() => clic && setReconPopup({ titulo: `${BUCKET_INFO[b]?.label || b} — ${p.periodo}`, params: { grupo: grupoRec, ano: p.ano, mes: p.mes, bucket: b } })}>
+                            {v ? fmtCell(v) : '—'}
                           </td>
                         ); })}
-                        <td style={{ ...tdNum, fontWeight: 700, color: (p.deltaEstoque as number) >= 0 ? '#16a34a' : '#dc2626', cursor: p.deltaEstoque ? 'pointer' : 'default' }}
-                          onClick={() => p.deltaEstoque && setReconPopup({ titulo: `Δ Estoque — ${p.periodo} (todos os movimentos)`, params: { grupo: grupoRec, ano: p.ano, mes: p.mes, bucket: '' } })}>{fmtSig(p.deltaEstoque as number)}</td>
+                        <td style={{ ...tdNum, fontWeight: 700, color: !soValor ? '#bbb' : (p.deltaEstoque as number) >= 0 ? '#16a34a' : '#dc2626', cursor: soValor && p.deltaEstoque ? 'pointer' : 'default' }}
+                          onClick={() => soValor && p.deltaEstoque && setReconPopup({ titulo: `Δ Estoque — ${p.periodo} (todos os movimentos)`, params: { grupo: grupoRec, ano: p.ano, mes: p.mes, bucket: '' } })}>{soValor ? fmtSig(p.deltaEstoque as number) : '—'}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -751,10 +800,10 @@ export default function CruzamentoFamiliaPage() {
                 Reconciliação pelo <strong>livro-razão de estoque da Omie</strong> (MovimentoEstoque). Cada mês mostra a variação do <strong>valor</strong> de estoque decomposta por tipo de movimento, a custo CMC: <strong>Compra</strong>, <strong>Venda (COGS)</strong>, <strong>Ajuste</strong> (inventário/correção de CMC), <strong>Remessa</strong> (demonstração/consignação), <strong>Frete</strong> (capitalizado no custo), <strong>Devoluções</strong>. A soma dos tipos <strong>é</strong> o Δ Estoque do mês — não sobra resíduo, pois todo movimento está contabilizado. O <strong>Estoque (fim)</strong> é reconstruído do próprio razão, ancorado no estoque real de hoje. Substitui o cálculo anterior por snapshot (que não fechava). <strong>Clique em qualquer célula</strong> para ver os produtos que compõem o valor.
               </p>
               <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 8 }}>
-                <strong>Cards × tabela:</strong> os cards acima respeitam o botão <strong>Valor / Qtd NF / Qtd itens</strong> (a tabela abaixo é sempre em R$). O card <strong>Faturamento de vendas</strong> é a <strong>receita</strong> da venda (o que o cliente pagou, de <code>vendas_itens</code>) — diferente de <strong>Vendas / COGS</strong>, que é o custo do que saiu do estoque. As <strong>devoluções</strong> vêm do razão (a custo CMC).
+                <strong>Botão Valor / Qtd NF / Qtd itens:</strong> muda os cards <em>e</em> as colunas de movimento da tabela (as colunas <strong>Estoque (fim)</strong> e <strong>Δ</strong> só existem em R$). O card <strong>Faturamento de vendas</strong> é a <strong>receita</strong> (o que o cliente pagou, de <code>vendas_itens</code>) — diferente de <strong>Vendas / COGS</strong>, que é o custo do que saiu do estoque. As <strong>devoluções</strong> vêm do razão (a custo CMC).
               </p>
               <p style={{ color: '#aaa', fontSize: '.72rem', marginTop: 8 }}>
-                <strong>Por que o «Estoque hoje» daqui difere do «Estoque» do Gráfico mensal?</strong> Este card mostra <strong>um grupo por vez</strong> (Peças <em>ou</em> Máquinas) e <strong>não</strong> soma as máquinas em demonstração. Já o Gráfico mensal traça <strong>duas linhas</strong> (Peças + Máquinas) e a linha de Máquina <strong>inclui as máquinas em demonstração</strong> (remessas em aberto, ainda nossas). Por isso os totais não batem: são recortes diferentes do mesmo estoque, não um erro.
+                <strong>Conta:</strong> a Reconciliação usa a conta do seletor no topo da página. Com <strong>TODAS</strong>, soma <strong>Nova + Castro</strong> e o «Estoque hoje» bate com o «Estoque» do <strong>Gráfico mensal</strong> e do <strong>Estoque por Tipo</strong>; escolha <strong>NOVA</strong> ou <strong>CASTRO</strong> para isolar uma conta.
               </p>
             </>
           );
