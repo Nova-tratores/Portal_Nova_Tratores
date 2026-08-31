@@ -1050,24 +1050,20 @@ function parseMovPeriodo(arr: any): any {
 }
 
 export async function obterMovimentosProduto(conta: Conta, idProd: any, dataDeBR: string, dataAteBR: string): Promise<any[]> {
-  // IMPORTANTE: a Omie capa ~100 movimentos por pagina neste metodo e os devolve
-  // em ordem CRONOLOGICA (mais antigos primeiro). Ler so a 1a pagina descarta os
-  // movimentos mais recentes (ex.: agosto sumia num periodo de 90 dias com >100
-  // lancamentos). Por isso paginamos todas as paginas (mesmo endpoint/convencao
-  // do ListarPosEstoque), acumulando via nTotPaginas.
+  // IMPORTANTE: MovimentoEstoque (estoqueMovimentoRequest) NAO aceita paginacao —
+  // a Omie rejeita a tag nPagina ("Tag [NPAGINA] nao faz parte da estrutura do tipo
+  // complexo [estoqueMovimentoRequest]!") e devolve o periodo INTEIRO numa unica
+  // resposta (validado com >150 movimentos num unico retorno). Por isso chamamos
+  // omieRequest direto, sem paginarOmie. Ver src/lib/estoque/movimentos-sync.ts.
   let lista: any[];
   try {
-    const { itens } = await paginarOmie('/estoque/consulta/', 'MovimentoEstoque', {
+    const data: any = await omieRequest('/estoque/consulta/', 'MovimentoEstoque', {
       id_prod: Number(idProd) || idProd,
       dataInicial: dataDeBR,
       dataFinal: dataAteBR
-    }, conta, {
-      paginaKey: 'nPagina', regKey: 'nRegPorPagina', regValue: 500,
-      totalKeys: ['nTotPaginas', 'total_de_paginas'],
-      listaKeys: ['movProduto', 'movimentos', 'movEstoque', 'lista'],
-      debugTag: 'MovimentoEstoque'
-    });
-    lista = itens;
+    }, conta);
+    lista = (data && (data.movProduto || data.movimentos || data.movEstoque || data.lista)) || [];
+    if (!Array.isArray(lista)) lista = [];
   } catch (e) {
     if (ehErroSemRegistros(e)) return [];
     throw e;
