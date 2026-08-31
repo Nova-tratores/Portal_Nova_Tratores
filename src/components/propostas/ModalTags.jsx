@@ -39,7 +39,8 @@ export default function ModalTags({ open, onClose }) {
       alert('Já existe uma tag com esse nome.');
       return;
     }
-    await supabase.from('proposta_tags').insert({ nome, cor: novoCor, grupo: novoGrupo });
+    const { error } = await supabase.from('proposta_tags').insert({ nome, cor: novoCor, grupo: novoGrupo });
+    if (error) { alert('Erro ao criar tag: ' + error.message); return; }
     setNovoNome('');
     setNovoCor(CORES[0]);
     carregar();
@@ -52,14 +53,16 @@ export default function ModalTags({ open, onClose }) {
       alert('Já existe uma tag com esse nome.');
       return;
     }
-    await supabase.from('proposta_tags').update({ nome, cor: editCor, grupo: editGrupo }).eq('id', editando.id);
+    const { error } = await supabase.from('proposta_tags').update({ nome, cor: editCor, grupo: editGrupo }).eq('id', editando.id);
+    if (error) { alert('Erro ao salvar tag: ' + error.message); return; }
     setEditando(null);
     carregar();
   };
 
   const excluir = async (id) => {
     if (!confirm('Excluir esta tag?')) return;
-    await supabase.from('proposta_tags').delete().eq('id', id);
+    const { error } = await supabase.from('proposta_tags').delete().eq('id', id);
+    if (error) { alert('Erro ao excluir tag: ' + error.message); return; }
     carregar();
   };
 
