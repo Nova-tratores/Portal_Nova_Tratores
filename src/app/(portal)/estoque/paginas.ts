@@ -35,9 +35,11 @@ export const PAGINAS_ESTOQUE: PaginaEstoque[] = [
   { key: 'giro-estoque', label: 'Giro de Estoque', href: '/estoque/giro-estoque', grupo: 'analise' },
   { key: 'cruzamento-familia', label: 'Cruzamento por Família', href: '/estoque/cruzamento-familia', grupo: 'analise' },
   { key: 'inteligencia-comercial', label: 'Inteligência Comercial', href: '/estoque/inteligencia-comercial', grupo: 'analise' },
+  { key: 'sugestao-compra', label: 'Sugestão de Compra', href: '/estoque/sugestao-compra', grupo: 'analise' },
   { key: 'comissao', label: 'Comissão', href: '/estoque/comissao', grupo: 'analise' },
   // Admin
   { key: 'admin', label: 'Admin', href: '/estoque/admin', grupo: 'admin' },
   { key: 'admin-cmc', label: 'Admin CMC', href: '/estoque/admin-cmc', grupo: 'admin' },
+  { key: 'config-compras', label: 'Config. de Compras', href: '/estoque/config-compras', grupo: 'admin' },
   { key: 'ignorar-clientes', label: 'Ignorar Clientes', href: '/estoque/ignorar-clientes', grupo: 'admin' },
 ];

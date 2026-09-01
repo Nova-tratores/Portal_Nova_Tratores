@@ -226,9 +226,11 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'giro-estoque', label: 'Giro de Estoque' },
     { id: 'cruzamento-familia', label: 'Cruzamento por Família' },
     { id: 'inteligencia-comercial', label: 'Inteligência Comercial' },
+    { id: 'sugestao-compra', label: 'Sugestão de Compra' },
     { id: 'comissao', label: 'Comissão' },
     { id: 'admin', label: 'Admin' },
     { id: 'admin-cmc', label: 'Admin CMC' },
+    { id: 'config-compras', label: 'Config. de Compras' },
     { id: 'ignorar-clientes', label: 'Ignorar Clientes' },
   ],
 };

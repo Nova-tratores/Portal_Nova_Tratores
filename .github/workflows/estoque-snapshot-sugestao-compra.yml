@@ -1,0 +1,24 @@
+name: Estoque - Snapshot da Sugestão de Compra (diário)
+
+# Gera o snapshot noturno da Sugestão de Compra de peças (curva ABC + demanda
+# dessazonalizada + motor de reposição, consolidado NOVA+CASTRO por SKU). A tela
+# /estoque/sugestao-compra lê este snapshot. Roda depois dos syncs de estoque/
+# produtos/movimentos para ler dados frescos.
+# Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '30 6 * * *'    # 06:30 UTC = 03:30 BRT (após os syncs de estoque)
+  workflow_dispatch: {}      # permite rodar manualmente
+
+jobs:
+  snapshot-sugestao-compra:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Gerar snapshot da sugestão de compra
+        run: |
+          curl -fsS --max-time 900 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/estoque/cron/snapshot-sugestao-compra" \
+            -w "\nsnapshot-sugestao-compra: HTTP %{http_code}\n"
