@@ -9,6 +9,7 @@ export const maxDuration = 60;
 // (projeção enxuta) + a lista de fornecedores para o eixo. Paginada (teto 1000).
 const CAMPOS = [
   'sku', 'descricao', 'marca', 'familia', 'tipo', 'curva', 'regime', 'frequencia', 'codigo_fornecedor',
+  'codigo_produto_nova', 'codigo_produto_castro',
   'estoque_nova', 'estoque_castro', 'estoque_atual', 'em_transito', 'minimo_efetivo', 'estoque_seguranca',
   'demanda_45d', 'prev_30', 'prev_60', 'prev_90', 'qtd_sugerida', 'qtd_sugerida_bruta', 'valor_estimado',
   'alerta', 'dias_ruptura_nova', 'dias_ruptura_castro', 'dias_ruptura_12m', 'indice_sazonal_45d',

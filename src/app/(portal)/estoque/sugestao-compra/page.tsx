@@ -13,6 +13,7 @@ import TabelaOrdenavel, { type ColunaDef } from '@/components/abastecimento/Tabe
 interface Item {
   sku: string; descricao?: string; marca?: string; familia?: string; tipo?: string;
   curva?: string; regime?: string; frequencia?: string; codigo_fornecedor?: number | null;
+  codigo_produto_nova?: number | null; codigo_produto_castro?: number | null;
   estoque_nova?: number; estoque_castro?: number; estoque_atual?: number; em_transito?: number;
   minimo_efetivo?: number; estoque_seguranca?: number; demanda_45d?: number;
   prev_30?: number; prev_60?: number; prev_90?: number; qtd_sugerida?: number; valor_estimado?: number;
@@ -23,6 +24,7 @@ interface Forn { codigo_fornecedor: number | null; nome: string; n_itens: number
 
 const n = (v: unknown): number => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
 const brl = (v: number): string => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const tabBtn = (on: boolean): React.CSSProperties => ({ padding: '8px 16px', border: 'none', borderBottom: on ? '2px solid #0f766e' : '2px solid transparent', background: 'none', color: on ? '#0f766e' : '#888', fontWeight: 600, fontSize: '.85rem', cursor: 'pointer' });
 
 const ALERTA: Record<string, { cor: string; bg: string; txt: string }> = {
   ja_era: { cor: '#991b1b', bg: '#fee2e2', txt: 'Já era' },
@@ -49,14 +51,19 @@ export default function SugestaoCompraPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
 
+  const [view, setView] = useState<'sugestoes' | 'pedidos'>('sugestoes');
   const [itens, setItens] = useState<Item[]>([]);
   const [forns, setForns] = useState<Forn[]>([]);
   const [geradoEm, setGeradoEm] = useState<string | null>(null);
+  const [snapshotId, setSnapshotId] = useState<string | null>(null);
   const [carregando, setCarregando] = useState(true);
   const [fornSel, setFornSel] = useState<string>('*'); // '*' = todos, '' = não definido, ou id
   const [chipsOn, setChipsOn] = useState<Set<string>>(new Set());
   const [sel, setSel] = useState<Set<string>>(new Set());
   const [detalhe, setDetalhe] = useState<{ sku: string; curva?: string } | null>(null);
+  const [contaPedido, setContaPedido] = useState<'nova' | 'castro'>('nova');
+  const [gerando, setGerando] = useState(false);
+  const [msg, setMsg] = useState<{ texto: string; tipo: 'ok' | 'err' } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -65,10 +72,35 @@ export default function SugestaoCompraPage() {
         const r = await fetch('/api/estoque/sugestao-compra', { headers: await authHeaders() });
         const d = await r.json();
         if (d.erro) { setCarregando(false); return; }
-        setItens(d.itens || []); setForns(d.fornecedores || []); setGeradoEm(d.snapshot?.gerado_em ?? null);
+        setItens(d.itens || []); setForns(d.fornecedores || []);
+        setGeradoEm(d.snapshot?.gerado_em ?? null); setSnapshotId(d.snapshot?.id ?? null);
       } finally { setCarregando(false); }
     })();
   }, []);
+
+  const gerarPedido = useCallback(async () => {
+    const escolhidos = itens.filter((i) => sel.has(i.sku));
+    const linhas = escolhidos.map((i) => {
+      const cp = contaPedido === 'nova' ? i.codigo_produto_nova : i.codigo_produto_castro;
+      const q = n(i.qtd_sugerida);
+      const precoUnit = q > 0 ? n(i.valor_estimado) / q : 0;
+      return cp != null ? { codigo_produto: cp, qtd_sugerida: q, qtd_pedida: q, preco_estimado: precoUnit } : null;
+    }).filter((x): x is NonNullable<typeof x> => !!x);
+    const foraDaConta = escolhidos.length - linhas.length;
+    if (linhas.length === 0) { setMsg({ texto: `Nenhum item selecionado existe na conta ${contaPedido.toUpperCase()}.`, tipo: 'err' }); return; }
+    setGerando(true);
+    try {
+      const codForn = fornSel !== '*' && fornSel !== '' ? Number(fornSel) : null;
+      const r = await fetch('/api/estoque/pedido-compra', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ conta: contaPedido, codigo_fornecedor: codForn, snapshot_id: snapshotId, itens: linhas }),
+      });
+      const d = await r.json();
+      if (d.erro) { setMsg({ texto: d.erro, tipo: 'err' }); return; }
+      setMsg({ texto: `Pedido #${d.id} criado (${d.itens} itens${foraDaConta ? `, ${foraDaConta} ignorados por não existir na conta` : ''}).`, tipo: 'ok' });
+      setSel(new Set()); setView('pedidos');
+    } finally { setGerando(false); }
+  }, [itens, sel, contaPedido, fornSel, snapshotId]);
 
   // recorte por fornecedor
   const porForn = useMemo(() => {
@@ -129,6 +161,17 @@ export default function SugestaoCompraPage() {
         {pode('estoque', 'config-compras') && <Link href="/estoque/config-compras" style={{ color: '#0f766e', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>⚙ Config. de Compras</Link>}
       </div>
 
+      {/* abas */}
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #eee', margin: '14px 0 12px' }}>
+        <button onClick={() => setView('sugestoes')} style={tabBtn(view === 'sugestoes')}>Sugestões</button>
+        <button onClick={() => setView('pedidos')} style={tabBtn(view === 'pedidos')}>Pedidos abertos</button>
+      </div>
+
+      {msg && <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: '.82rem', background: msg.tipo === 'ok' ? '#dcfce7' : '#fee2e2', color: msg.tipo === 'ok' ? '#166534' : '#991b1b' }}>{msg.texto}</div>}
+
+      {view === 'pedidos' && <AbaPedidos />}
+
+      {view === 'sugestoes' && <>
       {/* eixo fornecedor */}
       <div style={{ margin: '14px 0 10px', display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
         <label style={{ fontSize: '.72rem', fontWeight: 600, color: '#888', textTransform: 'uppercase' }}>Fornecedor</label>
@@ -161,9 +204,17 @@ export default function SugestaoCompraPage() {
       {totalSel.itens > 0 && (
         <div style={{ position: 'sticky', bottom: 0, marginTop: 12, background: '#0f766e', color: '#fff', borderRadius: 10, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <span style={{ fontSize: '.85rem', fontWeight: 600 }}>{totalSel.itens} itens · {totalSel.qtd} un · {brl(totalSel.valor)}</span>
-          <span style={{ fontSize: '.75rem', opacity: .85 }}>Gerar pedido / PDF: próxima etapa (Fatia 8)</span>
+          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '.75rem', opacity: .9 }}>Comprar pela conta</span>
+            <select value={contaPedido} onChange={(e) => setContaPedido(e.target.value as 'nova' | 'castro')} style={{ padding: '5px 8px', borderRadius: 6, border: 'none', fontSize: 13 }}>
+              <option value="nova">NOVA</option>
+              <option value="castro">CASTRO</option>
+            </select>
+            <button onClick={gerarPedido} disabled={gerando} style={{ padding: '8px 16px', background: '#fff', color: '#0f766e', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '.82rem', cursor: gerando ? 'wait' : 'pointer' }}>{gerando ? 'Gerando…' : 'Gerar pedido'}</button>
+          </div>
         </div>
       )}
+      </>}
 
       {detalhe && <PainelDetalhe sku={detalhe.sku} curva={detalhe.curva} onFechar={() => setDetalhe(null)} />}
     </div>
@@ -223,6 +274,57 @@ function PainelDetalhe({ sku, curva, onFechar }: { sku: string; curva?: string; 
           </>
         )}
       </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+interface Pedido { id: number; conta_omie: string; status: string; data_pedido?: string; fornecedor: string; n_itens: number; qtd_pedida: number; qtd_recebida: number; dias_aberto: number }
+
+function AbaPedidos() {
+  const [pedidos, setPedidos] = useState<Pedido[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/estoque/pedido-compra', { headers: await authHeaders() });
+        const d = await r.json();
+        setPedidos(d.pedidos || []);
+      } finally { setCarregando(false); }
+    })();
+  }, []);
+
+  const abrirPDF = async (id: number) => {
+    const r = await fetch(`/api/estoque/pedido-compra/${id}/pdf`, { headers: await authHeaders() });
+    if (!r.ok) return;
+    const blob = await r.blob();
+    window.open(URL.createObjectURL(blob), '_blank');
+  };
+
+  const th: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.64rem', textTransform: 'uppercase', padding: 9, textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
+  const td: React.CSSProperties = { padding: 9, borderBottom: '1px solid #f5f5f5', fontSize: '.8rem', color: '#444' };
+  return (
+    <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+      {carregando ? <div style={{ color: '#888', fontSize: '.82rem', padding: 10 }}>Carregando…</div>
+        : pedidos.length === 0 ? <div style={{ color: '#bbb', fontSize: '.82rem', padding: 10 }}>Nenhum pedido aberto. Gere um a partir das Sugestões.</div>
+          : <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead><tr>{['Pedido', 'Conta', 'Fornecedor', 'Data', 'Itens', 'Pedida × Recebida', 'Dias', 'Status', ''].map((h, i) => <th key={i} style={th}>{h}</th>)}</tr></thead>
+              <tbody>
+                {pedidos.map((p) => (
+                  <tr key={p.id}>
+                    <td style={{ ...td, fontWeight: 700 }}>#{p.id}</td>
+                    <td style={td}>{String(p.conta_omie).toUpperCase()}</td>
+                    <td style={td}>{p.fornecedor}</td>
+                    <td style={td}>{p.data_pedido ? new Date(p.data_pedido).toLocaleDateString('pt-BR') : '—'}</td>
+                    <td style={td}>{p.n_itens}</td>
+                    <td style={td}>{p.qtd_pedida} × {p.qtd_recebida}</td>
+                    <td style={td}>{p.dias_aberto}{p.dias_aberto > 60 && <span title="aberto há mais de 60 dias" style={{ marginLeft: 4, color: '#dc2626', fontWeight: 700 }}>!</span>}</td>
+                    <td style={td}><span style={{ fontSize: '.68rem', padding: '2px 7px', borderRadius: 10, background: '#f1f5f9', color: '#475569' }}>{p.status}</span></td>
+                    <td style={td}><button onClick={() => abrirPDF(p.id)} style={{ padding: '4px 10px', background: '#fff', color: '#0f766e', border: '1px solid #0f766e', borderRadius: 6, cursor: 'pointer', fontSize: '.72rem', fontWeight: 600 }}>PDF</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>}
     </div>
   );
 }

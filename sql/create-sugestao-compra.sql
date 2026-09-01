@@ -25,7 +25,7 @@
 create table if not exists public.pedido_compra (
   id                bigserial   primary key,
   conta_omie        text        not null,                  -- nova/castro (quem compra)
-  codigo_fornecedor bigint      not null,                  -- = Fornecedores.id (PK interno)
+  codigo_fornecedor bigint,                                -- = Fornecedores.id; NULL = a definir (v1)
   data_pedido       date        not null default current_date,
   status            text        not null default 'rascunho'
                     check (status in ('rascunho','enviado','recebido_parcial','concluido','nao_atendido')),
