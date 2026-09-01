@@ -146,17 +146,21 @@ async function carregarProdutos(conta: ContaFiltro): Promise<{
   const LOTE = 1000;
   while (true) {
     const { data, error } = await aplicarContaProdutos(
-      supabase.from('produtos').select('codigo_produto,codigo,familia_nome,estoque,valor_estoque,valor_unitario'),
+      supabase.from('produtos').select('codigo_produto,codigo,familia_nome,estoque,valor_estoque,valor_unitario,conta_omie'),
       conta,
     ).order('codigo_produto').order('conta_omie').range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
-    const lote = (data || []) as Array<{ codigo_produto: unknown; codigo: unknown; familia_nome: unknown; estoque: unknown; valor_estoque: unknown; valor_unitario: unknown }>;
+    const lote = (data || []) as Array<{ codigo_produto: unknown; codigo: unknown; familia_nome: unknown; estoque: unknown; valor_estoque: unknown; valor_unitario: unknown; conta_omie: unknown }>;
     for (const p of lote) {
       const cod = String(p.codigo_produto);
       const fam = String(p.familia_nome ?? '').trim() || SEM_FAMILIA;
       famPorCodigo[cod] = fam;
+      // SKU escopado por conta: o cProd de uma NF é código do FORNECEDOR e pode
+      // colidir com o SKU de um produto de OUTRA conta (ex.: "000005" diesel Castro
+      // × Pré Misturador Nova). Chave `conta:sku` impede o casamento cruzado.
+      const contaLow = String(p.conta_omie ?? '').trim().toLowerCase();
       const sku = String(p.codigo ?? '').trim().toLowerCase();
-      if (sku) famPorSKU[sku] = fam;
+      if (sku) famPorSKU[`${contaLow}:${sku}`] = fam;
       const qtd = num(p.estoque);
       const valor = num(p.valor_estoque);
       // Valor de VENDA do estoque = saldo × preço de venda (produtos.valor_unitario, do cadastro Omie).
@@ -279,12 +283,14 @@ function demoForaEm(demo: DemoMov[], ref: Date): number {
 function resolverFamiliaEntrada(
   codigo: string,
   sku: string,
+  conta: string, // conta_omie da NOTA (minúscula) — casa SKU só dentro da mesma conta
   famPorCodigo: Record<string, string>,
   famPorSKU: Record<string, string>,
 ): string {
   const porCodigo = famPorCodigo[codigo];
   if (porCodigo) return porCodigo;
-  if (skuConfiavel(sku)) return famPorSKU[sku.trim().toLowerCase()] || '';
+  // Casamento por SKU escopado à conta da nota (evita Castro casar com SKU da Nova).
+  if (skuConfiavel(sku)) return famPorSKU[`${conta}:${sku.trim().toLowerCase()}`] || '';
   return '';
 }
 
@@ -398,19 +404,20 @@ async function carregarEntradas(
   let offset = 0;
   const LOTE = 1000;
   while (true) {
-    let query = supabase.from('notas_entrada').select('itens').eq('mes', mes).eq('ano', ano).order('ncod_nf');
+    let query = supabase.from('notas_entrada').select('conta_omie,itens').eq('mes', mes).eq('ano', ano).order('ncod_nf');
     query = filtroConta(query, conta);
     // NÃO filtrar por `cancelada`: é string ("" ou data de cancelamento), não bool;
     // a listagem (listarNotasEntrada) também não filtra. Ver memória.
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
-    const lote = (data || []) as Array<{ itens: unknown }>;
+    const lote = (data || []) as Array<{ conta_omie: unknown; itens: unknown }>;
     for (const nota of lote) {
+      const notaConta = String(nota.conta_omie ?? '').toLowerCase();
       const itens = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of itens) {
         const { codigo, sku, qtd, valor } = parseItemEntrada(it);
-        const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU);
+        const fam = resolverFamiliaEntrada(codigo, sku, notaConta, famPorCodigo, famPorSKU);
         const chave = fam || SEM_FAMILIA;
         if (!fam) semFamilia++;
         if (!porFamilia[chave]) porFamilia[chave] = { qtd: 0, valor: 0 };
@@ -573,18 +580,19 @@ async function notasDoMes(
   let offset = 0;
   const LOTE = 1000;
   while (true) {
-    let query = supabase.from('notas_entrada').select('categoria,itens').eq('mes', mes).eq('ano', ano).order('ncod_nf');
+    let query = supabase.from('notas_entrada').select('conta_omie,categoria,itens').eq('mes', mes).eq('ano', ano).order('ncod_nf');
     query = filtroConta(query, conta);
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
-    const lote = (data || []) as Array<{ categoria: unknown; itens: unknown }>;
+    const lote = (data || []) as Array<{ conta_omie: unknown; categoria: unknown; itens: unknown }>;
     for (const nota of lote) {
+      const notaConta = String(nota.conta_omie ?? '').toLowerCase();
       const cat = String(nota.categoria ?? '').trim() || SEM_CATEGORIA;
       const itens = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of itens) {
         const { codigo, sku, valor } = parseItemEntrada(it);
-        const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU);
+        const fam = resolverFamiliaEntrada(codigo, sku, notaConta, famPorCodigo, famPorSKU);
         const g = classificarGrupo(fam);
         if (g === 'peca') entradaPeca += valor;
         else if (g === 'maquina') entradaMaq += valor;
@@ -1218,18 +1226,19 @@ async function composicaoEntrada(conta: ContaFiltro, f: ComposicaoFiltro): Promi
   let offset = 0;
   const LOTE = 1000;
   while (true) {
-    let query = supabase.from('notas_entrada').select('numero_nf,categoria,itens').eq('mes', f.mes!).eq('ano', f.ano!).order('ncod_nf');
+    let query = supabase.from('notas_entrada').select('conta_omie,numero_nf,categoria,itens').eq('mes', f.mes!).eq('ano', f.ano!).order('ncod_nf');
     query = filtroConta(query, conta);
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
-    const lote = (data || []) as Array<{ numero_nf: unknown; categoria: unknown; itens: unknown }>;
+    const lote = (data || []) as Array<{ conta_omie: unknown; numero_nf: unknown; categoria: unknown; itens: unknown }>;
     for (const nota of lote) {
+      const notaConta = String(nota.conta_omie ?? '').toLowerCase();
       const cat = String(nota.categoria ?? '').trim() || SEM_CATEGORIA;
       const its = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of its) {
         const { codigo, sku, descricao, qtd, valor } = parseItemEntrada(it);
-        const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU) || SEM_FAMILIA;
+        const fam = resolverFamiliaEntrada(codigo, sku, notaConta, famPorCodigo, famPorSKU) || SEM_FAMILIA;
         const tipoC = tipoPorCodigo[codigo] || SEM_TIPO;
         if (!passaFiltroGrupoFamCat(f, fam, cat, tipoC)) continue;
         itens.push({ codigo: codigo || sku, descricao, familia: fam, categoria: cat, ref: String(nota.numero_nf ?? ''), qtd, valor });
@@ -1407,21 +1416,22 @@ export async function comprasPecasMes(mes: number, ano: number, conta: ContaFilt
   let offset = 0;
   const LOTE = 1000;
   while (true) {
-    let query = supabase.from('notas_entrada').select('numero_nf,itens,data_emissao').eq('mes', mes).eq('ano', ano);
+    let query = supabase.from('notas_entrada').select('conta_omie,numero_nf,itens,data_emissao').eq('mes', mes).eq('ano', ano);
     query = filtroConta(query, conta);
     if (escaped) query = query.not('nome_emitente', 'in', escaped);
     const { data, error } = await query.range(offset, offset + LOTE - 1);
     if (error) throw new Error(error.message);
-    const lote = (data || []) as Array<{ numero_nf: unknown; itens: unknown; data_emissao: unknown }>;
+    const lote = (data || []) as Array<{ conta_omie: unknown; numero_nf: unknown; itens: unknown; data_emissao: unknown }>;
     for (const nota of lote) {
       if (limiteDia != null) {
         const d = parseInt(String(nota.data_emissao ?? '').split('/')[0]) || 0;
         if (!(d > 0 && d <= limiteDia)) continue;
       }
+      const notaConta = String(nota.conta_omie ?? '').toLowerCase();
       const its = Array.isArray(nota.itens) ? (nota.itens as Array<Record<string, unknown>>) : [];
       for (const it of its) {
         const { codigo, sku, descricao, qtd, valor } = parseItemEntrada(it);
-        const fam = resolverFamiliaEntrada(codigo, sku, famPorCodigo, famPorSKU) || SEM_FAMILIA;
+        const fam = resolverFamiliaEntrada(codigo, sku, notaConta, famPorCodigo, famPorSKU) || SEM_FAMILIA;
         if (classificarGrupo(fam) !== 'peca') continue;
         itens.push({
           codigo: codigo || sku,
