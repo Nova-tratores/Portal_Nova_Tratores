@@ -244,9 +244,16 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ resposta });
   } catch (e) {
-    return NextResponse.json(
-      { erro: e instanceof Error ? e.message : "erro na IA" },
-      { status: 502 }
-    );
+    const msg = e instanceof Error ? e.message : "erro na IA";
+    // erro visível no painel do Tratorilson (e consultável no tratorilson_log)
+    await logTratorilson({
+      userName: nome || telefone || "cliente WhatsApp",
+      tipo: "novazap:erro",
+      pergunta: [...chat].reverse().find((m) => m.role === "user")?.content || "",
+      resposta: `ERRO: ${msg}`,
+      modelo: getIA().model,
+      tokens: 0,
+    });
+    return NextResponse.json({ erro: msg }, { status: 502 });
   }
 }
