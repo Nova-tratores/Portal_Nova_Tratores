@@ -71,7 +71,7 @@ create index if not exists idx_pedido_item_produto
 create table if not exists public.pedido_recebimento_vinculo (
   id                  bigserial   primary key,
   conta_omie          text        not null,
-  id_receb            bigint      not null,                -- = recebimentos_nfe.id_receb
+  id_receb            bigint,                              -- = recebimentos_nfe.id_receb; NULL = recebimento manual
   codigo_produto      bigint      not null,
   pedido_item_id      bigint      not null,                -- = pedido_compra_item.id
   qtd_vinculada       numeric     not null default 0,

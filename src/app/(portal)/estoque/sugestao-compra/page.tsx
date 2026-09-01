@@ -284,15 +284,16 @@ interface Pedido { id: number; conta_omie: string; status: string; data_pedido?:
 function AbaPedidos() {
   const [pedidos, setPedidos] = useState<Pedido[]>([]);
   const [carregando, setCarregando] = useState(true);
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch('/api/estoque/pedido-compra', { headers: await authHeaders() });
-        const d = await r.json();
-        setPedidos(d.pedidos || []);
-      } finally { setCarregando(false); }
-    })();
+  const [receberId, setReceberId] = useState<number | null>(null);
+
+  const carregar = useCallback(async () => {
+    try {
+      const r = await fetch('/api/estoque/pedido-compra', { headers: await authHeaders() });
+      const d = await r.json();
+      setPedidos(d.pedidos || []);
+    } finally { setCarregando(false); }
   }, []);
+  useEffect(() => { carregar(); }, [carregar]);
 
   const abrirPDF = async (id: number) => {
     const r = await fetch(`/api/estoque/pedido-compra/${id}/pdf`, { headers: await authHeaders() });
@@ -320,11 +321,87 @@ function AbaPedidos() {
                     <td style={td}>{p.qtd_pedida} × {p.qtd_recebida}</td>
                     <td style={td}>{p.dias_aberto}{p.dias_aberto > 60 && <span title="aberto há mais de 60 dias" style={{ marginLeft: 4, color: '#dc2626', fontWeight: 700 }}>!</span>}</td>
                     <td style={td}><span style={{ fontSize: '.68rem', padding: '2px 7px', borderRadius: 10, background: '#f1f5f9', color: '#475569' }}>{p.status}</span></td>
-                    <td style={td}><button onClick={() => abrirPDF(p.id)} style={{ padding: '4px 10px', background: '#fff', color: '#0f766e', border: '1px solid #0f766e', borderRadius: 6, cursor: 'pointer', fontSize: '.72rem', fontWeight: 600 }}>PDF</button></td>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                      <button onClick={() => abrirPDF(p.id)} style={{ padding: '4px 10px', background: '#fff', color: '#0f766e', border: '1px solid #0f766e', borderRadius: 6, cursor: 'pointer', fontSize: '.72rem', fontWeight: 600, marginRight: 6 }}>PDF</button>
+                      {p.status !== 'concluido' && <button onClick={() => setReceberId(p.id)} style={{ padding: '4px 10px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: '.72rem', fontWeight: 600 }}>Receber</button>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>}
+      {receberId && <ModalReceber pedidoId={receberId} onFechar={() => setReceberId(null)} onRecebido={() => { setReceberId(null); setCarregando(true); carregar(); }} />}
+    </div>
+  );
+}
+
+interface ItemPedido { id: number; sku: string; descricao: string; qtd_pedida: number; qtd_recebida: number; status_linha: string }
+
+function ModalReceber({ pedidoId, onFechar, onRecebido }: { pedidoId: number; onFechar: () => void; onRecebido: () => void }) {
+  const [itens, setItens] = useState<ItemPedido[]>([]);
+  const [receb, setReceb] = useState<Record<number, string>>({});
+  const [data, setData] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [nf, setNf] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      const r = await fetch(`/api/estoque/pedido-compra/${pedidoId}`, { headers: await authHeaders() });
+      const d = await r.json();
+      if (d.erro) { setErro(d.erro); return; }
+      setItens(d.itens || []);
+      // default: quantidade restante por item
+      const init: Record<number, string> = {};
+      for (const it of d.itens || []) { const resta = n(it.qtd_pedida) - n(it.qtd_recebida); if (resta > 0) init[it.id] = String(resta); }
+      setReceb(init);
+    })();
+  }, [pedidoId]);
+
+  const confirmar = async () => {
+    const linhas = Object.entries(receb).map(([pid, q]) => ({ pedido_item_id: Number(pid), qtd_vinculada: Number(q), data_entrada_estoque: data, id_receb: nf.trim() ? Number(nf.replace(/\D/g, '')) : null }))
+      .filter((l) => l.qtd_vinculada > 0);
+    if (linhas.length === 0) { setErro('informe ao menos uma quantidade recebida'); return; }
+    setSalvando(true);
+    try {
+      const r = await fetch(`/api/estoque/pedido-compra/${pedidoId}/receber`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ itens: linhas }) });
+      const d = await r.json();
+      if (d.erro) { setErro(d.erro); return; }
+      onRecebido();
+    } finally { setSalvando(false); }
+  };
+
+  const td: React.CSSProperties = { padding: 7, borderBottom: '1px solid #f5f5f5', fontSize: '.78rem', color: '#444' };
+  return (
+    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: 40 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(680px, 96vw)', maxHeight: '86vh', overflowY: 'auto', background: '#fff', borderRadius: 12, padding: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+          <h2 style={{ fontSize: '1.05rem', fontWeight: 700 }}>Receber pedido #{pedidoId}</h2>
+          <button onClick={onFechar} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888' }}>×</button>
+        </div>
+        <div style={{ display: 'flex', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
+          <div><label style={{ fontSize: '.68rem', color: '#888', display: 'block' }}>Data de entrada</label><input type="date" value={data} onChange={(e) => setData(e.target.value)} style={{ padding: '6px 8px', border: '1px solid #e0e0e0', borderRadius: 6 }} /></div>
+          <div><label style={{ fontSize: '.68rem', color: '#888', display: 'block' }}>NF (opcional)</label><input value={nf} onChange={(e) => setNf(e.target.value)} placeholder="nº da nota" style={{ padding: '6px 8px', border: '1px solid #e0e0e0', borderRadius: 6, width: 140 }} /></div>
+        </div>
+        {erro && <div style={{ color: '#991b1b', fontSize: '.8rem', marginBottom: 8 }}>{erro}</div>}
+        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead><tr>{['SKU', 'Descrição', 'Pedida', 'Já receb.', 'Receber agora'].map((h, i) => <th key={i} style={{ ...td, fontSize: '.64rem', color: '#888', textTransform: 'uppercase', fontWeight: 600 }}>{h}</th>)}</tr></thead>
+          <tbody>
+            {itens.map((it) => (
+              <tr key={it.id}>
+                <td style={{ ...td, fontFamily: 'monospace', fontSize: '.72rem' }}>{it.sku}</td>
+                <td style={td}>{(it.descricao || '').slice(0, 40)}</td>
+                <td style={td}>{n(it.qtd_pedida)}</td>
+                <td style={td}>{n(it.qtd_recebida)}</td>
+                <td style={td}><input type="number" value={receb[it.id] ?? ''} onChange={(e) => setReceb({ ...receb, [it.id]: e.target.value })} style={{ width: 80, padding: '4px 6px', border: '1px solid #e0e0e0', borderRadius: 6 }} /></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+          <button onClick={onFechar} style={{ padding: '8px 16px', background: 'none', border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer', color: '#666' }}>Cancelar</button>
+          <button onClick={confirmar} disabled={salvando} style={{ padding: '8px 18px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: salvando ? 'wait' : 'pointer' }}>{salvando ? 'Salvando…' : 'Confirmar recebimento'}</button>
+        </div>
+      </div>
     </div>
   );
 }
