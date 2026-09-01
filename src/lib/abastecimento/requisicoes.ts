@@ -187,6 +187,7 @@ export async function buscarReqsAbastecimento(
       .select(cols)
       .in('tipo', [...TIPOS_REQ_ABASTECIMENTO])
       .order('data', { ascending: false })
+      .order('id', { ascending: false }) // desempate estável: sem ele, .range() repete/pula linhas na virada de 1000 (data tem muitos valores iguais)
       .range(off, off + 999);
     if (de) q = q.gte('data', de);
     if (ate) q = q.lte('data', ate);

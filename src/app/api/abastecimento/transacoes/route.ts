@@ -133,6 +133,7 @@ export async function GET(req: NextRequest) {
       for (let off = 0; ; off += PAGINA) {
         const { data, error } = await filtros(supabase.from('abastecimentos').select(COLS))
           .order('data_transacao', { ascending: false })
+          .order('id', { ascending: false })
           .range(off, off + PAGINA - 1);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         for (const l of (data || []) as unknown as TransacaoRow[]) {
@@ -202,6 +203,7 @@ export async function GET(req: NextRequest) {
         supabase.from('abastecimentos').select('litros, valor_total, valor_economizado', { count: off === 0 ? 'exact' : undefined }),
       )
         .order('data_transacao', { ascending: false })
+        .order('id', { ascending: false })
         .range(off, off + PAGINA - 1);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       if (off === 0 && typeof count === 'number') totalCartao = count;
@@ -227,6 +229,7 @@ export async function GET(req: NextRequest) {
     for (let off = 0; off < fimCartao; off += PAGINA) {
       const { data, error } = await filtros(supabase.from('abastecimentos').select(COLS))
         .order('data_transacao', { ascending: false })
+        .order('id', { ascending: false })
         .range(off, Math.min(off + PAGINA, fimCartao) - 1);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
       for (const l of (data || []) as unknown as TransacaoRow[]) {
@@ -243,7 +246,12 @@ export async function GET(req: NextRequest) {
       }
       if (!data || data.length < PAGINA) break;
     }
+    // dedup por id (rede de segurança): cartão usa o id do banco e requisição
+    // usa -req_id, então a chave `id` já é única entre as fontes. Se algo
+    // escapar (ex.: repetição de fronteira de página), não vira linha dupla.
+    const vistos = new Set<number>();
     const linhas = [...cartao, ...reqs.map(reqParaTransacao)]
+      .filter((l) => (vistos.has(l.id) ? false : (vistos.add(l.id), true)))
       .sort((a, b) => tempoDe(b.data_transacao) - tempoDe(a.data_transacao))
       .slice(offset, fim);
 
