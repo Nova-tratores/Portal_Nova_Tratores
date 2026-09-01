@@ -117,9 +117,15 @@ async function orcamentoRevisao(modelo: string, horas: string) {
   const cfg: any[] = await rest(`configuracoes_pos?select=valor_hora&id=eq.1`);
   const valorHora = Number(cfg?.[0]?.valor_hora) || 193;
 
+  // escopo da revisão (o que é feito) — tabela de planos prontos
+  const planos: any[] = await rest(
+    `Revisoes_Pronta?select=DescricaoCompleta&DescricaoCompleta=ilike.*${encodeURIComponent(`de ${hNum} horas`)}*&limit=1`
+  );
+
   return {
     encontrado: true,
     kit: `${row.Trator} ${row.Horas}`,
+    servicos_da_revisao: planos?.[0]?.DescricaoCompleta || null,
     pecas: itens.map((i) => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.quantidade, preco: i.preco })),
     total_pecas: Number(totalPecas.toFixed(2)),
     valor_hora_mao_obra: valorHora,
