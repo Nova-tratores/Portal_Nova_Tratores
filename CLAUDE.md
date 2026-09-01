@@ -52,6 +52,12 @@
 
 ## WhatsApp (EM CONSTRUÇÃO)
 Objetivo: Tratorilson **atende clientes no WhatsApp** (revisão / manutenção / peças / vendedor / outros), recolhe dados e (futuro) cria OS/PPV no portal.
+
+### ✅ Tratorilson no NovaZap (01/09/2026, NO AR pelo caminho Evolution)
+- **Auto-atendimento pelo fork do ChatWoot** (c:\projetos\chatwoot, "NovaZap" — zap.novatratores.com): mensagem de cliente chega → `TratorilsonListener` (AsyncDispatcher) → `Tratorilson::ResponderJob` (espera 8s pra juntar rajada; só o job da última mensagem responde) → POST no portal `/api/assistente/novazap` (persona `PERSONA_CLIENTE_WHATSAPP` + `chamarIA`; header `x-tratorilson-token`, env `TRATORILSON_TOKEN` ou padrão `tratorilson-nt-6049`; loga em `tratorilson_log` tipo `novazap:auto`) → resposta vira mensagem outgoing com `content_attributes.tratorilson=true` (Evolution entrega no WhatsApp pelo fluxo normal).
+- **Chave-geral**: botão do robô ao lado da busca na lista de conversas (verde = ligado; começa DESLIGADO). Guardada em `InstallationConfig NOVAZAP_TRATORILSON_ATIVO` (`app/services/tratorilson.rb`; rota `GET/PATCH /api/v1/accounts/:id/tratorilson`).
+- **Guarda-corpos**: não responde funcionário/fornecedor (`tipo_contato`), nem grupos (`@g.us`), nem conversa não-aberta; se um HUMANO respondeu nos últimos 30 min, fica quieto naquela conversa.
+- O caminho Meta Cloud API abaixo continua como estava (não usado em produção).
 - **Spec detalhada do "modo cliente": `docs/tratorilson-whatsapp.md`** (ler isto!).
 - ✅ **ENVIO testado e a funcionar** (Meta Cloud API, com o número de **TESTE** da Meta).
 - ✅ **Webhook construído** (1ª versão): `src/app/api/whatsapp/webhook/route.ts` (GET verifica, POST recebe) + `src/lib/whatsapp.ts` (enviar + responderCliente, ligado à IA). Persona do modo cliente: `PERSONA_CLIENTE_WHATSAPP` em `src/lib/assistente/conhecimento.ts`.
