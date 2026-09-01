@@ -76,8 +76,9 @@ async function buscarTrator(finalChassi: string) {
   return { encontrado: true, total: comRevisoes.length, tratores: comRevisoes };
 }
 
-async function orcamentoRevisao(modelo: string, horas: string, origin: string) {
-  const rows: any[] = await rest(`revisoes?select=Trator,Cod_Trator,Horas,tipo`);
+async function orcamentoRevisao(modelo: string, horas: string) {
+  // kits inteiros (com Cod_Prod_1..30/Qtd1..30) — sem pulo HTTP interno
+  const rows: any[] = await rest(`revisoes?select=*`);
   const digitsOf = (s: any): string[] => (String(s || "").toUpperCase().match(/\d{3,}/g) || []);
   const userDig = digitsOf(modelo);
   const hNum = (String(horas || "").match(/\d+/) || [""])[0];
@@ -92,8 +93,25 @@ async function orcamentoRevisao(modelo: string, horas: string, origin: string) {
     return { encontrado: false, mensagem: `Não achei kit de revisão pra "${modelo}" / ${horas}.`, kits_disponiveis: combos.slice(0, 30) };
   }
 
-  const r = await fetch(`${origin}/api/ppv/revisoes?trator=${encodeURIComponent(row.Trator)}&horas=${encodeURIComponent(row.Horas)}`);
-  const itens: any[] = r.ok ? await r.json() : [];
+  // junta os códigos/quantidades do kit
+  const mapa: Record<string, number> = {};
+  for (let i = 1; i <= 30; i++) {
+    const codigo = String(row[`Cod_Prod_${i}`] || "").trim();
+    if (!codigo || codigo.toUpperCase() === "NULL" || codigo.length < 2) continue;
+    const q = parseFloat(String(row[`Qtd${i}`] || 1)) || 1;
+    mapa[codigo] = (mapa[codigo] || 0) + q;
+  }
+
+  // preços em paralelo na Produtos_Completos
+  const itens = await Promise.all(
+    Object.entries(mapa).map(async ([codigo, quantidade]) => {
+      const res: any[] = await rest(`Produtos_Completos?Codigo_Produto=eq.${encodeURIComponent(codigo)}&select=*`);
+      const p = res?.[0] || {};
+      const descricao = String(p.Descricao_Produto ?? p.descricao ?? `Item ${codigo}`);
+      const preco = parseFloat(String(p.Preco_Venda ?? p.preco ?? 0)) || 0;
+      return { codigo, descricao, quantidade, preco };
+    })
+  );
   const totalPecas = itens.reduce((s, i) => s + (Number(i.quantidade) || 0) * (Number(i.preco) || 0), 0);
 
   const cfg: any[] = await rest(`configuracoes_pos?select=valor_hora&id=eq.1`);
@@ -170,8 +188,6 @@ export async function POST(req: NextRequest) {
       ? `\n\nO nome do contato no WhatsApp é "${nome}" (pode estar incompleto ou ser apelido — confirme o nome completo quando precisar dele).`
       : "");
 
-  const origin = req.nextUrl.origin;
-
   try {
     const mensagens: any[] = [{ role: "system", content: system }, ...chat];
     let resposta = "";
@@ -203,7 +219,7 @@ export async function POST(req: NextRequest) {
         let resultado: any = { erro: "ferramenta desconhecida" };
         try {
           if (tc.function?.name === "buscar_trator") resultado = await buscarTrator(args.final_chassi);
-          if (tc.function?.name === "orcamento_revisao") resultado = await orcamentoRevisao(args.modelo, args.horas, origin);
+          if (tc.function?.name === "orcamento_revisao") resultado = await orcamentoRevisao(args.modelo, args.horas);
         } catch (e) {
           resultado = { erro: e instanceof Error ? e.message : "falha na consulta" };
         }
