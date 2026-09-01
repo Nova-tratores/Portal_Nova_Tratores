@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/estoque/supabase';
 import { exigirPermissao } from '@/lib/ajustes/permissao-server';
+import { mapaFornecedoresConta } from '@/lib/estoque/sugestao-compra/fornecedores';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -39,23 +40,21 @@ export async function GET(req: NextRequest) {
       off += 1000;
     }
 
-    // fornecedores presentes (nomes) para o eixo
-    const codForns = [...new Set(itens.map((i) => i.codigo_fornecedor).filter((x) => x != null))] as number[];
-    const nomes = new Map<number, string>();
-    if (codForns.length) {
-      const { data: fs } = await supabase.from('Fornecedores').select('id, nome').in('id', codForns);
-      for (const f of fs ?? []) nomes.set(Number(f.id), f.nome);
-    }
+    // resolve o NOME do fornecedor (id_fornecedor Omie → nome, via recebimentos_nfe).
+    // codigo_fornecedor no snapshot é o id da conta líder; mescla os mapas das duas.
+    const [mNova, mCastro] = await Promise.all([mapaFornecedoresConta('nova'), mapaFornecedoresConta('castro')]);
+    const nomeDe = (id: unknown): string => {
+      if (id == null) return 'Não definido';
+      const n = Number(id);
+      return mNova.get(n) ?? mCastro.get(n) ?? `#${n}`;
+    };
+    for (const i of itens) i.fornecedor = nomeDe(i.codigo_fornecedor);
+
+    // eixo agrupado por NOME (unifica o mesmo fornecedor entre contas)
     const contagem = new Map<string, number>();
-    for (const i of itens) {
-      const k = i.codigo_fornecedor != null ? String(i.codigo_fornecedor) : '';
-      contagem.set(k, (contagem.get(k) ?? 0) + 1);
-    }
-    const fornecedores = [...contagem.entries()].map(([k, n]) => ({
-      codigo_fornecedor: k === '' ? null : Number(k),
-      nome: k === '' ? 'Não definido' : (nomes.get(Number(k)) ?? `#${k}`),
-      n_itens: n,
-    })).sort((a, b) => b.n_itens - a.n_itens);
+    for (const i of itens) contagem.set(String(i.fornecedor), (contagem.get(String(i.fornecedor)) ?? 0) + 1);
+    const fornecedores = [...contagem.entries()].map(([nome, n]) => ({ nome, n_itens: n }))
+      .sort((a, b) => (a.nome === 'Não definido' ? 1 : b.nome === 'Não definido' ? -1 : b.n_itens - a.n_itens));
 
     return NextResponse.json({ snapshot: { id: snapshotId, gerado_em: ultimo.data.gerado_em }, itens, fornecedores });
   } catch (e) {

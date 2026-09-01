@@ -188,6 +188,8 @@ create table if not exists public.sugestao_compra_snapshot (
   qtd_sugerida         numeric,                            -- arredondada ao múltiplo
   valor_estimado       numeric,
   alerta               text        check (alerta in ('ja_era','critico','atencao','ok','nao_comprar')),
+  qtd_12m              numeric,                            -- unidades vendidas 12m (aba Mais Vendidos)
+  faturamento_12m      numeric,                            -- R$ vendido 12m
   primary key (snapshot_id, sku)
 );
 create index if not exists idx_sugestao_snapshot_rodada

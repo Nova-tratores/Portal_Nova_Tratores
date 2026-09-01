@@ -18,9 +18,9 @@ interface Item {
   minimo_efetivo?: number; estoque_seguranca?: number; demanda_45d?: number;
   prev_30?: number; prev_60?: number; prev_90?: number; qtd_sugerida?: number; valor_estimado?: number;
   alerta?: string; dias_ruptura_12m?: number; indice_sazonal_45d?: number; meses_com_saida_12m?: number;
-  lead_time_usado?: number; nivel_servico?: number;
+  lead_time_usado?: number; nivel_servico?: number; fornecedor?: string;
 }
-interface Forn { codigo_fornecedor: number | null; nome: string; n_itens: number }
+interface Forn { nome: string; n_itens: number }
 
 const n = (v: unknown): number => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
 const brl = (v: number): string => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
@@ -90,10 +90,10 @@ export default function SugestaoCompraPage() {
     if (linhas.length === 0) { setMsg({ texto: `Nenhum item selecionado existe na conta ${contaPedido.toUpperCase()}.`, tipo: 'err' }); return; }
     setGerando(true);
     try {
-      const codForn = fornSel !== '*' && fornSel !== '' ? Number(fornSel) : null;
+      const fornecedorNome = fornSel !== '*' && fornSel !== 'Não definido' ? fornSel : null;
       const r = await fetch('/api/estoque/pedido-compra', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ conta: contaPedido, codigo_fornecedor: codForn, snapshot_id: snapshotId, itens: linhas }),
+        body: JSON.stringify({ conta: contaPedido, fornecedor_nome: fornecedorNome, snapshot_id: snapshotId, itens: linhas }),
       });
       const d = await r.json();
       if (d.erro) { setMsg({ texto: d.erro, tipo: 'err' }); return; }
@@ -102,11 +102,10 @@ export default function SugestaoCompraPage() {
     } finally { setGerando(false); }
   }, [itens, sel, contaPedido, fornSel, snapshotId]);
 
-  // recorte por fornecedor
+  // recorte por fornecedor (por NOME)
   const porForn = useMemo(() => {
     if (fornSel === '*') return itens;
-    if (fornSel === '') return itens.filter((i) => i.codigo_fornecedor == null);
-    return itens.filter((i) => String(i.codigo_fornecedor) === fornSel);
+    return itens.filter((i) => (i.fornecedor ?? 'Não definido') === fornSel);
   }, [itens, fornSel]);
 
   // contagem de cada chip DENTRO do recorte por fornecedor
@@ -136,16 +135,16 @@ export default function SugestaoCompraPage() {
     { chave: 'sel', titulo: '', valor: (i) => (sel.has(i.sku) ? 1 : 0), render: (i) => <input type="checkbox" checked={sel.has(i.sku)} onChange={() => toggleSel(i.sku)} /> },
     { chave: 'sku', titulo: 'SKU', valor: (i) => i.sku, render: (i) => <span style={{ fontFamily: 'monospace', fontSize: '.72rem' }}>{i.sku}</span> },
     { chave: 'descricao', titulo: 'Descrição', valor: (i) => i.descricao ?? '', render: (i) => <span title={i.descricao}>{(i.descricao || '').slice(0, 42)}</span> },
-    { chave: 'tipo', titulo: 'Tipo', valor: (i) => i.tipo ?? '', render: (i) => i.tipo || '—' },
-    { chave: 'curva', titulo: 'Curva', valor: (i) => i.curva ?? '', render: (i) => <b>{i.curva}</b> },
-    { chave: 'regime', titulo: 'Regime', valor: (i) => i.regime ?? '', render: (i) => <span style={{ fontSize: '.68rem', color: '#888' }}>{i.regime}</span> },
-    { chave: 'estoque', titulo: 'Estoque', direita: true, valor: (i) => n(i.estoque_atual), render: (i) => <span title={`nova ${n(i.estoque_nova)} · castro ${n(i.estoque_castro)}`}>{n(i.estoque_atual)}</span> },
-    { chave: 'transito', titulo: 'Trânsito', direita: true, valor: (i) => n(i.em_transito), render: (i) => n(i.em_transito) || '—' },
-    { chave: 'minimo', titulo: 'Mínimo', direita: true, valor: (i) => n(i.minimo_efetivo), render: (i) => Math.round(n(i.minimo_efetivo)) },
-    { chave: 'prev', titulo: 'Prev 30·60·90', direita: true, valor: (i) => n(i.prev_30), render: (i) => <span style={{ fontSize: '.7rem' }}>{Math.round(n(i.prev_30))}·{Math.round(n(i.prev_60))}·{Math.round(n(i.prev_90))}</span> },
-    { chave: 'sugestao', titulo: 'Sugestão', direita: true, valor: (i) => n(i.qtd_sugerida), render: (i) => <b style={{ color: n(i.qtd_sugerida) > 0 ? '#0f766e' : '#bbb' }}>{n(i.qtd_sugerida)}</b> },
-    { chave: 'valor', titulo: 'Valor est.', direita: true, valor: (i) => n(i.valor_estimado), render: (i) => brl(n(i.valor_estimado)) },
-    { chave: 'alerta', titulo: 'Alerta', valor: (i) => i.alerta ?? '', render: (i) => { const a = ALERTA[i.alerta || 'nao_comprar'] || ALERTA.nao_comprar; return <span style={{ padding: '2px 7px', borderRadius: 10, fontSize: '.66rem', fontWeight: 600, background: a.bg, color: a.cor }}>{a.txt}</span>; } },
+    { chave: 'tipo', titulo: 'Tipo', tipoFiltro: 'categorico', valor: (i) => i.tipo ?? '', render: (i) => i.tipo || '—' },
+    { chave: 'curva', titulo: 'Curva', tipoFiltro: 'categorico', valor: (i) => i.curva ?? '', render: (i) => <b>{i.curva}</b> },
+    { chave: 'regime', titulo: 'Regime', tipoFiltro: 'categorico', valor: (i) => i.regime ?? '', render: (i) => <span style={{ fontSize: '.68rem', color: '#888' }}>{i.regime}</span> },
+    { chave: 'estoque', titulo: 'Estoque', direita: true, tipoFiltro: 'numero', valor: (i) => n(i.estoque_atual), render: (i) => <span title={`nova ${n(i.estoque_nova)} · castro ${n(i.estoque_castro)}`}>{n(i.estoque_atual)}</span> },
+    { chave: 'transito', titulo: 'Trânsito', direita: true, tipoFiltro: 'categorico', valor: (i) => n(i.em_transito), render: (i) => n(i.em_transito) || '—' },
+    { chave: 'minimo', titulo: 'Mínimo', direita: true, tipoFiltro: 'numero', valor: (i) => n(i.minimo_efetivo), render: (i) => Math.round(n(i.minimo_efetivo)) },
+    { chave: 'prev', titulo: 'Prev 30·60·90', direita: true, tipoFiltro: 'numero', valor: (i) => n(i.prev_30), render: (i) => <span style={{ fontSize: '.7rem' }}>{Math.round(n(i.prev_30))}·{Math.round(n(i.prev_60))}·{Math.round(n(i.prev_90))}</span> },
+    { chave: 'sugestao', titulo: 'Sugestão', direita: true, tipoFiltro: 'numero', valor: (i) => n(i.qtd_sugerida), render: (i) => <b style={{ color: n(i.qtd_sugerida) > 0 ? '#0f766e' : '#bbb' }}>{n(i.qtd_sugerida)}</b> },
+    { chave: 'valor', titulo: 'Valor est.', direita: true, tipoFiltro: 'numero', valor: (i) => n(i.valor_estimado), render: (i) => brl(n(i.valor_estimado)) },
+    { chave: 'alerta', titulo: 'Alerta', tipoFiltro: 'categorico', valor: (i) => (ALERTA[i.alerta || 'nao_comprar'] || ALERTA.nao_comprar).txt, render: (i) => { const a = ALERTA[i.alerta || 'nao_comprar'] || ALERTA.nao_comprar; return <span style={{ padding: '2px 7px', borderRadius: 10, fontSize: '.66rem', fontWeight: 600, background: a.bg, color: a.cor }}>{a.txt}</span>; } },
     { chave: 'det', titulo: '', valor: () => '', render: (i) => <button onClick={() => setDetalhe({ sku: i.sku, curva: i.curva })} style={{ padding: '3px 8px', background: '#fff', color: '#0f766e', border: '1px solid #0f766e', borderRadius: 6, cursor: 'pointer', fontSize: '.7rem', fontWeight: 600 }}>ver</button> },
   ], [sel, toggleSel]);
 
@@ -177,7 +176,7 @@ export default function SugestaoCompraPage() {
         <label style={{ fontSize: '.72rem', fontWeight: 600, color: '#888', textTransform: 'uppercase' }}>Fornecedor</label>
         <select value={fornSel} onChange={(e) => { setFornSel(e.target.value); setSel(new Set()); }} style={{ padding: '7px 10px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: 13, minWidth: 240 }}>
           <option value="*">Todos ({itens.length})</option>
-          {forns.map((f) => <option key={String(f.codigo_fornecedor)} value={f.codigo_fornecedor == null ? '' : String(f.codigo_fornecedor)}>{f.nome} ({f.n_itens})</option>)}
+          {forns.map((f) => <option key={f.nome} value={f.nome}>{f.nome} ({f.n_itens})</option>)}
         </select>
         {forns.length <= 1 && <span style={{ fontSize: '.72rem', color: '#b45309' }}>⚠ fornecedores ainda não atribuídos — defina em Config. de Compras.</span>}
       </div>

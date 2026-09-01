@@ -31,7 +31,7 @@ export default function ConfigComprasPage() {
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
   const { contas } = useConta();
 
-  const [aba, setAba] = useState<'fornecedores' | 'itens'>('fornecedores');
+  const [aba, setAba] = useState<'fornecedores' | 'itens' | 'mais-vendidos'>('fornecedores');
   const [contaRaw, setConta] = useState('');
   const conta = (contaRaw || (contas[0]?.id ?? '')).toLowerCase();
   const [msg, setMsg] = useState<{ texto: string; tipo: 'ok' | 'err' } | null>(null);
@@ -62,11 +62,12 @@ export default function ConfigComprasPage() {
       <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #eee', marginBottom: 16 }}>
         <button style={tabBtn(aba === 'fornecedores')} onClick={() => setAba('fornecedores')}>Fornecedores</button>
         <button style={tabBtn(aba === 'itens')} onClick={() => setAba('itens')}>Itens</button>
+        <button style={tabBtn(aba === 'mais-vendidos')} onClick={() => setAba('mais-vendidos')}>Mais Vendidos</button>
       </div>
 
-      {aba === 'fornecedores'
-        ? <AbaFornecedores conta={conta} podeEditar={podeEditar} setMsg={setMsg} />
-        : <AbaItens conta={conta} podeEditar={podeEditar} setMsg={setMsg} />}
+      {aba === 'fornecedores' && <AbaFornecedores conta={conta} podeEditar={podeEditar} setMsg={setMsg} />}
+      {aba === 'itens' && <AbaItens conta={conta} podeEditar={podeEditar} setMsg={setMsg} />}
+      {aba === 'mais-vendidos' && <AbaMaisVendidos />}
     </div>
   );
 }
@@ -246,6 +247,81 @@ function EditorItem({ conta, item, onSalvo, onCancel, setMsg }: { conta: string;
     </td></tr>
   );
 }
+
+// ---------------------------------------------------------------------------
+const ALERTA_COR: Record<string, { bg: string; label: string }> = {
+  ja_era: { bg: '#dc2626', label: 'Já era' }, critico: { bg: '#ea580c', label: 'Crítico' },
+  atencao: { bg: '#eab308', label: 'Atenção' }, ok: { bg: '#16a34a', label: 'OK' }, nao_comprar: { bg: '#94a3b8', label: 'Não comprar' },
+};
+interface ProdMV { sku: string; descricao?: string; tipo?: string; curva?: string; alerta?: string; estoque_atual?: number; minimo_efetivo?: number; qtd_12m?: number; faturamento_12m?: number; cmd?: number }
+type Metrica = 'quantidade' | 'faturamento' | 'demanda';
+
+function AbaMaisVendidos() {
+  const [dados, setDados] = useState<{ quantidade: ProdMV[]; faturamento: ProdMV[]; demanda: ProdMV[]; intersecao: string[]; snapshot?: { gerado_em: string } } | null>(null);
+  const [metrica, setMetrica] = useState<Metrica>('quantidade');
+  const [carregando, setCarregando] = useState(true);
+  const [detalhe, setDetalhe] = useState<ProdMV | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const r = await fetch('/api/estoque/config-compras/mais-vendidos', { headers: await authHeaders() });
+        const d = await r.json();
+        if (!d.erro) setDados(d);
+      } finally { setCarregando(false); }
+    })();
+  }, []);
+
+  const lista = dados ? dados[metrica] : [];
+  const inter = new Set(dados?.intersecao ?? []);
+  const valorMetrica = (p: ProdMV) => metrica === 'quantidade' ? `${Math.round(n2(p.qtd_12m))} un` : metrica === 'faturamento' ? brl2(n2(p.faturamento_12m)) : `${n2(p.cmd).toFixed(2)}/d`;
+  const tog = (m: Metrica, txt: string) => (
+    <button onClick={() => setMetrica(m)} style={{ padding: '7px 14px', borderRadius: 8, border: metrica === m ? '1px solid #0f766e' : '1px solid #e2e2e2', background: metrica === m ? '#0f766e' : '#fff', color: metrica === m ? '#fff' : '#555', fontWeight: 600, fontSize: '.8rem', cursor: 'pointer' }}>{txt}</button>
+  );
+
+  return (
+    <div style={card}>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+        {tog('quantidade', 'Quantidade 12m')}{tog('faturamento', 'Faturamento 12m')}{tog('demanda', 'Demanda')}
+        <span style={{ fontSize: '.72rem', color: '#aaa', marginLeft: 'auto' }}>{carregando ? 'carregando…' : `top ${lista.length}${dados?.snapshot ? ` · snapshot de ${new Date(dados.snapshot.gerado_em).toLocaleDateString('pt-BR')}` : ''}`}</span>
+      </div>
+      <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', margin: '6px 0 12px', fontSize: '.7rem', color: '#666' }}>
+        {Object.entries(ALERTA_COR).map(([k, a]) => <span key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: a.bg, display: 'inline-block' }} />{a.label}</span>)}
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>★ nas 3 listas</span>
+      </div>
+      {!carregando && lista.length === 0 && <div style={{ color: '#bbb', fontSize: '.82rem', padding: 10 }}>Sem dados. Gere o snapshot noturno (o job popula qtd/faturamento 12m).</div>}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+        {lista.map((p) => {
+          const a = ALERTA_COR[p.alerta || 'nao_comprar'] || ALERTA_COR.nao_comprar;
+          return (
+            <button key={p.sku} onClick={() => setDetalhe(p)} title={`${p.sku} — ${p.descricao || ''}\n${a.label} · estoque ${n2(p.estoque_atual)} / mínimo ${Math.round(n2(p.minimo_efetivo))}`}
+              style={{ position: 'relative', aspectRatio: '1', border: `2px solid ${a.bg}`, borderRadius: 10, background: '#fff', padding: 6, cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'left', overflow: 'hidden' }}>
+              <span style={{ position: 'absolute', top: 4, right: 5, width: 12, height: 12, borderRadius: '50%', background: a.bg }} />
+              {inter.has(p.sku) && <span style={{ position: 'absolute', top: 2, left: 4, color: '#f59e0b', fontSize: 14 }}>★</span>}
+              <span style={{ fontSize: '.62rem', fontFamily: 'monospace', color: '#333', marginTop: 10, wordBreak: 'break-all', lineHeight: 1.1 }}>{p.sku}</span>
+              <span style={{ fontSize: '.58rem', color: '#888', lineHeight: 1.05 }}>{(p.descricao || '').slice(0, 26)}</span>
+              <span style={{ fontSize: '.66rem', fontWeight: 700, color: a.bg }}>{valorMetrica(p)}</span>
+            </button>
+          );
+        })}
+      </div>
+      {detalhe && (
+        <div onClick={() => setDetalhe(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(420px,94vw)' }}>
+            <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '1rem' }}>{detalhe.sku}</div>
+            <div style={{ color: '#555', fontSize: '.85rem', margin: '4px 0 10px' }}>{detalhe.descricao}</div>
+            {[['Tipo', detalhe.tipo || '—'], ['Curva', detalhe.curva || '—'], ['Alerta', (ALERTA_COR[detalhe.alerta || 'nao_comprar'] || ALERTA_COR.nao_comprar).label], ['Estoque atual', n2(detalhe.estoque_atual)], ['Mínimo', Math.round(n2(detalhe.minimo_efetivo))], ['Vendido 12m', `${Math.round(n2(detalhe.qtd_12m))} un`], ['Faturamento 12m', brl2(n2(detalhe.faturamento_12m))], ['Consumo/dia', n2(detalhe.cmd).toFixed(2)]].map(([k, v]) => (
+              <div key={String(k)} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '.82rem', padding: '3px 0', borderBottom: '1px solid #f5f5f5' }}><span style={{ color: '#888' }}>{k}</span><span style={{ fontWeight: 600 }}>{v}</span></div>
+            ))}
+            <button onClick={() => setDetalhe(null)} style={{ marginTop: 12, ...btn() }}>Fechar</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+const n2 = (v: unknown): number => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
+const brl2 = (v: number): string => 'R$ ' + v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 
 // ---------------------------------------------------------------------------
 function Campo({ label, children }: { label: string; children: React.ReactNode }) {

@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/estoque/supabase';
 import { exigirAcessoModulo, exigirPermissao } from '@/lib/ajustes/permissao-server';
+import { listarFornecedoresConta } from '@/lib/estoque/sugestao-compra/fornecedores';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // Config de Compras — parâmetros de suprimento por FORNECEDOR (e conta).
 // conta_omie das tabelas do módulo é MINÚSCULO (alinhado a produtos/movimentos).
-// O código Omie do fornecedor é por conta (id_omie / id_omie_castro).
+// Fornecedor = cadastro Omie (mesma base de clientes): a lista vem dos que já
+// emitiram nota de entrada na conta (recebimentos_nfe), chaveado por id_fornecedor.
 
 function contaLower(v: string | null): 'nova' | 'castro' | null {
   const s = (v || '').toLowerCase();
@@ -24,16 +26,17 @@ export async function GET(req: NextRequest) {
   if (!conta) return NextResponse.json({ erro: 'conta obrigatória (nova|castro)' }, { status: 400 });
 
   try {
-    const [{ data: forns }, { data: params }] = await Promise.all([
-      supabase.from('Fornecedores').select('id, nome, id_omie, id_omie_castro').order('nome', { ascending: true }),
+    const [forns, { data: params }] = await Promise.all([
+      listarFornecedoresConta(conta),
       supabase.from('fornecedor_param').select('*').eq('conta_omie', conta),
     ]);
     const pByForn = new Map((params ?? []).map((p) => [Number(p.codigo_fornecedor), p]));
-    const codigoOmieCol = conta === 'castro' ? 'id_omie_castro' : 'id_omie';
-    const lista = (forns ?? []).map((f) => ({
-      id: f.id,
+    const lista = forns.map((f) => ({
+      id: f.id,          // = id_fornecedor (código Omie)
       nome: f.nome,
-      cadastrado_na_conta: f[codigoOmieCol as 'id_omie'] != null, // tem código Omie nesta conta?
+      cnpj: f.cnpj ?? null,
+      n_notas: f.n_notas,
+      cadastrado_na_conta: true,
       param: pByForn.get(Number(f.id)) ?? null,
     }));
     return NextResponse.json({ conta, lista });

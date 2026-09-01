@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/estoque/supabase';
 import { exigirAcessoModulo, exigirPermissao } from '@/lib/ajustes/permissao-server';
+import { mapaFornecedoresConta } from '@/lib/estoque/sugestao-compra/fornecedores';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -46,11 +47,10 @@ export async function GET(req: NextRequest) {
 
     // 2) fornecedores referenciados (preferenciais) + seus leads na conta
     const fornIds = [...new Set((ips ?? []).map((p) => p.codigo_fornecedor_preferencial).filter((x) => x != null))] as number[];
-    const [{ data: forns }, { data: fps }] = await Promise.all([
-      fornIds.length ? supabase.from('Fornecedores').select('id, nome').in('id', fornIds) : Promise.resolve({ data: [] }),
+    const [nomeForn, { data: fps }] = await Promise.all([
+      mapaFornecedoresConta(conta),   // id_fornecedor Omie → nome (via recebimentos_nfe)
       fornIds.length ? supabase.from('fornecedor_param').select('codigo_fornecedor, lead_time_declarado').eq('conta_omie', conta).in('codigo_fornecedor', fornIds) : Promise.resolve({ data: [] }),
     ]);
-    const nomeForn = new Map((forns ?? []).map((f) => [Number(f.id), f.nome]));
     const leadForn = new Map((fps ?? []).map((f) => [Number(f.codigo_fornecedor), f.lead_time_declarado]));
 
     const lista = prods.map((p) => {

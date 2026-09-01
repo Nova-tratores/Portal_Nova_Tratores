@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/estoque/supabase';
 import { exigirPermissao } from '@/lib/ajustes/permissao-server';
+import { listarFornecedoresConta, mapaFornecedoresConta } from '@/lib/estoque/sugestao-compra/fornecedores';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -37,19 +38,15 @@ export async function GET(req: NextRequest) {
       a.n++; a.pedida += Number(it.qtd_pedida) || 0; a.recebida += Number(it.qtd_recebida) || 0;
       agg.set(Number(it.pedido_id), a);
     }
-    const codForns = [...new Set(pedidos.map((p) => p.codigo_fornecedor).filter((x) => x != null))] as number[];
-    const nomes = new Map<number, string>();
-    if (codForns.length) {
-      const { data: fs } = await supabase.from('Fornecedores').select('id, nome').in('id', codForns);
-      for (const f of fs ?? []) nomes.set(Number(f.id), f.nome);
-    }
+    const [mNova, mCastro] = await Promise.all([mapaFornecedoresConta('nova'), mapaFornecedoresConta('castro')]);
+    const nomeForn = (id: unknown): string => { const n = Number(id); return mNova.get(n) ?? mCastro.get(n) ?? `#${n}`; };
     const hoje = Date.now();
     const lista = pedidos.map((p) => {
       const a = agg.get(Number(p.id)) ?? { n: 0, pedida: 0, recebida: 0 };
       const diasAberto = p.data_pedido ? Math.floor((hoje - new Date(p.data_pedido).getTime()) / 864e5) : 0;
       return {
         id: p.id, conta_omie: p.conta_omie, status: p.status, data_pedido: p.data_pedido,
-        codigo_fornecedor: p.codigo_fornecedor, fornecedor: p.codigo_fornecedor != null ? (nomes.get(Number(p.codigo_fornecedor)) ?? `#${p.codigo_fornecedor}`) : 'Não definido',
+        codigo_fornecedor: p.codigo_fornecedor, fornecedor: p.codigo_fornecedor != null ? nomeForn(p.codigo_fornecedor) : 'Não definido',
         observacao: p.observacao, n_itens: a.n, qtd_pedida: a.pedida, qtd_recebida: a.recebida, dias_aberto: diasAberto,
       };
     });
@@ -68,7 +65,7 @@ export async function POST(req: NextRequest) {
   }
   try {
     const b = (await req.json().catch(() => ({}))) as {
-      conta?: string; codigo_fornecedor?: number | null; snapshot_id?: string; observacao?: string;
+      conta?: string; codigo_fornecedor?: number | null; fornecedor_nome?: string | null; snapshot_id?: string; observacao?: string;
       itens?: Array<{ codigo_produto?: number; qtd_sugerida?: number; qtd_pedida?: number; preco_estimado?: number }>;
     };
     const conta = contaLower(b.conta);
@@ -76,9 +73,17 @@ export async function POST(req: NextRequest) {
     const itens = (b.itens || []).filter((i) => Number.isFinite(Number(i.codigo_produto)) && Number(i.qtd_pedida) > 0);
     if (itens.length === 0) return NextResponse.json({ erro: 'nenhum item válido para o pedido' }, { status: 400 });
 
+    // resolve o fornecedor (por nome) para o id_fornecedor DESTA conta compradora
+    let codFornecedor = b.codigo_fornecedor != null ? Number(b.codigo_fornecedor) : null;
+    if (codFornecedor == null && b.fornecedor_nome) {
+      const forns = await listarFornecedoresConta(conta);
+      const alvo = forns.find((f) => f.nome === b.fornecedor_nome);
+      codFornecedor = alvo ? alvo.id : null;
+    }
+
     const { data: ped, error: e1 } = await supabase.from('pedido_compra').insert({
       conta_omie: conta,
-      codigo_fornecedor: b.codigo_fornecedor != null ? Number(b.codigo_fornecedor) : null,
+      codigo_fornecedor: codFornecedor,
       data_pedido: new Date().toISOString().slice(0, 10),
       status: 'enviado',
       snapshot_id: b.snapshot_id || null,
@@ -101,7 +106,7 @@ export async function POST(req: NextRequest) {
     supabase.from('audit_log').insert({
       user_id: user.id, user_nome: user.nome || '—', sistema: 'Sugestão de Compra',
       acao: 'criar', entidade: 'pedido_compra', entidade_id: String(ped.id),
-      detalhes: { conta, codigo_fornecedor: b.codigo_fornecedor ?? null, itens: linhas.length },
+      detalhes: { conta, codigo_fornecedor: codFornecedor, itens: linhas.length },
     }).then(() => {}, () => {});
 
     return NextResponse.json({ ok: true, id: ped.id, itens: linhas.length });

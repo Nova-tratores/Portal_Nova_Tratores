@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/estoque/supabase';
 import { exigirPermissao } from '@/lib/ajustes/permissao-server';
 import { gerarPDFPedidoCompra, type ItemPedidoPDF } from '@/lib/estoque/sugestao-compra/pdf-pedido';
+import { nomeFornecedor } from '@/lib/estoque/sugestao-compra/fornecedores';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -28,8 +29,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     let fornecedor: string | undefined;
     if (ped.codigo_fornecedor != null) {
-      const { data: f } = await supabase.from('Fornecedores').select('nome').eq('id', ped.codigo_fornecedor).maybeSingle();
-      fornecedor = f?.nome;
+      const conta = String(ped.conta_omie).toLowerCase() as 'nova' | 'castro';
+      fornecedor = (await nomeFornecedor(conta, Number(ped.codigo_fornecedor))) ?? undefined;
     }
     let criadoPor: string | undefined;
     if (ped.criado_por) {

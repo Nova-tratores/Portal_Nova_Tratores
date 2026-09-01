@@ -16,6 +16,7 @@ import { randomUUID } from 'crypto';
 import { supabase } from '@/lib/estoque/supabase';
 import { calcularCurvaABC } from '@/lib/estoque/curva-abc';
 import { montarSerie12m, type MovimentoCru } from './serie';
+import { backfillFornecedorPreferencial } from './backfill-fornecedor';
 import {
   analisarConta, consolidar, type IndiceSazonal, type ParamsConta, type Curva, type SaidaConta,
 } from './motor';
@@ -38,6 +39,7 @@ async function paginar<T>(monta: (off: number) => Promise<T[]>): Promise<T[]> {
 interface DadoConta {
   saida: SaidaConta; classe: Curva; params: ParamsConta; cp: number;
   estoqueCru: number; cmc: number; codForn: number | null;
+  qtd12m: number; fat12m: number;
   descricao?: string; marca?: string; familia?: string; tipo?: string;
 }
 
@@ -46,6 +48,10 @@ export async function gerarSnapshotSugestao(hoje: Date = new Date()): Promise<{ 
   const snapshotId = randomUUID();
   const bySKU = new Map<string, { nova?: DadoConta; castro?: DadoConta; sku: string }>();
   const contadores: Record<string, number> = {};
+
+  // Passo 0: preenche o fornecedor preferencial (item_param) antes de ler os params.
+  // Best-effort: falha aqui não derruba o snapshot.
+  try { await backfillFornecedorPreferencial(); } catch { /* segue sem backfill */ }
 
   for (const { low, up } of CONTAS) {
     // 1) produtos (peça) da conta
@@ -58,10 +64,16 @@ export async function gerarSnapshotSugestao(hoje: Date = new Date()): Promise<{ 
     });
     contadores[low] = produtos.length;
 
-    // 2) curva ABC (persistida) — classe por codigo_produto
+    // 2) curva ABC (persistida) — classe + faturamento/qtd 12m por codigo_produto
     const curva = await calcularCurvaABC('produto', 12, '', '', up);
     const classePorCp = new Map<string, Curva>();
-    for (const it of curva.itens) classePorCp.set(String(it.codigo), it.classe);
+    const fatPorCp = new Map<string, number>();
+    const qtdPorCp = new Map<string, number>();
+    for (const it of curva.itens) {
+      classePorCp.set(String(it.codigo), it.classe);
+      fatPorCp.set(String(it.codigo), Number(it.valor_total) || 0);
+      qtdPorCp.set(String(it.codigo), Number(it.quantidade) || 0);
+    }
 
     // 3) razão cru (grupo peca) → série por item
     const movs = await paginar<MovimentoCru & { codigo_produto: number }>(async (off) => {
@@ -135,6 +147,7 @@ export async function gerarSnapshotSugestao(hoje: Date = new Date()): Promise<{ 
       const bucket = bySKU.get(sku) ?? bySKU.set(sku, { sku }).get(sku)!;
       bucket[low] = {
         saida, classe, params, cp, estoqueCru, cmc: Number(p.cmc) || Number(p.valor_unitario) || 0, codForn,
+        qtd12m: qtdPorCp.get(String(cp)) ?? 0, fat12m: fatPorCp.get(String(cp)) ?? 0,
         descricao: p.descricao, marca: p.marca, familia: p.familia_nome, tipo,
       };
     }
@@ -174,6 +187,8 @@ export async function gerarSnapshotSugestao(hoje: Date = new Date()): Promise<{ 
       prev_30: round(c.prev30), prev_60: round(c.prev60), prev_90: round(c.prev90),
       qtd_sugerida_bruta: round(c.qtdSugeridaBruta), qtd_sugerida: c.qtdSugerida,
       valor_estimado: round(c.qtdSugerida * (lider.cmc || 0)), alerta: c.alerta,
+      qtd_12m: round(presentes.reduce((a, d) => a + d.qtd12m, 0)),
+      faturamento_12m: round(presentes.reduce((a, d) => a + d.fat12m, 0)),
     });
   }
 
