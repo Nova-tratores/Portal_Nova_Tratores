@@ -5,11 +5,13 @@
 //   1. HISTÓRICO: o mesmo fornecedor já teve conta ENVIADA ao Omie? Copia a
 //      classificação mais frequente das últimas — é como o financeiro já
 //      classifica esse fornecedor, ninguém precisa adivinhar.
-//   2. IA (Tratorilson): sem histórico, o gpt-4o-mini escolhe a categoria
-//      pelo contexto da requisição (tipo, título, obs) dentre as categorias
-//      REAIS do omie_cache — resposta fora da lista é descartada.
-//   3. Padrões: conta corrente cai no codCC da empresa. Tipo de documento e
-//      departamento só saem do histórico (chutar esses não ajuda ninguém).
+//   2. ANEXOS: tipo de documento sem histórico sai do que a requisição TEM —
+//      NF → DANFE, boleto → BOL, recibo → REC (validado contra o cache).
+//   3. IA (Tratorilson): sem histórico, o gpt-4o-mini escolhe categoria e
+//      departamento pelo contexto da requisição (tipo, título, obs, setor)
+//      dentre as listas REAIS do omie_cache — resposta fora da lista é
+//      descartada. Uma chamada só pros dois campos.
+//   4. Padrões: conta corrente cai no codCC da empresa.
 //
 // É SUGESTÃO: o painel abre com os selects preenchidos e o revisor troca à
 // vontade — nada vai ao Omie sem passar pelo checklist de envio.
@@ -64,6 +66,9 @@ export async function POST(req: NextRequest) {
     titulo?: string;
     obs?: string;
     setor?: string;
+    temNF?: boolean;
+    temBoleto?: boolean;
+    temRecibo?: boolean;
   } = {};
   try {
     body = await req.json();
@@ -105,43 +110,88 @@ export async function POST(req: NextRequest) {
       if (codigoDepartamento) origem.departamento = "historico";
     }
 
-    // 2) sem histórico de categoria → Tratorilson escolhe da lista real
-    if (!codigoCategoria) {
-      const { data: cats } = await supabase
-        .from("omie_cache")
-        .select("codigo, descricao")
-        .eq("empresa", acc.name)
-        .eq("tipo", "categorias")
-        .order("codigo");
-      const lista = (cats || []).filter((c) => c.codigo && c.descricao);
-      if (lista.length > 0 && process.env.OPENAI_API_KEY) {
+    // 2) tipo de documento sem histórico: regra pelos ANEXOS da requisição —
+    //    os códigos usados na prática (DANFE/BOL/REC) casam direto com o que
+    //    a req tem. Só vale se o código existir na lista da empresa no cache.
+    if (!codigoTipoDocumento) {
+      const palpite = body.temNF ? "DANFE" : body.temBoleto ? "BOL" : body.temRecibo ? "REC" : null;
+      if (palpite) {
+        const { data: tipos } = await supabase
+          .from("omie_cache")
+          .select("codigo")
+          .eq("empresa", acc.name)
+          .eq("tipo", "tipos_documento")
+          .eq("codigo", palpite)
+          .limit(1);
+        if (tipos && tipos.length > 0) {
+          codigoTipoDocumento = palpite;
+          origem.tipoDocumento = "anexos";
+        }
+      }
+    }
+
+    // 3) categoria e/ou departamento sem histórico → Tratorilson escolhe das
+    //    listas reais do cache, numa chamada só (resposta em JSON)
+    if (!codigoCategoria || !codigoDepartamento) {
+      const lerCache = async (tipo: string) => {
+        const { data } = await supabase
+          .from("omie_cache")
+          .select("codigo, descricao")
+          .eq("empresa", acc.name)
+          .eq("tipo", tipo)
+          .order("codigo");
+        return (data || []).filter((c) => c.codigo && c.descricao);
+      };
+      const cats = !codigoCategoria ? await lerCache("categorias") : [];
+      const deps = !codigoDepartamento ? await lerCache("departamentos") : [];
+      if ((cats.length > 0 || deps.length > 0) && process.env.OPENAI_API_KEY) {
         const contexto = [
           body.tipoReq ? `Tipo da requisição: ${body.tipoReq}` : "",
           body.titulo ? `Título: ${body.titulo}` : "",
           fornecedor ? `Fornecedor: ${fornecedor}` : "",
-          body.setor ? `Setor: ${body.setor}` : "",
+          body.setor ? `Setor solicitante: ${body.setor}` : "",
           body.obs ? `Descrição: ${String(body.obs).slice(0, 400)}` : "",
         ].filter(Boolean).join("\n");
+        const partes: string[] = [];
+        if (cats.length > 0) {
+          partes.push(`Categorias de despesa disponíveis (código — descrição):\n` +
+            cats.map((c) => `${c.codigo} — ${c.descricao}`).join("\n"));
+        }
+        if (deps.length > 0) {
+          partes.push(`Departamentos disponíveis (código — descrição):\n` +
+            deps.map((d) => `${d.codigo} — ${d.descricao}`).join("\n"));
+        }
+        const pedir = [
+          cats.length > 0 ? '"categoria" (código da categoria mais adequada)' : "",
+          deps.length > 0 ? '"departamento" (código do departamento mais adequado; null se nenhum encaixar)' : "",
+        ].filter(Boolean).join(" e ");
         const pergunta =
-          `Classifique esta despesa de uma concessionária de tratores na categoria mais adequada.\n\n${contexto}\n\n` +
-          `Categorias disponíveis (código — descrição):\n` +
-          lista.map((c) => `${c.codigo} — ${c.descricao}`).join("\n") +
-          `\n\nResponda SOMENTE o código da categoria escolhida (ex.: 2.01.03). Nada além do código.`;
+          `Classifique esta despesa de uma concessionária de tratores.\n\n${contexto}\n\n` +
+          partes.join("\n\n") +
+          `\n\nResponda SOMENTE um JSON com ${pedir}. Ex.: {"categoria":"2.01.03","departamento":"123"}`;
         try {
           const resp = await chamarIA({
             messages: [
-              { role: "system", content: "Você classifica despesas no plano de categorias do Omie. Responda apenas o código." },
+              { role: "system", content: "Você classifica despesas no plano de contas do Omie. Responda apenas o JSON pedido, sem comentários." },
               { role: "user", content: pergunta },
             ],
-            max_tokens: 20,
+            max_tokens: 60,
             temperature: 0,
+            response_format: { type: "json_object" },
           });
           const texto = String(resp?.choices?.[0]?.message?.content || "").trim();
-          // vale só se for um código que EXISTE na lista (IA não inventa categoria)
-          const achada = lista.find((c) => texto === c.codigo || texto.startsWith(String(c.codigo)));
-          if (achada) {
-            codigoCategoria = String(achada.codigo);
+          let json: Record<string, unknown> = {};
+          try { json = JSON.parse(texto); } catch { /* resposta fora do formato: descarta */ }
+          // vale só o que EXISTE nas listas (IA não inventa código)
+          const catIA = String(json.categoria ?? "").trim();
+          if (!codigoCategoria && catIA && cats.some((c) => String(c.codigo) === catIA)) {
+            codigoCategoria = catIA;
             origem.categoria = "ia";
+          }
+          const depIA = String(json.departamento ?? "").trim();
+          if (!codigoDepartamento && depIA && deps.some((d) => String(d.codigo) === depIA)) {
+            codigoDepartamento = depIA;
+            origem.departamento = "ia";
           }
           logTratorilson({
             userId: auth.userId,
@@ -153,12 +203,12 @@ export async function POST(req: NextRequest) {
             tokens: Number(resp?.usage?.total_tokens) || 0,
           });
         } catch (e) {
-          console.warn("[sugerir categoria IA]", e instanceof Error ? e.message : e);
+          console.warn("[sugerir categoria/departamento IA]", e instanceof Error ? e.message : e);
         }
       }
     }
 
-    // 3) conta corrente padrão da empresa quando o histórico não disse
+    // 4) conta corrente padrão da empresa quando o histórico não disse
     if (!idContaCorrente && acc.codCC) {
       idContaCorrente = Number(acc.codCC);
       origem.contaCorrente = "padrao";

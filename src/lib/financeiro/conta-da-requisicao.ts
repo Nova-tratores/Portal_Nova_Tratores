@@ -247,6 +247,10 @@ export async function criarContaDaRequisicao(params: {
         titulo: base.titulo,
         obs: base.obs,
         setor: base.setor,
+        // sinais pro tipo de documento (NF → DANFE, boleto → BOL, recibo → REC)
+        temNF: !!anexoNF,
+        temBoleto: urlsBoleto.length > 0,
+        temRecibo: grupo.some((r) => r.recibo_fornecedor),
       }),
     }).then((r) => r.json()),
   ]);
