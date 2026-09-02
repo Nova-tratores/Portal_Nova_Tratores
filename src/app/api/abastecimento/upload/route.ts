@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota } from '@/lib/frota/server';
 import { decodificarCsv, parseCsvAbastecimento } from '@/lib/abastecimento/parse';
+import { autorizacoesDe, separarPorAutorizacao } from '@/lib/abastecimento/dedup';
 import { extrairPlacaDeNumPlaca, resolverPlaca } from '@/lib/frota/placa';
 import type { LinhaAbastecimento, ResultadoUpload } from '@/lib/abastecimento/tipos';
 
@@ -80,6 +81,37 @@ export async function POST(request: Request) {
       if (l.id_placa == null) desconhecidas.set(canonica, (desconhecidas.get(canonica) || 0) + 1);
     }
 
+    // 2b) SEGUNDA camada de dedup: autorização da operadora. A chave única do
+    //     banco (placa+data+litros) segura o reenvio do MESMO arquivo, mas não
+    //     um reexport com litros/hora corrigidos — a autorização é a identidade
+    //     real da transação. Linha sem autorização passa direto (o índice cuida).
+    let puladasAutorizacao = 0;
+    let linhasParaInserir = linhas;
+    const auts = autorizacoesDe(linhas);
+    if (auts.length > 0) {
+      const existentes = new Set<string>();
+      for (let i = 0; i < auts.length; i += 200) {
+        const { data: ja, error: errAut } = await supabase
+          .from('abastecimentos')
+          .select('autorizacao')
+          .in('autorizacao', auts.slice(i, i + 200));
+        if (errAut) throw new Error(`Erro ao conferir autorizações já importadas: ${errAut.message}`);
+        for (const r of ja || []) {
+          const v = String((r as { autorizacao?: string }).autorizacao || '').trim();
+          if (v) existentes.add(v);
+        }
+      }
+      const sep = separarPorAutorizacao(linhas, existentes);
+      linhasParaInserir = sep.aceitas;
+      puladasAutorizacao = sep.puladas.length;
+    }
+    if (!linhasParaInserir.length) {
+      return NextResponse.json(
+        { error: `Todas as ${linhas.length} linhas válidas já estavam importadas (autorização da operadora repetida). Nada foi gravado.` },
+        { status: 400 },
+      );
+    }
+
     // 3) cria o lote
     const { data: lote, error: errLote } = await supabase
       .from('abastecimento_lotes')
@@ -98,8 +130,8 @@ export async function POST(request: Request) {
     // 4) insere em chunks com dedup: ignoreDuplicates => ON CONFLICT DO NOTHING;
     //    o .select() devolve só as linhas realmente inseridas (contagem exata).
     let novos = 0;
-    for (let i = 0; i < linhas.length; i += CHUNK) {
-      const chunk = linhas
+    for (let i = 0; i < linhasParaInserir.length; i += CHUNK) {
+      const chunk = linhasParaInserir
         .slice(i, i + CHUNK)
         .map((l: LinhaAbastecimento) => ({ ...l, lote_id: lote.id }));
       const { data, error } = await supabase
@@ -109,10 +141,10 @@ export async function POST(request: Request) {
       if (error) throw new Error(`Erro ao inserir abastecimentos: ${error.message}`);
       novos += data?.length || 0;
     }
-    const duplicados = linhas.length - novos + duplicadasArquivo;
+    const duplicados = linhasParaInserir.length - novos + duplicadasArquivo + puladasAutorizacao;
 
     // 5) fecha os contadores do lote
-    const datas = linhas.map((l) => l.data_transacao).sort();
+    const datas = linhasParaInserir.map((l) => l.data_transacao).sort();
     await supabase
       .from('abastecimento_lotes')
       .update({
@@ -128,6 +160,7 @@ export async function POST(request: Request) {
       totalLinhas,
       novos,
       duplicados,
+      duplicadosAutorizacao: puladasAutorizacao,
       erros,
       placasDesconhecidas: [...desconhecidas.entries()]
         .map(([placa, ocorrencias]) => ({ placa, ocorrencias }))
@@ -139,7 +172,7 @@ export async function POST(request: Request) {
       entidade: 'abastecimento_lote',
       entidadeId: String(lote.id),
       entidadeLabel: `CSV ${lote.arquivo_nome}`,
-      detalhes: { totalLinhas, novos, duplicados, erros: erros.length },
+      detalhes: { totalLinhas, novos, duplicados, duplicadosAutorizacao: puladasAutorizacao, erros: erros.length },
     });
 
     return NextResponse.json(resultado);

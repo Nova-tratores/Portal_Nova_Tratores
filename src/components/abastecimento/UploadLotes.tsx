@@ -130,7 +130,10 @@ export default function UploadLotes({ usuario, isAdmin, onMudou }: Props) {
       {resultado && (
         <div style={{ marginTop: 14, background: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 8, padding: '12px 14px', fontSize: '.84rem', color: '#166534' }}>
           <strong>{resultado.lote.arquivo_nome}</strong>: {resultado.novos} novo(s) importado(s),{' '}
-          {resultado.duplicados} duplicado(s) ignorado(s), {resultado.erros.length} linha(s) com erro
+          {resultado.duplicados} duplicado(s) ignorado(s)
+          {(resultado.duplicadosAutorizacao || 0) > 0 && (
+            <> — {resultado.duplicadosAutorizacao} pela autorização da operadora (transação já importada com outros valores)</>
+          )}, {resultado.erros.length} linha(s) com erro
           {' '}(de {resultado.totalLinhas} linhas).
           {resultado.placasDesconhecidas.length > 0 && (
             <div style={{ marginTop: 6, color: '#92400e' }}>

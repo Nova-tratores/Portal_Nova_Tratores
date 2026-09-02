@@ -66,6 +66,9 @@ export interface ResultadoUpload {
   totalLinhas: number;
   novos: number;
   duplicados: number;
+  /** parcela dos duplicados pega pela AUTORIZAÇÃO da operadora (reexport com
+   *  litros/hora corrigidos — a chave placa+data+litros não pegaria) */
+  duplicadosAutorizacao?: number;
   erros: ErroLinha[];
   placasDesconhecidas: { placa: string; ocorrencias: number }[];
 }
