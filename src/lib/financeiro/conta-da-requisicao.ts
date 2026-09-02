@@ -2,7 +2,8 @@
 // na etapa do financeiro — o botão do card chama isto. O rascunho nasce com
 // tudo que a requisição sabe (fornecedor, valor, NF, anexos, PDF da própria
 // req, vendedor/projeto resolvidos no Omie); o checklist do painel cobra o
-// resto (vencimento, categoria, conta corrente) na revisão.
+// resto (categoria, conta corrente) na revisão. Vencimento nasce como HOJE
+// (a coluna é NOT NULL) — o revisor ajusta no painel.
 //
 // A tela "Novo Registro Financeiro" (novo-pagar-receber) usa as mesmas peças
 // daqui (PDF + resolução de anexo) — mudou lá, mudou aqui.
@@ -233,11 +234,17 @@ export async function criarContaDaRequisicao(params: {
     }
   } catch { /* ignorado de propósito */ }
 
+  // Vencimento a requisição não sabe, mas a coluna é NOT NULL — entra HOJE
+  // como chamariz: o painel mostra a data grande em vermelho e o revisor
+  // ajusta antes de enviar ao Omie. (Data local, sem UTC — meia-noite BRT
+  // já é o dia seguinte em UTC e o vencimento nasceria errado.)
+  const hoje = new Date();
+  const vencimentoHoje = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+
   const registro: Record<string, unknown> = {
     fornecedor: base.fornecedor || null,
     valor: total.toFixed(2),
-    // vencimento a requisição não sabe — o checklist do painel cobra
-    data_vencimento: null,
+    data_vencimento: vencimentoHoje,
     motivo: grupo.map((r) => `#${r.id} ${r.titulo || ''}`.trim()).join(', '),
     // NF de verdade ou nada — "REQ #123" no campo enganaria o checklist
     numero_NF: nota || null,
