@@ -69,3 +69,47 @@ export function separarPorAutorizacao<T extends ComAutorizacao>(
   }
   return { aceitas, puladas }
 }
+
+// ── detalhamento das duplicadas (pedido do usuário: VER quais foram e poder
+//    substituir pelo valor corrigido do arquivo) ────────────────────────────
+
+/** Chave do índice único do banco. `litros` normalizado por VALOR (10.0 = 10.000). */
+export function chaveAbastecimento(l: { placa?: unknown; data_transacao?: unknown; litros?: unknown }): string {
+  return `${String(l.placa ?? '').trim().toUpperCase()}|${String(l.data_transacao ?? '')}|${Number(l.litros)}`
+}
+
+export interface CampoDiferente { campo: string; rotulo: string; de: string; para: string }
+
+const CAMPOS_COMPARADOS: { campo: string; rotulo: string; numerico?: boolean }[] = [
+  { campo: 'data_transacao', rotulo: 'Data/hora' },
+  { campo: 'litros', rotulo: 'Litros', numerico: true },
+  { campo: 'valor_total', rotulo: 'Valor pago', numerico: true },
+  { campo: 'valor_unitario', rotulo: 'Preço/L', numerico: true },
+  { campo: 'combustivel', rotulo: 'Combustível' },
+  { campo: 'hodometro', rotulo: 'Hodômetro', numerico: true },
+  { campo: 'posto_nome', rotulo: 'Posto' },
+  { campo: 'motorista_nome', rotulo: 'Motorista' },
+]
+
+/**
+ * O que mudou entre o registro JÁ importado e a linha do arquivo. Lista vazia
+ * = linhas idênticas no que importa (não há o que substituir). Números
+ * comparados por VALOR — "45.5" e 45.50 não são diferença.
+ */
+export function diferencasEntre(
+  existente: Record<string, unknown>,
+  linha: Record<string, unknown>,
+): CampoDiferente[] {
+  const out: CampoDiferente[] = []
+  for (const c of CAMPOS_COMPARADOS) {
+    const de = existente[c.campo]
+    const para = linha[c.campo]
+    const iguais = c.numerico
+      ? (de == null && para == null) || (de != null && para != null && Number(de) === Number(para))
+      : String(de ?? '').trim() === String(para ?? '').trim()
+    if (!iguais) {
+      out.push({ campo: c.campo, rotulo: c.rotulo, de: String(de ?? '—'), para: String(para ?? '—') })
+    }
+  }
+  return out
+}

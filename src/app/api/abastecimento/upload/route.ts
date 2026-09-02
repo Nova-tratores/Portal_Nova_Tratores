@@ -7,7 +7,8 @@ import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { logFrota, podeFrota } from '@/lib/frota/server';
 import { decodificarCsv, parseCsvAbastecimento } from '@/lib/abastecimento/parse';
-import { autorizacoesDe, separarPorAutorizacao } from '@/lib/abastecimento/dedup';
+import { autorizacoesDe, chaveAbastecimento, diferencasEntre, separarPorAutorizacao } from '@/lib/abastecimento/dedup';
+import type { DuplicadaImport } from '@/lib/abastecimento/tipos';
 import { extrairPlacaDeNumPlaca, resolverPlaca } from '@/lib/frota/placa';
 import type { LinhaAbastecimento, ResultadoUpload } from '@/lib/abastecimento/tipos';
 
@@ -87,23 +88,71 @@ export async function POST(request: Request) {
     //     real da transação. Linha sem autorização passa direto (o índice cuida).
     let puladasAutorizacao = 0;
     let linhasParaInserir = linhas;
+    // detalhe das duplicadas (pedido do usuário: VER quais foram e poder
+    // substituir): registro existente + o que mudou, dos dois tipos de dedup
+    const duplicadas: DuplicadaImport[] = [];
+    const RESUMO_EXISTENTE = 'id, placa, data_transacao, litros, valor_total, lote_id, autorizacao, valor_unitario, combustivel, hodometro, posto_nome, motorista_nome';
+    type ExistenteRow = { id: number; placa: string; data_transacao: string; litros: number; valor_total: number | null; lote_id: number | null; autorizacao: string | null } & Record<string, unknown>;
+    const resumoDe = (e: ExistenteRow) => ({
+      data_transacao: e.data_transacao, placa: e.placa, litros: Number(e.litros),
+      valor_total: e.valor_total == null ? null : Number(e.valor_total),
+      lote_id: e.lote_id, autorizacao: e.autorizacao,
+    });
     const auts = autorizacoesDe(linhas);
     if (auts.length > 0) {
-      const existentes = new Set<string>();
+      const existentes = new Map<string, ExistenteRow>();
       for (let i = 0; i < auts.length; i += 200) {
         const { data: ja, error: errAut } = await supabase
           .from('abastecimentos')
-          .select('autorizacao')
+          .select(RESUMO_EXISTENTE)
           .in('autorizacao', auts.slice(i, i + 200));
         if (errAut) throw new Error(`Erro ao conferir autorizações já importadas: ${errAut.message}`);
-        for (const r of ja || []) {
-          const v = String((r as { autorizacao?: string }).autorizacao || '').trim();
-          if (v) existentes.add(v);
+        for (const r of (ja || []) as ExistenteRow[]) {
+          const v = String(r.autorizacao || '').trim();
+          if (v && !existentes.has(v)) existentes.set(v, r);
         }
       }
-      const sep = separarPorAutorizacao(linhas, existentes);
+      const sep = separarPorAutorizacao(linhas, existentes.keys());
       linhasParaInserir = sep.aceitas;
       puladasAutorizacao = sep.puladas.length;
+      for (const l of sep.puladas) {
+        const e = existentes.get(String(l.autorizacao || '').trim());
+        if (!e) continue; // repetida dentro do próprio arquivo: não há registro no banco
+        duplicadas.push({
+          motivo: 'autorizacao', existenteId: e.id, existente: resumoDe(e),
+          linha: l, diferencas: diferencasEntre(e, l as unknown as Record<string, unknown>),
+        });
+      }
+    }
+
+    // 2c) duplicadas pela CHAVE do índice (placa+data+litros), detectadas ANTES
+    //     do insert só pra LISTAR — o ON CONFLICT continua sendo a proteção de
+    //     verdade (corrida entre dois uploads cai nele). Busca paginada porque
+    //     o PostgREST corta em 1000 linhas por resposta.
+    if (linhasParaInserir.length > 0) {
+      const datasOrd = linhasParaInserir.map((l) => l.data_transacao).sort();
+      const chavesArquivo = new Map(linhasParaInserir.map((l) => [chaveAbastecimento(l), l]));
+      const PAG = 1000;
+      for (let de = 0; ; de += PAG) {
+        const { data: pag, error: errPag } = await supabase
+          .from('abastecimentos')
+          .select(RESUMO_EXISTENTE)
+          .gte('data_transacao', datasOrd[0])
+          .lte('data_transacao', datasOrd[datasOrd.length - 1])
+          .range(de, de + PAG - 1);
+        if (errPag) throw new Error(`Erro ao conferir o período já importado: ${errPag.message}`);
+        for (const e of (pag || []) as ExistenteRow[]) {
+          const l = chavesArquivo.get(chaveAbastecimento(e));
+          if (l) {
+            duplicadas.push({
+              motivo: 'chave', existenteId: e.id, existente: resumoDe(e),
+              linha: l, diferencas: diferencasEntre(e, l as unknown as Record<string, unknown>),
+            });
+            chavesArquivo.delete(chaveAbastecimento(e));
+          }
+        }
+        if (!pag || pag.length < PAG) break;
+      }
     }
     if (!linhasParaInserir.length) {
       return NextResponse.json(
@@ -161,6 +210,8 @@ export async function POST(request: Request) {
       novos,
       duplicados,
       duplicadosAutorizacao: puladasAutorizacao,
+      duplicadas: duplicadas.slice(0, 300),
+      duplicadasOcultas: Math.max(0, duplicadas.length - 300),
       erros,
       placasDesconhecidas: [...desconhecidas.entries()]
         .map(([placa, ocorrencias]) => ({ placa, ocorrencias }))

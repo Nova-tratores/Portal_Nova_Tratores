@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { autorizacoesDe, separarPorAutorizacao } from '../dedup'
+import { autorizacoesDe, chaveAbastecimento, diferencasEntre, separarPorAutorizacao } from '../dedup'
 
 const l = (autorizacao: string | null | undefined, id: number) => ({ autorizacao, id })
 
@@ -41,5 +41,33 @@ describe('proteção por autorização da operadora', () => {
   it('autorizacoesDe devolve só as não-vazias, sem repetir', () => {
     expect(autorizacoesDe([l('A', 1), l('A', 2), l('', 3), l(null, 4), l(' B ', 5)])).toEqual(['A', 'B'])
     expect(autorizacoesDe([])).toEqual([])
+  })
+})
+
+describe('detalhamento das duplicadas', () => {
+  it('a chave normaliza litros por VALOR — 45.5 e 45.500 são a mesma linha', () => {
+    const a = chaveAbastecimento({ placa: 'ABC1D23', data_transacao: '2026-09-01T08:00:00-03:00', litros: 45.5 })
+    const b = chaveAbastecimento({ placa: 'abc1d23 ', data_transacao: '2026-09-01T08:00:00-03:00', litros: '45.500' })
+    expect(a).toBe(b)
+  })
+
+  it('linhas iguais no que importa não têm diferença (nada a substituir)', () => {
+    const e = { data_transacao: 'X', litros: 45.5, valor_total: 250, combustivel: 'Diesel', posto_nome: 'Posto A' }
+    const l = { data_transacao: 'X', litros: '45.50', valor_total: '250.00', combustivel: 'Diesel ', posto_nome: 'Posto A' }
+    expect(diferencasEntre(e, l)).toEqual([])
+  })
+
+  it('a correção da operadora aparece campo a campo, com de → para', () => {
+    const e = { data_transacao: 'X', litros: 45.5, valor_total: 250 }
+    const l = { data_transacao: 'X', litros: 47.2, valor_total: 259.4 }
+    const difs = diferencasEntre(e, l)
+    expect(difs.map((d) => d.campo)).toEqual(['litros', 'valor_total'])
+    expect(difs[0]).toMatchObject({ rotulo: 'Litros', de: '45.5', para: '47.2' })
+  })
+
+  it('nulo dos dois lados não vira diferença; nulo de um lado vira', () => {
+    expect(diferencasEntre({ hodometro: null }, { hodometro: null })).toEqual([])
+    const difs = diferencasEntre({ hodometro: null }, { hodometro: 123456 })
+    expect(difs.map((d) => d.campo)).toEqual(['hodometro'])
   })
 })

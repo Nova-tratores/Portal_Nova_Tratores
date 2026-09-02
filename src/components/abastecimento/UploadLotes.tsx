@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Trash2, Upload } from 'lucide-react';
 import { Card } from '@/components/estoque/ui';
 import { authHeaders } from '@/lib/auth/client';
-import type { LoteResumo, ResultadoUpload } from '@/lib/abastecimento/tipos';
+import type { DuplicadaImport, LoteResumo, ResultadoUpload } from '@/lib/abastecimento/tipos';
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
@@ -34,6 +34,11 @@ export default function UploadLotes({ usuario, isAdmin, onMudou }: Props) {
   const [mostrarErros, setMostrarErros] = useState(false);
   const [lotes, setLotes] = useState<LoteResumo[]>([]);
   const [excluindo, setExcluindo] = useState<number | null>(null);
+  // lista de duplicadas do último upload + estado das substituições
+  const [mostrarDuplicadas, setMostrarDuplicadas] = useState(false);
+  const [substituindo, setSubstituindo] = useState<Set<number>>(new Set());
+  const [substituidas, setSubstituidas] = useState<Set<number>>(new Set());
+  const [erroSubst, setErroSubst] = useState<Map<number, string>>(new Map());
 
   const carregarLotes = useCallback(async () => {
     try {
@@ -64,6 +69,8 @@ export default function UploadLotes({ usuario, isAdmin, onMudou }: Props) {
       const d = await r.json();
       if (!r.ok) { setErroUpload(d.error || 'Erro no upload.'); return; }
       setResultado(d as ResultadoUpload);
+      setMostrarDuplicadas(false);
+      setSubstituindo(new Set()); setSubstituidas(new Set()); setErroSubst(new Map());
       carregarLotes();
       onMudou();
     } catch (e) {
@@ -71,6 +78,36 @@ export default function UploadLotes({ usuario, isAdmin, onMudou }: Props) {
     } finally {
       setEnviando(false);
       if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  // "Tirar a duplicada": troca o registro JÁ importado pelos valores corrigidos
+  // do arquivo (caso do reexport da operadora). Só aparece quando há diferença.
+  const substituir = async (itens: DuplicadaImport[]) => {
+    const ids = itens.map((i) => i.existenteId);
+    setSubstituindo((prev) => new Set([...prev, ...ids]));
+    try {
+      const r = await fetch('/api/abastecimento/substituir', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ itens: itens.map((i) => ({ existenteId: i.existenteId, motivo: i.motivo, linha: i.linha })) }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        setErroSubst((prev) => { const m = new Map(prev); for (const id of ids) m.set(id, d.error || 'Falha ao substituir.'); return m; });
+        return;
+      }
+      const oks = new Set<number>(); const errs = new Map<number, string>();
+      for (const res of (d.resultados || []) as { existenteId: number; ok: boolean; erro?: string }[]) {
+        if (res.ok) oks.add(res.existenteId); else errs.set(res.existenteId, res.erro || 'Falha.');
+      }
+      setSubstituidas((prev) => new Set([...prev, ...oks]));
+      setErroSubst((prev) => { const m = new Map(prev); for (const [k, v] of errs) m.set(k, v); return m; });
+      if (oks.size > 0) onMudou();
+    } catch (e) {
+      setErroSubst((prev) => { const m = new Map(prev); for (const id of ids) m.set(id, (e as Error).message); return m; });
+    } finally {
+      setSubstituindo((prev) => { const n = new Set(prev); for (const id of ids) n.delete(id); return n; });
     }
   };
 
@@ -140,6 +177,67 @@ export default function UploadLotes({ usuario, isAdmin, onMudou }: Props) {
               Placas fora da frota cadastrada:{' '}
               {resultado.placasDesconhecidas.map((p) => `${p.placa} (${p.ocorrencias}×)`).join(', ')}
               {' '}— importadas mesmo assim, sem vínculo.
+            </div>
+          )}
+          {(resultado.duplicadas?.length || 0) > 0 && (
+            <div style={{ marginTop: 6 }}>
+              <button onClick={() => setMostrarDuplicadas((v) => !v)} style={{ background: 'none', border: 'none', color: '#166534', cursor: 'pointer', fontSize: '.8rem', padding: 0, textDecoration: 'underline' }}>
+                {mostrarDuplicadas ? 'Ocultar duplicadas' : `Ver as ${resultado.duplicadas!.length} duplicada(s)`}
+              </button>
+              {(resultado.duplicadasOcultas || 0) > 0 && (
+                <span style={{ marginLeft: 8, color: '#92400e' }}>(+{resultado.duplicadasOcultas} não listadas)</span>
+              )}
+              {mostrarDuplicadas && (() => {
+                const comDif = resultado.duplicadas!.filter((dp) => dp.diferencas.length > 0 && !substituidas.has(dp.existenteId));
+                return (
+                <div style={{ marginTop: 8 }}>
+                  {comDif.length > 1 && (
+                    <button onClick={() => substituir(comDif)} disabled={substituindo.size > 0}
+                      style={{ marginBottom: 8, background: '#166534', color: '#fff', border: 'none', borderRadius: 6, padding: '6px 12px', fontSize: '.78rem', fontWeight: 600, cursor: 'pointer' }}>
+                      Substituir todas com diferenças ({comDif.length}) pelos valores do arquivo
+                    </button>
+                  )}
+                  <div style={{ maxHeight: 320, overflowY: 'auto', border: '1px solid #d1fae5', borderRadius: 8, background: '#fff' }}>
+                    {resultado.duplicadas!.map((dp) => {
+                      const feito = substituidas.has(dp.existenteId);
+                      const rodando = substituindo.has(dp.existenteId);
+                      const errS = erroSubst.get(dp.existenteId);
+                      return (
+                        <div key={`${dp.existenteId}-${dp.linha.data_transacao}`} style={{ padding: '8px 12px', borderBottom: '1px solid #f0fdf4', fontSize: '.78rem', color: '#374151' }}>
+                          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                            <strong>{dp.linha.placa}</strong>
+                            <span>{fmtDataHora(dp.linha.data_transacao)}</span>
+                            <span>{Number(dp.linha.litros).toLocaleString('pt-BR')} L</span>
+                            {dp.linha.valor_total != null && <span>R$ {Number(dp.linha.valor_total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>}
+                            <span style={{ fontSize: '.68rem', fontWeight: 700, padding: '1px 8px', borderRadius: 999, background: dp.motivo === 'autorizacao' ? '#fef3c7' : '#e0e7ff', color: dp.motivo === 'autorizacao' ? '#92400e' : '#3730a3' }}>
+                              {dp.motivo === 'autorizacao' ? `autorização ${dp.existente.autorizacao}` : 'mesma placa+data+litros'}
+                            </span>
+                            <span style={{ color: '#9ca3af' }}>já importada{dp.existente.lote_id ? ` (lote ${dp.existente.lote_id})` : ''}</span>
+                            {dp.diferencas.length === 0 ? (
+                              <span style={{ color: '#16a34a', fontWeight: 600 }}>idêntica — nada a fazer</span>
+                            ) : feito ? (
+                              <span style={{ color: '#16a34a', fontWeight: 700 }}>substituída ✓</span>
+                            ) : (
+                              <button onClick={() => substituir([dp])} disabled={rodando}
+                                title="Trocar o registro já importado pelos valores desta linha do arquivo"
+                                style={{ background: '#fff', color: '#166534', border: '1px solid #86efac', borderRadius: 6, padding: '3px 10px', fontSize: '.72rem', fontWeight: 700, cursor: 'pointer' }}>
+                                {rodando ? 'Substituindo…' : 'Usar valores do arquivo'}
+                              </button>
+                            )}
+                          </div>
+                          {dp.diferencas.length > 0 && !feito && (
+                            <div style={{ marginTop: 4, color: '#92400e' }}>
+                              {dp.diferencas.map((f) => `${f.rotulo}: ${f.de} → ${f.para}`).join(' · ')}
+                            </div>
+                          )}
+                          {errS && <div style={{ marginTop: 4, color: '#b91c1c' }}>Falhou: {errS}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                );
+              })()}
             </div>
           )}
           {resultado.erros.length > 0 && (

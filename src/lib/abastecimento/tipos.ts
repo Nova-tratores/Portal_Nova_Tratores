@@ -61,6 +61,21 @@ export interface LoteResumo {
   created_at: string;
 }
 
+// Uma linha do arquivo que NÃO entrou por já existir no banco — com o
+// registro existente e o que mudou, pra tela listar e oferecer substituição.
+export interface DuplicadaImport {
+  /** 'autorizacao' = mesma autorização da operadora; 'chave' = mesma placa+data+litros */
+  motivo: 'autorizacao' | 'chave';
+  existenteId: number;
+  existente: {
+    data_transacao: string; placa: string; litros: number;
+    valor_total: number | null; lote_id: number | null; autorizacao: string | null;
+  };
+  /** a linha COMPLETA do arquivo — é o payload da substituição */
+  linha: LinhaAbastecimento;
+  diferencas: { campo: string; rotulo: string; de: string; para: string }[];
+}
+
 export interface ResultadoUpload {
   lote: { id: number; arquivo_nome: string; created_at: string };
   totalLinhas: number;
@@ -69,6 +84,9 @@ export interface ResultadoUpload {
   /** parcela dos duplicados pega pela AUTORIZAÇÃO da operadora (reexport com
    *  litros/hora corrigidos — a chave placa+data+litros não pegaria) */
   duplicadosAutorizacao?: number;
+  /** detalhe das duplicadas (limitado — `duplicadasOcultas` diz quantas ficaram de fora) */
+  duplicadas?: DuplicadaImport[];
+  duplicadasOcultas?: number;
   erros: ErroLinha[];
   placasDesconhecidas: { placa: string; ocorrencias: number }[];
 }
