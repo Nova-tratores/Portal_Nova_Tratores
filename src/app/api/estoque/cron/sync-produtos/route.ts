@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cronSyncProdutos } from '@/lib/estoque/cron';
+import { comCronRun } from '@/lib/cron/observar';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -19,8 +20,8 @@ export async function GET(req: NextRequest) {
   if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  cronSyncProdutos()
-    .then((r) => console.log('[cron sync-produtos] concluído', JSON.stringify(r)))
+  comCronRun('estoque-sync-produtos', () => cronSyncProdutos(), { lockMinutos: 120 })
+    .then((r) => console.log('[cron sync-produtos]', r.pulado ? 'pulado (já rodando)' : r.erro ? 'erro: ' + r.erro : 'concluído', JSON.stringify(r.resultado ?? {})))
     .catch((e) => console.error('[cron sync-produtos] erro', (e as Error).message));
   return NextResponse.json({ sucesso: true, iniciado: true, timestamp: new Date().toISOString() });
 }

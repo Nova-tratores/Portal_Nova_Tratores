@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cronSyncNotasSaida } from '@/lib/ajustes/cron';
+import { comCronRun } from '@/lib/cron/observar';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 800;
@@ -12,12 +13,9 @@ function autorizado(req: NextRequest): boolean {
 
 export async function GET(req: NextRequest) {
   if (!autorizado(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-  try {
-    const resultado = await cronSyncNotasSaida();
-    return NextResponse.json({ sucesso: true, resultado, timestamp: new Date().toISOString() });
-  } catch (e) {
-    return NextResponse.json({ sucesso: false, erro: (e as Error).message }, { status: 500 });
-  }
+  const r = await comCronRun('ajustes-sync-notas', () => cronSyncNotasSaida(), { lockMinutos: 25 });
+  if (r.erro) return NextResponse.json({ sucesso: false, erro: r.erro }, { status: 500 });
+  return NextResponse.json({ sucesso: true, pulado: r.pulado, resultado: r.resultado, timestamp: new Date().toISOString() });
 }
 
 export const POST = GET;

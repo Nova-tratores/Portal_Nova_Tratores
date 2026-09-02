@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cronSyncIncremental } from '@/lib/estoque/cron';
+import { comCronRun } from '@/lib/cron/observar';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -13,10 +14,7 @@ export async function GET(req: NextRequest) {
   if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  try {
-    const resultados = await cronSyncIncremental();
-    return NextResponse.json({ sucesso: true, resultados, timestamp: new Date().toISOString() });
-  } catch (e) {
-    return NextResponse.json({ sucesso: false, erro: (e as Error).message }, { status: 500 });
-  }
+  const r = await comCronRun('estoque-sync-incremental', () => cronSyncIncremental(), { lockMinutos: 25 });
+  if (r.erro) return NextResponse.json({ sucesso: false, erro: r.erro }, { status: 500 });
+  return NextResponse.json({ sucesso: true, pulado: r.pulado, resultados: r.resultado, timestamp: new Date().toISOString() });
 }

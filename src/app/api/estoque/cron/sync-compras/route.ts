@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cronSyncCompras } from '@/lib/estoque/cron';
+import { comCronRun } from '@/lib/cron/observar';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -19,8 +20,8 @@ export async function GET(req: NextRequest) {
   }
   const meses = Math.min(12, Math.max(1, parseInt(req.nextUrl.searchParams.get('meses') || '3') || 3));
 
-  cronSyncCompras(meses)
-    .then((r) => console.log('[cron sync-compras] concluído', JSON.stringify(r)))
+  comCronRun('estoque-sync-compras', () => cronSyncCompras(meses), { lockMinutos: 30 })
+    .then((r) => console.log('[cron sync-compras]', r.pulado ? 'pulado (já rodando)' : r.erro ? 'erro: ' + r.erro : 'concluído', JSON.stringify(r.resultado ?? {})))
     .catch((e) => console.error('[cron sync-compras] erro', (e as Error).message));
 
   return NextResponse.json({ sucesso: true, iniciado: true, meses, timestamp: new Date().toISOString() });

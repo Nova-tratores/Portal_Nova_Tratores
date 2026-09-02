@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sincronizarIncremental } from '@/lib/estoque/movimentos-sync';
+import { comCronRun } from '@/lib/cron/observar';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 800;
@@ -24,18 +25,24 @@ async function handle(req: NextRequest) {
   const contas = ['NOVA', 'CASTRO'] as const;
   const opts = { grupo, janelaDias, maxMs: maxMin * 60 * 1000 };
 
+  // Job por conta, resiliente (uma conta falhando não derruba a outra).
+  const job = async () => {
+    const rs: Array<Record<string, unknown>> = [];
+    for (const c of contas) {
+      try { const r = await sincronizarIncremental(c, opts); console.log(`[mov-cron] ${c}: ${JSON.stringify(r)}`); rs.push({ ...r, conta: c }); }
+      catch (e) { console.error(`[mov-cron] ${c} falhou: ${(e as Error).message}`); rs.push({ conta: c, erro: (e as Error).message }); }
+    }
+    return rs;
+  };
+
   if (wait) {
-    const resultados = [];
-    for (const c of contas) resultados.push(await sincronizarIncremental(c, opts));
-    return NextResponse.json({ sucesso: true, resultados, timestamp: new Date().toISOString() });
+    const r = await comCronRun('estoque-sync-movimentos', job, { lockMinutos: 30 });
+    return NextResponse.json({ sucesso: !r.erro, pulado: r.pulado, resultados: r.resultado, timestamp: new Date().toISOString() });
   }
   // fire-and-forget: dispara e responde na hora.
-  (async () => {
-    for (const c of contas) {
-      try { const r = await sincronizarIncremental(c, opts); console.log(`[mov-cron] ${c}: ${JSON.stringify(r)}`); }
-      catch (e) { console.error(`[mov-cron] ${c} falhou: ${(e as Error).message}`); }
-    }
-  })();
+  comCronRun('estoque-sync-movimentos', job, { lockMinutos: 30 })
+    .then((r) => { if (r.pulado) console.log('[mov-cron] pulado (já rodando)'); })
+    .catch((e) => console.error('[mov-cron]', (e as Error).message));
   return NextResponse.json({ sucesso: true, disparado: true, contas, grupo, janelaDias, timestamp: new Date().toISOString() });
 }
 

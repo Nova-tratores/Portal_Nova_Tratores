@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sincronizarRecebimentosTodasContas } from '@/lib/estoque/recebimentos';
+import { comCronRun } from '@/lib/cron/observar';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -20,8 +21,8 @@ export async function GET(req: NextRequest) {
   if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  sincronizarRecebimentosTodasContas().catch((e) =>
-    console.error('[cron sync-recebimentos bg]', (e as Error).message),
-  );
+  comCronRun('estoque-sync-recebimentos', () => sincronizarRecebimentosTodasContas(), { lockMinutos: 20 })
+    .then((r) => { if (r.pulado) console.log('[cron sync-recebimentos] pulado (já rodando)'); else if (r.erro) console.error('[cron sync-recebimentos bg]', r.erro); })
+    .catch((e) => console.error('[cron sync-recebimentos bg]', (e as Error).message));
   return NextResponse.json({ ok: true, background: true, timestamp: new Date().toISOString() }, { status: 202 });
 }
