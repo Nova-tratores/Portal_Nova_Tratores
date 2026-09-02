@@ -1,9 +1,11 @@
 // Cria uma conta a pagar (rascunho em finan_pagar) a partir de uma requisição
 // na etapa do financeiro — o botão do card chama isto. O rascunho nasce com
 // tudo que a requisição sabe (fornecedor, valor, NF, anexos, PDF da própria
-// req, vendedor/projeto resolvidos no Omie); o checklist do painel cobra o
-// resto (categoria, conta corrente) na revisão. Vencimento nasce como HOJE
-// (a coluna é NOT NULL) — o revisor ajusta no painel.
+// req, vendedor/projeto resolvidos no Omie). Categoria/conta corrente/tipo
+// de documento/departamento vêm SUGERIDOS pela rota /omie/sugerir (histórico
+// do fornecedor; sem histórico, o Tratorilson escolhe a categoria) — o
+// revisor confirma no painel. Vencimento nasce como HOJE (a coluna é NOT
+// NULL) — o revisor ajusta no painel.
 //
 // A tela "Novo Registro Financeiro" (novo-pagar-receber) usa as mesmas peças
 // daqui (PDF + resolução de anexo) — mudou lá, mudou aqui.
@@ -12,6 +14,7 @@
 // parseValorBR é obrigatório (parse ingênuo com replace(',','.') já causou
 // bugs reais de 100x neste projeto).
 import { supabase } from '@/lib/supabase';
+import { authHeaders } from '@/lib/auth/client';
 import { parseValorBR } from '@/lib/requisicoes/autorizacao';
 import { requisicaoIdsDe } from '@/lib/financeiro/rastreio/agrupar';
 
@@ -211,14 +214,21 @@ export async function criarContaDaRequisicao(params: {
   const reqComNF = grupo.find((r) => r.foto_nf);
   const anexoNF = reqComNF ? resolverUrlAnexoRequisicao(reqComNF.foto_nf) : null;
 
-  // Vendedor (do solicitante) e projeto (da OS/placa/chassi) no Omie —
-  // falha aqui não impede a conta (o painel deixa escolher na mão)
+  // Vendedor (do solicitante) e projeto (da OS/placa/chassi) + classificação
+  // (categoria/conta/tipo doc/departamento — histórico do fornecedor, senão o
+  // Tratorilson escolhe a categoria). Em paralelo; falha em qualquer um não
+  // impede a conta (o painel deixa escolher na mão).
   let codigoVendedor: number | null = null;
   let codigoProjeto: number | null = null;
-  try {
-    const res = await fetch('/api/financeiro/contas-pagar/omie/resolver-req', {
+  let codigoCategoria: string | null = null;
+  let idContaCorrente: number | null = null;
+  let codigoTipoDocumento: string | null = null;
+  let codigoDepartamento: string | null = null;
+  const cabecalhos = { 'Content-Type': 'application/json', ...(await authHeaders()) };
+  const [resolvido, sugerido] = await Promise.allSettled([
+    fetch('/api/financeiro/contas-pagar/omie/resolver-req', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: cabecalhos,
       body: JSON.stringify({
         empresa: 'Nova Tratores',
         solicitante: base.solicitante,
@@ -226,13 +236,32 @@ export async function criarContaDaRequisicao(params: {
         veiculoId: base.veiculo,
         chassisModelo: base.Chassis_Modelo,
       }),
-    });
-    const d = await res.json();
-    if (d?.ok) {
-      if (d.codigoVendedor) codigoVendedor = Number(d.codigoVendedor);
-      if (d.codigoProjeto) codigoProjeto = Number(d.codigoProjeto);
-    }
-  } catch { /* ignorado de propósito */ }
+    }).then((r) => r.json()),
+    fetch('/api/financeiro/contas-pagar/omie/sugerir', {
+      method: 'POST',
+      headers: cabecalhos,
+      body: JSON.stringify({
+        empresa: 'Nova Tratores',
+        fornecedor: base.fornecedor,
+        tipoReq: base.tipo,
+        titulo: base.titulo,
+        obs: base.obs,
+        setor: base.setor,
+      }),
+    }).then((r) => r.json()),
+  ]);
+  if (resolvido.status === 'fulfilled' && resolvido.value?.ok) {
+    const d = resolvido.value;
+    if (d.codigoVendedor) codigoVendedor = Number(d.codigoVendedor);
+    if (d.codigoProjeto) codigoProjeto = Number(d.codigoProjeto);
+  }
+  if (sugerido.status === 'fulfilled' && sugerido.value?.ok) {
+    const d = sugerido.value;
+    if (d.codigoCategoria) codigoCategoria = String(d.codigoCategoria);
+    if (d.idContaCorrente) idContaCorrente = Number(d.idContaCorrente);
+    if (d.codigoTipoDocumento) codigoTipoDocumento = String(d.codigoTipoDocumento);
+    if (d.codigoDepartamento) codigoDepartamento = String(d.codigoDepartamento);
+  }
 
   // Vencimento a requisição não sabe, mas a coluna é NOT NULL — entra HOJE
   // como chamariz: o painel mostra a data grande em vermelho e o revisor
@@ -260,12 +289,12 @@ export async function criarContaDaRequisicao(params: {
     // Rascunho sempre — o envio ao Omie acontece pelo painel após validação
     status_envio: 'rascunho',
     omie_empresa: 'Nova Tratores',
-    omie_categoria: null,
-    omie_conta_corrente: null,
+    omie_categoria: codigoCategoria,
+    omie_conta_corrente: idContaCorrente,
     omie_projeto: codigoProjeto,
     omie_vendedor: codigoVendedor,
-    omie_tipo_documento: null,
-    omie_departamento: null,
+    omie_tipo_documento: codigoTipoDocumento,
+    omie_departamento: codigoDepartamento,
   };
 
   let { data: inserido, error } = await supabase.from('finan_pagar').insert([registro]).select('id').single();
