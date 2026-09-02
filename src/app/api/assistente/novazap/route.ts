@@ -183,6 +183,15 @@ export async function POST(req: NextRequest) {
     }))
     .filter((m) => m.content);
   if (!chat.length || chat[chat.length - 1].role !== "user") {
+    // registra o caso "vazio" pra nunca haver silêncio inexplicável
+    await logTratorilson({
+      userName: String(body?.contato?.nome || "cliente WhatsApp"),
+      tipo: "novazap:vazio",
+      pergunta: JSON.stringify(entrada.slice(-4)),
+      resposta: "(última mensagem não é do cliente — nada a responder)",
+      modelo: getIA().model,
+      tokens: 0,
+    });
     return NextResponse.json({ resposta: "" });
   }
 
