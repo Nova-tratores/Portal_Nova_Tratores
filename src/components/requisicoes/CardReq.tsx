@@ -594,10 +594,31 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   {nomeExibicao && <span className="text-[11px] md:text-xs text-black truncate hidden sm:inline">· {nomeExibicao}</span>}
                 </div>
               </div>
+              {localData.status === 'financeiro' && podeCriarConta && (
+                contaFin ? (
+                  <a href={`/financeiro/home-financeiro?id=${contaFin.id}`} target="_blank" rel="noreferrer"
+                    title={`Conta a pagar #${contaFin.id}${contaFin.omie_cod_lancamento ? ' (já no Omie)' : ' (rascunho)'} — abrir no painel do financeiro`}
+                    className="h-10 w-10 md:w-auto md:px-4 flex items-center justify-center gap-2 rounded-lg bg-emerald-50 border border-emerald-300 text-emerald-700 text-sm font-semibold hover:bg-emerald-100 transition-all shrink-0">
+                    <CheckCheck size={16}/> <span className="hidden md:inline">Conta #{contaFin.id}</span>
+                  </a>
+                ) : (
+                  <button type="button" onClick={enviarContaPagar} disabled={criandoConta}
+                    title="Cria a conta a pagar em rascunho no painel do financeiro, já com fornecedor, valor, NF e anexos desta requisição"
+                    className="h-10 w-10 md:w-auto md:px-4 flex items-center justify-center gap-2 rounded-lg bg-emerald-600 border border-emerald-600 text-white text-sm font-semibold hover:bg-emerald-500 disabled:opacity-60 transition-all shrink-0">
+                    <Send size={16}/> <span className="hidden md:inline">{criandoConta ? 'Criando…' : 'Conta a pagar'}</span>
+                  </button>
+                )
+              )}
               <button onClick={() => setHistAberto(true)} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-black hover:bg-zinc-800 hover:text-white hover:border-zinc-800 transition-all shrink-0" title="Histórico"><Clock size={16}/></button>
               <button onClick={handlePrint} className="h-10 w-10 md:w-auto md:px-4 flex items-center justify-center gap-2 rounded-lg bg-orange-600 border border-orange-600 text-white text-sm hover:bg-orange-500 transition-all shrink-0" title="Imprimir a requisição"><Printer size={16}/> <span className="hidden md:inline">Imprimir</span></button>
               <button onClick={fecharModal} className="w-10 h-10 flex items-center justify-center rounded-lg bg-white border border-zinc-200 text-black hover:bg-orange-500 hover:text-white hover:border-orange-500 transition-all shrink-0"><X size={18}/></button>
             </div>
+
+            {erroConta && (
+              <div className="px-4 md:px-8 py-2 bg-red-50 border-b border-red-200 text-red-700 text-xs font-semibold shrink-0">
+                Conta a pagar: {erroConta}
+              </div>
+            )}
 
             {/* MODAL — Pedir permissão ao Dev */}
             {pedirOpen && (
@@ -1153,28 +1174,6 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   </div>
                 )}
 
-                {/* Conta a pagar: cria o rascunho em finan_pagar pronto pra revisar
-                    no painel do financeiro e enviar ao Omie */}
-                {localData.status === 'financeiro' && podeCriarConta && (
-                  <div className="mt-2">
-                    {contaFin ? (
-                      <a href={`/financeiro/home-financeiro?id=${contaFin.id}`} target="_blank" rel="noreferrer"
-                        className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 hover:bg-emerald-100 transition-all">
-                        <CheckCheck size={14} className="text-emerald-600 shrink-0" />
-                        <span>Conta a pagar <strong>#{contaFin.id}</strong>{contaFin.omie_cod_lancamento ? ' já no Omie' : contaFin.status_envio === 'rascunho' ? ' em rascunho' : ''} — abrir no painel</span>
-                        <ExternalLink size={13} className="ml-auto shrink-0" />
-                      </a>
-                    ) : (
-                      <button type="button" onClick={enviarContaPagar} disabled={criandoConta}
-                        title="Cria a conta a pagar em rascunho no painel do financeiro, já com fornecedor, valor, NF e anexos desta requisição"
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold transition-all">
-                        <Send size={14} />
-                        {criandoConta ? 'Criando o rascunho…' : 'Enviar conta a pagar pro financeiro'}
-                      </button>
-                    )}
-                    {erroConta && <p className="mt-1 text-xs text-red-600">{erroConta}</p>}
-                  </div>
-                )}
               </div>
 
               {/* ── DIVISOR ── */}
