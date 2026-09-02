@@ -9,7 +9,7 @@ export const maxDuration = 60;
 // (quantidade 12m / faturamento 12m / demanda dessazonalizada), cada produto com
 // o alerta (semáforo). Marca os SKUs que aparecem nas TRÊS listas.
 const TOP = 49;
-const CAMPOS = 'sku, descricao, tipo, curva, alerta, estoque_atual, minimo_efetivo, qtd_12m, faturamento_12m, cmd';
+const CAMPOS = 'sku, descricao, tipo, curva, alerta, estoque_atual, em_transito, minimo_efetivo, prev_30, qtd_sugerida, valor_estimado, qtd_12m, faturamento_12m, cmd, codigo_produto_nova, codigo_produto_castro';
 
 export async function GET(req: NextRequest) {
   try {

@@ -24,6 +24,7 @@ interface Forn { nome: string; n_itens: number }
 
 const n = (v: unknown): number => { const x = Number(v); return Number.isFinite(x) ? x : 0; };
 const brl = (v: number): string => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const empresaDe = (i: Item): string => { const nv = i.codigo_produto_nova != null, ca = i.codigo_produto_castro != null; return nv && ca ? 'Ambas' : nv ? 'NOVA' : ca ? 'CASTRO' : '—'; };
 const tabBtn = (on: boolean): React.CSSProperties => ({ padding: '8px 16px', border: 'none', borderBottom: on ? '2px solid #0f766e' : '2px solid transparent', background: 'none', color: on ? '#0f766e' : '#888', fontWeight: 600, fontSize: '.85rem', cursor: 'pointer' });
 
 const ALERTA: Record<string, { cor: string; bg: string; txt: string }> = {
@@ -64,6 +65,15 @@ export default function SugestaoCompraPage() {
   const [contaPedido, setContaPedido] = useState<'nova' | 'castro'>('nova');
   const [gerando, setGerando] = useState(false);
   const [msg, setMsg] = useState<{ texto: string; tipo: 'ok' | 'err' } | null>(null);
+  const [abertos, setAbertos] = useState<Array<{ id: number; fornecedor: string; n_itens: number }>>([]);
+  const [destino, setDestino] = useState<'novo' | string>('novo');
+
+  const carregarAbertos = useCallback(async (resetDestino = true) => {
+    const r = await fetch(`/api/estoque/pedido-compra?conta=${contaPedido}`, { headers: await authHeaders() });
+    const d = await r.json();
+    setAbertos(d.pedidos || []); if (resetDestino) setDestino('novo');
+  }, [contaPedido]);
+  useEffect(() => { carregarAbertos(); }, [carregarAbertos]);
 
   useEffect(() => {
     (async () => {
@@ -91,16 +101,27 @@ export default function SugestaoCompraPage() {
     setGerando(true);
     try {
       const fornecedorNome = fornSel !== '*' && fornSel !== 'Não definido' ? fornSel : null;
-      const r = await fetch('/api/estoque/pedido-compra', {
-        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ conta: contaPedido, fornecedor_nome: fornecedorNome, snapshot_id: snapshotId, itens: linhas }),
-      });
-      const d = await r.json();
-      if (d.erro) { setMsg({ texto: d.erro, tipo: 'err' }); return; }
-      setMsg({ texto: `Pedido #${d.id} criado (${d.itens} itens${foraDaConta ? `, ${foraDaConta} ignorados por não existir na conta` : ''}).`, tipo: 'ok' });
-      setSel(new Set()); setView('pedidos');
+      const foraMsg = foraDaConta ? `, ${foraDaConta} ignorados por não existir na conta` : '';
+      if (destino === 'novo') {
+        const r = await fetch('/api/estoque/pedido-compra', {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({ conta: contaPedido, fornecedor_nome: fornecedorNome, snapshot_id: snapshotId, itens: linhas }),
+        });
+        const d = await r.json();
+        if (d.erro) { setMsg({ texto: d.erro, tipo: 'err' }); return; }
+        setMsg({ texto: `Pedido #${d.id} criado (${d.itens} itens${foraMsg}).`, tipo: 'ok' });
+      } else {
+        const r = await fetch(`/api/estoque/pedido-compra/${destino}/itens`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({ itens: linhas }),
+        });
+        const d = await r.json();
+        if (d.erro) { setMsg({ texto: d.erro, tipo: 'err' }); return; }
+        setMsg({ texto: `Adicionados ao pedido #${destino}: ${d.adicionados} novos, ${d.mesclados} mesclados${foraMsg}.`, tipo: 'ok' });
+      }
+      setSel(new Set()); carregarAbertos(false); setView('pedidos');
     } finally { setGerando(false); }
-  }, [itens, sel, contaPedido, fornSel, snapshotId]);
+  }, [itens, sel, contaPedido, fornSel, snapshotId, destino, carregarAbertos]);
 
   // recorte por fornecedor (por NOME)
   const porForn = useMemo(() => {
@@ -136,6 +157,7 @@ export default function SugestaoCompraPage() {
     { chave: 'sku', titulo: 'SKU', valor: (i) => i.sku, render: (i) => <span style={{ fontFamily: 'monospace', fontSize: '.72rem' }}>{i.sku}</span> },
     { chave: 'descricao', titulo: 'Descrição', valor: (i) => i.descricao ?? '', render: (i) => <span title={i.descricao}>{(i.descricao || '').slice(0, 42)}</span> },
     { chave: 'tipo', titulo: 'Tipo', tipoFiltro: 'categorico', valor: (i) => i.tipo ?? '', render: (i) => i.tipo || '—' },
+    { chave: 'empresa', titulo: 'Empresa', tipoFiltro: 'categorico', valor: (i) => empresaDe(i), render: (i) => <span style={{ fontSize: '.68rem', fontWeight: 600, color: empresaDe(i) === 'Ambas' ? '#0f766e' : '#555' }}>{empresaDe(i)}</span> },
     { chave: 'curva', titulo: 'Curva', tipoFiltro: 'categorico', valor: (i) => i.curva ?? '', render: (i) => <b>{i.curva}</b> },
     { chave: 'regime', titulo: 'Regime', tipoFiltro: 'categorico', valor: (i) => i.regime ?? '', render: (i) => <span style={{ fontSize: '.68rem', color: '#888' }}>{i.regime}</span> },
     { chave: 'estoque', titulo: 'Estoque', direita: true, tipoFiltro: 'numero', valor: (i) => n(i.estoque_atual), render: (i) => <span title={`nova ${n(i.estoque_nova)} · castro ${n(i.estoque_castro)}`}>{n(i.estoque_atual)}</span> },
@@ -203,13 +225,17 @@ export default function SugestaoCompraPage() {
       {totalSel.itens > 0 && (
         <div style={{ position: 'sticky', bottom: 0, marginTop: 12, background: '#0f766e', color: '#fff', borderRadius: 10, padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
           <span style={{ fontSize: '.85rem', fontWeight: 600 }}>{totalSel.itens} itens · {totalSel.qtd} un · {brl(totalSel.valor)}</span>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-            <span style={{ fontSize: '.75rem', opacity: .9 }}>Comprar pela conta</span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '.75rem', opacity: .9 }}>Conta</span>
             <select value={contaPedido} onChange={(e) => setContaPedido(e.target.value as 'nova' | 'castro')} style={{ padding: '5px 8px', borderRadius: 6, border: 'none', fontSize: 13 }}>
               <option value="nova">NOVA</option>
               <option value="castro">CASTRO</option>
             </select>
-            <button onClick={gerarPedido} disabled={gerando} style={{ padding: '8px 16px', background: '#fff', color: '#0f766e', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '.82rem', cursor: gerando ? 'wait' : 'pointer' }}>{gerando ? 'Gerando…' : 'Gerar pedido'}</button>
+            <select value={destino} onChange={(e) => setDestino(e.target.value)} style={{ padding: '5px 8px', borderRadius: 6, border: 'none', fontSize: 13 }}>
+              <option value="novo">Novo pedido</option>
+              {abertos.map((p) => <option key={p.id} value={String(p.id)}>Pedido #{p.id} — {p.fornecedor} ({p.n_itens})</option>)}
+            </select>
+            <button onClick={gerarPedido} disabled={gerando} style={{ padding: '8px 16px', background: '#fff', color: '#0f766e', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '.82rem', cursor: gerando ? 'wait' : 'pointer' }}>{gerando ? 'Enviando…' : destino === 'novo' ? 'Gerar pedido' : 'Adicionar ao pedido'}</button>
           </div>
         </div>
       )}

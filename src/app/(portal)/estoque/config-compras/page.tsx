@@ -67,7 +67,7 @@ export default function ConfigComprasPage() {
 
       {aba === 'fornecedores' && <AbaFornecedores conta={conta} podeEditar={podeEditar} setMsg={setMsg} />}
       {aba === 'itens' && <AbaItens conta={conta} podeEditar={podeEditar} setMsg={setMsg} />}
-      {aba === 'mais-vendidos' && <AbaMaisVendidos />}
+      {aba === 'mais-vendidos' && <AbaMaisVendidos conta={conta} setMsg={setMsg} />}
     </div>
   );
 }
@@ -253,14 +253,18 @@ const ALERTA_COR: Record<string, { bg: string; label: string }> = {
   ja_era: { bg: '#dc2626', label: 'Já era' }, critico: { bg: '#ea580c', label: 'Crítico' },
   atencao: { bg: '#eab308', label: 'Atenção' }, ok: { bg: '#16a34a', label: 'OK' }, nao_comprar: { bg: '#94a3b8', label: 'Não comprar' },
 };
-interface ProdMV { sku: string; descricao?: string; tipo?: string; curva?: string; alerta?: string; estoque_atual?: number; minimo_efetivo?: number; qtd_12m?: number; faturamento_12m?: number; cmd?: number }
+interface ProdMV { sku: string; descricao?: string; tipo?: string; curva?: string; alerta?: string; estoque_atual?: number; em_transito?: number; minimo_efetivo?: number; prev_30?: number; qtd_sugerida?: number; valor_estimado?: number; qtd_12m?: number; faturamento_12m?: number; cmd?: number; codigo_produto_nova?: number | null; codigo_produto_castro?: number | null }
 type Metrica = 'quantidade' | 'faturamento' | 'demanda';
 
-function AbaMaisVendidos() {
+function AbaMaisVendidos({ conta, setMsg }: { conta: string; setMsg: (m: { texto: string; tipo: 'ok' | 'err' }) => void }) {
   const [dados, setDados] = useState<{ quantidade: ProdMV[]; faturamento: ProdMV[]; demanda: ProdMV[]; intersecao: string[]; snapshot?: { gerado_em: string } } | null>(null);
   const [metrica, setMetrica] = useState<Metrica>('quantidade');
   const [carregando, setCarregando] = useState(true);
   const [detalhe, setDetalhe] = useState<ProdMV | null>(null);
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [gerando, setGerando] = useState(false);
+  const [abertos, setAbertos] = useState<Array<{ id: number; fornecedor: string; n_itens: number }>>([]);
+  const [destino, setDestino] = useState<'novo' | string>('novo');
 
   useEffect(() => {
     (async () => {
@@ -271,9 +275,44 @@ function AbaMaisVendidos() {
       } finally { setCarregando(false); }
     })();
   }, []);
+  // pedidos abertos da conta compradora (para "adicionar a um aberto")
+  const carregarAbertos = useCallback(async (resetDestino = true) => {
+    if (!conta) return;
+    const r = await fetch(`/api/estoque/pedido-compra?conta=${conta}`, { headers: await authHeaders() });
+    const d = await r.json();
+    setAbertos(d.pedidos || []); if (resetDestino) setDestino('novo');
+  }, [conta]);
+  useEffect(() => { carregarAbertos(); }, [carregarAbertos]);
 
   const lista = dados ? dados[metrica] : [];
   const inter = new Set(dados?.intersecao ?? []);
+  // mapa sku→produto (mescla as 3 listas) para exportar mesmo trocando a métrica
+  const porSku = new Map<string, ProdMV>();
+  for (const l of [dados?.quantidade ?? [], dados?.faturamento ?? [], dados?.demanda ?? []]) for (const p of l) if (!porSku.has(p.sku)) porSku.set(p.sku, p);
+  const toggleSel = (sku: string) => setSel((s) => { const x = new Set(s); x.has(sku) ? x.delete(sku) : x.add(sku); return x; });
+
+  const gerarPedido = async () => {
+    const linhas = [...sel].map((sku) => {
+      const p = porSku.get(sku); if (!p) return null;
+      const cp = conta === 'castro' ? p.codigo_produto_castro : p.codigo_produto_nova;
+      const q = n2(p.qtd_sugerida) > 0 ? n2(p.qtd_sugerida) : Math.max(1, Math.ceil(n2(p.prev_30)));
+      const precoUnit = n2(p.qtd_sugerida) > 0 && n2(p.valor_estimado) > 0 ? n2(p.valor_estimado) / n2(p.qtd_sugerida) : 0;
+      return cp != null ? { codigo_produto: cp, qtd_sugerida: n2(p.qtd_sugerida), qtd_pedida: q, preco_estimado: precoUnit } : null;
+    }).filter((x): x is NonNullable<typeof x> => !!x);
+    const fora = sel.size - linhas.length;
+    if (linhas.length === 0) { setMsg({ texto: `Nenhum item selecionado existe na conta ${conta.toUpperCase()}.`, tipo: 'err' }); return; }
+    setGerando(true);
+    try {
+      const url = destino === 'novo' ? '/api/estoque/pedido-compra' : `/api/estoque/pedido-compra/${destino}/itens`;
+      const body = destino === 'novo' ? { conta, itens: linhas } : { itens: linhas };
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(body) });
+      const d = await r.json();
+      if (d.erro) { setMsg({ texto: d.erro, tipo: 'err' }); return; }
+      const foraMsg = fora ? `, ${fora} ignorados por não existir na conta` : '';
+      setMsg({ texto: destino === 'novo' ? `Pedido #${d.id} criado (${d.itens} itens${foraMsg}). Veja em Sugestão de Compra → Pedidos abertos.` : `Adicionados ao pedido #${destino}: ${d.adicionados} novos, ${d.mesclados} mesclados${foraMsg}.`, tipo: 'ok' });
+      setSel(new Set()); carregarAbertos(false);
+    } finally { setGerando(false); }
+  };
   const valorMetrica = (p: ProdMV) => metrica === 'quantidade' ? `${Math.round(n2(p.qtd_12m))} un` : metrica === 'faturamento' ? brl2(n2(p.faturamento_12m)) : `${n2(p.cmd).toFixed(2)}/d`;
   const tog = (m: Metrica, txt: string) => (
     <button onClick={() => setMetrica(m)} style={{ padding: '7px 14px', borderRadius: 8, border: metrica === m ? '1px solid #0f766e' : '1px solid #e2e2e2', background: metrica === m ? '#0f766e' : '#fff', color: metrica === m ? '#fff' : '#555', fontWeight: 600, fontSize: '.8rem', cursor: 'pointer' }}>{txt}</button>
@@ -293,18 +332,36 @@ function AbaMaisVendidos() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
         {lista.map((p) => {
           const a = ALERTA_COR[p.alerta || 'nao_comprar'] || ALERTA_COR.nao_comprar;
+          const on = sel.has(p.sku);
           return (
-            <button key={p.sku} onClick={() => setDetalhe(p)} title={`${p.sku} — ${p.descricao || ''}\n${a.label} · estoque ${n2(p.estoque_atual)} / mínimo ${Math.round(n2(p.minimo_efetivo))}`}
-              style={{ position: 'relative', aspectRatio: '1', border: `2px solid ${a.bg}`, borderRadius: 10, background: '#fff', padding: 6, cursor: 'pointer', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'left', overflow: 'hidden' }}>
+            <div key={p.sku} title={`${p.sku} — ${p.descricao || ''}\n${a.label}`}
+              style={{ position: 'relative', aspectRatio: '1', border: `2px solid ${on ? '#0f766e' : a.bg}`, borderRadius: 10, background: on ? '#f0fdfa' : '#fff', padding: 6, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', textAlign: 'left', overflow: 'hidden', boxShadow: on ? '0 0 0 2px #0f766e55' : 'none' }}>
               <span style={{ position: 'absolute', top: 4, right: 5, width: 12, height: 12, borderRadius: '50%', background: a.bg }} />
-              {inter.has(p.sku) && <span style={{ position: 'absolute', top: 2, left: 4, color: '#f59e0b', fontSize: 14 }}>★</span>}
-              <span style={{ fontSize: '.62rem', fontFamily: 'monospace', color: '#333', marginTop: 10, wordBreak: 'break-all', lineHeight: 1.1 }}>{p.sku}</span>
-              <span style={{ fontSize: '.58rem', color: '#888', lineHeight: 1.05 }}>{(p.descricao || '').slice(0, 26)}</span>
-              <span style={{ fontSize: '.66rem', fontWeight: 700, color: a.bg }}>{valorMetrica(p)}</span>
-            </button>
+              <input type="checkbox" checked={on} onChange={() => toggleSel(p.sku)} title="selecionar para pedido" style={{ position: 'absolute', top: 4, left: 4, cursor: 'pointer' }} />
+              <button onClick={() => setDetalhe(p)} style={{ all: 'unset', cursor: 'pointer', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', paddingTop: 16 }}>
+                <span style={{ fontSize: '.62rem', fontFamily: 'monospace', color: '#333', wordBreak: 'break-all', lineHeight: 1.1 }}>{inter.has(p.sku) && <span style={{ color: '#f59e0b' }}>★ </span>}{p.sku}</span>
+                <span style={{ fontSize: '.56rem', color: '#888', lineHeight: 1.05 }}>{(p.descricao || '').slice(0, 24)}</span>
+                <span style={{ fontSize: '.55rem', color: '#666' }}>prev30 <b>{Math.round(n2(p.prev_30))}</b> · est <b>{Math.round(n2(p.estoque_atual))}</b></span>
+                <span style={{ fontSize: '.66rem', fontWeight: 700, color: a.bg }}>{valorMetrica(p)}</span>
+              </button>
+            </div>
           );
         })}
       </div>
+
+      {sel.size > 0 && (
+        <div style={{ position: 'sticky', bottom: 0, marginTop: 14, background: '#0f766e', color: '#fff', borderRadius: 10, padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: '.85rem', fontWeight: 600 }}>{sel.size} selecionados · comprar pela conta <b>{conta.toUpperCase()}</b></span>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <select value={destino} onChange={(e) => setDestino(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, border: 'none', fontSize: 13 }}>
+              <option value="novo">Novo pedido</option>
+              {abertos.map((p) => <option key={p.id} value={String(p.id)}>Pedido #{p.id} — {p.fornecedor} ({p.n_itens})</option>)}
+            </select>
+            <button onClick={gerarPedido} disabled={gerando} style={{ padding: '8px 16px', background: '#fff', color: '#0f766e', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '.82rem', cursor: gerando ? 'wait' : 'pointer' }}>{gerando ? 'Enviando…' : destino === 'novo' ? 'Gerar pedido' : 'Adicionar ao pedido'}</button>
+          </div>
+        </div>
+      )}
+
       {detalhe && (
         <div onClick={() => setDetalhe(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(420px,94vw)' }}>
