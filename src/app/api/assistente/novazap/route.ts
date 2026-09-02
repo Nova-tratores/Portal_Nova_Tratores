@@ -76,13 +76,48 @@ async function buscarTrator(finalChassi: string) {
   return { encontrado: true, total: comRevisoes.length, tratores: comRevisoes };
 }
 
+// REGRAS DE MÃO DE OBRA das revisões (passadas pelo José, 02/09/2026):
+//  - 50h: cortesia da fábrica (não cobra mão de obra)
+//  - 300h/600h: 2h · 900h: cortesia da fábrica (não cobra)
+//  - 1200h: 6h — inclui regulagem de válvulas, trator fica no mínimo 1 noite
+//  - acima de 1200h o ciclo REPETE de 300 em 300 usando os kits de 300..1200
+//    (1500=300, 1800=600, 2100=900 — SEM cortesia —, 2400=1200, 2700=300...)
+//  - 3000h fecha o ciclo obrigatório; depois continua a conta (3300=300...)
+const CICLO_REVISAO = [300, 600, 900, 1200];
+
+function regraRevisao(hPedidas: number) {
+  // horímetro solto (ex.: 4000) → revisão múltipla de 300 mais próxima
+  let h = hPedidas === 50 ? 50 : Math.round(hPedidas / 300) * 300;
+  if (h < 50) h = 50;
+  const arredondada = h !== hPedidas;
+
+  if (h === 50) {
+    return {
+      revisao: 50, kitDe: 50, maoObraHoras: 0, cortesia: true, arredondada,
+      obs: ["A revisão de 50h é cortesia da fábrica — a mão de obra não é cobrada."],
+    };
+  }
+  const n = h / 300;
+  const kitDe = CICLO_REVISAO[(n - 1) % 4];
+  const cortesia = h === 900; // só a 900 "original" (a 2100 usa o kit da 900 mas cobra)
+  const maoObraHoras = cortesia ? 0 : kitDe === 1200 ? 6 : 2;
+  const obs: string[] = [];
+  if (cortesia) obs.push("A revisão de 900h é cortesia da fábrica — a mão de obra não é cobrada.");
+  if (kitDe === 1200) obs.push("Esta revisão inclui a regulagem de válvulas — o trator precisa ficar na oficina no mínimo 1 noite.");
+  if (h !== kitDe) obs.push(`A revisão de ${h}h usa o mesmo kit de peças da revisão de ${kitDe}h.`);
+  return { revisao: h, kitDe, maoObraHoras, cortesia, arredondada, obs };
+}
+
 async function orcamentoRevisao(modelo: string, horas: string) {
+  const hPedidas = Number((String(horas || "").match(/\d+/) || ["0"])[0]);
+  if (!hPedidas) return { encontrado: false, mensagem: "Preciso das horas da revisão (ou do horímetro) em número." };
+  const regra = regraRevisao(hPedidas);
+
   // kits inteiros (com Cod_Prod_1..30/Qtd1..30) — sem pulo HTTP interno
   const rows: any[] = await rest(`revisoes?select=*`);
   const digitsOf = (s: any): string[] => (String(s || "").toUpperCase().match(/\d{3,}/g) || []);
   const userDig = digitsOf(modelo);
-  const hNum = (String(horas || "").match(/\d+/) || [""])[0];
-  const userHoras = hNum ? `${hNum}H` : "";
+  const userHoras = `${regra.kitDe}H`;
   const row = rows.find((r) => {
     const h = String(r.Horas || "").toUpperCase().replace(/\s/g, "");
     const tDig = digitsOf(r.Trator).concat(digitsOf(r.Cod_Trator));
@@ -90,7 +125,7 @@ async function orcamentoRevisao(modelo: string, horas: string) {
   });
   if (!row) {
     const combos = [...new Set(rows.filter((r) => (r.tipo || "revisao") === "revisao").map((r) => `${r.Trator} (${r.Horas})`))];
-    return { encontrado: false, mensagem: `Não achei kit de revisão pra "${modelo}" / ${horas}.`, kits_disponiveis: combos.slice(0, 30) };
+    return { encontrado: false, mensagem: `Não achei kit de revisão pra "${modelo}" / ${regra.kitDe}h.`, kits_disponiveis: combos.slice(0, 30) };
   }
 
   // junta os códigos/quantidades do kit
@@ -116,21 +151,29 @@ async function orcamentoRevisao(modelo: string, horas: string) {
 
   const cfg: any[] = await rest(`configuracoes_pos?select=valor_hora&id=eq.1`);
   const valorHora = Number(cfg?.[0]?.valor_hora) || 193;
+  const valorMaoObra = regra.maoObraHoras * valorHora;
 
   // escopo da revisão (o que é feito) — tabela de planos prontos
   const planos: any[] = await rest(
-    `Revisoes_Pronta?select=DescricaoCompleta&DescricaoCompleta=ilike.*${encodeURIComponent(`de ${hNum} horas`)}*&limit=1`
+    `Revisoes_Pronta?select=DescricaoCompleta&DescricaoCompleta=ilike.*${encodeURIComponent(`de ${regra.kitDe} horas`)}*&limit=1`
   );
 
   return {
     encontrado: true,
+    revisao: `${regra.revisao}h`,
     kit: `${row.Trator} ${row.Horas}`,
     servicos_da_revisao: planos?.[0]?.DescricaoCompleta || null,
     pecas: itens.map((i) => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.quantidade, preco: i.preco })),
     total_pecas: Number(totalPecas.toFixed(2)),
-    valor_hora_mao_obra: valorHora,
-    total_geral_com_1h_mao_obra: Number((totalPecas + valorHora).toFixed(2)),
-    obs: "Valores SEM deslocamento. Mão de obra padrão considerada: 1 hora.",
+    mao_de_obra: regra.cortesia
+      ? { horas: 0, valor: 0, cortesia: true }
+      : { horas: regra.maoObraHoras, valor_hora: valorHora, valor: Number(valorMaoObra.toFixed(2)), cortesia: false },
+    total_geral_sem_deslocamento: Number((totalPecas + valorMaoObra).toFixed(2)),
+    observacoes: [
+      ...(regra.arredondada ? [`Pelo horímetro informado, a revisão correspondente é a de ${regra.revisao}h.`] : []),
+      ...regra.obs,
+      "Valores SEM deslocamento.",
+    ],
   };
 }
 
