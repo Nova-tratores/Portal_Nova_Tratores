@@ -10,6 +10,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PERSONA_CLIENTE_WHATSAPP } from "@/lib/assistente/conhecimento";
 import { chamarIA, getIA } from "@/lib/assistente/ia";
 import { logTratorilson } from "@/lib/assistente/log";
+import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
 
 export const dynamic = "force-dynamic";
 
@@ -177,6 +178,41 @@ async function orcamentoRevisao(modelo: string, horas: string) {
   };
 }
 
+// Deslocamento REAL: rota da loja (Piraju-SP) até o cliente via
+// OpenRouteService — aceita a localização do WhatsApp (Latitude/Longitude
+// em texto) ou cidade/endereço escrito. Cobra ida e volta pelo valor_km.
+async function calcularDeslocamento(localizacao: string) {
+  const texto = String(localizacao || "").replace(/[*_`]/g, "");
+  const lat = texto.match(/latitude:?\s*(-?\d+(?:\.\d+)?)/i)?.[1];
+  const lon = texto.match(/longitude:?\s*(-?\d+(?:\.\d+)?)/i)?.[1];
+  let destino = lat && lon ? { lat: Number(lat), lng: Number(lon) } : null;
+  if (!destino) {
+    const par = texto.match(/(-?\d{1,2}\.\d{3,})[,;\s]+(-?\d{1,3}\.\d{3,})/);
+    if (par) destino = { lat: Number(par[1]), lng: Number(par[2]) };
+  }
+  if (!destino) destino = await geocodificar(texto);
+  if (!destino) {
+    return { encontrado: false, mensagem: "Não consegui localizar esse endereço — peça a cidade com o estado (ex.: Taquarituba-SP) ou a localização do WhatsApp." };
+  }
+
+  const rota = await rotaDaOficina(destino.lat, destino.lng);
+  if (!rota) return { encontrado: false, mensagem: "Não consegui calcular a rota até esse ponto." };
+
+  const cfg: any[] = await rest(`configuracoes_pos?select=valor_km&id=eq.1`);
+  const valorKm = Number(cfg?.[0]?.valor_km) || 2.8;
+  const kmCobrados = Math.round(rota.distancia_km * 2 * 10) / 10; // ida e volta
+
+  return {
+    encontrado: true,
+    distancia_km: rota.distancia_km,
+    km_cobrados_ida_e_volta: kmCobrados,
+    valor_km: valorKm,
+    valor_deslocamento: Number((kmCobrados * valorKm).toFixed(2)),
+    tempo_ate_o_cliente_min: rota.tempo_min,
+    obs: "Deslocamento calculado da loja (Piraju-SP) até o cliente, ida e volta.",
+  };
+}
+
 const FERRAMENTAS = [
   {
     type: "function",
@@ -187,6 +223,18 @@ const FERRAMENTAS = [
         type: "object",
         properties: { final_chassi: { type: "string", description: "Final do chassi informado pelo cliente" } },
         required: ["final_chassi"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "calcular_deslocamento",
+      description: "Calcula o deslocamento REAL da loja até o cliente (km de rota, ida e volta, e o valor). Passe o texto exato da localização enviada (cidade/endereço, ou a mensagem de localização do WhatsApp com Latitude/Longitude). NUNCA estime km sem esta ferramenta.",
+      parameters: {
+        type: "object",
+        properties: { localizacao: { type: "string", description: "Cidade, endereço ou o texto da localização do WhatsApp" } },
+        required: ["localizacao"],
       },
     },
   },
@@ -278,6 +326,7 @@ export async function POST(req: NextRequest) {
         try {
           if (tc.function?.name === "buscar_trator") resultado = await buscarTrator(args.final_chassi);
           if (tc.function?.name === "orcamento_revisao") resultado = await orcamentoRevisao(args.modelo, args.horas);
+          if (tc.function?.name === "calcular_deslocamento") resultado = await calcularDeslocamento(args.localizacao);
         } catch (e) {
           resultado = { erro: e instanceof Error ? e.message : "falha na consulta" };
         }
