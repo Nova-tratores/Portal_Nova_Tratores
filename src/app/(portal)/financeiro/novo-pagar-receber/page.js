@@ -11,6 +11,8 @@ import { notificarAdminsClient } from '@/hooks/useNotificarAdmins'
 import { CamposOmieContaPagar } from '@/components/financeiro/OmieContaPagar'
 import UploadNFeXml from '@/components/financeiro/UploadNFeXml'
 import UploadDANFE from '@/components/financeiro/UploadDANFE'
+import { gerarPdfRequisicao, resolverUrlAnexoRequisicao } from '@/lib/financeiro/conta-da-requisicao'
+import { parseValorBR } from '@/lib/requisicoes/autorizacao'
 import {
   FileText, Calendar, User, Hash,
   CheckCircle, Upload, Paperclip, X, CreditCard, Package, ExternalLink, Search, Send
@@ -75,13 +77,9 @@ export default function NovoPagarReceber() {
 
   const router = useRouter()
 
-  // Resolver URL de anexo — caminho relativo vira URL pública do bucket requisicoes
-  const resolverUrlAnexo = (caminho) => {
-    if (!caminho) return null
-    if (caminho.startsWith('http')) return caminho
-    const { data } = supabase.storage.from('requisicoes').getPublicUrl(caminho)
-    return data.publicUrl
-  }
+  // URL de anexo e PDF da requisição vêm da lib compartilhada com o botão
+  // "Enviar conta a pagar" do card de requisição (conta-da-requisicao.ts)
+  const resolverUrlAnexo = resolverUrlAnexoRequisicao
 
   useEffect(() => {
     const init = async () => {
@@ -121,8 +119,9 @@ export default function NovoPagarReceber() {
       if (!mapa[chave]) mapa[chave] = { nota: r.numero_nota || `REQ #${r.id}`, fornecedor: r.fornecedor || '', reqs: [], temNF: false, valorTotal: 0 }
       mapa[chave].reqs.push(r)
       if (r.foto_nf) mapa[chave].temNF = true
-      const val = parseFloat((r.valor_despeza || '0').toString().replace(',', '.')) || 0
-      mapa[chave].valorTotal += val
+      // valor_despeza é texto em formato BR e US misturados — o replace(',','.')
+      // antigo só trocava a PRIMEIRA vírgula e "1.304,60" virava 1.304
+      mapa[chave].valorTotal += parseValorBR(r.valor_despeza)
     })
     return Object.values(mapa)
   })()
@@ -204,68 +203,6 @@ export default function NovoPagarReceber() {
     setBuscaNota('')
     setNfAutoUrl(null)
     setFormData(prev => ({ ...prev, numero_NF: '' }))
-  }
-
-  // Gerar PDF da requisição e fazer upload pro bucket
-  const gerarPdfRequisicao = async (r) => {
-    const { default: jsPDF } = await import('jspdf')
-    const doc = new jsPDF('portrait', 'mm', 'a4')
-    const W = 210
-    let y = 15
-
-    const line = (label, value, x = 14) => {
-      doc.setFontSize(8); doc.setTextColor(120); doc.text(label.toUpperCase(), x, y)
-      y += 4
-      doc.setFontSize(11); doc.setTextColor(30, 41, 59); doc.text(String(value || '---'), x, y)
-      y += 7
-    }
-
-    // Cabeçalho
-    doc.setFontSize(18); doc.setTextColor(30, 41, 59)
-    doc.text('REQUISICAO DE MATERIAIS E SERVICOS', 14, y); y += 8
-    doc.setDrawColor(0); doc.setLineWidth(0.5); doc.line(14, y, W - 14, y); y += 8
-
-    // ID + Categoria
-    doc.setFontSize(28); doc.setTextColor(0)
-    doc.text(`#${r.id}`, W - 14, 23, { align: 'right' })
-    doc.setFontSize(10); doc.setTextColor(100)
-    doc.text((r.tipo || 'Peca').toUpperCase(), W - 14, 30, { align: 'right' })
-
-    // Dados
-    line('Titulo', r.titulo)
-    line('Solicitante', r.solicitante)
-    line('Setor', r.setor)
-    line('Data', r.data ? new Date(r.data).toLocaleDateString('pt-BR') : '---')
-
-    // Financeiro
-    y += 4
-    doc.setDrawColor(200); doc.setLineWidth(0.3); doc.line(14, y, W - 14, y); y += 6
-    line('Fornecedor', r.fornecedor)
-    line('Numero Nota Fiscal', r.numero_nota)
-    line('Valor', `R$ ${r.valor_despeza || '0,00'}`)
-
-    // Descrição
-    if (r.obs || r.Motivo || r.ReqMotivo) {
-      y += 4
-      doc.setDrawColor(200); doc.line(14, y, W - 14, y); y += 6
-      doc.setFontSize(8); doc.setTextColor(120); doc.text('DESCRICAO / JUSTIFICATIVA', 14, y); y += 5
-      doc.setFontSize(10); doc.setTextColor(50)
-      const texto = (r.obs || r.Motivo || r.ReqMotivo || '').replace(/\[APPSHEET_ID:.*?\]/g, '').trim()
-      const linhas = doc.splitTextToSize(texto, W - 28)
-      doc.text(linhas, 14, y); y += linhas.length * 5
-    }
-
-    // Rodapé
-    doc.setFontSize(7); doc.setTextColor(150)
-    doc.text(`Nova Tratores • Requisicao #${r.id} • Gerado em ${new Date().toLocaleString('pt-BR')}`, 14, 285)
-    doc.text(`Cod: ${String(r.id).padStart(8, '0')}`, W - 14, 285, { align: 'right' })
-
-    // Upload
-    const blob = doc.output('blob')
-    const filePath = `pagar/req-${r.id}-${Date.now()}.pdf`
-    await supabase.storage.from('anexos').upload(filePath, blob, { contentType: 'application/pdf' })
-    const { data } = supabase.storage.from('anexos').getPublicUrl(filePath)
-    return data.publicUrl
   }
 
   const uploadSingle = async (file, folder) => {

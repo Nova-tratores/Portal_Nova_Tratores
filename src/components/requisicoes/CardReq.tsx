@@ -8,7 +8,7 @@ import {
   Store, ArrowRight, Gauge,
   Receipt, Eye, ExternalLink, Car,
   Plus, CheckCheck, Building2, User, Cpu,
-  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert, Clock, FolderOpen, Link2, ChevronDown
+  Package, CreditCard, Upload, Check, Lock, ShieldCheck, ShieldAlert, Clock, FolderOpen, Link2, ChevronDown, Send
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -19,6 +19,8 @@ import RecorteAnexo from './RecorteAnexo';
 import DialogoImprimirReq from './DialogoImprimirReq';
 import { anexosDaReq, anexosNoDrive as anexosNoDriveDe } from '@/lib/requisicoes/anexos';
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
+import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
+import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
 
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxyIatVqhjdeBeo4PYNWr992vCsPpvEEjOxabWB7mz5JRJ7BroxnvR8CRIcXIgTfLSm/exec';
 const DEPARTAMENTOS = ["Trator-Loja", "Trator-Cliente", "Oficina", "Comercial"];
@@ -51,7 +53,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
   // ── Bloqueio de valor alto (precisa de permissão de Dev) ──
   const { userProfile } = useAuth();
-  const { isDev } = usePermissoes(userProfile?.id);
+  const { isDev, pode } = usePermissoes(userProfile?.id);
   const isMobile = useIsMobile();
   const [autoriz, setAutoriz] = useState<Autorizacao | null>(null);
   const [pedirOpen, setPedirOpen] = useState(false);
@@ -246,6 +248,42 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       onUpdateRef.current(req.id, { enviado_financeiro_data: agora });
     }
   }, [req.status, req.enviado_financeiro_data, req.id]);
+
+  // ── Conta a pagar no financeiro (rascunho em finan_pagar, revisão no painel) ──
+  const podeCriarConta = pode('financeiro', 'criar_lancamento');
+  const [contaFin, setContaFin] = useState<ContaExistente | null>(null);
+  const [criandoConta, setCriandoConta] = useState(false);
+  const [erroConta, setErroConta] = useState('');
+
+  useEffect(() => {
+    if (!modalAberto || req.status !== 'financeiro' || !podeCriarConta) return;
+    let ativo = true;
+    buscarContaDaReq(req.id).then(c => { if (ativo) setContaFin(c); });
+    return () => { ativo = false; };
+  }, [modalAberto, req.status, req.id, podeCriarConta]);
+
+  const enviarContaPagar = useCallback(async () => {
+    setCriandoConta(true);
+    setErroConta('');
+    try {
+      const r = await criarContaDaRequisicao({ reqId: req.id, criadoPor: userProfile?.nome });
+      if (r.jaExiste) { setContaFin(r.jaExiste); return; }
+      if (r.conta) {
+        setContaFin({ id: r.conta.id, fornecedor: req.fornecedor || null, valor: null, status_envio: 'rascunho', omie_cod_lancamento: null });
+        notificarAdminsClient(
+          'financeiro',
+          `${userProfile?.nome || 'Usuário'} enviou conta a pagar da Req #${req.id}`,
+          `Rascunho criado${r.reqsIncluidas.length > 1 ? ` com ${r.reqsIncluidas.length} requisições da mesma nota` : ''} — revisar e enviar ao Omie`,
+          `/financeiro/home-financeiro?id=${r.conta.id}`,
+        );
+        window.open(`/financeiro/home-financeiro?id=${r.conta.id}`, '_blank');
+      }
+    } catch (e: any) {
+      setErroConta(e?.message || 'Erro ao criar a conta a pagar.');
+    } finally {
+      setCriandoConta(false);
+    }
+  }, [req.id, req.fornecedor, userProfile?.nome]);
 
   const persist = useCallback((name: string, value: any) => {
     // Requisição de valor alto bloqueada: abre o pedido de permissão em vez de gravar
@@ -1112,6 +1150,29 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   <div className="flex items-center gap-2 p-2.5 rounded-lg bg-indigo-50 border border-indigo-200 mt-2">
                     <Calendar size={13} className="text-indigo-500" />
                     <span className="text-sm text-indigo-600">Enviado ao financeiro: <strong>{new Date(req.enviado_financeiro_data.length > 10 ? req.enviado_financeiro_data : req.enviado_financeiro_data + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></span>
+                  </div>
+                )}
+
+                {/* Conta a pagar: cria o rascunho em finan_pagar pronto pra revisar
+                    no painel do financeiro e enviar ao Omie */}
+                {localData.status === 'financeiro' && podeCriarConta && (
+                  <div className="mt-2">
+                    {contaFin ? (
+                      <a href={`/financeiro/home-financeiro?id=${contaFin.id}`} target="_blank" rel="noreferrer"
+                        className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-sm text-emerald-700 hover:bg-emerald-100 transition-all">
+                        <CheckCheck size={14} className="text-emerald-600 shrink-0" />
+                        <span>Conta a pagar <strong>#{contaFin.id}</strong>{contaFin.omie_cod_lancamento ? ' já no Omie' : contaFin.status_envio === 'rascunho' ? ' em rascunho' : ''} — abrir no painel</span>
+                        <ExternalLink size={13} className="ml-auto shrink-0" />
+                      </a>
+                    ) : (
+                      <button type="button" onClick={enviarContaPagar} disabled={criandoConta}
+                        title="Cria a conta a pagar em rascunho no painel do financeiro, já com fornecedor, valor, NF e anexos desta requisição"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white text-sm font-semibold transition-all">
+                        <Send size={14} />
+                        {criandoConta ? 'Criando o rascunho…' : 'Enviar conta a pagar pro financeiro'}
+                      </button>
+                    )}
+                    {erroConta && <p className="mt-1 text-xs text-red-600">{erroConta}</p>}
                   </div>
                 )}
               </div>
