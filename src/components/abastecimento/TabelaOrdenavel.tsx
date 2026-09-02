@@ -15,7 +15,12 @@ export interface ColunaDef<T> {
   valor: (t: T) => string | number | null;
   /** conteúdo exibido na célula */
   render: (t: T) => ReactNode;
+  /** modo do filtro por coluna: 'texto' (default, busca), 'categorico' (dropdown
+   *  de valores distintos, match exato), 'numero' (operador >/</= + valor). */
+  tipoFiltro?: 'texto' | 'categorico' | 'numero';
 }
+
+type FiltroVal = { termo: string; op?: '>' | '<' | '=' };
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.6rem', textTransform: 'uppercase', letterSpacing: '.4px', padding: '7px 6px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600, cursor: 'pointer', userSelect: 'none', whiteSpace: 'nowrap' };
 const tdStyle: React.CSSProperties = { padding: '6px 6px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.78rem' };
@@ -32,21 +37,43 @@ export default function TabelaOrdenavel<T>({ colunas, linhas, chaveLinha, carreg
   carregando?: boolean;
 }) {
   const [ordem, setOrdem] = useState<{ chave: string; asc: boolean } | null>(null);
-  const [filtros, setFiltros] = useState<Record<string, string>>({});
+  const [filtros, setFiltros] = useState<Record<string, FiltroVal>>({});
   const [mostrar, setMostrar] = useState(PASSO_EXIBICAO);
 
   const alternarOrdem = (chave: string) => {
     setOrdem((o) => (o?.chave === chave ? { chave, asc: !o.asc } : { chave, asc: true }));
   };
 
+  // opções distintas por coluna categórica (para o dropdown de filtro)
+  const opcoesCat = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    for (const c of colunas) {
+      if (c.tipoFiltro !== 'categorico') continue;
+      const s = new Set<string>();
+      for (const l of linhas) { const v = c.valor(l); if (v != null && String(v) !== '') s.add(String(v)); }
+      m[c.chave] = [...s].sort((a, b) => a.localeCompare(b, 'pt-BR', { numeric: true }));
+    }
+    return m;
+  }, [colunas, linhas]);
+
   const filtradas = useMemo(() => {
     let resultado = linhas;
     for (const c of colunas) {
-      const f = (filtros[c.chave] || '').trim().toLowerCase();
-      if (!f) continue;
+      const fv = filtros[c.chave];
+      const termo = (fv?.termo ?? '').trim();
+      if (!termo) continue;
+      const tipo = c.tipoFiltro ?? 'texto';
       resultado = resultado.filter((l) => {
         const v = c.valor(l);
-        return v != null && String(v).toLowerCase().includes(f);
+        if (v == null) return false;
+        if (tipo === 'numero') {
+          const nv = Number(v); const nt = Number(termo.replace(',', '.'));
+          if (!Number.isFinite(nv) || !Number.isFinite(nt)) return false;
+          const op = fv?.op ?? '>';
+          return op === '>' ? nv > nt : op === '<' ? nv < nt : nv === nt;
+        }
+        if (tipo === 'categorico') return String(v) === termo;
+        return String(v).toLowerCase().includes(termo.toLowerCase());
       });
     }
     if (ordem) {
@@ -67,7 +94,7 @@ export default function TabelaOrdenavel<T>({ colunas, linhas, chaveLinha, carreg
     return resultado;
   }, [linhas, colunas, filtros, ordem]);
 
-  const temFiltro = Object.values(filtros).some((f) => f.trim());
+  const temFiltro = Object.values(filtros).some((f) => (f?.termo ?? '').trim());
   const visiveis = filtradas.slice(0, mostrar);
 
   return (
@@ -93,17 +120,31 @@ export default function TabelaOrdenavel<T>({ colunas, linhas, chaveLinha, carreg
               ))}
             </tr>
             <tr>
-              {colunas.map((c) => (
-                <th key={c.chave} style={{ background: '#fafafa', padding: '2px 6px 8px', borderBottom: '1px solid #eee' }}>
-                  <input
-                    value={filtros[c.chave] || ''}
-                    onChange={(e) => { setFiltros({ ...filtros, [c.chave]: e.target.value }); setMostrar(PASSO_EXIBICAO); }}
-                    placeholder="filtrar…"
-                    size={3}
-                    style={filtroStyle}
-                  />
-                </th>
-              ))}
+              {colunas.map((c) => {
+                const setTermo = (termo: string, op?: '>' | '<' | '=') => { setFiltros({ ...filtros, [c.chave]: { termo, op: op ?? filtros[c.chave]?.op } }); setMostrar(PASSO_EXIBICAO); };
+                const fv = filtros[c.chave];
+                return (
+                  <th key={c.chave} style={{ background: '#fafafa', padding: '2px 6px 8px', borderBottom: '1px solid #eee' }}>
+                    {c.tipoFiltro === 'categorico' ? (
+                      <select value={fv?.termo ?? ''} onChange={(e) => setTermo(e.target.value)} style={filtroStyle}>
+                        <option value="">todos</option>
+                        {(opcoesCat[c.chave] ?? []).map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : c.tipoFiltro === 'numero' ? (
+                      <div style={{ display: 'flex', gap: 2 }}>
+                        <select value={fv?.op ?? '>'} onChange={(e) => setTermo(fv?.termo ?? '', e.target.value as '>' | '<' | '=')} style={{ ...filtroStyle, width: 34, flex: '0 0 auto', padding: '3px 2px' }} title="maior que / menor que / igual">
+                          <option value=">">&gt;</option>
+                          <option value="<">&lt;</option>
+                          <option value="=">=</option>
+                        </select>
+                        <input type="number" value={fv?.termo ?? ''} onChange={(e) => setTermo(e.target.value, fv?.op ?? '>')} placeholder="valor" style={{ ...filtroStyle, minWidth: 0 }} />
+                      </div>
+                    ) : (
+                      <input value={fv?.termo ?? ''} onChange={(e) => setTermo(e.target.value)} placeholder="filtrar…" size={3} style={filtroStyle} />
+                    )}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
