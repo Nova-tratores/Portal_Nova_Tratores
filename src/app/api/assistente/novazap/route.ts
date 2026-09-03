@@ -36,6 +36,7 @@ const restPost = (tabela: string, corpo: unknown) =>
 interface MsgEntrada {
   de?: string; // 'cliente' | 'loja'
   texto?: string;
+  imagens?: string[]; // fotos do cliente (horímetro, chassi...) — URLs do zap
 }
 
 // ---------- ferramentas ----------
@@ -379,13 +380,27 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const entrada: MsgEntrada[] = Array.isArray(body?.mensagens) ? body.mensagens : [];
-  const chat = entrada
-    .slice(-14)
-    .map((m) => ({
-      role: m.de === "cliente" ? ("user" as const) : ("assistant" as const),
-      content: String(m.texto || "").slice(0, 2000),
-    }))
-    .filter((m) => m.content);
+  const recorte = entrada.slice(-14);
+  const chat = recorte
+    .map((m, i) => {
+      const texto = String(m.texto || "").slice(0, 2000);
+      const role = m.de === "cliente" ? ("user" as const) : ("assistant" as const);
+      // fotos: só das 3 mensagens mais recentes (os links do zap expiram) e
+      // só do cliente — a IA lê horímetro/plaqueta direto da imagem
+      const recente = i >= recorte.length - 3;
+      const fotos = role === "user" && recente && Array.isArray(m.imagens) ? m.imagens.slice(0, 3) : [];
+      if (fotos.length) {
+        return {
+          role,
+          content: [
+            { type: "text", text: texto || "O cliente enviou esta(s) foto(s)." },
+            ...fotos.map((u) => ({ type: "image_url", image_url: { url: String(u), detail: "auto" } })),
+          ],
+        };
+      }
+      return { role, content: texto };
+    })
+    .filter((m) => (typeof m.content === "string" ? m.content : true));
   if (!chat.length || chat[chat.length - 1].role !== "user") {
     // registra o caso "vazio" pra nunca haver silêncio inexplicável
     await logTratorilson({
@@ -401,6 +416,13 @@ export async function POST(req: NextRequest) {
 
   const nome = String(body?.contato?.nome || "").slice(0, 120);
   const telefone = String(body?.contato?.telefone || "").slice(0, 30);
+  const ultimaPergunta = (() => {
+    const m = [...chat].reverse().find((x) => x.role === "user");
+    if (!m) return "";
+    if (typeof m.content === "string") return m.content;
+    const t = (m.content as any[]).find((c) => c.type === "text")?.text || "";
+    return `${t} [com foto]`.trim();
+  })();
 
   // vínculo do contato no NovaZap (cliente do portal + localização salva)
   const vinculo = {
@@ -497,7 +519,7 @@ export async function POST(req: NextRequest) {
     await logTratorilson({
       userName: nome || telefone || "cliente WhatsApp",
       tipo: "novazap:auto",
-      pergunta: [...chat].reverse().find((m) => m.role === "user")?.content || "",
+      pergunta: ultimaPergunta,
       resposta,
       modelo,
       tokens,
@@ -510,7 +532,7 @@ export async function POST(req: NextRequest) {
     await logTratorilson({
       userName: nome || telefone || "cliente WhatsApp",
       tipo: "novazap:erro",
-      pergunta: [...chat].reverse().find((m) => m.role === "user")?.content || "",
+      pergunta: ultimaPergunta,
       resposta: `ERRO: ${msg}`,
       modelo: getIA().model,
       tokens: 0,
