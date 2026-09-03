@@ -154,16 +154,22 @@ async function orcamentoRevisao(modelo: string, horas: string) {
   const valorHora = Number(cfg?.[0]?.valor_hora) || 193;
   const valorMaoObra = regra.maoObraHoras * valorHora;
 
-  // escopo da revisão (o que é feito) — tabela de planos prontos
+  // escopo da revisão (o que é feito) — tabela de planos prontos.
+  // O texto do plano embute o MODELO ("...300 horas 2025" = Jivo 2025,
+  // "...9500S"...) — só usa o plano se ele for do modelo pedido; senão
+  // devolve null e a IA resume os serviços pelas próprias peças do kit.
   const planos: any[] = await rest(
-    `Revisoes_Pronta?select=DescricaoCompleta&DescricaoCompleta=ilike.*${encodeURIComponent(`de ${regra.kitDe} horas`)}*&limit=1`
+    `Revisoes_Pronta?select=DescricaoCompleta&DescricaoCompleta=ilike.*${encodeURIComponent(`de ${regra.kitDe} horas`)}*&limit=10`
   );
+  const planoDoModelo = planos.find((p) =>
+    userDig.some((d) => String(p.DescricaoCompleta || "").includes(d))
+  )?.DescricaoCompleta || null;
 
   return {
     encontrado: true,
     revisao: `${regra.revisao}h`,
     kit: `${row.Trator} ${row.Horas}`,
-    servicos_da_revisao: planos?.[0]?.DescricaoCompleta || null,
+    servicos_da_revisao: planoDoModelo,
     pecas: itens.map((i) => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.quantidade, preco: i.preco })),
     total_pecas: Number(totalPecas.toFixed(2)),
     mao_de_obra: regra.cortesia
