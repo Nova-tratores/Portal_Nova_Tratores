@@ -96,9 +96,17 @@ async function buscarTrator(finalChassi: string) {
 const CICLO_REVISAO = [300, 600, 900, 1200];
 
 function regraRevisao(hPedidas: number) {
-  // horímetro solto (ex.: 4000) → revisão múltipla de 300 mais próxima
-  let h = hPedidas === 50 ? 50 : Math.round(hPedidas / 300) * 300;
-  if (h < 50) h = 50;
+  // Horímetro solto → arredonda PRA BAIXO (430→300, 700→600); só sobe pra
+  // próxima revisão se estiver coladinho nela (a até 50h — ex.: 881→900).
+  let h: number;
+  if (hPedidas <= 65) {
+    h = 50;
+  } else {
+    const base = Math.floor(hPedidas / 300) * 300;
+    const proxima = base + 300;
+    h = proxima - hPedidas <= 50 ? proxima : base;
+    if (h < 300) h = 50;
+  }
   const arredondada = h !== hPedidas;
 
   if (h === 50) {
