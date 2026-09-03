@@ -471,8 +471,13 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const agoraBR = new Date().toLocaleString("pt-BR", {
+    timeZone: "America/Sao_Paulo",
+    weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+  });
   let system =
     PERSONA_CLIENTE_WHATSAPP +
+    `\n\nAGORA no Brasil: ${agoraBR}. Use a saudação certa pelo horário: "Bom dia" até 11h59, "Boa tarde" das 12h às 17h59, "Boa noite" depois.` +
     (nome
       ? `\n\nO nome do contato no WhatsApp é "${nome}" (pode estar incompleto ou ser apelido — confirme o nome completo quando precisar dele).`
       : "");
