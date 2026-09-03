@@ -190,7 +190,26 @@ async function calcularDeslocamento(localizacao: string) {
     const par = texto.match(/(-?\d{1,2}\.\d{3,})[,;\s]+(-?\d{1,3}\.\d{3,})/);
     if (par) destino = { lat: Number(par[1]), lng: Number(par[2]) };
   }
-  if (!destino) destino = await geocodificar(texto);
+
+  // link do Google Maps (inclusive encurtado — segue o redirect pra achar
+  // as coordenadas do pino)
+  const link = texto.match(/https?:\/\/\S+/)?.[0];
+  if (!destino && link && /google\.[^\s/]*\/maps|maps\.app\.goo\.gl|goo\.gl\/maps/i.test(link)) {
+    let urlFinal = link;
+    if (/maps\.app\.goo\.gl|goo\.gl\/maps/i.test(link)) {
+      try {
+        const r = await fetch(link, { redirect: "follow" });
+        urlFinal = r.url || link;
+      } catch { /* segue com o link original */ }
+    }
+    const m =
+      urlFinal.match(/!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/) ||
+      urlFinal.match(/[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+)(?:%2C|,)\s*(-?\d{1,3}\.\d+)/i) ||
+      urlFinal.match(/@(-?\d{1,2}\.\d+),(-?\d{1,3}\.\d+)/);
+    if (m) destino = { lat: Number(m[1]), lng: Number(m[2]) };
+  }
+
+  if (!destino) destino = await geocodificar(texto.replace(/https?:\/\/\S+/g, "").trim() || texto);
   if (!destino) {
     return { encontrado: false, mensagem: "Não consegui localizar esse endereço — peça a cidade com o estado (ex.: Taquarituba-SP) ou a localização do WhatsApp." };
   }
@@ -230,7 +249,7 @@ const FERRAMENTAS = [
     type: "function",
     function: {
       name: "calcular_deslocamento",
-      description: "Calcula o deslocamento REAL da loja até o cliente (km de rota, ida e volta, e o valor). Passe o texto exato da localização enviada (cidade/endereço, ou a mensagem de localização do WhatsApp com Latitude/Longitude). NUNCA estime km sem esta ferramenta.",
+      description: "Calcula o deslocamento REAL da loja até o cliente (km de rota, ida e volta, e o valor). Passe o texto exato da localização enviada (cidade/endereço, mensagem de localização do WhatsApp com Latitude/Longitude, ou LINK do Google Maps — inclusive encurtado). NUNCA estime km sem esta ferramenta.",
       parameters: {
         type: "object",
         properties: { localizacao: { type: "string", description: "Cidade, endereço ou o texto da localização do WhatsApp" } },
