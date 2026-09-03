@@ -22,6 +22,13 @@ interface Solicitacao {
   fase: string | null
   data_servico: string | null
   status: string | null
+  detalhes: {
+    pecas?: { codigo: string; descricao: string; qtd: number; preco: number }[]
+    orcamento_numero?: string
+    ppv_id?: string
+    modelo?: string | null
+    revisao?: string | null
+  } | null
 }
 
 const FASES: { id: string; titulo: string; cor: string }[] = [
@@ -68,6 +75,29 @@ export default function SolicitacoesTratorilson({ open, onClose }: { open: boole
         body: JSON.stringify({ id, ...mudanca }),
       })
     } catch { /* próxima carga corrige */ }
+  }
+
+  const [criando, setCriando] = useState<number | null>(null)
+  const criarOrcamento = async (s: Solicitacao) => {
+    if (criando) return
+    setCriando(s.id)
+    try {
+      const r = await fetch('/api/tratorilson/solicitacoes/criar-orcamento', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ id: s.id }),
+      })
+      const d = await r.json()
+      if (!r.ok) { setAviso(d.error || 'Não deu para criar o orçamento.'); return }
+      setAviso('')
+      setLista(l => l.map(x => (x.id === s.id
+        ? { ...x, fase: 'orcamento', detalhes: { ...(x.detalhes || {}), orcamento_numero: d.orcamento, ppv_id: d.ppv } }
+        : x)))
+    } catch {
+      setAviso('Não deu para criar o orçamento agora.')
+    } finally {
+      setCriando(null)
+    }
   }
 
   const faseDe = (s: Solicitacao) => s.fase || (s.status === 'atendida' ? 'concluida' : 'nova')
@@ -139,6 +169,22 @@ export default function SolicitacoesTratorilson({ open, onClose }: { open: boole
                         {s.resumo ? ` — ${s.resumo}` : ''}
                       </div>
                       {s.extras && <div style={{ fontSize: 11, color: '#d97706', marginBottom: 4 }}>Extras: {s.extras}</div>}
+
+                      {s.detalhes?.orcamento_numero ? (
+                        <div style={{ fontSize: 11, color: '#3b82f6', margin: '4px 0', fontWeight: 600 }}>
+                          {s.detalhes.orcamento_numero} · {s.detalhes.ppv_id}
+                        </div>
+                      ) : (s.detalhes?.pecas?.length || 0) > 0 ? (
+                        <button
+                          onClick={() => criarOrcamento(s)}
+                          disabled={criando === s.id}
+                          style={{
+                            margin: '4px 0', fontSize: 11, padding: '5px 9px', borderRadius: 7, width: '100%',
+                            border: '1px solid #3b82f6', background: criando === s.id ? 'transparent' : '#3b82f6',
+                            color: criando === s.id ? '#3b82f6' : '#fff', cursor: 'pointer', fontWeight: 600,
+                          }}
+                        >{criando === s.id ? 'Criando…' : 'Criar orçamento + PPV no POS'}</button>
+                      ) : null}
 
                       {/* Data do serviço: marcar => vai pra Agendado */}
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, margin: '6px 0' }}>

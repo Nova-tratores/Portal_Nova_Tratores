@@ -208,10 +208,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [chatOpen, setChatOpen] = useState(false)
   const [lembretesOpen, setLembretesOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
-  // Solicitações do Tratorilson (NovaZap) — kanban no ícone do zap
+  // Solicitações do Tratorilson (NovaZap) — kanban no ícone do zap.
+  // SÓ pra quem é do pós-vendas (tem o módulo POS) — pedido do José, 03/09.
+  const temSolicitacoes = temAcesso('pos')
   const [zapPanelOpen, setZapPanelOpen] = useState(false)
   const [solNovas, setSolNovas] = useState(0)
   useEffect(() => {
+    if (!temSolicitacoes) return
     let vivo = true
     const carregar = async () => {
       try {
@@ -224,7 +227,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     carregar()
     const t = setInterval(carregar, 60000)
     return () => { vivo = false; clearInterval(t) }
-  }, [zapPanelOpen])
+  }, [zapPanelOpen, temSolicitacoes])
   // Rodando dentro de um painel da tela dividida (/split)? Esconde o botão de dividir.
   const [emIframe, setEmIframe] = useState(false)
   useEffect(() => { try { setEmIframe(window.self !== window.top) } catch { setEmIframe(true) } }, [])
@@ -684,8 +687,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           {/* Caixa de e-mail do usuário (só aparece pra quem configurou o e-mail de envio) */}
           <CaixaEmail />
 
-          {/* Ícone Chat — balão do NovaZap: clique abre o painel de SOLICITAÇÕES
-              do Tratorilson (com botão pra abrir as conversas) */}
+          {/* Ícone do zap — kanban de SOLICITAÇÕES do Tratorilson.
+              Só aparece pra quem tem o módulo POS (pós-vendas). */}
+          {temSolicitacoes && (
           <div style={{ position: 'relative' }}>
           <button
             className="portal-chat-btn"
@@ -721,6 +725,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
           <SolicitacoesTratorilson open={zapPanelOpen} onClose={() => setZapPanelOpen(false)} />
           </div>
+          )}
 
           {/* Ícone Notificações */}
           <button

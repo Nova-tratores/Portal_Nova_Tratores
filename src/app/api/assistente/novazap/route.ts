@@ -323,7 +323,7 @@ const FERRAMENTAS = [
     type: "function",
     function: {
       name: "registrar_solicitacao",
-      description: "Registra a solicitação CONFIRMADA pelo cliente no painel da equipe do portal. Chame SOMENTE quando o cliente confirmar o orçamento/pedido (depois do 'Posso confirmar?'). Inclua nos extras qualquer peça/serviço que ele adicionou além do kit.",
+      description: "Registra a solicitação CONFIRMADA pelo cliente no painel da equipe do portal. Chame SOMENTE quando o cliente confirmar o orçamento/pedido (depois do 'Posso confirmar?'). Inclua nos extras qualquer peça/serviço que ele adicionou além do kit, e SEMPRE passe as peças/horas/km do orçamento confirmado (a equipe usa pra gerar o orçamento no sistema com um clique).",
       parameters: {
         type: "object",
         properties: {
@@ -331,6 +331,25 @@ const FERRAMENTAS = [
           resumo: { type: "string", description: "O que o cliente quer, curto (ex.: 'Revisão de 600h do 6075, total R$2.731,00 com deslocamento de Taquarituba')" },
           extras: { type: "string", description: "Peças/serviços ADICIONADOS a mais pelo cliente (vazio se nenhum)" },
           total: { type: "number", description: "Total confirmado em reais, se houver" },
+          pecas: {
+            type: "array",
+            description: "Peças do orçamento confirmado (as do kit, menos as removidas), exatamente como vieram das ferramentas",
+            items: {
+              type: "object",
+              properties: {
+                codigo: { type: "string" },
+                descricao: { type: "string" },
+                qtd: { type: "number" },
+                preco: { type: "number" },
+              },
+              required: ["codigo", "qtd"],
+            },
+          },
+          modelo: { type: "string", description: "Modelo do trator/quadriciclo" },
+          revisao: { type: "string", description: "Revisão confirmada (ex.: '600h')" },
+          mao_obra_horas: { type: "number", description: "Horas de mão de obra do orçamento (0 se cortesia)" },
+          deslocamento_km: { type: "number", description: "Km cobrados de deslocamento (ida e volta), se calculado" },
+          localizacao: { type: "string", description: "Localização do cliente usada no deslocamento" },
         },
         required: ["tipo", "resumo"],
       },
@@ -502,6 +521,14 @@ export async function POST(req: NextRequest) {
           if (tc.function?.name === "orcamento_quadriciclo") resultado = await orcamentoQuadriciclo(args.modelo);
           if (tc.function?.name === "calcular_deslocamento") resultado = await calcularDeslocamento(args.localizacao);
           if (tc.function?.name === "registrar_solicitacao") {
+            const pecas = Array.isArray(args.pecas)
+              ? args.pecas.slice(0, 40).map((p: any) => ({
+                  codigo: String(p.codigo || "").slice(0, 60),
+                  descricao: String(p.descricao || "").slice(0, 200),
+                  qtd: Number(p.qtd) || 1,
+                  preco: Number(p.preco) || 0,
+                }))
+              : [];
             const ok = await restPost("tratorilson_solicitacoes", {
               contato_nome: nome || null,
               contato_telefone: telefone || null,
@@ -512,6 +539,14 @@ export async function POST(req: NextRequest) {
               resumo: String(args.resumo || "").slice(0, 1000),
               extras: String(args.extras || "").slice(0, 1000) || null,
               total: Number(args.total) || null,
+              detalhes: {
+                pecas,
+                modelo: String(args.modelo || "").slice(0, 60) || null,
+                revisao: String(args.revisao || "").slice(0, 20) || null,
+                mao_obra_horas: Number(args.mao_obra_horas) || 0,
+                deslocamento_km: Number(args.deslocamento_km) || 0,
+                localizacao: String(args.localizacao || "").slice(0, 300) || null,
+              },
             });
             resultado = ok
               ? { ok: true, mensagem: "Solicitação registrada — a equipe já vê no portal." }
