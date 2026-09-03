@@ -739,10 +739,6 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
                 <strong style={{ fontSize: 13, color: 'var(--portal-text)' }}>Solicitações do Tratorilson</strong>
-                <button
-                  onClick={() => { setZapPanelOpen(false); setChatOpen(true) }}
-                  style={{ fontSize: 11.5, padding: '5px 10px', borderRadius: 8, border: '1px solid #D6212B', background: '#D6212B', color: '#fff', cursor: 'pointer', whiteSpace: 'nowrap' }}
-                >Abrir conversas</button>
               </div>
               {solicitacoes.length === 0 && (
                 <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', padding: '10px 4px 14px' }}>
@@ -860,6 +856,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   border: '1px solid var(--portal-border)', boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
                   padding: 6, display: 'flex', flexDirection: 'column', gap: 2
                  }}>
+                  {item(<MessageCircle size={18} />, 'Chat do portal', () => setChatOpen(true))}
                   {item(<Calendar size={18} />, 'Lembretes', () => setLembretesOpen(true))}
                   {!emIframe && item(
                     <Columns size={18} />,
