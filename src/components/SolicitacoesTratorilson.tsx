@@ -43,6 +43,7 @@ const ORDEM = FASES.map(f => f.id)
 
 const TIPO_ROTULO: Record<string, string> = {
   revisao: 'Revisão', quadriciclo: 'Quadriciclo', assistencia: 'Assistência', pecas: 'Peças', outro: 'Outro',
+  humano: '🔴 Precisa de atendimento humano',
 }
 
 export default function SolicitacoesTratorilson({ open, onClose }: { open: boolean; onClose: () => void }) {
@@ -151,7 +152,8 @@ export default function SolicitacoesTratorilson({ open, onClose }: { open: boole
                   {cards.map(s => (
                     <div key={s.id} style={{
                       background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-                      borderLeft: `4px solid ${col.cor}`, borderRadius: 10, padding: '9px 10px',
+                      borderLeft: `4px solid ${s.tipo === 'humano' ? '#ef4444' : col.cor}`, borderRadius: 10, padding: '9px 10px',
+                      ...(s.tipo === 'humano' && faseDe(s) !== 'concluida' ? { boxShadow: '0 0 0 1px #ef444455' } : {}),
                     }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
                         <strong style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{s.contato_nome || s.contato_telefone || 'Contato'}</strong>

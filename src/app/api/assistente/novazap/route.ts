@@ -564,6 +564,35 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // IA pediu HUMANO → silêncio pro cliente + card vermelho no portal
+    if (resposta.includes("[PRECISO_DE_HUMANO]")) {
+      const jaAberta: any[] = telefone
+        ? await rest(
+            `tratorilson_solicitacoes?tipo=eq.humano&fase=neq.concluida&contato_telefone=ilike.*${encodeURIComponent(telefone.replace(/\D/g, "").slice(-10))}*&select=id&limit=1`
+          )
+        : [];
+      if (!jaAberta.length) {
+        await restPost("tratorilson_solicitacoes", {
+          contato_nome: nome || null,
+          contato_telefone: telefone || null,
+          cliente_nome: vinculo.cliente || null,
+          cliente_cod: vinculo.cod || null,
+          cliente_cnpj: vinculo.cnpj || null,
+          tipo: "humano",
+          resumo: `Precisa de atendimento humano. Pergunta: "${ultimaPergunta.slice(0, 400)}"`,
+        });
+      }
+      await logTratorilson({
+        userName: nome || telefone || "cliente WhatsApp",
+        tipo: "novazap:humano",
+        pergunta: ultimaPergunta,
+        resposta: "(silêncio — equipe acionada no portal)",
+        modelo,
+        tokens,
+      });
+      return NextResponse.json({ resposta: "" });
+    }
+
     await logTratorilson({
       userName: nome || telefone || "cliente WhatsApp",
       tipo: "novazap:auto",
