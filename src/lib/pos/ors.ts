@@ -47,17 +47,25 @@ export async function calcularRota(
   if (!ORS_KEY || ORS_KEY === 'SUA_CHAVE_AQUI') return null
 
   try {
-    const res = await fetch(
-      `https://api.openrouteservice.org/v2/directions/driving-car?api_key=${ORS_KEY}&start=${origemLng},${origemLat}&end=${destinoLng},${destinoLat}`,
-    )
+    // POST com radiuses: -1 = encaixa na estrada mais próxima SEM limite de
+    // raio (cliente rural manda o pino no meio da fazenda e o GET padrão,
+    // que só procura estrada a ~350m, falhava com "não achei rota")
+    const res = await fetch('https://api.openrouteservice.org/v2/directions/driving-car', {
+      method: 'POST',
+      headers: { Authorization: ORS_KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        coordinates: [[origemLng, origemLat], [destinoLng, destinoLat]],
+        radiuses: [-1, -1],
+      }),
+    })
     if (!res.ok) return null
     const data = await res.json()
-    const seg = data.features?.[0]?.properties?.segments?.[0]
-    if (!seg) return null
+    const resumo = data.routes?.[0]?.summary
+    if (!resumo) return null
 
     return {
-      distancia_km: Math.round((seg.distance / 1000) * 10) / 10,
-      tempo_min: Math.round(seg.duration / 60),
+      distancia_km: Math.round((resumo.distance / 1000) * 10) / 10,
+      tempo_min: Math.round(resumo.duration / 60),
     }
   } catch {
     return null
