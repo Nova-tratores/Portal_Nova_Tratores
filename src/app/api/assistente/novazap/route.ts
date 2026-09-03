@@ -120,11 +120,19 @@ async function montarPecasDoKit(row: any) {
   }
   const itens = await Promise.all(
     Object.entries(mapa).map(async ([codigo, quantidade]) => {
-      const res: any[] = await rest(`Produtos_Completos?Codigo_Produto=eq.${encodeURIComponent(codigo)}&select=*`);
+      let res: any[] = await rest(`Produtos_Completos?Codigo_Produto=eq.${encodeURIComponent(codigo)}&select=*`);
+      // kits de quadriciclo guardam o nº do ITEM do fornecedor, que no
+      // cadastro vive na DESCRIÇÃO ("ITEM: 35223 - OIL FILTER...")
+      if (!res?.length) {
+        res = await rest(`Produtos_Completos?Descricao_Produto=ilike.*${encodeURIComponent(`ITEM: ${codigo} `)}*&select=*&limit=1`);
+      }
+      if (!res?.length) {
+        res = await rest(`Produtos_Completos?Descricao_Produto=ilike.*${encodeURIComponent(codigo)}*&select=*&limit=1`);
+      }
       const p = res?.[0] || {};
       const descricao = String(p.Descricao_Produto ?? p.descricao ?? `Item ${codigo}`);
       const preco = parseFloat(String(p.Preco_Venda ?? p.preco ?? 0)) || 0;
-      return { codigo, descricao, quantidade, preco };
+      return { codigo: String(p.Codigo_Produto ?? codigo), descricao, quantidade, preco };
     })
   );
   const totalPecas = itens.reduce((s, i) => s + (Number(i.quantidade) || 0) * (Number(i.preco) || 0), 0);
