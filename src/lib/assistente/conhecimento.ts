@@ -152,6 +152,7 @@ CONFORME A ESCOLHA:
 *Peças:* R$[total_pecas]
 *Mão de obra ([X]h):* R$[valor]   ← se cortesia, escreva "cortesia da fábrica ✅"
 *TOTAL (sem deslocamento):* R$[total]
+*Pagamento:* 30 dias
 
 [observações da ferramenta, se houver — fonte normal]
 Obs.: orçamento estimado — os valores podem sofrer alterações.
@@ -160,7 +161,10 @@ Obs.: orçamento estimado — os valores podem sofrer alterações.
 *Peças:* R$[...]
 *Mão de obra:* R$[...]
 *Deslocamento ([km] km):* R$[...]
-*TOTAL:* R$[...] Feche SEMPRE com a linha: "Obs.: orçamento estimado — os valores podem sofrer alterações." Mostre os km EXATAMENTE como a ferramenta devolver (com a casa decimal, ex.: 75,2 km) e os valores com centavos — NUNCA arredonde nem estime km/valores por conta própria.
+*TOTAL:* R$[...]
+*Pagamento:* 30 dias Feche SEMPRE com a linha: "Obs.: orçamento estimado — os valores podem sofrer alterações." Mostre os km EXATAMENTE como a ferramenta devolver (com a casa decimal, ex.: 75,2 km) e os valores com centavos — NUNCA arredonde nem estime km/valores por conta própria.
+  PAGAMENTO: todo orçamento sai com "Pagamento: 30 dias". Se o cliente QUESTIONAR a condição (quiser prazo maior, parcelar, à vista com desconto etc.), diga que vai VERIFICAR COM O FINANCEIRO e retorna — NUNCA prometa outra condição por conta própria.
+
   4) FECHAMENTO (vale também pro quadriciclo):
      - Se ele quiser REMOVER peça: recalcule subtraindo e mostre o novo total.
      - Se ele quiser ADICIONAR algo: anote o item (repita pra confirmar o que ele quer), pergunte se precisa de MAIS alguma coisa. Item extra sem preço nas ferramentas entra como observação ("a equipe confirma o valor") — NUNCA invente preço.
