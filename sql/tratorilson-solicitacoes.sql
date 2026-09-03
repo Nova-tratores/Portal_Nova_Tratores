@@ -22,3 +22,7 @@ create table if not exists tratorilson_solicitacoes (
 
 alter table tratorilson_solicitacoes enable row level security;
 -- leitura/escrita só pelas rotas do portal (service role); sem policies de anon.
+
+-- v2 (03/09): kanban de fases
+alter table tratorilson_solicitacoes add column if not exists fase text not null default 'nova';
+alter table tratorilson_solicitacoes add column if not exists data_servico date;

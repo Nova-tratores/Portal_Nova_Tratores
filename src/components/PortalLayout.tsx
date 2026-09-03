@@ -10,6 +10,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import TratorinoChat from '@/components/TratorinoChat'
 import CaixaEmail from '@/components/CaixaEmail'
 import VigiaCameras from '@/components/VigiaCameras'
+import SolicitacoesTratorilson from '@/components/SolicitacoesTratorilson'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LogOut, Settings, ClipboardList, Wrench, FileText,
@@ -207,9 +208,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [chatOpen, setChatOpen] = useState(false)
   const [lembretesOpen, setLembretesOpen] = useState(false)
   const [bellOpen, setBellOpen] = useState(false)
-  // Solicitações do Tratorilson (NovaZap) — painel no ícone do zap
+  // Solicitações do Tratorilson (NovaZap) — kanban no ícone do zap
   const [zapPanelOpen, setZapPanelOpen] = useState(false)
-  const [solicitacoes, setSolicitacoes] = useState<any[]>([])
   const [solNovas, setSolNovas] = useState(0)
   useEffect(() => {
     let vivo = true
@@ -218,25 +218,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         const { authHeaders } = await import('@/lib/auth/client')
         const r = await fetch('/api/tratorilson/solicitacoes', { headers: await authHeaders(), cache: 'no-store' })
         const d = await r.json()
-        if (vivo && Array.isArray(d.solicitacoes)) { setSolicitacoes(d.solicitacoes); setSolNovas(d.novas || 0) }
-      } catch { /* painel fica vazio */ }
+        if (vivo) setSolNovas(d.novas || 0)
+      } catch { /* badge fica quieto */ }
     }
     carregar()
     const t = setInterval(carregar, 60000)
     return () => { vivo = false; clearInterval(t) }
-  }, [])
-  const atenderSolicitacao = async (id: number) => {
-    try {
-      const { authHeaders } = await import('@/lib/auth/client')
-      await fetch('/api/tratorilson/solicitacoes', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ id }),
-      })
-      setSolicitacoes(s => s.map(x => (x.id === id ? { ...x, status: 'atendida' } : x)))
-      setSolNovas(n => Math.max(0, n - 1))
-    } catch { /* mantém como está */ }
-  }
+  }, [zapPanelOpen])
   // Rodando dentro de um painel da tela dividida (/split)? Esconde o botão de dividir.
   const [emIframe, setEmIframe] = useState(false)
   useEffect(() => { try { setEmIframe(window.self !== window.top) } catch { setEmIframe(true) } }, [])
@@ -731,53 +719,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             )}
           </button>
 
-          {zapPanelOpen && (
-            <div style={{
-              position: 'absolute', top: 'calc(100% + 8px)', right: 0, width: 370, maxHeight: 480, overflowY: 'auto',
-              background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 12,
-              boxShadow: '0 12px 32px rgba(0,0,0,.28)', zIndex: 140, padding: 10,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, gap: 8 }}>
-                <strong style={{ fontSize: 13, color: 'var(--portal-text)' }}>Solicitações do Tratorilson</strong>
-              </div>
-              {solicitacoes.length === 0 && (
-                <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', padding: '10px 4px 14px' }}>
-                  Nenhuma solicitação ainda — quando um cliente confirmar um orçamento com o Tratorilson, ela aparece aqui.
-                </div>
-              )}
-              {solicitacoes.map(s => (
-                <div key={s.id} style={{
-                  border: '1px solid var(--portal-border)',
-                  borderLeft: `4px solid ${s.status === 'nova' ? '#22c55e' : 'var(--portal-border)'}`,
-                  borderRadius: 8, padding: '8px 10px', marginBottom: 8, opacity: s.status === 'nova' ? 1 : 0.62,
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
-                    <strong style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{s.contato_nome || s.contato_telefone || 'Contato'}</strong>
-                    <span style={{ fontSize: 10.5, color: 'var(--portal-text-secondary)', whiteSpace: 'nowrap' }}>
-                      {new Date(s.created_at).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                  {s.cliente_nome && (
-                    <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)' }}>
-                      Cliente: {s.cliente_nome}{s.cliente_cnpj ? ` · ${s.cliente_cnpj}` : ''}
-                    </div>
-                  )}
-                  <div style={{ fontSize: 12, color: 'var(--portal-text)', margin: '4px 0' }}>{s.resumo}</div>
-                  {s.extras && <div style={{ fontSize: 11.5, color: '#d97706' }}>Extras: {s.extras}</div>}
-                  {s.status === 'nova' ? (
-                    <button
-                      onClick={() => atenderSolicitacao(s.id)}
-                      style={{ marginTop: 6, fontSize: 11.5, padding: '4px 10px', borderRadius: 7, border: '1px solid #22c55e', background: 'transparent', color: '#22c55e', cursor: 'pointer' }}
-                    >Marcar como atendida</button>
-                  ) : (
-                    <div style={{ fontSize: 10.5, color: 'var(--portal-text-secondary)', marginTop: 4 }}>
-                      Atendida{s.atendida_por ? ` por ${s.atendida_por}` : ''}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+          <SolicitacoesTratorilson open={zapPanelOpen} onClose={() => setZapPanelOpen(false)} />
           </div>
 
           {/* Ícone Notificações */}

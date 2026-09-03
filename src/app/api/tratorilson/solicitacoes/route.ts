@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
       .order("created_at", { ascending: false })
       .limit(30);
     if (error) throw error;
-    const novas = (data || []).filter((s) => s.status === "nova").length;
+    const novas = (data || []).filter((s) => (s.fase || (s.status === "atendida" ? "concluida" : "nova")) === "nova").length;
     return NextResponse.json(
       { solicitacoes: data || [], novas },
       { headers: { "Cache-Control": "no-store" } }
@@ -45,10 +45,22 @@ export async function PATCH(req: NextRequest) {
   const id = Number(body?.id);
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
 
-  const { error } = await sb()
-    .from("tratorilson_solicitacoes")
-    .update({ status: "atendida", atendida_por: auth.email || auth.userId || "portal", atendida_em: new Date().toISOString() })
-    .eq("id", id);
+  const FASES = ["nova", "orcamento", "aguardando_data", "agendado", "execucao", "concluida"];
+  const mudanca: Record<string, unknown> = {};
+  if (typeof body?.fase === "string" && FASES.includes(body.fase)) {
+    mudanca.fase = body.fase;
+    if (body.fase === "concluida") {
+      mudanca.status = "atendida";
+      mudanca.atendida_por = auth.email || auth.userId || "portal";
+      mudanca.atendida_em = new Date().toISOString();
+    }
+  }
+  if (body?.data_servico === null || typeof body?.data_servico === "string") {
+    mudanca.data_servico = body.data_servico || null;
+  }
+  if (!Object.keys(mudanca).length) return NextResponse.json({ error: "nada pra mudar" }, { status: 400 });
+
+  const { error } = await sb().from("tratorilson_solicitacoes").update(mudanca).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
