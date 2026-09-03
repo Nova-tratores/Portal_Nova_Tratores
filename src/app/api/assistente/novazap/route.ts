@@ -24,6 +24,14 @@ const rest = (caminho: string) =>
   fetch(`${SB()}/rest/v1/${caminho}`, { headers: HDR() })
     .then((r) => (r.ok ? r.json() : []))
     .catch(() => []);
+const restPost = (tabela: string, corpo: unknown) =>
+  fetch(`${SB()}/rest/v1/${tabela}`, {
+    method: "POST",
+    headers: { ...HDR(), "Content-Type": "application/json", Prefer: "return=minimal" },
+    body: JSON.stringify(corpo),
+  })
+    .then((r) => r.ok)
+    .catch(() => false);
 
 interface MsgEntrada {
   de?: string; // 'cliente' | 'loja'
@@ -305,6 +313,23 @@ const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "registrar_solicitacao",
+      description: "Registra a solicitação CONFIRMADA pelo cliente no painel da equipe do portal. Chame SOMENTE quando o cliente confirmar o orçamento/pedido (depois do 'Posso confirmar?'). Inclua nos extras qualquer peça/serviço que ele adicionou além do kit.",
+      parameters: {
+        type: "object",
+        properties: {
+          tipo: { type: "string", enum: ["revisao", "quadriciclo", "assistencia", "pecas", "outro"] },
+          resumo: { type: "string", description: "O que o cliente quer, curto (ex.: 'Revisão de 600h do 6075, total R$2.731,00 com deslocamento de Taquarituba')" },
+          extras: { type: "string", description: "Peças/serviços ADICIONADOS a mais pelo cliente (vazio se nenhum)" },
+          total: { type: "number", description: "Total confirmado em reais, se houver" },
+        },
+        required: ["tipo", "resumo"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "orcamento_quadriciclo",
       description: "Monta o orçamento da revisão de QUADRICICLO só pelo modelo (M550, TBOSS 550, LANDFORCE 650...): kit de peças com preços + mão de obra fixa de 2h. Valores sem deslocamento.",
       parameters: {
@@ -376,11 +401,41 @@ export async function POST(req: NextRequest) {
 
   const nome = String(body?.contato?.nome || "").slice(0, 120);
   const telefone = String(body?.contato?.telefone || "").slice(0, 30);
-  const system =
+
+  // vínculo do contato no NovaZap (cliente do portal + localização salva)
+  const vinculo = {
+    cliente: String(body?.contato?.cliente || "").slice(0, 160),
+    cod: String(body?.contato?.cliente_cod || "").slice(0, 20),
+    endereco: String(body?.contato?.cliente_endereco || "").slice(0, 240),
+    localizacao: String(body?.contato?.localizacao || "").slice(0, 300),
+    cnpj: "",
+  };
+  if (vinculo.cod) {
+    const cad: any[] = await rest(
+      `portal_nt_clientes_cadastro_omie?cod_cli=eq.${encodeURIComponent(vinculo.cod)}&select=razao_social,nome_fantasia,cnpj_cpf,endereco,bairro,cidade,estado&limit=1`
+    );
+    const c = cad?.[0];
+    if (c) {
+      vinculo.cnpj = String(c.cnpj_cpf || "");
+      if (!vinculo.cliente) vinculo.cliente = String(c.nome_fantasia || c.razao_social || "");
+      if (!vinculo.endereco) vinculo.endereco = [c.endereco, c.bairro, c.cidade && `${c.cidade}/${c.estado || ""}`].filter(Boolean).join(", ");
+    }
+  }
+
+  let system =
     PERSONA_CLIENTE_WHATSAPP +
     (nome
       ? `\n\nO nome do contato no WhatsApp é "${nome}" (pode estar incompleto ou ser apelido — confirme o nome completo quando precisar dele).`
       : "");
+  if (vinculo.cliente || vinculo.localizacao) {
+    system += `\n\nDADOS JÁ CADASTRADOS DESTE CONTATO (use pra AGILIZAR — logo depois que ele disser o que quer, CONFIRME em vez de pedir de novo):`;
+    if (vinculo.cliente) {
+      system += `\n- CLIENTE VINCULADO: ${vinculo.cliente}${vinculo.cnpj ? ` — CNPJ/CPF ${vinculo.cnpj}` : ""}${vinculo.endereco ? ` — ${vinculo.endereco}` : ""}. Pergunte: "É para esse cliente?" mostrando nome, CNPJ e endereço. Se disser que é outro, colete os dados do certo.`;
+    }
+    if (vinculo.localizacao) {
+      system += `\n- LOCALIZAÇÃO CADASTRADA: ${vinculo.localizacao}. Pergunte se o atendimento é nessa localização; SE CONFIRMAR, use calcular_deslocamento com ela; se não for, peça a nova.`;
+    }
+  }
 
   try {
     const mensagens: any[] = [{ role: "system", content: system }, ...chat];
@@ -416,6 +471,22 @@ export async function POST(req: NextRequest) {
           if (tc.function?.name === "orcamento_revisao") resultado = await orcamentoRevisao(args.modelo, args.horas);
           if (tc.function?.name === "orcamento_quadriciclo") resultado = await orcamentoQuadriciclo(args.modelo);
           if (tc.function?.name === "calcular_deslocamento") resultado = await calcularDeslocamento(args.localizacao);
+          if (tc.function?.name === "registrar_solicitacao") {
+            const ok = await restPost("tratorilson_solicitacoes", {
+              contato_nome: nome || null,
+              contato_telefone: telefone || null,
+              cliente_nome: vinculo.cliente || null,
+              cliente_cod: vinculo.cod || null,
+              cliente_cnpj: vinculo.cnpj || null,
+              tipo: String(args.tipo || "outro"),
+              resumo: String(args.resumo || "").slice(0, 1000),
+              extras: String(args.extras || "").slice(0, 1000) || null,
+              total: Number(args.total) || null,
+            });
+            resultado = ok
+              ? { ok: true, mensagem: "Solicitação registrada — a equipe já vê no portal." }
+              : { ok: false, mensagem: "Não consegui registrar agora, mas siga normalmente — a equipe acompanha pela conversa." };
+          }
         } catch (e) {
           resultado = { erro: e instanceof Error ? e.message : "falha na consulta" };
         }
