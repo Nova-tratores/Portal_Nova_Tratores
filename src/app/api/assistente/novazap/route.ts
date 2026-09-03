@@ -109,6 +109,68 @@ function regraRevisao(hPedidas: number) {
   return { revisao: h, kitDe, maoObraHoras, cortesia, arredondada, obs };
 }
 
+// monta as peças de um kit (linha da tabela `revisoes`) com os preços
+async function montarPecasDoKit(row: any) {
+  const mapa: Record<string, number> = {};
+  for (let i = 1; i <= 30; i++) {
+    const codigo = String(row[`Cod_Prod_${i}`] || "").trim();
+    if (!codigo || codigo.toUpperCase() === "NULL" || codigo.length < 2) continue;
+    const q = parseFloat(String(row[`Qtd${i}`] || 1)) || 1;
+    mapa[codigo] = (mapa[codigo] || 0) + q;
+  }
+  const itens = await Promise.all(
+    Object.entries(mapa).map(async ([codigo, quantidade]) => {
+      const res: any[] = await rest(`Produtos_Completos?Codigo_Produto=eq.${encodeURIComponent(codigo)}&select=*`);
+      const p = res?.[0] || {};
+      const descricao = String(p.Descricao_Produto ?? p.descricao ?? `Item ${codigo}`);
+      const preco = parseFloat(String(p.Preco_Venda ?? p.preco ?? 0)) || 0;
+      return { codigo, descricao, quantidade, preco };
+    })
+  );
+  const totalPecas = itens.reduce((s, i) => s + (Number(i.quantidade) || 0) * (Number(i.preco) || 0), 0);
+  return { itens, totalPecas };
+}
+
+// Revisão de QUADRICICLO: só precisa do MODELO (kits tipo 'quadriciclo');
+// mão de obra fixa de 2h em toda revisão de quadri (regra do José, 03/09).
+async function orcamentoQuadriciclo(modelo: string) {
+  const norm = (s: any) => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const alvo = norm(modelo);
+  if (alvo.length < 2) return { encontrado: false, mensagem: "Preciso do modelo do quadriciclo (ex.: M550, TBOSS 550, LANDFORCE 650)." };
+
+  const rows: any[] = await rest(`revisoes?select=*`);
+  const quadris = rows.filter((r) => String(r.tipo || "") === "quadriciclo");
+  const candidatos = quadris.filter((r) => {
+    const t = norm(r.Trator);
+    const c = norm(r.Cod_Trator);
+    return (t && (t.includes(alvo) || alvo.includes(t))) || (c && (c.includes(alvo) || alvo.includes(c)));
+  });
+  if (!candidatos.length) {
+    return { encontrado: false, mensagem: `Não achei kit de quadriciclo pra "${modelo}".`, modelos_disponiveis: [...new Set(quadris.map((r) => r.Trator))] };
+  }
+  const modelosDistintos = [...new Set(candidatos.map((r) => String(r.Trator)))];
+  if (modelosDistintos.length > 1) {
+    return { encontrado: false, mensagem: "Mais de um modelo combina — pergunte ao cliente qual é.", modelos_possiveis: modelosDistintos };
+  }
+
+  const row = candidatos[0];
+  const { itens, totalPecas } = await montarPecasDoKit(row);
+  const cfg: any[] = await rest(`configuracoes_pos?select=valor_hora&id=eq.1`);
+  const valorHora = Number(cfg?.[0]?.valor_hora) || 193;
+  const maoObra = 2 * valorHora;
+
+  return {
+    encontrado: true,
+    modelo: row.Trator,
+    kit: `${row.Trator} ${row.Horas || ""}`.trim(),
+    pecas: itens.map((i) => ({ codigo: i.codigo, descricao: i.descricao, qtd: i.quantidade, preco: i.preco })),
+    total_pecas: Number(totalPecas.toFixed(2)),
+    mao_de_obra: { horas: 2, valor_hora: valorHora, valor: Number(maoObra.toFixed(2)), cortesia: false },
+    total_geral_sem_deslocamento: Number((totalPecas + maoObra).toFixed(2)),
+    observacoes: ["Valores SEM deslocamento."],
+  };
+}
+
 async function orcamentoRevisao(modelo: string, horas: string) {
   const hPedidas = Number((String(horas || "").match(/\d+/) || ["0"])[0]);
   if (!hPedidas) return { encontrado: false, mensagem: "Preciso das horas da revisão (ou do horímetro) em número." };
@@ -129,26 +191,7 @@ async function orcamentoRevisao(modelo: string, horas: string) {
     return { encontrado: false, mensagem: `Não achei kit de revisão pra "${modelo}" / ${regra.kitDe}h.`, kits_disponiveis: combos.slice(0, 30) };
   }
 
-  // junta os códigos/quantidades do kit
-  const mapa: Record<string, number> = {};
-  for (let i = 1; i <= 30; i++) {
-    const codigo = String(row[`Cod_Prod_${i}`] || "").trim();
-    if (!codigo || codigo.toUpperCase() === "NULL" || codigo.length < 2) continue;
-    const q = parseFloat(String(row[`Qtd${i}`] || 1)) || 1;
-    mapa[codigo] = (mapa[codigo] || 0) + q;
-  }
-
-  // preços em paralelo na Produtos_Completos
-  const itens = await Promise.all(
-    Object.entries(mapa).map(async ([codigo, quantidade]) => {
-      const res: any[] = await rest(`Produtos_Completos?Codigo_Produto=eq.${encodeURIComponent(codigo)}&select=*`);
-      const p = res?.[0] || {};
-      const descricao = String(p.Descricao_Produto ?? p.descricao ?? `Item ${codigo}`);
-      const preco = parseFloat(String(p.Preco_Venda ?? p.preco ?? 0)) || 0;
-      return { codigo, descricao, quantidade, preco };
-    })
-  );
-  const totalPecas = itens.reduce((s, i) => s + (Number(i.quantidade) || 0) * (Number(i.preco) || 0), 0);
+  const { itens, totalPecas } = await montarPecasDoKit(row);
 
   const cfg: any[] = await rest(`configuracoes_pos?select=valor_hora&id=eq.1`);
   const valorHora = Number(cfg?.[0]?.valor_hora) || 193;
@@ -254,6 +297,18 @@ const FERRAMENTAS = [
   {
     type: "function",
     function: {
+      name: "orcamento_quadriciclo",
+      description: "Monta o orçamento da revisão de QUADRICICLO só pelo modelo (M550, TBOSS 550, LANDFORCE 650...): kit de peças com preços + mão de obra fixa de 2h. Valores sem deslocamento.",
+      parameters: {
+        type: "object",
+        properties: { modelo: { type: "string", description: "Modelo do quadriciclo" } },
+        required: ["modelo"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "calcular_deslocamento",
       description: "Calcula o deslocamento REAL da loja até o cliente (km de rota, ida e volta, e o valor). Passe o texto exato da localização enviada (cidade/endereço, mensagem de localização do WhatsApp com Latitude/Longitude, ou LINK do Google Maps — inclusive encurtado). NUNCA estime km sem esta ferramenta.",
       parameters: {
@@ -351,6 +406,7 @@ export async function POST(req: NextRequest) {
         try {
           if (tc.function?.name === "buscar_trator") resultado = await buscarTrator(args.final_chassi);
           if (tc.function?.name === "orcamento_revisao") resultado = await orcamentoRevisao(args.modelo, args.horas);
+          if (tc.function?.name === "orcamento_quadriciclo") resultado = await orcamentoQuadriciclo(args.modelo);
           if (tc.function?.name === "calcular_deslocamento") resultado = await calcularDeslocamento(args.localizacao);
         } catch (e) {
           resultado = { erro: e instanceof Error ? e.message : "falha na consulta" };
