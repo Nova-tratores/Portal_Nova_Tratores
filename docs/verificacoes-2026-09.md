@@ -4,31 +4,34 @@
 > Legenda: ✅ feito · ⏳ em levantamento · 🔲 depende de você (painel/Supabase).
 
 ## Resumo do que trava a Fase 1
-- **0.1 e 0.3** (Supabase) ainda **abertos** — o conector `supabase` não está autorizado nesta sessão. Autorizar via `/mcp` numa sessão interativa, ou colar o resultado das queries abaixo.
-- Se **0.1** mostrar `contas_pagar`/`contas_receber` em aberto **> 1.000**, o Patrimônio já está truncado hoje e a tarefa **2.3 sobe pra Fase 1** (§6 do plano).
+- **0.1, 0.2, 0.11** ✅ fechados via script REST (`scripts/fase0-verificacoes.mjs`, service role key — o conector `supabase` MCP segue não autorizado, mas não é preciso).
+- **0.3** (RLS/policies) segue **aberto** — precisa de `pg_catalog` (SQL editor do Supabase ou MCP), fora do alcance do PostgREST.
+- **Achado 0.1 (revisado):** o Patrimônio **NÃO trunca no teto 1.000** (usa `selectPaginado`, que pagina em loop). O problema real é outro e pior: `selectPaginado` (`calc.js:607`) pagina **sem `.order()`** → sobre 26k linhas de `contas_pagar` repete/pula linhas → `a_pagar_aberto`/`a_receber_aberto` **instáveis/inflados** (bug `selectpaginado-sem-order`). A tarefa **2.3 continua necessária**, mas o alvo muda: **não** é "paginar o teto 1.000" (já pagina), é **pôr `.order()` estável** em `selectPaginado` (fix barato, alto impacto).
 
 ---
 
-## 0.1 — Volume de títulos em aberto 🔲 (Supabase)
-Rodar no SQL editor do Supabase do portal e colar a saída:
-```sql
-select 'pagar'  as t, count(*) from contas_pagar   where status = 'aberto'
-union all
-select 'receber' as t, count(*) from contas_receber where status = 'aberto';
-```
-**Resultado:** _(colar)_
-**Decide:** se o Patrimônio está truncado no teto de 1.000 → prioriza 1.8 (paliativo) e 2.3.
+## 0.1 — Volume de títulos em aberto ✅ (via `scripts/fase0-verificacoes.mjs`, 03/09/2026)
+> ⚠️ A coluna real é **`status_titulo`** (não `status`) e não há valor `'aberto'` — a query original do plano estava errada. "Em aberto" = `status_titulo NOT IN (PAGO, RECEBIDO, LIQUIDADO, CANCELADO)`, que é **exatamente o filtro que `calcularAberto` usa** (`calc.js:677`).
+
+**Resultado (conta TODAS):**
+
+| Tabela | Total | Em aberto (A VENCER + ATRASADO + VENCE HOJE) | Quebra `status_titulo` |
+|---|---|---|---|
+| `contas_pagar` | **26.010** | **961** | PAGO 25.012 · A VENCER 735 · ATRASADO 194 · CANCELADO 37 · VENCE HOJE 32 |
+| `contas_receber` | **11.426** | **654** | RECEBIDO 10.328 · CANCELADO 444 · ATRASADO 357 · A VENCER 290 · VENCE HOJE 7 |
+
+> (O proxy "sem `data_pagamento`" dava 11.997/4.433, mas é ruído: ~11k títulos `PAGO` têm `data_pagamento` nulo. Ignorar — o rótulo `status_titulo` é o autoritativo.)
+
+**Decisão (revisada):** os títulos em aberto (**961/654**) estão **abaixo de 1.000** — então, mesmo numa consulta simples de página única, não haveria truncamento por esse recorte. **MAS** `calcularAberto` NÃO filtra no servidor: puxa a tabela **inteira** (26.010 linhas de pagar) via `selectPaginado` e filtra em JS depois (`calc.js:669-682`). `selectPaginado` (`calc.js:607-619`) usa `.range()` num loop **sem `.order()`** → paginação instável sobre 27 páginas → linhas repetidas/omitidas → **`a_pagar_aberto`/`a_receber_aberto` inflados/instáveis** (bug conhecido `selectpaginado-sem-order`). **Tarefa 2.3 = pôr `.order()` estável** (ex.: `.order('id')`/`.order('codigo_lancamento')`) em `selectPaginado` — e, de bônus, filtrar `status_titulo` no servidor pra puxar ~1k em vez de 26k. Vale para `calcularAberto`, `calcularEstoque` (`:634`) e `calcularFrota` (`:660`), todos sem `.order()`.
 
 ---
 
-## 0.2 — Casing real de `conta_omie` em `produto_tipo` 🔲 (Supabase)
-```sql
-select conta_omie, count(*) from produto_tipo group by 1 order by 2 desc;
-```
-**Resultado:** _(colar)_
-**Decide:** quantos itens estão invisíveis pra ABC/Giro/Sugestão por casing divergente (`NOVA` vs `nova`). Alimenta a tarefa 1.9.
+## 0.2 — Casing real de `conta_omie` em `produto_tipo` ✅ (via script, 03/09/2026)
+**Resultado:** `NOVA` = **5.050**, `CASTRO` = **4.691**. **Nenhuma** linha minúscula ou casing divergente.
 
-> Nota de código (já confirmada): `familias.ts:198` admite casing misto; `vendas-sync.ts:240` grava sem normalizar; filtros exatos `'NOVA'` em `giro.ts:122`, `curva-abc.ts:206/237`, `sugestao-compra/snapshot.ts:95`, `dashboard-listas.ts:339`. Ou seja: **se 0.2 retornar qualquer linha minúscula, há itens sumindo**.
+**Decisão:** **não há itens sumindo por casing** em `produto_tipo` hoje. A tarefa **1.9 não é urgente por este vetor** — os filtros exatos `'NOVA'`/`'CASTRO'` batem com o dado real. Fica só a **prevenção** (normalizar na escrita, `vendas-sync.ts:240`) pra não regredir; não bloqueia a Fase 1.
+
+> Nota de código (mantida como prevenção): `familias.ts:198` admite casing misto; `vendas-sync.ts:240` grava sem normalizar; filtros exatos `'NOVA'` em `giro.ts:122`, `curva-abc.ts:206/237`, `sugestao-compra/snapshot.ts:95`, `dashboard-listas.ts:339`. Como 0.2 voltou 100% maiúsculo, o risco é **latente** (uma escrita futura minúscula sumiria), não **ativo**.
 
 ---
 
@@ -153,7 +156,18 @@ Precisam de exceção explícita em `src/lib/auth/publico.ts` (tarefa 2.1):
 
 ---
 
-## 0.11 — Migration `cron-runs.sql` aplicada 🔲 (Supabase) — código ✅
+## 0.11 — Migration `cron-runs.sql` aplicada ✅ (via script, 03/09/2026) — código ✅
+**Resultado real:** tabela `cron_runs` **existe e está APLICADA** (colunas reais confirmadas: `id, job, iniciado_em, finalizado_em, duracao_ms, status, requisicoes, erros, bloqueio, detalhe`).
+- `total = 24` runs · `abertos (finalizado_em null) = 2` · `último = 2026-09-03T10:04:32Z`.
+- **Jobs distintos (8):** `ajustes-sync-notas`, `estoque-backfill-cmc`, `estoque-sync-compras`, `estoque-sync-estoque`, `estoque-sync-incremental`, `estoque-sync-movimentos`, `estoque-sync-produtos`, `estoque-sync-recebimentos`.
+
+**Decisões:**
+- **Tarefa 1.1 confirmada:** há **2 runs órfãos** (`status='rodando'` sem `finalizado_em`) = lixo de crash. Precisa do faxineiro que marca `abandonado` runs velhos sem fim.
+- **Tarefa 1.2 confirmada (quais jobs faltam):** só **Estoque + `ajustes-sync-notas`** passam por `comCronRun`. **Faltam** os schedulers in-process que tocam Omie (`pasta-cliente sync-recente`, `tratorilson`) — do 0.7 — e todos os demais crons de GitHub Actions (frota, garantias, financeiro, pos, dre, war-room, tickets, etc.). São os alvos de envolver com `comCronRun`.
+
+---
+
+### (histórico) Notas de código do 0.11
 
 Migration existe: [`sql/cron-runs.sql`](../sql/cron-runs.sql). Tabela `cron_runs` com colunas **`iniciado_em`/`finalizado_em`** (atenção: o plano cita `inicio`/`fim` — os nomes reais são estes), `duracao_ms`, `status` (`rodando|ok|erro|pulado|bloqueio` — **não existe `abandonado` ainda**, alvo da tarefa 1.1), `bloqueio`, `detalhe`.
 
@@ -183,6 +197,23 @@ select distinct job from cron_runs order by 1;   -- alimenta 1.2 (quais jobs fal
 - **Percentis de duração por job:** só depois de `cron_runs` colher ≥ 5 dias úteis.
 
 ## O que falta pra fechar o Gate F0
-Itens de **código: todos ✅** (0.6, 0.7, 0.9, 0.10, e 0.11-código). Falta o que só você acessa:
-- **Supabase** (0.1, 0.2, 0.3, 0.11-real): autorizar `/mcp` interativo **ou** colar a saída das queries prontas acima.
-- **Painéis**: 0.4 (Railway Variables), 0.5 (réplicas/rede), 0.8 (deploys), 0.12 (OpenAI billing + limite rígido).
+- **Código: todos ✅** (0.6, 0.7, 0.9, 0.10, 0.11-código).
+- **Supabase via script REST: ✅** 0.1, 0.2, 0.11-real fechados por `scripts/fase0-verificacoes.mjs` (03/09/2026). Rerodável a qualquer momento.
+- **Supabase que falta:** só **0.3** (RLS/policies) — precisa de `pg_catalog`, fora do PostgREST. Rodar as duas queries do bloco 0.3 no **SQL editor do Supabase** (ou autorizar o MCP `supabase` numa sessão interativa) e colar.
+- **Painéis (só você):** 0.4 (Railway Variables), 0.5 (réplicas/rede), 0.8 (deploys), 0.12 (OpenAI billing + limite rígido).
+
+### Placar Gate F0
+| Item | Status |
+|---|---|
+| 0.1 volume títulos | ✅ (961 pagar / 654 receber em aberto; achado real = `selectPaginado` sem `.order()`) |
+| 0.2 casing produto_tipo | ✅ (100% maiúsculo — sem itens sumindo) |
+| 0.3 RLS/policies | 🔲 (SQL editor) |
+| 0.4 env Railway | 🔲 (painel) |
+| 0.5 réplicas/rede | 🔲 (painel) |
+| 0.6 cliente Omie único | ✅ |
+| 0.7 schedulers in-process | ✅ |
+| 0.8 horários deploy | 🔲 (painel) |
+| 0.9 fetch sem Bearer | ✅ |
+| 0.10 clientes externos API | ✅ |
+| 0.11 cron_runs aplicada | ✅ (aplicada; 2 órfãos → 1.1; 8 jobs → 1.2) |
+| 0.12 custo OpenAI | 🔲 (painel) |
