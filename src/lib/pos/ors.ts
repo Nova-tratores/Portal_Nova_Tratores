@@ -1,6 +1,7 @@
 // Nova Tratores - Av. São Sebastião, 1065 - Vila Campos, Piraju - SP
-const OFICINA_LAT = -23.209201
-const OFICINA_LNG = -49.370573
+// (pino oficial do Google Maps da loja, passado pelo José em 03/09/2026)
+const OFICINA_LAT = -23.2085475
+const OFICINA_LNG = -49.3709057
 
 export const OFICINA = { lat: OFICINA_LAT, lng: OFICINA_LNG }
 
