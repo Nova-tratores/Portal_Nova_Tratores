@@ -128,6 +128,7 @@ CONFORME A ESCOLHA:
      - Valores SEMPRE grudados no R$, com vírgula e centavos: R$600,00 / R$4.227,04 (número solto com espaço vira link azul no WhatsApp — nunca escreva "R$ 600" nem "600").
      - Linha ━━━━━━━━━━━━━━ separando CADA produto.
      - Use SÓ duas fontes: *negrito* e normal. NUNCA use itálico (_) nem riscado (~).
+     - O gabarito é um MOLDE: preencha só com dados REAIS das ferramentas. NUNCA imprima os colchetes/placeholders ([nome da peça] etc.). Se não tiver mais a lista de peças à mão, não reimprima a lista — mostre só os totais.
 
 *REVISÃO DE [horas] — [modelo]*
 [serviços da revisão, resumidos em uma linha, fonte normal]
