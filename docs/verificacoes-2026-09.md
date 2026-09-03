@@ -5,7 +5,7 @@
 
 ## Resumo do que trava a Fase 1
 - **0.1, 0.2, 0.11** ✅ fechados via script REST (`scripts/fase0-verificacoes.mjs`, service role key — o conector `supabase` MCP segue não autorizado, mas não é preciso).
-- **0.3** (RLS/policies) segue **aberto** — precisa de `pg_catalog` (SQL editor do Supabase ou MCP), fora do alcance do PostgREST.
+- **0.3** ✅ fechado (SQL editor, 03/09) → 🔴🔴 **achado P1 CRÍTICO: o banco está aberto à anon key.** `anon` (chave pública do frontend) tem **GRANT ALL** em ~110 tabelas RLS-off (PII, comissão/salário, financeiro, auditoria — dá pra **TRUNCATE `audit_logs_vendas`**), e ainda há policies `TO public USING(true)` em tabelas RLS-on. É o item mais urgente do Gate F0. Remediação amarrada à 2.1 (auth middleware) — ver 0.3.
 - **Achado 0.1 (revisado):** o Patrimônio **NÃO trunca no teto 1.000** (usa `selectPaginado`, que pagina em loop). O problema real é outro e pior: `selectPaginado` (`calc.js:607`) pagina **sem `.order()`** → sobre 26k linhas de `contas_pagar` repete/pula linhas → `a_pagar_aberto`/`a_receber_aberto` **instáveis/inflados** (bug `selectpaginado-sem-order`). A tarefa **2.3 continua necessária**, mas o alvo muda: **não** é "paginar o teto 1.000" (já pagina), é **pôr `.order()` estável** em `selectPaginado` (fix barato, alto impacto).
 
 ---
@@ -47,10 +47,67 @@ order by 1;
 select schemaname, tablename, policyname, cmd, roles, qual, with_check
 from pg_policies where schemaname = 'public' order by tablename, policyname;
 ```
-**Resultado:** _(colar)_
-**Alvos de atenção (do plano):**
-- `requisicao_autorizacoes` — esperado ter policy `FOR ALL USING(true)` + `GRANT ALL TO anon` (`sql/dev-bloqueio-historico.sql:40-44`) → **tarefa 1.3**.
-- `cmc_correcoes` — esperado **sem RLS** no repositório → **tarefa 1.4**.
+### Resultado (A) — RLS por tabela (03/09/2026, ⏳ parcial: faltam policies+grants)
+Rodada a query (A). **~110 tabelas do `public` estão com `relrowsecurity = false`.** RLS off só é buraco **se** o papel `anon`/`authenticated` tiver grant (query C pendente), mas o conjunto sensível é grande:
+
+- **Financeiro sem RLS:** `contas_receber` (⚠️ inconsistente — `contas_pagar` está **true**), `despesas`, `finan_pagar`, `finan_receber`, `finan_rh`, `conta_corrente`, `contas_baixas`, `contas_correcoes`, `movimentacoes`, `movimentacao_produtos`, `cmc_historico`, `notas_entrada`, `outras_entradas`, `vendas_itens`, `vendas_categoria_mensal`, `audit_logs_vendas`, `os_mensal`.
+- **Comissão/salário sem RLS:** `comissao_pessoas`, `comissao_custos_vendedor`, `comissao_regras`, `comissao_config`, `comissao_bonus_historico`, `comissao_ajustes_servicos`, `comissao_ajustes_vendas`.
+- **Clientes/fornecedores (PII) sem RLS:** `Clientes_Omie`, `Cliente_Manual`, `Clientes_Manuais`, `clientes_info`, `clientes_vendas`, `ignorar_clientes`, `Fornecedores`.
+- **Comunicação interna sem RLS:** `mensagens_chat`, `portal_chats`, `portal_chat_membros`, `portal_chat_leitura`, `portal_mensagens`, `portal_notificacoes`, `portal_lembretes`, `portal_logs`, `portal_tarefas`.
+- **Propostas/pedidos sem RLS:** `pedidos`, `orcamentos`, `proposta_anexos`, `proposta_itens`, `proposta_status_hist`, `proposta_tags`, `req_cotacao`.
+- **Ativos sem RLS:** `Placas`, `maquinas`, `tratores`, `cad_trator`, `cad_autopropelido`, `maquinas_localizacao`, `gps_rastreador`.
+
+**Contra a expectativa do plano:**
+- `requisicao_autorizacoes` → RLS = **true** (não false). A brecha da **1.3**, se houver, está na *policy* → depende da query (B).
+- `cmc_correcoes` → RLS = **true** (o plano esperava **sem RLS**). Expectativa da **1.4** invertida — provável que a 1.4 caia; confirmar pela policy (B).
+
+**Falta:** **(B) policies** e **(C) grants em tabelas RLS-off** (queries no chat/abaixo). Só com (C) dá pra separar "P1 exposto de fato" de "RLS-off inofensivo".
+
+```sql
+-- (C) quais tabelas RLS-off têm grant pros papéis públicos = superfície real de ataque
+select t.relname as tabela, g.grantee,
+       string_agg(distinct g.privilege_type, ',' order by g.privilege_type) as privs
+from pg_class t
+join pg_namespace n on n.oid = t.relnamespace
+join information_schema.role_table_grants g
+  on g.table_name = t.relname and g.table_schema = 'public'
+where n.nspname = 'public' and t.relkind = 'r'
+  and t.relrowsecurity = false and g.grantee in ('anon','authenticated')
+group by 1,2 order by 1,2;
+```
+### Resultado (B) — policies (03/09/2026) 🔴 ACHADO P1
+O papel `public` inclui **`anon`** (chave pública do bundle). Policies `TO public USING(true)` = **acesso sem login**. Duas classes de exposição:
+
+**🔴 CRUD/escrita total ao anon (RLS "on" é teatro — a policy libera tudo):**
+- `Ordens_Omie` — policies nomeadas `anon_insert`/`anon_read`/`anon_update` (`{public}`, wc/qual = `true`).
+- `Equipamentos`, `Formulario`, `Proposta_Fabrica`, `abastecimentos`, `abastecimento_lotes`, `agenda_notas`, `agenda_visao` — `ALL {public} true/true`.
+- `GPS_Viagens`, `Tecnicos` (UPDATE aberto!), `checkin_diario`, `checkin_vendedor`, `comentarios_supervisor`, `comercial_veiculos` — CRUD `{public} true`.
+- `comissoes_os_relatorio`, `despesa_descontos_relatorio`, `config_vendedores_relatorio`, **todos os `cache_*_relatorio`** — `allow_all ALL {public} true/true` → **comissão/despesa/relatórios lidos e gravados por qualquer um com a anon key**.
+
+**🟠 Leitura de negócio ao anon:** `clientes_vendas`, `clientes_relatorios_semanais` (`SELECT {public} true`).
+
+**🟢 Padrão correto (referência p/ o fix):** `catalogo_*_write`/`configuracoes_write` → `EXISTS(supervisores WHERE auth_uid=auth.uid())`; `financeiro_usu` → `auth.uid()=id`; `decisoes` → `decisoes_pode_ver()`; `frota_*`/`feedback_*`/`caracteristicas_*`/`etiquetas_*` → `{authenticated}` (exige login).
+
+> Regra de leitura: `{authenticated}` exige login; `{public} qual=true` **não** (anon entra); `{public} qual=(auth.role()='authenticated')` exige login (o filtro barra anon). ⚠️ (B) veio **truncada** no chat (parou em `frota_dias`) — o padrão já está claro, mas rodar de novo com `\copy`/CSV pra pegar a lista completa das `{public} true`.
+
+**Conclusão 0.3:** o banco está **amplamente aberto à anon key** (classe RLS-off da query A **+** classe policy-`{public} true` da B). Isto **valida o P1 de segurança do plano** e vai além da 1.3/1.4 pontuais: é um **retrofit de RLS/policies em massa** (tarefa nova, candidata a subir de fase). Fix = trocar `{public} true` por `{authenticated}` + policy por papel real (modelo `supervisores`/`portal_permissoes`). **Não** virar RLS a seco sem o rollout de auth (2.1) — quebra as telas que hoje usam a anon key direto.
+
+### Resultado (C) — grants em tabelas RLS-off (03/09/2026) 🔴🔴 P1 CRÍTICO
+O papel **`anon`** (chave pública, no bundle do frontend) tem **`DELETE, INSERT, SELECT, UPDATE, TRUNCATE, REFERENCES, TRIGGER`** em **TODAS** as tabelas com RLS off. Com RLS desligado não há policy pra barrar — o grant manda. Amostra confirmada (a lista segue em ordem alfabética; o padrão é idêntico linha a linha):
+- **PII:** `Clientes_Omie`, `Cliente_Manual`, `Clientes_Manuais`, `Fornecedores`, `clientes_info`, `clientes_vendas` — anon lê/escreve/apaga.
+- **Salário/comissão:** `comissao_config`, `comissao_custos_vendedor`, `comissao_bonus_historico`, `comissao_ajustes_servicos`, `comissao_ajustes_vendas`.
+- **Financeiro/auditoria:** `cmc_historico`, `audit_logs_vendas` (anon pode **TRUNCATE** o log de auditoria → destrói tamper-evidence), e pela ordem ainda `contas_receber`, `despesas`, `finan_*`, `movimentacoes`, `notas_entrada`, `vendas_itens`.
+- **Operacional:** `Requisicao`, `Ordem_Servico`, `Projeto`, `Placas`, `cad_trator`, etc.
+
+**VEREDITO 0.3 (fechado):** o banco está **aberto de fato à anon key** por dois caminhos somados — (1) RLS-off + `anon` GRANT ALL (C) e (2) RLS-on + policy `TO public USING(true)` (B). Qualquer pessoa com a chave pública (que sai no JS) **lê, grava, apaga e trunca** dados de clientes (PII/LGPD), comissão/salário, financeiro e auditoria. Isto **eleva** o P1 do plano: não é só a 1.3/1.4 — é um **retrofit de segurança em massa**.
+
+**Sequência de remediação (sem quebrar o portal, que hoje usa a anon key direto):**
+1. **2.1 primeiro** — subir o middleware de auth (modo `observar` 3 dias → `bloquear`) pra API virar a porta única. Enquanto o front fala com PostgREST via anon, **não dá** pra revogar/trancar sem quebrar tela.
+2. Migrar as telas que batem direto no PostgREST pra passar pela API (ou por client autenticado com sessão real).
+3. Só então: **`REVOKE`** write do `anon` nas tabelas sensíveis + **ligar RLS** com policy por papel real (modelo `EXISTS(supervisores…)` / `portal_permissoes`), começando por PII → financeiro → comissão → auditoria.
+4. `audit_logs_vendas`/`cmc_historico`: tirar `TRUNCATE`/`DELETE` do anon **imediatamente** (baixo risco de quebrar tela; alto risco se explorado).
+
+> Cruza com memória `auth-sessao-portal` (getSession não valida; ~392/420 rotas sem auth): a API fraca **+** o banco aberto = a anon key é efetivamente admin. Os dois têm que ser fechados juntos (2.1 destrava o resto).
 
 ---
 
@@ -207,7 +264,7 @@ select distinct job from cron_runs order by 1;   -- alimenta 1.2 (quais jobs fal
 |---|---|
 | 0.1 volume títulos | ✅ (961 pagar / 654 receber em aberto; achado real = `selectPaginado` sem `.order()`) |
 | 0.2 casing produto_tipo | ✅ (100% maiúsculo — sem itens sumindo) |
-| 0.3 RLS/policies | 🔲 (SQL editor) |
+| 0.3 RLS/policies | ✅ 🔴 **P1 CRÍTICO** — banco aberto à anon key (RLS-off + anon GRANT ALL; e policies `{public} true`) |
 | 0.4 env Railway | 🔲 (painel) |
 | 0.5 réplicas/rede | 🔲 (painel) |
 | 0.6 cliente Omie único | ✅ |
