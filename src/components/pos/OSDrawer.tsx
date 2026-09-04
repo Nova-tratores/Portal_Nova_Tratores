@@ -901,6 +901,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   if (!visible) return null;
 
   // PPVs vinculados (o campo aceita vários separados por vírgula)
+  const fmtBR = (n: unknown) => (Number(n) || 0).toFixed(2).replace(".", ",");
   const ppvIds = ppv.split(",").map((s) => s.trim()).filter(Boolean);
 
   return (
@@ -1070,21 +1071,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             </tr>
                             <tr>
                               <td><span className="os-selo-cat">1. #Serv Prest Manutenção</span></td>
-                              <td className="num">{qtdHoras.toFixed(2).replace(".", ",")}</td>
+                              <td className="num">{fmtBR(qtdHoras)}</td>
                               <td>Hora Trabalhada</td>
-                              <td className="num">{VH.toFixed(2).replace(".", ",")}</td>
-                              <td className="num">{descHoraValor.toFixed(2).replace(".", ",")}</td>
-                              <td className="num">{(subtotalHoras - descHoraValor).toFixed(2).replace(".", ",")}</td>
+                              <td className="num">{fmtBR(VH)}</td>
+                              <td className="num">{fmtBR(descHoraValor)}</td>
+                              <td className="num">{fmtBR(Number(subtotalHoras) - Number(descHoraValor))}</td>
                               <td></td>
                             </tr>
-                            {qtdKm > 0 && (
+                            {Number(qtdKm) > 0 && (
                               <tr>
                                 <td><span className="os-selo-cat">2. #Deslocamento</span></td>
-                                <td className="num">{qtdKm.toFixed(2).replace(".", ",")}</td>
+                                <td className="num">{fmtBR(qtdKm)}</td>
                                 <td>Km rodado</td>
-                                <td className="num">{VK.toFixed(2).replace(".", ",")}</td>
-                                <td className="num">{descKmValor.toFixed(2).replace(".", ",")}</td>
-                                <td className="num">{(subtotalKm - descKmValor).toFixed(2).replace(".", ",")}</td>
+                                <td className="num">{fmtBR(VK)}</td>
+                                <td className="num">{fmtBR(descKmValor)}</td>
+                                <td className="num">{fmtBR(Number(subtotalKm) - Number(descKmValor))}</td>
                                 <td></td>
                               </tr>
                             )}
@@ -1092,7 +1093,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         </table>
                       </div>
                       <div className="os-omie-tabela-rodape">
-                        <span>{qtdKm > 0 ? "1 - 3 de 3" : "1 - 2 de 2"} registros</span>
+                        <span>{Number(qtdKm) > 0 ? "1 - 3 de 3" : "1 - 2 de 2"} registros</span>
                         <span style={{ opacity: 0.7 }}>edite quantidades e descontos logo abaixo</span>
                       </div>
                     </div>
