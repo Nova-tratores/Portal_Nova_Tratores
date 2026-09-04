@@ -964,6 +964,44 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
               <>
                 <div className="os-body">
 
+                  {/* ── Faixa superior no ESTILO OMIE: avatar com iniciais,
+                        campos Cliente/Vendedor com rótulo flutuante e a caixa
+                        de totais à direita (modelo v1 — iterando com o José) ── */}
+                  {mode === "edit" && clienteInfo && (
+                    <div className="os-summary os-omie-top" style={{ order: -6 }}>
+                      <div className="os-omie-avatar">
+                        {(clienteInfo.nome || "?").split(/\s+/).slice(0, 2).map((p: string) => p[0] || "").join("").toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 260, display: "flex", flexDirection: "column", gap: 14 }}>
+                        <div className="os-omie-field">
+                          <label>Cliente</label>
+                          <div className="os-omie-field-valor">
+                            <i className="fas fa-user" style={{ opacity: 0.55, marginRight: 8 }} />{clienteInfo.nome}
+                            {clienteInfo.cpf && <span style={{ marginLeft: 10, fontSize: 12.5, opacity: 0.65 }}>{clienteInfo.cpf}</span>}
+                          </div>
+                        </div>
+                        <div className="os-omie-field">
+                          <label>Vendedor</label>
+                          <div className="os-omie-field-valor" style={{ cursor: tecnico1 ? "pointer" : "default" }}
+                            onClick={(e) => { if (tecnico1) { e.stopPropagation(); window.open(`/mecanicos?tecnico=${encodeURIComponent(tecnico1)}`, "_blank"); } }}
+                            title={tecnico1 ? "Abrir Janela Mecânico" : undefined}>
+                            <i className="fas fa-user-cog" style={{ opacity: 0.55, marginRight: 8 }} />Técnico: {tecnico1 || "—"}
+                          </div>
+                        </div>
+                        <div className="os-summary-details" style={{ borderTop: "none", paddingTop: 0 }}>
+                          {projeto && <span><i className="fas fa-cog" /> {projeto}</span>}
+                          <span><i className="fas fa-tag" /> {tipoServico}</span>
+                        </div>
+                      </div>
+                      <div className="os-omie-totais">
+                        <div className="os-omie-totais-linha"><span>Serviços:</span><b>R$ {total.toFixed(2).replace(".", ",")}</b></div>
+                        <div className="os-omie-totais-linha"><span>Produtos:</span><b style={{ opacity: totalPecas ? 1 : 0.45 }}>R$ {totalPecas.toFixed(2).replace(".", ",")}</b></div>
+                        <div className="os-omie-totais-total"><span>Valor Total:</span><b>R$ {(total + totalPecas).toFixed(2).replace(".", ",")}</b></div>
+                      </div>
+                    </div>
+                  )}
+
+
                   {/* ── Abas (edit): Ordem de Serviço / Peças (PPV) ── */}
                   {mode === "edit" && (
                     <div className="os-tabs">
@@ -1001,43 +1039,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                   {/* ── Painel: Ordem de Serviço ── */}
                   <div className="os-tab-panel" data-aba={mode === "edit" ? abaOmie : undefined} style={{ display: aba === "os" ? "flex" : "none" }}>
-
-                  {/* ── Faixa superior no ESTILO OMIE: avatar com iniciais,
-                        campos Cliente/Vendedor com rótulo flutuante e a caixa
-                        de totais à direita (modelo v1 — iterando com o José) ── */}
-                  {mode === "edit" && clienteInfo && (
-                    <div className="os-summary os-omie-top" style={{ order: -6 }}>
-                      <div className="os-omie-avatar">
-                        {(clienteInfo.nome || "?").split(/\s+/).slice(0, 2).map((p: string) => p[0] || "").join("").toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 260, display: "flex", flexDirection: "column", gap: 14 }}>
-                        <div className="os-omie-field">
-                          <label>Cliente</label>
-                          <div className="os-omie-field-valor">
-                            <i className="fas fa-user" style={{ opacity: 0.55, marginRight: 8 }} />{clienteInfo.nome}
-                            {clienteInfo.cpf && <span style={{ marginLeft: 10, fontSize: 12.5, opacity: 0.65 }}>{clienteInfo.cpf}</span>}
-                          </div>
-                        </div>
-                        <div className="os-omie-field">
-                          <label>Vendedor</label>
-                          <div className="os-omie-field-valor" style={{ cursor: tecnico1 ? "pointer" : "default" }}
-                            onClick={(e) => { if (tecnico1) { e.stopPropagation(); window.open(`/mecanicos?tecnico=${encodeURIComponent(tecnico1)}`, "_blank"); } }}
-                            title={tecnico1 ? "Abrir Janela Mecânico" : undefined}>
-                            <i className="fas fa-user-cog" style={{ opacity: 0.55, marginRight: 8 }} />Técnico: {tecnico1 || "—"}
-                          </div>
-                        </div>
-                        <div className="os-summary-details" style={{ borderTop: "none", paddingTop: 0 }}>
-                          {projeto && <span><i className="fas fa-cog" /> {projeto}</span>}
-                          <span><i className="fas fa-tag" /> {tipoServico}</span>
-                        </div>
-                      </div>
-                      <div className="os-omie-totais">
-                        <div className="os-omie-totais-linha"><span>Serviços:</span><b>R$ {total.toFixed(2).replace(".", ",")}</b></div>
-                        <div className="os-omie-totais-linha"><span>Produtos:</span><b style={{ opacity: totalPecas ? 1 : 0.45 }}>R$ {totalPecas.toFixed(2).replace(".", ",")}</b></div>
-                        <div className="os-omie-totais-total"><span>Valor Total:</span><b>R$ {(total + totalPecas).toFixed(2).replace(".", ",")}</b></div>
-                      </div>
-                    </div>
-                  )}
 
                   {/* ── Faixa amarela estilo Omie: faturamento atrasado ── */}
                   {mode === "edit" && previsaoFaturamento && !["Concluída", "Cancelada"].includes(status) &&
