@@ -90,6 +90,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [projeto, setProjeto] = useState("");
   const [revisao, setRevisao] = useState("");
   const [servSolicitado, setServSolicitado] = useState(TEXT_TEMPLATE);
+  const [observacoes, setObservacoes] = useState("");
+  const [showLembretes, setShowLembretes] = useState(false);
+  const [mostrarTrocaCliente, setMostrarTrocaCliente] = useState(false);
+  const [descontoModoOS, setDescontoModoOS] = useState<"pct" | "valor">("pct");
   const [ppv, setPpv] = useState("");
   const [qtdHoras, setQtdHoras] = useState(1);
   const [qtdKm, setQtdKm] = useState(0);
@@ -719,7 +723,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       id: osId, nomeCliente: clienteInfo?.nome, cpfCliente: clienteInfo?.cpf,
       enderecoCliente: servicoOficina ? 'Nova Tratores - Av. São Sebastião, 1065 - Vila Campos, Piraju - SP' : clienteInfo?.endereco,
       cidadeCliente: servicoOficina ? 'Piraju' : (clienteInfo?.cidade || ''), tecnicoResponsavel: tecnico1, tecnico2,
-      tipoServico, revisao, projeto, servicoSolicitado: servSolicitado,
+      tipoServico, revisao, projeto, servicoSolicitado: servSolicitado, observacoes,
       qtdHoras, qtdKm, ppv, status: mode === "create" ? "Orçamento" : status,
       ordemOmie, motivoCancelamento: motivoCancel,
       substitutoTipo: temSubstituto ? substitutoTipo : null,
@@ -829,6 +833,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           setTipoServico(d.tipoServico || "Manutenção"); setRevisao(d.revisao || "");
           setProjeto(d.projeto || "");
           setServSolicitado(d.servicoSolicitado || TEXT_TEMPLATE);
+          setObservacoes(d.observacoes || "");
           setPpv(d.ppv || ""); setQtdHoras(d.qtdHoras || 0); setQtdKm(d.qtdKm || 0);
           const dv = parseFloat(d.descontoSalvo || 0);
           const dh = parseFloat(d.descontoHora || 0);
@@ -902,11 +907,18 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
   // PPVs vinculados (o campo aceita vários separados por vírgula)
   const fmtBR = (n: unknown) => (Number(n) || 0).toFixed(2).replace(".", ",");
+  // estilos do cabeçalho Omie — copiados do PPVDrawer pra ficar IGUAL
+  const L_OMIE: React.CSSProperties = { textTransform: "none", letterSpacing: 0, fontWeight: 500, color: "#64748b", fontSize: 12.5, display: "block", marginBottom: 5 };
+  const R_OMIE: React.CSSProperties = { fontSize: 12, color: "#6b6259", marginBottom: 4 };
+  const B_OMIE: React.CSSProperties = { background: "#eceae4", border: "1px solid #d6d0c4", borderRadius: 4, height: 34, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 10px", fontSize: 14, color: "#4a453d", fontVariantNumeric: "tabular-nums" };
+  // versão discreta (linha compacta dentro do card Descrição do Serviço)
+  const L_DISC: React.CSSProperties = { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 500, marginBottom: 3, textTransform: "none", letterSpacing: 0 };
+  const I_DISC: React.CSSProperties = { marginBottom: 0, height: 30, fontSize: 12.5, padding: "0 8px" };
   const ppvIds = ppv.split(",").map((s) => s.trim()).filter(Boolean);
 
   return (
     <>
-      <div className="drawer-overlay active">
+      <div className="drawer-overlay active fs">
         <div className="modal-container">
           <div className="drawer os-drawer">
             {/* Header */}
@@ -928,14 +940,53 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 )}
               </div>
               <div className="os-header-actions">
-                {mode === "edit" && podeOcorrencia && (
-                  <button
-                    onClick={() => setShowOcorrencia(true)}
-                    title="Registrar ocorrência ligada a esta OS (falta de informação, retorno de serviço…)"
-                    style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 700, color: "#DC2626", background: "#FEE2E2", border: "1px solid #FECACA", borderRadius: 6, padding: "6px 12px", cursor: "pointer", marginRight: 8 }}
-                  >
-                    ⚠ Ocorrência
-                  </button>
+                {mode === "edit" && lembretes.length > 0 && (
+                  <div style={{ position: "relative" }}>
+                    <button type="button" onClick={() => setShowLembretes(o => !o)} title="Lembretes do cliente"
+                      style={{ position: "relative", width: 38, height: 38, borderRadius: 10, border: "1.5px solid #FB923C", background: "#FFF7ED", color: "#C2410C", cursor: "pointer", fontSize: 15, marginRight: 8 }}>
+                      <i className="fas fa-bell" />
+                      <span style={{ position: "absolute", top: -6, right: -6, minWidth: 17, height: 17, borderRadius: 9, background: "#EA580C", color: "#fff", fontSize: 10, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 4px" }}>{lembretes.length}</span>
+                    </button>
+                    {showLembretes && (
+                      <div style={{ position: "absolute", top: "calc(100% + 8px)", right: 0, zIndex: 300, width: "min(460px, 86vw)", maxHeight: 420, overflowY: "auto", background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 12, boxShadow: "0 16px 40px rgba(0,0,0,.22)", padding: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                  {lembretes.map((l) => (
+                    <div key={l.id} className="os-lembrete-alert">
+                      <div className="os-lembrete-alert-header">
+                        <i className="fas fa-bell" /> Lembrete
+                      </div>
+                      {editingLembreteId === l.id ? (
+                        <div>
+                          <textarea
+                            rows={3}
+                            value={editingLembreteText}
+                            onChange={(e) => setEditingLembreteText(e.target.value)}
+                            style={{ marginBottom: 8 }}
+                          />
+                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                            <button className="os-lembrete-edit-btn" onClick={() => setEditingLembreteId(null)}>Cancelar</button>
+                            <button className="os-lembrete-edit-btn" onClick={() => salvarLembreteInline(l.id, editingLembreteText)}>Salvar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="os-lembrete-alert-text">{l.lembrete}</div>
+                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+                            <button className="os-lembrete-edit-btn" onClick={() => { setEditingLembreteId(l.id); setEditingLembreteText(l.lembrete); }}>
+                              <i className="fas fa-pen" style={{ marginRight: 4 }} /> Editar
+                            </button>
+                            {osId && (
+                              <button className="os-lembrete-edit-btn" style={{ background: "#10B981", color: "#fff", borderColor: "#10B981" }} onClick={() => concluirLembrete(l.id)}>
+                                <i className="fas fa-check" style={{ marginRight: 4 }} /> Concluir
+                              </button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                      </div>
+                    )}
+                  </div>
                 )}
                 <button className="os-btn-close" onClick={onClose} style={{ display: "inline-flex", alignItems: "center", gap: 8, width: "auto", padding: "6px 12px" }}>
                   <span style={{ fontSize: 14, fontWeight: 600 }}>Fechar</span>
@@ -964,43 +1015,103 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
               <>
                 <div className="os-body">
 
-                  {/* ── Faixa superior no ESTILO OMIE: avatar com iniciais,
-                        campos Cliente/Vendedor com rótulo flutuante e a caixa
-                        de totais à direita (modelo v1 — iterando com o José) ── */}
+                  {/* ── Cabeçalho estilo Omie (clone do PPVDrawer, dados da OS) ── */}
                   {mode === "edit" && clienteInfo && (
-                    <div className="os-summary os-omie-top" style={{ order: -6 }}>
-                      <div className="os-omie-avatar">
-                        {(clienteInfo.nome || "?").split(/\s+/).slice(0, 2).map((p: string) => p[0] || "").join("").toUpperCase()}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 260, display: "flex", flexDirection: "column", gap: 14 }}>
-                        <div className="os-omie-field">
-                          <label>Cliente</label>
-                          <div className="os-omie-field-valor">
-                            <i className="fas fa-user" style={{ opacity: 0.55, marginRight: 8 }} />{clienteInfo.nome}
-                            {clienteInfo.cpf && <span style={{ marginLeft: 10, fontSize: 12.5, opacity: 0.65 }}>{clienteInfo.cpf}</span>}
+                    <div className="os-summary" style={{ order: -6, background: "#fff", borderRadius: 4, padding: "12px 14px" }}>
+                     <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
+                     <div style={{ flex: 1, minWidth: 0 }}>
+                      {/* Cliente + Previsão de Faturamento */}
+                      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
+                        <div>
+                          <label style={L_OMIE}>Cliente</label>
+                          <div style={{ display: "flex", gap: 8 }}>
+                            <div style={{ width: 40, height: 34, borderRadius: 3, background: "#F5A623", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                              {(clienteInfo.nome || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase() || "?"}
+                            </div>
+                            <input type="text" value={`${clienteInfo.nome}${clienteInfo.cpf ? "   ·   " + clienteInfo.cpf : ""}`} readOnly onClick={() => podeEditar && setMostrarTrocaCliente((o) => !o)} placeholder="Clique na lupa para trocar o cliente..." style={{ marginBottom: 0, flex: 1, cursor: "pointer", fontWeight: 500 }} />
+                            <button type="button" onClick={() => podeEditar && setMostrarTrocaCliente((o) => !o)} title="Trocar cliente" style={{ flexShrink: 0, width: 40, borderRadius: 3, border: "1px solid var(--border)", background: "#fff", color: "#334155", cursor: "pointer" }}>
+                              <i className="fas fa-search" />
+                            </button>
                           </div>
                         </div>
-                        <div className="os-omie-field">
-                          <label>Vendedor</label>
-                          <div className="os-omie-field-valor" style={{ cursor: tecnico1 ? "pointer" : "default" }}
-                            onClick={(e) => { if (tecnico1) { e.stopPropagation(); window.open(`/mecanicos?tecnico=${encodeURIComponent(tecnico1)}`, "_blank"); } }}
-                            title={tecnico1 ? "Abrir Janela Mecânico" : undefined}>
-                            <i className="fas fa-user-cog" style={{ opacity: 0.55, marginRight: 8 }} />Técnico: {tecnico1 || "—"}
+                        <div>
+                          <label style={L_OMIE}>Previsão de Faturamento</label>
+                          <input type="date" value={previsaoFaturamento} disabled={!podeEditar} onChange={(e) => setPrevisaoFaturamento(e.target.value)} style={{ marginBottom: 0 }} />
+                        </div>
+                      </div>
+
+                      {/* Técnicos · Desconto (estilo PPV) · Alimentação · marcações discretas */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 0.9fr auto 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
+                        <div>
+                          <label style={L_OMIE}>Técnico</label>
+                          <select value={tecnico1} disabled={!podeEditar} onChange={(e) => setTecnico1(e.target.value)} style={{ marginBottom: 0 }}>
+                            <option value="">Selecione...</option>
+                            {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label style={L_OMIE}>Segundo Técnico</label>
+                          <select value={tecnico2} disabled={!podeEditar} onChange={(e) => setTecnico2(e.target.value)} style={{ marginBottom: 0 }}>
+                            <option value="">Nenhum</option>
+                            {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <div style={R_OMIE}>
+                            Valor do Desconto{" "}
+                            <button type="button" onClick={() => setDescontoModoOS((m) => (m === "pct" ? "valor" : "pct"))} title="Alternar entre % e R$"
+                              style={{ border: "none", background: "transparent", cursor: "pointer", color: "#a79f92", fontSize: 10, padding: 0, marginLeft: 2 }}>
+                              <i className="fas fa-pen" />
+                            </button>{" "}
+                            <span style={{ fontSize: 10.5, color: "#b7b0a3" }}>({descontoModoOS === "pct" ? "%" : "R$"})</span>
+                          </div>
+                          <div style={{ ...B_OMIE, padding: "0 8px", gap: 4 }}>
+                            {descontoModoOS === "pct" ? (
+                              <>
+                                <input type="number" value={descPorc || ""} min={0} max={100} step={0.5} placeholder="0" disabled={!podeEditar} title="Desconto em %"
+                                  onChange={(e) => { const v = parseFloat(e.target.value); syncDiscount("P", isNaN(v) ? 0 : Math.min(100, Math.max(0, v))); }}
+                                  style={{ width: "100%", border: "none", background: "transparent", textAlign: "right", fontSize: 14, color: "#4a453d", outline: "none", padding: 0, margin: 0, fontFamily: "inherit" }} />
+                                <span style={{ fontSize: 12, color: "#8a8378" }}>%</span>
+                              </>
+                            ) : (
+                              <>
+                                <span style={{ fontSize: 12, color: "#8a8378" }}>R$</span>
+                                <input type="number" value={descValor ? Number(Number(descValor).toFixed(2)) : ""} min={0} step={1} placeholder="0,00" disabled={!podeEditar} title="Desconto em R$"
+                                  onChange={(e) => { const v = parseFloat(e.target.value); syncDiscount("V", isNaN(v) ? 0 : Math.max(0, v)); }}
+                                  style={{ width: "100%", border: "none", background: "transparent", textAlign: "right", fontSize: 14, color: "#4a453d", outline: "none", padding: 0, margin: 0, fontFamily: "inherit" }} />
+                              </>
+                            )}
                           </div>
                         </div>
-                        <div className="os-summary-details" style={{ borderTop: "none", paddingTop: 0 }}>
-                          {projeto && <span><i className="fas fa-cog" /> {projeto}</span>}
-                          <span><i className="fas fa-tag" /> {tipoServico}</span>
+                        <button type="button" onClick={() => { setAba("os"); setAbaOmie("alimentacao"); }}
+                          title="Ver/adicionar alimentação do técnico"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", borderRadius: 4, border: "1px solid #d6d0c4", background: "#fff", color: "#B45309", fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
+                          <i className="fas fa-utensils" /> Alimentação{alimentacoes.length > 0 ? ` (${alimentacoes.length})` : ""}
+                        </button>
+                        <div style={{ display: "flex", gap: 16, alignItems: "center", height: 34 }}>
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#64748b", fontWeight: 500, cursor: "pointer", textTransform: "none", letterSpacing: 0, margin: 0, whiteSpace: "nowrap" }}>
+                            <input type="checkbox" checked={servicoOficina} onChange={(e) => setServicoOficina(e.target.checked)} disabled={!podeEditar} style={{ marginBottom: 0 }} />
+                            Serviço na oficina
+                          </label>
+                          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#64748b", fontWeight: 500, cursor: "pointer", textTransform: "none", letterSpacing: 0, margin: 0, whiteSpace: "nowrap" }}>
+                            <input type="checkbox" checked={servicoInterno} onChange={(e) => setServicoInterno(e.target.checked)} disabled={!podeEditar} style={{ marginBottom: 0 }} />
+                            Ordem interna
+                          </label>
                         </div>
                       </div>
-                      <div className="os-omie-totais">
-                        <div className="os-omie-totais-linha"><span>Serviços:</span><b>R$ {total.toFixed(2).replace(".", ",")}</b></div>
-                        <div className="os-omie-totais-linha"><span>Produtos:</span><b style={{ opacity: totalPecas ? 1 : 0.45 }}>R$ {totalPecas.toFixed(2).replace(".", ",")}</b></div>
-                        <div className="os-omie-totais-total"><span>Valor Total:</span><b>R$ {(total + totalPecas).toFixed(2).replace(".", ",")}</b></div>
-                      </div>
+                     </div>{/* fim coluna esquerda do cabeçalho */}
+
+                     {/* Caixa de totais (igual ao modelo) */}
+                     <div className="os-omie-totais" style={{ alignSelf: "stretch", justifyContent: "center" }}>
+                       <div className="os-omie-totais-linha"><span>Serviços:</span><b>R$ {fmtBR(subtotalHoras)}</b></div>
+                       <div className="os-omie-totais-linha"><span>Deslocamento:</span><b>R$ {fmtBR(subtotalKm)}</b></div>
+                       <div className="os-omie-totais-linha"><span>Descontos:</span><b style={{ color: totalDescontos > 0 ? "#0d9488" : "#b7b0a3" }}>R$ {fmtBR(totalDescontos)}</b></div>
+                       <div className="os-omie-totais-linha"><span>Produtos (PPV):</span><b>R$ {fmtBR(totalPecas + totalRequisicoes)}</b></div>
+                       <div className="os-omie-totais-total"><span>Valor Total:</span><span>R$ {fmtBR(total)}</span></div>
+                     </div>
+                     </div>{/* fim flex do cabeçalho */}
                     </div>
                   )}
-
 
                   {/* ── Abas (edit): Ordem de Serviço / Peças (PPV) ── */}
                   {mode === "edit" && (
@@ -1031,14 +1142,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <button type="button" className="os-tab" onClick={() => setShowLogs(!showLogs)}>
                         Histórico
                       </button>
-                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "dados" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("dados"); }}>
-                        Dados da OS
-                      </button>
                     </div>
                   )}
 
                   {/* ── Painel: Ordem de Serviço ── */}
                   <div className="os-tab-panel" data-aba={mode === "edit" ? abaOmie : undefined} style={{ display: aba === "os" ? "flex" : "none" }}>
+
+                  {mode === "edit" && bombaAlerta && (
+                    <div className="os-alert" style={{ order: -5.9 }}>
+                      <i className="fas fa-exclamation-triangle" /> Lembrete: Oferecer limpeza na bomba injetora.
+                    </div>
+                  )}
 
                   {/* ── Faixa amarela estilo Omie: faturamento atrasado ── */}
                   {mode === "edit" && previsaoFaturamento && !["Concluída", "Cancelada"].includes(status) &&
@@ -1048,73 +1162,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     </div>
                   )}
 
-                  {/* ── TABELA de serviços no estilo Omie (aba Lista de Serviços) ── */}
-                  {mode === "edit" && (
-                    <div className="os-card os-aba os-aba-servicos" style={{ order: -4.5, padding: 0, overflow: "hidden" }}>
-                      <div style={{ overflowX: "auto" }}>
-                        <table className="os-omie-tabela">
-                          <thead>
-                            <tr>
-                              <th>Categoria</th><th className="num">Quantidade</th><th>Descrição</th>
-                              <th className="num">Valor Unitário</th><th className="num">Desconto</th>
-                              <th className="num">Valor Total</th><th>Nº OS Omie</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td><span className="os-selo-cat">1. #Serv Prest Manutenção</span></td>
-                              <td className="num">1,00</td>
-                              <td style={{ maxWidth: 420, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {(servSolicitado || "").split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 2).join(" — ") || "Serviço"}
-                              </td>
-                              <td className="num">0,00</td><td className="num">0,00</td><td className="num">0,00</td>
-                              <td>{ordemOmie ? ordemOmie.replace(/^0+/, "") : ""}</td>
-                            </tr>
-                            <tr>
-                              <td><span className="os-selo-cat">1. #Serv Prest Manutenção</span></td>
-                              <td className="num">{fmtBR(qtdHoras)}</td>
-                              <td>Hora Trabalhada</td>
-                              <td className="num">{fmtBR(VH)}</td>
-                              <td className="num">{fmtBR(descHoraValor)}</td>
-                              <td className="num">{fmtBR(Number(subtotalHoras) - Number(descHoraValor))}</td>
-                              <td></td>
-                            </tr>
-                            {Number(qtdKm) > 0 && (
-                              <tr>
-                                <td><span className="os-selo-cat">2. #Deslocamento</span></td>
-                                <td className="num">{fmtBR(qtdKm)}</td>
-                                <td>Km rodado</td>
-                                <td className="num">{fmtBR(VK)}</td>
-                                <td className="num">{fmtBR(descKmValor)}</td>
-                                <td className="num">{fmtBR(Number(subtotalKm) - Number(descKmValor))}</td>
-                                <td></td>
-                              </tr>
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                      <div className="os-omie-tabela-rodape">
-                        <span>{Number(qtdKm) > 0 ? "1 - 3 de 3" : "1 - 2 de 2"} registros</span>
-                        <span style={{ opacity: 0.7 }}>edite quantidades e descontos logo abaixo</span>
-                      </div>
-                    </div>
-                  )}
 
-                  {/* ── Resumo do PPV/peças na aba principal (as peças vivem na aba
-                        "PPV / Requisições"; aqui fica o atalho pra não passarem batido) ── */}
-                  {mode === "edit" && produtos.length > 0 && (
-                    <button type="button" onClick={() => setAba("ppv")}
-                      className="os-card" style={{ order: -5.7, borderLeft: "3px solid #dc2626", textAlign: "left", cursor: "pointer", width: "100%", display: "flex", alignItems: "center", gap: 14, background: "var(--surface)" }}>
-                      <span style={{ width: 42, height: 42, borderRadius: 11, background: "#fef2f2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
-                        <i className="fas fa-boxes" />
-                      </span>
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ display: "block", fontSize: 15, color: "var(--text)" }}>{produtos.length} peça(s) no PPV {ppvIds.join(", ")}</span>
-                        <span style={{ display: "block", fontSize: 13, color: "var(--text-light)", marginTop: 2 }}>Total R$ {totalPecas.toFixed(2).replace(".", ",")} · clique pra ver na aba PPV / Requisições</span>
-                      </span>
-                      <i className="fas fa-arrow-right" style={{ color: "var(--text-light)" }} />
-                    </button>
-                  )}
+
 
                   {/* ── Omie: números enviados + log (edit mode) ── */}
                   {mode === "edit" && (ordemOmie || pedidoVenda || omieLog) && (
@@ -1174,7 +1223,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   )}
 
                   {/* ── Cliente (create + edit) ── */}
-                  <div className="os-card os-aba os-aba-dados" style={{ order: -5 }}>
+                  <div className="os-card" style={{ order: -5, display: mode === "edit" && !mostrarTrocaCliente ? "none" : undefined }}>
                     <div className="os-card-title"><i className="fas fa-user" /> {mode === "edit" ? "Alterar Cliente" : "Cliente"}</div>
                     <div style={S_RELATIVE}>
                       <i className="fas fa-search" style={S_SEARCH_ICON} />
@@ -1276,42 +1325,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     )}
                   </div>
 
-                  {/* ── Lembretes do Cliente ── */}
-                  {lembretes.length > 0 && lembretes.map((l) => (
-                    <div key={l.id} className="os-lembrete-alert">
-                      <div className="os-lembrete-alert-header">
-                        <i className="fas fa-bell" /> Lembrete
-                      </div>
-                      {editingLembreteId === l.id ? (
-                        <div>
-                          <textarea
-                            rows={3}
-                            value={editingLembreteText}
-                            onChange={(e) => setEditingLembreteText(e.target.value)}
-                            style={{ marginBottom: 8 }}
-                          />
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                            <button className="os-lembrete-edit-btn" onClick={() => setEditingLembreteId(null)}>Cancelar</button>
-                            <button className="os-lembrete-edit-btn" onClick={() => salvarLembreteInline(l.id, editingLembreteText)}>Salvar</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <div className="os-lembrete-alert-text">{l.lembrete}</div>
-                          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                            <button className="os-lembrete-edit-btn" onClick={() => { setEditingLembreteId(l.id); setEditingLembreteText(l.lembrete); }}>
-                              <i className="fas fa-pen" style={{ marginRight: 4 }} /> Editar
-                            </button>
-                            {osId && (
-                              <button className="os-lembrete-edit-btn" style={{ background: "#10B981", color: "#fff", borderColor: "#10B981" }} onClick={() => concluirLembrete(l.id)}>
-                                <i className="fas fa-check" style={{ marginRight: 4 }} /> Concluir
-                              </button>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ))}
 
                   {/* ── Status ── */}
                   {/* Detalhes do status — só aparece quando Concluída ou Cancelada (o select ficou no cabeçalho) */}
@@ -1412,6 +1425,48 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {/* ── Unidades rastreadas (QR) retiradas pra esta OS ── */}
                   {mode === "edit" && osId && <OSUnidadesInfo osId={osId} />}
 
+
+                  {/* ── Situação do preenchimento (app do técnico) ── */}
+                  {mode === "edit" && (
+                    <div className="os-card os-aba os-aba-relatorio">
+                      <div className="os-card-title"><i className="fas fa-clipboard-check" /> Preenchimento do Técnico</div>
+                      {(() => {
+                        const enviado = String(dadosTecnico?.status || "").toLowerCase() === "enviado";
+                        const dpRaw = String(dadosTecnico?.dataPreenchimento || "");
+                        const dp = /^\d{4}-\d{2}-\d{2}/.test(dpRaw) ? dpRaw.slice(0, 10).split("-").reverse().join("/") : dpRaw;
+                        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+                        const prev = previsaoExecucao ? new Date(previsaoExecucao + "T00:00:00") : null;
+                        const diasAtraso = !enviado && prev && prev < hoje ? Math.floor((hoje.getTime() - prev.getTime()) / 86400000) : 0;
+                        if (enviado) return (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 8, background: "#D1FAE5", border: "1.5px solid #6EE7B7", color: "#065F46", fontWeight: 600, fontSize: 13.5 }}>
+                              <i className="fas fa-check-circle" style={{ color: "#059669" }} />
+                              Preenchido pelo técnico{dp ? ` em ${dp}` : ""}
+                            </div>
+                            {dadosTecnico?.justificativaAtraso && (
+                              <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FFFBEB", border: "1.5px solid #FDE68A", color: "#92400E", fontSize: 12.5, lineHeight: 1.6 }}>
+                                <b>Preenchido com atraso — justificativa:</b> {dadosTecnico.justificativaAtraso}
+                              </div>
+                            )}
+                          </div>
+                        );
+                        return (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 8, background: "var(--portal-bg-secondary, #f8fafc)", border: "1.5px solid var(--border)", color: "var(--text-light)", fontWeight: 600, fontSize: 13.5 }}>
+                              <i className="fas fa-hourglass-half" />
+                              O técnico ainda não preencheu o relatório{dadosTecnico ? " (rascunho iniciado)" : ""}.
+                            </div>
+                            {diasAtraso > 0 && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 8, background: "#FEF2F2", border: "1.5px solid #FECACA", color: "#B91C1C", fontWeight: 700, fontSize: 13.5 }}>
+                                <i className="fas fa-triangle-exclamation" />
+                                Atrasado no app do técnico há {diasAtraso} dia{diasAtraso > 1 ? "s" : ""} (previsão de execução era {previsaoExecucao.split("-").reverse().join("/")})
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
 
                   {/* ── Relatório Técnico ── */}
                   {mode === "edit" && relatorioTecnico && (
@@ -1628,7 +1683,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   )}
 
                   {/* ── Equipe & Atendimento ── */}
-                  <div className="os-card os-aba os-aba-dados" style={{ order: -3 }}>
+                  <div className="os-card" style={{ order: -3, display: mode === "edit" ? "none" : undefined }}>
                     <div className="os-card-title"><i className="fas fa-users" /> Equipe &amp; Atendimento</div>
                     <div className="os-row">
                       <div style={S_FLEX1}>
@@ -1691,47 +1746,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                   {/* ── Datas do Serviço (inclui Alimentação/Almoço) ── */}
                   <div className="os-card os-aba os-aba-alimentacao" style={{ order: -2 }}>
-                    <div className="os-card-title"><i className="fas fa-calendar-alt" /> Datas do Serviço</div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                      <div>
-                        <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Data Início Serviço</label>
-                        <input type="date" value={previsaoExecucao} onChange={(e) => {
-                          setPrevisaoExecucao(e.target.value)
-                          if (!e.target.value || !dataFimServico) return
-                          const start = new Date(e.target.value + 'T12:00:00')
-                          const end = new Date(dataFimServico + 'T12:00:00')
-                          if (start > end) return
-                          const days: string[] = []
-                          const cur = new Date(start)
-                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(d); cur.setDate(cur.getDate() + 1) }
-                          setDiasExecucao(days)
-                        }} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Data Fim Serviço</label>
-                        <input type="date" value={dataFimServico} onChange={(e) => {
-                          setDataFimServico(e.target.value)
-                          if (!e.target.value || !previsaoExecucao) return
-                          const start = new Date(previsaoExecucao + 'T12:00:00')
-                          const end = new Date(e.target.value + 'T12:00:00')
-                          if (start > end) return
-                          const days: string[] = []
-                          const cur = new Date(start)
-                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(d); cur.setDate(cur.getDate() + 1) }
-                          setDiasExecucao(days)
-                        }} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
-                      </div>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
-                      <div>
-                        <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Hora Início Serviço</label>
-                        <input type="time" value={horaInicioServico} onChange={(e) => setHoraInicioServico(e.target.value)} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 11, color: 'var(--portal-text-secondary)', margin: 0 }}>Previsão de Faturamento</label>
-                        <input type="date" value={previsaoFaturamento} onChange={(e) => setPrevisaoFaturamento(e.target.value)} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
-                      </div>
-                    </div>
+                    <div className="os-card-title"><i className="fas fa-utensils" /> Alimentação &amp; Dias do Serviço</div>
                     {/* Alimentação do Técnico (várias, sem limite) */}
                     <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacoes.length ? '#FFFBEB' : 'var(--portal-bg-secondary)', border: `1px solid ${alimentacoes.length ? '#FCD34D' : 'var(--portal-border)'}`, borderRadius: 8 }}>
                       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
@@ -1859,43 +1874,88 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         </div>
                       </div>)
                     })()}
-                    {/* Deslocamento total */}
-                    {estimativa && diasExecucao.length > 0 && (
-                      <div style={{ marginTop: 8, padding: '8px 12px', background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8 }}>
-                        <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)', textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.5px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <i className="fas fa-route" /> Deslocamento total ({diasExecucao.length} dia{diasExecucao.length > 1 ? 's' : ''})
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Ida/dia</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.ida.tempo_min} min</div>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.ida.distancia_km} km</div>
-                          </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Volta/dia</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.volta.tempo_min} min</div>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.volta.distancia_km} km</div>
-                          </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>KM Total</div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: '#1E3A5F' }}>{(estimativa.total.distancia_total_km * diasExecucao.length).toFixed(0)} km</div>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.total.distancia_total_km} km/dia</div>
-                          </div>
-                          <div style={{ textAlign: 'center', background: '#1E3A5F', borderRadius: 6, padding: '6px 4px', color: '#fff' }}>
-                            <div style={{ fontSize: 10, opacity: 0.8 }}>Tempo Fora</div>
-                            <div style={{ fontSize: 14, fontWeight: 700 }}>{(estimativa.total.tempo_horas * diasExecucao.length).toFixed(1)}h</div>
-                            <div style={{ fontSize: 10, opacity: 0.7 }}>{estimativa.total.tempo_horas}h/dia</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
 
-                  {/* ── Descrição ── */}
-                  <div className="os-card os-aba os-aba-obs">
+                  {/* ── Descrição (aba Lista de Serviços, no lugar da antiga tabela) ── */}
+                  <div className="os-card os-aba os-aba-servicos" style={{ order: -4.5 }}>
                     <div className="os-card-title"><i className="fas fa-align-left" /> Descrição do Serviço</div>
+                    {/* Linha discreta: atendimento, projeto, datas e hora */}
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+                      <div style={{ width: 130 }}>
+                        <label style={L_DISC}>Atendimento</label>
+                        <select value={tipoServico} disabled={!podeEditar} onChange={(e) => setTipoServico(e.target.value)} style={I_DISC}>
+                          <option value="Manutenção">Manutenção</option>
+                          <option value="Revisão">Revisão</option>
+                        </select>
+                      </div>
+                      <div style={{ width: 300 }}>
+                        <label style={L_DISC}>Projeto / Equipamento</label>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input type="text" value={projeto} readOnly onClick={() => podeEditar && setShowProjModal(true)} placeholder="Clique na lupa..." style={{ ...I_DISC, flex: 1, cursor: "pointer" }} />
+                          <button type="button" onClick={() => podeEditar && setShowProjModal(true)} title="Pesquisar equipamento" style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 3, border: "1px solid var(--border)", background: "#fff", color: "#64748b", cursor: "pointer", fontSize: 11 }}>
+                            <i className="fas fa-search" />
+                          </button>
+                        </div>
+                      </div>
+                      <div style={{ width: 135 }}>
+                        <label style={L_DISC}>Data Início</label>
+                        <input type="date" value={previsaoExecucao} disabled={!podeEditar} onChange={(e) => {
+                          setPrevisaoExecucao(e.target.value);
+                          if (!e.target.value || !dataFimServico) return;
+                          const start = new Date(e.target.value + "T12:00:00");
+                          const end = new Date(dataFimServico + "T12:00:00");
+                          if (start > end) return;
+                          const days: string[] = [];
+                          const cur = new Date(start);
+                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(d); cur.setDate(cur.getDate() + 1); }
+                          setDiasExecucao(days);
+                        }} style={I_DISC} />
+                      </div>
+                      <div style={{ width: 135 }}>
+                        <label style={L_DISC}>Data Fim</label>
+                        <input type="date" value={dataFimServico} disabled={!podeEditar} onChange={(e) => {
+                          setDataFimServico(e.target.value);
+                          if (!e.target.value || !previsaoExecucao) return;
+                          const start = new Date(previsaoExecucao + "T12:00:00");
+                          const end = new Date(e.target.value + "T12:00:00");
+                          if (start > end) return;
+                          const days: string[] = [];
+                          const cur = new Date(start);
+                          while (cur <= end) { const d = cur.toISOString().slice(0, 10); if (cur.getDay() !== 0) days.push(d); cur.setDate(cur.getDate() + 1); }
+                          setDiasExecucao(days);
+                        }} style={I_DISC} />
+                      </div>
+                      <div style={{ width: 105 }}>
+                        <label style={L_DISC}>Hora Início</label>
+                        <input type="time" value={horaInicioServico} disabled={!podeEditar} onChange={(e) => setHoraInicioServico(e.target.value)} style={I_DISC} />
+                      </div>
+                    </div>
+                    {tipoServico === "Revisão" && (
+                      <div style={{ width: 320, marginBottom: 12 }}>
+                        <label style={L_DISC}>Plano de Revisão</label>
+                        <input type="text" value={revisao} readOnly onClick={() => podeEditar && setShowRevModal(true)} placeholder="Escolher plano..." style={{ ...I_DISC, cursor: "pointer" }} />
+                      </div>
+                    )}
                     <textarea rows={10} value={servSolicitado} onChange={(e) => setServSolicitado(e.target.value)} style={S_MONO_MB0} />
+                    <div style={{ display: "flex", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
+                      <div style={{ width: 160 }}>
+                        <label>Qtd. Horas</label>
+                        <input type="number" value={qtdHoras} onChange={(e) => handleQtdHorasChange(parseFloat(e.target.value || "0"))} style={{ marginBottom: 0 }} />
+                        <div className="os-field-hint">x R$ {Number(VH).toFixed(2)} = R$ {Number(subtotalHoras).toFixed(2)}</div>
+                      </div>
+                      <div style={{ width: 160 }}>
+                        <label>Qtd. KM</label>
+                        <input type="number" value={qtdKm} onChange={(e) => setQtdKm(parseFloat(e.target.value || "0"))} style={{ marginBottom: 0 }} />
+                        <div className="os-field-hint">x R$ {Number(VK).toFixed(2)} = R$ {Number(subtotalKm).toFixed(2)}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── Observações (campo próprio, aba Observações) ── */}
+                  <div className="os-card os-aba os-aba-obs">
+                    <div className="os-card-title"><i className="fas fa-comment-dots" /> Observações</div>
+                    <textarea rows={8} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Observações internas da OS..." style={S_MONO_MB0} />
                   </div>
 
                   </div>{/* fim painel Ordem de Serviço (parte 1) */}
@@ -1904,7 +1964,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   <div className="os-tab-panel" style={{ display: aba === "ppv" ? "flex" : "none" }}>
                   {/* ── PPV & Requisições (edit) ── */}
                   {mode === "edit" && (
-                    <div className="os-card">
+                    <div className="os-card" style={{ display: abaOmie === "requisicoes" ? "none" : undefined }}>
                       <div className="os-card-title"><i className="fas fa-boxes" /> Materiais &amp; Requisições</div>
                       <label>PPV (Separe por vírgula)</label>
                       <input type="text" value={ppv} onChange={(e) => setPpv(e.target.value)} onBlur={() => loadPPV(ppv)} />
@@ -1961,6 +2021,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         </div>
                       )}
 
+                    </div>
+                  )}
+                  {/* ── Requisições da OS (aba própria) ── */}
+                  {mode === "edit" && (
+                    <div className="os-card" style={{ display: abaOmie === "requisicoes" ? undefined : "none" }}>
+                      <div className="os-card-title"><i className="fas fa-shopping-cart" /> Requisições da OS</div>
                       {requisicoes.length > 0 && (
                         <div style={S_MT12}>
                           <label>Requisições Vinculadas ({requisicoes.length})</label>
@@ -1972,6 +2038,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                                 <span style={S_REQ_MATERIAL}>{r.material}</span>
                                 {r.valor > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>R$ {r.valor.toFixed(2)}</span>}
                                 {r.solicitante && r.solicitante !== "N/A" && <span style={{ fontSize: 11, color: "var(--portal-text-muted)" }}>({r.solicitante})</span>}
+                                <button type="button" onClick={() => window.open(`/requisicoes/imprimir/${r.id}`, "_blank")} title="Imprimir esta requisição"
+                                  style={{ fontSize: 10.5, color: "#0d9488", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
+                                  <i className="fas fa-print" style={{ marginRight: 3 }} /> Imprimir
+                                </button>
                                 {/* Desvincular */}
                                 {desvinculandoReq === r.id ? (
                                   <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
@@ -2025,250 +2095,24 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           )}
                         </div>
                       )}
+                      {requisicoes.length === 0 && (
+                        <div style={{ fontSize: 13.5, color: "var(--text-light)", padding: "4px 0 12px" }}>Nenhuma requisição vinculada a esta OS ainda.</div>
+                      )}
+                      <button type="button" onClick={() => window.open("/requisicoes?aba=form", "_blank")}
+                        style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>
+                        <i className="fas fa-plus" style={{ marginRight: 6 }} /> Criar requisição
+                      </button>
                     </div>
                   )}
+
                   </div>{/* fim painel Peças / PPV */}
 
-                  {/* ── Painel: Ordem de Serviço (parte 2) ── */}
-                  <div className="os-tab-panel" style={{ display: aba === "os" && (mode !== "edit" || abaOmie === "servicos") ? "flex" : "none" }}>
-                  {/* ── Financeiro ── */}
-                  <div className="os-card os-card-financial">
-                    <div className="os-card-title"><i className="fas fa-calculator" /> Financeiro</div>
-                    <div className="os-financial-grid">
-                      <div>
-                        <label>Qtd. Horas</label>
-                        <input type="number" value={qtdHoras} onChange={(e) => handleQtdHorasChange(parseFloat(e.target.value || "0"))} style={S_MB0} />
-                        <div className="os-field-hint">x R$ {VH.toFixed(2)} = R$ {subtotalHoras.toFixed(2)}</div>
-                      </div>
-                      <div>
-                        <label>Qtd. KM</label>
-                        <input type="number" value={qtdKm} onChange={(e) => setQtdKm(parseFloat(e.target.value || "0"))} style={S_MB0} />
-                        <div className="os-field-hint">x R$ {VK.toFixed(2)} = R$ {subtotalKm.toFixed(2)}</div>
-                      </div>
+                  {/* Histórico embaixo do conteúdo (toggle pela aba/botão Histórico) */}
+                  {mode === "edit" && (
+                    <div className="os-log-embaixo" style={{ width: "100%" }}>
+                      <LogPanel osId={osId} visible={showLogs} refreshKey={logRefreshKey} />
                     </div>
-
-                    {/* Estimativa de tempo (automática) */}
-                    {loadingEstimativa && (
-                      <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', padding: '8px 0', display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <i className="fas fa-spinner fa-spin" style={{ fontSize: 11 }} /> Calculando estimativa...
-                      </div>
-                    )}
-                    {(estimativa || erroEstimativa || enderecoEstimativa) && !loadingEstimativa && (
-                      <div style={{ background: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: 12, marginTop: 8 }}>
-                        <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)', marginBottom: 6, textTransform: 'uppercase' as const, fontWeight: 600, letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <i className="fas fa-route" style={{ marginRight: 2 }} /> Estimativa de Tempo
-                          {estimativa?.fonte && (
-                            <span style={{
-                              fontSize: 9, padding: '2px 6px', borderRadius: 4, fontWeight: 700,
-                              background: estimativa.fonte === 'Omie' ? '#DBEAFE' : estimativa.fonte === 'Manual' ? '#FEF3C7' : 'var(--portal-border)',
-                              color: estimativa.fonte === 'Omie' ? '#1E40AF' : estimativa.fonte === 'Manual' ? '#92400E' : '#374151',
-                            }}>
-                              {estimativa.fonte === 'Omie' ? 'ENDEREÇO OMIE' : estimativa.fonte === 'Manual' ? 'CLIENTE MANUAL' : 'ENDEREÇO DA OS'}
-                            </span>
-                          )}
-                        </div>
-                        {/* Dropdown de endereços disponíveis */}
-                        {enderecosDisponiveis.length > 1 && (
-                          <div style={{ marginBottom: 6 }}>
-                            <select
-                              value={enderecoEstimativa}
-                              onChange={(e) => {
-                                setEnderecoEstimativa(e.target.value);
-                                // Recalcular automaticamente ao trocar
-                                setLoadingEstimativa(true); setErroEstimativa("");
-                                fetch("/api/pos/estimativa", {
-                                  method: "POST", headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ cnpj: clienteInfo?.cpf || "", endereco: clienteInfo?.endereco || "", cidade: (clienteInfo as unknown as Record<string, unknown>)?.cidade || "", qtdHoras, enderecoManual: e.target.value }),
-                                }).then(r => r.json()).then(data => {
-                                  if (data.enderecosDisponiveis) setEnderecosDisponiveis(data.enderecosDisponiveis);
-                                  if (data.erro) { setErroEstimativa(data.erro); setEstimativa(null); }
-                                  else { setEstimativa(data); setEnderecoEstimativa(data.enderecoUsado || e.target.value); }
-                                  setLoadingEstimativa(false);
-                                }).catch(() => { setErroEstimativa("Erro de conexão"); setLoadingEstimativa(false); });
-                              }}
-                              style={{ width: '100%', fontSize: 11, padding: '5px 8px', border: '1px solid #BAE6FD', borderRadius: 6, background: 'var(--portal-bg-card)', marginBottom: 0, cursor: 'pointer' }}
-                            >
-                              {enderecosDisponiveis.map((e, i) => (
-                                <option key={i} value={e.endereco}>
-                                  [{e.label}] {e.endereco}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                        )}
-                        {/* Endereço editável */}
-                        <div style={{ display: 'flex', gap: 6, marginBottom: 8, alignItems: 'center' }}>
-                          <i className="fas fa-map-marker-alt" style={{ color: 'var(--portal-text-secondary)', fontSize: 11, flexShrink: 0 }} />
-                          <input
-                            type="text"
-                            value={enderecoEstimativa}
-                            onChange={(e) => setEnderecoEstimativa(e.target.value)}
-                            placeholder="Endereço para cálculo..."
-                            style={{ flex: 1, fontSize: 11, padding: '5px 8px', border: '1px solid #BAE6FD', borderRadius: 6, background: 'var(--portal-bg-card)', marginBottom: 0 }}
-                          />
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!enderecoEstimativa) return;
-                              setLoadingEstimativa(true); setErroEstimativa("");
-                              try {
-                                const res = await fetch("/api/pos/estimativa", {
-                                  method: "POST", headers: { "Content-Type": "application/json" },
-                                  body: JSON.stringify({ cnpj: clienteInfo?.cpf || "", endereco: clienteInfo?.endereco || "", cidade: (clienteInfo as unknown as Record<string, unknown>)?.cidade || "", qtdHoras, enderecoManual: enderecoEstimativa }),
-                                });
-                                const data = await res.json();
-                                if (data.enderecosDisponiveis) setEnderecosDisponiveis(data.enderecosDisponiveis);
-                                if (!res.ok || data.erro) { setErroEstimativa(data.erro || "Erro"); setEstimativa(null); }
-                                else { setEstimativa(data); setEnderecoEstimativa(data.enderecoUsado || enderecoEstimativa); }
-                              } catch { setErroEstimativa("Erro de conexão"); }
-                              setLoadingEstimativa(false);
-                            }}
-                            style={{ fontSize: 10, padding: '5px 10px', background: '#1E3A5F', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
-                          >
-                            <i className="fas fa-sync-alt" style={{ marginRight: 3 }} />Recalcular
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (!enderecoEstimativa) return;
-                              setClienteInfo(prev => prev ? { ...prev, endereco: enderecoEstimativa } : prev);
-                            }}
-                            style={{ fontSize: 10, padding: '5px 10px', background: '#16a34a', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 700, whiteSpace: 'nowrap' }}
-                          >
-                            <i className="fas fa-thumbtack" style={{ marginRight: 3 }} />Fixar
-                          </button>
-                        </div>
-                        {erroEstimativa && <div style={{ fontSize: 11, color: '#EF4444', marginBottom: 8 }}>{erroEstimativa}</div>}
-                        {estimativa && (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8 }}>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Ida</div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.ida.tempo_min} min</div>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.ida.distancia_km} km</div>
-                          </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Serviço</div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: '#F59E0B' }}>{estimativa.servico.horas}h</div>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.servico.tempo_min} min</div>
-                          </div>
-                          <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-secondary)' }}>Volta</div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: '#1E3A5F' }}>{estimativa.volta.tempo_min} min</div>
-                            <div style={{ fontSize: 10, color: 'var(--portal-text-muted)' }}>{estimativa.volta.distancia_km} km</div>
-                          </div>
-                          <div style={{ textAlign: 'center', background: '#1E3A5F', borderRadius: 6, padding: '6px 4px', color: '#fff' }}>
-                            <div style={{ fontSize: 10, opacity: 0.8 }}>Total Fora</div>
-                            <div style={{ fontSize: 15, fontWeight: 700 }}>{estimativa.total.tempo_horas}h</div>
-                            <div style={{ fontSize: 10, opacity: 0.7 }}>{estimativa.total.distancia_total_km} km</div>
-                          </div>
-                        </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Descontos (colapsável) */}
-                    <div className="os-discount-section">
-                      <div
-                        className={`os-discount-toggle ${showDescontos ? "open" : ""}`}
-                        onClick={() => setShowDescontos(!showDescontos)}
-                      >
-                        <i className="fas fa-chevron-right" />
-                        <i className="fas fa-percentage" />
-                        Aplicar Descontos
-                        {totalDescontos > 0 && !showDescontos && (
-                          <span style={S_DISC_BADGE}>
-                            -R$ {totalDescontos.toFixed(2)}
-                          </span>
-                        )}
-                      </div>
-
-                      {showDescontos && (
-                        <div className="os-discount-body">
-                          {/* Desconto em Horas */}
-                          <div className="os-discount-row">
-                            <span className="os-discount-row-label">
-                              <i className="fas fa-clock" style={S_MR6} />Horas
-                            </span>
-                            <input
-                              type="number"
-                              value={descHoraValor}
-                              step={0.01}
-                              placeholder="0,00"
-                              onChange={(e) => setDescHoraValor(parseFloat(e.target.value || "0"))}
-                            />
-                            {descHoraValor > 0 && (
-                              <span className="os-discount-row-result">
-                                -R$ {descHoraValor.toFixed(2)} (de {subtotalHoras.toFixed(2)} p/ {(subtotalHoras - descHoraValor).toFixed(2)})
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Desconto em KM */}
-                          <div className="os-discount-row">
-                            <span className="os-discount-row-label">
-                              <i className="fas fa-road" style={S_MR6} />KM
-                            </span>
-                            <input
-                              type="number"
-                              value={descKmValor}
-                              step={0.01}
-                              placeholder="0,00"
-                              onChange={(e) => setDescKmValor(parseFloat(e.target.value || "0"))}
-                            />
-                            {descKmValor > 0 && (
-                              <span className="os-discount-row-result">
-                                -R$ {descKmValor.toFixed(2)} (de {subtotalKm.toFixed(2)} p/ {(subtotalKm - descKmValor).toFixed(2)})
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Desconto Geral */}
-                          <div className="os-discount-row">
-                            <span className="os-discount-row-label">
-                              <i className="fas fa-tag" style={S_MR6} />Geral
-                            </span>
-                            <div className="os-discount-geral">
-                              <input
-                                type="number"
-                                value={descPorc}
-                                step={0.01}
-                                placeholder="%"
-                                onChange={(e) => syncDiscount("P", parseFloat(e.target.value || "0"))}
-                              />
-                              <span className="os-discount-geral-sep">ou</span>
-                              <input
-                                type="number"
-                                value={descValor}
-                                step={0.01}
-                                placeholder="R$"
-                                onChange={(e) => syncDiscount("V", parseFloat(e.target.value || "0"))}
-                              />
-                            </div>
-                            {descValor > 0 && (
-                              <span className="os-discount-row-result">
-                                -R$ {descValor.toFixed(2)} ({descPorc.toFixed(1)}%)
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Total */}
-                    <div className="os-total-bar">
-                      <div className="os-total-breakdown">
-                        <span>Horas: R$ {(subtotalHoras - descHoraValor).toFixed(2)}</span>
-                        <span>KM: R$ {(subtotalKm - descKmValor).toFixed(2)}</span>
-                        {totalPecas > 0 && <span>Pecas: R$ {totalPecas.toFixed(2)}</span>}
-                        {totalRequisicoes > 0 && <span>Req: R$ {totalRequisicoes.toFixed(2)}</span>}
-                        {descValor > 0 && <span>Desc: -R$ {descValor.toFixed(2)}</span>}
-                      </div>
-                      <div className="os-total-value">
-                        R$ {total.toFixed(2).replace(".", ",")}
-                      </div>
-                    </div>
-                  </div>
-                  </div>{/* fim painel Ordem de Serviço (parte 2) */}
+                  )}
 
                 </div>
               </>
@@ -2321,6 +2165,27 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   )}
                 </div>
 
+                {ppvIds.length > 0 && (
+                  <button className="os-rail-btn" onClick={() => { setAba("ppv"); setAbaOmie("produtos"); }}>
+                    <i className="fas fa-box" /> PPV vinculado ({ppvIds[0]}{ppvIds.length > 1 ? ` +${ppvIds.length - 1}` : ""})
+                  </button>
+                )}
+                <button className="os-rail-btn" onClick={() => { setAba("ppv"); setAbaOmie("requisicoes"); }}>
+                  <i className="fas fa-shopping-cart" /> Requisições{requisicoes.length > 0 ? ` (${requisicoes.length})` : ""}
+                </button>
+                {!ordemOmie && !(servicoInterno && status === "Concluída") && (
+                  <button
+                    className="os-rail-btn omie"
+                    onClick={enviarParaOmie}
+                    disabled={enviandoOmie || !podeOmie}
+                    title={!podeOmie ? MSG_SEM_PERMISSAO : servicoInterno ? "OS interna: vai normal pro Omie; peças saem como remessa" : undefined}
+                  >
+                    {enviandoOmie
+                      ? <><i className="fas fa-spinner fa-spin" /> Enviando...</>
+                      : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
+                  </button>
+                )}
+
                 <button className="os-rail-btn" onClick={abrirQR}>
                   <i className="fas fa-qrcode" /> Gerar QR Code
                 </button>
@@ -2353,9 +2218,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   </>
                 )}
 
-                <button className="os-rail-btn" onClick={() => setShowLogs(!showLogs)}>
-                  <i className="fas fa-clock-rotate-left" /> Histórico / Log
+                <button className="os-rail-btn" onClick={() => { setAba("os"); setAbaOmie("garantia"); }}>
+                  <i className="fas fa-shield-halved" /> Garantia
                 </button>
+
+                <button className="os-rail-btn" onClick={() => setShowLogs(!showLogs)}>
+                  <i className="fas fa-clock-rotate-left" /> Histórico de Alterações
+                </button>
+
+                {podeOcorrencia && (
+                  <button className="os-rail-btn" onClick={() => setShowOcorrencia(true)}>
+                    <i className="fas fa-triangle-exclamation" /> Registrar Ocorrência
+                  </button>
+                )}
 
                 {/* ── PDFs oficiais do Omie: a OS e, se houver peças (PPV), o pedido ── */}
                 {mode === "edit" && ordemOmie && (
@@ -2369,28 +2244,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   </button>
                 ))}
 
-                {!ordemOmie && !(servicoInterno && status === "Concluída") && (
-                  <button
-                    className="os-rail-btn omie"
-                    onClick={enviarParaOmie}
-                    disabled={enviandoOmie || !podeOmie}
-                    title={!podeOmie ? MSG_SEM_PERMISSAO : servicoInterno ? "OS interna: vai normal pro Omie; peças saem como remessa" : undefined}
-                  >
-                    {enviandoOmie
-                      ? <><i className="fas fa-spinner fa-spin" /> Enviando...</>
-                      : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
-                  </button>
-                )}
               </>
             )}
 
-            <div className="os-rail-sep" />
-            <button className="os-rail-btn" onClick={onClose}>
-              <i className="fas fa-xmark" /> Fechar
-            </button>
+            {mode === "edit" && podeCancelar && status !== "Cancelada" && (
+              <>
+                <div className="os-rail-sep" />
+                <button className="os-rail-btn" style={{ color: "#C62828" }} onClick={() => setStatus("Cancelada")}>
+                  <i className="fas fa-ban" style={{ color: "#C62828" }} /> Cancelar OS
+                </button>
+              </>
+            )}
           </div>
 
-          {mode === "edit" && <LogPanel osId={osId} visible={showLogs} refreshKey={logRefreshKey} />}
         </div>
       </div>
 

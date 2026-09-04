@@ -1568,7 +1568,8 @@ body {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  font-size: 16px;
+  font-size: 14px;
+  line-height: 1.45;
 }
 .ppv-drawer .ppv-summary-name { font-weight: 600; font-size: 19px; }
 .ppv-drawer .ppv-readonly-label { font-size: 12px; font-weight: 500; }
@@ -3388,9 +3389,20 @@ body {
   transition: max-width 0.25s ease;
 }
 
-.modal-container:has(.log-panel) {
-  max-width: 1980px;
+/* (Histórico agora fica embaixo do conteúdo — sem alargar o modal) */
+
+/* OS em tela cheia (igual ao PPV) — só quando o overlay tem .fs */
+.drawer-overlay.fs { padding-top: 0; align-items: stretch; overflow: hidden; }
+.drawer-overlay.fs .modal-container { width: 100vw; max-width: none; height: 100vh; margin: 0; padding-bottom: 0; }
+.drawer-overlay.fs .drawer { max-height: 100vh; border-radius: 0; box-shadow: none; }
+.drawer-overlay.fs .os-action-rail { border-radius: 0; max-height: 100vh; overflow-y: auto; }
+
+/* Fonte estilo Omie (Segoe UI 14px) nos drawers do POS e do PPV */
+.modal-container, .modal-container input, .modal-container select, .modal-container textarea, .modal-container button,
+.ppv-drawer-overlay, .ppv-drawer-overlay input, .ppv-drawer-overlay select, .ppv-drawer-overlay textarea, .ppv-drawer-overlay button {
+  font-family: "Segoe UI", system-ui, sans-serif;
 }
+.drawer.os-drawer, .os-action-rail { font-size: 14px; line-height: 1.45; }
 
 @keyframes posDrawerSlideIn {
   from { opacity: 0; transform: translateY(20px) scale(0.98); }
@@ -3409,10 +3421,6 @@ body {
   min-width: 0;
 }
 
-.modal-container:has(.log-panel) .drawer {
-  border-top-right-radius: 0;
-  border-bottom-right-radius: 0;
-}
 
 .drawer::-webkit-scrollbar {
   width: 6px;
@@ -3552,15 +3560,13 @@ body {
 .log-panel {
   display: flex;
   flex-direction: column;
-  width: 320px;
-  min-width: 320px;
+  width: 100%;
+  min-width: 0;
   background: white;
-  border-radius: 16px;
-  margin-left: -1px;
-  border-top-left-radius: 0;
-  border-bottom-left-radius: 0;
-  box-shadow: 0 25px 60px -12px rgba(0, 0, 0, 0.3);
-  max-height: 90vh;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  box-shadow: none;
+  max-height: 420px;
   overflow: hidden;
   animation: posLogSlideIn 0.2s ease-out;
 }
@@ -4423,9 +4429,6 @@ body {
 .modal-container:has(.os-action-rail) .drawer {
   border-top-right-radius: 0;
   border-bottom-right-radius: 0;
-}
-.modal-container:has(.log-panel) .os-action-rail {
-  border-radius: 0;
 }
 .os-printmenu-item:hover { background: var(--portal-bg-secondary); }
 /* Clientes: no celular a ficha (320px) e o conteúdo empilham (o inline vence sem !important) */

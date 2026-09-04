@@ -25,7 +25,7 @@ import PecasNav from '@/components/ppv/PecasNav';
 // A aba "Veículos" morreu na Fase 5 do Frota: o cadastro de veículos agora é
 // SÓ no módulo Frota (/frota, botão "Novo veículo"), que mantém a SupaPlacas
 // como projeção — o dropdown do FormReq e o Omie continuam funcionando igual.
-const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario']);
+const ABAS_VALIDAS = new Set(['kanban', 'usuarios', 'fornecedores', 'relatorio', 'lixeira', 'form_usuario', 'form']);
 
 function RequisicoesPageInner() {
   const { userProfile } = useAuth();

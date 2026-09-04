@@ -919,6 +919,8 @@ export default function PPVDrawer({
                     <>
                       {/* ── Cabeçalho estilo Omie ── */}
                       <div className="ppv-omie-head" style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 4, padding: "12px 14px", marginBottom: 12 }}>
+                       <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
+                       <div style={{ flex: 1, minWidth: 0 }}>
                         {/* Cliente + Consulta de Crédito + Previsão de Faturamento */}
                         <div className="ppv-g-cliente" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
                           <div>
@@ -951,11 +953,14 @@ export default function PPVDrawer({
                           </div>
                         </div>
 
-                        {/* Totais estilo Omie (caixas cinza) — sem IPI/ICMS ST, com Custo (CMC) */}
-                        <div className="ppv-g-totais" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginTop: 12 }}>
+                        {/* Vendedor · Desconto (editável) · Parcelas · Cenário Fiscal */}
+                        <div className="ppv-g-vendedor" style={{ display: "grid", gridTemplateColumns: "1.4fr 0.9fr 1fr 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
                           <div>
-                            <div style={rotOmie}>Total de Mercadorias</div>
-                            <div style={boxOmie}>{formatarMoeda(totalSemDesconto)}</div>
+                            <label style={labelOmie}>Vendedor</label>
+                            <div style={{ display: "flex", gap: 8 }}>
+                              <input type="text" value={tecnico || ""} readOnly onClick={() => setShowVendedor(true)} placeholder="Escolher usuário do portal…" style={{ marginBottom: 0, flex: 1, cursor: "pointer" }} />
+                              <button type="button" onClick={() => setShowVendedor(true)} title="Escolher vendedor" style={{ flexShrink: 0, width: 44, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", color: "#334155", cursor: "pointer" }}><i className="fas fa-search" /></button>
+                            </div>
                           </div>
                           <div>
                             <div style={rotOmie}>
@@ -982,25 +987,6 @@ export default function PPVDrawer({
                                     style={{ width: "100%", border: "none", background: "transparent", textAlign: "right", fontSize: 14, color: "#4a453d", outline: "none", padding: 0, margin: 0, fontFamily: "inherit" }} />
                                 </>
                               )}
-                            </div>
-                          </div>
-                          <div>
-                            <div style={rotOmie}>Valor Total do Pedido</div>
-                            <div style={{ ...boxOmie, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a" }}>{formatarMoeda(totalFinal)}</div>
-                          </div>
-                          <div>
-                            <div style={rotOmie}>Custo Total (CMC)</div>
-                            <div style={{ ...boxOmie, fontWeight: 700, color: "#0f9d58", background: "#eaf7ef", border: "1px solid #bfe6cd" }}>{custoLoading ? "…" : custoCMC > 0 ? formatarMoeda(custoCMC) : "—"}</div>
-                          </div>
-                        </div>
-
-                        {/* Vendedor · Número de Parcelas · Cenário Fiscal */}
-                        <div className="ppv-g-vendedor" style={{ display: "grid", gridTemplateColumns: "1.4fr 1fr 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
-                          <div>
-                            <label style={labelOmie}>Vendedor</label>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <input type="text" value={tecnico || ""} readOnly onClick={() => setShowVendedor(true)} placeholder="Escolher usuário do portal…" style={{ marginBottom: 0, flex: 1, cursor: "pointer" }} />
-                              <button type="button" onClick={() => setShowVendedor(true)} title="Escolher vendedor" style={{ flexShrink: 0, width: 44, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", color: "#334155", cursor: "pointer" }}><i className="fas fa-search" /></button>
                             </div>
                           </div>
                           <div>
@@ -1039,7 +1025,16 @@ export default function PPVDrawer({
                             </div>
                           </div>
                         </div>
+                       </div>{/* fim coluna esquerda do cabeçalho */}
 
+                       {/* Caixa de totais (igual à da OS) */}
+                       <div className="os-omie-totais" style={{ alignSelf: "stretch", justifyContent: "center" }}>
+                         <div className="os-omie-totais-linha"><span>Mercadorias:</span><b>{formatarMoeda(totalSemDesconto)}</b></div>
+                         <div className="os-omie-totais-linha"><span>Descontos:</span><b style={{ color: valorDesconto > 0 ? "#0d9488" : "#b7b0a3" }}>{formatarMoeda(valorDesconto)}</b></div>
+                         <div className="os-omie-totais-linha"><span>Custo (CMC):</span><b>{custoLoading ? "…" : custoCMC > 0 ? formatarMoeda(custoCMC) : "—"}</b></div>
+                         <div className="os-omie-totais-total"><span>Valor Total:</span><span>{formatarMoeda(totalFinal)}</span></div>
+                       </div>
+                       </div>{/* fim flex do cabeçalho */}
                       </div>
 
                       {/* ── Abas (folder laranja estilo Omie) ── */}
