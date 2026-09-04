@@ -910,7 +910,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
             <div className="os-header">
               <div className="os-header-left">
                 <span className="os-header-title">
-                  {mode === "create" ? "Nova Ordem de Serviço" : `${osId}`}
+                  {mode === "create" ? "Nova Ordem de Serviço" : `Ordem de Serviço Nº ${String(osId || "").replace(/^OS-?/i, "")}`}
                 </span>
                 {mode === "edit" && (
                   <select
@@ -934,7 +934,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     ⚠ Ocorrência
                   </button>
                 )}
-                <button className="os-btn-close" onClick={onClose}>
+                <button className="os-btn-close" onClick={onClose} style={{ display: "inline-flex", alignItems: "center", gap: 8, width: "auto", padding: "6px 12px" }}>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>Fechar</span>
                   <i className="fas fa-times" />
                 </button>
               </div>
@@ -978,25 +979,39 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {/* ── Painel: Ordem de Serviço ── */}
                   <div className="os-tab-panel" style={{ display: aba === "os" ? "flex" : "none" }}>
 
-                  {/* ── Summary card (edit mode) ── */}
+                  {/* ── Faixa superior no ESTILO OMIE: avatar com iniciais,
+                        campos Cliente/Vendedor com rótulo flutuante e a caixa
+                        de totais à direita (modelo v1 — iterando com o José) ── */}
                   {mode === "edit" && clienteInfo && (
-                    <div className="os-summary" style={{ order: -6 }}>
-                      <div className="os-summary-main">
-                        <div className="os-summary-client">
-                          <i className="fas fa-user" />
-                          <div style={{ minWidth: 0 }}>
-                            <div className="os-summary-name">{clienteInfo.nome}</div>
-                            {clienteInfo.cpf && <div className="os-summary-sub"><i className="fas fa-id-card" style={{ marginRight: 6, opacity: 0.85 }} />{clienteInfo.cpf}</div>}
+                    <div className="os-summary os-omie-top" style={{ order: -6 }}>
+                      <div className="os-omie-avatar">
+                        {(clienteInfo.nome || "?").split(/\s+/).slice(0, 2).map((p: string) => p[0] || "").join("").toUpperCase()}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 260, display: "flex", flexDirection: "column", gap: 14 }}>
+                        <div className="os-omie-field">
+                          <label>Cliente</label>
+                          <div className="os-omie-field-valor">
+                            <i className="fas fa-user" style={{ opacity: 0.55, marginRight: 8 }} />{clienteInfo.nome}
+                            {clienteInfo.cpf && <span style={{ marginLeft: 10, fontSize: 12.5, opacity: 0.65 }}>{clienteInfo.cpf}</span>}
                           </div>
                         </div>
-                        <div className="os-summary-total">
-                          R$ {total.toFixed(2).replace(".", ",")}
+                        <div className="os-omie-field">
+                          <label>Vendedor</label>
+                          <div className="os-omie-field-valor" style={{ cursor: tecnico1 ? "pointer" : "default" }}
+                            onClick={(e) => { if (tecnico1) { e.stopPropagation(); window.open(`/mecanicos?tecnico=${encodeURIComponent(tecnico1)}`, "_blank"); } }}
+                            title={tecnico1 ? "Abrir Janela Mecânico" : undefined}>
+                            <i className="fas fa-user-cog" style={{ opacity: 0.55, marginRight: 8 }} />Técnico: {tecnico1 || "—"}
+                          </div>
+                        </div>
+                        <div className="os-summary-details" style={{ borderTop: "none", paddingTop: 0 }}>
+                          {projeto && <span><i className="fas fa-cog" /> {projeto}</span>}
+                          <span><i className="fas fa-tag" /> {tipoServico}</span>
                         </div>
                       </div>
-                      <div className="os-summary-details">
-                        {projeto && <span><i className="fas fa-cog" /> {projeto}</span>}
-                        {tecnico1 && <span style={{ cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }} onClick={(e) => { e.stopPropagation(); window.open(`/mecanicos?tecnico=${encodeURIComponent(tecnico1)}`, '_blank') }} title="Abrir Janela Mecanico"><i className="fas fa-user-cog" /> {tecnico1}</span>}
-                        <span><i className="fas fa-tag" /> {tipoServico}</span>
+                      <div className="os-omie-totais">
+                        <div className="os-omie-totais-linha"><span>Serviços:</span><b>R$ {total.toFixed(2).replace(".", ",")}</b></div>
+                        <div className="os-omie-totais-linha"><span>Produtos:</span><b style={{ opacity: totalPecas ? 1 : 0.45 }}>R$ {totalPecas.toFixed(2).replace(".", ",")}</b></div>
+                        <div className="os-omie-totais-total"><span>Valor Total:</span><b>R$ {(total + totalPecas).toFixed(2).replace(".", ",")}</b></div>
                       </div>
                     </div>
                   )}
