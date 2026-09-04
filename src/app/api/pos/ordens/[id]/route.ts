@@ -65,7 +65,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
   // que estoura quando vem mais de uma linha. Pega o ENVIADO; senão o mais recente.
   const { data: tecRows } = await supabase
     .from("Ordem_Servico_Tecnicos")
-    .select("IdOs, Status, TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro, Garantia, TotalHora, TotalKm, NomResp, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2, AssCliente, AssTecnico, PecasInfo, JustificativaPecaExtra, CartaCorrecao, AlmocosFotos, FotoAlmoco")
+    .select("IdOs, Status, Data, JustificativaAtraso, TipoServico, Motivo, ServicoRealizado, Chassis, Horimetro, Garantia, TotalHora, TotalKm, NomResp, FotoHorimetro, FotoChassis, FotoFrente, FotoDireita, FotoEsquerda, FotoTraseira, FotoVolante, FotoFalha1, FotoFalha2, FotoFalha3, FotoFalha4, FotoPecaNova1, FotoPecaNova2, FotoPecaInstalada1, FotoPecaInstalada2, AssCliente, AssTecnico, PecasInfo, JustificativaPecaExtra, CartaCorrecao, AlmocosFotos, FotoAlmoco")
     .eq("Ordem_Servico", idOs);
   const tecLista = ([...(tecRows || [])] as Record<string, unknown>[])
     .sort((a, b) => Number(b.IdOs || 0) - Number(a.IdOs || 0)); // mais recente primeiro
@@ -109,6 +109,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     tipoServico: safeGet(row, "Tipo_Servico"), revisao: safeGet(row, "Revisao"),
     data: formatarDataBR(safeGet(row, "Data") as string),
     servicoSolicitado: safeGet(row, "Serv_Solicitado"),
+    observacoes: safeGet(row, "Observacoes"),
     qtdHoras: safeGet(row, "Qtd_HR"), qtdKm: safeGet(row, "Qtd_KM"),
     status: safeGet(row, "Status"), ppv: safeGet(row, "ID_PPV"),
     projeto: safeGet(row, "Projeto"), ordemOmie: safeGet(row, "Ordem_Omie"),
@@ -140,6 +141,9 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     horaChegada: safeGet(row, "Hora_Chegada") || "",
     horaFimExec: safeGet(row, "Hora_Fim_Exec") || "",
     dadosTecnico: tecData ? {
+      status: tecData.Status || "",
+      dataPreenchimento: tecData.Data || "",
+      justificativaAtraso: tecData.JustificativaAtraso || null,
       tipoServico: tecData.TipoServico,
       diagnostico: tecData.Motivo,
       servicoRealizado: tecData.ServicoRealizado,
@@ -280,6 +284,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Os_Tecnico: dados.tecnicoResponsavel, Os_Tecnico2: dados.tecnico2,
     Tipo_Servico: dados.tipoServico, Revisao: dados.revisao,
     Serv_Solicitado: dados.servicoSolicitado, Serv_Realizado: null,
+    Observacoes: dados.observacoes ?? null,
     Qtd_HR: parseFloat(dados.qtdHoras || 0), Qtd_KM: parseFloat(dados.qtdKm || 0),
     Valor_Total: total, Status: dados.status, ID_PPV: dados.ppv,
     ID_Relatorio_Final: dados.relatorioTecnico, Projeto: dados.projeto,
