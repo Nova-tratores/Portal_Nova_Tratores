@@ -7,13 +7,14 @@ import { gerarPdfLista, hojeISO } from '@/lib/propostas/pdf-lista'
 
 // `nome` = string EXATA gravada no banco. `pasta` = pasta física (bate com fase_fabrica.cor_pasta).
 // As 2 últimas fases (branca/cinza) foram adicionadas na evolução do módulo.
+// `pdf` = as MESMAS cores (RGB) pro PDF: fill/text = selo da fase; linha = tom claro da fase na linha inteira.
 const FASES = [
-  { nome: 'Proposta solicitada', cor: 'bg-red-100 text-red-700', pasta: 'amarela' },
-  { nome: 'Proposta Recebida', cor: 'bg-amber-100 text-amber-700', pasta: 'amarela' },
-  { nome: 'Pedido Feito / Aguardando Maq', cor: 'bg-blue-100 text-blue-700', pasta: 'verde' },
-  { nome: 'Proposta Concluida/ Maquina Recebida', cor: 'bg-emerald-100 text-emerald-700', pasta: 'verde' },
-  { nome: 'Aguardando faturamento da fábrica', cor: 'bg-slate-100 text-slate-600', pasta: 'branca' },
-  { nome: 'Faturado por nós', cor: 'bg-zinc-200 text-zinc-700', pasta: 'cinza' }
+  { nome: 'Proposta solicitada', cor: 'bg-red-100 text-red-700', pasta: 'amarela', pdf: { fill: [254, 226, 226], text: [185, 28, 28], linha: [254, 242, 242] } },
+  { nome: 'Proposta Recebida', cor: 'bg-amber-100 text-amber-700', pasta: 'amarela', pdf: { fill: [254, 243, 199], text: [180, 83, 9], linha: [255, 251, 235] } },
+  { nome: 'Pedido Feito / Aguardando Maq', cor: 'bg-blue-100 text-blue-700', pasta: 'verde', pdf: { fill: [219, 234, 254], text: [29, 78, 216], linha: [239, 246, 255] } },
+  { nome: 'Proposta Concluida/ Maquina Recebida', cor: 'bg-emerald-100 text-emerald-700', pasta: 'verde', pdf: { fill: [209, 250, 229], text: [4, 120, 87], linha: [236, 253, 245] } },
+  { nome: 'Aguardando faturamento da fábrica', cor: 'bg-slate-100 text-slate-600', pasta: 'branca', pdf: { fill: [241, 245, 249], text: [71, 85, 105], linha: [248, 250, 252] } },
+  { nome: 'Faturado por nós', cor: 'bg-zinc-200 text-zinc-700', pasta: 'cinza', pdf: { fill: [228, 228, 231], text: [63, 63, 70], linha: [250, 250, 250] } }
 ]
 
 // Cor do quadradinho da pasta física.
@@ -120,7 +121,10 @@ export default function FactoryKanban({ onCardClick }) {
         filtrosResumo,
         rodape: [{ texto: `CUSTO TOTAL (${filtradas.length} pedido${filtradas.length !== 1 ? 's' : ''}): ${fmtR$(somaCusto)}`, destaque: true }],
         arquivo: `pedidos_fabrica_${hojeISO()}.pdf`,
-        columnStyles: { 0: { cellWidth: 26 }, 4: { halign: 'right', fontStyle: 'bold' }, 7: { cellWidth: 22 } },
+        legenda: FASES.map(f => ({ label: f.nome, fill: f.pdf.fill, text: f.pdf.text })),
+        estiloLinha: (i) => FASES.find(f => f.nome === filtradas[i]?.status)?.pdf || null,
+        colStatus: COLS_LISTA.findIndex(c => c.k === 'status'),
+        columnStyles: { 0: { cellWidth: 26 }, 4: { halign: 'right', fontStyle: 'bold' }, 6: { cellWidth: 60 }, 7: { cellWidth: 22 } },
       })
       log({ sistema: 'Proposta Comercial', acao: 'relatorio', entidade: 'pedidos_fabrica_lista', detalhes: { total: filtradas.length, filtros: filtrosResumo } })
     } catch (err) {

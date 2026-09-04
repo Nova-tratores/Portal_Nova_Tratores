@@ -11,8 +11,11 @@
  * @param {{texto:string, destaque?:boolean}[]} [p.rodape] Totais abaixo da tabela
  * @param {string}   p.arquivo        Nome do arquivo .pdf
  * @param {Object}   [p.columnStyles] columnStyles do jspdf-autotable
+ * @param {{label:string, fill:number[], text:number[]}[]} [p.legenda] Legenda de etapas (quadradinhos coloridos acima da tabela)
+ * @param {(i:number)=>({fill:number[], text:number[], linha?:number[]}|null)} [p.estiloLinha] Cor da etapa por linha (índice em `linhas`)
+ * @param {number}   [p.colStatus]     Índice da coluna que recebe a cor forte (a célula de Status)
  */
-export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [], rodape = [], arquivo, columnStyles = {} }) {
+export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [], rodape = [], arquivo, columnStyles = {}, legenda = [], estiloLinha = null, colStatus = -1 }) {
   const { default: JsPDF } = await import('jspdf')
   const { default: autoTable } = await import('jspdf-autotable')
 
@@ -41,7 +44,28 @@ export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [
   const filtrosTxt = filtrosResumo.length ? `Filtros da tela: ${filtrosResumo.join('  ·  ')}` : 'Filtros da tela: nenhum (relação completa)'
   const filtrosLinhas = doc.splitTextToSize(filtrosTxt, pageWidth - 28)
   doc.text(filtrosLinhas, 14, 30)
-  const startY = 30 + filtrosLinhas.length * 3.5 + 2
+  let startY = 30 + filtrosLinhas.length * 3.5 + 2
+
+  // Legenda das etapas: ■ label ■ label … (mesmas cores da tela)
+  if (legenda.length) {
+    let x = 14
+    const y = startY + 1
+    doc.setFontSize(7.5)
+    doc.setTextColor(90, 90, 90)
+    doc.text('Etapas:', x, y + 2.6)
+    x += doc.getTextWidth('Etapas:') + 3
+    for (const l of legenda) {
+      const w = doc.getTextWidth(l.label) + 5
+      if (x + w + 4 > pageWidth - 14) break
+      doc.setFillColor(...l.fill)
+      doc.setDrawColor(...l.text)
+      doc.roundedRect(x, y - 0.4, w, 4.4, 1, 1, 'FD')
+      doc.setTextColor(...l.text)
+      doc.text(l.label, x + 2.5, y + 2.6)
+      x += w + 3
+    }
+    startY += 8
+  }
 
   autoTable(doc, {
     startY,
@@ -53,6 +77,19 @@ export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [
     alternateRowStyles: { fillColor: [250, 250, 250] },
     columnStyles,
     margin: { left: 8, right: 8, bottom: 14 },
+    // Cor da etapa: célula de Status pintada como o selo da tela; resto da linha num tom claro da mesma cor.
+    didParseCell: estiloLinha ? (data) => {
+      if (data.section !== 'body') return
+      const e = estiloLinha(data.row.index)
+      if (!e) return
+      if (data.column.index === colStatus) {
+        data.cell.styles.fillColor = e.fill
+        data.cell.styles.textColor = e.text
+        data.cell.styles.fontStyle = 'bold'
+      } else if (e.linha) {
+        data.cell.styles.fillColor = e.linha
+      }
+    } : undefined,
   })
 
   // Totais (à direita, abaixo da tabela; pula de página se não couber)
