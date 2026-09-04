@@ -7,12 +7,13 @@ import { useAuditLog } from '@/hooks/useAuditLog'
 import MotivoPerdaModal, { STATUS_PERDIDO } from './MotivoPerdaModal'
 
 // `nome` = valor real gravado no banco (não mexer). `label` = como aparece pro usuário (padronizado).
+// `pdf` = as MESMAS cores (RGB) pro PDF: fill/text = selo do status; linha = tom claro da etapa na linha inteira.
 const COLUNAS = [
-  { nome: 'Enviar Proposta', label: 'Enviar proposta', cor: 'bg-red-100 text-red-700' },
-  { nome: 'AGUARDANDO RESPOSTA CLIENTE', label: 'Aguardando resposta cliente', cor: 'bg-amber-100 text-amber-700' },
-  { nome: 'AGUARDANDO RESPOSTA BANCO', label: 'Aguardando resposta banco', cor: 'bg-violet-100 text-violet-700' },
-  { nome: 'Concluida-Vendido', label: 'Concluída - vendido', cor: 'bg-emerald-100 text-emerald-700' },
-  { nome: 'Concluida- Não vendido.', label: 'Concluída - não vendido', cor: 'bg-zinc-100 text-zinc-600' }
+  { nome: 'Enviar Proposta', label: 'Enviar proposta', cor: 'bg-red-100 text-red-700', pdf: { fill: [254, 226, 226], text: [185, 28, 28], linha: [254, 242, 242] } },
+  { nome: 'AGUARDANDO RESPOSTA CLIENTE', label: 'Aguardando resposta cliente', cor: 'bg-amber-100 text-amber-700', pdf: { fill: [254, 243, 199], text: [180, 83, 9], linha: [255, 251, 235] } },
+  { nome: 'AGUARDANDO RESPOSTA BANCO', label: 'Aguardando resposta banco', cor: 'bg-violet-100 text-violet-700', pdf: { fill: [237, 233, 254], text: [109, 40, 217], linha: [245, 243, 255] } },
+  { nome: 'Concluida-Vendido', label: 'Concluída - vendido', cor: 'bg-emerald-100 text-emerald-700', pdf: { fill: [209, 250, 229], text: [4, 120, 87], linha: [236, 253, 245] } },
+  { nome: 'Concluida- Não vendido.', label: 'Concluída - não vendido', cor: 'bg-zinc-100 text-zinc-600', pdf: { fill: [244, 244, 245], text: [82, 82, 91], linha: [250, 250, 250] } }
 ]
 
 const statusLabel = (nome) => COLUNAS.find(c => c.nome === nome)?.label || nome
@@ -246,7 +247,10 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
           { texto: `Previsão de faturamento (em aberto, ponderada pelo termômetro): R$ ${formatBRL(resumo.prevV)}` },
         ],
         arquivo: `propostas_${hojeISO()}.pdf`,
-        columnStyles: { 0: { cellWidth: 18 }, 6: { cellWidth: 30, halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] }, 8: { cellWidth: 20 }, 9: { cellWidth: 24 }, 10: { cellWidth: 22 } },
+        legenda: COLUNAS.map(c => ({ label: c.label, fill: c.pdf.fill, text: c.pdf.text })),
+        estiloLinha: (i) => COLUNAS.find(c => c.nome === ordenadas[i]?.status)?.pdf || null,
+        colStatus: COLS_LISTA.findIndex(c => c.k === 'status'),
+        columnStyles: { 0: { cellWidth: 18 }, 6: { cellWidth: 30, halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] }, 7: { cellWidth: 36 }, 8: { cellWidth: 20 }, 9: { cellWidth: 24 }, 10: { cellWidth: 22 } },
       })
       log({ sistema: 'Proposta Comercial', acao: 'relatorio', entidade: 'propostas_lista', detalhes: { total: ordenadas.length, filtros: filtrosResumo } })
     } catch (err) {
