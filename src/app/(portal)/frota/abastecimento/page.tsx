@@ -19,7 +19,7 @@ import UploadLotes from '@/components/abastecimento/UploadLotes';
 import DetalheModal, { type DetalheParams } from '@/components/abastecimento/DetalheModal';
 import HeatmapDiaHora from '@/components/abastecimento/HeatmapDiaHora';
 import TabelaTransacoes from '@/components/abastecimento/TabelaTransacoes';
-import { gerarPdfConsolidado, gerarPdfTransacoes } from '@/lib/abastecimento/pdf';
+import { gerarPdfConsolidado, gerarPdfPorDepartamento, gerarPdfTransacoes } from '@/lib/abastecimento/pdf';
 import { gerarCsvConsolidado, gerarCsvTransacoes } from '@/lib/abastecimento/csv';
 import type { DashboardAbastecimento, TransacoesResp } from '@/lib/abastecimento/tipos';
 
@@ -295,7 +295,22 @@ export default function AbastecimentoPage() {
     const f: string[] = [];
     if (filial) f.push(`Filial: ${filial}`);
     if (placa) f.push(`Veículo: ${placa}`);
+    if (departamento) f.push(`Departamento: ${departamento}`);
     return f;
+  };
+
+  // Estilo da tabela dinâmica do Excel; segue o filtro da tela (com
+  // departamento escolhido sai só ele; "Todos" traz o resumo por departamento).
+  const pdfDepartamento = async () => {
+    setGerandoPdf('departamento');
+    try {
+      const qs = new URLSearchParams({ ...paramsBase(), limit: '0' });
+      const r = await fetch(`/api/abastecimento/transacoes?${qs}`, { headers: await authHeaders() });
+      const d = (await r.json()) as TransacoesResp;
+      await gerarPdfPorDepartamento({ periodo: { de, ate }, filtros: filtrosDescricao(), departamento, linhas: d.linhas });
+    } finally {
+      setGerandoPdf('');
+    }
   };
 
   const pdfAnalitico = async () => {
@@ -427,6 +442,7 @@ export default function AbastecimentoPage() {
             {botaoExportar('PDF analítico', 'analitico', pdfAnalitico)}
             {botaoExportar('PDF por veículo', 'veiculo', () => pdfConsolidado('veiculo'))}
             {botaoExportar('PDF por motorista', 'motorista', () => pdfConsolidado('motorista'))}
+            {botaoExportar('PDF por departamento', 'departamento', pdfDepartamento)}
             {botaoExportar('CSV analítico', 'csv-analitico', csvAnalitico, 'csv')}
             {botaoExportar('CSV por veículo', 'csv-veiculo', () => csvConsolidado('veiculo'), 'csv')}
             {botaoExportar('CSV por motorista', 'csv-motorista', () => csvConsolidado('motorista'), 'csv')}
