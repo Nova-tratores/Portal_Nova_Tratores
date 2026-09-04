@@ -86,6 +86,13 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   const diasFase = diasEntre(o.dataFase);
   const temReqInfo = o.reqInfo && o.reqInfo.length > 0;
   const numero = String(o.id || "").replace(/^#?OS-?/i, "");
+  // No card só o que vem depois de "Solicitação do cliente:" (o blob todo
+  // de Modelo/Chassis/Horímetro continua no tooltip do hover)
+  const solicitacao = (() => {
+    const m = String(o.servSolicitado || "").match(/Solicita[çc][ãa]o do cliente:\s*([^\n]*)/i);
+    const so = (m?.[1] || "").trim();
+    return so || String(o.servSolicitado || "").trim();
+  })();
 
   return (
     <div className="mini-card" style={{ position: "relative", overflow: "visible" }} onClick={onClick}
@@ -147,7 +154,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
             <span className="mini-card-date fat">{formatDateBR(o.previsaoFaturamento)}</span>
           </div>
         )}
-        {o.servSolicitado && <div className="mini-card-servico" style={{ marginTop: 2, marginBottom: 0 }}>{o.servSolicitado}</div>}
+        {solicitacao && <div className="mini-card-servico" style={{ marginTop: 2, marginBottom: 0 }}>{solicitacao}</div>}
       </div>
       {/* Envio ao Omie: só nos cards da fila "Enviar Omie". Manual de propósito
           (cria ordem/pedido REAL no Omie). */}
