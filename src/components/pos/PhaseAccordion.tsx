@@ -84,14 +84,34 @@ function formatDateBR(dateStr: string): string {
 
 const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null }) {
   const diasFase = diasEntre(o.dataFase);
-  const borderStyle = useMemo(() => ({ borderLeftColor: color }), [color]);
-
   const temReqInfo = o.reqInfo && o.reqInfo.length > 0;
+  const numero = String(o.id || "").replace(/^#?OS-?/i, "");
 
   return (
-    <div className="mini-card" style={{ ...borderStyle, position: "relative", overflow: "visible" }} onClick={onClick}
+    <div className="mini-card" style={{ position: "relative", overflow: "visible" }} onClick={onClick}
       onMouseEnter={(e) => onDescEnter?.(e.currentTarget.getBoundingClientRect(), o.servSolicitado || "")}
       onMouseLeave={() => onDescLeave?.()}>
+      {/* Título no padrão do PPV: número preto em destaque — cliente */}
+      <div className="mini-card-titulo">
+        <b className="pos-num-preto">{numero}</b>
+        <span style={{ fontWeight: 400, color: "#334155" }}> — {o.cliente || "Sem Cliente"}</span>
+      </div>
+      {(o.servicoInterno || o.projetoCronograma) && (
+        <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+          {o.servicoInterno && (
+            <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#7C3AED", background: "#F3E8FF", border: "1px solid #DDD6FE", borderRadius: 3, padding: "1px 6px", textTransform: "uppercase" }}>
+              <i className="fas fa-tools" style={{ marginRight: 3 }} />Interna
+            </span>
+          )}
+          {o.projetoCronograma && (
+            <Link href={`/cronograma/${o.projetoCronograma.id}`} onClick={(e) => e.stopPropagation()}
+              title={`Projeto ${o.projetoCronograma.nome}`}
+              style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#0D9488", background: "#CCFBF1", border: "1px solid #99F6E4", borderRadius: 3, padding: "1px 6px", textTransform: "uppercase", textDecoration: "none" }}>
+              <i className="fas fa-diagram-project" style={{ marginRight: 3 }} />Cronograma
+            </Link>
+          )}
+        </div>
+      )}
       {onPhaseChange && (
         <div className="mini-card-phase" onClick={(e) => e.stopPropagation()}>
           <select
@@ -105,24 +125,30 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           </select>
         </div>
       )}
-      <div className="mini-card-top">
-        <span className="mini-card-id">#{o.id}</span>
-        {o.servicoInterno && (
-          <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#7C3AED", background: "#F3E8FF", border: "1px solid #DDD6FE", borderRadius: 5, padding: "1px 6px", textTransform: "uppercase" }}>
-            <i className="fas fa-tools" style={{ marginRight: 3 }} />Interna
-          </span>
+      {/* Informações em LISTA (padrão PPV: rótulo à esquerda, valor à direita) */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 9 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
+          <span style={{ color: "#94a3b8" }}><span className="mini-card-tipo-selo" style={{ marginRight: 6 }}>OS</span>Valor</span>
+          <b style={{ color: "#0f172a", whiteSpace: "nowrap", fontSize: 15 }}>R$ {o.valor}</b>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
+          <span style={{ color: "#94a3b8" }}><i className="fas fa-user-cog" style={{ marginRight: 5 }} />Técnico</span>
+          <span style={{ color: "#334155", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.tecnico || "?"}</span>
+        </div>
+        {o.previsaoExecucao && (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14, alignItems: "center" }}>
+            <span style={{ color: "#94a3b8" }}><i className="fas fa-wrench" style={{ marginRight: 5 }} />Execução</span>
+            <span className="mini-card-date exec">{formatDateBR(o.previsaoExecucao)}</span>
+          </div>
         )}
-        {o.projetoCronograma && (
-          <Link href={`/cronograma/${o.projetoCronograma.id}`} onClick={(e) => e.stopPropagation()}
-            title={`Projeto ${o.projetoCronograma.nome}`}
-            style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#0D9488", background: "#CCFBF1", border: "1px solid #99F6E4", borderRadius: 5, padding: "1px 6px", textTransform: "uppercase", textDecoration: "none" }}>
-            <i className="fas fa-diagram-project" style={{ marginRight: 3 }} />Cronograma
-          </Link>
+        {o.previsaoFaturamento && (
+          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14, alignItems: "center" }}>
+            <span style={{ color: "#94a3b8" }}><i className="fas fa-file-invoice-dollar" style={{ marginRight: 5 }} />Faturamento</span>
+            <span className="mini-card-date fat">{formatDateBR(o.previsaoFaturamento)}</span>
+          </div>
         )}
-        <span className="mini-card-valor">R$ {o.valor}</span>
+        {o.servSolicitado && <div className="mini-card-servico" style={{ marginTop: 2, marginBottom: 0 }}>{o.servSolicitado}</div>}
       </div>
-      <div className="mini-card-cliente">{o.cliente}</div>
-      <div className="mini-card-servico">{o.servSolicitado}</div>
       {/* Envio ao Omie: só nos cards da fila "Enviar Omie". Manual de propósito
           (cria ordem/pedido REAL no Omie). */}
       {onEnviarOmie && o.status === FASE_ENVIAR_OMIE && (
@@ -141,17 +167,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           {enviandoOmie === o.id ? "Enviando..." : "Enviar ao Omie"}
         </button>
       )}
-      {(o.previsaoExecucao || o.previsaoFaturamento) && (
-        <div className="mini-card-dates">
-          {o.previsaoExecucao && (
-            <span className="mini-card-date exec"><i className="fas fa-wrench" /> {formatDateBR(o.previsaoExecucao)}</span>
-          )}
-          {o.previsaoFaturamento && (
-            <span className="mini-card-date fat"><i className="fas fa-file-invoice-dollar" /> {formatDateBR(o.previsaoFaturamento)}</span>
-          )}
-        </div>
-      )}
-      {o.diasAtraso > 0 && !['execu', 'orçamento', 'orcamento', 'aguardando cliente'].some(s => (o.status || '').toLowerCase().includes(s)) && (
+      {o.diasAtraso > 0 &&!['execu', 'orçamento', 'orcamento', 'aguardando cliente'].some(s => (o.status || '').toLowerCase().includes(s)) && (
         <div className="mini-card-atraso">
           <i className="fas fa-exclamation-circle" /> {o.diasAtraso}d atrasado — cobrar {o.tecnico}
         </div>

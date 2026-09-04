@@ -3061,8 +3061,9 @@ body {
 
 .phase-group-name {
   font-size: 15px;
-  font-weight: 700;
-  color: var(--text);
+  font-weight: 800;
+  color: #111111; /* preto como no PPV (#111111 escapa o remap do dark) */
+  padding: 2px 2px;
   white-space: nowrap;
 }
 
@@ -3082,14 +3083,64 @@ body {
 }
 
 /* Mini Card */
+/* Card do POS no PADRÃO DO PPV (referência Omie): quadrado, borda neutra
+   (sem faixa colorida), título "Nº — Cliente" com número preto em destaque,
+   select de fase com linha tracejada e infos em lista. */
 .mini-card {
   background: var(--surface);
-  border-radius: 12px;
+  border-radius: 4px;
   padding: 16px 18px;
-  border-left: 4px solid;
+  border: 1px solid var(--border);
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.mini-card-titulo {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.25;
+  margin-bottom: 10px;
+}
+
+.pos-num-preto { color: #111111; }
+[data-theme="dark"] .pos-num-preto { color: #111111; }
+
+.mini-card-phase {
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border);
+}
+
+.mini-card-phase-select {
+  width: 100%;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  background: var(--primary-light);
+  color: var(--text);
+  cursor: pointer;
+  margin-bottom: 0;
+  font-family: 'Poppins', sans-serif;
+  transition: border-color 0.2s;
+}
+
+.mini-card-phase-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px rgba(30, 58, 95, 0.12);
+}
+
+.mini-card-tipo-selo {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--primary-light);
+  color: var(--primary);
 }
 
 .mini-card:hover {
