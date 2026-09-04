@@ -178,6 +178,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [addingProduto, setAddingProduto] = useState(false);
   const [saving, setSaving] = useState(false);
   const [aba, setAba] = useState<"os" | "ppv">("os");
+  // Sub-abas no padrão Omie (modelo aprovado 04/09): cada card vive numa aba
+  const [abaOmie, setAbaOmie] = useState<"servicos" | "produtos" | "requisicoes" | "relatorio" | "alimentacao" | "garantia" | "obs" | "dados">("servicos");
   const [loadingData, setLoadingData] = useState(false);
   // Incrementado após importar um orçamento → força recarregar os dados da OS
   const [reloadKey, setReloadKey] = useState(0);
@@ -964,20 +966,40 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {/* ── Abas (edit): Ordem de Serviço / Peças (PPV) ── */}
                   {mode === "edit" && (
                     <div className="os-tabs">
-                      <button type="button" className={`os-tab ${aba === "os" ? "active" : ""}`} onClick={() => setAba("os")}>
-                        <i className="fas fa-file-lines" /> Ordem de Serviço
+                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "servicos" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("servicos"); }}>
+                        Lista de Serviços
                       </button>
-                      <button type="button" className={`os-tab ${aba === "ppv" ? "active" : ""}`} onClick={() => setAba("ppv")}>
-                        <i className="fas fa-boxes" /> PPV / Requisições
-                        {(produtos.length > 0 || requisicoes.length > 0) && (
-                          <span className="os-tab-badge">{produtos.length + requisicoes.length}</span>
-                        )}
+                      <button type="button" className={`os-tab ${aba === "ppv" && abaOmie === "produtos" ? "active" : ""}`} onClick={() => { setAba("ppv"); setAbaOmie("produtos"); }}>
+                        Lista de Produtos
+                        {produtos.length > 0 && <span className="os-tab-badge">{produtos.length}</span>}
+                      </button>
+                      <button type="button" className={`os-tab ${aba === "ppv" && abaOmie === "requisicoes" ? "active" : ""}`} onClick={() => { setAba("ppv"); setAbaOmie("requisicoes"); }}>
+                        Requisições
+                        {requisicoes.length > 0 && <span className="os-tab-badge">{requisicoes.length}</span>}
+                      </button>
+                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "relatorio" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("relatorio"); }}>
+                        Relatório Técnico
+                      </button>
+                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "alimentacao" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("alimentacao"); }}>
+                        Alimentação
+                      </button>
+                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "garantia" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("garantia"); }}>
+                        Garantia
+                      </button>
+                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "obs" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("obs"); }}>
+                        Observações
+                      </button>
+                      <button type="button" className="os-tab" onClick={() => setShowLogs(!showLogs)}>
+                        Histórico
+                      </button>
+                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "dados" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("dados"); }}>
+                        Dados da OS
                       </button>
                     </div>
                   )}
 
                   {/* ── Painel: Ordem de Serviço ── */}
-                  <div className="os-tab-panel" style={{ display: aba === "os" ? "flex" : "none" }}>
+                  <div className="os-tab-panel" data-aba={mode === "edit" ? abaOmie : undefined} style={{ display: aba === "os" ? "flex" : "none" }}>
 
                   {/* ── Faixa superior no ESTILO OMIE: avatar com iniciais,
                         campos Cliente/Vendedor com rótulo flutuante e a caixa
@@ -1021,6 +1043,58 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     new Date(`${previsaoFaturamento}T23:59:59`) < new Date() && (
                     <div className="os-aviso-atraso" style={{ order: -5.8 }}>
                       Faturamento atrasado — previsão era {previsaoFaturamento.split("-").reverse().join("/")}{tecnico1 ? `, cobrar ${tecnico1}` : ""}
+                    </div>
+                  )}
+
+                  {/* ── TABELA de serviços no estilo Omie (aba Lista de Serviços) ── */}
+                  {mode === "edit" && (
+                    <div className="os-card os-aba os-aba-servicos" style={{ order: -4.5, padding: 0, overflow: "hidden" }}>
+                      <div style={{ overflowX: "auto" }}>
+                        <table className="os-omie-tabela">
+                          <thead>
+                            <tr>
+                              <th>Categoria</th><th className="num">Quantidade</th><th>Descrição</th>
+                              <th className="num">Valor Unitário</th><th className="num">Desconto</th>
+                              <th className="num">Valor Total</th><th>Nº OS Omie</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            <tr>
+                              <td><span className="os-selo-cat">1. #Serv Prest Manutenção</span></td>
+                              <td className="num">1,00</td>
+                              <td style={{ maxWidth: 420, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {(servSolicitado || "").split("\n").map((l) => l.trim()).filter(Boolean).slice(0, 2).join(" — ") || "Serviço"}
+                              </td>
+                              <td className="num">0,00</td><td className="num">0,00</td><td className="num">0,00</td>
+                              <td>{ordemOmie ? ordemOmie.replace(/^0+/, "") : ""}</td>
+                            </tr>
+                            <tr>
+                              <td><span className="os-selo-cat">1. #Serv Prest Manutenção</span></td>
+                              <td className="num">{qtdHoras.toFixed(2).replace(".", ",")}</td>
+                              <td>Hora Trabalhada</td>
+                              <td className="num">{VH.toFixed(2).replace(".", ",")}</td>
+                              <td className="num">{descHoraValor.toFixed(2).replace(".", ",")}</td>
+                              <td className="num">{(subtotalHoras - descHoraValor).toFixed(2).replace(".", ",")}</td>
+                              <td></td>
+                            </tr>
+                            {qtdKm > 0 && (
+                              <tr>
+                                <td><span className="os-selo-cat">2. #Deslocamento</span></td>
+                                <td className="num">{qtdKm.toFixed(2).replace(".", ",")}</td>
+                                <td>Km rodado</td>
+                                <td className="num">{VK.toFixed(2).replace(".", ",")}</td>
+                                <td className="num">{descKmValor.toFixed(2).replace(".", ",")}</td>
+                                <td className="num">{(subtotalKm - descKmValor).toFixed(2).replace(".", ",")}</td>
+                                <td></td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="os-omie-tabela-rodape">
+                        <span>{qtdKm > 0 ? "1 - 3 de 3" : "1 - 2 de 2"} registros</span>
+                        <span style={{ opacity: 0.7 }}>edite quantidades e descontos logo abaixo</span>
+                      </div>
                     </div>
                   )}
 
@@ -1098,7 +1172,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   )}
 
                   {/* ── Cliente (create + edit) ── */}
-                  <div className="os-card" style={{ order: -5 }}>
+                  <div className="os-card os-aba os-aba-dados" style={{ order: -5 }}>
                     <div className="os-card-title"><i className="fas fa-user" /> {mode === "edit" ? "Alterar Cliente" : "Cliente"}</div>
                     <div style={S_RELATIVE}>
                       <i className="fas fa-search" style={S_SEARCH_ICON} />
@@ -1327,7 +1401,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                   {/* ── Garantia vinculada ── */}
                   {mode === "edit" && osId && (
-                    <div className="os-card">
+                    <div className="os-card os-aba os-aba-garantia">
                       <div className="os-card-title"><i className="fas fa-shield-halved" /> Garantia</div>
                       <OSGarantiaInfo osId={osId} />
                     </div>
@@ -1339,7 +1413,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                   {/* ── Relatório Técnico ── */}
                   {mode === "edit" && relatorioTecnico && (
-                    <div className="os-card">
+                    <div className="os-card os-aba os-aba-relatorio">
                       <div className="os-card-title"><i className="fas fa-file-pdf" /> Relatório Técnico</div>
                       <a
                         href={relatorioTecnico}
@@ -1362,7 +1436,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                   {/* ── Carta de Correção ── */}
                   {mode === "edit" && dadosTecnico?.cartaCorrecao && (
-                    <div className="os-card">
+                    <div className="os-card os-aba os-aba-relatorio">
                       <div className="os-card-title"><i className="fas fa-pen-to-square" /> Carta de Correção</div>
                       <div style={{
                         background: "#FFFBEB", borderRadius: 10, padding: "14px 16px",
@@ -1380,7 +1454,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                   {/* ── Dados do Técnico (fotos, diagnostico, etc) ── */}
                   {mode === "edit" && dadosTecnico && (
-                    <div className="os-card">
+                    <div className="os-card os-aba os-aba-relatorio">
                       <div className="os-card-title"><i className="fas fa-user-hard-hat" /> Dados do Técnico</div>
 
                       {/* Info resumida */}
@@ -1552,7 +1626,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   )}
 
                   {/* ── Equipe & Atendimento ── */}
-                  <div className="os-card" style={{ order: -3 }}>
+                  <div className="os-card os-aba os-aba-dados" style={{ order: -3 }}>
                     <div className="os-card-title"><i className="fas fa-users" /> Equipe &amp; Atendimento</div>
                     <div className="os-row">
                       <div style={S_FLEX1}>
@@ -1614,7 +1688,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   </div>
 
                   {/* ── Datas do Serviço (inclui Alimentação/Almoço) ── */}
-                  <div className="os-card" style={{ order: -2 }}>
+                  <div className="os-card os-aba os-aba-alimentacao" style={{ order: -2 }}>
                     <div className="os-card-title"><i className="fas fa-calendar-alt" /> Datas do Serviço</div>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                       <div>
@@ -1817,7 +1891,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
 
                   {/* ── Descrição ── */}
-                  <div className="os-card">
+                  <div className="os-card os-aba os-aba-obs">
                     <div className="os-card-title"><i className="fas fa-align-left" /> Descrição do Serviço</div>
                     <textarea rows={10} value={servSolicitado} onChange={(e) => setServSolicitado(e.target.value)} style={S_MONO_MB0} />
                   </div>
@@ -1954,7 +2028,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   </div>{/* fim painel Peças / PPV */}
 
                   {/* ── Painel: Ordem de Serviço (parte 2) ── */}
-                  <div className="os-tab-panel" style={{ display: aba === "os" ? "flex" : "none" }}>
+                  <div className="os-tab-panel" style={{ display: aba === "os" && (mode !== "edit" || abaOmie === "servicos") ? "flex" : "none" }}>
                   {/* ── Financeiro ── */}
                   <div className="os-card os-card-financial">
                     <div className="os-card-title"><i className="fas fa-calculator" /> Financeiro</div>

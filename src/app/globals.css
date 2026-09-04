@@ -3764,6 +3764,38 @@ body {
   color: var(--text);
 }
 
+/* Sub-abas Omie do drawer da OS: cada card mostra só na sua aba */
+.os-tab-panel[data-aba="servicos"] .os-aba:not(.os-aba-servicos),
+.os-tab-panel[data-aba="dados"] .os-aba:not(.os-aba-dados),
+.os-tab-panel[data-aba="relatorio"] .os-aba:not(.os-aba-relatorio),
+.os-tab-panel[data-aba="alimentacao"] .os-aba:not(.os-aba-alimentacao),
+.os-tab-panel[data-aba="garantia"] .os-aba:not(.os-aba-garantia),
+.os-tab-panel[data-aba="obs"] .os-aba:not(.os-aba-obs),
+.os-tab-panel[data-aba="produtos"] .os-aba,
+.os-tab-panel[data-aba="requisicoes"] .os-aba {
+  display: none !important;
+}
+
+/* Tabela de serviços estilo Omie */
+.os-omie-tabela { width: 100%; border-collapse: collapse; font-size: 13px; }
+.os-omie-tabela thead th {
+  text-align: left; font-weight: 600; color: var(--text-light);
+  background: var(--primary-light); border-bottom: 1px solid var(--border);
+  padding: 9px 12px; white-space: nowrap;
+}
+.os-omie-tabela tbody td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.os-omie-tabela tbody tr:nth-child(odd) { background: rgba(11, 183, 205, 0.06); }
+.os-omie-tabela th.num, .os-omie-tabela td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.os-selo-cat {
+  font-size: 11px; font-weight: 700; background: var(--primary-light);
+  border-radius: 4px; padding: 3px 8px; color: var(--text); white-space: nowrap;
+}
+.os-omie-tabela-rodape {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 12px; color: var(--text-light); font-size: 12.5px;
+  border-top: 1px solid var(--border);
+}
+
 /* Faixa amarela estilo Omie (faturamento atrasado) */
 .os-aviso-atraso {
   background: #FFF6D6;
