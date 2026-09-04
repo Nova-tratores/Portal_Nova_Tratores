@@ -1,0 +1,21 @@
+# PPV — Relatorio semanal da Relacao (Pre-Pedidos de Venda EM ABERTO).
+# Envia 1 email (PDF + CSV) pros destinatarios de PPV_RELATORIO_EMAIL_TO.
+# Roda toda segunda 07:10 BRT (10:10 UTC). Tambem acionavel manualmente.
+# Mesmo padrao do DRE (dre-financeiro-relatorio-lista.yml).
+name: PPV - Relatorio semanal (Relacao em aberto)
+
+on:
+  schedule:
+    - cron: '10 10 * * 1'   # Segunda 07:10 BRT (10:10 UTC)
+  workflow_dispatch: {}
+
+jobs:
+  relatorio:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar relatorio da Relacao do PPV
+        run: |
+          curl -fsS --max-time 300 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/ppv/cron/relatorio-lista" \
+            -w "\nppv-relatorio-lista: HTTP %{http_code}\n"

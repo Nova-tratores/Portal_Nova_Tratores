@@ -13,6 +13,11 @@ export interface KanbanItem {
   data: string;
   observacao: string;
   criadoPor?: string;
+  // Extras do modo "Relação" (vêm na listagem do kanban; opcionais).
+  pedidoOmie?: string;
+  osId?: string;
+  nfNumero?: string;
+  projeto?: string;
   ultimaAcao: string;
   ultimoUsuario: string;
   ultimaData: string;
