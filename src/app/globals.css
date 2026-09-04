@@ -1085,8 +1085,10 @@ body {
   [data-theme="dark"] .os-rail-btn { color: var(--portal-text) !important; }
   [data-theme="dark"] .os-rail-btn i { color: var(--portal-text-muted) !important; }
   [data-theme="dark"] .os-rail-btn:hover { background: var(--portal-bg-secondary) !important; }
-  [data-theme="dark"] .os-rail-btn.primary, [data-theme="dark"] .os-rail-btn.omie { color: #001018 !important; }
-  [data-theme="dark"] .os-rail-btn.primary i, [data-theme="dark"] .os-rail-btn.omie i { color: #001018 !important; }
+  [data-theme="dark"] .os-rail-btn.primary { color: #fff !important; }
+  [data-theme="dark"] .os-rail-btn.primary i { color: #fff !important; }
+  [data-theme="dark"] .os-rail-btn.omie { color: var(--portal-text) !important; }
+  [data-theme="dark"] .os-rail-btn.omie i { color: #22d3ee !important; }
   [data-theme="dark"] .os-rail-sep { background: var(--portal-border) !important; }
 
   /* ── Drawer do PPV (estilo Omie) no escuro ── */
@@ -3762,6 +3764,34 @@ body {
   color: var(--text);
 }
 
+/* Faixa amarela estilo Omie (faturamento atrasado) */
+.os-aviso-atraso {
+  background: #FFF6D6;
+  border-radius: 6px;
+  padding: 13px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #37474F;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.os-aviso-atraso::before {
+  content: "!";
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #EF5350;
+  color: #fff;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+[data-theme="dark"] .os-aviso-atraso { background: #3d3517; color: #fde68a; }
+
 /* ── Faixa superior estilo OMIE no drawer da OS (modelo em iteração) ── */
 .os-omie-top {
   display: flex;
@@ -4390,29 +4420,32 @@ body {
   text-align: center;
   font-size: 15px;
   flex-shrink: 0;
-  color: var(--text-light);
+  color: #0891A8; /* ícones teal como no Omie */
 }
 .os-rail-btn:hover {
   background: var(--primary-light);
 }
 .os-rail-btn.primary {
-  /* Salvar em AZUL FLUORESCENTE com brilho (pedido 18/08) */
-  background: #00C2FF;
-  color: #001018;
+  /* Salvar no TEAL do Omie (modelo aprovado 04/09) — pílula centralizada */
+  background: #0BB7CD;
+  color: #fff;
   font-weight: 700;
-  box-shadow: 0 0 14px rgba(0, 194, 255, 0.55);
+  border-radius: 22px;
+  justify-content: center;
+  box-shadow: none;
+  margin-bottom: 6px;
 }
-.os-rail-btn.primary i { color: #001018; }
-.os-rail-btn.primary:hover { filter: brightness(1.08); background: #00C2FF; }
+.os-rail-btn.primary i { color: #fff; }
+.os-rail-btn.primary:hover { background: #0891A8; filter: none; }
 .os-rail-btn.omie {
-  /* Enviar para Omie no mesmo azul neon */
-  box-shadow: 0 0 14px rgba(0, 194, 255, 0.5);
-  background: #00C2FF;
-  color: #001018;
-  font-weight: 700;
+  /* Enviar ao Omie vira item normal com ícone teal (padrão Omie) */
+  background: transparent;
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: none;
 }
-.os-rail-btn.omie i { color: #001018; }
-.os-rail-btn.omie:hover { filter: brightness(1.08); background: #00C2FF; }
+.os-rail-btn.omie i { color: #0891A8; }
+.os-rail-btn.omie:hover { background: var(--primary-light); filter: none; }
 .os-rail-btn.interna {
   background: #7C3AED;
   color: #fff;
@@ -4464,9 +4497,10 @@ body {
 }
 .os-tab:hover { color: var(--text); }
 .os-tab.active {
-  color: var(--primary);
-  font-weight: 600;
-  border-bottom-color: var(--primary);
+  color: var(--text);
+  font-weight: 700;
+  border-bottom: 3px solid #0BB7CD; /* risco teal estilo Omie */
+  margin-bottom: -2px;
 }
 .os-tab .os-tab-badge {
   font-size: 11px;

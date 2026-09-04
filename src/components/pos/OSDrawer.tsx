@@ -1016,6 +1016,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     </div>
                   )}
 
+                  {/* ── Faixa amarela estilo Omie: faturamento atrasado ── */}
+                  {mode === "edit" && previsaoFaturamento && !["Concluída", "Cancelada"].includes(status) &&
+                    new Date(`${previsaoFaturamento}T23:59:59`) < new Date() && (
+                    <div className="os-aviso-atraso" style={{ order: -5.8 }}>
+                      Faturamento atrasado — previsão era {previsaoFaturamento.split("-").reverse().join("/")}{tecnico1 ? `, cobrar ${tecnico1}` : ""}
+                    </div>
+                  )}
+
                   {/* ── Resumo do PPV/peças na aba principal (as peças vivem na aba
                         "PPV / Requisições"; aqui fica o atalho pra não passarem batido) ── */}
                   {mode === "edit" && produtos.length > 0 && (
