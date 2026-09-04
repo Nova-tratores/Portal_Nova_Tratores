@@ -9,6 +9,8 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
 import TabelaOrdenavel, { type ColunaDef } from '@/components/abastecimento/TabelaOrdenavel';
+import AjudaCompras from '@/components/estoque/AjudaCompras';
+import { AJUDA_SUGESTAO } from '@/lib/estoque/sugestao-compra/ajuda';
 
 interface Item {
   sku: string; descricao?: string; marca?: string; familia?: string; tipo?: string;
@@ -176,7 +178,10 @@ export default function SugestaoCompraPage() {
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Sugestão de Compra</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <h1 style={{ color: '#333', margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>Sugestão de Compra</h1>
+            <AjudaCompras ajuda={AJUDA_SUGESTAO} />
+          </div>
           <p style={{ color: '#888', fontSize: '.82rem' }}>Reposição de peças calculada — consolidada NOVA + CASTRO. {geradoEm ? `Snapshot de ${new Date(geradoEm).toLocaleString('pt-BR')}.` : ''}</p>
         </div>
         {pode('estoque', 'config-compras') && <Link href="/estoque/config-compras" style={{ color: '#0f766e', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>⚙ Config. de Compras</Link>}

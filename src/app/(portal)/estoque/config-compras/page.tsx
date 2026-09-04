@@ -12,6 +12,8 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import { authHeaders } from '@/lib/auth/client';
+import AjudaCompras from '@/components/estoque/AjudaCompras';
+import { AJUDA_CONFIG } from '@/lib/estoque/sugestao-compra/ajuda';
 
 const card: React.CSSProperties = { background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, marginBottom: 18, boxShadow: '0 1px 4px rgba(0,0,0,.04)' };
 const inp: React.CSSProperties = { padding: '7px 10px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: 13, background: '#fff', outline: 'none' };
@@ -43,7 +45,10 @@ export default function ConfigComprasPage() {
     <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
-          <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Config. de Compras</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+            <h1 style={{ color: '#333', margin: 0, fontSize: '1.4rem', fontWeight: 700 }}>Config. de Compras</h1>
+            <AjudaCompras ajuda={AJUDA_CONFIG} />
+          </div>
           <p style={{ color: '#888', fontSize: '.82rem' }}>Parâmetros de suprimento que alimentam a Sugestão de Compra. Sem config, o motor usa defaults.</p>
         </div>
         <div>
@@ -233,7 +238,7 @@ function EditorItem({ conta, item, onSalvo, onCancel, setMsg }: { conta: string;
     <tr><td colSpan={9} style={{ ...td, background: '#f8fafc' }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'flex-end' }}>
         <strong style={{ fontSize: '.85rem', width: '100%' }}>{item.codigo} — {item.descricao}</strong>
-        <Campo label="Cód. fornecedor pref. (id)"><input type="number" value={f.codigo_fornecedor_preferencial} onChange={(e) => setF({ ...f, codigo_fornecedor_preferencial: e.target.value as unknown as number })} style={{ ...inp, width: 150 }} placeholder="Fornecedores.id" /></Campo>
+        <Campo label="Cód. fornecedor pref. (id)"><input type="number" value={f.codigo_fornecedor_preferencial} onChange={(e) => setF({ ...f, codigo_fornecedor_preferencial: e.target.value as unknown as number })} style={{ ...inp, width: 170 }} placeholder="id Omie (aba Fornecedores)" /></Campo>
         <Campo label="Lead override (dias)"><input type="number" value={f.lead_time_override} onChange={(e) => setF({ ...f, lead_time_override: e.target.value as unknown as number })} style={{ ...inp, width: 120 }} /></Campo>
         <Campo label="Múltiplo embalagem"><input type="number" value={f.multiplo_embalagem} onChange={(e) => setF({ ...f, multiplo_embalagem: e.target.value as unknown as number })} style={{ ...inp, width: 110 }} /></Campo>
         <Campo label="Mínimo manual"><input type="number" value={f.minimo_manual} onChange={(e) => setF({ ...f, minimo_manual: e.target.value as unknown as number })} style={{ ...inp, width: 100 }} /></Campo>
