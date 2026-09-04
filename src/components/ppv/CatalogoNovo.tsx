@@ -56,6 +56,13 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
   const [pecaSel, setPecaSel] = useState<Peca | null>(null); // peça aberta pela bolinha (painel sob a imagem)
   const [qtdSel, setQtdSel] = useState(1);
   const [imgDim, setImgDim] = useState<{ w: number; h: number }>({ w: 1, h: 1 });
+  // Bolinha ADAPTATIVA: nas figuras gigantes (KUHN ~4200px, ex.: Accura) a
+  // bolinha fixa de 32px virava um bolão que amontoava nas vizinhas quando a
+  // imagem encolhia pra caber na tela. Tamanho ≈ o dos números do desenho.
+  const [imgRenderW, setImgRenderW] = useState(800);
+  const [fsRenderW, setFsRenderW] = useState(800);
+  const bolinhaPx = (renderW: number) => Math.max(13, Math.min(32, Math.round((95 * renderW) / (imgDim.w || 1))));
+  const refCurto = (r: string) => String(r).replace(/^0+(?=\d)/, "");
   // Modo edição das bolinhas (só Ventura, temporário): arrastar posições e salvar
   const [editando, setEditando] = useState(false);
   const [hsEdit, setHsEdit] = useState<{ reference: string; x: number; y: number }[]>([]);
@@ -1292,7 +1299,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                       <img ref={imgElRef} src={figura.image_url} alt={figura.name} draggable={false}
                         // arrastar a imagem em qualquer zoom (o limitarPan segura pra não sumir)
                         onMouseDown={(e) => { if (!editando) { e.preventDefault(); panRef.current = { x: e.clientX, y: e.clientY, px: pan.x, py: pan.y }; } }}
-                        onLoad={(e) => setImgDim({ w: (e.target as HTMLImageElement).naturalWidth || 1, h: (e.target as HTMLImageElement).naturalHeight || 1 })}
+                        onLoad={(e) => { const el = e.target as HTMLImageElement; setImgDim({ w: el.naturalWidth || 1, h: el.naturalHeight || 1 }); setImgRenderW(el.clientWidth || 800); }}
                         // cabe INTEIRA na tela mesmo com o painel de peças aberto:
                         // desconta topo do portal + barras do catálogo + cabeçalho da figura
                         style={{ maxWidth: "100%", maxHeight: "calc(100dvh - 330px)", width: "auto", display: "block" }} />
@@ -1304,7 +1311,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                             onMouseEnter={() => setRefHover(h.reference)} onMouseLeave={() => !pecaSel && setRefHover(null)}
                             // TAMANHO FIXO: mudar width/height no hover fazia o cursor entrar/sair
                             // da bolinha durante a animação → tremedeira. Destaque só por cor + anel.
-                            style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / zoom})`, width: 32, height: 32, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#EA580C" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: 13, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 7px rgba(0,0,0,0.45)" : "0 2px 7px rgba(0,0,0,0.45)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>{h.reference}</button>
+                            style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / zoom})`, width: bolinhaPx(imgRenderW), height: bolinhaPx(imgRenderW), borderRadius: "50%", border: `${bolinhaPx(imgRenderW) < 20 ? 1.5 : 2.5}px solid #fff`, background: ativo ? "#EA580C" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: Math.max(8, Math.round(bolinhaPx(imgRenderW) * 0.42)), fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 7px rgba(0,0,0,0.45)" : "0 2px 7px rgba(0,0,0,0.45)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>{refCurto(h.reference)}</button>
                         );
                       })}
                       {/* Ficha da peça LOGO ABAIXO da bolinha em foco */}
@@ -1720,7 +1727,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
             style={{ flex: 1, minHeight: 0, display: "flex", alignItems: "flex-start", justifyContent: "center", overflow: "hidden", padding: 16, cursor: fsModo === "caneta" ? "default" : (fsArrastando ? "grabbing" : "grab"), userSelect: "none" }}>
             <div style={{ transform: `translate(${fsPan.x}px, ${fsPan.y}px) scale(${fsZoom})`, transformOrigin: "top center", transition: fsPanRef.current ? "none" : "transform .1s ease", willChange: "transform" }}>
               <div style={{ position: "relative", lineHeight: 0 }}>
-                <img ref={fsImgRef} src={figura.image_url} alt={figura.name} draggable={false} onLoad={ajustarCanvas}
+                <img ref={fsImgRef} src={figura.image_url} alt={figura.name} draggable={false}
+                  onLoad={(e) => { ajustarCanvas(); setFsRenderW((e.target as HTMLImageElement).clientWidth || 800); }}
                   style={{ maxWidth: "92vw", maxHeight: "80vh", display: "block", userSelect: "none" }} />
                 <canvas ref={canvasRef}
                   onMouseDown={iniciarTraco} onMouseMove={traco} onMouseUp={terminarTraco} onMouseLeave={terminarTraco}
@@ -1733,8 +1741,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                       onMouseEnter={() => { setRefHover(h.reference); const p = (figura.pecas || []).find((x) => x.reference === h.reference); if (p) setFsPeca(p); }}
                       onMouseLeave={() => setRefHover(null)}
                       onClick={() => { const p = (figura.pecas || []).find((x) => x.reference === h.reference); if (p) { setPecaSel(p); setFsPeca(p); } }}
-                      style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / fsZoom})`, width: 34, height: 34, borderRadius: "50%", border: "2.5px solid #fff", background: ativo ? "#EA580C" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: 14, fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 8px rgba(0,0,0,0.5)" : "0 2px 8px rgba(0,0,0,0.5)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>
-                      {h.reference}
+                      style={{ position: "absolute", left: `${(h.x / imgDim.w) * 100}%`, top: `${(h.y / imgDim.h) * 100}%`, transform: `translate(-50%,-50%) scale(${1 / fsZoom})`, width: bolinhaPx(fsRenderW), height: bolinhaPx(fsRenderW), borderRadius: "50%", border: `${bolinhaPx(fsRenderW) < 20 ? 1.5 : 2.5}px solid #fff`, background: ativo ? "#EA580C" : "rgba(37,99,235,0.92)", color: "#fff", fontSize: Math.max(8, Math.round(bolinhaPx(fsRenderW) * 0.42)), fontWeight: 400, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: ativo ? "0 0 0 4px rgba(220,38,38,0.30), 0 2px 8px rgba(0,0,0,0.5)" : "0 2px 8px rgba(0,0,0,0.5)", transition: "background .12s, box-shadow .12s", zIndex: ativo ? 3 : 2 }}>
+                      {refCurto(h.reference)}
                     </button>
                   );
                 })}
