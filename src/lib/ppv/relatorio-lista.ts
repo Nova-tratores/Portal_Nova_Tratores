@@ -10,14 +10,16 @@
 //     relação EXATAMENTE como está na tela (ids na ordem da tela + filtros).
 //  2) Cron — GitHub Actions chama /api/ppv/cron/relatorio-lista: PPVs em aberto.
 //
-// Config (env): PPV_RELATORIO_EMAIL_TO (obrigatório p/ o cron; padrão do modal),
-// PPV_RELATORIO_EMAIL_CC, PPV_RELATORIO_EMAIL_BCC. E-mail via GMAIL_USER/GMAIL_APP_PASSWORD.
+// Config: tela Dev → Envios de e-mail (/dev/envios-email), chave 'ppv_relacao' na
+// tabela email_envios_config (ativo + destinatários + cc/bcc). Nada no Railway.
+// E-mail via GMAIL_USER/GMAIL_APP_PASSWORD (provedor único do portal).
 // ============================================================================
 /* eslint-disable @typescript-eslint/no-require-imports */
 const pdfkitMod = require("pdfkit");
 const PDFDocument = pdfkitMod.default || pdfkitMod;
 
 import { enviarEmail, parseDestinatarios, type EnviarEmailResultado } from "@/lib/dre-financeiro/email";
+import { getConfigEnvio, registrarEnvioLog } from "@/lib/email/envios-config";
 import { supabaseFetch, getValorInsensivel } from "./supabase";
 import { TBL_PEDIDOS } from "./constants";
 import type { KanbanItem } from "./types";
@@ -230,18 +232,24 @@ function esc(s: string): string {
   return String(s || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** Destinatários padrão (env). Servem de padrão no modal e são os únicos do cron. */
-export function destinatariosPadrao() {
+/** Chave deste envio na tela Dev → Envios de e-mail (tabela email_envios_config). */
+export const CHAVE_ENVIO_PPV = "ppv_relacao";
+
+/** Destinatários padrão — vêm do BANCO (tela Dev), não mais do Railway. Servem de padrão no modal e são os únicos do cron. */
+export async function destinatariosPadrao() {
+  const cfg = await getConfigEnvio(CHAVE_ENVIO_PPV);
   return {
-    to: parseDestinatarios(process.env.PPV_RELATORIO_EMAIL_TO),
-    cc: parseDestinatarios(process.env.PPV_RELATORIO_EMAIL_CC),
-    bcc: parseDestinatarios(process.env.PPV_RELATORIO_EMAIL_BCC),
+    to: cfg.to,
+    cc: cfg.cc,
+    bcc: cfg.bcc,
+    ativo: cfg.ativo,
+    migrationFaltando: cfg.migrationFaltando,
     gmailConfigurado: !!(process.env.GMAIL_USER && process.env.GMAIL_APP_PASSWORD),
   };
 }
 
 export async function enviarRelacaoPPVPorEmail(args: EnviarRelacaoArgs): Promise<EnviarRelacaoResultado> {
-  const padrao = destinatariosPadrao();
+  const padrao = await destinatariosPadrao();
   const to = Array.isArray(args.to) ? args.to : args.to ? parseDestinatarios(args.to) : padrao.to;
   const cc = Array.isArray(args.cc) ? args.cc : args.cc ? parseDestinatarios(args.cc) : padrao.cc;
   const bcc = Array.isArray(args.bcc) ? args.bcc : args.bcc ? parseDestinatarios(args.bcc) : padrao.bcc;
@@ -289,15 +297,45 @@ export async function enviarRelacaoPPVPorEmail(args: EnviarRelacaoArgs): Promise
   return { email, total: pedidos.length, destinatarios: to, arquivos: [`${base}.pdf`, `${base}.csv`] };
 }
 
-/** Cron: relação dos PPVs EM ABERTO pros destinatários do env. */
-export async function cronRelacaoPPV(): Promise<any> {
+export interface CronRelacaoOpts {
+  /** 'cron' (GitHub Actions) | 'manual' ("Enviar agora" na tela Dev) | 'teste' (destinatário avulso). */
+  origem?: "cron" | "manual" | "teste";
+  /** Sobrescreve os destinatários (teste). Sem isto, usa a config da tela Dev. */
+  to?: string[];
+  cc?: string[];
+  bcc?: string[];
+  usuario?: string;
+  /** Ignora a chave "ativo" (Enviar agora / teste). */
+  forcar?: boolean;
+}
+
+/** Cron/tela Dev: relação dos PPVs EM ABERTO pros destinatários configurados no banco. Grava no histórico. */
+export async function cronRelacaoPPV(opts: CronRelacaoOpts = {}): Promise<any> {
+  const origem = opts.origem || "cron";
+  const cfg = await getConfigEnvio(CHAVE_ENVIO_PPV);
+  const assunto = `PPVs em aberto — ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`;
+
+  if (!cfg.ativo && !opts.forcar && !opts.to?.length) {
+    await registrarEnvioLog({ chave: CHAVE_ENVIO_PPV, origem, ok: false, motivo: "desativado", assunto, usuario: opts.usuario });
+    return { pulado: true, motivo: "desativado", migrationFaltando: cfg.migrationFaltando };
+  }
+
   const pedidos = await buscarPedidosRelacao({ soAbertos: true });
   const r = await enviarRelacaoPPVPorEmail({
     pedidos,
-    origem: "cron",
+    origem: origem === "cron" ? "cron" : "manual",
+    to: opts.to,
+    cc: opts.cc,
+    bcc: opts.bcc,
+    enviadoPor: opts.usuario,
     titulo: "PRÉ-PEDIDOS DE VENDA — EM ABERTO",
     filtrosResumo: ["Só em aberto (todas as fases menos Faturado e Cancelada)", "Ordenado por Data (Z-A)"],
     assunto: `PPVs em aberto (${pedidos.length}) — ${new Date().toLocaleDateString("pt-BR", { timeZone: "America/Sao_Paulo" })}`,
+  });
+  await registrarEnvioLog({
+    chave: CHAVE_ENVIO_PPV, origem, ok: r.email.ok, motivo: r.email.ok ? undefined : (r.email.erro || r.email.motivo),
+    assunto, destinatarios: r.destinatarios, total: r.total, usuario: opts.usuario,
+    detalhes: { arquivos: r.arquivos, messageId: r.email.messageId },
   });
   return r;
 }

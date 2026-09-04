@@ -1,5 +1,6 @@
 # PPV — Relatorio semanal da Relacao (Pre-Pedidos de Venda EM ABERTO).
-# Envia 1 email (PDF + CSV) pros destinatarios de PPV_RELATORIO_EMAIL_TO.
+# Envia 1 email (PDF + CSV) pros destinatarios configurados na tela Dev -> Envios de
+# e-mail (tabela email_envios_config, chave ppv_relacao; so se "ativo").
 # Roda toda segunda 07:10 BRT (10:10 UTC). Tambem acionavel manualmente.
 # Mesmo padrao do DRE (dre-financeiro-relatorio-lista.yml).
 name: PPV - Relatorio semanal (Relacao em aberto)

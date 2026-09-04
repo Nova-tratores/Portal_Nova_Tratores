@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exigirAcessoModulo } from "@/lib/ajustes/permissao-server";
-import { buscarPedidosPorIds, destinatariosPadrao, enviarRelacaoPPVPorEmail } from "@/lib/ppv/relatorio-lista";
+import { buscarPedidosPorIds, destinatariosPadrao, enviarRelacaoPPVPorEmail, CHAVE_ENVIO_PPV } from "@/lib/ppv/relatorio-lista";
+import { registrarEnvioLog } from "@/lib/email/envios-config";
 
 // pdfkit exige runtime Node.
 export const runtime = "nodejs";
@@ -21,8 +22,8 @@ export async function GET(req: NextRequest) {
   try {
     await autenticar(req);
   } catch (res) { return res as NextResponse; }
-  const p = destinatariosPadrao();
-  return NextResponse.json({ to: p.to.join(", "), cc: p.cc.join(", "), gmailConfigurado: p.gmailConfigurado });
+  const p = await destinatariosPadrao();
+  return NextResponse.json({ to: p.to.join(", "), cc: p.cc.join(", "), gmailConfigurado: p.gmailConfigurado, migrationFaltando: p.migrationFaltando });
 }
 
 // POST — envia por e-mail a relação como está na tela.
@@ -38,8 +39,8 @@ export async function POST(req: NextRequest) {
     if (!ids.length) return NextResponse.json({ error: "Nenhum pedido na relação para enviar." }, { status: 400 });
     const to = typeof body?.to === "string" && body.to.trim() ? body.to : undefined;
     const cc = typeof body?.cc === "string" ? body.cc : undefined;
-    if (!to && !destinatariosPadrao().to.length) {
-      return NextResponse.json({ error: "Informe pelo menos um destinatário (ou configure PPV_RELATORIO_EMAIL_TO)." }, { status: 400 });
+    if (!to && !(await destinatariosPadrao()).to.length) {
+      return NextResponse.json({ error: "Informe pelo menos um destinatário (ou configure o padrão em Dev → Envios de e-mail)." }, { status: 400 });
     }
 
     // Os dados saem do BANCO (não do que o navegador mandou) — só a ordem/seleção vem da tela.
@@ -53,6 +54,12 @@ export async function POST(req: NextRequest) {
       filtrosResumo: Array.isArray(body?.filtrosResumo) ? body.filtrosResumo.map(String).slice(0, 30) : [],
       mensagem: typeof body?.mensagem === "string" ? body.mensagem.slice(0, 2000) : undefined,
       enviadoPor: usuario.nome || usuario.email || "",
+    });
+    // Histórico (tela Dev → Envios de e-mail): envio manual a partir da tela do PPV.
+    await registrarEnvioLog({
+      chave: CHAVE_ENVIO_PPV, origem: "manual", ok: r.email.ok, motivo: r.email.ok ? undefined : (r.email.erro || r.email.motivo),
+      assunto: "Relação de PPVs (tela /ppv)", destinatarios: r.destinatarios, total: r.total, usuario: usuario.email || usuario.nome,
+      detalhes: { filtros: Array.isArray(body?.filtrosResumo) ? body.filtrosResumo.slice(0, 30) : [], arquivos: r.arquivos },
     });
     if (!r.email.ok) {
       const motivos: Record<string, string> = {

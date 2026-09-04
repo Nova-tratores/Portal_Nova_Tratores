@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { cronRelacaoPPV } from "@/lib/ppv/relatorio-lista";
 
 // Cron: envia por e-mail a relação de PPVs EM ABERTO (PDF + CSV) pros
-// destinatários de PPV_RELATORIO_EMAIL_TO. Disparado pelo GitHub Actions
+// destinatários configurados em Dev → Envios de e-mail (banco; só se "ativo").
+// Disparado pelo GitHub Actions
 // (.github/workflows/ppv-relatorio-lista.yml), mesmo padrão do DRE.
 // pdfkit exige runtime Node.
 export const runtime = "nodejs";
@@ -21,7 +22,7 @@ function autorizado(req: NextRequest): boolean {
 async function executar(req: NextRequest) {
   if (!autorizado(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   try {
-    const resultado = await cronRelacaoPPV();
+    const resultado = await cronRelacaoPPV({ origem: "cron" });
     return NextResponse.json({ sucesso: true, resultado, timestamp: new Date().toISOString() });
   } catch (e) {
     return NextResponse.json({ sucesso: false, erro: (e as Error).message }, { status: 500 });

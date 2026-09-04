@@ -323,6 +323,11 @@ function EnviarEmailModal({ ids, total, filtrosResumo, onClose, onEnviado, onErr
             O servidor está sem e-mail configurado (GMAIL_USER / GMAIL_APP_PASSWORD). O envio vai falhar até configurar.
           </div>
         )}
+        {!carregando && !to.trim() && (
+          <div style={{ fontSize: 12, color: "var(--ppv-text-light)" }}>
+            Sem destinatário padrão. Um Dev define o padrão em <b>Envios de e-mail</b> (menu lateral) — ou informe abaixo só para este envio.
+          </div>
+        )}
         <div>
           <label style={lbl}>Para (separe por vírgula)</label>
           <input style={campo} value={to} onChange={(e) => setTo(e.target.value)} placeholder={carregando ? "carregando padrão…" : "email@empresa.com, outro@empresa.com"} />
