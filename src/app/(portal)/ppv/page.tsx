@@ -12,6 +12,7 @@ import Toast from "@/components/ppv/Toast";
 import GlobalLoader from "@/components/ppv/GlobalLoader";
 import PhaseView from "@/components/ppv/PhaseView";
 import PPVMobile from "@/components/ppv/PPVMobile";
+import RelacaoView from "@/components/ppv/RelacaoView";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import CatalogoNovo from "@/components/ppv/CatalogoNovo";
 import EtiquetasPanel from "@/components/ppv/EtiquetasPanel";
@@ -67,7 +68,12 @@ function PPVApp() {
   const [searchFilter, setSearchFilter] = useState("");
   const [tipoFilter, setTipoFilter] = useState("TODOS");
   const [activePhase, setActivePhase] = useState("");
-  const [viewMode, setViewMode] = useState<"cards" | "lista">("cards");
+  // Cards | Lista (compacta, por fase) | Relação (tabela com filtros por coluna, PDF, e-mail). Lembra a escolha.
+  const [viewMode, setViewMode] = useState<"cards" | "lista" | "relacao">("cards");
+  useEffect(() => {
+    try { const v = localStorage.getItem("ppv-view-mode"); if (v === "cards" || v === "lista" || v === "relacao") setViewMode(v); } catch { /* sem storage */ }
+  }, []);
+  const trocarViewMode = useCallback((v: "cards" | "lista" | "relacao") => { setViewMode(v); try { localStorage.setItem("ppv-view-mode", v); } catch { /* sem storage */ } }, []);
 
   // Handler para trocar status via dropdown — update otimista
   const handleStatusChange = useCallback(async (id: string, newStatus: string) => {
@@ -399,16 +405,24 @@ function PPVApp() {
           <div className="flex flex-1 flex-col overflow-auto" style={bgPattern}>
             {/* Alternar Cards ⇄ Lista */}
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "10px 16px 0" }}>
-              <button type="button" onClick={() => setViewMode("cards")} title="Ver em cards"
+              <button type="button" onClick={() => trocarViewMode("cards")} title="Ver em cards"
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #e2ddd3", background: viewMode === "cards" ? "#e8730c" : "#fff", color: viewMode === "cards" ? "#fff" : "#5f574c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                 <i className="fas fa-table-cells-large" /> Cards
               </button>
-              <button type="button" onClick={() => setViewMode("lista")} title="Ver em lista"
+              <button type="button" onClick={() => trocarViewMode("lista")} title="Ver em lista"
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #e2ddd3", background: viewMode === "lista" ? "#e8730c" : "#fff", color: viewMode === "lista" ? "#fff" : "#5f574c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                 <i className="fas fa-list" /> Lista
               </button>
+              <button type="button" onClick={() => trocarViewMode("relacao")} title="Relação em tabela: filtros por coluna, ordenação, PDF e envio por e-mail"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #e2ddd3", background: viewMode === "relacao" ? "#e8730c" : "#fff", color: viewMode === "relacao" ? "#fff" : "#5f574c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                <i className="fas fa-table-list" /> Relação
+              </button>
             </div>
-            <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} loading={globalLoading} activePhase={activePhase} onPhaseChange={setActivePhase} viewMode={viewMode} />
+            {viewMode === "relacao" ? (
+              <RelacaoView orders={filteredKanban} searchTerm={searchFilter} tipoFilter={tipoFilter} onCardClick={openCardDetails} onStatusChange={podeMoverFase ? handleStatusChange : undefined} loading={globalLoading} />
+            ) : (
+              <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} loading={globalLoading} activePhase={activePhase} onPhaseChange={setActivePhase} viewMode={viewMode} />
+            )}
           </div>
         )}
 

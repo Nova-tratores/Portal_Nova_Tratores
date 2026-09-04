@@ -14,8 +14,9 @@
  * @param {{label:string, fill:number[], text:number[]}[]} [p.legenda] Legenda de etapas (quadradinhos coloridos acima da tabela)
  * @param {(i:number)=>({fill:number[], text:number[], linha?:number[]}|null)} [p.estiloLinha] Cor da etapa por linha (índice em `linhas`)
  * @param {number}   [p.colStatus]     Índice da coluna que recebe a cor forte (a célula de Status)
+ * @param {number[]} [p.cor]           RGB da faixa do topo e do total em destaque (default vermelho)
  */
-export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [], rodape = [], arquivo, columnStyles = {}, legenda = [], estiloLinha = null, colStatus = -1 }) {
+export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [], rodape = [], arquivo, columnStyles = {}, legenda = [], estiloLinha = null, colStatus = -1, cor = [220, 38, 38] }) {
   const { default: JsPDF } = await import('jspdf')
   const { default: autoTable } = await import('jspdf-autotable')
 
@@ -23,8 +24,8 @@ export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [
   const pageWidth = doc.internal.pageSize.getWidth()
   const pageHeight = doc.internal.pageSize.getHeight()
 
-  // Faixa vermelha
-  doc.setFillColor(220, 38, 38)
+  // Faixa colorida (vermelha por padrão; o PPV passa laranja)
+  doc.setFillColor(...cor)
   doc.rect(0, 0, pageWidth, 18, 'F')
   doc.setTextColor(255, 255, 255)
   doc.setFontSize(13)
@@ -97,7 +98,7 @@ export async function gerarPdfLista({ titulo, colunas, linhas, filtrosResumo = [
     let y = (doc.lastAutoTable?.finalY || startY) + 8
     if (y + rodape.length * 6 > pageHeight - 14) { doc.addPage(); y = 20 }
     for (const r of rodape) {
-      if (r.destaque) { doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(220, 38, 38) }
+      if (r.destaque) { doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor(...cor) }
       else { doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 100) }
       doc.text(r.texto, pageWidth - 14, y, { align: 'right' })
       y += 6
