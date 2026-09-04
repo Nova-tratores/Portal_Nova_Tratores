@@ -5,9 +5,10 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { supabase } from '@/lib/supabase'
+import { authHeaders } from '@/lib/auth/client'
 import {
   Plus, X, Paperclip, Send, Trash2, ChevronDown, ChevronUp,
-  AlertCircle, Clock, Check, CheckCircle2, Eye, User, Image as ImageIcon, Film,
+  AlertCircle, Clock, Check, CheckCircle2, Eye, User, Image as ImageIcon, Film, Car,
 } from 'lucide-react'
 
 interface OpaAnexo {
@@ -32,6 +33,9 @@ interface Opa {
   resolvido_at: string | null
   responsavel: string | null
   solucao: string | null
+  // vínculo com a frota (migração opa-vinculo-veiculo; ausente = Opa geral)
+  vinculo_tipo?: string | null
+  vinculo_ref?: string | null
   created_at: string
   anexos?: OpaAnexo[]
   views?: OpaView[]
@@ -64,6 +68,31 @@ export default function OpaPage() {
   const [arquivos, setArquivos] = useState<File[]>([])
   const [enviando, setEnviando] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+
+  // Vínculo: sobre o que é o Opa (geral, ou um veículo da frota — a placa
+  // escolhida abre pendência no carro via motor da frota)
+  const [vincTipo, setVincTipo] = useState<'' | 'veiculo'>('')
+  const [vincPlaca, setVincPlaca] = useState('')
+  const [veiculos, setVeiculos] = useState<{ placa: string; modelo: string | null }[]>([])
+  useEffect(() => {
+    if (vincTipo !== 'veiculo' || veiculos.length > 0) return
+    supabase.from('frota_veiculos')
+      .select('placa, modelo, ativo, tipo_registro')
+      .order('placa')
+      .then(({ data }) => {
+        setVeiculos((data || [])
+          .filter((v: any) => v.placa && v.tipo_registro === 'veiculo' && v.ativo !== false)
+          .map((v: any) => ({ placa: String(v.placa).toUpperCase(), modelo: v.modelo || null })))
+      })
+  }, [vincTipo, veiculos.length])
+
+  // dispara o motor de pendências da frota (mesmo caminho da requisição
+  // Veicular Manutenção): a pendência do Opa nasce/fecha NA HORA
+  const dispararSyncFrota = async () => {
+    try {
+      await fetch('/api/frota/pendencias/sync', { method: 'POST', headers: await authHeaders() })
+    } catch { /* best-effort: o sync roda de novo quando a tela da frota abrir */ }
+  }
 
   const carregar = useCallback(async () => {
     const { data: lista } = await supabase
@@ -136,13 +165,23 @@ export default function OpaPage() {
     if (!titulo.trim() || !userProfile) return
     setEnviando(true)
 
-    const { data: opa, error } = await supabase.from('portal_opas').insert({
+    const comVinculo = vincTipo === 'veiculo' && !!vincPlaca
+    const registro: Record<string, unknown> = {
       titulo: titulo.trim(),
       descricao: descricao.trim() || null,
       criado_por: userProfile.id,
       criado_por_nome: userProfile.nome || 'Usuário',
       origem: 'portal',
-    }).select().single()
+      ...(comVinculo ? { vinculo_tipo: 'veiculo', vinculo_ref: vincPlaca } : {}),
+    }
+    let { data: opa, error } = await supabase.from('portal_opas').insert(registro).select().single()
+    // banco ainda sem as colunas de vínculo (migração opa-vinculo-veiculo não
+    // rodou)? re-tenta sem elas — criar o Opa não pode depender da migração
+    if (error && /vinculo/i.test(error.message || '')) {
+      delete registro.vinculo_tipo
+      delete registro.vinculo_ref
+      ;({ data: opa, error } = await supabase.from('portal_opas').insert(registro).select().single())
+    }
 
     if (error || !opa) { setEnviando(false); return }
 
@@ -170,7 +209,11 @@ export default function OpaPage() {
       body: JSON.stringify({ opa_id: opa.id, titulo: titulo.trim(), descricao: descricao.trim() || null, criado_por_id: userProfile.id }),
     }).catch(() => {})
 
-    setTitulo(''); setDescricao(''); setArquivos([]); setShowModal(false); setEnviando(false)
+    // vínculo com veículo: a pendência nasce na frota agora (depois dos
+    // anexos, pra foto do Opa virar a foto da pendência)
+    if (comVinculo && (opa as any).vinculo_tipo === 'veiculo') dispararSyncFrota()
+
+    setTitulo(''); setDescricao(''); setArquivos([]); setVincTipo(''); setVincPlaca(''); setShowModal(false); setEnviando(false)
     carregar()
   }
 
@@ -181,6 +224,8 @@ export default function OpaPage() {
       p_opa_id: opa.id, p_user_id: userProfile.id, p_user_nome: userProfile.nome || 'Usuário', p_user_tipo: 'portal',
     })
     auditLog({ sistema: 'opa', acao: 'resolver', entidade: 'opa', entidade_id: opa.id, entidade_label: `Opa: ${opa.titulo}` })
+    // Opa de veículo resolvido → a pendência do carro fecha na hora
+    if (opa.vinculo_tipo === 'veiculo') dispararSyncFrota()
     setResolvendo(null)
     carregar()
   }
@@ -305,6 +350,11 @@ export default function OpaPage() {
                         : <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#FEE2E2', color: '#DC2626', flexShrink: 0 }}>Aberto</span>}
                       {opa.origem === 'mecanico' && (
                         <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#FEF3C7', color: '#92400E', flexShrink: 0 }}>MECÂNICO</span>
+                      )}
+                      {opa.vinculo_tipo === 'veiculo' && opa.vinculo_ref && (
+                        <span title="Opa vinculado a um veículo da frota — vira pendência no carro" style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#DBEAFE', color: '#1E40AF', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Car size={11} /> {opa.vinculo_ref}
+                        </span>
                       )}
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: 'var(--portal-text-muted)', flexWrap: 'wrap' }}>
@@ -488,6 +538,31 @@ export default function OpaPage() {
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text-secondary)', display: 'block', marginBottom: 6 }}>Descrição</label>
               <textarea value={descricao} onChange={e => setDescricao(e.target.value)} placeholder="Descreva a ocorrência (opcional)..." rows={5} style={{ ...INP, resize: 'vertical', lineHeight: 1.6 }} />
+            </div>
+
+            {/* Vínculo: sobre o que é o Opa. Veículo escolhido = pendência
+                aberta no carro (Frota → Pendências) até o Opa ser resolvido */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text-secondary)', display: 'block', marginBottom: 6 }}>Sobre o quê? (opcional)</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <select value={vincTipo} onChange={e => { setVincTipo(e.target.value as '' | 'veiculo'); if (e.target.value !== 'veiculo') setVincPlaca('') }} style={{ ...INP, width: vincTipo === 'veiculo' ? '45%' : '100%' }}>
+                  <option value="">Geral (sem vínculo)</option>
+                  <option value="veiculo">Veículo da frota</option>
+                </select>
+                {vincTipo === 'veiculo' && (
+                  <select value={vincPlaca} onChange={e => setVincPlaca(e.target.value)} style={{ ...INP, flex: 1 }}>
+                    <option value="">{veiculos.length ? 'Escolha o veículo…' : 'Carregando…'}</option>
+                    {veiculos.map(v => (
+                      <option key={v.placa} value={v.placa}>{v.placa}{v.modelo ? ` — ${v.modelo}` : ''}</option>
+                    ))}
+                  </select>
+                )}
+              </div>
+              {vincTipo === 'veiculo' && vincPlaca && (
+                <p style={{ fontSize: 12, color: '#1E40AF', margin: '8px 0 0', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Car size={13} /> Vai abrir uma pendência no {vincPlaca} (Frota → Pendências) até este Opa ser resolvido.
+                </p>
+              )}
             </div>
 
             <div style={{ marginBottom: 20 }}>

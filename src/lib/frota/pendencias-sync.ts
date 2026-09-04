@@ -1,5 +1,5 @@
 // MOTOR DE SINCRONIZAÇÃO das pendências automáticas da frota (frota_pendencias).
-// Abre e fecha sozinho, a partir de 4 fontes:
+// Abre e fecha sozinho, a partir de 5 fontes:
 //  - CADASTRO:    régua da Ficha (RENAVAM, CRLV, multas...) — fecha quando a
 //                 Ficha é regularizada; resolvida na mão, reabre em 30 dias
 //                 se a causa continuar
@@ -10,6 +10,9 @@
 //                 requisição chega ao status "financeiro" (Enviado Financeiro)
 //  - OS DO PÓS:   OS aberta com o PROJETO contendo a placa do carro (ex.
 //                 "CARGO-AQJ3H59") abre pendência e FECHA quando a OS conclui
+//  - OPA:         Opa vinculado a um veículo (vinculo_tipo='veiculo' +
+//                 vinculo_ref=placa) abre pendência e FECHA quando alguém
+//                 marca o Opa como resolvido
 // Usado pelo GET /api/frota/pendencias?sync=1 e pelo POST /api/frota/pendencias/sync.
 import { createClient } from '@supabase/supabase-js';
 import { pendenciasDetalhadas } from '@/lib/frota/pendencias';
@@ -272,6 +275,56 @@ export async function sincronizarPendencias(): Promise<void> {
           resolucao: /^cancelad/i.test(st) ? `${idOs} cancelada.` : `${idOs} concluída na oficina.`,
           vinculo_tipo: 'os', vinculo_ref: idOs,
         });
+      }
+    }
+  }
+
+  // ── OPA vinculado a veículo: abre no carro e fecha quando o Opa é resolvido ──
+  // Leitura tolerante: se a migração opa-vinculo-veiculo ainda não rodou
+  // (colunas vinculo_*), o select falha e o bloco é pulado sem quebrar o sync.
+  const opas = await supabase
+    .from('portal_opas')
+    .select('id, titulo, descricao, status, created_at, vinculo_tipo, vinculo_ref, resolvido_por_nome')
+    .eq('vinculo_tipo', 'veiculo')
+    .gte('created_at', d120);
+  if (!opas.error) {
+    const placasValidas = new Set(
+      (veic.data || []).filter((v) => v.tipo_registro === 'veiculo' && v.placa).map((v) => String(v.placa).toUpperCase()),
+    );
+    // foto: primeiro anexo de IMAGEM do Opa (vídeo não vira thumbnail)
+    const idsNovos = (opas.data || [])
+      .filter((o) => o.status === 'aberto' && placasValidas.has(String(o.vinculo_ref || '').toUpperCase()))
+      .map((o) => o.id);
+    const fotoPorOpa = new Map<string, string>();
+    if (idsNovos.length) {
+      const { data: anx } = await supabase
+        .from('portal_opas_anexos')
+        .select('opa_id, url, tipo')
+        .in('opa_id', idsNovos)
+        .order('created_at', { ascending: true });
+      for (const a of anx || []) {
+        if (String(a.tipo || '').startsWith('image') && !fotoPorOpa.has(a.opa_id)) fotoPorOpa.set(a.opa_id, a.url);
+      }
+    }
+    for (const o of opas.data || []) {
+      const placa = String(o.vinculo_ref || '').toUpperCase();
+      if (!placasValidas.has(placa)) continue;
+      const k = `${placa}|opa|${o.id}`;
+      const aberta = abertaDe(k);
+      const resolvido = o.status === 'resolvido';
+      if (!aberta && !resolvido && !ultimaResolvida(k)) {
+        inserts.push({
+          placa, origem: 'opa', origem_ref: String(o.id),
+          titulo: o.titulo || 'Opa no veículo',
+          descricao: o.descricao || 'Sinalizado pelo Opa.',
+          foto_url: fotoPorOpa.get(o.id) || null,
+          componente_id: compDoTexto(`${o.titulo || ''} ${o.descricao || ''}`),
+          data_ocorrencia: String(o.created_at || '').slice(0, 10) || null,
+          status: 'aberta', aberta_por: 'Sistema (Opa)',
+        });
+      }
+      if (aberta && resolvido) {
+        autoResolver.push({ id: aberta.id, resolucao: `Opa resolvido${o.resolvido_por_nome ? ` por ${o.resolvido_por_nome}` : ''}.` });
       }
     }
   }
