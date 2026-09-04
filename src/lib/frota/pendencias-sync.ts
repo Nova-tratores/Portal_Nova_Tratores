@@ -88,7 +88,7 @@ export async function sincronizarPendencias(): Promise<void> {
     supabase.from('frota_multas').select('veiculo_id').not('status_interno', 'in', '("paga","descontada","arquivada")'),
     supabase.from('frota_documentos').select('veiculo_id, tipo, vigencia_fim'),
     supabase.from('frota_componentes').select('id, sistema, subsistema, componente'),
-    supabase.from('frota_pendencias').select('id, placa, origem, origem_ref, status, resolvida_em, data_ocorrencia'),
+    supabase.from('frota_pendencias').select('id, placa, origem, origem_ref, status, resolvida_em, data_ocorrencia, vinculo_tipo, vinculo_ref'),
     supabase.from('veiculo_checklist').select('id, placa, mes_referencia').gte('mes_referencia', mesLimite).order('mes_referencia', { ascending: false }),
     supabase.from('Requisicao').select('id, titulo, status, veiculo, hodometro, data').eq('tipo', 'Veicular Manutenção').gte('data', d120),
     supabase.from('Ordem_Servico').select('Id_Ordem, Projeto, Status, Data').not('Projeto', 'is', null).gte('Data', d120),
@@ -123,12 +123,21 @@ export async function sincronizarPendencias(): Promise<void> {
   }
 
   // índice das pendências existentes por (placa|origem|origem_ref)
-  type Row = { id: string; placa: string; origem: string; origem_ref: string | null; status: string; resolvida_em: string | null; data_ocorrencia: string | null };
+  type Row = { id: string; placa: string; origem: string; origem_ref: string | null; status: string; resolvida_em: string | null; data_ocorrencia: string | null; vinculo_tipo: string | null; vinculo_ref: string | null };
   const porChave = new Map<string, Row[]>();
+  // pendência (de qualquer origem) VINCULADA a uma requisição — nasce assim
+  // quando a pendência manual cria a requisição pelo checkbox. Serve pra:
+  // (a) o bloco de requisições não abrir uma SEGUNDA pendência pra mesma req;
+  // (b) fechar a pendência vinculada quando a req chega ao financeiro.
+  const vinculadasPorReq = new Map<string, Row[]>();
   for (const r of (rows.data || []) as Row[]) {
     const k = `${r.placa}|${r.origem}|${r.origem_ref || ''}`;
     const arr = porChave.get(k) || [];
     arr.push(r); porChave.set(k, arr);
+    if (r.vinculo_tipo === 'requisicao' && r.vinculo_ref) {
+      const arrV = vinculadasPorReq.get(r.vinculo_ref) || [];
+      arrV.push(r); vinculadasPorReq.set(r.vinculo_ref, arrV);
+    }
   }
   const abertaDe = (k: string) => (porChave.get(k) || []).find((r) => r.status === 'aberta');
   const ultimaResolvida = (k: string) =>
@@ -226,6 +235,19 @@ export async function sincronizarPendencias(): Promise<void> {
       const aberta = abertaDe(k);
       const finalizada = ['financeiro', 'concluido'].includes(String(r.status || ''));
       const kmDigitos = String(r.hodometro || '').replace(/\D/g, '');
+      const vinculadas = vinculadasPorReq.get(String(r.id)) || [];
+      // req nascida de uma pendência (checkbox): a pendência original já
+      // cobre o problema — fecha ELA no financeiro e não abre uma segunda
+      if (vinculadas.length > 0) {
+        if (finalizada) {
+          for (const p of vinculadas) {
+            if (p.status === 'aberta') {
+              autoResolver.push({ id: p.id, resolucao: `Requisição #${r.id} enviada ao financeiro.`, vinculo_tipo: 'requisicao', vinculo_ref: String(r.id) });
+            }
+          }
+        }
+        continue;
+      }
       if (!aberta && !finalizada && !ultimaResolvida(k)) {
         inserts.push({
           placa, origem: 'requisicao', origem_ref: String(r.id),

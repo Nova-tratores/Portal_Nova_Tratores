@@ -55,6 +55,7 @@ function PendenciasInner() {
   const [fKm, setFKm] = useState('');
   const [fDesc, setFDesc] = useState('');
   const [fResp, setFResp] = useState('');
+  const [fCriarReq, setFCriarReq] = useState(true);
   const [salvando, setSalvando] = useState(false);
 
   const carregar = useCallback(async () => {
@@ -108,6 +109,7 @@ function PendenciasInner() {
     setFAberto(true); setFPlaca(''); setFTitulo(''); setFFoto(null); setFFotoPreview(null);
     setFSistema(''); setFCompId(''); setFKm(''); setFDesc('');
     setFResp(userProfile?.nome || ''); // quem abre já vem como responsável (dá pra trocar)
+    setFCriarReq(true);
   };
   const escolherFoto = (file: File | null) => {
     setFFoto(file);
@@ -135,12 +137,13 @@ function PendenciasInner() {
         body: JSON.stringify({
           placa: fPlaca, veiculo_id: v?.id || null, titulo: fTitulo.trim(), descricao: fDesc.trim(),
           componente_id: fCompId || null, data_ocorrencia: new Date().toISOString().slice(0, 10),
-          km: fKm, responsavel: fResp.trim(), foto_url: pub.publicUrl,
+          km: fKm, responsavel: fResp.trim(), foto_url: pub.publicUrl, criar_requisicao: fCriarReq,
         }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Falha ao abrir a pendência.');
       setPendencias((prev) => [d.pendencia, ...prev]);
+      if (fCriarReq && d.requisicao_erro) alert(`Pendência aberta, mas a requisição NÃO foi criada: ${d.requisicao_erro}`);
       setFAberto(false);
     } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
     setSalvando(false);
@@ -385,6 +388,11 @@ function PendenciasInner() {
                 <label style={lbl}>Detalhes (opcional)</label>
                 <textarea style={{ ...inp, minHeight: 70, resize: 'none' }} spellCheck lang="pt-BR" value={fDesc} onChange={(e) => setFDesc(e.target.value)} placeholder="Descreva melhor o problema…" />
               </div>
+
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13.5, color: 'var(--portal-text)', cursor: 'pointer', userSelect: 'none', lineHeight: 1.5 }}>
+                <input type="checkbox" checked={fCriarReq} onChange={(e) => setFCriarReq(e.target.checked)} style={{ width: 16, height: 16, accentColor: '#1e40af', cursor: 'pointer', marginTop: 2 }} />
+                <span>Criar a <strong>requisição de manutenção</strong> junto (com estas informações — a pendência fecha sozinha quando a requisição chegar no financeiro)</span>
+              </label>
 
               <div style={{ fontSize: 12.5, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', padding: '9px 12px' }}>
                 📅 Data, hora e quem abriu são registrados automaticamente.

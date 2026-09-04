@@ -122,7 +122,60 @@ export async function POST(req: NextRequest) {
   );
 
   if (error) return NextResponse.json({ error: erroTabela(error.message) }, { status: 500 });
-  return NextResponse.json({ pendencia: data });
+
+  // Opcional (checkbox nos formulários): já abre a requisição "Veicular
+  // Manutenção" com os dados da pendência. A pendência ganha vinculo_tipo/
+  // vinculo_ref na hora — é isso que faz o motor NÃO abrir uma segunda
+  // pendência pra essa mesma requisição, e a fecha quando a requisição
+  // chegar ao financeiro. Falha aqui não desfaz a pendência (ela importa mais).
+  let requisicao: { id: number } | null = null;
+  let requisicaoErro: string | null = null;
+  if (body.criar_requisicao === true) {
+    try {
+      const { data: v } = await supabase
+        .from('frota_veiculos')
+        .select('supa_placa_id, modelo')
+        .eq('placa', placa)
+        .maybeSingle();
+      const obs = [
+        `Aberta automaticamente pela pendência da frota no ${placa}${v?.modelo ? ` (${v.modelo})` : ''}.`,
+        base.descricao || '',
+      ].filter(Boolean).join('\n');
+      const { data: reqIns, error: errReq } = await supabase
+        .from('Requisicao')
+        .insert({
+          titulo,
+          tipo: 'Veicular Manutenção',
+          solicitante: responsavel,
+          setor: 'Frota',
+          data: new Date().toISOString().slice(0, 10),
+          empresa: 'NOVA TRATORES MÁQUINAS AGRÍCOLAS LTDA',
+          endereco_empr: 'AVENIDA SÃO SEBASTIÃO, 1065 | Piraju - SP',
+          veiculo: v?.supa_placa_id ?? null,
+          hodometro: base.km != null ? String(base.km) : '',
+          obs,
+          status: 'pedido',
+          criado_por: nome,
+        })
+        .select('id')
+        .single();
+      if (errReq || !reqIns) throw new Error(errReq?.message || 'Erro ao criar a requisição.');
+      requisicao = { id: reqIns.id };
+      const pendId = (data as { id?: string } | null)?.id;
+      if (pendId) {
+        await supabase
+          .from('frota_pendencias')
+          .update({ vinculo_tipo: 'requisicao', vinculo_ref: String(reqIns.id) })
+          .eq('id', pendId);
+        (data as Record<string, unknown>).vinculo_tipo = 'requisicao';
+        (data as Record<string, unknown>).vinculo_ref = String(reqIns.id);
+      }
+    } catch (e) {
+      requisicaoErro = e instanceof Error ? e.message : String(e);
+    }
+  }
+
+  return NextResponse.json({ pendencia: data, requisicao, requisicao_erro: requisicaoErro });
 }
 
 export async function PATCH(req: NextRequest) {

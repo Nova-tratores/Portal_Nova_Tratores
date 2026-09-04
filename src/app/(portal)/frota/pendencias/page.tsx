@@ -85,6 +85,7 @@ export default function FrotaPendenciasPage() {
   const [nData, setNData] = useState(() => new Date().toISOString().slice(0, 10));
   const [nDesc, setNDesc] = useState('');
   const [nResp, setNResp] = useState('');
+  const [nCriarReq, setNCriarReq] = useState(true);
   const [salvandoNova, setSalvandoNova] = useState(false);
 
   // resolver
@@ -120,6 +121,7 @@ export default function FrotaPendenciasPage() {
   const [ngCompId, setNgCompId] = useState('');
   const [ngDesc, setNgDesc] = useState('');
   const [ngResp, setNgResp] = useState('');
+  const [ngCriarReq, setNgCriarReq] = useState(true);
   const [salvandoNg, setSalvandoNg] = useState(false);
   const [nomesResp, setNomesResp] = useState<string[]>([]);
 
@@ -258,12 +260,13 @@ export default function FrotaPendenciasPage() {
     try {
       const r = await fetch('/api/frota/pendencias', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ placa: aberto.placa, veiculo_id: aberto.veiculoId, titulo: nTitulo.trim(), descricao: nDesc.trim(), componente_id: nCompId || null, data_ocorrencia: nData || null, responsavel: nResp.trim(), gravidade: nGravidade }),
+        body: JSON.stringify({ placa: aberto.placa, veiculo_id: aberto.veiculoId, titulo: nTitulo.trim(), descricao: nDesc.trim(), componente_id: nCompId || null, data_ocorrencia: nData || null, responsavel: nResp.trim(), gravidade: nGravidade, criar_requisicao: nCriarReq }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Falha ao salvar.');
       setRegistradas((prev) => [d.pendencia, ...prev]);
-      setNovaAberta(false); setNTitulo(''); setNDesc(''); setNSistema(''); setNCompId(''); setGravidadeTocada(false);
+      if (nCriarReq && d.requisicao_erro) alert(`Pendência aberta, mas a requisição NÃO foi criada: ${d.requisicao_erro}`);
+      setNovaAberta(false); setNTitulo(''); setNDesc(''); setNSistema(''); setNCompId(''); setGravidadeTocada(false); setNCriarReq(true);
     } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
     setSalvandoNova(false);
   };
@@ -314,13 +317,14 @@ export default function FrotaPendenciasPage() {
         body: JSON.stringify({
           placa: ngPlaca, veiculo_id: ngVeiculo?.id || null, titulo: ngTitulo.trim(), descricao: ngDesc.trim(),
           componente_id: ngCompId || null, data_ocorrencia: new Date().toISOString().slice(0, 10),
-          km: ngKm, responsavel: ngResp.trim(),
+          km: ngKm, responsavel: ngResp.trim(), criar_requisicao: ngCriarReq,
         }),
       });
       const d = await r.json();
       if (!r.ok) throw new Error(d.error || 'Falha ao salvar.');
       setRegistradas((prev) => [d.pendencia, ...prev]);
-      setNgAberta(false);
+      if (ngCriarReq && d.requisicao_erro) alert(`Pendência aberta, mas a requisição NÃO foi criada: ${d.requisicao_erro}`);
+      setNgAberta(false); setNgCriarReq(true);
     } catch (e) { alert(e instanceof Error ? e.message : String(e)); }
     setSalvandoNg(false);
   };
@@ -605,6 +609,10 @@ export default function FrotaPendenciasPage() {
                 <label style={lbl}>Descrição</label>
                 <input style={inp} spellCheck lang="pt-BR" value={ngDesc} onChange={(e) => setNgDesc(e.target.value)} placeholder="Detalhe o problema (opcional)" />
               </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--portal-text)', cursor: 'pointer', userSelect: 'none' }}>
+                <input type="checkbox" checked={ngCriarReq} onChange={(e) => setNgCriarReq(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#1e40af', cursor: 'pointer' }} />
+                Criar a requisição de manutenção junto (Veicular Manutenção, com estas informações — fecha esta pendência ao chegar no financeiro)
+              </label>
               <div style={{ fontSize: 12, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', padding: '8px 12px', borderRadius: 0 }}>
                 📅 Data e hora são registradas automaticamente no momento do salvamento, junto com o seu nome.
               </div>
@@ -713,6 +721,10 @@ export default function FrotaPendenciasPage() {
                       <input style={inp} spellCheck lang="pt-BR" value={nDesc} onChange={(e) => setNDesc(e.target.value)} placeholder="Detalhe o problema (opcional)" />
                     </div>
                     {avisoRecorrencia(aberto.placa, nCompId || null, nData ? `${nData}T12:00:00` : null)}
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--portal-text)', cursor: 'pointer', userSelect: 'none' }}>
+                      <input type="checkbox" checked={nCriarReq} onChange={(e) => setNCriarReq(e.target.checked)} style={{ width: 15, height: 15, accentColor: '#1e40af', cursor: 'pointer' }} />
+                      Criar a requisição de manutenção junto (Veicular Manutenção, com estas informações — fecha esta pendência ao chegar no financeiro)
+                    </label>
                     <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                       <button onClick={() => setNovaAberta(false)} style={{ padding: '8px 14px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)', fontSize: 13.5, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
                       <button onClick={salvarNova} disabled={salvandoNova}
@@ -737,6 +749,12 @@ export default function FrotaPendenciasPage() {
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', lineHeight: 1.35 }}>{p.titulo}</span>
                               {badgeOrigem(p.origem)}
+                              {p.status === 'aberta' && p.vinculo_tipo === 'requisicao' && p.vinculo_ref && (
+                                <a href={`/requisicoes?req=${p.vinculo_ref}`} title="Requisição de manutenção aberta a partir desta pendência — fecha aqui ao chegar no financeiro"
+                                  style={{ fontSize: 11.5, fontWeight: 700, color: '#7c3aed', background: '#ede9fe', borderRadius: 0, padding: '2px 8px', textDecoration: 'none' }}>
+                                  Req #{p.vinculo_ref}
+                                </a>
+                              )}
                               {comp && (
                                 <span style={{ fontSize: 11.5, fontWeight: 700, letterSpacing: 0.3, color: '#1e3a8a', background: '#dbeafe', borderRadius: 0, padding: '2px 8px' }}>
                                   {caminhoComp(comp)}
@@ -847,6 +865,12 @@ export default function FrotaPendenciasPage() {
                               <CheckCircle2 size={14} color="#16a34a" />
                               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>{p.titulo}</span>
                               {badgeOrigem(p.origem)}
+                              {p.status === 'aberta' && p.vinculo_tipo === 'requisicao' && p.vinculo_ref && (
+                                <a href={`/requisicoes?req=${p.vinculo_ref}`} title="Requisição de manutenção aberta a partir desta pendência — fecha aqui ao chegar no financeiro"
+                                  style={{ fontSize: 11.5, fontWeight: 700, color: '#7c3aed', background: '#ede9fe', borderRadius: 0, padding: '2px 8px', textDecoration: 'none' }}>
+                                  Req #{p.vinculo_ref}
+                                </a>
+                              )}
                               {comp && <span style={{ fontSize: 11.5, fontWeight: 700, color: '#1e3a8a', background: '#dbeafe', borderRadius: 0, padding: '1px 7px' }}>{caminhoComp(comp)}</span>}
                             </div>
                             <div style={{ fontSize: 12.5, color: 'var(--portal-text)', marginTop: 4, lineHeight: 1.6 }}>
