@@ -1,7 +1,8 @@
 'use client'
 import { useEffect, useState, useMemo, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Search, X } from 'lucide-react'
+import { Search, X, Printer } from 'lucide-react'
+import { gerarPdfLista, hojeISO } from '@/lib/propostas/pdf-lista'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import MotivoPerdaModal, { STATUS_PERDIDO } from './MotivoPerdaModal'
 
@@ -84,6 +85,39 @@ function TermoBar({ v }) {
   )
 }
 
+// Colunas da lista (chave = a mesma do sort/filtro por coluna; label = cabeçalho da tela e do PDF).
+const COLS_LISTA = [
+  { k: 'id', label: 'ID' },
+  { k: 'Cliente', label: 'Cliente' },
+  { k: 'vendedor_nome', label: 'Vendedor' },
+  { k: 'maquina', label: 'Marca / Modelo' },
+  { k: 'Cidade', label: 'Cidade' },
+  { k: 'tag', label: 'Tag' },
+  { k: 'valor', label: 'Valor' },
+  { k: 'status', label: 'Status' },
+  { k: 'dias_na_fase', label: 'Parado há' },
+  { k: 'termometro', label: 'Termômetro' },
+  { k: 'criado_em', label: 'Criada em' },
+]
+
+// Texto exibido em cada coluna — serve pro filtro do cabeçalho E pro PDF (bate com o que a tela mostra).
+function colTexto(c, k) {
+  switch (k) {
+    case 'id': return `#${c.id}${c.fabrica_pedido_id != null ? ' FAB' : ''}`
+    case 'Cliente': return c.Cliente || 'Sem nome'
+    case 'vendedor_nome': return c.vendedor_nome || ''
+    case 'maquina': return `${c.Marca || ''} ${c.Modelo || ''}`.trim()
+    case 'Cidade': return c.Cidade || ''
+    case 'tag': return c.tag_nome || ''
+    case 'valor': return `R$ ${formatBRL(c.Valor_Total)}`
+    case 'status': return statusLabel(c.status)
+    case 'dias_na_fase': return agingTexto(c.dias_na_fase)
+    case 'termometro': return `${termoValor(c)}%`
+    case 'criado_em': return fmtData(c.criado_em)
+    default: return ''
+  }
+}
+
 export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' }) {
   const { log } = useAuditLog()
   const [cards, setCards] = useState([])
@@ -92,6 +126,9 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
   const [perda, setPerda] = useState(null)   // proposta sendo marcada como "não vendido"
   const [soFab, setSoFab] = useState(false)  // só propostas com pedido de fábrica (FAB)
   const [sort, setSort] = useState({ key: 'dias_na_fase', dir: 'desc' })   // default: mais parado primeiro
+  const [filtrosCol, setFiltrosCol] = useState({})   // filtro por coluna (2ª linha do cabeçalho, AND)
+  const [gerando, setGerando] = useState(false)       // gerando PDF da relação
+  const temFiltroCol = Object.values(filtrosCol).some(v => v && v.trim())
 
   const loadData = async () => {
     // Lê da view v_formulario (traz dias_na_fase/cores). Esconde a lixeira por deleted_at
@@ -136,9 +173,16 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       const matchBusca = !q || campos.some(v => (v || '').toString().toLowerCase().includes(q))
       const matchStatus = !filtroStatus || c.status === filtroStatus
       const matchFab = !soFab || c.fabrica_pedido_id != null   // FAB real (pedido de fábrica existe)
-      return matchBusca && matchStatus && matchFab
+      // Filtro por coluna (AND entre colunas). Valor aceita também o número cru ("15000" acha "15.000,00").
+      const matchCols = Object.entries(filtrosCol).every(([k, v]) => {
+        const q2 = (v || '').trim().toLowerCase()
+        if (!q2) return true
+        const alvo = colTexto(c, k).toLowerCase() + (k === 'valor' ? ` ${String(c.Valor_Total ?? '').toLowerCase()}` : '')
+        return alvo.includes(q2)
+      })
+      return matchBusca && matchStatus && matchFab && matchCols
     })
-  }, [cards, busca, filtroStatus, soFab])
+  }, [cards, busca, filtroStatus, soFab, filtrosCol])
 
   // Cards de resumo — SEMPRE sobre o que está filtrado na tabela (atualizam sozinhos).
   const resumo = useMemo(() => {
@@ -178,6 +222,39 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
     })
   }, [filtradas, sort])
 
+  // ====== IMPRIMIR A RELAÇÃO DA TELA (respeita busca, atalhos, filtros de coluna e ordenação) ======
+  const imprimirLista = async () => {
+    if (gerando) return
+    if (ordenadas.length === 0) { alert('Nenhuma proposta na tela para imprimir.'); return }
+    setGerando(true)
+    try {
+      const filtrosResumo = []
+      if (busca.trim()) filtrosResumo.push(`Busca: "${busca.trim()}"`)
+      if (filtroStatus) filtrosResumo.push(`Status: ${statusLabel(filtroStatus)}`)
+      if (soFab) filtrosResumo.push('Só FAB (pedido de fábrica)')
+      for (const col of COLS_LISTA) { const v = (filtrosCol[col.k] || '').trim(); if (v) filtrosResumo.push(`${col.label}: "${v}"`) }
+      const colSort = COLS_LISTA.find(c => c.k === sort.key)
+      if (colSort) filtrosResumo.push(`Ordenado por ${colSort.label} ${sort.dir === 'asc' ? '(A-Z)' : '(Z-A)'}`)
+      const somaTotal = filtradas.reduce((acc, c) => acc + parseValor(c.Valor_Total), 0)
+      await gerarPdfLista({
+        titulo: 'PROPOSTAS COMERCIAIS - RELACAO DA TELA',
+        colunas: COLS_LISTA.map(c => c.label),
+        linhas: ordenadas.map(c => COLS_LISTA.map(col => colTexto(c, col.k) || '---')),
+        filtrosResumo,
+        rodape: [
+          { texto: `VALOR TOTAL (${filtradas.length} proposta${filtradas.length !== 1 ? 's' : ''}): R$ ${formatBRL(somaTotal)}`, destaque: true },
+          { texto: `Previsão de faturamento (em aberto, ponderada pelo termômetro): R$ ${formatBRL(resumo.prevV)}` },
+        ],
+        arquivo: `propostas_${hojeISO()}.pdf`,
+        columnStyles: { 0: { cellWidth: 18 }, 6: { cellWidth: 30, halign: 'right', fontStyle: 'bold', textColor: [220, 38, 38] }, 8: { cellWidth: 20 }, 9: { cellWidth: 24 }, 10: { cellWidth: 22 } },
+      })
+      log({ sistema: 'Proposta Comercial', acao: 'relatorio', entidade: 'propostas_lista', detalhes: { total: ordenadas.length, filtros: filtrosResumo } })
+    } catch (err) {
+      console.error(err)
+      alert('Erro ao gerar PDF: ' + err.message)
+    } finally { setGerando(false) }
+  }
+
   // Cabeçalho clicável com seta ▲/▼.
   const Th = ({ k, label, className }) => {
     const active = sort.key === k
@@ -215,11 +292,15 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-600 pointer-events-none" />
             <input type="text" placeholder="Digite cliente, ID, marca, modelo, cidade, valor ou status..." value={busca} onChange={e => setBusca(e.target.value)} className={`${filterInputStyle} pl-9`} />
           </div>
-          {(busca || filtroStatus || soFab) && (
-            <button onClick={() => { setBusca(''); setFiltroStatus(''); setSoFab(false) }} className="px-4 py-2.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 text-xs font-semibold tracking-wide transition-colors flex items-center gap-2 whitespace-nowrap">
+          {(busca || filtroStatus || soFab || temFiltroCol) && (
+            <button onClick={() => { setBusca(''); setFiltroStatus(''); setSoFab(false); setFiltrosCol({}) }} className="px-4 py-2.5 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 text-xs font-semibold tracking-wide transition-colors flex items-center gap-2 whitespace-nowrap">
               <X size={14} /> Limpar
             </button>
           )}
+          <button onClick={imprimirLista} disabled={gerando} title="Gera um PDF com a relação exatamente como está na tela (busca, atalhos, filtros do cabeçalho e ordenação)"
+            className="px-4 py-2.5 rounded-lg bg-zinc-800 text-white hover:bg-zinc-900 text-xs font-semibold tracking-wide transition-colors flex items-center gap-2 whitespace-nowrap cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+            <Printer size={14} className={gerando ? 'animate-pulse' : ''} /> {gerando ? 'Gerando...' : 'Imprimir'}
+          </button>
         </div>
       </div>
 
@@ -304,6 +385,17 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
                 <Th k="termometro" label="Termômetro" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <Th k="criado_em" label="Criada em" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />
                 <th className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide w-[210px]">Alterar</th>
+              </tr>
+              {/* 2ª linha: filtro por coluna (AND) — mesmo padrão de /ajustes/alertas */}
+              <tr className="border-b border-zinc-200 bg-zinc-50/60">
+                {COLS_LISTA.map(col => (
+                  <th key={col.k} className="px-3 pb-2.5 pt-0.5">
+                    <input type="text" value={filtrosCol[col.k] || ''} placeholder="filtrar…" aria-label={`Filtrar ${col.label}`}
+                      onChange={e => setFiltrosCol(f => ({ ...f, [col.k]: e.target.value }))} onClick={e => e.stopPropagation()}
+                      className="w-full min-w-[70px] bg-white text-zinc-700 text-xs font-normal rounded-md px-2 py-1.5 outline-none border border-zinc-200 focus:ring-2 focus:ring-red-500/40 placeholder:text-zinc-400" />
+                  </th>
+                ))}
+                <th className="px-3 pb-2.5 pt-0.5" />
               </tr>
             </thead>
             <tbody>

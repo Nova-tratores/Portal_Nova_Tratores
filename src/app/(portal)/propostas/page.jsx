@@ -298,7 +298,7 @@ function PropostaComercialPageInner() {
                     </button>
                     <button onClick={() => { handleRelatorio(); fecharMenu() }} disabled={gerando}
                       className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[15px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50">
-                      <FileDown size={15} className={gerando ? 'animate-bounce' : ''} /> {gerando ? 'Gerando...' : 'Imprimir relatório'}
+                      <FileDown size={15} className={gerando ? 'animate-bounce' : ''} /> {gerando ? 'Gerando...' : 'Relatório em aberto (PDF)'}
                     </button>
                     <button onClick={() => { setShowTags(true); fecharMenu() }} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}
                       className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-[15px] font-medium text-zinc-700 hover:bg-zinc-100 cursor-pointer transition-all disabled:opacity-50 disabled:cursor-not-allowed">
