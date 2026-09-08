@@ -5,6 +5,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import { useRouter } from 'next/navigation'
 import { Bot, Loader2, Save, X, Search } from 'lucide-react'
+import EnsinarTratorilson from '@/components/tratorilson/EnsinarTratorilson'
 
 interface LogRow {
   id: number; created_at: string; user_nome: string | null; tipo: string
@@ -26,7 +27,7 @@ const fmtDia = (v: unknown) => {
 
 export default function TratorilsonPainel() {
   const { userProfile } = useAuth()
-  const { isAdmin, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  const { isAdmin, isDev, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const router = useRouter()
 
   const [dados, setDados] = useState<Dados | null>(null)
@@ -171,6 +172,9 @@ export default function TratorilsonPainel() {
           )}
         </div>
       </div>
+
+      {/* Modo ensino — só Dev; memória única (portal + WhatsApp) */}
+      {isDev && <EnsinarTratorilson userName={userProfile?.nome} />}
 
       {/* Fase 1 — atualizar OS pelo relatório do técnico (teste) */}
       <div style={{ ...card, marginTop: 16 }}>

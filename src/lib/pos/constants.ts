@@ -28,6 +28,12 @@ export const POS_TO_PPV_STATUS: Record<string, string> = {
   "Aguardando outros": "Aguardando outros",
   "Aguardando ordem Técnico": "Aguardando ordem Técnico",
   "Relatório Concluído": "Relatório Concluído",
+  // Fases que só existem no POS → equivalente válido do kanban do PPV
+  // (gravar o texto do POS faria o card cair em "Orçamento" no normalizarStatus)
+  "Executada": "Executada aguardando comercial",
+  "Preenchido Garantia": "Relatório Concluído",
+  "Enviar Omie": "Relatório Concluído",
+  "Enviado Para Omie": "Enviado Omie",
   "Concluída": "Concluída",
   "Cancelada": "Cancelada",
 };

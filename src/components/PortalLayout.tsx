@@ -18,7 +18,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle, Columns,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket, Cctv
+  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket, Cctv, GraduationCap
 } from 'lucide-react'
 import { MailCheck as IconEnviosEmail } from 'lucide-react'
 import Link from 'next/link'
@@ -820,6 +820,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                     }
                   )}
                   {temVigia && item(<Cctv size={18} />, 'Vigia das câmeras', () => window.dispatchEvent(new Event('vigia-abrir')))}
+                  {isDev && item(<GraduationCap size={18} />, 'Ensinar o Tratorilson', () => { window.location.href = '/tratorilson' })}
                   {item(<Settings size={18} />, 'Configurações', () => { setConfigTab('perfil'); setConfigOpen(true) })}
                  </div>
                 </div>

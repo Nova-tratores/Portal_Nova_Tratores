@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { TRATORINO_PERSONA, TRATORINO_CONHECIMENTO } from "@/lib/assistente/conhecimento";
 import { getIA, chamarIA } from "@/lib/assistente/ia";
+import { blocoMemoria } from "@/lib/assistente/memoria";
 import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
 import { autenticar } from "@/lib/auth/server";
 import { logTratorilson } from "@/lib/assistente/log";
@@ -245,8 +246,8 @@ const TOOLS = [
     type: "function",
     function: {
       name: "ensinar",
-      description: "(Só administradores) GUARDA uma regra/fato novo na MEMÓRIA do Tratorilson. Use quando o usuário ENSINAR algo pra você lembrar sempre (ex.: 'lembre que spray vai em Insumo Infra', 'a revisão de 50h é cortesia', 'o cliente X paga só por boleto'). Guarde a regra de forma clara e curta. Depois de guardar, confirme.",
-      parameters: { type: "object", properties: { conteudo: { type: "string", description: "A regra/fato a guardar, claro e direto." } }, required: ["conteudo"] },
+      description: "(Só administradores) GUARDA uma regra/fato novo na MEMÓRIA do Tratorilson — a memória é ÚNICA: vale aqui no portal E no atendimento de clientes no WhatsApp. Use quando o usuário ENSINAR algo pra lembrar sempre (ex.: 'lembre que spray vai em Insumo Infra', 'a revisão de 50h é cortesia', 'o cliente X paga só por boleto'). Guarde a regra de forma clara e curta. Depois de guardar, confirme.",
+      parameters: { type: "object", properties: { conteudo: { type: "string", description: "A regra/fato a guardar, claro e direto." }, escopo: { type: "string", enum: ["geral", "portal", "clientes"], description: "Onde a regra vale: 'geral' = portal e WhatsApp (padrão), 'portal' = só no chat interno, 'clientes' = só no atendimento de clientes no WhatsApp." } }, required: ["conteudo"] },
     },
   },
   {
@@ -992,10 +993,11 @@ async function execTool(origin: string, name: string, args: any, ctx?: { isAdmin
       if (name === "ensinar") {
         const conteudo = String(args.conteudo || "").trim();
         if (!conteudo) return { precisa: "conteudo", mensagem: "O que você quer que eu guarde na memória?" };
-        const r = await fetch(TBL, { method: "POST", headers: { ...H, Prefer: "return=representation" }, body: JSON.stringify({ conteudo, criado_por: ctx?.userName || "" }) });
-        if (!r.ok) return { erro: semTabela };
-        const d = await r.json().catch(() => []);
-        return { ok: true, id: d?.[0]?.id, mensagem: "Regra guardada na memória. Vou seguir isso a partir de agora." };
+        const escopo = ["geral", "portal", "clientes"].includes(String(args.escopo || "")) ? String(args.escopo) : "geral";
+        const { gravarRegra } = await import("@/lib/assistente/memoria");
+        const id = await gravarRegra(conteudo, escopo, ctx?.userName || "");
+        if (id == null) return { erro: semTabela };
+        return { ok: true, id, escopo, mensagem: "Regra guardada na memória (vale no portal e no WhatsApp). Vou seguir isso a partir de agora." };
       }
 
       if (name === "atualizar_memoria") {
@@ -1093,17 +1095,8 @@ export async function POST(req: NextRequest) {
       : "Ele NÃO é administrador: NÃO forneça dados administrativos (lista de usuários, permissões, histórico de outros usuários) — diga que isso é só para administradores.");
 
   // Memória aprendida — instrução fixa + as regras que a equipe ensinou (injetadas no prompt)
-  const memInstr = "\n\nMEMÓRIA: você pode ser ENSINADO. Quando um ADMIN te ensinar uma regra/fato pra lembrar sempre ('lembre que...', 'de agora em diante...', 'a regra é...'), use a ferramenta 'ensinar' pra guardar (e confirme). Pra ver o que já sabe use 'listar_memoria'; pra mudar uma regra, 'atualizar_memoria'; pra remover, 'esquecer_memoria'. SIGA sempre as regras da memória abaixo.";
-  let memTexto = "";
-  try {
-    const SBm = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
-    const SKm = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
-    const rm = await fetch(`${SBm}/rest/v1/tratorilson_memoria?ativo=eq.true&select=id,conteudo&order=id.asc`, { headers: { apikey: SKm, authorization: `Bearer ${SKm}` } });
-    if (rm.ok) {
-      const ms: any[] = await rm.json().catch(() => []);
-      if (ms.length) memTexto = "\n\nREGRAS APRENDIDAS (siga-as):\n" + ms.map((m) => `- [#${m.id}] ${m.conteudo}`).join("\n");
-    }
-  } catch {}
+  const memInstr = "\n\nMEMÓRIA: você pode ser ENSINADO — e a memória é ÚNICA (o que aprender aqui vale também no atendimento de clientes no WhatsApp). Quando um ADMIN te ensinar uma regra/fato pra lembrar sempre ('lembre que...', 'de agora em diante...', 'a regra é...'), use a ferramenta 'ensinar' pra guardar (e confirme); se a regra for só pro atendimento de clientes, passe escopo 'clientes'. Pra ver o que já sabe use 'listar_memoria'; pra mudar uma regra, 'atualizar_memoria'; pra remover, 'esquecer_memoria'. SIGA sempre as regras da memória abaixo.";
+  const memTexto = await blocoMemoria(["geral", "portal"], "REGRAS APRENDIDAS (siga-as)").catch(() => "");
 
   const limpos = messages
     .filter((m) => (m.role === "user" || m.role === "assistant") && typeof m.content === "string" && m.content.trim())

@@ -321,7 +321,9 @@ async function syncNFSe(acc: OmieAccount) {
               const pdfRes = await fetch(danfeUrl);
               if (pdfRes.ok) {
                 const buffer = Buffer.from(await pdfRes.arrayBuffer());
-                if (buffer.length > 100) {
+                // Só guarda PDF de verdade (a NFS-e Nacional devolve página HTML do portal)
+                const ehPdf = buffer.slice(0, 5).toString("latin1").startsWith("%PDF") || String(pdfRes.headers.get("content-type") || "").toLowerCase().includes("application/pdf");
+                if (buffer.length > 100 && ehPdf) {
                   const contentType = pdfRes.headers.get("content-type") || "application/pdf";
                   const path = `${acc.name.replace(/ /g, "_")}/os_${os.num_os}/nfse_${numNFSe || os.num_os}.pdf`;
                   const { error: upErr } = await supabase.storage
@@ -394,7 +396,9 @@ async function syncNFePV(acc: OmieAccount) {
               const pdfRes = await fetch(danfeUrl);
               if (pdfRes.ok) {
                 const buffer = Buffer.from(await pdfRes.arrayBuffer());
-                if (buffer.length > 100) {
+                // Só guarda PDF de verdade (a NFS-e Nacional devolve página HTML do portal)
+                const ehPdf = buffer.slice(0, 5).toString("latin1").startsWith("%PDF") || String(pdfRes.headers.get("content-type") || "").toLowerCase().includes("application/pdf");
+                if (buffer.length > 100 && ehPdf) {
                   const contentType = pdfRes.headers.get("content-type") || "application/pdf";
                   const path = `${acc.name.replace(/ /g, "_")}/pv_${pv.num_pedido}/danfe_${numNFe || pv.num_pedido}.pdf`;
                   const { error: upErr } = await supabase.storage

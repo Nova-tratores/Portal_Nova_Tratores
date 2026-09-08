@@ -17,17 +17,14 @@ export async function sincronizarStatusPPV(idOrdem: string, novoStatusPOS: strin
     .eq("Id_Ordem", idOrdem)
     .limit(1);
 
-  const idPpvStr = os?.[0]?.ID_PPV;
-  if (!idPpvStr) return;
+  const ppvIds = String(os?.[0]?.ID_PPV || "").split(",").map((s) => s.trim()).filter(Boolean);
 
-  const ppvIds = String(idPpvStr).split(",").map((s) => s.trim()).filter(Boolean);
-  if (ppvIds.length === 0) return;
-
-  // Busca todos os PPVs de uma vez
+  // Vinculados pela lista ID_PPV da OS OU pelo Id_Os do pedido (os dois lados do vínculo)
+  const filtroOr = `Id_Os.eq.${idOrdem}${ppvIds.length ? `,id_pedido.in.(${ppvIds.map((x) => `"${x}"`).join(",")})` : ""}`;
   const { data: ppvs } = await supabase
     .from(TBL_PEDIDOS)
     .select("id_pedido, status")
-    .in("id_pedido", ppvIds);
+    .or(filtroOr);
 
   // Filtra os que podem ser atualizados (não altera Concluída/Cancelada)
   const aAtualizar = (ppvs || []).filter(

@@ -49,6 +49,9 @@ async function downloadNF(url: string, path: string): Promise<string> {
     if (!res.ok) return url;
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length < 100) return url;
+    // Só guarda PDF de verdade (a NFS-e Nacional devolve página HTML do portal)
+    const ehPdf = buf.slice(0, 5).toString("latin1").startsWith("%PDF") || String(res.headers.get("content-type") || "").toLowerCase().includes("application/pdf");
+    if (!ehPdf) return url;
     const { error } = await supabase.storage.from(BUCKET).upload(path, buf, { contentType: res.headers.get("content-type") || "application/pdf", upsert: true });
     if (error) return url;
     const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);

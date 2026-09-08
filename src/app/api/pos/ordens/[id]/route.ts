@@ -356,6 +356,27 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await supabase.from("pedidos").update({ Tipo_Pedido: "Remessa" }).eq("Id_Os", idOs);
   }
 
+  // Trocou o cliente da OS → os PPVs vinculados acompanham (mesmo cliente do POS)
+  try {
+    const nomeCli = String(dados.nomeCliente || "").trim();
+    if (nomeCli) {
+      const ppvIdsCli = String(dados.ppv || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+      const filtroOr = `Id_Os.eq.${idOs}${ppvIdsCli.length ? `,id_pedido.in.(${ppvIdsCli.map((x) => `"${x}"`).join(",")})` : ""}`;
+      const { data: pedsCli } = await supabase.from("pedidos").select("id_pedido, cliente, cliente_documento").or(filtroOr);
+      const docCli = String(dados.cpfCliente || "").trim();
+      const desatualizados = (pedsCli || []).filter((p) =>
+        String(p.cliente || "").trim() !== nomeCli || (docCli && String(p.cliente_documento || "").trim() !== docCli));
+      if (desatualizados.length) {
+        await supabase.from("pedidos")
+          .update({ cliente: nomeCli, ...(docCli ? { cliente_documento: docCli } : {}) })
+          .in("id_pedido", desatualizados.map((p) => p.id_pedido));
+        console.log(`[os-cliente→ppv] OS ${idOs}: cliente alinhado em ${desatualizados.length} PPV(s)`);
+      }
+    }
+  } catch (e) {
+    console.error(`[os-cliente→ppv] OS ${idOs} falhou (ignorado):`, e instanceof Error ? e.message : e);
+  }
+
   // Alimentação -> Requisicao automática:
   //  - OS concluída: promove pra 'financeiro' (valor atualizado + nota)
   //  - OS CANCELADA: as despesas automáticas em aberto vão pra lixeira

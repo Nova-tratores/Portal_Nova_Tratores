@@ -1223,8 +1223,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   )}
 
                   {/* ── Cliente (create + edit) ── */}
-                  <div className="os-card" style={{ order: -5, display: mode === "edit" && !mostrarTrocaCliente ? "none" : undefined }}>
-                    <div className="os-card-title"><i className="fas fa-user" /> {mode === "edit" ? "Alterar Cliente" : "Cliente"}</div>
+                  {(mode !== "edit" || mostrarTrocaCliente) && (
+                  <div
+                    onClick={mode === "edit" ? () => setMostrarTrocaCliente(false) : undefined}
+                    style={mode === "edit"
+                      ? { position: "fixed", inset: 0, zIndex: 80000, background: "rgba(15,23,42,.55)", backdropFilter: "blur(3px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "7vh 16px", overflowY: "auto" }
+                      : { display: "contents" }}
+                  >
+                  <div className="os-card" onClick={(e) => e.stopPropagation()} style={mode === "edit" ? { width: "100%", maxWidth: 720, maxHeight: "84vh", overflowY: "auto", margin: 0, boxShadow: "0 24px 60px rgba(0,0,0,.35)" } : { order: -5 }}>
+                    <div className="os-card-title" style={{ display: "flex", alignItems: "center" }}>
+                      <i className="fas fa-user" /> {mode === "edit" ? "Alterar Cliente" : "Cliente"}
+                      {mode === "edit" && (
+                        <button type="button" onClick={() => setMostrarTrocaCliente(false)} title="Fechar"
+                          style={{ marginLeft: "auto", width: 30, height: 30, borderRadius: 4, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-light)", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
+                      )}
+                    </div>
                     <div style={S_RELATIVE}>
                       <i className="fas fa-search" style={S_SEARCH_ICON} />
                       <input type="text" placeholder="Buscar por nome, razão social ou CNPJ/CPF..." value={clienteFilter} onChange={(e) => setClienteFilter(e.target.value)} style={S_SEARCH_INPUT} />
@@ -1234,7 +1247,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         {filteredClientes.length === 0 ? (
                           <div style={S_EMPTY_RESULT}>Nenhum cliente encontrado</div>
                         ) : filteredClientes.map((c) => (
-                          <div key={c.chave} className="client-search-item" onClick={() => { selectCliente(c.chave); setClienteFilter(""); }}>
+                          <div key={c.chave} className="client-search-item" onClick={() => { selectCliente(c.chave); setClienteFilter(""); if (mode === "edit") setMostrarTrocaCliente(false); }}>
                             <i className="fas fa-user-circle" style={S_SEARCH_ICON} />
                             <div style={S_CLIENT_ITEM_WRAP}>
                               <div style={S_CLIENT_ITEM_NAME}>{c.fantasia || c.razao || c.display.split("[")[0].trim()}</div>
@@ -1324,6 +1337,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       </div>
                     )}
                   </div>
+                  </div>
+                  )}
 
 
                   {/* ── Status ── */}

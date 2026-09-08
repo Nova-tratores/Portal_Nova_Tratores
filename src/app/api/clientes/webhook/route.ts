@@ -49,8 +49,13 @@ async function downloadNF(url: string, path: string): Promise<string> {
     if (!res.ok) return url;
     const buffer = Buffer.from(await res.arrayBuffer());
     if (buffer.length < 100) return url;
+    // Só guarda PDF de verdade. A NFS-e Nacional devolve a URL de um portal (SPA
+    // em HTML) — salvar isso como .pdf gerava "nota" que abria como código HTML.
+    // Nesse caso devolve a própria URL (abre o portal, que renderiza a nota).
     const ct = res.headers.get("content-type") || "application/pdf";
-    const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, { contentType: ct, upsert: true });
+    const ehPdf = buffer.slice(0, 5).toString("latin1").startsWith("%PDF") || ct.toLowerCase().includes("application/pdf");
+    if (!ehPdf) return url;
+    const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, { contentType: "application/pdf", upsert: true });
     if (error) return url;
     const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
     return pub.publicUrl;
