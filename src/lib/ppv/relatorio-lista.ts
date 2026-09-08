@@ -31,7 +31,7 @@ import {
 // ---------------------------------------------------------------------------
 // Busca (mesmas colunas do kanban + Pedido Omie / O.S. / NF)
 // ---------------------------------------------------------------------------
-const SELECT = "id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao,email_usuario,pedido_omie,Id_Os,nf_numero,Projeto";
+const SELECT = "id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao,email_usuario,pedido_omie,Id_Os,nf_numero,Projeto,previsao_faturamento";
 
 function mapear(r: Record<string, unknown>): KanbanItem {
   return {
@@ -49,6 +49,7 @@ function mapear(r: Record<string, unknown>): KanbanItem {
     osId: String(getValorInsensivel(r, "Id_Os") || ""),
     nfNumero: String(getValorInsensivel(r, "nf_numero") || ""),
     projeto: String(getValorInsensivel(r, "Projeto") || ""),
+    previsaoFaturamento: String(getValorInsensivel(r, "previsao_faturamento") || "").slice(0, 10),
     ultimaAcao: "",
     ultimoUsuario: "",
     ultimaData: "",
@@ -90,7 +91,7 @@ export interface GerarPDFRelacaoArgs {
 interface Col { k: string; label: string; w: number; alignR?: boolean }
 
 const LARG: Record<string, number> = {
-  id: 34, tipo: 30, cliente: 170, tecnico: 90, data: 52, valor: 66, status: 92, pedidoOmie: 50, osId: 36, nfNumero: 40, observacao: 120, criadoPor: 0,
+  id: 34, tipo: 30, cliente: 170, tecnico: 90, data: 52, valor: 66, status: 92, previsaoFat: 58, pedidoOmie: 50, osId: 36, nfNumero: 40, observacao: 100, criadoPor: 0,
 };
 
 export function gerarPDFRelacaoPPV({ titulo, subtitulo, filtrosResumo = [], pedidos }: GerarPDFRelacaoArgs): Promise<Buffer> {

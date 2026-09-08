@@ -18,6 +18,7 @@ export interface KanbanItem {
   osId?: string;
   nfNumero?: string;
   projeto?: string;
+  previsaoFaturamento?: string;   // "YYYY-MM-DD" (espelho Omie)
   ultimaAcao: string;
   ultimoUsuario: string;
   ultimaData: string;

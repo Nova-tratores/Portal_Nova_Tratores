@@ -12,7 +12,7 @@ import type { KanbanItem } from "@/lib/ppv/types";
 import { STATUS_OPTIONS, STATUS_COLORS, rotuloStatus } from "@/lib/ppv/constants";
 import {
   COLS_RELACAO, FASES_PDF, faseDoPedido, colTextoRelacao, filtrarRelacao, ordenarRelacao, resumoFiltrosRelacao,
-  totaisRelacao, fmtBRL, statusNorm, isRemessa, estaAberto, gerarCSVRelacao, type ColRelacaoKey, type OrdemRelacao,
+  totaisRelacao, fmtBRL, statusNorm, isRemessa, estaAberto, gerarCSVRelacao, COLS_DATA, OPCOES_PERIODO, type ColRelacaoKey, type OrdemRelacao,
 } from "@/lib/ppv/relacao";
 import { gerarPdfLista, hojeISO } from "@/lib/propostas/pdf-lista";
 import { authHeaders } from "@/lib/auth/client";
@@ -62,6 +62,12 @@ export default function RelacaoView({ orders, searchTerm, tipoFilter = "TODOS", 
     for (const o of base) { const s = statusNorm(o); m[s] = (m[s] || 0) + 1; }
     return { m, abertos: base.filter(estaAberto).length, total: base.length };
   }, [orders, searchTerm, filtrosCol]);
+  // Fases que existem na lista (pro seletor da coluna Fase), na ordem das fases do sistema.
+  const fasesPresentes = useMemo(() => {
+    const m: Record<string, number> = {};
+    for (const o of orders) { const s = statusNorm(o); m[s] = (m[s] || 0) + 1; }
+    return STATUS_OPTIONS.filter((s) => m[s.value]).map((s) => ({ value: s.value, label: s.label, n: m[s.value] }));
+  }, [orders]);
 
   const filtrosResumo = useCallback(
     () => resumoFiltrosRelacao({ busca: searchTerm, tipoFilter, status: filtroStatus, soAbertos, filtrosCol }, ordem),
@@ -91,7 +97,7 @@ export default function RelacaoView({ orders, searchTerm, tipoFilter = "TODOS", 
         legenda: FASES_PDF.map((f) => ({ label: f.label, fill: f.fill, text: f.text })),
         estiloLinha: (i: number) => { const f = faseDoPedido(ordenadas[i]); return f ? { fill: f.fill, text: f.text, linha: f.linha } : null; },
         colStatus: COLS_RELACAO.findIndex((c) => c.k === "status"),
-        columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: 12 }, 3: { cellWidth: 34 }, 4: { cellWidth: 20 }, 5: { cellWidth: 26, halign: "right", fontStyle: "bold", textColor: [194, 87, 10] }, 6: { cellWidth: 34 }, 7: { cellWidth: 20 }, 8: { cellWidth: 14 }, 9: { cellWidth: 16 }, 11: { cellWidth: 30 } },
+        columnStyles: { 0: { cellWidth: 14 }, 1: { cellWidth: 12 }, 3: { cellWidth: 32 }, 4: { cellWidth: 20 }, 5: { cellWidth: 26, halign: "right", fontStyle: "bold", textColor: [194, 87, 10] }, 6: { cellWidth: 32 }, 7: { cellWidth: 22 }, 8: { cellWidth: 20 }, 9: { cellWidth: 14 }, 10: { cellWidth: 14 }, 12: { cellWidth: 28 } },
         cor: COR_PDF,
       });
       log({ sistema: "ppv", acao: "relatorio", entidade: "ppv_relacao", detalhes: { total: ordenadas.length, filtros: resumo } });
@@ -184,12 +190,44 @@ export default function RelacaoView({ orders, searchTerm, tipoFilter = "TODOS", 
             </tr>
             {/* 2ª linha: filtro por coluna (AND) — mesmo padrão de /propostas e /ajustes/alertas */}
             <tr style={{ background: "var(--ppv-bg)" }}>
-              {COLS_RELACAO.map((c) => (
-                <th key={c.k} style={{ padding: "4px 8px 8px" }}>
-                  <input type="text" value={filtrosCol[c.k] || ""} placeholder="filtrar…" aria-label={`Filtrar ${c.label}`} style={inputBase}
-                    onChange={(e) => setFiltrosCol((f) => ({ ...f, [c.k]: e.target.value }))} onClick={(e) => e.stopPropagation()} />
-                </th>
-              ))}
+              {COLS_RELACAO.map((c) => {
+                const v = filtrosCol[c.k] || "";
+                const setV = (nv: string) => setFiltrosCol((f) => ({ ...f, [c.k]: nv }));
+                // Fase: seletor com as fases que EXISTEM na lista (não texto livre).
+                if (c.k === "status") {
+                  return (
+                    <th key={c.k} style={{ padding: "4px 8px 8px" }}>
+                      <select value={v} onChange={(e) => setV(e.target.value)} aria-label="Filtrar Fase" style={{ ...inputBase, cursor: "pointer" }} onClick={(e) => e.stopPropagation()}>
+                        <option value="">Todas</option>
+                        {fasesPresentes.map((f) => <option key={f.value} value={f.label}>{f.label} ({f.n})</option>)}
+                      </select>
+                    </th>
+                  );
+                }
+                // Datas: período pronto (este mês, mês anterior, últimos 90 dias, a partir de…).
+                if (COLS_DATA.includes(c.k)) {
+                  const token = v.startsWith("a_partir") ? "a_partir" : v;
+                  const iso = v.startsWith("a_partir") ? (v.split(":")[1] || "") : "";
+                  return (
+                    <th key={c.k} style={{ padding: "4px 8px 8px" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                        <select value={token} onChange={(e) => setV(e.target.value === "a_partir" ? "a_partir" : e.target.value)} aria-label={`Filtrar ${c.label}`} style={{ ...inputBase, cursor: "pointer" }} onClick={(e) => e.stopPropagation()}>
+                          {OPCOES_PERIODO.map((o) => <option key={o.valor} value={o.valor}>{o.label}</option>)}
+                        </select>
+                        {token === "a_partir" && (
+                          <input type="date" value={iso} onChange={(e) => setV(`a_partir:${e.target.value}`)} aria-label={`${c.label} a partir de`} style={inputBase} onClick={(e) => e.stopPropagation()} />
+                        )}
+                      </div>
+                    </th>
+                  );
+                }
+                return (
+                  <th key={c.k} style={{ padding: "4px 8px 8px" }}>
+                    <input type="text" value={v} placeholder="filtrar…" aria-label={`Filtrar ${c.label}`} style={inputBase}
+                      onChange={(e) => setV(e.target.value)} onClick={(e) => e.stopPropagation()} />
+                  </th>
+                );
+              })}
               {onStatusChange && <th />}
             </tr>
           </thead>
@@ -211,6 +249,7 @@ export default function RelacaoView({ orders, searchTerm, tipoFilter = "TODOS", 
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoRelacao(o, "data") || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, textAlign: "right", fontWeight: 800, fontSize: 15, color: "#c2570a", whiteSpace: "nowrap" }}>{colTextoRelacao(o, "valor")}</td>
                   <td style={tdBase}><span style={{ fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 3, background: c.bg, color: c.text, whiteSpace: "nowrap" }}>{rotuloStatus(sn)}</span></td>
+                  <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoRelacao(o, "previsaoFat") || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{o.pedidoOmie || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{o.osId || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{o.nfNumero || <span style={{ color: "#94a3b8" }}>—</span>}</td>

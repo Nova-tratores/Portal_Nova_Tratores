@@ -13,6 +13,7 @@ import GlobalLoader from "@/components/ppv/GlobalLoader";
 import PhaseView from "@/components/ppv/PhaseView";
 import PPVMobile from "@/components/ppv/PPVMobile";
 import RelacaoView from "@/components/ppv/RelacaoView";
+import DashboardPPV from "@/components/ppv/DashboardPPV";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import CatalogoNovo from "@/components/ppv/CatalogoNovo";
 import EtiquetasPanel from "@/components/ppv/EtiquetasPanel";
@@ -53,6 +54,7 @@ function PPVApp() {
   const [activeTab, setActiveTab] = useState(
     pathname?.endsWith("/catalogo") ? "catalogoTab"
       : searchParams?.get("tab") === "etiquetas" ? "etiquetasTab"
+      : searchParams?.get("tab") === "dashboard" ? "dashTab"
       : "kanbanTab"
   );
   useEffect(() => {
@@ -60,6 +62,7 @@ function PPVApp() {
     const sp = new URLSearchParams(window.location.search);
     sp.delete("tab");
     if (activeTab === "etiquetasTab") sp.set("tab", "etiquetas");
+    if (activeTab === "dashTab") sp.set("tab", "dashboard");
     const qs = sp.toString();
     const destino = alvo + (qs ? `?${qs}` : "");
     if (window.location.pathname + window.location.search !== destino) {
@@ -354,6 +357,9 @@ function PPVApp() {
           <button className={`ppv-topbar-nav-btn ${activeTab === "kanbanTab" ? "active" : ""}`} onClick={() => setActiveTab("kanbanTab")}>
             <i className="fas fa-th-large" /> Pré-Pedido de Venda
           </button>
+          <button className={`ppv-topbar-nav-btn ${activeTab === "dashTab" ? "active" : ""}`} onClick={() => setActiveTab("dashTab")} title="Valor e quantidade de pedidos por data, técnico, cliente, previsão de faturamento e fase">
+            <i className="fas fa-chart-simple" /> Dashboard
+          </button>
           {podeCatalogo && (
             <button className={`ppv-topbar-nav-btn ${activeTab === "catalogoTab" ? "active" : ""}`} onClick={() => setActiveTab("catalogoTab")}>
               <i className="fas fa-cogs" /> Catálogo
@@ -426,6 +432,12 @@ function PPVApp() {
             ) : (
               <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} loading={globalLoading} activePhase={activePhase} onPhaseChange={setActivePhase} viewMode={viewMode} />
             )}
+          </div>
+        )}
+
+        {activeTab === "dashTab" && (
+          <div className="flex-1 overflow-y-auto" style={bgPattern}>
+            <DashboardPPV orders={kanbanItems} onAbrirPedido={openCardDetails} />
           </div>
         )}
 
