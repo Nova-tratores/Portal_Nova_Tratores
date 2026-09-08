@@ -43,6 +43,24 @@ export const ENVIOS: EnvioDef[] = [
     rota: '/api/dre-financeiro/cron/relatorio-lista',
     parametros: [{ k: 'dias', label: 'Dias da janela', tipo: 'number', padrao: 7, ajuda: 'Títulos criados nos últimos N dias (de hoje-N até ontem).' }],
   },
+  {
+    chave: 'marketing_apoios_vencendo',
+    nome: 'Marketing — Contrapartidas de fábrica vencendo',
+    descricao: 'Apoios de fábrica (verba co-op) com relatório de contrapartida ainda em aberto e prazo nos próximos N dias, ou já vencido. Marca o responsável que não está mais ativo no portal.',
+    agenda: 'Segunda-feira 07:20 (BRT)',
+    workflow: 'marketing-apoios-vencendo.yml',
+    rota: '/api/marketing/cron/apoios-vencendo',
+    parametros: [{ k: 'dias', label: 'Janela (dias)', tipo: 'number', padrao: 30, ajuda: 'Avisa sobre contrapartidas que vencem nos próximos N dias. As já vencidas entram sempre.' }],
+  },
+  {
+    chave: 'marketing_contrapartida',
+    nome: 'Marketing — Relatório de contrapartida à fábrica',
+    descricao: 'PDF do relatório de contrapartida de UM apoio: participação, público, resultados, investimento e registro fotográfico. Campo sem informação sai como "Não registrado". O envio normal é pelo botão da ficha da ação — aqui só configure os destinatários padrão.',
+    agenda: 'Sob demanda (botão na ficha da ação)',
+    workflow: '—',
+    rota: '/api/marketing/contrapartida/[apoioId]/enviar',
+    parametros: [{ k: 'apoio_id', label: 'Apoio para os botões desta tela', tipo: 'text', padrao: '', ajuda: 'UUID do apoio. Usado só pelos botões "Enviar agora/teste" daqui — o envio de verdade sai da ficha da ação.' }],
+  },
 ]
 
 export function envioDef(chave: string): EnvioDef | undefined {

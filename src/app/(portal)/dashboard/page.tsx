@@ -13,7 +13,7 @@ import {
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
-  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck
+  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus
 } from 'lucide-react'
 
 interface SystemCard {
@@ -69,6 +69,8 @@ const systems: SystemCard[] = [
   { id: 'clientes', name: 'Pastas Clientes', description: 'Ranking de clientes por volume de serviços, OS, PV e NF integrados ao Omie', icon: <Building size={28} />, color: '#0EA5E9', gradient: 'linear-gradient(135deg, #0EA5E9, #0369A1)', href: '/clientes', tag: 'CLIENTES', group: 'servicos' },
   { id: 'supervisor-vendas', name: 'Supervisor Vendas', description: 'Painel do supervisor: vendedores, visitas, catálogo, mapa e alertas', icon: <TrendingUp size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #B91C1C, #991B1B)', href: '/supervisor-vendas', tag: 'VENDAS', group: 'comercial' },
   { id: 'gestao-vendas', name: 'Gestão de Vendas', description: 'Resultado mensal: margens, comissões e custos por vendedor', icon: <BarChart3 size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #7F1D1D)', href: '/gestao-vendas', tag: 'RESULTADOS', group: 'comercial' },
+  { id: 'marketing', name: 'Marketing & Eventos', description: 'Feiras, dias de campo e patrocínios: investimento, apoio de fábrica, leads e retorno', icon: <Megaphone size={28} />, color: '#DB2777', gradient: 'linear-gradient(135deg, #F472B6, #9D174D)', href: '/marketing', tag: 'EVENTOS', group: 'comercial' },
+  { id: 'lead', name: 'Captura de Leads', description: 'Anote o contato no estande direto do celular, com foto — texto livre', icon: <UserPlus size={28} />, color: '#DB2777', gradient: 'linear-gradient(135deg, #DB2777, #9D174D)', href: '/lead', tag: 'FEIRA', group: 'comercial' },
 
   // Estoque (vermelho)
   { id: 'consulta-estoque', name: 'Visual Estoque', description: 'Showroom virtual de estoque com visualização de peças e produtos', icon: <BarChart3 size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #CBD5E1, #94A3B8)', href: '/visual-estoque', tag: 'VISUAL', group: 'estoque' },
@@ -98,6 +100,10 @@ interface LogEntry {
 
 // Mapeia system.id para o módulo de permissão
 const systemToModulo: Record<string, string> = {
+  // ⚠️ Card que NÃO estiver aqui aparece pra TODO MUNDO (o filtro devolve true
+  // quando não acha o módulo). Card novo = entrada nova aqui, sempre.
+  'marketing': 'marketing',
+  'lead': 'lead',
   'sistema-financeiro': 'financeiro',
   'app-requisicoes': 'requisicoes',
   'controle-revisao': 'revisoes',

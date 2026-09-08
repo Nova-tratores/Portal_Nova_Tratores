@@ -8,6 +8,7 @@
 
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
+import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas';
 
 export interface AcaoPermissao {
   id: string;
@@ -28,7 +29,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   financeiro: 'Financeiro', dre: 'Financeiro',
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial',
-  'gestao-vendas': 'Comercial',
+  'gestao-vendas': 'Comercial', marketing: 'Comercial', lead: 'Comercial',
   // Estoque
   'consulta-estoque': 'Estoque', estoque: 'Estoque',
   frota: 'Frota', pendencias: 'Frota',
@@ -232,6 +233,27 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'admin-cmc', label: 'Admin CMC' },
     { id: 'config-compras', label: 'Config. de Compras' },
     { id: 'ignorar-clientes', label: 'Ignorar Clientes' },
+  ],
+  // MARKETING & EVENTOS — granular POR TELA (as telas vêm de PAGINAS_MARKETING,
+  // fonte única) e, abaixo delas, as ações que não são telas.
+  //
+  // 'relatorio:enviar' é separado de propósito: é a ÚNICA ação do portal que
+  // manda e-mail pra fora da empresa (o relatório de contrapartida vai pra
+  // fábrica). Não deve vir de brinde na cabeça de ninguém.
+  marketing: [
+    ...PAGINAS_MARKETING.map((p) => ({ id: p.key.replace('marketing:', ''), label: p.label })),
+    { id: 'acoes:criar', label: 'Ações — criar' },
+    { id: 'acoes:editar', label: 'Ações — editar' },
+    { id: 'acoes:excluir', label: 'Ações — excluir / lixeira' },
+    { id: 'apoios:editar', label: 'Apoio de fábrica — criar / mudar status (NF/ND/OC)' },
+    { id: 'custos:editar', label: 'Investimento — lançar / editar custo' },
+    { id: 'custos:vincular', label: 'Investimento — apontar pra Requisição / Conta / Nota' },
+    { id: 'leads:editar', label: 'Leads — qualificar / editar' },
+    { id: 'leads:vincular_cliente', label: 'Leads — vincular a cliente do cadastro' },
+    { id: 'propostas:vincular', label: 'Propostas — vincular / desvincular da ação' },
+    { id: 'midias:enviar', label: 'Mídia — enviar fotos e evidências' },
+    { id: 'avaliacao:responder', label: 'Avaliação pós-evento — responder' },
+    { id: 'relatorio:enviar', label: 'Relatório de contrapartida — ENVIAR À FÁBRICA' },
   ],
 };
 

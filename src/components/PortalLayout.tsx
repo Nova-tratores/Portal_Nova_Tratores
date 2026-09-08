@@ -18,7 +18,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle, Columns,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket, Cctv, GraduationCap
+  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus
 } from 'lucide-react'
 import { MailCheck as IconEnviosEmail } from 'lucide-react'
 import Link from 'next/link'
@@ -86,6 +86,9 @@ const navItems: NavItem[] = [
   { id: 'feedbacks', name: 'Feedbacks & CRM', href: '/feedbacks', icon: <Megaphone size={18} />, tag: 'CRM', gradient: '', group: 'comercial' },
   { id: 'clientes', name: 'Clientes', href: '/clientes', icon: <Building size={18} />, tag: 'CLIENTES', gradient: '', group: 'servicos' },
   { id: 'supervisor-vendas', name: 'Supervisor Vendas', href: '/supervisor-vendas', icon: <SlidersHorizontal size={18} />, tag: 'VENDAS', gradient: '', group: 'comercial' },
+  { id: 'marketing', name: 'Marketing & Eventos', href: '/marketing', icon: <Megaphone size={18} />, tag: 'EVENTOS', gradient: '', group: 'comercial' },
+  // Tela mobile do estande: quem só captura lead não precisa do módulo inteiro.
+  { id: 'lead', name: 'Captura de Leads', href: '/lead', icon: <UserPlus size={18} />, tag: 'FEIRA', gradient: '', group: 'comercial' },
 
   // Estoque (vermelho)
   { id: 'consulta-estoque', name: 'Visual Estoque', href: '/visual-estoque', icon: <BarChart3 size={18} />, tag: 'VISUAL', gradient: '', group: 'estoque' },

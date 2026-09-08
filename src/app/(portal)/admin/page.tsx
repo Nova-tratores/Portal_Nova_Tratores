@@ -36,6 +36,10 @@ const MODULOS = [
   { id: 'frota', label: 'Frota', color: '#0d9488' },
   { id: 'garantias', label: 'Garantias', color: '#0ea5e9' },
   { id: 'gestao-vendas', label: 'Gestão de Vendas', color: '#dc2626' },
+  // Captura de Leads: tela mobile do estande (feira), sem exigir o módulo
+  // Marketing inteiro — mesmo desenho do 'pendencias' em relação ao 'frota'.
+  { id: 'lead', label: 'Captura de Leads (celular)', color: '#DB2777' },
+  { id: 'marketing', label: 'Marketing & Eventos', color: '#DB2777' },
   { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
   { id: 'opa', label: 'Opa (Ocorrências)', color: '#dc2626' },

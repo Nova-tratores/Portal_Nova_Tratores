@@ -1,0 +1,23 @@
+# Marketing & Eventos — aviso semanal das contrapartidas de fabrica em aberto.
+# Lista os apoios (verba co-op) cujo relatorio de contrapartida ainda nao foi
+# entregue e o prazo esta perto ou ja venceu, marcando responsavel inativo.
+# Config (ligado, destinatarios, janela em dias) na tela Dev -> Envios de e-mail
+# (tabela email_envios_config, chave marketing_apoios_vencendo; so se "ativo").
+# Roda toda segunda 07:20 BRT (10:20 UTC). Tambem acionavel manualmente.
+name: Marketing - Contrapartidas de fabrica vencendo
+
+on:
+  schedule:
+    - cron: '20 10 * * 1'   # Segunda 07:20 BRT (10:20 UTC)
+  workflow_dispatch: {}
+
+jobs:
+  aviso:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Disparar aviso de contrapartidas vencendo
+        run: |
+          curl -fsS --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/marketing/cron/apoios-vencendo" \
+            -w "\nmarketing-apoios-vencendo: HTTP %{http_code}\n"

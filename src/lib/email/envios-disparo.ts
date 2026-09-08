@@ -6,7 +6,9 @@
 // ============================================================================
 import { cronRelacaoPPV } from '@/lib/ppv/relatorio-lista'
 import { cronRelatorioListaSemanal } from '@/lib/dre-financeiro/cron-relatorio-lista'
-import { envioDef } from './envios-config'
+import { cronApoiosVencendo } from '@/lib/marketing/apoios-vencendo'
+import { enviarContrapartida } from '@/lib/marketing/relatorio-contrapartida'
+import { envioDef, getConfigEnvio } from './envios-config'
 
 export interface DispararArgs {
   chave: string
@@ -32,6 +34,23 @@ export async function dispararEnvio(a: DispararArgs): Promise<any> {
       return cronRelacaoPPV(comum)
     case 'dre_lista':
       return cronRelatorioListaSemanal(undefined, comum)
+    case 'marketing_apoios_vencendo':
+      return cronApoiosVencendo(comum)
+    case 'marketing_contrapartida': {
+      // O envio de verdade sai da ficha da ação (é lá que se sabe QUAL apoio).
+      // Aqui só dá pra testar, apontando o apoio nos parâmetros da tela.
+      const cfg = await getConfigEnvio('marketing_contrapartida')
+      const apoioId = String(cfg.parametros?.apoio_id || '').trim()
+      if (!apoioId) {
+        throw new Error('Informe o apoio_id nos parâmetros — o envio normal sai da ficha da ação, em /marketing.')
+      }
+      return enviarContrapartida({
+        apoioId,
+        enviadoPor: a.usuario,
+        origem: teste ? 'teste' : 'manual',
+        ...(teste ? { to: a.destinatariosTeste } : {}),
+      })
+    }
     default:
       throw new Error(`envio sem despacho: ${a.chave}`)
   }
