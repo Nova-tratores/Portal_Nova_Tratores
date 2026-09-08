@@ -37,6 +37,8 @@ export interface CotacaoResumo {
   valor: number | null
   valor_cru: string
   obs: string
+  anexo: string                // path cru no bucket `requisicoes` ('' = sem anexo)
+  anexo_url: string | null     // resolvido pelo chamador (lib fica pura)
 }
 
 export interface TicketVinculoEnriquecido extends TicketVinculo {
@@ -98,15 +100,20 @@ export function labelRequisicao(r: { id: number | string; titulo?: string | null
   return `#${r.id} ${texto(r.titulo)}`.trim().slice(0, 140)
 }
 
-// req_cotacao é "wide": fornecedor1..5, servico_material1..5, valor1..5, obs1..5.
+// req_cotacao é "wide": fornecedor1..5, servico_material1..5, valor1..5, obs1..5, anexo1..5.
 // Um slot conta só se fornecedorN estiver preenchido; buracos (1,2,4) são preservados.
-export function normalizarCotacoes(row: Record<string, unknown> | null | undefined): CotacaoResumo[] {
+// `urlAnexo` resolve path → URL pública (o chamador passa; sem ele, anexo_url = null).
+export function normalizarCotacoes(
+  row: Record<string, unknown> | null | undefined,
+  urlAnexo: (path: string) => string | null = () => null,
+): CotacaoResumo[] {
   if (!row) return []
   const out: CotacaoResumo[] = []
   for (let n = 1; n <= 5; n++) {
     const fornecedor = texto(row[`fornecedor${n}`])
     if (!fornecedor) continue
     const valor_cru = texto(row[`valor${n}`])
+    const anexo = texto(row[`anexo${n}`])
     out.push({
       n,
       fornecedor,
@@ -114,6 +121,8 @@ export function normalizarCotacoes(row: Record<string, unknown> | null | undefin
       valor: valorOuNull(valor_cru),
       valor_cru,
       obs: texto(row[`obs${n}`]),
+      anexo,
+      anexo_url: anexo ? urlAnexo(anexo) : null,
     })
   }
   return out

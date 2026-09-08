@@ -245,7 +245,12 @@ export default function TemplatePDF({ req, anexos = [] }: { req: any, anexos?: {
               <tbody className="text-[13px]">
                 {[1, 2, 3, 4, 5].map(i => cotacaoData[`fornecedor${i}`] ? (
                   <tr key={i} className="border-b border-slate-200 last:border-0">
-                    <td className="p-2 border-r-2 border-black uppercase">{cotacaoData[`fornecedor${i}`]}</td>
+                    <td className="p-2 border-r-2 border-black uppercase">
+                      {cotacaoData[`fornecedor${i}`]}
+                      {cotacaoData[`obs${i}`] && (
+                        <div className="text-[10px] font-normal normal-case text-slate-600 whitespace-pre-wrap">{cotacaoData[`obs${i}`]}</div>
+                      )}
+                    </td>
                     <td className="p-2 border-r-2 border-black uppercase">{cotacaoData[`servico_material${i}`]}</td>
                     <td className="p-2 text-right font-bold">R$ {cotacaoData[`valor${i}`]}</td>
                   </tr>

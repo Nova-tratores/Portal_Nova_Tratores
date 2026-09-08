@@ -18,6 +18,7 @@
 - Kanban: **filtros unificados** numa só busca (com tooltip) + filtro de **data exata** (em vez de período).
 - Botão "Alertas" removido; lixeira **sem exclusão permanente**; gestor de tags sem emojis + sem duplicadas; **legendas (tooltips)** nos ícones dos cards.
 - Notificação só em **alteração real** (corrigida a falsa por reformatação do valor).
+- **Mapa de Cotações com observação + anexo por fornecedor (08/09/2026):** modal do `CardReq` ganhou textarea `obsN` (coluna já existia, nunca teve input; **sai no PDF** em linha pequena sob o fornecedor, nos dois PDFs) e anexo `anexoN` (print/PDF do orçamento; bucket público `requisicoes`, path `{reqId}-cotacaoN-{ts}.{ext}`, **persiste na hora** via upsert — não depende do "Salvar"; imagem passa pelo mesmo `RecorteAnexo`, cujo estado agora leva `aoConfirmar`; anexo NÃO entra no PDF; ticket mostra clipe no `CardVinculos`). Migration `sql/req-cotacao-anexos.sql` — ⚠️ **APLICAR ANTES do deploy**: o "Salvar" do mapa faz upsert com todas as colunas, sem `anexo1..5` ele quebra inteiro. `req_cotacao` é legado AppSheet: sem CREATE versionado, **sem RLS**, escrita direta do browser (não mudado). `removerCotacao` faz shift de obs+anexo junto.
 
 ### Papel "Dev" + bloqueio de valor alto + histórico
 - Coluna `is_dev` em `portal_permissoes`. SQL: `sql/dev-bloqueio-historico.sql` (**JÁ APLICADO** no Supabase). **Dev = Admin + extras**. 1º dev: `antonio.novatratores@gmail.com`.

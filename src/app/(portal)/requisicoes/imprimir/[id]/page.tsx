@@ -225,7 +225,12 @@ export default function ImprimirRequisicao() {
               <tbody>
                 {[1, 2, 3, 4, 5].map(i => cotacaoData[`fornecedor${i}`] ? (
                   <tr key={i} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: 8, borderRight: '2px solid #000', fontSize: 13, textTransform: 'uppercase' }}>{cotacaoData[`fornecedor${i}`]}</td>
+                    <td style={{ padding: 8, borderRight: '2px solid #000', fontSize: 13, textTransform: 'uppercase' }}>
+                      {cotacaoData[`fornecedor${i}`]}
+                      {cotacaoData[`obs${i}`] && (
+                        <div style={{ fontSize: 10, fontWeight: 400, textTransform: 'none', color: '#475569', whiteSpace: 'pre-wrap' }}>{cotacaoData[`obs${i}`]}</div>
+                      )}
+                    </td>
                     <td style={{ padding: 8, borderRight: '2px solid #000', fontSize: 13, textTransform: 'uppercase' }}>{cotacaoData[`servico_material${i}`]}</td>
                     <td style={{ padding: 8, fontSize: 13, fontWeight: 700, textAlign: 'right' }}>R$ {cotacaoData[`valor${i}`]}</td>
                   </tr>

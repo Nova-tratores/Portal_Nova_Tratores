@@ -39,6 +39,16 @@ describe('normalizarCotacoes', () => {
     expect(normalizarCotacoes({ fornecedor1: 'X', valor1: 'R$' })[0].valor).toBeNull()
   })
 
+  it('anexo: path cru sempre; URL só via callback do chamador (lib pura)', () => {
+    const row = { fornecedor1: 'A', anexo1: '6352-cotacao1-1.pdf', fornecedor2: 'B' }
+    const semCb = normalizarCotacoes(row)
+    expect(semCb[0]).toMatchObject({ anexo: '6352-cotacao1-1.pdf', anexo_url: null })
+    expect(semCb[1]).toMatchObject({ anexo: '', anexo_url: null })
+    const comCb = normalizarCotacoes(row, (p) => `https://x/${p}`)
+    expect(comCb[0].anexo_url).toBe('https://x/6352-cotacao1-1.pdf')
+    expect(comCb[1].anexo_url).toBeNull()   // sem anexo não chama o callback
+  })
+
   it('valor null vira valor:null e valor_cru vazio', () => {
     const [c] = normalizarCotacoes({ fornecedor1: 'X', valor1: null })
     expect(c.valor).toBeNull()

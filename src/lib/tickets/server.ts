@@ -184,6 +184,10 @@ export async function carregarVinculos(ticketId: string): Promise<TicketVinculoE
     for (const row of (c.data || []) as Record<string, unknown>[]) cots.set(Number(row.id), row)
   }
 
+  // Anexo da cotação: path no bucket público `requisicoes` (idioma de foto_nf).
+  const urlAnexo = (p: string) =>
+    p.startsWith('http') ? p : supabaseAdmin.storage.from('requisicoes').getPublicUrl(p).data.publicUrl
+
   return vinculos.map((v) => {
     const id = Number(v.vinculo_ref)
     const requisicao = reqs.get(id)
@@ -191,7 +195,7 @@ export async function carregarVinculos(ticketId: string): Promise<TicketVinculoE
       ...v,
       existe: !!requisicao,
       requisicao,
-      cotacoes: requisicao ? normalizarCotacoes(cots.get(id)) : [],
+      cotacoes: requisicao ? normalizarCotacoes(cots.get(id), urlAnexo) : [],
     }
   })
 }

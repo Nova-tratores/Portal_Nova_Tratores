@@ -3,7 +3,7 @@
 // resumo (status, fornecedor, valor), link pro card e o mapa de cotações
 // expansível (req_cotacao é 1:1 com a requisição — vem junto do vínculo).
 import { useState } from 'react'
-import { Link2, Plus, X, ExternalLink, ChevronDown, AlertTriangle } from 'lucide-react'
+import { Link2, Plus, X, ExternalLink, ChevronDown, AlertTriangle, Paperclip } from 'lucide-react'
 import RequisicaoSelect from './RequisicaoSelect'
 import { formatarBRL, statusReqInfo, type TicketVinculoEnriquecido, type RequisicaoResumo } from '@/lib/tickets/vinculos'
 
@@ -119,7 +119,13 @@ export default function CardVinculos({ vinculos, podeEditar, agindo, cartao, onV
                           <td style={{ padding: '4px', verticalAlign: 'top' }}>{c.n}</td>
                           <td style={{ padding: '4px', verticalAlign: 'top' }}>
                             {c.fornecedor}
-                            {c.obs && <div style={{ fontSize: 10.5, color: 'var(--portal-text-muted,#888)' }}>{c.obs}</div>}
+                            {c.anexo_url && (
+                              <a href={c.anexo_url} target="_blank" rel="noopener noreferrer" title="Abrir anexo da cotação"
+                                style={{ display: 'inline-flex', verticalAlign: 'middle', marginLeft: 5, color: '#ea580c' }}>
+                                <Paperclip size={11} />
+                              </a>
+                            )}
+                            {c.obs && <div style={{ fontSize: 10.5, color: 'var(--portal-text-muted,#888)', whiteSpace: 'pre-wrap' }}>{c.obs}</div>}
                           </td>
                           <td style={{ padding: '4px', verticalAlign: 'top' }}>{c.servico_material || '—'}</td>
                           <td style={{ padding: '4px', verticalAlign: 'top', textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 700 }}>{formatarBRL(c.valor, c.valor_cru)}</td>

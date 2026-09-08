@@ -18,7 +18,7 @@ import HistoricoModal from './HistoricoModal';
 import TicketsDaReq from './TicketsDaReq';
 import RecorteAnexo from './RecorteAnexo';
 import DialogoImprimirReq from './DialogoImprimirReq';
-import { anexosDaReq, anexosNoDrive as anexosNoDriveDe } from '@/lib/requisicoes/anexos';
+import { anexosDaReq, anexosNoDrive as anexosNoDriveDe, getUrlAnexo } from '@/lib/requisicoes/anexos';
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
@@ -227,7 +227,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   useEffect(() => {
     if (!modalAberto && !modalCotacaoAberto) return;
     if (cotacaoCarregada) return;
-    supabase.from('req_cotacao').select('*').eq('id', req.id).single().then(({ data }) => {
+    supabase.from('req_cotacao').select('*').eq('id', req.id).maybeSingle().then(({ data }) => {
       if (data) {
         setCotacaoData(data);
         let count = 1;
@@ -327,6 +327,11 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     setLocalData((prev: any) => ({ ...prev, [name]: value }));
   }, []);
 
+  // Última versão do mapa — pro upload do anexo (assíncrono) não sobrescrever
+  // o que a pessoa digitou na observação enquanto o arquivo subia.
+  const cotacaoRef = useRef<any>({});
+  cotacaoRef.current = cotacaoData;
+
   const removerCotacao = (idx: number) => {
     if (confirm(`Remover o Fornecedor ${idx} e reorganizar a lista?`)) {
       const newData = { ...cotacaoData };
@@ -335,8 +340,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
         newData[`servico_material${j}`] = newData[`servico_material${j + 1}`] || '';
         newData[`valor${j}`] = newData[`valor${j + 1}`] || '';
         newData[`obs${j}`] = newData[`obs${j + 1}`] || '';
+        newData[`anexo${j}`] = newData[`anexo${j + 1}`] || null;
       }
-      newData.fornecedor5 = ''; newData.servico_material5 = ''; newData.valor5 = ''; newData.obs5 = '';
+      newData.fornecedor5 = ''; newData.servico_material5 = ''; newData.valor5 = ''; newData.obs5 = ''; newData.anexo5 = null;
       setCotacaoData(newData);
       setFornecedoresVisiveis(prev => Math.max(1, prev - 1));
       supabase.from('req_cotacao').upsert({ id: req.id, ...newData });
@@ -346,14 +352,49 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   const salvarCotacao = async () => {
     const { error } = await supabase.from('req_cotacao').upsert({ id: req.id, ...cotacaoData });
     if (!error) alert("Mapa de Cotação atualizado!");
+    else alert('Erro ao salvar o mapa: ' + error.message);
   };
 
-  const getUrlAnexo = (caminho: string) => {
-    if (!caminho) return null;
-    if (caminho.startsWith('http')) return caminho;
-    if (caminho.startsWith('SupaAtualizarReq_Images/')) return null;
-    const { data } = supabase.storage.from('requisicoes').getPublicUrl(caminho);
-    return data.publicUrl;
+  // Anexo POR COTAÇÃO (print/PDF do orçamento do fornecedor N). Sobe pro mesmo
+  // bucket `requisicoes` e PERSISTE na hora (como o checkbox "No PDF") — não
+  // depende do "Salvar", pra não perder o arquivo se a pessoa fechar o modal.
+  const enviarAnexoCotacao = async (file: File, idx: number) => {
+    const chave = `cotacao${idx}`;
+    setUploading(chave);
+    setUploadOk(null);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const filePath = `${req.id}-${chave}-${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('requisicoes').upload(filePath, file);
+      if (uploadError) throw uploadError;
+      const novo = { ...cotacaoRef.current, id: req.id, [`anexo${idx}`]: filePath };
+      setCotacaoData(novo);
+      const { error } = await supabase.from('req_cotacao').upsert(novo);
+      if (error) throw error;
+      setUploadOk(chave);
+      setTimeout(() => setUploadOk(null), 2000);
+    } catch (error: any) {
+      alert('Erro ao anexar na cotação: ' + error.message);
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const removerAnexoCotacao = async (idx: number) => {
+    if (!confirm(`Remover o anexo do Fornecedor ${idx}?`)) return;
+    const novo = { ...cotacaoRef.current, id: req.id, [`anexo${idx}`]: null };
+    setCotacaoData(novo);
+    const { error } = await supabase.from('req_cotacao').upsert(novo);
+    if (error) alert('Erro ao remover o anexo: ' + error.message);
+  };
+
+  const handleFileCotacao = (e: React.ChangeEvent<HTMLInputElement>, idx: number) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    // Imagem passa pelo mesmo recorte dos outros anexos; PDF sobe direto.
+    if (file.type.startsWith('image/')) { setRecorte({ arquivo: file, label: `Cotação ${idx}`, aoConfirmar: (f) => enviarAnexoCotacao(f, idx) }); return; }
+    enviarAnexoCotacao(file, idx);
   };
 
   const abrirArquivoDrive = (caminho: string) => {
@@ -374,13 +415,15 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   // Anexo de imagem passa OBRIGATORIAMENTE pelo recorte antes de subir — as
   // fotos vinham com mesa e chão em volta do papel. PDF vai direto (não dá pra
   // recortar aqui, e quem manda PDF já manda o documento enquadrado).
-  const [recorte, setRecorte] = useState<{ arquivo: File; field: string; label: string } | null>(null);
+  // `aoConfirmar` diz pra onde vai o arquivo cortado: anexo da requisição
+  // (enviarAnexo) ou anexo de uma cotação (enviarAnexoCotacao).
+  const [recorte, setRecorte] = useState<{ arquivo: File; label: string; aoConfirmar: (f: File) => void } | null>(null);
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, fieldName: string, label: string) => {
     const file = e.target.files?.[0];
     e.target.value = '';   // deixa reescolher o MESMO arquivo depois de cancelar
     if (!file) return;
-    if (file.type.startsWith('image/')) { setRecorte({ arquivo: file, field: fieldName, label }); return; }
+    if (file.type.startsWith('image/')) { setRecorte({ arquivo: file, label, aoConfirmar: (f) => enviarAnexo(f, fieldName) }); return; }
     enviarAnexo(file, fieldName);
   };
 
@@ -560,6 +603,49 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                         <input value={cotacaoData[`valor${idx}`] || ''} onChange={e => setCotacaoData({...cotacaoData, [`valor${idx}`]: e.target.value})} className={inputBase} placeholder="0,00" />
                       </div>
                     </div>
+                    {/* Observação (sai no PDF) + anexo da cotação (só na tela) */}
+                    {(() => {
+                      const chave = `cotacao${idx}`;
+                      const caminho = cotacaoData[`anexo${idx}`] as string | null | undefined;
+                      const url = getUrlAnexo(caminho);
+                      const temAnexo = !!caminho;
+                      const enviando = uploading === chave;
+                      const enviado = uploadOk === chave;
+                      return (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                          <div className="md:col-span-2">
+                            <label className={labelBase}><FileText size={11}/> Observação</label>
+                            <textarea rows={2} value={cotacaoData[`obs${idx}`] || ''}
+                              onChange={e => setCotacaoData({...cotacaoData, [`obs${idx}`]: e.target.value})}
+                              className={`${inputBase} resize-y min-h-[52px]`} placeholder="Prazo, frete, condição de pagamento..." />
+                          </div>
+                          <div>
+                            <label className={labelBase}><Paperclip size={11}/> Anexo</label>
+                            <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border transition-all ${temAnexo ? 'border-emerald-200 bg-emerald-50/50' : 'border-zinc-200 bg-white'}`}>
+                              <span className={`text-sm font-medium flex-1 min-w-0 truncate ${temAnexo ? 'text-emerald-700' : 'text-black'}`}>
+                                {enviando ? 'Enviando...' : enviado ? 'Enviado!' : temAnexo ? 'Orçamento anexado' : 'Print ou PDF'}
+                              </span>
+                              {temAnexo && url && (
+                                <a href={url} target="_blank" rel="noopener noreferrer" className="w-7 h-7 flex items-center justify-center rounded bg-orange-600 text-white hover:bg-orange-500 transition-all shrink-0" title="Ver anexo">
+                                  <Eye size={12} />
+                                </a>
+                              )}
+                              {temAnexo && !enviando && (
+                                <button type="button" onClick={() => removerAnexoCotacao(idx)} className="w-7 h-7 flex items-center justify-center rounded bg-zinc-200 text-black hover:bg-red-500 hover:text-white transition-all shrink-0" title="Remover anexo">
+                                  <X size={12} />
+                                </button>
+                              )}
+                              <label className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer transition-all shrink-0 ${
+                                enviado ? 'bg-emerald-500 text-white' : enviando ? 'bg-zinc-200 text-black' : 'bg-zinc-200 text-black hover:bg-orange-600 hover:text-white'
+                              }`} title={temAnexo ? 'Substituir arquivo' : 'Enviar arquivo'}>
+                                {enviado ? <Check size={12} /> : <Upload size={12} />}
+                                <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => handleFileCotacao(e, idx)} disabled={enviando} />
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
@@ -1225,7 +1311,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
           arquivo={recorte.arquivo}
           titulo={recorte.label}
           onCancelar={() => setRecorte(null)}
-          onConfirmar={(cortado) => { const f = recorte.field; setRecorte(null); enviarAnexo(cortado, f); }}
+          onConfirmar={(cortado) => { const cb = recorte.aoConfirmar; setRecorte(null); cb(cortado); }}
         />
       )}
     </div>
