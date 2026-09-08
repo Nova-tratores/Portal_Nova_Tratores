@@ -28,6 +28,7 @@ import LeadsAba from '@/components/marketing/abas/LeadsAba';
 import PropostasAba from '@/components/marketing/abas/PropostasAba';
 import ListaSimples, { SPEC_EQUIPE, SPEC_ITENS, SPEC_REALIZADAS, SPEC_CONCORRENTES, SPEC_MIDIAS } from '@/components/marketing/abas/ListaSimples';
 import AvaliacaoAba from '@/components/marketing/abas/AvaliacaoAba';
+import QuestionarioAba from '@/components/marketing/abas/QuestionarioAba';
 import RelatorioAba from '@/components/marketing/abas/RelatorioAba';
 import {
   apiGet, apiEnviar, periodoBR, Selo, Vazio, AvisoMigracao, Erro, ROSA,
@@ -36,7 +37,7 @@ import {
 const ABAS = [
   'Resumo', 'Apoio de fábrica', 'Investimento', 'Leads', 'Propostas',
   'Equipe', 'Itens expostos', 'Ações realizadas', 'Concorrentes', 'Mídia',
-  'Avaliação', 'Relatório',
+  'Avaliação', 'Questionário', 'Relatório',
 ] as const;
 type Aba = (typeof ABAS)[number];
 
@@ -200,6 +201,7 @@ export default function FichaAcaoPage() {
       {aba === 'Concorrentes' && <ListaSimples spec={SPEC_CONCORRENTES} acaoId={id} itens={ficha.concorrentes} onMudou={carregar} />}
       {aba === 'Mídia' && <ListaSimples spec={SPEC_MIDIAS} acaoId={id} itens={ficha.midias} apoios={ficha.apoios} onMudou={carregar} />}
       {aba === 'Avaliação' && <AvaliacaoAba acaoId={id} avaliacoes={ficha.avaliacoes} onMudou={carregar} />}
+      {aba === 'Questionário' && <QuestionarioAba acaoId={id} acaoNome={acao.nome} onMudou={carregar} />}
       {aba === 'Relatório' && <RelatorioAba apoios={ficha.apoios} onMudou={carregar} />}
 
       <Modal titulo="Editar ação" aberto={editando} onFechar={() => setEditando(false)}>

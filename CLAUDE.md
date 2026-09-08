@@ -126,6 +126,17 @@ Objetivo: Tratorilson **atende clientes no WhatsApp** (revisão / manutenção /
 - Destinatários no BANCO (tela Dev → Envios de e-mail): chaves `marketing_contrapartida` e `marketing_apoios_vencendo`, semeadas DESLIGADAS. `relatorio:enviar` é permissão separada — única ação do módulo que manda e-mail pra fora da empresa (checada na rota, não só no botão).
 - ⚠️ Gotcha achado no caminho: no `dashboard/page.tsx`, card cujo id NÃO está em `systemToModulo` aparece pra **TODO MUNDO** (o filtro devolve `true` quando não acha o módulo).
 
+#### Questionário pós-evento por link único (`/q/<token>`)
+- Serve pra quando a memória do evento está com quem NÃO usa o módulo (ou saiu da empresa). Um link por pessoa, **sem login**, mobile-first: 26 perguntas em texto livre, autosave 1,5 s, dá pra fechar e voltar. Caso de origem: IRRIGASHOW 2026 respondido pelo **Dougras Mogrs de Jesus Bonfim** (Comercial).
+- **Migration `sql/marketing-questionario.sql`** — ⚠️ CONFERIR SE FOI APLICADA. Cria `mkt_questionario_links` + `mkt_questionario_respostas` (RLS ON, zero policy) e 7 colunas de destino: `mkt_acoes.{dias_participacao,publico_total_evento,stand_descricao}` e `mkt_avaliacoes.{perfil_publico,produtos_mais_interesse,percepcao_marca,justificativa}`.
+- **SEM RPC.** A spec original pedia `SECURITY DEFINER` chamado pela anon key; aqui o respondente fala com `/api/q/<token>` (service role, valida o token no servidor). O **token nasce no Node** (`randomBytes(32).toString('base64url')`) — `encode(...,'base64url')` só existe no PG 18.
+- Perguntas e mapa de importação em **lib pura** `src/lib/marketing/questionario.ts` (28 testes). Ids `q01..q26` são FIXOS: renumerar quebraria a leitura do que já foi respondido. Acesso ao banco em `questionario-db.ts`.
+- Rotas: `GET/PATCH /api/q/[token]`, `POST /api/q/[token]/enviar` (públicas); `/api/marketing/questionario` (GET/POST/PATCH/DELETE) e `/questionario/importar` (GET prévia + POST) na aba **Questionário** da ficha da ação.
+- **Merge campo a campo** no salvamento: dois aparelhos no mesmo link não apagam o campo um do outro. Piso de **1 s** entre gravações (não 2 s como na spec — com debounce de 1,5 s, 2 s recusaria gravação legítima); o cliente reenfileira no 429.
+- "Enviar" do respondente **NÃO trava** a edição — quem fecha é admin (`editavel=false`), pra pessoa poder complementar depois.
+- **Importação nunca sobrescreve calado**: `preverImportacao` mostra o que vai gravar e marca conflito; substituir exige confirmação. Numérica sem número legível (`extrairNumero`) vai pras observações em vez de inventar valor. `q25` cai em `justificativa` — o enum `repetir` continua escolha humana. `mesclarObservacoes` atualiza a linha `qNN:` em vez de empilhar.
+- Seed idempotente: `node scripts/questionario-seed-irrigashow.mjs` (cria a ação só com nome/tipo — o resto é o que o questionário vai descobrir — e imprime a URL).
+
 ## Próximos passos
 1. Construir o **webhook do WhatsApp** (`/api/whatsapp/webhook`: GET verifica, POST recebe) + função de **enviar** + ligação ao assistente (modo cliente — ver `docs/tratorilson-whatsapp.md`).
 2. **Publicar no Railway** e configurar as variáveis do WhatsApp + a chave OpenAI.
