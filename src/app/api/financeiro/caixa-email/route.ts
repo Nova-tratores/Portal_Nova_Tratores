@@ -96,6 +96,19 @@ const decodificar = (buf: Buffer, charset: string) => {
   return buf.toString(cs.includes("8859") || cs.includes("latin") ? "latin1" : "utf-8");
 };
 
+// Traduz a aba do painel pra pasta REAL da caixa (Gmail marca as pastas
+// especiais com \Junk e \Sent — os nomes mudam com o idioma da conta).
+async function resolverPasta(client: any, pasta: string): Promise<string> {
+  if (pasta !== "spam" && pasta !== "enviados") return "INBOX";
+  const alvo = pasta === "spam" ? "\\Junk" : "\\Sent";
+  try {
+    const caixas = await client.list();
+    const hit = (caixas || []).find((c: any) => String(c.specialUse || "") === alvo);
+    if (hit?.path) return hit.path;
+  } catch { /* cai nos nomes padrão do Gmail */ }
+  return pasta === "spam" ? "[Gmail]/Spam" : "[Gmail]/E-mails enviados";
+}
+
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
@@ -105,6 +118,7 @@ export async function GET(req: NextRequest) {
 
   const uidParam = req.nextUrl.searchParams.get("uid");
   const anexoParam = req.nextUrl.searchParams.get("anexo");
+  const pastaParam = req.nextUrl.searchParams.get("pasta") || "inbox";
   try {
     // ── Badge: não lidos (STATUS, rápido com pool)
     if (req.nextUrl.searchParams.get("badge") === "1") {
@@ -118,7 +132,7 @@ export async function GET(req: NextRequest) {
     // ── Anexo: baixa SÓ a parte pedida
     if (uidParam && anexoParam) {
       const r = await comImap(auth.userId, cfg, senha, async (client) => {
-        const lock = await client.getMailboxLock("INBOX");
+        const lock = await client.getMailboxLock(await resolverPasta(client, pastaParam));
         try {
           const msg: any = await client.fetchOne(uidParam, { bodyStructure: true }, { uid: true });
           if (!msg?.bodyStructure) return null;
@@ -141,7 +155,7 @@ export async function GET(req: NextRequest) {
     // ── Detalhe: corpo por parte + metadados dos anexos (sem baixá-los)
     if (uidParam) {
       const det = await comImap(auth.userId, cfg, senha, async (client) => {
-        const lock = await client.getMailboxLock("INBOX");
+        const lock = await client.getMailboxLock(await resolverPasta(client, pastaParam));
         try {
           const msg: any = await client.fetchOne(uidParam, { bodyStructure: true, envelope: true }, { uid: true });
           if (!msg?.bodyStructure) return null;
@@ -195,7 +209,7 @@ export async function GET(req: NextRequest) {
 
     // ── Lista: cache de 30s (o botão Atualizar manda ?fresh=1)
     const fresh = req.nextUrl.searchParams.get("fresh") === "1";
-    const chaveCache = auth.userId;
+    const chaveCache = `${auth.userId}:${pastaParam}`;
     const emCache = cacheLista.get(chaveCache);
     if (!fresh && emCache && Date.now() - emCache.ts < 30000) {
       return NextResponse.json(emCache.payload);
@@ -203,7 +217,7 @@ export async function GET(req: NextRequest) {
 
     const porMsgId = await mapaEnviados();
     const emails = await comImap(auth.userId, cfg, senha, async (client) => {
-      const lock = await client.getMailboxLock("INBOX");
+      const lock = await client.getMailboxLock(await resolverPasta(client, pastaParam));
       try {
         const exists = (client.mailbox && typeof client.mailbox === "object" ? client.mailbox.exists : 0) || 0;
         if (exists === 0) return [];
@@ -216,6 +230,8 @@ export async function GET(req: NextRequest) {
             uid: msg.uid,
             de: env.from?.[0]?.address || "",
             deNome: env.from?.[0]?.name || "",
+            para: env.to?.[0]?.address || "",
+            paraNome: env.to?.[0]?.name || "",
             assunto: env.subject || "(sem assunto)",
             data: env.date ? new Date(env.date).toISOString() : null,
             naoLida: !(msg.flags && msg.flags.has("\\Seen")),
@@ -267,7 +283,7 @@ export async function PATCH(req: NextRequest) {
         return 1;
       } finally { lock.release(); }
     });
-    cacheLista.delete(auth.userId);
+    cacheLista.delete(`${auth.userId}:inbox`);
     return NextResponse.json({ ok: true, marcadas });
   } catch (e) {
     return NextResponse.json({ error: `Falha ao marcar: ${e instanceof Error ? e.message : e}` }, { status: 502 });

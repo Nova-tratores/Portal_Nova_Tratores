@@ -37,6 +37,7 @@ export default function CaixaEmail() {
   const [conta, setConta] = useState('')
   const [open, setOpen] = useState(false)
   const [emails, setEmails] = useState([])
+  const [pasta, setPasta] = useState('inbox') // inbox | enviados | spam
   const [busca, setBusca] = useState('')
   const [carregando, setCarregando] = useState(false)
   const [erro, setErro] = useState('')
@@ -87,10 +88,11 @@ export default function CaixaEmail() {
     return () => document.removeEventListener('mousedown', fn)
   }, [open])
 
-  const carregarCaixa = useCallback(async (fresh) => {
+  const carregarCaixa = useCallback(async (fresh, qualPasta) => {
+    const p = qualPasta || 'inbox'
     setCarregando(true); setErro('')
     try {
-      const r = await fetch(`/api/financeiro/caixa-email${fresh ? '?fresh=1' : ''}`, { headers: { ...(await authHeaders()) } })
+      const r = await fetch(`/api/financeiro/caixa-email?pasta=${p}${fresh ? '&fresh=1' : ''}`, { headers: { ...(await authHeaders()) } })
       const j = await r.json()
       if (j.error) setErro(j.error)
       else if (Array.isArray(j.emails)) { setEmails(j.emails); if (j.conta) setConta(j.conta) }
@@ -98,6 +100,12 @@ export default function CaixaEmail() {
     setCarregando(false)
     carregarBadge()
   }, [carregarBadge])
+
+  const trocarPasta = (p) => {
+    if (p === pasta) return
+    setPasta(p); setEmails([]); setBusca('')
+    carregarCaixa(false, p)
+  }
 
   // Pré-carrega a lista logo que o portal abre → clicar no envelope é instantâneo
   useEffect(() => {
@@ -111,13 +119,13 @@ export default function CaixaEmail() {
     if (!temConfig) { setConfigOpen(true); return }
     const novo = !open
     setOpen(novo)
-    if (novo) carregarCaixa(false) // cache de 30s no servidor: resposta imediata
+    if (novo) carregarCaixa(false, pasta) // cache de 30s no servidor: resposta imediata
   }
 
   const abrirMensagem = async (em) => {
     setMsgAberta(em); setDetalhe(null); setResposta(''); setRespOk(''); setCarregandoMsg(true)
     try {
-      const r = await fetch(`/api/financeiro/caixa-email?uid=${em.uid}`, { headers: { ...(await authHeaders()) } })
+      const r = await fetch(`/api/financeiro/caixa-email?uid=${em.uid}&pasta=${pasta}`, { headers: { ...(await authHeaders()) } })
       const j = await r.json()
       if (j.error) setErro(j.error)
       else setDetalhe(j)
@@ -129,7 +137,7 @@ export default function CaixaEmail() {
     if (!msgAberta) return
     setBaixandoAnexo(a.i)
     try {
-      const r = await fetch(`/api/financeiro/caixa-email?uid=${msgAberta.uid}&anexo=${a.i}`, { headers: { ...(await authHeaders()) } })
+      const r = await fetch(`/api/financeiro/caixa-email?uid=${msgAberta.uid}&anexo=${a.i}&pasta=${pasta}`, { headers: { ...(await authHeaders()) } })
       if (!r.ok) throw new Error()
       const blob = await r.blob()
       const url = URL.createObjectURL(blob)
@@ -215,21 +223,21 @@ export default function CaixaEmail() {
 
       {/* ── LISTA (dropdown) ── */}
       {open && (
-        <div style={{ position: 'absolute', top: 52, right: 0, width: 440, maxWidth: '94vw', maxHeight: '72vh', overflowY: 'auto', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', padding: 12, zIndex: 3000 }}>
+        <div style={{ position: 'absolute', top: 52, right: 0, width: 640, maxWidth: '96vw', maxHeight: '80vh', overflowY: 'auto', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, boxShadow: '0 20px 60px rgba(0,0,0,0.35)', padding: 14, zIndex: 3000, fontFamily: '"Segoe UI", system-ui, sans-serif' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 8px 10px' }}>
-            <Mail size={15} style={{ color: '#16a34a', flexShrink: 0 }} />
+            <Mail size={16} style={{ color: '#16a34a', flexShrink: 0 }} />
             <div style={{ flex: 1, minWidth: 0 }}>
-              <b style={{ fontSize: 13.5, color: 'var(--portal-text)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Sua caixa de entrada</b>
-              <span title={conta} style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conta}</span>
+              <b style={{ fontSize: 15, color: 'var(--portal-text)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Seus e-mails</b>
+              <span title={conta} style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{conta}</span>
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
-              {(badge > 0 || emails.some((e) => e.naoLida)) && (
+              {pasta === 'inbox' && (badge > 0 || emails.some((e) => e.naoLida)) && (
                 <button onClick={() => marcarLida(null)} disabled={marcando} title="Marcar TODAS como lidas"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 5, whiteSpace: 'nowrap', background: 'transparent', border: '1px solid #16a34a', borderRadius: 8, padding: '5px 10px', cursor: 'pointer', color: '#16a34a', fontSize: 11.5, fontWeight: 700 }}>
                   <CheckCheck size={13} /> {marcando ? '...' : 'todas lidas'}
                 </button>
               )}
-              <button onClick={() => carregarCaixa(true)} disabled={carregando} title="Atualizar agora (busca direto na caixa)"
+              <button onClick={() => carregarCaixa(true, pasta)} disabled={carregando} title="Atualizar agora (busca direto na caixa)"
                 style={{ background: 'transparent', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', color: 'var(--portal-text-secondary)', display: 'flex' }}>
                 <RefreshCw size={14} className={carregando ? 'spin-envio' : ''} />
               </button>
@@ -238,6 +246,24 @@ export default function CaixaEmail() {
                 <X size={14} />
               </button>
             </div>
+          </div>
+
+          {/* Abas: Caixa de entrada · Enviados · Spam */}
+          <div style={{ display: 'flex', gap: 4, margin: '0 4px 10px', borderBottom: '1px solid var(--portal-border)' }}>
+            {[['inbox', 'Caixa de entrada'], ['enviados', 'Enviados'], ['spam', 'Spam']].map(([p, rot]) => {
+              const on = pasta === p
+              return (
+                <button key={p} onClick={() => trocarPasta(p)}
+                  style={{
+                    background: 'transparent', border: 'none', cursor: 'pointer', padding: '8px 14px',
+                    fontSize: 13.5, fontFamily: 'inherit', fontWeight: on ? 700 : 500,
+                    color: on ? '#16a34a' : 'var(--portal-text-secondary)',
+                    borderBottom: on ? '2.5px solid #16a34a' : '2.5px solid transparent', marginBottom: -1,
+                  }}>
+                  {rot}{p === 'inbox' && badge > 0 ? ` (${badge})` : ''}
+                </button>
+              )
+            })}
           </div>
 
           {/* Filtro de pesquisa da caixa (remetente, assunto, cliente) */}
@@ -260,11 +286,11 @@ export default function CaixaEmail() {
           ) : erro && emails.length === 0 ? (
             <div style={{ padding: 18, textAlign: 'center', color: '#dc2626', fontSize: 13 }}>{erro}</div>
           ) : emails.length === 0 ? (
-            <div style={{ padding: 22, textAlign: 'center', color: 'var(--portal-text-secondary)', fontSize: 13 }}>Caixa vazia.</div>
+            <div style={{ padding: 22, textAlign: 'center', color: 'var(--portal-text-secondary)', fontSize: 13.5 }}>{pasta === 'spam' ? 'Sem spam. 🎉' : pasta === 'enviados' ? 'Nenhum e-mail enviado.' : 'Caixa vazia.'}</div>
           ) : (() => {
             const termos = busca.trim().toLowerCase().split(/\s+/).filter(Boolean)
             const visiveis = termos.length === 0 ? emails : emails.filter((em) => {
-              const alvo = `${em.deNome || ''} ${em.de || ''} ${em.assunto || ''} ${em.cliente || ''}`.toLowerCase()
+              const alvo = `${em.deNome || ''} ${em.de || ''} ${em.paraNome || ''} ${em.para || ''} ${em.assunto || ''} ${em.cliente || ''}`.toLowerCase()
               return termos.every((t) => alvo.includes(t))
             })
             if (visiveis.length === 0) return (
@@ -285,12 +311,13 @@ export default function CaixaEmail() {
                     <Reply size={10} /> RESPOSTA A ENVIO
                   </span>
                 )}
-                <b style={{ fontSize: 13, color: 'var(--portal-text)', fontWeight: em.naoLida ? 800 : 600 }}>
-                  {em.naoLida && <span style={{ color: '#16a34a' }}>● </span>}{em.deNome || em.de}
+                <b style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: pasta === 'inbox' && em.naoLida ? 800 : 600 }}>
+                  {pasta === 'inbox' && em.naoLida && <span style={{ color: '#16a34a' }}>● </span>}
+                  {pasta === 'enviados' ? <>Para: {em.paraNome || em.para || '—'}</> : (em.deNome || em.de)}
                 </b>
-                <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--portal-text-secondary)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{fmtData(em.data)}</span>
+                <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--portal-text-secondary)', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{fmtData(em.data)}</span>
               </div>
-              <div style={{ fontSize: 12.5, color: em.naoLida ? 'var(--portal-text)' : 'var(--portal-text-secondary)', fontWeight: em.naoLida ? 700 : 400, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <div style={{ fontSize: 13.5, color: pasta === 'inbox' && em.naoLida ? 'var(--portal-text)' : 'var(--portal-text-secondary)', fontWeight: pasta === 'inbox' && em.naoLida ? 700 : 400, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {em.assunto}
               </div>
               {em.ehResposta && em.cliente && (
@@ -326,7 +353,7 @@ export default function CaixaEmail() {
           onClick={(e) => { if (e.target === e.currentTarget) setMsgAberta(null) }}
           style={{ position: 'fixed', inset: 0, zIndex: 4000, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
         >
-          <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, width: 760, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 80px rgba(0,0,0,0.5)' }}>
+          <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, width: 820, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 80px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", system-ui, sans-serif' }}>
             {/* Cabeçalho */}
             <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--portal-border)', display: 'flex', gap: 10, alignItems: 'flex-start' }}>
               <div style={{ minWidth: 0, flex: 1 }}>
@@ -340,7 +367,7 @@ export default function CaixaEmail() {
                   De: <b style={{ color: 'var(--portal-text)' }}>{msgAberta.deNome ? `${msgAberta.deNome} <${msgAberta.de}>` : msgAberta.de}</b> · {fmtData(msgAberta.data, true)}
                 </div>
               </div>
-              {msgAberta.naoLida && (
+              {pasta === 'inbox' && msgAberta.naoLida && (
                 <button onClick={() => marcarLida(msgAberta.uid)} disabled={marcando} title="Marcar como lida (no seu e-mail também)"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#16a34a', border: 'none', borderRadius: 9, padding: '0 13px', height: 34, cursor: 'pointer', color: '#fff', fontSize: 12.5, fontWeight: 700, flexShrink: 0 }}>
                   <Check size={15} /> {marcando ? '...' : 'Marcar como lida'}
@@ -400,7 +427,8 @@ export default function CaixaEmail() {
               )}
             </div>
 
-            {/* Responder */}
+            {/* Responder (só faz sentido na caixa de entrada) */}
+            {pasta === 'inbox' && (
             <div style={{ borderTop: '1px solid var(--portal-border)', padding: '12px 16px' }}>
               {respOk && <div style={{ fontSize: 12.5, fontWeight: 700, color: '#16a34a', marginBottom: 8 }}>✓ {respOk}</div>}
               <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
@@ -420,6 +448,7 @@ export default function CaixaEmail() {
                 A resposta sai pelo seu e-mail ({conta}) e continua na mesma conversa.
               </div>
             </div>
+            )}
           </div>
         </div>
       )}

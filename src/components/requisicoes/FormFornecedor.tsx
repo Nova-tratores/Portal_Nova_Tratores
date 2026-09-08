@@ -4,7 +4,7 @@ import { supabase } from '@/lib/supabase';
 import {
   Store, Search, Edit3, Trash2, CheckCircle2, RefreshCw, Plus,
   ArrowLeft, ChevronDown, ChevronUp, FileText, ChevronRight, User, Clock,
-  X, ExternalLink,
+  X, ExternalLink, Copy, Check,
 } from 'lucide-react';
 import { anexosDaReq } from '@/lib/requisicoes/anexos';
 
@@ -59,6 +59,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   const [fichaMeses, setFichaMeses] = useState<{ mes: string; total: number; reqs: any[]; topSol: { nome: string; count: number; total: number } | null }[]>([]);
   const [fichaLoading, setFichaLoading] = useState(false);
   const [mesAberto, setMesAberto] = useState<string | null>(null);
+  const [copiado, setCopiado] = useState<string | null>(null);
 
   const [formData, setFormData] = useState({
     nome: '', numero: '', 'cpf/cnpj': '', descricao: '', email: '',
@@ -265,6 +266,25 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     };
     const kpi: React.CSSProperties = { border: '1px solid var(--portal-border)', borderRadius: 12, padding: '14px 16px', background: 'var(--portal-bg-secondary)' };
     const kpiLbl: React.CSSProperties = { fontSize: 12, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' };
+    // Todos os dados cadastrados, com botão de copiar em cada um
+    const dadosForn: [string, string][] = [
+      ['Razão social / Nome', String(fichaForn.nome || '')],
+      ['CNPJ / CPF', String(fichaForn['cpf/cnpj'] || '')],
+      ['Telefone / WhatsApp', String(fichaForn.numero || '')],
+      ['E-mail', String(fichaForn.email || '')],
+      ['Endereço', [fichaForn.endereco, fichaForn.endereco_numero].filter(Boolean).join(', ')],
+      ['Bairro', String(fichaForn.bairro || '')],
+      ['Cidade / UF', [fichaForn.cidade, fichaForn.estado].filter(Boolean).join(' - ')],
+      ['CEP', String(fichaForn.cep || '')],
+      ['Fornece', String(fichaForn.descricao || '')],
+    ];
+    const copiar = (chave: string, texto: string) => {
+      navigator.clipboard?.writeText(texto).then(() => {
+        setCopiado(chave);
+        setTimeout(() => setCopiado((c) => (c === chave ? null : c)), 1600);
+      }).catch(() => {});
+    };
+    const copiarTudo = () => copiar('__tudo__', dadosForn.filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('\n'));
     return (
       <div
         onClick={fecharFicha}
@@ -289,6 +309,30 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
 
           {/* Corpo rolável */}
           <div style={{ padding: '18px 22px', overflowY: 'auto' }}>
+            {/* Dados cadastrais completos, com copiar */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 10px' }}>
+              <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>Dados cadastrais</span>
+              <button onClick={copiarTudo} style={{ ...btnGhost, padding: '6px 12px', fontSize: 12.5 }}>
+                {copiado === '__tudo__' ? <><Check size={14} color="#059669" /> Copiado!</> : <><Copy size={14} /> Copiar tudo</>}
+              </button>
+            </div>
+            <div style={{ ...card, padding: '4px 16px', marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', columnGap: 24 }}>
+              {dadosForn.map(([rot, val]) => (
+                <div key={rot} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--portal-border)', minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>{rot}</div>
+                    <div style={{ fontSize: 13.5, fontWeight: 600, color: val ? 'var(--portal-text)' : 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={val || undefined}>{val || '—'}</div>
+                  </div>
+                  {val && (
+                    <button onClick={() => copiar(rot, val)} title={`Copiar ${rot.toLowerCase()}`}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 5, borderRadius: 7, color: copiado === rot ? '#059669' : 'var(--portal-text-muted)', flexShrink: 0, display: 'flex' }}>
+                      {copiado === rot ? <Check size={15} /> : <Copy size={15} />}
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
               <div style={kpi}><div style={kpiLbl}>Requisições</div><div style={{ fontSize: 26, fontWeight: 700, color: '#2563eb', marginTop: 5 }}>{st?.count || 0}</div></div>
               <div style={kpi}><div style={kpiLbl}>Valor total</div><div style={{ fontSize: 22, fontWeight: 700, color: '#059669', marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(st?.total || 0)}</div></div>
