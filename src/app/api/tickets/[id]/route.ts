@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { temModuloTickets, carregarTicket, podeVer } from '@/lib/tickets/server'
+import { temModuloTickets, carregarTicket, podeVer, carregarVinculos } from '@/lib/tickets/server'
 import type { TicketEvento } from '@/lib/tickets/constantes'
 
 export const runtime = 'nodejs'
@@ -24,15 +24,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Ticket não encontrado' }, { status: 404 })
   }
 
-  const { data: eventos } = await supabaseAdmin
-    .from('tickets_eventos')
-    .select('*')
-    .eq('ticket_id', id)
-    .order('created_at', { ascending: true })
-    .limit(1000)
+  // Timeline e vínculos (requisições + cotações) em paralelo.
+  const [{ data: eventos }, vinculos] = await Promise.all([
+    supabaseAdmin
+      .from('tickets_eventos')
+      .select('*')
+      .eq('ticket_id', id)
+      .order('created_at', { ascending: true })
+      .limit(1000),
+    carregarVinculos(id),
+  ])
 
   const ids = new Set<string>([ticket.solicitante_id, ticket.responsavel_id])
   for (const p of participantes) ids.add(p.user_id)
+  for (const v of vinculos) if (v.criado_por) ids.add(v.criado_por)
   for (const e of (eventos || []) as TicketEvento[]) {
     if (e.autor_id) ids.add(e.autor_id)
     const para = e.payload?.para
@@ -50,5 +55,5 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const usuarios: Record<string, { id: string; nome: string; avatar_url: string | null }> = {}
   for (const u of usuariosData || []) usuarios[u.id] = u
 
-  return NextResponse.json({ ticket, participantes, eventos: eventos || [], usuarios })
+  return NextResponse.json({ ticket, participantes, eventos: eventos || [], usuarios, vinculos })
 }

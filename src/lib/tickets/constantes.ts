@@ -25,6 +25,9 @@ export type EventoTipo =
   // War Room (tipo='war_room')
   | 'wr_acao_criada'
   | 'wr_decisao_vinculada'
+  // Vínculos a outras entidades (requisições) — sql/tickets-vinculos.sql
+  | 'vinculo_adicionado'
+  | 'vinculo_removido'
 
 export interface Ticket {
   id: string

@@ -2,7 +2,8 @@
 // POST /api/tickets/:id/acoes  { acao, ...campos }
 //
 // Ações: comentar | anexar | transferir | status | pedir_atualizacao |
-//        participante_add | participante_remover | visibilidade | editar
+//        participante_add | participante_remover | visibilidade | editar |
+//        vincular | desvincular (requisições — sql/tickets-vinculos.sql)
 //
 // Regras (conceito seções 3–4): responsável único; transferência direta sem
 // aceite (responsável atual ou solicitante); timeline append-only; participante
@@ -13,8 +14,10 @@ import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import {
   temModuloTickets, carregarTicket, podeVer, ehParticipanteAtivo, envolvidos,
   garantirParticipante, registrarEvento, notificarTicket, validarTransicao, camposDoStatus,
+  buscarRequisicaoResumo,
 } from '@/lib/tickets/server'
 import { STATUS_FINAIS, STATUS_INFO, type Ticket, type TicketParticipante, type TicketStatus } from '@/lib/tickets/constantes'
+import { labelRequisicao } from '@/lib/tickets/vinculos'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -237,6 +240,56 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
     if (error) return erro(error.message, 500)
     await registrarEvento(id, auth.userId, 'edicao', { mudancas })
+    return NextResponse.json({ ok: true })
+  }
+
+  // ------------------------------------------------------------- vincular
+  // { acao:'vincular', vinculo_tipo?:'requisicao', vinculo_ref:'6423' }
+  // Liga uma requisição ao ticket (o mapa de cotações vem junto — é 1:1).
+  // Qualquer envolvido (ou admin) pode; ticket encerrado não aceita.
+  if (acao === 'vincular') {
+    if (encerrado) return erro('Ticket encerrado — não aceita novos vínculos.')
+    if (!ehEnvolvido(ticket, participantes, auth) && !auth.isAdmin) return erro('Sem permissão', 403)
+    const tipo = String(body.vinculo_tipo || 'requisicao')
+    if (tipo !== 'requisicao') return erro('Tipo de vínculo inválido')
+    const ref = String(body.vinculo_ref || '').trim().replace(/^#/, '')
+    if (!/^\d+$/.test(ref)) return erro('Informe o número da requisição')
+    const r = await buscarRequisicaoResumo(Number(ref))
+    if (!r) return erro('Requisição não encontrada', 404)
+    if (r.status === 'lixeira') return erro('Esta requisição está na lixeira.')
+    const label = labelRequisicao(r)
+    // INSERT antes do evento: se o UNIQUE barrar, não fica evento órfão.
+    const { error } = await supabaseAdmin.from('tickets_vinculos').insert({
+      ticket_id: id, vinculo_tipo: tipo, vinculo_ref: ref, vinculo_label: label, criado_por: auth.userId,
+    })
+    if (error) {
+      if (error.code === '23505') return erro('Esta requisição já está vinculada a este ticket.')
+      return erro(error.message, 500)
+    }
+    const err = await registrarEvento(id, auth.userId, 'vinculo_adicionado', { vinculo_tipo: tipo, vinculo_ref: ref, label })
+    if (err) return erro(err, 500)
+    const autor = await nomeDe(auth.userId)
+    await notificarTicket(ticket, todos, auth.userId,
+      `${autor} vinculou a requisição #${ref} ao ticket #${ticket.numero}`, label)
+    return NextResponse.json({ ok: true })
+  }
+
+  // ---------------------------------------------------------- desvincular
+  // { acao:'desvincular', vinculo_id:'uuid' } — DELETE físico + evento com o
+  // snapshot (o rastro fica na timeline). Sem notificação, como participante_remover.
+  if (acao === 'desvincular') {
+    if (encerrado) return erro('Ticket encerrado.')
+    if (!ehEnvolvido(ticket, participantes, auth) && !auth.isAdmin) return erro('Sem permissão', 403)
+    const vinculoId = String(body.vinculo_id || '').trim()
+    if (!vinculoId) return erro('Vínculo não informado')
+    const { data: v } = await supabaseAdmin
+      .from('tickets_vinculos').select('*').eq('id', vinculoId).eq('ticket_id', id).maybeSingle()
+    if (!v) return erro('Vínculo não encontrado', 404)
+    const { error } = await supabaseAdmin.from('tickets_vinculos').delete().eq('id', v.id)
+    if (error) return erro(error.message, 500)
+    await registrarEvento(id, auth.userId, 'vinculo_removido', {
+      vinculo_tipo: v.vinculo_tipo, vinculo_ref: v.vinculo_ref, label: v.vinculo_label,
+    })
     return NextResponse.json({ ok: true })
   }
 

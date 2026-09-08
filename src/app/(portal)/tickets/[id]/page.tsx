@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Send, User as UserIcon, Users, CalendarDays, Tag, Building2, Lock, Globe,
   ArrowRightLeft, BellRing, Plus, X, MessageSquare, CircleDot, PenLine, Paperclip,
-  CheckCircle2, RotateCcw, Ban, Clock,
+  CheckCircle2, RotateCcw, Ban, Clock, Link2, Unlink,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -21,6 +21,8 @@ import {
 } from '@/lib/tickets/constantes'
 import StatusBadge from '@/components/tickets/StatusBadge'
 import UserSelect from '@/components/tickets/UserSelect'
+import CardVinculos from '@/components/tickets/CardVinculos'
+import type { TicketVinculoEnriquecido } from '@/lib/tickets/vinculos'
 
 const EVENTO_ICONE: Record<string, React.ReactNode> = {
   criacao: <CircleDot size={14} />,
@@ -32,6 +34,8 @@ const EVENTO_ICONE: Record<string, React.ReactNode> = {
   pedido_atualizacao: <BellRing size={14} />,
   edicao: <PenLine size={14} />,
   anexo: <Paperclip size={14} />,
+  vinculo_adicionado: <Link2 size={14} />,
+  vinculo_removido: <Unlink size={14} />,
 }
 
 const ROTULO_STATUS_ACAO: Partial<Record<TicketStatus, { rotulo: string; icone: React.ReactNode; destaque?: boolean }>> = {
@@ -54,6 +58,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
   const [eventos, setEventos] = useState<TicketEvento[]>([])
   const [participantes, setParticipantes] = useState<TicketParticipante[]>([])
   const [usuarios, setUsuarios] = useState<Record<string, UsuarioMin>>({})
+  const [vinculos, setVinculos] = useState<TicketVinculoEnriquecido[]>([])
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [erroAcao, setErroAcao] = useState('')
@@ -79,6 +84,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
       setEventos(json.eventos || [])
       setParticipantes(json.participantes || [])
       setUsuarios(json.usuarios || {})
+      setVinculos(json.vinculos || [])
       setErro('')
     } catch {
       setErro('Falha de conexão')
@@ -307,6 +313,16 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
                   texto = <>editou {campos.map((c) => c === 'terceiro_envolvido' ? 'terceiro' : c).join(', ')}</>
                 }
               }
+              else if (e.tipo === 'vinculo_adicionado' || e.tipo === 'vinculo_removido') {
+                const ref = String(e.payload.vinculo_ref || '')
+                const label = String(e.payload.label || `#${ref}`)
+                texto = (
+                  <>
+                    {e.tipo === 'vinculo_adicionado' ? 'vinculou' : 'desvinculou'} a requisição{' '}
+                    <a href={`/requisicoes?req=${encodeURIComponent(ref)}`} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: 'inherit' }}>{label}</a>
+                  </>
+                )
+              }
               else if (e.tipo === 'anexo') {
                 const urlAnexo = typeof e.payload.url === 'string' ? e.payload.url : ''
                 const ehImagem = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(urlAnexo)
@@ -471,6 +487,20 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
               </div>
             )}
           </div>
+
+          {/* Requisições vinculadas (+ mapa de cotações) */}
+          <CardVinculos
+            vinculos={vinculos}
+            cartao={cartao}
+            agindo={agindo}
+            podeEditar={!encerrado && (souResponsavel || souSolicitante || souParticipante || isAdmin)}
+            onVincular={(r) => acao({ acao: 'vincular', vinculo_tipo: 'requisicao', vinculo_ref: String(r.id) })}
+            onDesvincular={(v) => {
+              if (window.confirm(`Desvincular a requisição ${v.vinculo_label || '#' + v.vinculo_ref} deste ticket?`)) {
+                acao({ acao: 'desvincular', vinculo_id: v.id })
+              }
+            }}
+          />
 
           {/* Participantes */}
           <div style={cartao}>

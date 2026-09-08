@@ -6,6 +6,10 @@ import { filtrarDestinatarios, type PrefsDestinatario } from '@/lib/notif/prefs'
 import type { Autenticado } from '@/lib/auth/server'
 import type { Ticket, TicketParticipante, TicketStatus, EventoTipo } from './constantes'
 import { STATUS_FINAIS, TRANSICOES_RESPONSAVEL, TRANSICOES_SOLICITANTE } from './constantes'
+import {
+  COLS_REQ_RESUMO, normalizarCotacoes, resumoRequisicao,
+  type RequisicaoResumo, type TicketVinculo, type TicketVinculoEnriquecido,
+} from './vinculos'
 
 // Acesso ao módulo (espelha temAcesso do usePermissoes, no servidor).
 export function temModuloTickets(auth: Autenticado): boolean {
@@ -135,6 +139,61 @@ export function validarTransicao(
   if (para === 'fechado') return 'Só o solicitante confirma o fechamento (após resolvido).'
   if (para === 'cancelado') return 'Só o solicitante pode cancelar o ticket.'
   return 'Você não pode fazer esta mudança de status.'
+}
+
+// ---------------------------------------------------------------------
+// Vínculos (tickets_vinculos) — sql/tickets-vinculos.sql
+// ---------------------------------------------------------------------
+export async function buscarRequisicaoResumo(id: number): Promise<RequisicaoResumo | null> {
+  if (!Number.isFinite(id) || id <= 0) return null
+  const { data } = await supabaseAdmin
+    .from('Requisicao')
+    .select(COLS_REQ_RESUMO)
+    .eq('id', id)
+    .maybeSingle()
+  return data ? resumoRequisicao(data as Record<string, unknown>) : null
+}
+
+// Vínculos do ticket ENRIQUECIDOS: resumo da requisição + cotações normalizadas
+// (req_cotacao é 1:1, PK = id da requisição). Valor nunca é somado em SQL —
+// valor_despeza/valorN são TEXT BR/US misto; o parse é na lib pura.
+export async function carregarVinculos(ticketId: string): Promise<TicketVinculoEnriquecido[]> {
+  const { data } = await supabaseAdmin
+    .from('tickets_vinculos')
+    .select('*')
+    .eq('ticket_id', ticketId)
+    .order('created_at')
+  const vinculos = (data || []) as TicketVinculo[]
+  if (vinculos.length === 0) return []
+
+  const idsReq = vinculos
+    .filter((v) => v.vinculo_tipo === 'requisicao' && /^\d+$/.test(v.vinculo_ref))
+    .map((v) => Number(v.vinculo_ref))
+
+  const reqs = new Map<number, RequisicaoResumo>()
+  const cots = new Map<number, Record<string, unknown>>()
+  if (idsReq.length > 0) {
+    const [r, c] = await Promise.all([
+      supabaseAdmin.from('Requisicao').select(COLS_REQ_RESUMO).in('id', idsReq),
+      supabaseAdmin.from('req_cotacao').select('*').in('id', idsReq),
+    ])
+    for (const row of (r.data || []) as Record<string, unknown>[]) {
+      const resumo = resumoRequisicao(row)
+      reqs.set(resumo.id, resumo)
+    }
+    for (const row of (c.data || []) as Record<string, unknown>[]) cots.set(Number(row.id), row)
+  }
+
+  return vinculos.map((v) => {
+    const id = Number(v.vinculo_ref)
+    const requisicao = reqs.get(id)
+    return {
+      ...v,
+      existe: !!requisicao,
+      requisicao,
+      cotacoes: requisicao ? normalizarCotacoes(cots.get(id)) : [],
+    }
+  })
 }
 
 // Campos derivados de uma mudança de status.

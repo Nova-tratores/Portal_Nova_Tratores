@@ -15,6 +15,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { isValorAlto, buscarAutorizacaoAtiva, criarPedidoPermissao, consumirAutorizacao, parseValorBR, LIMITE_BLOQUEIO, type Autorizacao } from '@/lib/requisicoes/autorizacao';
 import HistoricoModal from './HistoricoModal';
+import TicketsDaReq from './TicketsDaReq';
 import RecorteAnexo from './RecorteAnexo';
 import DialogoImprimirReq from './DialogoImprimirReq';
 import { anexosDaReq, anexosNoDrive as anexosNoDriveDe } from '@/lib/requisicoes/anexos';
@@ -53,7 +54,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
 
   // ── Bloqueio de valor alto (precisa de permissão de Dev) ──
   const { userProfile } = useAuth();
-  const { isDev, pode } = usePermissoes(userProfile?.id);
+  const { isDev, pode, temAcesso } = usePermissoes(userProfile?.id);
   const isMobile = useIsMobile();
   const [autoriz, setAutoriz] = useState<Autorizacao | null>(null);
   const [pedirOpen, setPedirOpen] = useState(false);
@@ -704,6 +705,10 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                   </div>
                 )}
               </div>
+
+              {/* ── TICKETS que apontam pra esta requisição (tickets_vinculos) ── */}
+              {/* Só leitura aqui; o vínculo é feito de dentro do ticket. */}
+              {temAcesso('tickets') && <TicketsDaReq reqId={req.id} ativo={modalAberto} />}
 
 
               {/* ── BLOQUEIO DE VALOR ALTO ── */}
