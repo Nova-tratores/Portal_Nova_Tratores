@@ -250,25 +250,23 @@ export async function gerarPdfPorDepartamento(opts: {
   };
 
   // ---- tabela principal ----
+  // Departamento só na 1ª linha do grupo (como no Excel); placa e motorista
+  // repetidos em TODA linha (pedido do usuário — a linha em branco confundia).
   const corpo: Celula[][] = [];
   for (const d of rel.departamentos) {
     let primeiraDoDepto = true;
     for (const p of d.placas) {
-      let primeiraDaPlaca = true;
       for (const m of p.motoristas) {
-        let primeiraDoMotorista = true;
         for (const l of m.linhas) {
           corpo.push([
             primeiraDoDepto ? d.departamento.toUpperCase() : '',
-            primeiraDaPlaca ? p.placa : '',
-            primeiraDoMotorista ? m.motorista : '',
+            p.placa,
+            m.motorista,
             fmtSoData(l.data),
             l.forma,
             { content: fmtRS(l.valor), styles: { halign: 'right' } },
           ]);
           primeiraDoDepto = false;
-          primeiraDaPlaca = false;
-          primeiraDoMotorista = false;
         }
       }
       if (!todos) corpo.push(linhaSubtotal(`${p.placa} Total`, p.total, 5));
