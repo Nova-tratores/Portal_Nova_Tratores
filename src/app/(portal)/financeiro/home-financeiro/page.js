@@ -17,8 +17,10 @@ import {
  X, PlusCircle, FileText, Download,
  CheckCircle, User, Upload, Send,
  Calendar, CreditCard, Hash, ArrowLeft, Paperclip,
- CheckCheck, Eye, Search, Trash2, RefreshCw, AlertCircle, DollarSign, Lock, Barcode, ZoomIn, ZoomOut
+ CheckCheck, Eye, Search, Trash2, RefreshCw, AlertCircle, DollarSign, Lock, Barcode, ZoomIn, ZoomOut, Link2
 } from 'lucide-react'
+import { anotarGrupos, nfsLabel } from '@/lib/financeiro/grupo'
+import GrupoDoCardBox from '@/components/financeiro/GrupoDoCardBox'
 
 const formatarData = formatarDataBR;
 
@@ -108,7 +110,8 @@ function HomeFinanceiroContent() {
     const { data: bolds } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').neq('status', 'pago').order('id', {ascending: false});
     const hoje = new Date(); hoje.setHours(0,0,0,0);
 
-    const faturamentoFormatado = (bolds || []).map(c => {
+    // Agrupamento: anota os pais com grupo_filhos e esconde os cards juntados
+    const faturamentoFormatado = anotarGrupos(bolds || []).filter(c => !c.grupo_pai_id).map(c => {
       const venc = c.vencimento_boleto ? new Date(c.vencimento_boleto) : null;
       if (venc) venc.setHours(0,0,0,0);
 
@@ -210,6 +213,7 @@ function HomeFinanceiroContent() {
  // Excluir card — somente admin
  const excluirCard = async (t) => {
    if (!isAdmin || !t) return;
+   if (t.grupo_filhos?.length) { alert('Este card tem NFs agrupadas. Remova os cards do grupo antes de excluir.'); return; }
    if (!window.confirm(`Excluir definitivamente "${getCardLabel(t)}"? Esta ação não pode ser desfeita.`)) return;
    const table = getCardTable(t);
    const { error } = await supabase.from(table).delete().eq('id', t.id);
@@ -472,6 +476,11 @@ function HomeFinanceiroContent() {
           </div>
           <div style={{ padding: '11px 14px 13px', background: 'var(--portal-bg-card)' }}>
             <h4 style={{ margin: 0, fontSize: '16px', fontWeight:'500', lineHeight: 1.3, color: 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
+            {t.grupo_filhos?.length > 0 && (
+              <div title="Este card agrupa outras NFs — o valor é a soma e o boleto vale pra todas" style={{ marginTop: '8px', display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '8px', padding: '3px 9px', fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                <Link2 size={12} /> {t.grupo_filhos.length + 1} NFs JUNTAS — BOLETO ÚNICO
+              </div>
+            )}
             {t.isTarefaPagamentoRealizado && (
                 <div style={{ marginTop: '10px', background: 'linear-gradient(90deg, #3b82f6, #2563eb)', color: '#fff', fontSize: '10px', fontWeight: '600', padding: '6px 12px', borderRadius: '4px', display: 'inline-flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 10px rgba(37, 99, 235, 0.2)' }}>
                     <CheckCircle size={14}/> PAGAMENTO REALIZADO - CONFERIR
@@ -481,8 +490,8 @@ function HomeFinanceiroContent() {
               <tbody>
                 <tr><td style={fichaTdLab}>Forma</td><td style={fichaTdVal}>{t.forma_pagamento?.toUpperCase() || '—'}</td></tr>
                 <tr><td style={fichaTdLab}>Venc</td><td style={fichaTdVal}>{t.status === 'validar_pix' ? 'VALIDAÇÃO PIX' : formatarData(t.vencimento_boleto)}</td></tr>
-                {(t.num_nf_servico || t.num_nf_peca) && (
-                  <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</td></tr>
+                {(t.num_nf_servico || t.num_nf_peca || t.grupo_filhos?.length > 0) && (
+                  <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{nfsLabel([t, ...(t.grupo_filhos || [])])}</td></tr>
                 )}
               </tbody>
             </table>
@@ -1007,6 +1016,15 @@ function HomeFinanceiroContent() {
               </div>
             )}
         </div>
+
+        {/* NFs AGRUPADAS (boleto único) — só aparece no card principal de um grupo */}
+        {tarefaSelecionada.gTipo === 'boleto' && (
+          <GrupoDoCardBox
+            card={tarefaSelecionada}
+            onChanged={() => { carregarDados(); }}
+            audit={(a) => auditLog({ sistema: 'financeiro', entidade: 'Chamado_NF', ...a })}
+          />
+        )}
 
         {/* Mover para Pago — só no modal para sem_boleto */}
         {tarefaSelecionada.status === 'sem_boleto' && (

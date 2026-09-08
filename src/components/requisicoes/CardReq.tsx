@@ -392,7 +392,14 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       const { error: uploadError } = await supabase.storage.from('requisicoes').upload(filePath, file);
       if (uploadError) throw uploadError;
       persist(fieldName, filePath);
-      // Nota anexada não muda mais status automaticamente
+      // Alimentação com NF anexada pula direto pra "Enviado Financeiro"
+      // (nos outros tipos a nota não muda o status)
+      const tipoReq = String(localData.tipo || localData.ReqTipo || '').toLowerCase();
+      if (fieldName === 'foto_nf' && tipoReq.startsWith('alimenta') && !['financeiro', 'lixeira'].includes(String(localData.status || ''))) {
+        const hoje = new Date().toISOString().slice(0, 10);
+        setLocalData((prev: any) => ({ ...prev, status: 'financeiro', enviado_financeiro_data: hoje }));
+        onUpdate(req.id, { status: 'financeiro', enviado_financeiro_data: hoje });
+      }
       setUploadOk(fieldName);
       setTimeout(() => setUploadOk(null), 2000);
     } catch (error: any) {

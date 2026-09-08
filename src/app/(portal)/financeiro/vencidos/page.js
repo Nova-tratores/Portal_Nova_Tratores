@@ -62,6 +62,7 @@ export default function VencidosPage() {
 
       const hoje = new Date(); hoje.setHours(0, 0, 0, 0)
       const vencidos = (data || []).filter(c => {
+        if (c.grupo_pai_id) return false // card agrupado: quem cobra é o principal
         if (c.status === 'vencido') return true
         if (c.status === 'aguardando_vencimento' && c.vencimento_boleto) {
           const venc = new Date(c.vencimento_boleto); venc.setHours(0, 0, 0, 0)
