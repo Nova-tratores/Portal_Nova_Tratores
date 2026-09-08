@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { KanbanItem } from "../types";
 import {
   dataMs, chaveMes, rotuloMes, intervaloPeriodo, passaPeriodo, rotuloPeriodo, filtrarRelacao, ordenarRelacao,
-  porMesData, porMesPrevisao, porTecnico, topComOutros, resumoFiltrosRelacao, colTextoRelacao,
+  porMesData, porMesPrevisao, porTecnico, topComOutros, resumoFiltrosRelacao, colTextoRelacao, diasNaFase,
 } from "../relacao";
 
 const HOJE = new Date(2026, 8, 8); // 08/09/2026
@@ -79,6 +79,19 @@ describe("filtrarRelacao", () => {
     const r = resumoFiltrosRelacao({ filtrosCol: { data: "ultimos_90", status: "Orçamento" } });
     expect(r).toContain("Data: Últimos 90 dias");
     expect(r).toContain('Fase: "Orçamento"');
+  });
+});
+
+describe("diasNaFase (status_desde do trigger)", () => {
+  it("conta dias inteiros desde o carimbo; vazio/inválido = null (desconhecido)", () => {
+    const hoje = new Date(2026, 8, 8, 15, 0);
+    expect(diasNaFase({ statusDesde: "2026-09-01T10:00:00.000Z" }, hoje)).toBe(7);
+    expect(diasNaFase({ statusDesde: "2026-09-08T12:00:00.000Z" }, hoje)).toBe(0);
+    expect(diasNaFase({ statusDesde: "" }, hoje)).toBeNull();
+    expect(diasNaFase({}, hoje)).toBeNull();
+    expect(diasNaFase({ statusDesde: "abc" }, hoje)).toBeNull();
+    // carimbo no futuro (relógio adiantado) não vira negativo
+    expect(diasNaFase({ statusDesde: "2026-09-10T00:00:00.000Z" }, hoje)).toBe(0);
   });
 });
 

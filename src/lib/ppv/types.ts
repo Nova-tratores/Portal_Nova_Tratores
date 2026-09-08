@@ -19,6 +19,7 @@ export interface KanbanItem {
   nfNumero?: string;
   projeto?: string;
   previsaoFaturamento?: string;   // "YYYY-MM-DD" (espelho Omie)
+  statusDesde?: string;           // ISO: quando entrou na fase atual (trigger); vazio = desconhecido
   ultimaAcao: string;
   ultimoUsuario: string;
   ultimaData: string;
@@ -90,6 +91,7 @@ export interface PPVDetalhes {
   motivoSaida: string;
   pedidoOmie: string;
   faturadoOmieEm?: string;   // carimbo do faturamento (NF-e) — vazio = não faturado
+  statusDesde?: string;      // ISO: quando entrou na fase atual (trigger tg_ppv_status_hist); vazio = desconhecido
   nfNumero?: string;
   omieEmpresa?: string;      // conta Omie usada (Nova Tratores | Castro Peças)
   usuEmail: string;
