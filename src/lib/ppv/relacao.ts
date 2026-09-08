@@ -30,8 +30,10 @@ export type ColRelacaoKey = (typeof COLS_RELACAO)[number]["k"];
 /** Colunas de DATA: o filtro do cabeçalho vira um seletor de período (este mês, mês anterior…). */
 export const COLS_DATA: ColRelacaoKey[] = ["data", "previsaoFat"];
 
-/** Fases que contam como "em aberto" (tudo menos Faturado e Cancelada). */
+/** Fases que contam como "Pendente" (tudo menos Faturado e Cancelada). */
 export const STATUS_ABERTO_PPV: string[] = STATUS_OPTIONS.map((s) => s.value).filter((v) => v !== "Concluída" && v !== "Cancelada");
+/** Valor especial do filtro de Fase = todas as fases pendentes (menos Faturado/Cancelada). */
+export const FASE_PENDENTE = "Pendente";
 
 export function isRemessa(o: Pick<KanbanItem, "tipo">): boolean {
   const t = String(o.tipo || "");
@@ -212,7 +214,12 @@ export function filtrarRelacao(lista: KanbanItem[], f: FiltrosRelacao): KanbanIt
       }
       const q2 = raw.toLowerCase();
       // Fase: o seletor manda o rótulo exato ("Orçamento" não pode casar "Orçamento enviado").
-      if (key === "status") { if (colTextoRelacao(o, "status").toLowerCase() !== q2) return false; continue; }
+      // "Pendente" = todas menos Faturado/Cancelada.
+      if (key === "status") {
+        if (q2 === FASE_PENDENTE.toLowerCase()) { if (!estaAberto(o)) return false; continue; }
+        if (colTextoRelacao(o, "status").toLowerCase() !== q2) return false;
+        continue;
+      }
       let alvo = colTextoRelacao(o, key).toLowerCase();
       if (key === "valor") alvo += ` ${String(o.valor ?? "").toLowerCase()}`;   // "1500" acha "1.500,00"
       if (key === "id") alvo += ` ${String(o.id || "").toLowerCase()}`;        // "ppv-02" também acha
@@ -254,11 +261,12 @@ export function resumoFiltrosRelacao(f: FiltrosRelacao & { tipoFilter?: string }
   if (f.tipoFilter === "PEDIDO") r.push("Só PPV (pedidos)");
   if (f.tipoFilter === "REMESSA") r.push("Só REM (remessas)");
   if (f.status) r.push(`Fase: ${rotuloStatus(f.status)}`);
-  if (f.soAbertos) r.push("Só em aberto");
+  if (f.soAbertos) r.push("Só pendentes (menos Faturado/Cancelada)");
   for (const col of COLS_RELACAO) {
     const v = String(f.filtrosCol?.[col.k] || "").trim();
     if (!v) continue;
     if (COLS_DATA.includes(col.k) && ehTokenPeriodo(v)) { const rot = rotuloPeriodo(v); if (rot && rot !== "A partir de…") r.push(`${col.label}: ${rot}`); }
+    else if (col.k === "status" && v.toLowerCase() === FASE_PENDENTE.toLowerCase()) r.push("Fase: Pendente (menos Faturado/Cancelada)");
     else r.push(`${col.label}: "${v}"`);
   }
   if (ordem) { const c = COLS_RELACAO.find((x) => x.k === ordem.key); if (c) r.push(`Ordenado por ${c.label} ${ordem.dir === "asc" ? "(A-Z)" : "(Z-A)"}`); }

@@ -115,7 +115,7 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
 
   const filtrosTexto = [
     rotuloPeriodo(tokenPeriodo) || "Todas as datas",
-    fase === "__abertos" ? "Em aberto" : fase ? rotuloStatus(fase) : "Todas as fases",
+    fase === "__abertos" ? "Pendente" : fase ? rotuloStatus(fase) : "Todas as fases",
     tipo === "TODOS" ? "PPV + REM" : tipo,
     tecnico || "Todos os técnicos",
   ].join(" · ");
@@ -137,7 +137,7 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
           <span style={lbl}>Fase</span>
           <select value={fase} onChange={(e) => setFase(e.target.value)} style={selectStyle}>
             <option value="">Todas</option>
-            <option value="__abertos">Em aberto (menos Faturado/Cancelada)</option>
+            <option value="__abertos">Pendente (menos Faturado/Cancelada)</option>
             {fasesPresentes.map((f) => <option key={f.value} value={f.value}>{f.label} ({f.n})</option>)}
           </select>
         </div>
@@ -172,7 +172,7 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
         <Tile label="Pedidos" valor={String(kpi.n)} sub={`${kpi.clientes} cliente${kpi.clientes !== 1 ? "s" : ""}`} />
         <Tile label="Valor total" valor={fmtBRL(kpi.valor)} sub={filtrosTexto} destaque />
         <Tile label="Ticket médio" valor={fmtBRL(kpi.ticket)} sub="valor ÷ pedidos" />
-        <Tile label="Em aberto" valor={fmtBRL(kpi.abertosV)} sub={`${kpi.abertosN} pedido${kpi.abertosN !== 1 ? "s" : ""}`} cor="#047857" />
+        <Tile label="Pendente" valor={fmtBRL(kpi.abertosV)} sub={`${kpi.abertosN} pedido${kpi.abertosN !== 1 ? "s" : ""} · menos Faturado/Cancelada`} cor="#047857" />
         <Tile label="Faturados" valor={fmtBRL(kpi.faturadosV)} sub={`${kpi.faturadosN} pedido${kpi.faturadosN !== 1 ? "s" : ""} · ${kpi.canceladosN} cancelado${kpi.canceladosN !== 1 ? "s" : ""}`} cor="#1d4ed8" />
       </div>
 
