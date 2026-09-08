@@ -22,6 +22,7 @@ export const MOV_DEVOLUCAO = "Devolução";
 export const STATUS_COLORS: Record<string, { text: string; bg: string }> = {
   "Orçamento": { text: "#B45309", bg: "#FFFBEB" },
   "Orçamento enviado para o cliente e aguardando": { text: "#C2410C", bg: "#FFF7ED" },
+  "Orçamento Aprovado": { text: "#15803D", bg: "#F0FDF4" },
   "Execução": { text: "#1D4ED8", bg: "#EFF6FF" },
   "Execução (Realizando Diagnóstico)": { text: "#0369A1", bg: "#F0F9FF" },
   "Execução aguardando peças (em transporte)": { text: "#6D28D9", bg: "#F5F3FF" },
@@ -52,6 +53,7 @@ export const MOTIVOS_SAIDA = [
 export const STATUS_OPTIONS = [
   { value: "Orçamento", label: "Orçamento" },
   { value: "Orçamento enviado para o cliente e aguardando", label: "Orçamento enviado" },
+  { value: "Orçamento Aprovado", label: "Orçamento Aprovado" },
   { value: "Execução", label: "Execução" },
   { value: "Execução (Realizando Diagnóstico)", label: "Realizando Diagnóstico" },
   { value: "Execução aguardando peças (em transporte)", label: "Aguardando peças" },

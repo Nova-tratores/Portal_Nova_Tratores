@@ -20,6 +20,7 @@ export const TBL_LOUSA_CONFIG = "lousa_config";
 export const POS_TO_PPV_STATUS: Record<string, string> = {
   "Orçamento": "Orçamento",
   "Orçamento enviado para o cliente e aguardando": "Orçamento enviado para o cliente e aguardando",
+  "Orçamento Aprovado": "Orçamento Aprovado",
   "Execução": "Execução",
   "Execução (Realizando Diagnóstico)": "Execução (Realizando Diagnóstico)",
   "Execução aguardando peças (em transporte)": "Execução aguardando peças (em transporte)",
@@ -46,6 +47,7 @@ export const VALOR_KM = 2.8;
 export const PHASES = [
   "Orçamento",
   "Orçamento enviado para o cliente e aguardando",
+  "Orçamento Aprovado",
   "Execução",
   "Execução (Realizando Diagnóstico)",
   "Execução aguardando peças (em transporte)",

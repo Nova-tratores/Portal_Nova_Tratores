@@ -231,6 +231,25 @@ function PosPageInner() {
     }
   };
 
+  // Checkbox de reserva no card: move pra "Orçamento Aprovado" e grava a Data Início escolhida
+  const handleAgendar = async (orderId: string, dataISO: string) => {
+    if (!podeMoverFase) { alert("Você não tem permissão para mover de fase."); return; }
+    setOrders((prev) => prev.map((o) => o.id === orderId ? { ...o, status: "Orçamento Aprovado", previsaoExecucao: dataISO } : o));
+    try {
+      const res = await fetch(`/api/pos/ordens/${orderId}/fase`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Orçamento Aprovado", userName: userProfile?.nome, previsaoExecucao: dataISO }),
+      });
+      const data = await res.json();
+      if (!res.ok || data.erro) alert(data.erro || "Erro ao agendar");
+      fetchOrders();
+    } catch (err) {
+      console.error("Erro ao agendar:", err);
+      fetchOrders();
+    }
+  };
+
   const handleDrawerClose = () => {
     setDrawerVisible(false);
     setSelectedOsId(null);
@@ -323,6 +342,7 @@ function PosPageInner() {
             tecnicoFiltro={tecnicoFiltro}
             onCardClick={handleCardClick}
             onPhaseChange={podeMoverFase ? handlePhaseChange : undefined}
+            onAgendar={podeMoverFase ? handleAgendar : undefined}
             onEnviarOmie={podeOmie ? handleEnviarOmie : undefined}
             onEnviarOmieTodas={podeOmie ? handleEnviarOmieTodas : undefined}
             enviandoOmie={enviandoOmie}

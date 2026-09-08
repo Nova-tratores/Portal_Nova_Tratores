@@ -10,6 +10,7 @@ export function normalizarStatus(st: string | null | undefined): string {
   const fasesValidas = [
     "Orçamento",
     "Orçamento enviado para o cliente e aguardando",
+    "Orçamento Aprovado",
     "Execução",
     "Execução (Realizando Diagnóstico)",
     "Execução aguardando peças (em transporte)",

@@ -21,6 +21,8 @@ interface PhaseViewProps {
   searchTerm: string;
   onCardClick: (id: string) => void;
   onStatusChange?: (id: string, newStatus: string) => void;
+  /** Checkbox de reserva: agenda o serviço da OS vinculada (Orçamento Aprovado + Data Início). */
+  onAgendar?: (id: string, dataISO: string) => void;
   loading?: boolean;
   activePhase: string;
   onPhaseChange: (phase: string) => void;
@@ -37,6 +39,7 @@ function tituloPedido(o: KanbanItem): string {
 export const PHASE_COLORS: Record<string, string> = {
   "Orçamento": "#B45309",
   "Orçamento enviado para o cliente e aguardando": "#C2410C",
+  "Orçamento Aprovado": "#15803D",
   "Execução": "#1D4ED8",
   "Execução (Realizando Diagnóstico)": "#0369A1",
   "Execução aguardando peças (em transporte)": "#6D28D9",
@@ -54,6 +57,7 @@ export const PHASES = STATUS_OPTIONS.map((s) => s.value);
 export const PHASE_SHORT: Record<string, string> = {
   "Orçamento": "Orçamento",
   "Orçamento enviado para o cliente e aguardando": "Orç. Enviado",
+  "Orçamento Aprovado": "Orç. Aprovado",
   "Execução": "Execução",
   "Execução (Realizando Diagnóstico)": "Diagnóstico",
   "Execução aguardando peças (em transporte)": "Aguar. Peças",
@@ -74,15 +78,20 @@ const MiniCard = memo(function MiniCard({
   order: o,
   onClick,
   onStatusChange,
+  onAgendar,
   viewMode = "cards",
 }: {
   order: KanbanItem;
   color?: string;
   onClick: () => void;
   onStatusChange?: (id: string, newStatus: string) => void;
+  onAgendar?: (id: string, dataISO: string) => void;
   viewMode?: "cards" | "lista";
 }) {
   const statusNorm = normalizarStatus(o.status);
+  // Checkbox "reservado/agendado": marcar pergunta o dia (a OS vinculada acompanha)
+  const [pedindoData, setPedindoData] = useState(false);
+  const [dataAgendada, setDataAgendada] = useState(() => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10));
   const valorFmt = o.valor ? formatarMoeda(parseFloat(String(o.valor))) : "R$ 0,00";
   const dataFmt = formatarDataFrontend(o.data);
   const isTipoRem = (o.tipo || "").toLowerCase().includes("remessa") || (o.tipo || "").toUpperCase() === "REM";
@@ -203,6 +212,34 @@ const MiniCard = memo(function MiniCard({
           </select>
         </div>
       )}
+      {/* Reserva/agendamento: marcar → pergunta o dia → Orçamento Aprovado (OS junto) */}
+      {onAgendar && ["Orçamento", "Orçamento enviado para o cliente e aguardando", "Orçamento Aprovado"].includes(statusNorm) && (
+        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 7 }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: statusNorm === "Orçamento Aprovado" ? "#15803D" : "#64748b", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={statusNorm === "Orçamento Aprovado"}
+              onChange={(e) => {
+                if (e.target.checked) setPedindoData(true);
+                else { setPedindoData(false); onStatusChange?.(o.id, "Orçamento enviado para o cliente e aguardando"); }
+              }}
+              style={{ accentColor: "#15803D" }}
+            />
+            Reservado · serviço agendado
+          </label>
+          {pedindoData && statusNorm !== "Orçamento Aprovado" && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 7, padding: "6px 8px" }}>
+              <span style={{ fontSize: 11.5, color: "#15803D", fontWeight: 700, whiteSpace: "nowrap" }}>Pra qual dia?</span>
+              <input type="date" value={dataAgendada} onChange={(e) => setDataAgendada(e.target.value)}
+                style={{ flex: 1, minWidth: 0, fontSize: 12, padding: "3px 6px", border: "1px solid #BBF7D0", borderRadius: 5 }} />
+              <button type="button" onClick={() => { if (dataAgendada) { onAgendar(o.id, dataAgendada); setPedindoData(false); } }}
+                style={{ border: "none", background: "#15803D", color: "#fff", borderRadius: 5, padding: "4px 10px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>OK</button>
+              <button type="button" onClick={() => setPedindoData(false)} title="Cancelar"
+                style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 13, padding: 0 }}>×</button>
+            </div>
+          )}
+        </div>
+      )}
       {/* Informações em LISTA */}
       <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 9 }}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
@@ -251,7 +288,7 @@ function SkeletonCards() {
   );
 }
 
-export default function PhaseView({ orders, searchTerm, onCardClick, onStatusChange, loading, activePhase, viewMode = "cards" }: PhaseViewProps) {
+export default function PhaseView({ orders, searchTerm, onCardClick, onStatusChange, onAgendar, loading, activePhase, viewMode = "cards" }: PhaseViewProps) {
   const contClass = viewMode === "lista" ? "ppv-list" : "ppv-cards-grid";
   // Soltar um card numa fase → muda a fase (arrastar). Só quando agrupado por fases.
   const dropOnPhase = (phase: string) => (e: React.DragEvent) => {
@@ -311,7 +348,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
         ) : activePhase ? (
           <div className={contClass} onDragOver={allowDrop} onDrop={dropOnPhase(activePhase)}>
             {filtered.map((o) => (
-              <MiniCard key={o.id} order={o} viewMode={viewMode} onClick={() => onCardClick(o.id)} onStatusChange={onStatusChange} />
+              <MiniCard key={o.id} order={o} viewMode={viewMode} onClick={() => onCardClick(o.id)} onStatusChange={onStatusChange} onAgendar={onAgendar} />
             ))}
             {filtered.length === 0 && (
               <div className="ppv-cards-empty">Nenhum pedido nesta fase</div>
@@ -332,7 +369,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
               {!collapsed.has(phase) && (
                 <div className={contClass}>
                   {items.map((o) => (
-                    <MiniCard key={o.id} order={o} viewMode={viewMode} onClick={() => onCardClick(o.id)} onStatusChange={onStatusChange} />
+                    <MiniCard key={o.id} order={o} viewMode={viewMode} onClick={() => onCardClick(o.id)} onStatusChange={onStatusChange} onAgendar={onAgendar} />
                   ))}
                 </div>
               )}

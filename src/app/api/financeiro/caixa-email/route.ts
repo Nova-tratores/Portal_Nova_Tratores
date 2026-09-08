@@ -152,6 +152,81 @@ export async function GET(req: NextRequest) {
       });
     }
 
+    // ── Conversa (thread): a mensagem clicada + as respostas dos DOIS lados
+    //    (caixa de entrada E enviados), casadas pelo assunto-base — como no Gmail.
+    if (uidParam && req.nextUrl.searchParams.get("thread") === "1") {
+      const limparAssunto = (s: string) => String(s || "").replace(/^(\s*(re|res|fw|fwd|enc)\s*:)+\s*/i, "").trim();
+      const dados = await comImap(auth.userId, cfg, senha, async (client) => {
+        const pastaBase = await resolverPasta(client, pastaParam);
+        let assuntoOrig = "";
+        {
+          const lock = await client.getMailboxLock(pastaBase);
+          try {
+            const msg: any = await client.fetchOne(uidParam, { envelope: true }, { uid: true });
+            assuntoOrig = String(msg?.envelope?.subject || "");
+          } finally { lock.release(); }
+        }
+        const base = limparAssunto(assuntoOrig);
+        if (!base) return null;
+
+        const pastaEnviados = await resolverPasta(client, "enviados");
+        const alvos = [
+          { pasta: "inbox", path: "INBOX" },
+          { pasta: "enviados", path: pastaEnviados },
+        ];
+        if (pastaBase !== "INBOX" && pastaBase !== pastaEnviados) alvos.push({ pasta: pastaParam, path: pastaBase });
+
+        const encontrados: { pasta: string; path: string; uid: number; env: any; data: any }[] = [];
+        for (const alvo of alvos) {
+          try {
+            const lock = await client.getMailboxLock(alvo.path);
+            try {
+              const uids = await client.search({ subject: base }, { uid: true });
+              const lista = (Array.isArray(uids) ? uids : []).slice(-30);
+              if (!lista.length) continue;
+              for await (const m of client.fetch(lista.join(","), { envelope: true, internalDate: true }, { uid: true })) {
+                const env: any = m.envelope || {};
+                // SEARCH SUBJECT é substring — confere o assunto-base exato
+                if (limparAssunto(env.subject).toLowerCase() !== base.toLowerCase()) continue;
+                encontrados.push({ pasta: alvo.pasta, path: alvo.path, uid: m.uid, env, data: m.internalDate || env.date });
+              }
+            } finally { lock.release(); }
+          } catch { /* pasta indisponível — segue com as outras */ }
+        }
+        encontrados.sort((a, b) => new Date(a.data || 0).getTime() - new Date(b.data || 0).getTime());
+        const ultimos = encontrados.slice(-10); // no máximo as 10 mais recentes da conversa
+
+        const mensagens: any[] = [];
+        for (const e of ultimos) {
+          try {
+            const lock = await client.getMailboxLock(e.path);
+            try {
+              const msg: any = await client.fetchOne(String(e.uid), { bodyStructure: true }, { uid: true });
+              if (!msg?.bodyStructure) continue;
+              const est = mapearEstrutura(msg.bodyStructure, { html: null, texto: null, charsetHtml: "utf-8", charsetTexto: "utf-8", anexos: [] });
+              let html: string | null = null, texto = "";
+              if (est.html) html = decodificar(await baixarParte(client, String(e.uid), est.html), est.charsetHtml);
+              else if (est.texto) texto = decodificar(await baixarParte(client, String(e.uid), est.texto), est.charsetTexto);
+              // sem inline de cid na conversa (peso) — tira as imagens embutidas quebradas
+              if (html) html = html.replace(/<img[^>]+src=["']?cid:[^>]*>/gi, "");
+              mensagens.push({
+                pasta: e.pasta, uid: e.uid,
+                de: e.env.from?.[0]?.address || "", deNome: e.env.from?.[0]?.name || "",
+                para: e.env.to?.[0]?.address || "", paraNome: e.env.to?.[0]?.name || "",
+                data: e.data ? new Date(e.data).toISOString() : null,
+                enviado: e.pasta === "enviados",
+                html, texto,
+                anexos: est.anexos.filter((a: any) => !a.cid).map((a: any) => ({ i: a.part, nome: a.nome, tipo: a.tipo, tamanho: a.tamanho })),
+              });
+            } finally { lock.release(); }
+          } catch { /* mensagem individual falhou — segue */ }
+        }
+        return { assunto: assuntoOrig, mensagens };
+      });
+      if (!dados || !dados.mensagens?.length) return NextResponse.json({ error: "Não consegui montar a conversa." }, { status: 404 });
+      return NextResponse.json(dados);
+    }
+
     // ── Detalhe: corpo por parte + metadados dos anexos (sem baixá-los)
     if (uidParam) {
       const det = await comImap(auth.userId, cfg, senha, async (client) => {

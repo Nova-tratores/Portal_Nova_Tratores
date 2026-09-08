@@ -356,6 +356,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     await supabase.from("pedidos").update({ Tipo_Pedido: "Remessa" }).eq("Id_Os", idOs);
   }
 
+  // Desvinculou um PPV pelo lado da OS (tirou da lista ID_PPV) → limpa o Id_Os
+  // do pedido, senão o vínculo fica preso do lado do PPV e não dá pra trocar de ordem.
+  try {
+    const ppvIdsAtuais = String(dados.ppv || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+    let qDesv = supabase.from("pedidos").update({ Id_Os: "" }).eq("Id_Os", idOs);
+    if (ppvIdsAtuais.length) qDesv = qDesv.not("id_pedido", "in", `(${ppvIdsAtuais.map((x) => `"${x}"`).join(",")})`);
+    await qDesv;
+  } catch (e) {
+    console.error(`[os-desvincular-ppv] OS ${idOs} falhou (ignorado):`, e instanceof Error ? e.message : e);
+  }
+
   // Trocou o cliente da OS → os PPVs vinculados acompanham (mesmo cliente do POS)
   try {
     const nomeCli = String(dados.nomeCliente || "").trim();

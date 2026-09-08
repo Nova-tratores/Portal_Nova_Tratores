@@ -106,6 +106,33 @@ function PPVApp() {
     }
   }, [showToast, carregarKanban, atualizarKanbanLocal, podeMoverFase, userProfile?.nome]);
 
+  // Checkbox de reserva no card: agenda a OS vinculada (Orçamento Aprovado + Data Início);
+  // PPV sem OS só muda de fase (não tem serviço pra datar).
+  const handleAgendar = useCallback(async (id: string, dataISO: string) => {
+    if (!podeMoverFase) { showToast("error", "Você não tem permissão para mover de fase."); return; }
+    atualizarKanbanLocal(id, { status: "Orçamento Aprovado" });
+    try {
+      const item = kanbanItems.find((k) => k.id === id) as { osId?: string } | undefined;
+      const osId = String(item?.osId || "").trim();
+      if (osId) {
+        const res = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/fase`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "Orçamento Aprovado", userName: userProfile?.nome, previsaoExecucao: dataISO }),
+        });
+        const d = await res.json();
+        if (!res.ok || d.erro) throw new Error(d.erro || "falha");
+        showToast("success", `Agendado pra ${dataISO.split("-").reverse().join("/")} — a OS ${osId} foi junto`);
+      } else {
+        await handleStatusChange(id, "Orçamento Aprovado");
+      }
+      carregarKanban();
+    } catch {
+      showToast("error", "Erro ao agendar");
+      carregarKanban();
+    }
+  }, [kanbanItems, podeMoverFase, userProfile?.nome, atualizarKanbanLocal, carregarKanban, showToast, handleStatusChange]);
+
   // Abrir PPV via URL (?id=PPV-0001)
   const urlPPVId = searchParams.get("id");
   const urlHandledRef = useRef(false);
@@ -430,7 +457,7 @@ function PPVApp() {
             {viewMode === "relacao" ? (
               <RelacaoView orders={filteredKanban} searchTerm={searchFilter} tipoFilter={tipoFilter} onCardClick={openCardDetails} onStatusChange={podeMoverFase ? handleStatusChange : undefined} loading={globalLoading} />
             ) : (
-              <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} loading={globalLoading} activePhase={activePhase} onPhaseChange={setActivePhase} viewMode={viewMode} />
+              <PhaseView orders={filteredKanban} searchTerm={searchFilter} onCardClick={openCardDetails} onStatusChange={handleStatusChange} onAgendar={podeMoverFase ? handleAgendar : undefined} loading={globalLoading} activePhase={activePhase} onPhaseChange={setActivePhase} viewMode={viewMode} />
             )}
           </div>
         )}

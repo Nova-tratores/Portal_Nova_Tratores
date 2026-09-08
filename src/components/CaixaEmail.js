@@ -122,22 +122,35 @@ export default function CaixaEmail() {
     if (novo) carregarCaixa(false, pasta) // cache de 30s no servidor: resposta imediata
   }
 
-  const abrirMensagem = async (em) => {
-    setMsgAberta(em); setDetalhe(null); setResposta(''); setRespOk(''); setCarregandoMsg(true)
+  const carregarConversa = useCallback(async (em, silencioso) => {
+    if (!silencioso) setCarregandoMsg(true)
+    try {
+      // 1º tenta a CONVERSA inteira (os dois lados, como no Gmail)
+      const rt = await fetch(`/api/financeiro/caixa-email?uid=${em.uid}&pasta=${pasta}&thread=1`, { headers: { ...(await authHeaders()) } })
+      const jt = await rt.json()
+      if (Array.isArray(jt.mensagens) && jt.mensagens.length) { setDetalhe(jt); if (!silencioso) setCarregandoMsg(false); return }
+    } catch { /* cai no detalhe simples */ }
     try {
       const r = await fetch(`/api/financeiro/caixa-email?uid=${em.uid}&pasta=${pasta}`, { headers: { ...(await authHeaders()) } })
       const j = await r.json()
       if (j.error) setErro(j.error)
       else setDetalhe(j)
     } catch { /* mantém modal com erro */ }
-    setCarregandoMsg(false)
+    if (!silencioso) setCarregandoMsg(false)
+  }, [pasta])
+
+  const abrirMensagem = async (em) => {
+    setMsgAberta(em); setDetalhe(null); setResposta(''); setRespOk('')
+    carregarConversa(em, false)
   }
 
-  const baixarAnexo = async (a) => {
-    if (!msgAberta) return
+  const baixarAnexo = async (a, deMsg) => {
+    if (!msgAberta && !deMsg) return
     setBaixandoAnexo(a.i)
+    const uidAlvo = deMsg?.uid ?? msgAberta.uid
+    const pastaAlvo = deMsg?.pasta ?? pasta
     try {
-      const r = await fetch(`/api/financeiro/caixa-email?uid=${msgAberta.uid}&anexo=${a.i}&pasta=${pasta}`, { headers: { ...(await authHeaders()) } })
+      const r = await fetch(`/api/financeiro/caixa-email?uid=${uidAlvo}&anexo=${a.i}&pasta=${pastaAlvo}`, { headers: { ...(await authHeaders()) } })
       if (!r.ok) throw new Error()
       const blob = await r.blob()
       const url = URL.createObjectURL(blob)
@@ -189,7 +202,12 @@ export default function CaixaEmail() {
       })
       const j = await r.json()
       if (!r.ok || j.error) alert(j.error || 'Falha ao enviar a resposta.')
-      else { setRespOk(`Resposta enviada para ${j.para}.`); setResposta('') }
+      else {
+        setRespOk(`Resposta enviada para ${j.para}.`); setResposta('')
+        // a cópia cai nos Enviados em ~1-2s — recarrega a conversa pra ela aparecer
+        const em = msgAberta
+        setTimeout(() => { if (em) carregarConversa(em, true) }, 1800)
+      }
     } catch { alert('Falha de conexão ao enviar.') }
     setEnviandoResp(false)
   }
@@ -384,6 +402,56 @@ export default function CaixaEmail() {
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-secondary)', fontSize: 13 }}>Carregando a mensagem…</div>
               ) : !detalhe ? (
                 <div style={{ padding: 30, textAlign: 'center', color: '#dc2626', fontSize: 13 }}>Não consegui carregar esta mensagem.</div>
+              ) : detalhe.mensagens ? (
+                /* CONVERSA: os dois lados em sequência (recebidas + suas respostas) */
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {detalhe.mensagens.map((m, i) => {
+                    const ultima = i === detalhe.mensagens.length - 1
+                    return (
+                      <div key={`${m.pasta}-${m.uid}`} style={{ border: `1.5px solid ${m.enviado ? '#bbf7d0' : 'var(--portal-border)'}`, borderRadius: 12, overflow: 'hidden', background: m.enviado ? 'rgba(22,163,74,0.06)' : 'var(--portal-bg-card)' }}>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 14px', borderBottom: '1px solid var(--portal-border)', flexWrap: 'wrap' }}>
+                          {m.enviado && <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#16a34a', borderRadius: 6, padding: '2px 8px' }}>VOCÊ</span>}
+                          <b style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>{m.enviado ? 'Você' : (m.deNome || m.de)}</b>
+                          <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>para {m.paraNome || m.para || '—'}</span>
+                          <span style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--portal-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{fmtData(m.data, true)}</span>
+                        </div>
+                        {m.html ? (
+                          <iframe
+                            title={`msg-${m.pasta}-${m.uid}`}
+                            sandbox="allow-popups allow-popups-to-escape-sandbox"
+                            srcDoc={`<!doctype html><html><head><meta charset="utf-8"><base target="_blank"><style>
+                              body{margin:12px;font-family:'Segoe UI',Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#111;word-break:break-word;background:#fff}
+                              img{max-width:100%;height:auto}
+                              table{max-width:100%}
+                              a{color:#1a73e8}
+                              blockquote{border-left:3px solid #ddd;margin:8px 0;padding-left:10px;color:#555}
+                            </style></head><body>${m.html}</body></html>`}
+                            style={{ width: '100%', height: ultima ? '40vh' : 220, border: 'none', background: '#ffffff', display: 'block' }}
+                          />
+                        ) : (
+                          <pre style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13.5, margin: 0, padding: '12px 14px', color: 'var(--portal-text)' }}>{m.texto || '(sem conteúdo)'}</pre>
+                        )}
+                        {m.anexos?.length > 0 && (
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', padding: '10px 14px', borderTop: '1px dashed var(--portal-border)' }}>
+                            {m.anexos.map((a) => (
+                              <button key={a.i} onClick={() => baixarAnexo(a, m)} disabled={baixandoAnexo === a.i} style={chip} title={`Baixar (${fmtTamanho(a.tamanho)})`}>
+                                {baixandoAnexo === a.i ? <RefreshCw size={13} className="spin-envio" /> : <Paperclip size={13} />}
+                                {a.nome} <span style={{ color: 'var(--portal-text-secondary)', fontWeight: 400 }}>{fmtTamanho(a.tamanho)}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {msgAberta.chamadoId != null && (
+                    <button
+                      onClick={() => { setMsgAberta(null); setOpen(false); router.push(`/financeiro/home-financeiro?id=${msgAberta.chamadoId}&tipo=boleto`) }}
+                      style={{ alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 700 }}>
+                      <ExternalLink size={14} /> Abrir o card no financeiro
+                    </button>
+                  )}
+                </div>
               ) : (
                 <>
                   {/* HTML renderizado num iframe isolado (sem scripts), com

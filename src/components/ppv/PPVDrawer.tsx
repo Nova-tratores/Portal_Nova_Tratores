@@ -1140,7 +1140,20 @@ export default function PPVDrawer({
                     <div className="ppv-g-empilha" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1.1fr 0.8fr", gap: 16, marginTop: 16 }}>
                       <div>
                         <label>N° do Pedido do Cliente <span style={{ fontWeight: 400, textTransform: "none", letterSpacing: 0, color: "#94a3b8" }}>(POS vinculado)</span></label>
-                        <input type="text" value={modalOSDisplay} readOnly onClick={onBuscaOS} placeholder="Clique para vincular O.S." title="Vincular O.S. (POS) ao PPV" style={{ marginBottom: 0, fontWeight: 600, cursor: "pointer" }} />
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input type="text" value={modalOSDisplay} readOnly onClick={onBuscaOS} placeholder="Clique para vincular O.S." title="Vincular O.S. (POS) ao PPV" style={{ marginBottom: 0, fontWeight: 600, cursor: "pointer", flex: 1, minWidth: 0 }} />
+                          {modalOSId && podeEditar && (
+                            <button type="button" title={`Desvincular a OS ${modalOSId} deste PPV`}
+                              onClick={() => {
+                                if (window.confirm(`Desvincular a OS ${modalOSId} deste PPV?\n\nO vínculo é removido dos DOIS lados ao salvar (o drawer também salva sozinho ao fechar). Depois é só vincular a ordem certa.`)) {
+                                  onSetModalOS("", "");
+                                }
+                              }}
+                              style={{ flexShrink: 0, width: 38, borderRadius: 8, border: "1px solid #fecaca", background: "#fff", color: "#dc2626", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>
+                              ✕
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <div><label>N° do Contrato de Venda</label><input type="text" value={infoNumContrato} onChange={(e) => setInfoNumContrato(e.target.value)} style={{ marginBottom: 0 }} /></div>
                       <div><label>Contato</label><input type="text" value={infoContato} onChange={(e) => setInfoContato(e.target.value)} style={{ marginBottom: 0 }} /></div>

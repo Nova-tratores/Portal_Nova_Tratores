@@ -9,6 +9,7 @@ import { aplicarMudancaFase } from "@/lib/pos/fase";
 const FASES_INICIAIS = [
   "Orçamento",
   "Orçamento enviado para o cliente e aguardando",
+  "Orçamento Aprovado", // agendada pelo checkbox de reserva → vira Execução no dia marcado
   "Aguardando ordem Técnico",
 ];
 const FASES_EXECUCAO = [

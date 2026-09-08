@@ -14,6 +14,8 @@ interface PhaseViewProps {
   searchTerm: string;
   onCardClick: (order: KanbanCard) => void;
   onPhaseChange?: (orderId: string, newPhase: string) => void;
+  /** Checkbox de reserva: agenda o serviço (move pra Orçamento Aprovado + Data Início). */
+  onAgendar?: (orderId: string, dataISO: string) => void;
   // Envio ao Omie (manual): botão por card e "Enviar todas" no cabeçalho da fase.
   onEnviarOmie?: (orderId: string) => void;
   onEnviarOmieTodas?: () => void;
@@ -30,6 +32,7 @@ const PRETO_FASE = "#111827";
 export const PHASE_COLORS: Record<string, string> = {
   "Orçamento": PRETO_FASE,
   "Orçamento enviado para o cliente e aguardando": PRETO_FASE,
+  "Orçamento Aprovado": PRETO_FASE,
   "Aguardando ordem Técnico": PRETO_FASE,
   "Execução": PRETO_FASE,
   "Execução (Realizando Diagnóstico)": PRETO_FASE,
@@ -55,6 +58,7 @@ const FASE_CONCLUIDO_GAR = "Relatório Concluído - Garantia";
 export const PHASE_SHORT: Record<string, string> = {
   "Orçamento": "Orçamento",
   "Orçamento enviado para o cliente e aguardando": "Orç. Enviado",
+  "Orçamento Aprovado": "Orç. Aprovado",
   "Aguardando ordem Técnico": "Aguard. Técnico",
   "Execução": "Execução",
   "Execução (Realizando Diagnóstico)": "Diagnóstico",
@@ -82,8 +86,14 @@ function formatDateBR(dateStr: string): string {
   return dateStr;
 }
 
-const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null }) {
+const FASE_APROVADO = "Orçamento Aprovado";
+const FASES_RESERVA = new Set(["Orçamento", "Orçamento enviado para o cliente e aguardando", FASE_APROVADO]);
+
+const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, onAgendar, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; onAgendar?: (orderId: string, dataISO: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null }) {
   const diasFase = diasEntre(o.dataFase);
+  // Checkbox "reservado/agendado": marcar pergunta o dia e move pra Orçamento Aprovado
+  const [pedindoData, setPedindoData] = useState(false);
+  const [dataAgendada, setDataAgendada] = useState(() => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10));
   const temReqInfo = o.reqInfo && o.reqInfo.length > 0;
   const numero = String(o.id || "").replace(/^#?OS-?/i, "");
   // No card só o que vem depois de "Solicitação do cliente:" (o blob todo
@@ -130,6 +140,34 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
               <option key={p} value={p}>{PHASE_SHORT[p] || p}</option>
             ))}
           </select>
+        </div>
+      )}
+      {/* Reserva/agendamento: marcar → pergunta o dia → Orçamento Aprovado + Data Início */}
+      {onAgendar && FASES_RESERVA.has(o.status) && (
+        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 7 }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: o.status === FASE_APROVADO ? "#15803D" : "#64748b", cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              checked={o.status === FASE_APROVADO}
+              onChange={(e) => {
+                if (e.target.checked) setPedindoData(true);
+                else { setPedindoData(false); onPhaseChange?.(o.id, "Orçamento enviado para o cliente e aguardando"); }
+              }}
+              style={{ accentColor: "#15803D" }}
+            />
+            Reservado · serviço agendado
+          </label>
+          {pedindoData && o.status !== FASE_APROVADO && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 7, padding: "6px 8px" }}>
+              <span style={{ fontSize: 11.5, color: "#15803D", fontWeight: 700, whiteSpace: "nowrap" }}>Pra qual dia?</span>
+              <input type="date" value={dataAgendada} onChange={(e) => setDataAgendada(e.target.value)}
+                style={{ flex: 1, minWidth: 0, fontSize: 12, padding: "3px 6px", border: "1px solid #BBF7D0", borderRadius: 5 }} />
+              <button type="button" onClick={() => { if (dataAgendada) { onAgendar(o.id, dataAgendada); setPedindoData(false); } }}
+                style={{ border: "none", background: "#15803D", color: "#fff", borderRadius: 5, padding: "4px 10px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>OK</button>
+              <button type="button" onClick={() => setPedindoData(false)} title="Cancelar"
+                style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 13, padding: 0 }}>×</button>
+            </div>
+          )}
         </div>
       )}
       {/* Informações em LISTA (padrão PPV: rótulo à esquerda, valor à direita) */}
@@ -248,7 +286,7 @@ const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 // Fases que aparecem no quadro mas SEM mostrar a contagem no cabeçalho.
 const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
-export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, tecnicoFiltro = "" }: PhaseViewProps) {
+export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onAgendar, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, tecnicoFiltro = "" }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
@@ -354,6 +392,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 color={PHASE_COLORS[o.status] || "#64748B"}
                 onClick={() => handleCardClick(o)}
                 onPhaseChange={onPhaseChange}
+                onAgendar={onAgendar}
                 garantiaStatus={garantiaMap[o.id]}
                 onDescEnter={onDescEnter}
                 onDescLeave={onDescLeave}
@@ -403,6 +442,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                       color={PHASE_COLORS[phase] || "#64748B"}
                       onClick={() => handleCardClick(o)}
                       onPhaseChange={onPhaseChange}
+                      onAgendar={onAgendar}
                       garantiaStatus={garantiaMap[o.id]}
                       onDescEnter={onDescEnter}
                       onDescLeave={onDescLeave}
