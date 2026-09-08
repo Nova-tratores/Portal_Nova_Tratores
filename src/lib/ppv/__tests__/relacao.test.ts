@@ -59,6 +59,10 @@ describe("filtrarRelacao", () => {
     ped({ id: "PPV-0002", cliente: "Antonio", tecnico: "Gabriel", status: "Orçamento enviado para o cliente e aguardando", data: "20/08/2026 09:00", valor: 200 }),
     ped({ id: "REM-0003", cliente: "Flora", tecnico: "Danilo", status: "Concluída", data: "01/06/2026 09:00", valor: 300, tipo: "Remessa", previsaoFaturamento: "2026-08-05" }),
   ];
+  it("fase 'Pendente' = todas menos Faturado/Cancelada", () => {
+    expect(filtrarRelacao(lista, { filtrosCol: { status: "Pendente" }, hoje: HOJE }).map((o) => o.id)).toEqual(["PPV-0001", "PPV-0002"]);
+    expect(resumoFiltrosRelacao({ filtrosCol: { status: "Pendente" } })).toContain("Fase: Pendente (menos Faturado/Cancelada)");
+  });
   it("fase é exata (Orçamento não casa Orçamento enviado)", () => {
     expect(filtrarRelacao(lista, { filtrosCol: { status: "Orçamento" }, hoje: HOJE }).map((o) => o.id)).toEqual(["PPV-0001"]);
     expect(filtrarRelacao(lista, { filtrosCol: { status: "Orçamento enviado" }, hoje: HOJE }).map((o) => o.id)).toEqual(["PPV-0002"]);

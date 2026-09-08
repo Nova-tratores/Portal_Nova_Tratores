@@ -12,7 +12,7 @@ import type { KanbanItem } from "@/lib/ppv/types";
 import { STATUS_OPTIONS, STATUS_COLORS, rotuloStatus } from "@/lib/ppv/constants";
 import {
   COLS_RELACAO, FASES_PDF, faseDoPedido, colTextoRelacao, filtrarRelacao, ordenarRelacao, resumoFiltrosRelacao,
-  totaisRelacao, fmtBRL, statusNorm, isRemessa, estaAberto, gerarCSVRelacao, COLS_DATA, OPCOES_PERIODO, type ColRelacaoKey, type OrdemRelacao,
+  totaisRelacao, fmtBRL, statusNorm, isRemessa, estaAberto, gerarCSVRelacao, COLS_DATA, OPCOES_PERIODO, FASE_PENDENTE, type ColRelacaoKey, type OrdemRelacao,
 } from "@/lib/ppv/relacao";
 import { gerarPdfLista, hojeISO } from "@/lib/propostas/pdf-lista";
 import { authHeaders } from "@/lib/auth/client";
@@ -144,7 +144,7 @@ export default function RelacaoView({ orders, searchTerm, tipoFilter = "TODOS", 
       <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
         <span style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5, color: "var(--ppv-text-light)", marginRight: 4 }}>Atalhos:</span>
         <button type="button" style={chip(!filtroStatus && !soAbertos)} onClick={() => { setFiltroStatus(""); setSoAbertos(false); }}>Todas ({porFase.total})</button>
-        <button type="button" style={chip(soAbertos, { borderColor: soAbertos ? "#047857" : "#e2ddd3", background: soAbertos ? "#047857" : "#fefefe" })} onClick={() => setSoAbertos((v) => !v)}>Em aberto ({porFase.abertos})</button>
+        <button type="button" title="Todas as fases menos Faturado e Cancelada" style={chip(soAbertos, { borderColor: soAbertos ? "#047857" : "#e2ddd3", background: soAbertos ? "#047857" : "#fefefe" })} onClick={() => setSoAbertos((v) => !v)}>Pendente ({porFase.abertos})</button>
         {STATUS_OPTIONS.map((s) => {
           const n = porFase.m[s.value] || 0;
           if (n === 0 && filtroStatus !== s.value) return null;
@@ -175,7 +175,7 @@ export default function RelacaoView({ orders, searchTerm, tipoFilter = "TODOS", 
       {/* CARDS DE RESUMO — sempre sobre o que está filtrado; clicar aplica o atalho */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(210px, 1fr))", gap: 10 }}>
         <ResumoCard titulo="No filtro" n={totais.n} valor={totais.valor} cor={LARANJA} ativo={!filtroStatus && !soAbertos} onClick={() => { setFiltroStatus(""); setSoAbertos(false); }} />
-        <ResumoCard titulo="Em aberto" n={totais.abertosN} valor={totais.abertosV} cor="#047857" ativo={soAbertos} onClick={() => setSoAbertos((v) => !v)} sub="menos Faturado/Cancelada" />
+        <ResumoCard titulo="Pendente" n={totais.abertosN} valor={totais.abertosV} cor="#047857" ativo={soAbertos} onClick={() => setSoAbertos((v) => !v)} sub="menos Faturado/Cancelada" />
         <ResumoCard titulo="Faturados" n={totais.faturadosN} valor={totais.faturadosV} cor="#1d4ed8" ativo={filtroStatus === "Concluída"} onClick={() => setFiltroStatus(filtroStatus === "Concluída" ? "" : "Concluída")} />
         <ResumoCard titulo="Remessas (REM)" n={totais.remN} valor={totais.remV} cor="#7c3aed" />
       </div>
@@ -199,6 +199,7 @@ export default function RelacaoView({ orders, searchTerm, tipoFilter = "TODOS", 
                     <th key={c.k} style={{ padding: "4px 8px 8px" }}>
                       <select value={v} onChange={(e) => setV(e.target.value)} aria-label="Filtrar Fase" style={{ ...inputBase, cursor: "pointer" }} onClick={(e) => e.stopPropagation()}>
                         <option value="">Todas</option>
+                        <option value={FASE_PENDENTE}>Pendente — menos Faturado/Cancelada ({porFase.abertos})</option>
                         {fasesPresentes.map((f) => <option key={f.value} value={f.label}>{f.label} ({f.n})</option>)}
                       </select>
                     </th>
