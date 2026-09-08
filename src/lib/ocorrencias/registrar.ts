@@ -46,6 +46,8 @@ export interface NovaOcorrencia {
   criado_por?: string | null
   /** false = não dispara notificações (usado em lotes com aviso agrupado). */
   notificar?: boolean
+  /** Pontos EXTRAS manuais pra agravar a punição (soma aos do catálogo). */
+  pontos_extras?: number
 }
 
 export interface ResultadoRegistro {
@@ -83,19 +85,23 @@ export async function registrarOcorrencia(
     /* coluna ausente (migração pendente) — segue sem vínculo */
   }
 
+  // Agravamento manual: soma aos pontos do catálogo (fica registrado em detalhes)
+  const extras = Math.max(0, Math.min(50, Math.round(Number(dados.pontos_extras) || 0)))
+  const pontosTotal = sub.pontos + extras
+
   const payload: Record<string, unknown> = {
     tecnico_nome: dados.tecnico_nome.trim(),
     id_ordem: dados.id_ordem?.trim() || null,
     tipo: sub.tipoLegado ?? sub.slug,
     descricao: observacao,
     data: dados.data ?? new Date().toISOString().split('T')[0],
-    pontos_descontados: sub.pontos,
+    pontos_descontados: pontosTotal,
     categoria: dados.categoria,
     subcategoria: sub.slug,
     anexos: dados.anexos ?? [],
     origem: dados.origem ?? 'manual',
     auto_chave: dados.auto_chave ?? null,
-    detalhes: dados.detalhes ?? {},
+    detalhes: extras > 0 ? { ...(dados.detalhes ?? {}), pontos_extras: extras, pontos_catalogo: sub.pontos } : (dados.detalhes ?? {}),
     rh_funcionario_id: rhFuncionarioId,
     criado_por: dados.criado_por ?? null,
   }
@@ -108,7 +114,7 @@ export async function registrarOcorrencia(
       .upsert(payload, { onConflict: 'auto_chave', ignoreDuplicates: true })
       .select('id')
     if (error) return { ok: false, inseriu: false, erro: error.message }
-    if (!rows || rows.length === 0) return { ok: true, inseriu: false, pontos: sub.pontos }
+    if (!rows || rows.length === 0) return { ok: true, inseriu: false, pontos: pontosTotal }
     id = rows[0].id as number
   } else {
     const { data: row, error } = await supa
@@ -124,14 +130,14 @@ export async function registrarOcorrencia(
     await notificarOcorrencia(supa, {
       tecnico_nome: payload.tecnico_nome as string,
       label: sub.label,
-      pontos: sub.pontos,
+      pontos: pontosTotal,
       observacao,
       id_ordem: payload.id_ordem as string | null,
       origem: payload.origem as string,
     })
   }
 
-  return { ok: true, inseriu: true, id, pontos: sub.pontos }
+  return { ok: true, inseriu: true, id, pontos: pontosTotal }
 }
 
 /** As 3 notificações (best-effort — nunca derrubam o registro). */
