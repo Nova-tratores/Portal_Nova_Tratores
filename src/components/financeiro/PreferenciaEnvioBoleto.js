@@ -7,6 +7,7 @@ import { montarParcelas, valorTotalCard, formatarBRL } from '@/lib/financeiro/pa
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { MessageCircle, Mail, Check, Pencil, Send, Plus, X } from 'lucide-react'
 import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
+import { buscarFilhos, nfsLabel } from '@/lib/financeiro/grupo'
 
 // Junta os boletos anexados do card numa lista de URLs
 function boletoUrls(card) {
@@ -58,12 +59,23 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
   useEffect(() => { carregarMeuEmail() }, [])
 
   const splitEmails = (s) => String(s || '').split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
-  const urls = boletoUrls(card)
-  // Links das notas fiscais (serviço e peça)
-  const nfUrls = [
-    ...String(card?.anexo_nf_servico || '').split(',').map(u => u.trim()).filter(Boolean),
-    ...String(card?.anexo_nf_peca || '').split(',').map(u => u.trim()).filter(Boolean),
+
+  // Cards agrupados (boleto único): as NFs dos filhos entram junto no envio
+  const [filhosGrupo, setFilhosGrupo] = useState([])
+  useEffect(() => {
+    let ativo = true
+    if (card?.id) buscarFilhos(card.id).then(f => { if (ativo) setFilhosGrupo(f) })
+    else setFilhosGrupo([])
+    return () => { ativo = false }
+  }, [card?.id])
+
+  const linksNf = (c) => [
+    ...String(c?.anexo_nf_servico || '').split(',').map(u => u.trim()).filter(Boolean),
+    ...String(c?.anexo_nf_peca || '').split(',').map(u => u.trim()).filter(Boolean),
   ]
+  const urls = [...new Set([...boletoUrls(card), ...filhosGrupo.flatMap(boletoUrls)])]
+  // Links das notas fiscais (serviço e peça) — do card + agrupadas
+  const nfUrls = [...new Set([...linksNf(card), ...filhosGrupo.flatMap(linksNf)])]
 
   // ----- WhatsApp (wa.me) -----
   const formatVenc = (d) => {
@@ -95,7 +107,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
 
   const montarMensagem = (bUrls, nUrls) => {
     const saud = new Date().getHours() < 12 ? 'Bom dia' : 'Boa tarde'
-    const nf = [card?.num_nf_servico && `S ${card.num_nf_servico}`, card?.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(' / ')
+    const nf = nfsLabel([card, ...filhosGrupo])
     const totalNum = valorTotalCard(card)
     const valor = totalNum != null ? formatarBRL(totalNum) : ''
     const venc = formatVenc(card?.vencimento_boleto)
@@ -221,7 +233,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
           destinatarios,
           chamadoId: card?.id || null,
           cliente: nome || '',
-          nf: [card?.num_nf_servico && `S ${card.num_nf_servico}`, card?.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(' / '),
+          nf: nfsLabel([card, ...filhosGrupo]),
           valor: valorTotalCard(card) != null ? formatarBRL(valorTotalCard(card)) : '',
           vencimento: card?.vencimento_boleto || '',
           parcelas: montarParcelas(card),

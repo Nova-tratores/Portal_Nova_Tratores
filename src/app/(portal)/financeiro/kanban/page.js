@@ -12,10 +12,13 @@ import {
   X, PlusCircle, FileText, Download,
   CheckCircle, Upload, Send,
   Calendar, CreditCard, ArrowLeft,
-  Eye, Search, RefreshCw, AlertCircle, Clock, Trash2, Wallet
+  Eye, Search, RefreshCw, AlertCircle, Clock, Trash2, Wallet, Link2
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
 import ConfirmarFaseModal from '@/components/ConfirmarFaseModal'
+import { anotarGrupos, ehFilhoDeGrupo, sincronizarFilhosComPai, nfsLabel } from '@/lib/financeiro/grupo'
+import AgruparCardsModal from '@/components/financeiro/AgruparCardsModal'
+import GrupoDoCardBox from '@/components/financeiro/GrupoDoCardBox'
 import PreferenciaEnvioBoleto from '@/components/financeiro/PreferenciaEnvioBoleto'
 import EmailsDoCard from '@/components/financeiro/EmailsDoCard'
 import PrefEnvioBadge from '@/components/financeiro/PrefEnvioBadge'
@@ -59,6 +62,7 @@ export default function Kanban() {
  const [loading, setLoading] = useState(true)
 
  const [filtroBusca, setFiltroBusca] = useState('')
+ const [agruparOpen, setAgruparOpen] = useState(false)   // modal "Juntar cards" (boleto único)
  // Incluir (ou não) os cards do setor de Peças junto dos de Oficina
  const [verPecas, setVerPecas] = useState(false)
  const toggleVerPecas = () => {
@@ -86,6 +90,7 @@ export default function Kanban() {
  const carregarDados = async () => {
   try {
     const { data } = await supabase.from('Chamado_NF').select('*').neq('status', 'concluido').neq('status', 'excluido').order('id', { ascending: false });
+    await sincronizarFilhosComPai(data); // cards agrupados espelham o status do card principal
     // Preferência de envio do cliente (capa do card)
     try {
       const rp = await fetch('/api/financeiro/prefs-envio', { headers: { ...(await authHeaders()) } });
@@ -96,6 +101,7 @@ export default function Kanban() {
 
     // ─── AUTO-MOVE: Boleto 30 dias vencido → pago (salva no banco) ────────────
     const paraAutoPago = (data || []).filter(c =>
+      !c.grupo_pai_id &&
       c.status === 'aguardando_vencimento' &&
       c.forma_pagamento === 'Boleto 30 dias' &&
       c.vencimento_boleto && new Date(c.vencimento_boleto + 'T00:00:00') < hoje
@@ -110,6 +116,7 @@ export default function Kanban() {
 
     // ─── AUTO-MOVE: boleto simples vencido sem comprovante → vencido (salva no banco) ─
     const paraAutoVencido = (data || []).filter(c =>
+      !c.grupo_pai_id &&
       c.status === 'aguardando_vencimento' &&
       c.forma_pagamento !== 'Boleto 30 dias' &&
       c.forma_pagamento !== 'Boleto Parcelado' &&
@@ -127,6 +134,7 @@ export default function Kanban() {
 
     // ─── AUTO-MOVE: gerar_boleto com vencimento passado → vencido ─────────────
     const gerarBoletoVencido = (data || []).filter(c =>
+      !c.grupo_pai_id &&
       c.status === 'gerar_boleto' &&
       c.vencimento_boleto && new Date(c.vencimento_boleto + 'T00:00:00') < hoje
     );
@@ -183,9 +191,10 @@ export default function Kanban() {
         parcelas_info
       };
     });
-    setChamados(processados);
+    const anotados = anotarGrupos(processados); // pais ganham grupo_filhos (cards juntados)
+    setChamados(anotados);
     if (tarefaSelecionada) {
-      const itemAtualizado = processados.find(x => x.id === tarefaSelecionada.id);
+      const itemAtualizado = anotados.find(x => x.id === tarefaSelecionada.id);
       if (itemAtualizado) setTarefaSelecionada(itemAtualizado);
     }
   } catch (err) { console.error(err); }
@@ -323,6 +332,7 @@ export default function Kanban() {
  // Excluir card — somente admin
  const excluirCard = async (t) => {
     if (!isAdmin || !t) return;
+    if (t.grupo_filhos?.length) { alert('Este card tem NFs agrupadas. Remova os cards do grupo antes de excluir.'); return; }
     if (!window.confirm(`Tem certeza que deseja excluir o card #${t.id} de ${t.nom_cliente || '-'}?\n\nO card será removido do painel e o sync NÃO vai recriar ele.`)) return;
     const { error } = await supabase.from('Chamado_NF').update({ status: 'excluido' }).eq('id', t.id);
     if (error) { alert('Erro ao excluir: ' + error.message); return; }
@@ -348,7 +358,7 @@ export default function Kanban() {
     carregarDados();
  };
 
- const chamadosFiltrados = chamados.filter(c => ehDoSetor(c, verPecas ? 'todos' : 'oficina')).filter(c => {
+ const chamadosFiltrados = chamados.filter(c => !ehFilhoDeGrupo(c)).filter(c => ehDoSetor(c, verPecas ? 'todos' : 'oficina')).filter(c => {
     const q = filtroBusca.trim().toLowerCase();
     if (!q) return true;
     const campos = [
@@ -416,7 +426,13 @@ export default function Kanban() {
       });
       return (
       <div key={col.id} style={{ width: '400px', flex: '0 0 400px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 16px' }}>
-       <h3 className="fin-col-title" style={{ background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: '#111111', padding: '16px', borderRadius: '12px', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontWeight:'700', fontSize:'15px', letterSpacing:'1px', border: 'none', flexShrink: 0 }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span></h3>
+       <h3 className="fin-col-title" style={{ background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: '#111111', padding: '16px', borderRadius: '12px', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontWeight:'700', fontSize:'15px', letterSpacing:'1px', border: 'none', flexShrink: 0 }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span>
+       {col.id === 'gerar_boleto' && (
+         <button onClick={() => setAgruparOpen(true)} title="Juntar cards do mesmo cliente num só (boleto único pra todas as NFs)"
+           style={{ display: 'flex', alignItems: 'center', gap: '5px', background: '#4338ca', color: '#fff', border: 'none', borderRadius: '999px', padding: '4px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer', letterSpacing: '0.5px' }}>
+           <Link2 size={13} /> JUNTAR
+         </button>
+       )}</h3>
 
        <div style={{ display: 'flex', flexDirection: 'column', gap: '0', paddingRight: '5px' }}>
         {cardsCol.map(t => (
@@ -431,6 +447,11 @@ export default function Kanban() {
              <div style={{ flex: 1, minWidth: 0 }}>
                <span style={setorBadgeStyle}>{labelSetor(t)}</span>
                <h4 style={{ margin: '7px 0 0', fontSize: '16px', fontWeight: '500', lineHeight: 1.3, color: t.status === 'vencido' ? '#dc2626' : 'var(--portal-text)' }}>{t.nom_cliente?.toUpperCase()}</h4>
+               {t.grupo_filhos?.length > 0 && (
+                 <div title="Este card agrupa outras NFs — o valor é a soma e o boleto vale pra todas" style={{ marginTop: '7px', display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '8px', padding: '3px 9px', fontSize: '10.5px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                   <Link2 size={12} /> {t.grupo_filhos.length + 1} NFs JUNTAS — BOLETO ÚNICO
+                 </div>
+               )}
              </div>
              <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                {t.status === 'enviar_cliente' && (
@@ -466,11 +487,19 @@ export default function Kanban() {
                <tr><td style={fichaTdLab}>Envio</td><td style={fichaTdVal}><PrefEnvioBadge metodo={acharMetodo(t, prefsEnvio)} /></td></tr>
                <tr><td style={fichaTdLab}>Forma</td><td style={fichaTdVal}>{t.forma_pagamento?.toUpperCase() || '—'}</td></tr>
                <tr><td style={fichaTdLab}>Venc</td><td style={t.status === 'vencido' ? { ...fichaTdVal, color: '#dc2626', fontWeight: '800' } : fichaTdVal}>{formatarDataBR(t.vencimento_boleto)}</td></tr>
-               {(t.num_nf_servico || t.num_nf_peca) && (
-                 <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{[t.num_nf_servico && `S ${t.num_nf_servico}`, t.num_nf_peca && `P ${t.num_nf_peca}`].filter(Boolean).join(' / ')}</td></tr>
+               {(t.num_nf_servico || t.num_nf_peca || t.grupo_filhos?.length > 0) && (
+                 <tr><td style={fichaTdLab}>NF</td><td style={fichaTdVal}>{nfsLabel([t, ...(t.grupo_filhos || [])])}</td></tr>
                )}
              </tbody>
            </table>
+           {t.grupo_filhos?.length > 0 && (
+             <div style={{ marginTop: '8px' }}>
+               <span title={`Este card acumula o valor e as NFs de ${t.grupo_filhos.length} outro(s) card(s) — o detalhe e o desfazer ficam no modal`}
+                 style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', background: '#eef2ff', color: '#4338ca', border: '1px solid #c7d2fe', borderRadius: '20px', padding: '4px 12px', fontSize: '11.5px', fontWeight: 800 }}>
+                 🔗 {t.grupo_filhos.length + 1} cards juntados
+               </span>
+             </div>
+           )}
            {t.isPagamentoRealizado && (
              <div style={{ marginTop: '10px', display:'flex', alignItems:'center', gap:'6px', color:'#16a34a', fontSize:'11px', fontWeight:'600', letterSpacing:'1px' }}>
                <CheckCircle size={14}/> PAGAMENTO REALIZADO
@@ -728,6 +757,13 @@ export default function Kanban() {
           )}
         </div>
 
+        {/* NFs AGRUPADAS (boleto único) — só aparece no card principal de um grupo */}
+        <GrupoDoCardBox
+          card={tarefaSelecionada}
+          onChanged={() => { carregarDados(); }}
+          audit={(a) => { auditLog({ sistema: 'financeiro', entidade: 'Chamado_NF', ...a }); carregarCardLogs(tarefaSelecionada?.id); }}
+        />
+
         {/* Mover para Pago — só no modal para sem_boleto */}
         {tarefaSelecionada.status === 'sem_boleto' && (
           <div style={{ marginTop:'20px', background:'#f0fdf4', padding:'20px', borderRadius:'16px', border:'1px solid #bbf7d0', display:'flex', justifyContent:'center' }}>
@@ -832,6 +868,15 @@ export default function Kanban() {
      open={!!cfgEmailCard}
      onClose={() => setCfgEmailCard(null)}
      onSaved={() => { const c = cfgEmailCard; setCfgEmailCard(null); if (c) handleEnviarRapido(c); }}
+   />
+
+   {/* Juntar cards da fase Gerar Boleto num boleto único */}
+   <AgruparCardsModal
+     open={agruparOpen}
+     cards={chamados.filter(c => (c.status === 'gerar_boleto' || c.status === 'validar_pix') && !ehFilhoDeGrupo(c) && ehDoSetor(c, verPecas ? 'todos' : 'oficina'))}
+     onClose={() => setAgruparOpen(false)}
+     onDone={() => { setAgruparOpen(false); carregarDados(); }}
+     audit={(a) => auditLog({ sistema: 'financeiro', entidade: 'Chamado_NF', ...a })}
    />
 
    <style jsx global>{`

@@ -80,6 +80,8 @@ export async function POST(req: NextRequest) {
 
   for (const card of cards || []) {
     try {
+      // Card agrupado num principal (boleto único): quem lembra é o principal
+      if (card.grupo_pai_id) continue;
       const vencs = vencimentosISO(card).filter((v) => v.iso === alvoISO && !parcelaPaga(card, v.n));
       if (vencs.length === 0) continue;
       stats.candidatos++;
@@ -108,7 +110,11 @@ export async function POST(req: NextRequest) {
         auth: { user: cfg.email_envio, pass: decrypt(cfg.senha_enc) },
       });
 
-      const nf = [card.num_nf_servico && `S ${card.num_nf_servico}`, card.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(" / ");
+      // Cards agrupados no principal (boleto único): NFs dos filhos entram no lembrete
+      const { data: filhosGrupo } = await supabase.from("Chamado_NF").select("*").eq("grupo_pai_id", card.id);
+      const nf = [card, ...(filhosGrupo || [])]
+        .map((c: any) => [c.num_nf_servico && `S ${c.num_nf_servico}`, c.num_nf_peca && `P ${c.num_nf_peca}`].filter(Boolean).join(" / "))
+        .filter(Boolean).join(" · ");
       const cliente = String(card.nom_cliente || "").replace(/[<>&"']/g, "");
       const qtd = parseInt(card.qtd_parcelas) || 1;
 
@@ -137,6 +143,11 @@ ${bloco}
 <p>Nova Tratores<br>&nbsp;&nbsp;&nbsp;Financeiro / Pós-Vendas</p>`;
 
       const { boletos, nfs } = urlsDoCard(card);
+      for (const f of filhosGrupo || []) {
+        const extra = urlsDoCard(f);
+        extra.boletos.forEach((u) => { if (!boletos.includes(u)) boletos.push(u); });
+        extra.nfs.forEach((u) => { if (!nfs.includes(u)) nfs.push(u); });
+      }
       const attachments = await baixarAnexos([...boletos, ...nfs]);
 
       const info = await transporter.sendMail({

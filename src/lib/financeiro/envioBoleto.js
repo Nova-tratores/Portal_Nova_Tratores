@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase'
 import { authHeaders } from '@/lib/auth/client'
 import { montarParcelas, valorTotalCard, formatarBRL } from '@/lib/financeiro/parcelas'
+import { buscarFilhos, nfsLabel } from '@/lib/financeiro/grupo'
 
 // URLs dos boletos anexados no card
 export function boletoUrls(card) {
@@ -54,8 +55,11 @@ export async function tentarEnvioAutomaticoBoleto(card, remetente) {
   const destinatarios = String(pref.email || '').split(/[,;\s]+/).map(e => e.trim()).filter(Boolean)
   if (!destinatarios.length) return { status: 'sem_preferencia', metodo: 'email' }
 
-  const bUrls = boletoUrls(card)
-  const nUrls = nfUrls(card)
+  // Cards agrupados (boleto único): junta as NFs dos filhos no mesmo envio.
+  // O valor total já está no card principal (valorTotalCard soma certo).
+  const filhosGrupo = await buscarFilhos(card?.id)
+  const bUrls = [...new Set([...boletoUrls(card), ...filhosGrupo.flatMap(boletoUrls)])]
+  const nUrls = [...new Set([...nfUrls(card), ...filhosGrupo.flatMap(nfUrls)])]
   if (!bUrls.length && !nUrls.length) return { status: 'sem_arquivo', metodo: 'email', destinatarios }
 
   try {
@@ -68,7 +72,7 @@ export async function tentarEnvioAutomaticoBoleto(card, remetente) {
         destinatarios,
         chamadoId: card.id || null,
         cliente: card.nom_cliente || '',
-        nf: [card.num_nf_servico && `S ${card.num_nf_servico}`, card.num_nf_peca && `P ${card.num_nf_peca}`].filter(Boolean).join(' / '),
+        nf: nfsLabel([card, ...filhosGrupo]),
         valor: valorTotalCard(card) != null ? formatarBRL(valorTotalCard(card)) : '',
         vencimento: card.vencimento_boleto || '',
         parcelas: montarParcelas(card),

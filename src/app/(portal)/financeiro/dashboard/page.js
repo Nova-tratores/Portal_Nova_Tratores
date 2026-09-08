@@ -126,11 +126,12 @@ export default function Dashboard() {
 
         const { data: boletos, error: errBoletos } = await supabase
           .from('Chamado_NF')
-          .select('id, status, valor_servico, vencimento_boleto, forma_pagamento, tarefa, setor')
+          .select('id, status, valor_servico, vencimento_boleto, forma_pagamento, tarefa, setor, grupo_pai_id')
 
         if (errBoletos) throw new Error('Erro ao carregar boletos: ' + errBoletos.message)
 
-        const boletosArr = boletos || []
+        // Cards agrupados num principal (boleto único) contam pelo principal
+        const boletosArr = (boletos || []).filter(b => !b.grupo_pai_id)
 
         const totalBoletos = boletosArr.length
         const boletosEmAberto = boletosArr.filter(b => !['concluido'].includes(b.status)).length

@@ -110,6 +110,7 @@ function HomePosVendasContent() {
 
       // FILTRO: Remove PIX e foca em "Enviar para cliente" ou "Cobranca"
       const tarefasFaturamento = (bolds || [])
+        .filter(t => !t.grupo_pai_id) // cards agrupados vivem dentro do card principal
         .filter(t => ehDoSetor(t, SETOR_PAINEL))
         .filter(t => !temNotaServico(t))
         .filter(t => !t.forma_pagamento?.toLowerCase().includes('pix'))
@@ -128,6 +129,7 @@ function HomePosVendasContent() {
 
       // Clientes sem boleto (status = 'sem_boleto')
       const semBoleto = (bolds || [])
+        .filter(t => !t.grupo_pai_id)
         .filter(t => ehDoSetor(t, SETOR_PAINEL))
         .filter(t => !temNotaServico(t))
         .filter(t => t.status === 'sem_boleto')

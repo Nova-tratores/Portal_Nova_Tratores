@@ -74,6 +74,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const item = idx >= 0 ? lista[idx] : lista[lista.length - 1];
   const resultado = await registrarAlimentacaoItem(idOs, item);
 
+  // Alimentação com NF anexada vai direto pra última fase (Enviado Financeiro),
+  // mesmo quando a despesa automática já existia em "pedido".
+  if (resultado.requisicaoId && resultado.status && !["financeiro", "lixeira", "cancelada"].includes(resultado.status)) {
+    const { error: errProm } = await supabase
+      .from("Requisicao")
+      .update({ status: "financeiro", enviado_financeiro_data: new Date().toISOString().slice(0, 10) })
+      .eq("id", resultado.requisicaoId);
+    if (!errProm) resultado.status = "financeiro";
+  }
+
   return NextResponse.json({
     ok: true,
     foto_url: fotoUrl,
