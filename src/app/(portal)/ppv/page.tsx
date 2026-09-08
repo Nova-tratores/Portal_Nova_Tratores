@@ -23,6 +23,7 @@ import ModalBuscaOS from "@/components/ppv/ModalBuscaOS";
 import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalUsoProduto from "@/components/ppv/ModalUsoProduto";
 import ModalProdutosEstoque from "@/components/ppv/ModalProdutosEstoque";
+import ItemOrcamentoModal from "@/components/ppv/ItemOrcamentoModal";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import BotaoRetiradas from "@/components/ppv/BotaoRetiradas";
@@ -180,6 +181,8 @@ function PPVApp() {
   // Filtro por produto: mostra em quais PPVs o produto foi/está sendo usado.
   const [usoProduto, setUsoProduto] = useState<{ codigo: string; descricao: string } | null>(null);
   const [produtosEstoqueOpen, setProdutosEstoqueOpen] = useState(false);
+  // Ficha completa do produto (mesma janela do Item de Orçamento), aberta da lista de estoque
+  const [itemProduto, setItemProduto] = useState<{ codigo: string; descricao: string; conta: "NOVA" | "CASTRO"; preco: number } | null>(null);
   // Guarda o produto do filtro quando abrimos um PPV a partir dele, pra REABRIR
   // o histórico no mesmo produto quando o usuário fechar o PPV.
   const usoProdutoVoltar = useRef<{ codigo: string; descricao: string } | null>(null);
@@ -478,7 +481,19 @@ function PPVApp() {
       <ModalBuscaOS open={buscaOSOpen} onClose={() => setBuscaOSOpen(false)} onSelect={handleSelectOS} />
       <ModalBuscaProduto open={buscaProdutoOpen} mode={buscaProdutoMode} onClose={() => { setBuscaProdutoOpen(false); if (buscaProdutoMode === "modal") setBuscaFechadaSinal((s) => s + 1); }} onSelect={handleSelectProduto} onEditManual={handleEditManual} abrirNoCatalogo={buscaProdutoCatalogo} onCriarProvisorio={handleCriarProvisorio}
         onAbrirKit={buscaProdutoMode === "modal" ? () => { setBuscaProdutoOpen(false); setKitSinal((s) => s + 1); } : undefined} />
-      <ModalProdutosEstoque open={produtosEstoqueOpen} onClose={() => setProdutosEstoqueOpen(false)} onSelect={(codigo, descricao) => { setProdutosEstoqueOpen(false); setUsoProduto({ codigo, descricao }); }} />
+      <ModalProdutosEstoque open={produtosEstoqueOpen} onClose={() => setProdutosEstoqueOpen(false)} onSelect={(codigo, descricao, conta, valor) => { setItemProduto({ codigo, descricao, conta: conta === "CASTRO" ? "CASTRO" : "NOVA", preco: valor }); }} />
+      <ItemOrcamentoModal
+        open={!!itemProduto}
+        ppvId={null}
+        conta={itemProduto?.conta || "NOVA"}
+        codigo={itemProduto?.codigo || null}
+        descricao={itemProduto?.descricao}
+        quantidade={1}
+        preco={itemProduto?.preco}
+        userName={userProfile?.nome || ""}
+        onClose={() => setItemProduto(null)}
+        showToast={showToast}
+      />
       <ModalUsoProduto open={!!usoProduto} codigo={usoProduto?.codigo || null} descricao={usoProduto?.descricao} onClose={() => setUsoProduto(null)} onAbrirPpv={(id) => { usoProdutoVoltar.current = usoProduto; setUsoProduto(null); openCardDetails(id); }} />
       <ModalProdutoManual open={produtoManualOpen} onClose={() => setProdutoManualOpen(false)} onSaved={() => {}} editData={produtoManualEdit} provisorio={produtoManualProvisorio} />
       <ModalRevisoes open={showGerenciarKits} onClose={() => setShowGerenciarKits(false)} onSaved={recarregarRevisoes} />

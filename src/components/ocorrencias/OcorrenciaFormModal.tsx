@@ -1,8 +1,8 @@
 'use client'
 // Modal ÚNICO de lançamento de ocorrência — usado no Painel dos Mecânicos,
 // no OSDrawer (categoria OS pré-selecionada), na tela de PPV (categoria PV)
-// e no MotoristaDrawer da Frota (categoria Frota). Pontos vêm do CATÁLOGO
-// (nunca digitados) e ficam em destaque vermelho antes de confirmar.
+// e no MotoristaDrawer da Frota (categoria Frota). Pontos-base vêm do CATÁLOGO;
+// dá pra AGRAVAR com pontos extras manuais (somam e ficam em detalhes).
 // Observação é obrigatória; anexos (fotos ≤10MB / vídeos ≤50MB, máx 5).
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertOctagon, Loader2, Paperclip, X } from 'lucide-react'
@@ -13,8 +13,8 @@ import {
 import { registrarOcorrencia } from '@/lib/ocorrencias/registrar'
 import { uploadAnexosOcorrencia, validarAnexo, ACCEPT_ANEXOS } from '@/lib/ocorrencias/anexos'
 
-const INP: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 13, boxSizing: 'border-box', background: 'var(--portal-bg-card)', outline: 'none', color: 'var(--portal-text)' }
-const MLBL: React.CSSProperties = { fontSize: 12, fontWeight: 500, color: 'var(--portal-text-secondary)', display: 'block', marginBottom: 5 }
+const INP: React.CSSProperties = { width: '100%', padding: '11px 14px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 15, boxSizing: 'border-box', background: 'var(--portal-bg-card)', outline: 'none', color: 'var(--portal-text)' }
+const MLBL: React.CSSProperties = { fontSize: 13.5, fontWeight: 500, color: 'var(--portal-text-secondary)', display: 'block', marginBottom: 6 }
 
 export default function OcorrenciaFormModal({
   aberto, onFechar, onRegistrada, tecnicos,
@@ -39,6 +39,7 @@ export default function OcorrenciaFormModal({
   const [tecnico, setTecnico] = useState(tecnicoInicial)
   const [idOrdem, setIdOrdem] = useState(idOrdemInicial)
   const [observacao, setObservacao] = useState('')
+  const [pontosExtras, setPontosExtras] = useState(0)
   const [arquivos, setArquivos] = useState<File[]>([])
   const [erro, setErro] = useState('')
   const [salvando, setSalvando] = useState(false)
@@ -55,6 +56,7 @@ export default function OcorrenciaFormModal({
     setTecnico(tecnicoInicial)
     setIdOrdem(idOrdemInicial)
     setObservacao('')
+    setPontosExtras(0)
     setArquivos((arquivosIniciaisRef.current ?? []).slice(0, 5))
     setErro('')
   }, [aberto, categoriaInicial, tecnicoInicial, idOrdemInicial])
@@ -94,6 +96,7 @@ export default function OcorrenciaFormModal({
         id_ordem: idOrdem.trim() || null,
         anexos,
         criado_por: criadoPor ?? null,
+        pontos_extras: pontosExtras,
       })
       if (!r.ok) { setErro(r.erro || 'Falha ao registrar.'); setSalvando(false); return }
       onRegistrada?.()
@@ -108,10 +111,10 @@ export default function OcorrenciaFormModal({
   if (!aberto) return null
   return (
     <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={onFechar}>
-      <div style={{ background: 'var(--portal-bg-card)', borderRadius: 12, padding: 24, width: '100%', maxWidth: 480, maxHeight: '92vh', overflow: 'auto', border: '1px solid var(--portal-border)' }} onClick={e => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-            <AlertOctagon size={17} color="#DC2626" /> Registrar ocorrência
+      <div style={{ background: 'var(--portal-bg-card)', borderRadius: 12, padding: 28, width: '100%', maxWidth: 640, maxHeight: '92vh', overflow: 'auto', border: '1px solid var(--portal-border)' }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+          <h2 style={{ fontSize: 19, fontWeight: 700, color: 'var(--portal-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 9 }}>
+            <AlertOctagon size={20} color="#DC2626" /> Registrar ocorrência
           </h2>
           <button onClick={onFechar} style={{ background: 'var(--portal-bg-secondary)', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', width: 28, height: 28, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={14} /></button>
         </div>
@@ -126,7 +129,7 @@ export default function OcorrenciaFormModal({
                 const ativa = c === categoria
                 return (
                   <button key={c} onClick={() => { setCategoria(c); setSubcategoria('') }} style={{
-                    padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                    padding: '8px 16px', borderRadius: 8, fontSize: 14.5, fontWeight: 700, cursor: 'pointer',
                     border: `1.5px solid ${ativa ? info.cor : 'var(--portal-border)'}`,
                     background: ativa ? `${info.cor}18` : 'var(--portal-bg-secondary)',
                     color: ativa ? info.cor : 'var(--portal-text-secondary)',
@@ -146,11 +149,28 @@ export default function OcorrenciaFormModal({
               ))}
             </select>
             {sub && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
-                <span style={{ fontSize: 15, fontWeight: 900, padding: '4px 14px', borderRadius: 6, background: '#FEE2E2', color: '#DC2626' }}>
-                  −{sub.pontos} pontos
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 17, fontWeight: 900, padding: '5px 16px', borderRadius: 6, background: '#FEE2E2', color: '#DC2626' }}>
+                  −{sub.pontos + pontosExtras} pontos
                 </span>
-                {sub.ajuda && <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{sub.ajuda}</span>}
+                {pontosExtras > 0 && (
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: '#B91C1C' }}>({sub.pontos} do catálogo + {pontosExtras} extras)</span>
+                )}
+                {sub.ajuda && <span style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>{sub.ajuda}</span>}
+              </div>
+            )}
+            {sub && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>Agravar (pontos extras):</span>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0, border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden' }}>
+                  <button onClick={() => setPontosExtras(p => Math.max(0, p - 1))} title="Tirar 1 ponto extra"
+                    style={{ width: 36, height: 36, border: 'none', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>−</button>
+                  <input type="number" min={0} max={50} value={pontosExtras}
+                    onChange={e => { const v = parseInt(e.target.value || '0', 10); setPontosExtras(isNaN(v) ? 0 : Math.max(0, Math.min(50, v))) }}
+                    style={{ width: 58, height: 36, border: 'none', borderLeft: '1px solid var(--portal-border)', borderRight: '1px solid var(--portal-border)', textAlign: 'center', fontSize: 15.5, fontWeight: 800, color: pontosExtras > 0 ? '#DC2626' : 'var(--portal-text)', background: 'var(--portal-bg-card)', outline: 'none' }} />
+                  <button onClick={() => setPontosExtras(p => Math.min(50, p + 1))} title="Adicionar 1 ponto extra (mais punitivo)"
+                    style={{ width: 36, height: 36, border: 'none', background: '#FEE2E2', color: '#DC2626', fontSize: 18, fontWeight: 700, cursor: 'pointer' }}>+</button>
+                </div>
               </div>
             )}
           </div>
@@ -170,7 +190,7 @@ export default function OcorrenciaFormModal({
 
           <div>
             <label style={MLBL}>Observação (obrigatória)</label>
-            <textarea value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Descreva o que aconteceu — essa descrição vai pro funcionário e pro RH." rows={3} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} />
+            <textarea value={observacao} onChange={e => setObservacao(e.target.value)} placeholder="Descreva o que aconteceu — essa descrição vai pro funcionário e pro RH." rows={4} style={{ ...INP, resize: 'vertical', fontFamily: 'inherit' }} />
           </div>
 
           {/* Anexos */}
@@ -200,10 +220,10 @@ export default function OcorrenciaFormModal({
           <button onClick={salvar} disabled={salvando || !sub || !tecnico || !observacao.trim()} style={{
             width: '100%', padding: '11px 0', borderRadius: 8, border: 'none',
             background: salvando || !sub || !tecnico || !observacao.trim() ? '#9CA3AF' : '#DC2626',
-            color: '#fff', fontSize: 14, fontWeight: 700, cursor: salvando ? 'wait' : 'pointer',
+            color: '#fff', fontSize: 15.5, fontWeight: 700, cursor: salvando ? 'wait' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}>
-            {salvando ? <><Loader2 size={15} className="animate-spin" /> Registrando…</> : sub ? `Registrar ocorrência (−${sub.pontos} pts)` : 'Registrar ocorrência'}
+            {salvando ? <><Loader2 size={15} className="animate-spin" /> Registrando…</> : sub ? `Registrar ocorrência (−${sub.pontos + pontosExtras} pts)` : 'Registrar ocorrência'}
           </button>
         </div>
       </div>

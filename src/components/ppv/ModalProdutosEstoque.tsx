@@ -11,7 +11,7 @@ export default function ModalProdutosEstoque({
 }: {
   open: boolean;
   onClose: () => void;
-  onSelect: (codigo: string, descricao: string) => void;
+  onSelect: (codigo: string, descricao: string, conta: string, valor: number) => void;
 }) {
   const [busca, setBusca] = useState("");
   const [lista, setLista] = useState<ProdutoEstoque[]>([]);
@@ -62,7 +62,7 @@ export default function ModalProdutosEstoque({
           ) : lista.length === 0 ? (
             <div style={{ padding: 24, textAlign: "center", color: "#94a3b8", fontSize: 13 }}>Nenhuma peça em estoque encontrada.</div>
           ) : lista.map((p, i) => (
-            <button key={`${p.conta}-${p.codigo}-${i}`} type="button" onClick={() => onSelect(p.codigo, p.descricao)}
+            <button key={`${p.conta}-${p.codigo}-${i}`} type="button" onClick={() => onSelect(p.codigo, p.descricao, p.conta, p.valor)}
               style={{ display: "grid", gridTemplateColumns: "150px 1fr 90px 120px 70px", gap: 10, alignItems: "center", width: "100%", textAlign: "left", padding: "9px 18px", border: "none", borderBottom: "1px solid #f1eee8", background: "transparent", cursor: "pointer", fontSize: 13 }}
               onMouseEnter={(e) => (e.currentTarget.style.background = "#fff7ef")} onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
               <span style={{ fontWeight: 700, color: "#2563EB", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{p.codigo}</span>
@@ -75,7 +75,7 @@ export default function ModalProdutosEstoque({
         </div>
 
         <div style={{ padding: "8px 18px", borderTop: "1px solid #eef0f3", fontSize: 11.5, color: "#94a3b8" }}>
-          {lista.length} peça(s){lista.length >= 300 ? "+ (refine a busca)" : ""} · clique para ver o histórico
+          {lista.length} peça(s){lista.length >= 300 ? "+ (refine a busca)" : ""} · clique para abrir a ficha do produto
         </div>
       </div>
     </div>
