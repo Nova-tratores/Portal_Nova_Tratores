@@ -32,10 +32,14 @@ export async function GET(req: NextRequest) {
   // Sincroniza status com OS em background (não bloqueia resposta)
   sincronizarStatusComOS().catch(() => {});
 
+  // `status_desde` vem da migration sql/ppv-status-hist.sql; se ela ainda não foi aplicada,
+  // o PostgREST devolve 400 — cai pro select sem a coluna em vez de derrubar o kanban.
+  const SEL_BASE = "id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao,email_usuario,pedido_omie,Id_Os,nf_numero,Projeto,previsao_faturamento";
+  const buscarPedidos = () =>
+    supabaseFetch<Record<string, unknown>[]>(`${TBL_PEDIDOS}?select=${SEL_BASE},status_desde&order=data.desc`)
+      .catch(() => supabaseFetch<Record<string, unknown>[]>(`${TBL_PEDIDOS}?select=${SEL_BASE}&order=data.desc`));
   const [dados, logsData] = await Promise.all([
-    supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PEDIDOS}?select=id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao,email_usuario,pedido_omie,Id_Os,nf_numero,Projeto,previsao_faturamento&order=data.desc`
-    ),
+    buscarPedidos(),
     supabaseFetch<Record<string, unknown>[]>(
       `${TBL_LOGS}?select=id_ppv,acao,usuario_email,data_hora&order=id.desc`
     ),
@@ -73,6 +77,7 @@ export async function GET(req: NextRequest) {
       nfNumero: String(getValorInsensivel(r, "nf_numero") || ""),
       projeto: String(getValorInsensivel(r, "Projeto") || ""),
       previsaoFaturamento: String(getValorInsensivel(r, "previsao_faturamento") || "").slice(0, 10),
+      statusDesde: String(getValorInsensivel(r, "status_desde") || ""),
       ultimaAcao: ultimoLog?.acao || "",
       ultimoUsuario: ultimoLog?.usuario || "",
       ultimaData: ultimoLog?.data || "",

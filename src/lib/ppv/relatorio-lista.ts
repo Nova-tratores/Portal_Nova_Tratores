@@ -31,7 +31,15 @@ import {
 // ---------------------------------------------------------------------------
 // Busca (mesmas colunas do kanban + Pedido Omie / O.S. / NF)
 // ---------------------------------------------------------------------------
-const SELECT = "id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao,email_usuario,pedido_omie,Id_Os,nf_numero,Projeto,previsao_faturamento";
+const SELECT_BASE = "id_pedido,cliente,tecnico,Tipo_Pedido,status,valor_total,desconto_percentual,data,observacao,email_usuario,pedido_omie,Id_Os,nf_numero,Projeto,previsao_faturamento";
+// `status_desde` vem da migration sql/ppv-status-hist.sql; sem ela o PostgREST devolve 400 → tenta sem a coluna.
+async function fetchPedidos(filtro: string): Promise<Record<string, unknown>[]> {
+  try {
+    return (await supabaseFetch<Record<string, unknown>[]>(`${TBL_PEDIDOS}?select=${SELECT_BASE},status_desde&${filtro}`)) || [];
+  } catch {
+    return (await supabaseFetch<Record<string, unknown>[]>(`${TBL_PEDIDOS}?select=${SELECT_BASE}&${filtro}`)) || [];
+  }
+}
 
 function mapear(r: Record<string, unknown>): KanbanItem {
   return {
@@ -50,6 +58,7 @@ function mapear(r: Record<string, unknown>): KanbanItem {
     nfNumero: String(getValorInsensivel(r, "nf_numero") || ""),
     projeto: String(getValorInsensivel(r, "Projeto") || ""),
     previsaoFaturamento: String(getValorInsensivel(r, "previsao_faturamento") || "").slice(0, 10),
+    statusDesde: String(getValorInsensivel(r, "status_desde") || ""),
     ultimaAcao: "",
     ultimoUsuario: "",
     ultimaData: "",
@@ -63,16 +72,16 @@ export async function buscarPedidosPorIds(ids: string[]): Promise<KanbanItem[]> 
   for (let i = 0; i < limpos.length; i += 100) {
     const lote = limpos.slice(i, i + 100);
     const lista = `(${lote.map((s) => `"${s}"`).join(",")})`;
-    const rows = await supabaseFetch<Record<string, unknown>[]>(`${TBL_PEDIDOS}?select=${SELECT}&id_pedido=in.${encodeURIComponent(lista)}`);
-    (rows || []).forEach((r) => { const it = mapear(r); porId.set(it.id, it); });
+    const rows = await fetchPedidos(`id_pedido=in.${encodeURIComponent(lista)}`);
+    rows.forEach((r) => { const it = mapear(r); porId.set(it.id, it); });
   }
   return limpos.map((id) => porId.get(id)).filter((x): x is KanbanItem => !!x);
 }
 
 /** Todos os pedidos (pra o cron). `soAbertos` = tudo menos Faturado/Cancelada. */
 export async function buscarPedidosRelacao(opts: { soAbertos?: boolean } = {}): Promise<KanbanItem[]> {
-  const rows = await supabaseFetch<Record<string, unknown>[]>(`${TBL_PEDIDOS}?select=${SELECT}&order=data.desc`);
-  let lista = (rows || []).map(mapear);
+  const rows = await fetchPedidos("order=data.desc");
+  let lista = rows.map(mapear);
   if (opts.soAbertos) lista = lista.filter(estaAberto);
   return ordenarRelacao(lista, { key: "data", dir: "desc" });
 }

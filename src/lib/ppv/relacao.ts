@@ -89,6 +89,18 @@ export function rotuloMes(chave: string): string {
   return `${MESES_CURTO[+m[2] - 1] || m[2]}/${m[1].slice(2)}`;
 }
 
+/**
+ * Dias na fase atual (inteiro, ≥ 0) a partir de `statusDesde` (ISO, carimbado pelo
+ * trigger tg_ppv_status_hist). `null` quando não se sabe (pedido anterior à migration).
+ */
+export function diasNaFase(o: Pick<KanbanItem, "statusDesde">, hoje: Date = new Date()): number | null {
+  const s = String(o.statusDesde || "").trim();
+  if (!s) return null;
+  const t = new Date(s).getTime();
+  if (!Number.isFinite(t)) return null;
+  return Math.max(0, Math.floor((hoje.getTime() - t) / 86400000));
+}
+
 export function statusNorm(o: Pick<KanbanItem, "status">): string {
   return normalizarStatus(o.status);
 }
