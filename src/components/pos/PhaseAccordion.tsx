@@ -145,7 +145,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
       {/* Reserva/agendamento: marcar → pergunta o dia → Orçamento Aprovado + Data Início */}
       {onAgendar && FASES_RESERVA.has(o.status) && (
         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 7 }}>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: o.status === FASE_APROVADO ? "#15803D" : "#64748b", cursor: "pointer" }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: o.status === FASE_APROVADO ? "#15803D" : "#94a3b8", cursor: "pointer", textTransform: "none", letterSpacing: 0, margin: 0, whiteSpace: "nowrap" }}>
             <input
               type="checkbox"
               checked={o.status === FASE_APROVADO}
@@ -155,7 +155,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
               }}
               style={{ accentColor: "#15803D" }}
             />
-            Reservado · serviço agendado
+            Reservado
           </label>
           {pedindoData && o.status !== FASE_APROVADO && (
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 7, padding: "6px 8px" }}>

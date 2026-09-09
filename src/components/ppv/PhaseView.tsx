@@ -215,7 +215,7 @@ const MiniCard = memo(function MiniCard({
       {/* Reserva/agendamento: marcar → pergunta o dia → Orçamento Aprovado (OS junto) */}
       {onAgendar && ["Orçamento", "Orçamento enviado para o cliente e aguardando", "Orçamento Aprovado"].includes(statusNorm) && (
         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 7 }}>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, fontWeight: 600, color: statusNorm === "Orçamento Aprovado" ? "#15803D" : "#64748b", cursor: "pointer" }}>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: statusNorm === "Orçamento Aprovado" ? "#15803D" : "#94a3b8", cursor: "pointer", textTransform: "none", letterSpacing: 0, margin: 0, whiteSpace: "nowrap" }}>
             <input
               type="checkbox"
               checked={statusNorm === "Orçamento Aprovado"}
@@ -225,7 +225,7 @@ const MiniCard = memo(function MiniCard({
               }}
               style={{ accentColor: "#15803D" }}
             />
-            Reservado · serviço agendado
+            Reservado
           </label>
           {pedindoData && statusNorm !== "Orçamento Aprovado" && (
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 7, padding: "6px 8px" }}>
