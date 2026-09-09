@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
+import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
 import { createPortal } from "react-dom";
 import type { PPVDetalhes, LogEntry } from "@/lib/ppv/types";
 import type { ComunicacaoSefaz } from "@/lib/ppv/omie";
@@ -945,6 +946,7 @@ export default function PPVDrawer({
                               <button type="button" onClick={() => setBuscaClienteOpen(true)} title="Trocar cliente" style={{ flexShrink: 0, width: 40, borderRadius: 3, border: "1px solid #E2E8F0", background: "#fff", color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>
                                 <i className="fas fa-search" />
                               </button>
+                              <MaquinasClienteIcone doc={clienteDocumento} />
                             </div>
                           </div>
                           <div>

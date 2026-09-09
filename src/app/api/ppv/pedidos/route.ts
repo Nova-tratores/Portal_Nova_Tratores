@@ -249,6 +249,41 @@ export async function PATCH(req: NextRequest) {
     // pulava a limpeza e o vínculo ficava preso na OS).
     if (dados.osId !== undefined) await vincularPPVnaOS(dados.osId || "", dados.id);
 
+    // PPV → POS: trocou o cliente (nome/CPF-CNPJ) ou o técnico no PPV,
+    // a OS vinculada acompanha — mesmo alinhamento que já existe no sentido
+    // POS → PPV (o salvar da OS devolve os mesmos valores, sem briga).
+    try {
+      const osAlvo = String(dados.osId !== undefined ? dados.osId : (estadoAtual?.osId || "")).trim();
+      if (osAlvo && (dados.cliente || dados.clienteDocumento !== undefined || dados.tecnico)) {
+        const osRows = await supabaseFetch<Record<string, unknown>[]>(
+          `Ordem_Servico?Id_Ordem=eq.${encodeURIComponent(osAlvo)}&select=Os_Cliente,Cnpj_Cliente,Os_Tecnico&limit=1`,
+        );
+        const osAtual = osRows?.[0];
+        if (osAtual) {
+          const patchOs: Record<string, unknown> = {};
+          if (dados.cliente && String(osAtual.Os_Cliente || "").trim() !== dados.cliente.trim()) patchOs.Os_Cliente = dados.cliente.trim();
+          const docNovo = String(dados.clienteDocumento || "").trim();
+          if (docNovo && String(osAtual.Cnpj_Cliente || "").trim() !== docNovo) patchOs.Cnpj_Cliente = docNovo;
+          if (dados.tecnico && String(osAtual.Os_Tecnico || "").trim() !== dados.tecnico.trim()) patchOs.Os_Tecnico = dados.tecnico.trim();
+          if (Object.keys(patchOs).length) {
+            await supabaseFetch(`Ordem_Servico?Id_Ordem=eq.${encodeURIComponent(osAlvo)}`, "PATCH", patchOs);
+            const agora = new Date();
+            await supabaseFetch("logs_ppo", "POST", {
+              Id_ppo: osAlvo,
+              Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
+              Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+              UsuEmail: userName,
+              acao: `Sincronizado do ${dados.id}: ${Object.keys(patchOs).map((k) => (k === "Os_Cliente" ? "cliente" : k === "Cnpj_Cliente" ? "CPF/CNPJ" : "técnico")).join(", ")} alinhado(s)`,
+              Status_Anterior: dados.status, Status_Atual: dados.status,
+              Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error(`[ppv-cliente→os] ${dados.id} falhou (ignorado):`, e instanceof Error ? e.message : e);
+    }
+
     // PPV cancelado: solta as unidades rastreadas — reservas voltam ao
     // estoque; liberadas viram devolução pendente (conferência física)
     const virouCancelado = ["Cancelada", "Cancelado"].includes(String(dados.status || ""))

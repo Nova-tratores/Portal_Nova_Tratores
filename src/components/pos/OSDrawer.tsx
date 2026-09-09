@@ -12,6 +12,7 @@ import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import { PPVMiniProvider } from "@/lib/ppv/PPVContext";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
+import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
 import OSUnidadesInfo from "@/components/ppv/OSUnidadesInfo";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
@@ -1032,6 +1033,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             <button type="button" onClick={() => podeEditar && setMostrarTrocaCliente((o) => !o)} title="Trocar cliente" style={{ flexShrink: 0, width: 40, borderRadius: 3, border: "1px solid var(--border)", background: "#fff", color: "#334155", cursor: "pointer" }}>
                               <i className="fas fa-search" />
                             </button>
+                            <MaquinasClienteIcone doc={clienteInfo.cpf} />
                           </div>
                         </div>
                         <div>

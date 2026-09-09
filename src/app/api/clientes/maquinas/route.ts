@@ -58,7 +58,10 @@ export async function OPTIONS() {
 
 export async function GET(req: NextRequest) {
   const cod = (req.nextUrl.searchParams.get("cod") || "").trim();
-  if (!cod) {
+  // Alternativa: buscar direto pelo CPF/CNPJ (usado pelo ícone de trator
+  // nos drawers do POS/PPV, que só têm o documento do cliente).
+  const docParam = (req.nextUrl.searchParams.get("doc") || "").trim();
+  if (!cod && !docParam) {
     return NextResponse.json({ maquinas: [] }, { headers: CORS });
   }
 
@@ -66,13 +69,16 @@ export async function GET(req: NextRequest) {
     // 0) CNPJ do cliente — o mesmo cliente existe nas DUAS contas Omie
     // (Nova Tratores e Castro Pecas) com códigos diferentes; as máquinas
     // podem estar em qualquer uma, então casamos por cod OU por CNPJ.
-    const { data: cadastro } = await supabase
-      .from("portal_nt_clientes_cadastro_omie")
-      .select("cnpj_cpf")
-      .eq("cod_cli", cod)
-      .limit(1)
-      .maybeSingle();
-    const cnpj = (cadastro?.cnpj_cpf || "").trim();
+    let cnpj = docParam;
+    if (cod) {
+      const { data: cadastro } = await supabase
+        .from("portal_nt_clientes_cadastro_omie")
+        .select("cnpj_cpf")
+        .eq("cod_cli", cod)
+        .limit(1)
+        .maybeSingle();
+      cnpj = (cadastro?.cnpj_cpf || "").trim() || cnpj;
+    }
 
     // 1) Projetos (máquinas) — igual à Pasta Clientes
     const projMap = new Map<string, Record<string, any>>();
@@ -82,11 +88,13 @@ export async function GET(req: NextRequest) {
         projMap.set(`${p.nome}|${p.empresa}`, p);
       }
     };
-    const porCod = await supabase
-      .from("portal_nt_projetos_PRINCIPAL")
-      .select("codigo, nome, empresa, inativo")
-      .eq("cod_cli_ultimo", cod);
-    addProjetos(porCod.data);
+    if (cod) {
+      const porCod = await supabase
+        .from("portal_nt_projetos_PRINCIPAL")
+        .select("codigo, nome, empresa, inativo")
+        .eq("cod_cli_ultimo", cod);
+      addProjetos(porCod.data);
+    }
     if (cnpj) {
       const porCnpj = await supabase
         .from("portal_nt_projetos_PRINCIPAL")

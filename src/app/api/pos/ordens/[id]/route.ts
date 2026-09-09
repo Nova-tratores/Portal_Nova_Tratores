@@ -367,21 +367,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     console.error(`[os-desvincular-ppv] OS ${idOs} falhou (ignorado):`, e instanceof Error ? e.message : e);
   }
 
-  // Trocou o cliente da OS → os PPVs vinculados acompanham (mesmo cliente do POS)
+  // Trocou o cliente (ou o técnico) da OS → os PPVs vinculados acompanham,
+  // pra ficar tudo alinhado: nome, CPF/CNPJ e técnico responsável.
   try {
     const nomeCli = String(dados.nomeCliente || "").trim();
     if (nomeCli) {
       const ppvIdsCli = String(dados.ppv || "").split(",").map((s: string) => s.trim()).filter(Boolean);
       const filtroOr = `Id_Os.eq.${idOs}${ppvIdsCli.length ? `,id_pedido.in.(${ppvIdsCli.map((x) => `"${x}"`).join(",")})` : ""}`;
-      const { data: pedsCli } = await supabase.from("pedidos").select("id_pedido, cliente, cliente_documento").or(filtroOr);
+      const { data: pedsCli } = await supabase.from("pedidos").select("id_pedido, cliente, cliente_documento, tecnico").or(filtroOr);
       const docCli = String(dados.cpfCliente || "").trim();
+      const tecOs = String(dados.tecnicoResponsavel || "").trim();
       const desatualizados = (pedsCli || []).filter((p) =>
-        String(p.cliente || "").trim() !== nomeCli || (docCli && String(p.cliente_documento || "").trim() !== docCli));
+        String(p.cliente || "").trim() !== nomeCli
+        || (docCli && String(p.cliente_documento || "").trim() !== docCli)
+        || (tecOs && String(p.tecnico || "").trim() !== tecOs));
       if (desatualizados.length) {
         await supabase.from("pedidos")
-          .update({ cliente: nomeCli, ...(docCli ? { cliente_documento: docCli } : {}) })
+          .update({ cliente: nomeCli, ...(docCli ? { cliente_documento: docCli } : {}), ...(tecOs ? { tecnico: tecOs } : {}) })
           .in("id_pedido", desatualizados.map((p) => p.id_pedido));
-        console.log(`[os-cliente→ppv] OS ${idOs}: cliente alinhado em ${desatualizados.length} PPV(s)`);
+        console.log(`[os-cliente→ppv] OS ${idOs}: cliente/técnico alinhado em ${desatualizados.length} PPV(s)`);
       }
     }
   } catch (e) {
