@@ -51,6 +51,13 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
   const [exigeDevolucao, setExigeDevolucao] = useState(
     montadora?.exige_devolucao_pecas ?? false,
   );
+  // Valor que ESTA fábrica paga por hora/km (vazio = padrão da empresa)
+  const [valorHora, setValorHora] = useState(
+    montadora?.valor_hora != null ? String(montadora.valor_hora) : '',
+  );
+  const [valorKm, setValorKm] = useState(
+    montadora?.valor_km != null ? String(montadora.valor_km) : '',
+  );
   const [saving, setSaving] = useState(false);
   const [erro, setErro] = useState('');
 
@@ -113,6 +120,8 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
         fluxo,
         ressarcimento_por_email: ressarcimentoPorEmail,
         exige_devolucao_pecas: exigeDevolucao,
+        valor_hora: valorHora.trim() === '' ? null : Number(valorHora.replace(',', '.')) || null,
+        valor_km: valorKm.trim() === '' ? null : Number(valorKm.replace(',', '.')) || null,
       };
       const url = montadora
         ? `/api/garantias/montadoras/${montadora.id}`
@@ -280,6 +289,37 @@ export default function MontadoraEditor({ montadora, criadoPor, onClose, onSaved
                   </span>
                 </span>
               </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>
+                    Hora paga pela fábrica (R$)
+                  </label>
+                  <input
+                    inputMode="decimal"
+                    value={valorHora}
+                    onChange={(e) => setValorHora(e.target.value)}
+                    placeholder="padrão 193,00"
+                    style={inputStyle}
+                  />
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>
+                    KM pago pela fábrica (R$)
+                  </label>
+                  <input
+                    inputMode="decimal"
+                    value={valorKm}
+                    onChange={(e) => setValorKm(e.target.value)}
+                    placeholder="padrão 2,80"
+                    style={inputStyle}
+                  />
+                </div>
+                <span style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--portal-text-faint)' }}>
+                  Vazio = padrão da empresa (R$ 193,00/h · R$ 2,80/km). Vale só pro que a FÁBRICA
+                  ressarce — a cobrança ao cliente continua no padrão.
+                </span>
+              </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>

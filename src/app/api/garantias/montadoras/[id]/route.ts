@@ -40,6 +40,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.exige_devolucao_pecas !== undefined) {
     update.exige_devolucao_pecas = !!body.exige_devolucao_pecas;
   }
+  // Valor que a fábrica paga por hora/km (null = padrão da empresa)
+  const numOuNull = (v: unknown): number | null => {
+    const n = Number(v);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  };
+  if (body.valor_hora !== undefined) update.valor_hora = numOuNull(body.valor_hora);
+  if (body.valor_km !== undefined) update.valor_km = numOuNull(body.valor_km);
 
   let { data, error } = await supabase
     .from(TBL_MONTADORAS)
@@ -47,11 +54,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .eq('id', id)
     .select()
     .single();
-  // Pré-migration (coluna exige_devolucao_pecas ainda não existe): refaz sem
-  // ela pra edição de montadora não quebrar.
-  if (error && error.message.includes('exige_devolucao_pecas') && update.exige_devolucao_pecas !== undefined) {
-    delete update.exige_devolucao_pecas;
-    ({ data, error } = await supabase.from(TBL_MONTADORAS).update(update).eq('id', id).select().single());
+  // Pré-migration (colunas novas ainda não existem): refaz sem elas pra
+  // edição de montadora não quebrar.
+  for (const col of ['exige_devolucao_pecas', 'valor_hora', 'valor_km']) {
+    if (error && error.message.includes(col) && update[col] !== undefined) {
+      delete update[col];
+      ({ data, error } = await supabase.from(TBL_MONTADORAS).update(update).eq('id', id).select().single());
+    }
   }
 
   if (error) {

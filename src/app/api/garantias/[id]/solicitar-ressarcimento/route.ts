@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
-import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_ANEXOS, VALOR_HORA, VALOR_KM } from '@/lib/garantias/constants';
+import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_ANEXOS, valoresFabrica } from '@/lib/garantias/constants';
 import { registrarEvento, notificarGarantistas } from '@/lib/garantias/server';
 import {
   transporter,
@@ -23,11 +23,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json().catch(() => ({}));
   const ator = body.garantista_nome || 'Garantista';
 
-  const { data: g } = await supabase
+  let { data: g } = await supabase
     .from(TBL_GARANTIAS)
-    .select('id, numero, numero_externo, status, id_ordem, cliente, chassis, modelo, tecnico_nome, tecnico_horas, tecnico_km, pecas_retorno_em, montadora:garantia_montadoras(nome, fluxo, tipo_template, ressarcimento_por_email, email_destinatarios, email_assinatura)')
+    .select('id, numero, numero_externo, status, id_ordem, cliente, chassis, modelo, tecnico_nome, tecnico_horas, tecnico_km, pecas_retorno_em, montadora:garantia_montadoras(nome, fluxo, tipo_template, ressarcimento_por_email, email_destinatarios, email_assinatura, valor_hora, valor_km)')
     .eq('id', id)
     .maybeSingle();
+  if (!g) {
+    // Fallback pré-migration (valor_hora/valor_km): refaz sem as colunas —
+    // valores caem no padrão da empresa.
+    const retry = await supabase
+      .from(TBL_GARANTIAS)
+      .select('id, numero, numero_externo, status, id_ordem, cliente, chassis, modelo, tecnico_nome, tecnico_horas, tecnico_km, pecas_retorno_em, montadora:garantia_montadoras(nome, fluxo, tipo_template, ressarcimento_por_email, email_destinatarios, email_assinatura)')
+      .eq('id', id)
+      .maybeSingle();
+    g = retry.data as unknown as typeof g;
+  }
   if (!g) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
 
   type MontRess = {
@@ -37,6 +47,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ressarcimento_por_email?: boolean;
     email_destinatarios?: string[];
     email_assinatura?: string | null;
+    valor_hora?: number | null;
+    valor_km?: number | null;
   };
   const mont = (g as unknown as { montadora?: MontRess | MontRess[] }).montadora;
   const m = Array.isArray(mont) ? mont[0] : mont;
@@ -107,8 +119,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   const horas = gHoras ?? Number(gAtual?.tecnico_horas ?? g.tecnico_horas) ?? 0;
   const km = gKm ?? Number(gAtual?.tecnico_km ?? g.tecnico_km) ?? 0;
-  const vh = (horas || 0) * VALOR_HORA;
-  const vk = (km || 0) * VALOR_KM;
+  // Valor que ESTA fábrica paga (configurado na montadora; null = padrão)
+  const valFab = valoresFabrica(m);
+  const vh = (horas || 0) * valFab.hora;
+  const vk = (km || 0) * valFab.km;
 
   // E-mail à fábrica (quando configurado na montadora)
   const porEmail = !!m?.ressarcimento_por_email;
@@ -127,8 +141,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ['Cliente', String(g.cliente || '')],
       ['Chassi', String(g.chassis || '')],
       ['Modelo', String(g.modelo || '')],
-      ['Mão de obra', `${horas || 0}h × ${fmtBRL(VALOR_HORA)} = ${fmtBRL(vh)}`],
-      ['Deslocamento', `${km || 0} km × ${fmtBRL(VALOR_KM)} = ${fmtBRL(vk)}`],
+      ['Mão de obra', `${horas || 0}h × ${fmtBRL(valFab.hora)} = ${fmtBRL(vh)}`],
+      ['Deslocamento', `${km || 0} km × ${fmtBRL(valFab.km)} = ${fmtBRL(vk)}`],
       ['Total do ressarcimento', fmtBRL(vh + vk)],
     ];
     const tabela = linhas

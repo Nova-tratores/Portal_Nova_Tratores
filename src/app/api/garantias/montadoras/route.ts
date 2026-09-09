@@ -17,6 +17,12 @@ export async function GET(req: NextRequest) {
   return NextResponse.json({ montadoras: data || [] });
 }
 
+// Valor monetário opcional: null/''/inválido/<=0 viram null (usa o padrão)
+function numOuNull(v: unknown): number | null {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 // POST /api/garantias/montadoras  { nome, checklist_def?, cor?, logo_url?, contato_fabrica?, criado_por? }
 export async function POST(req: NextRequest) {
   const body = await req.json();
@@ -48,13 +54,18 @@ export async function POST(req: NextRequest) {
     fluxo: body.fluxo === 'duas_etapas' ? 'duas_etapas' : 'padrao',
     ressarcimento_por_email: !!body.ressarcimento_por_email,
     exige_devolucao_pecas: !!body.exige_devolucao_pecas,
+    // Valor que a fábrica paga por hora/km (null = padrão da empresa)
+    valor_hora: numOuNull(body.valor_hora),
+    valor_km: numOuNull(body.valor_km),
   };
   let { data, error } = await supabase.from(TBL_MONTADORAS).insert(insert).select().single();
-  // Pré-migration (coluna exige_devolucao_pecas ainda não existe): refaz sem
-  // ela pra criação de montadora não quebrar.
-  if (error && error.message.includes('exige_devolucao_pecas')) {
-    delete insert.exige_devolucao_pecas;
-    ({ data, error } = await supabase.from(TBL_MONTADORAS).insert(insert).select().single());
+  // Pré-migration (colunas novas ainda não existem): refaz sem elas pra
+  // criação de montadora não quebrar.
+  for (const col of ['exige_devolucao_pecas', 'valor_hora', 'valor_km']) {
+    if (error && error.message.includes(col)) {
+      delete insert[col];
+      ({ data, error } = await supabase.from(TBL_MONTADORAS).insert(insert).select().single());
+    }
   }
 
   if (error) {

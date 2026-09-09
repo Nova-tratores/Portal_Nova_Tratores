@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/pos/supabase';
-import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_PECAS, VALOR_HORA, VALOR_KM } from '@/lib/garantias/constants';
+import { TBL_GARANTIAS, TBL_GAR_PEND, TBL_GAR_PECAS, valoresFabrica } from '@/lib/garantias/constants';
 import { registrarEvento, notificarTecnico, notificarGarantistas } from '@/lib/garantias/server';
 
 // POST /api/garantias/[id]/finalizar
@@ -21,18 +21,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let devolucaoDisponivel = true;
   let { data: g, error: gErr } = await supabase
     .from(TBL_GARANTIAS)
-    .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km, valor_pago_pecas, montadora:garantia_montadoras(fluxo, exige_devolucao_pecas)')
+    .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km, valor_pago_pecas, montadora:garantia_montadoras(fluxo, exige_devolucao_pecas, valor_hora, valor_km)')
     .eq('id', id)
     .maybeSingle();
   if (gErr) {
-    devolucaoDisponivel = false;
-    const retry = await supabase
+    // 1º degrau: só valor_hora/valor_km sem migration — mantém a devolução
+    const retry1 = await supabase
       .from(TBL_GARANTIAS)
-      .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km, valor_pago_pecas, montadora:garantia_montadoras(fluxo)')
+      .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km, valor_pago_pecas, montadora:garantia_montadoras(fluxo, exige_devolucao_pecas)')
       .eq('id', id)
       .maybeSingle();
-    g = retry.data as unknown as typeof g;
-    gErr = retry.error;
+    if (!retry1.error) {
+      g = retry1.data as unknown as typeof g;
+      gErr = null;
+    } else {
+      // 2º degrau: nem exige_devolucao_pecas existe — desliga a devolução
+      devolucaoDisponivel = false;
+      const retry2 = await supabase
+        .from(TBL_GARANTIAS)
+        .select('id, numero, status, id_ordem, tecnico_nome, retorno_fabrica_url, tecnico_horas, tecnico_km, valor_pago_pecas, montadora:garantia_montadoras(fluxo)')
+        .eq('id', id)
+        .maybeSingle();
+      g = retry2.data as unknown as typeof g;
+      gErr = retry2.error;
+    }
   }
   if (gErr) {
     console.error('Erro ao carregar garantia pra finalizar:', gErr.message);
@@ -40,10 +52,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   }
   if (!g) return NextResponse.json({ error: 'Garantia não encontrada.' }, { status: 404 });
 
-  type MontFluxo = { fluxo?: string; exige_devolucao_pecas?: boolean };
+  type MontFluxo = { fluxo?: string; exige_devolucao_pecas?: boolean; valor_hora?: number | null; valor_km?: number | null };
   const mont = (g as unknown as { montadora?: MontFluxo | MontFluxo[] }).montadora;
   const montObj = Array.isArray(mont) ? mont[0] : mont;
   const fluxoDuasEtapas = montObj?.fluxo === 'duas_etapas';
+  // Valor que ESTA fábrica paga por hora/km (null = padrão da empresa)
+  const valFab = valoresFabrica(montObj);
   // Devolução das peças à fábrica (prova de destruição): checkbox do drawer
   // decide; sem o campo no body (cliente antigo), vale a flag da montadora.
   const devolucaoPedida =
@@ -152,8 +166,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
   }
   if (resultado === 'aprovada') {
-    const vh = (gHoras ?? 0) * VALOR_HORA;
-    const vk = (gKm ?? 0) * VALOR_KM;
+    const vh = (gHoras ?? 0) * valFab.hora;
+    const vk = (gKm ?? 0) * valFab.km;
     const vhPago = moAprovada ? vh : 0;
     const vkPago = deslocAprovado ? vk : 0;
     let vp = vpEtapa1;

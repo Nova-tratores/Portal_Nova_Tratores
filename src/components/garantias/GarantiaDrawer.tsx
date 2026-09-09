@@ -8,7 +8,7 @@ import {
 import GuiaMontadoraModal from './GuiaMontadoraModal';
 import QRGarantiaModal from './QRGarantiaModal';
 import type { GarantiaDetalhe, Montadora, ChecklistField } from '@/lib/garantias/types';
-import { STATUS_LABEL, STATUS_COR } from '@/lib/garantias/constants';
+import { STATUS_LABEL, STATUS_COR, valoresFabrica } from '@/lib/garantias/constants';
 import { camposObrigatoriosFaltando } from '@/lib/garantias/checklist';
 import { fmtDataHora, fmtMoeda, diasEntre } from '@/lib/garantias/format';
 import ChecklistRenderer from './ChecklistRenderer';
@@ -318,6 +318,21 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
       }),
     });
 
+  // Salva SÓ horas/km/obs (sem tocar no checklist) — pro caso da garantia
+  // criada só pra pedir as peças: as horas reais só existem depois do serviço,
+  // já na fase do ressarcimento (2ª etapa).
+  const salvarHorasKm = () =>
+    chamar('analise', `/api/garantias/${garantiaId}/checklist`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        garantista_horas: gHoras,
+        garantista_km: gKm,
+        garantista_obs: gObs,
+        garantista_nome: userName,
+      }),
+    });
+
   const enviarFabrica = async () => {
     await salvarAnalise();
     await chamar('enviar', `/api/garantias/${garantiaId}/enviar-fabrica`, {
@@ -437,6 +452,8 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const faltando = camposObrigatoriosFaltando(campos, respostas);
   const emAnalise = g?.status === 'em_analise';
   const naFabrica = g?.status === 'enviada';
+  // Valor que ESTA fábrica paga por hora/km (config da montadora; null = padrão)
+  const valFab = valoresFabrica(g?.montadora);
   const finalizada = g?.status === 'aprovada' || g?.status === 'rejeitada';
   const aguardandoTec = g?.status === 'bo_tecnico' || g?.status === 'info_pendente';
   const pendenciaAberta = g?.pendencias?.find((p) => p.status === 'aberta') || null;
@@ -962,9 +979,13 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     tecnicoKm={g.tecnico_km}
                     garantistaHoras={gHoras}
                     garantistaKm={gKm}
-                    onChange={emAnalise || naFabrica || aguardandoServico ? (campo, v) => (campo === 'horas' ? setGHoras(v) : setGKm(v)) : undefined}
+                    valorHora={valFab.hora}
+                    valorKm={valFab.km}
+                    // Editável até o fim: garantia criada só pra pedir peças
+                    // ganha as horas/km reais na 2ª etapa (emRessarcimento).
+                    onChange={emAnalise || naFabrica || aguardandoServico || emRessarcimento ? (campo, v) => (campo === 'horas' ? setGHoras(v) : setGKm(v)) : undefined}
                   />
-                  {(emAnalise || naFabrica || aguardandoServico) && (
+                  {(emAnalise || naFabrica || aguardandoServico || emRessarcimento) && (
                     <textarea
                       placeholder="Observações do garantista (ajustes de valor, justificativas...)"
                       value={gObs}
@@ -972,6 +993,17 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                       rows={2}
                       style={taStyle}
                     />
+                  )}
+                  {(naFabrica || aguardandoServico || emRessarcimento) && !emAnalise && (
+                    <button
+                      onClick={salvarHorasKm}
+                      disabled={!!busy || !podeAnalisar}
+                      title={!podeAnalisar ? MSG_SEM_PERMISSAO : 'Salvar as horas/km sem finalizar — os valores também vão junto ao finalizar'}
+                      style={btn('#475569', !!busy || !podeAnalisar)}
+                    >
+                      {busy === 'analise' ? <Loader2 size={15} className="spin" /> : <Save size={15} />}
+                      Salvar horas e km
+                    </button>
                   )}
                 </Secao>
               )}
@@ -1280,8 +1312,8 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     solicite o ressarcimento à fábrica.
                   </span>
                   {(() => {
-                    const vh = (Number(gHoras) || Number(g.tecnico_horas) || 0) * 193;
-                    const vk = (Number(gKm) || Number(g.tecnico_km) || 0) * 2.8;
+                    const vh = (Number(gHoras) || Number(g.tecnico_horas) || 0) * valFab.hora;
+                    const vk = (Number(gKm) || Number(g.tecnico_km) || 0) * valFab.km;
                     return (
                       <div
                         style={{
@@ -1524,8 +1556,8 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
 
                       {/* Serviço: a garantia paga M.O. e/ou deslocamento? (igual às peças) */}
                       {(() => {
-                        const vh = (Number(gHoras) || 0) * 193;
-                        const vk = (Number(gKm) || 0) * 2.8;
+                        const vh = (Number(gHoras) || 0) * valFab.hora;
+                        const vk = (Number(gKm) || 0) * valFab.km;
                         if (vh <= 0 && vk <= 0) return null;
                         const linha = (label: string, valor: number, sel: boolean, onToggle: () => void) => (
                           <label style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderRadius: 8, background: sel ? '#ECFDF5' : 'var(--portal-bg-secondary)', border: `1px solid ${sel ? '#A7F3D0' : 'var(--portal-border)'}`, cursor: 'pointer', fontSize: 12 }}>
@@ -1545,8 +1577,8 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
 
                       {/* Preview do valor total a ser pago */}
                       {(() => {
-                        const vh = (Number(gHoras) || 0) * 193;
-                        const vk = (Number(gKm) || 0) * 2.8;
+                        const vh = (Number(gHoras) || 0) * valFab.hora;
+                        const vk = (Number(gKm) || 0) * valFab.km;
                         const vhPago = moAprovada ? vh : 0;
                         const vkPago = deslocAprovado ? vk : 0;
                         // 2ª etapa: peças congeladas do retorno da 1ª etapa

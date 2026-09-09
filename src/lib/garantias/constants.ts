@@ -15,6 +15,21 @@ export const BUCKET_GARANTIAS = 'garantias';
 export const VALOR_HORA = 193.0;
 export const VALOR_KM   = 2.8;
 
+// Valores que a FÁBRICA paga por hora/km — configuráveis por montadora
+// (ex.: Kuhn paga R$ 120,00/h e R$ 1,50/km). NULL/0 = padrão acima.
+// Vale só pro cálculo do que a fábrica ressarce; a cobrança AO CLIENTE
+// continua sempre no padrão da empresa (CobrancaCliente/cobranca).
+export function valoresFabrica(
+  m?: { valor_hora?: number | string | null; valor_km?: number | string | null } | null,
+): { hora: number; km: number } {
+  const h = Number(m?.valor_hora);
+  const k = Number(m?.valor_km);
+  return {
+    hora: Number.isFinite(h) && h > 0 ? h : VALOR_HORA,
+    km: Number.isFinite(k) && k > 0 ? k : VALOR_KM,
+  };
+}
+
 // Lista ordenada de status (ordem do pipeline).
 // aguardando_servico / ressarcimento_fabrica só ocorrem em montadoras com
 // fluxo 'duas_etapas' (peças primeiro, ressarcimento de horas/km depois).

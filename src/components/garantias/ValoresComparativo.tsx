@@ -9,6 +9,9 @@ interface Props {
   garantistaKm: number | string | null;
   onChange?: (campo: 'horas' | 'km', valor: string) => void;
   mostrarValores?: boolean;
+  // Valor que a FÁBRICA paga (config da montadora) — default: padrão da empresa
+  valorHora?: number;
+  valorKm?: number;
 }
 
 const cellInput: React.CSSProperties = {
@@ -29,12 +32,14 @@ export default function ValoresComparativo({
   garantistaKm,
   onChange,
   mostrarValores = true,
+  valorHora = VALOR_HORA,
+  valorKm = VALOR_KM,
 }: Props) {
   const editavel = !!onChange;
   const gh = garantistaHoras === null || garantistaHoras === '' ? 0 : Number(garantistaHoras);
   const gk = garantistaKm === null || garantistaKm === '' ? 0 : Number(garantistaKm);
-  const valTec = tecnicoHoras * VALOR_HORA + tecnicoKm * VALOR_KM;
-  const valGar = gh * VALOR_HORA + gk * VALOR_KM;
+  const valTec = tecnicoHoras * valorHora + tecnicoKm * valorKm;
+  const valGar = gh * valorHora + gk * valorKm;
 
   const th: React.CSSProperties = {
     fontSize: 11,

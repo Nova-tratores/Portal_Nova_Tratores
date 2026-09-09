@@ -97,6 +97,9 @@ export interface Montadora {
   fluxo: MontadoraFluxo;
   ressarcimento_por_email: boolean;
   exige_devolucao_pecas: boolean;
+  // Valor que a FÁBRICA paga por hora/km (null = padrão VALOR_HORA/VALOR_KM)
+  valor_hora?: number | null;
+  valor_km?: number | null;
   checklist_def: ChecklistField[];
   cor: string | null;
   logo_url: string | null;
