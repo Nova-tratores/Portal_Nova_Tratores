@@ -284,6 +284,14 @@ export async function PATCH(req: NextRequest) {
       console.error(`[ppv-cliente→os] ${dados.id} falhou (ignorado):`, e instanceof Error ? e.message : e);
     }
 
+    // Entrou em "Orçamento Aprovado" (reserva confirmada) → confere se alguma
+    // peça ficou com o estoque real no limite e avisa no sininho do portal.
+    if (dados.status === "Orçamento Aprovado" && estadoAtual && estadoAtual.status !== "Orçamento Aprovado") {
+      import("@/lib/ppv/estoque-reserva")
+        .then(({ avisarEstoqueNoLimite }) => avisarEstoqueNoLimite(dados.id))
+        .catch(() => { /* best-effort */ });
+    }
+
     // PPV cancelado: solta as unidades rastreadas — reservas voltam ao
     // estoque; liberadas viram devolução pendente (conferência física)
     const virouCancelado = ["Cancelada", "Cancelado"].includes(String(dados.status || ""))

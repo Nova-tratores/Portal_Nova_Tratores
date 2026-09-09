@@ -29,5 +29,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     });
   }
 
+  // Pedido aprovado com data + peças vinculadas → e-mail pro Zezo/Danilo
+  // (e a separação sai junto se já passou da hora do lembrete da véspera)
+  if (newStatus === "Orçamento Aprovado") {
+    import("@/lib/pos/emails-pecas")
+      .then(({ processarAprovacao }) => processarAprovacao(idOs, typeof previsaoExecucao === "string" ? previsaoExecucao : undefined))
+      .catch(() => { /* best-effort */ });
+  }
+
   return NextResponse.json({ success: true, changed: r.changed });
 }

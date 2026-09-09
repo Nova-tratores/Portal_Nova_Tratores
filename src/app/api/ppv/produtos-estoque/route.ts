@@ -63,6 +63,8 @@ export async function GET(req: NextRequest) {
         conta: String(r.conta_omie || "").toUpperCase(),
       };
     });
+    // Mais reservados primeiro; empate mantém a ordem alfabética
+    lista.sort((a, b) => (b.reservados - a.reservados) || a.descricao.localeCompare(b.descricao));
     return NextResponse.json({ produtos: lista });
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Erro interno";

@@ -1,0 +1,18 @@
+# POS — lembrete de separação de peças (véspera do serviço às 15h BRT).
+# Serviço na segunda → o lembrete sai na sexta (a rota decide; domingo não envia).
+name: POS - Separar pecas (lembrete 15h)
+
+on:
+  schedule:
+    - cron: '0 18 * * *'   # 15:00 BRT
+  workflow_dispatch: {}
+
+jobs:
+  lembrete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota do lembrete
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/pos/cron/separar-pecas"

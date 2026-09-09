@@ -49,6 +49,9 @@ export interface EnviarEmailArgs {
   attachments?: AnexoEmail[]
   /** nome amigavel do remetente (default "Portal Nova Tratores"). */
   fromNome?: string
+  /** responder NA MESMA CONVERSA de um e-mail anterior (Message-ID dele). */
+  inReplyTo?: string
+  references?: string
 }
 
 export interface EnviarEmailResultado {
@@ -62,7 +65,7 @@ export interface EnviarEmailResultado {
 
 /** Envia um e-mail via Gmail (com anexos opcionais). Nao lanca: devolve { ok, motivo }. */
 export async function enviarEmail(args: EnviarEmailArgs = {}): Promise<EnviarEmailResultado> {
-  const { to, cc, bcc, subject, html, text, attachments, fromNome } = args
+  const { to, cc, bcc, subject, html, text, attachments, fromNome, inReplyTo, references } = args
   const t = getTransportador()
   if (!t) return { ok: false, motivo: 'gmail_nao_configurado' }
   const destinatarios = Array.isArray(to) ? to : parseDestinatarios(to)
@@ -79,6 +82,7 @@ export async function enviarEmail(args: EnviarEmailArgs = {}): Promise<EnviarEma
       attachments: Array.isArray(attachments)
         ? attachments.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType }))
         : undefined,
+      ...(inReplyTo ? { inReplyTo, references: references || inReplyTo } : {}),
     })
     return { ok: true, messageId: info.messageId, accepted: info.accepted, rejected: info.rejected }
   } catch (e: any) {

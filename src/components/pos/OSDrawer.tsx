@@ -8,6 +8,7 @@ import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/li
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import SearchModal from "./SearchModal";
 import LogPanel from "./LogPanel";
+import EmailsPecasOS from "./EmailsPecasOS";
 import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import { PPVMiniProvider } from "@/lib/ppv/PPVContext";
@@ -2126,7 +2127,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
                   {/* Histórico embaixo do conteúdo (toggle pela aba/botão Histórico) */}
                   {mode === "edit" && (
-                    <div className="os-log-embaixo" style={{ width: "100%" }}>
+                    <div className="os-log-embaixo" style={{ width: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
+                      {showLogs && <EmailsPecasOS osId={osId} />}
                       <LogPanel osId={osId} visible={showLogs} refreshKey={logRefreshKey} />
                     </div>
                   )}

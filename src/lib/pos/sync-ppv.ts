@@ -41,6 +41,13 @@ export async function sincronizarStatusPPV(idOrdem: string, novoStatusPOS: strin
     .update({ status: novoStatusPPV })
     .in("id_pedido", idsAtualizar);
 
+  // Reserva confirmada via OS (checkbox) → alerta de estoque no limite
+  if (novoStatusPPV === "Orçamento Aprovado") {
+    import("@/lib/ppv/estoque-reserva")
+      .then(({ avisarEstoqueNoLimite }) => Promise.allSettled(idsAtualizar.map((id) => avisarEstoqueNoLimite(String(id)))))
+      .catch(() => { /* best-effort */ });
+  }
+
   // Insert logs em batch
   const agora = new Date().toISOString();
   await supabase.from(TBL_LOGS_PPV).insert(
