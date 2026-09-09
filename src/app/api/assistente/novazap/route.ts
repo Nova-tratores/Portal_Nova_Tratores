@@ -460,6 +460,17 @@ export async function POST(req: NextRequest) {
     localizacao: String(body?.contato?.localizacao || "").slice(0, 300),
     cnpj: "",
   };
+  // Fazendas cadastradas no NovaZap: [{ nome, link }] — sem limite
+  const fazendas: { nome: string; link: string }[] = (() => {
+    const raw = body?.contato?.localizacoes;
+    let lista: any[] = [];
+    if (Array.isArray(raw)) lista = raw;
+    else if (typeof raw === "string" && raw.trim()) { try { const p = JSON.parse(raw); if (Array.isArray(p)) lista = p; } catch { /* vazio */ } }
+    return lista
+      .map((f) => ({ nome: String(f?.nome || "").trim().slice(0, 80), link: String(f?.link || "").trim().slice(0, 300) }))
+      .filter((f) => f.link)
+      .slice(0, 30);
+  })();
   if (vinculo.cod) {
     const cad: any[] = await rest(
       `portal_nt_clientes_cadastro_omie?cod_cli=eq.${encodeURIComponent(vinculo.cod)}&select=razao_social,nome_fantasia,cnpj_cpf,endereco,bairro,cidade,estado&limit=1`
@@ -486,12 +497,18 @@ export async function POST(req: NextRequest) {
     (nome
       ? `\n\nO nome do contato no WhatsApp é "${nome}" (pode estar incompleto ou ser apelido — confirme o nome completo quando precisar dele).`
       : "");
-  if (vinculo.cliente || vinculo.localizacao) {
+  if (vinculo.cliente || vinculo.localizacao || fazendas.length) {
     system += `\n\nDADOS JÁ CADASTRADOS DESTE CONTATO (use pra AGILIZAR — logo depois que ele disser o que quer, CONFIRME em vez de pedir de novo):`;
     if (vinculo.cliente) {
       system += `\n- CLIENTE VINCULADO: ${vinculo.cliente}${vinculo.cnpj ? ` — CNPJ/CPF ${vinculo.cnpj}` : ""}${vinculo.endereco ? ` — ${vinculo.endereco}` : ""}. Pergunte: "É para esse cliente?" mostrando nome, CNPJ e endereço. Se disser que é outro, colete os dados do certo.`;
     }
-    if (vinculo.localizacao) {
+    if (fazendas.length > 1) {
+      system += `\n- FAZENDAS CADASTRADAS (${fazendas.length}):`;
+      for (const f of fazendas) system += `\n  · ${f.nome || "Fazenda"}: ${f.link}`;
+      system += `\n  Quando precisar da localização, pergunte EM QUAL fazenda vai ser o atendimento (cite os NOMES, nunca os links) e use calcular_deslocamento com o link da escolhida. Se ele disser que é outro lugar, peça a localização nova.`;
+    } else if (fazendas.length === 1) {
+      system += `\n- LOCALIZAÇÃO CADASTRADA (${fazendas[0].nome || "Fazenda"}): ${fazendas[0].link}. Pergunte se o atendimento é nessa localização (cite o nome, não o link); SE CONFIRMAR, use calcular_deslocamento com ela; se não for, peça a nova.`;
+    } else if (vinculo.localizacao) {
       system += `\n- LOCALIZAÇÃO CADASTRADA: ${vinculo.localizacao}. Pergunte se o atendimento é nessa localização; SE CONFIRMAR, use calcular_deslocamento com ela; se não for, peça a nova.`;
     }
   }
