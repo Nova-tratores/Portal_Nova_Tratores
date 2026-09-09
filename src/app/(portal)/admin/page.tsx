@@ -58,6 +58,9 @@ const MODULOS = [
   { id: 'tarefas', label: 'Tarefas', color: '#dc2626' },
   { id: 'tickets', label: 'Tickets', color: '#0891b2' },
   { id: 'tratorilson', label: 'Tratorilson (Chat IA)', color: '#ef4444' },
+  // Vendas por Modelo (/vendas-modelo): mesma tela de /dre-financeiro/vendas-modelo,
+  // liberável pelo grupo Comercial sem dar o DRE inteiro.
+  { id: 'vendas-modelo', label: 'Vendas por Modelo', color: '#dc2626' },
   { id: 'war-room', label: 'War Room', color: '#b91c1c' },
 ]
 

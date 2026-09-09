@@ -30,6 +30,8 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   // Comercial
   propostas: 'Comercial', feedbacks: 'Comercial', clientes: 'Comercial', 'supervisor-vendas': 'Comercial',
   'gestao-vendas': 'Comercial', marketing: 'Comercial', lead: 'Comercial',
+  // Mesma tela de /dre-financeiro/vendas-modelo, liberável sem o DRE.
+  'vendas-modelo': 'Comercial',
   // Estoque
   'consulta-estoque': 'Estoque', estoque: 'Estoque',
   frota: 'Frota', pendencias: 'Frota',

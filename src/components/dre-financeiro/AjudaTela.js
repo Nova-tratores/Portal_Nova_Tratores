@@ -1,7 +1,8 @@
 'use client'
 // Botao "?" do cabecalho do modulo DRE Financeiro + painel de ajuda da tela atual.
 //
-// Renderizado em app/(portal)/dre-financeiro/layout.js, ao lado do titulo. O texto
+// Renderizado em app/(portal)/dre-financeiro/layout.js, ao lado do titulo (e na
+// faixa da variante Comercial de Vendas por Modelo, com `cor` vermelha). O texto
 // vem de lib/dre-financeiro/ajuda.js, indexado pelo pathname; se a tela nao tiver
 // entrada la (ex.: o link externo /visual-estoque/patio), o botao simplesmente NAO
 // aparece.
@@ -14,7 +15,7 @@ import { ajudaDaTela, NOTA_CONTA } from '@/lib/dre-financeiro/ajuda'
 
 const VERDE = '#10B981'
 
-export default function AjudaTela({ pathname }) {
+export default function AjudaTela({ pathname, cor = VERDE }) {
   const [aberto, setAberto] = useState(false)
   const ajuda = ajudaDaTela(pathname)
 
@@ -40,7 +41,7 @@ export default function AjudaTela({ pathname }) {
         title={`O que é esta tela? — ${ajuda.titulo}`}
         style={{
           width: '20px', height: '20px', borderRadius: '50%', cursor: 'pointer',
-          border: `1.5px solid ${VERDE}`, background: '#fff', color: VERDE,
+          border: `1.5px solid ${cor}`, background: '#fff', color: cor,
           fontSize: '12px', fontWeight: 700, lineHeight: 1, padding: 0,
           display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
           flexShrink: 0,

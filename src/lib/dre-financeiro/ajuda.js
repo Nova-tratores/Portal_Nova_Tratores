@@ -415,6 +415,9 @@ export const AJUDA = {
   },
 }
 
+// /vendas-modelo (sistema proprio do grupo Comercial) e a MESMA tela do DRE.
+AJUDA['/vendas-modelo'] = AJUDA['/dre-financeiro/vendas-modelo']
+
 // Ajuda da tela correspondente ao pathname atual (null quando nao ha —
 // ex.: links externos da sub-nav ou telas ainda sem texto de ajuda).
 export function ajudaDaTela(pathname) {
