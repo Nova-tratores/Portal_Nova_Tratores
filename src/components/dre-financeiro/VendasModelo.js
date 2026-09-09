@@ -56,7 +56,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import AjudaTela from '@/components/dre-financeiro/AjudaTela'
+import { useAuditLog } from '@/hooks/useAuditLog'
 import { useDreConta } from '@/lib/dre-financeiro/format'
+import {
+  rotuloPeriodo, rotuloMetrica, rotuloFamilia, rotuloTop, rotuloVisualizacao, rotuloAgrupamento,
+} from '@/lib/dre-financeiro/vendas-modelo-pdf'
 
 // Cor do grupo Comercial do portal (faixa da variante 'comercial').
 const VERMELHO = '#DC2626'
@@ -312,6 +316,152 @@ export default function VendasModelo({ variante = 'dre' }) {
   const chartRef = useRef(null)
   const chartInst = useRef(null)
 
+  // =========================================================================
+  // Log de atividade (audit_log, sistema 'vendas-modelo'): acesso, cada troca
+  // de filtro/visualização, busca (com debounce), detalhe de célula, CMC no
+  // modal, página da grade, sincronização e exportação em PDF. Best-effort —
+  // a rota /api/audit/log grava a identidade real do token.
+  // =========================================================================
+  const { log: auditLog } = useAuditLog()
+  const [pdfBusy, setPdfBusy] = useState(false)
+  const [carregando, setCarregando] = useState(false) // fetch em andamento (trava o PDF: senão sairia com dados de um filtro anterior)
+  const dadosCarregadosRef = useRef(false) // filtros só contam depois do 1º carregamento
+  const acessoLogadoRef = useRef(false)
+  const filtrosPrevRef = useRef(null)
+  const buscaLogadaRef = useRef('')
+
+  const registrar = useCallback((acao, extra) => {
+    const ex = extra || {}
+    auditLog({
+      sistema: 'vendas-modelo',
+      acao,
+      entidade: ex.entidade,
+      entidade_id: ex.entidade_id,
+      entidade_label: ex.entidade_label,
+      detalhes: { origem: variante, conta, ...(ex.detalhes || {}) },
+    })
+  }, [auditLog, variante, conta])
+
+  // Acesso à tela (uma vez por montagem). Espera as permissões carregarem:
+  // é assíncrono, então a conta já foi sincronizada com o cookie (senão o
+  // log sairia sempre com a conta padrão 'nova').
+  useEffect(() => {
+    if (!userProfile || loadingPerm || acessoLogadoRef.current) return
+    acessoLogadoRef.current = true
+    registrar('acesso', { entidade_label: comercial ? 'Vendas por Modelo (Comercial)' : 'Vendas por Modelo (DRE)' })
+  }, [userProfile, loadingPerm, registrar, comercial])
+
+  // Troca de filtro/visualização: compara com o estado anterior e loga campo a
+  // campo (de → para). Antes do 1º carregamento não loga: cobre a sincronização
+  // do cookie da conta e a família 'Trator Novo' automática, que não são ações
+  // do usuário.
+  const filtrosAtuais = {
+    conta: { valor: conta, rotulo: 'Conta', txt: String(conta).toUpperCase() },
+    periodo: { valor: rotuloPeriodo(meses, desde), rotulo: 'Período', txt: rotuloPeriodo(meses, desde) },
+    metrica: { valor: metrica, rotulo: 'Métrica', txt: rotuloMetrica(metrica) },
+    familia: { valor: familia, rotulo: 'Família', txt: rotuloFamilia(familia) },
+    modelo: { valor: modelo, rotulo: 'Modelo', txt: modelo || 'Todos' },
+    top: { valor: top, rotulo: 'Top', txt: rotuloTop(top) },
+    visualizacao: { valor: viewMode, rotulo: 'Visualização', txt: rotuloVisualizacao(viewMode) },
+    agrupamento: { valor: modoAgrupamento, rotulo: 'Agrupamento', txt: rotuloAgrupamento(modoAgrupamento) },
+  }
+  useEffect(() => {
+    const prev = filtrosPrevRef.current
+    filtrosPrevRef.current = filtrosAtuais
+    if (!prev || !dadosCarregadosRef.current) return
+    Object.keys(filtrosAtuais).forEach((campo) => {
+      const de = prev[campo], para = filtrosAtuais[campo]
+      if (de.valor === para.valor) return
+      registrar('filtrar', {
+        entidade: campo,
+        entidade_label: para.rotulo + ': ' + de.txt + ' → ' + para.txt,
+        detalhes: { campo, de: de.valor, para: para.valor },
+      })
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conta, meses, desde, metrica, familia, modelo, top, viewMode, modoAgrupamento])
+
+  // Busca livre: loga o texto final, 900ms depois da última tecla.
+  useEffect(() => {
+    if (!dadosCarregadosRef.current) return
+    const t = setTimeout(() => {
+      const b = busca.trim()
+      const de = buscaLogadaRef.current
+      if (b === de) return
+      buscaLogadaRef.current = b
+      const q = (s) => (s ? '"' + s + '"' : '—')
+      registrar('filtrar', { entidade: 'busca', entidade_label: 'Busca: ' + q(de) + ' → ' + q(b), detalhes: { campo: 'busca', de, para: b } })
+    }, 900)
+    return () => clearTimeout(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busca])
+
+  // Paginação da grade (só cliques do usuário: « » e legenda; o reset
+  // programático pra 0 não passa por aqui).
+  function mudarPaginaGrade(p) {
+    setGridPage(p)
+    registrar('visualizar', { entidade: 'pagina_grade', entidade_label: 'Grade anual: página ' + (p + 1), detalhes: { pagina: p + 1 } })
+  }
+
+  // Toggle do CMC unitário no modal (informação sensível: loga quando LIGA).
+  function alternarCmc() {
+    const novo = !showCmc
+    setShowCmc(novo)
+    if (!novo) return
+    const ctx = modalCtx
+    const ref = ctx ? ctx.modeloGrupo + ' · ' + String(ctx.mes).padStart(2, '0') + '/' + ctx.ano : ''
+    registrar('ver_cmc', { entidade: 'modelo', entidade_id: ctx ? ctx.modeloGrupo : undefined, entidade_label: 'CMC unitário: ' + ref, detalhes: ctx ? { modelo: ctx.modeloGrupo, ano: ctx.ano, mes: ctx.mes } : {} })
+  }
+
+  // =========================================================================
+  // Exportar PDF (jspdf + autotable, em lib/dre-financeiro/vendas-modelo-pdf).
+  // O gráfico vai como imagem: copia o canvas do Chart.js sobre fundo branco
+  // (o canvas é transparente; no modo escuro ficaria ilegível no papel).
+  // =========================================================================
+  function capturarGrafico() {
+    const c = chartRef.current
+    if (!c || !chartInst.current) return null
+    try {
+      const off = document.createElement('canvas')
+      off.width = c.width
+      off.height = c.height
+      const ctx = off.getContext('2d')
+      ctx.fillStyle = '#ffffff'
+      ctx.fillRect(0, 0, off.width, off.height)
+      ctx.drawImage(c, 0, 0)
+      return { dataUrl: off.toDataURL('image/png'), w: off.width, h: off.height }
+    } catch {
+      return null
+    }
+  }
+
+  async function exportarPdf() {
+    if (!dados || pdfBusy) return
+    setPdfBusy(true)
+    try {
+      const { gerarPdfVendasModelo } = await import('@/lib/dre-financeiro/vendas-modelo-pdf')
+      const contaLabel = (contas.find((c) => c.slug === conta) || {}).label || String(conta).toUpperCase()
+      const nome = await gerarPdfVendasModelo({
+        contaLabel, meses, desde, metrica, familia, modelo, busca, top,
+        visualizacao: viewMode, agrupamento: modoAgrupamento,
+        dados, modelos: modelosVisiveis, grafico: capturarGrafico(),
+        origem: comercial ? 'Comercial' : 'DRE Financeiro',
+      })
+      registrar('exportar_pdf', {
+        entidade: 'pdf',
+        entidade_label: nome,
+        detalhes: {
+          arquivo: nome, periodo: rotuloPeriodo(meses, desde), metrica, familia, modelo, busca, top,
+          visualizacao: viewMode, agrupamento: modoAgrupamento, modelos: modelosVisiveis.length,
+        },
+      })
+    } catch (e) {
+      alert('Erro ao gerar o PDF: ' + (e && e.message ? e.message : e))
+    } finally {
+      setPdfBusy(false)
+    }
+  }
+
   // Carrega a lib uma vez.
   useEffect(() => {
     carregarChartLibs().then(() => setChartReady(true)).catch(() => setChartReady(false))
@@ -328,6 +478,7 @@ export default function VendasModelo({ variante = 'dre' }) {
     if (meses === '__desde__') qs += '&desde=' + desde
     else qs += '&meses=' + meses
     setGridPage(0) // reset paginacao da grade ao recarregar dados
+    setCarregando(true)
     fetch('/api/dre-financeiro/vendas-modelo?' + qs)
       .then((r) => r.json())
       .then((d) => {
@@ -347,8 +498,10 @@ export default function VendasModelo({ variante = 'dre' }) {
           }
         }
         setDados(d)
+        dadosCarregadosRef.current = true // a partir daqui as trocas de filtro são do usuário
       })
       .catch((e) => { if (!cancelado) alert('Erro: ' + e.message) })
+      .finally(() => { if (!cancelado) setCarregando(false) })
     return () => { cancelado = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conta, meses, desde, familia, modelo])
@@ -558,6 +711,7 @@ export default function VendasModelo({ variante = 'dre' }) {
     if (!confirm('Sincronizar modelos do Omie?\n\nLeva ~3-5 min para ~5k produtos (ListarProdutos paginado). Roda em background no servidor.\nRecarregue a pagina em ~5 min para ver os modelos atualizados.')) return
     setBackfillBusy(true)
     setBackfillStatus('sincronizando em background (~3-5 min)...')
+    registrar('sincronizar', { entidade: 'omie', entidade_label: 'Sincronizar modelos do Omie (conta ' + String(conta).toUpperCase() + ')' })
     fetch('/api/dre-financeiro/produtos/backfill-modelo?conta=' + conta + '&refazer=1', { method: 'POST' })
       .then((r) => r.json())
       .then((d) => {
@@ -577,6 +731,12 @@ export default function VendasModelo({ variante = 'dre' }) {
     setModalErro('')
     setModalCarregando(true)
     setModalAberto(true)
+    registrar('detalhe', {
+      entidade: 'modelo',
+      entidade_id: p.modeloGrupo,
+      entidade_label: p.modeloGrupo + ' · ' + String(p.mes).padStart(2, '0') + '/' + p.ano,
+      detalhes: { modelo: p.modeloGrupo, ano: p.ano, mes: p.mes, membros: p.membros },
+    })
 
     const qs = 'conta=' + encodeURIComponent(conta) +
       '&ano=' + p.ano + '&mes=' + p.mes +
@@ -589,7 +749,7 @@ export default function VendasModelo({ variante = 'dre' }) {
         setModalCarregando(false)
       })
       .catch((e) => { setModalErro(e.message); setModalCarregando(false) })
-  }, [conta])
+  }, [conta, registrar])
 
   function fecharVmModal() { setModalAberto(false) }
 
@@ -638,6 +798,14 @@ export default function VendasModelo({ variante = 'dre' }) {
           <p className="text-xs text-slate-500">Receita e quantidade mes a mes, modelo a modelo</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+          <button
+            onClick={exportarPdf}
+            disabled={!dados || pdfBusy || carregando}
+            className={'px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded' + (!dados || pdfBusy || carregando ? ' opacity-60 cursor-not-allowed' : '')}
+            title={carregando ? 'Aguarde os dados carregarem' : 'Baixa um PDF (A4 paisagem) com os KPIs, o gráfico e a tabela modelo × meses, com os filtros desta tela'}
+          >
+            {pdfBusy ? 'Gerando PDF…' : carregando ? 'Carregando…' : 'Baixar PDF'}
+          </button>
           <button
             onClick={sincronizarModelos}
             disabled={backfillBusy}
@@ -913,7 +1081,7 @@ export default function VendasModelo({ variante = 'dre' }) {
           metrica={metrica}
           modelosFiltrados={modelosVisiveis}
           gridPage={gridPage}
-          setGridPage={setGridPage}
+          setGridPage={mudarPaginaGrade}
           abrirVmModal={abrirVmModal}
         />
       )}
@@ -926,7 +1094,7 @@ export default function VendasModelo({ variante = 'dre' }) {
           erro={modalErro}
           carregando={modalCarregando}
           showCmc={showCmc}
-          setShowCmc={setShowCmc}
+          setShowCmc={alternarCmc}
           onClose={fecharVmModal}
         />
       )}

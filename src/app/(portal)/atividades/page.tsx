@@ -6,7 +6,7 @@ import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
 import {
   Activity, Search, Filter, ChevronDown, ChevronLeft, ChevronRight,
-  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText
+  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags
 } from 'lucide-react'
 
 interface AuditEntry {
@@ -30,9 +30,11 @@ const SISTEMAS = [
   { value: 'ppv', label: 'Peças (Pedido de Venda)' },
   { value: 'financeiro', label: 'Financeiro' },
   { value: 'propostas', label: 'Proposta Comercial' },
+  { value: 'vendas-modelo', label: 'Vendas por Modelo' },
 ]
 
 const SISTEMA_ICONS: Record<string, React.ReactNode> = {
+  'vendas-modelo': <Tags size={16} />,
   revisoes: <Wrench size={16} />,
   requisicoes: <ClipboardList size={16} />,
   pos: <Settings size={16} />,
@@ -53,6 +55,12 @@ const ACAO_COLORS: Record<string, { bg: string; text: string }> = {
   enviar_omie: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
   adicionar_item: { bg: 'bg-teal-50', text: 'text-teal-700' },
   devolver: { bg: 'bg-orange-50', text: 'text-orange-700' },
+  // Vendas por Modelo (uso da tela analítica)
+  filtrar: { bg: 'bg-sky-50', text: 'text-sky-700' },
+  detalhe: { bg: 'bg-blue-50', text: 'text-blue-700' },
+  ver_cmc: { bg: 'bg-amber-50', text: 'text-amber-700' },
+  exportar_pdf: { bg: 'bg-rose-50', text: 'text-rose-700' },
+  sincronizar: { bg: 'bg-indigo-50', text: 'text-indigo-700' },
 }
 
 const PAGE_SIZE = 30
@@ -151,6 +159,11 @@ function AtividadesPageInner() {
       enviar_omie: 'Enviou para Omie',
       adicionar_item: 'Adicionou item',
       devolver: 'Devolveu item',
+      filtrar: 'Filtrou',
+      detalhe: 'Abriu detalhe',
+      ver_cmc: 'Viu CMC',
+      exportar_pdf: 'Baixou PDF',
+      sincronizar: 'Sincronizou',
     }
     return map[acao] || acao
   }
