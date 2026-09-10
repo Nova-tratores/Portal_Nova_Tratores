@@ -1407,20 +1407,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <div className="os-omie-badge">
                         <i className="fas fa-check-circle" /> Enviado para Omie (ID: {ordemOmie})
                       </div>
-                      <button
-                        onClick={abrirPdfOmie}
-                        disabled={baixandoPdfOmie}
-                        style={{
-                          marginTop: 10, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                          padding: "11px 14px", borderRadius: 8, border: "1.5px solid #0EA5E9",
-                          background: "transparent", color: "#0EA5E9", fontWeight: 700, fontSize: 13.5,
-                          cursor: baixandoPdfOmie ? "wait" : "pointer",
-                        }}
-                      >
-                        {baixandoPdfOmie
-                          ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
-                          : <><i className="fas fa-file-pdf" /> PDF da ordem (Omie)</>}
-                      </button>
+                      {/* PDF da ordem fica só no card "Enviado ao Omie" lá em cima (estava duplicado aqui) */}
                     </div>
                   )}
                   {mode === "edit" && !ordemOmie && servicoInterno && status === "Concluída" && (

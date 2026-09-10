@@ -32,6 +32,7 @@ COMO AGIR:
 - Ele explica; você INTERPRETA e reescreve a regra do seu jeito: curta, clara, no imperativo, sem depender do contexto da conversa (a regra vai ser lida sozinha depois).
 - Se a instrução estiver CLARA, grave direto com a ferramenta 'ensinar' e mostre como ficou a regra gravada.
 - Se estiver AMBÍGUA (dois entendimentos possíveis, falta um dado essencial), mostre a regra como você entendeu e faça UMA pergunta objetiva antes de gravar.
+- MÓDULO (bloco do assunto): classifique cada regra num módulo — chatwoot (atendimento no WhatsApp), revisoes (revisões/orçamentos), pos (ordens de serviço), ppv (peças), requisicoes, financeiro, ou geral. Diga qual usou.
 - ESCOPO: decida sozinho pelo conteúdo — regra sobre atendimento/conversa com cliente no WhatsApp → 'clientes'; regra sobre uso interno do portal (telas, requisições, quem faz o quê) → 'portal'; vale nos dois ou na dúvida → 'geral'. Diga qual escopo usou.
 - Pediu pra ver o que você sabe → 'listar_memoria'. Pediu pra corrigir/mudar → 'atualizar_memoria'. Pediu pra esquecer → 'esquecer_memoria'.
 - Uma mensagem dele pode ter VÁRIAS regras: grave cada uma separada.
@@ -43,7 +44,7 @@ const FERRAMENTAS = [
     function: {
       name: "ensinar",
       description: "Grava UMA regra nova na memória.",
-      parameters: { type: "object", properties: { conteudo: { type: "string", description: "A regra, curta e autossuficiente." }, escopo: { type: "string", enum: ["geral", "portal", "clientes"] } }, required: ["conteudo", "escopo"] },
+      parameters: { type: "object", properties: { conteudo: { type: "string", description: "A regra, curta e autossuficiente." }, escopo: { type: "string", enum: ["geral", "portal", "clientes"] }, modulo: { type: "string", enum: ["geral", "chatwoot", "revisoes", "pos", "ppv", "requisicoes", "financeiro"] } }, required: ["conteudo", "escopo", "modulo"] },
     },
   },
   {
@@ -77,12 +78,13 @@ async function rodarFerramenta(name: string, args: any, userName: string): Promi
     const conteudo = String(args.conteudo || "").trim();
     if (!conteudo) return { erro: "conteudo vazio" };
     const escopo = ["geral", "portal", "clientes"].includes(String(args.escopo)) ? String(args.escopo) : "geral";
-    const id = await gravarRegra(conteudo, escopo, userName);
+    const modulo = ["geral", "chatwoot", "revisoes", "pos", "ppv", "requisicoes", "financeiro"].includes(String(args.modulo)) ? String(args.modulo) : "geral";
+    const id = await gravarRegra(conteudo, escopo, userName, modulo);
     if (id == null) return { erro: "não consegui gravar (tabela tratorilson_memoria existe?)" };
     return { ok: true, id, escopo };
   }
   if (name === "listar_memoria") {
-    const r = await fetch(`${TBL()}?ativo=eq.true&select=id,conteudo,escopo,criado_por&order=id.asc`, { headers: H() });
+    const r = await fetch(`${TBL()}?ativo=eq.true&select=id,conteudo,escopo,modulo,criado_por&order=id.asc`, { headers: H() });
     if (!r.ok) {
       const r2 = await fetch(`${TBL()}?ativo=eq.true&select=id,conteudo,criado_por&order=id.asc`, { headers: H() });
       if (!r2.ok) return { erro: "tabela não encontrada" };
@@ -90,7 +92,7 @@ async function rodarFerramenta(name: string, args: any, userName: string): Promi
       return { total: d2.length, memoria: d2.map((m) => ({ id: m.id, regra: m.conteudo, escopo: "geral" })) };
     }
     const d: any[] = await r.json().catch(() => []);
-    return { total: d.length, memoria: d.map((m) => ({ id: m.id, regra: m.conteudo, escopo: m.escopo || "geral" })) };
+    return { total: d.length, memoria: d.map((m) => ({ id: m.id, regra: m.conteudo, escopo: m.escopo || "geral", modulo: m.modulo || "geral" })) };
   }
   if (name === "atualizar_memoria") {
     const id = Number(args.id);
@@ -98,6 +100,7 @@ async function rodarFerramenta(name: string, args: any, userName: string): Promi
     if (!id || !conteudo) return { erro: "id e conteudo são obrigatórios" };
     const patch: Record<string, unknown> = { conteudo, updated_at: new Date().toISOString() };
     if (["geral", "portal", "clientes"].includes(String(args.escopo))) patch.escopo = String(args.escopo);
+    if (["geral", "chatwoot", "revisoes", "pos", "ppv", "requisicoes", "financeiro"].includes(String(args.modulo))) patch.modulo = String(args.modulo);
     let r = await fetch(`${TBL()}?id=eq.${id}`, { method: "PATCH", headers: H(), body: JSON.stringify(patch) });
     if (!r.ok && patch.escopo) {
       delete patch.escopo;
@@ -117,11 +120,11 @@ async function rodarFerramenta(name: string, args: any, userName: string): Promi
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
   if (!auth?.isDev) return NextResponse.json({ error: "Só o Dev acessa o modo ensino." }, { status: 403 });
-  let r = await fetch(`${TBL()}?select=id,conteudo,escopo,ativo,criado_por,created_at,updated_at&order=id.desc`, { headers: H() });
+  let r = await fetch(`${TBL()}?select=id,conteudo,escopo,modulo,ativo,criado_por,created_at,updated_at&order=id.desc`, { headers: H() });
   if (!r.ok) r = await fetch(`${TBL()}?select=id,conteudo,ativo,criado_por,created_at,updated_at&order=id.desc`, { headers: H() });
   if (!r.ok) return NextResponse.json({ memorias: [], aviso: "Tabela tratorilson_memoria não encontrada — rode a migration." });
   const d: any[] = await r.json().catch(() => []);
-  return NextResponse.json({ memorias: d.map((m) => ({ ...m, escopo: m.escopo || "geral" })) });
+  return NextResponse.json({ memorias: d.map((m) => ({ ...m, escopo: m.escopo || "geral", modulo: m.modulo || "geral" })) });
 }
 
 export async function PATCH(req: NextRequest) {
@@ -134,6 +137,7 @@ export async function PATCH(req: NextRequest) {
   if (typeof b.conteudo === "string" && b.conteudo.trim()) patch.conteudo = b.conteudo.trim();
   if (typeof b.ativo === "boolean") patch.ativo = b.ativo;
   if (["geral", "portal", "clientes"].includes(String(b.escopo))) patch.escopo = String(b.escopo);
+  if (["geral", "chatwoot", "revisoes", "pos", "ppv", "requisicoes", "financeiro"].includes(String(b.modulo))) patch.modulo = String(b.modulo);
   let r = await fetch(`${TBL()}?id=eq.${id}`, { method: "PATCH", headers: H(), body: JSON.stringify(patch) });
   if (!r.ok && patch.escopo) {
     delete patch.escopo;

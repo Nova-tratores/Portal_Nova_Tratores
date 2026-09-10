@@ -219,6 +219,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const temSolicitacoes = temAcesso('pos')
   const [zapPanelOpen, setZapPanelOpen] = useState(false)
   const [solNovas, setSolNovas] = useState(0)
+  // Alerta CENTRAL: o Tratorilson pediu ajuda (não entendeu foto/vídeo ou o assunto)
+  const [alertaHumano, setAlertaHumano] = useState<any[] | null>(null)
   useEffect(() => {
     if (!temSolicitacoes) return
     let vivo = true
@@ -227,13 +229,30 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         const { authHeaders } = await import('@/lib/auth/client')
         const r = await fetch('/api/tratorilson/solicitacoes', { headers: await authHeaders(), cache: 'no-store' })
         const d = await r.json()
-        if (vivo) setSolNovas(d.novas || 0)
+        if (!vivo) return
+        setSolNovas(d.novas || 0)
+        // solicitações tipo 'humano' ainda não vistas → alerta no meio da tela
+        const lista = Array.isArray(d.solicitacoes) ? d.solicitacoes : []
+        const humanas = lista.filter((s: any) => s.tipo === 'humano' && (s.fase || 'nova') !== 'concluida')
+        let vistos: number[] = []
+        try { vistos = JSON.parse(localStorage.getItem('zap-humano-vistos') || '[]') } catch { /* vazio */ }
+        const novasHumanas = humanas.filter((s: any) => !vistos.includes(s.id))
+        if (novasHumanas.length) setAlertaHumano(novasHumanas)
       } catch { /* badge fica quieto */ }
     }
     carregar()
     const t = setInterval(carregar, 60000)
     return () => { vivo = false; clearInterval(t) }
   }, [zapPanelOpen, temSolicitacoes])
+  const dispensarAlertaHumano = (abrirPainel: boolean) => {
+    try {
+      const vistos: number[] = JSON.parse(localStorage.getItem('zap-humano-vistos') || '[]')
+      const ids = (alertaHumano || []).map((s: any) => s.id)
+      localStorage.setItem('zap-humano-vistos', JSON.stringify([...new Set([...vistos, ...ids])].slice(-200)))
+    } catch { /* sem storage */ }
+    setAlertaHumano(null)
+    if (abrirPainel) setZapPanelOpen(true)
+  }
   // Rodando dentro de um painel da tela dividida (/split)? Esconde o botão de dividir.
   const [emIframe, setEmIframe] = useState(false)
   useEffect(() => { try { setEmIframe(window.self !== window.top) } catch { setEmIframe(true) } }, [])
@@ -689,6 +708,35 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               mas o componente fica montado pro modal + som em tempo real.
               Só pra quem tem o módulo `cameras` (admins sempre veem). */}
           {temVigia && <VigiaCameras />}
+
+          {/* Alerta CENTRAL: Tratorilson pediu ajuda numa conversa do WhatsApp */}
+          {alertaHumano && alertaHumano.length > 0 && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 11000, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div style={{ background: 'var(--portal-bg-card)', border: '2px solid #dc2626', borderRadius: 16, width: 520, maxWidth: '94vw', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,0.5)' }}>
+                <div style={{ padding: '16px 20px', background: '#dc2626', color: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Bot size={22} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>O Tratorilson precisa de ajuda</div>
+                    <div style={{ fontSize: 12.5, opacity: 0.9 }}>Ele não conseguiu resolver sozinho — alguém do pós-vendas precisa assumir a conversa no NovaZap.</div>
+                  </div>
+                </div>
+                <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {alertaHumano.map((s: any) => (
+                    <div key={s.id} style={{ border: '1px solid var(--portal-border)', borderLeft: '4px solid #dc2626', borderRadius: 10, padding: '10px 14px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--portal-text)' }}>
+                        {s.contato_nome || 'Contato'} {s.contato_telefone ? <span style={{ fontWeight: 500, color: 'var(--portal-text-secondary)' }}>· {s.contato_telefone}</span> : null}
+                      </div>
+                      <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginTop: 4, lineHeight: 1.5 }}>{String(s.resumo || '').slice(0, 220)}</div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ padding: '12px 16px', borderTop: '1px solid var(--portal-border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                  <button onClick={() => dispensarAlertaHumano(false)} style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 9, padding: '9px 16px', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: 13.5, fontWeight: 600 }}>Dispensar</button>
+                  <button onClick={() => dispensarAlertaHumano(true)} style={{ background: '#dc2626', border: 'none', borderRadius: 9, padding: '9px 18px', cursor: 'pointer', color: '#fff', fontSize: 13.5, fontWeight: 700 }}>Ver solicitações</button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Caixa de e-mail do usuário (só aparece pra quem configurou o e-mail de envio) */}
           <CaixaEmail />
