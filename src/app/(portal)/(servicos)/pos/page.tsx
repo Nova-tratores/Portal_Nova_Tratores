@@ -17,6 +17,8 @@ import { supabase } from "@/lib/supabase";
 import { normName } from "@/lib/tecnico-utils";
 import type { PerfilTecnico } from "@/components/pos/Header";
 import type { KanbanCard, ClienteOption } from "@/lib/pos/types";
+import RelacaoOS from "@/components/pos/RelacaoOS";
+import DashboardOS from "@/components/pos/DashboardOS";
 
 function PosPageInner() {
   const { userProfile } = useAuth();
@@ -34,6 +36,12 @@ function PosPageInner() {
   // Filtro por técnico no header: fila de perfis do PORTAL (com foto)
   const [tecnicoFiltro, setTecnicoFiltro] = useState("");
   const [tecnicosPerfil, setTecnicosPerfil] = useState<PerfilTecnico[]>([]);
+  // Cards (quadro por fase) | Relação (tabela c/ filtros por coluna, PDF, CSV) | Dashboard. Lembra a escolha.
+  const [viewMode, setViewMode] = useState<"cards" | "relacao" | "dashboard">("cards");
+  useEffect(() => {
+    try { const v = localStorage.getItem("pos-view-mode"); if (v === "cards" || v === "relacao" || v === "dashboard") setViewMode(v); } catch { /* sem storage */ }
+  }, []);
+  const trocarViewMode = (v: "cards" | "relacao" | "dashboard") => { setViewMode(v); try { localStorage.setItem("pos-view-mode", v); } catch { /* sem storage */ } };
 
   // Casa cada técnico com o usuário do portal (financeiro_usu) pelo nome →
   // pega a FOTO (avatar_url). Técnico sem conta no portal entra com inicial.
@@ -336,7 +344,21 @@ function PosPageInner() {
             tecnicoFiltro={tecnicoFiltro}
             onTecnicoFiltro={setTecnicoFiltro}
           />
-          <PhaseAccordion
+          {/* Alternar Cards ⇄ Relação ⇄ Dashboard */}
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "10px 16px 0" }}>
+            {([["cards", "fa-table-cells-large", "Cards", "Quadro por fase"], ["relacao", "fa-table-list", "Relação", "Tabela com filtros por coluna, ordenação, PDF e CSV"], ["dashboard", "fa-chart-simple", "Dashboard", "Valor e quantidade por data, técnico, tipo, fase e cliente"]] as const).map(([v, icone, rotulo, dica]) => (
+              <button key={v} type="button" onClick={() => trocarViewMode(v)} title={dica}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 8, border: "1px solid var(--portal-border, #e5e7eb)", background: viewMode === v ? "#0369A1" : "#fefefe", color: viewMode === v ? "#fefefe" : "#111111", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
+                <i className={`fas ${icone}`} /> {rotulo}
+              </button>
+            ))}
+          </div>
+          {viewMode === "relacao" ? (
+            <RelacaoOS orders={orders} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onCardClick={handleCardClick} onPhaseChange={podeMoverFase ? handlePhaseChange : undefined} />
+          ) : viewMode === "dashboard" ? (
+            <DashboardOS orders={orders} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onAbrirOS={handleCardClick} />
+          ) : (
+                    <PhaseAccordion
             orders={orders}
             searchTerm={searchTerm}
             tecnicoFiltro={tecnicoFiltro}
@@ -347,6 +369,7 @@ function PosPageInner() {
             onEnviarOmieTodas={podeOmie ? handleEnviarOmieTodas : undefined}
             enviandoOmie={enviandoOmie}
           />
+          )}
         </>
       )}
 

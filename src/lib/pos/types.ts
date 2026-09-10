@@ -67,6 +67,12 @@ export interface KanbanCard {
   pendenciaMahindra?: PendenciaMahindra | null;
   servicoInterno: boolean;
   projetoCronograma?: { id: string; nome: string } | null;
+  // Extras do modo Relação / Dashboard (08/09/2026) — opcionais, vêm do GET /api/pos/ordens
+  tipoServico?: string;
+  revisao?: string;
+  projeto?: string;
+  qtdHoras?: number;
+  qtdKm?: number;
 }
 
 export interface ClienteOption {

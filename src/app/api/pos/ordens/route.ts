@@ -152,7 +152,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
   // Todas as queries em paralelo
   const [{ data: ordens }, { data: logs }, { data: metricasAbertas }, { data: reqsNovas }, { data: relatorios }, { data: reqsSol }, { data: reqsAtt }, { data: projetosCron }] = await Promise.all([
     supabase.from(TBL_OS).select("*").order("Id_Ordem", { ascending: false }),
-    supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao,Hora_Acao,acao,UsuEmail").order("id", { ascending: false }),
+    supabase.from(TBL_LOGS_PPO).select("Id_ppo,Data_Acao,Hora_Acao,acao,UsuEmail,Status_Atual").order("id", { ascending: false }),
     supabase.from(TBL_METRICAS).select("id_ordem, dias").is("data_fim", null),
     supabase.from("Requisicao").select("id, titulo, valor_cobrado_cliente, ordem_servico"),
     supabase.from("Ordem_Servico_Tecnicos").select("Ordem_Servico, NomResp"),
@@ -201,8 +201,11 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
   });
 
   const mapaDatasFase: Record<string, string> = {};
+  // Data da última TROCA DE FASE (log com Status_Atual) — "Na fase desde" na Relação/Dashboard.
+  const mapaFaseDesde: Record<string, { status: string; data: string }[]> = {};
   const mapaUltimoLog: Record<string, { acao: string; usuario: string; data: string }> = {};
   (logs || []).forEach((l) => {
+    if (l.Status_Atual) (mapaFaseDesde[l.Id_ppo] ||= []).push({ status: String(l.Status_Atual), data: l.Data_Acao || "" });
     if (!mapaDatasFase[l.Id_ppo]) {
       mapaDatasFase[l.Id_ppo] = l.Data_Acao;
       mapaUltimoLog[l.Id_ppo] = {
@@ -235,7 +238,7 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       cliente: (safeGet(row, "Os_Cliente") as string) || "",
       tecnico: (safeGet(row, "Os_Tecnico") as string) || "",
       data: formatarDataBR(safeGet(row, "Data") as string),
-      dataFase: mapaDatasFase[osId] || formatarDataBR(safeGet(row, "Data") as string),
+      dataFase: (mapaFaseDesde[osId] || []).find((x) => x.status === String(safeGet(row, "Status") || ""))?.data || mapaDatasFase[osId] || formatarDataBR(safeGet(row, "Data") as string),
       valor: parseFloat(String(safeGet(row, "Valor_Total") || 0)).toFixed(2).replace(".", ","),
       status: (safeGet(row, "Status") as string) || "Orçamento",
       temPPV: !!safeGet(row, "ID_PPV"),
@@ -257,6 +260,11 @@ async function getOrdensParaKanban(): Promise<KanbanCard[]> {
       pendenciaMahindra: (safeGet(row, "pendencia_mahindra") as any) || null,
       servicoInterno: !!safeGet(row, "Servico_Interno"),
       projetoCronograma: mapaProjeto[osId] || null,
+      tipoServico: (safeGet(row, "Tipo_Servico") as string) || "",
+      revisao: (safeGet(row, "Revisao") as string) || "",
+      projeto: (safeGet(row, "Projeto") as string) || "",
+      qtdHoras: parseFloat(String(safeGet(row, "Qtd_HR") || 0)) || 0,
+      qtdKm: parseFloat(String(safeGet(row, "Qtd_KM") || 0)) || 0,
     };
   });
 }
