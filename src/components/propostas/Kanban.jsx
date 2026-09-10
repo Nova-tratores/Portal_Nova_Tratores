@@ -126,17 +126,18 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
   const [filtroStatus, setFiltroStatus] = useState('')
   const [perda, setPerda] = useState(null)   // proposta sendo marcada como "não vendido"
   const [soFab, setSoFab] = useState(false)  // só propostas com pedido de fábrica (FAB)
-  const [sort, setSort] = useState({ key: 'dias_na_fase', dir: 'desc' })   // default: mais parado primeiro
+  const [sort, setSort] = useState({ key: 'criado_em', dir: 'desc' })   // default: mais recente primeiro
   const [filtrosCol, setFiltrosCol] = useState({})   // filtro por coluna (2ª linha do cabeçalho, AND)
   const [gerando, setGerando] = useState(false)       // gerando PDF da relação
   const temFiltroCol = Object.values(filtrosCol).some(v => v && v.trim())
 
   const loadData = async () => {
     // Lê da view v_formulario (traz dias_na_fase/cores). Esconde a lixeira por deleted_at
-    // (pega tanto o legado status='Lixeira' quanto o soft-delete novo). Ordena pelo mais parado.
+    // (pega tanto o legado status='Lixeira' quanto o soft-delete novo). Ordena da mais recente pra mais antiga
+    // (criado_em desc; id desc desempata e cobre as antigas sem criado_em) — vale pro kanban, que usa a ordem da consulta.
     const { data } = await supabase.from('v_formulario').select('*')
       .is('deleted_at', null)
-      .order('dias_na_fase', { ascending: false })
+      .order('criado_em', { ascending: false, nullsFirst: false })
       .order('id', { ascending: false })
     setCards(data || [])
   }
@@ -219,7 +220,10 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
     return [...filtradas].sort((a, b) => {
       const va = get(a), vb = get(b)
       const cmp = (typeof va === 'number' && typeof vb === 'number') ? va - vb : String(va).localeCompare(String(vb), 'pt-BR')
-      return sort.dir === 'asc' ? cmp : -cmp
+      if (cmp !== 0) return sort.dir === 'asc' ? cmp : -cmp
+      // Empate (ex.: propostas antigas sem criado_em): id maior = mais nova, segue a direção da coluna.
+      const ida = Number(a.id) || 0, idb = Number(b.id) || 0
+      return sort.dir === 'asc' ? ida - idb : idb - ida
     })
   }, [filtradas, sort])
 
