@@ -176,6 +176,22 @@ export async function gerarPDFContrapartida(rel: Relatorio): Promise<Buffer> {
         if (col === 1) doc.y += hFoto + 22;
       }
 
+      // Vídeo não cabe num PDF: entra como link, pra fábrica saber que existe.
+      if (rel.videos.length > 0) {
+        espaco(24 + rel.videos.length * 12);
+        doc.font('Helvetica-Bold').fontSize(9).fillColor('#111111')
+          .text('Vídeos (abrir pelo link):', M, doc.y, { width: larg });
+        doc.y += 2;
+        for (const v of rel.videos) {
+          doc.font('Helvetica').fontSize(8).fillColor('#2563eb')
+            .text(`• ${v.legenda !== NAO_REGISTRADO ? v.legenda + ' — ' : ''}${v.url}`, M, doc.y, {
+              width: larg, link: v.url, underline: false,
+            });
+          doc.y += 2;
+        }
+        doc.y += 6;
+      }
+
       // ── 9. O que ainda falta registrar ───────────────────────────────────
       // Fica no documento de propósito: o PDF é também o checklist interno.
       if (rel.pendencias.length > 0) {

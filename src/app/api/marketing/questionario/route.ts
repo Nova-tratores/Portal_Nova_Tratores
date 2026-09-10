@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // =============================================================================
 // Administração dos links do questionário (dentro do módulo, COM login).
 //

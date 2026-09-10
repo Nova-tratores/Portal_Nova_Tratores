@@ -29,6 +29,8 @@ export interface CampoSpec {
   opcoes?: readonly { readonly id: string; readonly label: string }[];
   ajuda?: string;
   obrigatorio?: boolean;
+  /** Tipos aceitos no campo de arquivo. Padrão: só imagem. */
+  aceita?: string;
   /** Aparece na linha da lista (além do título). */
   naLista?: boolean;
 }
@@ -115,11 +117,15 @@ export const SPEC_CONCORRENTES: Spec = {
 
 export const SPEC_MIDIAS: Spec = {
   rota: 'midias', titulo: 'Mídia e evidências', singular: 'registro', acao: 'midias:enviar',
-  vazio: 'Nenhuma foto ou publicação. Sem evidência, o relatório à fábrica vai vazio no registro fotográfico.',
+  vazio: 'Nenhuma foto, vídeo ou publicação. Sem evidência, o relatório à fábrica vai vazio no registro fotográfico.',
   campoTitulo: 'legenda',
   pastaFoto: 'marketing/midias',
   campos: [
-    { k: 'url', label: 'Arquivo ou link', tipo: 'foto', obrigatorio: true },
+    {
+      k: 'url', label: 'Arquivo ou link', tipo: 'foto', obrigatorio: true,
+      aceita: 'image/*,video/*',
+      ajuda: 'Foto ou vídeo. Vídeo grande demora pra subir — se falhar, mande o link do Drive ou do post.',
+    },
     { k: 'tipo', label: 'Tipo', tipo: 'select', opcoes: TIPOS_MIDIA, naLista: true },
     { k: 'legenda', label: 'Legenda', tipo: 'texto' },
     { k: 'contrapartida', label: 'Usar no relatório à fábrica', tipo: 'bool', naLista: true, ajuda: 'Só o que estiver marcado aqui entra no registro fotográfico do PDF.' },
@@ -165,16 +171,28 @@ export default function ListaSimples({
   };
 
   // Upload direto pro bucket público `anexos`, como no /pendencias.
-  const enviarFoto = async (campo: string, arquivo: File) => {
+  const enviarArquivo = async (campo: string, arquivo: File) => {
     setEnviandoFoto(true);
     setErro(null);
+    const ehVideo = arquivo.type.startsWith('video/');
     try {
-      const nome = `${spec.pastaFoto || 'marketing/anexos'}/${Date.now()}-${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_') || 'foto.jpg'}`;
-      const { error } = await supabase.storage.from('anexos').upload(nome, arquivo);
+      const nome = `${spec.pastaFoto || 'marketing/anexos'}/${Date.now()}-${arquivo.name.replace(/[^a-zA-Z0-9.-]/g, '_') || (ehVideo ? 'video.mp4' : 'foto.jpg')}`;
+      const { error } = await supabase.storage.from('anexos').upload(nome, arquivo, {
+        contentType: arquivo.type || undefined,
+      });
       if (error) throw error;
       set(campo, supabase.storage.from('anexos').getPublicUrl(nome).data.publicUrl);
+      // Mandou vídeo mas o tipo ficou em "foto": corrige sozinho, senão o
+      // registro sai classificado errado e o PDF tenta desenhar um .mp4.
+      if (ehVideo && spec.campos.some((c) => c.k === 'tipo' && c.opcoes?.some((o) => o.id === 'video'))) {
+        set('tipo', 'video');
+      }
     } catch (e: any) {
-      setErro('A foto não pôde ser enviada: ' + (e?.message || 'erro no envio'));
+      const mb = (arquivo.size / 1024 / 1024).toFixed(0);
+      setErro(
+        `O arquivo não pôde ser enviado (${mb} MB): ${e?.message || 'erro no envio'}.` +
+        (ehVideo ? ' Vídeo muito grande costuma ser recusado — publique no Drive e cole o link aqui.' : ''),
+      );
     } finally {
       setEnviandoFoto(false);
     }
@@ -233,8 +251,12 @@ export default function ListaSimples({
       ) : (
         <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
           {itens.map((it) => {
-            const foto = it.foto_url || it.evidencia_url || (spec.rota === 'midias' ? it.url : null);
-            const ehImagem = typeof foto === 'string' && /^https?:/.test(foto) && !/\.(pdf|mp4|mov)(\?|$)/i.test(foto);
+            const anexo = it.foto_url || it.evidencia_url || (spec.rota === 'midias' ? it.url : null);
+            const ehLink = typeof anexo === 'string' && /^https?:/.test(anexo);
+            // Classifica pela EXTENSÃO do arquivo, não pelo campo `tipo`: o
+            // registro pode ter vindo com o tipo errado, e aí o <img> some.
+            const ehVideo = ehLink && (/\.(mp4|mov|webm|m4v)(\?|$)/i.test(anexo) || it.tipo === 'video');
+            const ehImagem = ehLink && !ehVideo && !/\.(pdf|docx?|xlsx?)(\?|$)/i.test(anexo);
             return (
               <Painel key={it.id} style={{ borderLeft: `3px solid ${ROSA}` }}>
                 <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
@@ -256,9 +278,27 @@ export default function ListaSimples({
                 {resumo(it) && (
                   <div style={{ marginTop: 5, fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>{resumo(it)}</div>
                 )}
+                {ehVideo && (
+                  <video
+                    src={anexo}
+                    controls
+                    preload="metadata"
+                    style={{ marginTop: 8, width: '100%', maxHeight: 200, borderRadius: 3, background: '#111111' }}
+                  />
+                )}
                 {ehImagem && (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={foto} alt="" style={{ marginTop: 8, width: '100%', maxHeight: 150, objectFit: 'cover', borderRadius: 3 }} />
+                  <img src={anexo} alt="" style={{ marginTop: 8, width: '100%', maxHeight: 150, objectFit: 'cover', borderRadius: 3 }} />
+                )}
+                {ehLink && !ehVideo && !ehImagem && (
+                  <a
+                    href={anexo}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: 'inline-block', marginTop: 8, fontSize: 12, color: '#2563eb' }}
+                  >
+                    Abrir arquivo
+                  </a>
                 )}
               </Painel>
             );
@@ -299,9 +339,8 @@ export default function ListaSimples({
                     />
                     <input
                       type="file"
-                      accept="image/*"
-                      capture="environment"
-                      onChange={(e) => { const a = e.target.files?.[0]; if (a) enviarFoto(c.k, a); }}
+                      accept={c.aceita ?? 'image/*'}
+                      onChange={(e) => { const a = e.target.files?.[0]; if (a) enviarArquivo(c.k, a); }}
                       style={{ fontSize: 13, color: 'var(--portal-text)' }}
                     />
                     {enviandoFoto && <span style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>Enviando…</span>}

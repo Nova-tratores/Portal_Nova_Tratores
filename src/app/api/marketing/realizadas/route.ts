@@ -14,4 +14,5 @@ export const { GET, POST, PATCH, DELETE } = criarRotasCrud({
            'data', 'responsavel_nome', 'evidencia_url', 'observacoes'],
   datas: ['data'],
   booleanos: ['planejado', 'realizado'],
+  padraoDoBanco: ['planejado', 'realizado'],
 });

@@ -12,4 +12,5 @@ export const { GET, POST, PATCH, DELETE } = criarRotasCrud({
   ordem: 'nome',
   campos: ['usuario_id', 'nome', 'papel', 'telefone', 'dias', 'horas', 'custo_estimado', 'observacoes'],
   numericos: ['dias', 'horas', 'custo_estimado'],
+  padraoDoBanco: ['papel'],
 });

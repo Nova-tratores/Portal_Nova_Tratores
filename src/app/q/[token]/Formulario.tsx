@@ -1,5 +1,4 @@
 'use client';
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // =============================================================================
 // Formulário público do questionário pós-evento.
 //
@@ -14,9 +13,7 @@
 //  * Sem rastreamento e sem dependência nova.
 // =============================================================================
 import { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  PERGUNTAS, SECOES, perguntasDaSecao, IDS_PERGUNTAS,
-} from '@/lib/marketing/questionario';
+import { SECOES, perguntasDaSecao, IDS_PERGUNTAS } from '@/lib/marketing/questionario';
 
 type Situacao = 'ocioso' | 'salvando' | 'salvo' | 'erro';
 

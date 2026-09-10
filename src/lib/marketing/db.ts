@@ -11,19 +11,13 @@
 // Mesmo padrão de lib/email/envios-config.ts.
 // =============================================================================
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
+import { migrationFaltou } from './erros';
 import type { Acao, Apoio, Custo, Lead, PropostaVinculada } from './tipos';
 
 export const db = supabaseAdmin;
 
-/** A tabela/coluna ainda não existe no banco (migration pendente). */
-export function migrationFaltou(err: any): boolean {
-  const m = String(err?.message || err?.code || '');
-  return (
-    err?.code === '42P01' ||
-    err?.code === 'PGRST205' ||
-    /does not exist|schema cache|relation .* not/i.test(m)
-  );
-}
+// Reexportado pra quem já importava daqui (rotas, questionario-db).
+export { migrationFaltou };
 
 export const MSG_MIGRATION =
   'As tabelas do módulo Marketing ainda não existem no banco. Rode sql/marketing-acoes.sql no SQL Editor do Supabase.';

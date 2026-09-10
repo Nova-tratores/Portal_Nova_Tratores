@@ -214,6 +214,24 @@ export default function RelatorioAba({ apoios, onMudou }: { apoios: any[]; onMud
                 O PDF leva as 6 primeiras, na ordem definida na aba Mídia.
               </div>
             )}
+
+            {previa.videos?.length > 0 && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 5 }}>
+                  Vídeos ({previa.videos.length})
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)', marginBottom: 6 }}>
+                  Vídeo não cabe num PDF. No relatório eles saem como link, para a fábrica abrir.
+                </div>
+                {previa.videos.map((v: any, i: number) => (
+                  <div key={i} style={{ fontSize: 12, marginBottom: 3 }}>
+                    <a href={v.url} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+                      {v.legenda !== 'Não registrado' ? v.legenda : v.url}
+                    </a>
+                  </div>
+                ))}
+              </div>
+            )}
           </Painel>
         </>
       )}

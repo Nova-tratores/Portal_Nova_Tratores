@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 // Importação das respostas para a ficha da ação.
 //
 // GET  ?link_id=  -> PRÉVIA: o que seria gravado, e onde há conflito.

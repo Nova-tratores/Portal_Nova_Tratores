@@ -23,6 +23,13 @@ export interface DefCrud {
   numericos?: readonly string[];
   datas?: readonly string[];
   booleanos?: readonly string[];
+  /**
+   * Colunas NOT NULL que têm valor PADRÃO no banco. Quando o formulário deixa
+   * o campo em branco, a chave é OMITIDA em vez de virar null — senão o insert
+   * bate no not-null de uma coluna que sabia se virar sozinha.
+   * (Foi o que quebrou o anexo de mídia: `ordem` em branco → null → 23502.)
+   */
+  padraoDoBanco?: readonly string[];
   ordem?: string;
   /** Campo usado como rótulo no audit_log. */
   label?: string;
@@ -33,6 +40,10 @@ function normalizar(body: any, d: DefCrud) {
   for (const k of d.numericos ?? []) if (k in dados) dados[k] = num(dados[k]);
   for (const k of d.datas ?? []) if (k in dados) dados[k] = dataOuNull(dados[k]);
   for (const k of d.booleanos ?? []) if (k in dados) dados[k] = dados[k] === true || dados[k] === 'true';
+  // Em branco numa coluna com padrão: deixa o banco decidir.
+  for (const k of d.padraoDoBanco ?? []) {
+    if (k in dados && (dados[k] === null || dados[k] === undefined)) delete dados[k];
+  }
   return dados;
 }
 

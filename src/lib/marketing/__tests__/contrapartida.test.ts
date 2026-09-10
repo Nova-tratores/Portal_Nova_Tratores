@@ -146,6 +146,30 @@ describe('montarRelatorio', () => {
     expect(JSON.stringify(r)).not.toContain('NaN');
   });
 
+  // Vídeo não cabe num PDF. Antes ele sumia calado, o que contraria a regra
+  // central deste relatório: nada some em silêncio.
+  it('vídeo marcado como contrapartida sai como link, não some', () => {
+    const r = montarRelatorio(
+      dados({
+        midias: [
+          { id: 'v1', url: 'https://x/estande.mp4', contrapartida: true, tipo: 'video', legenda: 'Volta no estande' },
+          { id: 'v2', url: 'https://x/outro.MOV', contrapartida: true, tipo: 'foto', legenda: 'Tipo errado' },
+          { id: 'v3', url: 'https://x/interno.mp4', contrapartida: false, tipo: 'video', legenda: 'Não marcado' },
+        ],
+      }),
+    );
+    // O segundo entra pela EXTENSÃO, mesmo com o tipo gravado errado.
+    expect(r.videos.map((v) => v.url)).toEqual(['https://x/estande.mp4', 'https://x/outro.MOV']);
+    expect(r.fotos).toHaveLength(0);
+  });
+
+  it('com vídeo marcado, não acusa falta de evidência', () => {
+    const r = montarRelatorio(
+      dados({ midias: [{ id: 'v1', url: 'https://x/a.mp4', contrapartida: true, tipo: 'video' }] }),
+    );
+    expect(r.pendencias.some((p) => p.includes('evidência de contrapartida'))).toBe(false);
+  });
+
   it('só foto marcada como contrapartida entra no anexo', () => {
     const r = montarRelatorio(
       dados({

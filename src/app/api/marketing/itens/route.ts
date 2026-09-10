@@ -12,5 +12,7 @@ export const { GET, POST, PATCH, DELETE } = criarRotasCrud({
   campos: ['tipo', 'modelo', 'descricao', 'chassi', 'codigo_produto', 'quantidade',
            'valor_unitario', 'destino', 'vendido', 'proposta_id', 'foto_url', 'observacoes'],
   numericos: ['quantidade', 'valor_unitario', 'proposta_id'],
+  // NOT NULL com padrão no banco (quantidade=1, vendido=false).
+  padraoDoBanco: ['quantidade', 'vendido'],
   booleanos: ['vendido'],
 });

@@ -112,6 +112,8 @@ export interface Relatorio {
   secoes: SecaoRelatorio[];
   /** Fotos marcadas como contrapartida (até 6 entram no PDF). */
   fotos: { url: string; legenda: string }[];
+  /** Vídeos marcados como contrapartida. Não cabem num PDF, entram como link. */
+  videos: { url: string; legenda: string }[];
   /** Tudo que ficou "Não registrado" — a tela mostra antes de deixar enviar. */
   pendencias: string[];
   roi: ResultadoROI;
@@ -269,18 +271,34 @@ export function montarRelatorio(d: DadosRelatorio): Relatorio {
     ],
   };
 
-  // ── Fotos da contrapartida ────────────────────────────────────────────────
-  const fotos = (d.midias ?? [])
-    .filter((m) => m.contrapartida && m.url && (m.tipo === 'foto' || m.tipo === 'post' || m.tipo === 'clipping'))
-    .sort((a, b) => Number(a.ordem ?? 0) - Number(b.ordem ?? 0))
+  // ── Evidências da contrapartida ───────────────────────────────────────────
+  const marcadas = (d.midias ?? [])
+    .filter((m) => m.contrapartida && m.url)
+    .sort((a, b) => Number(a.ordem ?? 0) - Number(b.ordem ?? 0));
+
+  const ehVideo = (m: MidiaRel) =>
+    m.tipo === 'video' || /\.(mp4|mov|webm|m4v)(\?|$)/i.test(String(m.url ?? ''));
+
+  const fotos = marcadas
+    .filter((m) => !ehVideo(m) && (m.tipo === 'foto' || m.tipo === 'post' || m.tipo === 'clipping'))
     .map((m) => ({ url: String(m.url), legenda: txt(m.legenda) }));
-  if (fotos.length === 0) pend.push('8: Nenhuma foto marcada como evidência de contrapartida');
+
+  // Vídeo não cabe num PDF. Em vez de sumir em silêncio — que é justamente o
+  // que este relatório não faz —, sai como link na seção de registro.
+  const videos = marcadas
+    .filter(ehVideo)
+    .map((m) => ({ url: String(m.url), legenda: txt(m.legenda) }));
+
+  if (fotos.length === 0 && videos.length === 0) {
+    pend.push('8: Nenhuma foto ou vídeo marcado como evidência de contrapartida');
+  }
 
   return {
     titulo: 'Relatório de contrapartida',
     subtitulo: `${txt(acao.nome)} — apoio ${txt(apoio.apoiador)}`,
     secoes: [s1, s2, s3, s4, s5, s6, s7],
     fotos,
+    videos,
     pendencias: pend,
     roi,
   };
