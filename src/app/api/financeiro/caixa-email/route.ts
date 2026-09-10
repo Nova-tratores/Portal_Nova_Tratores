@@ -93,7 +93,17 @@ async function baixarParte(client: any, uid: string, part: string): Promise<Buff
 
 const decodificar = (buf: Buffer, charset: string) => {
   const cs = charset.toLowerCase();
-  return buf.toString(cs.includes("8859") || cs.includes("latin") ? "latin1" : "utf-8");
+  const querLatin = cs.includes("8859") || cs.includes("latin");
+  const utf8 = buf.toString("utf-8");
+  const utf8Quebrado = utf8.includes("�"); // bytes que NÃO são UTF-8 válido
+  if (!querLatin) return utf8Quebrado ? buf.toString("latin1") : utf8;
+  // Charset diz latin1, mas MUITO e-mail mente e o corpo é UTF-8 — decodificar
+  // como latin1 vira mojibake ("amanhã" → "amanhÃ£"). Se o conteúdo decodifica
+  // limpo como UTF-8 e o latin1 geraria os pares típicos (Ã/Â + acento), fica
+  // com o UTF-8.
+  const latin = buf.toString("latin1");
+  const pareceMojibake = /[ÃÂ][-¿]/.test(latin);
+  return pareceMojibake && !utf8Quebrado ? utf8 : latin;
 };
 
 // Traduz a aba do painel pra pasta REAL da caixa (Gmail marca as pastas
@@ -402,7 +412,17 @@ export async function POST(req: NextRequest) {
       auth: { user: cfg.email_envio, pass: senha },
     });
     const assunto = /^re:/i.test(original.assunto) ? original.assunto : `Re: ${original.assunto}`;
-    const html = corpo.split("\n").map((l) => l.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string))).join("<br>");
+    let html = corpo.split("\n").map((l) => l.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string))).join("<br>");
+    // Assinatura do usuário (colada do Gmail na config da caixa) vai no fim
+    try {
+      const { data: ass } = await supabase
+        .from("financeiro_envio_config")
+        .select("assinatura_html")
+        .eq("user_id", auth.userId)
+        .maybeSingle();
+      const assinatura = String((ass as any)?.assinatura_html || "").trim();
+      if (assinatura) html += `<br><br>${assinatura}`;
+    } catch { /* coluna ausente — resposta sai sem assinatura */ }
     const info = await transporter.sendMail({
       from: `"Nova Tratores" <${cfg.email_envio}>`,
       to: original.de,

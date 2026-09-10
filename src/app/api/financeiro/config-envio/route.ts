@@ -28,14 +28,49 @@ export async function GET(req: Request) {
     .eq('user_id', auth.userId)
     .maybeSingle()
 
+  // Assinatura HTML (colada do Gmail) — coluna pode não existir ainda (migration)
+  let assinatura = ''
+  try {
+    const { data: ass } = await supabase
+      .from('financeiro_envio_config')
+      .select('assinatura_html')
+      .eq('user_id', auth.userId)
+      .maybeSingle()
+    assinatura = String(ass?.assinatura_html || '')
+  } catch { /* sem coluna — segue sem assinatura */ }
+
   return NextResponse.json({
     configurado: !!(data?.email_envio && data?.senha_enc),
     email_envio: data?.email_envio || '',
     smtp_host: data?.smtp_host || '',
     smtp_port: data?.smtp_port || null,
     smtp_secure: data?.smtp_secure ?? true,
+    assinatura_html: assinatura,
     cripto_ok: temChaveCripto(),
   })
+}
+
+// Assinatura das respostas/envios: HTML colado do Gmail (imagens ficam como
+// links hospedados pelo Google — chegam normais pro destinatário).
+export async function PATCH(req: Request) {
+  const auth = await autenticar(req)
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  const body = await req.json().catch(() => ({}))
+  if (typeof body.assinatura_html !== 'string') {
+    return NextResponse.json({ error: 'assinatura_html é obrigatória (string; vazia = remover).' }, { status: 400 })
+  }
+  const assinatura = body.assinatura_html.slice(0, 100000)
+  const { error } = await supabase
+    .from('financeiro_envio_config')
+    .update({ assinatura_html: assinatura, updated_at: new Date().toISOString() })
+    .eq('user_id', auth.userId)
+  if (error) {
+    const msg = /assinatura_html/.test(error.message)
+      ? 'Falta a coluna assinatura_html — rode: alter table financeiro_envio_config add column if not exists assinatura_html text;'
+      : error.message
+    return NextResponse.json({ error: msg }, { status: 500 })
+  }
+  return NextResponse.json({ ok: true })
 }
 
 export async function POST(req: Request) {

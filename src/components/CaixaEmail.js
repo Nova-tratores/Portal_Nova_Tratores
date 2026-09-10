@@ -10,7 +10,7 @@ import { useRouter } from 'next/navigation'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
-import { Mail, Reply, RefreshCw, ExternalLink, Paperclip, X, Send, Check, CheckCheck } from 'lucide-react'
+import { Mail, Reply, RefreshCw, ExternalLink, Paperclip, X, Send, Check, CheckCheck, PenLine } from 'lucide-react'
 
 const fmtData = (iso, comAno) => {
   if (!iso) return ''
@@ -43,7 +43,14 @@ export default function CaixaEmail() {
   const [erro, setErro] = useState('')
   const [badge, setBadge] = useState(0)
   const boxRef = useRef(null)
+  const ultimaMsgRef = useRef(null) // rola a conversa direto pra mensagem mais recente
   const router = useRouter()
+
+  // Assinatura das respostas (HTML colado do Gmail)
+  const [assinaturaOpen, setAssinaturaOpen] = useState(false)
+  const [assinaturaHtml, setAssinaturaHtml] = useState('')
+  const [salvandoAss, setSalvandoAss] = useState(false)
+  const assEditorRef = useRef(null)
 
   // Modal de leitura
   const [msgAberta, setMsgAberta] = useState(null)   // item da lista
@@ -61,6 +68,7 @@ export default function CaixaEmail() {
         const r = await fetch('/api/financeiro/config-envio', { headers: { ...(await authHeaders()) } })
         const c = await r.json()
         if (ativo && c && !c.error && c.email_envio) { setTemConfig(true); setConta(c.email_envio) }
+        if (ativo && c && !c.error) setAssinaturaHtml(c.assinatura_html || '')
       } catch { /* sem config */ }
     })()
     return () => { ativo = false }
@@ -144,6 +152,14 @@ export default function CaixaEmail() {
     carregarConversa(em, false)
   }
 
+  // Conversa carregada → vai direto pra mensagem MAIS RECENTE (conversas de
+  // vários dias abriam no topo e a novidade ficava lá embaixo, escondida)
+  useEffect(() => {
+    if (!detalhe?.mensagens?.length) return
+    const t = setTimeout(() => { ultimaMsgRef.current?.scrollIntoView({ block: 'start' }) }, 80)
+    return () => clearTimeout(t)
+  }, [detalhe])
+
   const baixarAnexo = async (a, deMsg) => {
     if (!msgAberta && !deMsg) return
     setBaixandoAnexo(a.i)
@@ -159,6 +175,26 @@ export default function CaixaEmail() {
       setTimeout(() => URL.revokeObjectURL(url), 30000)
     } catch { alert('Falha ao baixar o anexo.') }
     setBaixandoAnexo(null)
+  }
+
+  // Editor de assinatura: abre já com o HTML atual (colado do Gmail)
+  useEffect(() => {
+    if (assinaturaOpen && assEditorRef.current) assEditorRef.current.innerHTML = assinaturaHtml || ''
+  }, [assinaturaOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const salvarAssinatura = async () => {
+    setSalvandoAss(true)
+    try {
+      const html = assEditorRef.current?.innerHTML || ''
+      const r = await fetch('/api/financeiro/config-envio', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ assinatura_html: html }),
+      })
+      const j = await r.json()
+      if (j.error) alert(j.error)
+      else { setAssinaturaHtml(html); setAssinaturaOpen(false) }
+    } catch { alert('Falha ao salvar a assinatura.') }
+    setSalvandoAss(false)
   }
 
   // Marca como lida (seta o "lido" direto no seu e-mail via IMAP)
@@ -255,6 +291,10 @@ export default function CaixaEmail() {
                   <CheckCheck size={13} /> {marcando ? '...' : 'todas lidas'}
                 </button>
               )}
+              <button onClick={() => setAssinaturaOpen(true)} title={assinaturaHtml ? 'Editar a assinatura das suas respostas' : 'Configurar assinatura (cola a do Gmail)'}
+                style={{ background: 'transparent', border: `1px solid ${assinaturaHtml ? '#16a34a' : 'var(--portal-border)'}`, borderRadius: 8, padding: '5px 9px', cursor: 'pointer', color: assinaturaHtml ? '#16a34a' : 'var(--portal-text-secondary)', display: 'flex' }}>
+                <PenLine size={14} />
+              </button>
               <button onClick={() => carregarCaixa(true, pasta)} disabled={carregando} title="Atualizar agora (busca direto na caixa)"
                 style={{ background: 'transparent', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '5px 9px', cursor: 'pointer', color: 'var(--portal-text-secondary)', display: 'flex' }}>
                 <RefreshCw size={14} className={carregando ? 'spin-envio' : ''} />
@@ -347,6 +387,42 @@ export default function CaixaEmail() {
         </div>
       )}
 
+      {/* ── Assinatura das respostas (cola a do Gmail, com logos e tudo) ── */}
+      {assinaturaOpen && (
+        <div onClick={(e) => { if (e.target === e.currentTarget) setAssinaturaOpen(false) }}
+          style={{ position: 'fixed', inset: 0, zIndex: 4500, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14, width: 620, maxWidth: '96vw', maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 30px 80px rgba(0,0,0,0.5)', fontFamily: '"Segoe UI", system-ui, sans-serif' }}>
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <PenLine size={16} color="#16a34a" />
+              <b style={{ fontSize: 15, color: 'var(--portal-text)', flex: 1 }}>Assinatura das respostas</b>
+              <button onClick={() => setAssinaturaOpen(false)} style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, width: 30, height: 30, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'var(--portal-text-secondary)' }}><X size={15} /></button>
+            </div>
+            <div style={{ padding: 16, overflowY: 'auto' }}>
+              <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                No Gmail, <b>selecione a sua assinatura</b> no final de um e-mail seu (texto + logos), copie (<b>Ctrl+C</b>) e <b>cole aqui</b> (<b>Ctrl+V</b>) — as imagens vêm junto. Ela sai no fim de toda resposta enviada pelo portal.
+              </p>
+              <div
+                ref={assEditorRef}
+                contentEditable
+                suppressContentEditableWarning
+                style={{ minHeight: 160, maxHeight: '46vh', overflowY: 'auto', border: '1.5px dashed var(--portal-border)', borderRadius: 10, padding: '12px 14px', background: '#ffffff', color: '#111', fontSize: 14, outline: 'none' }}
+              />
+              <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center' }}>
+                <button onClick={salvarAssinatura} disabled={salvandoAss}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 7, background: '#16a34a', color: '#fff', border: 'none', borderRadius: 9, padding: '9px 18px', cursor: salvandoAss ? 'wait' : 'pointer', fontSize: 13.5, fontWeight: 700 }}>
+                  {salvandoAss ? <RefreshCw size={14} className="spin-envio" /> : <Check size={15} />} Salvar assinatura
+                </button>
+                <button onClick={() => { if (assEditorRef.current) assEditorRef.current.innerHTML = '' }}
+                  style={{ background: 'transparent', border: '1px solid var(--portal-border)', borderRadius: 9, padding: '9px 14px', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: 13 }}>
+                  Limpar
+                </button>
+                <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>Salvar com o campo vazio remove a assinatura.</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Conectar o e-mail (quem ainda não configurou) ── */}
       <ConfigEmailEnvioModal
         open={configOpen}
@@ -408,8 +484,19 @@ export default function CaixaEmail() {
                   {detalhe.mensagens.map((m, i) => {
                     const ultima = i === detalhe.mensagens.length - 1
                     return (
-                      <div key={`${m.pasta}-${m.uid}`} style={{ border: `1.5px solid ${m.enviado ? '#bbf7d0' : 'var(--portal-border)'}`, borderRadius: 12, overflow: 'hidden', background: m.enviado ? 'rgba(22,163,74,0.06)' : 'var(--portal-bg-card)' }}>
+                      <div
+                        key={`${m.pasta}-${m.uid}`}
+                        ref={ultima ? ultimaMsgRef : undefined}
+                        style={{
+                          border: ultima ? '2px solid #2563eb' : `1.5px solid ${m.enviado ? '#bbf7d0' : 'var(--portal-border)'}`,
+                          borderRadius: 12, overflow: 'hidden',
+                          background: m.enviado ? 'rgba(22,163,74,0.06)' : 'var(--portal-bg-card)',
+                          boxShadow: ultima ? '0 4px 18px rgba(37,99,235,0.18)' : 'none',
+                          opacity: ultima ? 1 : 0.82,
+                          scrollMarginTop: 8,
+                        }}>
                         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, padding: '9px 14px', borderBottom: '1px solid var(--portal-border)', flexWrap: 'wrap' }}>
+                          {ultima && <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#2563eb', borderRadius: 6, padding: '2px 8px' }}>MAIS RECENTE</span>}
                           {m.enviado && <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: '#16a34a', borderRadius: 6, padding: '2px 8px' }}>VOCÊ</span>}
                           <b style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>{m.enviado ? 'Você' : (m.deNome || m.de)}</b>
                           <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>para {m.paraNome || m.para || '—'}</span>
@@ -513,7 +600,7 @@ export default function CaixaEmail() {
                 </button>
               </div>
               <div style={{ fontSize: 11, color: 'var(--portal-text-secondary)', marginTop: 6 }}>
-                A resposta sai pelo seu e-mail ({conta}) e continua na mesma conversa.
+                A resposta sai pelo seu e-mail ({conta}) e continua na mesma conversa.{assinaturaHtml ? ' Sua assinatura vai junto.' : ''}
               </div>
             </div>
             )}

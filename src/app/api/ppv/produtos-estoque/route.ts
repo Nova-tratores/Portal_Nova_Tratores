@@ -44,10 +44,26 @@ export async function GET(req: NextRequest) {
   const q = termo.replace(/ /g, "%");
   const filtroBusca = q ? `&or=(codigo.ilike.*${q}*,descricao.ilike.*${q}*)` : "";
   try {
-    const rows = await supabaseFetch<Record<string, unknown>[]>(
+    let rows = await supabaseFetch<Record<string, unknown>[]>(
       `produtos?estoque=gt.0${filtroBusca}&select=codigo,descricao,estoque,valor_unitario,cmc,conta_omie&order=descricao.asc&limit=300`,
-    );
+    ) || [];
     const reservaPorCod = await mapaReservados();
+
+    // Sem busca, a página traz só os 300 primeiros por ordem alfabética — os
+    // produtos COM RESERVA que ficam fora desse recorte nunca apareceriam no
+    // topo. Busca eles à parte e põe na lista (mesmo com estoque zerado:
+    // reserva estourando estoque é exatamente o que precisa aparecer).
+    if (!q) {
+      const naLista = new Set((rows).map((r) => String(r.codigo || "").trim()));
+      const faltando = Object.keys(reservaPorCod).filter((c) => reservaPorCod[c] > 0 && !naLista.has(c));
+      if (faltando.length) {
+        const extras = await supabaseFetch<Record<string, unknown>[]>(
+          `produtos?codigo=in.(${faltando.map((c) => `"${c.replace(/"/g, "")}"`).join(",")})&select=codigo,descricao,estoque,valor_unitario,cmc,conta_omie`,
+        ).catch(() => []);
+        rows = [...(extras || []), ...rows];
+      }
+    }
+
     const lista: ProdutoEstoque[] = (rows || []).map((r) => {
       const codigo = String(r.codigo || "").trim();
       const estoque = Number(r.estoque) || 0;

@@ -86,11 +86,13 @@ async function gerarTextos(p: { motivo: string; servicoRealizadoRaw: string; sol
     `Serviço realizado (texto cru do técnico, pode ter erros): """${String(p.servicoRealizadoRaw || "")}"""\n\n` +
     `Devolva JSON no formato {"solicitacaoCliente":"...","servicoRealizado":"..."}:\n` +
     `- "solicitacaoCliente": a solicitação do cliente. Parta da que já está na OS e cruze com o diagnóstico/motivo do técnico; se o técnico fez algo além do que estava pedido, inclua. Curto e claro. Se não houver informação, use o diagnóstico/motivo.\n` +
-    `- "servicoRealizado": reescreva o texto cru do técnico de forma apresentável ao cliente — corrija erros de português, deixe as frases coerentes e profissionais, sem inventar serviços que não foram citados. SEMPRE termine deixando claro que, após o serviço, o técnico realizou testes na máquina para verificar que está tudo funcionando corretamente antes de finalizar.`;
+    `- "servicoRealizado": reescreva o texto cru do técnico de forma apresentável ao cliente — corrija erros de português, deixe as frases coerentes e profissionais, sem inventar serviços que não foram citados. NUNCA resuma nem corte: TODO serviço/etapa citado pelo técnico tem que aparecer no texto final, por mais longo que o relatório seja. Sobre o fechamento: INTERPRETE o que o técnico contou e julgue o que aconteceu — se ele testou/verificou/rodou a máquina, diga isso com as SUAS palavras, do jeito que fizer sentido naquele caso (não use sempre a mesma frase pronta); se o texto não indicar teste nenhum, não invente.`;
 
   try {
     const j = await chamarIA({
-      temperature: 0.2, max_tokens: 800,
+      // max_tokens é só TETO (paga o que gera) — 800 cortava relatório grande
+      // no meio do texto da ordem. 4096 cobre até os relatórios mais longos.
+      temperature: 0.2, max_tokens: 4096,
       response_format: { type: "json_object" },
       messages: [{ role: "system", content: sys }, { role: "user", content: user }],
     });
