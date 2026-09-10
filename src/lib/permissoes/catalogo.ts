@@ -193,6 +193,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   // (/feedbacks) é o landing; as abas (FeedbackTabs) e o acesso por URL seguem
   // pode('feedbacks', slug).
   feedbacks: [
+    { id: 'atendimento', label: 'Atendimento (cockpit de ligação)' },
     { id: 'crm', label: 'CRM' },
     { id: 'rfm', label: 'RFM' },
     { id: 'clientes', label: 'Histórico de atendimentos' },

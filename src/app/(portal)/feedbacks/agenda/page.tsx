@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { listarRegistros } from "@/lib/feedbacks/api";
+import { linkWhatsapp } from "@/lib/feedbacks/telefone";
 import type { FeedbackRegistro } from "@/lib/feedbacks/types";
 
 type StatusAgenda = "vencido" | "proximo" | "em_dia";
@@ -21,6 +22,12 @@ interface ItemAgenda {
 const PRAZO_DIAS = 30;     // janela default de follow-up
 const PROXIMO_DIAS = 7;    // dentro de 7 dias = "próximo"
 
+// "YYYY-MM-DD" lido como data LOCAL (new Date("YYYY-MM-DD") é UTC e volta 1 dia no BRT).
+function dataLocal(iso: string): Date {
+  const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date(iso);
+}
+
 function dataRef(r: FeedbackRegistro): string {
   return r.data_contato || r.data_servico || r.ultimo_servico || "";
 }
@@ -39,8 +46,9 @@ function agrupar(registros: FeedbackRegistro[]): ItemAgenda[] {
     const existente = map.get(chave);
     if (existente && existente.ultimaData >= d) continue;
 
-    const data = new Date(d);
-    const previsao = new Date(data.getTime() + PRAZO_DIAS * 86400000);
+    const data = dataLocal(d);
+    // Data combinada na ligação (cockpit) vale mais que a régua fixa de 30 dias.
+    const previsao = r.proximo_contato_em ? dataLocal(r.proximo_contato_em) : new Date(data.getTime() + PRAZO_DIAS * 86400000);
     const diasParaPrevisao = Math.floor((previsao.getTime() - hoje.getTime()) / 86400000);
     const diasDesdeUltimo = Math.floor((hoje.getTime() - data.getTime()) / 86400000);
 
@@ -72,14 +80,10 @@ function fmtData(iso: string): string {
 }
 
 function linkWhatsApp(item: ItemAgenda): string | null {
-  if (!item.telefone) return null;
-  const digits = item.telefone.replace(/\D/g, "");
-  if (!digits) return null;
-  const tel = digits.startsWith("55") ? digits : "55" + digits;
-  const msg = encodeURIComponent(
+  return linkWhatsapp(
+    item.telefone,
     `Olá, aqui é da Nova Tratores. Faz cerca de ${item.diasDesdeUltimo} dias do nosso último contato — passando pra verificar como está tudo aí. Podemos conversar?`
   );
-  return `https://wa.me/${tel}?text=${msg}`;
 }
 
 const CORES_STATUS: Record<StatusAgenda, { bg: string; fg: string; label: string; emoji: string }> = {

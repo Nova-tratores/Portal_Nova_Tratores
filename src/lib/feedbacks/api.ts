@@ -3,6 +3,12 @@
 // (Clientes, Projeto, Tecnicos_Appsheet).
 
 import { supabase } from "@/lib/supabase";
+import {
+  buscarHistoricoCliente as buscarHistoricoClienteCom,
+  buscarUltimasOSPorCliente as buscarUltimasOSPorClienteCom,
+  type HistoricoCliente,
+  type UltimaOS,
+} from "./historico-cliente";
 import type {
   ClienteInfo,
   ClienteOmie,
@@ -79,57 +85,10 @@ export async function deletarRegistro(id: number): Promise<void> {
 // única fonte com nome de técnico (Os_Tecnico). Match por nome do cliente
 // (exato, trim) — best-effort, mesma convenção do resto do módulo.
 // -----------------------------------------------------------------------------
-export interface UltimaOS {
-  tecnico: string | null;
-  data: string | null;   // string original (ISO ou DD/MM/YYYY)
-  tipo: string | null;
-}
+export type { UltimaOS } from "./historico-cliente";
 
-function tsData(s: string | null | undefined): number {
-  if (!s) return 0;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) {
-    const d = new Date(s);
-    return isNaN(d.getTime()) ? 0 : d.getTime();
-  }
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:[ T](\d{2}):(\d{2}))?/);
-  if (!m) return 0;
-  const [, dd, mm, yyyy, hh = "0", min = "0"] = m;
-  return new Date(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(min)).getTime();
-}
-
-export async function buscarUltimasOSPorCliente(nomes: string[]): Promise<Record<string, UltimaOS>> {
-  const unicos = Array.from(new Set(nomes.map((n) => (n || "").trim()).filter(Boolean)));
-  if (!unicos.length) return {};
-  const acc: Record<string, { ts: number; os: UltimaOS }> = {};
-  // Em lotes pra não estourar o tamanho da URL do filtro `in`.
-  const LOTE = 50;
-  for (let i = 0; i < unicos.length; i += LOTE) {
-    const lote = unicos.slice(i, i + LOTE);
-    const { data, error } = await supabase
-      .from("Ordem_Servico")
-      .select("Os_Cliente, Os_Tecnico, Os_Tecnico2, Data, Data_Fim_Servico, Tipo_Servico")
-      .in("Os_Cliente", lote);
-    if (error) throw wrapErr(error);
-    for (const o of (data || []) as Array<Record<string, string | null>>) {
-      const cli = (o.Os_Cliente || "").trim();
-      if (!cli) continue;
-      const ts = Math.max(tsData(o.Data_Fim_Servico), tsData(o.Data));
-      const atual = acc[cli];
-      if (!atual || ts > atual.ts) {
-        acc[cli] = {
-          ts,
-          os: {
-            tecnico: o.Os_Tecnico || o.Os_Tecnico2 || null,
-            data: o.Data_Fim_Servico || o.Data || null,
-            tipo: o.Tipo_Servico || null,
-          },
-        };
-      }
-    }
-  }
-  const out: Record<string, UltimaOS> = {};
-  for (const k of Object.keys(acc)) out[k] = acc[k].os;
-  return out;
+export function buscarUltimasOSPorCliente(nomes: string[]): Promise<Record<string, UltimaOS>> {
+  return buscarUltimasOSPorClienteCom(supabase, nomes);
 }
 
 // -----------------------------------------------------------------------------
@@ -137,106 +96,10 @@ export async function buscarUltimasOSPorCliente(nomes: string[]): Promise<Record
 // OS/PV: tabelas por cliente (cod_cli = código Omie). Requisições: por nome.
 // Best-effort: cada fonte falha de forma isolada (não derruba as outras).
 // -----------------------------------------------------------------------------
-export interface HistOS {
-  num_os: string | null; empresa: string | null; data_inclusao: string | null;
-  data_faturamento: string | null; etapa: string | null; status: string | null;
-  valor_total: number | null; descricao: string | null; servicos: string | null; num_nf: string | null;
-}
-export interface HistPV {
-  num_pedido: string | null; empresa: string | null; data_inclusao: string | null;
-  etapa: string | null; valor_total: number | null; faturado: string | null; numero_nf: string | null;
-}
-export interface HistReq {
-  id: number; titulo: string | null; tipo: string | null; data: string | null;
-  status: string | null; fornecedor: string | null; valor_despeza: number | null; ordem_servico: string | null;
-}
-export interface HistoricoCliente { os: HistOS[]; pv: HistPV[]; requisicoes: HistReq[] }
+export type { HistOS, HistPV, HistReq, HistoricoCliente } from "./historico-cliente";
 
-// O mesmo cliente pode ter MAIS DE UM cadastro no Omie (caso real: NELSON
-// WOLF com 2 id_omie e o mesmo CPF — o PV vivia num código e a oportunidade
-// guardou o outro, e o histórico vinha vazio). Resolve TODOS os códigos do
-// cliente pelo cadastro (mesmo CPF/CNPJ ou mesmo nome) antes de consultar.
-async function codigosDoCliente(codigoOmie: string | null, nome: string): Promise<string[]> {
-  const codigos = new Set<string>();
-  if (codigoOmie) codigos.add(String(codigoOmie));
-  try {
-    let doc: string | null = null;
-    if (codigoOmie) {
-      const { data } = await supabase
-        .from("portal_nt_clientes_PRINCIPAL")
-        .select("cnpj_cpf")
-        .eq("id_omie", codigoOmie)
-        .limit(1);
-      doc = (data?.[0]?.cnpj_cpf as string | undefined)?.trim() || null;
-    }
-    const buscas: PromiseLike<unknown>[] = [];
-    const coletar = ({ data }: { data: { id_omie: unknown }[] | null }) => {
-      for (const r of data || []) if (r.id_omie != null) codigos.add(String(r.id_omie));
-    };
-    if (doc) {
-      buscas.push(
-        supabase.from("portal_nt_clientes_PRINCIPAL").select("id_omie").eq("cnpj_cpf", doc).limit(20).then(coletar)
-      );
-    }
-    const nomeTrim = (nome || "").trim();
-    if (nomeTrim.length >= 3) {
-      // ilike sem % = igualdade sem diferenciar caixa (consultas separadas —
-      // nomes com parênteses/vírgula quebrariam um filtro or= composto)
-      buscas.push(
-        supabase.from("portal_nt_clientes_PRINCIPAL").select("id_omie").ilike("nome_fantasia", nomeTrim).limit(20).then(coletar),
-        supabase.from("portal_nt_clientes_PRINCIPAL").select("id_omie").ilike("razao_social", nomeTrim).limit(20).then(coletar)
-      );
-    }
-    await Promise.allSettled(buscas);
-  } catch { /* pior caso: fica só o código recebido */ }
-  return [...codigos];
-}
-
-export async function buscarHistoricoCliente(codigoOmie: string | null, nome: string): Promise<HistoricoCliente> {
-  const out: HistoricoCliente = { os: [], pv: [], requisicoes: [] };
-  const nomeTrim = (nome || "").trim();
-  const codigos = await codigosDoCliente(codigoOmie, nome);
-
-  const tarefas: PromiseLike<unknown>[] = [];
-  if (codigos.length > 0) {
-    tarefas.push(
-      supabase.from("portal_nt_clientes_os")
-        .select("num_os, empresa, data_inclusao, data_faturamento, etapa, status, valor_total, descricao, servicos, num_nf")
-        .in("cod_cli", codigos).order("data_inclusao", { ascending: false }).limit(100)
-        .then(({ data }) => { out.os = (data || []) as HistOS[]; })
-    );
-    tarefas.push(
-      supabase.from("portal_nt_clientes_pv")
-        .select("num_pedido, empresa, data_inclusao, etapa, valor_total, faturado, numero_nf")
-        .in("cod_cli", codigos).order("data_inclusao", { ascending: false }).limit(100)
-        .then(({ data }) => { out.pv = (data || []) as HistPV[]; })
-    );
-  }
-  if (nomeTrim.length >= 3) {
-    tarefas.push(
-      supabase.from("Requisicao")
-        .select("id, titulo, tipo, data, status, fornecedor, valor_despeza, ordem_servico")
-        .ilike("cliente", `%${nomeTrim}%`).order("id", { ascending: false }).limit(100)
-        .then(({ data }) => { out.requisicoes = (data || []) as HistReq[]; })
-    );
-  }
-  await Promise.allSettled(tarefas);
-
-  // Último recurso: nada pelos códigos → tenta pelo NOME nas próprias tabelas
-  // de histórico (igualdade case-insensitive, sem curinga — evita homônimo parcial)
-  if (nomeTrim.length >= 3 && out.os.length === 0 && out.pv.length === 0) {
-    await Promise.allSettled([
-      supabase.from("portal_nt_clientes_os")
-        .select("num_os, empresa, data_inclusao, data_faturamento, etapa, status, valor_total, descricao, servicos, num_nf")
-        .ilike("cliente_nome", nomeTrim).order("data_inclusao", { ascending: false }).limit(100)
-        .then(({ data }) => { if (data?.length) out.os = data as HistOS[]; }),
-      supabase.from("portal_nt_clientes_pv")
-        .select("num_pedido, empresa, data_inclusao, etapa, valor_total, faturado, numero_nf")
-        .ilike("cliente_nome", nomeTrim).order("data_inclusao", { ascending: false }).limit(100)
-        .then(({ data }) => { if (data?.length) out.pv = data as HistPV[]; }),
-    ]);
-  }
-  return out;
+export function buscarHistoricoCliente(codigoOmie: string | null, nome: string): Promise<HistoricoCliente> {
+  return buscarHistoricoClienteCom(supabase, codigoOmie, nome);
 }
 
 // -----------------------------------------------------------------------------

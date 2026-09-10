@@ -7,6 +7,9 @@ import ModalConfirmarCaveira from "./ModalConfirmarCaveira";
 import { atualizarRegistro, buscarUltimasOSPorCliente, listarRegistros, listarClientesInfo, upsertClienteInfo, definirInativoOmie, type UltimaOS } from "@/lib/feedbacks/api";
 import { clienteKey, TAG_NAO_CONTATAR, type ClienteInfo, type FeedbackRegistro, type StatusAtendimento, type TipoFeedback } from "@/lib/feedbacks/types";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/hooks/useAuth";
+import { usePermissoes } from "@/hooks/usePermissoes";
 
 interface Props {
   tipo: TipoFeedback;
@@ -75,6 +78,10 @@ function aplicarFiltros(rows: FeedbackRegistro[], f: Filtros, tipo: TipoFeedback
 }
 
 export default function ListaRegistros({ tipo }: Props) {
+  const router = useRouter();
+  const { userProfile: perfilAuth } = useAuth();
+  const { pode } = usePermissoes(perfilAuth?.id);
+  const podeCockpit = pode("feedbacks", "atendimento");
   const [rows, setRows] = useState<FeedbackRegistro[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -146,6 +153,13 @@ export default function ListaRegistros({ tipo }: Props) {
     setModalAberto(true);
   }
   function abrirEdit(r: FeedbackRegistro) {
+    // Atendimento em aberto + permissão do cockpit → liga por lá (ficha completa).
+    // Concluído/arquivado (ou sem permissão) → modal de edição como sempre.
+    const emAberto = r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento" || r.status_atendimento === "sem_resposta";
+    if (emAberto && podeCockpit) {
+      router.push(`/feedbacks/atendimento/${encodeURIComponent(clienteKey(r.codigo_omie, r.nome))}?registro=${r.id}`);
+      return;
+    }
     setRegistroEdit(r);
     setModalAberto(true);
   }

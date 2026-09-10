@@ -1,6 +1,9 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissoes } from "@/hooks/usePermissoes";
+import { clienteKey } from "@/lib/feedbacks/types";
 import KanbanOportunidades from "@/components/feedbacks/KanbanOportunidades";
 import ModalHistoricoCliente from "@/components/feedbacks/ModalHistoricoCliente";
 import { buscarClientePorOmieId, buscarClientesOmie, inserirRegistro, listarOportunidades } from "@/lib/feedbacks/api";
@@ -72,6 +75,8 @@ const STATUS_FILTROS: Array<{ value: StatusOportunidade | "todas"; label: string
 
 export default function OportunidadesPage() {
   const { userProfile } = useAuth();
+  const { pode } = usePermissoes(userProfile?.id);
+  const router = useRouter();
   const [ops, setOps] = useState<Oportunidade[]>([]);
   const [loading, setLoading] = useState(true);
   const [recomputando, setRecomputando] = useState(false);
@@ -156,6 +161,12 @@ export default function OportunidadesPage() {
   // ja ver os contatos no card sem precisar abrir o Omie pra ligar.
   const handleAtender = useCallback(async (op: Oportunidade) => {
     if (!userProfile) return;
+    // Quem tem o cockpit vai ligar por lá (a ligação cria/atualiza o registro
+    // e marca a oportunidade ao encerrar). Sem a permissão, fluxo antigo.
+    if (pode("feedbacks", "atendimento")) {
+      router.push(`/feedbacks/atendimento/${encodeURIComponent(clienteKey(op.codigo_omie, op.cliente_nome))}?oportunidade=${op.id}`);
+      return;
+    }
     const tipo = TIPO_PADRAO_POR_REGRA[op.regra];
     const prefill = prefillDoOportunidade(op);
     const agora = new Date().toISOString();
@@ -215,7 +226,7 @@ export default function OportunidadesPage() {
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }
-  }, [userProfile, patch, carregar]);
+  }, [userProfile, patch, carregar, pode, router]);
 
   const handleDispensar = useCallback(async (op: Oportunidade) => {
     const motivo = prompt(`Motivo para dispensar oportunidade de "${op.cliente_nome}":`);

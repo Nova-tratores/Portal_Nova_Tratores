@@ -55,6 +55,9 @@ export interface FeedbackRegistro {
   status_atendimento: StatusAtendimento;
   arquivado_motivo: string | null;  // justificativa quando status_atendimento = 'arquivado'
   origem_dados: string | null;  // "Omie NOVA" | "Omie CASTRO" | "Omie" | "Portal"
+  // Cockpit de atendimento (sql/create-feedback-chamada.sql)
+  proximo_contato_em?: string | null; // YYYY-MM-DD — a Agenda usa quando existir
+  chamadas_count?: number;            // ligações encerradas (trigger)
 
   criado_em: string;
   atualizado_em: string;
@@ -99,6 +102,7 @@ export const TAGS_CLIENTE: { tag: string; label: string; cor: string }[] = [
   { tag: "Consulta de Restrição",       label: "Consulta de restrição", cor: "#7c3aed" },
   { tag: "Ouro",                        label: "Ouro (bom cliente)",   cor: "#ca8a04" },
   { tag: "Amarelo",                     label: "Atenção",              cor: "#f59e0b" },
+  { tag: "Cliente sensível",            label: "Cliente sensível (humor baixo na ligação)", cor: "#b45309" },
   { tag: "Transportadora",              label: "Transportadora",       cor: "#0369a1" },
   { tag: "Posto de Combustível",        label: "Posto de combustível", cor: "#0369a1" },
   { tag: "Banco",                       label: "Banco",                cor: "#0369a1" },

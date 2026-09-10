@@ -150,7 +150,7 @@ function fmtData(s: string | null | undefined): string {
 // "OS-1234 (Manutenção · 12/03/2025)" ou "PV-5678 NOVA (12/03/2025)".
 // Quando não há nenhuma interação histórica, retorna mensagem informativa
 // pra deixar claro que é cliente sem histórico (não bug).
-function renderizarUltimaInteracao(op: Oportunidade): string | null {
+export function renderizarUltimaInteracao(op: Oportunidade): string | null {
   const d = op.detalhes || {};
 
   function pvFormatado(): string | null {
@@ -228,7 +228,7 @@ function renderizarUltimaInteracao(op: Oportunidade): string | null {
   }
 }
 
-function renderizarDetalhes(op: Oportunidade): string {
+export function renderizarDetalhes(op: Oportunidade): string {
   const d = op.detalhes || {};
   switch (op.regra) {
     case "R1_revisao": {
