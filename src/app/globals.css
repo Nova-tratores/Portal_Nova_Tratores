@@ -3886,7 +3886,8 @@ body {
 }
 
 .os-omie-totais {
-  border: 1px solid var(--border);
+  /* fallbacks: fora do drawer do POS (ex.: PPV) as vars --border/--text não existem */
+  border: 1px solid var(--border, #d6d0c4);
   border-radius: 8px;
   padding: 12px 18px;
   min-width: 250px;
@@ -3901,10 +3902,10 @@ body {
   justify-content: space-between;
   gap: 18px;
   font-size: 13.5px;
-  color: var(--text-light);
+  color: var(--text-light, #6b6259);
 }
 
-.os-omie-totais-linha b { color: var(--text); font-weight: 600; }
+.os-omie-totais-linha b { color: var(--text, #1f2937); font-weight: 600; }
 
 .os-omie-totais-total {
   display: flex;
@@ -3912,10 +3913,10 @@ body {
   gap: 18px;
   margin-top: 4px;
   padding-top: 8px;
-  border-top: 1px solid var(--border);
+  border-top: 1px solid var(--border, #d6d0c4);
   font-size: 15px;
   font-weight: 700;
-  color: var(--text);
+  color: var(--text, #1f2937);
 }
 
 .os-summary-main {

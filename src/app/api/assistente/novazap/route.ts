@@ -38,6 +38,39 @@ interface MsgEntrada {
   de?: string; // 'cliente' | 'loja'
   texto?: string;
   imagens?: string[]; // fotos do cliente (horímetro, chassi...) — URLs do zap
+  audios?: string[]; // áudios do cliente — transcritos aqui (Whisper) e viram texto
+}
+
+// Baixa o áudio do zap e transcreve na OpenAI (gpt-4o-mini-transcribe, com
+// fallback whisper-1). Devolve "" em qualquer falha — o fluxo segue sem o áudio.
+async function transcreverAudio(url: string): Promise<string> {
+  try {
+    const key = process.env.OPENAI_API_KEY || "";
+    if (!key || !url) return "";
+    const a = await fetch(url);
+    if (!a.ok) return "";
+    const buf = await a.arrayBuffer();
+    if (!buf.byteLength || buf.byteLength > 24 * 1024 * 1024) return "";
+    const nomeCru = (url.split("?")[0].split("/").pop() || "audio.ogg").slice(-40);
+    const nome = /\.[a-z0-9]{2,4}$/i.test(nomeCru) ? nomeCru : "audio.ogg";
+    const pedir = async (modelo: string) => {
+      const fd = new FormData();
+      fd.append("file", new Blob([buf]), nome);
+      fd.append("model", modelo);
+      fd.append("language", "pt");
+      const r = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}` },
+        body: fd,
+      });
+      if (!r.ok) return "";
+      const j = await r.json().catch(() => ({}));
+      return String(j.text || "").trim();
+    };
+    return (await pedir("gpt-4o-mini-transcribe")) || (await pedir("whisper-1"));
+  } catch {
+    return "";
+  }
 }
 
 // ---------- ferramentas ----------
@@ -409,6 +442,23 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const entrada: MsgEntrada[] = Array.isArray(body?.mensagens) ? body.mensagens : [];
   const recorte = entrada.slice(-14);
+
+  // ÁUDIOS do cliente (só das 3 mensagens mais recentes — os links do zap
+  // expiram): transcreve e o texto entra na conversa como fala normal.
+  for (let i = Math.max(0, recorte.length - 3); i < recorte.length; i++) {
+    const m = recorte[i];
+    if (m?.de !== "cliente" || !Array.isArray(m.audios) || !m.audios.length) continue;
+    const transcricoes: string[] = [];
+    for (const u of m.audios.slice(0, 2)) {
+      const t = await transcreverAudio(String(u));
+      if (t) transcricoes.push(t);
+    }
+    if (transcricoes.length) {
+      const base = String(m.texto || "").replace(/\[enviou um anexo: ?audio\]/gi, "").trim();
+      m.texto = `${base ? base + "\n" : ""}[áudio do cliente, transcrito]: ${transcricoes.join(" ")}`.slice(0, 2000);
+    }
+  }
+
   const chat = recorte
     .map((m, i) => {
       const texto = String(m.texto || "").slice(0, 2000);
@@ -584,6 +634,36 @@ export async function POST(req: NextRequest) {
         }
         mensagens.push({ role: "tool", tool_call_id: tc.id, content: JSON.stringify(resultado) });
       }
+    }
+
+    // Dúvida com FOTO/VÍDEO → o cliente recebe o texto ("vou confirmar e retorno")
+    // e o pós-vendas é acionado no portal (card humano + alerta no meio da tela)
+    if (resposta.includes("[AJUDA_MIDIA]")) {
+      resposta = resposta.replace(/\[AJUDA_MIDIA\]/g, "").trim();
+      const jaAbertaMidia: any[] = telefone
+        ? await rest(
+            `tratorilson_solicitacoes?tipo=eq.humano&fase=neq.concluida&contato_telefone=ilike.*${encodeURIComponent(telefone.replace(/\D/g, "").slice(-10))}*&select=id&limit=1`
+          )
+        : [];
+      if (!jaAbertaMidia.length) {
+        await restPost("tratorilson_solicitacoes", {
+          contato_nome: nome || null,
+          contato_telefone: telefone || null,
+          cliente_nome: vinculo.cliente || null,
+          cliente_cod: vinculo.cod || null,
+          cliente_cnpj: vinculo.cnpj || null,
+          tipo: "humano",
+          resumo: `Não entendi a FOTO/VÍDEO que o cliente mandou — preciso que alguém do pós-vendas olhe a conversa. Contexto: "${ultimaPergunta.slice(0, 350)}"`,
+        });
+      }
+      await logTratorilson({
+        userName: nome || telefone || "cliente WhatsApp",
+        tipo: "novazap:humano",
+        pergunta: ultimaPergunta,
+        resposta: `(dúvida com mídia — equipe acionada) ${resposta.slice(0, 200)}`,
+        modelo,
+        tokens,
+      }).catch(() => {});
     }
 
     // IA pediu HUMANO → silêncio pro cliente + card vermelho no portal

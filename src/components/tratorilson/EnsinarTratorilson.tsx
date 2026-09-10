@@ -6,7 +6,17 @@ import { authHeaders } from '@/lib/auth/client'
 import { GraduationCap, Loader2, Send, Pencil, Check, X, Power } from 'lucide-react'
 
 interface Msg { role: 'user' | 'assistant'; content: string }
-interface Memoria { id: number; conteudo: string; escopo: string; ativo: boolean; criado_por?: string | null }
+interface Memoria { id: number; conteudo: string; escopo: string; modulo?: string; ativo: boolean; criado_por?: string | null }
+
+const MODULO_ROTULO: Record<string, string> = {
+  geral: 'Geral',
+  chatwoot: 'WhatsApp / NovaZap',
+  revisoes: 'Revisões e orçamentos',
+  pos: 'Pós-Vendas (OS)',
+  ppv: 'Peças (PPV)',
+  requisicoes: 'Requisições',
+  financeiro: 'Financeiro',
+}
 
 const ESCOPO_INFO: Record<string, { rot: string; bg: string; cor: string }> = {
   geral: { rot: 'Portal + WhatsApp', bg: '#dcfce7', cor: '#15803d' },
@@ -130,7 +140,10 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
             {visiveis.length === 0 && !aviso && (
               <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', textAlign: 'center', padding: 24 }}>Nenhuma regra ainda — ensina a primeira ali no chat.</div>
             )}
-            {visiveis.map((m) => {
+            {Object.keys(MODULO_ROTULO).filter((mod) => visiveis.some((m) => (m.modulo || 'geral') === mod)).map((mod) => (
+              <div key={mod} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#7c3aed', borderBottom: '1px solid var(--portal-border)', paddingBottom: 3, marginTop: 4 }}>{MODULO_ROTULO[mod]}</div>
+            {visiveis.filter((m) => (m.modulo || 'geral') === mod).map((m) => {
               const info = ESCOPO_INFO[m.escopo] || ESCOPO_INFO.geral
               return (
                 <div key={m.id} style={{ border: '1px solid var(--portal-border)', borderRadius: 10, padding: '9px 11px', opacity: m.ativo ? 1 : 0.55, background: 'var(--portal-bg-card)' }}>
@@ -161,6 +174,8 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
                 </div>
               )
             })}
+              </div>
+            ))}
           </div>
         </div>
       </div>
