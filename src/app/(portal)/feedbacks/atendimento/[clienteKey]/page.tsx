@@ -13,6 +13,7 @@ import Toast, { type ToastMsg } from "@/components/feedbacks/atendimento/Toast";
 import ModalFeedback from "@/components/feedbacks/ModalFeedback";
 import ModalPerfilCliente from "@/components/feedbacks/ModalPerfilCliente";
 import CorrigirCadastro from "@/components/feedbacks/atendimento/CorrigirCadastro";
+import { PainelBloqueado } from "@/components/feedbacks/atendimento/Bloqueado";
 import ModalConfirmarCaveira from "@/components/feedbacks/ModalConfirmarCaveira";
 import { marcarNaoContatar, reativarContato } from "@/lib/feedbacks/caveira";
 import { useAuditLog } from "@/hooks/useAuditLog";
@@ -66,6 +67,7 @@ export default function CockpitAtendimentoPage() {
   const autoIniciado = useRef(false);
   useEffect(() => {
     if (autoIniciado.current || lig.estado.situacao !== "livre") return;
+    if (!ctx || ctx.identidade?.nao_contatar) return; // bloqueado: nunca inicia sozinho
     const op = search.get("oportunidade");
     const reg = search.get("registro");
     if (!op && !reg) return;
@@ -74,7 +76,7 @@ export default function CockpitAtendimentoPage() {
       .then(() => setToast({ tipo: "ok", texto: "Ligação iniciada. Anote enquanto conversa." }))
       .catch((e) => setToast({ tipo: "erro", texto: (e as Error).message }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lig.estado.situacao, search]);
+  }, [lig.estado.situacao, search, ctx]);
 
   const telefones = telefonesDoContexto(ctx);
   const id = ctx?.identidade;
@@ -186,6 +188,9 @@ export default function CockpitAtendimentoPage() {
         onCorrigirCadastro={ctx?.codigo_omie ? () => setCorrigindo(true) : undefined}
         onNaoContatar={ctx ? pedirCaveira : undefined}
         painelDireito={
+          id?.nao_contatar ? (
+            <PainelBloqueado onReativar={pedirCaveira} motivosAbertos={ctx?.motivos?.oportunidades.length ?? 0} />
+          ) : (
           <PainelLigacao
             estado={lig.estado}
             telefones={telefones}
@@ -200,6 +205,7 @@ export default function CockpitAtendimentoPage() {
             configRetorno={ctx?.config_retorno}
             humoresRecentes={ctx?.humores_recentes}
           />
+          )
         }
       />
 

@@ -90,7 +90,7 @@ export default function PainelLigacao(p: Props) {
       <>
         <section className={styles.card} style={{ ["--fb-accent" as string]: COR_ATENDIMENTO }}>
           <h3 style={{ margin: "0 0 8px", fontSize: 14, fontWeight: 800 }}>☎️ Ligar para</h3>
-          {p.naoContatar && <Aviso cor="#991b1b" bg="#fee2e2">Este cliente pediu para NÃO ser contatado. Só ligue com autorização.</Aviso>}
+          {p.naoContatar && <Aviso cor="#991b1b" bg="#fee2e2">🚫 CONTATO BLOQUEADO · NÃO CONTATAR. Marcação feita a pedido do cliente ou por decisão da loja — não ligue sem autorização de quem marcou.</Aviso>}
           {estado.situacao === "carregando" && <p style={{ margin: 0, fontSize: 12, opacity: 0.6 }}>Verificando se há ligação em andamento…</p>}
           {estado.situacao === "erro" && <Aviso cor="#92400e" bg="#fef3c7">Não consegui consultar a ligação: {estado.erro}</Aviso>}
           {estado.situacao === "de_outro" && ch && (

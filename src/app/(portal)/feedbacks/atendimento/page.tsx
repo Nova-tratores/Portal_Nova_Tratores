@@ -180,7 +180,7 @@ export default function FilaAtendimentoPage() {
           ["urgentes", "🔴 Urgentes"],
           ["em_atendimento", "🎧 Em atendimento"],
           ["sem_telefone", "☎️ Sem telefone"],
-          ["caveira", "💀 Mostrar “não contatar”"],
+          ["caveira", "🚫 Mostrar bloqueados (não contatar)"],
         ] as [Chip, string][]).map(([c, rotulo]) => (
           <button key={c} type="button" onClick={() => toggle(c)} style={btnChip(chips.has(c) ? COR_ATENDIMENTO : "#64748b", chips.has(c))}>
             {rotulo} <span style={{ opacity: 0.75 }}>({contagem(c)})</span>
@@ -233,24 +233,28 @@ function Lista({ linhas, meuId, atendendo, onAtender, onCaveira }: { linhas: Lin
             const deOutro = !!l.em_atendimento_id && l.em_atendimento_id !== meuId;
             const minha = !!l.em_atendimento_id && l.em_atendimento_id === meuId;
             const prio = l.prioridade === "Urgente" ? { bg: "#fee2e2", fg: "#b91c1c" } : l.prioridade === "Normal" ? { bg: "#fef3c7", fg: "#92400e" } : { bg: "#f0fdf4", fg: "#15803d" };
+            const cz: React.CSSProperties = l.caveira ? { filter: "grayscale(1)", opacity: 0.75 } : {};
             const tagsVisiveis = l.tags.filter((t) => t !== "Não contatar" && !["Cliente", "Fornecedor", "Funcionário"].includes(t));
             return (
-              <tr key={l.cliente_key} style={{ borderTop: "1px solid var(--portal-border)", opacity: l.caveira ? 0.6 : 1 }}>
+              <tr key={l.cliente_key} style={{ borderTop: "1px solid var(--portal-border)" }}>
                 <td style={td}>
-                  <Link href={`/feedbacks/atendimento/${encodeURIComponent(l.cliente_key)}`} style={{ color: "inherit", fontWeight: 700, textDecoration: "none" }}>{l.caveira && "💀 "}{l.nome}</Link>
+                  <Link href={`/feedbacks/atendimento/${encodeURIComponent(l.cliente_key)}`} style={{ color: l.caveira ? "#991b1b" : "inherit", fontWeight: 700, textDecoration: "none" }}>{l.caveira && "🚫 "}{l.nome}</Link>
+                  {l.caveira && <div style={{ fontSize: 10, color: "#991b1b", fontWeight: 900, letterSpacing: 0.5 }}>NÃO CONTATAR</div>}
                   <div style={{ fontSize: 10, opacity: 0.55 }}>{l.codigo_omie ? `#${l.codigo_omie}` : "sem código"}{l.em_atendimento_por ? ` · 🎧 ${l.em_atendimento_por}` : ""}{l.ultimo_humor != null ? ` ${emojiHumor(l.ultimo_humor)}` : ""}</div>
                 </td>
-                <td style={td}><span className={styles.pill} style={{ background: prio.bg, color: prio.fg, textTransform: "uppercase" }}>{l.prioridade}</span></td>
-                <td style={{ ...td, fontSize: 15, letterSpacing: 2 }} title={l.regras.map((r) => REGRA_ROTULO[r as RegraOportunidade]?.titulo ?? r).join(" · ")}>
+                <td style={{ ...td, ...cz }}><span className={styles.pill} style={{ background: prio.bg, color: prio.fg, textTransform: "uppercase" }}>{l.prioridade}</span></td>
+                <td style={{ ...td, ...cz, fontSize: 15, letterSpacing: 2 }} title={l.regras.map((r) => REGRA_ROTULO[r as RegraOportunidade]?.titulo ?? r).join(" · ")}>
                   {l.regras.map((r) => REGRA_ROTULO[r as RegraOportunidade]?.emoji ?? "•").join("")}{l.registros_abertos > 0 ? "📋" : ""}
                 </td>
-                <td style={{ ...td, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{l.telefone ?? <span style={{ opacity: 0.5 }}>—</span>}</td>
-                <td style={{ ...td, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={l.email ?? ""}>{l.email ?? <span style={{ opacity: 0.5 }}>—</span>}</td>
-                <td style={{ ...td, whiteSpace: "nowrap" }}>{l.cidade ?? <span style={{ opacity: 0.5 }}>—</span>}</td>
-                <td style={{ ...td, whiteSpace: "nowrap" }}>{l.ultimo_contato ? `${fmtDataBR(l.ultimo_contato)} · ${haQuanto(l.ultimo_contato)}` : <span style={{ opacity: 0.5 }}>nunca</span>}</td>
-                <td style={td}>{tagsVisiveis.length ? tagsVisiveis.map((t) => <span key={t} className={styles.pill} style={{ background: "#e0e7ff", color: "#3730a3", marginRight: 3 }}>{t}</span>) : <span style={{ opacity: 0.4 }}>—</span>}</td>
+                <td style={{ ...td, ...cz, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{l.telefone ?? <span style={{ opacity: 0.5 }}>—</span>}</td>
+                <td style={{ ...td, ...cz, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={l.email ?? ""}>{l.email ?? <span style={{ opacity: 0.5 }}>—</span>}</td>
+                <td style={{ ...td, ...cz, whiteSpace: "nowrap" }}>{l.cidade ?? <span style={{ opacity: 0.5 }}>—</span>}</td>
+                <td style={{ ...td, ...cz, whiteSpace: "nowrap" }}>{l.ultimo_contato ? `${fmtDataBR(l.ultimo_contato)} · ${haQuanto(l.ultimo_contato)}` : <span style={{ opacity: 0.5 }}>nunca</span>}</td>
+                <td style={{ ...td, ...cz }}>{tagsVisiveis.length ? tagsVisiveis.map((t) => <span key={t} className={styles.pill} style={{ background: "#e0e7ff", color: "#3730a3", marginRight: 3 }}>{t}</span>) : <span style={{ opacity: 0.4 }}>—</span>}</td>
                 <td style={{ ...td, whiteSpace: "nowrap" }}>
-                  {deOutro ? (
+                  {l.caveira ? (
+                    <span style={{ fontSize: 11, color: "#991b1b", fontWeight: 900 }}>🚫 BLOQUEADO</span>
+                  ) : deOutro ? (
                     <span style={{ fontSize: 11, color: "#3730a3" }}>🎧 com {l.em_atendimento_por}</span>
                   ) : (
                     <button type="button" disabled={atendendo === l.cliente_key} onClick={() => onAtender(l)} style={{ ...btnChip(minha ? "#16a34a" : COR_ATENDIMENTO, true), padding: "4px 10px" }}>{minha ? "Continuar" : "Atender"}</button>
@@ -275,31 +279,38 @@ function Item({ l, meuId, atendendo, onAtender }: { l: LinhaFila; meuId: string 
   const deOutro = !!l.em_atendimento_id && l.em_atendimento_id !== meuId;
   const minha = !!l.em_atendimento_id && l.em_atendimento_id === meuId;
   const prio = l.prioridade === "Urgente" ? { bg: "#fee2e2", fg: "#b91c1c" } : l.prioridade === "Normal" ? { bg: "#fef3c7", fg: "#92400e" } : { bg: "#f0fdf4", fg: "#15803d" };
+  // bloqueado: detalhes em preto e branco; o vermelho do aviso fica de fora do filtro
+  const cz: React.CSSProperties = l.caveira ? { filter: "grayscale(1)", opacity: 0.75 } : {};
   return (
-    <li className={styles.card} style={{ ["--fb-accent" as string]: l.caveira ? "#111" : prio.fg, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", padding: "12px 16px", opacity: l.caveira ? 0.7 : 1 }}>
+    <li className={styles.card} style={{ ["--fb-accent" as string]: l.caveira ? "#dc2626" : prio.fg, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", padding: "12px 16px" }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-          <strong style={{ fontSize: 15 }}>{l.caveira && "💀 "}{l.nome}</strong>
-          <span className={styles.pill} style={{ background: prio.bg, color: prio.fg, textTransform: "uppercase" }}>{l.prioridade}</span>
+          <strong style={{ fontSize: 15 }}>{l.caveira && "🚫 "}{l.nome}</strong>
+          {l.caveira && <span className={styles.pill} style={{ background: "#dc2626", color: "#fff" }}>NÃO CONTATAR</span>}
+          <span className={styles.pill} style={{ background: prio.bg, color: prio.fg, textTransform: "uppercase", ...cz }}>{l.prioridade}</span>
           {l.codigo_omie && <span style={{ fontSize: 11, opacity: 0.6 }}>#{l.codigo_omie}</span>}
           {l.ultimo_humor != null && <span title={`Humor na última ligação: ${l.ultimo_humor}/5`} style={{ fontSize: 16 }}>{emojiHumor(l.ultimo_humor)}</span>}
           {l.em_atendimento_por && <span className={styles.pill} style={{ background: "#e0e7ff", color: "#3730a3" }}>🎧 {l.em_atendimento_por}</span>}
         </div>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6 }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, ...cz }}>
           {l.regras.map((r) => {
             const rot = REGRA_ROTULO[r as RegraOportunidade];
             return <span key={r} className={styles.pill} style={{ background: `${rot?.cor ?? "#999"}22`, color: rot?.cor ?? "#333" }}>{rot?.emoji} {rot?.titulo ?? r}</span>;
           })}
           {l.registros_abertos > 0 && <span className={styles.pill} style={{ background: "#f1f5f9", color: "#334155" }}>📋 {l.registros_abertos} atendimento{l.registros_abertos > 1 ? "s" : ""} em aberto</span>}
         </div>
-        <div style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}>
+        <div style={{ fontSize: 12, opacity: 0.7, marginTop: 6, ...cz }}>
           {l.telefone ? `☎️ ${l.telefone}` : "☎️ sem telefone"}
           {l.ultimo_contato ? ` · último contato ${fmtDataBR(l.ultimo_contato)} (${haQuanto(l.ultimo_contato)})` : " · nunca contatado pelo CRM"}
           {l.mais_antiga && ` · na fila desde ${fmtDataBR(l.mais_antiga)}`}
         </div>
       </div>
       <div style={{ display: "flex", flexDirection: "column", alignItems: "stretch", gap: 4 }}>
-        {deOutro ? (
+        {l.caveira ? (
+          <span title="Contato bloqueado — Não contatar" style={{ padding: "10px 18px", borderRadius: 999, background: "#fee2e2", color: "#991b1b", fontWeight: 900, fontSize: 12, whiteSpace: "nowrap", textAlign: "center", letterSpacing: 0.5 }}>
+            🚫 BLOQUEADO
+          </span>
+        ) : deOutro ? (
           <span title="Outra pessoa está em ligação com este cliente" style={{ padding: "10px 18px", borderRadius: 999, background: "#e0e7ff", color: "#3730a3", fontWeight: 800, fontSize: 13, whiteSpace: "nowrap", textAlign: "center" }}>
             🎧 com {l.em_atendimento_por}
           </span>

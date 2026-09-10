@@ -2,8 +2,10 @@
 // Cockpit de atendimento — tela de LEITURA para quem senta para ligar.
 // Três colunas: quem é (esq.) · contexto (centro) · a ligação (dir., fixa).
 // Linguagem de balcão, poucos botões, tudo visível sem caçar informação.
+import { useState } from "react";
 import styles from "../feedbacks.module.css";
 import CardContatosWhatsapp from "./CardContatosWhatsapp";
+import { BannerBloqueio, FaixaBloqueio, VERMELHO, VERMELHO_ESCURO } from "./Bloqueado";
 import { renderizarDetalhes, renderizarUltimaInteracao } from "../OportunidadeCard";
 import { REGRA_ROTULO, STATUS_ATENDIMENTO_ROTULO, fmtDataBR, fmtMoeda, haQuanto } from "@/lib/feedbacks/atendimento/rotulos";
 import type { ContextoAtendimento } from "@/lib/feedbacks/atendimento/contexto";
@@ -35,24 +37,35 @@ interface Props {
 export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, onEditarPerfil, painelDireito, assuntoId, onEscolherAssunto, roteiro, onCorrigirCadastro, onNaoContatar }: Props) {
   const id = ctx?.identidade ?? null;
   const emLigacao = assuntoId !== undefined && !!onEscolherAssunto;
+  // Cliente marcado "Não contatar": ficha em preto e branco, menos informação,
+  // avisos vermelhos. "Mostrar ficha completa" revela o resto sem tirar a marca.
+  const bloqueado = !!id?.nao_contatar;
+  const [mostrarTudo, setMostrarTudo] = useState(false);
+  const ocultar = bloqueado && !mostrarTudo;
+  const cinza: React.CSSProperties = bloqueado ? { filter: "grayscale(1)", opacity: 0.8 } : {};
 
   const abertos = ctx?.motivos?.registros_abertos ?? [];
   const oportunidades = ctx?.motivos?.oportunidades ?? [];
 
   return (
+    <>
+    {bloqueado && <BannerBloqueio mostrarTudo={mostrarTudo} onAlternar={() => setMostrarTudo((v) => !v)} />}
     <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0, 1fr) 380px", gap: 14, alignItems: "start" }}>
       {/* ───────── ESQUERDA: quem é ───────── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        <section className={styles.card} style={{ ["--fb-accent" as string]: COR_ATENDIMENTO }}>
+        {bloqueado && <FaixaBloqueio texto="NÃO CONTATAR" />}
+        <section className={styles.card} style={{ ["--fb-accent" as string]: bloqueado ? VERMELHO : COR_ATENDIMENTO }}>
           {carregando && !ctx ? (
             <Esqueleto linhas={5} />
           ) : (
             <>
               <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.6, textTransform: "uppercase", letterSpacing: 0.8 }}>Cliente</div>
               <h1 style={{ margin: "2px 0 6px", fontSize: 20, fontWeight: 800, lineHeight: 1.2 }}>
-                {id?.nao_contatar && <span title="Cliente marcado como NÃO CONTATAR">💀 </span>}
+                {bloqueado && <span title="Cliente marcado como NÃO CONTATAR">🚫 </span>}
                 {id?.nome || ctx?.nome || ctx?.cliente_key}
               </h1>
+              {bloqueado && <div style={{ color: VERMELHO_ESCURO, fontWeight: 900, fontSize: 11, letterSpacing: 1, marginBottom: 6 }}>CONTATO BLOQUEADO · NÃO CONTATAR</div>}
+              <div style={cinza}>
               {id?.razao_social && id.razao_social !== id.nome && <Linha rotulo="Razão social" valor={id.razao_social} />}
               <Linha rotulo="Código Omie" valor={ctx?.codigo_omie ? `#${ctx.codigo_omie}${ctx.codigos_omie.length > 1 ? ` (+${ctx.codigos_omie.length - 1} cadastro${ctx.codigos_omie.length > 2 ? "s" : ""})` : ""}` : "sem cadastro"} />
               {id?.cnpj && <Linha rotulo="CPF/CNPJ" valor={id.cnpj} />}
@@ -79,6 +92,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
               {id?.pendencia_cadastral && <Aviso cor="#92400e" bg="#fef3c7">Cadastro com pendência — confirme os dados na ligação.</Aviso>}
               {(id?.email_interno || (id && id.telefones.length === 0)) && <Aviso cor="#92400e" bg="#fef3c7">{id?.telefones.length === 0 ? "Sem telefone no cadastro." : "E-mail do cadastro é da loja."} Confirme com o cliente e use “Corrigir cadastro”.</Aviso>}
               {id?.observacoes && <p style={{ margin: "10px 0 0", fontSize: 12, fontStyle: "italic", opacity: 0.8 }}>“{id.observacoes}”</p>}
+              </div>
               <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
                 {ctx?.codigo_omie && onCorrigirCadastro && <button type="button" onClick={onCorrigirCadastro} style={{ ...btn(COR_ATENDIMENTO, false), flex: 1 }} title="Telefone e e-mail — grava no Omie">✎ Corrigir cadastro</button>}
                 <button type="button" onClick={onEditarPerfil} style={{ ...btn("#475569", false), flex: 1 }}>✎ Funcionários e fazendas</button>
@@ -92,13 +106,14 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
           )}
         </section>
 
-        <CardContatosWhatsapp secao={ctx?.whatsapp} carregando={carregando && !ctx} onRecarregar={onRecarregar} />
+        {!ocultar && <div style={cinza}><CardContatosWhatsapp secao={ctx?.whatsapp} carregando={carregando && !ctx} onRecarregar={onRecarregar} /></div>}
       </div>
 
       {/* ───────── CENTRO: contexto ───────── */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {roteiro && roteiro.length > 0 && (
-          <Card titulo="Roteiro" emoji="🗣️" cor="#d97706" contagem={null} carregando={carregando && !ctx}>
+        {bloqueado && <FaixaBloqueio />}
+        {!ocultar && roteiro && roteiro.length > 0 && (
+          <Card cinza={cinza} titulo="Roteiro" emoji="🗣️" cor="#d97706" contagem={null} carregando={carregando && !ctx}>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {roteiro.map((e, i) => (
                 <details key={e.etapa} open={i === 0} style={{ border: "1px solid var(--portal-border)", borderRadius: 10, padding: "6px 10px" }}>
@@ -116,7 +131,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
             </div>
           </Card>
         )}
-        <Card titulo="Por que ligar" emoji="🎯" cor="#dc2626" contagem={oportunidades.length + abertos.length} carregando={carregando && !ctx} erro={ctx?.erros.motivos}>
+        <Card cinza={cinza} titulo="Por que ligar" emoji="🎯" cor="#dc2626" contagem={oportunidades.length + abertos.length} carregando={carregando && !ctx} erro={ctx?.erros.motivos}>
           {oportunidades.length === 0 && abertos.length === 0 ? (
             <Vazio>Nenhum motivo automático em aberto. Ligação por iniciativa própria — registre ao final.</Vazio>
           ) : (
@@ -158,7 +173,8 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
           )}
         </Card>
 
-        <Card titulo="Máquinas" emoji="🚜" cor="#0369a1" contagem={ctx?.maquinas?.length} carregando={carregando && !ctx} erro={ctx?.erros.maquinas}>
+        {!ocultar && (<>
+        <Card cinza={cinza} titulo="Máquinas" emoji="🚜" cor="#0369a1" contagem={ctx?.maquinas?.length} carregando={carregando && !ctx} erro={ctx?.erros.maquinas}>
           {!ctx?.maquinas?.length ? (
             <Vazio>Nenhum trator no controle de revisões nem equipamento na pasta.</Vazio>
           ) : (
@@ -174,7 +190,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
         </Card>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Card titulo="Últimos serviços" emoji="🔧" cor="#7c3aed" contagem={ctx?.servicos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.os_portal}>
+          <Card cinza={cinza} titulo="Últimos serviços" emoji="🔧" cor="#7c3aed" contagem={ctx?.servicos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.os_portal}>
             {!ctx?.servicos?.length ? (
               <Vazio>Nenhuma ordem de serviço encontrada.</Vazio>
             ) : (
@@ -195,7 +211,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
             )}
           </Card>
 
-          <Card titulo="Últimas compras" emoji="🧾" cor="#0f766e" contagem={ctx?.pedidos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico}>
+          <Card cinza={cinza} titulo="Últimas compras" emoji="🧾" cor="#0f766e" contagem={ctx?.pedidos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico}>
             {!ctx?.pedidos?.length ? (
               <Vazio>Nenhum pedido de venda encontrado.</Vazio>
             ) : (
@@ -216,7 +232,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
           </Card>
         </div>
 
-        <Card titulo="Funcionários e fazendas" emoji="🌾" cor="#65a30d" contagem={(ctx?.pasta?.funcionarios.length ?? 0) + (ctx?.pasta?.fazendas.length ?? 0)} carregando={carregando && !ctx} erro={ctx?.erros.pasta}>
+        <Card cinza={cinza} titulo="Funcionários e fazendas" emoji="🌾" cor="#65a30d" contagem={(ctx?.pasta?.funcionarios.length ?? 0) + (ctx?.pasta?.fazendas.length ?? 0)} carregando={carregando && !ctx} erro={ctx?.erros.pasta}>
           {!ctx?.pasta?.funcionarios.length && !ctx?.pasta?.fazendas.length ? (
             <Vazio>Nada anotado ainda. Use “Funcionários e fazendas” à esquerda para registrar quem é quem.</Vazio>
           ) : (
@@ -243,7 +259,8 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
           )}
         </Card>
 
-        <Card titulo="Atendimentos anteriores" emoji="📞" cor="#475569" contagem={ctx?.atendimentos?.length} carregando={carregando && !ctx} erro={ctx?.erros.atendimentos}>
+        </>)}
+        <Card cinza={cinza} titulo="Atendimentos anteriores" emoji="📞" cor="#475569" contagem={ctx?.atendimentos?.length} carregando={carregando && !ctx} erro={ctx?.erros.atendimentos}>
           {!ctx?.atendimentos?.length ? (
             <Vazio>Primeira ligação registrada para este cliente.</Vazio>
           ) : (
@@ -264,6 +281,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
         )}
       </div>
     </div>
+    </>
   );
 }
 
@@ -309,9 +327,9 @@ function LinhaAtendimento({ a, onEditar }: { a: AtendimentoResumo; onEditar: () 
   );
 }
 
-function Card({ titulo, emoji, cor, contagem, carregando, erro, children }: { titulo: string; emoji: string; cor: string; contagem?: number | null; carregando: boolean; erro?: string; children: React.ReactNode }) {
+function Card({ titulo, emoji, cor, contagem, carregando, erro, children, cinza }: { titulo: string; emoji: string; cor: string; contagem?: number | null; carregando: boolean; erro?: string; children: React.ReactNode; cinza?: React.CSSProperties }) {
   return (
-    <section className={styles.card} style={{ ["--fb-accent" as string]: cor }}>
+    <section className={styles.card} style={{ ["--fb-accent" as string]: cor, ...(cinza || {}) }}>
       <header style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 800 }}>{emoji} {titulo}</h3>
         {contagem != null && contagem > 0 && <span className={styles.pill} style={{ background: cor, color: "#fff" }}>{contagem}</span>}
