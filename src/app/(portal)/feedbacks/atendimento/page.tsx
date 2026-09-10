@@ -8,6 +8,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { authHeaders } from "@/lib/auth/client";
 import { iniciarChamadaApi } from "@/lib/feedbacks/atendimento/chamada-client";
 import Toast, { type ToastMsg } from "@/components/feedbacks/atendimento/Toast";
+import ModalConfirmarCaveira from "@/components/feedbacks/ModalConfirmarCaveira";
+import { marcarNaoContatar, reativarContato } from "@/lib/feedbacks/caveira";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import styles from "@/components/feedbacks/feedbacks.module.css";
 import { COR_ATENDIMENTO } from "@/components/feedbacks/atendimento/Cockpit";
 import { REGRA_ROTULO, fmtDataBR, haQuanto } from "@/lib/feedbacks/atendimento/rotulos";
@@ -24,6 +27,13 @@ export default function FilaAtendimentoPage() {
   const { userProfile } = useAuth();
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const [atendendo, setAtendendo] = useState<string | null>(null);
+  const { log } = useAuditLog();
+  const [modo, setModo] = useState<"cards" | "lista">(() => {
+    try { return (localStorage.getItem("fila-modo") as "cards" | "lista") || "cards"; } catch { return "cards"; }
+  });
+  const trocarModo = (m: "cards" | "lista") => { setModo(m); try { localStorage.setItem("fila-modo", m); } catch { /* sem storage */ } };
+  const [caveiraAlvo, setCaveiraAlvo] = useState<LinhaFila | null>(null);
+  const [caveiraProcessando, setCaveiraProcessando] = useState(false);
   const [linhas, setLinhas] = useState<LinhaFila[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
@@ -71,6 +81,33 @@ export default function FilaAtendimentoPage() {
     }
   }, [router, carregar]);
 
+  // 💀 Não contatar / reativar — mesma regra do CRM (lib caveira.ts)
+  const pedirCaveira = (l: LinhaFila) => {
+    if (l.caveira) {
+      const msg = l.codigo_omie ? `Reativar contato com "${l.nome}"?\n\nRemove "Não contatar" e reativa o cadastro no Omie.` : `Reativar contato com "${l.nome}"?\n\nRemove a marca "Não contatar".`;
+      if (!confirm(msg)) return;
+      reativarContato({ clienteKey: l.cliente_key, codigoOmie: l.codigo_omie, nome: l.nome, tagsAtuais: l.tags }, log)
+        .then(() => { setToast({ tipo: "ok", texto: `${l.nome}: contato reativado.` }); void carregar(); })
+        .catch((e) => setToast({ tipo: "erro", texto: (e as Error).message }));
+      return;
+    }
+    setCaveiraAlvo(l);
+  };
+  const aplicarCaveira = async (inativarOmie: boolean) => {
+    if (!caveiraAlvo) return;
+    setCaveiraProcessando(true);
+    try {
+      await marcarNaoContatar({ clienteKey: caveiraAlvo.cliente_key, codigoOmie: caveiraAlvo.codigo_omie, nome: caveiraAlvo.nome, tagsAtuais: caveiraAlvo.tags }, inativarOmie, log);
+      setToast({ tipo: "ok", texto: `${caveiraAlvo.nome}: marcado como "Não contatar"${inativarOmie ? " e inativado no Omie" : ""}.` });
+      setCaveiraAlvo(null);
+      void carregar();
+    } catch (e) {
+      setToast({ tipo: "erro", texto: (e as Error).message });
+    } finally {
+      setCaveiraProcessando(false);
+    }
+  };
+
   const toggle = (c: Chip) => setChips((s) => { const n = new Set(s); if (n.has(c)) n.delete(c); else n.add(c); return n; });
 
   const minhaArea = useMemo(() => regrasDaFuncao(userProfile?.funcao, areas ?? undefined), [userProfile?.funcao, areas]);
@@ -111,6 +148,10 @@ export default function FilaAtendimentoPage() {
           placeholder="Buscar cliente ou código…"
           style={{ marginLeft: "auto", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--portal-border)", fontSize: 13, minWidth: 260, background: "var(--portal-bg-card)" }}
         />
+        <div style={{ display: "inline-flex", border: "1px solid var(--portal-border)", borderRadius: 999, overflow: "hidden" }}>
+          <button type="button" onClick={() => trocarModo("cards")} style={{ ...btnChip(modo === "cards" ? COR_ATENDIMENTO : "#64748b", modo === "cards"), border: 0, borderRadius: 0 }}>▤ Cards</button>
+          <button type="button" onClick={() => trocarModo("lista")} style={{ ...btnChip(modo === "lista" ? COR_ATENDIMENTO : "#64748b", modo === "lista"), border: 0, borderRadius: 0 }}>☰ Lista</button>
+        </div>
         <Link href="/feedbacks/atendimento/contatos" style={{ ...btnChip("#64748b", false), textDecoration: "none" }}>👥 Contatos por cargo</Link>
         <button type="button" onClick={carregar} disabled={carregando} style={btnChip(COR_ATENDIMENTO, false)}>↻</button>
       </header>
@@ -156,15 +197,79 @@ export default function FilaAtendimentoPage() {
           <div style={{ fontSize: 28 }}>✨</div>
           <div style={{ fontWeight: 700 }}>Ninguém na fila com esse filtro.</div>
         </div>
+      ) : modo === "lista" ? (
+        <Lista linhas={filtradas} meuId={userProfile?.id ?? null} atendendo={atendendo} onAtender={atender} onCaveira={pedirCaveira} />
       ) : (
         <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: 8 }}>
           {filtradas.map((l) => <Item key={l.cliente_key} l={l} meuId={userProfile?.id ?? null} atendendo={atendendo === l.cliente_key} onAtender={atender} />)}
         </ul>
       )}
       <Toast msg={toast} onFechar={() => setToast(null)} ms={8000} />
+      <ModalConfirmarCaveira
+        aberto={!!caveiraAlvo}
+        nome={caveiraAlvo?.nome || ""}
+        codigoOmie={caveiraAlvo?.codigo_omie ?? null}
+        processando={caveiraProcessando}
+        onFechar={() => { if (!caveiraProcessando) setCaveiraAlvo(null); }}
+        onApenasNaoContatar={() => void aplicarCaveira(false)}
+        onInativarOmie={() => void aplicarCaveira(true)}
+      />
     </div>
   );
 }
+
+// Modo LISTA: uma tabela com as informações principais e as ações na linha.
+function Lista({ linhas, meuId, atendendo, onAtender, onCaveira }: { linhas: LinhaFila[]; meuId: string | null; atendendo: string | null; onAtender: (l: LinhaFila) => void; onCaveira: (l: LinhaFila) => void }) {
+  return (
+    <div className={styles.card} style={{ ["--fb-accent" as string]: COR_ATENDIMENTO, padding: 0, overflowX: "auto" }}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <thead>
+          <tr style={{ textAlign: "left", fontSize: 11, opacity: 0.65, background: "var(--portal-bg)" }}>
+            <th style={th}>Cliente</th><th style={th}>Prior.</th><th style={th}>Motivos</th><th style={th}>Telefone</th><th style={th}>E-mail</th><th style={th}>Cidade</th><th style={th}>Último contato</th><th style={th}>Tags</th><th style={th}></th>
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.map((l) => {
+            const deOutro = !!l.em_atendimento_id && l.em_atendimento_id !== meuId;
+            const minha = !!l.em_atendimento_id && l.em_atendimento_id === meuId;
+            const prio = l.prioridade === "Urgente" ? { bg: "#fee2e2", fg: "#b91c1c" } : l.prioridade === "Normal" ? { bg: "#fef3c7", fg: "#92400e" } : { bg: "#f0fdf4", fg: "#15803d" };
+            const tagsVisiveis = l.tags.filter((t) => t !== "Não contatar" && !["Cliente", "Fornecedor", "Funcionário"].includes(t));
+            return (
+              <tr key={l.cliente_key} style={{ borderTop: "1px solid var(--portal-border)", opacity: l.caveira ? 0.6 : 1 }}>
+                <td style={td}>
+                  <Link href={`/feedbacks/atendimento/${encodeURIComponent(l.cliente_key)}`} style={{ color: "inherit", fontWeight: 700, textDecoration: "none" }}>{l.caveira && "💀 "}{l.nome}</Link>
+                  <div style={{ fontSize: 10, opacity: 0.55 }}>{l.codigo_omie ? `#${l.codigo_omie}` : "sem código"}{l.em_atendimento_por ? ` · 🎧 ${l.em_atendimento_por}` : ""}{l.ultimo_humor != null ? ` ${emojiHumor(l.ultimo_humor)}` : ""}</div>
+                </td>
+                <td style={td}><span className={styles.pill} style={{ background: prio.bg, color: prio.fg, textTransform: "uppercase" }}>{l.prioridade}</span></td>
+                <td style={{ ...td, fontSize: 15, letterSpacing: 2 }} title={l.regras.map((r) => REGRA_ROTULO[r as RegraOportunidade]?.titulo ?? r).join(" · ")}>
+                  {l.regras.map((r) => REGRA_ROTULO[r as RegraOportunidade]?.emoji ?? "•").join("")}{l.registros_abertos > 0 ? "📋" : ""}
+                </td>
+                <td style={{ ...td, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>{l.telefone ?? <span style={{ opacity: 0.5 }}>—</span>}</td>
+                <td style={{ ...td, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={l.email ?? ""}>{l.email ?? <span style={{ opacity: 0.5 }}>—</span>}</td>
+                <td style={{ ...td, whiteSpace: "nowrap" }}>{l.cidade ?? <span style={{ opacity: 0.5 }}>—</span>}</td>
+                <td style={{ ...td, whiteSpace: "nowrap" }}>{l.ultimo_contato ? `${fmtDataBR(l.ultimo_contato)} · ${haQuanto(l.ultimo_contato)}` : <span style={{ opacity: 0.5 }}>nunca</span>}</td>
+                <td style={td}>{tagsVisiveis.length ? tagsVisiveis.map((t) => <span key={t} className={styles.pill} style={{ background: "#e0e7ff", color: "#3730a3", marginRight: 3 }}>{t}</span>) : <span style={{ opacity: 0.4 }}>—</span>}</td>
+                <td style={{ ...td, whiteSpace: "nowrap" }}>
+                  {deOutro ? (
+                    <span style={{ fontSize: 11, color: "#3730a3" }}>🎧 com {l.em_atendimento_por}</span>
+                  ) : (
+                    <button type="button" disabled={atendendo === l.cliente_key} onClick={() => onAtender(l)} style={{ ...btnChip(minha ? "#16a34a" : COR_ATENDIMENTO, true), padding: "4px 10px" }}>{minha ? "Continuar" : "Atender"}</button>
+                  )}
+                  {" "}
+                  <button type="button" onClick={() => onCaveira(l)} title={l.caveira ? "Reativar contato (tira a marca Não contatar)" : "Marcar como Não contatar (caveira)"} style={{ ...btnChip(l.caveira ? "#16a34a" : "#111", false), padding: "4px 8px" }}>
+                    {l.caveira ? "✅ Reativar" : "💀"}
+                  </button>
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+const th: React.CSSProperties = { padding: "8px 10px", fontWeight: 700, whiteSpace: "nowrap" };
+const td: React.CSSProperties = { padding: "8px 10px", verticalAlign: "top" };
 
 function Item({ l, meuId, atendendo, onAtender }: { l: LinhaFila; meuId: string | null; atendendo: boolean; onAtender: (l: LinhaFila) => void }) {
   const deOutro = !!l.em_atendimento_id && l.em_atendimento_id !== meuId;

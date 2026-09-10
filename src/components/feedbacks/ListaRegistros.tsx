@@ -4,7 +4,8 @@ import RegistroCard from "./RegistroCard";
 import ModalFeedback from "./ModalFeedback";
 import ModalHistoricoCliente from "./ModalHistoricoCliente";
 import ModalConfirmarCaveira from "./ModalConfirmarCaveira";
-import { atualizarRegistro, buscarUltimasOSPorCliente, listarRegistros, listarClientesInfo, upsertClienteInfo, definirInativoOmie, type UltimaOS } from "@/lib/feedbacks/api";
+import { atualizarRegistro, buscarUltimasOSPorCliente, listarRegistros, listarClientesInfo, type UltimaOS } from "@/lib/feedbacks/api";
+import { marcarNaoContatar, reativarContato } from "@/lib/feedbacks/caveira";
 import { clienteKey, TAG_NAO_CONTATAR, type ClienteInfo, type FeedbackRegistro, type StatusAtendimento, type TipoFeedback } from "@/lib/feedbacks/types";
 import { useAuditLog } from "@/hooks/useAuditLog";
 import { useRouter } from "next/navigation";
@@ -227,17 +228,10 @@ export default function ListaRegistros({ tipo }: Props) {
   async function aplicarNaoContatar(r: FeedbackRegistro, inativarOmie: boolean) {
     const key = clienteKey(r.codigo_omie, r.nome);
     const atual = (infoPorKey[key]?.tags as string[] | undefined) || [];
-    const novas = atual.includes(TAG_NAO_CONTATAR) ? atual : [...atual, TAG_NAO_CONTATAR];
     setCaveiraProcessando(true);
     try {
-      if (inativarOmie && r.codigo_omie) await definirInativoOmie(r.codigo_omie, true);
-      const salvo = await upsertClienteInfo({ cliente_key: key, codigo_omie: r.codigo_omie, nome: r.nome, tags: novas });
+      const salvo = await marcarNaoContatar({ clienteKey: key, codigoOmie: r.codigo_omie, nome: r.nome, tagsAtuais: atual }, inativarOmie, log);
       setInfoPorKey((prev) => ({ ...prev, [key]: salvo }));
-      void log({
-        sistema: "feedbacks", acao: inativarOmie ? "inativar_omie" : "nao_contatar",
-        entidade: "cliente", entidade_id: key, entidade_label: r.nome,
-        detalhes: { tag: TAG_NAO_CONTATAR, inativou_omie: inativarOmie },
-      });
       setCaveiraAlvo(null);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
@@ -255,15 +249,9 @@ export default function ListaRegistros({ tipo }: Props) {
       ? `Reativar contato com "${r.nome}"?\n\nRemove "Não contatar" e reativa o cadastro no Omie.`
       : `Reativar contato com "${r.nome}"?\n\nRemove a marca "Não contatar".`;
     if (!confirm(msg)) return;
-    const novas = atual.filter((t) => t !== TAG_NAO_CONTATAR);
     try {
-      if (temOmie) await definirInativoOmie(r.codigo_omie as string, false);
-      const salvo = await upsertClienteInfo({ cliente_key: key, codigo_omie: r.codigo_omie, nome: r.nome, tags: novas });
+      const salvo = await reativarContato({ clienteKey: key, codigoOmie: r.codigo_omie, nome: r.nome, tagsAtuais: atual }, log);
       setInfoPorKey((prev) => ({ ...prev, [key]: salvo }));
-      void log({
-        sistema: "feedbacks", acao: "reativar_contato", entidade: "cliente",
-        entidade_id: key, entidade_label: r.nome, detalhes: { reativou_omie: temOmie },
-      });
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     }

@@ -271,6 +271,9 @@ export interface LinhaFila {
   codigo_omie: string | null;
   nome: string;
   telefone: string | null;
+  email: string | null;
+  cidade: string | null;
+  tags: string[];
   prioridade: PrioridadeOportunidade;
   regras: string[];
   n_oportunidades: number;
@@ -285,16 +288,18 @@ export interface LinhaFila {
 
 export interface FilaEntrada {
   oportunidades: Oportunidade[];
-  registros: Pick<FeedbackRegistro, "id" | "nome" | "codigo_omie" | "telefone" | "status_atendimento" | "atendente_nome" | "aberto_em" | "data_contato" | "data_servico" | "ultimo_servico" | "criado_em" | "prioridade">[];
+  registros: Pick<FeedbackRegistro, "id" | "nome" | "codigo_omie" | "telefone" | "email" | "status_atendimento" | "atendente_nome" | "aberto_em" | "data_contato" | "data_servico" | "ultimo_servico" | "criado_em" | "prioridade">[];
   tagsPorCliente: Map<string, string[]>;
   telefonePorCodigo: Map<string, string>;
   /** ligações abertas em feedback_chamada, por cliente_key */
   chamadasAbertas?: Map<string, { atendente_id: string; atendente_nome: string }>;
   /** humor_cliente da última ligação encerrada, por cliente_key */
   humorPorCliente?: Map<string, number>;
+  /** cadastro Omie por código: e-mail e cidade (telefone continua em telefonePorCodigo) */
+  cadastroPorCodigo?: Map<string, { email: string | null; cidade: string | null }>;
 }
 
-export function agruparFila({ oportunidades, registros, tagsPorCliente, telefonePorCodigo, chamadasAbertas, humorPorCliente }: FilaEntrada): LinhaFila[] {
+export function agruparFila({ oportunidades, registros, tagsPorCliente, telefonePorCodigo, chamadasAbertas, humorPorCliente, cadastroPorCodigo }: FilaEntrada): LinhaFila[] {
   const mapa = new Map<string, LinhaFila>();
   const pega = (codigo: string | null, nome: string) => {
     const key = clienteKey(codigo, nome);
@@ -302,6 +307,9 @@ export function agruparFila({ oportunidades, registros, tagsPorCliente, telefone
     if (!l) {
       l = {
         cliente_key: key, codigo_omie: codigo, nome: nome.trim(), telefone: (codigo && telefonePorCodigo.get(codigo)) || null,
+        email: (codigo && cadastroPorCodigo?.get(codigo)?.email) || null,
+        cidade: (codigo && cadastroPorCodigo?.get(codigo)?.cidade) || null,
+        tags: tagsPorCliente.get(key) || [],
         prioridade: "Baixa", regras: [], n_oportunidades: 0, registros_abertos: 0,
         em_atendimento_por: chamadasAbertas?.get(key)?.atendente_nome ?? null,
         em_atendimento_id: chamadasAbertas?.get(key)?.atendente_id ?? null,
@@ -326,6 +334,7 @@ export function agruparFila({ oportunidades, registros, tagsPorCliente, telefone
   for (const r of registros) {
     const l = pega(r.codigo_omie, r.nome);
     if (!l.telefone && r.telefone) l.telefone = r.telefone;
+    if (!l.email && r.email) l.email = r.email;
     const d = dataRegistro(r);
     if (d && (!l.ultimo_contato || d > l.ultimo_contato)) l.ultimo_contato = d;
     if (r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento") {

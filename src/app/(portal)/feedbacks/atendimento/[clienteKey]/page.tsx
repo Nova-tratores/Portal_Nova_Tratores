@@ -13,6 +13,9 @@ import Toast, { type ToastMsg } from "@/components/feedbacks/atendimento/Toast";
 import ModalFeedback from "@/components/feedbacks/ModalFeedback";
 import ModalPerfilCliente from "@/components/feedbacks/ModalPerfilCliente";
 import CorrigirCadastro from "@/components/feedbacks/atendimento/CorrigirCadastro";
+import ModalConfirmarCaveira from "@/components/feedbacks/ModalConfirmarCaveira";
+import { marcarNaoContatar, reativarContato } from "@/lib/feedbacks/caveira";
+import { useAuditLog } from "@/hooks/useAuditLog";
 import { buscarClienteInfo, listarRegistros, upsertClienteInfo } from "@/lib/feedbacks/api";
 import { useAuth } from "@/hooks/useAuth";
 import { dadosDoContexto, montarRoteiro } from "@/lib/feedbacks/atendimento/roteiro";
@@ -35,6 +38,9 @@ export default function CockpitAtendimentoPage() {
   const [modal, setModal] = useState<{ tipo: TipoFeedback; registro: FeedbackRegistro | null } | null>(null);
   const [perfil, setPerfil] = useState<{ info: ClienteInfo | null } | null>(null);
   const [corrigindo, setCorrigindo] = useState(false);
+  const [caveiraAberta, setCaveiraAberta] = useState(false);
+  const [caveiraProcessando, setCaveiraProcessando] = useState(false);
+  const { log } = useAuditLog();
 
   const lig = useChamada(clienteKey);
   const { userProfile } = useAuth();
@@ -120,6 +126,36 @@ export default function CockpitAtendimentoPage() {
     ? { nome: id?.nome || ctx.nome || "", telefone: telefones[0]?.numero ?? null, email: id?.email ?? null, codigo_omie: ctx.codigo_omie, trator: ctx.maquinas?.[0] ? [ctx.maquinas[0].modelo, ctx.maquinas[0].chassi].filter(Boolean).join(" — ") : null }
     : undefined;
 
+  // 💀 Não contatar / reativar — mesma lib do CRM e da fila
+  const pedirCaveira = useCallback(() => {
+    if (!ctx) return;
+    const nomeCli = ctx.identidade?.nome || ctx.nome || "";
+    const tags = ctx.identidade?.tags ?? [];
+    if (ctx.identidade?.nao_contatar) {
+      const msg = ctx.codigo_omie ? `Reativar contato com "${nomeCli}"?\n\nRemove "Não contatar" e reativa o cadastro no Omie.` : `Reativar contato com "${nomeCli}"?\n\nRemove a marca "Não contatar".`;
+      if (!confirm(msg)) return;
+      reativarContato({ clienteKey, codigoOmie: ctx.codigo_omie, nome: nomeCli, tagsAtuais: tags }, log)
+        .then(() => { setToast({ tipo: "ok", texto: "Contato reativado." }); void carregar(); })
+        .catch((e) => setToast({ tipo: "erro", texto: (e as Error).message }));
+      return;
+    }
+    setCaveiraAberta(true);
+  }, [ctx, clienteKey, log, carregar]);
+  const aplicarCaveira = useCallback(async (inativarOmie: boolean) => {
+    if (!ctx) return;
+    setCaveiraProcessando(true);
+    try {
+      await marcarNaoContatar({ clienteKey, codigoOmie: ctx.codigo_omie, nome: ctx.identidade?.nome || ctx.nome || "", tagsAtuais: ctx.identidade?.tags ?? [] }, inativarOmie, log);
+      setCaveiraAberta(false);
+      setToast({ tipo: "ok", texto: `Marcado como "Não contatar"${inativarOmie ? " e inativado no Omie" : ""}.` });
+      void carregar();
+    } catch (e) {
+      setToast({ tipo: "erro", texto: (e as Error).message });
+    } finally {
+      setCaveiraProcessando(false);
+    }
+  }, [ctx, clienteKey, log, carregar]);
+
   const emLigacao = lig.estado.situacao === "minha";
   const roteiro = ctx
     ? montarRoteiro(ctx.roteiro, (ctx.motivos?.oportunidades ?? []).map((o) => o.regra), dadosDoContexto(ctx, userProfile?.nome))
@@ -148,6 +184,7 @@ export default function CockpitAtendimentoPage() {
         onEscolherAssunto={emLigacao ? lig.setOportunidade : undefined}
         roteiro={roteiro}
         onCorrigirCadastro={ctx?.codigo_omie ? () => setCorrigindo(true) : undefined}
+        onNaoContatar={ctx ? pedirCaveira : undefined}
         painelDireito={
           <PainelLigacao
             estado={lig.estado}
@@ -171,6 +208,15 @@ export default function CockpitAtendimentoPage() {
       {modal && (
         <ModalFeedback tipo={modal.tipo} aberto registro={modal.registro} prefill={modal.registro ? undefined : prefill} clienteNaoContatar={!!id?.nao_contatar} onFechar={() => setModal(null)} onSalvo={() => { setModal(null); void carregar(); }} />
       )}
+      <ModalConfirmarCaveira
+        aberto={caveiraAberta}
+        nome={id?.nome || ctx?.nome || ""}
+        codigoOmie={ctx?.codigo_omie ?? null}
+        processando={caveiraProcessando}
+        onFechar={() => { if (!caveiraProcessando) setCaveiraAberta(false); }}
+        onApenasNaoContatar={() => void aplicarCaveira(false)}
+        onInativarOmie={() => void aplicarCaveira(true)}
+      />
       {corrigindo && ctx?.codigo_omie && (
         <CorrigirCadastro
           codigoOmie={ctx.codigo_omie}

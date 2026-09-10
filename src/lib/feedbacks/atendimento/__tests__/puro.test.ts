@@ -178,3 +178,19 @@ describe("agruparFila com último humor", () => {
     expect(linhas[0].ultimo_humor).toBe(2);
   });
 });
+
+describe("agruparFila com cadastro e tags (modo lista)", () => {
+  it("traz e-mail/cidade do cadastro Omie, e-mail do registro como fallback, e as tags da pasta", () => {
+    const linhas = agruparFila({
+      oportunidades: [op({ id: 1, codigo_omie: "10", cliente_nome: "ANA" })],
+      registros: [reg({ id: 8, nome: "DORA", codigo_omie: "40", status_atendimento: "aberto", email: "dora@x.com" })],
+      tagsPorCliente: new Map([["omie_10", ["Ouro", "Não contatar"]]]),
+      telefonePorCodigo: new Map([["10", "(14) 3351-0000"]]),
+      cadastroPorCodigo: new Map([["10", { email: "ana@fazenda.com", cidade: "PIRAJU (SP)" }]]),
+    });
+    const ana = linhas.find((l) => l.cliente_key === "omie_10")!;
+    expect(ana).toMatchObject({ email: "ana@fazenda.com", cidade: "PIRAJU (SP)", tags: ["Ouro", "Não contatar"], caveira: true });
+    const dora = linhas.find((l) => l.cliente_key === "omie_40")!;
+    expect(dora).toMatchObject({ email: "dora@x.com", cidade: null, tags: [] });
+  });
+});

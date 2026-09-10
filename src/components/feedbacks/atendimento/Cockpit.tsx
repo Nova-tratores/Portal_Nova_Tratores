@@ -28,9 +28,11 @@ interface Props {
   roteiro?: RoteiroMontado[];
   /** abre o modal "Corrigir cadastro" (telefone/e-mail no Omie) */
   onCorrigirCadastro?: () => void;
+  /** 💀 marcar "Não contatar" / reativar (mesma regra do CRM) */
+  onNaoContatar?: () => void;
 }
 
-export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, onEditarPerfil, painelDireito, assuntoId, onEscolherAssunto, roteiro, onCorrigirCadastro }: Props) {
+export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, onEditarPerfil, painelDireito, assuntoId, onEscolherAssunto, roteiro, onCorrigirCadastro, onNaoContatar }: Props) {
   const id = ctx?.identidade ?? null;
   const emLigacao = assuntoId !== undefined && !!onEscolherAssunto;
 
@@ -81,6 +83,11 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
                 {ctx?.codigo_omie && onCorrigirCadastro && <button type="button" onClick={onCorrigirCadastro} style={{ ...btn(COR_ATENDIMENTO, false), flex: 1 }} title="Telefone e e-mail — grava no Omie">✎ Corrigir cadastro</button>}
                 <button type="button" onClick={onEditarPerfil} style={{ ...btn("#475569", false), flex: 1 }}>✎ Funcionários e fazendas</button>
               </div>
+              {onNaoContatar && (
+                <button type="button" onClick={onNaoContatar} style={{ ...btn(id?.nao_contatar ? "#16a34a" : "#111", false), marginTop: 6, width: "100%" }} title={id?.nao_contatar ? "Tira a marca Não contatar (e reativa no Omie, se tinha código)" : "Marca o cliente como Não contatar (caveira)"}>
+                  {id?.nao_contatar ? "✅ Reativar contato" : "💀 Não contatar"}
+                </button>
+              )}
             </>
           )}
         </section>

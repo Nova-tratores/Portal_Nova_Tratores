@@ -469,3 +469,11 @@ Lê, **sem gravar nada**, os contatos do WhatsApp vinculados ao cliente no NovaZ
 **Validado** (10/09/2026): 70 testes vitest; fila com `?regra=R5_pecas` (412 de 510) e "Minha área · Pós-Vendas (125)"; modal Corrigir cadastro abre preenchido e só libera com mudança (não gravado em cliente real); card Roteiro com frases resolvidas após a migration da Fase 2.
 
 **Follow-ups**: tela para editar roteiros/parâmetros/áreas; refinar a R5 para vendas de balcão (categoria/CFOP que o dashboard já separa); Fase 3 (sugestões da Inteligência Comercial na fila + migrar `oportunidade_contatos`).
+
+### 9.9 Fila em modo Lista + "Não contatar" na fila e na ficha (10/09/2026)
+
+**Modo Lista** na fila (`Cards | Lista`, escolha em `localStorage fila-modo`): tabela com Cliente (código, 🎧 em atendimento, humor), Prioridade, Motivos (emojis com o título no `title`), Telefone, E-mail, Cidade, Último contato, Tags da pasta e ações **Atender** e **💀**. Os mesmos chips/busca do modo Cards valem para a lista. Para isso a rota da fila passou a devolver `email`, `cidade` (do cadastro Omie, com fallback ao e-mail do registro) e `tags` (`agruparFila` ganhou `cadastroPorCodigo`).
+
+**"Não contatar" (caveira) em três lugares com UMA regra**: `src/lib/feedbacks/caveira.ts` (`marcarNaoContatar` / `reativarContato`): tag na pasta do cliente, opcionalmente inativa/reativa o cadastro no Omie, e registra no `audit_log`. O CRM/RFM (`ListaRegistros`) passou a chamar a lib; a **fila em modo Lista** tem o botão 💀 na linha (abre o `ModalConfirmarCaveira`: só no Portal ou marcar + inativar no Omie) e vira **✅ Reativar** quando já está marcado (aparece ao ligar "Mostrar não contatar"); a **ficha do cockpit** tem o botão "💀 Não contatar / ✅ Reativar contato" na coluna do cliente. Fecha o buraco em que quem tinha a permissão do cockpit não achava o botão (o "Preencher atendimento" de registro aberto leva à ficha).
+
+**Validado** (10/09/2026): 71 testes; na fila em modo Lista, marcar "só no Portal" gravou a tag, tirou a linha da lista (chip "Mostrar não contatar (1)") e "Reativar" limpou a tag — com cliente fictício e limpeza depois.

@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   try {
     const [ops, regs, infos, abertas, cfgAreas, humores] = await Promise.all([
       lerTudo<Oportunidade>("feedback_oportunidades", "*", (q) => q.eq("status", "aberta")),
-      lerTudo<FeedbackRegistro>("feedback_registros", "id, nome, codigo_omie, telefone, status_atendimento, atendente_nome, aberto_em, data_contato, data_servico, ultimo_servico, criado_em, prioridade"),
+      lerTudo<FeedbackRegistro>("feedback_registros", "id, nome, codigo_omie, telefone, email, status_atendimento, atendente_nome, aberto_em, data_contato, data_servico, ultimo_servico, criado_em, prioridade"),
       lerTudo<{ cliente_key: string; tags: string[] | null }>("feedback_clientes_info", "cliente_key, tags"),
       sb.from("feedback_chamada").select("cliente_key, atendente_id, atendente_nome").is("encerrada_em", null).then(({ data, error }) => { if (error) throw new Error(error.message); return (data || []) as { cliente_key: string; atendente_id: string; atendente_nome: string }[]; }),
       sb.from("feedback_config_regras").select("parametros").eq("regra", "areas").maybeSingle().then(({ data }) => (data as { parametros?: Record<string, unknown> } | null)?.parametros ?? null),
@@ -30,20 +30,23 @@ export async function GET(req: NextRequest) {
       sb.from("feedback_chamada").select("cliente_key, humor_cliente, encerrada_em").not("humor_cliente", "is", null).not("encerrada_em", "is", null).order("encerrada_em", { ascending: false }).limit(2000).then(({ data, error }) => { if (error) throw new Error(error.message); return (data || []) as { cliente_key: string; humor_cliente: number }[]; }),
     ]);
 
-    // telefone do cadastro Omie para quem só tem oportunidade (sem registro)
-    const codigos = [...new Set(ops.map((o) => o.codigo_omie).filter((c): c is string => !!c))];
+    // cadastro Omie (telefone, e-mail, cidade) de todo mundo que está na fila
+    const codigos = [...new Set([...ops.map((o) => o.codigo_omie), ...regs.map((r) => r.codigo_omie)].filter((c): c is string => !!c))];
     const telefonePorCodigo = new Map<string, string>();
+    const cadastroPorCodigo = new Map<string, { email: string | null; cidade: string | null }>();
     for (let i = 0; i < codigos.length; i += 200) {
-      const { data } = await sb.from("portal_nt_clientes_cadastro_omie").select("cod_cli, telefone").in("cod_cli", codigos.slice(i, i + 200));
-      for (const c of (data || []) as { cod_cli: unknown; telefone: string | null }[]) {
-        if (c.telefone && c.cod_cli != null) telefonePorCodigo.set(String(c.cod_cli), c.telefone);
+      const { data } = await sb.from("portal_nt_clientes_cadastro_omie").select("cod_cli, telefone, email, cidade").in("cod_cli", codigos.slice(i, i + 200));
+      for (const c of (data || []) as { cod_cli: unknown; telefone: string | null; email: string | null; cidade: string | null }[]) {
+        if (c.cod_cli == null) continue;
+        if (c.telefone) telefonePorCodigo.set(String(c.cod_cli), c.telefone);
+        cadastroPorCodigo.set(String(c.cod_cli), { email: c.email || null, cidade: c.cidade || null });
       }
     }
     const tagsPorCliente = new Map(infos.map((i) => [i.cliente_key, i.tags || []] as const));
     const chamadasAbertas = new Map(abertas.map((c) => [c.cliente_key, { atendente_id: c.atendente_id, atendente_nome: c.atendente_nome }] as const));
     const humorPorCliente = new Map<string, number>();
     for (const h of humores) if (!humorPorCliente.has(h.cliente_key)) humorPorCliente.set(h.cliente_key, Number(h.humor_cliente));
-    const linhas = agruparFila({ oportunidades: ops, registros: regs, tagsPorCliente, telefonePorCodigo, chamadasAbertas, humorPorCliente });
+    const linhas = agruparFila({ oportunidades: ops, registros: regs, tagsPorCliente, telefonePorCodigo, chamadasAbertas, humorPorCliente, cadastroPorCodigo });
     const out: FilaResposta = { linhas, gerado_em: new Date().toISOString(), areas: cfgAreas };
     return NextResponse.json(out);
   } catch (e) {
