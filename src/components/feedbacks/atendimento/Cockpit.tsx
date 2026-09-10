@@ -26,9 +26,11 @@ interface Props {
   onEscolherAssunto?: (id: number | null) => void;
   /** roteiro de ligação já resolvido (Fase 2) */
   roteiro?: RoteiroMontado[];
+  /** abre o modal "Corrigir cadastro" (telefone/e-mail no Omie) */
+  onCorrigirCadastro?: () => void;
 }
 
-export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, onEditarPerfil, painelDireito, assuntoId, onEscolherAssunto, roteiro }: Props) {
+export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, onEditarPerfil, painelDireito, assuntoId, onEscolherAssunto, roteiro, onCorrigirCadastro }: Props) {
   const id = ctx?.identidade ?? null;
   const emLigacao = assuntoId !== undefined && !!onEscolherAssunto;
 
@@ -55,7 +57,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
               {id?.empresa && <Linha rotulo="Empresa" valor={id.empresa} />}
               <Linha rotulo="Cidade" valor={[id?.cidade, id?.estado].filter(Boolean).join("/") || "—"} />
               {id?.endereco && <Linha rotulo="Endereço" valor={id.endereco} />}
-              {id?.email && <Linha rotulo="E-mail" valor={<a href={`mailto:${id.email}`} style={{ color: "#0369a1" }}>{id.email}</a>} />}
+              {id?.email && <Linha rotulo="E-mail" valor={<span><a href={`mailto:${id.email}`} style={{ color: id.email_interno ? "#92400e" : "#0369a1" }}>{id.email}</a>{id.email_interno && <span title="É um e-mail da loja usado como preenchimento, não do cliente" style={{ fontSize: 10, marginLeft: 6, color: "#92400e", fontWeight: 700 }}>e-mail da loja</span>}</span>} />}
               {(id?.culturas || id?.area_hectares) && (
                 <Linha rotulo="Propriedade" valor={[id?.culturas, id?.area_hectares ? `${id.area_hectares} ha` : null].filter(Boolean).join(" · ")} />
               )}
@@ -73,8 +75,12 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
               )}
               {id?.inativo && <Aviso cor="#991b1b" bg="#fee2e2">Cadastro INATIVO no Omie.</Aviso>}
               {id?.pendencia_cadastral && <Aviso cor="#92400e" bg="#fef3c7">Cadastro com pendência — confirme os dados na ligação.</Aviso>}
+              {(id?.email_interno || (id && id.telefones.length === 0)) && <Aviso cor="#92400e" bg="#fef3c7">{id?.telefones.length === 0 ? "Sem telefone no cadastro." : "E-mail do cadastro é da loja."} Confirme com o cliente e use “Corrigir cadastro”.</Aviso>}
               {id?.observacoes && <p style={{ margin: "10px 0 0", fontSize: 12, fontStyle: "italic", opacity: 0.8 }}>“{id.observacoes}”</p>}
-              <button type="button" onClick={onEditarPerfil} style={{ ...btn("#475569", false), marginTop: 12, width: "100%" }}>✎ Funcionários e fazendas</button>
+              <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+                {ctx?.codigo_omie && onCorrigirCadastro && <button type="button" onClick={onCorrigirCadastro} style={{ ...btn(COR_ATENDIMENTO, false), flex: 1 }} title="Telefone e e-mail — grava no Omie">✎ Corrigir cadastro</button>}
+                <button type="button" onClick={onEditarPerfil} style={{ ...btn("#475569", false), flex: 1 }}>✎ Funcionários e fazendas</button>
+              </div>
             </>
           )}
         </section>

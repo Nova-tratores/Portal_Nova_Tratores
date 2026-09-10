@@ -15,7 +15,7 @@ import type { RegraOportunidade } from "@/lib/feedbacks/types";
 const CRON_SECRET = process.env.CRON_SECRET || "";
 
 const REGRAS_VALIDAS: RegraOportunidade[] = [
-  "R1_revisao", "R2_sem_os", "R3_upsell", "R4_followup",
+  "R1_revisao", "R2_sem_os", "R3_upsell", "R4_followup", "R5_pecas", "R6_fora_garantia", "R7_garantia_risco", "R8_cadastro",
 ];
 
 function parseRegraFiltro(req: NextRequest): RegraOportunidade | undefined {

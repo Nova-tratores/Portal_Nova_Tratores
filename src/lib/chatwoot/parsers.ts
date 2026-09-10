@@ -184,3 +184,50 @@ export function ordenarPorCargo<T extends { cargo: string | null; ultima_ativida
     return (b.ultima_atividade ?? "").localeCompare(a.ultima_atividade ?? "");
   });
 }
+
+// -----------------------------------------------------------------------------
+// Contatos por CARGO (aba /feedbacks/atendimento/contatos)
+// -----------------------------------------------------------------------------
+export const CARGOS_CLIENTE = ["Proprietário", "Tratorista", "Gerente", "Financeiro", "Funcionário"];
+
+export interface ContatoPorCargo {
+  id: number;
+  nome: string;
+  cargo: string;
+  telefone: string | null;
+  telefone_wa: string | null;
+  cliente: string | null; // rótulo "Nome (cód N)" sem o "(cód N)"
+  cliente_cod: string | null;
+  cliente_key: string | null; // omie_<cod> quando vinculado
+  localizacoes: Localizacao[];
+}
+
+/** Filtra exato por `cliente_cargo` (a busca do NovaZap é ILIKE no JSON inteiro), dedup por id, ordena por cargo → nome. */
+export function contatosPorCargo(contatos: ContatoBruto[], cargos: string[] = CARGOS_CLIENTE): ContatoPorCargo[] {
+  const alvo = new Map(cargos.map((c) => [semAcento(c), c] as const));
+  const vistos = new Set<number>();
+  const out: ContatoPorCargo[] = [];
+  for (const c of contatos) {
+    if (!c || c.id == null || vistos.has(c.id)) continue;
+    const a = attrs(c);
+    if (semAcento(a.tipo_contato) === "funcionario" || semAcento(a.tipo_contato) === "fornecedor") continue;
+    const cargo = alvo.get(semAcento(a.cliente_cargo));
+    if (!cargo) continue;
+    vistos.add(c.id);
+    const cod = codigoDoClienteRef(a.cliente_ref) ?? (String(a.cliente_cod ?? "").trim() || null);
+    const telefone = String(c.phone_number ?? a.cliente_telefone ?? "").trim() || null;
+    out.push({
+      id: Number(c.id),
+      nome: String(c.name ?? "").trim() || "(sem nome)",
+      cargo,
+      telefone,
+      telefone_wa: normalizarTelefoneWa(telefone),
+      cliente: String(a.cliente ?? "").replace(/\s*\(cód[^)]*\)\s*$/i, "").trim() || null,
+      cliente_cod: cod,
+      cliente_key: cod ? `omie_${cod}` : null,
+      localizacoes: normalizarLocalizacoes(a),
+    });
+  }
+  const pos = (cg: string) => { const i = CARGOS_CLIENTE.indexOf(cg); return i === -1 ? 99 : i; };
+  return out.sort((x, y) => pos(x.cargo) - pos(y.cargo) || x.nome.localeCompare(y.nome, "pt-BR"));
+}

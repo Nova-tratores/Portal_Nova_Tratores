@@ -306,6 +306,12 @@ export function renderizarDetalhes(op: Oportunidade): string {
       }
       return `${tipo} NA garantia sem revisão há ${meses} meses (última em ${ultima}). Revisão anual vence ${limite}${faltam} — sem ela perde a garantia, válida até ${fim}. Ligar e agendar.`;
     }
+    case "R8_cadastro": {
+      const f = Array.isArray(d.faltando) ? (d.faltando as string[]) : [];
+      const rot = f.map((x) => (x === "telefone" ? "telefone" : x === "email" ? "e-mail" : "e-mail (está com e-mail da loja)")).join(" e ");
+      const ult = d.ultima_atividade ? ` Última atividade em ${String(d.ultima_atividade).split("-").reverse().join("/")}.` : "";
+      return `Falta ${rot || "dado de contato"} no cadastro.${d.email_atual ? ` E-mail atual: ${d.email_atual}.` : ""}${ult}`;
+    }
     case "R4_followup": {
       const dias = d.dias_desde_ultimo as number | undefined;
       const tecnico = d.tecnico as string | null | undefined;

@@ -30,6 +30,7 @@ const TIPO_PADRAO_POR_REGRA: Record<RegraOportunidade, TipoFeedback> = {
   R5_pecas:    "rfm",
   R6_fora_garantia: "rfm",
   R7_garantia_risco: "rfm",
+  R8_cadastro: "rfm",
 };
 
 function prefillDoOportunidade(op: Oportunidade): Partial<FeedbackRegistro> {

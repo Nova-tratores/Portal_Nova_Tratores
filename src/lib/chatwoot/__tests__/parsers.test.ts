@@ -161,3 +161,22 @@ describe("telefone", () => {
     expect(linkWhatsapp("")).toBeNull();
   });
 });
+
+describe("contatosPorCargo", () => {
+  it("filtra exato pelo cargo (a busca é ILIKE), exclui funcionário/fornecedor, monta cliente_key e ordena", async () => {
+    const { contatosPorCargo } = await import("../parsers");
+    const lista = [
+      contato(1, { cliente_cargo: "Tratorista", cliente: "Fazenda X (cód 10)", cliente_ref: "10:Nova Tratores" }, { name: "Zé" }),
+      contato(2, { cliente_cargo: "proprietario", cliente: "Fazenda X (cód 10)", cliente_ref: "10:Nova Tratores" }, { name: "Dona Ana" }),
+      contato(3, { cliente_cargo: "Tratorista", tipo_contato: "funcionario" }),
+      contato(4, { cliente: "Sem cargo (cód 9)" }),
+      contato(5, { cliente_cargo: "Gerente", cliente_cod: "22" }, { name: "Bia" }),
+    ];
+    const r = contatosPorCargo(lista);
+    expect(r.map((c) => `${c.cargo}:${c.nome}`)).toEqual(["Proprietário:Dona Ana", "Tratorista:Zé", "Gerente:Bia"]);
+    expect(r[0].cliente).toBe("Fazenda X");
+    expect(r[0].cliente_key).toBe("omie_10");
+    expect(r[2].cliente_key).toBe("omie_22");
+    expect(r[2].cliente).toBeNull();
+  });
+});

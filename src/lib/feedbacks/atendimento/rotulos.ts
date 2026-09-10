@@ -9,6 +9,7 @@ export const REGRA_ROTULO: Record<RegraOportunidade, { titulo: string; emoji: st
   R5_pecas:           { titulo: "Reposição de peças",           emoji: "🔩", cor: "#8b5cf6", oQueFazer: "Oferecer peças de reposição ou kit de manutenção." },
   R3_upsell:          { titulo: "Pode comprar mais",            emoji: "📈", cor: "#10b981", oQueFazer: "Sondar necessidade de implemento ou máquina nova." },
   R4_followup:        { titulo: "Retorno de pós-venda",         emoji: "📞", cor: "#3b82f6", oQueFazer: "Perguntar se o serviço anterior ficou bom." },
+  R8_cadastro:        { titulo: "Cadastro incompleto",          emoji: "📇", cor: "#64748b", oQueFazer: "Confirmar telefone e e-mail e corrigir pelo botão \"Corrigir cadastro\"." },
 };
 
 export const STATUS_ATENDIMENTO_ROTULO: Record<string, string> = {

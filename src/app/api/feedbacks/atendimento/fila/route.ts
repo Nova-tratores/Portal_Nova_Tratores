@@ -10,7 +10,7 @@ export const maxDuration = 30;
 // Fila de atendimento: UMA linha por cliente, unindo oportunidades abertas
 // (motor R1..R7) e registros CRM/RFM em aberto. Ordem: prioridade → mais
 // antigo; clientes com a caveira ("Não contatar") vão para o fim, marcados.
-export interface FilaResposta { linhas: LinhaFila[]; gerado_em: string }
+export interface FilaResposta { linhas: LinhaFila[]; gerado_em: string; areas: Record<string, unknown> | null }
 
 export async function GET(req: NextRequest) {
   try {
@@ -20,11 +20,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ erro: err.message || "não autorizado" }, { status: err.http ?? 401 });
   }
   try {
-    const [ops, regs, infos, abertas, humores] = await Promise.all([
+    const [ops, regs, infos, abertas, cfgAreas, humores] = await Promise.all([
       lerTudo<Oportunidade>("feedback_oportunidades", "*", (q) => q.eq("status", "aberta")),
       lerTudo<FeedbackRegistro>("feedback_registros", "id, nome, codigo_omie, telefone, status_atendimento, atendente_nome, aberto_em, data_contato, data_servico, ultimo_servico, criado_em, prioridade"),
       lerTudo<{ cliente_key: string; tags: string[] | null }>("feedback_clientes_info", "cliente_key, tags"),
       sb.from("feedback_chamada").select("cliente_key, atendente_id, atendente_nome").is("encerrada_em", null).then(({ data, error }) => { if (error) throw new Error(error.message); return (data || []) as { cliente_key: string; atendente_id: string; atendente_nome: string }[]; }),
+      sb.from("feedback_config_regras").select("parametros").eq("regra", "areas").maybeSingle().then(({ data }) => (data as { parametros?: Record<string, unknown> } | null)?.parametros ?? null),
       // último humor por cliente: ligações encerradas com humor, mais recentes primeiro (teto 2000)
       sb.from("feedback_chamada").select("cliente_key, humor_cliente, encerrada_em").not("humor_cliente", "is", null).not("encerrada_em", "is", null).order("encerrada_em", { ascending: false }).limit(2000).then(({ data, error }) => { if (error) throw new Error(error.message); return (data || []) as { cliente_key: string; humor_cliente: number }[]; }),
     ]);
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
     const humorPorCliente = new Map<string, number>();
     for (const h of humores) if (!humorPorCliente.has(h.cliente_key)) humorPorCliente.set(h.cliente_key, Number(h.humor_cliente));
     const linhas = agruparFila({ oportunidades: ops, registros: regs, tagsPorCliente, telefonePorCodigo, chamadasAbertas, humorPorCliente });
-    const out: FilaResposta = { linhas, gerado_em: new Date().toISOString() };
+    const out: FilaResposta = { linhas, gerado_em: new Date().toISOString(), areas: cfgAreas };
     return NextResponse.json(out);
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message || "falha ao montar a fila" }, { status: 500 });

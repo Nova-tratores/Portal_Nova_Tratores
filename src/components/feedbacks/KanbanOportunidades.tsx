@@ -29,6 +29,13 @@ interface ColunaDef {
 
 const COLUNAS: ColunaDef[] = [
   {
+    regra: "R8_cadastro",
+    titulo: "Cadastro incompleto",
+    emoji: "📇",
+    cor: "#64748b",
+    explicacao: "Clientes ativos sem telefone ou sem e-mail (ou com e-mail da loja no lugar do e-mail deles). Ligar, confirmar e corrigir no cockpit.",
+  },
+  {
     regra: "R1_revisao",
     titulo: "Revisões garantia",
     emoji: "🔧",
@@ -89,7 +96,7 @@ interface Props {
 export default function KanbanOportunidades({ oportunidades, onAtender, onDispensar, onVerHistorico }: Props) {
   const porRegra = useMemo(() => {
     const m: Record<RegraOportunidade, Oportunidade[]> = {
-      R1_revisao: [], R2_sem_os: [], R3_upsell: [], R4_followup: [], R5_pecas: [], R6_fora_garantia: [], R7_garantia_risco: [],
+      R1_revisao: [], R2_sem_os: [], R3_upsell: [], R4_followup: [], R5_pecas: [], R6_fora_garantia: [], R7_garantia_risco: [], R8_cadastro: [],
     };
     for (const op of oportunidades) {
       if (m[op.regra]) m[op.regra].push(op);
@@ -110,6 +117,7 @@ export default function KanbanOportunidades({ oportunidades, onAtender, onDispen
     R5_pecas: PAGE_SIZE,
     R6_fora_garantia: PAGE_SIZE,
     R7_garantia_risco: PAGE_SIZE,
+    R8_cadastro: PAGE_SIZE,
   });
 
   function verMais(regra: RegraOportunidade) {

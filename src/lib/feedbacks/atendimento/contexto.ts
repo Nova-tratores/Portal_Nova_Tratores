@@ -15,7 +15,8 @@ import {
   mesclarMaquinas, norm, resumirAtendimentos, resumirPedidos, tagsDoCadastro, temTag, unificarServicos,
   TAG_PENDENCIA_CADASTRAL, type AtendimentoResumo, type Maquina, type OSPortalBruta, type Pedido, type Servico,
 } from "./puro";
-import { configRetorno, humoresRecentes, listarScripts } from "./roteiro-db";
+import { configR8, configRetorno, humoresRecentes, listarScripts } from "./roteiro-db";
+import { emailEhInterno, type ParametrosR8 } from "@/lib/feedbacks/oportunidades/r8-puro";
 import type { Script } from "./roteiro";
 import { CONFIG_RETORNO_PADRAO, type ConfigRetorno } from "./retorno";
 
@@ -38,6 +39,7 @@ export interface Identidade {
   nao_contatar: boolean;
   pendencia_cadastral: boolean;
   inativo: boolean;
+  email_interno: boolean; // e-mail é da loja (placeholder), não do cliente
   culturas: string | null;
   area_hectares: number | null;
   observacoes: string | null;
@@ -84,7 +86,7 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
   const guarda = <T,>(chave: string, p: Promise<T>): Promise<T | null> =>
     p.catch((e) => { erros[chave] = (e as Error)?.message || String(e); return null; });
 
-  const [info, principal, registros, oportunidades, historico, osPortal, tratores, whatsapp, roteiro, cfgRetorno, humores] = await Promise.all([
+  const [info, principal, registros, oportunidades, historico, osPortal, tratores, whatsapp, roteiro, cfgRetorno, humores, cfgR8] = await Promise.all([
     guarda("pasta", carregarInfo(clienteKey, codigos, NOME)),
     guarda("cadastro", carregarPrincipal(codigos, nome)),
     guarda("atendimentos", carregarRegistros(codigos, NOME)),
@@ -96,9 +98,10 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
     guarda("roteiro", listarScripts()),
     guarda("config_retorno", configRetorno()),
     guarda("humores", humoresRecentes(clienteKey)),
+    guarda("config_r8", configR8()),
   ]);
 
-  const identidade = montarIdentidade(nome, cad, principal, info, registros || []);
+  const identidade = montarIdentidade(nome, cad, principal, info, registros || [], (cfgR8 ?? {}) as ParametrosR8);
 
   return {
     cliente_key: clienteKey,
@@ -219,7 +222,8 @@ function montarIdentidade(
   cad: Record<string, unknown> | null,
   principal: Record<string, unknown>[] | null,
   info: ClienteInfo | null,
-  registros: FeedbackRegistro[]
+  registros: FeedbackRegistro[],
+  cfgR8: ParametrosR8 = {}
 ): Identidade | null {
   const p0 = principal?.[0] ?? null;
   if (!nome && !cad && !p0 && !info) return null;
@@ -267,6 +271,7 @@ function montarIdentidade(
     nao_contatar: temTag(tags, TAG_NAO_CONTATAR),
     pendencia_cadastral: temTag(tags, TAG_PENDENCIA_CADASTRAL),
     inativo: cad?.inativo === true || p0?.inativo === true,
+    email_interno: emailEhInterno(s(cad?.email) ?? s(p0?.email), cfgR8),
     culturas: s(p0?.culturas),
     area_hectares: n(p0?.area_hectares),
     observacoes: s(p0?.observacoes),

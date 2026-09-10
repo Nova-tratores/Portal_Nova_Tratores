@@ -13,6 +13,7 @@ import { computarR4 } from "./r4-followup";
 import { computarR5 } from "./r5-pecas";
 import { computarR6 } from "./r6-fora-garantia";
 import { computarR7Completo } from "./r7-garantia-risco";
+import { computarR8 } from "./r8-cadastro";
 import { origemDaOportunidade } from "../origem";
 import type { Oportunidade, PrioridadeOportunidade, RegraOportunidade } from "../types";
 
@@ -71,6 +72,7 @@ export async function recomputar(
       ...(await computarR7Completo((params.R7_garantia_risco as Params) || {})).perdidas,
     ]) as unknown as OportunidadeInput[] },
     { regra: "R7_garantia_risco", fn: async () => ((await computarR7Completo((params.R7_garantia_risco as Params) || {})).emRisco) as unknown as OportunidadeInput[] },
+    { regra: "R8_cadastro", fn: async () => (await computarR8((params.R8_cadastro as Params) || {})) as unknown as OportunidadeInput[] },
   ];
 
   for (const { regra, fn } of tarefas) {

@@ -14,8 +14,9 @@ import { REGRA_ROTULO, fmtDataBR, haQuanto } from "@/lib/feedbacks/atendimento/r
 import type { LinhaFila } from "@/lib/feedbacks/atendimento/puro";
 import type { RegraOportunidade } from "@/lib/feedbacks/types";
 import { emojiHumor } from "@/lib/feedbacks/atendimento/retorno";
+import { lerAreas, regrasDaFuncao, TODAS_REGRAS, type Areas } from "@/lib/feedbacks/atendimento/areas";
 
-type Chip = "urgentes" | "em_atendimento" | "sem_telefone" | "caveira";
+type Chip = "urgentes" | "em_atendimento" | "sem_telefone" | "caveira" | "minha_area";
 
 export default function FilaAtendimentoPage() {
   const router = useRouter();
@@ -28,6 +29,12 @@ export default function FilaAtendimentoPage() {
   const [erro, setErro] = useState<string | null>(null);
   const [busca, setBusca] = useState("");
   const [chips, setChips] = useState<Set<Chip>>(new Set());
+  const [areas, setAreas] = useState<Areas | null>(null);
+  // motivos (regras) escolhidos — OR entre eles; vazio = todos. Aceita ?regra=R5_pecas,R8_cadastro
+  const [regras, setRegras] = useState<Set<RegraOportunidade>>(() => {
+    const q = (typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("regra") : null) || "";
+    return new Set(q.split(",").filter((r): r is RegraOportunidade => (TODAS_REGRAS as string[]).includes(r)));
+  });
 
   const carregar = useCallback(async () => {
     setCarregando(true);
@@ -37,6 +44,7 @@ export default function FilaAtendimentoPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data?.erro || `HTTP ${res.status}`);
       setLinhas(data.linhas as LinhaFila[]);
+      setAreas(lerAreas(data.areas));
     } catch (e) {
       setErro(e instanceof Error ? e.message : "erro ao carregar a fila");
     } finally {
@@ -65,22 +73,30 @@ export default function FilaAtendimentoPage() {
 
   const toggle = (c: Chip) => setChips((s) => { const n = new Set(s); if (n.has(c)) n.delete(c); else n.add(c); return n; });
 
+  const minhaArea = useMemo(() => regrasDaFuncao(userProfile?.funcao, areas ?? undefined), [userProfile?.funcao, areas]);
+  const toggleRegra = (r: RegraOportunidade) => setRegras((s) => { const n = new Set(s); if (n.has(r)) n.delete(r); else n.add(r); return n; });
+  const regrasPresentes = useMemo(() => TODAS_REGRAS.filter((r) => linhas.some((l) => l.regras.includes(r))), [linhas]);
+
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
     return linhas.filter((l) => {
       if (!chips.has("caveira") && l.caveira) return false;
+      if (regras.size > 0 && !l.regras.some((r) => regras.has(r as RegraOportunidade))) return false;
+      if (chips.has("minha_area") && minhaArea && !l.regras.some((r) => minhaArea.regras.includes(r as RegraOportunidade))) return false;
       if (chips.has("urgentes") && l.prioridade !== "Urgente") return false;
       if (chips.has("em_atendimento") && !l.em_atendimento_por) return false;
       if (chips.has("sem_telefone") && l.telefone) return false;
       if (q && !l.nome.toLowerCase().includes(q) && !(l.codigo_omie || "").includes(q)) return false;
       return true;
     });
-  }, [linhas, busca, chips]);
+  }, [linhas, busca, chips, regras, minhaArea]);
 
   const contagem = (c: Chip) => linhas.filter((l) =>
     c === "urgentes" ? l.prioridade === "Urgente" && !l.caveira :
     c === "em_atendimento" ? !!l.em_atendimento_por :
-    c === "sem_telefone" ? !l.telefone && !l.caveira : l.caveira).length;
+    c === "sem_telefone" ? !l.telefone && !l.caveira :
+    c === "minha_area" ? (!!minhaArea && !l.caveira && l.regras.some((r) => minhaArea.regras.includes(r as RegraOportunidade))) : l.caveira).length;
+  const contagemRegra = (r: RegraOportunidade) => linhas.filter((l) => !l.caveira && l.regras.includes(r)).length;
 
   return (
     <div style={{ maxWidth: 1100, margin: "0 auto", padding: "12px 0" }}>
@@ -95,9 +111,29 @@ export default function FilaAtendimentoPage() {
           placeholder="Buscar cliente ou código…"
           style={{ marginLeft: "auto", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--portal-border)", fontSize: 13, minWidth: 260, background: "var(--portal-bg-card)" }}
         />
+        <Link href="/feedbacks/atendimento/contatos" style={{ ...btnChip("#64748b", false), textDecoration: "none" }}>👥 Contatos por cargo</Link>
         <button type="button" onClick={carregar} disabled={carregando} style={btnChip(COR_ATENDIMENTO, false)}>↻</button>
       </header>
 
+      {/* motivo (regra) — OR entre os escolhidos */}
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8, alignItems: "center" }}>
+        <span style={{ fontSize: 11, opacity: 0.6, fontWeight: 700 }}>Motivo:</span>
+        {minhaArea && (
+          <button type="button" onClick={() => toggle("minha_area")} title={`Sua área (${minhaArea.area}): ${minhaArea.regras.map((r) => REGRA_ROTULO[r]?.titulo ?? r).join(", ")}`} style={btnChip(chips.has("minha_area") ? "#16a34a" : "#16a34a", chips.has("minha_area"))}>
+            ⭐ Minha área · {minhaArea.area} ({contagem("minha_area")})
+          </button>
+        )}
+        {regrasPresentes.map((r) => {
+          const rot = REGRA_ROTULO[r];
+          const ativo = regras.has(r);
+          return (
+            <button key={r} type="button" onClick={() => toggleRegra(r)} style={btnChip(ativo ? (rot?.cor ?? COR_ATENDIMENTO) : "#64748b", ativo)}>
+              {rot?.emoji} {rot?.titulo ?? r} ({contagemRegra(r)})
+            </button>
+          );
+        })}
+        {regras.size > 0 && <button type="button" onClick={() => setRegras(new Set())} style={{ ...btnChip("#64748b", false), border: 0 }}>limpar</button>}
+      </div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
         {([
           ["urgentes", "🔴 Urgentes"],

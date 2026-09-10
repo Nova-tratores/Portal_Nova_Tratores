@@ -45,3 +45,9 @@ export async function humoresRecentes(clienteKey: string, limite = 5): Promise<n
   if (error) return [];
   return (data || []).map((r) => Number((r as { humor_cliente: number }).humor_cliente)).filter((n) => Number.isFinite(n));
 }
+
+/** Parâmetros da R8 (e-mails internos) — para a ficha avisar "e-mail da loja". */
+export async function configR8(): Promise<Record<string, unknown>> {
+  const { data } = await sb.from("feedback_config_regras").select("parametros").eq("regra", "R8_cadastro").maybeSingle();
+  return ((data as { parametros?: Record<string, unknown> } | null)?.parametros) ?? {};
+}

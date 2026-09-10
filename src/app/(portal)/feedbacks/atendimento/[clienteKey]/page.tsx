@@ -12,6 +12,7 @@ import PainelLigacao from "@/components/feedbacks/atendimento/PainelLigacao";
 import Toast, { type ToastMsg } from "@/components/feedbacks/atendimento/Toast";
 import ModalFeedback from "@/components/feedbacks/ModalFeedback";
 import ModalPerfilCliente from "@/components/feedbacks/ModalPerfilCliente";
+import CorrigirCadastro from "@/components/feedbacks/atendimento/CorrigirCadastro";
 import { buscarClienteInfo, listarRegistros, upsertClienteInfo } from "@/lib/feedbacks/api";
 import { useAuth } from "@/hooks/useAuth";
 import { dadosDoContexto, montarRoteiro } from "@/lib/feedbacks/atendimento/roteiro";
@@ -33,6 +34,7 @@ export default function CockpitAtendimentoPage() {
   const [toast, setToast] = useState<ToastMsg | null>(null);
   const [modal, setModal] = useState<{ tipo: TipoFeedback; registro: FeedbackRegistro | null } | null>(null);
   const [perfil, setPerfil] = useState<{ info: ClienteInfo | null } | null>(null);
+  const [corrigindo, setCorrigindo] = useState(false);
 
   const lig = useChamada(clienteKey);
   const { userProfile } = useAuth();
@@ -145,6 +147,7 @@ export default function CockpitAtendimentoPage() {
         assuntoId={emLigacao ? (lig.estado.chamada?.oportunidade_id ?? null) : undefined}
         onEscolherAssunto={emLigacao ? lig.setOportunidade : undefined}
         roteiro={roteiro}
+        onCorrigirCadastro={ctx?.codigo_omie ? () => setCorrigindo(true) : undefined}
         painelDireito={
           <PainelLigacao
             estado={lig.estado}
@@ -167,6 +170,17 @@ export default function CockpitAtendimentoPage() {
 
       {modal && (
         <ModalFeedback tipo={modal.tipo} aberto registro={modal.registro} prefill={modal.registro ? undefined : prefill} clienteNaoContatar={!!id?.nao_contatar} onFechar={() => setModal(null)} onSalvo={() => { setModal(null); void carregar(); }} />
+      )}
+      {corrigindo && ctx?.codigo_omie && (
+        <CorrigirCadastro
+          codigoOmie={ctx.codigo_omie}
+          nome={id?.nome || ctx.nome || ""}
+          telefoneAtual={id?.telefones.find((t) => t.origem === "Cadastro Omie")?.numero ?? null}
+          emailAtual={id?.email ?? null}
+          emailInterno={!!id?.email_interno}
+          onFechar={() => setCorrigindo(false)}
+          onSalvo={() => { setCorrigindo(false); setToast({ tipo: "ok", texto: "Cadastro corrigido no Omie." }); void carregar(); }}
+        />
       )}
       {perfil && (
         <ModalPerfilCliente aberto nome={id?.nome || ctx?.nome || ""} codigoOmie={ctx?.codigo_omie ?? null} info={perfil.info} onFechar={() => setPerfil(null)} onSalvo={() => { setPerfil(null); void carregar(); }} />
