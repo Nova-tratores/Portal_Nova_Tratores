@@ -36,6 +36,49 @@ export async function apiEnviar<T = any>(url: string, metodo: 'POST' | 'PATCH' |
   return j as T;
 }
 
+/**
+ * Abre um arquivo servido por rota AUTENTICADA.
+ *
+ * Não dá pra usar <a href="/api/..."> : navegação de link não carrega o
+ * cabeçalho Authorization (a sessão do portal é um JWT no navegador, não um
+ * cookie), e a rota responde "Não autenticado". Então busca por fetch com o
+ * token, transforma em blob e abre.
+ *
+ * A aba é aberta ANTES do await de propósito: depois dele o navegador já não
+ * considera "gesto do usuário" e o bloqueador de pop-up barra. Se mesmo assim
+ * vier bloqueada, cai pro download, que nunca é barrado.
+ */
+export async function abrirArquivoAutenticado(url: string, nomeArquivo: string): Promise<void> {
+  const aba = window.open('', '_blank');
+  try {
+    const r = await fetch(url, { headers: await authHeaders(), cache: 'no-store' });
+    if (!r.ok) {
+      let msg = `Erro ${r.status}`;
+      try { msg = (await r.json())?.error || msg; } catch { /* corpo não é JSON */ }
+      aba?.close();
+      throw new Error(msg);
+    }
+    const blob = await r.blob();
+    const endereco = URL.createObjectURL(blob);
+
+    if (aba && !aba.closed) {
+      aba.location.href = endereco;
+    } else {
+      const link = document.createElement('a');
+      link.href = endereco;
+      link.download = nomeArquivo;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    }
+    // Só depois que a aba carregou; revogar na hora deixa a aba em branco.
+    setTimeout(() => URL.revokeObjectURL(endereco), 60_000);
+  } catch (e) {
+    aba?.close();
+    throw e;
+  }
+}
+
 // ── Formatadores ─────────────────────────────────────────────────────────────
 export function brl(v: number | null | undefined): string {
   return Number(v ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

@@ -19,8 +19,8 @@ import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui';
 import { STATUS_RELATORIO, rotulo, cor } from '@/lib/marketing/tipos';
 import Modal from '../Modal';
 import {
-  apiGet, apiEnviar, dataBR, Painel, Titulo, Selo, Campo, estiloInput,
-  BotaoRosa, Vazio, Erro, ROSA,
+  apiGet, apiEnviar, abrirArquivoAutenticado, dataBR, Painel, Titulo, Selo, Campo,
+  estiloInput, BotaoRosa, Vazio, Erro, ROSA,
 } from '../ui';
 
 export default function RelatorioAba({ apoios, onMudou }: { apoios: any[]; onMudou: () => void }) {
@@ -38,6 +38,7 @@ export default function RelatorioAba({ apoios, onMudou }: { apoios: any[]; onMud
   const [copia, setCopia] = useState('');
   const [mensagem, setMensagem] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [abrindoPdf, setAbrindoPdf] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
 
   const carregar = useCallback(async () => {
@@ -55,6 +56,20 @@ export default function RelatorioAba({ apoios, onMudou }: { apoios: any[]; onMud
   }, [apoioId]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  const abrirPdf = async () => {
+    setAbrindoPdf(true);
+    setErro(null);
+    try {
+      const nome = `relatorio-contrapartida-${apoio?.apoiador ?? 'apoio'}.pdf`
+        .replace(/[^a-zA-Z0-9.-]+/g, '-').toLowerCase();
+      await abrirArquivoAutenticado(`/api/marketing/contrapartida/${apoioId}/pdf`, nome);
+    } catch (e: any) {
+      setErro(e?.message || 'Não foi possível gerar o PDF.');
+    } finally {
+      setAbrindoPdf(false);
+    }
+  };
 
   const enviar = async (teste: boolean) => {
     setEnviando(true);
@@ -98,14 +113,20 @@ export default function RelatorioAba({ apoios, onMudou }: { apoios: any[]; onMud
           {apoios.map((a) => <option key={a.id} value={a.id}>{a.apoiador}</option>)}
         </select>
         {apoio && <Selo texto={rotulo(STATUS_RELATORIO, apoio.relatorio_status)} cor={cor(STATUS_RELATORIO, apoio.relatorio_status)} />}
-        <a
-          href={`/api/marketing/contrapartida/${apoioId}/pdf`}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', fontSize: 13, borderRadius: 3, border: '1px solid var(--portal-border)', color: 'var(--portal-text)', textDecoration: 'none' }}
+        {/* Não pode ser <a href>: navegação de link não manda o Authorization,
+            e a rota responde "Não autenticado". Vai por fetch com o token. */}
+        <button
+          onClick={abrirPdf}
+          disabled={abrindoPdf}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', fontSize: 13,
+            borderRadius: 3, border: '1px solid var(--portal-border)',
+            background: 'var(--portal-bg-card)', color: 'var(--portal-text)',
+            cursor: abrindoPdf ? 'wait' : 'pointer', opacity: abrindoPdf ? 0.6 : 1,
+          }}
         >
-          <FileText size={15} /> Abrir PDF
-        </a>
+          <FileText size={15} /> {abrindoPdf ? 'Gerando…' : 'Abrir PDF'}
+        </button>
         <BotaoRosa
           onClick={() => { setResultado(null); setErro(null); setEnvio(true); }}
           {...gateBtn(podeEnviar)}
