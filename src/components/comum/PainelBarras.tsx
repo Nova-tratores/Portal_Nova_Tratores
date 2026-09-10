@@ -85,13 +85,15 @@ export interface PainelProps {
   corDe?: (a: Agregado) => string;
   altura?: number;
   dark?: boolean;
+  /** Clique numa barra (ou numa linha da tabela): abre a composição daquele balde. */
+  onBarra?: (a: Agregado, tituloPainel: string) => void;
 }
 
 interface TickProps { x?: number; y?: number; payload?: { value?: string | number } }
 interface RotuloProps { x?: number | string; y?: number | string; width?: number | string; height?: number | string; value?: number | string }
 
 /** Um gráfico de barras (uma série, um eixo) com alternância pra tabela. Tooltip mostra valor E quantidade. */
-export function Painel({ tema, titulo, sub, itens, metrica, horizontal, corDe, altura, dark = false }: PainelProps) {
+export function Painel({ tema, titulo, sub, itens, metrica, horizontal, corDe, altura, dark = false, onBarra }: PainelProps) {
   const [modo, setModo] = useState<"grafico" | "tabela">("grafico");
   const { card } = estilosTema(tema);
   const cor = dark ? tema.accentDark : tema.accent;
@@ -131,7 +133,7 @@ export function Painel({ tema, titulo, sub, itens, metrica, horizontal, corDe, a
   return (
     <div style={card}>
       <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-        <div><b style={{ fontSize: 14, color: tema.text }}>{titulo}</b>{sub && <span style={{ fontSize: 12, color: tema.textLight, marginLeft: 8 }}>{sub}</span>}</div>
+        <div><b style={{ fontSize: 14, color: tema.text }}>{titulo}</b>{sub && <span style={{ fontSize: 12, color: tema.textLight, marginLeft: 8 }}>{sub}</span>}{onBarra && <span style={{ fontSize: 11, color: tema.textLight, marginLeft: 8 }}>· clique na barra pra ver o que compõe</span>}</div>
         <div style={{ display: "inline-flex", gap: 4 }}>
           <button type="button" onClick={() => setModo("grafico")} style={botao(modo === "grafico")}>Gráfico</button>
           <button type="button" onClick={() => setModo("tabela")} style={botao(modo === "tabela")}>Tabela</button>
@@ -143,7 +145,7 @@ export function Painel({ tema, titulo, sub, itens, metrica, horizontal, corDe, a
             <thead><tr style={{ background: tema.bg }}>{["", "Qtd", "Valor", "% do total"].map((c, i) => <th key={i} style={{ textAlign: i ? "right" : "left", padding: "6px 10px", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: tema.textLight }}>{c}</th>)}</tr></thead>
             <tbody>
               {itens.map((a) => (
-                <tr key={a.chave} style={{ borderTop: `1px solid ${tema.border}` }}>
+                <tr key={a.chave} style={{ borderTop: `1px solid ${tema.border}`, cursor: onBarra ? "pointer" : "default" }} onClick={() => onBarra?.(a, titulo)} title={onBarra ? "Ver o que compõe" : undefined}>
                   <td style={{ padding: "6px 10px" }}>{a.label}</td>
                   <td style={{ padding: "6px 10px", textAlign: "right" }}>{a.n}</td>
                   <td style={{ padding: "6px 10px", textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>{fmtBRL(a.valor)}</td>
@@ -166,7 +168,8 @@ export function Painel({ tema, titulo, sub, itens, metrica, horizontal, corDe, a
                 ? <YAxis type="category" dataKey="label" width={160} interval={0} tick={tickCat} axisLine={false} tickLine={false} />
                 : <YAxis type="number" tick={tickNum} axisLine={false} tickLine={false} width={76} />}
               <Tooltip cursor={{ fill: "rgba(100,116,139,0.10)" }} content={<Dica />} />
-              <Bar dataKey="y" fill={cor} radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} maxBarSize={26} isAnimationActive={false}>
+              <Bar dataKey="y" fill={cor} radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} maxBarSize={26} isAnimationActive={false}
+                cursor={onBarra ? "pointer" : undefined} onClick={(d: unknown) => { const p = (d as { payload?: Agregado })?.payload; if (p && onBarra) onBarra(p, titulo); }}>
                 {dados.map((a) => <Cell key={a.chave} fill={corDe ? corDe(a) : cor} />)}
                 {rotularTodas && <LabelList dataKey="y" content={(p) => rotulo(p as RotuloProps)} />}
               </Bar>
@@ -174,6 +177,56 @@ export function Painel({ tema, titulo, sub, itens, metrica, horizontal, corDe, a
           </ResponsiveContainer>
         </div>
       )}
+    </div>
+  );
+}
+
+// =============================================
+// POPUP DE COMPOSIÇÃO — lista os registros que compõem a barra clicada.
+// Genérico: o dashboard passa as colunas e as linhas já em texto (+ id pra abrir).
+// =============================================
+export interface LinhaComposicao { id: string; celulas: string[]; valor: number }
+export interface PopupComposicaoProps {
+  tema: Tema;
+  titulo: string;          // ex.: "Por técnico · GABRIEL MORAES"
+  colunas: string[];       // cabeçalhos
+  linhas: LinhaComposicao[];
+  colValor?: number;       // índice da coluna de valor (alinha à direita, negrito)
+  onAbrir?: (id: string) => void;
+  onClose: () => void;
+}
+
+export function PopupComposicao({ tema, titulo, colunas, linhas, colValor = -1, onAbrir, onClose }: PopupComposicaoProps) {
+  const total = linhas.reduce((s, l) => s + (Number(l.valor) || 0), 0);
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 960, maxHeight: "85vh", display: "flex", flexDirection: "column", background: tema.surface, border: `1px solid ${tema.border}`, borderTop: `4px solid ${tema.accent}`, borderRadius: 8, boxShadow: "0 24px 60px rgba(0,0,0,0.3)", fontFamily: "inherit", color: tema.text }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 18px 10px" }}>
+          <div>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>{titulo}</div>
+            <div style={{ fontSize: 12.5, color: tema.textLight, marginTop: 2 }}>{linhas.length} registro{linhas.length !== 1 ? "s" : ""} · total <b style={{ color: tema.text }}>{fmtBRL(total)}</b>{onAbrir ? " · clique numa linha pra abrir" : ""}</div>
+          </div>
+          <button type="button" onClick={onClose} aria-label="Fechar" style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 20, color: tema.textLight, lineHeight: 1 }}>×</button>
+        </div>
+        <div style={{ overflow: "auto", borderTop: `1px solid ${tema.border}` }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr>{colunas.map((c, i) => <th key={i} style={{ textAlign: i === colValor ? "right" : "left", padding: "8px 12px", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: tema.textLight, position: "sticky", top: 0, background: tema.bg, whiteSpace: "nowrap" }}>{c}</th>)}</tr>
+            </thead>
+            <tbody>
+              {linhas.length === 0 ? (
+                <tr><td colSpan={colunas.length} style={{ padding: 24, textAlign: "center", color: tema.textLight }}>Nada aqui.</td></tr>
+              ) : linhas.map((l) => (
+                <tr key={l.id} onClick={() => onAbrir?.(l.id)} style={{ borderTop: `1px solid ${tema.border}`, cursor: onAbrir ? "pointer" : "default" }} title={onAbrir ? `Abrir ${l.id}` : undefined}>
+                  {l.celulas.map((v, i) => (
+                    <td key={i} style={{ padding: "8px 12px", textAlign: i === colValor ? "right" : "left", fontWeight: i === colValor ? 700 : 400, whiteSpace: i === colValor ? "nowrap" : "normal", maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis" }}>{v || "—"}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

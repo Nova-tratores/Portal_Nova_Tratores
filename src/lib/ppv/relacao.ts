@@ -307,15 +307,16 @@ export function totaisRelacao(lista: KanbanItem[]) {
 }
 
 // ---------- Agregações do Dashboard (puras; a tela só desenha) ----------
-export interface Agregado { chave: string; label: string; n: number; valor: number }
+/** `ids` = registros que compõem o balde (pro popup de composição ao clicar na barra). */
+export interface Agregado { chave: string; label: string; n: number; valor: number; ids: string[] }
 
 /** Agrupa por uma chave e soma qtd/valor. `ordem` = "valor" (desc), "n" (desc) ou "chave" (asc). */
 export function agregarPor(lista: KanbanItem[], chaveDe: (o: KanbanItem) => string, labelDe: (chave: string) => string = (c) => c, ordem: "valor" | "n" | "chave" = "valor"): Agregado[] {
   const m = new Map<string, Agregado>();
   for (const o of lista) {
     const c = chaveDe(o);
-    const a = m.get(c) || { chave: c, label: labelDe(c), n: 0, valor: 0 };
-    a.n++; a.valor += valorNum(o);
+    const a = m.get(c) || { chave: c, label: labelDe(c), n: 0, valor: 0, ids: [] };
+    a.n++; a.valor += valorNum(o); a.ids.push(String(o.id || ""));
     m.set(c, a);
   }
   const arr = Array.from(m.values());
@@ -329,7 +330,7 @@ export function topComOutros(itens: Agregado[], n: number, rotuloOutros = "Outro
   if (itens.length <= n) return itens;
   const top = itens.slice(0, n);
   const resto = itens.slice(n);
-  top.push({ chave: "__outros", label: `${rotuloOutros} (${resto.length})`, n: resto.reduce((s, x) => s + x.n, 0), valor: resto.reduce((s, x) => s + x.valor, 0) });
+  top.push({ chave: "__outros", label: `${rotuloOutros} (${resto.length})`, n: resto.reduce((s, x) => s + x.n, 0), valor: resto.reduce((s, x) => s + x.valor, 0), ids: resto.flatMap((x) => x.ids) });
   return top;
 }
 

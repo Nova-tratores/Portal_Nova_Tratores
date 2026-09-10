@@ -10,9 +10,9 @@ import { useMemo, useState } from "react";
 import type { KanbanCard } from "@/lib/pos/types";
 import {
   OPCOES_PERIODO, passaPeriodo, rotuloPeriodo, estaPendente, valorOS, fmtBRL, FASES_OS, FASE_PENDENTE_OS, faseOS, rotuloFaseOS,
-  porMesDataOS, porMesFimOS, porTecnicoOS, porClienteOS, porTipoOS, porFaseOS, porMesPrevisaoOS, topComOutros,
+  porMesDataOS, porMesFimOS, porTecnicoOS, porClienteOS, porTipoOS, porFaseOS, porMesPrevisaoOS, topComOutros, colTextoOS, type Agregado,
 } from "@/lib/pos/relacao";
-import { Painel, Tile, estilosTema, useTemaEscuro, type Metrica, type Tema } from "@/components/comum/PainelBarras";
+import { Painel, Tile, PopupComposicao, estilosTema, useTemaEscuro, type Metrica, type Tema } from "@/components/comum/PainelBarras";
 
 interface Props {
   orders: KanbanCard[];
@@ -37,6 +37,9 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
   const [tipo, setTipo] = useState("");
   const [tecnico, setTecnico] = useState("");
   const [metrica, setMetrica] = useState<Metrica>("valor");
+  // Popup de composição: barra clicada → OS que formam aquele valor.
+  const [drill, setDrill] = useState<{ titulo: string; ids: string[] } | null>(null);
+  const onBarra = (a: Agregado, tituloPainel: string) => setDrill({ titulo: `${tituloPainel} · ${a.label}`, ids: a.ids });
   const tokenPeriodo = periodo === "a_partir" ? `a_partir:${aPartir}` : periodo;
 
   const tecnicos = useMemo(() => Array.from(new Set(orders.map((o) => (o.tecnico || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")), [orders]);
@@ -93,7 +96,7 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
     tecnico || tecnicoFiltro || "Todos os técnicos",
   ].join(" · ");
 
-  const comum = { tema: TEMA, metrica, dark };
+  const comum = { tema: TEMA, metrica, dark, onBarra };
 
   return (
     <div style={{ padding: "14px 16px 30px", display: "flex", flexDirection: "column", gap: 12, fontFamily: "inherit", color: TEMA.text }}>
@@ -195,6 +198,13 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
           </div>
         </>
       )}
+      {drill && (() => {
+        const set = new Set(drill.ids);
+        const linhas = filtrados.filter((o) => set.has(o.id)).sort((a, b) => valorOS(b) - valorOS(a))
+          .map((o) => ({ id: o.id, valor: valorOS(o), celulas: [colTextoOS(o, "id"), o.cliente || "", o.tecnico || "", o.tipoServico || "", colTextoOS(o, "data"), colTextoOS(o, "status"), colTextoOS(o, "valor")] }));
+        return <PopupComposicao tema={TEMA} titulo={drill.titulo} colunas={["Nº", "Cliente", "Técnico", "Tipo", "Data", "Fase", "Valor"]} linhas={linhas} colValor={6}
+          onAbrir={onAbrirOS ? (id) => { const o = orders.find((x) => x.id === id); setDrill(null); if (o) onAbrirOS(o); } : undefined} onClose={() => setDrill(null)} />;
+      })()}
     </div>
   );
 }

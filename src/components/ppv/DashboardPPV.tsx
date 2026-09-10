@@ -9,12 +9,12 @@
 // tela, tooltip em todo mark e visão em tabela em cada painel.
 // =============================================
 import { useMemo, useState } from "react";
-import { Painel, Tile, estilosTema, useTemaEscuro, type Metrica, type Tema } from "@/components/comum/PainelBarras";
+import { Painel, Tile, PopupComposicao, estilosTema, useTemaEscuro, type Metrica, type Tema } from "@/components/comum/PainelBarras";
 import type { KanbanItem } from "@/lib/ppv/types";
 import { STATUS_COLORS, STATUS_OPTIONS, rotuloStatus } from "@/lib/ppv/constants";
 import {
   OPCOES_PERIODO, passaPeriodo, rotuloPeriodo, isRemessa, statusNorm, estaAberto, fmtBRL, valorNum,
-  porMesData, porMesPrevisao, porTecnico, porCliente, porFase, topComOutros,
+  porMesData, porMesPrevisao, porTecnico, porCliente, porFase, topComOutros, colTextoRelacao, type Agregado,
 } from "@/lib/ppv/relacao";
 
 interface Props {
@@ -44,6 +44,9 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
   const [tipo, setTipo] = useState<"TODOS" | "PPV" | "REM">("TODOS");
   const [tecnico, setTecnico] = useState("");
   const [metrica, setMetrica] = useState<Metrica>("valor");
+  // Popup de composição: barra clicada → pedidos que formam aquele valor.
+  const [drill, setDrill] = useState<{ titulo: string; ids: string[] } | null>(null);
+  const onBarra = (a: Agregado, tituloPainel: string) => setDrill({ titulo: `${tituloPainel} · ${a.label}`, ids: a.ids });
   const tokenPeriodo = periodo === "a_partir" ? `a_partir:${aPartir}` : periodo;
 
   const tecnicos = useMemo(() => Array.from(new Set(orders.map((o) => (o.tecnico || "").trim()).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")), [orders]);
@@ -155,17 +158,17 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
       ) : (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 12 }}>
-            <Painel titulo="Por data (mês do pedido)" sub={`${agMes.length} mês${agMes.length !== 1 ? "es" : ""}`} itens={agMes} metrica={metrica} horizontal={false} tema={TEMA_PPV} dark={dark} />
-            <Painel titulo="Por previsão de faturamento" sub={kpi.semPrevisao ? `${kpi.semPrevisao} sem previsão informada` : "todos com previsão"} itens={agPrev} metrica={metrica} horizontal={false} tema={TEMA_PPV} dark={dark}
+            <Painel titulo="Por data (mês do pedido)" sub={`${agMes.length} mês${agMes.length !== 1 ? "es" : ""}`} itens={agMes} metrica={metrica} horizontal={false} tema={TEMA_PPV} dark={dark} onBarra={onBarra} />
+            <Painel titulo="Por previsão de faturamento" sub={kpi.semPrevisao ? `${kpi.semPrevisao} sem previsão informada` : "todos com previsão"} itens={agPrev} metrica={metrica} horizontal={false} tema={TEMA_PPV} dark={dark} onBarra={onBarra}
               corDe={(a) => (a.chave === "zzzz" ? (dark ? "#64748b" : "#94a3b8") : corBarra)} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 12 }}>
-            <Painel titulo="Por técnico" sub="top 10 + outros" itens={agTec} metrica={metrica} horizontal tema={TEMA_PPV} dark={dark} />
-            <Painel titulo="Por fase" sub="cores iguais às da tela" itens={agFase} metrica={metrica} horizontal tema={TEMA_PPV} dark={dark}
+            <Painel titulo="Por técnico" sub="top 10 + outros" itens={agTec} metrica={metrica} horizontal tema={TEMA_PPV} dark={dark} onBarra={onBarra} />
+            <Painel titulo="Por fase" sub="cores iguais às da tela" itens={agFase} metrica={metrica} horizontal tema={TEMA_PPV} dark={dark} onBarra={onBarra}
               corDe={(a) => STATUS_COLORS[a.chave]?.text || corBarra} />
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 12 }}>
-            <Painel titulo="Por cliente" sub="top 12 + outros" itens={agCliTop} metrica={metrica} horizontal tema={TEMA_PPV} dark={dark} altura={Math.max(300, agCliTop.length * 30 + 40)} />
+            <Painel titulo="Por cliente" sub="top 12 + outros" itens={agCliTop} metrica={metrica} horizontal tema={TEMA_PPV} dark={dark} onBarra={onBarra} altura={Math.max(300, agCliTop.length * 30 + 40)} />
             <div style={{ ...card, padding: 0, overflow: "hidden" }}>
               <div style={{ padding: "12px 16px 8px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <b style={{ fontSize: 14 }}>Clientes no filtro</b>
@@ -193,6 +196,13 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
           </div>
         </>
       )}
+      {drill && (() => {
+        const set = new Set(drill.ids);
+        const linhas = filtrados.filter((o) => set.has(o.id)).sort((a, b) => valorNum(b) - valorNum(a))
+          .map((o) => ({ id: o.id, valor: valorNum(o), celulas: [colTextoRelacao(o, "id"), colTextoRelacao(o, "tipo"), o.cliente || "", o.tecnico || "", colTextoRelacao(o, "data"), colTextoRelacao(o, "status"), colTextoRelacao(o, "valor")] }));
+        return <PopupComposicao tema={TEMA_PPV} titulo={drill.titulo} colunas={["Nº", "Tipo", "Cliente", "Técnico", "Data", "Fase", "Valor"]} linhas={linhas} colValor={6}
+          onAbrir={onAbrirPedido ? (id) => { setDrill(null); onAbrirPedido(id); } : undefined} onClose={() => setDrill(null)} />;
+      })()}
     </div>
   );
 }
