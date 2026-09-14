@@ -18,7 +18,7 @@ import HistoricoModal from './HistoricoModal';
 import TicketsDaReq from './TicketsDaReq';
 import RecorteAnexo from './RecorteAnexo';
 import DialogoImprimirReq from './DialogoImprimirReq';
-import { anexosDaReq, anexosNoDrive as anexosNoDriveDe, getUrlAnexo } from '@/lib/requisicoes/anexos';
+import { anexosDaReq, anexosNoDrive as anexosNoDriveDe, getUrlAnexo, CAMPOS_NF } from '@/lib/requisicoes/anexos';
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { buscarContaDaReq, criarContaDaRequisicao, type ContaExistente } from '@/lib/financeiro/conta-da-requisicao';
 import { notificarAdminsClient } from '@/hooks/useNotificarAdmins';
@@ -439,7 +439,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
       // Alimentação com NF anexada pula direto pra "Enviado Financeiro"
       // (nos outros tipos a nota não muda o status)
       const tipoReq = String(localData.tipo || localData.ReqTipo || '').toLowerCase();
-      if (fieldName === 'foto_nf' && tipoReq.startsWith('alimenta') && !['financeiro', 'lixeira'].includes(String(localData.status || ''))) {
+      if (fieldName.startsWith('foto_nf') && tipoReq.startsWith('alimenta') && !['financeiro', 'lixeira'].includes(String(localData.status || ''))) {
         const hoje = new Date().toISOString().slice(0, 10);
         setLocalData((prev: any) => ({ ...prev, status: 'financeiro', enviado_financeiro_data: hoje }));
         onUpdate(req.id, { status: 'financeiro', enviado_financeiro_data: hoje });
@@ -1281,7 +1281,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               <div>
                 <span className={`${sectionTitle} text-black`}><Paperclip size={12}/> Anexos</span>
                 <div className="space-y-2">
-                  {renderAnexo('Nota Fiscal', 'foto_nf', <Camera size={14}/>)}
+                  {/* Até 5 NFs: o próximo slot vazio só aparece quando o anterior
+                      foi preenchido. Slots 2..5 exigem a coluna no banco (senão
+                      a chave nem vem no select * e o slot fica escondido). */}
+                  {CAMPOS_NF
+                    .filter((f, i) => i === 0 || f in localData)
+                    .filter((f, i, lista) => i === 0 || !!localData[f] || !!localData[lista[i - 1]])
+                    .map((f, i) => renderAnexo(i === 0 ? 'Nota Fiscal' : `Nota Fiscal ${i + 1}`, f, <Camera size={14}/>))}
                   {renderAnexo('Boleto', 'boleto_fornecedor', <Receipt size={14}/>)}
                   {renderAnexo('Recibo / Outros', 'recibo_fornecedor', <Paperclip size={14}/>)}
                 </div>

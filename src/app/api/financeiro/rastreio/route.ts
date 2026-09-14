@@ -35,7 +35,7 @@ const LIMIT_TEXTO = 10;
 // sem a seção — foi o que aconteceu com `comprovante_pagamento`/`created_at`,
 // que não existem em finan_pagar (são `anexo_comprovante` e `criado_em`).
 const COLS_FP = 'id, fornecedor, valor, data_vencimento, motivo, metodo, status, status_envio, numero_NF, nfe_chave, nfe_serie, nfe_data_emissao, nfe_cnpj_emitente, nfe_xml_url, anexo_nf, anexo_boleto, anexo_requisicao, anexo_comprovante, is_requisicao, requisicao_ids, qtd_parcelas, parcelas_vencimentos, omie_cod_lancamento, omie_empresa, criado_por, criado_em, autonomo_sem_nota';
-const COLS_REQ = 'id, titulo, tipo, setor, status, data, solicitante, fornecedor, numero_nota, valor_despeza, foto_nf, boleto_fornecedor, recibo_fornecedor, ordem_servico, origem';
+const COLS_REQ = 'id, titulo, tipo, setor, status, data, solicitante, fornecedor, numero_nota, valor_despeza, foto_nf, foto_nf2, foto_nf3, foto_nf4, foto_nf5, boleto_fornecedor, recibo_fornecedor, ordem_servico, origem';
 // idem: os boletos extras do Chamado_NF são `anexo_boleto2` (sem underscore) e
 // `anexo_boleto_p1..p5`; `anexo_boleto_2/_3` nunca existiram, e a tabela não tem
 // coluna de criação.
@@ -374,6 +374,10 @@ function montarAnexos(f: { secoes: any }): AnexoFicha[] {
     const origem: RefDoc = { tipo: 'requisicao', id: String(q.id) };
     const ol = `Requisição #${q.id}`;
     if (q.foto_nf) add(origem, ol, 'Nota fiscal', urlDeAnexoReq(q.foto_nf));
+    for (const n of [2, 3, 4, 5]) {
+      const nfx = (q as Record<string, unknown>)[`foto_nf${n}`];
+      if (nfx) add(origem, ol, `Nota fiscal ${n}`, urlDeAnexoReq(String(nfx)));
+    }
     if (q.boleto_fornecedor) add(origem, ol, 'Boleto', urlDeAnexoReq(q.boleto_fornecedor));
     if (q.recibo_fornecedor) add(origem, ol, 'Recibo / outros', urlDeAnexoReq(q.recibo_fornecedor));
   }

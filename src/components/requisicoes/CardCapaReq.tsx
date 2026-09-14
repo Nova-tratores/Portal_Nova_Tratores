@@ -202,12 +202,16 @@ export default function CardCapaReq({ req, onUpdate, onPrint, dadosCompartilhado
               { campo: 'boleto_fornecedor', sigla: 'Boleto', nome: 'Boleto do fornecedor', Icone: Banknote, cor: 'chip-anexo-on' },
               { campo: 'recibo_fornecedor', sigla: 'Recibo', nome: 'Recibo / outros', Icone: Paperclip, cor: 'chip-anexo-on' },
             ] as const).map(({ campo, sigla, nome, Icone, cor }) => {
-              const tem = !!req[campo];
+              // NF: conta as até 5 notas (foto_nf + foto_nf2..5) num chip só
+              const qtd = campo === 'foto_nf'
+                ? ['foto_nf', 'foto_nf2', 'foto_nf3', 'foto_nf4', 'foto_nf5'].filter(c => !!req[c]).length
+                : (req[campo] ? 1 : 0);
+              const tem = qtd > 0;
               return (
                 <span key={campo}
-                  title={tem ? `${nome} anexado` : `Sem ${nome.toLowerCase()}`}
+                  title={tem ? `${nome} anexado${qtd > 1 ? ` (${qtd})` : ''}` : `Sem ${nome.toLowerCase()}`}
                   className={`flex items-center gap-1 px-1.5 py-1 rounded-md text-[10px] leading-none ${tem ? cor : 'text-zinc-300 bg-zinc-50'}`}>
-                  <Icone size={13} /> {sigla}
+                  <Icone size={13} /> {sigla}{qtd > 1 ? ` ×${qtd}` : ''}
                 </span>
               );
             })}

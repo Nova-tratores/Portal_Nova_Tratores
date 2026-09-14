@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("Requisicao")
       .select(
-        "id, titulo, valor_despeza, solicitante, created_at, numero_nota, status, foto_nf, recibo_fornecedor, boleto_fornecedor"
+        "id, titulo, valor_despeza, solicitante, created_at, numero_nota, status, foto_nf, foto_nf2, foto_nf3, foto_nf4, foto_nf5, recibo_fornecedor, boleto_fornecedor"
       )
       .ilike("fornecedor", nome)
       .order("created_at", { ascending: false })

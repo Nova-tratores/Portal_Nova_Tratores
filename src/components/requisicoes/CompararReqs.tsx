@@ -58,9 +58,13 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
 
   const ANEXOS = [
     { campo: 'foto_nf', nome: 'Nota fiscal', Icone: Receipt },
+    // NFs extras (2..5) só viram linha quando algum dos lados tem
+    ...['foto_nf2', 'foto_nf3', 'foto_nf4', 'foto_nf5']
+      .filter(c => a?.[c] || b?.[c])
+      .map(c => ({ campo: c, nome: `Nota fiscal ${c.slice(-1)}`, Icone: Receipt })),
     { campo: 'boleto_fornecedor', nome: 'Boleto', Icone: Banknote },
     { campo: 'recibo_fornecedor', nome: 'Recibo / outros', Icone: Paperclip },
-  ] as const;
+  ];
 
   const Cabecalho = ({ r, lado }: { r: any; lado: string }) => (
     <div className="flex-1 min-w-0 px-5 py-4">

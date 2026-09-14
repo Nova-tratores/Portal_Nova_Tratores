@@ -2,8 +2,16 @@
 // modal completo (antes só existiam dentro do CardReq).
 import { supabase } from '@/lib/supabase';
 
+// Até 5 notas fiscais por requisição (foto_nf + foto_nf2..5 — migration
+// sql/req-notas-extras.sql). Consumidores tolerantes checam se a coluna veio.
+export const CAMPOS_NF = ['foto_nf', 'foto_nf2', 'foto_nf3', 'foto_nf4', 'foto_nf5'] as const;
+
 export const CAMPOS_ANEXO = [
   { field: 'foto_nf', label: 'Nota Fiscal' },
+  { field: 'foto_nf2', label: 'Nota Fiscal 2' },
+  { field: 'foto_nf3', label: 'Nota Fiscal 3' },
+  { field: 'foto_nf4', label: 'Nota Fiscal 4' },
+  { field: 'foto_nf5', label: 'Nota Fiscal 5' },
   { field: 'boleto_fornecedor', label: 'Boleto' },
   { field: 'recibo_fornecedor', label: 'Recibo / Outros' },
 ] as const;

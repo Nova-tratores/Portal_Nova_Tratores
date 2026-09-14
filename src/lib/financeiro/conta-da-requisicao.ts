@@ -23,6 +23,10 @@ export interface ReqParaConta {
   titulo?: string | null;
   numero_nota?: string | null;
   foto_nf?: string | null;
+  foto_nf2?: string | null;
+  foto_nf3?: string | null;
+  foto_nf4?: string | null;
+  foto_nf5?: string | null;
   boleto_fornecedor?: string | null;
   recibo_fornecedor?: string | null;
   valor_despeza?: string | null;
@@ -46,7 +50,7 @@ export interface ContaExistente {
 }
 
 const COLS_REQ =
-  'id, titulo, numero_nota, foto_nf, boleto_fornecedor, recibo_fornecedor, valor_despeza, tipo, fornecedor, solicitante, setor, data, obs, ordem_servico, veiculo, Chassis_Modelo';
+  'id, titulo, numero_nota, foto_nf, foto_nf2, foto_nf3, foto_nf4, foto_nf5, boleto_fornecedor, recibo_fornecedor, valor_despeza, tipo, fornecedor, solicitante, setor, data, obs, ordem_servico, veiculo, Chassis_Modelo';
 
 // Caminho relativo do bucket `requisicoes` vira URL pública
 export function resolverUrlAnexoRequisicao(caminho: string | null | undefined): string | null {
@@ -210,6 +214,11 @@ export async function criarContaDaRequisicao(params: {
     if (bol) urlsBoleto.push(bol);
     const rec = resolverUrlAnexoRequisicao(r.recibo_fornecedor);
     if (rec) urlsReq.push(rec);
+    // NFs extras (2..5) acompanham em anexo_requisicao — anexo_nf é um só
+    for (const f of ['foto_nf2', 'foto_nf3', 'foto_nf4', 'foto_nf5'] as const) {
+      const nfx = resolverUrlAnexoRequisicao(r[f]);
+      if (nfx) urlsReq.push(nfx);
+    }
   }
   const reqComNF = grupo.find((r) => r.foto_nf);
   const anexoNF = reqComNF ? resolverUrlAnexoRequisicao(reqComNF.foto_nf) : null;
