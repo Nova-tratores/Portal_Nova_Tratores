@@ -4,6 +4,19 @@ import { safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 
+// Último dia de serviço agendado da OS: o maior dia de Dias_Execucao
+// ("YYYY-MM-DD,YYYY-MM-DD,..."), ou a Previsão de Execução quando não há dias.
+// É a referência das transições automáticas: 1 dia depois dele, a OS sai de
+// Execução para "Aguardando ordem Técnico".
+export function ultimoDiaServico(previsaoExecucao: unknown, diasExecucao: unknown): string {
+  const dias = String(diasExecucao || "")
+    .split(",").map((d) => d.trim().slice(0, 10))
+    .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  if (dias.length) return dias.sort().pop() as string;
+  const prev = String(previsaoExecucao || "").trim().slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(prev) ? prev : "";
+}
+
 export interface MudarFaseOpts {
   notificar?: boolean;   // notifica admins + audit (default true). Auto-transições usam false p/ não spammar.
   acaoLog?: string;      // texto do log na timeline da OS

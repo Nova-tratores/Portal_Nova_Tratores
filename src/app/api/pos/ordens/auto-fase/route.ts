@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS } from "@/lib/pos/constants";
-import { aplicarMudancaFase } from "@/lib/pos/fase";
+import { aplicarMudancaFase, ultimoDiaServico } from "@/lib/pos/fase";
 
 // Transições automáticas de fase por data (rodar 1x/dia via cron):
-//  A) Chegou a Previsão de Execução  → "Execução" (só de fases iniciais)
-//  B) Passou Previsão de Faturamento + 1 dia → "Aguardando ordem Técnico" (de fases de execução)
+//  A) Chegou a Previsão de Execução → "Execução" (só de fases iniciais)
+//  B) Passou 1 dia do ÚLTIMO dia de serviço da OS (Dias_Execucao; sem dias,
+//     a própria Previsão de Execução) → "Aguardando ordem Técnico"
 const FASES_INICIAIS = [
   "Orçamento",
   "Orçamento enviado para o cliente e aguardando",
@@ -42,7 +43,7 @@ export async function POST(req: NextRequest) {
 
   const { data: ordens, error } = await supabase
     .from(TBL_OS)
-    .select("Id_Ordem, Status, Previsao_Execucao, Previsao_Faturamento")
+    .select("Id_Ordem, Status, Previsao_Execucao, Dias_Execucao")
     .not("Status", "in", '("Concluída","Cancelada")');
 
   if (error) return NextResponse.json({ ok: false, erro: error.message }, { status: 500 });
@@ -52,18 +53,17 @@ export async function POST(req: NextRequest) {
   for (const os of ordens || []) {
     const status = String(os.Status || "").trim();
     const prevExec = String(os.Previsao_Execucao || "").trim();
-    const prevFat = String(os.Previsao_Faturamento || "").trim();
-    const fatMaisUm = prevFat ? maisUmDia(prevFat) : "";
-    const passouFat = !!fatMaisUm && fatMaisUm <= hoje;
+    const ultimoDia = ultimoDiaServico(os.Previsao_Execucao, os.Dias_Execucao);
+    const passouServico = !!ultimoDia && maisUmDia(ultimoDia) <= hoje;
 
     let destino: string | null = null;
 
-    // B) Faturamento + 1 dia → relatório (a partir das fases de execução)
-    if (passouFat && FASES_EXECUCAO.includes(status)) {
+    // B) 1 dia depois do último dia de serviço → relatório (a partir das fases de execução)
+    if (passouServico && FASES_EXECUCAO.includes(status)) {
       destino = FASE_RELATORIO;
     }
-    // A) Previsão de execução chegou → Execução (só fases iniciais e antes do faturamento+1)
-    else if (FASES_INICIAIS.includes(status) && prevExec && prevExec <= hoje && !passouFat) {
+    // A) Previsão de execução chegou → Execução (só fases iniciais e com serviço ainda em curso)
+    else if (FASES_INICIAIS.includes(status) && prevExec && prevExec <= hoje && !passouServico) {
       destino = FASE_EXECUCAO;
     }
 

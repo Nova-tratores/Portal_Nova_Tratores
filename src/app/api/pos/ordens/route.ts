@@ -4,6 +4,7 @@ import { TBL_OS, TBL_LOGS_PPO, TBL_METRICAS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
+import { ultimoDiaServico } from "@/lib/pos/fase";
 import { motivoClienteInativo } from "@/lib/clientes/inativo";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
@@ -72,17 +73,20 @@ async function autoMoveByDate() {
   }
 
   // 2. Execução → Aguardando ordem Técnico
-  //    SÓ move se tem Previsao_Faturamento preenchida E chegou o dia (ou já passou)
-  //    Se não tem Previsao_Faturamento, NÃO move automaticamente — o admin decide
-  const { data: execAtrasadas } = await supabase
+  //    Move 1 dia DEPOIS do último dia de serviço da OS (Dias_Execucao; sem
+  //    dias marcados, vale a própria Previsão de Execução). OS sem data
+  //    nenhuma NÃO move — o admin decide.
+  const { data: emExecucao } = await supabase
     .from(TBL_OS)
-    .select("Id_Ordem, Status, Previsao_Execucao, Previsao_Faturamento, Os_Tecnico")
-    .not("Previsao_Execucao", "is", null)
-    .not("Previsao_Faturamento", "is", null)
-    .lte("Previsao_Faturamento", hojeISO)
+    .select("Id_Ordem, Status, Previsao_Execucao, Dias_Execucao, Os_Tecnico")
     .in("Status", ["Execução"]);
 
-  for (const os of execAtrasadas || []) {
+  const execAtrasadas = (emExecucao || []).filter((os) => {
+    const ultimo = ultimoDiaServico(os.Previsao_Execucao, os.Dias_Execucao);
+    return !!ultimo && ultimo <= ontemISO; // último dia + 1 já chegou
+  });
+
+  for (const os of execAtrasadas) {
     if (await autoMoveJaFoiRevertido(os.Id_Ordem, "Auto-move: período de execução encerrado sem conclusão")) continue;
     await supabase.from(TBL_OS).update({ Status: "Aguardando ordem Técnico" }).eq("Id_Ordem", os.Id_Ordem);
     await registrarLog(os.Id_Ordem, "Auto-move: período de execução encerrado sem conclusão", "Aguardando ordem Técnico", os.Status);
