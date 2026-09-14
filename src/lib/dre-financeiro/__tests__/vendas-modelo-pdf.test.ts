@@ -94,9 +94,9 @@ describe('maxCelula / ordenarParaGrade', () => {
     expect(maxCelula(modelos, ['2024-01', '2024-04'], 'receita')).toBe(300000)
   })
   it('grade ordena por total da métrica, sem mutar a entrada', () => {
-    const porQtd = ordenarParaGrade(modelos, 'qtd').map((m) => m.modelo)
+    const porQtd = ordenarParaGrade(modelos, 'qtd').map((m: { modelo: string }) => m.modelo)
     expect(porQtd).toEqual(['9500', '6075E'])
-    const porReceita = ordenarParaGrade(modelos, 'receita').map((m) => m.modelo)
+    const porReceita = ordenarParaGrade(modelos, 'receita').map((m: { modelo: string }) => m.modelo)
     expect(porReceita).toEqual(['6075E', '9500'])
     expect(modelos[0].modelo).toBe('6075E')
   })

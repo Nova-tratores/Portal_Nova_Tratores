@@ -1,7 +1,15 @@
 'use client';
 // Mapa ILUSTRADO do veículo: desenho de perfil com um ÍCONE por sistema da
-// taxonomia. O ícone acende na cor da PIOR gravidade aberta naquele sistema,
-// traz a contagem e, clicado, abre o Histórico de pendências filtrado.
+// taxonomia. O ícone acende na cor da PIOR gravidade aberta naquele sistema.
+//
+// MODO ZOOM (pedido do usuário): clicar num sistema faz a "câmera" deslizar
+// até aquela região do carro (transição de transform no SVG — não é 3D) e um
+// painel de PEÇAS explode ao lado: cada componente da taxonomia vira um chip
+// com um mini-ícone desenhado (amortecedor, disco, bateria, vela, palheta…),
+// colorido pela gravidade da pendência aberta nele — cinza quando está ok.
+// No Motor dos carros/picape o CAPÔ levanta e aparece o bloco do motor.
+// Os mini-ícones são desenhos PRÓPRIOS (a prancha de referência do usuário é
+// de banco de imagens — inspiração, nunca cópia).
 //
 // O DESENHO MUDA COM O TIPO do veículo (lib/frota/silhueta): sedã, hatch,
 // picape, caminhão rígido (chassi), moto de rua e carretinha — recriados à mão
@@ -15,7 +23,8 @@
 // Detalhes claros (vidros, frisos de porta, maçaneta, farol) são FUROS no path
 // (fill-rule evenodd) ou traços na cor do CARD (var --portal-bg-card): no modo
 // escuro eles acompanham o fundo — um branco fixo viraria um recorte aceso.
-import { GRAVIDADE_COR, GRAVIDADE_LABEL, type ContagemGravidade } from '@/lib/frota/gravidade';
+import { useMemo, useState } from 'react';
+import { GRAVIDADE_COR, GRAVIDADE_LABEL, type ContagemGravidade, type Gravidade } from '@/lib/frota/gravidade';
 import { SISTEMAS_FORA, type TipoSilhueta } from '@/lib/frota/silhueta';
 
 interface Ponto {
@@ -26,11 +35,20 @@ interface Ponto {
   anchor: 'start' | 'middle' | 'end';
 }
 
+/** Uma peça (componente da taxonomia) no painel de detalhe do sistema. */
+export interface PecaDetalhe {
+  id: string;
+  rotulo: string;      // componente || subsistema || 'Geral'
+  subsistema: string;  // agrupador visual
+  total: number;       // pendências abertas nesta peça
+  pior: Gravidade | null;
+}
+
 const R = 17; // raio do disco do ícone
 const CINZA = '#94a3b8';
 const BG = 'var(--portal-bg-card, #fff)';
 
-// ── glifos ─────────────────────────────────────────────────────────────────
+// ── glifos dos SISTEMAS ────────────────────────────────────────────────────
 // Desenhados num quadrado -10..10 com centro em 0,0 (o <g> pai translada).
 // Traço, não preenchimento: legível em qualquer cor e não vira mancha.
 function Glifo({ sistema }: { sistema: string }) {
@@ -63,6 +81,99 @@ function Glifo({ sistema }: { sistema: string }) {
   }
 }
 
+// ── mini-ícones das PEÇAS (painel de detalhe) ──────────────────────────────
+// Um glifo por "família" de peça, escolhido por palavra no nome do componente
+// (mesma filosofia das REGRAS_TEXTO do motor de pendências). Desenhos próprios
+// no mesmo quadrado -10..10, traço fino.
+const FAMILIAS: [RegExp, string][] = [
+  [/[óo]leo|lubrific|fluido/i, 'gota'],
+  [/arrefec|radiador|ventoinha|h[ée]lice/i, 'radiador'],
+  [/combust[ií]vel|bomba|tanque|aliment|inje[çc]/i, 'bomba'],
+  [/escap|catalisador|silencioso/i, 'escapamento'],
+  [/correia|polia|tensor/i, 'correia'],
+  [/junta|retentor|veda[çc]/i, 'junta'],
+  [/vela|igni[çc]/i, 'vela'],
+  [/bateria/i, 'bateria'],
+  [/farol|l[aâ]mpada|ilumin|lanterna|seta/i, 'farol'],
+  [/partida|arranque|alternador/i, 'partida'],
+  [/palheta|limpador/i, 'palheta'],
+  [/painel|instrumento/i, 'painel'],
+  [/buzina|som|alto.?falante/i, 'buzina'],
+  [/chicote|fus[ií]vel|rel[eé]|el[eé]tric/i, 'raio'],
+  [/pastilha|lona/i, 'pastilha'],
+  [/tambor/i, 'tambor'],
+  [/freio de m[aã]o|estacionamento/i, 'freiomao'],
+  [/disco|pin[çc]a|hidr[aá]ulica|flex[ií]v/i, 'disco'],
+  [/amortecedor|mola|batente/i, 'amortecedor'],
+  [/bucha|piv[oô]|bandeja|terminal|barra|axial/i, 'articulacao'],
+  [/embreagem|plat[oô]|atuador/i, 'embreagem'],
+  [/c[aâ]mbio|caixa|manopla|trambulador/i, 'cambio'],
+  [/cardan|diferencial|homocin|semi.?eixo|junta fixa/i, 'cardan'],
+  [/volante|dire[çc][aã]o|coluna/i, 'volante'],
+  [/pneu|estepe/i, 'pneu'],
+  [/roda|aro|alinhamento|balancea|rolamento|cubo/i, 'roda'],
+  [/porta|ma[çc]aneta|fechadura|dobradi[çc]a|trava/i, 'porta'],
+  [/vidro|para.?brisa/i, 'vidro'],
+  [/retrovisor|espelho/i, 'retrovisor'],
+  [/lataria|pintura|funilaria|para.?choque|capo|cap[oô]/i, 'lataria'],
+  [/banco|estofad/i, 'banco'],
+  [/tapete|forra[çc]|teto/i, 'tapete'],
+  [/compressor|g[aá]s|carga|filtro de cabine|ar.?condicionado/i, 'floco'],
+  [/cinto/i, 'cinto'],
+  [/extintor/i, 'extintor'],
+  [/tri[aâ]ngulo/i, 'triangulo'],
+  [/macaco|chave de roda/i, 'macaco'],
+];
+
+function familiaDe(nome: string): string {
+  for (const [re, fam] of FAMILIAS) if (re.test(nome)) return fam;
+  return 'chave';
+}
+
+function MiniGlifo({ nome }: { nome: string }) {
+  const p = { fill: 'none', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  switch (familiaDe(nome)) {
+    case 'gota': return <g {...p}><path d="M0-8C3-3.6 5.2-1 5.2 2.2a5.2 5.2 0 11-10.4 0C-5.2-1-3-3.6 0-8z" /></g>;
+    case 'radiador': return <g {...p}><rect x="-7" y="-6" width="14" height="12" rx="1.2" /><path d="M-3.5-6v12M0-6v12M3.5-6v12" /></g>;
+    case 'bomba': return <g {...p}><rect x="-7" y="-7" width="9" height="14" rx="1" /><path d="M-5.5-3.5h6" /><path d="M2-5h2.4l2.6 2.6V4a1.6 1.6 0 01-3.2 0" /></g>;
+    case 'escapamento': return <g {...p}><rect x="-8" y="-4" width="13" height="8" rx="3.4" /><path d="M5 0h4M-8 0h-1.6" /><path d="M-4-4v8M0-4v8" /></g>;
+    case 'correia': return <g {...p}><circle cx="-3.6" cy="-1" r="3.4" /><circle cx="4.6" cy="3" r="2.4" /><path d="M-3.2-4.4C1.6-5.4 6-1 6.8 2M-3.4 2.4C.4 5.6 3 5.6 4.6 5.4" /></g>;
+    case 'junta': return <g {...p}><circle cx="0" cy="0" r="6.4" /><circle cx="0" cy="0" r="2.6" /><path d="M0-6.4v-1.6M0 6.4v1.6M-6.4 0h-1.6M6.4 0h1.6" /></g>;
+    case 'vela': return <g {...p}><path d="M-1.6-9h3.2v3.4h-3.2z" /><path d="M-3-5.6h6l-1 3.6h-4z" /><path d="M-2-2h4v4.6h-4z" /><path d="M0 2.6V8" /></g>;
+    case 'bateria': return <g {...p}><rect x="-8" y="-4" width="16" height="9" rx="1.4" /><path d="M-5-4v-2M5-4v-2" /><path d="M-6 .5h3M3 .5h3M4.5-1v3" /></g>;
+    case 'farol': return <g {...p}><path d="M-3-6h1.6a6 6 0 010 12H-3a8.8 8.8 0 010-12z" /><path d="M3.4-4h4.6M4.4 0h4.6M3.4 4h4.6" /></g>;
+    case 'partida': return <g {...p}><rect x="-8.5" y="-3.4" width="10" height="7.4" rx="2" /><circle cx="5" cy="0.3" r="3" /><path d="M5-2.7v-2.4M5 3.3v2.4M2-0.5l-1.5-1" /></g>;
+    case 'palheta': return <g {...p}><path d="M-8 7L3-4" /><path d="M1-6.4l5.4 5.4" strokeWidth="2.6" /><path d="M-8 7l-1 2" /></g>;
+    case 'painel': return <g {...p}><rect x="-8" y="-5" width="16" height="10" rx="1.8" /><circle cx="-3.6" cy="0" r="2.5" /><circle cx="3.6" cy="0" r="2.5" /><path d="M-3.6 0l1.4-1.6M3.6 0l1.4-1.6" /></g>;
+    case 'buzina': return <g {...p}><path d="M-6-2.6v5.2l5.4 3.8V-6.4z" /><path d="M2.4-3.4a5 5 0 010 6.8M5.2-5.6a8.6 8.6 0 010 11.2" /></g>;
+    case 'raio': return <g {...p}><path d="M2-9L-4.4 1h4l-2 8L6-2H1.6z" /></g>;
+    case 'pastilha': return <g {...p}><path d="M-4.6-6.4a9 9 0 010 12.8" /><path d="M-.6-6.4a9 9 0 010 12.8" /><circle cx="-3" cy="0" r="0.5" fill="currentColor" /><circle cx="-3.4" cy="-3.4" r="0.5" fill="currentColor" /><circle cx="-3.4" cy="3.4" r="0.5" fill="currentColor" /></g>;
+    case 'tambor': return <g {...p}><circle cx="0" cy="0" r="7.2" /><circle cx="0" cy="0" r="4.4" /><circle cx="0" cy="0" r="1" /></g>;
+    case 'freiomao': return <g {...p}><path d="M-7 6.5h4.4L6.6-5.4" /><circle cx="7.2" cy="-6.2" r="1.5" /><path d="M-5.6 6.5a3 3 0 106 0" /></g>;
+    case 'disco': return <g {...p}><circle cx="-1" cy="0" r="7" /><circle cx="-1" cy="0" r="2.4" /><path d="M5.4-4h3a1.5 1.5 0 011.5 1.5v5A1.5 1.5 0 018.4 4h-3z" /></g>;
+    case 'amortecedor': return <g {...p}><path d="M0-9v2.6M0 6.4V9" /><rect x="-2.6" y="-6.4" width="5.2" height="3.6" rx="1" /><path d="M-4.4-2.4h8.8M-4.4-.4l8.8 1.6M-4.4 1.6l8.8 1.6M-4.4 4h8.8" /></g>;
+    case 'articulacao': return <g {...p}><circle cx="-4.4" cy="4.6" r="2.6" /><path d="M-2.4 2.6L4.4-5.4" /><circle cx="5.6" cy="-6.6" r="1.8" /></g>;
+    case 'embreagem': return <g {...p}><circle cx="0" cy="0" r="7" /><circle cx="0" cy="0" r="1.8" /><path d="M0-7v2.6M0 7v-2.6M-7 0h2.6M7 0h-2.6M-5-5l1.9 1.9M5 5l-1.9-1.9M5-5l-1.9 1.9M-5 5l1.9-1.9" /></g>;
+    case 'cambio': return <g {...p}><circle cx="0" cy="-5.4" r="3.4" /><path d="M-1.8-6.4h3.6M-1.8-4.4h3.6" /><path d="M0-2v10.6" /><path d="M-3.4 8.6h6.8" /></g>;
+    case 'cardan': return <g {...p}><path d="M-9 0h4.6M4.4 0H9" /><circle cx="-.2" cy="0" r="2.8" /><path d="M-.2-2.8v-2.2M-.2 2.8v2.2" /></g>;
+    case 'volante': return <g {...p}><circle cx="0" cy="0" r="7.6" /><circle cx="0" cy="0" r="2.2" /><path d="M-7.6 0h5.4M7.6 0H2.2M0 2.2v5.4" /></g>;
+    case 'pneu': return <g {...p}><circle cx="0" cy="0" r="8" /><circle cx="0" cy="0" r="4.4" /><path d="M0-8v-1.4M0 8v1.4M-8 0h-1.4M8 0h1.4M-5.7-5.7l-1 -1M5.7 5.7l1 1M5.7-5.7l1-1M-5.7 5.7l-1 1" /></g>;
+    case 'roda': return <g {...p}><circle cx="0" cy="0" r="7.4" /><circle cx="0" cy="0" r="1.8" /><path d="M0-1.8V-7.4M1.7-.6l5.4-1.7M1-1.4 1.1 1.5M1.1 1.5l3.3 4.5M-1.1 1.5l-3.3 4.5M-1.7-.6l-5.4-1.7" /></g>;
+    case 'porta': return <g {...p}><path d="M-7-7h10.6l3.4 3.4V7h-14z" /><path d="M-7-1.6h14" opacity="0.6" /><path d="M1 1.4h3.6" strokeWidth="2" /></g>;
+    case 'vidro': return <g {...p}><path d="M-8 6L-3.4-6h11L8 6z" /><path d="M-1.6-4.2L-5 4.6" opacity="0.6" /></g>;
+    case 'retrovisor': return <g {...p}><path d="M-6.4-5.6a7.6 7.6 0 019.8 1.6c1.4 1.8 1.2 4-.6 5l-7.6 1.2c-2-.8-2.6-5.4-1.6-7.8z" /><path d="M-2.6 2.6L-4.6 8.4" /></g>;
+    case 'lataria': return <g {...p}><path d="M-9 3v-2l2-.6 2-2.6h6l2 2.6 2 .6v2z" /><circle cx="-4.5" cy="3.4" r="1.8" /><circle cx="4.5" cy="3.4" r="1.8" /></g>;
+    case 'banco': return <g {...p}><path d="M-4.6-8.4a2 2 0 012 2v6h4.6a2 2 0 012 2v3.2" /><path d="M-6-0.4h9.2" /><path d="M-6-0.4v6.4h10.6" /></g>;
+    case 'tapete': return <g {...p}><rect x="-7" y="-5" width="14" height="10" rx="1.4" /><path d="M-4-2h8M-4 1h8" opacity="0.6" /></g>;
+    case 'floco': return <g {...p}><path d="M0-8V8M-7-4l14 8M-7 4l14-8" /></g>;
+    case 'cinto': return <g {...p}><path d="M-6.4-8.4L4 5" /><path d="M-7.4 3.4h5.8l6.2 5" /><rect x="-2.4" y="1.4" width="4.4" height="4" rx="0.8" /></g>;
+    case 'extintor': return <g {...p}><rect x="-3" y="-4" width="6" height="12" rx="2" /><path d="M-1-4v-2.6h2V-4" /><path d="M1-7.6l4.6-1.6" /></g>;
+    case 'triangulo': return <g {...p}><path d="M0-8l8 14H-8z" /><path d="M0-3.6L4.4 4h-8.8z" /></g>;
+    case 'macaco': return <g {...p}><path d="M-8 7.4h16" /><path d="M-6 7.4l6-5.4 6 5.4M-6-3.4l6 5.4 6-5.4" /><path d="M-8-3.4h16" /></g>;
+    default: return <g {...p}><path d="M-8.4 8.4l6.6-6.6" /><path d="M-1.2 1.2a5 5 0 106.2-6.2l-3 3-2.2-2.2 3-3a5 5 0 00-6.2 6.2z" /></g>;
+  }
+}
+
 // ── rodas ──────────────────────────────────────────────────────────────────
 // Roda estilo referência: pneu grosso + aro de 5 raios. O primeiro círculo é
 // na cor do CARD e um pouco maior que o pneu: ele "recorta" a carroceria atrás
@@ -90,12 +201,31 @@ function Roda({ cx, cy, r }: { cx: number; cy: number; r: number }) {
   );
 }
 
-interface Silhueta { viewBox: string; chao: string; corpo: React.ReactNode; rodas: { cx: number; cy: number; r: number }[]; pontos: Ponto[] }
+interface Capo { d: string; hinge: [number, number]; motor: React.ReactNode }
+interface Silhueta { viewBox: string; chao: string; corpo: React.ReactNode; rodas: { cx: number; cy: number; r: number }[]; pontos: Ponto[]; capo?: Capo }
+
+// bloco de motor que aparece quando o capô levanta — desenhado DEPOIS do
+// corpo, em traços na cor do CARD (a mesma linguagem dos vidros): sobre a
+// carroceria sólida ele lê como "gravado" no cofre
+const blocoMotor = (x: number, y: number) => (
+  <g stroke={BG} strokeWidth="2.6" fill="none" strokeLinecap="round" strokeLinejoin="round">
+    <rect x={x} y={y} width="54" height="22" rx="3" />
+    <path d={`M${x + 11} ${y}v-7M${x + 27} ${y}v-7M${x + 43} ${y}v-7`} />
+    <path d={`M${x + 6} ${y - 7}h10M${x + 22} ${y - 7}h10M${x + 38} ${y - 7}h10`} />
+    <circle cx={x + 14} cy={y + 11} r="4.5" />
+    <path d={`M${x + 26} ${y + 11}h20`} opacity="0.8" />
+  </g>
+);
 
 // Sedã (referência: VW Voyage) — três volumes, teto arqueado, porta-malas curto.
 const CARRO: Silhueta = {
   viewBox: '-160 14 1160 400', chao: 'M100 305 H700',
   rodas: [{ cx: 212, cy: 272, r: 33 }, { cx: 560, cy: 272, r: 33 }],
+  capo: {
+    d: 'M122 246 L150 230 L244 216 L250 231 L136 252 Z',
+    hinge: [244, 216],
+    motor: blocoMotor(160, 234),
+  },
   corpo: (
     <>
       <path fill="currentColor" fillRule="evenodd" d="
@@ -141,6 +271,11 @@ const CARRO: Silhueta = {
 const HATCH: Silhueta = {
   viewBox: '-160 14 1160 400', chao: 'M110 305 H620',
   rodas: [{ cx: 212, cy: 272, r: 33 }, { cx: 490, cy: 272, r: 33 }],
+  capo: {
+    d: 'M150 247 L172 232 L254 220 L260 234 L164 253 Z',
+    hinge: [254, 220],
+    motor: blocoMotor(166, 238),
+  },
   corpo: (
     <>
       <path fill="currentColor" fillRule="evenodd" d="
@@ -185,6 +320,11 @@ const HATCH: Silhueta = {
 const PICAPE: Silhueta = {
   viewBox: '-160 14 1160 400', chao: 'M100 305 H700',
   rodas: [{ cx: 212, cy: 272, r: 33 }, { cx: 560, cy: 272, r: 33 }],
+  capo: {
+    d: 'M126 244 L154 230 L248 216 L254 230 L140 250 Z',
+    hinge: [248, 216],
+    motor: blocoMotor(162, 234),
+  },
   corpo: (
     <>
       <path fill="currentColor" fillRule="evenodd" d="
@@ -350,69 +490,219 @@ const SILHUETAS: Record<TipoSilhueta, Silhueta> = {
   carro: CARRO, hatch: HATCH, picape: PICAPE, caminhao: CAMINHAO, moto: MOTO, carreta: CARRETA,
 };
 
-export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelecionar }: {
+export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelecionar, pecasPorSistema, onAbrirHistorico }: {
   tipo: TipoSilhueta;
   porSistema: Map<string, ContagemGravidade>;
   selecionado: string | null;
   onSelecionar: (sistema: string) => void;
+  /** peças (componentes da taxonomia) por sistema — liga o modo zoom + painel */
+  pecasPorSistema?: Map<string, PecaDetalhe[]>;
+  /** botão "ver no histórico" do painel de peças */
+  onAbrirHistorico?: (sistema: string) => void;
 }) {
   const s = SILHUETAS[tipo] || CARRO;
   const fora = new Set(SISTEMAS_FORA[tipo] || []);
   const pontos = s.pontos.filter((p) => !fora.has(p.sistema));
 
+  // ── modo zoom: a "câmera" desliza até o ponto do sistema clicado ──
+  const [zoom, setZoom] = useState<string | null>(null);
+  const pontoZoom = zoom ? pontos.find((p) => p.sistema === zoom) || null : null;
+
+  // geometria do viewBox (todas as silhuetas usam o mesmo)
+  const vb = useMemo(() => {
+    const [x, y, w, h] = s.viewBox.split(' ').map(Number);
+    return { x, y, w, h, cy: y + h / 2 };
+  }, [s.viewBox]);
+
+  // A região com zoom fica a ~28% da largura — o painel de peças ocupa a
+  // metade direita; centralizar no meio deixaria o alvo escondido atrás dele.
+  const ESCALA = 2.1;
+  const alvoX = vb.x + vb.w * 0.28;
+  const transformCena = pontoZoom
+    ? `translate(${alvoX - ESCALA * pontoZoom.x}px, ${vb.cy - ESCALA * pontoZoom.y}px) scale(${ESCALA})`
+    : 'translate(0px, 0px) scale(1)';
+
+  const capoAberto = !!(zoom === 'Motor' && s.capo);
+  const pecas = zoom ? pecasPorSistema?.get(zoom) || [] : [];
+  const contZoom = zoom ? porSistema.get(zoom) : undefined;
+
+  const clicar = (sistema: string) => {
+    if (pecasPorSistema) {
+      setZoom((z) => (z === sistema ? null : sistema));
+      onSelecionar(sistema);
+      return;
+    }
+    onSelecionar(sistema); // sem dados de peças: comportamento antigo
+  };
+
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
-      <svg viewBox={s.viewBox} style={{ width: '100%', minWidth: 580, height: 'auto', display: 'block' }}
-        role="img" aria-label={`Mapa do veículo (${tipo}) com as pendências por sistema`}>
-        <g color="var(--portal-text-muted, #64748b)">
-          {s.corpo}
-          {s.rodas.map((r) => <Roda key={`${r.cx}-${r.cy}`} {...r} />)}
-        </g>
-        <path d={s.chao} stroke="var(--portal-border, #e2e8f0)" strokeWidth="2.5" fill="none" />
-
-        {pontos.map((p) => {
-          const c = porSistema.get(p.sistema);
-          const pior = c?.pior || null;
-          const cor = pior ? GRAVIDADE_COR[pior].forte : CINZA;
-          const aceso = !!pior;
-          const ativo = selecionado === p.sistema;
-          return (
-            <g key={p.sistema} onClick={() => onSelecionar(p.sistema)} style={{ cursor: 'pointer' }}>
-              <title>{aceso
-                ? `${p.sistema}: ${c!.total} pendência(s) — pior: ${GRAVIDADE_LABEL[pior!]}. Clique para ver no histórico.`
-                : `${p.sistema}: sem pendência aberta`}</title>
-              <line x1={p.x} y1={p.y} x2={p.lx} y2={p.ly} stroke={cor} strokeWidth={aceso ? 2 : 1.2} opacity={aceso ? 0.9 : 0.38} />
-              {/* disco de fundo: separa o ícone do desenho atrás dele */}
-              <circle cx={p.x} cy={p.y} r={R} fill={aceso ? GRAVIDADE_COR[pior!].bg : 'var(--portal-bg-card, #fff)'}
-                stroke={ativo ? '#1e40af' : cor} strokeWidth={ativo ? 3 : aceso ? 2.4 : 1.6}>
-                {/* pisca só grave/crítica: piscar tudo não chama atenção pra nada */}
-                {(pior === 'grave' || pior === 'critica') && (
-                  <animate attributeName="opacity" values="1;0.45;1" dur="1.4s" repeatCount="indefinite" />
-                )}
-              </circle>
-              <g transform={`translate(${p.x} ${p.y})`} color={aceso ? GRAVIDADE_COR[pior!].cor : CINZA} style={{ pointerEvents: 'none' }}>
-                <Glifo sistema={p.sistema} />
-              </g>
-              {aceso && (
-                <g style={{ pointerEvents: 'none' }}>
-                  <circle cx={p.x + 13} cy={p.y - 13} r="9" fill={cor} stroke="var(--portal-bg-card, #fff)" strokeWidth="2" />
-                  <text x={p.x + 13} y={p.y - 9.6} textAnchor="middle" fontSize="11" fontWeight="800" fill="#fff">{c!.total}</text>
-                </g>
+      <div style={{ position: 'relative', minWidth: 580 }}>
+        <svg viewBox={s.viewBox} style={{ width: '100%', height: 'auto', display: 'block' }}
+          role="img" aria-label={`Mapa do veículo (${tipo}) com as pendências por sistema`}
+          onClick={() => { if (zoom) setZoom(null); }}>
+          <g style={{ transform: transformCena, transition: 'transform .85s cubic-bezier(.45,0,.18,1)', transformOrigin: '0 0' }}>
+            <g color="var(--portal-text-muted, #64748b)">
+              {s.corpo}
+              {/* motor "gravado" no cofre (traços na cor do card, como os
+                  vidros) — só aparece quando o capô levanta */}
+              {s.capo && (
+                <g style={{ opacity: capoAberto ? 1 : 0, transition: 'opacity .5s .4s' }}>{s.capo.motor}</g>
               )}
-              <text x={p.lx} y={p.ly} textAnchor={p.anchor} fontSize="13.5" fontWeight={aceso ? 800 : 600}
-                fill={aceso ? GRAVIDADE_COR[pior!].cor : 'var(--portal-text-secondary, #64748b)'} style={{ pointerEvents: 'none' }}>
-                {p.rotulo}
-              </text>
-              {aceso && (
-                <text x={p.lx} y={p.ly + 15} textAnchor={p.anchor} fontSize="11.5" fontWeight="700"
-                  fill={GRAVIDADE_COR[pior!].cor} opacity="0.85" style={{ pointerEvents: 'none' }}>
-                  {c!.total} · {GRAVIDADE_LABEL[pior!].toLowerCase()}
-                </text>
-              )}
+              {/* capô como "tampa" por cima do bico: levanta girando na
+                  dobradiça. A rotação é montada à mão (translate→rotate→
+                  translate) — transform-origin com px mede do canto do
+                  viewBox, que aqui começa em -160, e girava fora do lugar.
+                  Ângulo NEGATIVO porque o carro olha pra esquerda e o y do
+                  SVG cresce pra baixo — positivo abaixaria a frente. */}
+              {s.capo && (() => {
+                const [hx, hy] = s.capo!.hinge;
+                const ang = capoAberto ? -34 : 0;
+                return (
+                  <g style={{
+                    transform: `translate(${hx}px, ${hy}px) rotate(${ang}deg) translate(${-hx}px, ${-hy}px)`,
+                    transition: 'transform .7s .25s cubic-bezier(.4,0,.2,1)',
+                  }}>
+                    <path d={s.capo!.d} fill="currentColor" stroke={BG} strokeWidth="2.5" strokeLinejoin="round" />
+                  </g>
+                );
+              })()}
+              {s.rodas.map((r) => <Roda key={`${r.cx}-${r.cy}`} {...r} />)}
             </g>
-          );
-        })}
-      </svg>
+            <path d={s.chao} stroke="var(--portal-border, #e2e8f0)" strokeWidth="2.5" fill="none"
+              style={{ opacity: zoom ? 0 : 1, transition: 'opacity .4s' }} />
+
+            {pontos.map((p) => {
+              const c = porSistema.get(p.sistema);
+              const pior = c?.pior || null;
+              const cor = pior ? GRAVIDADE_COR[pior].forte : CINZA;
+              const aceso = !!pior;
+              const ativo = selecionado === p.sistema;
+              // no zoom os pontos somem (o painel de peças assume) — só o disco
+              // do sistema aberto fica, como âncora visual
+              const some = zoom ? (zoom === p.sistema ? 0.25 : 0) : 1;
+              return (
+                <g key={p.sistema} onClick={(e) => { e.stopPropagation(); clicar(p.sistema); }}
+                  style={{ cursor: 'pointer', opacity: some, transition: 'opacity .45s', pointerEvents: zoom && zoom !== p.sistema ? 'none' : 'auto' }}>
+                  <title>{aceso
+                    ? `${p.sistema}: ${c!.total} pendência(s) — pior: ${GRAVIDADE_LABEL[pior!]}. Clique para ver as peças.`
+                    : `${p.sistema}: sem pendência aberta. Clique para ver as peças.`}</title>
+                  <line x1={p.x} y1={p.y} x2={p.lx} y2={p.ly} stroke={cor} strokeWidth={aceso ? 2 : 1.2} opacity={aceso ? 0.9 : 0.38} />
+                  {/* disco de fundo: separa o ícone do desenho atrás dele */}
+                  <circle cx={p.x} cy={p.y} r={R} fill={aceso ? GRAVIDADE_COR[pior!].bg : 'var(--portal-bg-card, #fff)'}
+                    stroke={ativo ? '#1e40af' : cor} strokeWidth={ativo ? 3 : aceso ? 2.4 : 1.6}>
+                    {/* pisca só grave/crítica: piscar tudo não chama atenção pra nada */}
+                    {(pior === 'grave' || pior === 'critica') && (
+                      <animate attributeName="opacity" values="1;0.45;1" dur="1.4s" repeatCount="indefinite" />
+                    )}
+                  </circle>
+                  <g transform={`translate(${p.x} ${p.y})`} color={aceso ? GRAVIDADE_COR[pior!].cor : CINZA} style={{ pointerEvents: 'none' }}>
+                    <Glifo sistema={p.sistema} />
+                  </g>
+                  {aceso && (
+                    <g style={{ pointerEvents: 'none' }}>
+                      <circle cx={p.x + 13} cy={p.y - 13} r="9" fill={cor} stroke="var(--portal-bg-card, #fff)" strokeWidth="2" />
+                      <text x={p.x + 13} y={p.y - 9.6} textAnchor="middle" fontSize="11" fontWeight="800" fill="#fff">{c!.total}</text>
+                    </g>
+                  )}
+                  <text x={p.lx} y={p.ly} textAnchor={p.anchor} fontSize="13.5" fontWeight={aceso ? 800 : 600}
+                    fill={aceso ? GRAVIDADE_COR[pior!].cor : 'var(--portal-text-secondary, #64748b)'} style={{ pointerEvents: 'none' }}>
+                    {p.rotulo}
+                  </text>
+                  {aceso && (
+                    <text x={p.lx} y={p.ly + 15} textAnchor={p.anchor} fontSize="11.5" fontWeight="700"
+                      fill={GRAVIDADE_COR[pior!].cor} opacity="0.85" style={{ pointerEvents: 'none' }}>
+                      {c!.total} · {GRAVIDADE_LABEL[pior!].toLowerCase()}
+                    </text>
+                  )}
+                </g>
+              );
+            })}
+          </g>
+        </svg>
+
+        {/* ── PAINEL DE PEÇAS: explode ao lado da região com zoom ── */}
+        {zoom && pecasPorSistema && (
+          <div style={{
+            position: 'absolute', top: 8, right: 8, bottom: 8, width: 'min(46%, 330px)',
+            display: 'flex', flexDirection: 'column',
+            background: 'var(--portal-bg-card, #fff)', border: '1.5px solid var(--portal-border, #e2e8f0)',
+            boxShadow: '0 12px 40px rgba(0,0,0,.18)', borderRadius: 0,
+            animation: 'diagrama-painel .45s cubic-bezier(.3,0,.2,1)',
+          }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderBottom: '1px solid var(--portal-border, #e2e8f0)' }}>
+              <span style={{ color: contZoom?.pior ? GRAVIDADE_COR[contZoom.pior].forte : CINZA, display: 'flex' }}>
+                <svg width="22" height="22" viewBox="-11 -11 22 22"><Glifo sistema={zoom} /></svg>
+              </span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)', lineHeight: 1.1 }}>{zoom}</div>
+                <div style={{ fontSize: 11, color: contZoom?.pior ? GRAVIDADE_COR[contZoom.pior].cor : 'var(--portal-text-secondary)', fontWeight: 700 }}>
+                  {contZoom?.total
+                    ? `${contZoom.total} pendência${contZoom.total > 1 ? 's' : ''} · pior: ${GRAVIDADE_LABEL[contZoom.pior!].toLowerCase()}`
+                    : 'nenhuma pendência aberta'}
+                </div>
+              </div>
+              <button onClick={() => setZoom(null)} title="Fechar"
+                style={{ marginLeft: 'auto', width: 26, height: 26, border: '1px solid var(--portal-border, #e2e8f0)', background: 'transparent', color: 'var(--portal-text-secondary)', cursor: 'pointer', fontSize: 14, fontWeight: 700, lineHeight: 1 }}>
+                ×
+              </button>
+            </div>
+
+            <div style={{ flex: 1, overflowY: 'auto', padding: 10, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(88px, 1fr))', gap: 7, alignContent: 'start' }}>
+              {pecas.map((pc, i) => {
+                const cg = pc.pior ? GRAVIDADE_COR[pc.pior] : null;
+                const chip = (
+                  <div key={pc.id}
+                    title={cg ? `${pc.rotulo}: ${pc.total} pendência(s) — ${GRAVIDADE_LABEL[pc.pior!]}. Clique para ver no histórico.` : `${pc.rotulo}: ok`}
+                    onClick={cg && onAbrirHistorico ? () => onAbrirHistorico(zoom) : undefined}
+                    className={pc.pior === 'grave' || pc.pior === 'critica' ? 'sist-blink' : undefined}
+                    style={{
+                      position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4,
+                      padding: '9px 4px 7px', textAlign: 'center',
+                      background: cg ? cg.bg : 'var(--portal-bg-secondary, #f8fafc)',
+                      border: `1.5px solid ${cg ? cg.forte : 'var(--portal-border, #e2e8f0)'}`,
+                      color: cg ? cg.cor : 'var(--portal-text-secondary)',
+                      cursor: cg && onAbrirHistorico ? 'pointer' : 'default',
+                      animation: `diagrama-peca .4s ${0.06 * i + 0.15}s cubic-bezier(.3,0,.2,1) backwards`,
+                    }}>
+                    <span style={{ color: cg ? cg.forte : CINZA, display: 'flex' }}>
+                      <svg width="30" height="30" viewBox="-11.5 -11.5 23 23"><MiniGlifo nome={pc.rotulo} /></svg>
+                    </span>
+                    <span style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.2, textTransform: 'uppercase', lineHeight: 1.15 }}>{pc.rotulo}</span>
+                    {pc.total > 0 && (
+                      <span style={{ position: 'absolute', top: 3, right: 3, minWidth: 15, height: 15, borderRadius: 999, background: cg!.forte, color: '#fff', fontSize: 9.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 3px' }}>
+                        {pc.total}
+                      </span>
+                    )}
+                  </div>
+                );
+                return chip;
+              })}
+              {pecas.length === 0 && (
+                <div style={{ gridColumn: '1 / -1', fontSize: 12, color: 'var(--portal-text-secondary)', padding: 8 }}>
+                  Sem peças cadastradas na taxonomia para este sistema.
+                </div>
+              )}
+            </div>
+
+            {(contZoom?.total || 0) > 0 && onAbrirHistorico && (
+              <button onClick={() => onAbrirHistorico(zoom)}
+                style={{ margin: 10, marginTop: 0, padding: '9px 12px', border: 'none', background: '#1e40af', color: '#fff', fontSize: 12.5, fontWeight: 800, cursor: 'pointer' }}>
+                Ver no Histórico de pendências →
+              </button>
+            )}
+          </div>
+        )}
+
+        <style>{`
+          @keyframes diagrama-painel { from { opacity: 0; transform: translateX(24px) scale(.94); } to { opacity: 1; transform: none; } }
+          @keyframes diagrama-peca { from { opacity: 0; transform: translateY(10px) scale(.7); } to { opacity: 1; transform: none; } }
+          @media (prefers-reduced-motion: reduce) {
+            @keyframes diagrama-painel { from { opacity: 0 } to { opacity: 1 } }
+            @keyframes diagrama-peca { from { opacity: 0 } to { opacity: 1 } }
+          }
+        `}</style>
+      </div>
     </div>
   );
 }

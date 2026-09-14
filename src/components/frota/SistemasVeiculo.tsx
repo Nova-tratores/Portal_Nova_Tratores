@@ -11,7 +11,7 @@ import {
   Snowflake, Waves, Wrench, Zap, AlertTriangle, ChevronDown,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
-import DiagramaVeiculo from '@/components/frota/DiagramaVeiculo';
+import DiagramaVeiculo, { type PecaDetalhe } from '@/components/frota/DiagramaVeiculo';
 import { silhuetaDoVeiculo } from '@/lib/frota/silhueta';
 import {
   contarPorGravidade, GRAVIDADES, GRAVIDADE_AJUDA,
@@ -117,6 +117,34 @@ export default function SistemasVeiculo({ placa, veiculo, onAbrirHistorico }: {
     return m;
   }, [pendPorSistema, compPorId]);
 
+  // PEÇAS por sistema pro painel de zoom do diagrama: cada componente da
+  // taxonomia com a pior gravidade das pendências abertas nele (as com
+  // problema vêm primeiro, o resto segue a ordem da taxonomia)
+  const pecasPorSistema = useMemo(() => {
+    const pendPorComp = new Map<string, Pend[]>();
+    for (const p of pendencias) {
+      if (!p.componente_id) continue;
+      const arr = pendPorComp.get(p.componente_id) || [];
+      arr.push(p); pendPorComp.set(p.componente_id, arr);
+    }
+    const m = new Map<string, PecaDetalhe[]>();
+    for (const c of [...componentes].sort((a, b) => a.ordem - b.ordem)) {
+      const lista = pendPorComp.get(c.id) || [];
+      const cont = lista.length ? contarPorGravidade(lista, compPorId) : null;
+      const arr = m.get(c.sistema) || [];
+      arr.push({
+        id: c.id,
+        rotulo: c.componente || c.subsistema || 'Geral',
+        subsistema: c.subsistema || 'Geral',
+        total: lista.length,
+        pior: cont?.pior || null,
+      });
+      m.set(c.sistema, arr);
+    }
+    for (const arr of m.values()) arr.sort((a, b) => (b.total > 0 ? 1 : 0) - (a.total > 0 ? 1 : 0));
+    return m;
+  }, [componentes, pendencias, compPorId]);
+
   if (erro) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 0, background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', fontSize: 13.5 }}>
@@ -211,11 +239,11 @@ export default function SistemasVeiculo({ placa, veiculo, onAbrirHistorico }: {
           tipo={silhuetaDoVeiculo(veiculo || {})}
           porSistema={gravPorSistema}
           selecionado={sistemaSel}
+          pecasPorSistema={pecasPorSistema}
+          onAbrirHistorico={onAbrirHistorico}
           onSelecionar={(s) => {
-            // ponto ACESO vai direto pro histórico (é onde se resolve a
-            // pendência); ponto apagado não tem o que mostrar lá, então
-            // mantém o drill-down de subsistemas aqui mesmo
-            if (onAbrirHistorico && (gravPorSistema.get(s)?.total || 0) > 0) { onAbrirHistorico(s); return; }
+            // o zoom + painel de peças acontecem DENTRO do diagrama; aqui só
+            // sincroniza o drill-down de azulejos logo abaixo
             setSistemaSel(sistemaSel === s ? null : s); setSubSel(null);
           }}
         />
