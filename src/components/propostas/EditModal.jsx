@@ -301,7 +301,9 @@ export default function EditModal({ proposal, onClose }) {
       doc.text(`ESTA PROPOSTA E VALIDA POR ${formData.validade} DIAS.`, margin + 5, y + 31)
     }
 
-    y = 260
+    // 266: a caixa de valores termina em 248 e o topo da assinatura fica 15,4mm
+    // acima da linha — em 260 o rabisco invadia a caixa. Aqui sobra ~2,6mm de folga.
+    y = 266
     const lineW = 75
     const midPointL = margin + (lineW / 2)
     const directorLineX = pageWidth - margin - lineW
@@ -316,12 +318,13 @@ export default function EditModal({ proposal, onClose }) {
 
     doc.line(directorLineX, y, pageWidth - margin, y)
     if (assinaturaDiretor) {
-      // Tamanho NATURAL da imagem (362×185 ≈ 1,96:1) — o 85×25 antigo esticava
-      // e ficava ilegível. Largura 82 mm centrada na linha de 75 mm; a linha
-      // preta interna (36,8% da altura) cai EXATAMENTE sobre a linha desenhada.
+      // Imagem 476×154 (v2, sem dados bancários/endereço). Mesma escala vertical
+      // do desenho aprovado (185px = 41,9mm → 154px = 34,9mm); a linha preta
+      // interna (44,2% da altura) cai EXATAMENTE sobre a linha desenhada.
       const assW = 82
-      const assH = assW / 1.957
-      doc.addImage(assinaturaDiretor, 'PNG', directorLineX + (lineW - assW) / 2, y - assH * 0.368, assW, assH)
+      const assH = assW / 2.351
+      // Encostada na margem direita (centrada ela passava 3,5mm da margem)
+      doc.addImage(assinaturaDiretor, 'PNG', pageWidth - margin - assW, y - assH * 0.442, assW, assH)
     }
 
     doc.save(`Proposta_${formData.Cliente || 'NovaTratores'}.pdf`)
