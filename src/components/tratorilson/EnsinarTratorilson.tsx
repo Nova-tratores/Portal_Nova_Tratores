@@ -82,6 +82,25 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
 
   const visiveis = memorias.filter((m) => mostrarInativas || m.ativo)
 
+  // ── filtros por MÓDULO (botões) + SUBMÓDULO ("ppv/catalogo" → Catálogo dentro de Peças)
+  const [modSel, setModSel] = useState('todas')
+  const [subSel, setSubSel] = useState('')
+  const baseDe = (m: Memoria) => String(m.modulo || 'geral').split('/')[0]
+  const subDe = (m: Memoria) => String(m.modulo || 'geral').split('/').slice(1).join('/')
+  const submodulos = [...new Set(visiveis.filter((m) => baseDe(m) === modSel).map(subDe).filter(Boolean))].sort()
+  const filtradas = visiveis.filter((m) =>
+    modSel === 'todas' ? true : baseDe(m) === modSel && (subSel === '' || subDe(m) === subSel))
+  const btnMod = (on: boolean): React.CSSProperties => ({
+    border: on ? 'none' : '1px solid var(--portal-border)', borderRadius: 8, padding: '5px 12px',
+    fontSize: 12, fontWeight: 700, cursor: 'pointer',
+    background: on ? '#7c3aed' : 'var(--portal-bg-card)', color: on ? '#fff' : 'var(--portal-text-secondary)',
+  })
+  const btnSub = (on: boolean): React.CSSProperties => ({
+    border: on ? 'none' : '1px solid var(--portal-border)', borderRadius: 20, padding: '3px 11px',
+    fontSize: 11.5, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize',
+    background: on ? '#a78bfa' : 'var(--portal-bg-card)', color: on ? '#fff' : 'var(--portal-text-secondary)',
+  })
+
   const card: React.CSSProperties = { background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14 }
 
   return (
@@ -135,21 +154,38 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
               <input type="checkbox" checked={mostrarInativas} onChange={(e) => setMostrarInativas(e.target.checked)} /> mostrar esquecidas
             </label>
           </div>
+          {/* Botões de MÓDULO (e submódulos dentro do módulo escolhido) */}
+          <div style={{ padding: '8px 12px', borderBottom: '1px solid var(--portal-border)', display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            <button onClick={() => { setModSel('todas'); setSubSel('') }} style={btnMod(modSel === 'todas')}>Todas ({visiveis.length})</button>
+            {Object.keys(MODULO_ROTULO).filter((mod) => visiveis.some((m) => baseDe(m) === mod)).map((mod) => (
+              <button key={mod} onClick={() => { setModSel(mod); setSubSel('') }} style={btnMod(modSel === mod)}>
+                {MODULO_ROTULO[mod]} ({visiveis.filter((m) => baseDe(m) === mod).length})
+              </button>
+            ))}
+          </div>
+          {modSel !== 'todas' && submodulos.length > 0 && (
+            <div style={{ padding: '7px 12px', borderBottom: '1px solid var(--portal-border)', display: 'flex', flexWrap: 'wrap', gap: 6, background: 'var(--portal-bg-secondary)' }}>
+              <button onClick={() => setSubSel('')} style={btnSub(subSel === '')}>Tudo</button>
+              {submodulos.map((sub) => (
+                <button key={sub} onClick={() => setSubSel(sub)} style={btnSub(subSel === sub)}>
+                  {sub.replace(/-/g, ' ')} ({visiveis.filter((m) => baseDe(m) === modSel && subDe(m) === sub).length})
+                </button>
+              ))}
+            </div>
+          )}
           <div style={{ flex: 1, overflowY: 'auto', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
             {aviso && <div style={{ fontSize: 12.5, color: '#d97706', padding: '8px 10px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8 }}>{aviso}</div>}
-            {visiveis.length === 0 && !aviso && (
-              <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', textAlign: 'center', padding: 24 }}>Nenhuma regra ainda — ensina a primeira ali no chat.</div>
+            {filtradas.length === 0 && !aviso && (
+              <div style={{ fontSize: 13, color: 'var(--portal-text-muted)', textAlign: 'center', padding: 24 }}>Nenhuma regra aqui ainda — ensina no chat que ela entra no módulo certo.</div>
             )}
-            {Object.keys(MODULO_ROTULO).filter((mod) => visiveis.some((m) => (m.modulo || 'geral') === mod)).map((mod) => (
-              <div key={mod} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div style={{ fontSize: 11, fontWeight: 800, letterSpacing: '.06em', textTransform: 'uppercase', color: '#7c3aed', borderBottom: '1px solid var(--portal-border)', paddingBottom: 3, marginTop: 4 }}>{MODULO_ROTULO[mod]}</div>
-            {visiveis.filter((m) => (m.modulo || 'geral') === mod).map((m) => {
+            {filtradas.map((m) => {
               const info = ESCOPO_INFO[m.escopo] || ESCOPO_INFO.geral
               return (
                 <div key={m.id} style={{ border: '1px solid var(--portal-border)', borderRadius: 10, padding: '9px 11px', opacity: m.ativo ? 1 : 0.55, background: 'var(--portal-bg-card)' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 5 }}>
                     <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>#{m.id}</span>
                     <span style={{ fontSize: 10.5, fontWeight: 800, background: info.bg, color: info.cor, borderRadius: 6, padding: '2px 8px' }}>{info.rot}</span>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, background: '#f3e8ff', color: '#7c3aed', borderRadius: 6, padding: '2px 8px', textTransform: 'capitalize' }}>{String(m.modulo || 'geral').replace('/', ' › ').replace(/-/g, ' ')}</span>
                     {!m.ativo && <span style={{ fontSize: 10.5, fontWeight: 700, color: '#dc2626' }}>esquecida</span>}
                     <span style={{ flex: 1 }} />
                     {editando === m.id ? (
@@ -174,8 +210,6 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
                 </div>
               )
             })}
-              </div>
-            ))}
           </div>
         </div>
       </div>

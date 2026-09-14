@@ -12,7 +12,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
 import { chamarIA, getIA } from "@/lib/assistente/ia";
-import { blocoMemoria, gravarRegra } from "@/lib/assistente/memoria";
+import { blocoMemoria, gravarRegra, normalizarModulo } from "@/lib/assistente/memoria";
 import { logTratorilson } from "@/lib/assistente/log";
 
 export const runtime = "nodejs";
@@ -32,7 +32,7 @@ COMO AGIR:
 - Ele explica; você INTERPRETA e reescreve a regra do seu jeito: curta, clara, no imperativo, sem depender do contexto da conversa (a regra vai ser lida sozinha depois).
 - Se a instrução estiver CLARA, grave direto com a ferramenta 'ensinar' e mostre como ficou a regra gravada.
 - Se estiver AMBÍGUA (dois entendimentos possíveis, falta um dado essencial), mostre a regra como você entendeu e faça UMA pergunta objetiva antes de gravar.
-- MÓDULO (bloco do assunto): classifique cada regra num módulo — chatwoot (atendimento no WhatsApp), revisoes (revisões/orçamentos), pos (ordens de serviço), ppv (peças), requisicoes, financeiro, ou geral. Diga qual usou.
+- MÓDULO (bloco do assunto): classifique cada regra num módulo — chatwoot (atendimento no WhatsApp), revisoes (revisões/orçamentos), pos (ordens de serviço), ppv (peças), requisicoes, financeiro, ou geral. Assunto bem específico dentro de um módulo ganha SUBMÓDULO por barra (ex.: ppv/catalogo, requisicoes/fornecedores, chatwoot/orcamento). Diga qual usou.
 - ESCOPO: decida sozinho pelo conteúdo — regra sobre atendimento/conversa com cliente no WhatsApp → 'clientes'; regra sobre uso interno do portal (telas, requisições, quem faz o quê) → 'portal'; vale nos dois ou na dúvida → 'geral'. Diga qual escopo usou.
 - Pediu pra ver o que você sabe → 'listar_memoria'. Pediu pra corrigir/mudar → 'atualizar_memoria'. Pediu pra esquecer → 'esquecer_memoria'.
 - Uma mensagem dele pode ter VÁRIAS regras: grave cada uma separada.
@@ -44,7 +44,7 @@ const FERRAMENTAS = [
     function: {
       name: "ensinar",
       description: "Grava UMA regra nova na memória.",
-      parameters: { type: "object", properties: { conteudo: { type: "string", description: "A regra, curta e autossuficiente." }, escopo: { type: "string", enum: ["geral", "portal", "clientes"] }, modulo: { type: "string", enum: ["geral", "chatwoot", "revisoes", "pos", "ppv", "requisicoes", "financeiro"] } }, required: ["conteudo", "escopo", "modulo"] },
+      parameters: { type: "object", properties: { conteudo: { type: "string", description: "A regra, curta e autossuficiente." }, escopo: { type: "string", enum: ["geral", "portal", "clientes"] }, modulo: { type: "string", description: "Módulo da regra: geral, chatwoot, revisoes, pos, ppv, requisicoes ou financeiro — com SUBMÓDULO opcional por barra quando o assunto for específico (ex.: ppv/catalogo, requisicoes/fornecedores, pos/garantia)." } }, required: ["conteudo", "escopo", "modulo"] },
     },
   },
   {
@@ -78,7 +78,7 @@ async function rodarFerramenta(name: string, args: any, userName: string): Promi
     const conteudo = String(args.conteudo || "").trim();
     if (!conteudo) return { erro: "conteudo vazio" };
     const escopo = ["geral", "portal", "clientes"].includes(String(args.escopo)) ? String(args.escopo) : "geral";
-    const modulo = ["geral", "chatwoot", "revisoes", "pos", "ppv", "requisicoes", "financeiro"].includes(String(args.modulo)) ? String(args.modulo) : "geral";
+    const modulo = normalizarModulo(args.modulo);
     const id = await gravarRegra(conteudo, escopo, userName, modulo);
     if (id == null) return { erro: "não consegui gravar (tabela tratorilson_memoria existe?)" };
     return { ok: true, id, escopo };
@@ -100,7 +100,7 @@ async function rodarFerramenta(name: string, args: any, userName: string): Promi
     if (!id || !conteudo) return { erro: "id e conteudo são obrigatórios" };
     const patch: Record<string, unknown> = { conteudo, updated_at: new Date().toISOString() };
     if (["geral", "portal", "clientes"].includes(String(args.escopo))) patch.escopo = String(args.escopo);
-    if (["geral", "chatwoot", "revisoes", "pos", "ppv", "requisicoes", "financeiro"].includes(String(args.modulo))) patch.modulo = String(args.modulo);
+    if (args.modulo !== undefined) patch.modulo = normalizarModulo(args.modulo);
     let r = await fetch(`${TBL()}?id=eq.${id}`, { method: "PATCH", headers: H(), body: JSON.stringify(patch) });
     if (!r.ok && patch.escopo) {
       delete patch.escopo;
@@ -137,7 +137,7 @@ export async function PATCH(req: NextRequest) {
   if (typeof b.conteudo === "string" && b.conteudo.trim()) patch.conteudo = b.conteudo.trim();
   if (typeof b.ativo === "boolean") patch.ativo = b.ativo;
   if (["geral", "portal", "clientes"].includes(String(b.escopo))) patch.escopo = String(b.escopo);
-  if (["geral", "chatwoot", "revisoes", "pos", "ppv", "requisicoes", "financeiro"].includes(String(b.modulo))) patch.modulo = String(b.modulo);
+  if (b.modulo !== undefined) patch.modulo = normalizarModulo(b.modulo);
   let r = await fetch(`${TBL()}?id=eq.${id}`, { method: "PATCH", headers: H(), body: JSON.stringify(patch) });
   if (!r.ok && patch.escopo) {
     delete patch.escopo;

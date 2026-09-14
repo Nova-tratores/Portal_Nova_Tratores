@@ -27,6 +27,25 @@ export const MODULOS_MEMORIA: Record<string, string> = {
   financeiro: "FINANCEIRO",
 };
 
+/** Normaliza "modulo" com submódulo opcional por caminho: "ppv/catalogo".
+ *  Base desconhecida vira 'geral'; o submódulo é slug livre (ex.: catalogo). */
+export function normalizarModulo(raw: unknown): string {
+  const partes = String(raw || "geral").toLowerCase().trim().split("/");
+  const base = MODULOS_MEMORIA[partes[0]] ? partes[0] : "geral";
+  const sub = partes.slice(1).join("/")
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9-_ ]/g, "").trim().replace(/\s+/g, "-").slice(0, 40);
+  return sub ? `${base}/${sub}` : base;
+}
+
+/** Rótulo de exibição de um módulo (com submódulo): "PEÇAS (PPV) › CATÁLOGO". */
+export function rotuloModulo(modulo: string): string {
+  const [base, ...resto] = String(modulo || "geral").split("/");
+  const rot = MODULOS_MEMORIA[base] || MODULOS_MEMORIA.geral;
+  const sub = resto.join("/");
+  return sub ? `${rot} › ${sub.replace(/-/g, " ").toUpperCase()}` : rot;
+}
+
 const SB = () => process.env.NEXT_PUBLIC_SUPABASE_URL || "";
 const SK = () => process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 const HEADERS = () => ({ apikey: SK(), authorization: `Bearer ${SK()}` });
@@ -65,14 +84,19 @@ export async function blocoMemoria(escopos: string[], titulo = "REGRAS ENSINADAS
   if (!regras.length) return "";
   const porModulo = new Map<string, RegraMemoria[]>();
   for (const m of regras) {
-    const chave = MODULOS_MEMORIA[m.modulo] ? m.modulo : "geral";
+    const chave = normalizarModulo(m.modulo);
     if (!porModulo.has(chave)) porModulo.set(chave, []);
     porModulo.get(chave)!.push(m);
   }
-  const ordem = Object.keys(MODULOS_MEMORIA).filter((k) => porModulo.has(k));
+  // ordem: módulos conhecidos; submódulos logo depois da base, em ordem alfabética
+  const chaves = [...porModulo.keys()].sort((a, b) => {
+    const ia = Object.keys(MODULOS_MEMORIA).indexOf(a.split("/")[0]);
+    const ib = Object.keys(MODULOS_MEMORIA).indexOf(b.split("/")[0]);
+    return ia - ib || a.localeCompare(b);
+  });
   let texto = `\n\n${titulo}:`;
-  for (const mod of ordem) {
-    texto += `\n\n[${MODULOS_MEMORIA[mod]}]`;
+  for (const mod of chaves) {
+    texto += `\n\n[${rotuloModulo(mod)}]`;
     for (const m of porModulo.get(mod)!) texto += `\n- [#${m.id}] ${m.conteudo}`;
   }
   return texto;
