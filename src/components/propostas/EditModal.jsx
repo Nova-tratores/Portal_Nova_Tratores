@@ -181,7 +181,10 @@ export default function EditModal({ proposal, onClose }) {
 
     doc.text(`CIDADE: ${formData.Cidade || ''}`, col2X, y + 7)
     doc.text(`BAIRRO: ${formData.Bairro || ''}`, col2X, y + 13)
-    doc.text(`ENDERECO: ${formData.End_Entrega || ''}`, col2X, y + 19)
+    // Endereço longo QUEBRA em linhas dentro da coluna (antes vazava a margem direita)
+    const larguraEnd = pageWidth - margin - 3 - col2X
+    const linhasEnd = doc.splitTextToSize(`ENDERECO: ${formData.End_Entrega || ''}`, larguraEnd)
+    linhasEnd.slice(0, 2).forEach((l, i) => doc.text(l, col2X, y + 19 + i * 5))
 
     y += 32
     const imgBoxHeight = temSpecs ? 60 : 95
@@ -313,10 +316,12 @@ export default function EditModal({ proposal, onClose }) {
 
     doc.line(directorLineX, y, pageWidth - margin, y)
     if (assinaturaDiretor) {
-      // A linha preta DENTRO da imagem da assinatura (Dougras, 362×185) fica a
-      // 36,8% da altura → 9,2 mm nos 25 mm impressos. O offset encaixa a linha
-      // da imagem exatamente sobre a linha desenhada do PDF.
-      doc.addImage(assinaturaDiretor, 'PNG', directorLineX, y - 9.2, 85, 25)
+      // Tamanho NATURAL da imagem (362×185 ≈ 1,96:1) — o 85×25 antigo esticava
+      // e ficava ilegível. Largura 82 mm centrada na linha de 75 mm; a linha
+      // preta interna (36,8% da altura) cai EXATAMENTE sobre a linha desenhada.
+      const assW = 82
+      const assH = assW / 1.957
+      doc.addImage(assinaturaDiretor, 'PNG', directorLineX + (lineW - assW) / 2, y - assH * 0.368, assW, assH)
     }
 
     doc.save(`Proposta_${formData.Cliente || 'NovaTratores'}.pdf`)
