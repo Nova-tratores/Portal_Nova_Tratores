@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Molde de assinatura — Dougras Mogrs</title>
+<style>
+  body { font-family: Arial, Helvetica, sans-serif; background: #f3f4f6; margin: 0; padding: 30px; }
+  .instrucoes { max-width: 560px; margin: 0 auto 18px; background: #fff; border: 1px solid #d1d5db; border-radius: 10px; padding: 14px 18px; font-size: 14px; line-height: 1.6; color: #111; }
+  .instrucoes b { color: #b91c1c; }
+
+  /* O BLOCO — mesmo tamanho da assinatura atual da proposta (362×185 px,
+     ~9,6 × 4,9 cm na impressão). Composição idêntica; espaço em branco
+     em cima da linha pra assinar. */
+  .bloco { width: 362px; background: #fff; margin: 0 auto; border: 1px dashed #9ca3af; box-sizing: border-box; }
+  .area-assinar { height: 38px; position: relative; }
+  .area-assinar span { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; color: #e5e7eb; font-size: 13px; letter-spacing: 2px; text-transform: uppercase; }
+  .linha { border-top: 1.5px solid #000; margin: 0 4px; }
+  .corpo { position: relative; padding: 2px 4px 5px; }
+  .textos { width: 252px; text-align: center; }
+  .t1 { font-size: 12px; font-weight: bold; line-height: 1.32; }
+  .full { width: 100%; text-align: center; }
+  .t3 { font-size: 11.5px; font-weight: bold; margin-top: 1px; }
+  .t4 { font-size: 10.5px; margin-top: 1px; }
+  .logo-wrap { position: absolute; right: 4px; top: 6px; }
+  .logo-wrap img { width: 96px; height: auto; display: block; }
+
+  @media print {
+    body { background: #fff; padding: 0; }
+    .instrucoes { display: none; }
+    .bloco { width: 9.6cm; margin: 2cm auto 0; }
+    .area-assinar span { display: none; }
+  }
+</style>
+</head>
+<body>
+  <div class="instrucoes">
+    <b>Molde da assinatura da Proposta Comercial — Dougras Mogrs</b><br>
+    1. Aperte <b>Ctrl+P</b> e imprima (sai só o bloco, no tamanho real).<br>
+    2. O Dougras <b>assina no espaço em branco acima da linha preta</b> (caneta azul ou preta).<br>
+    3. Foto de frente com boa luz (ou escaneada) — a borda tracejada é o guia de corte.<br>
+    4. Me manda a foto que eu troco a assinatura da proposta pela nova.
+  </div>
+
+  <div class="bloco">
+    <div class="area-assinar"><span>assinar aqui</span></div>
+    <div class="linha"></div>
+    <div class="corpo">
+      <div class="textos">
+        <div class="t1">Departamento Comercial</div>
+        <div class="t1">Dougras Mogrs</div>
+        <div class="t1">(14) 9 9609-3534</div>
+        <div class="t1">Nova Tratores Máquinas Agrícolas</div>
+        <div class="t1">CNPJ: 31.463.139/0001-03</div>
+        <div class="t1">I.E: 537.054.605.110</div>
+      </div>
+      <div class="full t3">Dados bancarios: Ag: 0075-2/CC: 4040-1/ Banco Bradesco</div>
+      <div class="full t4">Av. São Sebastião, 1065 - Jd Ana Cristina, Piraju - SP, 18800-770</div>
+      <div class="logo-wrap">
+        <img src="logo-mahindra-assinatura.png" alt="logo Mahindra">
+      </div>
+    </div>
+  </div>
+</body>
+</html>

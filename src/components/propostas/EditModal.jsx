@@ -313,7 +313,10 @@ export default function EditModal({ proposal, onClose }) {
 
     doc.line(directorLineX, y, pageWidth - margin, y)
     if (assinaturaDiretor) {
-      doc.addImage(assinaturaDiretor, 'PNG', directorLineX, y - 5, 85, 25)
+      // A linha preta DENTRO da imagem da assinatura (Dougras, 362×185) fica a
+      // 36,8% da altura → 9,2 mm nos 25 mm impressos. O offset encaixa a linha
+      // da imagem exatamente sobre a linha desenhada do PDF.
+      doc.addImage(assinaturaDiretor, 'PNG', directorLineX, y - 9.2, 85, 25)
     }
 
     doc.save(`Proposta_${formData.Cliente || 'NovaTratores'}.pdf`)
