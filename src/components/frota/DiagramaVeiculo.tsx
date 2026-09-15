@@ -174,6 +174,125 @@ function MiniGlifo({ nome }: { nome: string }) {
   }
 }
 
+// ── ANATOMIA INTERNA (modo raio-X) ─────────────────────────────────────────
+// No zoom, a carroceria fica translúcida e estas peças aparecem DENTRO do
+// carro, no lugar real (referência do usuário: corte esquemático de manual).
+// A peça do sistema clicado acende na cor da gravidade do COMPONENTE casado
+// (regex no nome, mesma filosofia do resto); as outras ficam em cinza
+// fantasma. Coordenadas presas ao traço de cada silhueta.
+interface PecaInterna {
+  id: string;
+  sistema: string;
+  /** casa a peça com um componente da taxonomia (pra cor/contagem) */
+  casa?: RegExp;
+  rotulo: string;
+  desenho: React.ReactNode;
+  lx: number; ly: number; ax: number; ay: number; // rótulo + âncora da linha-guia
+  anchor: 'start' | 'middle' | 'end';
+  /** peça DA roda (disco/pneu/amortecedor): desenha por cima das rodas;
+   *  as demais ficam atrás — a roda encobre o que invade a caixa dela */
+  sobreRoda?: boolean;
+}
+
+const T = { fill: 'none', stroke: 'currentColor', strokeWidth: 2.2, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+const dRadiador = (x: number, y: number) => <g {...T}><rect x={x} y={y} width="13" height="26" rx="2" /><path d={`M${x + 4.5} ${y}v26M${x + 9} ${y}v26`} strokeWidth="1.4" /></g>;
+const dMotor = (x: number, y: number) => <g {...T}><rect x={x} y={y + 8} width="42" height="22" rx="2" fill="currentColor" fillOpacity="0.14" /><rect x={x + 8} y={y} width="24" height="8" rx="1.5" /><path d={`M${x + 12} ${y}v-5M${x + 20} ${y}v-5M${x + 28} ${y}v-5`} strokeWidth="1.6" /><circle cx={x - 6} cy={y + 24} r="4.5" /></g>;
+const dBateria = (x: number, y: number) => <g {...T}><rect x={x} y={y} width="22" height="13" rx="1.5" fill="currentColor" fillOpacity="0.14" /><path d={`M${x + 4} ${y}v-3M${x + 18} ${y}v-3`} strokeWidth="1.8" /><path d={`M${x + 3.5} ${y + 5}h4M${x + 14.5} ${y + 5}h4M${x + 16.5} ${y + 3}v4`} strokeWidth="1.4" /></g>;
+const dFarol = (x: number, y: number) => <g {...T}><path d={`M${x} ${y}a7 6 0 010 12l-6-1v-10z`} fill="currentColor" fillOpacity="0.18" /><path d={`M${x + 9} ${y + 1}l6-2M${x + 10} ${y + 6}h6M${x + 9} ${y + 11}l6 2`} strokeWidth="1.4" /></g>;
+const dLanterna = (x: number, y: number) => <g {...T}><rect x={x} y={y} width="8" height="16" rx="2" fill="currentColor" fillOpacity="0.2" /></g>;
+const dEscap = (caminho: string, mx: number, my: number) => <g {...T}><path d={caminho} /><rect x={mx} y={my} width="42" height="11" rx="5" fill="currentColor" fillOpacity="0.14" /><path d={`M${mx + 42} ${my + 5.5}h8`} /></g>;
+const dTanque = (x: number, y: number) => <g {...T}><rect x={x} y={y} width="44" height="14" rx="6" fill="currentColor" fillOpacity="0.14" /><path d={`M${x + 34} ${y}v-6`} strokeWidth="1.6" /></g>;
+const dVolante = (x: number, y: number) => <g {...T}><circle cx={x} cy={y} r="7.5" /><circle cx={x} cy={y} r="2" /><path d={`M${x + 5} ${y + 6}l14 40`} /></g>;
+const dBanco = (x: number, y: number) => <g {...T}><path d={`M${x} ${y}a4 4 0 014-4h2a4 4 0 014 4`} /><path d={`M${x + 2} ${y}l3 30h16`} /><path d={`M${x + 5} ${y + 30}l-4 12h24`} /></g>;
+const dCambio = (x: number, y: number) => <g {...T}><rect x={x} y={y + 20} width="34" height="13" rx="2" fill="currentColor" fillOpacity="0.14" /><path d={`M${x + 16} ${y + 20}V${y + 2}`} /><circle cx={x + 16} cy={y - 1} r="3.6" fill="currentColor" fillOpacity="0.3" /></g>;
+const dAmort = (cx: number, cy: number) => <g {...T}><path d={`M${cx} ${cy}v-6M${cx} ${cy - 28}v-6`} /><path d={`M${cx - 6} ${cy - 6}h12M${cx - 6} ${cy - 28}h12M${cx - 5} ${cy - 6}l10-3.6-10-3.6 10-3.6-10-3.6 10-3.6`} strokeWidth="1.8" /></g>;
+const dDisco = (cx: number, cy: number) => <g {...T}><circle cx={cx} cy={cy} r="12" fill="currentColor" fillOpacity="0.12" /><circle cx={cx} cy={cy} r="4.5" /><path d={`M${cx + 8} ${cy - 12}a14 14 0 016 9`} strokeWidth="3.4" /></g>;
+const dComp = (x: number, y: number) => <g {...T}><circle cx={x} cy={y} r="7" /><circle cx={x} cy={y} r="2.4" /><path d={`M${x - 7} ${y}h-6`} strokeWidth="1.6" /></g>;
+const dAnelRoda = (cx: number, cy: number, r: number) => <g {...T}><circle cx={cx} cy={cy} r={r + 2} strokeWidth="4" /></g>;
+const dPortas = (x: number, y: number, w: number, h: number) => <g {...T}><rect x={x} y={y} width={w} height={h} rx="6" strokeDasharray="7 5" /></g>;
+const dKit = (x: number, y: number) => <g {...T}><path d={`M${x} ${y}l8 14h-16z`} /><rect x={x + 14} y={y + 2} width="7" height="13" rx="2.5" /></g>;
+const dCaixa = (x: number, y: number) => <g {...T}><rect x={x} y={y} width="38" height="20" rx="2" fill="currentColor" fillOpacity="0.12" /><path d={`M${x} ${y + 7}h38`} strokeWidth="1.6" /></g>;
+const dCinto = (x: number, y: number) => <g {...T}><path d={`M${x} ${y}l13 26`} strokeWidth="3.4" /><rect x={x + 9} y={y + 20} width="7" height="6" rx="1" fill="currentColor" fillOpacity="0.3" /></g>;
+
+const ANATOMIA_CARRO: PecaInterna[] = [
+  { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', desenho: dRadiador(137, 234), lx: 92, ly: 200, ax: 143, ay: 234, anchor: 'end' },
+  { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', desenho: dMotor(152, 222), lx: 172, ly: 182, ax: 180, ay: 226, anchor: 'middle' },
+  { id: 'tanque', sistema: 'Motor', casa: /aliment|combust|bomba/i, rotulo: 'Tanque / bomba', desenho: dTanque(482, 278), lx: 504, ly: 330, ax: 504, ay: 292, anchor: 'middle' },
+  { id: 'escap', sistema: 'Motor', casa: /escap|catalisador/i, rotulo: 'Escapamento', desenho: dEscap('M204 258 C250 286 380 291 555 291', 555, 285), lx: 312, ly: 322, ax: 340, ay: 290, anchor: 'middle' },
+  { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', desenho: dBateria(208, 224), lx: 262, ly: 176, ax: 222, ay: 224, anchor: 'start' },
+  { id: 'farol', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', desenho: dFarol(128, 238), lx: 66, ly: 288, ax: 126, ay: 248, anchor: 'end' },
+  { id: 'lanterna', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Lanterna', desenho: dLanterna(654, 218), lx: 700, ly: 196, ax: 660, ay: 218, anchor: 'start' },
+  { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', desenho: dVolante(330, 190), lx: 296, ly: 136, ax: 328, ay: 184, anchor: 'middle' },
+  { id: 'banco1', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Bancos', desenho: dBanco(390, 208), lx: 430, ly: 132, ax: 398, ay: 204, anchor: 'middle' },
+  { id: 'banco2', sistema: 'Interior', casa: /banco|estofad/i, rotulo: '', desenho: dBanco(458, 208), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle' },
+  { id: 'cinto', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', desenho: dCinto(388, 210), lx: 360, ly: 128, ax: 392, ay: 208, anchor: 'middle' },
+  { id: 'kit', sistema: 'Itens de segurança', casa: /extintor|tri[aâ]ngulo|macaco/i, rotulo: 'Kit (extintor/triângulo)', desenho: dKit(596, 240), lx: 520, ly: 322, ax: 600, ay: 252, anchor: 'middle' },
+  { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio/i, rotulo: 'Câmbio', desenho: dCambio(342, 240), lx: 320, ly: 334, ax: 356, ay: 272, anchor: 'middle' },
+  { id: 'amort1', sistema: 'Suspensão', casa: /amortecedor|mola/i, rotulo: 'Amortecedores', desenho: dAmort(212, 258), lx: 152, ly: 330, ax: 208, ay: 244, anchor: 'middle', sobreRoda: true },
+  { id: 'amort2', sistema: 'Suspensão', casa: /amortecedor|mola/i, rotulo: '', desenho: dAmort(560, 258), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
+  { id: 'disco1', sistema: 'Freios', casa: /disco|pastilha|hidr[aá]ulica/i, rotulo: 'Discos / pastilhas', desenho: dDisco(212, 272), lx: 132, ly: 328, ax: 202, ay: 278, anchor: 'middle', sobreRoda: true },
+  { id: 'disco2', sistema: 'Freios', casa: /disco|pastilha|hidr[aá]ulica/i, rotulo: '', desenho: dDisco(560, 272), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
+  { id: 'comp', sistema: 'Ar-condicionado', rotulo: 'Compressor', desenho: dComp(174, 258), lx: 166, ly: 300, ax: 192, ay: 256, anchor: 'middle' },
+  { id: 'pneu1', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', desenho: dAnelRoda(212, 272, 33), lx: 268, ly: 330, ax: 232, ay: 296, anchor: 'middle', sobreRoda: true },
+  { id: 'pneu2', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: '', desenho: dAnelRoda(560, 272, 33), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
+  { id: 'portas', sistema: 'Carroceria', casa: /lataria|porta|ma[çc]aneta/i, rotulo: 'Portas / lataria', desenho: dPortas(300, 208, 214, 62), lx: 560, ly: 168, ax: 512, ay: 212, anchor: 'middle' },
+  { id: 'malas', sistema: 'Outros', rotulo: 'Porta-malas', desenho: dCaixa(598, 230), lx: 616, ly: 170, ax: 616, ay: 230, anchor: 'middle' },
+];
+
+const ANATOMIA_HATCH: PecaInterna[] = [
+  { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', desenho: dRadiador(158, 236), lx: 108, ly: 202, ax: 164, ay: 236, anchor: 'end' },
+  { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', desenho: dMotor(172, 224), lx: 192, ly: 186, ax: 200, ay: 228, anchor: 'middle' },
+  { id: 'tanque', sistema: 'Motor', casa: /aliment|combust|bomba/i, rotulo: 'Tanque / bomba', desenho: dTanque(428, 278), lx: 450, ly: 330, ax: 450, ay: 292, anchor: 'middle' },
+  { id: 'escap', sistema: 'Motor', casa: /escap|catalisador/i, rotulo: 'Escapamento', desenho: dEscap('M222 260 C260 286 340 291 468 291', 468, 285), lx: 318, ly: 322, ax: 340, ay: 290, anchor: 'middle' },
+  { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', desenho: dBateria(222, 226), lx: 276, ly: 180, ax: 236, ay: 226, anchor: 'start' },
+  { id: 'farol', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', desenho: dFarol(156, 240), lx: 96, ly: 290, ax: 154, ay: 250, anchor: 'end' },
+  { id: 'lanterna', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Lanterna', desenho: dLanterna(538, 216), lx: 584, ly: 194, ax: 544, ay: 216, anchor: 'start' },
+  { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', desenho: dVolante(328, 188), lx: 294, ly: 134, ax: 326, ay: 182, anchor: 'middle' },
+  { id: 'banco1', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Bancos', desenho: dBanco(392, 206), lx: 432, ly: 130, ax: 400, ay: 202, anchor: 'middle' },
+  { id: 'banco2', sistema: 'Interior', casa: /banco|estofad/i, rotulo: '', desenho: dBanco(450, 206), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle' },
+  { id: 'cinto', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', desenho: dCinto(390, 208), lx: 362, ly: 126, ax: 394, ay: 206, anchor: 'middle' },
+  { id: 'kit', sistema: 'Itens de segurança', casa: /extintor|tri[aâ]ngulo|macaco/i, rotulo: 'Kit (extintor/triângulo)', desenho: dKit(500, 238), lx: 452, ly: 322, ax: 504, ay: 250, anchor: 'middle' },
+  { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio/i, rotulo: 'Câmbio', desenho: dCambio(340, 240), lx: 318, ly: 334, ax: 354, ay: 272, anchor: 'middle' },
+  { id: 'amort1', sistema: 'Suspensão', casa: /amortecedor|mola/i, rotulo: 'Amortecedores', desenho: dAmort(212, 258), lx: 152, ly: 330, ax: 208, ay: 244, anchor: 'middle', sobreRoda: true },
+  { id: 'amort2', sistema: 'Suspensão', casa: /amortecedor|mola/i, rotulo: '', desenho: dAmort(490, 258), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
+  { id: 'disco1', sistema: 'Freios', casa: /disco|pastilha|hidr[aá]ulica/i, rotulo: 'Discos / pastilhas', desenho: dDisco(212, 272), lx: 132, ly: 328, ax: 202, ay: 278, anchor: 'middle', sobreRoda: true },
+  { id: 'disco2', sistema: 'Freios', casa: /disco|pastilha|hidr[aá]ulica/i, rotulo: '', desenho: dDisco(490, 272), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
+  { id: 'comp', sistema: 'Ar-condicionado', rotulo: 'Compressor', desenho: dComp(176, 258), lx: 176, ly: 302, ax: 202, ay: 258, anchor: 'middle' },
+  { id: 'pneu1', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', desenho: dAnelRoda(212, 272, 33), lx: 268, ly: 330, ax: 232, ay: 296, anchor: 'middle', sobreRoda: true },
+  { id: 'pneu2', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: '', desenho: dAnelRoda(490, 272, 33), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
+  { id: 'portas', sistema: 'Carroceria', casa: /lataria|porta|ma[çc]aneta/i, rotulo: 'Portas / lataria', desenho: dPortas(298, 206, 160, 62), lx: 520, ly: 168, ax: 458, ay: 210, anchor: 'middle' },
+  { id: 'malas', sistema: 'Outros', rotulo: 'Porta-malas', desenho: dCaixa(492, 228), lx: 510, ly: 168, ax: 510, ay: 228, anchor: 'middle' },
+];
+
+const ANATOMIA_PICAPE: PecaInterna[] = [
+  { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', desenho: dRadiador(140, 234), lx: 94, ly: 200, ax: 146, ay: 234, anchor: 'end' },
+  { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', desenho: dMotor(154, 222), lx: 174, ly: 182, ax: 182, ay: 226, anchor: 'middle' },
+  { id: 'tanque', sistema: 'Motor', casa: /aliment|combust|bomba/i, rotulo: 'Tanque / bomba', desenho: dTanque(460, 280), lx: 482, ly: 332, ax: 482, ay: 294, anchor: 'middle' },
+  { id: 'escap', sistema: 'Motor', casa: /escap|catalisador/i, rotulo: 'Escapamento', desenho: dEscap('M206 258 C250 288 380 293 596 293', 596, 287), lx: 310, ly: 324, ax: 340, ay: 292, anchor: 'middle' },
+  { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', desenho: dBateria(210, 224), lx: 264, ly: 176, ax: 224, ay: 224, anchor: 'start' },
+  { id: 'farol', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', desenho: dFarol(132, 238), lx: 70, ly: 288, ax: 130, ay: 248, anchor: 'end' },
+  { id: 'lanterna', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Lanterna', desenho: dLanterna(660, 216), lx: 704, ly: 194, ax: 666, ay: 216, anchor: 'start' },
+  { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', desenho: dVolante(322, 188), lx: 288, ly: 134, ax: 320, ay: 182, anchor: 'middle' },
+  { id: 'banco1', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Banco', desenho: dBanco(372, 206), lx: 408, ly: 130, ax: 380, ay: 202, anchor: 'middle' },
+  { id: 'cinto', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', desenho: dCinto(370, 208), lx: 344, ly: 126, ax: 374, ay: 206, anchor: 'middle' },
+  { id: 'kit', sistema: 'Itens de segurança', casa: /extintor|tri[aâ]ngulo|macaco/i, rotulo: 'Kit (extintor/triângulo)', desenho: dKit(452, 238), lx: 430, ly: 172, ax: 456, ay: 238, anchor: 'middle' },
+  { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio/i, rotulo: 'Câmbio', desenho: dCambio(336, 240), lx: 314, ly: 334, ax: 350, ay: 272, anchor: 'middle' },
+  { id: 'amort1', sistema: 'Suspensão', casa: /amortecedor|mola/i, rotulo: 'Amortecedores', desenho: dAmort(212, 258), lx: 152, ly: 330, ax: 208, ay: 244, anchor: 'middle', sobreRoda: true },
+  { id: 'amort2', sistema: 'Suspensão', casa: /amortecedor|mola/i, rotulo: '', desenho: dAmort(560, 258), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
+  { id: 'disco1', sistema: 'Freios', casa: /disco|pastilha|hidr[aá]ulica/i, rotulo: 'Discos / pastilhas', desenho: dDisco(212, 272), lx: 132, ly: 328, ax: 202, ay: 278, anchor: 'middle', sobreRoda: true },
+  { id: 'disco2', sistema: 'Freios', casa: /disco|pastilha|hidr[aá]ulica/i, rotulo: '', desenho: dDisco(560, 272), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
+  { id: 'comp', sistema: 'Ar-condicionado', rotulo: 'Compressor', desenho: dComp(174, 258), lx: 168, ly: 300, ax: 194, ay: 256, anchor: 'middle' },
+  { id: 'pneu1', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', desenho: dAnelRoda(212, 272, 33), lx: 268, ly: 330, ax: 232, ay: 296, anchor: 'middle', sobreRoda: true },
+  { id: 'pneu2', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: '', desenho: dAnelRoda(560, 272, 33), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
+  { id: 'portas', sistema: 'Carroceria', casa: /lataria|porta|ma[çc]aneta/i, rotulo: 'Porta / lataria', desenho: dPortas(300, 208, 116, 62), lx: 470, ly: 168, ax: 414, ay: 212, anchor: 'middle' },
+  { id: 'cacamba', sistema: 'Outros', rotulo: 'Caçamba', desenho: dCaixa(520, 228), lx: 540, ly: 168, ax: 540, ay: 228, anchor: 'middle' },
+];
+
+// exportado só pra render de verificação (scripts de preview)
+export const ANATOMIAS: Partial<Record<TipoSilhueta, PecaInterna[]>> = {
+  carro: ANATOMIA_CARRO, hatch: ANATOMIA_HATCH, picape: ANATOMIA_PICAPE,
+};
+
 // ── rodas ──────────────────────────────────────────────────────────────────
 // Roda estilo referência: pneu grosso + aro de 5 raios. O primeiro círculo é
 // na cor do CARD e um pouco maior que o pneu: ele "recorta" a carroceria atrás
@@ -486,7 +605,8 @@ const CARRETA: Silhueta = {
   ],
 };
 
-const SILHUETAS: Record<TipoSilhueta, Silhueta> = {
+// exportado só pra render de verificação (scripts de preview)
+export const SILHUETAS: Record<TipoSilhueta, Silhueta> = {
   carro: CARRO, hatch: HATCH, picape: PICAPE, caminhao: CAMINHAO, moto: MOTO, carreta: CARRETA,
 };
 
@@ -526,6 +646,11 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   const pecas = zoom ? pecasPorSistema?.get(zoom) || [] : [];
   const contZoom = zoom ? porSistema.get(zoom) : undefined;
 
+  // raio-X: com zoom + anatomia, a carroceria esmaece e as peças internas
+  // aparecem no lugar real (sedã/hatch/picape; os demais ficam só no painel)
+  const anatomia = pecasPorSistema ? ANATOMIAS[tipo] : undefined;
+  const raioX = !!(zoom && anatomia);
+
   const clicar = (sistema: string) => {
     if (pecasPorSistema) {
       setZoom((z) => (z === sistema ? null : sistema));
@@ -535,6 +660,33 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
     onSelecionar(sistema); // sem dados de peças: comportamento antigo
   };
 
+  // uma peça interna do raio-X: cor da gravidade do componente casado; peça
+  // de OUTRO sistema fica fantasma; rótulo com linha-guia só no sistema aberto
+  const desenharPecaInterna = (pt: PecaInterna, i: number) => {
+    const doSistema = pt.sistema === zoom;
+    const pc = doSistema && pt.casa ? pecas.find((x) => pt.casa!.test(x.rotulo)) : undefined;
+    const cg = pc?.pior ? GRAVIDADE_COR[pc.pior] : null;
+    const cor = doSistema ? (cg ? cg.forte : '#3b82f6') : 'var(--portal-text-muted, #64748b)';
+    return (
+      <g key={pt.id} color={cor}
+        style={{
+          opacity: doSistema ? 1 : 0.3,
+          animation: `diagrama-xray .45s ${0.1 + i * 0.035}s cubic-bezier(.3,0,.2,1) backwards`,
+        }}>
+        {pt.desenho}
+        {doSistema && pt.rotulo && (
+          <g style={{ pointerEvents: 'none' }}>
+            <line x1={pt.ax} y1={pt.ay} x2={pt.lx} y2={pt.ly + 3} stroke={cor} strokeWidth="1.1" opacity="0.8" />
+            <text x={pt.lx} y={pt.ly} textAnchor={pt.anchor} fontSize="12" fontWeight="800" fill={cor}
+              stroke="var(--portal-bg-card, #fff)" strokeWidth="3.5" paintOrder="stroke">
+              {pt.rotulo}{pc && pc.total > 0 ? ` · ${pc.total}` : ''}
+            </text>
+          </g>
+        )}
+      </g>
+    );
+  };
+
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
       <div style={{ position: 'relative', minWidth: 580 }}>
@@ -542,11 +694,13 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
           role="img" aria-label={`Mapa do veículo (${tipo}) com as pendências por sistema`}
           onClick={() => { if (zoom) setZoom(null); }}>
           <g style={{ transform: transformCena, transition: 'transform .85s cubic-bezier(.45,0,.18,1)', transformOrigin: '0 0' }}>
-            <g color="var(--portal-text-muted, #64748b)">
+            <g color="var(--portal-text-muted, #64748b)"
+              style={{ opacity: raioX ? 0.16 : 1, transition: 'opacity .6s .15s' }}>
               {s.corpo}
               {/* motor "gravado" no cofre (traços na cor do card, como os
-                  vidros) — só aparece quando o capô levanta */}
-              {s.capo && (
+                  vidros) — só quando o capô levanta SEM o raio-X (com o
+                  raio-X a peça 'motor' da anatomia assume o lugar) */}
+              {s.capo && !anatomia && (
                 <g style={{ opacity: capoAberto ? 1 : 0, transition: 'opacity .5s .4s' }}>{s.capo.motor}</g>
               )}
               {/* capô como "tampa" por cima do bico: levanta girando na
@@ -567,8 +721,15 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                   </g>
                 );
               })()}
+            </g>
+            {/* raio-X ATRÁS das rodas: a roda encobre o que invade a caixa dela */}
+            {raioX && anatomia!.map((pt, i) => (pt.sobreRoda ? null : desenharPecaInterna(pt, i)))}
+            {/* rodas FORA do fade do raio-X: ancoram o desenho, como na referência */}
+            <g color="var(--portal-text-muted, #64748b)">
               {s.rodas.map((r) => <Roda key={`${r.cx}-${r.cy}`} {...r} />)}
             </g>
+            {/* peças DA roda (disco/pneu/amortecedor) por cima */}
+            {raioX && anatomia!.map((pt, i) => (pt.sobreRoda ? desenharPecaInterna(pt, i) : null))}
             <path d={s.chao} stroke="var(--portal-border, #e2e8f0)" strokeWidth="2.5" fill="none"
               style={{ opacity: zoom ? 0 : 1, transition: 'opacity .4s' }} />
 
@@ -697,6 +858,7 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
         <style>{`
           @keyframes diagrama-painel { from { opacity: 0; transform: translateX(24px) scale(.94); } to { opacity: 1; transform: none; } }
           @keyframes diagrama-peca { from { opacity: 0; transform: translateY(10px) scale(.7); } to { opacity: 1; transform: none; } }
+          @keyframes diagrama-xray { from { opacity: 0; } }
           @media (prefers-reduced-motion: reduce) {
             @keyframes diagrama-painel { from { opacity: 0 } to { opacity: 1 } }
             @keyframes diagrama-peca { from { opacity: 0 } to { opacity: 1 } }
