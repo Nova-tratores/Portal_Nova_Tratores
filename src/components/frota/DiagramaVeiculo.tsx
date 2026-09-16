@@ -34,6 +34,7 @@ const PicapeFrenteArte = lazy(() => import('@/components/frota/PicapeFrenteArte'
 const PicapeFrenteMotorArte = lazy(() => import('@/components/frota/PicapeFrenteMotorArte'));
 const PicapeTraseiraArte = lazy(() => import('@/components/frota/PicapeTraseiraArte'));
 const PicapeInteriorArte = lazy(() => import('@/components/frota/PicapeInteriorArte'));
+const RodaArte = lazy(() => import('@/components/frota/RodaArte'));
 
 interface Ponto {
   sistema: string;
@@ -369,30 +370,6 @@ const CENA_CABINE: Cena = {
   ],
 };
 
-const CENA_RODA: Cena = {
-  titulo: 'Conjunto de roda',
-  viewBox: '0 0 800 520',
-  fundo: (
-    <>
-      <path d="M60 486 H740" stroke="var(--portal-border, #e2e8f0)" strokeWidth="3" fill="none" />
-      {/* eixo ligando roda ↔ disco */}
-      <path d="M300 290 H620" stroke="currentColor" strokeWidth="9" opacity="0.35" fill="none" strokeLinecap="round" />
-    </>
-  ),
-  pecas: [
-    { id: 'pneu', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneu', lx: 300, ly: 500, ax: 300, ay: 448, anchor: 'middle',
-      desenho: <g {...T}><circle cx="300" cy="290" r="140" strokeWidth="36" /><g strokeWidth="3">{[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((a) => { const r1 = 150, r2 = 166, rad = a * Math.PI / 180; return <path key={a} d={`M${300 + r1 * Math.cos(rad)} ${290 + r1 * Math.sin(rad)}L${300 + r2 * Math.cos(rad)} ${290 + r2 * Math.sin(rad)}`} />; })}</g></g> },
-    { id: 'aro', sistema: 'Rodas e Pneus', casa: /roda|aro|alinhamento|balancea|rolamento|cubo/i, rotulo: 'Roda / cubo', lx: 152, ly: 128, ax: 240, ay: 236, anchor: 'end',
-      desenho: <g {...T} strokeWidth="4"><circle cx="300" cy="290" r="94" /><circle cx="300" cy="290" r="20" />{[-90, -18, 54, 126, 198].map((a) => { const rad = a * Math.PI / 180; return <path key={a} d={`M${300 + 22 * Math.cos(rad)} ${290 + 22 * Math.sin(rad)}L${300 + 88 * Math.cos(rad)} ${290 + 88 * Math.sin(rad)}`} strokeWidth="10" />; })}</g> },
-    { id: 'disco', sistema: 'Freios', casa: /disco|pin[çc]a|pastilha|hidr[aá]ulica/i, rotulo: 'Disco / pinça', lx: 656, ly: 400, ax: 660, ay: 320, anchor: 'start',
-      desenho: <g {...T} strokeWidth="4"><circle cx="620" cy="290" r="72" fill="currentColor" fillOpacity="0.1" /><circle cx="620" cy="290" r="26" />{[0, 60, 120, 180, 240, 300].map((a) => { const rad = a * Math.PI / 180; return <circle key={a} cx={620 + 48 * Math.cos(rad)} cy={290 + 48 * Math.sin(rad)} r="6" strokeWidth="2.6" />; })}<path d="M576 222 A80 80 0 0 1 664 222 L652 244 A56 56 0 0 0 588 244 Z" fill="currentColor" fillOpacity="0.25" strokeWidth="3" /></g> },
-    { id: 'amort', sistema: 'Suspensão', casa: /amortecedor|mola|batente/i, rotulo: 'Amortecedor', lx: 660, ly: 72, ax: 648, ay: 108, anchor: 'start',
-      desenho: <g {...T} strokeWidth="3.6"><path d="M620 212v-24M620 74v-24" strokeWidth="5" /><path d="M596 188h48M596 74h48" /><path d="M600 186l40-14-40-14 40-14-40-14 40-14-40-14" strokeWidth="3" /></g> },
-    { id: 'bandeja', sistema: 'Suspensão', casa: /bucha|piv[oô]|bandeja|barra|terminal|axial/i, rotulo: 'Bandeja / buchas', lx: 470, ly: 486, ax: 470, ay: 428, anchor: 'middle',
-      desenho: <g {...T} strokeWidth="4"><path d="M318 420 C380 442 540 442 604 412" strokeWidth="9" /><circle cx="308" cy="416" r="13" /><circle cx="614" cy="408" r="13" /></g> },
-  ],
-};
-
 const CENA_TRASEIRA: Cena = {
   titulo: 'Traseira — porta-malas',
   viewBox: '0 0 800 520',
@@ -426,20 +403,6 @@ const CENA_TRASEIRA: Cena = {
   ],
 };
 
-// exportado só pra render de verificação (scripts de preview)
-export const CENAS: Record<string, Cena> = {
-  frente: CENA_FRENTE, cabine: CENA_CABINE, roda: CENA_RODA, traseira: CENA_TRASEIRA,
-};
-
-// qual cena cada sistema abre (Carroceria fica na LATERAL em raio-X — é o
-// corpo inteiro, nenhuma vista parcial mostra melhor que a lateral)
-const CENA_DO_SISTEMA: Record<string, string> = {
-  'Motor': 'frente', 'Elétrica': 'frente', 'Ar-condicionado': 'frente',
-  'Direção': 'cabine', 'Interior': 'cabine', 'Itens de segurança': 'cabine', 'Transmissão': 'cabine',
-  'Freios': 'roda', 'Suspensão': 'roda', 'Rodas e Pneus': 'roda',
-  'Outros': 'traseira',
-};
-
 // ── CENAS DA PICAPE: as ARTES DO USUÁRIO ───────────────────────────────────
 // Quatro vistas vetorizadas pelo próprio usuário (cofre aberto, frente,
 // traseira com caçamba e cabine). Sobre arte detalhada NÃO se desenha peça
@@ -468,20 +431,20 @@ const CENA_P_MOTOR: Cena = {
   arte: true,
   fundo: <Suspense fallback={null}><PicapeFrenteMotorArte /></Suspense>,
   pecas: [
-    { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', lx: 1330, ly: 160, ax: 845, ay: 220, anchor: 'end', desenho: marca(505, 160, 340, 250) },
-    { id: 'filtro', sistema: 'Motor', casa: /aliment|combust|bomba|filtro/i, rotulo: 'Filtro de ar', lx: 30, ly: 330, ax: 250, ay: 300, anchor: 'start', desenho: marca(245, 210, 300, 170) },
-    { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', lx: 300, ly: 745, ax: 450, ay: 510, anchor: 'middle', desenho: marca(350, 450, 700, 100, 30) },
-    { id: 'reservarrefec', sistema: 'Motor', casa: /arrefec|reservat/i, rotulo: 'Reserv. arrefecimento', lx: 30, ly: 160, ax: 245, ay: 200, anchor: 'start', desenho: marca(228, 160, 110, 105, 22) },
-    { id: 'escapcofre', sistema: 'Motor', casa: /escap|coletor/i, rotulo: 'Coletor / escape', lx: 30, ly: 500, ax: 420, ay: 430, anchor: 'start', desenho: marcaO(430, 435, 60, 45) },
-    { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', lx: 1330, ly: 660, ax: 1110, ay: 430, anchor: 'end', desenho: marca(920, 330, 200, 145, 18) },
-    { id: 'fusiveis', sistema: 'Elétrica', casa: /fus[ií]vel|rel[eé]|chicote/i, rotulo: 'Fusíveis / relés', lx: 1330, ly: 30, ax: 1050, ay: 240, anchor: 'end', desenho: marca(985, 222, 130, 112, 16) },
-    { id: 'alternador', sistema: 'Elétrica', casa: /partida|arranque|alternador|correia/i, rotulo: 'Alternador / correia', lx: 1010, ly: 745, ax: 755, ay: 400, anchor: 'middle', desenho: marcaO(730, 355, 55, 55) },
-    { id: 'palhetas', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 700, ly: 30, ax: 700, ay: 45, anchor: 'middle', desenho: marca(430, 10, 640, 75, 20) },
-    { id: 'reservlimpador', sistema: 'Elétrica', casa: /limpador|reservat/i, rotulo: 'Reserv. do limpador', lx: 30, ly: 660, ax: 200, ay: 450, anchor: 'start', desenho: marcaO(225, 420, 58, 62) },
-    { id: 'cilindrofreio', sistema: 'Freios', casa: /fluido|hidr[aá]ulica|cilindro/i, rotulo: 'Cilindro de freio', lx: 1330, ly: 480, ax: 915, ay: 235, anchor: 'end', desenho: marcaO(870, 220, 62, 60) },
-    { id: 'escoras', sistema: 'Carroceria', casa: /capo|cap[oô]|dobradi[çc]|lataria/i, rotulo: 'Escoras do capô', lx: 90, ly: 30, ax: 225, ay: 110, anchor: 'start', desenho: <g>{marca(195, 12, 78, 215, 26)}{marca(1028, 12, 78, 215, 26)}</g> },
-    { id: 'gradecofre', sistema: 'Carroceria', casa: /grade|lataria/i, rotulo: 'Grade', lx: 700, ly: 745, ax: 665, ay: 645, anchor: 'middle', desenho: marca(235, 560, 845, 168, 30) },
-    { id: 'faroiscofre', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 90, ly: 590, ax: 150, ay: 578, anchor: 'start', desenho: <g>{marca(92, 543, 122, 78, 20)}{marca(1092, 543, 122, 78, 20)}</g> },
+    { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', lx: 1330, ly: 160, ax: 828, ay: 235, anchor: 'end', desenho: marca(555, 185, 270, 200, 20) },
+    { id: 'filtro', sistema: 'Motor', casa: /aliment|combust|bomba|filtro/i, rotulo: 'Filtro de ar', lx: 30, ly: 320, ax: 245, ay: 305, anchor: 'start', desenho: marca(238, 240, 330, 155, 18) },
+    { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', lx: 300, ly: 745, ax: 450, ay: 540, anchor: 'middle', desenho: marca(352, 478, 710, 85, 30) },
+    { id: 'reservarrefec', sistema: 'Motor', casa: /arrefec|reservat/i, rotulo: 'Reserv. arrefecimento', lx: 30, ly: 160, ax: 278, ay: 210, anchor: 'start', desenho: marca(272, 185, 75, 85, 18) },
+    { id: 'escapcofre', sistema: 'Motor', casa: /escap|coletor/i, rotulo: 'Coletor / escape', lx: 30, ly: 470, ax: 495, ay: 462, anchor: 'start', desenho: marcaO(530, 455, 55, 45) },
+    { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', lx: 1330, ly: 660, ax: 1130, ay: 480, anchor: 'end', desenho: marca(925, 372, 260, 120, 18) },
+    { id: 'fusiveis', sistema: 'Elétrica', casa: /fus[ií]vel|rel[eé]|chicote/i, rotulo: 'Fusíveis / relés', lx: 1330, ly: 30, ax: 1085, ay: 240, anchor: 'end', desenho: marca(1002, 232, 145, 112, 16) },
+    { id: 'alternador', sistema: 'Elétrica', casa: /partida|arranque|alternador|correia/i, rotulo: 'Alternador / correia', lx: 1010, ly: 745, ax: 748, ay: 440, anchor: 'middle', desenho: marcaO(735, 385, 60, 60) },
+    { id: 'palhetas', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 700, ly: 30, ax: 700, ay: 50, anchor: 'middle', desenho: marca(485, 15, 610, 82, 20) },
+    { id: 'reservlimpador', sistema: 'Elétrica', casa: /limpador|reservat/i, rotulo: 'Reserv. do limpador', lx: 30, ly: 620, ax: 235, ay: 478, anchor: 'start', desenho: marcaO(255, 430, 70, 55) },
+    { id: 'cilindrofreio', sistema: 'Freios', casa: /fluido|hidr[aá]ulica|cilindro/i, rotulo: 'Cilindro de freio', lx: 1330, ly: 480, ax: 952, ay: 262, anchor: 'end', desenho: marcaO(905, 245, 58, 58) },
+    { id: 'escoras', sistema: 'Carroceria', casa: /capo|cap[oô]|dobradi[çc]|lataria/i, rotulo: 'Escoras do capô', lx: 90, ly: 30, ax: 240, ay: 110, anchor: 'start', desenho: <g>{marca(205, 20, 80, 235, 26)}{marca(1025, 20, 85, 235, 26)}</g> },
+    { id: 'gradecofre', sistema: 'Carroceria', casa: /grade|lataria/i, rotulo: 'Grade', lx: 700, ly: 745, ax: 690, ay: 700, anchor: 'middle', desenho: marca(245, 585, 885, 160, 30) },
+    { id: 'faroiscofre', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 30, ly: 720, ax: 130, ay: 645, anchor: 'start', desenho: <g>{marca(90, 575, 145, 85, 20)}{marca(1128, 575, 145, 85, 20)}</g> },
   ],
 };
 
@@ -491,15 +454,15 @@ const CENA_P_FRENTE: Cena = {
   arte: true,
   fundo: <Suspense fallback={null}><PicapeFrenteArte /></Suspense>,
   pecas: [
-    { id: 'parabrisa', sistema: 'Carroceria', casa: /vidro|para.?brisa/i, rotulo: 'Para-brisa', lx: 700, ly: 32, ax: 700, ay: 65, anchor: 'middle', desenho: marca(390, 60, 490, 155, 20) },
-    { id: 'palhetasf', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 1350, ly: 200, ax: 872, ay: 215, anchor: 'end', desenho: marca(415, 195, 460, 40, 14) },
-    { id: 'capo', sistema: 'Carroceria', casa: /lataria|capo|cap[oô]|pintura|funilaria/i, rotulo: 'Capô / lataria', lx: 1350, ly: 300, ax: 922, ay: 258, anchor: 'end', desenho: marca(360, 218, 565, 85, 20) },
-    { id: 'retrovisores', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisores', lx: 20, ly: 180, ax: 268, ay: 225, anchor: 'start', desenho: <g>{marca(263, 195, 95, 70, 16)}{marca(905, 195, 95, 70, 16)}</g> },
-    { id: 'parachoque', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 1350, ly: 520, ax: 934, ay: 480, anchor: 'end', desenho: marca(352, 418, 585, 130, 24) },
-    { id: 'farois', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 30, ly: 330, ax: 372, ay: 340, anchor: 'start', desenho: <g>{marca(368, 285, 88, 118, 18)}{marca(843, 285, 88, 118, 18)}</g> },
-    { id: 'grade', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Grade / radiador', lx: 1350, ly: 400, ax: 840, ay: 350, anchor: 'end', desenho: marca(458, 282, 385, 135, 24) },
-    { id: 'suspdiant', sistema: 'Suspensão', casa: /amortecedor|mola|bandeja|barra|pivô|piv[oô]/i, rotulo: 'Suspensão dianteira', lx: 700, ly: 745, ax: 700, ay: 630, anchor: 'middle', desenho: marca(420, 548, 460, 85, 20) },
-    { id: 'pneus', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 30, ly: 560, ax: 305, ay: 540, anchor: 'start', desenho: <g>{marca(300, 398, 132, 285, 40)}{marca(853, 398, 132, 285, 40)}</g> },
+    { id: 'parabrisa', sistema: 'Carroceria', casa: /vidro|para.?brisa/i, rotulo: 'Para-brisa', lx: 700, ly: 32, ax: 700, ay: 62, anchor: 'middle', desenho: marca(415, 58, 545, 160, 20) },
+    { id: 'palhetasf', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 1350, ly: 200, ax: 932, ay: 230, anchor: 'end', desenho: marca(455, 212, 480, 40, 14) },
+    { id: 'capo', sistema: 'Carroceria', casa: /lataria|capo|cap[oô]|pintura|funilaria/i, rotulo: 'Capô / lataria', lx: 1350, ly: 300, ax: 1008, ay: 268, anchor: 'end', desenho: marca(345, 230, 665, 75, 20) },
+    { id: 'retrovisores', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisores', lx: 20, ly: 180, ax: 270, ay: 225, anchor: 'start', desenho: <g>{marca(265, 198, 98, 92, 16)}{marca(1012, 198, 90, 92, 16)}</g> },
+    { id: 'parachoque', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 1350, ly: 520, ax: 1085, ay: 490, anchor: 'end', desenho: marca(398, 440, 690, 128, 24) },
+    { id: 'farois', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 30, ly: 330, ax: 408, ay: 348, anchor: 'start', desenho: <g>{marca(405, 303, 85, 95, 16)}{marca(928, 303, 85, 95, 16)}</g> },
+    { id: 'grade', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Grade / radiador', lx: 1350, ly: 400, ax: 886, ay: 368, anchor: 'end', desenho: marca(508, 293, 380, 145, 24) },
+    { id: 'suspdiant', sistema: 'Suspensão', casa: /amortecedor|mola|bandeja|barra|pivô|piv[oô]/i, rotulo: 'Suspensão dianteira', lx: 700, ly: 745, ax: 700, ay: 665, anchor: 'middle', desenho: marca(438, 545, 540, 118, 20) },
+    { id: 'pneus', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 30, ly: 560, ax: 355, ay: 555, anchor: 'start', desenho: <g>{marca(348, 415, 158, 285, 40)}{marca(962, 415, 158, 285, 40)}</g> },
   ],
 };
 
@@ -509,16 +472,16 @@ const CENA_P_TRASEIRA: Cena = {
   arte: true,
   fundo: <Suspense fallback={null}><PicapeTraseiraArte /></Suspense>,
   pecas: [
-    { id: 'luzfreio', sistema: 'Elétrica', casa: /luz|l[aâ]mpada|lanterna|ilumin/i, rotulo: 'Luz de freio', lx: 1330, ly: 40, ax: 700, ay: 56, anchor: 'end', desenho: marca(573, 38, 125, 36, 12) },
-    { id: 'vidrotras', sistema: 'Carroceria', casa: /vidro/i, rotulo: 'Vidro traseiro', lx: 60, ly: 60, ax: 412, ay: 120, anchor: 'start', desenho: marca(408, 82, 465, 115, 18) },
-    { id: 'cacamba', sistema: 'Outros', rotulo: 'Caçamba / carga', lx: 340, ly: 32, ax: 500, ay: 222, anchor: 'middle', desenho: marca(378, 216, 530, 216, 18) },
-    { id: 'tampa', sistema: 'Carroceria', casa: /porta|fechadura|trava/i, rotulo: 'Tampa / fechadura', lx: 1330, ly: 250, ax: 703, ay: 265, anchor: 'end', desenho: marca(590, 238, 110, 55, 12) },
-    { id: 'lanternas', sistema: 'Elétrica', casa: /lanterna|farol|ilumin/i, rotulo: 'Lanternas', lx: 60, ly: 320, ax: 330, ay: 332, anchor: 'start', desenho: <g>{marca(327, 268, 58, 130, 12)}{marca(903, 268, 58, 130, 12)}</g> },
-    { id: 'parachoquetras', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 60, ly: 480, ax: 320, ay: 482, anchor: 'start', desenho: marca(315, 438, 660, 95, 20) },
-    { id: 'susptras', sistema: 'Suspensão', casa: /mola|feixe|amortecedor/i, rotulo: 'Suspensão traseira', lx: 60, ly: 640, ax: 428, ay: 565, anchor: 'start', desenho: <g>{marca(425, 520, 60, 90, 14)}{marca(790, 520, 60, 90, 14)}</g> },
-    { id: 'engate', sistema: 'Outros', casa: /engate|reboque/i, rotulo: 'Engate de reboque', lx: 700, ly: 745, ax: 655, ay: 615, anchor: 'middle', desenho: marcaO(650, 580, 70, 45) },
-    { id: 'escapamento', sistema: 'Motor', casa: /escap/i, rotulo: 'Escapamento', lx: 1330, ly: 590, ax: 918, ay: 555, anchor: 'end', desenho: marcaO(870, 550, 55, 30) },
-    { id: 'pneustras', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 1330, ly: 700, ax: 960, ay: 622, anchor: 'end', desenho: <g>{marca(318, 558, 105, 125, 30)}{marca(858, 558, 105, 125, 30)}</g> },
+    { id: 'luzfreio', sistema: 'Elétrica', casa: /luz|l[aâ]mpada|lanterna|ilumin/i, rotulo: 'Luz de freio', lx: 1330, ly: 40, ax: 742, ay: 50, anchor: 'end', desenho: marca(635, 32, 105, 35, 12) },
+    { id: 'vidrotras', sistema: 'Carroceria', casa: /vidro/i, rotulo: 'Vidro traseiro', lx: 60, ly: 60, ax: 435, ay: 120, anchor: 'start', desenho: marca(430, 70, 505, 118, 18) },
+    { id: 'cacamba', sistema: 'Outros', rotulo: 'Caçamba / carga', lx: 340, ly: 32, ax: 520, ay: 240, anchor: 'middle', desenho: marca(410, 235, 578, 210, 18) },
+    { id: 'tampa', sistema: 'Carroceria', casa: /porta|fechadura|trava/i, rotulo: 'Tampa / fechadura', lx: 1330, ly: 250, ax: 742, ay: 275, anchor: 'end', desenho: marca(650, 250, 90, 55, 12) },
+    { id: 'lanternas', sistema: 'Elétrica', casa: /lanterna|farol|ilumin/i, rotulo: 'Lanternas', lx: 60, ly: 320, ax: 370, ay: 330, anchor: 'start', desenho: <g>{marca(368, 265, 55, 135, 12)}{marca(995, 265, 55, 135, 12)}</g> },
+    { id: 'parachoquetras', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 60, ly: 480, ax: 350, ay: 505, anchor: 'start', desenho: marca(345, 462, 715, 100, 20) },
+    { id: 'susptras', sistema: 'Suspensão', casa: /mola|feixe|amortecedor/i, rotulo: 'Suspensão traseira', lx: 60, ly: 640, ax: 472, ay: 600, anchor: 'start', desenho: <g>{marca(470, 560, 75, 85, 14)}{marca(860, 560, 75, 85, 14)}</g> },
+    { id: 'engate', sistema: 'Outros', casa: /engate|reboque/i, rotulo: 'Engate de reboque', lx: 700, ly: 745, ax: 700, ay: 645, anchor: 'middle', desenho: marcaO(700, 595, 65, 48) },
+    { id: 'escapamento', sistema: 'Motor', casa: /escap/i, rotulo: 'Escapamento', lx: 1330, ly: 590, ax: 1015, ay: 570, anchor: 'end', desenho: marcaO(960, 565, 55, 32) },
+    { id: 'pneustras', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 1330, ly: 700, ax: 1052, ay: 672, anchor: 'end', desenho: <g>{marca(355, 610, 95, 130, 30)}{marca(950, 610, 100, 130, 30)}</g> },
   ],
 };
 
@@ -528,30 +491,62 @@ const CENA_P_INTERIOR: Cena = {
   arte: true,
   fundo: <Suspense fallback={null}><PicapeInteriorArte /></Suspense>,
   pecas: [
-    { id: 'retrovint', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisor interno', lx: 800, ly: 58, ax: 775, ay: 25, anchor: 'start', desenho: marca(592, 4, 180, 38, 12) },
-    { id: 'cintos', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', lx: 1330, ly: 100, ax: 1142, ay: 82, anchor: 'end', desenho: <g>{marca(215, 22, 55, 125, 18)}{marca(1085, 22, 60, 125, 18)}</g> },
-    { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', lx: 60, ly: 110, ax: 315, ay: 185, anchor: 'start', desenho: marcaO(405, 275, 148, 138) },
-    { id: 'instrumentos', sistema: 'Elétrica', casa: /painel|instrumento/i, rotulo: 'Instrumentos', lx: 60, ly: 32, ax: 400, ay: 190, anchor: 'start', desenho: marca(348, 185, 200, 80, 12) },
-    { id: 'multimidia', sistema: 'Elétrica', casa: /som|multim|r[aá]dio/i, rotulo: 'Multimídia', lx: 500, ly: 32, ax: 615, ay: 202, anchor: 'middle', desenho: marca(600, 198, 150, 88, 10) },
-    { id: 'difusores', sistema: 'Ar-condicionado', rotulo: 'Difusores do ar', lx: 1330, ly: 200, ax: 808, ay: 250, anchor: 'end', desenho: <g>{marca(545, 206, 58, 106, 10)}{marca(748, 206, 60, 106, 10)}</g> },
-    { id: 'clima', sistema: 'Ar-condicionado', rotulo: 'Controles do ar', lx: 1330, ly: 310, ax: 760, ay: 355, anchor: 'end', desenho: marca(592, 320, 168, 72, 12) },
-    { id: 'portaluvas', sistema: 'Interior', casa: /porta.?luvas|painel/i, rotulo: 'Porta-luvas', lx: 1330, ly: 420, ax: 1018, ay: 362, anchor: 'end', desenho: marca(830, 325, 188, 75, 14) },
-    { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio|manopla/i, rotulo: 'Câmbio', lx: 1330, ly: 530, ax: 753, ay: 462, anchor: 'end', desenho: marca(650, 385, 102, 152, 24) },
-    { id: 'pedais', sistema: 'Freios', casa: /pedal|fluido|hidr[aá]ulica/i, rotulo: 'Pedais', lx: 60, ly: 560, ax: 455, ay: 438, anchor: 'start', desenho: marca(450, 398, 135, 72, 14) },
-    { id: 'portavidros', sistema: 'Carroceria', casa: /porta|trava|fechadura|vidro/i, rotulo: 'Porta / vidros', lx: 60, ly: 400, ax: 148, ay: 420, anchor: 'start', desenho: marca(90, 393, 108, 86, 16) },
-    { id: 'bancos', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Bancos', lx: 200, ly: 745, ax: 320, ay: 660, anchor: 'middle', desenho: <g>{marca(155, 525, 400, 235, 30)}{marca(765, 525, 415, 235, 30)}</g> },
-    { id: 'console', sistema: 'Interior', casa: /console|apoio|acabamento/i, rotulo: 'Console central', lx: 660, ly: 745, ax: 660, ay: 700, anchor: 'middle', desenho: marca(560, 545, 200, 205, 24) },
+    { id: 'retrovint', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisor interno', lx: 830, ly: 40, ax: 815, ay: 45, anchor: 'start', desenho: marca(638, 28, 175, 52, 12) },
+    { id: 'cintos', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', lx: 1330, ly: 100, ax: 1205, ay: 100, anchor: 'end', desenho: <g>{marca(225, 30, 60, 145, 18)}{marca(1202, 35, 72, 170, 18)}</g> },
+    { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', lx: 60, ly: 110, ax: 335, ay: 210, anchor: 'start', desenho: marcaO(430, 300, 140, 132) },
+    { id: 'instrumentos', sistema: 'Elétrica', casa: /painel|instrumento/i, rotulo: 'Instrumentos', lx: 60, ly: 32, ax: 425, ay: 230, anchor: 'start', desenho: marca(370, 225, 180, 65, 12) },
+    { id: 'multimidia', sistema: 'Elétrica', casa: /som|multim|r[aá]dio/i, rotulo: 'Multimídia', lx: 500, ly: 32, ax: 668, ay: 256, anchor: 'middle', desenho: marca(655, 252, 170, 95, 10) },
+    { id: 'difusores', sistema: 'Ar-condicionado', rotulo: 'Difusores do ar', lx: 1330, ly: 200, ax: 884, ay: 280, anchor: 'end', desenho: <g>{marca(606, 248, 54, 92, 10)}{marca(826, 248, 58, 92, 10)}</g> },
+    { id: 'clima', sistema: 'Ar-condicionado', rotulo: 'Controles do ar', lx: 1330, ly: 310, ax: 825, ay: 420, anchor: 'end', desenho: marca(650, 395, 175, 55, 12) },
+    { id: 'portaluvas', sistema: 'Interior', casa: /porta.?luvas|painel/i, rotulo: 'Porta-luvas', lx: 1330, ly: 480, ax: 1165, ay: 425, anchor: 'end', desenho: marca(845, 378, 320, 95, 14) },
+    { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio|manopla/i, rotulo: 'Câmbio', lx: 1330, ly: 580, ax: 790, ay: 520, anchor: 'end', desenho: marca(655, 435, 135, 200, 24) },
+    { id: 'pedais', sistema: 'Freios', casa: /pedal|fluido|hidr[aá]ulica/i, rotulo: 'Pedais', lx: 60, ly: 560, ax: 462, ay: 512, anchor: 'start', desenho: marca(458, 480, 115, 65, 14) },
+    { id: 'portavidros', sistema: 'Carroceria', casa: /porta|trava|fechadura|vidro/i, rotulo: 'Porta / vidros', lx: 60, ly: 400, ax: 140, ay: 460, anchor: 'start', desenho: marca(88, 455, 105, 85, 16) },
+    { id: 'bancos', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Bancos', lx: 200, ly: 745, ax: 320, ay: 670, anchor: 'middle', desenho: <g>{marca(168, 545, 390, 220, 30)}{marca(800, 545, 400, 220, 30)}</g> },
+    { id: 'console', sistema: 'Interior', casa: /console|apoio|acabamento/i, rotulo: 'Console central', lx: 660, ly: 745, ax: 665, ay: 710, anchor: 'middle', desenho: marca(560, 575, 215, 185, 24) },
   ],
+};
+
+// ── CENA DA RODA (arte do usuário, todos os tipos) ─────────────────────────
+// Close 3/4 de pneu + aro; o freio fica ATRÁS do aro (mancha central).
+const CENA_RODA_ARTE: Cena = {
+  titulo: 'Conjunto de roda',
+  viewBox: '0 0 1408 768',
+  arte: true,
+  fundo: <Suspense fallback={null}><RodaArte /></Suspense>,
+  pecas: [
+    { id: 'pneu', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneu', lx: 60, ly: 60, ax: 330, ay: 130, anchor: 'start',
+      desenho: <g>{marcaO(430, 250, 130, 220)}{marcaO(700, 95, 255, 95)}{marca(235, 395, 330, 360, 80)}{marcaO(985, 200, 150, 165)}</g> },
+    { id: 'aro', sistema: 'Rodas e Pneus', casa: /roda|aro|calota|alinhamento|balancea|rolamento/i, rotulo: 'Roda / aro', lx: 1330, ly: 150, ax: 1090, ay: 380, anchor: 'end', desenho: marcaO(875, 585, 270, 265) },
+    { id: 'freiosroda', sistema: 'Freios', casa: /disco|pastilha|pin[çc]a|tambor|lona/i, rotulo: 'Freio (atrás do aro)', lx: 1330, ly: 420, ax: 1042, ay: 500, anchor: 'end', desenho: marcaO(875, 580, 200, 185) },
+    { id: 'porcas', sistema: 'Rodas e Pneus', casa: /parafuso|porca|fixa[çc]|cubo/i, rotulo: 'Porcas / fixação', lx: 1330, ly: 640, ax: 898, ay: 638, anchor: 'end', desenho: marcaO(785, 620, 125, 125) },
+  ],
+};
+
+// exportado só pra render de verificação (scripts de preview)
+export const CENAS: Record<string, Cena> = {
+  frente: CENA_FRENTE, cabine: CENA_CABINE, roda: CENA_RODA_ARTE, traseira: CENA_TRASEIRA,
+};
+
+// qual cena cada sistema abre (Carroceria fica na LATERAL em raio-X — é o
+// corpo inteiro, nenhuma vista parcial mostra melhor que a lateral)
+const CENA_DO_SISTEMA: Record<string, string> = {
+  'Motor': 'frente', 'Elétrica': 'frente', 'Ar-condicionado': 'frente',
+  'Direção': 'cabine', 'Interior': 'cabine', 'Itens de segurança': 'cabine', 'Transmissão': 'cabine',
+  'Freios': 'roda', 'Suspensão': 'roda', 'Rodas e Pneus': 'roda',
+  'Outros': 'traseira',
 };
 
 // exportado só pra render de verificação (scripts de preview)
 export const CENAS_PICAPE: Record<string, Cena> = {
   frente: CENA_P_MOTOR, carroceria: CENA_P_FRENTE, traseira: CENA_P_TRASEIRA,
-  cabine: CENA_P_INTERIOR, roda: CENA_RODA,
+  cabine: CENA_P_INTERIOR, roda: CENA_RODA_ARTE,
 };
-// na picape a Carroceria TEM vista própria (a frente fechada do usuário)
+// na picape a Carroceria TEM vista própria (a frente fechada do usuário) e a
+// Suspensão vai pra frente fechada (a arte da roda não mostra suspensão;
+// a vista frontal tem a suspensão dianteira em destaque)
 const CENA_DO_SISTEMA_PICAPE: Record<string, string> = {
-  ...CENA_DO_SISTEMA, 'Carroceria': 'carroceria',
+  ...CENA_DO_SISTEMA, 'Carroceria': 'carroceria', 'Suspensão': 'carroceria',
 };
 
 // ── seletor de vistas: navegar direto entre as cenas, sem passar por um
