@@ -293,6 +293,164 @@ export const ANATOMIAS: Partial<Record<TipoSilhueta, PecaInterna[]>> = {
   carro: ANATOMIA_CARRO, hatch: ANATOMIA_HATCH, picape: ANATOMIA_PICAPE,
 };
 
+// ── CENAS DE PONTO DE VISTA ────────────────────────────────────────────────
+// Pedido do usuário: clicar na frente do carro leva pra VISÃO de quem está
+// parado NA FRENTE com o capô aberto (e assim por diante) — não só o zoom da
+// lateral. Cada sistema mapeia pra uma cena desenhada: frente (capô aberto),
+// cabine, conjunto de roda e traseira (porta-malas). A lateral se afasta com
+// o zoom + fade e a cena entra crescendo — o "andar até lá" da transição.
+// Peças de OUTROS sistemas aparecem em fantasma e são CLICÁVEIS (trocam a
+// cena — clicou na bateria dentro da cabine? vai pra frente/Elétrica).
+interface Cena { titulo: string; viewBox: string; fundo: React.ReactNode; pecas: PecaInterna[] }
+
+const CENA_FRENTE: Cena = {
+  titulo: 'Frente — capô aberto',
+  viewBox: '0 0 800 520',
+  fundo: (
+    <>
+      {/* rodas espiando por baixo */}
+      <rect x="92" y="380" width="74" height="96" rx="16" fill="currentColor" />
+      <rect x="634" y="380" width="74" height="96" rx="16" fill="currentColor" />
+      {/* corpo frontal */}
+      <path fill="currentColor" d="M108 448 C100 448 96 442 96 434 V252 C96 220 112 200 146 194 L654 194 C688 200 704 220 704 252 V434 C704 442 700 448 692 448 Z" />
+      {/* vão do cofre + faróis + grade + placa (na cor do card, como os vidros) */}
+      <rect x="200" y="206" width="400" height="128" rx="8" fill={BG} />
+      <rect x="146" y="348" width="96" height="42" rx="12" fill={BG} />
+      <rect x="558" y="348" width="96" height="42" rx="12" fill={BG} />
+      <rect x="300" y="352" width="200" height="10" rx="5" fill={BG} />
+      <rect x="300" y="370" width="200" height="10" rx="5" fill={BG} />
+      <rect x="352" y="400" width="96" height="32" rx="4" fill={BG} />
+      {/* capô ABERTO (visto por baixo) + escora */}
+      <path fill="currentColor" d="M192 178 L608 178 L556 44 C554 38 550 36 544 36 L256 36 C250 36 246 38 244 44 Z" />
+      <path d="M262 62 L538 62 L576 160 L224 160 Z" fill={BG} opacity="0.35" />
+      <path d="M598 190 L560 60" stroke="currentColor" strokeWidth="7" strokeLinecap="round" fill="none" />
+    </>
+  ),
+  pecas: [
+    { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', lx: 104, ly: 322, ax: 312, ay: 312, anchor: 'end',
+      desenho: <g {...T} strokeWidth="3.2"><rect x="308" y="296" width="184" height="32" rx="4" /><path d="M330 296v32M352 296v32M374 296v32M396 296v32M418 296v32M440 296v32M462 296v32" strokeWidth="1.8" /></g> },
+    { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', lx: 122, ly: 216, ax: 332, ay: 236, anchor: 'end',
+      desenho: <g {...T} strokeWidth="3.2"><rect x="330" y="234" width="140" height="54" rx="5" fill="currentColor" fillOpacity="0.12" /><rect x="344" y="210" width="112" height="24" rx="4" /><path d="M362 210v-8M394 210v-8M426 210v-8" strokeWidth="2.4" /><circle cx="366" cy="222" r="6" /><circle cx="494" cy="238" r="15" /><circle cx="500" cy="276" r="10" /><path d="M480 230 C470 244 472 262 490 268" strokeWidth="2" /></g> },
+    { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', lx: 104, ly: 130, ax: 232, ay: 218, anchor: 'end',
+      desenho: <g {...T} strokeWidth="3.2"><rect x="216" y="216" width="72" height="46" rx="4" fill="currentColor" fillOpacity="0.12" /><path d="M228 216v-8M276 216v-8" strokeWidth="2.6" /><path d="M228 234h14M258 234h14M265 227v14" strokeWidth="2.2" /></g> },
+    { id: 'fusiveis', sistema: 'Elétrica', casa: /chicote|fus[ií]vel|rel[eé]/i, rotulo: 'Fusíveis', lx: 705, ly: 130, ax: 572, ay: 216, anchor: 'start',
+      desenho: <g {...T} strokeWidth="3.2"><rect x="518" y="212" width="66" height="44" rx="5" /><path d="M556 218l-12 14h10l-12 14" strokeWidth="2.4" /></g> },
+    { id: 'farois', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 705, ly: 430, ax: 620, ay: 372, anchor: 'start',
+      desenho: <g {...T} strokeWidth="3"><circle cx="194" cy="369" r="15" /><path d="M212 362l12-5M214 369h13M212 376l12 5" strokeWidth="2" /><circle cx="606" cy="369" r="15" /><path d="M588 362l-12-5M586 369h-13M588 376l-12 5" strokeWidth="2" /></g> },
+    { id: 'compressor', sistema: 'Ar-condicionado', rotulo: 'Compressor', lx: 122, ly: 402, ax: 252, ay: 302, anchor: 'end',
+      desenho: <g {...T} strokeWidth="3.2"><circle cx="256" cy="298" r="17" /><circle cx="256" cy="298" r="6" /><path d="M239 298h-12" strokeWidth="2.2" /></g> },
+  ],
+};
+
+const CENA_CABINE: Cena = {
+  titulo: 'Cabine',
+  viewBox: '0 0 800 520',
+  fundo: (
+    <>
+      {/* moldura do para-brisa + vidro */}
+      <path fill="currentColor" fillRule="evenodd" d="M96 36 L704 36 L662 166 L138 166 Z M136 54 L664 54 L632 148 L168 148 Z" />
+      <rect x="356" y="60" width="88" height="28" rx="6" fill="currentColor" />
+      {/* painel */}
+      <rect x="106" y="164" width="588" height="74" rx="10" fill="currentColor" />
+      <rect x="178" y="176" width="146" height="48" rx="8" fill={BG} />
+      <rect x="348" y="178" width="46" height="20" rx="4" fill={BG} />
+      <rect x="406" y="178" width="46" height="20" rx="4" fill={BG} />
+      {/* console central */}
+      <rect x="366" y="236" width="68" height="150" rx="8" fill="currentColor" />
+      {/* bancos */}
+      <rect x="188" y="284" width="90" height="42" rx="14" fill="currentColor" />
+      <rect x="148" y="318" width="176" height="184" rx="22" fill="currentColor" />
+      <rect x="522" y="284" width="90" height="42" rx="14" fill="currentColor" />
+      <rect x="478" y="318" width="176" height="184" rx="22" fill="currentColor" />
+    </>
+  ),
+  pecas: [
+    { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', lx: 152, ly: 452, ax: 210, ay: 310, anchor: 'end',
+      desenho: <g {...T} strokeWidth="3.4"><circle cx="250" cy="270" r="56" strokeWidth="9" /><circle cx="250" cy="270" r="15" /><path d="M196 262h39M304 262h-39M250 285v38" strokeWidth="6" /></g> },
+    { id: 'painelinstr', sistema: 'Elétrica', casa: /painel|instrumento/i, rotulo: 'Instrumentos', lx: 138, ly: 110, ax: 196, ay: 184, anchor: 'end',
+      desenho: <g {...T} strokeWidth="2.6"><circle cx="222" cy="200" r="17" /><path d="M222 200l8-9" /><circle cx="280" cy="200" r="17" /><path d="M280 200l8-9" /></g> },
+    { id: 'vents', sistema: 'Ar-condicionado', rotulo: 'Difusores', lx: 700, ly: 110, ax: 452, ay: 186, anchor: 'start',
+      desenho: <g {...T} strokeWidth="2.2"><path d="M352 183h38M352 190h38M410 183h38M410 190h38" /></g> },
+    { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio|manopla/i, rotulo: 'Câmbio', lx: 400, ly: 462, ax: 400, ay: 322, anchor: 'middle',
+      desenho: <g {...T} strokeWidth="3.4"><circle cx="400" cy="272" r="13" fill="currentColor" fillOpacity="0.25" /><path d="M400 285v33" strokeWidth="5" /><path d="M383 320a17 8 0 0034 0" /></g> },
+    { id: 'bancos', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Bancos', lx: 716, ly: 290, ax: 610, ay: 350, anchor: 'start',
+      desenho: <g {...T} strokeWidth="3.4"><rect x="148" y="318" width="176" height="184" rx="22" /><rect x="188" y="284" width="90" height="42" rx="14" /><rect x="478" y="318" width="176" height="184" rx="22" /><rect x="522" y="284" width="90" height="42" rx="14" /></g> },
+    { id: 'cinto', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', lx: 112, ly: 502, ax: 208, ay: 400, anchor: 'end',
+      desenho: <g {...T}><path d="M182 330 L268 474" strokeWidth="7" /><rect x="248" y="436" width="22" height="18" rx="3" fill="currentColor" fillOpacity="0.3" /></g> },
+  ],
+};
+
+const CENA_RODA: Cena = {
+  titulo: 'Conjunto de roda',
+  viewBox: '0 0 800 520',
+  fundo: (
+    <>
+      <path d="M60 486 H740" stroke="var(--portal-border, #e2e8f0)" strokeWidth="3" fill="none" />
+      {/* eixo ligando roda ↔ disco */}
+      <path d="M300 290 H620" stroke="currentColor" strokeWidth="9" opacity="0.35" fill="none" strokeLinecap="round" />
+    </>
+  ),
+  pecas: [
+    { id: 'pneu', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneu', lx: 300, ly: 500, ax: 300, ay: 448, anchor: 'middle',
+      desenho: <g {...T}><circle cx="300" cy="290" r="140" strokeWidth="36" /><g strokeWidth="3">{[0, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330].map((a) => { const r1 = 150, r2 = 166, rad = a * Math.PI / 180; return <path key={a} d={`M${300 + r1 * Math.cos(rad)} ${290 + r1 * Math.sin(rad)}L${300 + r2 * Math.cos(rad)} ${290 + r2 * Math.sin(rad)}`} />; })}</g></g> },
+    { id: 'aro', sistema: 'Rodas e Pneus', casa: /roda|aro|alinhamento|balancea|rolamento|cubo/i, rotulo: 'Roda / cubo', lx: 152, ly: 128, ax: 240, ay: 236, anchor: 'end',
+      desenho: <g {...T} strokeWidth="4"><circle cx="300" cy="290" r="94" /><circle cx="300" cy="290" r="20" />{[-90, -18, 54, 126, 198].map((a) => { const rad = a * Math.PI / 180; return <path key={a} d={`M${300 + 22 * Math.cos(rad)} ${290 + 22 * Math.sin(rad)}L${300 + 88 * Math.cos(rad)} ${290 + 88 * Math.sin(rad)}`} strokeWidth="10" />; })}</g> },
+    { id: 'disco', sistema: 'Freios', casa: /disco|pin[çc]a|pastilha|hidr[aá]ulica/i, rotulo: 'Disco / pinça', lx: 656, ly: 400, ax: 660, ay: 320, anchor: 'start',
+      desenho: <g {...T} strokeWidth="4"><circle cx="620" cy="290" r="72" fill="currentColor" fillOpacity="0.1" /><circle cx="620" cy="290" r="26" />{[0, 60, 120, 180, 240, 300].map((a) => { const rad = a * Math.PI / 180; return <circle key={a} cx={620 + 48 * Math.cos(rad)} cy={290 + 48 * Math.sin(rad)} r="6" strokeWidth="2.6" />; })}<path d="M576 222 A80 80 0 0 1 664 222 L652 244 A56 56 0 0 0 588 244 Z" fill="currentColor" fillOpacity="0.25" strokeWidth="3" /></g> },
+    { id: 'amort', sistema: 'Suspensão', casa: /amortecedor|mola|batente/i, rotulo: 'Amortecedor', lx: 660, ly: 72, ax: 648, ay: 108, anchor: 'start',
+      desenho: <g {...T} strokeWidth="3.6"><path d="M620 212v-24M620 74v-24" strokeWidth="5" /><path d="M596 188h48M596 74h48" /><path d="M600 186l40-14-40-14 40-14-40-14 40-14-40-14" strokeWidth="3" /></g> },
+    { id: 'bandeja', sistema: 'Suspensão', casa: /bucha|piv[oô]|bandeja|barra|terminal|axial/i, rotulo: 'Bandeja / buchas', lx: 470, ly: 486, ax: 470, ay: 428, anchor: 'middle',
+      desenho: <g {...T} strokeWidth="4"><path d="M318 420 C380 442 540 442 604 412" strokeWidth="9" /><circle cx="308" cy="416" r="13" /><circle cx="614" cy="408" r="13" /></g> },
+  ],
+};
+
+const CENA_TRASEIRA: Cena = {
+  titulo: 'Traseira — porta-malas',
+  viewBox: '0 0 800 520',
+  fundo: (
+    <>
+      <rect x="120" y="446" width="80" height="30" rx="8" fill="currentColor" />
+      <rect x="600" y="446" width="80" height="30" rx="8" fill="currentColor" />
+      {/* corpo traseiro */}
+      <path fill="currentColor" d="M112 452 C104 452 100 446 100 438 V240 C100 212 114 196 142 190 L658 190 C686 196 700 212 700 240 V438 C700 446 696 452 688 452 Z" />
+      {/* vão do porta-malas + lanternas + placa */}
+      <rect x="196" y="202" width="408" height="138" rx="8" fill={BG} />
+      <rect x="144" y="212" width="42" height="66" rx="8" fill={BG} />
+      <rect x="614" y="212" width="42" height="66" rx="8" fill={BG} />
+      <rect x="350" y="382" width="100" height="36" rx="4" fill={BG} />
+      <path d="M120 360 H680" stroke={BG} strokeWidth="6" fill="none" />
+      {/* tampa aberta + amortecedores da tampa */}
+      <path fill="currentColor" d="M196 174 L604 174 L558 44 C556 38 552 36 546 36 L254 36 C248 36 244 38 242 44 Z" />
+      <path d="M262 60 L538 60 L574 156 L226 156 Z" fill={BG} opacity="0.35" />
+      <path d="M214 186 L250 62 M586 186 L550 62" stroke="currentColor" strokeWidth="6" strokeLinecap="round" fill="none" />
+    </>
+  ),
+  pecas: [
+    { id: 'caixa', sistema: 'Outros', rotulo: 'Porta-malas / carga', lx: 400, ly: 500, ax: 412, ay: 322, anchor: 'middle',
+      desenho: <g {...T} strokeWidth="3.4"><rect x="362" y="238" width="104" height="84" rx="4" fill="currentColor" fillOpacity="0.1" /><path d="M362 268h104" strokeWidth="2.4" /><path d="M396 238v-12a8 8 0 018-8h20a8 8 0 018 8v12" strokeWidth="2.4" /></g> },
+    { id: 'estepe', sistema: 'Rodas e Pneus', casa: /estepe|pneu/i, rotulo: 'Estepe', lx: 72, ly: 420, ax: 246, ay: 300, anchor: 'end',
+      desenho: <g {...T}><circle cx="272" cy="268" r="48" strokeWidth="18" /><circle cx="272" cy="268" r="14" strokeWidth="3" />{[-90, 30, 150].map((a) => { const rad = a * Math.PI / 180; return <path key={a} d={`M${272 + 15 * Math.cos(rad)} ${268 + 15 * Math.sin(rad)}L${272 + 34 * Math.cos(rad)} ${268 + 34 * Math.sin(rad)}`} strokeWidth="5" />; })}</g> },
+    { id: 'kit', sistema: 'Itens de segurança', casa: /extintor|tri[aâ]ngulo|macaco/i, rotulo: 'Kit segurança', lx: 645, ly: 420, ax: 562, ay: 306, anchor: 'start',
+      desenho: <g {...T} strokeWidth="3"><path d="M520 314l17-30 17 30z" /><rect x="562" y="266" width="18" height="46" rx="6" /><path d="M566 266v-8h10v8M572 258l12-5" strokeWidth="2.2" /></g> },
+    { id: 'lanternas', sistema: 'Elétrica', casa: /lanterna|farol|l[aâ]mpada|ilumin/i, rotulo: 'Lanternas', lx: 695, ly: 170, ax: 646, ay: 240, anchor: 'start',
+      desenho: <g {...T} strokeWidth="3"><rect x="150" y="218" width="30" height="54" rx="6" /><path d="M156 232h18M156 246h18M156 260h18" strokeWidth="2" /><rect x="620" y="218" width="30" height="54" rx="6" /><path d="M626 232h18M626 246h18M626 260h18" strokeWidth="2" /></g> },
+  ],
+};
+
+// exportado só pra render de verificação (scripts de preview)
+export const CENAS: Record<string, Cena> = {
+  frente: CENA_FRENTE, cabine: CENA_CABINE, roda: CENA_RODA, traseira: CENA_TRASEIRA,
+};
+
+// qual cena cada sistema abre (Carroceria fica na LATERAL em raio-X — é o
+// corpo inteiro, nenhuma vista parcial mostra melhor que a lateral)
+const CENA_DO_SISTEMA: Record<string, string> = {
+  'Motor': 'frente', 'Elétrica': 'frente', 'Ar-condicionado': 'frente',
+  'Direção': 'cabine', 'Interior': 'cabine', 'Itens de segurança': 'cabine', 'Transmissão': 'cabine',
+  'Freios': 'roda', 'Suspensão': 'roda', 'Rodas e Pneus': 'roda',
+  'Outros': 'traseira',
+};
+
 // ── rodas ──────────────────────────────────────────────────────────────────
 // Roda estilo referência: pneu grosso + aro de 5 raios. O primeiro círculo é
 // na cor do CARD e um pouco maior que o pneu: ele "recorta" a carroceria atrás
@@ -651,6 +809,11 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   const anatomia = pecasPorSistema ? ANATOMIAS[tipo] : undefined;
   const raioX = !!(zoom && anatomia);
 
+  // cena de ponto de vista: a lateral se afasta (zoom+fade) e entra a vista
+  // de quem foi ATÉ a região — frente com capô aberto, cabine, roda, traseira
+  const cenaKey = raioX && zoom ? CENA_DO_SISTEMA[zoom] : undefined;
+  const cena = cenaKey ? CENAS[cenaKey] : undefined;
+
   const clicar = (sistema: string) => {
     if (pecasPorSistema) {
       setZoom((z) => (z === sistema ? null : sistema));
@@ -690,7 +853,8 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
       <div style={{ position: 'relative', minWidth: 580 }}>
-        <svg viewBox={s.viewBox} style={{ width: '100%', height: 'auto', display: 'block' }}
+        <svg viewBox={s.viewBox}
+          style={{ width: '100%', height: 'auto', display: 'block', opacity: cena ? 0 : 1, transition: 'opacity .45s .2s' }}
           role="img" aria-label={`Mapa do veículo (${tipo}) com as pendências por sistema`}
           onClick={() => { if (zoom) setZoom(null); }}>
           <g style={{ transform: transformCena, transition: 'transform .85s cubic-bezier(.45,0,.18,1)', transformOrigin: '0 0' }}>
@@ -782,6 +946,57 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
           </g>
         </svg>
 
+        {/* ── CENA DE PONTO DE VISTA: entra por cima da lateral ── */}
+        {cena && (
+          <div onClick={() => setZoom(null)}
+            style={{
+              position: 'absolute', inset: 0, paddingRight: 'min(46%, 338px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              animation: 'diagrama-cena .65s cubic-bezier(.3,0,.18,1)',
+            }}>
+            <svg viewBox={cena.viewBox} style={{ width: '100%', height: '100%', display: 'block' }}
+              role="img" aria-label={cena.titulo}>
+              <g color="var(--portal-text-muted, #64748b)">{cena.fundo}</g>
+              {cena.pecas.map((pt, i) => {
+                const doSistema = pt.sistema === zoom;
+                const pcs = pecasPorSistema?.get(pt.sistema) || [];
+                const pc = pt.casa ? pcs.find((x) => pt.casa!.test(x.rotulo)) : undefined;
+                const cg = doSistema && pc?.pior ? GRAVIDADE_COR[pc.pior] : null;
+                const cor = doSistema ? (cg ? cg.forte : '#3b82f6') : 'var(--portal-text-muted, #64748b)';
+                return (
+                  <g key={pt.id} color={cor}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (doSistema) { if ((pc?.total || 0) > 0 && onAbrirHistorico) onAbrirHistorico(zoom!); }
+                      else { setZoom(pt.sistema); onSelecionar(pt.sistema); }
+                    }}
+                    style={{
+                      cursor: 'pointer', opacity: doSistema ? 1 : 0.28,
+                      animation: `diagrama-xray .45s ${0.25 + i * 0.06}s cubic-bezier(.3,0,.2,1) backwards`,
+                    }}>
+                    <title>{doSistema
+                      ? (pc && pc.total > 0 ? `${pt.rotulo}: ${pc.total} pendência(s). Clique para ver no histórico.` : `${pt.rotulo}: ok`)
+                      : `${pt.rotulo} — clique para ver ${pt.sistema}`}</title>
+                    {pt.desenho}
+                    {doSistema && pt.rotulo && (
+                      <g style={{ pointerEvents: 'none' }}>
+                        <line x1={pt.ax} y1={pt.ay} x2={pt.lx} y2={pt.ly + 4} stroke={cor} strokeWidth="1.4" opacity="0.8" />
+                        <text x={pt.lx} y={pt.ly} textAnchor={pt.anchor} fontSize="17" fontWeight="800" fill={cor}
+                          stroke="var(--portal-bg-card, #fff)" strokeWidth="5" paintOrder="stroke">
+                          {pt.rotulo}{pc && pc.total > 0 ? ` · ${pc.total}` : ''}
+                        </text>
+                      </g>
+                    )}
+                  </g>
+                );
+              })}
+              <text x="16" y="30" fontSize="15" fontWeight="800" fill="var(--portal-text-secondary, #64748b)" opacity="0.75">
+                {cena.titulo}
+              </text>
+            </svg>
+          </div>
+        )}
+
         {/* ── PAINEL DE PEÇAS: explode ao lado da região com zoom ── */}
         {zoom && pecasPorSistema && (
           <div style={{
@@ -859,6 +1074,7 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
           @keyframes diagrama-painel { from { opacity: 0; transform: translateX(24px) scale(.94); } to { opacity: 1; transform: none; } }
           @keyframes diagrama-peca { from { opacity: 0; transform: translateY(10px) scale(.7); } to { opacity: 1; transform: none; } }
           @keyframes diagrama-xray { from { opacity: 0; } }
+          @keyframes diagrama-cena { from { opacity: 0; transform: scale(.55); } to { opacity: 1; transform: none; } }
           @media (prefers-reduced-motion: reduce) {
             @keyframes diagrama-painel { from { opacity: 0 } to { opacity: 1 } }
             @keyframes diagrama-peca { from { opacity: 0 } to { opacity: 1 } }
