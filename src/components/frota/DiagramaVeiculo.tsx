@@ -26,6 +26,7 @@
 import { useMemo, useState } from 'react';
 import { GRAVIDADE_COR, GRAVIDADE_LABEL, type ContagemGravidade, type Gravidade } from '@/lib/frota/gravidade';
 import { SISTEMAS_FORA, type TipoSilhueta } from '@/lib/frota/silhueta';
+import PicapeArte from '@/components/frota/PicapeArte';
 
 interface Ponto {
   sistema: string;
@@ -264,33 +265,9 @@ const ANATOMIA_HATCH: PecaInterna[] = [
   { id: 'malas', sistema: 'Outros', rotulo: 'Porta-malas', desenho: dCaixa(492, 228), lx: 510, ly: 168, ax: 510, ay: 228, anchor: 'middle' },
 ];
 
-const ANATOMIA_PICAPE: PecaInterna[] = [
-  { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', desenho: dRadiador(140, 234), lx: 94, ly: 200, ax: 146, ay: 234, anchor: 'end' },
-  { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', desenho: dMotor(154, 222), lx: 174, ly: 182, ax: 182, ay: 226, anchor: 'middle' },
-  { id: 'tanque', sistema: 'Motor', casa: /aliment|combust|bomba/i, rotulo: 'Tanque / bomba', desenho: dTanque(460, 280), lx: 482, ly: 332, ax: 482, ay: 294, anchor: 'middle' },
-  { id: 'escap', sistema: 'Motor', casa: /escap|catalisador/i, rotulo: 'Escapamento', desenho: dEscap('M206 258 C250 288 380 293 596 293', 596, 287), lx: 310, ly: 324, ax: 340, ay: 292, anchor: 'middle' },
-  { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', desenho: dBateria(210, 224), lx: 264, ly: 176, ax: 224, ay: 224, anchor: 'start' },
-  { id: 'farol', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', desenho: dFarol(132, 238), lx: 70, ly: 288, ax: 130, ay: 248, anchor: 'end' },
-  { id: 'lanterna', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Lanterna', desenho: dLanterna(660, 216), lx: 704, ly: 194, ax: 666, ay: 216, anchor: 'start' },
-  { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', desenho: dVolante(322, 188), lx: 288, ly: 134, ax: 320, ay: 182, anchor: 'middle' },
-  { id: 'banco1', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Banco', desenho: dBanco(372, 206), lx: 408, ly: 130, ax: 380, ay: 202, anchor: 'middle' },
-  { id: 'cinto', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', desenho: dCinto(370, 208), lx: 344, ly: 126, ax: 374, ay: 206, anchor: 'middle' },
-  { id: 'kit', sistema: 'Itens de segurança', casa: /extintor|tri[aâ]ngulo|macaco/i, rotulo: 'Kit (extintor/triângulo)', desenho: dKit(452, 238), lx: 430, ly: 172, ax: 456, ay: 238, anchor: 'middle' },
-  { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio/i, rotulo: 'Câmbio', desenho: dCambio(336, 240), lx: 314, ly: 334, ax: 350, ay: 272, anchor: 'middle' },
-  { id: 'amort1', sistema: 'Suspensão', casa: /amortecedor|mola/i, rotulo: 'Amortecedores', desenho: dAmort(212, 258), lx: 152, ly: 330, ax: 208, ay: 244, anchor: 'middle', sobreRoda: true },
-  { id: 'amort2', sistema: 'Suspensão', casa: /amortecedor|mola/i, rotulo: '', desenho: dAmort(560, 258), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
-  { id: 'disco1', sistema: 'Freios', casa: /disco|pastilha|hidr[aá]ulica/i, rotulo: 'Discos / pastilhas', desenho: dDisco(212, 272), lx: 132, ly: 328, ax: 202, ay: 278, anchor: 'middle', sobreRoda: true },
-  { id: 'disco2', sistema: 'Freios', casa: /disco|pastilha|hidr[aá]ulica/i, rotulo: '', desenho: dDisco(560, 272), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
-  { id: 'comp', sistema: 'Ar-condicionado', rotulo: 'Compressor', desenho: dComp(174, 258), lx: 168, ly: 300, ax: 194, ay: 256, anchor: 'middle' },
-  { id: 'pneu1', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', desenho: dAnelRoda(212, 272, 33), lx: 268, ly: 330, ax: 232, ay: 296, anchor: 'middle', sobreRoda: true },
-  { id: 'pneu2', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: '', desenho: dAnelRoda(560, 272, 33), lx: 0, ly: 0, ax: 0, ay: 0, anchor: 'middle', sobreRoda: true },
-  { id: 'portas', sistema: 'Carroceria', casa: /lataria|porta|ma[çc]aneta/i, rotulo: 'Porta / lataria', desenho: dPortas(300, 208, 116, 62), lx: 470, ly: 168, ax: 414, ay: 212, anchor: 'middle' },
-  { id: 'cacamba', sistema: 'Outros', rotulo: 'Caçamba', desenho: dCaixa(520, 228), lx: 540, ly: 168, ax: 540, ay: 228, anchor: 'middle' },
-];
-
 // exportado só pra render de verificação (scripts de preview)
 export const ANATOMIAS: Partial<Record<TipoSilhueta, PecaInterna[]>> = {
-  carro: ANATOMIA_CARRO, hatch: ANATOMIA_HATCH, picape: ANATOMIA_PICAPE,
+  carro: ANATOMIA_CARRO, hatch: ANATOMIA_HATCH,
 };
 
 // ── CENAS DE PONTO DE VISTA ────────────────────────────────────────────────
@@ -593,49 +570,27 @@ const HATCH: Silhueta = {
   ],
 };
 
-// Picape compacta (referência: VW Saveiro) — cabine simples + caçamba baixa.
+// Picape — ARTE DO USUÁRIO (corte lateral estilo manual, vetorizada de imagem
+// gerada por IA). Já mostra as entranhas de fábrica (motor, câmbio, cardan,
+// tanque, feixes, discos), então esta silhueta NÃO usa capô nem raio-X — as
+// cenas de ponto de vista continuam. Rodas fazem parte da arte.
 const PICAPE: Silhueta = {
-  viewBox: '-160 14 1160 400', chao: 'M100 305 H700',
-  rodas: [{ cx: 212, cy: 272, r: 33 }, { cx: 560, cy: 272, r: 33 }],
-  capo: {
-    d: 'M126 244 L154 230 L248 216 L254 230 L140 250 Z',
-    hinge: [248, 216],
-    motor: blocoMotor(162, 234),
-  },
-  corpo: (
-    <>
-      <path fill="currentColor" fillRule="evenodd" d="
-        M126 272 C120 268 118 258 119 248 C120 238 126 234 134 232
-        L154 230 L246 216 L308 162 C312 157 318 155 326 155
-        L396 155 C404 155 410 159 412 166 L426 208
-        L446 212 L668 210 L672 214 L672 260 C672 268 668 272 660 272 Z
-        M272 210 L312 168 L388 165 L408 210 Z
-      " />
-      <g stroke={BG} strokeWidth="2.5" fill="none">
-        <path d="M414 212 L418 268" />
-        <path d="M448 222 H664" strokeWidth="2" opacity="0.7" />
-        <path d="M664 214 V266" strokeWidth="2" opacity="0.7" />
-      </g>
-      <g fill={BG}>
-        <rect x="348" y="220" width="24" height="6" rx="3" />
-        <path d="M130 240 L166 236 L166 245 L130 247 Z" />
-      </g>
-      <path fill="currentColor" d="M304 168 L284 157 L290 170 Z" />
-    </>
-  ),
+  viewBox: '-180 -20 1760 820', chao: 'M0 0',
+  rodas: [],
+  corpo: <PicapeArte />,
   pontos: [
-    { sistema: 'Motor', rotulo: 'Motor', x: 174, y: 232, lx: -20, ly: 110, anchor: 'end' },
-    { sistema: 'Elétrica', rotulo: 'Elétrica / bateria', x: 140, y: 256, lx: -20, ly: 250, anchor: 'end' },
-    { sistema: 'Ar-condicionado', rotulo: 'Ar-condicionado', x: 276, y: 204, lx: 172, ly: 58, anchor: 'middle' },
-    { sistema: 'Direção', rotulo: 'Volante / direção', x: 324, y: 182, lx: 336, ly: 42, anchor: 'middle' },
-    { sistema: 'Interior', rotulo: 'Bancos / interior', x: 388, y: 176, lx: 508, ly: 42, anchor: 'middle' },
-    { sistema: 'Itens de segurança', rotulo: 'Cintos / segurança', x: 420, y: 196, lx: 676, ly: 58, anchor: 'middle' },
-    { sistema: 'Outros', rotulo: 'Caçamba / outros', x: 560, y: 232, lx: 800, ly: 150, anchor: 'start' },
-    { sistema: 'Carroceria', rotulo: 'Carroceria', x: 640, y: 250, lx: 800, ly: 258, anchor: 'start' },
-    { sistema: 'Freios', rotulo: 'Freios', x: 212, y: 272, lx: 164, ly: 380, anchor: 'middle' },
-    { sistema: 'Transmissão', rotulo: 'Câmbio', x: 346, y: 278, lx: 346, ly: 380, anchor: 'middle' },
-    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 470, y: 278, lx: 500, ly: 380, anchor: 'middle' },
-    { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 560, y: 272, lx: 690, ly: 380, anchor: 'middle' },
+    { sistema: 'Motor', rotulo: 'Motor', x: 300, y: 360, lx: -20, ly: 150, anchor: 'end' },
+    { sistema: 'Elétrica', rotulo: 'Elétrica / bateria', x: 400, y: 272, lx: -20, ly: 330, anchor: 'end' },
+    { sistema: 'Ar-condicionado', rotulo: 'Ar-condicionado', x: 238, y: 436, lx: 120, ly: 718, anchor: 'middle' },
+    { sistema: 'Direção', rotulo: 'Volante / direção', x: 563, y: 300, lx: 545, ly: 55, anchor: 'middle' },
+    { sistema: 'Interior', rotulo: 'Bancos / interior', x: 700, y: 420, lx: 725, ly: 55, anchor: 'middle' },
+    { sistema: 'Itens de segurança', rotulo: 'Cintos / segurança', x: 768, y: 300, lx: 905, ly: 55, anchor: 'middle' },
+    { sistema: 'Outros', rotulo: 'Caçamba / outros', x: 1110, y: 330, lx: 1130, ly: 55, anchor: 'middle' },
+    { sistema: 'Carroceria', rotulo: 'Carroceria', x: 1330, y: 390, lx: 1400, ly: 290, anchor: 'start' },
+    { sistema: 'Freios', rotulo: 'Freios', x: 299, y: 542, lx: 300, ly: 718, anchor: 'middle' },
+    { sistema: 'Transmissão', rotulo: 'Câmbio', x: 520, y: 500, lx: 540, ly: 718, anchor: 'middle' },
+    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 1000, y: 470, lx: 850, ly: 718, anchor: 'middle' },
+    { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 1073, y: 548, lx: 1160, ly: 718, anchor: 'middle' },
   ],
 };
 
@@ -786,11 +741,13 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   const [zoom, setZoom] = useState<string | null>(null);
   const pontoZoom = zoom ? pontos.find((p) => p.sistema === zoom) || null : null;
 
-  // geometria do viewBox (todas as silhuetas usam o mesmo)
+  // geometria do viewBox (a arte da picape usa um MAIOR que o das outras —
+  // k escala discos/rótulos dos pontos pro tamanho aparente ficar o mesmo)
   const vb = useMemo(() => {
     const [x, y, w, h] = s.viewBox.split(' ').map(Number);
-    return { x, y, w, h, cy: y + h / 2 };
+    return { x, y, w, h, cy: y + h / 2, k: w / 1160 };
   }, [s.viewBox]);
+  const k = vb.k;
 
   // A região com zoom fica a ~28% da largura — o painel de peças ocupa a
   // metade direita; centralizar no meio deixaria o alvo escondido atrás dele.
@@ -810,8 +767,11 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   const raioX = !!(zoom && anatomia);
 
   // cena de ponto de vista: a lateral se afasta (zoom+fade) e entra a vista
-  // de quem foi ATÉ a região — frente com capô aberto, cabine, roda, traseira
-  const cenaKey = raioX && zoom ? CENA_DO_SISTEMA[zoom] : undefined;
+  // de quem foi ATÉ a região — frente com capô aberto, cabine, roda, traseira.
+  // Vale pros tipos "carro" (a picape usa cena mesmo SEM raio-X próprio: a
+  // arte lateral dela já é um corte de fábrica)
+  const temCenas = !!pecasPorSistema && (tipo === 'carro' || tipo === 'hatch' || tipo === 'picape');
+  const cenaKey = temCenas && zoom ? CENA_DO_SISTEMA[zoom] : undefined;
   const cena = cenaKey ? CENAS[cenaKey] : undefined;
 
   const clicar = (sistema: string) => {
@@ -912,30 +872,30 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                   <title>{aceso
                     ? `${p.sistema}: ${c!.total} pendência(s) — pior: ${GRAVIDADE_LABEL[pior!]}. Clique para ver as peças.`
                     : `${p.sistema}: sem pendência aberta. Clique para ver as peças.`}</title>
-                  <line x1={p.x} y1={p.y} x2={p.lx} y2={p.ly} stroke={cor} strokeWidth={aceso ? 2 : 1.2} opacity={aceso ? 0.9 : 0.38} />
+                  <line x1={p.x} y1={p.y} x2={p.lx} y2={p.ly} stroke={cor} strokeWidth={(aceso ? 2 : 1.2) * k} opacity={aceso ? 0.9 : 0.38} />
                   {/* disco de fundo: separa o ícone do desenho atrás dele */}
-                  <circle cx={p.x} cy={p.y} r={R} fill={aceso ? GRAVIDADE_COR[pior!].bg : 'var(--portal-bg-card, #fff)'}
-                    stroke={ativo ? '#1e40af' : cor} strokeWidth={ativo ? 3 : aceso ? 2.4 : 1.6}>
+                  <circle cx={p.x} cy={p.y} r={R * k} fill={aceso ? GRAVIDADE_COR[pior!].bg : 'var(--portal-bg-card, #fff)'}
+                    stroke={ativo ? '#1e40af' : cor} strokeWidth={(ativo ? 3 : aceso ? 2.4 : 1.6) * k}>
                     {/* pisca só grave/crítica: piscar tudo não chama atenção pra nada */}
                     {(pior === 'grave' || pior === 'critica') && (
                       <animate attributeName="opacity" values="1;0.45;1" dur="1.4s" repeatCount="indefinite" />
                     )}
                   </circle>
-                  <g transform={`translate(${p.x} ${p.y})`} color={aceso ? GRAVIDADE_COR[pior!].cor : CINZA} style={{ pointerEvents: 'none' }}>
+                  <g transform={`translate(${p.x} ${p.y}) scale(${k})`} color={aceso ? GRAVIDADE_COR[pior!].cor : CINZA} style={{ pointerEvents: 'none' }}>
                     <Glifo sistema={p.sistema} />
                   </g>
                   {aceso && (
                     <g style={{ pointerEvents: 'none' }}>
-                      <circle cx={p.x + 13} cy={p.y - 13} r="9" fill={cor} stroke="var(--portal-bg-card, #fff)" strokeWidth="2" />
-                      <text x={p.x + 13} y={p.y - 9.6} textAnchor="middle" fontSize="11" fontWeight="800" fill="#fff">{c!.total}</text>
+                      <circle cx={p.x + 13 * k} cy={p.y - 13 * k} r={9 * k} fill={cor} stroke="var(--portal-bg-card, #fff)" strokeWidth={2 * k} />
+                      <text x={p.x + 13 * k} y={p.y - 9.6 * k} textAnchor="middle" fontSize={11 * k} fontWeight="800" fill="#fff">{c!.total}</text>
                     </g>
                   )}
-                  <text x={p.lx} y={p.ly} textAnchor={p.anchor} fontSize="13.5" fontWeight={aceso ? 800 : 600}
+                  <text x={p.lx} y={p.ly} textAnchor={p.anchor} fontSize={13.5 * k} fontWeight={aceso ? 800 : 600}
                     fill={aceso ? GRAVIDADE_COR[pior!].cor : 'var(--portal-text-secondary, #64748b)'} style={{ pointerEvents: 'none' }}>
                     {p.rotulo}
                   </text>
                   {aceso && (
-                    <text x={p.lx} y={p.ly + 15} textAnchor={p.anchor} fontSize="11.5" fontWeight="700"
+                    <text x={p.lx} y={p.ly + 15 * k} textAnchor={p.anchor} fontSize={11.5 * k} fontWeight="700"
                       fill={GRAVIDADE_COR[pior!].cor} opacity="0.85" style={{ pointerEvents: 'none' }}>
                       {c!.total} · {GRAVIDADE_LABEL[pior!].toLowerCase()}
                     </text>
