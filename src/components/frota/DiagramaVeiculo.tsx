@@ -23,10 +23,17 @@
 // Detalhes claros (vidros, frisos de porta, maçaneta, farol) são FUROS no path
 // (fill-rule evenodd) ou traços na cor do CARD (var --portal-bg-card): no modo
 // escuro eles acompanham o fundo — um branco fixo viraria um recorte aceso.
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { GRAVIDADE_COR, GRAVIDADE_LABEL, type ContagemGravidade, type Gravidade } from '@/lib/frota/gravidade';
 import { SISTEMAS_FORA, type TipoSilhueta } from '@/lib/frota/silhueta';
 import PicapeArte from '@/components/frota/PicapeArte';
+
+// Artes de CENA da picape (vetorizadas de imagens geradas pelo usuário) —
+// pesadas (60–190KB cada), então só baixam quando a cena abre (React.lazy)
+const PicapeFrenteArte = lazy(() => import('@/components/frota/PicapeFrenteArte'));
+const PicapeFrenteMotorArte = lazy(() => import('@/components/frota/PicapeFrenteMotorArte'));
+const PicapeTraseiraArte = lazy(() => import('@/components/frota/PicapeTraseiraArte'));
+const PicapeInteriorArte = lazy(() => import('@/components/frota/PicapeInteriorArte'));
 
 interface Ponto {
   sistema: string;
@@ -428,6 +435,85 @@ const CENA_DO_SISTEMA: Record<string, string> = {
   'Outros': 'traseira',
 };
 
+// ── CENAS DA PICAPE: as ARTES DO USUÁRIO ───────────────────────────────────
+// Quatro vistas vetorizadas pelo próprio usuário (cofre aberto, frente,
+// traseira com caçamba e cabine). Sobre arte detalhada NÃO se desenha peça
+// por cima: cada peça vira um DESTAQUE tracejado em volta do que a arte já
+// mostra, colorido pela gravidade. Coordenadas presas ao traço (viewBox
+// 0 0 1408 768), conferidas por render.
+const D = { fill: 'none' as const, stroke: 'currentColor', strokeWidth: 6, strokeLinecap: 'round' as const, strokeDasharray: '20 12' };
+const marca = (x: number, y: number, w: number, h: number, rx = 24) => <rect {...D} x={x} y={y} width={w} height={h} rx={rx} />;
+const marcaO = (cx: number, cy: number, rx: number, ry: number) => <ellipse {...D} cx={cx} cy={cy} rx={rx} ry={ry} />;
+
+const CENA_P_MOTOR: Cena = {
+  titulo: 'Cofre do motor — capô aberto',
+  viewBox: '0 0 1408 768',
+  fundo: <Suspense fallback={null}><PicapeFrenteMotorArte /></Suspense>,
+  pecas: [
+    { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', lx: 150, ly: 60, ax: 560, ay: 200, anchor: 'middle', desenho: marca(500, 165, 380, 325) },
+    { id: 'filtro', sistema: 'Motor', casa: /aliment|combust|bomba|filtro/i, rotulo: 'Filtro de ar', lx: 130, ly: 680, ax: 300, ay: 420, anchor: 'middle', desenho: marca(230, 210, 240, 220) },
+    { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', lx: 620, ly: 735, ax: 660, ay: 575, anchor: 'middle', desenho: marca(330, 490, 760, 90, 30) },
+    { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', lx: 1280, ly: 640, ax: 1180, ay: 490, anchor: 'middle', desenho: marca(1050, 340, 160, 160) },
+    { id: 'alternador', sistema: 'Elétrica', casa: /partida|arranque|alternador|correia/i, rotulo: 'Alternador / correia', lx: 1050, ly: 735, ax: 800, ay: 460, anchor: 'middle', desenho: marcaO(760, 422, 58, 58) },
+    { id: 'palhetas', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 1280, ly: 55, ax: 1130, ay: 90, anchor: 'middle', desenho: marca(210, 55, 980, 90, 30) },
+    { id: 'compressor', sistema: 'Ar-condicionado', rotulo: 'Compressor do ar', lx: 300, ly: 735, ax: 590, ay: 495, anchor: 'middle', desenho: marcaO(610, 465, 65, 50) },
+  ],
+};
+
+const CENA_P_FRENTE: Cena = {
+  titulo: 'Frente',
+  viewBox: '0 0 1408 768',
+  fundo: <Suspense fallback={null}><PicapeFrenteArte /></Suspense>,
+  pecas: [
+    { id: 'parabrisa', sistema: 'Carroceria', casa: /vidro|para.?brisa/i, rotulo: 'Para-brisa', lx: 700, ly: 35, ax: 700, ay: 60, anchor: 'middle', desenho: marca(440, 55, 540, 185, 20) },
+    { id: 'capo', sistema: 'Carroceria', casa: /lataria|capo|cap[oô]|pintura|funilaria/i, rotulo: 'Capô / lataria', lx: 1240, ly: 200, ax: 1040, ay: 268, anchor: 'middle', desenho: marca(405, 238, 635, 72, 20) },
+    { id: 'retrovisores', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisores', lx: 175, ly: 165, ax: 330, ay: 228, anchor: 'middle', desenho: <g>{marca(292, 212, 98, 80, 16)}{marca(1018, 212, 98, 80, 16)}</g> },
+    { id: 'parachoque', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 1250, ly: 560, ax: 1080, ay: 520, anchor: 'middle', desenho: marca(325, 458, 750, 135, 24) },
+    { id: 'farois', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 160, ly: 430, ax: 398, ay: 380, anchor: 'middle', desenho: <g>{marca(395, 310, 125, 122, 18)}{marca(933, 310, 125, 122, 18)}</g> },
+    { id: 'grade', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Grade / radiador', lx: 1250, ly: 380, ax: 933, ay: 380, anchor: 'middle', desenho: marca(525, 298, 405, 165, 24) },
+    { id: 'pneus', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 170, ly: 700, ax: 335, ay: 620, anchor: 'middle', desenho: <g>{marca(330, 485, 138, 205, 40)}{marca(938, 485, 138, 205, 40)}</g> },
+  ],
+};
+
+const CENA_P_TRASEIRA: Cena = {
+  titulo: 'Traseira — caçamba',
+  viewBox: '0 0 1408 768',
+  fundo: <Suspense fallback={null}><PicapeTraseiraArte /></Suspense>,
+  pecas: [
+    { id: 'cacamba', sistema: 'Outros', rotulo: 'Caçamba / carga', lx: 700, ly: 38, ax: 700, ay: 228, anchor: 'middle', desenho: marca(400, 225, 590, 250, 20) },
+    { id: 'engate', sistema: 'Outros', casa: /engate|reboque/i, rotulo: 'Engate de reboque', lx: 1030, ly: 735, ax: 738, ay: 628, anchor: 'middle', desenho: marcaO(700, 622, 44, 38) },
+    { id: 'tampa', sistema: 'Carroceria', casa: /porta|fechadura|trava|lataria/i, rotulo: 'Tampa traseira', lx: 250, ly: 735, ax: 540, ay: 545, anchor: 'middle', desenho: marca(530, 490, 335, 75, 14) },
+    { id: 'vidrotras', sistema: 'Carroceria', casa: /vidro/i, rotulo: 'Vidro traseiro', lx: 210, ly: 60, ax: 470, ay: 110, anchor: 'middle', desenho: marca(465, 70, 465, 135, 20) },
+    { id: 'lanternas', sistema: 'Elétrica', casa: /lanterna|farol|l[aâ]mpada|ilumin/i, rotulo: 'Lanternas', lx: 190, ly: 300, ax: 360, ay: 340, anchor: 'middle', desenho: <g>{marca(358, 285, 62, 122, 14)}{marca(985, 285, 62, 122, 14)}</g> },
+    { id: 'pneustras', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 200, ly: 590, ax: 358, ay: 640, anchor: 'middle', desenho: <g>{marca(352, 605, 105, 125, 30)}{marca(978, 605, 105, 125, 30)}</g> },
+  ],
+};
+
+const CENA_P_INTERIOR: Cena = {
+  titulo: 'Cabine',
+  viewBox: '0 0 1408 768',
+  fundo: <Suspense fallback={null}><PicapeInteriorArte /></Suspense>,
+  pecas: [
+    { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', lx: 165, ly: 80, ax: 340, ay: 200, anchor: 'middle', desenho: marcaO(430, 305, 150, 135) },
+    { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio|manopla/i, rotulo: 'Câmbio', lx: 565, ly: 700, ax: 688, ay: 552, anchor: 'middle', desenho: marca(672, 448, 95, 108, 20) },
+    { id: 'bancos', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Bancos', lx: 1075, ly: 530, ax: 1000, ay: 572, anchor: 'middle', desenho: <g>{marca(12, 568, 318, 192, 26)}{marca(820, 562, 450, 198, 26)}</g> },
+    { id: 'cintos', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', lx: 1275, ly: 300, ax: 1200, ay: 240, anchor: 'middle', desenho: marca(1145, 12, 88, 238, 24) },
+    { id: 'clima', sistema: 'Ar-condicionado', rotulo: 'Controles do ar', lx: 1010, ly: 80, ax: 810, ay: 360, anchor: 'middle', desenho: marca(655, 358, 175, 95, 12) },
+    { id: 'instrumentos', sistema: 'Elétrica', casa: /painel|instrumento/i, rotulo: 'Instrumentos', lx: 175, ly: 470, ax: 395, ay: 240, anchor: 'middle', desenho: marca(388, 198, 124, 70, 12) },
+    { id: 'multimidia', sistema: 'Elétrica', casa: /som|multim|r[aá]dio/i, rotulo: 'Multimídia', lx: 700, ly: 130, ax: 760, ay: 216, anchor: 'middle', desenho: marca(718, 212, 142, 90, 10) },
+  ],
+};
+
+// exportado só pra render de verificação (scripts de preview)
+export const CENAS_PICAPE: Record<string, Cena> = {
+  frente: CENA_P_MOTOR, carroceria: CENA_P_FRENTE, traseira: CENA_P_TRASEIRA,
+  cabine: CENA_P_INTERIOR, roda: CENA_RODA,
+};
+// na picape a Carroceria TEM vista própria (a frente fechada do usuário)
+const CENA_DO_SISTEMA_PICAPE: Record<string, string> = {
+  ...CENA_DO_SISTEMA, 'Carroceria': 'carroceria',
+};
+
 // ── rodas ──────────────────────────────────────────────────────────────────
 // Roda estilo referência: pneu grosso + aro de 5 raios. O primeiro círculo é
 // na cor do CARD e um pouco maior que o pneu: ele "recorta" a carroceria atrás
@@ -771,8 +857,14 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   // Vale pros tipos "carro" (a picape usa cena mesmo SEM raio-X próprio: a
   // arte lateral dela já é um corte de fábrica)
   const temCenas = !!pecasPorSistema && (tipo === 'carro' || tipo === 'hatch' || tipo === 'picape');
-  const cenaKey = temCenas && zoom ? CENA_DO_SISTEMA[zoom] : undefined;
-  const cena = cenaKey ? CENAS[cenaKey] : undefined;
+  // a picape usa as CENAS DO USUÁRIO (artes próprias); carro/hatch, as genéricas
+  const mapaCenas = tipo === 'picape' ? CENAS_PICAPE : CENAS;
+  const mapaSistemaCena = tipo === 'picape' ? CENA_DO_SISTEMA_PICAPE : CENA_DO_SISTEMA;
+  const cenaKey = temCenas && zoom ? mapaSistemaCena[zoom] : undefined;
+  const cena = cenaKey ? mapaCenas[cenaKey] : undefined;
+  // rótulos/linhas das cenas foram calibrados num viewBox de 800 de largura;
+  // as artes da picape usam 1408 — kc mantém o tamanho aparente
+  const kc = cena ? Number(cena.viewBox.split(' ')[2]) / 800 : 1;
 
   const clicar = (sistema: string) => {
     if (pecasPorSistema) {
@@ -940,9 +1032,9 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                     {pt.desenho}
                     {doSistema && pt.rotulo && (
                       <g style={{ pointerEvents: 'none' }}>
-                        <line x1={pt.ax} y1={pt.ay} x2={pt.lx} y2={pt.ly + 4} stroke={cor} strokeWidth="1.4" opacity="0.8" />
-                        <text x={pt.lx} y={pt.ly} textAnchor={pt.anchor} fontSize="17" fontWeight="800" fill={cor}
-                          stroke="var(--portal-bg-card, #fff)" strokeWidth="5" paintOrder="stroke">
+                        <line x1={pt.ax} y1={pt.ay} x2={pt.lx} y2={pt.ly + 4 * kc} stroke={cor} strokeWidth={1.4 * kc} opacity="0.8" />
+                        <text x={pt.lx} y={pt.ly} textAnchor={pt.anchor} fontSize={17 * kc} fontWeight="800" fill={cor}
+                          stroke="var(--portal-bg-card, #fff)" strokeWidth={5 * kc} paintOrder="stroke">
                           {pt.rotulo}{pc && pc.total > 0 ? ` · ${pc.total}` : ''}
                         </text>
                       </g>
@@ -950,7 +1042,7 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                   </g>
                 );
               })}
-              <text x="16" y="30" fontSize="15" fontWeight="800" fill="var(--portal-text-secondary, #64748b)" opacity="0.75">
+              <text x={16 * kc} y={30 * kc} fontSize={15 * kc} fontWeight="800" fill="var(--portal-text-secondary, #64748b)" opacity="0.75">
                 {cena.titulo}
               </text>
             </svg>
