@@ -285,7 +285,12 @@ export const ANATOMIAS: Partial<Record<TipoSilhueta, PecaInterna[]>> = {
 // o zoom + fade e a cena entra crescendo — o "andar até lá" da transição.
 // Peças de OUTROS sistemas aparecem em fantasma e são CLICÁVEIS (trocam a
 // cena — clicou na bateria dentro da cabine? vai pra frente/Elétrica).
-interface Cena { titulo: string; viewBox: string; fundo: React.ReactNode; pecas: PecaInterna[] }
+interface Cena {
+  titulo: string; viewBox: string; fundo: React.ReactNode; pecas: PecaInterna[];
+  /** fundo é ARTE detalhada (picape): as peças são PINTADAS por baixo do
+   *  traço (camada .cena-baixo) em vez de desenhadas por cima */
+  arte?: boolean;
+}
 
 const CENA_FRENTE: Cena = {
   titulo: 'Frente — capô aberto',
@@ -438,69 +443,104 @@ const CENA_DO_SISTEMA: Record<string, string> = {
 // ── CENAS DA PICAPE: as ARTES DO USUÁRIO ───────────────────────────────────
 // Quatro vistas vetorizadas pelo próprio usuário (cofre aberto, frente,
 // traseira com caçamba e cabine). Sobre arte detalhada NÃO se desenha peça
-// por cima: cada peça vira um DESTAQUE tracejado em volta do que a arte já
-// mostra, colorido pela gravidade. Coordenadas presas ao traço (viewBox
-// 0 0 1408 768), conferidas por render.
-const D = { fill: 'none' as const, stroke: 'currentColor', strokeWidth: 6, strokeLinecap: 'round' as const, strokeDasharray: '20 12' };
-const marca = (x: number, y: number, w: number, h: number, rx = 24) => <rect {...D} x={x} y={y} width={w} height={h} rx={rx} />;
-const marcaO = (cx: number, cy: number, rx: number, ry: number) => <ellipse {...D} cx={cx} cy={cy} rx={rx} ry={ry} />;
+// por cima: como a arte é traço sobre fundo claro, a peça é PINTADA por uma
+// mancha de cor POR BAIXO do traço (`pt-fill`, camada .cena-baixo) — o branco
+// da peça "recebe tinta" e as linhas ficam por cima. O mesmo shape vira a
+// área clicável invisível na camada de cima (`pt-fill` some via CSS e o
+// `pt-hit` transparente pega o clique). Coordenadas presas ao traço
+// (viewBox 0 0 1408 768), conferidas por render.
+const marca = (x: number, y: number, w: number, h: number, rx = 24) => (
+  <g>
+    <rect className="pt-fill" fill="currentColor" x={x} y={y} width={w} height={h} rx={rx} />
+    <rect className="pt-hit" fill="transparent" x={x} y={y} width={w} height={h} rx={rx} />
+  </g>
+);
+const marcaO = (cx: number, cy: number, rx: number, ry: number) => (
+  <g>
+    <ellipse className="pt-fill" fill="currentColor" cx={cx} cy={cy} rx={rx} ry={ry} />
+    <ellipse className="pt-hit" fill="transparent" cx={cx} cy={cy} rx={rx} ry={ry} />
+  </g>
+);
 
 const CENA_P_MOTOR: Cena = {
   titulo: 'Cofre do motor — capô aberto',
   viewBox: '0 0 1408 768',
+  arte: true,
   fundo: <Suspense fallback={null}><PicapeFrenteMotorArte /></Suspense>,
   pecas: [
-    { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', lx: 150, ly: 60, ax: 560, ay: 200, anchor: 'middle', desenho: marca(500, 165, 380, 325) },
-    { id: 'filtro', sistema: 'Motor', casa: /aliment|combust|bomba|filtro/i, rotulo: 'Filtro de ar', lx: 130, ly: 680, ax: 300, ay: 420, anchor: 'middle', desenho: marca(230, 210, 240, 220) },
-    { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', lx: 620, ly: 735, ax: 660, ay: 575, anchor: 'middle', desenho: marca(330, 490, 760, 90, 30) },
-    { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', lx: 1280, ly: 640, ax: 1180, ay: 490, anchor: 'middle', desenho: marca(1050, 340, 160, 160) },
-    { id: 'alternador', sistema: 'Elétrica', casa: /partida|arranque|alternador|correia/i, rotulo: 'Alternador / correia', lx: 1050, ly: 735, ax: 800, ay: 460, anchor: 'middle', desenho: marcaO(760, 422, 58, 58) },
-    { id: 'palhetas', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 1280, ly: 55, ax: 1130, ay: 90, anchor: 'middle', desenho: marca(210, 55, 980, 90, 30) },
-    { id: 'compressor', sistema: 'Ar-condicionado', rotulo: 'Compressor do ar', lx: 300, ly: 735, ax: 590, ay: 495, anchor: 'middle', desenho: marcaO(610, 465, 65, 50) },
+    { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', lx: 1330, ly: 160, ax: 845, ay: 220, anchor: 'end', desenho: marca(505, 160, 340, 250) },
+    { id: 'filtro', sistema: 'Motor', casa: /aliment|combust|bomba|filtro/i, rotulo: 'Filtro de ar', lx: 30, ly: 330, ax: 250, ay: 300, anchor: 'start', desenho: marca(245, 210, 300, 170) },
+    { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', lx: 300, ly: 745, ax: 450, ay: 510, anchor: 'middle', desenho: marca(350, 450, 700, 100, 30) },
+    { id: 'reservarrefec', sistema: 'Motor', casa: /arrefec|reservat/i, rotulo: 'Reserv. arrefecimento', lx: 30, ly: 160, ax: 245, ay: 200, anchor: 'start', desenho: marca(228, 160, 110, 105, 22) },
+    { id: 'escapcofre', sistema: 'Motor', casa: /escap|coletor/i, rotulo: 'Coletor / escape', lx: 30, ly: 500, ax: 420, ay: 430, anchor: 'start', desenho: marcaO(430, 435, 60, 45) },
+    { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', lx: 1330, ly: 660, ax: 1110, ay: 430, anchor: 'end', desenho: marca(920, 330, 200, 145, 18) },
+    { id: 'fusiveis', sistema: 'Elétrica', casa: /fus[ií]vel|rel[eé]|chicote/i, rotulo: 'Fusíveis / relés', lx: 1330, ly: 30, ax: 1050, ay: 240, anchor: 'end', desenho: marca(985, 222, 130, 112, 16) },
+    { id: 'alternador', sistema: 'Elétrica', casa: /partida|arranque|alternador|correia/i, rotulo: 'Alternador / correia', lx: 1010, ly: 745, ax: 755, ay: 400, anchor: 'middle', desenho: marcaO(730, 355, 55, 55) },
+    { id: 'palhetas', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 700, ly: 30, ax: 700, ay: 45, anchor: 'middle', desenho: marca(430, 10, 640, 75, 20) },
+    { id: 'reservlimpador', sistema: 'Elétrica', casa: /limpador|reservat/i, rotulo: 'Reserv. do limpador', lx: 30, ly: 660, ax: 200, ay: 450, anchor: 'start', desenho: marcaO(225, 420, 58, 62) },
+    { id: 'cilindrofreio', sistema: 'Freios', casa: /fluido|hidr[aá]ulica|cilindro/i, rotulo: 'Cilindro de freio', lx: 1330, ly: 480, ax: 915, ay: 235, anchor: 'end', desenho: marcaO(870, 220, 62, 60) },
+    { id: 'escoras', sistema: 'Carroceria', casa: /capo|cap[oô]|dobradi[çc]|lataria/i, rotulo: 'Escoras do capô', lx: 90, ly: 30, ax: 225, ay: 110, anchor: 'start', desenho: <g>{marca(195, 12, 78, 215, 26)}{marca(1028, 12, 78, 215, 26)}</g> },
+    { id: 'gradecofre', sistema: 'Carroceria', casa: /grade|lataria/i, rotulo: 'Grade', lx: 700, ly: 745, ax: 665, ay: 645, anchor: 'middle', desenho: marca(235, 560, 845, 168, 30) },
+    { id: 'faroiscofre', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 90, ly: 590, ax: 150, ay: 578, anchor: 'start', desenho: <g>{marca(92, 543, 122, 78, 20)}{marca(1092, 543, 122, 78, 20)}</g> },
   ],
 };
 
 const CENA_P_FRENTE: Cena = {
   titulo: 'Frente',
   viewBox: '0 0 1408 768',
+  arte: true,
   fundo: <Suspense fallback={null}><PicapeFrenteArte /></Suspense>,
   pecas: [
-    { id: 'parabrisa', sistema: 'Carroceria', casa: /vidro|para.?brisa/i, rotulo: 'Para-brisa', lx: 700, ly: 35, ax: 700, ay: 60, anchor: 'middle', desenho: marca(440, 55, 540, 185, 20) },
-    { id: 'capo', sistema: 'Carroceria', casa: /lataria|capo|cap[oô]|pintura|funilaria/i, rotulo: 'Capô / lataria', lx: 1240, ly: 200, ax: 1040, ay: 268, anchor: 'middle', desenho: marca(405, 238, 635, 72, 20) },
-    { id: 'retrovisores', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisores', lx: 175, ly: 165, ax: 330, ay: 228, anchor: 'middle', desenho: <g>{marca(292, 212, 98, 80, 16)}{marca(1018, 212, 98, 80, 16)}</g> },
-    { id: 'parachoque', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 1250, ly: 560, ax: 1080, ay: 520, anchor: 'middle', desenho: marca(325, 458, 750, 135, 24) },
-    { id: 'farois', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 160, ly: 430, ax: 398, ay: 380, anchor: 'middle', desenho: <g>{marca(395, 310, 125, 122, 18)}{marca(933, 310, 125, 122, 18)}</g> },
-    { id: 'grade', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Grade / radiador', lx: 1250, ly: 380, ax: 933, ay: 380, anchor: 'middle', desenho: marca(525, 298, 405, 165, 24) },
-    { id: 'pneus', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 170, ly: 700, ax: 335, ay: 620, anchor: 'middle', desenho: <g>{marca(330, 485, 138, 205, 40)}{marca(938, 485, 138, 205, 40)}</g> },
+    { id: 'parabrisa', sistema: 'Carroceria', casa: /vidro|para.?brisa/i, rotulo: 'Para-brisa', lx: 700, ly: 32, ax: 700, ay: 65, anchor: 'middle', desenho: marca(390, 60, 490, 155, 20) },
+    { id: 'palhetasf', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 1350, ly: 200, ax: 872, ay: 215, anchor: 'end', desenho: marca(415, 195, 460, 40, 14) },
+    { id: 'capo', sistema: 'Carroceria', casa: /lataria|capo|cap[oô]|pintura|funilaria/i, rotulo: 'Capô / lataria', lx: 1350, ly: 300, ax: 922, ay: 258, anchor: 'end', desenho: marca(360, 218, 565, 85, 20) },
+    { id: 'retrovisores', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisores', lx: 20, ly: 180, ax: 268, ay: 225, anchor: 'start', desenho: <g>{marca(263, 195, 95, 70, 16)}{marca(905, 195, 95, 70, 16)}</g> },
+    { id: 'parachoque', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 1350, ly: 520, ax: 934, ay: 480, anchor: 'end', desenho: marca(352, 418, 585, 130, 24) },
+    { id: 'farois', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 30, ly: 330, ax: 372, ay: 340, anchor: 'start', desenho: <g>{marca(368, 285, 88, 118, 18)}{marca(843, 285, 88, 118, 18)}</g> },
+    { id: 'grade', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Grade / radiador', lx: 1350, ly: 400, ax: 840, ay: 350, anchor: 'end', desenho: marca(458, 282, 385, 135, 24) },
+    { id: 'suspdiant', sistema: 'Suspensão', casa: /amortecedor|mola|bandeja|barra|pivô|piv[oô]/i, rotulo: 'Suspensão dianteira', lx: 700, ly: 745, ax: 700, ay: 630, anchor: 'middle', desenho: marca(420, 548, 460, 85, 20) },
+    { id: 'pneus', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 30, ly: 560, ax: 305, ay: 540, anchor: 'start', desenho: <g>{marca(300, 398, 132, 285, 40)}{marca(853, 398, 132, 285, 40)}</g> },
   ],
 };
 
 const CENA_P_TRASEIRA: Cena = {
   titulo: 'Traseira — caçamba',
   viewBox: '0 0 1408 768',
+  arte: true,
   fundo: <Suspense fallback={null}><PicapeTraseiraArte /></Suspense>,
   pecas: [
-    { id: 'cacamba', sistema: 'Outros', rotulo: 'Caçamba / carga', lx: 700, ly: 38, ax: 700, ay: 228, anchor: 'middle', desenho: marca(400, 225, 590, 250, 20) },
-    { id: 'engate', sistema: 'Outros', casa: /engate|reboque/i, rotulo: 'Engate de reboque', lx: 1030, ly: 735, ax: 738, ay: 628, anchor: 'middle', desenho: marcaO(700, 622, 44, 38) },
-    { id: 'tampa', sistema: 'Carroceria', casa: /porta|fechadura|trava|lataria/i, rotulo: 'Tampa traseira', lx: 250, ly: 735, ax: 540, ay: 545, anchor: 'middle', desenho: marca(530, 490, 335, 75, 14) },
-    { id: 'vidrotras', sistema: 'Carroceria', casa: /vidro/i, rotulo: 'Vidro traseiro', lx: 210, ly: 60, ax: 470, ay: 110, anchor: 'middle', desenho: marca(465, 70, 465, 135, 20) },
-    { id: 'lanternas', sistema: 'Elétrica', casa: /lanterna|farol|l[aâ]mpada|ilumin/i, rotulo: 'Lanternas', lx: 190, ly: 300, ax: 360, ay: 340, anchor: 'middle', desenho: <g>{marca(358, 285, 62, 122, 14)}{marca(985, 285, 62, 122, 14)}</g> },
-    { id: 'pneustras', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 200, ly: 590, ax: 358, ay: 640, anchor: 'middle', desenho: <g>{marca(352, 605, 105, 125, 30)}{marca(978, 605, 105, 125, 30)}</g> },
+    { id: 'luzfreio', sistema: 'Elétrica', casa: /luz|l[aâ]mpada|lanterna|ilumin/i, rotulo: 'Luz de freio', lx: 1330, ly: 40, ax: 700, ay: 56, anchor: 'end', desenho: marca(573, 38, 125, 36, 12) },
+    { id: 'vidrotras', sistema: 'Carroceria', casa: /vidro/i, rotulo: 'Vidro traseiro', lx: 60, ly: 60, ax: 412, ay: 120, anchor: 'start', desenho: marca(408, 82, 465, 115, 18) },
+    { id: 'cacamba', sistema: 'Outros', rotulo: 'Caçamba / carga', lx: 340, ly: 32, ax: 500, ay: 222, anchor: 'middle', desenho: marca(378, 216, 530, 216, 18) },
+    { id: 'tampa', sistema: 'Carroceria', casa: /porta|fechadura|trava/i, rotulo: 'Tampa / fechadura', lx: 1330, ly: 250, ax: 703, ay: 265, anchor: 'end', desenho: marca(590, 238, 110, 55, 12) },
+    { id: 'lanternas', sistema: 'Elétrica', casa: /lanterna|farol|ilumin/i, rotulo: 'Lanternas', lx: 60, ly: 320, ax: 330, ay: 332, anchor: 'start', desenho: <g>{marca(327, 268, 58, 130, 12)}{marca(903, 268, 58, 130, 12)}</g> },
+    { id: 'parachoquetras', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 60, ly: 480, ax: 320, ay: 482, anchor: 'start', desenho: marca(315, 438, 660, 95, 20) },
+    { id: 'susptras', sistema: 'Suspensão', casa: /mola|feixe|amortecedor/i, rotulo: 'Suspensão traseira', lx: 60, ly: 640, ax: 428, ay: 565, anchor: 'start', desenho: <g>{marca(425, 520, 60, 90, 14)}{marca(790, 520, 60, 90, 14)}</g> },
+    { id: 'engate', sistema: 'Outros', casa: /engate|reboque/i, rotulo: 'Engate de reboque', lx: 700, ly: 745, ax: 655, ay: 615, anchor: 'middle', desenho: marcaO(650, 580, 70, 45) },
+    { id: 'escapamento', sistema: 'Motor', casa: /escap/i, rotulo: 'Escapamento', lx: 1330, ly: 590, ax: 918, ay: 555, anchor: 'end', desenho: marcaO(870, 550, 55, 30) },
+    { id: 'pneustras', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 1330, ly: 700, ax: 960, ay: 622, anchor: 'end', desenho: <g>{marca(318, 558, 105, 125, 30)}{marca(858, 558, 105, 125, 30)}</g> },
   ],
 };
 
 const CENA_P_INTERIOR: Cena = {
   titulo: 'Cabine',
   viewBox: '0 0 1408 768',
+  arte: true,
   fundo: <Suspense fallback={null}><PicapeInteriorArte /></Suspense>,
   pecas: [
-    { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', lx: 165, ly: 80, ax: 340, ay: 200, anchor: 'middle', desenho: marcaO(430, 305, 150, 135) },
-    { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio|manopla/i, rotulo: 'Câmbio', lx: 565, ly: 700, ax: 688, ay: 552, anchor: 'middle', desenho: marca(672, 448, 95, 108, 20) },
-    { id: 'bancos', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Bancos', lx: 1075, ly: 530, ax: 1000, ay: 572, anchor: 'middle', desenho: <g>{marca(12, 568, 318, 192, 26)}{marca(820, 562, 450, 198, 26)}</g> },
-    { id: 'cintos', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', lx: 1275, ly: 300, ax: 1200, ay: 240, anchor: 'middle', desenho: marca(1145, 12, 88, 238, 24) },
-    { id: 'clima', sistema: 'Ar-condicionado', rotulo: 'Controles do ar', lx: 1010, ly: 80, ax: 810, ay: 360, anchor: 'middle', desenho: marca(655, 358, 175, 95, 12) },
-    { id: 'instrumentos', sistema: 'Elétrica', casa: /painel|instrumento/i, rotulo: 'Instrumentos', lx: 175, ly: 470, ax: 395, ay: 240, anchor: 'middle', desenho: marca(388, 198, 124, 70, 12) },
-    { id: 'multimidia', sistema: 'Elétrica', casa: /som|multim|r[aá]dio/i, rotulo: 'Multimídia', lx: 700, ly: 130, ax: 760, ay: 216, anchor: 'middle', desenho: marca(718, 212, 142, 90, 10) },
+    { id: 'retrovint', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisor interno', lx: 800, ly: 58, ax: 775, ay: 25, anchor: 'start', desenho: marca(592, 4, 180, 38, 12) },
+    { id: 'cintos', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', lx: 1330, ly: 100, ax: 1142, ay: 82, anchor: 'end', desenho: <g>{marca(215, 22, 55, 125, 18)}{marca(1085, 22, 60, 125, 18)}</g> },
+    { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', lx: 60, ly: 110, ax: 315, ay: 185, anchor: 'start', desenho: marcaO(405, 275, 148, 138) },
+    { id: 'instrumentos', sistema: 'Elétrica', casa: /painel|instrumento/i, rotulo: 'Instrumentos', lx: 60, ly: 32, ax: 400, ay: 190, anchor: 'start', desenho: marca(348, 185, 200, 80, 12) },
+    { id: 'multimidia', sistema: 'Elétrica', casa: /som|multim|r[aá]dio/i, rotulo: 'Multimídia', lx: 500, ly: 32, ax: 615, ay: 202, anchor: 'middle', desenho: marca(600, 198, 150, 88, 10) },
+    { id: 'difusores', sistema: 'Ar-condicionado', rotulo: 'Difusores do ar', lx: 1330, ly: 200, ax: 808, ay: 250, anchor: 'end', desenho: <g>{marca(545, 206, 58, 106, 10)}{marca(748, 206, 60, 106, 10)}</g> },
+    { id: 'clima', sistema: 'Ar-condicionado', rotulo: 'Controles do ar', lx: 1330, ly: 310, ax: 760, ay: 355, anchor: 'end', desenho: marca(592, 320, 168, 72, 12) },
+    { id: 'portaluvas', sistema: 'Interior', casa: /porta.?luvas|painel/i, rotulo: 'Porta-luvas', lx: 1330, ly: 420, ax: 1018, ay: 362, anchor: 'end', desenho: marca(830, 325, 188, 75, 14) },
+    { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio|manopla/i, rotulo: 'Câmbio', lx: 1330, ly: 530, ax: 753, ay: 462, anchor: 'end', desenho: marca(650, 385, 102, 152, 24) },
+    { id: 'pedais', sistema: 'Freios', casa: /pedal|fluido|hidr[aá]ulica/i, rotulo: 'Pedais', lx: 60, ly: 560, ax: 455, ay: 438, anchor: 'start', desenho: marca(450, 398, 135, 72, 14) },
+    { id: 'portavidros', sistema: 'Carroceria', casa: /porta|trava|fechadura|vidro/i, rotulo: 'Porta / vidros', lx: 60, ly: 400, ax: 148, ay: 420, anchor: 'start', desenho: marca(90, 393, 108, 86, 16) },
+    { id: 'bancos', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Bancos', lx: 200, ly: 745, ax: 320, ay: 660, anchor: 'middle', desenho: <g>{marca(155, 525, 400, 235, 30)}{marca(765, 525, 415, 235, 30)}</g> },
+    { id: 'console', sistema: 'Interior', casa: /console|apoio|acabamento/i, rotulo: 'Console central', lx: 660, ly: 745, ax: 660, ay: 700, anchor: 'middle', desenho: marca(560, 545, 200, 205, 24) },
   ],
 };
 
@@ -513,6 +553,25 @@ export const CENAS_PICAPE: Record<string, Cena> = {
 const CENA_DO_SISTEMA_PICAPE: Record<string, string> = {
   ...CENA_DO_SISTEMA, 'Carroceria': 'carroceria',
 };
+
+// ── seletor de vistas: navegar direto entre as cenas, sem passar por um
+// sistema — na vista "solta" TODAS as peças aparecem coloridas pelo estado ──
+type Vista = { key: string | null; rot: string };
+const VISTAS_PICAPE: Vista[] = [
+  { key: null, rot: 'Lateral' },
+  { key: 'carroceria', rot: 'Frente' },
+  { key: 'frente', rot: 'Cofre do motor' },
+  { key: 'cabine', rot: 'Cabine' },
+  { key: 'traseira', rot: 'Traseira' },
+  { key: 'roda', rot: 'Roda' },
+];
+const VISTAS_GENERICAS: Vista[] = [
+  { key: null, rot: 'Lateral' },
+  { key: 'frente', rot: 'Frente' },
+  { key: 'cabine', rot: 'Cabine' },
+  { key: 'traseira', rot: 'Traseira' },
+  { key: 'roda', rot: 'Roda' },
+];
 
 // ── rodas ──────────────────────────────────────────────────────────────────
 // Roda estilo referência: pneu grosso + aro de 5 raios. O primeiro círculo é
@@ -825,6 +884,9 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
 
   // ── modo zoom: a "câmera" desliza até o ponto do sistema clicado ──
   const [zoom, setZoom] = useState<string | null>(null);
+  // vista escolhida no seletor (null = lateral); com vista SEM zoom, a cena
+  // mostra todas as peças coloridas e o clique numa peça foca o sistema dela
+  const [vista, setVista] = useState<string | null>(null);
   const pontoZoom = zoom ? pontos.find((p) => p.sistema === zoom) || null : null;
 
   // geometria do viewBox (a arte da picape usa um MAIOR que o das outras —
@@ -860,8 +922,9 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   // a picape usa as CENAS DO USUÁRIO (artes próprias); carro/hatch, as genéricas
   const mapaCenas = tipo === 'picape' ? CENAS_PICAPE : CENAS;
   const mapaSistemaCena = tipo === 'picape' ? CENA_DO_SISTEMA_PICAPE : CENA_DO_SISTEMA;
-  const cenaKey = temCenas && zoom ? mapaSistemaCena[zoom] : undefined;
+  const cenaKey = temCenas ? (vista ?? (zoom ? mapaSistemaCena[zoom] : undefined)) : undefined;
   const cena = cenaKey ? mapaCenas[cenaKey] : undefined;
+  const vistas = tipo === 'picape' ? VISTAS_PICAPE : VISTAS_GENERICAS;
   // rótulos/linhas das cenas foram calibrados num viewBox de 800 de largura;
   // as artes da picape usam 1408 — kc mantém o tamanho aparente
   const kc = cena ? Number(cena.viewBox.split(' ')[2]) / 800 : 1;
@@ -904,6 +967,28 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
 
   return (
     <div style={{ width: '100%', overflowX: 'auto' }}>
+      {/* ── seletor de vistas: pula direto pra qualquer cena ── */}
+      {temCenas && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', margin: '0 0 10px' }}>
+          {vistas.map((v) => {
+            const ativa = (cenaKey ?? null) === v.key;
+            return (
+              <button key={v.rot} type="button"
+                onClick={() => { setVista(v.key); setZoom(null); }}
+                title={v.key ? `Ver ${v.rot.toLowerCase()} com todas as peças` : 'Voltar pra vista lateral'}
+                style={{
+                  padding: '5px 12px', fontSize: 11.5, fontWeight: 800, cursor: 'pointer',
+                  textTransform: 'uppercase', letterSpacing: '.4px', borderRadius: 0,
+                  border: `1.5px solid ${ativa ? '#1e40af' : 'var(--portal-border, #e2e8f0)'}`,
+                  background: ativa ? '#1e40af' : 'var(--portal-bg-card, #fefefe)',
+                  color: ativa ? '#fefefe' : 'var(--portal-text-secondary, #64748b)',
+                }}>
+                {v.rot}
+              </button>
+            );
+          })}
+        </div>
+      )}
       <div style={{ position: 'relative', minWidth: 580 }}>
         <svg viewBox={s.viewBox}
           style={{ width: '100%', height: 'auto', display: 'block', opacity: cena ? 0 : 1, transition: 'opacity .45s .2s' }}
@@ -1000,51 +1085,96 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
 
         {/* ── CENA DE PONTO DE VISTA: entra por cima da lateral ── */}
         {cena && (
-          <div onClick={() => setZoom(null)}
+          <div onClick={() => { if (zoom) setZoom(null); else setVista(null); }}
             style={{
-              position: 'absolute', inset: 0, paddingRight: 'min(46%, 338px)',
+              position: 'absolute', inset: 0, paddingRight: zoom ? 'min(46%, 338px)' : 0,
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               animation: 'diagrama-cena .65s cubic-bezier(.3,0,.18,1)',
+              transition: 'padding-right .45s cubic-bezier(.3,0,.2,1)',
             }}>
             <svg viewBox={cena.viewBox} style={{ width: '100%', height: '100%', display: 'block' }}
               role="img" aria-label={cena.titulo}>
-              <g color="var(--portal-text-muted, #64748b)">{cena.fundo}</g>
-              {cena.pecas.map((pt, i) => {
-                const doSistema = pt.sistema === zoom;
-                const pcs = pecasPorSistema?.get(pt.sistema) || [];
-                const pc = pt.casa ? pcs.find((x) => pt.casa!.test(x.rotulo)) : undefined;
-                const cg = doSistema && pc?.pior ? GRAVIDADE_COR[pc.pior] : null;
-                const cor = doSistema ? (cg ? cg.forte : '#3b82f6') : 'var(--portal-text-muted, #64748b)';
-                return (
-                  <g key={pt.id} color={cor}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (doSistema) { if ((pc?.total || 0) > 0 && onAbrirHistorico) onAbrirHistorico(zoom!); }
-                      else { setZoom(pt.sistema); onSelecionar(pt.sistema); }
-                    }}
-                    style={{
-                      cursor: 'pointer', opacity: doSistema ? 1 : 0.28,
-                      animation: `diagrama-xray .45s ${0.25 + i * 0.06}s cubic-bezier(.3,0,.2,1) backwards`,
-                    }}>
-                    <title>{doSistema
-                      ? (pc && pc.total > 0 ? `${pt.rotulo}: ${pc.total} pendência(s). Clique para ver no histórico.` : `${pt.rotulo}: ok`)
-                      : `${pt.rotulo} — clique para ver ${pt.sistema}`}</title>
-                    {pt.desenho}
-                    {doSistema && pt.rotulo && (
-                      <g style={{ pointerEvents: 'none' }}>
-                        <line x1={pt.ax} y1={pt.ay} x2={pt.lx} y2={pt.ly + 4 * kc} stroke={cor} strokeWidth={1.4 * kc} opacity="0.8" />
-                        <text x={pt.lx} y={pt.ly} textAnchor={pt.anchor} fontSize={17 * kc} fontWeight="800" fill={cor}
-                          stroke="var(--portal-bg-card, #fff)" strokeWidth={5 * kc} paintOrder="stroke">
-                          {pt.rotulo}{pc && pc.total > 0 ? ` · ${pc.total}` : ''}
-                        </text>
+              <style>{`
+                .cena-baixo .pt-hit{display:none}
+                .cena-cima .pt-fill{opacity:0;transition:opacity .2s}
+                .cena-cima g.pt-alvo:hover .pt-fill{opacity:.14}
+              `}</style>
+              {/* TINTA: em cena de ARTE a peça é pintada POR BAIXO do traço —
+                  a mancha de cor preenche o "branco" da peça e as linhas do
+                  desenho ficam por cima, como se a própria arte fosse colorida */}
+              {cena.arte && (
+                <g className="cena-baixo">
+                  {cena.pecas.map((pt, i) => {
+                    const doSistema = pt.sistema === zoom;
+                    const pcsB = pecasPorSistema?.get(pt.sistema) || [];
+                    const pcB = pt.casa ? pcsB.find((x) => pt.casa!.test(x.rotulo)) : undefined;
+                    const cgB = (!zoom || doSistema) && pcB?.pior ? GRAVIDADE_COR[pcB.pior] : null;
+                    // pinta: peça com pendência (sempre) e, no zoom, a peça do
+                    // sistema focado mesmo sem pendência (azul suave)
+                    if (!cgB && !(zoom && doSistema)) return null;
+                    return (
+                      <g key={pt.id} color={cgB ? cgB.forte : '#3b82f6'} opacity={cgB ? 0.42 : 0.2}
+                        style={{ animation: `diagrama-xray .5s ${0.25 + i * 0.045}s cubic-bezier(.3,0,.2,1) backwards` }}>
+                        {pt.desenho}
                       </g>
-                    )}
-                  </g>
-                );
-              })}
-              <text x={16 * kc} y={30 * kc} fontSize={15 * kc} fontWeight="800" fill="var(--portal-text-secondary, #64748b)" opacity="0.75">
-                {cena.titulo}
-              </text>
+                    );
+                  })}
+                </g>
+              )}
+              <g color="var(--portal-text-muted, #64748b)">{cena.fundo}</g>
+              <g className="cena-cima">
+                {cena.pecas.map((pt, i) => {
+                  // sem zoom (vista solta) TODAS as peças acendem, cada uma pela
+                  // própria gravidade; com zoom só o sistema focado fica aceso
+                  const modoTodas = !zoom;
+                  const doSistema = pt.sistema === zoom;
+                  const pcs = pecasPorSistema?.get(pt.sistema) || [];
+                  const pc = pt.casa ? pcs.find((x) => pt.casa!.test(x.rotulo)) : undefined;
+                  const temPend = !!pc?.pior;
+                  const cg = (doSistema || modoTodas) && temPend ? GRAVIDADE_COR[pc!.pior!] : null;
+                  const cor = cg ? cg.forte
+                    : modoTodas ? 'var(--portal-text-secondary, #64748b)'
+                    : doSistema ? '#3b82f6' : 'var(--portal-text-muted, #64748b)';
+                  // na cena de arte o fantasma vira só um rótulo fraco (a arte
+                  // continua limpa); nas cenas desenhadas ele segue esmaecido
+                  const mostraRotulo = modoTodas || doSistema || cena.arte;
+                  const opRotulo = modoTodas ? (cg ? 1 : 0.8) : doSistema ? 1 : 0.35;
+                  return (
+                    <g key={pt.id} color={cor} className="pt-alvo"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (modoTodas || !doSistema) { setZoom(pt.sistema); onSelecionar(pt.sistema); }
+                        else if ((pc?.total || 0) > 0 && onAbrirHistorico) onAbrirHistorico(zoom!);
+                      }}
+                      style={{
+                        cursor: 'pointer',
+                        opacity: modoTodas ? (cg ? 1 : 0.72) : doSistema ? 1 : (cena.arte ? 1 : 0.28),
+                        animation: `diagrama-xray .45s ${0.25 + i * 0.045}s cubic-bezier(.3,0,.2,1) backwards`,
+                      }}>
+                      <title>{doSistema
+                        ? (pc && pc.total > 0 ? `${pt.rotulo}: ${pc.total} pendência(s). Clique para ver no histórico.` : `${pt.rotulo}: ok`)
+                        : `${pt.rotulo} — clique para focar ${pt.sistema}`}</title>
+                      {pt.desenho}
+                      {mostraRotulo && pt.rotulo && (
+                        <g style={{ pointerEvents: 'none' }} opacity={opRotulo}>
+                          <line x1={pt.ax} y1={pt.ay} x2={pt.lx} y2={pt.ly + 4 * kc} stroke={cor} strokeWidth={1.4 * kc} opacity={modoTodas && !cg ? 0.45 : 0.8} />
+                          <text x={pt.lx} y={pt.ly} textAnchor={pt.anchor} fontSize={17 * kc} fontWeight="800" fill={cor}
+                            stroke="var(--portal-bg-card, #fff)" strokeWidth={5 * kc} paintOrder="stroke">
+                            {pt.rotulo}{pc && pc.total > 0 ? ` · ${pc.total}` : ''}
+                          </text>
+                        </g>
+                      )}
+                    </g>
+                  );
+                })}
+              </g>
+              {/* com todas as peças acesas o topo fica cheio de rótulos — o
+                  título só entra no modo zoom (os chips já nomeiam a vista) */}
+              {zoom && (
+                <text x={16 * kc} y={30 * kc} fontSize={15 * kc} fontWeight="800" fill="var(--portal-text-secondary, #64748b)" opacity="0.75">
+                  {cena.titulo}
+                </text>
+              )}
             </svg>
           </div>
         )}
