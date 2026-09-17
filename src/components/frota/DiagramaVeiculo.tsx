@@ -457,7 +457,8 @@ const CENA_P_FRENTE: Cena = {
   pecas: [
     { id: 'parabrisa', sistema: 'Carroceria', casa: /vidro|para.?brisa/i, rotulo: 'Para-brisa', lx: 700, ly: 32, ax: 700, ay: 62, anchor: 'middle', desenho: marca(415, 58, 545, 160, 20) },
     { id: 'palhetasf', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 1350, ly: 200, ax: 932, ay: 230, anchor: 'end', desenho: marca(455, 212, 480, 40, 14) },
-    { id: 'capo', sistema: 'Carroceria', casa: /lataria|capo|cap[oô]|pintura|funilaria/i, rotulo: 'Capô / lataria', lx: 1350, ly: 300, ax: 1008, ay: 268, anchor: 'end', desenho: marca(345, 230, 665, 75, 20) },
+    { id: 'capo', sistema: 'Carroceria', casa: /capo|cap[oô]/i, rotulo: 'Capô', lx: 1350, ly: 300, ax: 1008, ay: 268, anchor: 'end', desenho: marca(345, 230, 665, 75, 20) },
+    { id: 'lataria', sistema: 'Carroceria', casa: /lataria|funilaria|pintura|amassad|para.?lama|carroceria/i, rotulo: 'Lataria / para-lamas', lx: 20, ly: 258, ax: 300, ay: 295, anchor: 'start', desenho: <g>{marca(250, 230, 210, 290, 24)}{marca(945, 230, 215, 290, 24)}</g> },
     { id: 'retrovisores', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisores', lx: 20, ly: 180, ax: 270, ay: 225, anchor: 'start', desenho: <g>{marca(265, 198, 98, 92, 16)}{marca(1012, 198, 90, 92, 16)}</g> },
     { id: 'parachoque', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 1350, ly: 520, ax: 1085, ay: 490, anchor: 'end', desenho: marca(398, 440, 690, 128, 24) },
     { id: 'farois', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 30, ly: 330, ax: 408, ay: 348, anchor: 'start', desenho: <g>{marca(405, 303, 85, 95, 16)}{marca(928, 303, 85, 95, 16)}</g> },
@@ -475,6 +476,7 @@ const CENA_P_TRASEIRA: Cena = {
   pecas: [
     { id: 'luzfreio', sistema: 'Elétrica', casa: /luz|l[aâ]mpada|lanterna|ilumin/i, rotulo: 'Luz de freio', lx: 1330, ly: 40, ax: 742, ay: 50, anchor: 'end', desenho: marca(635, 32, 105, 35, 12) },
     { id: 'vidrotras', sistema: 'Carroceria', casa: /vidro/i, rotulo: 'Vidro traseiro', lx: 60, ly: 60, ax: 435, ay: 120, anchor: 'start', desenho: marca(430, 70, 505, 118, 18) },
+    { id: 'lataria', sistema: 'Carroceria', casa: /lataria|funilaria|pintura|amassad|para.?lama|carroceria/i, rotulo: 'Lataria / para-lamas', lx: 60, ly: 190, ax: 352, ay: 250, anchor: 'start', desenho: <g>{marca(300, 190, 110, 290, 20)}{marca(1000, 190, 110, 290, 20)}</g> },
     { id: 'cacamba', sistema: 'Outros', rotulo: 'Caçamba / carga', lx: 340, ly: 32, ax: 520, ay: 240, anchor: 'middle', desenho: marca(410, 235, 578, 210, 18) },
     { id: 'tampa', sistema: 'Carroceria', casa: /porta|fechadura|trava/i, rotulo: 'Tampa / fechadura', lx: 1330, ly: 250, ax: 742, ay: 275, anchor: 'end', desenho: marca(650, 250, 90, 55, 12) },
     { id: 'lanternas', sistema: 'Elétrica', casa: /lanterna|farol|ilumin/i, rotulo: 'Lanternas', lx: 60, ly: 320, ax: 370, ay: 330, anchor: 'start', desenho: <g>{marca(368, 265, 55, 135, 12)}{marca(995, 265, 55, 135, 12)}</g> },
@@ -993,6 +995,16 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
           <g style={{ transform: transformCena, transition: 'transform .85s cubic-bezier(.45,0,.18,1)', transformOrigin: '0 0' }}>
             <g color="var(--portal-text-muted, #64748b)"
               style={{ opacity: raioX ? 0.16 : 1, transition: 'opacity .6s .15s' }}>
+              {/* LATARIA pintada na lateral (batida/amassado): a forma exata
+                  da carcaça extraída da arte, na cor da pendência aberta em
+                  lataria/funilaria — por baixo do traço, como nas cenas */}
+              {tipo === 'picape' && pecasPorSistema && (() => {
+                const d = FORMAS_CENAS['lateral:lataria'];
+                const pcL = (pecasPorSistema.get('Carroceria') || [])
+                  .find((x) => /lataria|funilaria|pintura|amassad|para.?lama|carroceria/i.test(x.rotulo));
+                if (!d || !pcL?.pior) return null;
+                return <path fillRule="evenodd" fill={GRAVIDADE_COR[pcL.pior].forte} opacity={0.45} d={d} />;
+              })()}
               {s.corpo}
               {/* motor "gravado" no cofre (traços na cor do card, como os
                   vidros) — só quando o capô levanta SEM o raio-X (com o
@@ -1171,13 +1183,8 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                   );
                 })}
               </g>
-              {/* com todas as peças acesas o topo fica cheio de rótulos — o
-                  título só entra no modo zoom (os chips já nomeiam a vista) */}
-              {zoom && (
-                <text x={16 * kc} y={30 * kc} fontSize={15 * kc} fontWeight="800" fill="var(--portal-text-secondary, #64748b)" opacity="0.75">
-                  {cena.titulo}
-                </text>
-              )}
+              {/* sem título dentro do desenho: colidia com os rótulos das
+                  peças (os chips de vista e o painel já dizem onde se está) */}
             </svg>
           </div>
         )}

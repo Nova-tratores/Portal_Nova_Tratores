@@ -1,4 +1,4 @@
-// @ts-nocheck - roda com tsx a partir da RAIZ do repo: npx tsx scripts/render-artes-cenas.tsx <dir-saida>
+﻿// @ts-nocheck - roda com tsx a partir da RAIZ do repo: npx tsx scripts/render-artes-cenas.tsx <dir-saida>
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { writeFileSync } from 'fs';
@@ -7,6 +7,7 @@ import PicapeFrenteMotorArte from '../src/components/frota/PicapeFrenteMotorArte
 import PicapeTraseiraArte from '../src/components/frota/PicapeTraseiraArte';
 import PicapeInteriorArte from '../src/components/frota/PicapeInteriorArte';
 import RodaArte from '../src/components/frota/RodaArte';
+import PicapeArte from '../src/components/frota/PicapeArte';
 
 const ARTES: Record<string, React.ComponentType> = {
   frente: PicapeFrenteMotorArte,
@@ -14,6 +15,7 @@ const ARTES: Record<string, React.ComponentType> = {
   traseira: PicapeTraseiraArte,
   cabine: PicapeInteriorArte,
   roda: RodaArte,
+  lateral: PicapeArte,
 };
 
 const dir = process.argv[2];
@@ -26,4 +28,5 @@ for (const [nome, Fundo] of Object.entries(ARTES)) {
   writeFileSync(`${dir}/arte-${nome}.html`, html);
   console.log('ok', nome);
 }
+
 

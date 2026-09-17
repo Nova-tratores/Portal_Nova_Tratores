@@ -22,7 +22,7 @@ const PECAS: Peca[] = [
   { cena: 'frente', id: 'motor', boxes: [[555, 185, 270, 200]] },
   { cena: 'frente', id: 'filtro', boxes: [[238, 240, 330, 155]] },
   { cena: 'frente', id: 'radiador', boxes: [[352, 478, 710, 85]] },
-  { cena: 'frente', id: 'reservarrefec', boxes: [[215, 175, 140, 130]] },
+  { cena: 'frente', id: 'reservarrefec', boxes: [[200, 165, 165, 160]] },
   { cena: 'frente', id: 'escapcofre', boxes: [[475, 410, 110, 90]] },
   { cena: 'frente', id: 'bateria', boxes: [[925, 372, 260, 120]] },
   { cena: 'frente', id: 'fusiveis', boxes: [[985, 218, 200, 180]] },
@@ -68,6 +68,10 @@ const PECAS: Peca[] = [
   { cena: 'cabine', id: 'portavidros', boxes: [[88, 455, 105, 85]] },
   { cena: 'cabine', id: 'bancos', boxes: [[168, 545, 390, 220], [800, 545, 400, 220]] },
   { cena: 'cabine', id: 'console', boxes: [[560, 575, 215, 185]] },
+  // lataria / carcaça (batidas): frente, traseira e LATERAL (silhueta)
+  { cena: 'carroceria', id: 'lataria', boxes: [[250, 230, 210, 290], [945, 230, 215, 290]] },
+  { cena: 'traseira', id: 'lataria', boxes: [[300, 190, 110, 290], [1000, 190, 110, 290], [330, 55, 100, 160], [975, 55, 100, 160]] },
+  { cena: 'lateral', id: 'lataria', boxes: [[150, 228, 270, 80], [455, 115, 310, 60], [725, 120, 95, 300], [52, 280, 92, 235], [1180, 255, 145, 245], [880, 275, 240, 200]] },
   // roda
   { cena: 'roda', id: 'pneu', boxes: [[300, 30, 260, 440], [445, 0, 510, 190], [235, 395, 330, 360], [835, 35, 300, 330]] },
   { cena: 'roda', id: 'aro', boxes: [[605, 320, 540, 448]] },
@@ -76,7 +80,7 @@ const PECAS: Peca[] = [
 
 const scratch = process.argv[2];
 const imgs = new Map<string, { data: Buffer; width: number; height: number }>();
-for (const cena of ['frente', 'carroceria', 'traseira', 'cabine', 'roda']) {
+for (const cena of ['frente', 'carroceria', 'traseira', 'cabine', 'roda', 'lateral']) {
   const png = PNG.sync.read(readFileSync(`${scratch}/arte-${cena}.png`));
   imgs.set(cena, { data: png.data, width: png.width, height: png.height });
 }
@@ -279,4 +283,6 @@ export const FORMAS_CENAS: Record<string, string> = ${JSON.stringify(FORMAS, nul
 writeFileSync('src/lib/frota/formas-cenas.ts', ts);
 console.log(relat.join('\n'));
 console.log(`\ntotal: ${Object.keys(FORMAS).length} formas, ${(total / 1024).toFixed(0)}KB`);
+
+
 
