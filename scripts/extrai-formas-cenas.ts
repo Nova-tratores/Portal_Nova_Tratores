@@ -126,11 +126,77 @@ const PECAS: Peca[] = [
   { cena: 'c-cabine', id: 'console', boxes: [[618, 648, 195, 115]] },
   // carro — lataria da LATERAL (batidas na silhueta)
   { cena: 'c-lateral', id: 'lataria', boxes: [[10, 375, 90, 245], [560, 25, 660, 70], [1320, 270, 85, 215], [490, 545, 580, 60], [1230, 330, 120, 170]] },
+  // ── MUNCK (Cargo com braço articulado) ── motor (cabine basculada)
+  { cena: 'mk-frente', id: 'motor', boxes: [[590, 90, 290, 390]] },
+  { cena: 'mk-frente', id: 'filtro', boxes: [[190, 245, 210, 310]] },
+  { cena: 'mk-frente', id: 'radiador', boxes: [[450, 620, 530, 140]] },
+  { cena: 'mk-frente', id: 'reservarrefec', boxes: [[195, 82, 112, 88]] },
+  { cena: 'mk-frente', id: 'correia', boxes: [[505, 480, 265, 90]] },
+  { cena: 'mk-frente', id: 'turbo', boxes: [[855, 195, 130, 190]] },
+  { cena: 'mk-frente', id: 'alternador', boxes: [[500, 410, 110, 120]] },
+  { cena: 'mk-frente', id: 'fusiveis', boxes: [[1120, 125, 150, 190]] },
+  { cena: 'mk-frente', id: 'bateria', boxes: [[1065, 375, 200, 190]] },
+  { cena: 'mk-frente', id: 'servofreio', boxes: [[905, 77, 170, 116]] },
+  { cena: 'mk-frente', id: 'bombadir', boxes: [[837, 377, 96, 96], [952, 142, 96, 95]] },
+  // munck — frente fechada
+  { cena: 'mk-carroceria', id: 'braco', boxes: [[585, 20, 360, 185]] },
+  { cena: 'mk-carroceria', id: 'parabrisa', boxes: [[500, 215, 410, 180]] },
+  { cena: 'mk-carroceria', id: 'palhetasf', boxes: [[525, 345, 320, 50]] },
+  { cena: 'mk-carroceria', id: 'retrovisores', boxes: [[420, 282, 58, 100], [933, 282, 58, 100]] },
+  { cena: 'mk-carroceria', id: 'painelfrontal', boxes: [[498, 390, 415, 85]] },
+  { cena: 'mk-carroceria', id: 'farois', boxes: [[505, 480, 90, 70], [815, 480, 90, 70]] },
+  { cena: 'mk-carroceria', id: 'grade', boxes: [[595, 478, 222, 80]] },
+  { cena: 'mk-carroceria', id: 'parachoque', boxes: [[482, 552, 445, 68]] },
+  { cena: 'mk-carroceria', id: 'suspdiant', boxes: [[435, 615, 535, 70]] },
+  { cena: 'mk-carroceria', id: 'pneus', boxes: [[432, 598, 105, 158], [868, 598, 105, 158]] },
+  // munck — traseira
+  // caixas que ABRAÇAM só o guindaste: uma caixa única englobava o painel
+  // traseiro da cabine (região fechada gigante) e pintava a cabine junto
+  // (a lança superior é uma região que encosta na cabine — qualquer caixa que
+  // a contenha inteira engole também um pedaço do painel traseiro; fica de
+  // fora e o resto do guindaste pinta)
+  { cena: 'mk-traseira', id: 'braco', boxes: [[590, 25, 190, 400], [695, 235, 275, 190], [470, 125, 150, 200], [790, 55, 180, 210]] },
+  { cena: 'mk-traseira', id: 'vidrotras', boxes: [[490, 110, 430, 195]] },
+  { cena: 'mk-traseira', id: 'retrovisores', boxes: [[366, 196, 64, 100], [980, 196, 64, 100]] },
+  { cena: 'mk-traseira', id: 'cacamba', boxes: [[390, 318, 630, 118]] },
+  { cena: 'mk-traseira', id: 'chassitras', boxes: [[425, 428, 560, 78]] },
+  { cena: 'mk-traseira', id: 'lanternas', boxes: [[450, 548, 100, 58], [850, 548, 100, 58]] },
+  { cena: 'mk-traseira', id: 'parachoquetras', boxes: [[443, 540, 520, 80]] },
+  { cena: 'mk-traseira', id: 'diferencial', boxes: [[595, 606, 250, 84]] },
+  { cena: 'mk-traseira', id: 'pneustras', boxes: [[398, 478, 148, 275], [858, 478, 152, 275]] },
+  // munck — cabine
+  { cena: 'mk-cabine', id: 'tacografo', boxes: [[598, 14, 214, 62]] },
+  { cena: 'mk-cabine', id: 'retrovint', boxes: [[628, 105, 150, 65]] },
+  { cena: 'mk-cabine', id: 'volante', boxes: [[337, 307, 256, 236]] },
+  { cena: 'mk-cabine', id: 'instrumentos', boxes: [[375, 352, 210, 90]] },
+  { cena: 'mk-cabine', id: 'multimidia', boxes: [[610, 350, 238, 92]] },
+  { cena: 'mk-cabine', id: 'clima', boxes: [[662, 425, 182, 42]] },
+  { cena: 'mk-cabine', id: 'portaluvas', boxes: [[858, 348, 215, 180]] },
+  { cena: 'mk-cabine', id: 'cambio', boxes: [[628, 518, 100, 148]] },
+  { cena: 'mk-cabine', id: 'pedais', boxes: [[432, 550, 215, 92]] },
+  { cena: 'mk-cabine', id: 'portas', boxes: [[85, 430, 250, 260], [1080, 425, 240, 270]] },
+  { cena: 'mk-cabine', id: 'bancos', boxes: [[165, 615, 400, 150], [852, 625, 335, 140]] },
+  { cena: 'mk-cabine', id: 'console', boxes: [[555, 655, 305, 110]] },
+  // munck — braço articulado
+  { cena: 'mk-braco', id: 'lanca', boxes: [[368, 15, 530, 155]] },
+  { cena: 'mk-braco', id: 'extensoes', boxes: [[848, 148, 365, 262]] },
+  { cena: 'mk-braco', id: 'cilindros', boxes: [[500, 118, 78, 275], [568, 105, 205, 78]] },
+  { cena: 'mk-braco', id: 'mangueiras', boxes: [[385, 15, 88, 430], [938, 112, 165, 100]] },
+  { cena: 'mk-braco', id: 'coluna', boxes: [[398, 128, 190, 345]] },
+  { cena: 'mk-braco', id: 'comandos', boxes: [[225, 328, 185, 150]] },
+  { cena: 'mk-braco', id: 'basegiro', boxes: [[428, 440, 172, 58]] },
+  { cena: 'mk-braco', id: 'guincho', boxes: [[578, 393, 165, 128]] },
+  { cena: 'mk-braco', id: 'gancho', boxes: [[1118, 250, 115, 278]] },
+  { cena: 'mk-braco', id: 'chassimk', boxes: [[215, 480, 590, 195]] },
+  { cena: 'mk-braco', id: 'patolas', boxes: [[215, 455, 75, 215], [650, 550, 85, 190], [290, 570, 340, 100]] },
+  { cena: 'mk-braco', id: 'pneumk', boxes: [[700, 490, 245, 255]] },
+  // munck — lataria da LATERAL (cabine/caçamba na silhueta)
+  { cena: 'mk-lateral', id: 'lataria', boxes: [[138, 100, 315, 68], [68, 285, 85, 245], [95, 395, 345, 140], [660, 350, 705, 145]] },
 ];
 
 const scratch = process.argv[2];
 const imgs = new Map<string, { data: Buffer; width: number; height: number }>();
-for (const cena of ['frente', 'carroceria', 'traseira', 'cabine', 'roda', 'lateral', 'c-frente', 'c-carroceria', 'c-traseira', 'c-cabine', 'c-lateral']) {
+for (const cena of ['frente', 'carroceria', 'traseira', 'cabine', 'roda', 'lateral', 'c-frente', 'c-carroceria', 'c-traseira', 'c-cabine', 'c-lateral', 'mk-frente', 'mk-carroceria', 'mk-traseira', 'mk-cabine', 'mk-braco', 'mk-lateral']) {
   const png = PNG.sync.read(readFileSync(`${scratch}/arte-${cena}.png`));
   imgs.set(cena, { data: png.data, width: png.width, height: png.height });
 }

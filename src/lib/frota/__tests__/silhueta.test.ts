@@ -58,6 +58,14 @@ describe('silhueta pelo modelo (frota real)', () => {
     expect(silhuetaDoVeiculo({ modelo: 'VW FORD/CARGO 1517 E' })).toBe('caminhao')
   })
 
+  it('a descrição "Caminhão Munck" vence o caminhão comum (EVG1E67 real)', () => {
+    // a descrição contém "caminhão" E "munck" — a regra do munck roda antes
+    expect(silhuetaDoVeiculo({ modelo: 'VW FORD/CARGO 1517 E', descricao: 'Caminhão Munck' })).toBe('munck')
+    expect(silhuetaDoVeiculo({ descricao: 'caminhao munk' })).toBe('munck')
+    // o Prancha (AQJ3H59) continua caminhão comum
+    expect(silhuetaDoVeiculo({ modelo: 'FORD C2428 PMERECHIM 8X2', descricao: 'Caminhão Prancha' })).toBe('caminhao')
+  })
+
   it('"ETIOS SEDAN" é sedã; "ETIOS" sozinho é hatch', () => {
     // a regra explícita de sedã roda antes do termo "etios" do hatch
     expect(silhuetaDoVeiculo({ modelo: 'ETIOS SEDAN' })).toBe('carro')
@@ -107,8 +115,8 @@ describe('sistemas que não existem no tipo', () => {
     }
   })
 
-  it('carro, hatch, picape e caminhão têm todos os sistemas', () => {
-    for (const t of ['carro', 'hatch', 'picape', 'caminhao'] as TipoSilhueta[]) {
+  it('carro, hatch, picape, caminhão e munck têm todos os sistemas', () => {
+    for (const t of ['carro', 'hatch', 'picape', 'caminhao', 'munck'] as TipoSilhueta[]) {
       expect(SISTEMAS_FORA[t], t).toEqual([])
     }
   })

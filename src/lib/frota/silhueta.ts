@@ -13,7 +13,7 @@
 //
 // PURO: sem import de servidor, testável no vitest.
 
-export type TipoSilhueta = 'carro' | 'hatch' | 'picape' | 'caminhao' | 'moto' | 'carreta'
+export type TipoSilhueta = 'carro' | 'hatch' | 'picape' | 'caminhao' | 'munck' | 'moto' | 'carreta'
 
 const semAcento = (s: string) =>
   String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase()
@@ -25,6 +25,9 @@ const semAcento = (s: string) =>
 //  - sedã explícito antes de hatch ("ETIOS SEDAN" contém "etios").
 const REGRAS: { tipo: TipoSilhueta; termos: string[] }[] = [
   { tipo: 'carreta', termos: ['carreta', 'carretinha', 'reboque', 'semi reboque', 'semirreboque'] },
+  // ANTES de caminhão: a descrição "Caminhão Munck" contém os dois termos, e o
+  // munck (braço articulado/guindaste) tem desenho e cenas próprias
+  { tipo: 'munck', termos: ['munck', 'munk', 'guindaste'] },
   {
     tipo: 'moto',
     termos: ['moto', 'motocicleta', 'honda cg', 'biz', 'bros', 'xre', 'tenere', 'r 1250', 'r1250',
@@ -66,7 +69,7 @@ export function silhuetaDoVeiculo(v: {
   descricao?: string | null
 }): TipoSilhueta {
   const declarado = semAcento(v.tipo_veiculo || '')
-  for (const t of ['carreta', 'moto', 'caminhao', 'picape', 'hatch'] as TipoSilhueta[]) {
+  for (const t of ['carreta', 'moto', 'munck', 'caminhao', 'picape', 'hatch'] as TipoSilhueta[]) {
     if (declarado === t) return t
   }
   const texto = semAcento([v.marca, v.modelo, v.descricao].filter(Boolean).join(' '))
@@ -84,6 +87,7 @@ export const SISTEMAS_FORA: Record<TipoSilhueta, string[]> = {
   hatch: [],
   picape: [],
   caminhao: [],
+  munck: [],
   // moto não tem cabine nem porta-malas; ar-condicionado e carroceria também não
   moto: ['Ar-condicionado', 'Interior', 'Carroceria'],
   // carreta é rebocada: sem motor, câmbio, direção, ar e cabine
