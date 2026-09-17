@@ -8,6 +8,11 @@ import PicapeTraseiraArte from '../src/components/frota/PicapeTraseiraArte';
 import PicapeInteriorArte from '../src/components/frota/PicapeInteriorArte';
 import RodaArte from '../src/components/frota/RodaArte';
 import PicapeArte from '../src/components/frota/PicapeArte';
+import CarroArte from '../src/components/frota/CarroArte';
+import CarroFrenteArte from '../src/components/frota/CarroFrenteArte';
+import CarroFrenteMotorArte from '../src/components/frota/CarroFrenteMotorArte';
+import CarroTraseiraArte from '../src/components/frota/CarroTraseiraArte';
+import CarroInteriorArte from '../src/components/frota/CarroInteriorArte';
 
 const ARTES: Record<string, React.ComponentType> = {
   frente: PicapeFrenteMotorArte,
@@ -16,6 +21,11 @@ const ARTES: Record<string, React.ComponentType> = {
   cabine: PicapeInteriorArte,
   roda: RodaArte,
   lateral: PicapeArte,
+  'c-frente': CarroFrenteMotorArte,
+  'c-carroceria': CarroFrenteArte,
+  'c-traseira': CarroTraseiraArte,
+  'c-cabine': CarroInteriorArte,
+  'c-lateral': CarroArte,
 };
 
 const dir = process.argv[2];

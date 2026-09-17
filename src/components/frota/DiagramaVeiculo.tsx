@@ -28,6 +28,7 @@ import { GRAVIDADE_COR, GRAVIDADE_LABEL, type ContagemGravidade, type Gravidade 
 import { SISTEMAS_FORA, type TipoSilhueta } from '@/lib/frota/silhueta';
 import { FORMAS_CENAS } from '@/lib/frota/formas-cenas';
 import PicapeArte from '@/components/frota/PicapeArte';
+import CarroArte from '@/components/frota/CarroArte';
 
 // Artes de CENA da picape (vetorizadas de imagens geradas pelo usuário) —
 // pesadas (60–190KB cada), então só baixam quando a cena abre (React.lazy)
@@ -36,6 +37,11 @@ const PicapeFrenteMotorArte = lazy(() => import('@/components/frota/PicapeFrente
 const PicapeTraseiraArte = lazy(() => import('@/components/frota/PicapeTraseiraArte'));
 const PicapeInteriorArte = lazy(() => import('@/components/frota/PicapeInteriorArte'));
 const RodaArte = lazy(() => import('@/components/frota/RodaArte'));
+// Artes de cena do CARRO padrão (hatch/sedã — Fox do usuário), mesmo esquema
+const CarroFrenteArte = lazy(() => import('@/components/frota/CarroFrenteArte'));
+const CarroFrenteMotorArte = lazy(() => import('@/components/frota/CarroFrenteMotorArte'));
+const CarroTraseiraArte = lazy(() => import('@/components/frota/CarroTraseiraArte'));
+const CarroInteriorArte = lazy(() => import('@/components/frota/CarroInteriorArte'));
 
 interface Ponto {
   sistema: string;
@@ -526,6 +532,90 @@ const CENA_RODA_ARTE: Cena = {
   ],
 };
 
+// ── CENAS DO CARRO PADRÃO (hatch/sedã): as ARTES DO USUÁRIO ────────────────
+// Mesmo esquema da picape: tinta por baixo do traço, forma exata quando o
+// extrator achou o contorno (chaves "c-frente:id" etc. em formas-cenas).
+// Coordenadas medidas com grid DENTRO do svg (viewBox 0 0 1408 768).
+const CENA_C_MOTOR: Cena = {
+  titulo: 'Cofre do motor — capô aberto',
+  viewBox: '0 0 1408 768',
+  arte: true,
+  fundo: <Suspense fallback={null}><CarroFrenteMotorArte /></Suspense>,
+  pecas: [
+    { id: 'motor', sistema: 'Motor', casa: /[óo]leo|lubrific/i, rotulo: 'Motor / óleo', lx: 1330, ly: 160, ax: 800, ay: 300, anchor: 'end', desenho: marca(465, 205, 360, 265, 20) },
+    { id: 'filtro', sistema: 'Motor', casa: /aliment|combust|bomba|filtro/i, rotulo: 'Filtro de ar', lx: 1330, ly: 290, ax: 1080, ay: 355, anchor: 'end', desenho: marca(878, 285, 230, 150, 18) },
+    { id: 'radiador', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Radiador', lx: 300, ly: 745, ax: 500, ay: 495, anchor: 'middle', desenho: marca(428, 442, 590, 75, 18) },
+    { id: 'reservarrefec', sistema: 'Motor', casa: /arrefec|reservat/i, rotulo: 'Reserv. arrefecimento', lx: 30, ly: 200, ax: 305, ay: 295, anchor: 'start', desenho: marca(292, 262, 115, 105, 18) },
+    { id: 'bateria', sistema: 'Elétrica', casa: /bateria/i, rotulo: 'Bateria', lx: 30, ly: 430, ax: 275, ay: 415, anchor: 'start', desenho: marca(255, 352, 200, 125, 16) },
+    { id: 'fusiveis', sistema: 'Elétrica', casa: /fus[ií]vel|rel[eé]|chicote/i, rotulo: 'Fusíveis / relés', lx: 1330, ly: 80, ax: 1015, ay: 200, anchor: 'end', desenho: marca(902, 170, 118, 80, 12) },
+    { id: 'alternador', sistema: 'Elétrica', casa: /partida|arranque|alternador|correia/i, rotulo: 'Alternador / correia', lx: 30, ly: 560, ax: 465, ay: 400, anchor: 'start', desenho: marcaO(478, 355, 45, 80) },
+    { id: 'palhetas', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 700, ly: 28, ax: 700, ay: 65, anchor: 'middle', desenho: marca(300, 38, 810, 80, 20) },
+    { id: 'cilindrofreio', sistema: 'Freios', casa: /fluido|hidr[aá]ulica|cilindro/i, rotulo: 'Cilindro de freio', lx: 30, ly: 90, ax: 355, ay: 225, anchor: 'start', desenho: marcaO(365, 228, 52, 45) },
+    { id: 'escoras', sistema: 'Carroceria', casa: /capo|cap[oô]|dobradi[çc]|lataria/i, rotulo: 'Escoras do capô', lx: 90, ly: 30, ax: 285, ay: 90, anchor: 'start', desenho: <g>{marca(272, 8, 50, 165, 16)}{marca(1078, 8, 55, 435, 16)}</g> },
+    { id: 'gradecofre', sistema: 'Carroceria', casa: /grade|lataria/i, rotulo: 'Grade', lx: 700, ly: 745, ax: 700, ay: 690, anchor: 'middle', desenho: marca(408, 570, 600, 135, 24) },
+    { id: 'faroiscofre', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 30, ly: 720, ax: 240, ay: 600, anchor: 'start', desenho: <g>{marca(182, 468, 205, 185, 24)}{marca(1020, 468, 210, 185, 24)}</g> },
+  ],
+};
+
+const CENA_C_FRENTE: Cena = {
+  titulo: 'Frente',
+  viewBox: '0 0 1408 768',
+  arte: true,
+  fundo: <Suspense fallback={null}><CarroFrenteArte /></Suspense>,
+  pecas: [
+    { id: 'parabrisa', sistema: 'Carroceria', casa: /vidro|para.?brisa/i, rotulo: 'Para-brisa', lx: 700, ly: 24, ax: 700, ay: 60, anchor: 'middle', desenho: marca(400, 35, 610, 190, 20) },
+    { id: 'palhetasf', sistema: 'Elétrica', casa: /palheta|limpador/i, rotulo: 'Palhetas', lx: 1350, ly: 150, ax: 945, ay: 212, anchor: 'end', desenho: marca(440, 192, 510, 42, 14) },
+    { id: 'capo', sistema: 'Carroceria', casa: /capo|cap[oô]/i, rotulo: 'Capô', lx: 1350, ly: 260, ax: 1040, ay: 280, anchor: 'end', desenho: marca(368, 238, 675, 88, 20) },
+    { id: 'lataria', sistema: 'Carroceria', casa: /lataria|funilaria|pintura|amassad|para.?lama|carroceria/i, rotulo: 'Lataria / para-lamas', lx: 20, ly: 300, ax: 300, ay: 350, anchor: 'start', desenho: <g>{marca(280, 295, 105, 300, 24)}{marca(1025, 295, 105, 300, 24)}</g> },
+    { id: 'retrovisores', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisores', lx: 20, ly: 170, ax: 255, ay: 210, anchor: 'start', desenho: <g>{marca(238, 178, 130, 80, 16)}{marca(1042, 178, 130, 80, 16)}</g> },
+    { id: 'parachoque', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 1350, ly: 490, ax: 1090, ay: 505, anchor: 'end', desenho: marca(318, 432, 775, 185, 24) },
+    { id: 'farois', sistema: 'Elétrica', casa: /farol|l[aâ]mpada|ilumin/i, rotulo: 'Faróis', lx: 30, ly: 380, ax: 325, ay: 375, anchor: 'start', desenho: <g>{marca(315, 328, 150, 92, 16)}{marca(940, 328, 150, 92, 16)}</g> },
+    { id: 'grade', sistema: 'Motor', casa: /arrefec|radiador/i, rotulo: 'Grade / radiador', lx: 1350, ly: 380, ax: 908, ay: 385, anchor: 'end', desenho: marca(492, 340, 420, 92, 20) },
+    { id: 'suspdiant', sistema: 'Suspensão', casa: /amortecedor|mola|bandeja|barra|pivô|piv[oô]/i, rotulo: 'Suspensão dianteira', lx: 700, ly: 745, ax: 700, ay: 660, anchor: 'middle', desenho: marca(418, 612, 575, 70, 18) },
+    { id: 'pneus', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 30, ly: 610, ax: 295, ay: 645, anchor: 'start', desenho: <g>{marca(288, 595, 135, 165, 36)}{marca(988, 595, 135, 165, 36)}</g> },
+  ],
+};
+
+const CENA_C_TRASEIRA: Cena = {
+  titulo: 'Traseira — porta-malas aberto',
+  viewBox: '0 0 1408 768',
+  arte: true,
+  fundo: <Suspense fallback={null}><CarroTraseiraArte /></Suspense>,
+  pecas: [
+    { id: 'luzfreio', sistema: 'Elétrica', casa: /luz|l[aâ]mpada|lanterna|ilumin/i, rotulo: 'Luz de freio', lx: 1330, ly: 40, ax: 788, ay: 40, anchor: 'end', desenho: marca(628, 22, 155, 34, 10) },
+    { id: 'vidrotras', sistema: 'Carroceria', casa: /vidro/i, rotulo: 'Vidro traseiro', lx: 60, ly: 60, ax: 520, ay: 105, anchor: 'start', desenho: marca(515, 45, 375, 155, 20) },
+    { id: 'tampa', sistema: 'Carroceria', casa: /porta|fechadura|trava/i, rotulo: 'Tampa / fechadura', lx: 1330, ly: 150, ax: 920, ay: 130, anchor: 'end', desenho: marca(462, 22, 470, 208, 24) },
+    { id: 'caixa', sistema: 'Outros', rotulo: 'Porta-malas / carga', lx: 60, ly: 250, ax: 515, ay: 305, anchor: 'start', desenho: marca(505, 240, 400, 245, 18) },
+    { id: 'lanternas', sistema: 'Elétrica', casa: /lanterna|farol|ilumin/i, rotulo: 'Lanternas', lx: 60, ly: 390, ax: 425, ay: 410, anchor: 'start', desenho: <g>{marca(415, 355, 82, 128, 14)}{marca(910, 355, 82, 128, 14)}</g> },
+    { id: 'lataria', sistema: 'Carroceria', casa: /lataria|funilaria|pintura|amassad|para.?lama|carroceria/i, rotulo: 'Lataria / para-lamas', lx: 1330, ly: 290, ax: 1000, ay: 350, anchor: 'end', desenho: <g>{marca(400, 295, 76, 200, 18)}{marca(932, 295, 76, 200, 18)}</g> },
+    { id: 'parachoquetras', sistema: 'Carroceria', casa: /para.?choque/i, rotulo: 'Para-choque', lx: 60, ly: 540, ax: 415, ay: 560, anchor: 'start', desenho: marca(408, 490, 595, 168, 22) },
+    { id: 'escapamento', sistema: 'Motor', casa: /escap/i, rotulo: 'Escapamento', lx: 700, ly: 745, ax: 615, ay: 700, anchor: 'middle', desenho: marcaO(580, 682, 52, 30) },
+    { id: 'pneustras', sistema: 'Rodas e Pneus', casa: /pneu/i, rotulo: 'Pneus', lx: 60, ly: 700, ax: 455, ay: 700, anchor: 'start', desenho: <g>{marca(448, 658, 88, 108, 26)}{marca(875, 658, 88, 108, 26)}</g> },
+  ],
+};
+
+const CENA_C_INTERIOR: Cena = {
+  titulo: 'Cabine',
+  viewBox: '0 0 1408 768',
+  arte: true,
+  fundo: <Suspense fallback={null}><CarroInteriorArte /></Suspense>,
+  pecas: [
+    { id: 'retrovint', sistema: 'Carroceria', casa: /retrovisor|espelho/i, rotulo: 'Retrovisor interno', lx: 950, ly: 40, ax: 800, ay: 70, anchor: 'start', desenho: marca(630, 48, 168, 60, 12) },
+    { id: 'volante', sistema: 'Direção', rotulo: 'Volante / coluna', lx: 60, ly: 140, ax: 370, ay: 245, anchor: 'start', desenho: marcaO(475, 320, 138, 142) },
+    { id: 'instrumentos', sistema: 'Elétrica', casa: /painel|instrumento/i, rotulo: 'Instrumentos', lx: 60, ly: 32, ax: 425, ay: 250, anchor: 'start', desenho: marca(405, 236, 162, 72, 12) },
+    { id: 'multimidia', sistema: 'Elétrica', casa: /som|multim|r[aá]dio/i, rotulo: 'Multimídia', lx: 520, ly: 30, ax: 660, ay: 312, anchor: 'middle', desenho: marca(645, 305, 155, 118, 10) },
+    { id: 'difusores', sistema: 'Ar-condicionado', rotulo: 'Difusores do ar', lx: 1330, ly: 200, ax: 1095, ay: 275, anchor: 'end', desenho: <g>{marca(642, 246, 165, 56, 10)}{marca(1038, 246, 100, 62, 10)}</g> },
+    { id: 'clima', sistema: 'Ar-condicionado', rotulo: 'Controles do ar', lx: 1330, ly: 300, ax: 798, ay: 440, anchor: 'end', desenho: marca(645, 415, 150, 60, 12) },
+    { id: 'portaluvas', sistema: 'Interior', casa: /porta.?luvas|painel/i, rotulo: 'Porta-luvas', lx: 1330, ly: 420, ax: 1140, ay: 420, anchor: 'end', desenho: marca(842, 362, 295, 112, 14) },
+    { id: 'cambio', sistema: 'Transmissão', casa: /c[aâ]mbio|manopla/i, rotulo: 'Câmbio', lx: 1330, ly: 560, ax: 805, ay: 560, anchor: 'end', desenho: marca(660, 480, 142, 165, 22) },
+    { id: 'pedais', sistema: 'Freios', casa: /pedal|fluido|hidr[aá]ulica/i, rotulo: 'Pedais', lx: 60, ly: 520, ax: 495, ay: 500, anchor: 'start', desenho: marca(492, 458, 165, 92, 14) },
+    { id: 'portavidros', sistema: 'Carroceria', casa: /porta|trava|fechadura|vidro/i, rotulo: 'Porta / vidros', lx: 60, ly: 400, ax: 110, ay: 440, anchor: 'start', desenho: marca(58, 415, 215, 150, 16) },
+    { id: 'cintos', sistema: 'Itens de segurança', casa: /cinto/i, rotulo: 'Cintos', lx: 1330, ly: 660, ax: 878, ay: 615, anchor: 'end', desenho: <g>{marca(552, 552, 70, 125, 18)}{marca(812, 552, 70, 125, 18)}</g> },
+    { id: 'bancos', sistema: 'Interior', casa: /banco|estofad/i, rotulo: 'Bancos', lx: 200, ly: 745, ax: 350, ay: 685, anchor: 'middle', desenho: <g>{marca(198, 565, 425, 200, 30)}{marca(805, 565, 365, 200, 30)}</g> },
+    { id: 'console', sistema: 'Interior', casa: /console|apoio|acabamento/i, rotulo: 'Console central', lx: 660, ly: 745, ax: 700, ay: 720, anchor: 'middle', desenho: marca(618, 648, 195, 115, 20) },
+  ],
+};
+
 // exportado só pra render de verificação (scripts de preview)
 export const CENAS: Record<string, Cena> = {
   frente: CENA_FRENTE, cabine: CENA_CABINE, roda: CENA_RODA_ARTE, traseira: CENA_TRASEIRA,
@@ -552,6 +642,21 @@ const CENA_DO_SISTEMA_PICAPE: Record<string, string> = {
   ...CENA_DO_SISTEMA, 'Carroceria': 'carroceria', 'Suspensão': 'carroceria',
 };
 
+// exportado só pra render de verificação (scripts de preview). Chaves com
+// prefixo "c-" pra não colidir com as formas exatas da picape em FORMAS_CENAS.
+export const CENAS_CARRO: Record<string, Cena> = {
+  'c-frente': CENA_C_MOTOR, 'c-carroceria': CENA_C_FRENTE, 'c-traseira': CENA_C_TRASEIRA,
+  'c-cabine': CENA_C_INTERIOR, roda: CENA_RODA_ARTE,
+};
+// no carro o Ar-condicionado abre a CABINE (difusores/controles ficam lá);
+// Carroceria e Suspensão abrem a vista frontal, como na picape
+const CENA_DO_SISTEMA_CARRO: Record<string, string> = {
+  'Motor': 'c-frente', 'Elétrica': 'c-frente', 'Ar-condicionado': 'c-cabine',
+  'Direção': 'c-cabine', 'Interior': 'c-cabine', 'Itens de segurança': 'c-cabine', 'Transmissão': 'c-cabine',
+  'Freios': 'roda', 'Rodas e Pneus': 'roda',
+  'Outros': 'c-traseira', 'Carroceria': 'c-carroceria', 'Suspensão': 'c-carroceria',
+};
+
 // ── seletor de vistas: navegar direto entre as cenas, sem passar por um
 // sistema — na vista "solta" TODAS as peças aparecem coloridas pelo estado ──
 type Vista = { key: string | null; rot: string };
@@ -568,6 +673,15 @@ const VISTAS_GENERICAS: Vista[] = [
   { key: 'frente', rot: 'Frente' },
   { key: 'cabine', rot: 'Cabine' },
   { key: 'traseira', rot: 'Traseira' },
+  { key: 'roda', rot: 'Roda' },
+];
+void VISTAS_GENERICAS; // reserva pra tipos futuros sem arte própria
+const VISTAS_CARRO: Vista[] = [
+  { key: null, rot: 'Lateral' },
+  { key: 'c-carroceria', rot: 'Frente' },
+  { key: 'c-frente', rot: 'Cofre do motor' },
+  { key: 'c-cabine', rot: 'Cabine' },
+  { key: 'c-traseira', rot: 'Traseira' },
   { key: 'roda', rot: 'Roda' },
 ];
 
@@ -737,6 +851,29 @@ const PICAPE: Silhueta = {
   ],
 };
 
+// Carro padrão (hatch/sedã) — ARTE DO USUÁRIO (corte lateral estilo manual,
+// Fox vetorizado). Como na picape: o corte já mostra motor, câmbio, freios,
+// suspensão e bancos, então NÃO usa capô nem raio-X — as cenas continuam.
+const CARRO_ARTE_LATERAL: Silhueta = {
+  viewBox: '-180 -20 1760 820', chao: 'M0 0',
+  rodas: [],
+  corpo: <CarroArte />,
+  pontos: [
+    { sistema: 'Motor', rotulo: 'Motor', x: 260, y: 400, lx: -20, ly: 150, anchor: 'end' },
+    { sistema: 'Elétrica', rotulo: 'Elétrica / bateria', x: 362, y: 338, lx: -20, ly: 330, anchor: 'end' },
+    { sistema: 'Ar-condicionado', rotulo: 'Ar-condicionado', x: 140, y: 470, lx: 100, ly: 718, anchor: 'middle' },
+    { sistema: 'Direção', rotulo: 'Volante / direção', x: 615, y: 250, lx: 545, ly: 55, anchor: 'middle' },
+    { sistema: 'Interior', rotulo: 'Bancos / interior', x: 750, y: 430, lx: 745, ly: 55, anchor: 'middle' },
+    { sistema: 'Itens de segurança', rotulo: 'Cintos / segurança', x: 858, y: 300, lx: 935, ly: 55, anchor: 'middle' },
+    { sistema: 'Outros', rotulo: 'Porta-malas / outros', x: 1240, y: 472, lx: 1150, ly: 55, anchor: 'middle' },
+    { sistema: 'Carroceria', rotulo: 'Carroceria', x: 1358, y: 390, lx: 1400, ly: 290, anchor: 'start' },
+    { sistema: 'Freios', rotulo: 'Freios', x: 300, y: 600, lx: 300, ly: 718, anchor: 'middle' },
+    { sistema: 'Transmissão', rotulo: 'Câmbio', x: 430, y: 480, lx: 540, ly: 718, anchor: 'middle' },
+    { sistema: 'Suspensão', rotulo: 'Molas / suspensão', x: 1125, y: 545, lx: 860, ly: 718, anchor: 'middle' },
+    { sistema: 'Rodas e Pneus', rotulo: 'Rodas e pneus', x: 1215, y: 640, lx: 1180, ly: 718, anchor: 'middle' },
+  ],
+};
+
 // Caminhão rígido de 2 eixos (referência) — cabine alta + CHASSI exposto,
 // tanque de combustível e bateria sob o quadro. Os caminhões reais da frota
 // levam implemento, mas o chassi é o denominador comum.
@@ -862,9 +999,12 @@ const CARRETA: Silhueta = {
 };
 
 // exportado só pra render de verificação (scripts de preview)
+// carro e hatch usam a MESMA arte lateral do usuário (Fox); os desenhos à mão
+// CARRO/HATCH ficam de reserva pra tipos sem arte
 export const SILHUETAS: Record<TipoSilhueta, Silhueta> = {
-  carro: CARRO, hatch: HATCH, picape: PICAPE, caminhao: CAMINHAO, moto: MOTO, carreta: CARRETA,
+  carro: CARRO_ARTE_LATERAL, hatch: CARRO_ARTE_LATERAL, picape: PICAPE, caminhao: CAMINHAO, moto: MOTO, carreta: CARRETA,
 };
+void HATCH; // desenho antigo preservado (referência/reserva)
 
 export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelecionar, pecasPorSistema, onAbrirHistorico }: {
   tipo: TipoSilhueta;
@@ -908,21 +1048,23 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
   const contZoom = zoom ? porSistema.get(zoom) : undefined;
 
   // raio-X: com zoom + anatomia, a carroceria esmaece e as peças internas
-  // aparecem no lugar real (sedã/hatch/picape; os demais ficam só no painel)
-  const anatomia = pecasPorSistema ? ANATOMIAS[tipo] : undefined;
+  // aparecem no lugar real. Tipos com ARTE lateral (carro/hatch/picape) não
+  // usam: o corte do usuário já mostra as entranhas de fábrica
+  const arteLateral = tipo === 'carro' || tipo === 'hatch' || tipo === 'picape';
+  const anatomia = pecasPorSistema && !arteLateral ? ANATOMIAS[tipo] : undefined;
   const raioX = !!(zoom && anatomia);
 
   // cena de ponto de vista: a lateral se afasta (zoom+fade) e entra a vista
   // de quem foi ATÉ a região — frente com capô aberto, cabine, roda, traseira.
   // Vale pros tipos "carro" (a picape usa cena mesmo SEM raio-X próprio: a
   // arte lateral dela já é um corte de fábrica)
-  const temCenas = !!pecasPorSistema && (tipo === 'carro' || tipo === 'hatch' || tipo === 'picape');
-  // a picape usa as CENAS DO USUÁRIO (artes próprias); carro/hatch, as genéricas
-  const mapaCenas = tipo === 'picape' ? CENAS_PICAPE : CENAS;
-  const mapaSistemaCena = tipo === 'picape' ? CENA_DO_SISTEMA_PICAPE : CENA_DO_SISTEMA;
+  const temCenas = !!pecasPorSistema && arteLateral;
+  // picape e carro/hatch usam as CENAS DO USUÁRIO (artes próprias)
+  const mapaCenas = tipo === 'picape' ? CENAS_PICAPE : CENAS_CARRO;
+  const mapaSistemaCena = tipo === 'picape' ? CENA_DO_SISTEMA_PICAPE : CENA_DO_SISTEMA_CARRO;
   const cenaKey = temCenas ? (vista ?? (zoom ? mapaSistemaCena[zoom] : undefined)) : undefined;
   const cena = cenaKey ? mapaCenas[cenaKey] : undefined;
-  const vistas = tipo === 'picape' ? VISTAS_PICAPE : VISTAS_GENERICAS;
+  const vistas = tipo === 'picape' ? VISTAS_PICAPE : VISTAS_CARRO;
   // rótulos/linhas das cenas foram calibrados num viewBox de 800 de largura;
   // as artes da picape usam 1408 — kc mantém o tamanho aparente
   const kc = cena ? Number(cena.viewBox.split(' ')[2]) / 800 : 1;
@@ -998,8 +1140,8 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
               {/* LATARIA pintada na lateral (batida/amassado): a forma exata
                   da carcaça extraída da arte, na cor da pendência aberta em
                   lataria/funilaria — por baixo do traço, como nas cenas */}
-              {tipo === 'picape' && pecasPorSistema && (() => {
-                const d = FORMAS_CENAS['lateral:lataria'];
+              {arteLateral && pecasPorSistema && (() => {
+                const d = FORMAS_CENAS[tipo === 'picape' ? 'lateral:lataria' : 'c-lateral:lataria'];
                 const pcL = (pecasPorSistema.get('Carroceria') || [])
                   .find((x) => /lataria|funilaria|pintura|amassad|para.?lama|carroceria/i.test(x.rotulo));
                 if (!d || !pcL?.pior) return null;

@@ -76,11 +76,61 @@ const PECAS: Peca[] = [
   { cena: 'roda', id: 'pneu', boxes: [[300, 30, 260, 440], [445, 0, 510, 190], [235, 395, 330, 360], [835, 35, 300, 330]] },
   { cena: 'roda', id: 'aro', boxes: [[605, 320, 540, 448]] },
   { cena: 'roda', id: 'porcas', boxes: [[660, 495, 250, 250]] },
+  // ── CARRO (Fox) ── cofre
+  { cena: 'c-frente', id: 'motor', boxes: [[465, 205, 360, 265]] },
+  { cena: 'c-frente', id: 'filtro', boxes: [[878, 285, 230, 150]] },
+  { cena: 'c-frente', id: 'radiador', boxes: [[428, 442, 590, 75]] },
+  { cena: 'c-frente', id: 'reservarrefec', boxes: [[292, 262, 115, 105]] },
+  { cena: 'c-frente', id: 'bateria', boxes: [[255, 352, 200, 125]] },
+  { cena: 'c-frente', id: 'fusiveis', boxes: [[902, 170, 118, 80]] },
+  { cena: 'c-frente', id: 'alternador', boxes: [[433, 275, 90, 160]] },
+  { cena: 'c-frente', id: 'palhetas', boxes: [[300, 38, 810, 80]] },
+  { cena: 'c-frente', id: 'cilindrofreio', boxes: [[313, 183, 104, 90]] },
+  { cena: 'c-frente', id: 'escoras', boxes: [[272, 8, 50, 165], [1078, 8, 55, 435]] },
+  { cena: 'c-frente', id: 'gradecofre', boxes: [[408, 570, 600, 135]] },
+  { cena: 'c-frente', id: 'faroiscofre', boxes: [[182, 468, 205, 185], [1020, 468, 210, 185]] },
+  // carro — frente fechada
+  { cena: 'c-carroceria', id: 'parabrisa', boxes: [[400, 35, 610, 190]] },
+  { cena: 'c-carroceria', id: 'palhetasf', boxes: [[440, 192, 510, 42]] },
+  { cena: 'c-carroceria', id: 'capo', boxes: [[368, 238, 675, 88]] },
+  { cena: 'c-carroceria', id: 'lataria', boxes: [[280, 295, 105, 300], [1025, 295, 105, 300], [300, 415, 240, 115], [870, 415, 240, 115]] },
+  { cena: 'c-carroceria', id: 'retrovisores', boxes: [[238, 178, 130, 80], [1042, 178, 130, 80]] },
+  { cena: 'c-carroceria', id: 'parachoque', boxes: [[318, 432, 775, 185]] },
+  { cena: 'c-carroceria', id: 'farois', boxes: [[315, 328, 150, 92], [940, 328, 150, 92]] },
+  { cena: 'c-carroceria', id: 'grade', boxes: [[492, 340, 420, 92]] },
+  { cena: 'c-carroceria', id: 'suspdiant', boxes: [[418, 612, 575, 70]] },
+  { cena: 'c-carroceria', id: 'pneus', boxes: [[288, 595, 135, 165], [988, 595, 135, 165]] },
+  // carro — traseira
+  { cena: 'c-traseira', id: 'luzfreio', boxes: [[628, 22, 155, 34]] },
+  { cena: 'c-traseira', id: 'vidrotras', boxes: [[515, 45, 375, 155]] },
+  { cena: 'c-traseira', id: 'tampa', boxes: [[462, 22, 470, 208]] },
+  { cena: 'c-traseira', id: 'caixa', boxes: [[505, 240, 400, 245]] },
+  { cena: 'c-traseira', id: 'lanternas', boxes: [[415, 355, 82, 128], [910, 355, 82, 128]] },
+  { cena: 'c-traseira', id: 'lataria', boxes: [[400, 295, 76, 200], [932, 295, 76, 200]] },
+  { cena: 'c-traseira', id: 'parachoquetras', boxes: [[408, 490, 595, 168]] },
+  { cena: 'c-traseira', id: 'escapamento', boxes: [[528, 652, 104, 60]] },
+  { cena: 'c-traseira', id: 'pneustras', boxes: [[448, 658, 88, 108], [875, 658, 88, 108]] },
+  // carro — cabine
+  { cena: 'c-cabine', id: 'retrovint', boxes: [[630, 48, 168, 60]] },
+  { cena: 'c-cabine', id: 'volante', boxes: [[337, 178, 276, 284]] },
+  { cena: 'c-cabine', id: 'instrumentos', boxes: [[405, 236, 162, 72]] },
+  { cena: 'c-cabine', id: 'multimidia', boxes: [[645, 305, 155, 118]] },
+  { cena: 'c-cabine', id: 'difusores', boxes: [[642, 246, 165, 56], [1038, 246, 100, 62]] },
+  { cena: 'c-cabine', id: 'clima', boxes: [[645, 415, 150, 60]] },
+  { cena: 'c-cabine', id: 'portaluvas', boxes: [[842, 362, 295, 112]] },
+  { cena: 'c-cabine', id: 'cambio', boxes: [[660, 480, 142, 165]] },
+  { cena: 'c-cabine', id: 'pedais', boxes: [[492, 458, 165, 92]] },
+  { cena: 'c-cabine', id: 'portavidros', boxes: [[58, 415, 215, 150]] },
+  { cena: 'c-cabine', id: 'cintos', boxes: [[552, 552, 70, 125], [812, 552, 70, 125]] },
+  { cena: 'c-cabine', id: 'bancos', boxes: [[198, 565, 425, 200], [805, 565, 365, 200]] },
+  { cena: 'c-cabine', id: 'console', boxes: [[618, 648, 195, 115]] },
+  // carro — lataria da LATERAL (batidas na silhueta)
+  { cena: 'c-lateral', id: 'lataria', boxes: [[10, 375, 90, 245], [560, 25, 660, 70], [1320, 270, 85, 215], [490, 545, 580, 60], [1230, 330, 120, 170]] },
 ];
 
 const scratch = process.argv[2];
 const imgs = new Map<string, { data: Buffer; width: number; height: number }>();
-for (const cena of ['frente', 'carroceria', 'traseira', 'cabine', 'roda', 'lateral']) {
+for (const cena of ['frente', 'carroceria', 'traseira', 'cabine', 'roda', 'lateral', 'c-frente', 'c-carroceria', 'c-traseira', 'c-cabine', 'c-lateral']) {
   const png = PNG.sync.read(readFileSync(`${scratch}/arte-${cena}.png`));
   imgs.set(cena, { data: png.data, width: png.width, height: png.height });
 }
