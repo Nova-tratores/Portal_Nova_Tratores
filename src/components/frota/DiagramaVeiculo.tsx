@@ -26,6 +26,7 @@
 import { lazy, Suspense, useMemo, useState } from 'react';
 import { GRAVIDADE_COR, GRAVIDADE_LABEL, type ContagemGravidade, type Gravidade } from '@/lib/frota/gravidade';
 import { SISTEMAS_FORA, type TipoSilhueta } from '@/lib/frota/silhueta';
+import { FORMAS_CENAS } from '@/lib/frota/formas-cenas';
 import PicapeArte from '@/components/frota/PicapeArte';
 
 // Artes de CENA da picape (vetorizadas de imagens geradas pelo usuário) —
@@ -1093,10 +1094,12 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                 .cena-baixo .pt-hit{display:none}
                 .cena-cima .pt-fill{opacity:0;transition:opacity .2s}
                 .cena-cima g.pt-alvo:hover .pt-fill{opacity:.14}
+                .so-hit .pt-fill{display:none}
               `}</style>
-              {/* TINTA: em cena de ARTE a peça é pintada POR BAIXO do traço —
-                  a mancha de cor preenche o "branco" da peça e as linhas do
-                  desenho ficam por cima, como se a própria arte fosse colorida */}
+              {/* TINTA: em cena de ARTE a peça é pintada POR BAIXO do traço.
+                  Quando existe a FORMA EXATA extraída da própria arte
+                  (formas-cenas, chave "cena:id"), a tinta segue o contorno
+                  real da peça; senão cai na mancha aproximada (marca/marcaO) */}
               {cena.arte && (
                 <g className="cena-baixo">
                   {cena.pecas.map((pt, i) => {
@@ -1107,10 +1110,11 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                     // pinta: peça com pendência (sempre) e, no zoom, a peça do
                     // sistema focado mesmo sem pendência (azul suave)
                     if (!cgB && !(zoom && doSistema)) return null;
+                    const dForma = FORMAS_CENAS[`${cenaKey}:${pt.id}`];
                     return (
-                      <g key={pt.id} color={cgB ? cgB.forte : '#3b82f6'} opacity={cgB ? 0.42 : 0.2}
+                      <g key={pt.id} color={cgB ? cgB.forte : '#3b82f6'} opacity={cgB ? (dForma ? 0.55 : 0.42) : (dForma ? 0.3 : 0.2)}
                         style={{ animation: `diagrama-xray .5s ${0.25 + i * 0.045}s cubic-bezier(.3,0,.2,1) backwards` }}>
-                        {pt.desenho}
+                        {dForma ? <path fillRule="evenodd" fill="currentColor" d={dForma} /> : pt.desenho}
                       </g>
                     );
                   })}
@@ -1134,6 +1138,9 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                   // continua limpa); nas cenas desenhadas ele segue esmaecido
                   const mostraRotulo = modoTodas || doSistema || cena.arte;
                   const opRotulo = modoTodas ? (cg ? 1 : 0.8) : doSistema ? 1 : 0.35;
+                  // com forma exata, o hover acende o contorno real; o shape
+                  // aproximado vira só área de clique (fill escondido)
+                  const dForma = cena.arte ? FORMAS_CENAS[`${cenaKey}:${pt.id}`] : undefined;
                   return (
                     <g key={pt.id} color={cor} className="pt-alvo"
                       onClick={(e) => {
@@ -1149,7 +1156,8 @@ export default function DiagramaVeiculo({ tipo, porSistema, selecionado, onSelec
                       <title>{doSistema
                         ? (pc && pc.total > 0 ? `${pt.rotulo}: ${pc.total} pendência(s). Clique para ver no histórico.` : `${pt.rotulo}: ok`)
                         : `${pt.rotulo} — clique para focar ${pt.sistema}`}</title>
-                      {pt.desenho}
+                      <g className={dForma ? 'so-hit' : undefined}>{pt.desenho}</g>
+                      {dForma && <path className="pt-fill" fillRule="evenodd" fill="currentColor" d={dForma} style={{ pointerEvents: 'none' }} />}
                       {mostraRotulo && pt.rotulo && (
                         <g style={{ pointerEvents: 'none' }} opacity={opRotulo}>
                           <line x1={pt.ax} y1={pt.ay} x2={pt.lx} y2={pt.ly + 4 * kc} stroke={cor} strokeWidth={1.4 * kc} opacity={modoTodas && !cg ? 0.45 : 0.8} />
