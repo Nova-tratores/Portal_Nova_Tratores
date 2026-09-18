@@ -667,7 +667,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 >
                   <QrCode size={13} /> QR code da garantia
                 </button>
-                {qrAberto && g && <QRGarantiaModal garantiaId={g.id} numero={g.numero} onClose={() => setQrAberto(false)} />}
+                {qrAberto && g && <QRGarantiaModal garantiaId={g.id} numero={g.numero} cliente={g.cliente} onClose={() => setQrAberto(false)} />}
                 {g.status !== 'rejeitada' && (
                   <button
                     onClick={async () => {

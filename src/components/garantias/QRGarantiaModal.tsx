@@ -6,9 +6,11 @@ import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { Copy, Printer, X } from 'lucide-react';
 
-export default function QRGarantiaModal({ garantiaId, numero, onClose }: {
+export default function QRGarantiaModal({ garantiaId, numero, cliente, onClose }: {
   garantiaId: string;
   numero: string;
+  /** nome do cliente — sai no modal e na impressão pra identificar o QR colado na máquina */
+  cliente?: string | null;
   onClose: () => void;
 }) {
   const [dataUrl, setDataUrl] = useState('');
@@ -32,9 +34,12 @@ export default function QRGarantiaModal({ garantiaId, numero, onClose }: {
     if (!dataUrl) return;
     const w = window.open('', '_blank');
     if (!w) return;
-    w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR ${numero}</title>
-<style>body{font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;padding-top:30px;margin:0}img{width:64mm;height:64mm}h1{font-size:20px;margin:8px 0 2px}p{font-size:12px;color:#555;margin:2px 0}</style>
-</head><body><img src="${dataUrl}" alt="QR"><h1>${numero}</h1><p>Acompanhamento da garantia — aponte a câmera</p><script>window.onload=()=>window.print()</script></body></html>`);
+    // nome vem do cadastro — escapa pra não quebrar o HTML da folha
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const linhaCliente = cliente ? `<p class="cli">${esc(cliente)}</p>` : '';
+    w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR ${esc(numero)}</title>
+<style>body{font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;padding-top:30px;margin:0}img{width:64mm;height:64mm}h1{font-size:20px;margin:8px 0 2px}p{font-size:12px;color:#555;margin:2px 0}p.cli{font-size:15px;font-weight:bold;color:#111;margin:0 0 2px}</style>
+</head><body><img src="${dataUrl}" alt="QR"><h1>${esc(numero)}</h1>${linhaCliente}<p>Acompanhamento da garantia — aponte a câmera</p><script>window.onload=()=>window.print()</script></body></html>`);
     w.document.close();
   };
 
@@ -49,6 +54,9 @@ export default function QRGarantiaModal({ garantiaId, numero, onClose }: {
           ? /* eslint-disable-next-line @next/next/no-img-element */
             <img src={dataUrl} alt="QR Code da garantia" style={{ width: 240, height: 240, display: 'block', margin: '0 auto' }} />
           : <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>Gerando…</div>}
+        {cliente && (
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 4 }}>{cliente}</div>
+        )}
         <div style={{ fontSize: 11.5, color: '#64748b', margin: '6px 0 12px', lineHeight: 1.5 }}>
           Quem escanear vê a <strong>fase atual</strong>, o histórico e as <strong>fotos</strong> da garantia — sem precisar de login.
         </div>

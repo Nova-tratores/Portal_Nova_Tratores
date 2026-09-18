@@ -96,7 +96,7 @@ export default function OSGarantiaInfo({ osId }: { osId: string }) {
           <QrCode size={13} /> QR code
         </button>
       </div>
-      {qrAberto && <QRGarantiaModal garantiaId={garantia.id} numero={garantia.numero} onClose={() => setQrAberto(false)} />}
+      {qrAberto && <QRGarantiaModal garantiaId={garantia.id} numero={garantia.numero} cliente={garantia.cliente} onClose={() => setQrAberto(false)} />}
     </div>
   );
 }
