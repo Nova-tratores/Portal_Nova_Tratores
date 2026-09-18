@@ -244,10 +244,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     const obsHtml = obs
       ? `<div style="font-size:14px;color:#111827;white-space:pre-wrap;line-height:1.6">${esc(obs)}</div>`
       : `<div style="border-bottom:1px solid #cbd5e1;height:24px"></div><div style="border-bottom:1px solid #cbd5e1;height:24px;margin-top:16px"></div><div style="border-bottom:1px solid #cbd5e1;height:24px;margin-top:16px"></div>`;
+    // nome do cliente sob o número — identifica de quem é o QR impresso
+    const clienteHtml = clienteInfo?.nome
+      ? `<div style="font-size:17px;font-weight:700;color:#334155;margin:-16px 0 22px">${esc(clienteInfo.nome)}</div>`
+      : "";
     const w = window.open("", "_blank"); if (!w) return;
     w.document.write(`<html><head><title>QR OS ${osId}</title></head><body style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;text-align:center;padding:44px 24px;margin:0">
       <div style="font-size:13px;letter-spacing:3px;text-transform:uppercase;color:#94a3b8">Ordem de Serviço</div>
       <div style="font-size:36px;font-weight:800;color:#111827;margin:4px 0 22px">${osId}</div>
+      ${clienteHtml}
       <img src="${qrDataUrl}" style="width:320px;max-width:80vw"/>
       <div style="font-size:15px;color:#475569;max-width:380px;margin:20px auto 0;line-height:1.6">Aponte a câmera do celular para o QR Code para acompanhar esta ordem de serviço — sempre atualizada.</div>
       <div style="text-align:left;max-width:400px;margin:26px auto 0;border-top:1px solid #e5e7eb;padding-top:14px">
@@ -257,7 +262,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       <script>window.onload=function(){setTimeout(function(){window.print()},350)}</script>
     </body></html>`);
     w.document.close();
-  }, [qrDataUrl, osId, qrObs]);
+  }, [qrDataUrl, osId, qrObs, clienteInfo]);
 
   const [logRefreshKey, setLogRefreshKey] = useState(0);
   const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string }>>([]);
@@ -2202,6 +2207,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <button onClick={() => setQrOpen(false)} style={{ position: "absolute", top: 12, right: 12, width: 30, height: 30, borderRadius: 8, border: "1px solid #e5e7eb", background: "#f8fafc", color: "#64748b", cursor: "pointer", fontSize: 17, lineHeight: 1 }}>×</button>
                       <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, textTransform: "uppercase", color: "#94a3b8" }}>Ordem de Serviço</div>
                       <div style={{ fontSize: 26, fontWeight: 800, color: "#111827", marginTop: 2 }}>{osId}</div>
+                      {clienteInfo?.nome && (
+                        <div style={{ fontSize: 14, fontWeight: 700, color: "#334155", marginTop: 2 }}>{clienteInfo.nome}</div>
+                      )}
                       <div style={{ margin: "16px auto", width: "100%", maxWidth: 300, aspectRatio: "1", display: "flex", alignItems: "center", justifyContent: "center" }}>
                         {qrDataUrl
                           ? <img src={qrDataUrl} alt={`QR Code da OS ${osId}`} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
