@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import {
+  exibeDesloc, exibeMaoObra, linhasDoOrcamento, subtotalLinha, totaisServicos,
+  type LinhaServico,
+} from "@/lib/orcamentos/servicos";
 
 interface ItemOrc {
   codigo: string;
@@ -16,6 +20,8 @@ interface BodyOrc {
   observacao?: string;
   validade?: number;
   itens: ItemOrc[];
+  /** formato novo: serviços nomeados, cada um com MO + deslocamento próprios */
+  servicos?: unknown;
   maoObra: { valorHora: number; horas: number } | null;
   deslocamento: { valorKm: number; km: number } | null;
   userName?: string;
@@ -44,9 +50,14 @@ function gerarHTML(dados: BodyOrc) {
   const numero = dados.numero || `ORC-${emissaoDate.getFullYear()}${String(emissaoDate.getMonth() + 1).padStart(2, "0")}${String(emissaoDate.getDate()).padStart(2, "0")}${String(emissaoDate.getHours()).padStart(2, "0")}${String(emissaoDate.getMinutes()).padStart(2, "0")}`;
 
   const totalPecas = dados.itens.reduce((s, i) => s + i.quantidade * i.preco, 0);
-  const totalMaoObra = dados.maoObra ? dados.maoObra.valorHora * dados.maoObra.horas : 0;
-  const totalDeslocamento = dados.deslocamento ? dados.deslocamento.valorKm * dados.deslocamento.km : 0;
-  const totalGeral = totalPecas + totalMaoObra + totalDeslocamento;
+  // Serviços: array novo quando veio; senão o legado vira uma linha única sem nome
+  const linhas = linhasDoOrcamento({
+    servicos: dados.servicos,
+    mao_obra: dados.maoObra,
+    deslocamento: dados.deslocamento,
+  });
+  const tot = totaisServicos(linhas);
+  const totalGeral = totalPecas + tot.total;
 
   const itensHTML = dados.itens.map((item, idx) => `
     <tr>
@@ -59,31 +70,49 @@ function gerarHTML(dados: BodyOrc) {
     </tr>
   `).join("");
 
-  // Seção de serviços (mão de obra + deslocamento)
+  // Seção de serviços. Duas apresentações:
+  //  - AGRUPADA (alguma linha tem nome, ou há mais de uma): linha de destaque
+  //    por serviço + sub-linhas Mão de obra / Deslocamento;
+  //  - FLAT (linha única sem nome): igual ao PDF antigo.
+  // Parte desligada mas marcada pra MOSTRAR sai riscada com "não cobrado" e
+  // fica fora de todas as somas.
+  const agrupado = linhas.some((l) => l.descricao.trim() !== "") || linhas.length > 1;
+  const sub = (l: LinhaServico, indent: boolean) => {
+    const rows: string[] = [];
+    const parte = (nome: string, qtd: string, unit: string, valor: number, cobrada: boolean) => {
+      const valHtml = cobrada
+        ? `<span style="font-weight:700;">R$ ${fmt(valor)}</span>`
+        : `<span class="nc-val">R$ ${fmt(valor)}</span> <span class="nc">não cobrado</span>`;
+      rows.push(`
+      <tr${cobrada ? "" : ' class="nc-row"'}>
+        <td style="${indent ? "padding-left:20px;" : ""}font-weight:600;">${nome}</td>
+        <td style="text-align:center;">${qtd}</td>
+        <td style="text-align:right;">${unit}</td>
+        <td style="text-align:right;">${valHtml}</td>
+      </tr>`);
+    };
+    if (exibeMaoObra(l)) parte("Mão de Obra", `${l.horas}h`, `R$ ${fmt(l.valorHora)}/h`, l.horas * l.valorHora, l.maoObra);
+    if (exibeDesloc(l)) parte("Deslocamento", `${l.km} km`, `R$ ${fmt(l.valorKm)}/km`, l.km * l.valorKm, l.desloc);
+    return rows.join("");
+  };
+  const numPartes = linhas.reduce((n, l) => n + (exibeMaoObra(l) ? 1 : 0) + (exibeDesloc(l) ? 1 : 0), 0);
   const servicosRows: string[] = [];
-  if (dados.maoObra) {
-    servicosRows.push(`
-      <tr>
-        <td style="font-weight:600;">Mão de Obra</td>
-        <td style="text-align:center;">${dados.maoObra.horas}h</td>
-        <td style="text-align:right;">R$ ${fmt(dados.maoObra.valorHora)}/h</td>
-        <td style="text-align:right; font-weight:700;">R$ ${fmt(totalMaoObra)}</td>
+  if (agrupado) {
+    linhas.forEach((l, idx) => {
+      const nome = l.descricao.trim() || `Serviço ${idx + 1}`;
+      servicosRows.push(`
+      <tr class="svc-head">
+        <td colspan="3">${idx + 1}. ${esc(nome)}</td>
+        <td style="text-align:right;" class="svc-tot">R$ ${fmt(subtotalLinha(l))}</td>
       </tr>
-    `);
-  }
-  if (dados.deslocamento && dados.deslocamento.km > 0) {
-    servicosRows.push(`
-      <tr>
-        <td style="font-weight:600;">Deslocamento</td>
-        <td style="text-align:center;">${dados.deslocamento.km} km</td>
-        <td style="text-align:right;">R$ ${fmt(dados.deslocamento.valorKm)}/km</td>
-        <td style="text-align:right; font-weight:700;">R$ ${fmt(totalDeslocamento)}</td>
-      </tr>
-    `);
+      ${sub(l, true)}`);
+    });
+  } else if (linhas.length === 1) {
+    servicosRows.push(sub(linhas[0], false));
   }
 
-  const totalServicos = totalMaoObra + totalDeslocamento;
-  const servicosSection = servicosRows.length > 0 ? `
+  const temServicos = servicosRows.some((r) => r.trim() !== "");
+  const servicosSection = temServicos ? `
     <div class="section">
       <div class="section-title">Serviços</div>
       <table class="cost-table">
@@ -94,9 +123,9 @@ function gerarHTML(dados: BodyOrc) {
           <th style="width:16%; text-align:right;">Total</th>
         </tr></thead>
         <tbody>${servicosRows.join("")}</tbody>
-        ${servicosRows.length > 1 ? `<tfoot><tr>
+        ${agrupado || numPartes > 1 ? `<tfoot><tr>
           <td colspan="3" style="text-align:right;" class="sub-lbl">Total em Serviços</td>
-          <td style="text-align:right;">R$ ${fmt(totalServicos)}</td>
+          <td style="text-align:right;">R$ ${fmt(tot.total)}</td>
         </tr></tfoot>` : ""}
       </table>
     </div>
@@ -108,8 +137,8 @@ function gerarHTML(dados: BodyOrc) {
   const linhaResumo = (lbl: string, val: number) =>
     `<div class="resumo-linha"><span class="resumo-lbl">${lbl}</span><span class="resumo-val">R$ ${fmt(val)}</span></div>`;
   if (dados.itens.length > 0) resumoLinhas.push(linhaResumo("Peças / Produtos", totalPecas));
-  if (dados.maoObra) resumoLinhas.push(linhaResumo("Mão de Obra", totalMaoObra));
-  if (dados.deslocamento && dados.deslocamento.km > 0) resumoLinhas.push(linhaResumo("Deslocamento", totalDeslocamento));
+  if (tot.maoObra > 0) resumoLinhas.push(linhaResumo("Mão de Obra", tot.maoObra));
+  if (tot.desloc > 0) resumoLinhas.push(linhaResumo("Deslocamento", tot.desloc));
 
   return `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Orçamento ${numero}</title>
@@ -143,6 +172,14 @@ function gerarHTML(dados: BodyOrc) {
   table { width: 100%; border-collapse: collapse; }
   .cost-table th { text-align: left; font-size: 7pt; font-weight: 800; color: #000; text-transform: uppercase; letter-spacing: 0.5px; padding: 6px 8px; border-bottom: 2px solid #000; }
   .cost-table td { padding: 6px 8px; border-bottom: 1px solid #e5e5e5; font-size: 9pt; color: #222; }
+
+  /* Serviços agrupados: linha de destaque por serviço + sub-linhas */
+  .svc-head td { background: #FFF7ED; font-weight: 800; color: #000; border-bottom: 1px solid #FDBA74; font-size: 9pt; }
+  .svc-head .svc-tot { color: #C2410C; }
+  /* Parte desligada mas exibida: "não cobrado" (cortesia), fora das somas */
+  .nc-row td { color: #999; }
+  .nc-val { color: #999; text-decoration: line-through; font-weight: 600; }
+  .nc { color: #999; font-size: 6.5pt; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
 
   /* Subtotal no rodapé de cada tabela (Peças / Serviços) */
   .cost-table tfoot td { border-bottom: none; border-top: 2px solid #000; padding: 7px 8px;

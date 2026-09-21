@@ -5,6 +5,7 @@ import { getConfigPOS } from "@/lib/pos/config";
 import { gerarProximoId, vincularPPVnaOS, atualizarValorTotal } from "@/lib/ppv/queries";
 import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_PEDIDOS } from "@/lib/ppv/constants";
+import { linhasDoOrcamento, nomesServicos, somaHorasKm } from "@/lib/orcamentos/servicos";
 
 interface ItemOrc {
   codigo?: string;
@@ -35,8 +36,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!os) return NextResponse.json({ error: `OS ${osId} não encontrada.` }, { status: 404 });
 
   const itens: ItemOrc[] = Array.isArray(orc.itens) ? orc.itens : [];
-  const horas = Number(orc.mao_obra?.horas) || 0;
-  const km = Number(orc.deslocamento?.km) || 0;
+  // Soma de horas/km de TODOS os serviços (formato novo `servicos` ou legado)
+  const { horas, km } = somaHorasKm(orc);
+  const nomes = nomesServicos(linhasDoOrcamento(orc));
   const obs = String(orc.observacao || "").trim();
   const tecnico = String(os.Os_Tecnico || "").trim();
 
@@ -124,8 +126,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   let servSolic = String(os.Serv_Solicitado || "");
   const marcador = `Orçamento ${orc.numero}`;
   if (!servSolic.includes(marcador)) {
+    const linhaServicos = nomes.length ? `\nServiços: ${nomes.join(" · ")}` : "";
     const linhaObs = obs ? `\nObs.: ${obs}` : "";
-    servSolic = `${servSolic}${servSolic.trim() ? "\n\n" : ""}— Importado do ${marcador}${linhaObs}`.trim();
+    servSolic = `${servSolic}${servSolic.trim() ? "\n\n" : ""}— Importado do ${marcador}${linhaServicos}${linhaObs}`.trim();
   }
 
   // 6) Atualiza a OS (substitui horas/km, anexa obs, recalcula total)

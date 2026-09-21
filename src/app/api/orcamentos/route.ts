@@ -64,6 +64,7 @@ export async function GET(req: NextRequest) {
       observacao: o.observacao || "",
       validade: o.validade,
       itens: Array.isArray(o.itens) ? o.itens : [],
+      servicos: Array.isArray(o.servicos) ? o.servicos : null,
       mao_obra: o.mao_obra || null,
       deslocamento: o.deslocamento || null,
       total: Number(o.total) || 0,

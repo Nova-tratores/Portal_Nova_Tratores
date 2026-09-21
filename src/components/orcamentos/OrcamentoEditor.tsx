@@ -2,7 +2,11 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
-import { Plus, Trash2, Search, Printer, ToggleLeft, ToggleRight, Package, Wrench, ArrowLeft, Users, Save, List } from 'lucide-react'
+import { Plus, Trash2, Search, Printer, ToggleLeft, ToggleRight, Package, Wrench, ArrowLeft, Users, Save, List, Eye, EyeOff } from 'lucide-react'
+import {
+  linhaPreenchida, linhasDoOrcamento, novaLinha, subtotalLinha, totaisServicos,
+  agregadosLegados, type LinhaServico,
+} from '@/lib/orcamentos/servicos'
 import ModalBuscaProdutoOrc from './ModalBuscaProduto'
 import ModalBuscaClienteOrc from './ModalBuscaCliente'
 import ModalImportarKit from './ModalImportarKit'
@@ -51,15 +55,10 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
     { codigo: '', descricao: '', quantidade: 1, preco: 0 },
   ])
 
-  // Mão de obra
-  const [incluirMaoObra, setIncluirMaoObra] = useState(true)
-  const [valorHora, setValorHora] = useState(193)
-  const [quantidadeHoras, setQuantidadeHoras] = useState(1)
-
-  // Deslocamento
-  const [incluirDeslocamento, setIncluirDeslocamento] = useState(true)
-  const [valorKm, setValorKm] = useState(2.8)
-  const [quantidadeKm, setQuantidadeKm] = useState(0)
+  // Serviços: cada linha é um serviço nomeado com a própria mão de obra e o
+  // próprio deslocamento (liga/desliga por parte; desligada pode ainda
+  // aparecer no PDF como "não cobrado")
+  const [servicos, setServicos] = useState<LinhaServico[]>([novaLinha()])
 
   // Modal busca produto
   const [modalOpen, setModalOpen] = useState(false)
@@ -106,20 +105,8 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
       setObservacao(data.observacao || '')
       setValidade(String(data.validade || 15))
       setItens(data.itens?.length ? data.itens : [{ codigo: '', descricao: '', quantidade: 1, preco: 0 }])
-      if (data.mao_obra) {
-        setIncluirMaoObra(true)
-        setValorHora(data.mao_obra.valorHora || 193)
-        setQuantidadeHoras(data.mao_obra.horas || 1)
-      } else {
-        setIncluirMaoObra(false)
-      }
-      if (data.deslocamento) {
-        setIncluirDeslocamento(true)
-        setValorKm(data.deslocamento.valorKm || 2.8)
-        setQuantidadeKm(data.deslocamento.km || 0)
-      } else {
-        setIncluirDeslocamento(false)
-      }
+      const linhas = linhasDoOrcamento({ servicos: data.servicos, mao_obra: data.mao_obra, deslocamento: data.deslocamento })
+      setServicos(linhas.length ? linhas : [novaLinha()])
       setOrcamentoId(data.id)
       setOrcamentoNumero(data.numero)
       setStatus(data.status || 'ativo')
@@ -129,14 +116,12 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
 
   // Flags baseadas no tipo
   const mostrarPecas = tipo === 'pecas' || tipo === 'completo'
-  const mostrarMaoObra = tipo === 'mao-de-obra' || tipo === 'completo'
-  const mostrarDeslocamento = tipo === 'mao-de-obra' || tipo === 'completo'
+  const mostrarServicos = tipo === 'mao-de-obra' || tipo === 'completo'
 
-  // Calculos
+  // Calculos (só as partes LIGADAS entram na soma)
   const totalPecas = mostrarPecas ? itens.reduce((s, i) => s + i.quantidade * i.preco, 0) : 0
-  const totalMaoObra = mostrarMaoObra && incluirMaoObra ? valorHora * quantidadeHoras : 0
-  const totalDeslocamento = mostrarDeslocamento && incluirDeslocamento ? valorKm * quantidadeKm : 0
-  const totalGeral = totalPecas + totalMaoObra + totalDeslocamento
+  const totServ = totaisServicos(mostrarServicos ? servicos : [])
+  const totalGeral = totalPecas + totServ.total
 
   // Funções da planilha
   function atualizarItem(idx: number, campo: keyof LinhaItem, valor: string | number) {
@@ -172,9 +157,25 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
   function importarKit(produtos: { codigo: string; descricao: string; quantidade: number; preco: number }[], horas: number) {
     setItens(produtos.map(p => ({ codigo: p.codigo, descricao: p.descricao, quantidade: p.quantidade, preco: p.preco })))
     if (horas > 0 && (tipo === 'completo' || tipo === 'mao-de-obra')) {
-      setQuantidadeHoras(horas)
-      setIncluirMaoObra(true)
+      // horas do kit entram na 1ª linha de serviço
+      setServicos(prev => {
+        const base = prev.length ? prev : [novaLinha()]
+        return base.map((l, i) => (i === 0 ? { ...l, maoObra: true, horas } : l))
+      })
     }
+  }
+
+  // Funções dos serviços
+  function atualizarServico(idx: number, patch: Partial<LinhaServico>) {
+    setServicos(prev => prev.map((l, i) => (i === idx ? { ...l, ...patch } : l)))
+  }
+
+  function adicionarServico() {
+    setServicos(prev => [...prev, novaLinha()])
+  }
+
+  function removerServico(idx: number) {
+    setServicos(prev => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== idx)))
   }
 
   function handleTabUltimaColuna(e: React.KeyboardEvent, idx: number) {
@@ -188,9 +189,12 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
     }
   }
 
-  // Montar payload para salvar
+  // Montar payload para salvar: `servicos` (formato novo) + agregados legados
+  // em mao_obra/deslocamento (gerar OS, importar e chips seguem funcionando)
   function montarPayload() {
     const itensValidos = mostrarPecas ? itens.filter(i => i.descricao.trim()) : []
+    const linhasValidas = mostrarServicos ? servicos.filter(linhaPreenchida) : []
+    const agg = agregadosLegados(linhasValidas)
     return {
       tipo: tipo!,
       cliente_nome: cliente.nome,
@@ -200,8 +204,9 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
       observacao: observacao || null,
       validade: parseInt(validade) || 15,
       itens: itensValidos,
-      mao_obra: mostrarMaoObra && incluirMaoObra ? { valorHora, horas: quantidadeHoras } : null,
-      deslocamento: mostrarDeslocamento && incluirDeslocamento ? { valorKm, km: quantidadeKm } : null,
+      servicos: linhasValidas.length ? linhasValidas : null,
+      mao_obra: agg.mao_obra,
+      deslocamento: agg.deslocamento,
       total: totalGeral,
       criado_por: userName,
       status,
@@ -228,17 +233,17 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
       const payload = montarPayload()
       if (orcamentoId) {
         // Update
-        const { error } = await supabase.from('orcamentos').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', orcamentoId)
+        const { error } = await gravarOrcamento(payload, orcamentoId)
         if (error) throw error
         showToast('Orçamento atualizado!')
       } else {
         // Insert
         const numero = await gerarNumero()
-        const { data, error } = await supabase.from('orcamentos').insert([{ ...payload, numero }]).select('id, numero').single()
+        const { data, error } = await gravarOrcamento({ ...payload, numero }, null)
         if (error) throw error
-        setOrcamentoId(data.id)
-        setOrcamentoNumero(data.numero)
-        showToast(`Orçamento ${data.numero} salvo!`)
+        setOrcamentoId(data!.id)
+        setOrcamentoNumero(data!.numero)
+        showToast(`Orçamento ${data!.numero} salvo!`)
       }
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Erro ao salvar', 'error')
@@ -250,7 +255,8 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
   const gerarPDF = useCallback(async () => {
     if (!cliente.nome.trim()) { showToast('Informe o cliente.', 'error'); return }
     const itensValidos = mostrarPecas ? itens.filter(i => i.descricao.trim()) : []
-    if (itensValidos.length === 0 && !mostrarMaoObra && !mostrarDeslocamento) {
+    const linhasValidas = mostrarServicos ? servicos.filter(linhaPreenchida) : []
+    if (itensValidos.length === 0 && linhasValidas.length === 0) {
       showToast('Adicione ao menos um item ou serviço.', 'error')
       return
     }
@@ -259,16 +265,17 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
     try {
       // Salvar primeiro
       const payload = montarPayload()
+      const agg = agregadosLegados(linhasValidas)
       let numero = orcamentoNumero
       if (orcamentoId) {
-        await supabase.from('orcamentos').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', orcamentoId)
+        await gravarOrcamento(payload, orcamentoId)
       } else {
         numero = await gerarNumero()
-        const { data, error } = await supabase.from('orcamentos').insert([{ ...payload, numero }]).select('id, numero').single()
+        const { data, error } = await gravarOrcamento({ ...payload, numero }, null)
         if (error) throw error
-        setOrcamentoId(data.id)
-        setOrcamentoNumero(data.numero)
-        numero = data.numero
+        setOrcamentoId(data!.id)
+        setOrcamentoNumero(data!.numero)
+        numero = data!.numero
       }
 
       // Gerar PDF
@@ -289,8 +296,9 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
             quantidade: i.quantidade,
             preco: i.preco,
           })),
-          maoObra: mostrarMaoObra && incluirMaoObra ? { valorHora, horas: quantidadeHoras } : null,
-          deslocamento: mostrarDeslocamento && incluirDeslocamento ? { valorKm, km: quantidadeKm } : null,
+          servicos: linhasValidas,
+          maoObra: agg.mao_obra,
+          deslocamento: agg.deslocamento,
           userName,
         }),
       })
@@ -307,7 +315,8 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
       showToast(e instanceof Error ? e.message : 'Erro ao gerar', 'error')
     }
     setGerando(false)
-  }, [cliente, observacao, validade, itens, mostrarPecas, mostrarMaoObra, incluirMaoObra, valorHora, quantidadeHoras, incluirDeslocamento, valorKm, quantidadeKm, userName, orcamentoId, orcamentoNumero])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cliente, observacao, validade, itens, mostrarPecas, mostrarServicos, servicos, userName, orcamentoId, orcamentoNumero, status])
 
   function limparTudo() {
     setCliente({ nome: '', documento: '', endereco: '', cidade: '' })
@@ -315,12 +324,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
     setObservacao('')
     setValidade('15')
     setItens([{ codigo: '', descricao: '', quantidade: 1, preco: 0 }])
-    setIncluirMaoObra(true)
-    setValorHora(193)
-    setQuantidadeHoras(1)
-    setIncluirDeslocamento(true)
-    setValorKm(2.8)
-    setQuantidadeKm(0)
+    setServicos([novaLinha()])
     setOrcamentoId(null)
     setOrcamentoNumero(null)
     setStatus('ativo')
@@ -334,16 +338,8 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
 
   function escolherTipo(t: TipoOrcamento) {
     setTipo(t)
-    if (t === 'pecas') {
-      setIncluirMaoObra(false)
-    } else if (t === 'mao-de-obra') {
-      setIncluirMaoObra(true)
-    } else {
-      setIncluirMaoObra(true)
-    }
+    setServicos([novaLinha()])
   }
-
-  const fmt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
   if (carregando) {
     return (
@@ -818,97 +814,107 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
         </div>
       )}
 
-      {/* Mão de obra e Deslocamento */}
-      {(mostrarMaoObra || mostrarDeslocamento) && (
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : (mostrarMaoObra && mostrarDeslocamento ? '1fr 1fr' : '1fr'), gap: 20, marginBottom: 20 }}>
-        {/* Mão de Obra */}
-        {mostrarMaoObra && (
-          <div style={{
-            background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0',
-            padding: isMobile ? 16 : 24, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Mão de Obra</span>
-              <button
-                onClick={() => setIncluirMaoObra(!incluirMaoObra)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: incluirMaoObra ? '#047857' : '#a3a3a3' }}
-              >
-                {incluirMaoObra ? <ToggleRight size={22} color="#047857" /> : <ToggleLeft size={22} color="#d4d4d4" />}
-                {incluirMaoObra ? 'Incluído' : 'Desativado'}
-              </button>
-            </div>
-            {incluirMaoObra && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>
-                  <label style={labelStyle}>Valor/Hora (R$)</label>
-                  <input
-                    type="number" min={0} step={1}
-                    value={valorHora}
-                    onChange={e => setValorHora(parseFloat(e.target.value) || 0)}
-                    style={inputStyle}
-                  />
-                </div>
-                <div>
-                  <label style={labelStyle}>Horas</label>
-                  <input
-                    type="number" min={0} step={0.5}
-                    value={quantidadeHoras}
-                    onChange={e => setQuantidadeHoras(parseFloat(e.target.value) || 0)}
-                    style={inputStyle}
-                  />
-                </div>
-                <div style={{ gridColumn: '1/-1', textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
-                  Total: <span style={{ color: '#EA580C' }}>R$ {fmt(totalMaoObra)}</span>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Deslocamento */}
-        {mostrarDeslocamento && (
+      {/* Serviços (mão de obra + deslocamento por serviço) */}
+      {mostrarServicos && (
         <div style={{
           background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0',
-          padding: 24, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+          overflow: 'hidden', marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Deslocamento</span>
-            <button
-              onClick={() => setIncluirDeslocamento(!incluirDeslocamento)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: incluirDeslocamento ? '#047857' : '#a3a3a3' }}
-            >
-              {incluirDeslocamento ? <ToggleRight size={22} color="#047857" /> : <ToggleLeft size={22} color="#d4d4d4" />}
-              {incluirDeslocamento ? 'Incluído' : 'Desativado'}
+          <div style={{
+            padding: isMobile ? '14px 16px' : '16px 28px', borderBottom: '1px solid #f0f0f0',
+            display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap',
+          }}>
+            <div>
+              <span style={{ fontSize: 15, fontWeight: 700, color: '#1a1a1a' }}>Serviços</span>
+              {!isMobile && (
+                <span style={{ fontSize: 11, color: '#a3a3a3', marginLeft: 10 }}>
+                  mão de obra e deslocamento separados por serviço
+                </span>
+              )}
+            </div>
+            <button onClick={adicionarServico} style={{
+              display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px',
+              borderRadius: 8, border: '1px solid #fecaca', background: '#fef2f2',
+              color: '#EA580C', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+            }}>
+              <Plus size={14} /> Serviço
             </button>
           </div>
-          {incluirDeslocamento && (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <div>
-                <label style={labelStyle}>Valor/Km (R$)</label>
-                <input
-                  type="number" min={0} step={0.1}
-                  value={valorKm}
-                  onChange={e => setValorKm(parseFloat(e.target.value) || 0)}
-                  style={inputStyle}
-                />
+
+          <div style={{ padding: isMobile ? 12 : 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
+            {servicos.map((s, idx) => (
+              <div key={idx} style={{ border: '1px solid #eee', borderRadius: 12, background: '#fafafa', overflow: 'hidden' }}>
+                {/* Cabeçalho do serviço */}
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 10,
+                  padding: isMobile ? '10px 12px' : '12px 16px',
+                  borderBottom: '1px solid #f0f0f0', background: '#fff',
+                }}>
+                  <span style={{
+                    width: 26, height: 26, borderRadius: 8, background: '#FFF7ED', color: '#EA580C',
+                    border: '1px solid #FED7AA', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 12, fontWeight: 800, flexShrink: 0,
+                  }}>
+                    {idx + 1}
+                  </span>
+                  <input
+                    value={s.descricao}
+                    onChange={e => atualizarServico(idx, { descricao: e.target.value })}
+                    placeholder="Nome do serviço (ex.: Troca de embreagem)"
+                    style={{ ...inputStyle, flex: 1, minWidth: 0, fontWeight: 600, fontSize: 13, padding: '8px 12px' }}
+                  />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#1a1a1a', whiteSpace: 'nowrap' }}>
+                    R$ {fmt(subtotalLinha(s))}
+                  </span>
+                  {servicos.length > 1 && (
+                    <button onClick={() => removerServico(idx)} title="Remover serviço" style={{
+                      background: 'none', border: 'none', cursor: 'pointer', color: '#cbcbcb', padding: 2, flexShrink: 0,
+                    }}>
+                      <Trash2 size={16} />
+                    </button>
+                  )}
+                </div>
+
+                {/* Mão de obra + Deslocamento do serviço */}
+                <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 10 : 14, padding: isMobile ? 12 : 16 }}>
+                  <ParteServico
+                    titulo="Mão de obra"
+                    ligado={s.maoObra}
+                    mostrar={s.mostrarMO}
+                    valorBruto={s.horas * s.valorHora}
+                    onToggle={() => atualizarServico(idx, { maoObra: !s.maoObra })}
+                    onMostrar={() => atualizarServico(idx, { mostrarMO: !s.mostrarMO })}
+                    campos={[
+                      { label: 'Valor/Hora (R$)', value: s.valorHora, step: 1, onChange: v => atualizarServico(idx, { valorHora: v }) },
+                      { label: 'Horas', value: s.horas, step: 0.5, onChange: v => atualizarServico(idx, { horas: v }) },
+                    ]}
+                  />
+                  <ParteServico
+                    titulo="Deslocamento"
+                    ligado={s.desloc}
+                    mostrar={s.mostrarDesloc}
+                    valorBruto={s.km * s.valorKm}
+                    onToggle={() => atualizarServico(idx, { desloc: !s.desloc })}
+                    onMostrar={() => atualizarServico(idx, { mostrarDesloc: !s.mostrarDesloc })}
+                    campos={[
+                      { label: 'Valor/Km (R$)', value: s.valorKm, step: 0.1, onChange: v => atualizarServico(idx, { valorKm: v }) },
+                      { label: 'Km', value: s.km, step: 1, onChange: v => atualizarServico(idx, { km: v }) },
+                    ]}
+                  />
+                </div>
               </div>
-              <div>
-                <label style={labelStyle}>Km</label>
-                <input
-                  type="number" min={0} step={1}
-                  value={quantidadeKm}
-                  onChange={e => setQuantidadeKm(parseFloat(e.target.value) || 0)}
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ gridColumn: '1/-1', textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1a1a1a' }}>
-                Total: <span style={{ color: '#EA580C' }}>R$ {fmt(totalDeslocamento)}</span>
-              </div>
+            ))}
+          </div>
+
+          {totServ.total > 0 && (
+            <div style={{
+              padding: '12px 28px', borderTop: '1px solid #f0f0f0',
+              textAlign: 'right', fontSize: 14, fontWeight: 700, color: '#1a1a1a',
+            }}>
+              Subtotal Serviços: <span style={{ color: '#EA580C' }}>R$ {fmt(totServ.total)}</span>
             </div>
           )}
         </div>
-        )}
-      </div>
       )}
 
       {/* Total Geral */}
@@ -923,8 +929,9 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
           </div>
           <div style={{ fontSize: 11, color: '#737373', marginTop: 4 }}>
             {mostrarPecas && `${itens.filter(i => i.descricao.trim()).length} ite${itens.filter(i => i.descricao.trim()).length !== 1 ? 'ns' : 'm'}`}
-            {mostrarMaoObra && incluirMaoObra && `${mostrarPecas ? ' + ' : ''}${quantidadeHoras}h mão de obra`}
-            {mostrarDeslocamento && incluirDeslocamento && quantidadeKm > 0 && ` + ${quantidadeKm}km`}
+            {mostrarServicos && totServ.horas > 0 && `${mostrarPecas ? ' + ' : ''}${totServ.horas}h mão de obra`}
+            {mostrarServicos && totServ.km > 0 && ` + ${totServ.km}km`}
+            {mostrarServicos && servicos.filter(linhaPreenchida).length > 1 && ` · ${servicos.filter(linhaPreenchida).length} serviços`}
           </div>
         </div>
         <div style={{ fontSize: isMobile ? 26 : 32, fontWeight: 900, color: '#fff' }}>
@@ -948,6 +955,93 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
         onClose={() => setModalKitOpen(false)}
         onImportar={importarKit}
       />
+    </div>
+  )
+}
+
+const fmt = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+// Grava o orçamento com RETRY sem a coluna `servicos`: enquanto a migration
+// sql/orcamentos-servicos.sql não for aplicada, o save cai no formato antigo
+// (só os agregados) em vez de quebrar.
+async function gravarOrcamento(payload: Record<string, unknown>, id: number | null) {
+  const tentar = (p: Record<string, unknown>) =>
+    id
+      ? supabase.from('orcamentos').update({ ...p, updated_at: new Date().toISOString() }).eq('id', id).select('id, numero').single()
+      : supabase.from('orcamentos').insert([p]).select('id, numero').single()
+  let r = await tentar(payload)
+  if (r.error && 'servicos' in payload && /servicos/i.test(r.error.message || '')) {
+    const { servicos: _semColuna, ...resto } = payload
+    r = await tentar(resto)
+  }
+  return r
+}
+
+// Um dos dois blocos de um serviço (Mão de obra / Deslocamento): toggle
+// Incluído/Desativado e, quando desativado, a escolha de ainda MOSTRAR no PDF
+// como "não cobrado" (cortesia visível) ou esconder de vez.
+function ParteServico({ titulo, ligado, mostrar, valorBruto, onToggle, onMostrar, campos }: {
+  titulo: string
+  ligado: boolean
+  mostrar: boolean
+  valorBruto: number
+  onToggle: () => void
+  onMostrar: () => void
+  campos: { label: string; value: number; step: number; onChange: (v: number) => void }[]
+}) {
+  return (
+    <div style={{ background: '#fff', border: '1px solid #f0f0f0', borderRadius: 10, padding: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 10 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: ligado ? '#1a1a1a' : '#a3a3a3', textTransform: 'uppercase' as const, letterSpacing: 0.5 }}>
+          {titulo}
+        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {!ligado && (
+            <button
+              onClick={onMostrar}
+              title={mostrar ? 'Vai aparecer no PDF como cortesia, sem somar no total' : 'Não aparece no PDF'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 8,
+                border: mostrar ? '1px solid #FDE68A' : '1px solid #e5e5e5',
+                background: mostrar ? '#FFFBEB' : 'transparent', cursor: 'pointer',
+                fontSize: 11, fontWeight: 600, color: mostrar ? '#B45309' : '#a3a3a3',
+              }}
+            >
+              {mostrar ? <Eye size={13} /> : <EyeOff size={13} />}
+              {mostrar ? 'Mostra no PDF (não cobrado)' : 'Oculto no PDF'}
+            </button>
+          )}
+          <button
+            onClick={onToggle}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: ligado ? '#047857' : '#a3a3a3' }}
+          >
+            {ligado ? <ToggleRight size={22} color="#047857" /> : <ToggleLeft size={22} color="#d4d4d4" />}
+            {ligado ? 'Incluído' : 'Desativado'}
+          </button>
+        </div>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, opacity: ligado ? 1 : mostrar ? 0.75 : 0.45 }}>
+        {campos.map(c => (
+          <div key={c.label}>
+            <label style={{ ...labelStyle, fontSize: 10 }}>{c.label}</label>
+            <input
+              type="number" min={0} step={c.step}
+              value={c.value}
+              onChange={e => c.onChange(parseFloat(e.target.value) || 0)}
+              style={{ ...inputStyle, fontSize: 13, padding: '8px 12px' }}
+            />
+          </div>
+        ))}
+        <div style={{ gridColumn: '1/-1', textAlign: 'right', fontSize: 13, fontWeight: 700 }}>
+          {ligado ? (
+            <span style={{ color: '#1a1a1a' }}>Total: <span style={{ color: '#EA580C' }}>R$ {fmt(valorBruto)}</span></span>
+          ) : mostrar ? (
+            <span style={{ color: '#B45309' }}><s>R$ {fmt(valorBruto)}</s> · não cobrado — sai no PDF</span>
+          ) : (
+            <span style={{ color: '#a3a3a3' }}>não entra no orçamento</span>
+          )}
+        </div>
+      </div>
     </div>
   )
 }

@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { Search, FileText, Trash2, Plus, FilterX, Package, Wrench, Send, Printer } from 'lucide-react'
 import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { linhasDoOrcamento, nomesServicos, somaHorasKm } from '@/lib/orcamentos/servicos'
 
 interface Orcamento {
   id: number
@@ -85,8 +86,9 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
       const gerarOS = gerarModal.tipoOrc !== 'pecas'
 
       if (gerarOS) {
-        const horas = orc.mao_obra?.horas || 0
-        const km = orc.deslocamento?.km || 0
+        // Soma de horas/km de TODOS os serviços (formato novo ou legado)
+        const { horas, km } = somaHorasKm(orc)
+        const nomes = nomesServicos(linhasDoOrcamento(orc))
         const itensDesc = (orc.itens || []).map((i: any) => `${i.quantidade}x ${i.descricao}`).join(', ')
         // Descrição da OS: mantém o template padrão do POS e coloca as Observações
         // do orçamento DEPOIS de "Serviço Realizado:", sem apagar o resto do bloco.
@@ -94,7 +96,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
         const TEMPLATE = "Modelo: \nChassis: \nHorimetro: \n\nSolicitação do cliente: \nServiço Realizado: "
         const marca = "Serviço Realizado:"
         const obsOrc = String(orc.observacao || "").trim()
-        const rodape = `Ref. Orçamento ${orc.numero}${itensDesc ? ' — ' + itensDesc : ''}`
+        const rodape = `Ref. Orçamento ${orc.numero}${nomes.length ? ' — ' + nomes.join(' · ') : ''}${itensDesc ? ' — ' + itensDesc : ''}`
         const trecho = [obsOrc, rodape].filter(Boolean).join("\n")
         const idx = TEMPLATE.indexOf(marca)
         const descricaoOS = idx >= 0
@@ -213,6 +215,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
         observacao: data.observacao,
         validade: data.validade,
         itens: data.itens || [],
+        servicos: Array.isArray(data.servicos) ? data.servicos : null,
         maoObra: data.mao_obra,
         deslocamento: data.deslocamento,
         userName: data.criado_por,
