@@ -192,11 +192,60 @@ const PECAS: Peca[] = [
   { cena: 'mk-braco', id: 'pneumk', boxes: [[700, 490, 245, 255]] },
   // munck — lataria da LATERAL (cabine/caçamba na silhueta)
   { cena: 'mk-lateral', id: 'lataria', boxes: [[138, 100, 315, 68], [68, 285, 85, 245], [95, 395, 345, 140], [660, 350, 705, 145]] },
+  // ── CAMINHÃO comum (basculante) ── motor (cabine basculada)
+  { cena: 'cm-frente', id: 'motor', boxes: [[520, 95, 360, 430]] },
+  { cena: 'cm-frente', id: 'filtro', boxes: [[325, 335, 160, 170]] },
+  { cena: 'cm-frente', id: 'radiador', boxes: [[525, 535, 355, 130]] },
+  { cena: 'cm-frente', id: 'turbo', boxes: [[850, 295, 95, 310]] },
+  { cena: 'cm-frente', id: 'tanque', boxes: [[1245, 525, 163, 150]] },
+  { cena: 'cm-frente', id: 'bateria', boxes: [[340, 95, 145, 90]] },
+  { cena: 'cm-frente', id: 'fusiveis', boxes: [[395, 230, 80, 85]] },
+  { cena: 'cm-frente', id: 'modulo', boxes: [[980, 170, 115, 135]] },
+  { cena: 'cm-frente', id: 'alternador', boxes: [[780, 435, 95, 85]] },
+  { cena: 'cm-frente', id: 'arfreio', boxes: [[845, 95, 150, 95], [1180, 60, 185, 175]] },
+  { cena: 'cm-frente', id: 'bombadir', boxes: [[925, 375, 70, 110]] },
+  { cena: 'cm-frente', id: 'cambio', boxes: [[1135, 325, 180, 140]] },
+  // caminhão — frente fechada
+  { cena: 'cm-carroceria', id: 'parabrisa', boxes: [[455, 70, 505, 220]] },
+  { cena: 'cm-carroceria', id: 'palhetasf', boxes: [[515, 235, 390, 50]] },
+  { cena: 'cm-carroceria', id: 'retrovisores', boxes: [[357, 92, 72, 172], [985, 92, 72, 172]] },
+  { cena: 'cm-carroceria', id: 'painelfrontal', boxes: [[450, 292, 510, 168]] },
+  { cena: 'cm-carroceria', id: 'grade', boxes: [[592, 393, 238, 72], [595, 490, 222, 100]] },
+  { cena: 'cm-carroceria', id: 'farois', boxes: [[452, 465, 85, 110], [875, 465, 85, 110]] },
+  { cena: 'cm-carroceria', id: 'parachoque', boxes: [[420, 458, 572, 145]] },
+  { cena: 'cm-carroceria', id: 'suspdiant', boxes: [[398, 588, 615, 75]] },
+  { cena: 'cm-carroceria', id: 'pneus', boxes: [[398, 588, 185, 160], [828, 588, 185, 160]] },
+  // caminhão — traseira
+  { cena: 'cm-traseira', id: 'cacamba', boxes: [[330, 70, 745, 285]] },
+  { cena: 'cm-traseira', id: 'chassitras', boxes: [[345, 345, 720, 90], [475, 390, 455, 130]] },
+  { cena: 'cm-traseira', id: 'paralamas', boxes: [[352, 388, 180, 230], [878, 388, 180, 230]] },
+  { cena: 'cm-traseira', id: 'suspensao', boxes: [[380, 440, 200, 185], [830, 440, 200, 185]] },
+  { cena: 'cm-traseira', id: 'diferencial', boxes: [[644, 537, 116, 96]] },
+  { cena: 'cm-traseira', id: 'escape', boxes: [[748, 505, 180, 80]] },
+  { cena: 'cm-traseira', id: 'parachoquetras', boxes: [[352, 608, 706, 50]] },
+  { cena: 'cm-traseira', id: 'lanternas', boxes: [[596, 610, 48, 48], [766, 610, 48, 48]] },
+  { cena: 'cm-traseira', id: 'pneustras', boxes: [[360, 650, 190, 90], [860, 650, 190, 90]] },
+  // caminhão — cabine
+  { cena: 'cm-cabine', id: 'tacografo', boxes: [[495, 75, 440, 100]] },
+  { cena: 'cm-cabine', id: 'cinto', boxes: [[1112, 192, 40, 95]] },
+  { cena: 'cm-cabine', id: 'portas', boxes: [[20, 20, 370, 720]] },
+  { cena: 'cm-cabine', id: 'volante', boxes: [[510, 295, 200, 180]] },
+  { cena: 'cm-cabine', id: 'instrumentos', boxes: [[545, 318, 148, 75]] },
+  { cena: 'cm-cabine', id: 'multimidia', boxes: [[680, 332, 85, 95]] },
+  { cena: 'cm-cabine', id: 'clima', boxes: [[438, 342, 108, 185]] },
+  { cena: 'cm-cabine', id: 'portaluvas', boxes: [[855, 325, 152, 112]] },
+  { cena: 'cm-cabine', id: 'cambio', boxes: [[733, 413, 82, 130]] },
+  { cena: 'cm-cabine', id: 'freiomao', boxes: [[800, 460, 112, 90]] },
+  { cena: 'cm-cabine', id: 'pedais', boxes: [[450, 540, 155, 85]] },
+  { cena: 'cm-cabine', id: 'bancos', boxes: [[950, 245, 215, 370]] },
+  { cena: 'cm-cabine', id: 'console', boxes: [[560, 515, 375, 180]] },
+  // caminhão — lataria da LATERAL (cabine/caçamba na silhueta)
+  { cena: 'cm-lateral', id: 'lataria', boxes: [[60, 115, 315, 80], [18, 290, 65, 195], [488, 58, 145, 235], [552, 185, 842, 305]] },
 ];
 
 const scratch = process.argv[2];
 const imgs = new Map<string, { data: Buffer; width: number; height: number }>();
-for (const cena of ['frente', 'carroceria', 'traseira', 'cabine', 'roda', 'lateral', 'c-frente', 'c-carroceria', 'c-traseira', 'c-cabine', 'c-lateral', 'mk-frente', 'mk-carroceria', 'mk-traseira', 'mk-cabine', 'mk-braco', 'mk-lateral']) {
+for (const cena of ['frente', 'carroceria', 'traseira', 'cabine', 'roda', 'lateral', 'c-frente', 'c-carroceria', 'c-traseira', 'c-cabine', 'c-lateral', 'mk-frente', 'mk-carroceria', 'mk-traseira', 'mk-cabine', 'mk-braco', 'mk-lateral', 'cm-frente', 'cm-carroceria', 'cm-traseira', 'cm-cabine', 'cm-lateral']) {
   const png = PNG.sync.read(readFileSync(`${scratch}/arte-${cena}.png`));
   imgs.set(cena, { data: png.data, width: png.width, height: png.height });
 }

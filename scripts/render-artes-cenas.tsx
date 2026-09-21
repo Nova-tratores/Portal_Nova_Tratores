@@ -19,6 +19,11 @@ import MunckFrenteMotorArte from '../src/components/frota/MunckFrenteMotorArte';
 import MunckTraseiraArte from '../src/components/frota/MunckTraseiraArte';
 import MunckInteriorArte from '../src/components/frota/MunckInteriorArte';
 import MunckBracoArte from '../src/components/frota/MunckBracoArte';
+import CaminhaoArte from '../src/components/frota/CaminhaoArte';
+import CaminhaoFrenteArte from '../src/components/frota/CaminhaoFrenteArte';
+import CaminhaoFrenteMotorArte from '../src/components/frota/CaminhaoFrenteMotorArte';
+import CaminhaoTraseiraArte from '../src/components/frota/CaminhaoTraseiraArte';
+import CaminhaoInteriorArte from '../src/components/frota/CaminhaoInteriorArte';
 
 const ARTES: Record<string, React.ComponentType> = {
   frente: PicapeFrenteMotorArte,
@@ -38,6 +43,11 @@ const ARTES: Record<string, React.ComponentType> = {
   'mk-cabine': MunckInteriorArte,
   'mk-braco': MunckBracoArte,
   'mk-lateral': MunckArte,
+  'cm-frente': CaminhaoFrenteMotorArte,
+  'cm-carroceria': CaminhaoFrenteArte,
+  'cm-traseira': CaminhaoTraseiraArte,
+  'cm-cabine': CaminhaoInteriorArte,
+  'cm-lateral': CaminhaoArte,
 };
 
 const dir = process.argv[2];
