@@ -162,6 +162,16 @@ export default function PPVDrawer({
   const [showFaturar, setShowFaturar] = useState(false);
   const [cancelarOpen, setCancelarOpen] = useState(false);   // modal que pede o motivo do cancelamento
   const [cancelMotivo, setCancelMotivo] = useState("");
+  // Trocar a fase pra "Cancelada" pelo seletor passa pelo MESMO modal do motivo
+  // (não deixa cancelar sem motivo — e cancela certo no Omie também).
+  const mudarStatusPPV = (novo: string) => {
+    if (novo === "Cancelada" && status !== "Cancelada") {
+      setCancelMotivo(motivoCancelamento);
+      setCancelarOpen(true);
+      return;
+    }
+    setStatus(novo);
+  };
   const [cancelando, setCancelando] = useState(false);
   const [duplicando, setDuplicando] = useState(false);
   const [codCopiado, setCodCopiado] = useState<string | null>(null); // feedback do "copiar código"
@@ -867,7 +877,7 @@ export default function PPVDrawer({
               <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
                 <span style={{ fontSize: 18, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>Pedido de Venda</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a", borderRadius: 6, padding: "2px 8px", whiteSpace: "nowrap" }}>#{ppvId}</span>
-                <select value={status} onChange={(e) => setStatus(e.target.value)} disabled={!podeEditar} title="Fase do PPV"
+                <select value={status} onChange={(e) => mudarStatusPPV(e.target.value)} disabled={!podeEditar} title="Fase do PPV"
                   style={{ fontWeight: 700, color: statusColor.text, background: statusColor.bg, width: "auto", maxWidth: 230, padding: "6px 10px", borderRadius: 8, fontSize: 13, marginBottom: 0 }}>
                   {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value} style={{ color: "#0f172a", background: "#fff" }}>{s.label}</option>)}
                 </select>
@@ -1045,10 +1055,11 @@ export default function PPVDrawer({
                     </>
                   )}
 
-                  {/* ── Detalhes do status (aba Informações sobre) — só quando Concluída/Cancelada ── */}
-                  {abaAtiva === "Informações sobre" && (status === "Concluída" || status === "Cancelada") && (
+                  {/* ── Detalhes do status (aba Informações sobre) — só Conclusão.
+                      O Cancelamento MUDOU pra aba Observações (embaixo do bloco). ── */}
+                  {abaAtiva === "Informações sobre" && status === "Concluída" && (
                     <div className="ppv-card">
-                      <div className="ppv-card-title"><i className="fas fa-flag" /> {status === "Cancelada" ? "Cancelamento" : "Conclusão"}</div>
+                      <div className="ppv-card-title"><i className="fas fa-flag" /> Conclusão</div>
                       {status === "Concluída" && (
                         <div>
                           <label>Pedido OMIE *</label>
@@ -1068,32 +1079,6 @@ export default function PPVDrawer({
                                 ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
                                 : <><i className="fas fa-file-pdf" /> PDF do pedido (Omie)</>}
                             </button>
-                          )}
-                        </div>
-                      )}
-                      {status === "Cancelada" && (
-                        <div>
-                          <label>Motivo do Cancelamento *</label>
-                          <textarea rows={2} value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} placeholder="Descreva o motivo..." style={{ marginBottom: 12 }} />
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
-                            <input type="checkbox" id="ppvTemSubstituto" checked={temSubstituto} onChange={(e) => { setTemSubstituto(e.target.checked); if (!e.target.checked) { setSubstitutoId(""); } }} />
-                            <label htmlFor="ppvTemSubstituto" style={{ margin: 0, fontWeight: 600, cursor: "pointer" }}>Tem substituto?</label>
-                          </div>
-                          {temSubstituto && (
-                            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                              <select value={substitutoTipo} onChange={(e) => { setSubstitutoTipo(e.target.value as "POS" | "PPV"); setSubstitutoId(""); }} style={{ width: 100, fontWeight: 600 }}>
-                                <option value="POS">POS</option>
-                                <option value="PPV">PPV</option>
-                              </select>
-                              <select value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }}>
-                                <option value="">Selecione...</option>
-                                {(substitutoTipo === "POS" ? listaOSAbertas : listaPPVAbertos).map((item) => (
-                                  <option key={item.id} value={item.id}>
-                                    {substitutoTipo === "POS" ? `OS ${item.id}` : item.id} - {item.cliente} ({item.status})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
                           )}
                         </div>
                       )}
@@ -1122,7 +1107,7 @@ export default function PPVDrawer({
                       </div>
                       <div>
                         <label>Etapa</label>
-                        <select value={status} onChange={(e) => setStatus(e.target.value)} disabled={!podeEditar} title="Fase do PPV" style={{ marginBottom: 0 }}>
+                        <select value={status} onChange={(e) => mudarStatusPPV(e.target.value)} disabled={!podeEditar} title="Fase do PPV" style={{ marginBottom: 0 }}>
                           {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                         </select>
                       </div>
@@ -1206,6 +1191,35 @@ export default function PPVDrawer({
                     <div className="ppv-card-title"><i className="fas fa-align-left" /> Observações</div>
                     <textarea rows={6} value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Notas sobre o pedido..." style={{ marginBottom: 0 }} />
                   </div>
+                  )}
+
+                  {/* ── Cancelamento — embaixo do bloco de Observações ── */}
+                  {abaAtiva === "Observações" && status === "Cancelada" && (
+                    <div className="ppv-card" style={{ borderLeft: "3px solid #dc2626" }}>
+                      <div className="ppv-card-title"><i className="fas fa-ban" style={{ color: "#dc2626" }} /> Cancelamento</div>
+                      <label>Motivo do Cancelamento *</label>
+                      <textarea rows={2} value={motivoCancelamento} onChange={(e) => setMotivoCancelamento(e.target.value)} placeholder="Descreva o motivo..." style={{ marginBottom: 12 }} />
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
+                        <input type="checkbox" id="ppvTemSubstituto" checked={temSubstituto} onChange={(e) => { setTemSubstituto(e.target.checked); if (!e.target.checked) { setSubstitutoId(""); } }} />
+                        <label htmlFor="ppvTemSubstituto" style={{ margin: 0, fontWeight: 600, cursor: "pointer" }}>Tem substituto?</label>
+                      </div>
+                      {temSubstituto && (
+                        <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                          <select value={substitutoTipo} onChange={(e) => { setSubstitutoTipo(e.target.value as "POS" | "PPV"); setSubstitutoId(""); }} style={{ width: 100, fontWeight: 600 }}>
+                            <option value="POS">POS</option>
+                            <option value="PPV">PPV</option>
+                          </select>
+                          <select value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }}>
+                            <option value="">Selecione...</option>
+                            {(substitutoTipo === "POS" ? listaOSAbertas : listaPPVAbertos).map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {substitutoTipo === "POS" ? `OS ${item.id}` : item.id} - {item.cliente} ({item.status})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
                   )}
 
                   {/* ── Comunicação com a SEFAZ (aba) — só quando faturado ── */}

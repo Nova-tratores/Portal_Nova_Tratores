@@ -161,6 +161,18 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     } finally { setBaixandoPdfPecas(null); }
   }, [baixandoPdfPecas]);
   const [motivoCancel, setMotivoCancel] = useState("");
+  // Cancelar exige MOTIVO: modal central intercepta a troca pra "Cancelada"
+  // (só efetiva com o motivo preenchido).
+  const [cancelModal, setCancelModal] = useState(false);
+  const [motivoTmp, setMotivoTmp] = useState("");
+  const mudarStatus = (novo: string) => {
+    if (novo === "Cancelada" && status !== "Cancelada") {
+      setMotivoTmp(motivoCancel);
+      setCancelModal(true);
+      return; // o status só muda quando confirmar o motivo no modal
+    }
+    setStatus(novo);
+  };
   const [temSubstituto, setTemSubstituto] = useState(false);
   const [substitutoTipo, setSubstitutoTipo] = useState<"POS" | "PPV">("POS");
   const [substitutoId, setSubstitutoId] = useState("");
@@ -941,7 +953,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                 {mode === "edit" && (
                   <select
                     value={status}
-                    onChange={(e) => setStatus(e.target.value)}
+                    onChange={(e) => mudarStatus(e.target.value)}
                     disabled={!podeEditar}
                     title="Alterar status da OS"
                     style={{ ...STATUS_BADGE_STYLE(status), border: "none", outline: "none", cursor: podeEditar ? "pointer" : "not-allowed", maxWidth: 340 }}
@@ -1360,39 +1372,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
 
                   {/* ── Status ── */}
-                  {/* Bloco "Conclusão" REMOVIDO (23/09 — duplicava o "Enviado ao Omie").
-                      Só o Cancelamento continua precisando de detalhes. */}
-                  {mode === "edit" && status === "Cancelada" && (
-                    <div className="os-card" style={{ order: -4 }}>
-                      <div className="os-card-title"><i className="fas fa-flag" /> Cancelamento</div>
-                      {status === "Cancelada" && (
-                        <div>
-                          <label>Motivo do Cancelamento *</label>
-                          <textarea rows={2} value={motivoCancel} onChange={(e) => setMotivoCancel(e.target.value)} placeholder="Descreva o motivo do cancelamento..." style={{ marginBottom: 12 }} />
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
-                            <input type="checkbox" id="temSubstituto" checked={temSubstituto} onChange={(e) => { setTemSubstituto(e.target.checked); if (!e.target.checked) { setSubstitutoId(""); } }} />
-                            <label htmlFor="temSubstituto" style={{ margin: 0, fontWeight: 600, cursor: "pointer" }}>Tem substituto?</label>
-                          </div>
-                          {temSubstituto && (
-                            <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
-                              <select value={substitutoTipo} onChange={(e) => { setSubstitutoTipo(e.target.value as "POS" | "PPV"); setSubstitutoId(""); }} style={{ width: 100, fontWeight: 600 }}>
-                                <option value="POS">POS</option>
-                                <option value="PPV">PPV</option>
-                              </select>
-                              <select value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }}>
-                                <option value="">Selecione...</option>
-                                {(substitutoTipo === "POS" ? listaOSAbertas : listaPPVAbertos).map((item) => (
-                                  <option key={item.id} value={item.id}>
-                                    {substitutoTipo === "POS" ? `OS ${item.id}` : item.id} - {item.cliente} ({item.status})
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {/* Cancelamento MUDOU DE LUGAR: fica na aba Observações (embaixo
+                      do bloco de observações), e o motivo entra pelo MODAL central. */}
 
                   {/* Estado do envio ao Omie (o botão de ação foi para a coluna à direita) */}
                   {mode === "edit" && ordemOmie && (
@@ -1957,6 +1938,35 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     <textarea rows={8} value={observacoes} onChange={(e) => setObservacoes(e.target.value)} placeholder="Observações internas da OS..." style={S_MONO_MB0} />
                   </div>
 
+                  {/* ── Cancelamento — logo abaixo das Observações ── */}
+                  {mode === "edit" && status === "Cancelada" && (
+                    <div className="os-card os-aba os-aba-obs" style={{ borderLeft: "3px solid #C62828" }}>
+                      <div className="os-card-title"><i className="fas fa-ban" style={{ color: "#C62828" }} /> Cancelamento</div>
+                      <label>Motivo do Cancelamento *</label>
+                      <textarea rows={2} value={motivoCancel} onChange={(e) => setMotivoCancel(e.target.value)} placeholder="Descreva o motivo do cancelamento..." style={{ marginBottom: 12 }} />
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: temSubstituto ? 10 : 0 }}>
+                        <input type="checkbox" id="temSubstituto" checked={temSubstituto} onChange={(e) => { setTemSubstituto(e.target.checked); if (!e.target.checked) { setSubstitutoId(""); } }} />
+                        <label htmlFor="temSubstituto" style={{ margin: 0, fontWeight: 600, cursor: "pointer" }}>Tem substituto?</label>
+                      </div>
+                      {temSubstituto && (
+                        <div style={{ display: "flex", gap: 10, marginTop: 4 }}>
+                          <select value={substitutoTipo} onChange={(e) => { setSubstitutoTipo(e.target.value as "POS" | "PPV"); setSubstitutoId(""); }} style={{ width: 100, fontWeight: 600 }}>
+                            <option value="POS">POS</option>
+                            <option value="PPV">PPV</option>
+                          </select>
+                          <select value={substitutoId} onChange={(e) => setSubstitutoId(e.target.value)} style={{ flex: 1, fontWeight: 600, marginBottom: 0 }}>
+                            <option value="">Selecione...</option>
+                            {(substitutoTipo === "POS" ? listaOSAbertas : listaPPVAbertos).map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {substitutoTipo === "POS" ? `OS ${item.id}` : item.id} - {item.cliente} ({item.status})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   </div>{/* fim painel Ordem de Serviço (parte 1) */}
 
                   {/* ── Painel: Peças / PPV ── */}
@@ -2253,7 +2263,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
             {mode === "edit" && podeCancelar && status !== "Cancelada" && (
               <>
                 <div className="os-rail-sep" />
-                <button className="os-rail-btn" style={{ color: "#C62828" }} onClick={() => setStatus("Cancelada")}>
+                <button className="os-rail-btn" style={{ color: "#C62828" }} onClick={() => mudarStatus("Cancelada")}>
                   <i className="fas fa-ban" style={{ color: "#C62828" }} /> Cancelar OS
                 </button>
               </>
@@ -2262,6 +2272,34 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
         </div>
       </div>
+
+      {/* MODAL central: cancelar exige MOTIVO (não deixa cancelar sem) */}
+      {cancelModal && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100002, background: "rgba(15,23,42,0.6)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+          <div style={{ background: "var(--surface, #fff)", border: "2px solid #C62828", borderRadius: 16, width: 480, maxWidth: "94vw", overflow: "hidden", boxShadow: "0 30px 80px rgba(0,0,0,0.5)" }}>
+            <div style={{ padding: "14px 18px", background: "#C62828", color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
+              <i className="fas fa-ban" />
+              <b style={{ fontSize: 15 }}>Cancelar a OS {String(osId || "").replace(/^OS-?/i, "")}</b>
+            </div>
+            <div style={{ padding: 18 }}>
+              <label style={{ fontWeight: 700 }}>Motivo do Cancelamento *</label>
+              <textarea rows={3} value={motivoTmp} onChange={(e) => setMotivoTmp(e.target.value)} placeholder="Por que esta OS está sendo cancelada?" autoFocus style={{ width: "100%", boxSizing: "border-box", marginTop: 6 }} />
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 12 }}>
+                <button onClick={() => setCancelModal(false)}
+                  style={{ border: "1px solid var(--border, #cbd5e1)", background: "transparent", color: "var(--texto, #334155)", borderRadius: 8, padding: "9px 16px", fontSize: 13.5, fontWeight: 600, cursor: "pointer" }}>
+                  Voltar
+                </button>
+                <button
+                  disabled={!motivoTmp.trim()}
+                  onClick={() => { setMotivoCancel(motivoTmp.trim()); setStatus("Cancelada"); setCancelModal(false); }}
+                  style={{ border: "none", background: "#C62828", color: "#fff", borderRadius: 8, padding: "9px 18px", fontSize: 13.5, fontWeight: 700, cursor: motivoTmp.trim() ? "pointer" : "default", opacity: motivoTmp.trim() ? 1 : 0.5 }}>
+                  Confirmar cancelamento
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <SearchModal title="Pesquisar Equipamento / Chassis" placeholder="Digite chassis, modelo ou número..." apiUrl="/api/pos/buscas/projetos" paramName="termo" visible={showProjModal} onClose={() => setShowProjModal(false)}
         onSelect={(item) => {
