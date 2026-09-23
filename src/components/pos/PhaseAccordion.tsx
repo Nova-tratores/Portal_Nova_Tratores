@@ -331,6 +331,24 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     });
   }, []);
 
+  // ── Fases OCULTAS por usuário (olhinho no cabeçalho; escolha no navegador).
+  // Fase oculta some do quadro, MAS volta a aparecer quando a busca encontra
+  // uma ordem dentro dela (com o olhinho cortado, pra lembrar que está oculta).
+  const [ocultas, setOcultas] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    try { return new Set<string>(JSON.parse(localStorage.getItem("pos-fases-ocultas") || "[]")); }
+    catch { return new Set(); }
+  });
+  const toggleOculta = useCallback((phase: string) => {
+    setOcultas((prev) => {
+      const next = new Set(prev);
+      if (next.has(phase)) next.delete(phase);
+      else next.add(phase);
+      try { localStorage.setItem("pos-fases-ocultas", JSON.stringify([...next])); } catch { /* sem storage */ }
+      return next;
+    });
+  }, []);
+
   // Pre-compute lowercase search term once
   const searchLower = useMemo(() => searchTerm.toLowerCase(), [searchTerm]);
 
@@ -406,12 +424,21 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           </div>
         ) : (
           /* Grouped view */
-          grouped && Object.entries(grouped).map(([phase, items]) => (
+          grouped && Object.entries(grouped)
+            .filter(([phase]) => (searchLower ? true : !ocultas.has(phase)))
+            .map(([phase, items]) => (
             <div key={phase} className="phase-group">
               <div className="phase-group-header" onClick={() => toggleCollapse(phase)} style={{ cursor: "pointer" }}>
                 <span className="phase-group-chevron" style={{ display: "inline-block", transition: "transform 0.2s", transform: collapsed.has(phase) ? "rotate(-90deg)" : "rotate(0deg)", marginRight: 6 }}>
                   <i className="fas fa-chevron-down" />
                 </span>
+                {/* Olhinho: oculta/mostra a fase SÓ pra este usuário */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleOculta(phase); }}
+                  title={ocultas.has(phase) ? "Fase oculta (apareceu pela busca) — clique pra voltar a mostrar" : "Ocultar esta fase pra você (a busca ainda encontra as ordens dela)"}
+                  style={{ border: "none", background: "transparent", cursor: "pointer", padding: "2px 4px", marginRight: 4, color: ocultas.has(phase) ? "#D97706" : "#94a3b8", fontSize: 13 }}>
+                  <i className={ocultas.has(phase) ? "fas fa-eye-slash" : "fas fa-eye"} />
+                </button>
                 <span className="phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
                 <span className="phase-group-name">{phase}</span>
                 {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
@@ -454,6 +481,21 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
               )}
             </div>
           ))
+        )}
+
+        {/* Fases ocultas: aqui é o lugar de VOLTAR a mostrar */}
+        {!activePhase && ocultas.size > 0 && (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", margin: "18px 0 8px", padding: "10px 14px", border: "1px dashed var(--border, #cbd5e1)", borderRadius: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.5 }}>
+              <i className="fas fa-eye-slash" style={{ marginRight: 6 }} />Fases ocultas
+            </span>
+            {[...ocultas].map((f) => (
+              <button key={f} onClick={() => toggleOculta(f)} title="Voltar a mostrar esta fase"
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "1px solid var(--border, #cbd5e1)", background: "transparent", color: "#64748b", borderRadius: 20, padding: "4px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>
+                <i className="fas fa-eye" style={{ fontSize: 11 }} />{PHASE_SHORT[f] || f}
+              </button>
+            ))}
+          </div>
         )}
       </main>
 
