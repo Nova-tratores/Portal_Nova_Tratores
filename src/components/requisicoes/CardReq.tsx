@@ -419,12 +419,59 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
   // (enviarAnexo) ou anexo de uma cotação (enviarAnexoCotacao).
   const [recorte, setRecorte] = useState<{ arquivo: File; label: string; aoConfirmar: (f: File) => void } | null>(null);
 
+  // Várias fotos selecionadas de uma vez viram UM PDF (uma página por foto),
+  // pra caber várias notas/boletos/recibos num anexo só.
+  const juntarImagensEmPdf = async (files: File[]): Promise<File> => {
+    const { jsPDF } = await import('jspdf');
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+    for (let i = 0; i < files.length; i++) {
+      const dataUrl = await new Promise<string>((res, rej) => {
+        const r = new FileReader();
+        r.onload = () => res(String(r.result)); r.onerror = () => rej(new Error('falha ao ler ' + files[i].name));
+        r.readAsDataURL(files[i]);
+      });
+      const img = await new Promise<HTMLImageElement>((res, rej) => {
+        const im = new Image();
+        im.onload = () => res(im); im.onerror = () => rej(new Error('imagem inválida: ' + files[i].name));
+        im.src = dataUrl;
+      });
+      // redesenha em JPEG via canvas — aceita webp etc. e reduz o tamanho
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width; canvas.height = img.height;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0);
+      const jpeg = canvas.toDataURL('image/jpeg', 0.92);
+      if (i > 0) doc.addPage();
+      const margem = 8;
+      const escala = Math.min((pw - margem * 2) / img.width, (ph - margem * 2) / img.height);
+      const w = img.width * escala; const h = img.height * escala;
+      doc.addImage(jpeg, 'JPEG', (pw - w) / 2, (ph - h) / 2, w, h);
+    }
+    return new File([doc.output('blob')], 'anexos-juntos.pdf', { type: 'application/pdf' });
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, fieldName: string, label: string) => {
-    const file = e.target.files?.[0];
+    const files = Array.from(e.target.files || []);
     e.target.value = '';   // deixa reescolher o MESMO arquivo depois de cancelar
-    if (!file) return;
-    if (file.type.startsWith('image/')) { setRecorte({ arquivo: file, label, aoConfirmar: (f) => enviarAnexo(f, fieldName) }); return; }
-    enviarAnexo(file, fieldName);
+    if (!files.length) return;
+    if (files.length === 1) {
+      const file = files[0];
+      if (file.type.startsWith('image/')) { setRecorte({ arquivo: file, label, aoConfirmar: (f) => enviarAnexo(f, fieldName) }); return; }
+      enviarAnexo(file, fieldName);
+      return;
+    }
+    // Vários de uma vez: só fotos (PDF não dá pra juntar aqui — vai um por vez)
+    if (files.some((f) => !f.type.startsWith('image/'))) {
+      alert('Para juntar vários arquivos num anexo só, selecione apenas FOTOS.\nPDF precisa ser enviado um por vez.');
+      return;
+    }
+    setUploading(fieldName);
+    juntarImagensEmPdf(files)
+      .then((pdf) => enviarAnexo(pdf, fieldName))
+      .catch((err) => { setUploading(null); alert('Erro ao juntar as fotos: ' + (err?.message || err)); });
   };
 
   const enviarAnexo = async (file: File, fieldName: string) => {
@@ -554,9 +601,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
             e toda imagem anexada passa pelo corte antes de subir (handleFileUpload). */}
         <label className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer transition-all shrink-0 ${
           justUploaded ? 'bg-emerald-500 text-white' : isUploading ? 'bg-zinc-200 text-black' : 'bg-zinc-200 text-black hover:bg-orange-600 hover:text-white'
-        }`} title="Enviar arquivo">
+        }`} title="Enviar arquivo — selecionando várias fotos, elas viram um PDF único neste anexo">
           {justUploaded ? <Check size={12} /> : <Upload size={12} />}
-          <input type="file" accept="image/*,application/pdf" className="hidden" onChange={e => handleFileUpload(e, field, label)} disabled={isUploading} />
+          <input type="file" accept="image/*,application/pdf" multiple className="hidden" onChange={e => handleFileUpload(e, field, label)} disabled={isUploading} />
         </label>
       </div>
     );
