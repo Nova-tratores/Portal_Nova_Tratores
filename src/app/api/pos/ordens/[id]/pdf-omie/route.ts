@@ -52,26 +52,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     // Resolve o id interno (nCodOS): pelo número salvo; se falhar, pelo código
     // de integração (o Id_Ordem do portal vira cCodIntOS na criação).
+    type ConsultaOS = { Cabecalho?: { nCodOS?: number }; InfoCadastro?: { dDtAlt?: string; hHrAlt?: string; dDtInc?: string } };
     let nCodOS = 0;
+    let alteradaEm = "";
     try {
-      const c = await omieCall<{ Cabecalho?: { nCodOS?: number } }>(
+      const c = await omieCall<ConsultaOS>(
         "/servicos/os/", "ConsultarOS", { cNumOS: String(os.Ordem_Omie) });
       nCodOS = Number(c?.Cabecalho?.nCodOS || 0);
+      alteradaEm = [c?.InfoCadastro?.dDtAlt || c?.InfoCadastro?.dDtInc, c?.InfoCadastro?.hHrAlt].filter(Boolean).join(" ");
     } catch { /* tenta pelo cCodIntOS */ }
     if (!nCodOS) {
-      const c = await omieCall<{ Cabecalho?: { nCodOS?: number } }>(
+      const c = await omieCall<ConsultaOS>(
         "/servicos/os/", "ConsultarOS", { cCodIntOS: id });
       nCodOS = Number(c?.Cabecalho?.nCodOS || 0);
+      alteradaEm = [c?.InfoCadastro?.dDtAlt || c?.InfoCadastro?.dDtInc, c?.InfoCadastro?.hHrAlt].filter(Boolean).join(" ");
     }
     if (!nCodOS) return NextResponse.json({ error: "OS não localizada no Omie." }, { status: 404 });
 
+    // ObterOS GERA os documentos na hora ("Documentos gerados com sucesso") —
+    // o PDF sai sempre com o estado ATUAL da ordem no Omie, nunca uma cópia velha.
     const doc = await omieCall<{ cPdfOs?: string; cDesStatus?: string }>(
       "/servicos/osdocs/", "ObterOS", { nIdOs: nCodOS });
     const url = String(doc?.cPdfOs || "");
     if (!url) {
       return NextResponse.json({ error: doc?.cDesStatus || "Omie não devolveu o PDF da ordem." }, { status: 502 });
     }
-    return NextResponse.json({ url, nCodOS });
+    return NextResponse.json({ url, nCodOS, alteradaEm });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao consultar o Omie." }, { status: 502 });
   }

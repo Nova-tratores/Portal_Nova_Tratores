@@ -106,8 +106,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [ordemOmie, setOrdemOmie] = useState("");
   const [pedidoVenda, setPedidoVenda] = useState("");
   const [omieLog, setOmieLog] = useState("");
-  // PDF da OS no Omie (osdocs · ObterOS) — aparece depois do "Enviar Omie"
+  // PDF da OS no Omie (osdocs · ObterOS) — aparece depois do "Enviar Omie".
+  // O Omie GERA o documento na hora a cada clique (nunca é versão velha);
+  // guardamos a data da última alteração no Omie pra mostrar embaixo do botão.
   const [baixandoPdfOmie, setBaixandoPdfOmie] = useState(false);
+  const [omieAlteradaEm, setOmieAlteradaEm] = useState("");
   const abrirPdfOmie = useCallback(async () => {
     if (!osId || baixandoPdfOmie) return;
     setBaixandoPdfOmie(true);
@@ -116,6 +119,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       const r = await fetch(`/api/pos/ordens/${osId}/pdf-omie`, { headers: await authHeaders() });
       const d = await r.json().catch(() => ({}));
       if (!r.ok || !d.url) { win?.close(); alert(d.error || "Não consegui obter o PDF da ordem no Omie."); return; }
+      if (d.alteradaEm) setOmieAlteradaEm(String(d.alteradaEm));
       if (win) win.location.href = d.url; else window.open(d.url, "_blank");
     } catch {
       win?.close(); alert("Erro de conexão ao buscar o PDF no Omie.");
@@ -1200,6 +1204,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                               : <><i className="fas fa-file-pdf" /> PDF da ordem (Omie)</>}
                           </button>
                         )}
+                        {ordemOmie && (
+                          <div style={{ fontSize: 11.5, color: "#64748b", textAlign: "center", marginTop: -2 }}>
+                            O PDF é gerado NA HORA pelo Omie a cada clique — sempre com as alterações mais recentes.
+                            {omieAlteradaEm ? ` Última alteração no Omie: ${omieAlteradaEm}.` : ""}
+                          </div>
+                        )}
                         {pedidoVenda && (
                           <div>
                             <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Pedido de Venda (PPV)</div>
@@ -1350,32 +1360,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
 
                   {/* ── Status ── */}
-                  {/* Detalhes do status — só aparece quando Concluída ou Cancelada (o select ficou no cabeçalho) */}
-                  {mode === "edit" && (status === "Concluída" || status === "Cancelada") && (
+                  {/* Bloco "Conclusão" REMOVIDO (23/09 — duplicava o "Enviado ao Omie").
+                      Só o Cancelamento continua precisando de detalhes. */}
+                  {mode === "edit" && status === "Cancelada" && (
                     <div className="os-card" style={{ order: -4 }}>
-                      <div className="os-card-title"><i className="fas fa-flag" /> {status === "Cancelada" ? "Cancelamento" : "Conclusão"}</div>
-                      {status === "Concluída" && (
-                        <div>
-                          <label>N Ordem Omie</label>
-                          <input type="text" value={ordemOmie} onChange={(e) => setOrdemOmie(e.target.value)} style={S_MB0} />
-                          {ordemOmie && (
-                            <button
-                              onClick={abrirPdfOmie}
-                              disabled={baixandoPdfOmie}
-                              style={{
-                                marginTop: 10, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                                padding: "11px 14px", borderRadius: 8, border: "1.5px solid #0EA5E9",
-                                background: "transparent", color: "#0EA5E9", fontWeight: 700, fontSize: 13.5,
-                                cursor: baixandoPdfOmie ? "wait" : "pointer",
-                              }}
-                            >
-                              {baixandoPdfOmie
-                                ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
-                                : <><i className="fas fa-file-pdf" /> PDF da ordem (Omie)</>}
-                            </button>
-                          )}
-                        </div>
-                      )}
+                      <div className="os-card-title"><i className="fas fa-flag" /> Cancelamento</div>
                       {status === "Cancelada" && (
                         <div>
                           <label>Motivo do Cancelamento *</label>
