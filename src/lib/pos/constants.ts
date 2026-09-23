@@ -35,6 +35,7 @@ export const POS_TO_PPV_STATUS: Record<string, string> = {
   "Preenchido Garantia": "Relatório Concluído",
   "Enviar Omie": "Relatório Concluído",
   "Enviado Para Omie": "Enviado Omie",
+  "Cobrando Cliente": "Enviado Omie",
   "Concluída": "Concluída",
   "Cancelada": "Cancelada",
 };
@@ -59,6 +60,7 @@ export const PHASES = [
   "Relatório Concluído",
   "Enviar Omie",
   "Enviado Para Omie",
+  "Cobrando Cliente",
   "Preenchido Garantia",
   "Concluída",
   "Cancelada",

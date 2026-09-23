@@ -371,7 +371,10 @@ function montarDescricao(c: Record<string, string>): string {
     `Solicitação do cliente: ${c.solicitacao || ""}\nServiço Realizado: ${c.servico || ""}`;
 }
 
-const FASE_ENVIADO_OMIE = "Enviado Para Omie";
+// Depois do envio ao Omie a OS vai pra COBRANDO CLIENTE (23/09): o Tratorilson
+// manda o orçamento + PDFs pro responsável no WhatsApp (botão no card do POS)
+// antes de alguém concluir.
+const FASE_ENVIADO_OMIE = "Cobrando Cliente";
 
 export type ResultadoEnvioOmie = { os: string; ok: boolean; cNumOS?: string; pedidoVenda?: string; erro?: string; ppvErro?: string };
 

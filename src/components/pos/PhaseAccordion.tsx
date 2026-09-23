@@ -6,6 +6,7 @@ import { PHASES } from "@/lib/pos/constants";
 import { diasEntre } from "@/lib/pos/utils";
 import type { KanbanCard } from "@/lib/pos/types";
 import { STATUS_COR, STATUS_LABEL } from "@/lib/garantias/constants";
+import { authHeaders } from "@/lib/auth/client";
 import { normName } from "@/lib/tecnico-utils";
 import type { GarantiaStatus } from "@/lib/garantias/types";
 
@@ -44,6 +45,7 @@ export const PHASE_COLORS: Record<string, string> = {
   "Relatório Concluído - Garantia": PRETO_FASE,
   "Enviar Omie": PRETO_FASE,
   "Enviado Para Omie": PRETO_FASE,
+  "Cobrando Cliente": PRETO_FASE,
   "Preenchido Garantia": PRETO_FASE,
   "Executada aguardando comercial": PRETO_FASE,
   "Concluída": PRETO_FASE,
@@ -69,6 +71,7 @@ export const PHASE_SHORT: Record<string, string> = {
   "Relatório Concluído": "Rel. Concluído",
   "Enviar Omie": "Enviar Omie",
   "Enviado Para Omie": "Enviado Omie",
+  "Cobrando Cliente": "Cobrando Cliente",
   "Preenchido Garantia": "Preench. Garantia",
   "Executada aguardando comercial": "Aguard. Comercial",
   "Concluída": "Concluída",
@@ -88,6 +91,109 @@ function formatDateBR(dateStr: string): string {
 
 const FASE_APROVADO = "Orçamento Aprovado";
 const FASES_RESERVA = new Set(["Orçamento", "Orçamento enviado para o cliente e aguardando", FASE_APROVADO]);
+const FASE_COBRANDO = "Cobrando Cliente";
+
+// ── Painel de COBRANÇA do card (fase "Cobrando Cliente"): mostra pra quem vai
+// (contatos do NovaZap vinculados ao CNPJ — escolhe se tiver mais de um), o
+// valor OS+PV somado do Omie e a mensagem-modelo; o botão dispara o Tratorilson.
+function PainelCobranca({ osId }: { osId: string }) {
+  const [aberto, setAberto] = useState(false);
+  const [carregando, setCarregando] = useState(false);
+  const [dados, setDados] = useState<any>(null);
+  const [erro, setErro] = useState("");
+  const [contatoSel, setContatoSel] = useState<number>(0);
+  const [enviando, setEnviando] = useState(false);
+  const [enviada, setEnviada] = useState(false);
+
+  const abrir = async () => {
+    setAberto(true);
+    if (dados || carregando) return;
+    setCarregando(true); setErro("");
+    try {
+      const r = await fetch(`/api/pos/ordens/${osId}/cobrar`, { headers: await authHeaders(), cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setDados(j);
+      setContatoSel(j.contatos?.[0]?.id || 0);
+    } catch (e) { setErro(e instanceof Error ? e.message : "falha ao carregar"); }
+    setCarregando(false);
+  };
+
+  const enviar = async () => {
+    if (!contatoSel || enviando) return;
+    setEnviando(true); setErro("");
+    try {
+      const r = await fetch(`/api/pos/ordens/${osId}/cobrar`, {
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ contatoId: contatoSel }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      setEnviada(true);
+    } catch (e) { setErro(e instanceof Error ? e.message : "falha ao enviar"); }
+    setEnviando(false);
+  };
+
+  const contato = dados?.contatos?.find((c: any) => c.id === contatoSel);
+  const din = (n: number) => n?.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+
+  return (
+    <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
+      {!aberto ? (
+        <button onClick={abrir}
+          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: "#A16207", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+          <i className="fas fa-comment-dollar" /> Cobrar cliente (Tratorilson)
+        </button>
+      ) : (
+        <div style={{ border: "1px solid #FDE68A", background: "#FFFBEB", borderRadius: 8, padding: "8px 10px", fontSize: 12 }}>
+          {carregando && <div style={{ color: "#A16207", fontWeight: 600 }}><i className="fas fa-spinner fa-spin" /> Buscando contatos e valores no Omie…</div>}
+          {erro && <div style={{ color: "#B91C1C", fontWeight: 600, marginBottom: 6 }}>{erro}</div>}
+          {dados && (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: "#92400E" }}>
+                <span>OS R$ {din(dados.valores?.os)} + PV R$ {din(dados.valores?.pv)}</span>
+                <span>= R$ {din(dados.valores?.total)}</span>
+              </div>
+              {dados.avisoContatos && <div style={{ color: "#B45309", marginTop: 5 }}>{dados.avisoContatos}</div>}
+              {dados.contatos?.length > 0 && (
+                <div style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "#A16207" }}>Vai pra quem (NovaZap):</div>
+                  {dados.contatos.length > 1 ? (
+                    <select value={contatoSel} onChange={(e) => setContatoSel(Number(e.target.value))}
+                      style={{ width: "100%", marginTop: 3, fontSize: 12, padding: "4px 6px", border: "1px solid #FDE68A", borderRadius: 6 }}>
+                      {dados.contatos.map((c: any) => (
+                        <option key={c.id} value={c.id}>{c.nome || "Contato"}{c.cargo ? ` · ${c.cargo}` : ""}{c.telefone ? ` · ${c.telefone}` : ""}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div style={{ fontWeight: 700, color: "#78350F", marginTop: 2 }}>
+                      {contato?.nome || "Contato"}{contato?.cargo ? ` · ${contato.cargo}` : ""}{contato?.telefone ? ` · ${contato.telefone}` : ""}
+                    </div>
+                  )}
+                </div>
+              )}
+              {dados.mensagem && (
+                <div style={{ marginTop: 6, background: "#fff", border: "1px solid #FDE68A", borderRadius: 6, padding: "6px 8px", whiteSpace: "pre-wrap", color: "#374151", maxHeight: 110, overflowY: "auto" }}>
+                  {dados.mensagem}
+                </div>
+              )}
+              {enviada ? (
+                <div style={{ marginTop: 7, color: "#15803D", fontWeight: 800, textAlign: "center" }}><i className="fas fa-check-circle" /> Cobrança enviada (mensagem + PDFs)!</div>
+              ) : (
+                <button onClick={enviar} disabled={enviando || !contatoSel}
+                  style={{ width: "100%", marginTop: 7, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: enviando ? "#94A3B8" : "#15803D", color: "#fff", fontSize: 12, fontWeight: 700, cursor: enviando ? "wait" : "pointer", opacity: contatoSel ? 1 : 0.5 }}>
+                  <i className={enviando ? "fas fa-spinner fa-spin" : "fas fa-paper-plane"} />
+                  {enviando ? "Enviando mensagem e PDFs…" : "Enviar cobrança agora"}
+                </button>
+              )}
+            </>
+          )}
+          <button onClick={() => setAberto(false)} style={{ marginTop: 6, width: "100%", border: "none", background: "transparent", color: "#A16207", fontSize: 11, cursor: "pointer" }}>fechar</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, onAgendar, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; onAgendar?: (orderId: string, dataISO: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null }) {
   const diasFase = diasEntre(o.dataFase);
@@ -142,6 +248,8 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           </select>
         </div>
       )}
+      {/* Cobrança via Tratorilson — só nos cards da fase "Cobrando Cliente" */}
+      {o.status === FASE_COBRANDO && <PainelCobranca osId={o.id} />}
       {/* Reserva/agendamento: marcar → pergunta o dia → Orçamento Aprovado + Data Início */}
       {onAgendar && FASES_RESERVA.has(o.status) && (
         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 7 }}>
@@ -339,6 +447,20 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     try { return new Set<string>(JSON.parse(localStorage.getItem("pos-fases-ocultas") || "[]")); }
     catch { return new Set(); }
   });
+  // "Cobrando Cliente" no TOPO do quadro (antes de Orçamento) — opção por
+  // usuário, com o pino no cabeçalho da fase. Começa LIGADA (fase importante).
+  const [cobrandoTopo, setCobrandoTopo] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    try { return localStorage.getItem("pos-cobranca-topo") !== "0"; } catch { return true; }
+  });
+  const toggleCobrandoTopo = useCallback(() => {
+    setCobrandoTopo((prev) => {
+      const next = !prev;
+      try { localStorage.setItem("pos-cobranca-topo", next ? "1" : "0"); } catch { /* sem storage */ }
+      return next;
+    });
+  }, []);
+
   const toggleOculta = useCallback((phase: string) => {
     setOcultas((prev) => {
       const next = new Set(prev);
@@ -424,9 +546,15 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           </div>
         ) : (
           /* Grouped view */
-          grouped && Object.entries(grouped)
-            .filter(([phase]) => (searchLower ? true : !ocultas.has(phase)))
-            .map(([phase, items]) => (
+          grouped && (() => {
+            let entradas = Object.entries(grouped).filter(([phase]) => (searchLower ? true : !ocultas.has(phase)));
+            // Cobrando Cliente na frente de tudo (opção do pino no cabeçalho)
+            if (cobrandoTopo) {
+              const i = entradas.findIndex(([p]) => p === FASE_COBRANDO);
+              if (i > 0) entradas = [entradas[i], ...entradas.slice(0, i), ...entradas.slice(i + 1)];
+            }
+            return entradas;
+          })().map(([phase, items]) => (
             <div key={phase} className="phase-group">
               <div className="phase-group-header" onClick={() => toggleCollapse(phase)} style={{ cursor: "pointer" }}>
                 <span className="phase-group-chevron" style={{ display: "inline-block", transition: "transform 0.2s", transform: collapsed.has(phase) ? "rotate(-90deg)" : "rotate(0deg)", marginRight: 6 }}>
@@ -442,6 +570,15 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 <span className="phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
                 <span className="phase-group-name">{phase}</span>
                 {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
+                {/* Pino: manter Cobrando Cliente no topo do quadro */}
+                {phase === FASE_COBRANDO && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); toggleCobrandoTopo(); }}
+                    title={cobrandoTopo ? "Fase fixada no topo (antes de Orçamento) — clique pra voltar à ordem normal" : "Fixar esta fase no topo do quadro (antes de Orçamento)"}
+                    style={{ border: "none", background: "transparent", cursor: "pointer", padding: "2px 5px", marginLeft: 6, color: cobrandoTopo ? "#A16207" : "#94a3b8", fontSize: 13 }}>
+                    <i className="fas fa-thumbtack" style={{ transform: cobrandoTopo ? "none" : "rotate(45deg)" }} />
+                  </button>
+                )}
                 {/* "Enviar todas" — só no cabeçalho da fase "Enviar Omie" e se houver fila */}
                 {onEnviarOmieTodas && phase === FASE_ENVIAR_OMIE && items.length > 0 && (
                   <button

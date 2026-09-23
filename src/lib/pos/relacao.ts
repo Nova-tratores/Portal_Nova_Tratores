@@ -71,6 +71,7 @@ const FASES_DEF: Record<string, { label: string; bg: string; text: string }> = {
   "Relatório Concluído": { label: "Rel. concluído", bg: "#ECFEFF", text: "#0891B2" },
   "Enviar Omie": { label: "Enviar Omie", bg: "#FFEDD5", text: "#C2410C" },
   "Enviado Para Omie": { label: "Enviado Omie", bg: "#FFF3E6", text: "#C2570A" },
+  "Cobrando Cliente": { label: "Cobrando cliente", bg: "#FEF9C3", text: "#A16207" },
   "Preenchido Garantia": { label: "Preench. garantia", bg: "#FCE7F3", text: "#BE185D" },
   "Concluída": { label: "Concluída", bg: "#ECFDF5", text: "#047857" },
   "Cancelada": { label: "Cancelada", bg: "#FEF2F2", text: "#B91C1C" },

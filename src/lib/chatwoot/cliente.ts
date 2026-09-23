@@ -90,6 +90,66 @@ export async function listarConversasContato(contactId: number, signal?: AbortSi
   return r?.payload ?? [];
 }
 
+// ── ESCRITA (cobrança do POS via Tratorilson) ──────────────────────────────
+// Envia mensagens numa conversa do contato (texto e PDF). O fluxo normal do
+// chatwoot entrega no WhatsApp (Evolution).
+
+async function chatwootEnvio<T>(path: string, init: RequestInit, timeoutMs = 20000): Promise<T> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(`${baseApiConta()}${path}`, {
+      ...init,
+      headers: { api_access_token: CHATWOOT_API_TOKEN, Accept: "application/json", ...(init.headers || {}) },
+      cache: "no-store",
+      signal: ctrl.signal,
+    });
+    if (!res.ok) {
+      const corpo = await res.text().catch(() => "");
+      const e = new Error(`NovaZap respondeu ${res.status} em ${path}${corpo ? ` — ${corpo.slice(0, 180)}` : ""}`) as ChatwootHttpError;
+      e.http = res.status;
+      throw e;
+    }
+    return (await res.json().catch(() => ({}))) as T;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Conversa do contato pra enviar: a mais recente; sem nenhuma, cria uma nova. */
+export async function garantirConversaContato(contactId: number): Promise<number> {
+  const convs = await listarConversasContato(contactId);
+  if (convs.length > 0 && convs[0]?.id != null) return Number(convs[0].id);
+  const contato = await chatwootGet<{ payload?: { contact_inboxes?: { source_id?: string; inbox?: { id?: number } }[] } }>(
+    `/contacts/${contactId}`
+  );
+  const ci = contato?.payload?.contact_inboxes?.[0];
+  if (!ci?.source_id || !ci?.inbox?.id) throw new Error("Contato sem caixa de WhatsApp no NovaZap.");
+  const nova = await chatwootEnvio<{ id?: number; display_id?: number }>("/conversations", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ source_id: ci.source_id, inbox_id: ci.inbox.id, contact_id: contactId }),
+  });
+  const id = Number(nova?.display_id ?? nova?.id ?? 0);
+  if (!id) throw new Error("NovaZap não devolveu a conversa criada.");
+  return id;
+}
+
+export async function enviarTextoConversa(conversaId: number, content: string): Promise<void> {
+  await chatwootEnvio(`/conversations/${conversaId}/messages`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ content }),
+  });
+}
+
+/** Envia um PDF como anexo (multipart) — vira documento no WhatsApp. */
+export async function enviarPdfConversa(conversaId: number, nomeArquivo: string, bytes: ArrayBuffer): Promise<void> {
+  const form = new FormData();
+  form.append("attachments[]", new Blob([bytes], { type: "application/pdf" }), nomeArquivo);
+  await chatwootEnvio(`/conversations/${conversaId}/messages`, { method: "POST", body: form }, 45000);
+}
+
 // Nomes das caixas de entrada — mudam raramente; cache de 30 min por processo.
 const CACHE_INBOX_MS = 30 * 60 * 1000;
 let cacheInboxes: { em: number; dados: Map<number, string> } | null = null;

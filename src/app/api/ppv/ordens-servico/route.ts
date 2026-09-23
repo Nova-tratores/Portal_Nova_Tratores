@@ -21,6 +21,7 @@ const STATUS_ABERTOS = [
   "Executada aguardando comercial",
   "Enviar Omie",
   "Enviado Para Omie",
+  "Cobrando Cliente",
   "Preenchido Garantia",
 ];
 
