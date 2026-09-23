@@ -244,6 +244,62 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     const t = setInterval(carregar, 60000)
     return () => { vivo = false; clearInterval(t) }
   }, [zapPanelOpen, temSolicitacoes])
+  // Alerta CENTRAL 2: o Tratorilson NÃO SABE lidar com uma situação nova e
+  // PERGUNTA pros usuários escolhidos — quem responder primeiro ensina ele
+  // (a resposta vira regra na memória). Dispensar só esconde pra este usuário;
+  // a pergunta segue aberta na página do Tratorilson até alguém responder.
+  const [perguntasBot, setPerguntasBot] = useState<any[] | null>(null)
+  const [respostaBot, setRespostaBot] = useState<Record<number, string>>({})
+  const [enviandoResposta, setEnviandoResposta] = useState<number | null>(null)
+  useEffect(() => {
+    if (!temSolicitacoes) return
+    let vivo = true
+    const carregar = async () => {
+      try {
+        const { authHeaders } = await import('@/lib/auth/client')
+        const r = await fetch('/api/tratorilson/perguntas', { headers: await authHeaders(), cache: 'no-store' })
+        const d = await r.json()
+        if (!vivo) return
+        if (!d.souNotificado) { setPerguntasBot(null); return }
+        const abertas = (Array.isArray(d.perguntas) ? d.perguntas : []).filter((p: any) => p.status === 'aberta')
+        let vistos: number[] = []
+        try { vistos = JSON.parse(localStorage.getItem('bot-pergunta-vistos') || '[]') } catch { /* vazio */ }
+        const novas = abertas.filter((p: any) => !vistos.includes(p.id))
+        setPerguntasBot(novas.length ? novas : null)
+      } catch { /* fica quieto */ }
+    }
+    carregar()
+    const t = setInterval(carregar, 60000)
+    return () => { vivo = false; clearInterval(t) }
+  }, [temSolicitacoes])
+  const dispensarPerguntaBot = (id: number) => {
+    try {
+      const vistos: number[] = JSON.parse(localStorage.getItem('bot-pergunta-vistos') || '[]')
+      localStorage.setItem('bot-pergunta-vistos', JSON.stringify([...new Set([...vistos, id])].slice(-200)))
+    } catch { /* sem storage */ }
+    setPerguntasBot((prev) => {
+      const resto = (prev || []).filter((p) => p.id !== id)
+      return resto.length ? resto : null
+    })
+  }
+  const responderPerguntaBot = async (id: number) => {
+    const resposta = (respostaBot[id] || '').trim()
+    if (!resposta || enviandoResposta) return
+    setEnviandoResposta(id)
+    try {
+      const { authHeaders } = await import('@/lib/auth/client')
+      const r = await fetch('/api/tratorilson/perguntas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ id, resposta }),
+      })
+      const j = await r.json()
+      if (r.status === 409) alert(`Alguém respondeu primeiro${j.por ? ` (${j.por})` : ''} — valeu mesmo assim!`)
+      else if (!r.ok) { alert('Não deu para responder: ' + (j.error || r.status)); setEnviandoResposta(null); return }
+      dispensarPerguntaBot(id)
+    } catch { alert('Falha de conexão — tenta de novo.') }
+    setEnviandoResposta(null)
+  }
+
   const dispensarAlertaHumano = (abrirPainel: boolean) => {
     try {
       const vistos: number[] = JSON.parse(localStorage.getItem('zap-humano-vistos') || '[]')
@@ -708,6 +764,46 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               mas o componente fica montado pro modal + som em tempo real.
               Só pra quem tem o módulo `cameras` (admins sempre veem). */}
           {temVigia && <VigiaCameras />}
+
+          {/* Alerta CENTRAL: o Tratorilson NÃO SABE e pergunta — responder ensina ele */}
+          {perguntasBot && perguntasBot.length > 0 && (
+            <div style={{ position: 'fixed', inset: 0, zIndex: 11001, background: 'rgba(15,23,42,0.6)', backdropFilter: 'blur(3px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+              <div style={{ background: 'var(--portal-bg-card)', border: '2px solid #7c3aed', borderRadius: 16, width: 560, maxWidth: '94vw', maxHeight: '84vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 30px 80px rgba(0,0,0,0.5)' }}>
+                <div style={{ padding: '16px 20px', background: '#7c3aed', color: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <Bot size={22} />
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>O Tratorilson não sabe responder</div>
+                    <div style={{ fontSize: 12.5, opacity: 0.9 }}>Situação nova no WhatsApp — explica pra ele o que fazer e isso fica gravado na memória dele. O primeiro que responder ensina.</div>
+                  </div>
+                </div>
+                <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {perguntasBot.map((p: any) => (
+                    <div key={p.id} style={{ border: '1px solid var(--portal-border)', borderLeft: '4px solid #7c3aed', borderRadius: 10, padding: '12px 14px' }}>
+                      <div style={{ fontWeight: 700, fontSize: 13.5, color: 'var(--portal-text)' }}>
+                        {p.contato_nome || 'Contato'} {p.contato_telefone ? <span style={{ fontWeight: 500, color: 'var(--portal-text-secondary)' }}>· {p.contato_telefone}</span> : null}
+                      </div>
+                      {p.contexto ? <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 3 }}>Cliente disse: “{String(p.contexto).slice(0, 180)}”</div> : null}
+                      <div style={{ fontSize: 14, color: 'var(--portal-text)', marginTop: 7, lineHeight: 1.5 }}>🤖 {String(p.pergunta || '').slice(0, 400)}</div>
+                      <textarea
+                        value={respostaBot[p.id] || ''}
+                        onChange={(e) => setRespostaBot((m) => ({ ...m, [p.id]: e.target.value }))}
+                        placeholder="Explica aqui o que ele deve fazer/responder…"
+                        rows={3}
+                        style={{ width: '100%', boxSizing: 'border-box', marginTop: 9, padding: '8px 11px', fontSize: 13.5, border: '1px solid var(--portal-border)', borderRadius: 9, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', resize: 'vertical' }}
+                      />
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 8 }}>
+                        <button onClick={() => dispensarPerguntaBot(p.id)} style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '7px 14px', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: 12.5, fontWeight: 600 }}>Dispensar</button>
+                        <button onClick={() => responderPerguntaBot(p.id)} disabled={enviandoResposta === p.id || !(respostaBot[p.id] || '').trim()}
+                          style={{ background: '#7c3aed', border: 'none', borderRadius: 8, padding: '7px 16px', cursor: 'pointer', color: '#fff', fontSize: 12.5, fontWeight: 700, opacity: (respostaBot[p.id] || '').trim() ? 1 : 0.5 }}>
+                          {enviandoResposta === p.id ? 'Ensinando…' : 'Responder e ensinar'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Alerta CENTRAL: Tratorilson pediu ajuda numa conversa do WhatsApp */}
           {alertaHumano && alertaHumano.length > 0 && (

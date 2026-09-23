@@ -666,6 +666,37 @@ export async function POST(req: NextRequest) {
       }).catch(() => {});
     }
 
+    // Situação NOVA que ele não sabe lidar → pergunta pros usuários do portal
+    // (alerta central pros notificados; a resposta vira regra na memória).
+    const mPergunta = resposta.match(/\[PERGUNTAR_EQUIPE:\s*([\s\S]*?)\]/);
+    if (mPergunta) {
+      const perguntaTxt = mPergunta[1].trim().slice(0, 600);
+      resposta = resposta.replace(/\[PERGUNTAR_EQUIPE:[\s\S]*?\]/g, "").trim();
+      if (!resposta) resposta = "Boa pergunta! Vou confirmar com a equipe aqui e já te retorno, combinado?";
+      if (perguntaTxt) {
+        const dez = telefone ? telefone.replace(/\D/g, "").slice(-10) : "";
+        const jaAbertaPerg: any[] = dez
+          ? await rest(`tratorilson_perguntas?status=eq.aberta&contato_telefone=ilike.*${encodeURIComponent(dez)}*&select=id&limit=1`)
+          : [];
+        if (!jaAbertaPerg.length) {
+          await restPost("tratorilson_perguntas", {
+            contato_nome: nome || null,
+            contato_telefone: telefone || null,
+            pergunta: perguntaTxt,
+            contexto: ultimaPergunta.slice(0, 500) || null,
+          });
+        }
+        await logTratorilson({
+          userName: nome || telefone || "cliente WhatsApp",
+          tipo: "novazap:pergunta",
+          pergunta: ultimaPergunta,
+          resposta: `(perguntou pra equipe) ${perguntaTxt.slice(0, 200)}`,
+          modelo,
+          tokens,
+        }).catch(() => {});
+      }
+    }
+
     // IA pediu HUMANO → silêncio pro cliente + card vermelho no portal
     if (resposta.includes("[PRECISO_DE_HUMANO]")) {
       const jaAberta: any[] = telefone

@@ -52,6 +52,76 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
 
   useEffect(() => { fimRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
 
+  // ── Perguntas do Tratorilson (situações novas do zap) + quem recebe o alerta ──
+  interface Pergunta { id: number; criado_em: string; contato_nome?: string; contato_telefone?: string; pergunta: string; contexto?: string; status: string; resposta?: string; respondido_por?: string }
+  interface UsuarioPortal { nome: string; email: string; avatar_url?: string }
+  const [perguntas, setPerguntas] = useState<Pergunta[]>([])
+  const [respostaPerg, setRespostaPerg] = useState<Record<number, string>>({})
+  const [usuarios, setUsuarios] = useState<UsuarioPortal[]>([])
+  const [notificados, setNotificados] = useState<string[]>([])
+  const [salvandoNotif, setSalvandoNotif] = useState(false)
+  const [avisoPerg, setAvisoPerg] = useState('')
+
+  const carregarPerguntas = useCallback(async () => {
+    try {
+      const r = await fetch('/api/tratorilson/perguntas', { headers: { ...(await authHeaders()) } })
+      const j = await r.json()
+      if (Array.isArray(j.perguntas)) setPerguntas(j.perguntas)
+      if (j.aviso) setAvisoPerg(j.aviso)
+    } catch { /* offline */ }
+  }, [])
+  const carregarNotificados = useCallback(async () => {
+    try {
+      const r = await fetch('/api/tratorilson/notificados', { headers: { ...(await authHeaders()) } })
+      const j = await r.json()
+      if (Array.isArray(j.usuarios)) setUsuarios(j.usuarios)
+      if (Array.isArray(j.notificados)) setNotificados(j.notificados.map((n: any) => String(n.email || '').toLowerCase()))
+    } catch { /* offline */ }
+  }, [])
+  useEffect(() => { carregarPerguntas(); carregarNotificados() }, [carregarPerguntas, carregarNotificados])
+
+  const alternarNotificado = (email: string) => {
+    const e = email.toLowerCase()
+    setNotificados((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : (prev.length >= 5 ? prev : [...prev, e]))
+  }
+  const salvarNotificados = async () => {
+    setSalvandoNotif(true)
+    try {
+      const lista = usuarios.filter((u) => notificados.includes(u.email.toLowerCase())).map((u) => ({ email: u.email, nome: u.nome }))
+      const r = await fetch('/api/tratorilson/notificados', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ notificados: lista }),
+      })
+      if (!r.ok) alert('Não salvou: ' + ((await r.json()).error || r.status))
+    } catch { alert('Falha de conexão.') }
+    setSalvandoNotif(false)
+  }
+  const responderPergunta = async (id: number) => {
+    const resposta = (respostaPerg[id] || '').trim()
+    if (!resposta) return
+    try {
+      const r = await fetch('/api/tratorilson/perguntas', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ id, resposta }),
+      })
+      const j = await r.json()
+      if (r.status === 409) alert(`Alguém respondeu primeiro${j.por ? ` (${j.por})` : ''}.`)
+      else if (!r.ok) { alert('Não deu: ' + (j.error || r.status)); return }
+      setRespostaPerg((m) => ({ ...m, [id]: '' }))
+      carregarPerguntas(); carregarMemorias()
+    } catch { alert('Falha de conexão.') }
+  }
+  const fecharPergunta = async (id: number) => {
+    if (!confirm('Fechar esta pergunta SEM responder? Ele continua sem saber lidar com essa situação.')) return
+    try {
+      await fetch('/api/tratorilson/perguntas', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ id }),
+      })
+      carregarPerguntas()
+    } catch { /* silencioso */ }
+  }
+
   const enviar = async () => {
     const t = texto.trim()
     if (!t || enviando) return
@@ -212,6 +282,78 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
             })}
           </div>
         </div>
+      </div>
+
+      {/* ── PERGUNTAS do Tratorilson: situações novas que ele não soube lidar ── */}
+      <div style={{ borderTop: '1px solid var(--portal-border)', padding: '16px 18px' }}>
+        <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--portal-text)', marginBottom: 4 }}>
+          Perguntas do Tratorilson
+          {perguntas.filter((p) => p.status === 'aberta').length > 0 && (
+            <span style={{ marginLeft: 8, fontSize: 11, fontWeight: 800, background: '#fee2e2', color: '#b91c1c', borderRadius: 999, padding: '2px 9px' }}>
+              {perguntas.filter((p) => p.status === 'aberta').length} em aberto
+            </span>
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 10 }}>
+          Quando ele NÃO SABE lidar com uma situação no WhatsApp, ele pergunta aqui (e no alerta central dos notificados). A resposta vira regra na memória.
+        </div>
+        {avisoPerg && <div style={{ fontSize: 12, color: '#b45309', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: '7px 10px', marginBottom: 10 }}>{avisoPerg}</div>}
+        {perguntas.length === 0 && !avisoPerg && <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>Nenhuma pergunta até agora.</div>}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {perguntas.filter((p) => p.status === 'aberta').map((p) => (
+            <div key={p.id} style={{ border: '1px solid var(--portal-border)', borderLeft: '4px solid #7c3aed', borderRadius: 10, padding: '10px 14px' }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)' }}>
+                {p.contato_nome || 'Contato'}{p.contato_telefone ? ` · ${p.contato_telefone}` : ''}
+                <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, background: '#f3e8ff', color: '#7c3aed', borderRadius: 6, padding: '1px 7px' }}>ABERTA</span>
+              </div>
+              {p.contexto && <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', marginTop: 2 }}>Cliente disse: “{p.contexto}”</div>}
+              <div style={{ fontSize: 13, color: 'var(--portal-text)', marginTop: 6, lineHeight: 1.5 }}>🤖 {p.pergunta}</div>
+              <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'flex-start' }}>
+                <textarea value={respostaPerg[p.id] || ''} onChange={(e) => setRespostaPerg((m) => ({ ...m, [p.id]: e.target.value }))}
+                  placeholder="Explica o que ele deve fazer/responder…" rows={2}
+                  style={{ flex: 1, boxSizing: 'border-box', fontSize: 12.5, padding: 8, borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', fontFamily: 'inherit', resize: 'vertical' }} />
+                <button onClick={() => responderPergunta(p.id)} disabled={!(respostaPerg[p.id] || '').trim()}
+                  style={{ border: 'none', borderRadius: 8, padding: '8px 14px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: '#7c3aed', color: '#fff', opacity: (respostaPerg[p.id] || '').trim() ? 1 : 0.5 }}>Ensinar</button>
+                <button onClick={() => fecharPergunta(p.id)} title="Fechar sem responder"
+                  style={{ border: '1px solid var(--portal-border)', borderRadius: 8, padding: '8px 10px', fontSize: 12, cursor: 'pointer', background: 'var(--portal-bg-card)', color: 'var(--portal-text-muted)' }}>✕</button>
+              </div>
+            </div>
+          ))}
+          {perguntas.filter((p) => p.status !== 'aberta').slice(0, 8).map((p) => (
+            <div key={p.id} style={{ border: '1px solid var(--portal-border)', borderRadius: 10, padding: '8px 14px', opacity: 0.75 }}>
+              <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>
+                🤖 {p.pergunta}
+                <span style={{ marginLeft: 8, fontSize: 10.5, fontWeight: 800, background: p.status === 'respondida' ? '#dcfce7' : 'var(--portal-bg-secondary)', color: p.status === 'respondida' ? '#15803d' : 'var(--portal-text-muted)', borderRadius: 6, padding: '1px 7px' }}>{p.status === 'respondida' ? 'RESPONDIDA' : 'FECHADA'}</span>
+              </div>
+              {p.resposta && <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', marginTop: 3 }}>↳ {p.resposta} <span style={{ color: 'var(--portal-text-faint)' }}>— {p.respondido_por}</span></div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── Quem recebe o alerta central das perguntas (até 5) ── */}
+      <div style={{ borderTop: '1px solid var(--portal-border)', padding: '16px 18px' }}>
+        <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--portal-text)', marginBottom: 4 }}>Quem recebe as perguntas <span style={{ fontWeight: 500, fontSize: 12, color: 'var(--portal-text-muted)' }}>— escolha até 5 usuários ({notificados.length}/5)</span></div>
+        <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 10 }}>
+          Estes usuários veem o alerta no meio da tela quando o Tratorilson pergunta. O primeiro que responder fecha pra todos. Sem ninguém escolhido, os admins recebem.
+        </div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
+          {usuarios.map((u) => {
+            const on = notificados.includes(u.email.toLowerCase())
+            return (
+              <button key={u.email} onClick={() => alternarNotificado(u.email)}
+                title={u.email}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, border: on ? 'none' : '1px solid var(--portal-border)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: on ? '#7c3aed' : 'var(--portal-bg-card)', color: on ? '#fff' : 'var(--portal-text-secondary)' }}>
+                {u.avatar_url ? <img src={u.avatar_url} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} /> : null}
+                {u.nome || u.email}
+              </button>
+            )
+          })}
+        </div>
+        <button onClick={salvarNotificados} disabled={salvandoNotif}
+          style={{ marginTop: 12, border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: '#7c3aed', color: '#fff', opacity: salvandoNotif ? 0.6 : 1 }}>
+          {salvandoNotif ? 'Salvando…' : 'Salvar notificados'}
+        </button>
       </div>
     </div>
   )
