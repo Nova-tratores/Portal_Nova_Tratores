@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, memo, useCallback, useEffect } from "react";
+import { useState, useMemo, memo, useCallback, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { PHASES } from "@/lib/pos/constants";
 import { diasEntre } from "@/lib/pos/utils";
@@ -143,9 +144,10 @@ function PainelCobranca({ osId }: { osId: string }) {
   const [buscaResultados, setBuscaResultados] = useState<any[] | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [vinculando, setVinculando] = useState<number | null>(null);
-  const buscarContatos = async () => {
-    const q = buscaTexto.trim();
-    if (q.length < 2 || buscando) return;
+  const debounceBusca = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const buscarContatos = async (texto?: string) => {
+    const q = (texto ?? buscaTexto).trim();
+    if (q.length < 2) return;
     setBuscando(true);
     try {
       const r = await fetch(`/api/pos/ordens/${osId}/cobrar?buscar=${encodeURIComponent(q)}`, { headers: await authHeaders(), cache: "no-store" });
@@ -154,6 +156,13 @@ function PainelCobranca({ osId }: { osId: string }) {
       if (j.aviso) setErro(j.aviso);
     } catch { setErro("falha na busca de contatos"); }
     setBuscando(false);
+  };
+  // busca AO DIGITAR (350ms depois de parar de teclar)
+  const aoDigitarBusca = (v: string) => {
+    setBuscaTexto(v);
+    if (debounceBusca.current) clearTimeout(debounceBusca.current);
+    if (v.trim().length < 2) { setBuscaResultados(null); return; }
+    debounceBusca.current = setTimeout(() => buscarContatos(v), 350);
   };
   const usarEVincular = async (c: any) => {
     if (vinculando) return;
@@ -236,8 +245,10 @@ function PainelCobranca({ osId }: { osId: string }) {
         </div>
       )}
 
-      {/* MODAL central: buscar contato no NovaZap e vincular ao CNPJ */}
-      {buscaAberta && (
+      {/* MODAL central: buscar contato no NovaZap e vincular ao CNPJ.
+          PORTAL no body: dentro do card (que tem transform no hover) o
+          position:fixed quebrava e a tela piscava. */}
+      {buscaAberta && typeof document !== "undefined" && createPortal(
         <div style={{ position: "fixed", inset: 0, zIndex: 100003, background: "rgba(15,23,42,0.6)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
           onClick={() => { setBuscaAberta(false); setBuscaResultados(null); }}>
           <div onClick={(e) => e.stopPropagation()}
@@ -250,17 +261,14 @@ function PainelCobranca({ osId }: { osId: string }) {
             </div>
             <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" }}>
               <div style={{ display: "flex", gap: 8 }}>
-                <input value={buscaTexto} onChange={(e) => setBuscaTexto(e.target.value)}
+                <input value={buscaTexto} onChange={(e) => aoDigitarBusca(e.target.value)}
                   onKeyDown={(e) => { if (e.key === "Enter") buscarContatos(); }}
-                  placeholder="Nome ou telefone do contato…" autoFocus
+                  placeholder="Nome, telefone ou CLIENTE (traz os contatos vinculados)…" autoFocus
                   style={{ flex: 1, minWidth: 0, fontSize: 13.5, padding: "9px 12px", border: "1px solid var(--border, #CBD5E1)", borderRadius: 9 }} />
-                <button onClick={buscarContatos} disabled={buscando}
-                  style={{ border: "none", background: "#0369A1", color: "#fff", borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
-                  {buscando ? <i className="fas fa-spinner fa-spin" /> : "Buscar"}
-                </button>
+                {buscando && <i className="fas fa-spinner fa-spin" style={{ alignSelf: "center", color: "#0369A1" }} />}
               </div>
               <div style={{ fontSize: 11.5, color: "#94A3B8" }}>
-                Escolher um contato aqui também SALVA o vínculo dele com o CNPJ deste cliente — na próxima cobrança ele já aparece direto.
+                Vai aparecendo conforme você digita. Pesquisar pelo NOME DO CLIENTE também traz os contatos já vinculados a ele. Escolher um contato SALVA o vínculo com o CNPJ — na próxima cobrança ele aparece direto.
               </div>
               {buscaResultados && (
                 <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
@@ -287,7 +295,8 @@ function PainelCobranca({ osId }: { osId: string }) {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

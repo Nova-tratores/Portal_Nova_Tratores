@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
 import { authHeaders } from "@/lib/auth/client";
@@ -2274,8 +2275,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         </div>
       </div>
 
-      {/* MODAL central: cancelar exige MOTIVO (não deixa cancelar sem) */}
-      {cancelModal && (
+      {/* MODAL central: cancelar exige MOTIVO (não deixa cancelar sem).
+          PORTAL no body — o drawer tem transform e prenderia o fixed. */}
+      {cancelModal && typeof document !== "undefined" && createPortal(
         <div style={{ position: "fixed", inset: 0, zIndex: 100002, background: "rgba(15,23,42,0.6)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
           <div style={{ background: "var(--surface, #fff)", border: "2px solid #C62828", borderRadius: 16, width: 480, maxWidth: "94vw", overflow: "hidden", boxShadow: "0 30px 80px rgba(0,0,0,0.5)" }}>
             <div style={{ padding: "14px 18px", background: "#C62828", color: "#fff", display: "flex", alignItems: "center", gap: 10 }}>
@@ -2299,7 +2301,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       <SearchModal title="Pesquisar Equipamento / Chassis" placeholder="Digite chassis, modelo ou número..." apiUrl="/api/pos/buscas/projetos" paramName="termo" visible={showProjModal} onClose={() => setShowProjModal(false)}
