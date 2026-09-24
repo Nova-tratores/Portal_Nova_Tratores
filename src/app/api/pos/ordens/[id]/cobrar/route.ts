@@ -8,7 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { autenticar } from "@/lib/auth/server";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { buscarWhatsappDoCliente } from "@/lib/chatwoot/contatos-cliente";
-import { garantirConversaContato, enviarTextoConversa, enviarPdfConversa } from "@/lib/chatwoot/cliente";
+import { garantirConversaContato, enviarTextoConversa, enviarPdfConversa, buscarContatosPorTexto, atualizarAtributosContato } from "@/lib/chatwoot/cliente";
 import { chatwootConfigurado } from "@/lib/chatwoot/config";
 
 export const runtime = "nodejs";
@@ -51,6 +51,19 @@ function finalChassi(servSolicitado: unknown, projeto: unknown): string {
   return alnum.slice(-4) || "—";
 }
 
+// Cadastro Omie do cliente da OS (códigos + registros pro vínculo)
+async function clienteCadastro(os: any): Promise<{ codigos: string[]; registros: any[] }> {
+  const doc = soDigitos(os.Cnpj_Cliente);
+  const { data: cad } = await supabase
+    .from("portal_nt_clientes_cadastro_omie")
+    .select("cod_cli, empresa, cnpj_cpf, razao_social, nome_fantasia")
+    .or(`razao_social.ilike.%${String(os.Os_Cliente || "").replace(/[%,()]/g, " ").trim()}%${doc ? `,cnpj_cpf.ilike.%${doc.slice(-6)}%` : ""}`)
+    .limit(30);
+  const registros = (cad || []).filter((c) => (doc ? soDigitos(c.cnpj_cpf) === doc : true));
+  const codigos = [...new Set(registros.map((c) => String(c.cod_cli)))];
+  return { codigos, registros };
+}
+
 interface DadosCobranca {
   os: any;
   contatos: { id: number; nome: string | null; cargo: string | null; telefone: string | null }[];
@@ -59,29 +72,22 @@ interface DadosCobranca {
   valorPV: number;
   total: number;
   nCodOS: number;
-  codPedido: number;
+  codPedidos: number[];
+  numsPV: string[];
   mensagem: (nomeContato: string) => string;
   cliente: { nome: string; cnpj: string };
 }
 
 async function montarCobranca(id: string): Promise<DadosCobranca | { erro: string; status: number }> {
   const { data: rows } = await supabase.from(TBL_OS)
-    .select("Id_Ordem, Os_Cliente, Cnpj_Cliente, Os_Tecnico, Projeto, Serv_Solicitado, Data_Fim_Servico, Data, Ordem_Omie, Pedido_Venda, Status")
+    .select("Id_Ordem, Os_Cliente, Cnpj_Cliente, Os_Tecnico, Projeto, Serv_Solicitado, Data_Fim_Servico, Data, Ordem_Omie, Pedido_Venda, ID_PPV, Status")
     .eq("Id_Ordem", id).limit(1);
   const os = rows?.[0];
   if (!os) return { erro: "OS não encontrada.", status: 404 };
   if (!os.Ordem_Omie) return { erro: "Esta OS ainda não foi enviada ao Omie.", status: 400 };
 
   // ── Códigos Omie do cliente (pelo CNPJ; fallback razão social) ──
-  const doc = soDigitos(os.Cnpj_Cliente);
-  const { data: cad } = await supabase
-    .from("portal_nt_clientes_cadastro_omie")
-    .select("cod_cli, cnpj_cpf, razao_social")
-    .or(`razao_social.ilike.%${String(os.Os_Cliente || "").replace(/[%,()]/g, " ").trim()}%${doc ? `,cnpj_cpf.ilike.%${doc.slice(-6)}%` : ""}`)
-    .limit(30);
-  const codigos = [...new Set((cad || [])
-    .filter((c) => (doc ? soDigitos(c.cnpj_cpf) === doc : true))
-    .map((c) => String(c.cod_cli)))];
+  const { codigos, registros } = await clienteCadastro(os);
 
   // ── Contatos do WhatsApp (NovaZap) vinculados ao cliente ──
   let contatos: DadosCobranca["contatos"] = [];
@@ -100,15 +106,31 @@ async function montarCobranca(id: string): Promise<DadosCobranca | { erro: strin
   const c = await omie<any>("/servicos/os/", "ConsultarOS", { cNumOS: String(os.Ordem_Omie) });
   const nCodOS = Number(c?.Cabecalho?.nCodOS || 0);
   const valorOS = Number(c?.Cabecalho?.nValorTotal || 0);
+
+  // Números dos Pedidos de Venda: o campo da OS quando existir; senão o
+  // pedido_omie dos PPVs vinculados (o envio pelo drawer não grava na OS).
+  let pvNums = String(os.Pedido_Venda || "").split(",").map((s: string) => s.trim()).filter(Boolean);
+  if (!pvNums.length && os.ID_PPV) {
+    const ids = String(os.ID_PPV).split(",").map((s: string) => s.trim()).filter(Boolean);
+    if (ids.length) {
+      const { data: peds } = await supabase.from("pedidos")
+        .select("id_pedido, pedido_omie")
+        .in("id_pedido", ids);
+      pvNums = (peds || []).map((p) => String(p.pedido_omie || "").trim()).filter(Boolean);
+    }
+  }
+
   let valorPV = 0;
-  let codPedido = 0;
-  if (os.Pedido_Venda) {
+  const codPedidos: number[] = [];
+  const numsPV: string[] = [];
+  for (const num of [...new Set(pvNums)]) {
     try {
-      const p = await omie<any>("/produtos/pedido/", "ConsultarPedido", { numero_pedido: String(os.Pedido_Venda) });
+      const p = await omie<any>("/produtos/pedido/", "ConsultarPedido", { numero_pedido: num });
       const pv = p?.pedido_venda_produto || p;
-      valorPV = Number(pv?.total_pedido?.valor_total_pedido || 0);
-      codPedido = Number(pv?.cabecalho?.codigo_pedido || 0);
-    } catch { /* PV sem consulta — segue só com a OS */ }
+      valorPV += Number(pv?.total_pedido?.valor_total_pedido || 0);
+      const cod = Number(pv?.cabecalho?.codigo_pedido || 0);
+      if (cod) { codPedidos.push(cod); numsPV.push(num); }
+    } catch { /* PV sem consulta — segue com o que somou */ }
   }
   const total = valorOS + valorPV;
 
@@ -130,7 +152,7 @@ async function montarCobranca(id: string): Promise<DadosCobranca | { erro: strin
   };
 
   return {
-    os, contatos, avisoContatos, valorOS, valorPV, total, nCodOS, codPedido, mensagem,
+    os, contatos, avisoContatos, valorOS, valorPV, total, nCodOS, codPedidos, numsPV, mensagem,
     cliente: { nome: String(os.Os_Cliente || ""), cnpj: String(os.Cnpj_Cliente || "") },
   };
 }
@@ -140,6 +162,31 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   if (!auth.isAdmin && !auth.modulos.includes("pos")) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   const { id } = await params;
+
+  // ?buscar=texto → busca LIVRE de contatos no NovaZap (como no próprio chatwoot),
+  // pra escolher/vincular um contato que ainda não está no CNPJ.
+  const buscar = (req.nextUrl.searchParams.get("buscar") || "").trim();
+  if (buscar) {
+    if (!chatwootConfigurado()) return NextResponse.json({ busca: [], aviso: "NovaZap não configurado neste ambiente." });
+    if (buscar.length < 2) return NextResponse.json({ busca: [] });
+    try {
+      const brutos = await buscarContatosPorTexto(buscar, 1);
+      const busca = brutos.slice(0, 12).map((c) => {
+        const a = (c.custom_attributes || {}) as Record<string, unknown>;
+        return {
+          id: c.id,
+          nome: c.name || null,
+          telefone: c.phone_number || null,
+          cargo: (a.cliente_cargo as string) || null,
+          clienteAtual: (a.cliente as string) || null,
+        };
+      });
+      return NextResponse.json({ busca });
+    } catch (e) {
+      return NextResponse.json({ busca: [], aviso: e instanceof Error ? e.message : "falha na busca" });
+    }
+  }
+
   try {
     const d = await montarCobranca(id);
     if ("erro" in d) return NextResponse.json({ error: d.erro }, { status: d.status });
@@ -164,11 +211,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const contatoId = Number(body?.contatoId || 0);
   if (!contatoId) return NextResponse.json({ error: "Escolha o contato que vai receber." }, { status: 400 });
 
+  // acao=vincular → salva o contato escolhido no CNPJ do cliente (cliente_ref),
+  // igual ao vínculo feito dentro do chatwoot. Não envia nada ainda.
+  if (body?.acao === "vincular") {
+    try {
+      const { data: rows } = await supabase.from(TBL_OS)
+        .select("Os_Cliente, Cnpj_Cliente").eq("Id_Ordem", id).limit(1);
+      const os = rows?.[0];
+      if (!os) return NextResponse.json({ error: "OS não encontrada." }, { status: 404 });
+      const { registros } = await clienteCadastro(os);
+      const reg = registros[0];
+      if (!reg) return NextResponse.json({ error: "Não achei o cliente no cadastro Omie pra vincular." }, { status: 400 });
+      const nome = reg.nome_fantasia || reg.razao_social || "";
+      await atualizarAtributosContato(contatoId, {
+        cliente: nome ? `${nome} (cód ${reg.cod_cli})` : String(reg.cod_cli ?? ""),
+        cliente_ref: `${reg.cod_cli ?? ""}:${reg.empresa ?? ""}`,
+      });
+      return NextResponse.json({ ok: true, vinculadoA: nome || String(reg.cod_cli) });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao vincular o contato." }, { status: 502 });
+    }
+  }
+
   try {
     const d = await montarCobranca(id);
     if ("erro" in d) return NextResponse.json({ error: d.erro }, { status: d.status });
-    const contato = d.contatos.find((c) => c.id === contatoId);
-    if (!contato) return NextResponse.json({ error: "Contato não está entre os vinculados a este cliente." }, { status: 400 });
+    let contato = d.contatos.find((c) => c.id === contatoId);
+    if (!contato) {
+      // contato recém-vinculado ainda não caiu na busca (cache de 5 min) —
+      // confere direto no chatwoot em vez de recusar
+      const { chatwootGet } = await import("@/lib/chatwoot/cliente");
+      const c = await chatwootGet<{ payload?: { id?: number; name?: string | null; phone_number?: string | null } }>(`/contacts/${contatoId}`);
+      if (!c?.payload?.id) return NextResponse.json({ error: "Contato não encontrado no NovaZap." }, { status: 400 });
+      contato = { id: contatoId, nome: c.payload.name || null, cargo: null, telefone: c.payload.phone_number || null };
+    }
 
     const conversa = await garantirConversaContato(contatoId);
     await enviarTextoConversa(conversa, d.mensagem(contato.nome || ""));
@@ -185,13 +261,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         }
       } catch (e) { console.warn("[cobrar] PDF da OS falhou:", e); }
     }
-    if (d.codPedido) {
+    for (let i = 0; i < d.codPedidos.length; i++) {
       try {
-        const doc = await omie<any>("/produtos/dfedocs/", "ObterPedVenda", { nIdPed: d.codPedido });
+        const doc = await omie<any>("/produtos/dfedocs/", "ObterPedVenda", { nIdPed: d.codPedidos[i] });
         if (doc?.cPdfPed) {
           const pdf = await fetch(String(doc.cPdfPed)).then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`PDF PV ${r.status}`))));
-          await enviarPdfConversa(conversa, `Pedido_${String(d.os.Pedido_Venda).replace(/^0+/, "")}.pdf`, pdf);
-          enviados.push("PDF do PV");
+          await enviarPdfConversa(conversa, `Pedido_${String(d.numsPV[i] || i + 1).replace(/^0+/, "")}.pdf`, pdf);
+          enviados.push(`PDF do PV ${String(d.numsPV[i]).replace(/^0+/, "")}`);
         }
       } catch (e) { console.warn("[cobrar] PDF do PV falhou:", e); }
     }

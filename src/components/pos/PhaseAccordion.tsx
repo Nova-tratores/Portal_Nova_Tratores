@@ -137,6 +137,46 @@ function PainelCobranca({ osId }: { osId: string }) {
   const contato = dados?.contatos?.find((c: any) => c.id === contatoSel);
   const din = (n: number) => n?.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
 
+  // Busca LIVRE de contatos no NovaZap (como no chatwoot) + vincular ao CNPJ
+  const [buscaAberta, setBuscaAberta] = useState(false);
+  const [buscaTexto, setBuscaTexto] = useState("");
+  const [buscaResultados, setBuscaResultados] = useState<any[] | null>(null);
+  const [buscando, setBuscando] = useState(false);
+  const [vinculando, setVinculando] = useState<number | null>(null);
+  const buscarContatos = async () => {
+    const q = buscaTexto.trim();
+    if (q.length < 2 || buscando) return;
+    setBuscando(true);
+    try {
+      const r = await fetch(`/api/pos/ordens/${osId}/cobrar?buscar=${encodeURIComponent(q)}`, { headers: await authHeaders(), cache: "no-store" });
+      const j = await r.json();
+      setBuscaResultados(Array.isArray(j.busca) ? j.busca : []);
+      if (j.aviso) setErro(j.aviso);
+    } catch { setErro("falha na busca de contatos"); }
+    setBuscando(false);
+  };
+  const usarEVincular = async (c: any) => {
+    if (vinculando) return;
+    setVinculando(c.id); setErro("");
+    try {
+      const r = await fetch(`/api/pos/ordens/${osId}/cobrar`, {
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ acao: "vincular", contatoId: c.id }),
+      });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+      // entra na lista, vira o destino e a mensagem ganha o nome dele
+      setDados((prev: any) => prev && ({
+        ...prev,
+        contatos: prev.contatos.some((x: any) => x.id === c.id) ? prev.contatos : [{ id: c.id, nome: c.nome, cargo: c.cargo, telefone: c.telefone }, ...prev.contatos],
+        avisoContatos: null,
+      }));
+      setContatoSel(c.id);
+      setBuscaAberta(false); setBuscaResultados(null); setBuscaTexto("");
+    } catch (e) { setErro(e instanceof Error ? e.message : "falha ao vincular"); }
+    setVinculando(null);
+  };
+
   return (
     <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
       {!aberto ? (
@@ -172,6 +212,50 @@ function PainelCobranca({ osId }: { osId: string }) {
                   )}
                 </div>
               )}
+              {/* Buscar OUTRO contato no NovaZap e salvar no CNPJ */}
+              <div style={{ marginTop: 6 }}>
+                {!buscaAberta ? (
+                  <button onClick={() => setBuscaAberta(true)}
+                    style={{ border: "none", background: "transparent", color: "#A16207", fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+                    <i className="fas fa-search" style={{ marginRight: 4 }} />Buscar outro contato no NovaZap
+                  </button>
+                ) : (
+                  <div style={{ border: "1px dashed #FDE68A", borderRadius: 6, padding: "6px 8px", background: "#fff" }}>
+                    <div style={{ display: "flex", gap: 6 }}>
+                      <input value={buscaTexto} onChange={(e) => setBuscaTexto(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === "Enter") buscarContatos(); }}
+                        placeholder="nome ou telefone…" autoFocus
+                        style={{ flex: 1, minWidth: 0, fontSize: 12, padding: "4px 7px", border: "1px solid #FDE68A", borderRadius: 6 }} />
+                      <button onClick={buscarContatos} disabled={buscando}
+                        style={{ border: "none", background: "#A16207", color: "#fff", borderRadius: 6, padding: "4px 10px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                        {buscando ? <i className="fas fa-spinner fa-spin" /> : "Buscar"}
+                      </button>
+                      <button onClick={() => { setBuscaAberta(false); setBuscaResultados(null); }} title="Fechar busca"
+                        style={{ border: "none", background: "transparent", color: "#A16207", cursor: "pointer", fontSize: 13 }}>×</button>
+                    </div>
+                    {buscaResultados && (
+                      <div style={{ marginTop: 6, maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
+                        {buscaResultados.length === 0 && <div style={{ color: "#94a3b8", fontSize: 11.5 }}>Nenhum contato encontrado.</div>}
+                        {buscaResultados.map((c: any) => (
+                          <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, border: "1px solid #F3F4F6", borderRadius: 6, padding: "4px 7px" }}>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 700, color: "#374151", fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {c.nome || "Sem nome"}{c.telefone ? ` · ${c.telefone}` : ""}
+                              </div>
+                              {c.clienteAtual && <div style={{ fontSize: 10, color: "#94a3b8" }}>vinculado a: {c.clienteAtual}</div>}
+                            </div>
+                            <button onClick={() => usarEVincular(c)} disabled={vinculando === c.id}
+                              title="Usa este contato na cobrança e SALVA o vínculo dele com o CNPJ deste cliente"
+                              style={{ border: "none", background: "#15803D", color: "#fff", borderRadius: 6, padding: "3px 9px", fontSize: 10.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                              {vinculando === c.id ? <i className="fas fa-spinner fa-spin" /> : "Usar e vincular"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
               {dados.mensagem && (
                 <div style={{ marginTop: 6, background: "#fff", border: "1px solid #FDE68A", borderRadius: 6, padding: "6px 8px", whiteSpace: "pre-wrap", color: "#374151", maxHeight: 110, overflowY: "auto" }}>
                   {dados.mensagem}
@@ -555,7 +639,13 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
             }
             return entradas;
           })().map(([phase, items]) => (
-            <div key={phase} className="phase-group">
+            <div key={phase} className="phase-group"
+              style={phase === FASE_COBRANDO ? {
+                border: "2px solid #F59E0B", borderRadius: 14,
+                background: "rgba(245, 158, 11, 0.07)",
+                padding: "12px 16px 6px", marginBottom: 18,
+                boxShadow: "0 4px 16px rgba(245, 158, 11, 0.15)",
+              } : undefined}>
               <div className="phase-group-header" onClick={() => toggleCollapse(phase)} style={{ cursor: "pointer" }}>
                 <span className="phase-group-chevron" style={{ display: "inline-block", transition: "transform 0.2s", transform: collapsed.has(phase) ? "rotate(-90deg)" : "rotate(0deg)", marginRight: 6 }}>
                   <i className="fas fa-chevron-down" />
@@ -570,6 +660,12 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 <span className="phase-group-dot" style={{ background: PHASE_COLORS[phase] }} />
                 <span className="phase-group-name">{phase}</span>
                 {!SEM_CONTAGEM.has(phase) && <span className="phase-group-count">{items.length}</span>}
+                {/* Selo: esta fase é DIFERENTE — dinheiro na mesa */}
+                {phase === FASE_COBRANDO && (
+                  <span style={{ marginLeft: 8, fontSize: 10, fontWeight: 800, letterSpacing: 0.8, color: "#92400E", background: "#FDE68A", borderRadius: 999, padding: "2px 10px", textTransform: "uppercase" }}>
+                    <i className="fas fa-comment-dollar" style={{ marginRight: 4 }} />Cobrança
+                  </span>
+                )}
                 {/* Pino: manter Cobrando Cliente no topo do quadro */}
                 {phase === FASE_COBRANDO && (
                   <button

@@ -143,6 +143,17 @@ export async function enviarTextoConversa(conversaId: number, content: string): 
   });
 }
 
+/** Atualiza os atributos personalizados de um contato (merge, não sobrescreve). */
+export async function atualizarAtributosContato(contactId: number, novos: Record<string, unknown>): Promise<void> {
+  const atual = await chatwootGet<{ payload?: { custom_attributes?: Record<string, unknown> } }>(`/contacts/${contactId}`);
+  const existentes = atual?.payload?.custom_attributes || {};
+  await chatwootEnvio(`/contacts/${contactId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ custom_attributes: { ...existentes, ...novos } }),
+  });
+}
+
 /** Envia um PDF como anexo (multipart) — vira documento no WhatsApp. */
 export async function enviarPdfConversa(conversaId: number, nomeArquivo: string, bytes: ArrayBuffer): Promise<void> {
   const form = new FormData();
