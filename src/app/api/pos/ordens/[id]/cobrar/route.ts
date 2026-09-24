@@ -196,11 +196,30 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           }
         }
         if (convId) {
-          const [d, m, a] = String(ult.Data_Acao || "").split("/");
-          const desde = new Date(`${a}-${m}-${d}T${String(ult.Hora_Acao || "00:00:00")}-03:00`).getTime() / 1000;
           const msgs = await listarMensagensConversa(convId);
-          respostas = msgs
-            .filter((mm: any) => Number(mm.message_type) === 0 && !mm.private && Number(mm.created_at || 0) > desde)
+          // Âncora: a ÚLTIMA mensagem da própria cobrança dentro da conversa
+          // (mensagem-modelo, PDFs ou a pergunta da preferência) — resposta é o
+          // que o cliente mandou DEPOIS dela. Não depende do relógio do log
+          // (o Railway grava em UTC e o filtro por hora deixava tudo de fora).
+          const ehCobranca = (mm: any) => {
+            if (Number(mm.message_type) !== 1) return false;
+            const t = String(mm.content || "");
+            if (/Segue o orçamento|Valor Total:|^Posso fechar para /i.test(t)) return true;
+            const anexos = Array.isArray(mm.attachments) ? mm.attachments : [];
+            return anexos.some((ax: any) => /(Ordem|Pedido)_\d+/i.test(String(ax?.file_name || ax?.data_url || "")));
+          };
+          let corte = -1;
+          msgs.forEach((mm: any, i: number) => { if (ehCobranca(mm)) corte = i; });
+          let candidatas = corte >= 0 ? msgs.slice(corte + 1) : msgs;
+          if (corte < 0) {
+            // cobrança fora da janela de mensagens — corta pelo horário do log,
+            // lido como UTC (interpretação mais folgada; só inclui a mais)
+            const [d, m, a] = String(ult.Data_Acao || "").split("/");
+            const desde = new Date(`${a}-${m}-${d}T${String(ult.Hora_Acao || "00:00:00")}Z`).getTime() / 1000;
+            candidatas = msgs.filter((mm: any) => Number(mm.created_at || 0) > desde);
+          }
+          respostas = candidatas
+            .filter((mm: any) => Number(mm.message_type) === 0 && !mm.private)
             .slice(-3)
             .map((mm: any) => {
               const dt = new Date((Number(mm.created_at) - 3 * 3600) * 1000).toISOString();
@@ -350,12 +369,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       enviados.push(`pergunta "Posso fechar para ${preferencia}?"`);
     }
 
-    // Log na timeline da OS
-    const agora = new Date();
+    // Log na timeline da OS — hora do BRASIL (o Railway roda em UTC; sem o
+    // ajuste o log saía 3h adiantado)
+    const agora = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
     await supabase.from(TBL_LOGS_PPO).insert({
       Id_ppo: id,
-      Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
-      Hora_Acao: agora.toLocaleTimeString("pt-BR"),
+      Data_Acao: `${agora.slice(8, 10)}/${agora.slice(5, 7)}/${agora.slice(0, 4)}`,
+      Hora_Acao: agora.slice(11, 19),
       UsuEmail: auth.email || "portal",
       acao: `Cobrança enviada via Tratorilson pra ${contato.nome || "contato"} (${contato.telefone || "sem nº"}) — R$ ${din(d.total)}${enviados.length ? ` + ${enviados.join(" e ")}` : ""} [conv ${conversa}]`,
       Status_Anterior: d.os.Status, Status_Atual: d.os.Status,
