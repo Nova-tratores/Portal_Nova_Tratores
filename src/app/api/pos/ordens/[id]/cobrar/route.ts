@@ -66,7 +66,7 @@ async function clienteCadastro(os: any): Promise<{ codigos: string[]; registros:
 
 interface DadosCobranca {
   os: any;
-  contatos: { id: number; nome: string | null; cargo: string | null; telefone: string | null }[];
+  contatos: { id: number; nome: string | null; cargo: string | null; telefone: string | null; preferenciaFaturamento: string | null }[];
   avisoContatos: string | null;
   valorOS: number;
   valorPV: number;
@@ -96,7 +96,7 @@ async function montarCobranca(id: string): Promise<DadosCobranca | { erro: strin
   else if (!codigos.length) avisoContatos = "Não achei o cliente no cadastro Omie (pelo CNPJ) pra buscar os contatos.";
   else {
     const secao = await buscarWhatsappDoCliente(codigos);
-    if (secao.estado === "ok") contatos = secao.contatos.map((c: any) => ({ id: c.id, nome: c.nome ?? null, cargo: c.cargo ?? null, telefone: c.telefone ?? null }));
+    if (secao.estado === "ok") contatos = secao.contatos.map((c: any) => ({ id: c.id, nome: c.nome ?? null, cargo: c.cargo ?? null, telefone: c.telefone ?? null, preferenciaFaturamento: c.preferencia_faturamento ?? null }));
     else if (secao.estado === "sem_contatos") avisoContatos = "Nenhum contato do WhatsApp vinculado a este cliente no NovaZap.";
     else if (secao.estado === "indisponivel") avisoContatos = `NovaZap indisponível agora (${(secao as any).motivo || "tente de novo"}).`;
     else avisoContatos = "NovaZap não configurado.";
@@ -216,6 +216,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const contatoId = Number(body?.contatoId || 0);
   if (!contatoId) return NextResponse.json({ error: "Escolha o contato que vai receber." }, { status: 400 });
 
+  // acao=preferencia → salva a PREFERÊNCIA DE FATURAMENTO no contato do
+  // chatwoot (ex.: "30 dias") — preenchida na capa do card.
+  if (body?.acao === "preferencia") {
+    const preferencia = String(body?.preferencia || "").trim().slice(0, 60);
+    try {
+      await atualizarAtributosContato(contatoId, { preferencia_faturamento: preferencia || null });
+      return NextResponse.json({ ok: true });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao salvar a preferência." }, { status: 502 });
+    }
+  }
+
   // acao=vincular → salva o contato escolhido no CNPJ do cliente (cliente_ref),
   // igual ao vínculo feito dentro do chatwoot. Não envia nada ainda.
   if (body?.acao === "vincular") {
@@ -248,7 +260,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const { chatwootGet } = await import("@/lib/chatwoot/cliente");
       const c = await chatwootGet<{ payload?: { id?: number; name?: string | null; phone_number?: string | null } }>(`/contacts/${contatoId}`);
       if (!c?.payload?.id) return NextResponse.json({ error: "Contato não encontrado no NovaZap." }, { status: 400 });
-      contato = { id: contatoId, nome: c.payload.name || null, cargo: null, telefone: c.payload.phone_number || null };
+      contato = { id: contatoId, nome: c.payload.name || null, cargo: null, telefone: c.payload.phone_number || null, preferenciaFaturamento: null };
     }
 
     const conversa = await garantirConversaContato(contatoId);
@@ -275,6 +287,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           enviados.push(`PDF do PV ${String(d.numsPV[i]).replace(/^0+/, "")}`);
         }
       } catch (e) { console.warn("[cobrar] PDF do PV falhou:", e); }
+    }
+
+    // Preferência de faturamento: salva no contato e pergunta depois dos PDFs
+    const preferencia = String(body?.preferencia || "").trim().slice(0, 60);
+    if (preferencia) {
+      try { await atualizarAtributosContato(contatoId, { preferencia_faturamento: preferencia }); } catch { /* segue */ }
+      await enviarTextoConversa(conversa, `Posso fechar para ${preferencia}?`);
+      enviados.push(`pergunta "Posso fechar para ${preferencia}?"`);
     }
 
     // Log na timeline da OS

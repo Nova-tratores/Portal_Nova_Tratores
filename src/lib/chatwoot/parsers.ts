@@ -36,6 +36,8 @@ export interface ContatoWhatsapp {
   telefone_wa: string | null;
   thumbnail: string | null;
   cliente_ref: string | null;
+  /** Preferência de faturamento do cliente (ex.: "30 dias") — atributo do contato. */
+  preferencia_faturamento: string | null;
   localizacoes: Localizacao[];
   ultima_atividade: string | null; // ISO, do contato
   ultima_conversa: ResumoConversa | null;
@@ -165,6 +167,7 @@ export function paraContatoWhatsapp(c: ContatoBruto, ultima: ConversaBruta | nul
     telefone_wa: normalizarTelefoneWa(telefone),
     thumbnail: String(c.thumbnail ?? "").trim() || null,
     cliente_ref: String(a.cliente_ref ?? "").trim() || null,
+    preferencia_faturamento: String(a.preferencia_faturamento ?? "").trim() || null,
     localizacoes: normalizarLocalizacoes(a),
     ultima_atividade: isoDe(c.last_activity_at),
     ultima_conversa: ultima ? resumirConversa(ultima, inboxes) : null,

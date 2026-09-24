@@ -126,7 +126,7 @@ function PainelCobranca({ osId }: { osId: string }) {
     try {
       const r = await fetch(`/api/pos/ordens/${osId}/cobrar`, {
         method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-        body: JSON.stringify({ contatoId: contatoSel }),
+        body: JSON.stringify({ contatoId: contatoSel, preferencia: prefFat.trim() }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
@@ -137,6 +137,31 @@ function PainelCobranca({ osId }: { osId: string }) {
 
   const contato = dados?.contatos?.find((c: any) => c.id === contatoSel);
   const din = (n: number) => n?.toLocaleString("pt-BR", { minimumFractionDigits: 2 });
+
+  // Preferência de faturamento (vem do chatwoot; preencher aqui SALVA lá).
+  // Com ela preenchida, depois dos PDFs o Tratorilson pergunta
+  // "Posso fechar para {preferência}?".
+  const [prefFat, setPrefFat] = useState("");
+  const [prefSalva, setPrefSalva] = useState(false);
+  useEffect(() => {
+    setPrefFat(String(contato?.preferenciaFaturamento || ""));
+    setPrefSalva(false);
+  }, [contatoSel, dados]); // eslint-disable-line react-hooks/exhaustive-deps
+  const salvarPreferencia = async () => {
+    const v = prefFat.trim();
+    if (!contatoSel || v === String(contato?.preferenciaFaturamento || "")) return;
+    try {
+      const r = await fetch(`/api/pos/ordens/${osId}/cobrar`, {
+        method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
+        body: JSON.stringify({ acao: "preferencia", contatoId: contatoSel, preferencia: v }),
+      });
+      if (r.ok) {
+        setPrefSalva(true);
+        setDados((prev: any) => prev && ({ ...prev, contatos: prev.contatos.map((c: any) => c.id === contatoSel ? { ...c, preferenciaFaturamento: v } : c) }));
+        setTimeout(() => setPrefSalva(false), 2000);
+      }
+    } catch { /* silencioso */ }
+  };
 
   // Busca LIVRE de contatos no NovaZap (como no chatwoot) + vincular ao CNPJ
   const [buscaAberta, setBuscaAberta] = useState(false);
@@ -225,6 +250,23 @@ function PainelCobranca({ osId }: { osId: string }) {
                 style={{ marginTop: 6, border: "none", background: "transparent", color: "#0369A1", fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
                 <i className="fas fa-search" style={{ marginRight: 4 }} />Buscar outro contato no NovaZap
               </button>
+              {/* Preferência de faturamento: vem do chatwoot; preencher SALVA lá.
+                  Preenchida, o Tratorilson pergunta "Posso fechar para X?" após os PDFs. */}
+              {contatoSel > 0 && (
+                <div style={{ marginTop: 7 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "#94A3B8" }}>
+                    Preferência de faturamento {prefSalva && <span style={{ color: "#15803D" }}>✔ salva no NovaZap</span>}
+                  </div>
+                  <input value={prefFat} onChange={(e) => setPrefFat(e.target.value)} onBlur={salvarPreferencia}
+                    placeholder="ex.: 30 dias (vazio = não pergunta)"
+                    style={{ width: "100%", boxSizing: "border-box", marginTop: 3, fontSize: 12, padding: "5px 8px", border: "1px solid var(--border, #E2E8F0)", borderRadius: 6 }} />
+                  {prefFat.trim() && (
+                    <div style={{ fontSize: 10.5, color: "#64748B", marginTop: 2 }}>
+                      Depois dos PDFs ele pergunta: “Posso fechar para {prefFat.trim()}?”
+                    </div>
+                  )}
+                </div>
+              )}
               {dados.mensagem && (
                 <div style={{ marginTop: 7, background: "var(--surface-2, #F8FAFC)", border: "1px solid var(--border, #E2E8F0)", borderRadius: 8, padding: "7px 9px", whiteSpace: "pre-wrap", color: "#475569", maxHeight: 110, overflowY: "auto" }}>
                   {dados.mensagem}
