@@ -9,7 +9,7 @@ import { autenticar } from "@/lib/auth/server";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { buscarWhatsappDoCliente } from "@/lib/chatwoot/contatos-cliente";
 import { garantirConversaContato, enviarTextoConversa, enviarPdfConversa, buscarContatosPorTexto, atualizarAtributosContato } from "@/lib/chatwoot/cliente";
-import { chatwootConfigurado } from "@/lib/chatwoot/config";
+import { chatwootConfigurado, chatwootVariaveisFaltando } from "@/lib/chatwoot/config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,7 +92,7 @@ async function montarCobranca(id: string): Promise<DadosCobranca | { erro: strin
   // ── Contatos do WhatsApp (NovaZap) vinculados ao cliente ──
   let contatos: DadosCobranca["contatos"] = [];
   let avisoContatos: string | null = null;
-  if (!chatwootConfigurado()) avisoContatos = "NovaZap não configurado neste ambiente.";
+  if (!chatwootConfigurado()) avisoContatos = `NovaZap não configurado neste ambiente — faltando no Railway: ${chatwootVariaveisFaltando().join(", ")}.`;
   else if (!codigos.length) avisoContatos = "Não achei o cliente no cadastro Omie (pelo CNPJ) pra buscar os contatos.";
   else {
     const secao = await buscarWhatsappDoCliente(codigos);

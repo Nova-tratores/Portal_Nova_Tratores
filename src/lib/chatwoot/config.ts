@@ -15,6 +15,15 @@ export function chatwootConfigurado(): boolean {
   return Boolean(CHATWOOT_URL && CHATWOOT_ACCOUNT_ID && CHATWOOT_API_TOKEN);
 }
 
+/** Quais das 3 variáveis estão faltando/vazias — pro aviso dizer o nome. */
+export function chatwootVariaveisFaltando(): string[] {
+  const faltam: string[] = [];
+  if (!CHATWOOT_URL) faltam.push("CHATWOOT_URL");
+  if (!CHATWOOT_ACCOUNT_ID) faltam.push("CHATWOOT_ACCOUNT_ID");
+  if (!CHATWOOT_API_TOKEN) faltam.push("CHATWOOT_API_TOKEN");
+  return faltam;
+}
+
 /** Base da API de conta: `${URL}/api/v1/accounts/${id}`. */
 export function baseApiConta(): string {
   return `${CHATWOOT_URL}/api/v1/accounts/${CHATWOOT_ACCOUNT_ID}`;
