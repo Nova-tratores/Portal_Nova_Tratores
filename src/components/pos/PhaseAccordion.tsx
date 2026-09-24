@@ -108,19 +108,19 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
 
   // Depois de enviada, a capa fica em "Aguardando cliente responder" (o status
   // sai do log da OS — sobrevive a recarregar a página) + botão pra Concluída.
-  const [statusEnvio, setStatusEnvio] = useState<{ enviada: boolean; quando?: string; para?: string | null } | null>(null);
+  const [statusEnvio, setStatusEnvio] = useState<{ enviada: boolean; quando?: string; para?: string | null; respostas?: { texto: string; quando: string }[] } | null>(null);
   const [confirmaConcluir, setConfirmaConcluir] = useState(false);
-  useEffect(() => {
-    let vivo = true;
-    (async () => {
-      try {
-        const r = await fetch(`/api/pos/ordens/${osId}/cobrar?status=1`, { headers: await authHeaders(), cache: "no-store" });
-        const j = await r.json();
-        if (vivo && r.ok) setStatusEnvio(j);
-      } catch { /* capa segue sem status */ }
-    })();
-    return () => { vivo = false; };
+  const [atualizandoStatus, setAtualizandoStatus] = useState(false);
+  const carregarStatus = useCallback(async () => {
+    setAtualizandoStatus(true);
+    try {
+      const r = await fetch(`/api/pos/ordens/${osId}/cobrar?status=1`, { headers: await authHeaders(), cache: "no-store" });
+      const j = await r.json();
+      if (r.ok) setStatusEnvio(j);
+    } catch { /* capa segue sem status */ }
+    setAtualizandoStatus(false);
   }, [osId]);
+  useEffect(() => { carregarStatus(); }, [carregarStatus]);
   const concluir = () => {
     if (!confirmaConcluir) {
       setConfirmaConcluir(true);
@@ -240,26 +240,49 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
   return (
     <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
       {!aberto ? (
-        statusEnvio?.enviada ? (
-          // Cobrança JÁ enviada: capa mostra a espera + botão de concluir
-          <div style={{ border: "1.5px solid #F59E0B", background: "rgba(251,191,36,0.13)", borderRadius: 9, padding: "8px 10px" }}>
-            <div style={{ fontWeight: 800, color: "#92400E", fontSize: 12 }}>
-              <i className="fas fa-hourglass-half" style={{ marginRight: 5 }} />Aguardando cliente responder
+        statusEnvio?.enviada ? (() => {
+          // Cobrança JÁ enviada: a capa vira o acompanhamento — aguardando (âmbar)
+          // ou, se o cliente já mandou mensagem, o que ele respondeu (verde, em
+          // balões estilo WhatsApp) + botão pra concluir.
+          const resp = statusEnvio.respostas?.length ? statusEnvio.respostas : null;
+          const corTexto = resp ? "#166534" : "#92400E";
+          return (
+            <div style={{ border: `1.5px solid ${resp ? "#4ADE80" : "#FBBF24"}`, background: resp ? "rgba(74,222,128,0.12)" : "rgba(251,191,36,0.12)", borderRadius: 11, padding: "9px 11px", boxShadow: "0 1px 3px rgba(0,0,0,0.07)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{ flex: 1, fontWeight: 800, color: corTexto, fontSize: 12 }}>
+                  <i className={resp ? "fas fa-comment-dots" : "fas fa-hourglass-half"} style={{ marginRight: 5 }} />
+                  {resp ? "Cliente respondeu!" : "Aguardando cliente responder"}
+                </span>
+                <button onClick={carregarStatus} title="Conferir agora se o cliente respondeu"
+                  style={{ border: "none", background: "transparent", color: corTexto, cursor: "pointer", fontSize: 11, padding: 2 }}>
+                  <i className={atualizandoStatus ? "fas fa-spinner fa-spin" : "fas fa-sync-alt"} />
+                </button>
+              </div>
+              <div style={{ fontSize: 10.5, color: corTexto, opacity: 0.75, marginTop: 2 }}>
+                Enviada{statusEnvio.quando ? ` ${statusEnvio.quando}` : ""}{statusEnvio.para ? ` pra ${statusEnvio.para}` : ""}
+              </div>
+              {resp && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 7 }}>
+                  {resp.map((m, i) => (
+                    <div key={i} style={{ background: "var(--surface, #fefefe)", border: "1px solid rgba(22,101,52,0.25)", borderRadius: "10px 10px 10px 3px", padding: "6px 9px", boxShadow: "0 1px 2px rgba(0,0,0,0.06)" }}>
+                      <div style={{ fontSize: 12, color: "var(--texto, #1F2937)", whiteSpace: "pre-wrap", wordBreak: "break-word", maxHeight: 84, overflowY: "auto" }}>{m.texto}</div>
+                      <div style={{ fontSize: 9.5, color: "#94A3B8", textAlign: "right", marginTop: 2 }}>{m.quando}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <button onClick={concluir}
+                style={{ width: "100%", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, padding: "8px 10px", borderRadius: 9, border: "none", background: confirmaConcluir ? "#B45309" : "linear-gradient(135deg, #16A34A, #15803D)", color: "#fff", fontSize: 12, fontWeight: 800, cursor: "pointer", boxShadow: "0 2px 6px rgba(21,128,61,0.35)" }}>
+                <i className={confirmaConcluir ? "fas fa-exclamation-circle" : "fas fa-flag-checkered"} />
+                {confirmaConcluir ? "Clica de novo pra confirmar" : "Tudo certo — mover pra Concluída"}
+              </button>
+              <button onClick={abrir}
+                style={{ width: "100%", marginTop: 4, border: "none", background: "transparent", color: corTexto, opacity: 0.8, fontSize: 11, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>
+                cobrar de novo
+              </button>
             </div>
-            <div style={{ fontSize: 11, color: "#A16207", marginTop: 2 }}>
-              Cobrança enviada{statusEnvio.quando ? ` ${statusEnvio.quando}` : ""}{statusEnvio.para ? ` pra ${statusEnvio.para}` : ""}
-            </div>
-            <button onClick={concluir}
-              style={{ width: "100%", marginTop: 7, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: confirmaConcluir ? "#B45309" : "#15803D", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-              <i className={confirmaConcluir ? "fas fa-exclamation-circle" : "fas fa-check-circle"} />
-              {confirmaConcluir ? "Clica de novo pra confirmar" : "Cliente respondeu — mover pra Concluída"}
-            </button>
-            <button onClick={abrir}
-              style={{ width: "100%", marginTop: 4, border: "none", background: "transparent", color: "#A16207", fontSize: 11, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>
-              cobrar de novo
-            </button>
-          </div>
-        ) : (
+          );
+        })() : (
         <button onClick={abrir}
           style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: "#A16207", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
           <i className="fas fa-comment-dollar" /> Cobrar cliente (Tratorilson)

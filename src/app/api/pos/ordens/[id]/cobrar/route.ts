@@ -8,7 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { autenticar } from "@/lib/auth/server";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { buscarWhatsappDoCliente } from "@/lib/chatwoot/contatos-cliente";
-import { garantirConversaContato, enviarTextoConversa, enviarPdfConversa, buscarContatosPorTexto, atualizarAtributosContato } from "@/lib/chatwoot/cliente";
+import { garantirConversaContato, enviarTextoConversa, enviarPdfConversa, buscarContatosPorTexto, atualizarAtributosContato, listarConversasContato, listarMensagensConversa } from "@/lib/chatwoot/cliente";
 import { chatwootConfigurado, chatwootVariaveisFaltando } from "@/lib/chatwoot/config";
 
 export const runtime = "nodejs";
@@ -176,7 +176,44 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const ult = (logs || []).sort((x, y) => chave(x).localeCompare(chave(y))).pop();
     if (!ult) return NextResponse.json({ enviada: false });
     const para = String(ult.acao || "").match(/via Tratorilson pra (.+?) \(/)?.[1] || null;
-    return NextResponse.json({ enviada: true, quando: `${ult.Data_Acao} ${String(ult.Hora_Acao || "").slice(0, 5)}`, para });
+
+    // O que o cliente respondeu DEPOIS do envio (mensagens recebidas na conversa
+    // do NovaZap). Conversa vem do "[conv N]" do log; logs antigos sem a marca
+    // caem na busca pelo telefone.
+    let respostas: { texto: string; quando: string }[] = [];
+    if (chatwootConfigurado()) {
+      try {
+        let convId = Number(String(ult.acao).match(/\[conv (\d+)\]/)?.[1] || 0);
+        if (!convId) {
+          const dig = (String(ult.acao).match(/\(([^)]+)\)/)?.[1] || "").replace(/\D/g, "");
+          if (dig.length >= 8) {
+            const achados = await buscarContatosPorTexto(dig.slice(-8), 1);
+            const c = achados.find((x) => String(x.phone_number || "").replace(/\D/g, "").endsWith(dig.slice(-8)));
+            if (c?.id) {
+              const convs = await listarConversasContato(Number(c.id));
+              convId = Number(convs[0]?.id || 0);
+            }
+          }
+        }
+        if (convId) {
+          const [d, m, a] = String(ult.Data_Acao || "").split("/");
+          const desde = new Date(`${a}-${m}-${d}T${String(ult.Hora_Acao || "00:00:00")}-03:00`).getTime() / 1000;
+          const msgs = await listarMensagensConversa(convId);
+          respostas = msgs
+            .filter((mm: any) => Number(mm.message_type) === 0 && !mm.private && Number(mm.created_at || 0) > desde)
+            .slice(-3)
+            .map((mm: any) => {
+              const dt = new Date((Number(mm.created_at) - 3 * 3600) * 1000).toISOString();
+              return {
+                texto: String(mm.content || "").trim() || ((mm.attachments?.length ?? 0) > 0 ? "📎 (áudio/foto/anexo)" : ""),
+                quando: `${dt.slice(8, 10)}/${dt.slice(5, 7)} ${dt.slice(11, 16)}`,
+              };
+            })
+            .filter((r) => r.texto);
+        }
+      } catch { /* status sai sem a resposta */ }
+    }
+    return NextResponse.json({ enviada: true, quando: `${ult.Data_Acao} ${String(ult.Hora_Acao || "").slice(0, 5)}`, para, respostas });
   }
 
   // ?buscar=texto → busca LIVRE de contatos no NovaZap (como no próprio chatwoot),
@@ -320,7 +357,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       Data_Acao: new Intl.DateTimeFormat("pt-BR").format(agora),
       Hora_Acao: agora.toLocaleTimeString("pt-BR"),
       UsuEmail: auth.email || "portal",
-      acao: `Cobrança enviada via Tratorilson pra ${contato.nome || "contato"} (${contato.telefone || "sem nº"}) — R$ ${din(d.total)}${enviados.length ? ` + ${enviados.join(" e ")}` : ""}`,
+      acao: `Cobrança enviada via Tratorilson pra ${contato.nome || "contato"} (${contato.telefone || "sem nº"}) — R$ ${din(d.total)}${enviados.length ? ` + ${enviados.join(" e ")}` : ""} [conv ${conversa}]`,
       Status_Anterior: d.os.Status, Status_Atual: d.os.Status,
       Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
     });

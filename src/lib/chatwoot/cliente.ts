@@ -135,6 +135,12 @@ export async function garantirConversaContato(contactId: number): Promise<number
   return id;
 }
 
+/** Mensagens de uma conversa (o chatwoot devolve as ~20 mais recentes, em ordem crescente). */
+export async function listarMensagensConversa(conversaId: number): Promise<Record<string, unknown>[]> {
+  const r = await chatwootGet<{ payload?: Record<string, unknown>[] }>(`/conversations/${conversaId}/messages`, TIMEOUT_CONVERSAS_MS);
+  return r?.payload ?? [];
+}
+
 export async function enviarTextoConversa(conversaId: number, content: string): Promise<void> {
   await chatwootEnvio(`/conversations/${conversaId}/messages`, {
     method: "POST",

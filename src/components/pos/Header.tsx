@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { gateBtn, estiloSemPermissao } from "@/lib/permissoes/ui";
+import ProjetosBusca from "./ProjetosBusca";
 
 export interface PerfilTecnico { nome: string; avatar: string }
 
@@ -112,7 +113,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
             }}>{t.nome.trim().charAt(0).toUpperCase()}</span>
           );
           return (
-            <div style={{ position: "relative", marginRight: "auto" }} ref={tecRef}>
+            <div style={{ position: "relative" }} ref={tecRef}>
               {/* Fechado por padrão: só o botão (mostra o técnico filtrado, se houver) */}
               <button
                 onClick={() => setTecOpen((o) => !o)}
@@ -173,6 +174,9 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
             </div>
           );
         })()}
+
+        {/* Busca de PROJETOS (tratores): modelo + cliente + final do chassis */}
+        <ProjetosBusca />
 
         <div className="header-actions">
           <button className="btn-top btn-new" onClick={onNewOS} {...gateBtn(podeCriar)}
