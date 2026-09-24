@@ -170,8 +170,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!chatwootConfigurado()) return NextResponse.json({ busca: [], aviso: "NovaZap não configurado neste ambiente." });
     if (buscar.length < 2) return NextResponse.json({ busca: [] });
     try {
-      const brutos = await buscarContatosPorTexto(buscar, 1);
-      const busca = brutos.slice(0, 12).map((c) => {
+      // A busca do fork já ignora maiúsculas e acentos (unaccent + ILIKE) e
+      // casa telefone só pelos dígitos. Aqui pegamos 2 páginas (30 contatos)
+      // pra termo genérico não deixar ninguém de fora.
+      const p1 = await buscarContatosPorTexto(buscar, 1);
+      const p2 = p1.length >= 15 ? await buscarContatosPorTexto(buscar, 2).catch(() => []) : [];
+      const brutos = [...p1, ...p2];
+      const busca = brutos.slice(0, 25).map((c) => {
         const a = (c.custom_attributes || {}) as Record<string, unknown>;
         return {
           id: c.id,
