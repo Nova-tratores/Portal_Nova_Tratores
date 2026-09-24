@@ -97,7 +97,7 @@ const FASE_COBRANDO = "Cobrando Cliente";
 // ── Painel de COBRANÇA do card (fase "Cobrando Cliente"): mostra pra quem vai
 // (contatos do NovaZap vinculados ao CNPJ — escolhe se tiver mais de um), o
 // valor OS+PV somado do Omie e a mensagem-modelo; o botão dispara o Tratorilson.
-function PainelCobranca({ osId }: { osId: string }) {
+function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?: (orderId: string, newPhase: string) => void }) {
   const [aberto, setAberto] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [dados, setDados] = useState<any>(null);
@@ -105,6 +105,30 @@ function PainelCobranca({ osId }: { osId: string }) {
   const [contatoSel, setContatoSel] = useState<number>(0);
   const [enviando, setEnviando] = useState(false);
   const [enviada, setEnviada] = useState(false);
+
+  // Depois de enviada, a capa fica em "Aguardando cliente responder" (o status
+  // sai do log da OS — sobrevive a recarregar a página) + botão pra Concluída.
+  const [statusEnvio, setStatusEnvio] = useState<{ enviada: boolean; quando?: string; para?: string | null } | null>(null);
+  const [confirmaConcluir, setConfirmaConcluir] = useState(false);
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/pos/ordens/${osId}/cobrar?status=1`, { headers: await authHeaders(), cache: "no-store" });
+        const j = await r.json();
+        if (vivo && r.ok) setStatusEnvio(j);
+      } catch { /* capa segue sem status */ }
+    })();
+    return () => { vivo = false; };
+  }, [osId]);
+  const concluir = () => {
+    if (!confirmaConcluir) {
+      setConfirmaConcluir(true);
+      setTimeout(() => setConfirmaConcluir(false), 4000);
+      return;
+    }
+    onPhaseChange?.(osId, "Concluída");
+  };
 
   const abrir = async () => {
     setAberto(true);
@@ -131,6 +155,8 @@ function PainelCobranca({ osId }: { osId: string }) {
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       setEnviada(true);
+      const ag = new Date(Date.now() - 3 * 3600 * 1000);
+      setStatusEnvio({ enviada: true, quando: `${ag.toISOString().slice(8, 10)}/${ag.toISOString().slice(5, 7)} ${ag.toISOString().slice(11, 16)}`, para: dados?.contatos?.find((c: any) => c.id === contatoSel)?.nome || null });
     } catch (e) { setErro(e instanceof Error ? e.message : "falha ao enviar"); }
     setEnviando(false);
   };
@@ -214,10 +240,31 @@ function PainelCobranca({ osId }: { osId: string }) {
   return (
     <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 8 }}>
       {!aberto ? (
+        statusEnvio?.enviada ? (
+          // Cobrança JÁ enviada: capa mostra a espera + botão de concluir
+          <div style={{ border: "1.5px solid #F59E0B", background: "rgba(251,191,36,0.13)", borderRadius: 9, padding: "8px 10px" }}>
+            <div style={{ fontWeight: 800, color: "#92400E", fontSize: 12 }}>
+              <i className="fas fa-hourglass-half" style={{ marginRight: 5 }} />Aguardando cliente responder
+            </div>
+            <div style={{ fontSize: 11, color: "#A16207", marginTop: 2 }}>
+              Cobrança enviada{statusEnvio.quando ? ` ${statusEnvio.quando}` : ""}{statusEnvio.para ? ` pra ${statusEnvio.para}` : ""}
+            </div>
+            <button onClick={concluir}
+              style={{ width: "100%", marginTop: 7, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: confirmaConcluir ? "#B45309" : "#15803D", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+              <i className={confirmaConcluir ? "fas fa-exclamation-circle" : "fas fa-check-circle"} />
+              {confirmaConcluir ? "Clica de novo pra confirmar" : "Cliente respondeu — mover pra Concluída"}
+            </button>
+            <button onClick={abrir}
+              style={{ width: "100%", marginTop: 4, border: "none", background: "transparent", color: "#A16207", fontSize: 11, fontWeight: 700, cursor: "pointer", textDecoration: "underline" }}>
+              cobrar de novo
+            </button>
+          </div>
+        ) : (
         <button onClick={abrir}
           style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: "#A16207", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
           <i className="fas fa-comment-dollar" /> Cobrar cliente (Tratorilson)
         </button>
+        )
       ) : (
         <div style={{ border: "1px solid var(--border, #E2E8F0)", background: "var(--surface, #fff)", borderRadius: 10, padding: "9px 11px", fontSize: 12 }}>
           {carregando && <div style={{ color: "#64748B", fontWeight: 600 }}><i className="fas fa-spinner fa-spin" /> Buscando contatos e valores no Omie…</div>}
@@ -273,7 +320,14 @@ function PainelCobranca({ osId }: { osId: string }) {
                 </div>
               )}
               {enviada ? (
-                <div style={{ marginTop: 7, color: "#15803D", fontWeight: 800, textAlign: "center" }}><i className="fas fa-check-circle" /> Cobrança enviada (mensagem + PDFs)!</div>
+                <>
+                  <div style={{ marginTop: 7, color: "#15803D", fontWeight: 800, textAlign: "center" }}><i className="fas fa-check-circle" /> Cobrança enviada (mensagem + PDFs)!</div>
+                  <button onClick={concluir}
+                    style={{ width: "100%", marginTop: 6, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: confirmaConcluir ? "#B45309" : "#15803D", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+                    <i className={confirmaConcluir ? "fas fa-exclamation-circle" : "fas fa-check-circle"} />
+                    {confirmaConcluir ? "Clica de novo pra confirmar" : "Cliente respondeu — mover pra Concluída"}
+                  </button>
+                </>
               ) : (
                 <button onClick={enviar} disabled={enviando || !contatoSel}
                   style={{ width: "100%", marginTop: 7, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: enviando ? "#94A3B8" : "#15803D", color: "#fff", fontSize: 12, fontWeight: 700, cursor: enviando ? "wait" : "pointer", opacity: contatoSel ? 1 : 0.5 }}>
@@ -398,7 +452,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
         </div>
       )}
       {/* Cobrança via Tratorilson — só nos cards da fase "Cobrando Cliente" */}
-      {o.status === FASE_COBRANDO && <PainelCobranca osId={o.id} />}
+      {o.status === FASE_COBRANDO && <PainelCobranca osId={o.id} onPhaseChange={onPhaseChange} />}
       {/* Reserva/agendamento: marcar → pergunta o dia → Orçamento Aprovado + Data Início */}
       {onAgendar && FASES_RESERVA.has(o.status) && (
         <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 7 }}>

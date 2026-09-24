@@ -163,6 +163,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!auth.isAdmin && !auth.modulos.includes("pos")) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   const { id } = await params;
 
+  // ?status=1 → estado leve da cobrança (já foi enviada? quando? pra quem?),
+  // lido do log da OS — sem tocar Omie nem chatwoot (a capa do card consulta isso).
+  if (req.nextUrl.searchParams.get("status")) {
+    const { data: logs } = await supabase.from(TBL_LOGS_PPO)
+      .select("Data_Acao, Hora_Acao, acao")
+      .eq("Id_ppo", id).ilike("acao", "Cobrança enviada%");
+    const chave = (l: any) => {
+      const [d, m, a] = String(l.Data_Acao || "").split("/");
+      return `${a}-${m}-${d} ${l.Hora_Acao || ""}`;
+    };
+    const ult = (logs || []).sort((x, y) => chave(x).localeCompare(chave(y))).pop();
+    if (!ult) return NextResponse.json({ enviada: false });
+    const para = String(ult.acao || "").match(/via Tratorilson pra (.+?) \(/)?.[1] || null;
+    return NextResponse.json({ enviada: true, quando: `${ult.Data_Acao} ${String(ult.Hora_Acao || "").slice(0, 5)}`, para });
+  }
+
   // ?buscar=texto → busca LIVRE de contatos no NovaZap (como no próprio chatwoot),
   // pra escolher/vincular um contato que ainda não está no CNPJ.
   const buscar = (req.nextUrl.searchParams.get("buscar") || "").trim();
