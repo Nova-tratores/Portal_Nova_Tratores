@@ -185,79 +185,39 @@ function PainelCobranca({ osId }: { osId: string }) {
           <i className="fas fa-comment-dollar" /> Cobrar cliente (Tratorilson)
         </button>
       ) : (
-        <div style={{ border: "1px solid #FDE68A", background: "#FFFBEB", borderRadius: 8, padding: "8px 10px", fontSize: 12 }}>
-          {carregando && <div style={{ color: "#A16207", fontWeight: 600 }}><i className="fas fa-spinner fa-spin" /> Buscando contatos e valores no Omie…</div>}
+        <div style={{ border: "1px solid var(--border, #E2E8F0)", background: "var(--surface, #fff)", borderRadius: 10, padding: "9px 11px", fontSize: 12 }}>
+          {carregando && <div style={{ color: "#64748B", fontWeight: 600 }}><i className="fas fa-spinner fa-spin" /> Buscando contatos e valores no Omie…</div>}
           {erro && <div style={{ color: "#B91C1C", fontWeight: 600, marginBottom: 6 }}>{erro}</div>}
           {dados && (
             <>
-              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 700, color: "#92400E" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "#475569" }}>
                 <span>OS R$ {din(dados.valores?.os)} + PV R$ {din(dados.valores?.pv)}</span>
-                <span>= R$ {din(dados.valores?.total)}</span>
+                <b style={{ color: "#15803D" }}>= R$ {din(dados.valores?.total)}</b>
               </div>
               {dados.avisoContatos && <div style={{ color: "#B45309", marginTop: 5 }}>{dados.avisoContatos}</div>}
               {dados.contatos?.length > 0 && (
-                <div style={{ marginTop: 6 }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "#A16207" }}>Vai pra quem (NovaZap):</div>
+                <div style={{ marginTop: 7 }}>
+                  <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "#94A3B8" }}>Vai pra quem (NovaZap):</div>
                   {dados.contatos.length > 1 ? (
                     <select value={contatoSel} onChange={(e) => setContatoSel(Number(e.target.value))}
-                      style={{ width: "100%", marginTop: 3, fontSize: 12, padding: "4px 6px", border: "1px solid #FDE68A", borderRadius: 6 }}>
+                      style={{ width: "100%", marginTop: 3, fontSize: 12, padding: "4px 6px", border: "1px solid var(--border, #E2E8F0)", borderRadius: 6 }}>
                       {dados.contatos.map((c: any) => (
                         <option key={c.id} value={c.id}>{c.nome || "Contato"}{c.cargo ? ` · ${c.cargo}` : ""}{c.telefone ? ` · ${c.telefone}` : ""}</option>
                       ))}
                     </select>
                   ) : (
-                    <div style={{ fontWeight: 700, color: "#78350F", marginTop: 2 }}>
+                    <div style={{ fontWeight: 700, color: "#334155", marginTop: 2 }}>
                       {contato?.nome || "Contato"}{contato?.cargo ? ` · ${contato.cargo}` : ""}{contato?.telefone ? ` · ${contato.telefone}` : ""}
                     </div>
                   )}
                 </div>
               )}
-              {/* Buscar OUTRO contato no NovaZap e salvar no CNPJ */}
-              <div style={{ marginTop: 6 }}>
-                {!buscaAberta ? (
-                  <button onClick={() => setBuscaAberta(true)}
-                    style={{ border: "none", background: "transparent", color: "#A16207", fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
-                    <i className="fas fa-search" style={{ marginRight: 4 }} />Buscar outro contato no NovaZap
-                  </button>
-                ) : (
-                  <div style={{ border: "1px dashed #FDE68A", borderRadius: 6, padding: "6px 8px", background: "#fff" }}>
-                    <div style={{ display: "flex", gap: 6 }}>
-                      <input value={buscaTexto} onChange={(e) => setBuscaTexto(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") buscarContatos(); }}
-                        placeholder="nome ou telefone…" autoFocus
-                        style={{ flex: 1, minWidth: 0, fontSize: 12, padding: "4px 7px", border: "1px solid #FDE68A", borderRadius: 6 }} />
-                      <button onClick={buscarContatos} disabled={buscando}
-                        style={{ border: "none", background: "#A16207", color: "#fff", borderRadius: 6, padding: "4px 10px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
-                        {buscando ? <i className="fas fa-spinner fa-spin" /> : "Buscar"}
-                      </button>
-                      <button onClick={() => { setBuscaAberta(false); setBuscaResultados(null); }} title="Fechar busca"
-                        style={{ border: "none", background: "transparent", color: "#A16207", cursor: "pointer", fontSize: 13 }}>×</button>
-                    </div>
-                    {buscaResultados && (
-                      <div style={{ marginTop: 6, maxHeight: 150, overflowY: "auto", display: "flex", flexDirection: "column", gap: 4 }}>
-                        {buscaResultados.length === 0 && <div style={{ color: "#94a3b8", fontSize: 11.5 }}>Nenhum contato encontrado.</div>}
-                        {buscaResultados.map((c: any) => (
-                          <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 6, border: "1px solid #F3F4F6", borderRadius: 6, padding: "4px 7px" }}>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontWeight: 700, color: "#374151", fontSize: 11.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {c.nome || "Sem nome"}{c.telefone ? ` · ${c.telefone}` : ""}
-                              </div>
-                              {c.clienteAtual && <div style={{ fontSize: 10, color: "#94a3b8" }}>vinculado a: {c.clienteAtual}</div>}
-                            </div>
-                            <button onClick={() => usarEVincular(c)} disabled={vinculando === c.id}
-                              title="Usa este contato na cobrança e SALVA o vínculo dele com o CNPJ deste cliente"
-                              style={{ border: "none", background: "#15803D", color: "#fff", borderRadius: 6, padding: "3px 9px", fontSize: 10.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
-                              {vinculando === c.id ? <i className="fas fa-spinner fa-spin" /> : "Usar e vincular"}
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
+              <button onClick={() => setBuscaAberta(true)}
+                style={{ marginTop: 6, border: "none", background: "transparent", color: "#0369A1", fontSize: 11.5, fontWeight: 700, cursor: "pointer", padding: 0, textDecoration: "underline" }}>
+                <i className="fas fa-search" style={{ marginRight: 4 }} />Buscar outro contato no NovaZap
+              </button>
               {dados.mensagem && (
-                <div style={{ marginTop: 6, background: "#fff", border: "1px solid #FDE68A", borderRadius: 6, padding: "6px 8px", whiteSpace: "pre-wrap", color: "#374151", maxHeight: 110, overflowY: "auto" }}>
+                <div style={{ marginTop: 7, background: "var(--surface-2, #F8FAFC)", border: "1px solid var(--border, #E2E8F0)", borderRadius: 8, padding: "7px 9px", whiteSpace: "pre-wrap", color: "#475569", maxHeight: 110, overflowY: "auto" }}>
                   {dados.mensagem}
                 </div>
               )}
@@ -272,7 +232,61 @@ function PainelCobranca({ osId }: { osId: string }) {
               )}
             </>
           )}
-          <button onClick={() => setAberto(false)} style={{ marginTop: 6, width: "100%", border: "none", background: "transparent", color: "#A16207", fontSize: 11, cursor: "pointer" }}>fechar</button>
+          <button onClick={() => setAberto(false)} style={{ marginTop: 6, width: "100%", border: "none", background: "transparent", color: "#94A3B8", fontSize: 11, cursor: "pointer" }}>fechar</button>
+        </div>
+      )}
+
+      {/* MODAL central: buscar contato no NovaZap e vincular ao CNPJ */}
+      {buscaAberta && (
+        <div style={{ position: "fixed", inset: 0, zIndex: 100003, background: "rgba(15,23,42,0.6)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+          onClick={() => { setBuscaAberta(false); setBuscaResultados(null); }}>
+          <div onClick={(e) => e.stopPropagation()}
+            style={{ background: "var(--surface, #fff)", border: "1px solid var(--border, #E2E8F0)", borderRadius: 16, width: 480, maxWidth: "94vw", maxHeight: "80vh", display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 30px 80px rgba(0,0,0,0.45)" }}>
+            <div style={{ padding: "13px 18px", borderBottom: "1px solid var(--border, #E2E8F0)", display: "flex", alignItems: "center", gap: 10 }}>
+              <i className="fas fa-search" style={{ color: "#0369A1" }} />
+              <b style={{ fontSize: 14.5, color: "var(--texto, #0f172a)", flex: 1 }}>Buscar contato no NovaZap</b>
+              <button onClick={() => { setBuscaAberta(false); setBuscaResultados(null); }}
+                style={{ border: "none", background: "transparent", color: "#94A3B8", cursor: "pointer", fontSize: 17 }}>×</button>
+            </div>
+            <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" }}>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input value={buscaTexto} onChange={(e) => setBuscaTexto(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") buscarContatos(); }}
+                  placeholder="Nome ou telefone do contato…" autoFocus
+                  style={{ flex: 1, minWidth: 0, fontSize: 13.5, padding: "9px 12px", border: "1px solid var(--border, #CBD5E1)", borderRadius: 9 }} />
+                <button onClick={buscarContatos} disabled={buscando}
+                  style={{ border: "none", background: "#0369A1", color: "#fff", borderRadius: 9, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+                  {buscando ? <i className="fas fa-spinner fa-spin" /> : "Buscar"}
+                </button>
+              </div>
+              <div style={{ fontSize: 11.5, color: "#94A3B8" }}>
+                Escolher um contato aqui também SALVA o vínculo dele com o CNPJ deste cliente — na próxima cobrança ele já aparece direto.
+              </div>
+              {buscaResultados && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+                  {buscaResultados.length === 0 && <div style={{ color: "#94A3B8", fontSize: 13, textAlign: "center", padding: 10 }}>Nenhum contato encontrado.</div>}
+                  {buscaResultados.map((c: any) => (
+                    <div key={c.id} style={{ display: "flex", alignItems: "center", gap: 10, border: "1px solid var(--border, #E2E8F0)", borderRadius: 10, padding: "9px 12px" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, color: "var(--texto, #1e293b)", fontSize: 13.5, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {c.nome || "Sem nome"}
+                        </div>
+                        <div style={{ fontSize: 12, color: "#64748B" }}>
+                          {[c.telefone, c.cargo].filter(Boolean).join(" · ") || "sem telefone"}
+                        </div>
+                        {c.clienteAtual && <div style={{ fontSize: 11, color: "#94A3B8" }}>vinculado a: {c.clienteAtual}</div>}
+                      </div>
+                      <button onClick={() => usarEVincular(c)} disabled={vinculando === c.id}
+                        title="Usa este contato na cobrança e salva o vínculo com o CNPJ"
+                        style={{ border: "none", background: "#15803D", color: "#fff", borderRadius: 8, padding: "7px 13px", fontSize: 12, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                        {vinculando === c.id ? <i className="fas fa-spinner fa-spin" /> : "Usar e vincular"}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -641,10 +655,10 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           })().map(([phase, items]) => (
             <div key={phase} className="phase-group"
               style={phase === FASE_COBRANDO ? {
-                border: "2px solid #F59E0B", borderRadius: 14,
-                background: "rgba(245, 158, 11, 0.07)",
+                border: "2px solid #0EA5E9", borderRadius: 14,
+                background: "rgba(56, 189, 248, 0.12)",
                 padding: "12px 16px 6px", marginBottom: 18,
-                boxShadow: "0 4px 16px rgba(245, 158, 11, 0.15)",
+                boxShadow: "0 4px 16px rgba(14, 165, 233, 0.18)",
               } : undefined}>
               <div className="phase-group-header" onClick={() => toggleCollapse(phase)} style={{ cursor: "pointer" }}>
                 <span className="phase-group-chevron" style={{ display: "inline-block", transition: "transform 0.2s", transform: collapsed.has(phase) ? "rotate(-90deg)" : "rotate(0deg)", marginRight: 6 }}>
