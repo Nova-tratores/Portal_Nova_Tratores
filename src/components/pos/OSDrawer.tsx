@@ -695,7 +695,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         if (result.pedidoVendaErro) msg += `\nErro nas peças: ${result.pedidoVendaErro}`;
         alert(msg);
         if (result.cNumOS) setOrdemOmie(String(result.cNumOS));
-        setStatus("Concluída");
+        // Interna conclui; externa vai COBRAR o cliente antes de concluir
+        setStatus(servicoInterno ? "Concluída" : "Cobrando Cliente");
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {

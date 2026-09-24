@@ -3,6 +3,7 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { criarOSNoOmie } from "@/lib/pos/omie";
 import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
+import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -28,8 +29,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (result.pedidoVenda) acaoParts.push(`PV nº ${result.pedidoVenda}`);
     if (result.pedidoVendaErro) acaoParts.push(`Erro remessa: ${result.pedidoVendaErro}`);
 
-    // Move para Concluída automaticamente
-    await supabase.from(TBL_OS).update({ Status: "Concluída" }).eq("Id_Ordem", idOs);
+    // Interna conclui direto (remessa, nada a cobrar); externa vai pra
+    // COBRANDO CLIENTE — o Tratorilson manda o orçamento + PDFs pelo card.
+    const novoStatus = result.interna ? "Concluída" : "Cobrando Cliente";
+    await supabase.from(TBL_OS).update({ Status: novoStatus }).eq("Id_Ordem", idOs);
+    await sincronizarStatusPPV(idOs, novoStatus).catch(() => {});
 
     // Registra despesa de alimentação automaticamente como Requisicao (fluxo padrão)
     try {
@@ -47,7 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       Id_ppo: idOs, Data_Acao: dataFmt, Hora_Acao: horaFmt,
       UsuEmail: userName,
       acao: acaoParts.join(" | "),
-      Status_Anterior: "Enviado", Status_Atual: "Concluída",
+      Status_Anterior: "Enviado", Status_Atual: novoStatus,
       Dias_Na_Fase: 0, Total_Dias_Aberto: 0,
     });
 
