@@ -186,6 +186,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // ?status=1 → estado leve da cobrança (já foi enviada? quando? pra quem?),
   // lido do log da OS — sem tocar Omie nem chatwoot (a capa do card consulta isso).
   if (req.nextUrl.searchParams.get("status")) {
+    // Contato do NovaZap vinculado ao CNPJ — a capa mostra QUEM é antes mesmo
+    // de clicar em cobrar (útil quando a cobrança foi feita manual).
+    let contato: { nome: string | null; cargo: string | null; telefone: string | null } | null = null;
+    let contatosTotal = 0;
+    try {
+      if (chatwootConfigurado()) {
+        const { data: rowsOs } = await supabase.from(TBL_OS)
+          .select("Os_Cliente, Cnpj_Cliente").eq("Id_Ordem", id).limit(1);
+        if (rowsOs?.[0]) {
+          const { codigos } = await clienteCadastro(rowsOs[0]);
+          if (codigos.length) {
+            const secao = await buscarWhatsappDoCliente(codigos);
+            if (secao.estado === "ok" && secao.contatos.length) {
+              contatosTotal = secao.contatos.length;
+              const c0: any = secao.contatos[0];
+              contato = { nome: c0?.nome ?? null, cargo: c0?.cargo ?? null, telefone: c0?.telefone ?? null };
+            }
+          }
+        }
+      }
+    } catch { /* capa fica sem o contato */ }
+
     const { data: logs } = await supabase.from(TBL_LOGS_PPO)
       .select("Data_Acao, Hora_Acao, acao")
       .eq("Id_ppo", id).ilike("acao", "Cobrança enviada%");
@@ -194,7 +216,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return `${a}-${m}-${d} ${l.Hora_Acao || ""}`;
     };
     const ult = (logs || []).sort((x, y) => chave(x).localeCompare(chave(y))).pop();
-    if (!ult) return NextResponse.json({ enviada: false });
+    if (!ult) return NextResponse.json({ enviada: false, contato, contatosTotal });
     const para = String(ult.acao || "").match(/via Tratorilson pra (.+?) \(/)?.[1] || null;
 
     // O que o cliente respondeu DEPOIS do envio (mensagens recebidas na conversa
@@ -252,7 +274,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         }
       } catch { /* status sai sem a resposta */ }
     }
-    return NextResponse.json({ enviada: true, quando: `${ult.Data_Acao} ${String(ult.Hora_Acao || "").slice(0, 5)}`, para, respostas });
+    return NextResponse.json({ enviada: true, quando: `${ult.Data_Acao} ${String(ult.Hora_Acao || "").slice(0, 5)}`, para, respostas, contato, contatosTotal });
   }
 
   // ?buscar=texto → busca LIVRE de contatos no NovaZap (como no próprio chatwoot),

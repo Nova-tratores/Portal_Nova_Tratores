@@ -108,7 +108,7 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
 
   // Depois de enviada, a capa fica em "Aguardando cliente responder" (o status
   // sai do log da OS — sobrevive a recarregar a página) + botão pra Concluída.
-  const [statusEnvio, setStatusEnvio] = useState<{ enviada: boolean; quando?: string; para?: string | null; respostas?: { texto: string; quando: string }[] } | null>(null);
+  const [statusEnvio, setStatusEnvio] = useState<{ enviada: boolean; quando?: string; para?: string | null; respostas?: { texto: string; quando: string }[]; contato?: { nome: string | null; cargo: string | null; telefone: string | null } | null; contatosTotal?: number } | null>(null);
   const [confirmaConcluir, setConfirmaConcluir] = useState(false);
   const [atualizandoStatus, setAtualizandoStatus] = useState(false);
   const carregarStatus = useCallback(async () => {
@@ -283,10 +283,28 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
             </div>
           );
         })() : (
-        <button onClick={abrir}
-          style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: "#A16207", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
-          <i className="fas fa-comment-dollar" /> Cobrar cliente (Tratorilson)
-        </button>
+        <>
+          <button onClick={abrir}
+            style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: "#A16207", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>
+            <i className="fas fa-comment-dollar" /> Cobrar cliente (Tratorilson)
+          </button>
+          {/* Contato vinculado ao CNPJ — já dá pra saber QUEM é antes de cobrar */}
+          {statusEnvio && (
+            <div style={{ fontSize: 10.5, color: "#64748B", marginTop: 4, textAlign: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {statusEnvio.contato ? (
+                <>
+                  <i className="fab fa-whatsapp" style={{ color: "#15803D", marginRight: 4 }} />
+                  <b style={{ color: "#334155" }}>{statusEnvio.contato.nome || "Contato"}</b>
+                  {statusEnvio.contato.cargo ? ` · ${statusEnvio.contato.cargo}` : ""}
+                  {statusEnvio.contato.telefone ? ` · ${statusEnvio.contato.telefone}` : ""}
+                  {(statusEnvio.contatosTotal || 0) > 1 ? ` (+${(statusEnvio.contatosTotal || 0) - 1})` : ""}
+                </>
+              ) : (
+                "Nenhum contato do NovaZap vinculado."
+              )}
+            </div>
+          )}
+        </>
         )
       ) : (
         <div style={{ border: "1px solid var(--border, #E2E8F0)", background: "var(--surface, #fff)", borderRadius: 10, padding: "9px 11px", fontSize: 12 }}>
