@@ -24,6 +24,10 @@ from calcular_perfil import paginar  # noqa: E402
 
 
 def main():
+    try:  # console do Windows em cp1252 não imprime "↔" e derruba o relatório
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace"); sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
     ap = argparse.ArgumentParser()
     ap.add_argument("--accuracy-max", type=float, default=150, help="ignora visitas com gps_accuracy acima disto (m)")
     ap.add_argument("--so-relatorio", action="store_true", help="não gera: só lê e resume o que já existe")

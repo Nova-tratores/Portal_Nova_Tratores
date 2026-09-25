@@ -199,6 +199,8 @@ Decisão do usuário: só **sugestão** — nada vira vínculo confirmado sem hu
 - `scripts/agro/sugerir_vinculos_visitas.py` (execução `fonte='crm'`), `calcular_perfil.py` passa a expor `sugestoes_pendentes` no `score_detalhe`.
 - Rota `GET/POST /api/agro/vinculos/sugestoes` (primeira `/api/agro/*`; gate `dashboard-agro`) e guia **Vínculos** em `/dashboard-agro?tab=vinculos` com Aceitar/Rejeitar.
 
+**Primeira rodada (25/09, execução #13, migration aplicada):** **139 sugestões** pendentes, 116 CARs, 123 clientes, 20 CARs visitados por mais de um cliente. Por município: Fartura 38, Tejupá 33, Taguaí 25, Piraju 11, Taquarituba 10, Timburi 7, Ourinhos 5. Por vendedor: Pedro Favaro 124, Leonardo Abrantes 9, Dougras Bomfim 6. Scores 1–3 (poucas visitas repetidas ainda). Guia testada no dev: lista, filtros e confirmação inline.
+
 ## 4. LIA
 
 Rascunho em `docs/agro/lia-inteligencia-agricola-car.md` — falta DPO, avaliação e assinatura da direção.
