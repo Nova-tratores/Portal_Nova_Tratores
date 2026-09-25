@@ -1,7 +1,7 @@
 'use client'
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useCallback, useEffect, useState } from 'react'
-import { Link2, Check, X, RefreshCw, Search, AlertTriangle } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link2, Check, X, RefreshCw, Search, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 
 // Guia "Vínculos" do /dashboard-agro: sugestões de vínculo CAR↔cliente geradas
@@ -34,6 +34,29 @@ function fmtHa(n?: number | null) {
 
 const td: React.CSSProperties = { padding: '8px 10px', fontSize: 13, verticalAlign: 'top', borderBottom: '1px solid var(--portal-border,#e5e7eb)', color: 'var(--portal-text,#111111)' }
 const th: React.CSSProperties = { ...td, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary,#374151)', background: 'var(--portal-bg-secondary,#f3f4f6)', whiteSpace: 'nowrap', position: 'sticky', top: 0 }
+
+// Colunas ordenáveis (clique no cabeçalho: A→Z, Z→A, volta ao padrão por score)
+type Col = 'score' | 'cliente' | 'cod_car' | 'municipio' | 'area_ha' | 'cultura' | 'n_presenciais' | 'ultima_visita' | 'vendedores' | 'motivo' | 'status'
+const COLUNAS: { col: Col; rotulo: string; centro?: boolean }[] = [
+  { col: 'score', rotulo: 'Score' }, { col: 'cliente', rotulo: 'Cliente' }, { col: 'cod_car', rotulo: 'CAR' }, { col: 'municipio', rotulo: 'Município' },
+  { col: 'area_ha', rotulo: 'Área' }, { col: 'cultura', rotulo: 'Cultura (perfil)' }, { col: 'n_presenciais', rotulo: 'Visitas', centro: true },
+  { col: 'ultima_visita', rotulo: 'Última' }, { col: 'vendedores', rotulo: 'Vendedor(es)' }, { col: 'motivo', rotulo: 'Por quê' }, { col: 'status', rotulo: 'Decisão' },
+]
+function valorCol(s: Sugestao, col: Col): string | number {
+  switch (col) {
+    case 'score': return Number(s.score)
+    case 'cliente': return (s.cliente_nome || '').toLocaleLowerCase('pt-BR')
+    case 'cod_car': return s.cod_car
+    case 'municipio': return (s.municipio || '').toLocaleLowerCase('pt-BR')
+    case 'area_ha': return Number(s.area_ha || 0)
+    case 'cultura': return (s.cultura_nome || 'zzz').toLocaleLowerCase('pt-BR')   // sem cultura vai pro fim
+    case 'n_presenciais': return Number(s.n_presenciais || 0)
+    case 'ultima_visita': return s.ultima_visita || ''
+    case 'vendedores': return (s.vendedores || []).join(', ').toLocaleLowerCase('pt-BR')
+    case 'motivo': return (s.motivo || '').toLocaleLowerCase('pt-BR')
+    case 'status': return s.status
+  }
+}
 const botao = (cor: string, cheio: boolean): React.CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, fontSize: 12, fontWeight: 700,
   border: `1px solid ${cor}`, background: cheio ? cor : 'transparent', color: cheio ? '#fefefe' : cor, cursor: 'pointer',
@@ -50,6 +73,12 @@ export default function VinculosSugeridos() {
   const [erro, setErro] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState<string | null>(null)   // chave "cod_car|cliente_ref|aceitar"
   const [ocupado, setOcupado] = useState<string | null>(null)
+  const [ordem, setOrdem] = useState<{ col: Col; dir: 'asc' | 'desc' }>({ col: 'score', dir: 'desc' })
+
+  const ordenarPor = (col: Col) => setOrdem((o) => {
+    if (o.col !== col) return { col, dir: col === 'score' || col === 'area_ha' || col === 'n_presenciais' || col === 'ultima_visita' ? 'desc' : 'asc' }
+    return { col, dir: o.dir === 'asc' ? 'desc' : 'asc' }
+  })
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro(null)
@@ -90,6 +119,15 @@ export default function VinculosSugeridos() {
     Object.entries(dados.reduce<Record<string, number>>((acc, s) => { acc[s.cod_car] = (acc[s.cod_car] || 0) + 1; return acc }, {}))
       .filter(([, n]) => n > 1).map(([c]) => c),
   )
+
+  const ordenados = useMemo(() => {
+    const dir = ordem.dir === 'asc' ? 1 : -1
+    return [...dados].sort((a, b) => {
+      const va = valorCol(a, ordem.col), vb = valorCol(b, ordem.col)
+      const c = typeof va === 'number' && typeof vb === 'number' ? va - vb : String(va).localeCompare(String(vb), 'pt-BR')
+      return c !== 0 ? c * dir : Number(b.score) - Number(a.score)   // empate: score maior primeiro
+    })
+  }, [dados, ordem])
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 16px 60px' }}>
@@ -138,14 +176,24 @@ export default function VinculosSugeridos() {
         <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 1100 }}>
           <thead>
             <tr>
-              <th style={th}>Score</th><th style={th}>Cliente</th><th style={th}>CAR</th><th style={th}>Município</th><th style={th}>Área</th>
-              <th style={th}>Cultura (perfil)</th><th style={th}>Visitas</th><th style={th}>Última</th><th style={th}>Vendedor(es)</th><th style={th}>Por quê</th><th style={th}>Decisão</th>
+              {COLUNAS.map((c) => {
+                const ativa = ordem.col === c.col
+                return (
+                  <th key={c.col} style={{ ...th, cursor: 'pointer', userSelect: 'none', color: ativa ? VERDE_ESCURO : th.color }}
+                      onClick={() => ordenarPor(c.col)} title={`Ordenar por ${c.rotulo} (${ativa && ordem.dir === 'asc' ? 'Z→A' : 'A→Z'})`}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      {c.rotulo}
+                      {ativa ? (ordem.dir === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />) : <ArrowUpDown size={12} style={{ opacity: .35 }} />}
+                    </span>
+                  </th>
+                )
+              })}
             </tr>
           </thead>
           <tbody>
             {carregando && <tr><td colSpan={11} style={{ ...td, textAlign: 'center', color: 'var(--portal-text-muted,#6b7280)' }}>Carregando…</td></tr>}
             {!carregando && dados.length === 0 && <tr><td colSpan={11} style={{ ...td, textAlign: 'center', color: 'var(--portal-text-muted,#6b7280)' }}>Nenhuma sugestão neste filtro.</td></tr>}
-            {dados.map((s) => {
+            {ordenados.map((s) => {
               const chave = `${s.cod_car}|${s.cliente_ref}`
               const ambiguo = carsAmbiguos.has(s.cod_car)
               return (

@@ -27,7 +27,7 @@ export type Fase = {
 
 export const PLANO_CAR_META = {
   titulo: 'Inteligência Agrícola por CAR',
-  subtitulo: 'Planejamento · setembro/2026 · nada disto está no banco ainda',
+  subtitulo: 'Planejamento · setembro/2026 · Fases 0–3 no banco, Fase 4 em andamento (guias Mapa e Vínculos)',
   docPath: 'docs/inteligencia-agricola-car-plano.md',
 }
 
@@ -364,7 +364,7 @@ export const PLANO_CAR: Secao[] = [
       {
         tipo: 'lista',
         itens: [
-          'Falta: lista fechada de municípios (comercial), LIA assinada, regras de oportunidade (comercial). Depois vem a Fase 4: rotas /api/agro/* e telas (mapa, ficha do CAR, lista de prospecção, validação no cockpit).',
+          'Fase 4 começou: guia "Mapa dos imóveis" (polígonos por cultura + visitas) e guia "Vínculos" (sugestões CAR↔cliente). Faltam: lista de prospecção por score, ficha completa do imóvel, validação de cultura no cockpit, regras de oportunidade preenchidas pelo comercial, LIA assinada.',
           'Relatório completo: docs/agro/fase0-levantamento.md. Scripts em scripts/agro/: sicor_portao_fase0.py, sicar_wfs_baixar.py, carregar_sicar.py, carregar_sicor.py, mapbiomas_zonal.py, calcular_perfil.py.',
         ],
       },

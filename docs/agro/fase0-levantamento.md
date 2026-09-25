@@ -201,6 +201,12 @@ Decisão do usuário: só **sugestão** — nada vira vínculo confirmado sem hu
 
 **Primeira rodada (25/09, execução #13, migration aplicada):** **139 sugestões** pendentes, 116 CARs, 123 clientes, 20 CARs visitados por mais de um cliente. Por município: Fartura 38, Tejupá 33, Taguaí 25, Piraju 11, Taquarituba 10, Timburi 7, Ourinhos 5. Por vendedor: Pedro Favaro 124, Leonardo Abrantes 9, Dougras Bomfim 6. Scores 1–3 (poucas visitas repetidas ainda). Guia testada no dev: lista, filtros e confirmação inline.
 
+## 3.7 Fase 4 começou: guia "Mapa dos imóveis" (25/09/2026, noite)
+
+- `sql/agro-mapa.sql` (usuário aplica): `agro_mapa_municipios()` (lista + contagens + centro) e `agro_mapa_municipio(ibge, tol)` — FeatureCollection dos CARs ativos do município com polígonos **simplificados no banco** (`ST_SimplifyPreserveTopology`, 0,00005° ≈ 5 m; Piraju inteiro tinha 5,8 MB), perfil, cliente vinculado, sugestões pendentes, sobreposição, e as visitas do CRM que caem nos imóveis.
+- Rota `GET /api/agro/mapa[?municipio=]` (gate `dashboard-agro`, service role) e guia `/dashboard-agro?tab=mapa` (`components/dashboard-agro/MapaCar.tsx`, Leaflet do unpkg como no Supervisor): seletor de município (lembra o último), polígonos coloridos por cultura principal (opacidade = confiança, borda azul = cliente vinculado), legenda clicável que esconde culturas, filtros de confiança mínima e "com crédito 36 m", pins das visitas, popup com perfil/crédito/score/cliente.
+- Guia "Vínculos" ganhou cabeçalho ordenável (A→Z / Z→A em toda coluna; empate desempata por score).
+
 ## 4. LIA
 
 Rascunho em `docs/agro/lia-inteligencia-agricola-car.md` — falta DPO, avaliação e assinatura da direção.
