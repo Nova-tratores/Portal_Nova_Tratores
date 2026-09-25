@@ -3,6 +3,7 @@ import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
+import { parseValorMisto } from "@/lib/marketing/custos";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -13,6 +14,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const autoPrint = req.nextUrl.searchParams.get("auto") === "1" && !viewMode;
   // pecas=0 → NÃO lista as peças no PDF da OS (o usuário escolhe na hora de imprimir).
   const comPecas = req.nextUrl.searchParams.get("pecas") !== "0";
+  // reqocultas=1,2 → requisições que o usuário escolheu ESCONDER da impressão
+  // (saem da lista E do total, igual ao "sem peças").
+  const reqOcultas = new Set(
+    String(req.nextUrl.searchParams.get("reqocultas") || "")
+      .split(",").map((s) => s.trim()).filter(Boolean),
+  );
 
   const { data: res } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs).limit(1);
   if (!res || !res.length) {
@@ -132,42 +139,63 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
   }
 
-  // Requisições
+  // Requisições — legado (Id_Req nas tabelas Supa-*) + NOVO (Requisicao.ordem_servico),
+  // a mesma união que a rota da OS e o Valor_Total usam. Antes só o legado saía
+  // na impressão e as requisições atuais ficavam fora da folha E do total.
   const idReqStr = safeGet(row, "Id_Req") as string;
   let reqHtml = "";
   let totalReq = 0;
+  const reqs: Array<{ id: string; material: string; atualizada: boolean; valor: number }> = [];
+  const idsJaAdicionados = new Set<string>();
+
   if (idReqStr) {
     const cleanIds = idReqStr.split(",").map((s: string) => s.trim()).filter(Boolean);
     if (cleanIds.length > 0) {
       const { data: sols } = await supabase.from(TBL_REQ_SOL).select("*").in("IdReq", cleanIds);
       const { data: atts } = await supabase.from(TBL_REQ_ATT).select("*").in("ReqREF", cleanIds);
-
-      const reqs = cleanIds.map((rid) => {
+      for (const rid of cleanIds) {
+        idsJaAdicionados.add(rid);
+        if (reqOcultas.has(rid)) continue;
         const sol = (sols || []).find((s) => s.IdReq == rid);
         const att = (atts || []).find((a) => a.ReqREF == rid);
-        const valor = att ? parseFloat(att.ReqValor || 0) : 0;
+        // valores das requisições são TEXT em formato misto BR/US — nunca parseFloat cru
+        const valor = att ? parseValorMisto(att.ReqValor) : 0;
         totalReq += valor;
-        return {
-          id: rid,
-          material: sol ? sol.Material_Serv_Solicitado : "N/A",
-          atualizada: !!att,
-          valor,
-        };
-      });
-
-      if (reqs.length > 0) {
-        reqHtml = `
-          <div class="section">
-            <div class="section-title">Requisições</div>
-            <table class="cost-table">
-              <thead><tr><th>ID</th><th>Material/Serviço</th><th style="text-align:center">Status</th><th style="text-align:right">Valor</th></tr></thead>
-              <tbody>
-                ${reqs.map((r) => `<tr><td>${r.id}</td><td>${r.material}</td><td style="text-align:center">${r.atualizada ? "Atualizada" : "Pendente"}</td><td style="text-align:right">R$ ${r.valor.toFixed(2)}</td></tr>`).join("")}
-              </tbody>
-            </table>
-          </div>`;
+        reqs.push({ id: rid, material: sol ? sol.Material_Serv_Solicitado : "N/A", atualizada: !!att, valor });
       }
     }
+  }
+
+  const { data: reqsNovas } = await supabase
+    .from("Requisicao")
+    .select("id, titulo, fornecedor, status, valor_cobrado_cliente, recibo_fornecedor")
+    .eq("ordem_servico", idOs)
+    .not("status", "in", '("lixeira","cancelada")');
+  for (const r of reqsNovas || []) {
+    const rid = String(r.id);
+    if (idsJaAdicionados.has(rid) || reqOcultas.has(rid)) continue;
+    const valor = parseValorMisto(r.valor_cobrado_cliente);
+    totalReq += valor;
+    reqs.push({
+      id: `#${rid}`,
+      material: `${r.titulo || "N/A"}${r.fornecedor ? ` — ${r.fornecedor}` : ""}`,
+      atualizada: r.status !== "pedido" && !!r.recibo_fornecedor,
+      valor,
+    });
+  }
+
+  if (reqs.length > 0) {
+    const escReq = (s: string) => String(s || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    reqHtml = `
+      <div class="section">
+        <div class="section-title">Requisições</div>
+        <table class="cost-table">
+          <thead><tr><th>ID</th><th>Material/Serviço</th><th style="text-align:center">Status</th><th style="text-align:right">Valor</th></tr></thead>
+          <tbody>
+            ${reqs.map((r) => `<tr><td>${r.id}</td><td>${escReq(r.material)}</td><td style="text-align:center">${r.atualizada ? "Atualizada" : "Pendente"}</td><td style="text-align:right">R$ ${r.valor.toFixed(2)}</td></tr>`).join("")}
+          </tbody>
+        </table>
+      </div>`;
   }
 
 

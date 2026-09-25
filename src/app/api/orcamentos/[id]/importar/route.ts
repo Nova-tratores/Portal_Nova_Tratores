@@ -6,6 +6,7 @@ import { gerarProximoId, vincularPPVnaOS, atualizarValorTotal } from "@/lib/ppv/
 import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_PEDIDOS } from "@/lib/ppv/constants";
 import { linhasDoOrcamento, nomesServicos, somaHorasKm } from "@/lib/orcamentos/servicos";
+import { parseValorMisto } from "@/lib/marketing/custos";
 
 interface ItemOrc {
   codigo?: string;
@@ -112,7 +113,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .select("valor_cobrado_cliente")
     .eq("ordem_servico", osId)
     .not("status", "in", '("lixeira","cancelada")');
-  (reqsOS || []).forEach((r) => { if (r.valor_cobrado_cliente) vReq += parseFloat(r.valor_cobrado_cliente); });
+  // valor_cobrado_cliente é TEXT misto BR/US — parseValorMisto, nunca parseFloat cru
+  (reqsOS || []).forEach((r) => { vReq += parseValorMisto(r.valor_cobrado_cliente); });
 
   const config = await getConfigPOS();
   const vHoras = horas * config.valor_hora;

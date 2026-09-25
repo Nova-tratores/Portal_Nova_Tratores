@@ -7,6 +7,7 @@ import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
+import { parseValorMisto } from "@/lib/marketing/custos";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -48,7 +49,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     for (const r of reqsVinculadas) {
       const rid = String(r.id);
       if (idsJaAdicionados.has(rid)) continue;
-      const valor = r.valor_cobrado_cliente ? parseFloat(r.valor_cobrado_cliente) : 0;
+      // valor_cobrado_cliente é TEXT misto BR/US ("127,48" / "560.00") — parseFloat cru perde centavos
+      const valor = parseValorMisto(r.valor_cobrado_cliente);
       requisicoes.push({
         id: rid,
         atualizada: r.status !== "pedido" && !!r.recibo_fornecedor,
@@ -257,7 +259,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     .not("status", "in", '("lixeira","cancelada")');
   if (reqsOS) {
     for (const r of reqsOS) {
-      if (r.valor_cobrado_cliente) vReq += parseFloat(r.valor_cobrado_cliente);
+      // TEXT misto BR/US — "127,48" com parseFloat virava 127
+      vReq += parseValorMisto(r.valor_cobrado_cliente);
     }
   }
   // Legado: Supa-AtualizarReq via Id_Req
@@ -266,7 +269,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     const legacyIds = idReqStrPatch.split(",").map((s: string) => s.trim()).filter(Boolean);
     for (const rid of legacyIds) {
       const { data } = await supabase.from(TBL_REQ_ATT).select("ReqValor").eq("ReqREF", rid);
-      if (data && data.length > 0) vReq += parseFloat(data[0].ReqValor || 0);
+      if (data && data.length > 0) vReq += parseValorMisto(data[0].ReqValor);
     }
   }
 

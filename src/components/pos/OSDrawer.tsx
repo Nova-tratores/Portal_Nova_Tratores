@@ -219,15 +219,27 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setPrintMenu((o) => !o);
   }, []);
 
+  // Requisições que o usuário desmarcou no menu de imprimir: saem da folha e
+  // da soma da impressão (escolha só na hora de imprimir, igual "sem peças").
+  const [reqsOcultasPrint, setReqsOcultasPrint] = useState<Set<string>>(new Set());
+  const toggleReqPrint = useCallback((rid: string) => {
+    setReqsOcultasPrint((prev) => {
+      const next = new Set(prev);
+      if (next.has(rid)) next.delete(rid); else next.add(rid);
+      return next;
+    });
+  }, []);
+
   // Imprime a OS (com ou sem a lista de peças) ou o PDF do PPV vinculado.
   const imprimirOS = useCallback((comPecas: boolean) => {
     setPrintMenu(false);
     const w = window.open("", "_blank");
     if (!w) return;
-    fetch(`/api/pos/ordens/${osId}/print?pecas=${comPecas ? 1 : 0}`)
+    const ocultas = [...reqsOcultasPrint].join(",");
+    fetch(`/api/pos/ordens/${osId}/print?pecas=${comPecas ? 1 : 0}${ocultas ? `&reqocultas=${encodeURIComponent(ocultas)}` : ""}`)
       .then((r) => r.text()).then((html) => { w.document.write(html); w.document.close(); })
       .catch(() => w.close());
-  }, [osId]);
+  }, [osId, reqsOcultasPrint]);
 
   const imprimirPPV = useCallback((ppvId: string) => {
     setPrintMenu(false);
@@ -820,7 +832,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     setPrevisaoExecucao(hojeStr)
     setPrevisaoFaturamento(""); setDataFimServico(""); setDiasExecucao([]); setServicoNumero(0); setHoraInicioExec(horaStr); setHoraChegada(""); setHoraFimExec(""); setAgendaTecnico([]);
     setEstimativa(null); setErroEstimativa(""); setLoadingEstimativa(false); setEnderecoEstimativa(""); setEnderecosDisponiveis([]);
-    setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]);
+    setProdutos([]); setTotalPecas(0); setShowLogs(false); setRequisicoes([]); setReqsOcultasPrint(new Set());
     setGerarPPV(false); setShowDescontos(false); setLoadingData(false);
     setLembretes([]); setEditingLembreteId(null);
     setServicoOficina(false);
@@ -2161,6 +2173,23 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <button className="os-printmenu-item" onClick={() => imprimirOS(false)} style={printMenuItem}>
                           <i className="fas fa-file-lines" style={{ width: 16, color: "#64748b" }} /> Sem as peças
                         </button>
+                        {requisicoes.length > 0 && (
+                          <>
+                            <div style={{ height: 1, background: "var(--portal-border)", margin: "4px 6px" }} />
+                            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .5, padding: "2px 10px" }}>Requisições na impressão</div>
+                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", padding: "0 10px 2px" }}>Desmarcada = fora da folha e do total impresso</div>
+                            {requisicoes.map((r) => {
+                              const marcada = !reqsOcultasPrint.has(r.id);
+                              return (
+                                <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, borderRadius: 6, opacity: marcada ? 1 : 0.55 }}>
+                                  <input type="checkbox" checked={marcada} onChange={() => toggleReqPrint(r.id)} style={{ accentColor: "#0369A1", cursor: "pointer" }} />
+                                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: marcada ? "none" : "line-through" }}>#{r.id} · {r.material}</span>
+                                  <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>R$ {(r.valor || 0).toFixed(2)}</span>
+                                </label>
+                              );
+                            })}
+                          </>
+                        )}
                         {ppvIds.length > 0 && (
                           <>
                             <div style={{ height: 1, background: "var(--portal-border)", margin: "4px 6px" }} />
