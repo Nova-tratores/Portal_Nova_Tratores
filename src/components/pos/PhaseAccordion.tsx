@@ -294,6 +294,25 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
           {erro && <div style={{ color: "#B91C1C", fontWeight: 600, marginBottom: 6 }}>{erro}</div>}
           {dados && (
             <>
+              {/* Serviço JÁ COBRADO: avisa aqui dentro também (não só na capa),
+                  pra quem está escolhendo/vinculando contato saber que já foi */}
+              {statusEnvio?.enviada && !enviada && (
+                <div style={{ border: `1px solid ${statusEnvio.respostas?.length ? "#4ADE80" : "#FBBF24"}`, background: statusEnvio.respostas?.length ? "rgba(74,222,128,0.12)" : "rgba(251,191,36,0.12)", borderRadius: 8, padding: "6px 9px", marginBottom: 7 }}>
+                  <div style={{ fontWeight: 800, fontSize: 11.5, color: statusEnvio.respostas?.length ? "#166534" : "#92400E" }}>
+                    <i className={statusEnvio.respostas?.length ? "fas fa-comment-dots" : "fas fa-exclamation-triangle"} style={{ marginRight: 5 }} />
+                    Este serviço JÁ FOI COBRADO{statusEnvio.quando ? ` ${statusEnvio.quando}` : ""}{statusEnvio.para ? ` pra ${statusEnvio.para}` : ""}
+                  </div>
+                  {statusEnvio.respostas?.length ? (
+                    <div style={{ fontSize: 11, color: "#166534", marginTop: 2, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                      Ele respondeu: “{statusEnvio.respostas[statusEnvio.respostas.length - 1].texto.slice(0, 160)}”
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11, color: "#A16207", marginTop: 2 }}>
+                      Ainda sem resposta — enviar de novo manda OUTRA mensagem pro contato escolhido.
+                    </div>
+                  )}
+                </div>
+              )}
               <div style={{ display: "flex", justifyContent: "space-between", fontWeight: 600, color: "#475569" }}>
                 <span>OS R$ {din(dados.valores?.os)} + PV R$ {din(dados.valores?.pv)}</span>
                 <b style={{ color: "#15803D" }}>= R$ {din(dados.valores?.total)}</b>
@@ -355,7 +374,7 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
                 <button onClick={enviar} disabled={enviando || !contatoSel}
                   style={{ width: "100%", marginTop: 7, display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "7px 10px", borderRadius: 7, border: "none", background: enviando ? "#94A3B8" : "#15803D", color: "#fff", fontSize: 12, fontWeight: 700, cursor: enviando ? "wait" : "pointer", opacity: contatoSel ? 1 : 0.5 }}>
                   <i className={enviando ? "fas fa-spinner fa-spin" : "fas fa-paper-plane"} />
-                  {enviando ? "Enviando mensagem e PDFs…" : "Enviar cobrança agora"}
+                  {enviando ? "Enviando mensagem e PDFs…" : statusEnvio?.enviada ? "Enviar cobrança DE NOVO" : "Enviar cobrança agora"}
                 </button>
               )}
             </>
