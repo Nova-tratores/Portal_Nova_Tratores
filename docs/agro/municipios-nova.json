@@ -1,0 +1,231 @@
+{
+ "fonte": "Dashboard Agro externo (LOJA_MUNICIPIOS.NOVA, 25/09/2026) — confirmar com o comercial",
+ "uf": "SP",
+ "municipios": [
+  {
+   "ibge": 3501509,
+   "nome": "Alvinlândia",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3502200,
+   "nome": "Angatuba",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3503109,
+   "nome": "Arandu",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3504503,
+   "nome": "Avaré",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3505005,
+   "nome": "Barão de Antonina",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3506300,
+   "nome": "Bernardino de Campos",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3506904,
+   "nome": "Bofete",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3507159,
+   "nome": "Bom Sucesso de Itararé",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3509452,
+   "nome": "Campina do Monte Alegre",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3509809,
+   "nome": "Campos Novos Paulista",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3510153,
+   "nome": "Canitar",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3511409,
+   "nome": "Cerqueira César",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3557204,
+   "nome": "Chavantes",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3512605,
+   "nome": "Coronel Macedo",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3515194,
+   "nome": "Espírito Santo do Turvo",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3515400,
+   "nome": "Fartura",
+   "carregado_em": "2026-09-25"
+  },
+  {
+   "ibge": 3519253,
+   "nome": "Iaras",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3519501,
+   "nome": "Ibirarema",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3520905,
+   "nome": "Ipaussu",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3521705,
+   "nome": "Itaberá",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3522802,
+   "nome": "Itaporanga",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3523206,
+   "nome": "Itararé",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3523503,
+   "nome": "Itatinga",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3521804,
+   "nome": "Itaí",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3527801,
+   "nome": "Lupércio",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3528601,
+   "nome": "Manduri",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3532827,
+   "nome": "Nova Campina",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3533700,
+   "nome": "Ocauçu",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3534708,
+   "nome": "Ourinhos",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3535309,
+   "nome": "Palmital",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3535804,
+   "nome": "Paranapanema",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3538808,
+   "nome": "Piraju",
+   "carregado_em": "2026-09-25"
+  },
+  {
+   "ibge": 3543204,
+   "nome": "Ribeirão do Sul",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3543501,
+   "nome": "Riversul",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3545407,
+   "nome": "Salto Grande",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3546405,
+   "nome": "Santa Cruz do Rio Pardo",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3551207,
+   "nome": "Sarutaiá",
+   "carregado_em": "2026-09-25"
+  },
+  {
+   "ibge": 3550506,
+   "nome": "São Pedro do Turvo",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3553005,
+   "nome": "Taguaí",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3553807,
+   "nome": "Taquarituba",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3554201,
+   "nome": "Tejupá",
+   "carregado_em": "2026-09-25"
+  },
+  {
+   "ibge": 3554607,
+   "nome": "Timburi",
+   "carregado_em": "2026-09-25"
+  },
+  {
+   "ibge": 3555505,
+   "nome": "Ubirajara",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3500550,
+   "nome": "Águas de Santa Bárbara",
+   "carregado_em": null
+  },
+  {
+   "ibge": 3533809,
+   "nome": "Óleo",
+   "carregado_em": null
+  }
+ ]
+}

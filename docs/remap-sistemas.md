@@ -36,7 +36,7 @@ Legenda: ✅ Concluído · 🚧 Em andamento · ⬜ Pendente
 - ⬜ Opa — `/opa`
 - ⬜ Avisos — `/avisos`
 - ⬜ Tarefas — `/tarefas`
-- ⬜ Dashboard Agro — `/dashboard-agro`
+- ⬜ Dashboard Agro — `/dashboard-agro` (faixa verde com guias Dashboard | Inteligência por CAR — feita 25/09/2026; o iframe do Railway continua)
 - ⬜ Back Nova (externo) — https://back.novatratores.com
 - ⬜ Configurações / Admin — `/admin`
 

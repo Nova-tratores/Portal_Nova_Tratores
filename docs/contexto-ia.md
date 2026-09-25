@@ -221,7 +221,7 @@ Navegação em `src/components/PortalLayout.tsx` (`navItems`), agrupada por
 - **Atividades** — `/atividades` — auditoria (`audit_log`): filtros por sistema/usuário/ação.
 - **Tarefas** — `/tarefas` — to-dos simples (título, prazo, prioridade, atribuído);
   pessoas de `financeiro_usu`. (Distinto do Cronograma.)
-- **Dashboard Agro** — externo (Railway próprio).
+- **Dashboard Agro** — guia "Dashboard" = app externo (Railway próprio, iframe) + guia "Inteligência por CAR" = planejamento do módulo (`docs/inteligencia-agricola-car-plano.md`, ainda sem banco).
 - **Admin** — `/admin` — usuários, permissões (Usuário/Admin/Dev), categorias, histórico.
 
 ---
