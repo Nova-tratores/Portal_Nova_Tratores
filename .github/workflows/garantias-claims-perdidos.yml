@@ -1,0 +1,23 @@
+# Garantias — varredura de CLAIMS PERDIDOS: relatório do técnico marcado
+# GARANTIA sem claim no portal (envio offline ou falha silenciosa do app)
+# vira claim pro garantista ver. Casos reais: OS-0633 (31/07) e OS-0777
+# (25/09 — relatório enviado de manhã ficava invisível até a varredura do
+# meio-dia; por isso este workflow roda de HORA em HORA no expediente,
+# separado do cron de e-mails, que segue 2x/dia).
+# A rota é idempotente (OS com claim, ativo ou finalizado, é pulada).
+name: Garantias - Claims perdidos (varredura)
+
+on:
+  schedule:
+    - cron: '15 10-21 * * *'   # a cada hora, 07:15-18:15 BRT (-03)
+  workflow_dispatch: {}
+
+jobs:
+  varrer:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Varredura de claims de garantia perdidos
+        run: |
+          curl -fsS --max-time 120 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/garantias/cron/claims-perdidos"
