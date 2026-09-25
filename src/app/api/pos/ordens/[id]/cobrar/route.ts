@@ -10,6 +10,7 @@ import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { buscarWhatsappDoCliente } from "@/lib/chatwoot/contatos-cliente";
 import { garantirConversaContato, enviarTextoConversa, enviarPdfConversa, buscarContatosPorTexto, atualizarAtributosContato, listarConversasContato, listarMensagensConversa } from "@/lib/chatwoot/cliente";
 import { chatwootConfigurado, chatwootVariaveisFaltando } from "@/lib/chatwoot/config";
+import { nomeVendedorPorCodigo } from "@/lib/pos/omie";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,7 +81,7 @@ interface DadosCobranca {
 
 async function montarCobranca(id: string): Promise<DadosCobranca | { erro: string; status: number }> {
   const { data: rows } = await supabase.from(TBL_OS)
-    .select("Id_Ordem, Os_Cliente, Cnpj_Cliente, Os_Tecnico, Projeto, Serv_Solicitado, Data_Fim_Servico, Data, Ordem_Omie, Pedido_Venda, ID_PPV, Status")
+    .select("Id_Ordem, Os_Cliente, Cnpj_Cliente, Os_Tecnico, Os_Tecnico2, Projeto, Serv_Solicitado, Previsao_Execucao, Data_Fim_Servico, Data, Ordem_Omie, Pedido_Venda, ID_PPV, Status")
     .eq("Id_Ordem", id).limit(1);
   const os = rows?.[0];
   if (!os) return { erro: "OS não encontrada.", status: 404 };
@@ -137,16 +138,35 @@ async function montarCobranca(id: string): Promise<DadosCobranca | { erro: strin
   // ── Mensagem-modelo ──
   const agora = new Date(Date.now() - 3 * 3600 * 1000);
   const saud = agora.getUTCHours() < 12 ? "Bom dia" : agora.getUTCHours() < 18 ? "Boa tarde" : "Boa noite";
-  const dataStr = (() => {
-    const d = String(os.Data_Fim_Servico || os.Data || "").slice(0, 10);
-    return d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : agora.toISOString().slice(8, 10) + "/" + agora.toISOString().slice(5, 7);
-  })();
+
+  // Data = dia da EXECUÇÃO: 1º o relatório do técnico (DataInicio); sem
+  // relatório, a data de execução da OS no POS (Previsao_Execucao); depois fim
+  // do serviço/data da OS.
+  const { data: rel } = await supabase.from("Ordem_Servico_Tecnicos")
+    .select("DataInicio").eq("Ordem_Servico", os.Id_Ordem).maybeSingle();
+  const ddMM = (v: unknown): string => {
+    const s = String(v || "").trim();
+    if (/^\d{2}\/\d{2}/.test(s)) return s.slice(0, 5);
+    if (/^\d{4}-\d{2}-\d{2}/.test(s)) return `${s.slice(8, 10)}/${s.slice(5, 7)}`;
+    return "";
+  };
+  const dataStr = ddMM(rel?.DataInicio) || ddMM(os.Previsao_Execucao) || ddMM(os.Data_Fim_Servico) || ddMM(os.Data)
+    || agora.toISOString().slice(8, 10) + "/" + agora.toISOString().slice(5, 7);
+
+  // Técnico(s) = o VENDEDOR da OS no Omie (cobre serviço com mais de um
+  // técnico — lá o cadastro é combinado, ex. "JOSE // NICOLAS"); sem ele,
+  // os campos da própria OS.
+  let tecnico = "";
+  try { tecnico = await nomeVendedorPorCodigo(Number(c?.Cabecalho?.nCodVend || 0)); } catch { /* cai nos campos da OS */ }
+  if (!tecnico) tecnico = [os.Os_Tecnico, os.Os_Tecnico2].map((t: unknown) => String(t || "").trim()).filter(Boolean).join(" e ");
+  tecnico = tecnico.replace(/\s*\/{1,3}\s*/g, " e ").trim();
+
   const chassi = finalChassi(os.Serv_Solicitado, os.Projeto);
   const mensagem = (nomeContato: string) => {
     const primeiro = String(nomeContato || "").trim().split(/\s+/)[0] || "";
     return `${saud}${primeiro ? ` ${primeiro}` : ""}, tudo bem com o senhor? Segue o orçamento das revisões realizadas no trator de vocês:\n` +
       `Data: ${dataStr}\n` +
-      `Técnico: ${String(os.Os_Tecnico || "").trim()}\n` +
+      `${tecnico.includes(" e ") ? "Técnicos" : "Técnico"}: ${tecnico}\n` +
       `Final do Chassis: ${chassi}\n\n` +
       `Valor Total: R$ ${din(total)}`;
   };

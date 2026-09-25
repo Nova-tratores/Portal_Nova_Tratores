@@ -274,6 +274,13 @@ async function carregarVendedores(): Promise<Array<{ codigo: number; nome: strin
   return listaVendedores;
 }
 
+/** Nome do vendedor (técnico) pelo código do Omie — usa o mesmo cache do envio. */
+export async function nomeVendedorPorCodigo(codigo: number): Promise<string> {
+  if (!codigo) return "";
+  const vendedores = await carregarVendedores();
+  return vendedores.find((v) => v.codigo === codigo)?.nome || "";
+}
+
 async function buscarNcodVend(tecnico1: string, tecnico2: string): Promise<number> {
   const t1 = (tecnico1 || "").trim();
   const t2 = (tecnico2 || "").trim();
