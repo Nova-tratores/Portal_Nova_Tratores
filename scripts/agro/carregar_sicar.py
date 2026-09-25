@@ -39,10 +39,44 @@ def carregar_env(caminho=".env.local"):
     return env
 
 
+def preferir_ip_vivo(url, timeout=5.0):
+    """O DNS do Supabase devolve 2+ IPs da Cloudflare e, nesta rede, o primeiro
+    às vezes não responde (TCP connect estoura). O urllib tenta os IPs em ordem
+    com o timeout inteiro em cada um — a carga 'travava' 5 min por requisição.
+    Aqui testamos cada IP com 5 s e reordenamos o getaddrinfo pra esse host."""
+    import socket
+    from urllib.parse import urlparse
+    host = urlparse(url).hostname
+    if not host:
+        return
+    try:
+        infos = socket.getaddrinfo(host, 443, 0, socket.SOCK_STREAM)
+    except socket.gaierror:
+        return
+    vivos, mortos = [], []
+    for info in infos:
+        try:
+            s = socket.create_connection(info[4], timeout=timeout); s.close(); vivos.append(info)
+        except OSError:
+            mortos.append(info)
+    if not mortos or not vivos:
+        return
+    print(f"  rede: IP(s) sem resposta {[m[4][0] for m in mortos]}; usando {[v[4][0] for v in vivos]}", file=sys.stderr)
+    original = socket.getaddrinfo
+    def patched(h, *a, **k):
+        res = original(h, *a, **k)
+        if h == host:
+            vivos_ip = {v[4][0] for v in vivos}
+            res = [r for r in res if r[4][0] in vivos_ip] + [r for r in res if r[4][0] not in vivos_ip]
+        return res
+    socket.getaddrinfo = patched
+
+
 class Rest:
     def __init__(self, url, key):
         self.url = url.rstrip("/") + "/rest/v1"
         self.h = {"apikey": key, "Authorization": "Bearer " + key, "Content-Type": "application/json"}
+        preferir_ip_vivo(url)
 
     def _req(self, method, path, body=None, prefer=None):
         h = dict(self.h)
@@ -55,7 +89,7 @@ class Rest:
         # por vários minutos — desistir cedo perdia a carga inteira.
         for tentativa in range(8):
             try:
-                with urllib.request.urlopen(r, timeout=300) as resp:
+                with urllib.request.urlopen(r, timeout=90) as resp:   # 90 s: um IP morto custa no máx. isto antes do próximo
                     t = resp.read().decode("utf-8")
                     return json.loads(t) if t else None
             except urllib.error.HTTPError as e:
