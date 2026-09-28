@@ -47,6 +47,21 @@ async function fetchRotaExata(endpoint: string, params?: Record<string, string>)
   return res.json()
 }
 
+// Pagina até o fim (espelho do fetchTudo de lib/pos/rastreamento). ⚠️ o `page`
+// da Rota Exata é OFFSET EM REGISTROS, não nº de página — avança de pageSize
+// em pageSize.
+async function fetchTudo(endpoint: string, params: Record<string, string> = {}, pageSize = 500): Promise<any[]> {
+  const out: any[] = []
+  const MAX = 100_000
+  for (let offset = 0; offset < MAX; offset += pageSize) {
+    const r = await fetchRotaExata(endpoint, { ...params, limit: String(pageSize), page: String(offset) })
+    const lote = Array.isArray(r?.data) ? r.data : (Array.isArray(r) ? r : [])
+    out.push(...lote)
+    if (lote.length < pageSize) break
+  }
+  return out
+}
+
 // ── Destinos (pontos de interesse cadastrados na Rota Exata) ──
 interface Destino {
   id: number; nome: string; latitude: number; longitude: number
@@ -402,8 +417,10 @@ export async function GET(req: NextRequest) {
                 adesao_id: ad.id,
                 dt_posicao: { $gte: inicioDia.toISOString(), $lte: agora.toISOString() }
               })
-              const posData = await fetchRotaExata('/posicoes', { where: w, limit: '500', page: '0' })
-              const posicoes = (Array.isArray(posData.data) ? posData.data : [])
+              // fetchTudo pagina até o fim — com limit fixo, dia com mais
+              // posições que o limite devolvia só a manhã e a "última" posição
+              // ficava velha (mesmo bug do mapa da frota, 28/09/2026)
+              const posicoes = (await fetchTudo('/posicoes', { where: w }, 500))
                 .sort((a: any, b: any) => new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime())
 
               veiculo.pontos_hoje = posicoes.length

@@ -103,8 +103,11 @@ export async function GET(req: NextRequest) {
               adesao_id: ad.id,
               dt_posicao: { $gte: inicioDia.toISOString(), $lte: agora.toISOString() }
             });
-            const posData = await fetchRotaExata("/posicoes", { where: w, limit: "200", page: "0" });
-            const posicoes = (Array.isArray(posData.data) ? posData.data : [])
+            // fetchTudo pagina até o fim. Com limit 200/page 0 fixos, um carro
+            // com mais de 200 posições no dia devolvia só a MANHÃ — a "última"
+            // posição era de horas atrás e o card ficava preso no lugar errado
+            // (e as paradas da tarde sumiam). Caso real reportado em 28/09/2026.
+            const posicoes = (await fetchTudo("/posicoes", { where: w }))
               .sort((a: any, b: any) => new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime());
 
             if (posicoes.length > 0) {
