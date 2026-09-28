@@ -183,6 +183,10 @@ Carga estendida aos 40 municípios que faltavam:
 | `sicor` (portão 45) | Passada única do `SICOR_GLEBAS.gz` para os 45 municípios (`docs/agro/dados/portao_nova45_saida.txt`, CSV `glebas_nova45_sicor.csv`) | **23.248 glebas**, 100% polígono. Gleba→CAR (prévia por vértices) entre 76% e 97% em 43 municípios; Salto Grande 59% e Canitar 50% (4 glebas). Maiores: Itararé 1.934, Santa Cruz do Rio Pardo 1.877, Itaberá 1.705, Taquarituba 1.613, Paranapanema 1.513, Palmital 1.274, Itaí 1.367. |
 | #7 `mapbiomas` | zonal 2022–2024 dos 40 novos (28.469 CARs ativos; janela 7.779 × 8.323 px, 9 s por ano) | 231.615 linhas (total 256.850). A gravação da `area_util_ha` em 8 threads **saturou o Supabase** junto com as sobreposições (timeouts) — retomada com `--apenas-area-util` e 4 threads. |
 | sobreposições 45 | `agro_calcular_sobreposicoes` por município (exec #6) | **38.389 pares**, 1.286 com ≥99%; Angatuba 2.074, Bofete 2.159, Palmital 2.030, Santa Cruz 1.992. Sem erros após o patch. |
+| #11 `sicor` | `carregar_sicor.py` com o CSV dos 45 | 9.748 operações e 23.248 glebas gravadas. A atribuição pela API estourou o statement timeout; rodada no SQL Editor em 28/09: **22.264 glebas atribuídas (96%)**. |
+| #14 `perfil` (28/09) | `calcular_perfil.py` safra 2024, 45 municípios | **31.655 perfis**: confiança alta 1.233 · média 12.086 · baixa 18.336. Cultura principal: soja 10.678, diversificado 8.752, pastagem 7.390, silvicultura 1.986, cana 1.687, café 526, outras temporárias 300, citros 199. 1.730 imóveis com crédito nos 36 meses, 332 com investimento. |
+
+As "quedas" do Supabase durante essas cargas eram um dos dois IPs da Cloudflare sem rota nesta rede (alternando); o `curl` passava e o Python travava 5 min no IP morto. `Rest` agora testa os IPs (`preferir_ip_vivo`) e insiste com timeout curto.
 
 ## 3.6 Vínculo CAR↔cliente sugerido pelas visitas do CRM (25/09/2026, noite)
 

@@ -40,7 +40,7 @@ import datetime as dt
 import os
 import sys
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from carregar_sicar import Rest, carregar_env  # noqa: E402
