@@ -1,13 +1,14 @@
 'use client'
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { BarChart3, Sprout, Link2, MapPin } from 'lucide-react'
+import { BarChart3, Sprout, Link2, MapPin, Target } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import PlanoCarAba from '@/components/dashboard-agro/PlanoCarAba'
 import VinculosSugeridos from '@/components/dashboard-agro/VinculosSugeridos'
 import MapaCar from '@/components/dashboard-agro/MapaCar'
+import ProspeccaoCar from '@/components/dashboard-agro/ProspeccaoCar'
 
 // Dashboard Agro: duas guias.
 //  - Dashboard: o app externo no Railway (iframe) — fica sempre montado, só
@@ -15,18 +16,20 @@ import MapaCar from '@/components/dashboard-agro/MapaCar'
 //  - Inteligência por CAR: o planejamento do módulo (lib pura lib/agro/plano-car.ts).
 //  - Mapa: imóveis (CAR) do município coloridos por cultura + visitas do CRM.
 //  - Vínculos: sugestões CAR↔cliente pelas visitas do CRM (aceitar/rejeitar).
-// Deep-link: /dashboard-agro?tab=car | ?tab=mapa | ?tab=vinculos
-type Aba = 'dashboard' | 'car' | 'mapa' | 'vinculos'
+//  - Prospecção: lista por score + ficha do imóvel (validar cultura, vincular cliente, exportar).
+// Deep-link: /dashboard-agro?tab=car | ?tab=prospeccao | ?tab=mapa | ?tab=vinculos
+type Aba = 'dashboard' | 'car' | 'prospeccao' | 'mapa' | 'vinculos'
 const IFRAME_URL = 'https://dashboard-agro-sp-production.up.railway.app/'
 const ALTURA_FAIXA = 52
 
 const GUIAS: { id: Aba; label: string; icon: React.ReactNode; selo?: string }[] = [
   { id: 'dashboard', label: 'Dashboard', icon: <BarChart3 size={15} /> },
   { id: 'car', label: 'Inteligência por CAR', icon: <Sprout size={15} />, selo: 'PLANO' },
-  { id: 'mapa', label: 'Mapa dos imóveis', icon: <MapPin size={15} />, selo: 'NOVO' },
+  { id: 'prospeccao', label: 'Prospecção', icon: <Target size={15} />, selo: 'NOVO' },
+  { id: 'mapa', label: 'Mapa dos imóveis', icon: <MapPin size={15} /> },
   { id: 'vinculos', label: 'Vínculos', icon: <Link2 size={15} />, selo: 'SUGESTÕES' },
 ]
-const ABAS: Aba[] = ['dashboard', 'car', 'mapa', 'vinculos']
+const ABAS: Aba[] = ['dashboard', 'car', 'prospeccao', 'mapa', 'vinculos']
 
 export default function DashboardAgroPage() {
   const { userProfile } = useAuth()
@@ -95,6 +98,11 @@ export default function DashboardAgroPage() {
         {aba === 'car' && (
           <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'var(--portal-bg)' }}>
             <PlanoCarAba />
+          </div>
+        )}
+        {aba === 'prospeccao' && (
+          <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'var(--portal-bg)' }}>
+            <ProspeccaoCar />
           </div>
         )}
         {aba === 'mapa' && (

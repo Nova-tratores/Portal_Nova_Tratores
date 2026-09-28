@@ -45,6 +45,16 @@ export interface Identidade {
   observacoes: string | null;
 }
 
+/** Imóvel rural (CAR) vinculado ao cliente — módulo Inteligência Agrícola (agro_*). */
+export interface ImovelCar {
+  cod_car: string; municipio: string; area_ha: number | null; area_util_ha: number | null;
+  cultura_nome: string | null; cultura_principal: string | null; area_cultura_ha: number | null; pct_area_util: number | null;
+  confianca: "alta" | "media" | "baixa" | null; motivo_confianca: string | null;
+  credito_12m: number | null; credito_36m: number | null; credito_invest_36m: number | null;
+  ultima_finalidade: string | null; ultimo_credito_em: string | null; score_oportunidade: number | null;
+  origem_vinculo: string | null; vinculado_por: string | null;
+}
+
 export interface ContextoAtendimento {
   cliente_key: string;
   codigo_omie: string | null;
@@ -59,6 +69,7 @@ export interface ContextoAtendimento {
   pasta: Pick<ClienteInfo, "funcionarios" | "fazendas" | "equipamentos" | "cidade" | "email"> | null;
   atendimentos: AtendimentoResumo[] | null;
   whatsapp: SecaoWhatsapp;
+  car: ImovelCar[] | null; // imóveis rurais vinculados (null = fonte falhou; [] = nenhum)
   // Fase 2
   roteiro: Script[];
   config_retorno: ConfigRetorno;
@@ -86,7 +97,7 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
   const guarda = <T,>(chave: string, p: Promise<T>): Promise<T | null> =>
     p.catch((e) => { erros[chave] = (e as Error)?.message || String(e); return null; });
 
-  const [info, principal, registros, oportunidades, historico, osPortal, tratores, whatsapp, roteiro, cfgRetorno, humores, cfgR8] = await Promise.all([
+  const [info, principal, registros, oportunidades, historico, osPortal, tratores, whatsapp, roteiro, cfgRetorno, humores, cfgR8, car] = await Promise.all([
     guarda("pasta", carregarInfo(clienteKey, codigos, NOME)),
     guarda("cadastro", carregarPrincipal(codigos, nome)),
     guarda("atendimentos", carregarRegistros(codigos, NOME)),
@@ -99,6 +110,7 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
     guarda("config_retorno", configRetorno()),
     guarda("humores", humoresRecentes(clienteKey)),
     guarda("config_r8", configR8()),
+    guarda("car", carregarCar(codigos)),
   ]);
 
   const identidade = montarIdentidade(nome, cad, principal, info, registros || [], (cfgR8 ?? {}) as ParametrosR8);
@@ -122,6 +134,7 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
     pasta: info ? { funcionarios: info.funcionarios || [], fazendas: info.fazendas || [], equipamentos: info.equipamentos || [], cidade: info.cidade, email: info.email } : null,
     atendimentos: registros ? resumirAtendimentos(registros) : null,
     whatsapp: whatsapp ?? { estado: "indisponivel", motivo: erros.whatsapp || "falha" },
+    car,
     roteiro: roteiro ?? [],
     config_retorno: cfgRetorno ?? CONFIG_RETORNO_PADRAO,
     humores_recentes: humores ?? [],
@@ -131,6 +144,29 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
 }
 
 // --- fontes ------------------------------------------------------------------
+
+/**
+ * Imóveis rurais (CAR) que alguém da Nova vinculou a este cliente. O vínculo guarda
+ * cliente_omie_id = id_omie da portal_nt_clientes_PRINCIPAL (o mesmo código de `codigos`).
+ * Tabela ausente (migration agro não aplicada) = lista vazia, não erro no cockpit.
+ */
+async function carregarCar(codigos: string[]): Promise<ImovelCar[]> {
+  if (!codigos.length) return [];
+  const { data: vinc, error } = await sb.from("agro_car_cliente_vinculo").select("cod_car, origem, confirmado_por").in("cliente_omie_id", codigos);
+  if (error) { if (/does not exist|schema cache|not find/i.test(error.message)) return []; throw new Error(error.message); }
+  const cods = Array.from(new Set((vinc || []).map((v) => v.cod_car as string)));
+  if (!cods.length) return [];
+  const { data, error: e2 } = await sb.from("agro_v_car_perfil")
+    .select("cod_car, municipio, area_ha, area_util_ha, cultura_nome, cultura_principal, area_cultura_ha, pct_area_util, confianca, motivo_confianca, credito_12m, credito_36m, credito_invest_36m, ultima_finalidade, ultimo_credito_em, score_oportunidade")
+    .in("cod_car", cods);
+  if (e2) throw new Error(e2.message);
+  const porCod = new Map((vinc || []).map((v) => [v.cod_car as string, v]));
+  return ((data || []) as Record<string, unknown>[]).map((r) => ({
+    ...(r as unknown as ImovelCar),
+    origem_vinculo: (porCod.get(r.cod_car as string)?.origem as string) ?? null,
+    vinculado_por: (porCod.get(r.cod_car as string)?.confirmado_por as string) ?? null,
+  })).sort((a, b) => Number(b.area_ha || 0) - Number(a.area_ha || 0));
+}
 
 async function carregarInfo(key: string, codigos: string[], NOME: string): Promise<ClienteInfo | null> {
   const keys = new Set<string>([key, ...codigos.map((c) => montarKey(c, "")), NOME ? montarKey(null, NOME) : ""].filter(Boolean));

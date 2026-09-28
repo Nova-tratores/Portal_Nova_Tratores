@@ -259,6 +259,32 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
           )}
         </Card>
 
+        <Card cinza={cinza} titulo="Imóvel rural (CAR)" emoji="🗺️" cor="#16a34a" contagem={ctx?.car?.length} carregando={carregando && !ctx} erro={ctx?.erros.car}>
+          {!ctx?.car?.length ? (
+            <Vazio>Nenhum imóvel rural vinculado a este cliente. O vínculo é feito em Dashboard Agro → Prospecção ou Vínculos.</Vazio>
+          ) : (
+            <ul style={lista}>
+              {ctx.car.map((c) => (
+                <li key={c.cod_car} style={itemCompacto}>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "baseline" }}>
+                    <strong style={{ fontSize: 13 }}>{c.cultura_nome || "Diversificado"}</strong>
+                    {c.confianca && <span className={styles.pill} style={{ background: c.confianca === "alta" ? "#16a34a" : c.confianca === "media" ? "#d97706" : "#6b7280", color: "#fff" }}>confiança {c.confianca === "media" ? "média" : c.confianca}</span>}
+                    <span style={{ fontSize: 12, opacity: 0.7 }}>{c.municipio} · {c.area_ha != null ? Number(c.area_ha).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " ha" : "—"}{c.area_cultura_ha != null ? ` (${Number(c.area_cultura_ha).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} ha da cultura)` : ""}</span>
+                  </div>
+                  <div style={{ fontSize: 12, marginTop: 2 }}>
+                    Crédito rural 36 m: <strong>{Number(c.credito_36m) > 0 ? Number(c.credito_36m).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 }) : "sem registro"}</strong>
+                    {Number(c.credito_invest_36m) > 0 && <> · <strong style={{ color: "#15803d" }}>investimento {Number(c.credito_invest_36m).toLocaleString("pt-BR", { style: "currency", currency: "BRL", maximumFractionDigits: 0 })}</strong></>}
+                    {c.ultima_finalidade && <span style={{ opacity: 0.7 }}> · último: {c.ultima_finalidade}</span>}
+                  </div>
+                  {c.motivo_confianca && <div style={{ fontSize: 11, opacity: 0.65, marginTop: 2 }}>{c.motivo_confianca}</div>}
+                  <div style={{ fontSize: 11, opacity: 0.6, marginTop: 2, fontFamily: "ui-monospace,Consolas,monospace" }}>{c.cod_car}</div>
+                  <a href="/dashboard-agro?tab=prospeccao" style={{ fontSize: 11, color: "#15803d", fontWeight: 700 }}>Abrir no Dashboard Agro →</a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+
         </>)}
         <Card cinza={cinza} titulo="Atendimentos anteriores" emoji="📞" cor="#475569" contagem={ctx?.atendimentos?.length} carregando={carregando && !ctx} erro={ctx?.erros.atendimentos}>
           {!ctx?.atendimentos?.length ? (

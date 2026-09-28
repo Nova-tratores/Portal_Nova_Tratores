@@ -211,6 +211,22 @@ Decisão do usuário: só **sugestão** — nada vira vínculo confirmado sem hu
 - Rota `GET /api/agro/mapa[?municipio=]` (gate `dashboard-agro`, service role) e guia `/dashboard-agro?tab=mapa` (`components/dashboard-agro/MapaCar.tsx`, Leaflet do unpkg como no Supervisor): seletor de município (lembra o último), polígonos coloridos por cultura principal (opacidade = confiança, borda azul = cliente vinculado), legenda clicável que esconde culturas, filtros de confiança mínima e "com crédito 36 m", pins das visitas, popup com perfil/crédito/score/cliente.
 - Guia "Vínculos" ganhou cabeçalho ordenável (A→Z / Z→A em toda coluna; empate desempata por score).
 
+## 3.8 Fase 4 — prospecção, ficha, cockpit e regras (28/09/2026)
+
+Sem migration nova: tudo lê as tabelas e a view que já existiam e escreve pelas RPCs do schema.
+
+| Peça | Onde | O que faz |
+|---|---|---|
+| Lista de prospecção | guia `/dashboard-agro?tab=prospeccao` (`ProspeccaoCar.tsx`), `GET /api/agro/prospeccao` | Imóveis ativos com perfil, ordenados por score (ordenação no servidor por score, município, cultura, confiança, área, área da cultura, crédito, investimento). Filtros: município, cultura (ou diversificado), confiança (padrão alta+média), área mín/máx, com crédito 36 m, com investimento, com/sem cliente/com sugestão, código do CAR. 100 por página; filtros lembrados no navegador. **Exportar CSV** até 5.000 linhas do filtro (pagina de 1.000 em 1.000 — teto do PostgREST), registrado no `audit_log`; o CSV não leva dado de pessoa física de fonte pública. |
+| Ficha do imóvel | modal `FichaImovel.tsx` (abre da lista e do popup do mapa), `GET/POST /api/agro/imovel/<cod_car>` | Perfil com fonte e motivo da confiança, explicação do score, uso do solo por safra (pivot cultura × ano), crédito por operação com **valor rateado** quando o contrato tem glebas em vários imóveis, sobreposições, visitas do CRM, link do Google Maps no centróide. Escritas: **Cultura confirmada** / **Cultura errada → qual é?** (`agro_validar_cultura`, vira confiança alta na hora), **vincular cliente** (busca em `portal_nt_clientes_PRINCIPAL`, `agro_vincular_cliente`), remover vínculo, aceitar/rejeitar sugestão. Tudo no `audit_log`. |
+| Busca de cliente | `GET /api/agro/clientes/buscar?q=` | Nome, fazenda ou CPF/CNPJ na PRINCIPAL; devolve `id_omie` (o que fica no vínculo e o que o cockpit usa). |
+| Cockpit de atendimento | `lib/feedbacks/atendimento/contexto.ts` (fonte `car`) + bloco "Imóvel rural (CAR)" no `Cockpit.tsx` | Cliente com imóvel vinculado mostra cultura, confiança, área, crédito 36 m e investimento na tela de ligação. Some quando o contato está bloqueado; migration ausente = lista vazia, não erro. |
+| Regras de oportunidade | modal `RegrasOportunidade.tsx` (botão na guia Prospecção), `GET/POST/PATCH/DELETE /api/agro/regras` | O comercial cadastra, por cultura e faixa de área, produto sugerido, argumento, prioridade (1–5) e pesos. O score só muda na próxima rodada do `calcular_perfil.py`. |
+
+Lib pura `src/lib/agro/prospeccao.ts` (tipos, rótulos, CSV, pivot, explicação do score) com 10 testes; casca das rotas em `src/lib/agro/server.ts` (`guardarAgro`, `logAgro`, `erroAgro`, `codCarValido`).
+
+Pendências humanas que sobram: aceitar/rejeitar as 139 sugestões de vínculo, preencher as regras de oportunidade, assinar o LIA. Pendências técnicas: agendar o pipeline (Fase 6) e rodar a validação formal da Fase 3 (matriz de confusão com 50–100 CARs de cultura conhecida — os botões de validação da ficha já geram esse dado).
+
 ## 4. LIA
 
 Rascunho em `docs/agro/lia-inteligencia-agricola-car.md` — falta DPO, avaliação e assinatura da direção.

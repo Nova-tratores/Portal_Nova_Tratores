@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { MapPin, RefreshCw, AlertTriangle } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
+import FichaImovel from './FichaImovel'
 
 // Guia "Mapa" do /dashboard-agro: os imóveis rurais (CAR) de um município como
 // polígonos coloridos pela cultura principal do perfil, com clique mostrando
@@ -56,6 +57,7 @@ function popupImovel(p: any): string {
     </table>
     ${p.motivo ? `<div style="font-size:11px;color:#6b7280;margin-top:6px">${esc(p.motivo)}</div>` : ''}
     ${p.condicao ? `<div style="font-size:11px;color:#9ca3af;margin-top:4px">SICAR: ${esc(p.condicao)}</div>` : ''}
+    <button type="button" data-ficha="${esc(p.cod_car)}" style="margin-top:8px;padding:6px 12px;border-radius:6px;border:1px solid #15803d;background:#16a34a;color:#fefefe;font-weight:700;font-size:12px;cursor:pointer">Abrir ficha do imóvel</button>
   </div>`
 }
 
@@ -74,6 +76,7 @@ export default function MapaCar() {
   const [confMin, setConfMin] = useState<'todas' | 'media' | 'alta'>('todas')
   const [soCredito, setSoCredito] = useState(false)
   const [mostrarVisitas, setMostrarVisitas] = useState(true)
+  const [ficha, setFicha] = useState<string | null>(null)
 
   // Leaflet do unpkg (mesmo caminho do Supervisor)
   useEffect(() => {
@@ -90,6 +93,11 @@ export default function MapaCar() {
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '&copy; OpenStreetMap', maxZoom: 19 }).addTo(mapa.current)
     camadaCar.current = L.layerGroup().addTo(mapa.current)
     camadaVis.current = L.layerGroup().addTo(mapa.current)
+    // o popup é HTML puro: o botão "Abrir ficha" é ligado aqui, quando o popup abre
+    mapa.current.on('popupopen', (e: any) => {
+      const b = e.popup?.getElement?.()?.querySelector?.('[data-ficha]') as HTMLElement | null
+      if (b) b.onclick = () => setFicha(b.getAttribute('data-ficha'))
+    })
     return () => { mapa.current?.remove(); mapa.current = null }
   }, [pronto])
 
@@ -215,6 +223,7 @@ export default function MapaCar() {
         {!!legenda.length && <span style={{ fontSize: 11, color: 'var(--portal-text-muted,#6b7280)', alignSelf: 'center' }}>· opacidade = confiança · borda azul = cliente vinculado · pino azul = visita presencial</span>}
       </div>
       <div ref={mapRef} style={{ flex: 1, minHeight: 320, background: '#e5e7eb' }} />
+      {ficha && <FichaImovel codCar={ficha} onFechar={() => setFicha(null)} onMudou={carregar} />}
     </div>
   )
 }
