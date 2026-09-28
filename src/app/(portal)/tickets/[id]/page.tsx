@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Send, User as UserIcon, Users, CalendarDays, Tag, Building2, Lock, Globe,
   ArrowRightLeft, BellRing, Plus, X, MessageSquare, CircleDot, PenLine, Paperclip,
-  CheckCircle2, RotateCcw, Ban, Clock, Link2, Unlink,
+  CheckCircle2, RotateCcw, Ban, Clock, Link2, Unlink, ShoppingCart, Package,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -23,6 +23,8 @@ import StatusBadge from '@/components/tickets/StatusBadge'
 import UserSelect from '@/components/tickets/UserSelect'
 import CardVinculos from '@/components/tickets/CardVinculos'
 import type { TicketVinculoEnriquecido } from '@/lib/tickets/vinculos'
+import { SC_ETAPA_INFO, type PayloadSC, type ScEtapa } from '@/lib/tickets/compras'
+import PainelCompras from '@/components/tickets/compras/PainelCompras'
 
 const EVENTO_ICONE: Record<string, React.ReactNode> = {
   criacao: <CircleDot size={14} />,
@@ -36,6 +38,10 @@ const EVENTO_ICONE: Record<string, React.ReactNode> = {
   anexo: <Paperclip size={14} />,
   vinculo_adicionado: <Link2 size={14} />,
   vinculo_removido: <Unlink size={14} />,
+  sc_criada: <ShoppingCart size={14} />,
+  qtd_alterada: <Package size={14} />,
+  parecer_financeiro: <PenLine size={14} />,
+  pc_emitido: <CheckCircle2 size={14} />,
 }
 
 const ROTULO_STATUS_ACAO: Partial<Record<TicketStatus, { rotulo: string; icone: React.ReactNode; destaque?: boolean }>> = {
@@ -115,6 +121,9 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
   const participantesAtivos = useMemo(() => participantes.filter((p) => !p.removido_em), [participantes])
   const souParticipante = participantesAtivos.some((p) => p.user_id === uid)
   const encerrado = !!ticket && STATUS_FINAIS.includes(ticket.status)
+  const ehSC = !!ticket && ticket.tipo === 'compras'
+  const scPayload = (ticket?.payload || {}) as PayloadSC
+  const scInfo = ehSC && ticket?.sc_etapa ? SC_ETAPA_INFO[ticket.sc_etapa as ScEtapa] : null
 
   const nome = useCallback((userId: string | null | undefined) => {
     if (!userId) return 'Sistema'
@@ -144,11 +153,11 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
     }
   }
 
-  const acao = async (payload: Record<string, unknown>, aposOk?: () => void) => {
+  const poster = (endpoint: string) => async (payload: Record<string, unknown>, aposOk?: () => void) => {
     setErroAcao('')
     setAgindo(true)
     try {
-      const res = await fetch(`/api/tickets/${id}/acoes`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify(payload),
@@ -163,6 +172,8 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
       setAgindo(false)
     }
   }
+  const acao = poster(`/api/tickets/${id}/acoes`)
+  const acaoCompras = poster(`/api/tickets/${id}/compras`)
 
   if (carregando) {
     return <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando ticket...</div>
@@ -182,7 +193,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
   const vencido = prazoVencido(ticket.prazo, ticket.status)
   const proximosStatus = statusDisponiveis(ticket.status, souResponsavel, souSolicitante, isAdmin)
   const podeComentar = !encerrado && (souResponsavel || souSolicitante || souParticipante || isAdmin || ticket.visibilidade === 'publico')
-  const podeTransferir = !encerrado && (souResponsavel || souSolicitante || isAdmin)
+  const podeTransferir = !ehSC && !encerrado && (souResponsavel || souSolicitante || isAdmin)
   const podeCutucar = !encerrado && !souResponsavel && (souSolicitante || souParticipante || isAdmin)
   const podeEditar = !encerrado && (souResponsavel || souSolicitante || isAdmin)
   const podeVisibilidade = souSolicitante || isAdmin
@@ -203,16 +214,16 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
   return (
     <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1100, margin: '0 auto' }}>
       {/* Topo: em que pé está + com quem está a bola */}
-      <button onClick={() => router.push('/tickets')}
+      <button onClick={() => router.push(ehSC ? '/tickets/compras' : '/tickets')}
         style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
-        <ArrowLeft size={15} /> Tickets
+        <ArrowLeft size={15} /> {ehSC ? 'Solicitações de Compras' : 'Tickets'}
       </button>
 
       <div style={{ ...cartao, marginBottom: 16 }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)', marginBottom: 4 }}>
-              TICKET #{ticket.numero}
+              {ehSC ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ShoppingCart size={11} /> SC #{ticket.numero}</span> : <>TICKET #{ticket.numero}</>}
               {ticket.visibilidade === 'privado'
                 ? <span style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={11} /> privado</span>
                 : <span style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Globe size={11} /> visível a todos</span>}
@@ -228,12 +239,21 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
               </span>
             </div>
           </div>
-          <StatusBadge status={ticket.status} tamanho={13} />
+          {scInfo
+            ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '3px 11px', borderRadius: 999, fontSize: 13, fontWeight: 700, color: scInfo.cor, background: scInfo.fundo, whiteSpace: 'nowrap' }}>
+                <span style={{ width: 7, height: 7, borderRadius: '50%', background: scInfo.cor }} /> {scInfo.label}
+              </span>
+            : <StatusBadge status={ticket.status} tamanho={13} />}
         </div>
 
         {/* Ações */}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
-          {proximosStatus.map((s) => {
+        {ehSC && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
+            <PainelCompras ticket={ticket} uid={uid} isAdmin={isAdmin} agindo={agindo} onAcao={acaoCompras} />
+          </div>
+        )}
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: ehSC ? 12 : 14, paddingTop: ehSC ? 0 : 14, borderTop: ehSC ? 'none' : '1px solid var(--portal-border,#f0f0f0)' }}>
+          {!ehSC && proximosStatus.map((s) => {
             const cfg = ROTULO_STATUS_ACAO[s]
             if (!cfg) return null
             const rotulo = s === 'em_andamento' && ticket.status === 'resolvido' && souSolicitante && !souResponsavel
@@ -323,6 +343,22 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
                   </>
                 )
               }
+              // --- eventos da SC (o livro de decisões) ---
+              else if (e.tipo === 'sc_criada') texto = e.payload.reenvio
+                ? <>reenviou a solicitação à Diretoria</>
+                : <>abriu a solicitação de compras — <strong>{String(e.payload.quantidade_solicitada ?? '')}× {String(e.payload.produto || '')}</strong>{e.payload.cliente_destino ? <> p/ {String(e.payload.cliente_destino)}</> : null}</>
+              else if (e.tipo === 'qtd_alterada') texto = e.payload.devolvido
+                ? <>devolveu ao vendedor{e.payload.justificativa ? <> — {String(e.payload.justificativa)}</> : null}</>
+                : <>definiu a quantidade: {String(e.payload.de ?? '?')} → <strong>{String(e.payload.para ?? '')}</strong>{e.payload.justificativa ? <> — {String(e.payload.justificativa)}</> : null}</>
+              else if (e.tipo === 'parecer_financeiro') {
+                if (e.payload.devolucao) texto = <>devolveu ao Financeiro{e.payload.texto ? <> — {String(e.payload.texto)}</> : null}</>
+                else {
+                  const d = String(e.payload.decisao || '')
+                  const rot = d === 'reprovado' ? 'reprovou' : d === 'ressalva' ? 'aprovou com ressalva' : 'aprovou'
+                  texto = <>{rot} (parecer){e.payload.texto ? <>: {String(e.payload.texto)}</> : null}{e.payload.prazo_compromisso ? <> · compromisso até {new Date(String(e.payload.prazo_compromisso) + 'T12:00:00').toLocaleDateString('pt-BR')}</> : null}</>
+                }
+              }
+              else if (e.tipo === 'pc_emitido') texto = <>emitiu o Pedido de Compra <strong>{String(e.payload.pedido_omie_numero || '')}</strong>{e.payload.condicoes ? <> — {String(e.payload.condicoes)}</> : null}</>
               else if (e.tipo === 'anexo') {
                 const urlAnexo = typeof e.payload.url === 'string' ? e.payload.url : ''
                 const ehImagem = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(urlAnexo)
@@ -434,6 +470,29 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
 
         {/* Sidebar — no celular vai pro TOPO (prazo/participantes antes da timeline longa) */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, order: isMobile ? -1 : 0 }}>
+          {ehSC && (
+            <div style={cartao}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 800, color: 'var(--portal-text-secondary,#555)', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 10 }}>
+                <ShoppingCart size={13} /> Dados da compra
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
+                <span><strong style={{ color: 'var(--portal-text,#111)' }}>{scPayload.produto || '—'}</strong>{scPayload.produto_codigo ? <span style={{ color: 'var(--portal-text-muted,#999)' }}> · {scPayload.produto_codigo}</span> : null}</span>
+                <span>Qtd solicitada: <strong>{scPayload.quantidade_solicitada ?? '—'}</strong>{scPayload.quantidade_aprovada != null ? <> · aprovada: <strong>{scPayload.quantidade_aprovada}</strong></> : null}</span>
+                {scPayload.preco_alvo != null && <span>Preço-alvo: {Number(scPayload.preco_alvo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
+                {scPayload.valor_unitario != null && <span>Valor unitário: {Number(scPayload.valor_unitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
+                {scPayload.valor_total != null && <span>Total: <strong>{Number(scPayload.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span>}
+                {scPayload.cliente_destino && <span>Cliente: {scPayload.cliente_destino}</span>}
+                {scPayload.pv_numero && <span>PV: {scPayload.pv_numero}</span>}
+                {scPayload.pedido_omie_numero && <span>Pedido de compra: <strong>{scPayload.pedido_omie_numero}</strong></span>}
+                {scPayload.prazo_compromisso && <span>Compromisso até {new Date(scPayload.prazo_compromisso + 'T12:00:00').toLocaleDateString('pt-BR')}</span>}
+                {scPayload.bloqueio && (
+                  <span style={{ display: 'flex', alignItems: 'flex-start', gap: 5, marginTop: 2, color: '#b45309', fontWeight: 600 }}>
+                    <Package size={13} style={{ flexShrink: 0, marginTop: 2 }} /> Sinalizada: {scPayload.bloqueio.motivo}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
           <div style={cartao}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
               <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-secondary,#555)', textTransform: 'uppercase', letterSpacing: .4 }}>Detalhes</span>
