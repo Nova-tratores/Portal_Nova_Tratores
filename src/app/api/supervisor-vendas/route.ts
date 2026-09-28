@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -106,14 +107,29 @@ export async function GET(req: NextRequest) {
     }
 
     if (acao === "pos_vendas_resolver") {
-      const id = req.nextUrl.searchParams.get("id");
-      const resolvido = req.nextUrl.searchParams.get("resolvido") === "true";
-      if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
-      await supabase.from("visitas").update({ pos_vendas_resolvido: resolvido }).eq("id", id);
-      return NextResponse.json({ ok: true });
+      // Onda 0: escrita não passa mais por GET. Use POST com login.
+      return NextResponse.json({ error: "use POST" }, { status: 405 });
     }
 
     return NextResponse.json({ error: "acao desconhecida" }, { status: 400 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
+// Onda 0 (28/09/2026): a ÚNICA escrita desta rota. Exige login e a permissão
+// supervisor-vendas:resolver_pos_vendas (a mesma que a tela confere no botão).
+export async function POST(req: NextRequest) {
+  const acesso = await protegerRota(req, [{ modulo: "supervisor-vendas", acao: "resolver_pos_vendas" }]);
+  if (acesso.resposta) return acesso.resposta;
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (body?.acao !== "pos_vendas_resolver") return NextResponse.json({ error: "acao desconhecida" }, { status: 400 });
+    const id = body?.id != null ? String(body.id) : "";
+    if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
+    const { error } = await supabase.from("visitas").update({ pos_vendas_resolvido: body.resolvido === true }).eq("id", id);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

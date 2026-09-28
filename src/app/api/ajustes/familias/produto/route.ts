@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { alterarFamiliaProduto } from '@/lib/ajustes/familias';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // POST { conta, codigo_produto, codigo_familia } -> grava na Omie + Supabase.
 export async function POST(req: NextRequest) {
+  // Onda 0: exige login e permissao; o autor sai do login, nao do corpo.
+  const acesso = await protegerRota(req, [{ modulo: 'ajustes', acao: 'familias' }, { modulo: 'ppv' }]);
+  if (acesso.resposta) return acesso.resposta;
   try {
     const b = (await req.json().catch(() => ({}))) as {
       conta?: string; codigo_produto?: number | string; codigo_familia?: number | string;

@@ -13,6 +13,7 @@ import dynamic from 'next/dynamic'
 const MapaCarros = dynamic(() => import('@/components/supervisor/MapaCarros'), { ssr: false })
 import ModalVisita from '@/components/supervisor/ModalVisita'
 import VincularCarroModal from '@/components/supervisor/VincularCarroModal'
+import { authHeaders } from '@/lib/auth/client'
 
 type Tab = 'geral' | 'vendedores' | 'visitas' | 'mapa' | 'pos-vendas' | 'alertas'
 
@@ -96,7 +97,10 @@ export default function SupervisorVendasPage() {
 
   const resolverPosVendas = async (id: string, resolvido: boolean) => {
     if (!podeResolver) return
-    await fetch(`/api/supervisor-vendas?acao=pos_vendas_resolver&id=${id}&resolvido=${resolvido}`)
+    await fetch('/api/supervisor-vendas', {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify({ acao: 'pos_vendas_resolver', id, resolvido }),
+    })
     carregar()
   }
 

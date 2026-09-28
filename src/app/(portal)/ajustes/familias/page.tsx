@@ -11,6 +11,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import SemPermissao from '@/components/SemPermissao';
+import { authHeaders } from '@/lib/auth/client';
 
 type Conta = 'NOVA' | 'CASTRO';
 
@@ -131,7 +132,7 @@ export default function FamiliasPage() {
   // Grava uma alteração de família (Omie + Supabase) e audita. Devolve true/false.
   const aplicarUm = useCallback(async (p: ProdutoFamilia, codigoFamilia: number): Promise<boolean> => {
     const r = await fetch('/api/ajustes/familias/produto', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ conta, codigo_produto: p.codigo_produto, codigo_familia: codigoFamilia }),
     });
     const d = await r.json();

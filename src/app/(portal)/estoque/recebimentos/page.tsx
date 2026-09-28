@@ -11,6 +11,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { supabase } from '@/lib/supabase';
+import { authHeaders } from '@/lib/auth/client';
 
 interface Usuario { id: string; nome: string; funcao?: string | null }
 const TIPO_LABEL: Record<string, string> = { pecas: 'Peças', pecas_garantia: 'Peças (garantia)', almoxarifado: 'Almoxarifado', combustivel: 'Combustível', maquinas: 'Máquinas' };
@@ -1234,7 +1235,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
     setStatusModal('processando no Omie...');
     try {
       const resp = await fetch('/api/ajustes/dar-entrada-recebimento', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           conta, idReceb: r.idReceb, chaveNFe: r.chaveNFe,
           itens, naoGerarFinanceiro: naoFin, naoGerarMovEstoque: naoMov,
@@ -1310,7 +1311,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
       setStatusModal(`corrigindo ${i + 1}/${riscos.length}: ${it.descricaoProduto || it.codigoProdutoInt || it.idProduto}...`);
       try {
         const resp = await fetch(`/api/ajustes/recebimentos/${r.idReceb}/corrigir-custo?conta=${encodeURIComponent(conta)}`, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
           body: JSON.stringify({
             codigoProduto: it.idProduto, novoCMC, cmcSugerido: novoCMC,
             cfopOrigem: it.cfop, nfOrigemNumero: r.numeroNFe, custoGarantiaUnit: it.precoUnit,

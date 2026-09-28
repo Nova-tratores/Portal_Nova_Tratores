@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { Search, Download, Loader2, CheckCircle2 } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
 
 const fmt = (v: number | null | undefined) =>
   v === null || v === undefined ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })
@@ -56,7 +57,7 @@ export default function ConferenciaCustosPage() {
   const carregar = useCallback(async () => {
     setLoading(true)
     try {
-      const r = await fetch(`/api/conferencia-custos?conta=${conta}`)
+      const r = await fetch(`/api/conferencia-custos?conta=${conta}`, { headers: await authHeaders() })
       const j = await r.json()
       setMaquinas(j.maquinas || [])
     } finally {
@@ -79,7 +80,7 @@ export default function ConferenciaCustosPage() {
     try {
       await fetch('/api/conferencia-custos', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           codigo_produto: m.codigo_produto,
           conta_omie: m.conta_omie,

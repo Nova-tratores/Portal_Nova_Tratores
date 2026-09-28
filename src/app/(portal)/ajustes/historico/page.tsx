@@ -9,6 +9,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import HistoricoCaracteristicas from '@/components/ajustes/HistoricoCaracteristicas';
+import { authHeaders } from '@/lib/auth/client';
 
 interface CorrecaoLinha {
   id: number;
@@ -133,7 +134,7 @@ export default function AjustesHistoricoPage() {
     if (!confirm(`Reverter a correção #${l.id}? Isso EXCLUI o ajuste de estoque no Omie e o CMC volta ao valor anterior.`)) return;
     setRevertendo(l.id);
     try {
-      const r = await fetch('/api/ajustes/reverter-correcao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correcaoId: l.id }) });
+      const r = await fetch('/api/ajustes/reverter-correcao', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ correcaoId: l.id }) });
       const d = await r.json();
       if (d.ok) {
         setRevStatus((s) => ({ ...s, [l.id]: { ok: true, texto: 'revertido' + (d.ajusteId ? ' · ajuste #' + d.ajusteId : '') } }));

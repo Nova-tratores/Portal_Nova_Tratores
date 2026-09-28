@@ -8,6 +8,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { authHeaders } from '@/lib/auth/client';
 
 // ---------- tipos do payload ----------
 interface PorLocal { localId: number; localNome: string; saldo: number; cmc: number }
@@ -185,7 +186,7 @@ export default function AjustesDashboardPage() {
     if (!confirm(`Aplicar CMC ${fmtBRL(body.novoCMC)} no produto ${p.codigoProduto} (${p.descricao || ''}), local ${body.codLocal}?\n\nIsso registra um ajuste de estoque (tipo SLD, motivo CMC) no Omie.`)) return;
     setAplicandoKey(p.key);
     try {
-      const r = await fetch('/api/ajustes/aplicar-correcao', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const r = await fetch('/api/ajustes/aplicar-correcao', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(body) });
       const d = await r.json();
       if (d.ok) {
         setResultados((s) => ({ ...s, [p.key]: { tipo: 'ok', texto: `OK ${d.duplicado ? '(ja existia)' : ''} · ajuste #${d.codigoAjuste || '?'} · CMC ${fmtBRL(d.cmcAnterior)} → ${fmtBRL(d.cmcAplicado)}` } }));
@@ -221,7 +222,7 @@ export default function AjustesDashboardPage() {
     setAplicandoLote(true);
     setLoteStatus(`aplicando ${bodies.length} correcoes (com pausa entre cada)...`);
     try {
-      const r = await fetch('/api/ajustes/aplicar-correcao-lote', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ correcoes: bodies, criadoPor }) });
+      const r = await fetch('/api/ajustes/aplicar-correcao-lote', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ correcoes: bodies, criadoPor }) });
       const d = await r.json();
       let ok = 0, err = 0;
       const novosRes: Record<string, ResultadoLinha> = {};

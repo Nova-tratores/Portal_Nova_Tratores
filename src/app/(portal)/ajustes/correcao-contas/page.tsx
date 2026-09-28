@@ -10,6 +10,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { authHeaders } from '@/lib/auth/client';
 
 // ---------- tipos ----------
 type Tipo = 'pagar' | 'receber';
@@ -420,7 +421,7 @@ function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, onClose, onApli
     setModalStatus('aplicando no Omie...');
     try {
       const r = await fetch('/api/ajustes/contas/corrigir', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ conta: slug, tipo, codigoLancamento: lanc.codigoLancamento, codigoCategoria: catSel, distribuicao }),
       });
       const d = await r.json();
@@ -553,7 +554,7 @@ function ModalMassa({ rows, tipo, criadoPor, carregarCats, carregarDeps, onClose
     setModalStatus(`aplicando em ${afetados} no Omie...`);
     try {
       const r = await fetch('/api/ajustes/contas/corrigir-massa', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ tipo, codigoCategoria, distribuicao, soCategoriaVazia: soCatVazia, soDepartamentoVazio: soDepVazio, itens, criadoPor }),
       });
       const d = await r.json();

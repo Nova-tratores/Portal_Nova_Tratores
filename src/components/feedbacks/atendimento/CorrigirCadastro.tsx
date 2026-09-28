@@ -4,6 +4,7 @@
 // (reenvia o cadastro completo ao Omie e espelha no Supabase).
 import { useState } from "react";
 import { normalizarTelefoneWa } from "@/lib/feedbacks/telefone";
+import { authHeaders } from "@/lib/auth/client";
 
 interface Props {
   codigoOmie: string;
@@ -34,7 +35,7 @@ export default function CorrigirCadastro({ codigoOmie, nome, telefoneAtual, emai
       if (email.trim() !== (emailAtual ?? "").trim()) cadastro.email = email.trim();
       const res = await fetch("/api/feedbacks/cliente-omie", {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...(await authHeaders()) },
         body: JSON.stringify({ codigo_omie: codigoOmie, cadastro }),
       });
       const data = await res.json().catch(() => ({}));

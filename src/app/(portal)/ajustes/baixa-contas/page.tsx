@@ -9,6 +9,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { authHeaders } from '@/lib/auth/client';
 
 // ---------- tipos ----------
 type Tipo = 'pagar' | 'receber';
@@ -303,7 +304,7 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
     setModalStatus('baixando no Omie...');
     try {
       const r = await fetch('/api/ajustes/contas/baixar', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           conta, tipo, codigoLancamento: titulo.codigoLancamento, codigoContaCorrente: ccSel,
           valor: v, data, juros: Number(juros) || 0, multa: Number(multa) || 0, desconto: Number(desconto) || 0,

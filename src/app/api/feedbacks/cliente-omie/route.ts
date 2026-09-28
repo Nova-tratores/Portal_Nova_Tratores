@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { createClient } from "@supabase/supabase-js";
 import { TAGS_ESTRUTURAIS } from "@/lib/feedbacks/types";
 import { contaOmie } from "@/lib/omie/contas";
@@ -107,6 +108,9 @@ function parseTags(raw: unknown): string[] {
 // LEITURA: vem do Supabase (tabela já sincronizada), NÃO do Omie — a API do Omie
 // trava com muitas requisições. A gravação (PATCH) é que vai no Omie.
 export async function GET(req: NextRequest) {
+  // Onda 0: lê cadastro com CPF/telefone — exige login e o módulo Feedbacks.
+  const acesso = await protegerRota(req, [{ modulo: "feedbacks" }]);
+  if (acesso.resposta) return acesso.resposta;
   const cod = Number(req.nextUrl.searchParams.get("codigo_omie") || "");
   if (!cod) return NextResponse.json({ error: "codigo_omie é obrigatório" }, { status: 400 });
   try {
@@ -153,6 +157,9 @@ interface CadastroInput {
 }
 
 export async function PATCH(req: NextRequest) {
+  // Onda 0: GRAVA no Omie (pode inativar o cliente) — exige login e o módulo Feedbacks.
+  const acesso = await protegerRota(req, [{ modulo: "feedbacks" }]);
+  if (acesso.resposta) return acesso.resposta;
   try {
     const body = await req.json();
     const cod = Number(body.codigo_omie || "");

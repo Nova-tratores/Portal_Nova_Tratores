@@ -2,12 +2,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { aplicarCorrecaoLancamento, validarCorrecao, type Distribuicao } from '@/lib/ajustes/contas';
+import { protegerRota } from '@/lib/ajustes/permissao-server';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 // WRITE no Omie: corrige categoria/departamento de UM lançamento (AlterarConta*).
 export async function POST(req: NextRequest) {
+  // Onda 0: exige login e permissao; o autor sai do login, nao do corpo.
+  const acesso = await protegerRota(req, [{ modulo: 'ajustes', acao: 'correcao-contas' }]);
+  if (acesso.resposta) return acesso.resposta;
   try {
     const b = (await req.json().catch(() => ({}))) as any;
     const conta = parseConta(b.conta);

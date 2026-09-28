@@ -86,3 +86,60 @@ export async function exigirAcessoModulo(req: Request, modulo: string): Promise<
 
   return { id: user.id, email: user.email, nome };
 }
+
+// ---------------------------------------------------------------------------
+// Guarda de rota (onda 0 de seguranca, 28/09/2026). Devolve o usuario OU a
+// resposta 401/403 pronta, pra rota nao depender do formato do proprio catch.
+// `opcoes`: basta UMA passar. { modulo, acao } espelha pode(modulo, acao) do
+// cliente; { modulo } sozinho espelha temAcesso(modulo) (modulo puro ou
+// qualquer `modulo:*`); { admin: true } exige is_admin/is_dev.
+// ---------------------------------------------------------------------------
+export type OpcaoAcesso = { modulo: string; acao?: string } | { admin: true };
+export type UsuarioRota = { id: string; email?: string; nome?: string; isAdmin: boolean };
+
+export async function protegerRota(
+  req: Request,
+  opcoes: OpcaoAcesso[],
+): Promise<{ user: UsuarioRota; resposta?: undefined } | { resposta: Response; user?: undefined }> {
+  const negar = (status: number, erro: string) => ({
+    resposta: new Response(JSON.stringify({ ok: false, erro, error: erro }), {
+      status, headers: { 'Content-Type': 'application/json' },
+    }),
+  });
+  const token = (req.headers.get('authorization') || '').replace(/^Bearer\s+/i, '').trim();
+  if (!token) return negar(401, 'nao autenticado');
+
+  const anon = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+  );
+  const { data: { user }, error } = await anon.auth.getUser(token);
+  if (error || !user) return negar(401, 'sessao invalida');
+
+  const { data: perm } = await supabaseAdmin
+    .from('portal_permissoes')
+    .select('is_admin, is_dev, modulos_permitidos')
+    .eq('user_id', user.id)
+    .single();
+  const p = perm as any;
+  const isAdmin = p?.is_admin === true || p?.is_dev === true;
+  const mods: string[] = p?.modulos_permitidos || [];
+  const ok = isAdmin || opcoes.some((o) => {
+    if ('admin' in o) return false;
+    if (mods.includes(o.modulo)) return true;
+    return o.acao ? mods.includes(`${o.modulo}:${o.acao}`) : mods.some((m) => m.startsWith(`${o.modulo}:`));
+  });
+  if (!ok) return negar(403, 'sem permissao para esta acao');
+
+  let nome: string | undefined;
+  try {
+    const { data: usu } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', user.id).single();
+    nome = (usu as any)?.nome || undefined;
+  } catch { /* segue sem nome */ }
+  return { user: { id: user.id, email: user.email, nome, isAdmin } };
+}
+
+// Autoria que vai pra auditoria: SEMPRE do login, nunca do corpo da requisicao.
+export function autorDe(u: { nome?: string; email?: string; id: string }): string {
+  return u.nome || u.email || u.id;
+}

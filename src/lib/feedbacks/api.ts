@@ -3,6 +3,7 @@
 // (Clientes, Projeto, Tecnicos_Appsheet).
 
 import { supabase } from "@/lib/supabase";
+import { authHeaders } from "@/lib/auth/client";
 import {
   buscarHistoricoCliente as buscarHistoricoClienteCom,
   buscarUltimasOSPorCliente as buscarUltimasOSPorClienteCom,
@@ -374,7 +375,7 @@ export interface CadastroOmie {
 }
 
 export async function buscarCadastroOmie(codigoOmie: string): Promise<CadastroOmie> {
-  const res = await fetch(`/api/feedbacks/cliente-omie?codigo_omie=${encodeURIComponent(codigoOmie)}`);
+  const res = await fetch(`/api/feedbacks/cliente-omie?codigo_omie=${encodeURIComponent(codigoOmie)}`, { headers: await authHeaders() });
   const j = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error((j as { error?: string }).error || `Falha ao ler cadastro Omie (HTTP ${res.status})`);
   return j as CadastroOmie;
@@ -383,7 +384,7 @@ export async function buscarCadastroOmie(codigoOmie: string): Promise<CadastroOm
 async function patchClienteOmie(payload: Record<string, unknown>): Promise<{ tags?: string[] }> {
   const res = await fetch("/api/feedbacks/cliente-omie", {
     method: "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify(payload),
   });
   const j = await res.json().catch(() => ({}));

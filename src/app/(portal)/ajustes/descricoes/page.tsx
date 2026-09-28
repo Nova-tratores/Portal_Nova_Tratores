@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import SemPermissao from '@/components/SemPermissao';
+import { authHeaders } from '@/lib/auth/client';
 
 type Conta = 'NOVA' | 'CASTRO';
 
@@ -84,7 +85,7 @@ export default function DescricoesPage() {
     setSalvando((s) => new Set(s).add(p.codigo_produto));
     try {
       const r = await fetch('/api/ajustes/descricoes/produto', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ conta, codigo_produto: p.codigo_produto, descricao: novo }),
       });
       const d = await r.json();

@@ -8,6 +8,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
+import { authHeaders } from '@/lib/auth/client';
 
 interface ProdutoCusto {
   codigoProduto: number;
@@ -149,7 +150,7 @@ export default function AjusteCustosPage() {
     setStatus((s) => ({ ...s, [rid]: { ok: true, texto: 'enviando…' } }));
     try {
       const r = await fetch('/api/ajustes/ajuste-custos/aplicar', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           conta,
           codigoProduto: p.codigoProduto,

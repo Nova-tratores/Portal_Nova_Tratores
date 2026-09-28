@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { protegerRota, autorDe } from "@/lib/ajustes/permissao-server";
 import { supabaseVE } from "@/lib/visual-estoque/supabase";
 import { buscarProdutosEnriquecidos, buscarMaquinasDemonstracao } from "@/lib/visual-estoque/data";
 
@@ -9,6 +10,9 @@ const FAMILIAS_OCULTAS = ["Peças", "Agricultura de Precisão"];
 // Lista cada máquina em estoque com o custo do portal (cmc) + os valores já
 // conferidos (se existirem na tabela conferencia_custo_maquinas).
 export async function GET(req: NextRequest) {
+  // Onda 0: a tela é só para admin; a rota passa a exigir o mesmo.
+  const acesso = await protegerRota(req, [{ admin: true }]);
+  if (acesso.resposta) return acesso.resposta;
   const conta = req.nextUrl.searchParams.get("conta") || undefined;
 
   try {
@@ -78,6 +82,8 @@ export async function GET(req: NextRequest) {
 
 // POST /api/conferencia-custos — upsert de uma linha de conferência.
 export async function POST(req: NextRequest) {
+  const acesso = await protegerRota(req, [{ admin: true }]);
+  if (acesso.resposta) return acesso.resposta;
   try {
     const body = await req.json();
     const codigo_produto = Number(body.codigo_produto);
@@ -100,7 +106,7 @@ export async function POST(req: NextRequest) {
       custo_fabrica: num(body.custo_fabrica),
       contatado: !!body.contatado,
       observacao: body.observacao ?? null,
-      atualizado_por: body.atualizado_por ?? null,
+      atualizado_por: autorDe(acesso.user), // do login, nunca do corpo
       atualizado_em: new Date().toISOString(),
     };
 
