@@ -8,7 +8,7 @@ import {
   temModuloTickets, registrarEvento, notificarTicket, garantirParticipante,
 } from '@/lib/tickets/server'
 import { STATUS_FINAIS, type Ticket, type TicketPlanoItem, type TicketVisibilidade } from '@/lib/tickets/constantes'
-import { type PayloadSC } from '@/lib/tickets/compras'
+import { validarNovaSC } from '@/lib/tickets/compras'
 import { carregarConfigCompras, avaliarBloqueio } from '@/lib/tickets/compras-server'
 import type { Autenticado } from '@/lib/auth/server'
 
@@ -191,32 +191,15 @@ export async function POST(req: NextRequest) {
 // imutável `sc_criada` e sinaliza (flag suave) se já nasce em bloqueio.
 // --------------------------------------------------------------------------
 async function criarSC(auth: Autenticado, body: Record<string, unknown>) {
-  const produto = String(body.produto || '').trim()
-  const clienteDestino = String(body.cliente_destino || '').trim()
-  const pvNumero = String(body.pv_numero || '').trim()
-  const descricao = String(body.descricao || '').trim()
-  const qtdSolicitada = Number(body.quantidade_solicitada)
-  const precoAlvo = body.preco_alvo != null && body.preco_alvo !== '' ? Number(body.preco_alvo) : undefined
-
-  if (!produto) return NextResponse.json({ error: 'Informe o produto' }, { status: 400 })
-  if (!Number.isFinite(qtdSolicitada) || qtdSolicitada <= 0) return NextResponse.json({ error: 'Informe a quantidade solicitada' }, { status: 400 })
-  if (!clienteDestino) return NextResponse.json({ error: 'Informe o cliente destino' }, { status: 400 })
-  if (!pvNumero) return NextResponse.json({ error: 'Informe o nº do PV' }, { status: 400 })
-  if (!descricao) return NextResponse.json({ error: 'Descreva a solicitação (fica registrado como origem, imutável)' }, { status: 400 })
+  const validado = validarNovaSC(body)
+  if ('erro' in validado) return NextResponse.json({ error: validado.erro }, { status: 400 })
+  const { payload, descricao, titulo } = validado.dados
 
   const config = await carregarConfigCompras()
   if (!config.diretoria_id) {
     return NextResponse.json({ error: 'A Diretoria de Compras ainda não foi designada. Peça a um administrador para configurar os responsáveis das etapas.' }, { status: 400 })
   }
 
-  const payload: PayloadSC = {
-    produto,
-    produto_codigo: String(body.produto_codigo || '').trim() || undefined,
-    quantidade_solicitada: qtdSolicitada,
-    preco_alvo: precoAlvo,
-    cliente_destino: clienteDestino,
-    pv_numero: pvNumero,
-  }
   const bloqueio = await avaliarBloqueio(payload, config)
   if (bloqueio) payload.bloqueio = bloqueio
 
@@ -227,7 +210,7 @@ async function criarSC(auth: Autenticado, body: Record<string, unknown>) {
       sc_etapa: 'diretoria',
       status: 'aguardando_interno',
       categoria: 'Compras',
-      titulo: `SC — ${produto}`,
+      titulo,
       descricao,
       solicitante_id: auth.userId,
       responsavel_id: config.diretoria_id,
@@ -240,13 +223,13 @@ async function criarSC(auth: Autenticado, body: Record<string, unknown>) {
   const ticket = criado as Ticket
   await garantirParticipante(ticket.id, auth.userId, null)
   await garantirParticipante(ticket.id, config.diretoria_id, auth.userId)
-  await registrarEvento(ticket.id, auth.userId, 'sc_criada', {
-    produto, quantidade_solicitada: qtdSolicitada, cliente_destino: clienteDestino,
-    pv_numero: pvNumero, ...(precoAlvo != null ? { preco_alvo: precoAlvo } : {}),
-  })
+  // Snapshot do pedido na timeline imutável (sem o aviso de bloqueio, que é derivado).
+  const { bloqueio: _b, ...snapshot } = payload
+  void _b
+  await registrarEvento(ticket.id, auth.userId, 'sc_criada', snapshot)
   await notificarTicket(
     ticket, [config.diretoria_id], auth.userId,
-    `Nova Solicitação de Compras #${ticket.numero}: ${produto}`,
+    `Nova Solicitação de Compras #${ticket.numero}: ${payload.produto}`,
     'Você é a Diretoria responsável por avaliar esta SC.',
   )
 

@@ -23,7 +23,7 @@ import StatusBadge from '@/components/tickets/StatusBadge'
 import UserSelect from '@/components/tickets/UserSelect'
 import CardVinculos from '@/components/tickets/CardVinculos'
 import type { TicketVinculoEnriquecido } from '@/lib/tickets/vinculos'
-import { SC_ETAPA_INFO, type PayloadSC, type ScEtapa } from '@/lib/tickets/compras'
+import { SC_ETAPA_INFO, SC_CONFIANCA_INFO, margemPrevista, type PayloadSC, type ScEtapa } from '@/lib/tickets/compras'
 import PainelCompras from '@/components/tickets/compras/PainelCompras'
 
 const EVENTO_ICONE: Record<string, React.ReactNode> = {
@@ -123,6 +123,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
   const encerrado = !!ticket && STATUS_FINAIS.includes(ticket.status)
   const ehSC = !!ticket && ticket.tipo === 'compras'
   const scPayload = (ticket?.payload || {}) as PayloadSC
+  const scMargem = ehSC ? margemPrevista(scPayload.valor_unitario ?? scPayload.preco_alvo, scPayload.preco_venda_previsto) : null
   const scInfo = ehSC && ticket?.sc_etapa ? SC_ETAPA_INFO[ticket.sc_etapa as ScEtapa] : null
 
   const nome = useCallback((userId: string | null | undefined) => {
@@ -346,7 +347,7 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
               // --- eventos da SC (o livro de decisões) ---
               else if (e.tipo === 'sc_criada') texto = e.payload.reenvio
                 ? <>reenviou a solicitação à Diretoria</>
-                : <>abriu a solicitação de compras — <strong>{String(e.payload.quantidade_solicitada ?? '')}× {String(e.payload.produto || '')}</strong>{e.payload.cliente_destino ? <> p/ {String(e.payload.cliente_destino)}</> : null}</>
+                : <>abriu a solicitação de compras — <strong>{String(e.payload.quantidade_solicitada ?? '')}× {String(e.payload.produto || '')}</strong>{e.payload.cliente_destino ? <> p/ {String(e.payload.cliente_destino)}</> : e.payload.destino === 'estoque' ? <> p/ estoque</> : null}</>
               else if (e.tipo === 'qtd_alterada') texto = e.payload.devolvido
                 ? <>devolveu ao vendedor{e.payload.justificativa ? <> — {String(e.payload.justificativa)}</> : null}</>
                 : <>definiu a quantidade: {String(e.payload.de ?? '?')} → <strong>{String(e.payload.para ?? '')}</strong>{e.payload.justificativa ? <> — {String(e.payload.justificativa)}</> : null}</>
@@ -478,11 +479,26 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
               <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
                 <span><strong style={{ color: 'var(--portal-text,#111)' }}>{scPayload.produto || '—'}</strong>{scPayload.produto_codigo ? <span style={{ color: 'var(--portal-text-muted,#999)' }}> · {scPayload.produto_codigo}</span> : null}</span>
                 <span>Qtd solicitada: <strong>{scPayload.quantidade_solicitada ?? '—'}</strong>{scPayload.quantidade_aprovada != null ? <> · aprovada: <strong>{scPayload.quantidade_aprovada}</strong></> : null}</span>
-                {scPayload.preco_alvo != null && <span>Preço-alvo: {Number(scPayload.preco_alvo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
+                {(scPayload.marca || scPayload.modelo) && <span>{[scPayload.marca, scPayload.modelo].filter(Boolean).join(' · ')}</span>}
+                {scPayload.preco_alvo != null && <span>Custo-alvo de compra: {Number(scPayload.preco_alvo).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
+                {scPayload.preco_venda_previsto != null && <span>Venda prevista: {Number(scPayload.preco_venda_previsto).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
+                {scMargem && (
+                  <span style={{ color: scMargem.valor < 0 ? '#dc2626' : undefined, fontWeight: scMargem.valor < 0 ? 700 : undefined }}>
+                    Margem prevista: {scMargem.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}{scMargem.pct != null ? ` (${scMargem.pct.toFixed(1).replace('.', ',')}%)` : ''}
+                  </span>
+                )}
                 {scPayload.valor_unitario != null && <span>Valor unitário: {Number(scPayload.valor_unitario).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</span>}
                 {scPayload.valor_total != null && <span>Total: <strong>{Number(scPayload.valor_total).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</strong></span>}
+                {scPayload.destino === 'estoque' && <span>Destino: <strong>compra para estoque</strong></span>}
                 {scPayload.cliente_destino && <span>Cliente: {scPayload.cliente_destino}</span>}
-                {scPayload.pv_numero && <span>PV: {scPayload.pv_numero}</span>}
+                {scPayload.confianca && SC_CONFIANCA_INFO[scPayload.confianca] && (
+                  <span>Confiança na venda:{' '}
+                    <span title={SC_CONFIANCA_INFO[scPayload.confianca].dica} style={{ padding: '1px 9px', borderRadius: 999, fontWeight: 700, color: SC_CONFIANCA_INFO[scPayload.confianca].cor, background: SC_CONFIANCA_INFO[scPayload.confianca].fundo }}>
+                      {SC_CONFIANCA_INFO[scPayload.confianca].label}
+                    </span>
+                  </span>
+                )}
+                {scPayload.pv_numero && <span>Pedido de venda: {scPayload.pv_numero}</span>}
                 {scPayload.pedido_omie_numero && <span>Pedido de compra: <strong>{scPayload.pedido_omie_numero}</strong></span>}
                 {scPayload.prazo_compromisso && <span>Compromisso até {new Date(scPayload.prazo_compromisso + 'T12:00:00').toLocaleDateString('pt-BR')}</span>}
                 {scPayload.bloqueio && (

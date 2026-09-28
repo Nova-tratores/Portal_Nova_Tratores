@@ -11,7 +11,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import { diasParado, type Ticket, type UsuarioMin } from '@/lib/tickets/constantes'
-import { SC_ETAPA_INFO, SC_ETAPAS_ATIVAS, type PayloadSC, type ScEtapa } from '@/lib/tickets/compras'
+import { SC_ETAPA_INFO, SC_CONFIANCA_INFO, SC_ETAPAS_ATIVAS, type PayloadSC, type ScEtapa } from '@/lib/tickets/compras'
 import FormSC from '@/components/tickets/FormSC'
 
 const COLUNAS: ScEtapa[] = [...SC_ETAPAS_ATIVAS, 'vendedor'] // ativas + "devolvidas ao vendedor"
@@ -136,7 +136,17 @@ export default function ComprasPipelinePage() {
                             {p.produto || t.titulo}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11.5, color: 'var(--portal-text-muted,#888)' }}>
-                            {p.cliente_destino && <span>{p.cliente_destino}</span>}
+                            {p.destino === 'estoque' && <span>Para estoque</span>}
+                            {p.cliente_destino && (
+                              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.cliente_destino}</span>
+                                {p.confianca && SC_CONFIANCA_INFO[p.confianca] && (
+                                  <span title={SC_CONFIANCA_INFO[p.confianca].dica} style={{ flexShrink: 0, padding: '0 7px', borderRadius: 999, fontSize: 10.5, fontWeight: 800, color: SC_CONFIANCA_INFO[p.confianca].cor, background: SC_CONFIANCA_INFO[p.confianca].fundo }}>
+                                    {SC_CONFIANCA_INFO[p.confianca].label}
+                                  </span>
+                                )}
+                              </span>
+                            )}
                             <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                               <span>{moeda(p.valor_total)}</span>
                               <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><UserIcon size={11} /> {nome(t.responsavel_id)}</span>

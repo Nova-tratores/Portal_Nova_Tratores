@@ -81,12 +81,48 @@ export const SC_TRANSICOES: Record<ScEtapa, ScTransicao[]> = {
 // Campos estruturados da SC (payload do ticket). Os TEXTOS de registro
 // (justificativa, parecer) moram nos EVENTOS, não aqui.
 // ---------------------------------------------------------------------
+export type ScDestino = 'cliente' | 'estoque'
+export type ScConfianca = 'frio' | 'morno' | 'quente'
+
+export const SC_DESTINO_LABEL: Record<ScDestino, string> = {
+  cliente: 'Cliente definido',
+  estoque: 'Compra para estoque',
+}
+
+// Grau de confiança na venda para o cliente destino.
+export const SC_CONFIANCA_INFO: Record<ScConfianca, { label: string; dica: string; cor: string; fundo: string }> = {
+  frio:   { label: 'Frio',   dica: 'Interesse inicial, sem proposta aceita',      cor: '#0284c7', fundo: 'rgba(2,132,199,.12)' },
+  morno:  { label: 'Morno',  dica: 'Proposta na mesa, negociação em andamento',   cor: '#d97706', fundo: 'rgba(217,119,6,.14)' },
+  quente: { label: 'Quente', dica: 'Venda fechada ou a um passo de fechar',       cor: '#dc2626', fundo: 'rgba(220,38,38,.12)' },
+}
+
+// Motivos prontos da justificativa. `destinos` = em qual destino o motivo aparece.
+export interface ScMotivo { id: string; label: string; destinos: ScDestino[] }
+export const SC_MOTIVOS: ScMotivo[] = [
+  { id: 'venda_fechada',      label: 'Venda fechada (pedido de venda emitido)', destinos: ['cliente'] },
+  { id: 'negociacao',         label: 'Negociação avançada com o cliente',       destinos: ['cliente'] },
+  { id: 'reposicao_estoque',  label: 'Reposição de estoque',                    destinos: ['estoque'] },
+  { id: 'demonstracao',       label: 'Máquina para demonstração / showroom',    destinos: ['estoque'] },
+  { id: 'campanha_fabrica',   label: 'Campanha ou condição especial da fábrica', destinos: ['cliente', 'estoque'] },
+  { id: 'outro',              label: 'Outro motivo',                            destinos: ['cliente', 'estoque'] },
+]
+
+export function motivosDoDestino(destino: ScDestino): ScMotivo[] {
+  return SC_MOTIVOS.filter((m) => m.destinos.includes(destino))
+}
+
 export interface PayloadSC {
   produto?: string
   produto_codigo?: string
+  marca?: string
+  modelo?: string
+  destino?: ScDestino          // ausente nas SCs antigas = 'cliente'
+  confianca?: ScConfianca      // só quando destino='cliente'
+  motivo?: string              // id de SC_MOTIVOS
   quantidade_solicitada?: number
   quantidade_aprovada?: number
-  preco_alvo?: number
+  preco_alvo?: number          // CUSTO-alvo de COMPRA (unitário) — entra no valor total
+  preco_venda_previsto?: number // preço de VENDA previsto (unitário) — só informativo
   valor_unitario?: number
   valor_total?: number
   cliente_destino?: string
@@ -94,6 +130,130 @@ export interface PayloadSC {
   pedido_omie_numero?: string
   prazo_compromisso?: string // ISO date
   bloqueio?: { motivo: string; valor: number } | null
+}
+
+// ---------------------------------------------------------------------
+// Abertura da SC — validação única (formulário + rota).
+// ---------------------------------------------------------------------
+export interface NovaSC {
+  payload: PayloadSC
+  descricao: string // origem imutável: "<motivo> — <complemento>"
+  titulo: string
+}
+
+function texto(v: unknown, max = 160): string {
+  return String(v ?? '').trim().slice(0, max)
+}
+
+// Número opcional: vazio → undefined; inválido ou negativo → NaN (vira erro).
+function numeroOpcional(v: unknown): number | undefined {
+  if (v == null || v === '') return undefined
+  const n = Number(v)
+  return Number.isFinite(n) && n >= 0 ? n : NaN
+}
+
+export function validarNovaSC(body: Record<string, unknown>): { erro: string } | { dados: NovaSC } {
+  const produto = texto(body.produto)
+  const marca = texto(body.marca, 80)
+  const modelo = texto(body.modelo, 80)
+  const destino: ScDestino = body.destino === 'estoque' ? 'estoque' : 'cliente'
+  const qtd = Number(body.quantidade_solicitada)
+  const custo = numeroOpcional(body.preco_alvo)
+  const venda = numeroOpcional(body.preco_venda_previsto)
+  const motivo = SC_MOTIVOS.find((m) => m.id === body.motivo)
+  const complemento = texto(body.descricao, 2000)
+
+  if (!produto) return { erro: 'Informe o produto' }
+  if (!Number.isFinite(qtd) || qtd <= 0) return { erro: 'Informe a quantidade solicitada' }
+  if (Number.isNaN(custo)) return { erro: 'Custo-alvo de compra inválido' }
+  if (Number.isNaN(venda)) return { erro: 'Preço de venda previsto inválido' }
+  if (!motivo) return { erro: 'Escolha o motivo da solicitação' }
+  if (!motivo.destinos.includes(destino)) return { erro: 'Esse motivo não se aplica ao destino escolhido' }
+  if (motivo.id === 'outro' && !complemento) return { erro: 'Descreva o motivo da solicitação' }
+
+  const payload: PayloadSC = {
+    produto,
+    produto_codigo: texto(body.produto_codigo, 80) || undefined,
+    marca: marca || undefined,
+    modelo: modelo || undefined,
+    destino,
+    motivo: motivo.id,
+    quantidade_solicitada: qtd,
+    preco_alvo: custo,
+    preco_venda_previsto: venda,
+  }
+
+  if (destino === 'cliente') {
+    const cliente = texto(body.cliente_destino)
+    const pv = texto(body.pv_numero, 40)
+    const confianca = body.confianca as ScConfianca
+    if (!cliente) return { erro: 'Informe o cliente destino (ou escolha "Compra para estoque")' }
+    if (!SC_CONFIANCA_INFO[confianca]) return { erro: 'Informe o grau de confiança na venda' }
+    if (motivo.id === 'venda_fechada' && !pv) return { erro: 'Venda fechada exige o nº do pedido de venda' }
+    payload.cliente_destino = cliente
+    payload.confianca = confianca
+    if (pv) payload.pv_numero = pv
+  }
+
+  return {
+    dados: {
+      payload,
+      descricao: complemento ? `${motivo.label} — ${complemento}` : motivo.label,
+      titulo: `SC — ${produto}`,
+    },
+  }
+}
+
+// Margem prevista por unidade (venda − custo). null se faltar um dos dois.
+export function margemPrevista(custo?: number | null, venda?: number | null): { valor: number; pct: number | null } | null {
+  if (custo == null || venda == null || !Number.isFinite(custo) || !Number.isFinite(venda)) return null
+  const valor = venda - custo
+  return { valor, pct: venda > 0 ? (valor / venda) * 100 : null }
+}
+
+// ---------------------------------------------------------------------
+// Lista pronta de produtos. Máquina é cadastrada POR CHASSI (uma linha por
+// unidade), então o que se oferece para comprar é o MODELO, agrupado.
+// ---------------------------------------------------------------------
+export interface ProdutoLinha {
+  codigo?: string | null
+  descricao?: string | null
+  marca?: string | null
+  modelo?: string | null
+  familia_nome?: string | null
+  estoque?: number | string | null
+}
+
+export interface ModeloOpcao {
+  marca: string
+  modelo: string
+  familia: string
+  unidades: number      // linhas do cadastro com esse modelo
+  em_estoque: number    // soma do estoque positivo
+}
+
+const semAcento = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().trim()
+
+export function agruparModelos(linhas: ProdutoLinha[]): ModeloOpcao[] {
+  const mapa = new Map<string, ModeloOpcao>()
+  for (const l of linhas) {
+    const modelo = String(l.modelo ?? '').trim()
+    if (!modelo) continue
+    const marca = String(l.marca ?? '').trim()
+    const familia = String(l.familia_nome ?? '').trim()
+    const chave = `${semAcento(marca)}|${semAcento(modelo)}|${semAcento(familia)}`
+    const est = Number(l.estoque)
+    const atual = mapa.get(chave) || { marca, modelo, familia, unidades: 0, em_estoque: 0 }
+    atual.unidades += 1
+    if (Number.isFinite(est) && est > 0) atual.em_estoque += est
+    mapa.set(chave, atual)
+  }
+  return [...mapa.values()].sort((a, b) =>
+    b.unidades - a.unidades || a.modelo.localeCompare(b.modelo, 'pt-BR', { numeric: true }))
+}
+
+export function rotuloModelo(m: Pick<ModeloOpcao, 'marca' | 'modelo' | 'familia'>): string {
+  return [m.familia, m.marca, m.modelo].filter(Boolean).join(' ')
 }
 
 // ---------------------------------------------------------------------
