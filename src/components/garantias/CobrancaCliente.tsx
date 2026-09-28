@@ -58,7 +58,9 @@ export default function CobrancaCliente({ garantia: g, busy, onAcao }: Props) {
   const [horas, setHoras] = useState<boolean>(g.cobranca_itens?.horas ?? true);
   const [km, setKm] = useState<boolean>(g.cobranca_itens?.km ?? true);
   const [pecasMarcadas, setPecasMarcadas] = useState<Set<string>>(
-    new Set(g.cobranca_itens?.pecas || g.pecas.map((p) => p.id)),
+    // Sem escolha salva, pré-marca só o que a fábrica NÃO aprovou: peça paga
+    // pela fábrica (1ª etapa do fluxo duas_etapas) não é cobrança do cliente.
+    new Set(g.cobranca_itens?.pecas || g.pecas.filter((p) => p.resultado !== 'aprovada').map((p) => p.id)),
   );
   const [outros, setOutros] = useState<CobrancaOutro[]>(g.cobranca_outros || []);
   const [vencimento, setVencimento] = useState<string>(() => {
@@ -180,6 +182,7 @@ export default function CobrancaCliente({ garantia: g, busy, onAcao }: Props) {
                     valor={valoresPecasEd[p.id] ?? v}
                     onToggle={() => togglePeca(p.id)}
                     onValorChange={(nv) => setValoresPecasEd((prev) => ({ ...prev, [p.id]: nv }))}
+                    pagaFabrica={p.resultado === 'aprovada'}
                   />
                 );
               })}
@@ -296,17 +299,28 @@ export default function CobrancaCliente({ garantia: g, busy, onAcao }: Props) {
   );
 }
 
-function Item({ label, checked, valor, onToggle, onValorChange }: { label: string; checked: boolean; valor: number; onToggle: () => void; onValorChange: (v: number) => void }) {
+function Item({ label, checked, valor, onToggle, onValorChange, pagaFabrica }: { label: string; checked: boolean; valor: number; onToggle: () => void; onValorChange: (v: number) => void; pagaFabrica?: boolean }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: 8,
       padding: '6px 8px', borderRadius: 8,
-      background: checked ? '#fef3c7' : 'rgba(255,255,255,0.5)',
-      border: checked ? '1px solid #fcd34d' : '1px solid var(--portal-border)',
+      background: checked ? '#fef3c7' : pagaFabrica ? '#f0fdf4' : 'rgba(255,255,255,0.5)',
+      border: checked ? '1px solid #fcd34d' : pagaFabrica ? '1px solid #bbf7d0' : '1px solid var(--portal-border)',
       fontSize: 12,
     }}>
       <input type="checkbox" checked={checked} onChange={onToggle} style={{ cursor: 'pointer' }} />
-      <span onClick={onToggle} style={{ flex: 1, color: 'var(--portal-text)', cursor: 'pointer' }}>{label}</span>
+      <span onClick={onToggle} style={{ flex: 1, color: 'var(--portal-text)', cursor: 'pointer' }}>
+        {label}
+        {pagaFabrica && (
+          <span style={{
+            marginLeft: 6, padding: '1px 6px', borderRadius: 999, verticalAlign: 'middle',
+            background: '#dcfce7', color: '#15803d', fontSize: 10, fontWeight: 800,
+            textTransform: 'uppercase', letterSpacing: 0.3, whiteSpace: 'nowrap',
+          }}>
+            Paga pela fábrica
+          </span>
+        )}
+      </span>
       <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: checked ? '#b91c1c' : 'var(--portal-text-muted)' }}>
         <span style={{ fontSize: 11, fontWeight: 700 }}>R$</span>
         <input

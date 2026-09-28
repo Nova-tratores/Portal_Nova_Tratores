@@ -58,10 +58,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const novasHoras = Number(os.Qtd_HR) || 0;
   const novoKm = Number(os.Qtd_KM) || 0;
 
-  // Peças atuais da garantia (para detectar mudança)
+  // Peças atuais da garantia (para detectar mudança). O `resultado` vem junto:
+  // depois da 1ª etapa do fluxo duas_etapas ele é a resposta da fábrica por
+  // peça e NÃO pode se perder num re-sync.
   const { data: atuais } = await supabase
     .from(TBL_GAR_PECAS)
-    .select('cod_produto, descricao, quantidade, preco_unitario')
+    .select('id, cod_produto, descricao, quantidade, preco_unitario, resultado')
     .eq('garantia_id', id);
 
   const assinatura = (
@@ -91,23 +93,75 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ changed: false, qtd_pecas: (atuais || []).length, horas: novasHoras, km: novoKm });
   }
 
-  // Substitui as peças (a garantia não está finalizada, então todas são 'pendente')
   if (pecasMudaram) {
-    await supabase.from(TBL_GAR_PECAS).delete().eq('garantia_id', id);
-    if (novasPecas.length > 0) {
-      const insert = novasPecas.map((p) => ({
-        garantia_id: id,
-        cod_produto: p.cod_produto,
-        descricao: p.descricao,
-        quantidade: p.quantidade,
-        preco_unitario: p.preco_unitario,
-        origem: p.origem,
-        fonte_ppv_id: p.fonte_ppv_id,
-      }));
-      const { error: errIns } = await supabase.from(TBL_GAR_PECAS).insert(insert);
-      if (errIns) {
-        console.error('[sincronizar-os] falha ao inserir peças:', errIns.message);
-        return NextResponse.json({ error: 'Falha ao atualizar peças.' }, { status: 500 });
+    const resolvidas = (atuais || []).filter((p) => p.resultado === 'aprovada' || p.resultado === 'rejeitada');
+    if (resolvidas.length === 0) {
+      // Antes da resposta da fábrica: substituição simples (tudo 'pendente')
+      await supabase.from(TBL_GAR_PECAS).delete().eq('garantia_id', id);
+      if (novasPecas.length > 0) {
+        const insert = novasPecas.map((p) => ({
+          garantia_id: id,
+          cod_produto: p.cod_produto,
+          descricao: p.descricao,
+          quantidade: p.quantidade,
+          preco_unitario: p.preco_unitario,
+          origem: p.origem,
+          fonte_ppv_id: p.fonte_ppv_id,
+        }));
+        const { error: errIns } = await supabase.from(TBL_GAR_PECAS).insert(insert);
+        if (errIns) {
+          console.error('[sincronizar-os] falha ao inserir peças:', errIns.message);
+          return NextResponse.json({ error: 'Falha ao atualizar peças.' }, { status: 500 });
+        }
+      }
+    } else {
+      // PÓS-1ª ETAPA (duas_etapas): a fábrica já respondeu por peça. O serviço
+      // executado costuma acrescentar peças novas na OS/PPV — o delete+insert
+      // antigo apagava a resposta da fábrica (caso real: GAR-0072/0074, tudo
+      // voltou a 'pendente' e a cobrança pré-marcava peça paga pela fábrica).
+      // MERGE: casa por cod|descricao (consumindo 1 a 1), atualiza os números
+      // e mantém o resultado; peça nova entra 'pendente'; só peça 'pendente'
+      // que sumiu da OS é apagada — resolvida NUNCA some sozinha.
+      const chave = (p: { cod_produto?: string | null; descricao?: string | null }) =>
+        `${p.cod_produto || ''}|${String(p.descricao || '').trim()}`;
+      const restantes = new Map<string, typeof resolvidas>();
+      for (const a of atuais || []) {
+        const k = chave(a);
+        if (!restantes.has(k)) restantes.set(k, []);
+        restantes.get(k)!.push(a);
+      }
+      const paraInserir: Record<string, unknown>[] = [];
+      for (const n of novasPecas) {
+        const fila = restantes.get(chave(n));
+        const a = fila?.shift();
+        if (a) {
+          await supabase
+            .from(TBL_GAR_PECAS)
+            .update({ quantidade: n.quantidade, preco_unitario: n.preco_unitario, origem: n.origem, fonte_ppv_id: n.fonte_ppv_id })
+            .eq('id', a.id);
+        } else {
+          paraInserir.push({
+            garantia_id: id,
+            cod_produto: n.cod_produto,
+            descricao: n.descricao,
+            quantidade: n.quantidade,
+            preco_unitario: n.preco_unitario,
+            origem: n.origem,
+            fonte_ppv_id: n.fonte_ppv_id,
+          });
+        }
+      }
+      const sobras = [...restantes.values()].flat();
+      const apagar = sobras.filter((p) => p.resultado !== 'aprovada' && p.resultado !== 'rejeitada').map((p) => p.id);
+      if (apagar.length > 0) {
+        await supabase.from(TBL_GAR_PECAS).delete().in('id', apagar);
+      }
+      if (paraInserir.length > 0) {
+        const { error: errIns } = await supabase.from(TBL_GAR_PECAS).insert(paraInserir);
+        if (errIns) {
+          console.error('[sincronizar-os] falha ao inserir peças novas:', errIns.message);
+          return NextResponse.json({ error: 'Falha ao atualizar peças.' }, { status: 500 });
+        }
       }
     }
   }

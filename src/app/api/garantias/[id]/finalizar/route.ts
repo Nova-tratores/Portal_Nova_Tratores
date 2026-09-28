@@ -202,8 +202,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Ressarcimento negado: as peças da 1ª etapa continuam pagas pela fábrica.
     update.valor_pago_pecas = etapa2 ? vpEtapa1 : 0;
     update.valor_pago_total = etapa2 ? vpEtapa1 : 0;
-    // Rejeitada → libera o fluxo de cobrança ao cliente
+    // Rejeitada → libera o fluxo de cobrança ao cliente, já com a pré-marcação
+    // certa: peça que a fábrica APROVOU (1ª etapa) fica de FORA da cobrança;
+    // horas/km entram quando existem. (Sem isso a tela pré-marcava todas as
+    // peças e nenhuma hora — caso real GAR-0074.)
+    const pecasCobraveis = (etapa2 ? todasPecas.filter((p) => p.resultado !== 'aprovada') : todasPecas).map((p) => p.id);
     update.cobranca_status = 'pendente';
+    update.cobranca_itens = {
+      horas: (gHoras ?? 0) > 0,
+      km: (gKm ?? 0) > 0,
+      pecas: pecasCobraveis,
+    };
   }
 
   // Atualiza o resultado de cada peça (na 2ª etapa ficam congeladas da 1ª)
