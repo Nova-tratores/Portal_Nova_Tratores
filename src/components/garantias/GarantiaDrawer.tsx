@@ -94,6 +94,12 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const [busy, setBusy] = useState('');
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
+  // O aviso de erro vive no TOPO do corpo; quem clica num botão lá embaixo
+  // (ex.: Recusar sem motivo) não via nada acontecer — rola até o erro.
+  const erroRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (erro) erroRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [erro]);
   const [verTimeline, setVerTimeline] = useState(false);
   const [qrAberto, setQrAberto] = useState(false);
   // Correção manual de chassi/modelo (garantia criada antes do trator existir
@@ -542,7 +548,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
             {/* Body */}
             <div style={{ flex: 1, overflow: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
               {erro && (
-                <div style={{ fontSize: 12, color: '#dc2626', background: '#dc262615', padding: '8px 10px', borderRadius: 8 }}>
+                <div ref={erroRef} style={{ fontSize: 12, color: '#dc2626', background: '#dc262615', padding: '8px 10px', borderRadius: 8 }}>
                   {erro}
                 </div>
               )}
@@ -1622,6 +1628,11 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                           Recusar aqui nega só o ressarcimento — as peças aprovadas na 1ª etapa continuam pagas.
                         </span>
                       )}
+                      <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                        Fábrica negou só uma parte (ex.: mão de obra)? Desmarque a linha em &quot;Serviço pago pela
+                        garantia&quot; e clique <strong>Aprovar</strong> — o que ficou desmarcado vai pra cobrança.
+                        O botão <strong>Recusar</strong> nega tudo e exige o motivo abaixo.
+                      </span>
                       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 6, fontSize: 12, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
                         <input
                           type="checkbox"
@@ -1654,9 +1665,15 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                         </button>
                         <button
                           onClick={() => finalizar('rejeitada')}
-                          disabled={!!busy || !temRetornoFabrica || !podeFinalizar}
-                          title={!podeFinalizar ? MSG_SEM_PERMISSAO : undefined}
-                          style={{ ...btn('#dc2626', !!busy || !temRetornoFabrica || !podeFinalizar), flex: 1 }}
+                          disabled={!!busy || !temRetornoFabrica || !podeFinalizar || !motivoRecusa.trim()}
+                          title={
+                            !podeFinalizar
+                              ? MSG_SEM_PERMISSAO
+                              : !motivoRecusa.trim()
+                                ? 'Escreva o motivo da recusa no campo acima para liberar'
+                                : undefined
+                          }
+                          style={{ ...btn('#dc2626', !!busy || !temRetornoFabrica || !podeFinalizar || !motivoRecusa.trim()), flex: 1 }}
                         >
                           <XCircle size={15} /> Recusar
                         </button>
