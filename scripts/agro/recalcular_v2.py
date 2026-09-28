@@ -117,7 +117,7 @@ def relatorio(rest, ex):
 
     itens = ler_tudo(rest, f'agro_perfil_item?execucao_id=eq.{ex}&select=item,grupo_id,n_cars,municipio,area_util_ha,'
                            'cultura_principal,confianca,motivo_codigo,rebaixadores,sobreposicao_pct,contido_em,tem_credito,tem_vinculo&order=item')
-    v1 = {r['cod_car']: r for r in ler_tudo(rest, 'agro_car_perfil?select=cod_car,confianca,cultura_principal,sobreposicao_pct&order=cod_car')}
+    v1 = {r['cod_car']: r for r in ler_tudo(rest, 'agro_car_perfil?select=cod_car,confianca,cultura_principal,motivo_confianca&order=cod_car')}
     print(f'\n2) ITENS: {len(itens)} (v1 tinha {len(v1)} CARs; diferença = CARs absorvidos por grupos)')
     grupos_div = sum(1 for i in itens if i['grupo_id'])
     print(f'   itens que são grupo ......... {grupos_div}')
@@ -139,8 +139,10 @@ def relatorio(rest, ex):
     for i in itens:
         o = v1.get(i['item'])
         if o and o['confianca'] != i['confianca']:
-            causa = ('saiu sobreposição com duplicata' if float(o.get('sobreposicao_pct') or 0) > 20 and float(i['sobreposicao_pct'] or 0) <= 20
-                     else 'entrou sobreposição de divisa' if 'sobreposicao_alta' in (i['rebaixadores'] or []) and float(o.get('sobreposicao_pct') or 0) <= 20
+            tinha = 'de sobreposição' in (o.get('motivo_confianca') or '')   # v1 não guarda a %, só o texto
+            tem = 'sobreposicao_alta' in (i['rebaixadores'] or [])
+            causa = ('saiu sobreposição com duplicata' if tinha and not tem
+                     else 'entrou sobreposição de divisa' if tem and not tinha
                      else 'crédito/uso consolidado no grupo' if i['grupo_id'] else 'outro')
             mud[(o['confianca'], i['confianca'], causa)] += 1
     for (de, para, causa), n in sorted(mud.items(), key=lambda x: -x[1]):
