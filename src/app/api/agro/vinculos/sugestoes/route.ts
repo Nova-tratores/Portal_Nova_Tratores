@@ -9,6 +9,7 @@ import { NextResponse } from 'next/server';
 import { autenticar, type Autenticado } from '@/lib/auth/server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
+import { assinaturaAusente, tipoVinculoValido } from '@/lib/agro/vinculo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -84,18 +85,30 @@ export async function POST(req: Request) {
     const cod_car = String(body?.cod_car || '').trim();
     const cliente_ref = String(body?.cliente_ref || '').trim();
     const aceitar = body?.aceitar === true;
+    const tipo = tipoVinculoValido(body?.tipo) ? body.tipo : null;
+    if (aceitar && !tipo) return NextResponse.json({ error: 'Escolha o tipo de vínculo (proprietário, arrendatário/operador, parceiro ou outro) antes de aceitar.' }, { status: 400 });
     if (!cod_car || !cliente_ref) return NextResponse.json({ error: 'cod_car e cliente_ref são obrigatórios' }, { status: 400 });
 
     const usuario = auth.email || (await nomeDoUsuario(auth));
-    const { data, error } = await supabaseAdmin.rpc('agro_decidir_sugestao', {
+    // Assinatura do Gate 1 (tipo + user_id: a RPC confere a permissão). Se a migration
+    // sql/agro-score-v2-gate1.sql ainda não foi aplicada, cai na assinatura antiga.
+    let { data, error } = await supabaseAdmin.rpc('agro_decidir_sugestao', {
       p_cod_car: cod_car, p_cliente_ref: cliente_ref, p_aceitar: aceitar, p_usuario: usuario,
+      p_tipo: tipo, p_user_id: auth.userId,
     });
+    let semTipo = false;
+    if (error && assinaturaAusente(error)) {
+      semTipo = true;
+      ({ data, error } = await supabaseAdmin.rpc('agro_decidir_sugestao', {
+        p_cod_car: cod_car, p_cliente_ref: cliente_ref, p_aceitar: aceitar, p_usuario: usuario,
+      }));
+    }
     if (error) throw error;
 
     await registrarAuditLog({
       userId: auth.userId, userName: await nomeDoUsuario(auth), sistema: 'dashboard-agro',
       acao: aceitar ? 'vinculo_aceito' : 'vinculo_rejeitado', entidade: 'car', entidadeId: cod_car,
-      entidadeLabel: `${cod_car} ↔ cliente ${cliente_ref}`, detalhes: { cliente_ref, resultado: data },
+      entidadeLabel: `${cod_car} ↔ cliente ${cliente_ref}`, detalhes: { cliente_ref, resultado: data, tipo: semTipo ? null : tipo },
     });
     return NextResponse.json({ ok: true, status: data });
   } catch (e: any) {

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { X, MapPin, Check, AlertTriangle, Link2, Unlink, Search, ExternalLink } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
+import { ROTULO_TIPO_VINCULO, TIPOS_VINCULO, rotuloTipoVinculo } from '@/lib/agro/vinculo'
 import { CONF_COR, CONF_ROTULO, corCultura, explicarScore, fmtBRL, fmtData, fmtHa, linkMaps, pivotUso, type Confianca } from '@/lib/agro/prospeccao'
 
 // Ficha do imóvel rural (CAR): abre da lista de prospecção e do mapa.
@@ -42,6 +43,7 @@ export default function FichaImovel({ codCar, onFechar, onMudou }: { codCar: str
   const [buscando, setBuscando] = useState(false)
   const [q, setQ] = useState('')
   const [achados, setAchados] = useState<any[]>([])
+  const [tipoVinculo, setTipoVinculo] = useState('')   // obrigatório pra aceitar sugestão ou vincular
 
   const carregar = useCallback(async () => {
     setErro(null)
@@ -164,21 +166,25 @@ export default function FichaImovel({ codCar, onFechar, onMudou }: { codCar: str
               <h3 style={h3}>Cliente da Nova</h3>
               {(d.vinculos || []).length === 0 && <div style={{ fontSize: 13, color: mut }}>Nenhum cliente vinculado a este imóvel.</div>}
               {(d.vinculos || []).map((v: any) => (
-                <div key={v.cliente_omie_id} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: borda }}>
+                <div key={`${v.cliente_omie_id}|${v.tipo || ''}`} style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '6px 0', borderBottom: borda }}>
                   <Link2 size={14} style={{ color: '#1d4ed8', flexShrink: 0 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: txt }}>{v.cliente_nome || 'cliente'} <span style={{ fontWeight: 400, color: mut, fontSize: 11 }}>Omie {v.cliente_omie_id}</span></div>
-                    <div style={{ fontSize: 11, color: mut }}>{v.origem === 'sugerido' ? 'sugestão aceita' : v.origem} · {v.confirmado_por} · {fmtData(v.confirmado_em)}{v.observacao ? ` · ${v.observacao}` : ''}</div>
+                    <div style={{ fontSize: 11, color: mut }}>{'tipo' in v ? `${rotuloTipoVinculo(v.tipo)} · ` : ''}{v.origem === 'sugerido' ? 'sugestão aceita' : v.origem} · {v.confirmado_por} · {fmtData(v.confirmado_em)}{v.observacao ? ` · ${v.observacao}` : ''}</div>
                   </div>
                   <a href={`/feedbacks/atendimento/${encodeURIComponent('omie_' + v.cliente_omie_id)}`} style={{ ...botao('#d97706', false), textDecoration: 'none' }} title="Abrir o cockpit de atendimento deste cliente">Cockpit</a>
-                  <button type="button" disabled={ocupado} onClick={() => { if (confirm('Remover o vínculo deste cliente com o imóvel?')) acao({ acao: 'desvincular', cliente_omie_id: v.cliente_omie_id }) }} style={{ ...botao('#dc2626', false), padding: 6 }} title="Remover vínculo"><Unlink size={13} /></button>
+                  <button type="button" disabled={ocupado} onClick={() => { if (confirm('Remover o vínculo deste cliente com o imóvel?')) acao({ acao: 'desvincular', cliente_omie_id: v.cliente_omie_id, tipo: v.tipo }) }} style={{ ...botao('#dc2626', false), padding: 6 }} title="Remover vínculo"><Unlink size={13} /></button>
                 </div>
               ))}
               {pendentes.map((s: any) => (
                 <div key={s.cliente_ref} style={{ padding: '8px 10px', marginTop: 8, borderRadius: 8, background: 'rgba(245,158,11,.10)', borderLeft: '4px solid #f59e0b' }}>
                   <div style={{ fontSize: 13, color: txt }}><b>Sugestão:</b> {s.cliente_nome} <span style={{ color: mut, fontSize: 11 }}>· {s.motivo}</span></div>
-                  <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-                    <button type="button" disabled={ocupado} onClick={() => acao({ cod_car: codCar, cliente_ref: s.cliente_ref, aceitar: true }, '/api/agro/vinculos/sugestoes')} style={botao(VERDE, true)}><Check size={13} /> Aceitar</button>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+                    <select value={tipoVinculo} onChange={(e) => setTipoVinculo(e.target.value)} style={{ ...input, fontSize: 12 }} title="Papel do cliente neste imóvel">
+                      <option value="">Tipo de vínculo…</option>
+                      {TIPOS_VINCULO.map((t) => <option key={t} value={t}>{ROTULO_TIPO_VINCULO[t]}</option>)}
+                    </select>
+                    <button type="button" disabled={ocupado || !tipoVinculo} title={tipoVinculo ? undefined : 'Escolha o tipo de vínculo antes de aceitar'} onClick={() => acao({ cod_car: codCar, cliente_ref: s.cliente_ref, aceitar: true, tipo: tipoVinculo }, '/api/agro/vinculos/sugestoes')} style={{ ...botao(VERDE, true), opacity: tipoVinculo ? 1 : .5 }}><Check size={13} /> Aceitar</button>
                     <button type="button" disabled={ocupado} onClick={() => acao({ cod_car: codCar, cliente_ref: s.cliente_ref, aceitar: false }, '/api/agro/vinculos/sugestoes')} style={botao('#dc2626', false)}><X size={13} /> Rejeitar</button>
                   </div>
                 </div>
@@ -188,13 +194,17 @@ export default function FichaImovel({ codCar, onFechar, onMudou }: { codCar: str
                   <button type="button" onClick={() => setBuscando(true)} style={botao('#1d4ed8', false)}><Search size={13} /> Vincular um cliente</button>
                 ) : (
                   <div>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <select value={tipoVinculo} onChange={(e) => setTipoVinculo(e.target.value)} style={{ ...input, fontSize: 12 }} title="Papel do cliente neste imóvel">
+                      <option value="">Tipo de vínculo…</option>
+                      {TIPOS_VINCULO.map((t) => <option key={t} value={t}>{ROTULO_TIPO_VINCULO[t]}</option>)}
+                    </select>
                       <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="nome, fazenda ou CPF/CNPJ (mín. 3 letras)" style={{ ...input, flex: 1 }} />
                       <button type="button" onClick={() => { setBuscando(false); setQ('') }} style={botao('#6b7280', false)}>Cancelar</button>
                     </div>
                     <div style={{ maxHeight: 190, overflowY: 'auto', marginTop: 6 }}>
                       {achados.map((c) => (
-                        <button key={c.cliente_omie_id} type="button" disabled={ocupado} onClick={() => acao({ acao: 'vincular', cliente_omie_id: c.cliente_omie_id, cliente_nome: c.nome })}
+                        <button key={c.cliente_omie_id} type="button" disabled={ocupado || !tipoVinculo} title={tipoVinculo ? undefined : 'Escolha o tipo de vínculo primeiro'} onClick={() => acao({ acao: 'vincular', cliente_omie_id: c.cliente_omie_id, cliente_nome: c.nome, tipo: tipoVinculo })}
                           style={{ display: 'block', width: '100%', textAlign: 'left', padding: '6px 8px', border: borda, borderRadius: 6, marginBottom: 4, background: 'var(--portal-bg-card,#fefefe)', cursor: 'pointer', color: txt }}>
                           <div style={{ fontSize: 13, fontWeight: 700 }}>{c.nome}</div>
                           <div style={{ fontSize: 11, color: mut }}>{[c.razao_social !== c.nome ? c.razao_social : null, c.documento, c.cidade, `Omie ${c.cliente_omie_id}`].filter(Boolean).join(' · ')}</div>

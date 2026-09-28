@@ -2,12 +2,13 @@
 // GET  /api/agro/imovel/<cod_car>  — ficha do imóvel: cadastro, perfil, uso do solo por safra, crédito
 //                                     (operações via glebas), sobreposições, vínculos, sugestões, validações, visitas.
 // POST /api/agro/imovel/<cod_car>  — { acao: 'validar', cultura_real, confirmou, observacao? }
-//                                     { acao: 'vincular', cliente_omie_id, cliente_nome, observacao? }
-//                                     { acao: 'desvincular', cliente_omie_id }
+//                                     { acao: 'vincular', cliente_omie_id, cliente_nome, tipo, observacao? }
+//                                     { acao: 'desvincular', cliente_omie_id, tipo? }
 // Escrita humana SEMPRE com o usuário da sessão (RPCs agro_validar_cultura / agro_vincular_cliente).
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { guardarAgro, erroAgro, logAgro, codCarValido, nomeDoUsuario } from '@/lib/agro/server';
+import { assinaturaAusente, tipoVinculoValido } from '@/lib/agro/vinculo';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -103,21 +104,30 @@ export async function POST(req: Request, ctx: Ctx) {
     if (body?.acao === 'vincular') {
       const omie = String(body.cliente_omie_id || '').trim();
       if (!omie) return NextResponse.json({ error: 'cliente_omie_id é obrigatório' }, { status: 400 });
-      const { error } = await sb.rpc('agro_vincular_cliente', {
+      if (!tipoVinculoValido(body.tipo)) return NextResponse.json({ error: 'Escolha o tipo de vínculo (proprietário, arrendatário/operador, parceiro ou outro).' }, { status: 400 });
+      const base = {
         p_cod_car: cod, p_cliente_omie_id: omie, p_cliente_nome: String(body.cliente_nome || '').slice(0, 200) || null,
         p_usuario: usuario, p_origem: 'manual', p_observacao: body.observacao ? String(body.observacao).slice(0, 500) : null,
-      });
+      };
+      // Gate 1: tipo + user_id (a RPC confere a permissão); sem a migration, assinatura antiga.
+      let { error } = await sb.rpc('agro_vincular_cliente', { ...base, p_tipo: body.tipo, p_user_id: auth.userId });
+      let semTipo = false;
+      if (error && assinaturaAusente(error)) { semTipo = true; ({ error } = await sb.rpc('agro_vincular_cliente', base)); }
       if (error) throw error;
-      await logAgro(auth, { acao: 'vinculo_manual', entidade: 'car', entidadeId: cod, entidadeLabel: `${cod} ↔ ${body.cliente_nome || omie}`, detalhes: { cliente_omie_id: omie } });
+      await logAgro(auth, { acao: 'vinculo_manual', entidade: 'car', entidadeId: cod, entidadeLabel: `${cod} ↔ ${body.cliente_nome || omie}`, detalhes: { cliente_omie_id: omie, tipo: semTipo ? null : body.tipo } });
       return NextResponse.json({ ok: true });
     }
 
     if (body?.acao === 'desvincular') {
       const omie = String(body.cliente_omie_id || '').trim();
       if (!omie) return NextResponse.json({ error: 'cliente_omie_id é obrigatório' }, { status: 400 });
-      const { error } = await sb.from('agro_car_cliente_vinculo').delete().eq('cod_car', cod).eq('cliente_omie_id', omie);
+      // com o tipo, remove só aquele papel (o cliente pode ser dono E operador do mesmo imóvel)
+      const tipo = tipoVinculoValido(body.tipo) ? body.tipo : null;
+      let del = sb.from('agro_car_cliente_vinculo').delete().eq('cod_car', cod).eq('cliente_omie_id', omie);
+      if (tipo) del = del.eq('tipo', tipo);
+      const { error } = await del;
       if (error) throw error;
-      await logAgro(auth, { acao: 'vinculo_removido', entidade: 'car', entidadeId: cod, entidadeLabel: cod, detalhes: { cliente_omie_id: omie } });
+      await logAgro(auth, { acao: 'vinculo_removido', entidade: 'car', entidadeId: cod, entidadeLabel: cod, detalhes: { cliente_omie_id: omie, tipo } });
       return NextResponse.json({ ok: true });
     }
 

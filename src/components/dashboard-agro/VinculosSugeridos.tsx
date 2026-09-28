@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link2, Check, X, RefreshCw, Search, AlertTriangle, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
+import { ROTULO_TIPO_VINCULO, TIPOS_VINCULO } from '@/lib/agro/vinculo'
 
 // Guia "Vínculos" do /dashboard-agro: sugestões de vínculo CAR↔cliente geradas
 // pelas visitas presenciais com GPS do CRM (sql/agro-visitas-vinculo.sql).
@@ -73,6 +74,7 @@ export default function VinculosSugeridos() {
   const [erro, setErro] = useState<string | null>(null)
   const [confirmando, setConfirmando] = useState<string | null>(null)   // chave "cod_car|cliente_ref|aceitar"
   const [ocupado, setOcupado] = useState<string | null>(null)
+  const [tipoSel, setTipoSel] = useState('')   // tipo do vínculo: obrigatório pra aceitar
   const [ordem, setOrdem] = useState<{ col: Col; dir: 'asc' | 'desc' }>({ col: 'score', dir: 'desc' })
 
   const ordenarPor = (col: Col) => setOrdem((o) => {
@@ -104,7 +106,7 @@ export default function VinculosSugeridos() {
     try {
       const r = await fetch('/api/agro/vinculos/sugestoes', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ cod_car: s.cod_car, cliente_ref: s.cliente_ref, aceitar }),
+        body: JSON.stringify({ cod_car: s.cod_car, cliente_ref: s.cliente_ref, aceitar, tipo: aceitar ? tipoSel : undefined }),
       })
       const j = await r.json()
       if (!r.ok) throw new Error(j?.error || `HTTP ${r.status}`)
@@ -226,13 +228,19 @@ export default function VinculosSugeridos() {
                       </span>
                     ) : confirmando?.startsWith(chave) ? (
                       <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center', fontSize: 12 }}>
-                        {confirmando.endsWith('|1') ? 'Vincular este CAR ao cliente?' : 'Rejeitar sugestão?'}
-                        <button type="button" disabled={ocupado === chave} onClick={() => decidir(s, confirmando.endsWith('|1'))} style={botao(confirmando.endsWith('|1') ? VERDE : '#dc2626', true)}>Sim</button>
+                        {confirmando.endsWith('|1') ? 'Vincular como' : 'Rejeitar sugestão?'}
+                        {confirmando.endsWith('|1') && (
+                          <select value={tipoSel} onChange={(e) => setTipoSel(e.target.value)} style={{ padding: '4px 6px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-input,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 12 }}>
+                            <option value="">tipo…</option>
+                            {TIPOS_VINCULO.map((t) => <option key={t} value={t}>{ROTULO_TIPO_VINCULO[t]}</option>)}
+                          </select>
+                        )}
+                        <button type="button" disabled={ocupado === chave || (confirmando.endsWith('|1') && !tipoSel)} onClick={() => decidir(s, confirmando.endsWith('|1'))} style={botao(confirmando.endsWith('|1') ? VERDE : '#dc2626', true)}>Sim</button>
                         <button type="button" onClick={() => setConfirmando(null)} style={botao('#6b7280', false)}>Não</button>
                       </span>
                     ) : (
                       <span style={{ display: 'inline-flex', gap: 6 }}>
-                        <button type="button" disabled={ocupado === chave} onClick={() => setConfirmando(`${chave}|1`)} style={botao(VERDE, true)}><Check size={13} /> Aceitar</button>
+                        <button type="button" disabled={ocupado === chave} onClick={() => { setTipoSel(''); setConfirmando(`${chave}|1`) }} style={botao(VERDE, true)}><Check size={13} /> Aceitar</button>
                         <button type="button" disabled={ocupado === chave} onClick={() => setConfirmando(`${chave}|0`)} style={botao('#dc2626', false)}><X size={13} /> Rejeitar</button>
                       </span>
                     )}
