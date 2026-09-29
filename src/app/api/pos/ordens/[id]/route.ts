@@ -115,6 +115,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     qtdHoras: safeGet(row, "Qtd_HR"), qtdKm: safeGet(row, "Qtd_KM"),
     status: safeGet(row, "Status"), ppv: safeGet(row, "ID_PPV"),
     projeto: safeGet(row, "Projeto"), ordemOmie: safeGet(row, "Ordem_Omie"),
+    pendenciaMahindra: (safeGet(row, "pendencia_mahindra") as { detalhes?: string[] } | null) || null,
     pedidoVenda,
     omieEnvioLog: safeGet(row, "Omie_Envio_Log") || "",
     motivoCancelamento: safeGet(row, "Motivo_Cancelamento"),
@@ -457,6 +458,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       Serv_Solicitado: dados.servicoSolicitado,
       Tipo_Servico: dados.tipoServico,
       Revisao: dados.revisao,
+      Status: dados.status,
+      Data_Fim_Servico: dados.dataFimServico || null,
+      Ordem_Omie: dados.ordemOmie || null,
     });
     await supabase.from(TBL_OS).update({ pendencia_mahindra: pendencia }).eq("Id_Ordem", idOs);
   } catch (e) {

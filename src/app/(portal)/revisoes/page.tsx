@@ -13,6 +13,7 @@ import { EmailInspecao, INSPECAO_DESTINATARIOS_FIXOS } from "@/lib/inspecoes/typ
 import { Observacao, TipoObservacao, TIPOS_LABEL, TIPOS_LISTA } from "@/lib/observacoes/types";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 import { authHeaders } from "@/lib/auth/client";
+import ChequesAtrasados from "@/components/revisoes/ChequesAtrasados";
 
 interface EmailAttachment {
   filename: string;
@@ -150,6 +151,11 @@ function DashboardAgrupadoInner() {
   const [novoDestNome, setNovoDestNome] = useState("");
   const [novoDestEmail, setNovoDestEmail] = useState("");
   const [horimetroEnvio, setHorimetroEnvio] = useState("");
+  // Cheques ONLINE do trator (gerados no POS): lista por chassi; o da revisão
+  // escolhida pode ser anexado direto no envio (PDF gerado no servidor).
+  type ChequeOnline = { osId: string; horas: number; pagina: number | null; dataRevisao: string; horimetro: string; tecnico: string; assinado: boolean; assinadoEm: string | null; assinadoNome: string | null; assinadoGeo: { lat: number; lng: number; precisao_m?: number | null } | null; assinadoDispositivo: { modelo?: string | null; plataforma?: string | null; versao?: string | null } | null; linkCheque: string; linkAssinar: string; pdfUrl: string };
+  const [chequesOnline, setChequesOnline] = useState<ChequeOnline[]>([]);
+  const [usarChequeOnline, setUsarChequeOnline] = useState(false);
   const [editandoMotor, setEditandoMotor] = useState(false);
   const [motorTemp, setMotorTemp] = useState("");
   const [editandoCliente, setEditandoCliente] = useState(false);
@@ -610,6 +616,29 @@ function DashboardAgrupadoInner() {
     }
   };
 
+  useEffect(() => {
+    setChequesOnline([]); setUsarChequeOnline(false);
+    if (!selecionado?.Chassis) return;
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/revisoes/cheques?chassis=${encodeURIComponent(selecionado.Chassis)}`, { headers: await authHeaders() });
+        const j = await r.json();
+        if (vivo && r.ok) setChequesOnline(j.itens || []);
+      } catch { /* sem cheque online */ }
+    })();
+    return () => { vivo = false; };
+  }, [selecionado?.Chassis, selecionado?.ID]);
+  const chequeOnlineDaRevisao = revisaoEnvio ? chequesOnline.find((c) => `${c.horas}h` === revisaoEnvio) || null : null;
+  useEffect(() => {
+    // ao escolher a revisão: se existe cheque online, já propõe usar e puxa o horímetro dele
+    if (chequeOnlineDaRevisao) {
+      setUsarChequeOnline(true);
+      if (!horimetroEnvio.trim() && chequeOnlineDaRevisao.horimetro) setHorimetroEnvio(chequeOnlineDaRevisao.horimetro.replace(/\s*h$/i, ""));
+    } else setUsarChequeOnline(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chequeOnlineDaRevisao?.osId]);
+
   const enviarEmail = async () => {
     if (!podeEnviar) { setMsgEnvio("Você não tem permissão para enviar revisão."); return; }
     if (!selecionado) return;
@@ -624,11 +653,26 @@ function DashboardAgrupadoInner() {
     }
     if (!nomeRemetente.trim()) { setMsgEnvio("Preencha seu nome."); return; }
     if (destinatariosSelecionados.size === 0) { setMsgEnvio("Selecione pelo menos um destinatário."); return; }
-    const files = fileInputRef.current?.files;
-    if (!files || files.length === 0) { setMsgEnvio("Selecione pelo menos um arquivo."); return; }
+    const upload = Array.from(fileInputRef.current?.files || []);
+    const usaOnline = usarChequeOnline && !!chequeOnlineDaRevisao;
+    if (!usaOnline && upload.length === 0) { setMsgEnvio("Selecione pelo menos um arquivo ou use o cheque online."); return; }
 
     setEnviando(true);
     setMsgEnvio("");
+
+    let files: File[] = upload;
+    if (usaOnline && chequeOnlineDaRevisao) {
+      try {
+        const r = await fetch(chequeOnlineDaRevisao.pdfUrl, { headers: await authHeaders() });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "falha ao gerar o PDF do cheque");
+        const blob = await r.blob();
+        files = [new File([blob], `cheque-revisao-${chequeOnlineDaRevisao.horas}h-${selecionado.Chassis.slice(-6)}.pdf`, { type: "application/pdf" }), ...upload];
+      } catch (e) {
+        setMsgEnvio(e instanceof Error ? e.message : "falha ao gerar o PDF do cheque");
+        setEnviando(false);
+        return;
+      }
+    }
 
     const emailsDest = Array.from(destinatariosSelecionados);
 
@@ -636,7 +680,7 @@ function DashboardAgrupadoInner() {
     let pdfUrl: string | null = null;
     try {
       // Preparar todos os FormData
-      const requests = Array.from(files).map((file) => {
+      const requests = files.map((file) => {
         const formData = new FormData();
         formData.append("file", file);
         formData.append("chassis", selecionado.Chassis);
@@ -955,6 +999,8 @@ function DashboardAgrupadoInner() {
             </select>
           </div>
         </header>
+
+        <ChequesAtrasados podeVarrer={podeEnviar} />
 
         {loading && <p className="text-center py-20 text-zinc-400 text-sm">Carregando...</p>}
         {erro && <p className="text-center py-20 text-red-500 text-sm">{erro}</p>}
@@ -2246,8 +2292,54 @@ function DashboardAgrupadoInner() {
                             </div>
                           </div>
 
+                          {revisaoEnvio && (
+                            chequeOnlineDaRevisao ? (
+                              <div className={`rounded-xl border p-4 space-y-2 ${chequeOnlineDaRevisao.assinado ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+                                <div className="flex items-center justify-between gap-2 flex-wrap">
+                                  <p className="text-sm font-semibold text-zinc-800">
+                                    🧾 Cheque online da revisão {revisaoEnvio} — OS {chequeOnlineDaRevisao.osId}
+                                  </p>
+                                  <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${chequeOnlineDaRevisao.assinado ? "bg-emerald-600 text-white" : "bg-amber-500 text-white"}`}>
+                                    {chequeOnlineDaRevisao.assinado ? `Assinado pelo cliente${chequeOnlineDaRevisao.assinadoEm ? " em " + new Date(chequeOnlineDaRevisao.assinadoEm).toLocaleDateString("pt-BR") : ""}` : "Cliente ainda não assinou"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-zinc-600">
+                                  Revisão em {chequeOnlineDaRevisao.dataRevisao || "—"} · horímetro {chequeOnlineDaRevisao.horimetro || "—"} · técnico {chequeOnlineDaRevisao.tecnico || "—"}
+                                </p>
+                                {chequeOnlineDaRevisao.assinado && (
+                                  <p className="text-xs text-zinc-600">
+                                    Assinado por <b>{chequeOnlineDaRevisao.assinadoNome || "—"}</b>
+                                    {chequeOnlineDaRevisao.assinadoEm ? ` em ${new Date(chequeOnlineDaRevisao.assinadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}` : ""}
+                                    {" · local: "}
+                                    {chequeOnlineDaRevisao.assinadoGeo
+                                      ? <a href={`https://www.google.com/maps?q=${chequeOnlineDaRevisao.assinadoGeo.lat},${chequeOnlineDaRevisao.assinadoGeo.lng}`} target="_blank" rel="noreferrer" className="text-blue-700 underline">ver no mapa</a>
+                                      : <span className="text-amber-700">não informado</span>}
+                                    {" · aparelho: "}
+                                    {[chequeOnlineDaRevisao.assinadoDispositivo?.modelo, chequeOnlineDaRevisao.assinadoDispositivo?.plataforma].filter(Boolean).join(" · ") || <span className="text-amber-700">não informado</span>}
+                                  </p>
+                                )}
+                                <div className="flex items-center gap-3 flex-wrap">
+                                  <label className="inline-flex items-center gap-2 text-sm text-zinc-800 cursor-pointer">
+                                    <input type="checkbox" checked={usarChequeOnline} onChange={(e) => setUsarChequeOnline(e.target.checked)} className="h-4 w-4" />
+                                    Anexar este cheque (PDF gerado pelo portal)
+                                  </label>
+                                  <a href={chequeOnlineDaRevisao.linkCheque} target="_blank" rel="noreferrer" className="text-sm text-red-600 hover:underline">Abrir cheque</a>
+                                  <a href={chequeOnlineDaRevisao.pdfUrl} target="_blank" rel="noreferrer" className="text-sm text-red-600 hover:underline">Ver PDF</a>
+                                  {!chequeOnlineDaRevisao.assinado && (
+                                    <a href={`https://wa.me/?text=${encodeURIComponent(chequeOnlineDaRevisao.linkAssinar)}`} target="_blank" rel="noreferrer" className="text-sm text-emerald-700 hover:underline">Mandar link de assinatura</a>
+                                  )}
+                                </div>
+                                {!chequeOnlineDaRevisao.assinado && usarChequeOnline && (
+                                  <p className="text-xs text-amber-700">O cheque vai sem a assinatura do cliente. Se quiser esperar a assinatura, desmarque e envie depois.</p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-zinc-500">Sem cheque online para {revisaoEnvio} neste chassi (ele nasce na OS de revisão, no POS). Anexe o cheque escaneado abaixo.</p>
+                            )
+                          )}
+
                           <div>
-                            <label className="text-xs text-zinc-400 uppercase tracking-wider mb-1 block">Anexo</label>
+                            <label className="text-xs text-zinc-400 uppercase tracking-wider mb-1 block">Anexo{usarChequeOnline && chequeOnlineDaRevisao ? " extra (opcional)" : ""}</label>
                             <input
                               ref={fileInputRef}
                               type="file"

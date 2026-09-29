@@ -437,6 +437,12 @@ async function montarObsOS(os: Record<string, unknown>, idOrdem: string): Promis
       .not("status", "in", '("lixeira","cancelada")');
     for (const r of reqs || []) links.push(`Requisição ${r.id}: ${PORTAL_BASE}/requisicoes?req=${encodeURIComponent(String(r.id))}`);
   } catch { /* segue sem os links de requisição */ }
+  // OS de revisão Mahindra ganha o link do CHEQUE DE REVISÃO (público, por token)
+  try {
+    const { garantirCheque, linkCheque } = await import("@/lib/revisoes/cheque-db");
+    const c = await garantirCheque(idOrdem);
+    links.push(`Cheque de revisão ${c.horas}h: ${linkCheque(c.token)}`);
+  } catch { /* não é revisão / sem chassi / tabela ausente — segue sem o link */ }
   partes.push("Acesso no portal:\n" + links.join("\n"));
 
   return partes.join("\n\n").substring(0, 2000);

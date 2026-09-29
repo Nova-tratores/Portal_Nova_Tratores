@@ -19,6 +19,8 @@ import OSUnidadesInfo from "@/components/ppv/OSUnidadesInfo";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
+import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
+import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
 
 interface OSDrawerProps {
   visible: boolean;
@@ -105,6 +107,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [descHoraValor, setDescHoraValor] = useState(0);
   const [descKmValor, setDescKmValor] = useState(0);
   const [ordemOmie, setOrdemOmie] = useState("");
+  // Pendência Mahindra gravada na OS (vigia de revisões / checagem na criação)
+  const [pendenciaMahindra, setPendenciaMahindra] = useState<string[]>([]);
   const [pedidoVenda, setPedidoVenda] = useState("");
   const [omieLog, setOmieLog] = useState("");
   // PDF da OS no Omie (osdocs · ObterOS) — aparece depois do "Enviar Omie".
@@ -881,6 +885,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
           const sub = (d.qtdHoras || 0) * VH + (d.qtdKm || 0) * VK;
           setDescPorc(sub > 0 ? parseFloat(((dv / sub) * 100).toFixed(2)) : 0);
           setOrdemOmie(d.ordemOmie || ""); setMotivoCancel(d.motivoCancelamento || "");
+          setPendenciaMahindra(Array.isArray(d.pendenciaMahindra?.detalhes) ? d.pendenciaMahindra!.detalhes! : []);
           setPedidoVenda(d.pedidoVenda || ""); setOmieLog(d.omieEnvioLog || "");
           setTemSubstituto(!!(d.substitutoTipo && d.substitutoId));
           setSubstitutoTipo(d.substitutoTipo || "POS");
@@ -1186,6 +1191,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {/* ── Painel: Ordem de Serviço ── */}
                   <div className="os-tab-panel" data-aba={mode === "edit" ? abaOmie : undefined} style={{ display: aba === "os" ? "flex" : "none" }}>
 
+                  {mode === "edit" && pendenciaMahindra.length > 0 && (
+                    <div className="os-alert os-alert-vermelho" style={{ order: -5.95 }} title="Marcado pelo Vigia de revisões. Some sozinho quando o cheque for enviado na tela de Revisões.">
+                      <i className="fas fa-exclamation-circle" /> <b style={{ marginRight: 6 }}>Pendência Mahindra:</b> {pendenciaMahindra.join(" · ")}
+                      <a href="/revisoes" target="_blank" rel="noreferrer" style={{ marginLeft: 8, textDecoration: "underline" }}>enviar cheque</a>
+                    </div>
+                  )}
                   {mode === "edit" && bombaAlerta && (
                     <div className="os-alert" style={{ order: -5.9 }}>
                       <i className="fas fa-exclamation-triangle" /> Lembrete: Oferecer limpeza na bomba injetora.
@@ -1930,6 +1941,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <label style={L_DISC}>Plano de Revisão</label>
                         <input type="text" value={revisao} readOnly onClick={() => podeEditar && setShowRevModal(true)} placeholder="Escolher plano..." style={{ ...I_DISC, cursor: "pointer" }} />
                       </div>
+                    )}
+                    {tipoServico === "Revisão" && mode === "edit" && osId && (
+                      <ChequeRevisaoBloco osId={osId} podeEditar={podeEditar} />
+                    )}
+                    {mode === "edit" && osId && (
+                      <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />
                     )}
                     <textarea rows={10} value={servSolicitado} onChange={(e) => setServSolicitado(e.target.value)} style={S_MONO_MB0} />
                     <div style={{ display: "flex", gap: 16, marginTop: 12, flexWrap: "wrap" }}>

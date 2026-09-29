@@ -156,6 +156,7 @@ export interface OSFormData {
   ppv: string;
   status: string;
   ordemOmie: string;
+  pendenciaMahindra?: { motivo?: string; detalhes?: string[]; chassis?: string } | null;
   motivoCancelamento: string;
   descontoValor: number;
   relatorioTecnico?: string;
