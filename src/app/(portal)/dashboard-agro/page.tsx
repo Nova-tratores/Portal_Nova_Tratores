@@ -1,10 +1,11 @@
 'use client'
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart3, Sprout, Link2, MapPin, Target } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import { authHeaders } from '@/lib/auth/client'
 import PlanoCarAba from '@/components/dashboard-agro/PlanoCarAba'
 import VinculosSugeridos from '@/components/dashboard-agro/VinculosSugeridos'
 import MapaCar from '@/components/dashboard-agro/MapaCar'
@@ -12,14 +13,15 @@ import ProspeccaoCar from '@/components/dashboard-agro/ProspeccaoCar'
 
 // Dashboard Agro: duas guias.
 //  - Dashboard: o app externo no Railway (iframe) — fica sempre montado, só
-//    escondido, para não recarregar a cada troca de guia.
+//    escondido, para não recarregar a cada troca de guia. O endereço vem de
+//    /api/agro/dashboard-token, com um token assinado de curta duração: o app
+//    externo só entrega a página para quem chegou por aqui.
 //  - Inteligência por CAR: o planejamento do módulo (lib pura lib/agro/plano-car.ts).
 //  - Mapa: imóveis (CAR) do município coloridos por cultura + visitas do CRM.
 //  - Vínculos: sugestões CAR↔cliente pelas visitas do CRM (aceitar/rejeitar).
 //  - Prospecção: lista por score + ficha do imóvel (validar cultura, vincular cliente, exportar).
 // Deep-link: /dashboard-agro?tab=car | ?tab=prospeccao | ?tab=mapa | ?tab=vinculos
 type Aba = 'dashboard' | 'car' | 'prospeccao' | 'mapa' | 'vinculos'
-const IFRAME_URL = 'https://dashboard-agro-sp-production.up.railway.app/'
 const ALTURA_FAIXA = 52
 
 const GUIAS: { id: Aba; label: string; icon: React.ReactNode; selo?: string }[] = [
@@ -38,6 +40,28 @@ export default function DashboardAgroPage() {
   const searchParams = useSearchParams()
   const tabInicial = searchParams?.get('tab') as Aba | null
   const [aba, setAba] = useState<Aba>(tabInicial && ABAS.includes(tabInicial) ? tabInicial : 'dashboard')
+
+  // endereço do iframe (com token). null = ainda pedindo; erro = não veio.
+  const [iframeUrl, setIframeUrl] = useState<string | null>(null)
+  const [erroIframe, setErroIframe] = useState<string | null>(null)
+  const podeVer = !loading && !!userProfile && temAcesso('dashboard-agro')
+
+  const pedirEndereco = useCallback(async () => {
+    setErroIframe(null)
+    try {
+      const r = await fetch('/api/agro/dashboard-token', { headers: await authHeaders(), cache: 'no-store' })
+      const j = await r.json().catch(() => ({}))
+      if (!r.ok || !j?.url) throw new Error(j?.error || `HTTP ${r.status}`)
+      setIframeUrl(String(j.url))
+    } catch (e) {
+      setErroIframe(e instanceof Error ? e.message : 'Falha ao abrir o painel')
+    }
+  }, [])
+
+  // pede UMA vez, quando a permissão está confirmada (o token só vale na carga da página)
+  useEffect(() => {
+    if (podeVer && !iframeUrl && !erroIframe) pedirEndereco()
+  }, [podeVer, iframeUrl, erroIframe, pedirEndereco])
 
   if (!loading && userProfile && !temAcesso('dashboard-agro')) return <SemPermissao />
 
@@ -90,11 +114,25 @@ export default function DashboardAgroPage() {
 
       {/* Conteúdo */}
       <div style={{ flex: 1, minHeight: 0, position: 'relative' }}>
-        <iframe
-          src={IFRAME_URL}
-          title="Dashboard Agro"
-          style={{ width: '100%', height: '100%', border: 'none', display: aba === 'dashboard' ? 'block' : 'none' }}
-        />
+        {iframeUrl ? (
+          <iframe
+            src={iframeUrl}
+            title="Dashboard Agro"
+            referrerPolicy="no-referrer"
+            style={{ width: '100%', height: '100%', border: 'none', display: aba === 'dashboard' ? 'block' : 'none' }}
+          />
+        ) : aba === 'dashboard' && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, background: 'var(--portal-bg)', color: 'var(--portal-text,#111111)', fontSize: 14 }}>
+            {erroIframe ? (
+              <>
+                <div>Não foi possível abrir o painel: {erroIframe}</div>
+                <button type="button" onClick={pedirEndereco} style={{ padding: '8px 16px', borderRadius: 8, border: 'none', background: '#16a34a', color: '#111111', fontWeight: 700, cursor: 'pointer' }}>Tentar de novo</button>
+              </>
+            ) : (
+              <div style={{ color: 'var(--portal-text-muted,#6b7280)' }}>Abrindo o painel…</div>
+            )}
+          </div>
+        )}
         {aba === 'car' && (
           <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'var(--portal-bg)' }}>
             <PlanoCarAba />
