@@ -1,0 +1,19 @@
+# POS — Vigia de revisões: 1x por dia recalcula a pendência Mahindra das OS
+# dos últimos 60 dias (cheque de revisão da própria OS e das anteriores,
+# inspeção de pré-entrega). Pendência nova → exclamação no card + notificação.
+name: POS - Vigia de revisoes
+
+on:
+  schedule:
+    - cron: '40 9 * * *'   # 06:40 BRT
+  workflow_dispatch: {}
+
+jobs:
+  vigia:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota do vigia
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/pos/cron/vigia-revisoes"

@@ -1,6 +1,9 @@
+// Checagem de pendência Mahindra NA HORA (criação/edição da OS). As regras são
+// as mesmas da varredura diária (lib/pos/vigia-revisoes.ts) — vivem em
+// vigia-revisoes-regras.ts: OS de revisão FATURADA sem cheque enviado.
 import { createClient } from '@supabase/supabase-js';
-import { REVISOES_LISTA } from '@/lib/revisoes/types';
-import { extrairChassis, extrairHorasRevisao } from './extrairTrator';
+import { extrairChassis, extrairHorasRevisaoOS } from './extrairTrator';
+import { avaliarOS, normalizarHorasRevisao, osFaturada } from './vigia-revisoes-regras';
 
 export interface PendenciaMahindra {
   motivo: string;
@@ -13,14 +16,19 @@ interface OSEntrada {
   Serv_Solicitado?: string | null;
   Tipo_Servico?: string | null;
   Revisao?: string | null;
+  Status?: string | null;
+  Data?: string | null;
+  Data_Fim_Servico?: string | null;
+  Ordem_Omie?: string | null;
+  id_omie?: number | string | null;
 }
 
 /**
- * Checa se uma OS tem pendências Mahindra (inspeção ou revisão anterior não enviada).
+ * Checa se uma OS tem pendência Mahindra (revisão faturada com cheque não enviado).
  * Retorna null se:
  *  - não conseguir extrair chassis
  *  - chassis não existe na tabela `tratores` (não é Mahindra)
- *  - não houver pendências
+ *  - não houver pendência
  */
 export async function checarIrregularidade(os: OSEntrada): Promise<PendenciaMahindra | null> {
   const supabase = createClient(
@@ -41,45 +49,24 @@ export async function checarIrregularidade(os: OSEntrada): Promise<PendenciaMahi
   if (!tratorMatch || tratorMatch.length === 0) return null;
 
   const chassisFinal = chassis.slice(-4);
-  const detalhes: string[] = [];
+  const { data: revisoesEnviadas } = await supabase.from('revisao_emails').select('horas').eq('chassis_final', chassisFinal);
 
-  // 1) Inspeção de pré-entrega enviada?
-  const { data: inspecao } = await supabase
-    .from('inspecao_emails')
-    .select('id')
-    .eq('chassis_final', chassisFinal)
-    .limit(1);
-
-  if (!inspecao || inspecao.length === 0) {
-    detalhes.push('Inspeção de pré-entrega não enviada');
+  const enviadas = new Set<number>();
+  for (const r of (revisoesEnviadas || []) as { horas: string | number }[]) {
+    const h = Number(String(r.horas || '').replace(/\D/g, ''));
+    if (h) enviadas.add(h);
   }
 
-  // 2) Se for OS de revisão, revisões anteriores foram enviadas?
-  const tipoServico = os.Tipo_Servico || '';
-  const horasRev = extrairHorasRevisao(os.Revisao);
-
-  if (tipoServico.toLowerCase().includes('revis') && horasRev && horasRev > 50) {
-    const { data: revisoesEnviadas } = await supabase
-      .from('revisao_emails')
-      .select('horas')
-      .eq('chassis_final', chassisFinal);
-
-    const enviadas = new Set((revisoesEnviadas || []).map((r: { horas: string }) => String(r.horas)));
-
-    for (const item of REVISOES_LISTA) {
-      const h = Number(item.replace('h', ''));
-      if (h >= horasRev) break;
-      if (!enviadas.has(String(h))) {
-        detalhes.push(`Cheque de revisão ${item} não enviado`);
-      }
-    }
-  }
-
-  if (detalhes.length === 0) return null;
-
-  return {
-    motivo: 'OS com pendências Mahindra',
-    detalhes,
+  // Horas lidas do campo Revisao OU do texto da solicitação ("REV 900H",
+  // "Revisão de 2400") — o campo Revisao fica vazio com frequência.
+  return avaliarOS({
+    os: {
+      id: '', status: os.Status || '', faturada: osFaturada(os.Ordem_Omie, os.id_omie),
+      data: os.Data || null, dataFim: os.Data_Fim_Servico || null,
+    },
     chassis,
-  };
+    horas: normalizarHorasRevisao(extrairHorasRevisaoOS(os)),
+    enviadas,
+    hoje: new Date(),
+  });
 }
