@@ -9,7 +9,7 @@ import { readFileSync, writeFileSync } from 'fs';
 import { PNG } from 'pngjs';
 
 type Caixa = [number, number, number, number];
-interface Peca { cena: string; id: string; boxes: Caixa[] }
+interface Peca { cena: string; id: string; boxes: Caixa[]; areaMin?: number }
 
 const PAD = 14;          // folga em volta da caixa aproximada
 const CLARO = 175;       // luminÃ¢ncia mÃ­nima pra contar como "branco"
@@ -35,24 +35,33 @@ const PECAS: Peca[] = [
   { cena: 'frente', id: 'faroiscofre', boxes: [[90, 575, 145, 85], [1128, 575, 145, 85]] },
   // frente fechada
   { cena: 'carroceria', id: 'parabrisa', boxes: [[415, 58, 545, 160]] },
-  { cena: 'carroceria', id: 'palhetasf', boxes: [[455, 212, 480, 40]] },
-  { cena: 'carroceria', id: 'capo', boxes: [[345, 230, 665, 75]] },
-  { cena: 'carroceria', id: 'retrovisores', boxes: [[250, 190, 125, 115], [1012, 198, 90, 92]] },
+  // palhetas: lâminas finas — ilhas pequenas contam (areaMin baixo)
+  { cena: 'carroceria', id: 'palhetasf', boxes: [[450, 205, 495, 52]], areaMin: 16 },
+  // capo sem encostar nos braços dos retrovisores (pintava pedacinho deles)
+  { cena: 'carroceria', id: 'capo', boxes: [[392, 228, 616, 80]] },
+  // caixas abraçam o espelho INTEIRO (cortado, a região tocava a borda e sumia)
+  { cena: 'carroceria', id: 'retrovisores', boxes: [[276, 194, 126, 110], [1012, 194, 126, 110]] },
   { cena: 'carroceria', id: 'parachoque', boxes: [[398, 440, 690, 128]] },
   { cena: 'carroceria', id: 'farois', boxes: [[405, 303, 85, 95], [928, 303, 85, 95]] },
   { cena: 'carroceria', id: 'grade', boxes: [[508, 293, 380, 145]] },
-  { cena: 'carroceria', id: 'suspdiant', boxes: [[438, 545, 540, 118]] },
-  { cena: 'carroceria', id: 'pneus', boxes: [[348, 415, 158, 285], [962, 415, 158, 285]] },
+  // 3 caixas (braço esq / central / braço dir) SEM encostar nos pneus — a caixa
+  // única vazava tinta nos gomos internos dos pneus
+  { cena: 'carroceria', id: 'suspdiant', boxes: [[466, 552, 132, 105], [576, 528, 262, 145], [812, 552, 130, 105]] },
+  // pneu INTEIRO dentro da caixa (antes cortava embaixo e o miolo "vazava" pra
+  // borda = ficava sem tinta; só os gomos externos pintavam)
+  { cena: 'carroceria', id: 'pneus', boxes: [[330, 425, 150, 325], [928, 425, 150, 325]] },
   // traseira
-  { cena: 'traseira', id: 'luzfreio', boxes: [[635, 32, 105, 35]] },
+  { cena: 'traseira', id: 'luzfreio', boxes: [[638, 26, 135, 45]], areaMin: 16 },
   { cena: 'traseira', id: 'vidrotras', boxes: [[430, 70, 505, 118]] },
   { cena: 'traseira', id: 'cacamba', boxes: [[410, 235, 578, 210]] },
-  { cena: 'traseira', id: 'tampa', boxes: [[650, 250, 90, 55]] },
+  // a tampa é o PAINEL central com a maçaneta (a caixa antiga só pegava a maçaneta)
+  { cena: 'traseira', id: 'tampa', boxes: [[455, 238, 500, 205]] },
   { cena: 'traseira', id: 'lanternas', boxes: [[368, 265, 55, 135], [995, 265, 55, 135]] },
   { cena: 'traseira', id: 'parachoquetras', boxes: [[345, 462, 715, 100]] },
-  { cena: 'traseira', id: 'susptras', boxes: [[470, 560, 75, 85], [860, 560, 75, 85]] },
+  { cena: 'traseira', id: 'susptras', boxes: [[455, 565, 105, 105], [850, 565, 105, 105]] },
   { cena: 'traseira', id: 'engate', boxes: [[635, 547, 130, 96]] },
-  { cena: 'traseira', id: 'escapamento', boxes: [[905, 533, 110, 64]] },
+  // ponteira fica mais BAIXA que a caixa antiga (y 575-650, não 533-597)
+  { cena: 'traseira', id: 'escapamento', boxes: [[880, 575, 140, 75]] },
   { cena: 'traseira', id: 'pneustras', boxes: [[355, 610, 95, 130], [950, 610, 100, 130]] },
   // cabine
   { cena: 'cabine', id: 'retrovint', boxes: [[638, 28, 175, 52]] },
@@ -256,7 +265,7 @@ function claro(img: { data: Buffer; width: number }, x: number, y: number) {
 }
 
 /** mÃ¡scara (0/1) do interior fechado da caixa; coords locais da caixa */
-function mascaraFechada(img: { data: Buffer; width: number; height: number }, cx: Caixa): Uint8Array | null {
+function mascaraFechada(img: { data: Buffer; width: number; height: number }, cx: Caixa, areaMin = AREA_MIN): Uint8Array | null {
   const x0 = Math.max(0, cx[0] - PAD), y0 = Math.max(0, cx[1] - PAD);
   const x1 = Math.min(img.width - 1, cx[0] + cx[2] + PAD), y1 = Math.min(img.height - 1, cx[1] + cx[3] + PAD);
   const w = x1 - x0 + 1, h = y1 - y0 + 1;
@@ -282,7 +291,7 @@ function mascaraFechada(img: { data: Buffer; width: number; height: number }, cx
     const k = ly * w + lx;
     if (!ext[k] && claro(img, x0 + lx, y0 + ly)) { dentro[k] = 1; n++; }
   }
-  if (n < AREA_MIN) return null;
+  if (n < areaMin) return null;
   // remove ilhas pequenas (rotulagem por flood)
   const vis = new Uint8Array(w * h);
   for (let s = 0; s < w * h; s++) {
@@ -297,7 +306,7 @@ function mascaraFechada(img: { data: Buffer; width: number; height: number }, cx
         if (dentro[nk] && !vis[nk]) { vis[nk] = 1; comp.push(nk); }
       }
     }
-    if (comp.length < AREA_MIN) for (const k of comp) dentro[k] = 0;
+    if (comp.length < areaMin) for (const k of comp) dentro[k] = 0;
   }
   // dilata (fecha traÃ§os finos internos e encosta no traÃ§o da borda)
   let m = dentro;
@@ -424,11 +433,11 @@ for (const p of PECAS) {
   const partes: string[] = [];
   let nloops = 0;
   for (const cx of p.boxes) {
-    const m = mascaraFechada(img, cx);
+    const m = mascaraFechada(img, cx, p.areaMin);
     if (!m) continue;
     const meta = (m as unknown as { _meta: number[] })._meta;
     let loops = contornos(m, meta);
-    loops = loops.map((lp) => rdp(lp, TOL)).filter((lp) => lp.length > 3 && area(lp) > 50);
+    loops = loops.map((lp) => rdp(lp, TOL)).filter((lp) => lp.length > 3 && area(lp) > Math.min(50, (p.areaMin ?? AREA_MIN) * 0.8));
     nloops += loops.length;
     for (const lp of loops) {
       partes.push('M' + lp.map(([x, y]) => `${Math.round(x * 2) / 2} ${Math.round(y * 2) / 2}`).join('L') + 'Z');
