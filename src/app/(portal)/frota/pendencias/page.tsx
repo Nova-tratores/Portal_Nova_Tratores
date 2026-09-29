@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
+import FotoThumb from '@/components/frota/FotoThumb';
 import { formatarHodometro } from '@/lib/requisicoes/campos';
 import {
   gravidadePadrao, GRAVIDADES, GRAVIDADE_AJUDA, GRAVIDADE_COR, GRAVIDADE_LABEL,
@@ -153,9 +154,12 @@ export default function FrotaPendenciasPage() {
     setCarregando(true); setErro(''); setAvisoTabela('');
     try {
       const h = await authHeaders();
+      // 1ª fase SEM sync: o motor de sincronização (checklists, fichas, OSs,
+      // Opas...) demorava segundos e segurava a tela inteira no "Carregando".
+      // A lista atual pinta na hora; o motor roda em 2ª fase, em silêncio.
       const [rv, rp, rk] = await Promise.all([
         fetch('/api/frota/veiculos', { headers: h }),
-        fetch('/api/frota/pendencias?sync=1', { headers: h }),
+        fetch('/api/frota/pendencias', { headers: h }),
         fetch('/api/frota/componentes', { headers: h }),
       ]);
       const dv = await rv.json(); const dp = await rp.json(); const dk = await rk.json();
@@ -178,6 +182,19 @@ export default function FrotaPendenciasPage() {
       } else {
         setRegistradas(dp.pendencias || []);
         setComponentes(dk.componentes || []);
+        // 2ª fase: dispara o motor e, quando terminar, atualiza em silêncio.
+        // Merge por id: pendência criada pelo usuário nesse meio-tempo não some.
+        fetch('/api/frota/pendencias?sync=1', { headers: h })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (!d?.pendencias) return;
+            setRegistradas((prev) => {
+              const ids = new Set((d.pendencias as Pend[]).map((p) => p.id));
+              const locais = prev.filter((p) => !ids.has(p.id) && !p.pseudo);
+              return [...locais, ...(d.pendencias as Pend[])];
+            });
+          })
+          .catch(() => { /* a lista já está na tela */ });
       }
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
     setCarregando(false);
@@ -437,10 +454,9 @@ export default function FrotaPendenciasPage() {
     </div>
   );
 
-  const fotoBox = (g: { imagem: string | null; placa: string }, h: number, radius: string) =>
+  const fotoBox = (g: { imagem: string | null; placa: string }, h: number, radius: string, w = 480) =>
     g.imagem ? (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={g.imagem} alt={g.placa} style={{ width: '100%', height: h, objectFit: 'cover', borderRadius: radius, display: 'block', background: 'var(--portal-bg-secondary)' }} />
+      <FotoThumb src={g.imagem} width={w} alt={g.placa} style={{ width: '100%', height: h, objectFit: 'cover', borderRadius: radius, display: 'block', background: 'var(--portal-bg-secondary)' }} />
     ) : (
       <div style={{ width: '100%', height: h, borderRadius: radius, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text)' }}>
         <Car size={Math.min(36, h / 2.6)} />
@@ -635,7 +651,7 @@ export default function FrotaPendenciasPage() {
           style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, width: '100%', maxWidth: 960, maxHeight: '92vh', overflow: 'hidden', display: 'flex', flexDirection: 'column', boxShadow: '0 25px 60px rgba(0,0,0,.3)' }}>
             <div style={{ position: 'relative', flexShrink: 0 }}>
-              {fotoBox(aberto, 150, '0')}
+              {fotoBox(aberto, 150, '0', 1200)}
               <button onClick={fecharModal} title="Fechar"
                 style={{ position: 'absolute', top: 12, right: 12, width: 36, height: 36, borderRadius: 0, border: '1.5px solid rgba(255,255,255,.55)', cursor: 'pointer', background: 'rgba(15,23,42,.65)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <X size={18} />

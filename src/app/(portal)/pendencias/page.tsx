@@ -16,6 +16,7 @@ import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
+import FotoThumb from '@/components/frota/FotoThumb';
 import { formatarHodometro } from '@/lib/requisicoes/campos';
 
 interface Veiculo {
@@ -62,9 +63,11 @@ function PendenciasInner() {
     setCarregando(true); setErro('');
     try {
       const h = await authHeaders();
+      // 1ª fase SEM sync (o motor demorava segundos e segurava a tela); a
+      // sincronização roda em 2ª fase e atualiza em silêncio.
       const [rv, rp, rk] = await Promise.all([
         fetch('/api/frota/veiculos', { headers: h }),
-        fetch('/api/frota/pendencias?sync=1', { headers: h }),
+        fetch('/api/frota/pendencias', { headers: h }),
         fetch('/api/frota/componentes', { headers: h }),
       ]);
       const dv = await rv.json(); const dp = await rp.json(); const dk = await rk.json();
@@ -73,6 +76,17 @@ function PendenciasInner() {
       setVeiculos(dv.veiculos || []);
       setPendencias(dp.pendencias || []);
       setComponentes(rk.ok ? dk.componentes || [] : []);
+      fetch('/api/frota/pendencias?sync=1', { headers: h })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!d?.pendencias) return;
+          setPendencias((prev) => {
+            const ids = new Set((d.pendencias as Pend[]).map((p) => p.id));
+            const locais = prev.filter((p) => !ids.has(p.id));
+            return [...locais, ...(d.pendencias as Pend[])];
+          });
+        })
+        .catch(() => { /* a lista já está na tela */ });
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
     setCarregando(false);
   }, []);
@@ -207,8 +221,8 @@ function PendenciasInner() {
       <div key={p.id} style={{ border: '1px solid var(--portal-border)', borderLeft: `4px solid ${resolvida ? '#16a34a' : '#dc2626'}`, background: 'var(--portal-bg-card)', padding: 12, display: 'flex', gap: 12 }}>
         {p.foto_url ? (
           <a href={p.foto_url} target="_blank" rel="noreferrer" style={{ flexShrink: 0 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={p.foto_url} alt="" style={{ width: 64, height: 64, objectFit: 'cover', background: 'var(--portal-bg-secondary)', display: 'block' }} />
+            {/* miniatura: foto de câmera tem vários MB — aqui só precisa de 64px */}
+            <FotoThumb src={p.foto_url} width={128} style={{ width: 64, height: 64, objectFit: 'cover', background: 'var(--portal-bg-secondary)', display: 'block' }} />
           </a>
         ) : (
           <div style={{ width: 64, height: 64, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text)', flexShrink: 0 }}>
