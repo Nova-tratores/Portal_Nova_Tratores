@@ -2,6 +2,7 @@
 // (migration sql/revisao-cheques.sql). Tudo aqui é chamado pelas rotas /api.
 import { createClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
+import { PORTAL_BASE } from '@/lib/portal-url';
 import { extrairChassis, extrairHorasRevisaoOS } from '@/lib/pos/extrairTrator';
 import { normalizarHorasRevisao } from '@/lib/pos/vigia-revisoes-regras';
 import { dadosIniciais, normalizarDados, PAGINA_TALAO, type DadosCheque, type FonteOS, type FonteTrator } from './cheque';
@@ -197,6 +198,5 @@ export async function salvarAssinaturaTecnico(osId: string, pngBase64: string | 
   return normalizarRow(data as Record<string, unknown>);
 }
 
-export const PORTAL_BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://portalnovatratores-production.up.railway.app').replace(/\/$/, '');
 export const linkCheque = (token: string) => `${PORTAL_BASE}/cheque/${token}`;
 

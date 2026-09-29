@@ -5,6 +5,7 @@
 // Parte pura (mensagem, resumo) em assinatura-cliente.ts.
 import { createClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
+import { PORTAL_BASE } from '@/lib/portal-url';
 import { extrairChassis, extrairHorasRevisaoOS } from '@/lib/pos/extrairTrator';
 import { normalizarHorasRevisao } from '@/lib/pos/vigia-revisoes-regras';
 import { resumirSolicitacao, type ResumoOS } from './assinatura-cliente';
@@ -157,5 +158,4 @@ export async function reabrir(osId: string): Promise<AssinaturaRow> {
   return data as AssinaturaRow;
 }
 
-export const PORTAL_BASE = (process.env.NEXT_PUBLIC_SITE_URL || 'https://portalnovatratores-production.up.railway.app').replace(/\/$/, '');
 export const linkAssinatura = (token: string) => `${PORTAL_BASE}/assinar/${token}`;

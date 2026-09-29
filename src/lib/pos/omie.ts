@@ -9,7 +9,7 @@ const OMIE_APP_KEY = process.env.OMIE_APP_KEY || "";
 const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
 const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 // Base do portal, pra montar os links de acesso que vão nas observações do Omie.
-const PORTAL_BASE = (process.env.NEXT_PUBLIC_SITE_URL || "https://portalnovatratores-production.up.railway.app").replace(/\/$/, "");
+import { PORTAL_BASE } from "@/lib/portal-url";
 
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
