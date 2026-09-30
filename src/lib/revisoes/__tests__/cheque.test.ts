@@ -84,6 +84,7 @@ describe('htmlCheque', () => {
     expect(h).toContain('https://x/ass.png');
     expect(h).toContain('gabriel-moraes.png');
     expect(h).toContain('CPF 123');
+    expect(h).not.toContain('Gabriel Moraes</span>'); // com rubrica, o nome não sai
     expect(h).toContain('NOVA TRATORES MÁQUINAS AGRÍCOLAS LTDA');
     expect(h).toContain('@page { size: A4 portrait; margin: 0; }');
   });

@@ -212,7 +212,10 @@ export function htmlCheque(dados: DadosCheque, o: OpcoesHtml): string {
       const img = (src: string, alt: string) => `<img class="assimg" src="${esc(src)}" alt="${alt}" onerror="this.style.display='none'">`;
       if (a.id === 'cliente' && o.assinaturaClienteUrl) conteudo = img(o.assinaturaClienteUrl, 'Assinatura do cliente');
       if (a.id === 'tecnico') {
-        const txt = [d.tecnico, d.tecnicoCpf ? `CPF ${d.tecnicoCpf}` : ''].filter(Boolean).join(' — ');
+        // com a rubrica do técnico, sai SÓ a rubrica (e o CPF, se informado); sem rubrica, sai o nome
+        const txt = o.assinaturaTecnicoUrl
+          ? (d.tecnicoCpf ? `CPF ${d.tecnicoCpf}` : '')
+          : [d.tecnico, d.tecnicoCpf ? `CPF ${d.tecnicoCpf}` : ''].filter(Boolean).join(' — ');
         conteudo = (o.assinaturaTecnicoUrl ? img(o.assinaturaTecnicoUrl, 'Assinatura do técnico') : '') + (txt ? `<span class="asstxt">${esc(txt)}</span>` : '');
       }
     }
@@ -252,7 +255,7 @@ export const CSS_CHEQUE = `
   .campo .val { flex: 1; min-width: 0; font-size: 6.2pt; line-height: 1; padding: 0 0.6mm 0.5mm; color: #111; white-space: nowrap; overflow: hidden; border-bottom: 0.2mm solid #b3b3b3; }
   .leg { font-size: 5.6pt; text-align: center; color: #333; line-height: 1; }
   .assval { font-size: 6.6pt; text-align: center; color: #111; height: 10mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 0.6mm; gap: 0.3mm; overflow: hidden; }
-  .assval .assimg { max-height: 7mm; max-width: 45mm; object-fit: contain; }
+  .assval .assimg { max-height: 8.6mm; max-width: 50mm; object-fit: contain; }
   .assval .asstxt { font-size: 6pt; }
   .assval .carimbo { display: inline-block; border: 0.35mm solid #1f4e79; color: #1f4e79; border-radius: 0.8mm; padding: 1.2mm 2.4mm; font-size: 5.4pt; font-weight: 700; line-height: 1.35; transform: rotate(-2deg); opacity: .85; }
   .numero { background: #E8462B; color: #fff; font-family: 'Arial Black', Arial, sans-serif; font-weight: 900; font-size: 17pt; display: flex; align-items: center; justify-content: flex-end; padding-right: 3.6mm; line-height: 1; }

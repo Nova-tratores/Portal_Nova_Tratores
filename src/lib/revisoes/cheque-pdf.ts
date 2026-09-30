@@ -125,13 +125,16 @@ export async function pdfCheque(d: DadosCheque, o: OpcoesPdf): Promise<Buffer> {
         try { doc.image(imgCliente, mm(cx - 22.5), mm(a.y - 9.6), { fit: [mm(45), mm(8.5)], align: 'center', valign: 'bottom' }); } catch { /* imagem inválida */ }
       }
       if (a.id === 'tecnico') {
-        const txt = [d.tecnico, d.tecnicoCpf ? `CPF ${d.tecnicoCpf}` : ''].filter(Boolean).join(' — ');
-        let yTxt = a.y - 3.2;
+        // com a rubrica do técnico, sai SÓ a rubrica (e o CPF, se informado); sem rubrica, sai o nome
+        const txt = imgTecnico
+          ? (d.tecnicoCpf ? `CPF ${d.tecnicoCpf}` : '')
+          : [d.tecnico, d.tecnicoCpf ? `CPF ${d.tecnicoCpf}` : ''].filter(Boolean).join(' — ');
         if (imgTecnico) {
-          // imagem entre a legenda da linha de cima (termina ~165,5) e o nome (começa em y-3,2)
-          try { doc.image(imgTecnico, mm(cx - 22.5), mm(a.y - 10.2), { fit: [mm(45), mm(6.8)], align: 'center', valign: 'bottom' }); } catch { /* imagem inválida */ }
-        } else { yTxt = a.y - 3.2; }
-        if (txt) { doc.fillColor('#111').font('Helvetica').fontSize(6); doc.text(txt, mm(a.x0), mm(yTxt), { width: mm(a.x1 - a.x0), align: 'center', lineBreak: false }); }
+          // ocupa o espaço entre a legenda da linha de cima (termina ~165,5) e a linha do técnico
+          const h = txt ? 6.8 : 8.6;
+          try { doc.image(imgTecnico, mm(cx - 25), mm(a.y - 1 - h), { fit: [mm(50), mm(h)], align: 'center', valign: 'bottom' }); } catch { /* imagem inválida */ }
+        }
+        if (txt) { doc.fillColor('#111').font('Helvetica').fontSize(6); doc.text(txt, mm(a.x0), mm(a.y - 3.2), { width: mm(a.x1 - a.x0), align: 'center', lineBreak: false }); }
       }
     }
     // via
