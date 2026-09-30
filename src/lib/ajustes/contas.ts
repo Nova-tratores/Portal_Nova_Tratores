@@ -384,12 +384,41 @@ export async function corrigirContaMassa(b: {
 
 // ---- Baixa de títulos ----
 
-/** Títulos EM ABERTO de uma empresa+tipo. */
+/**
+ * Quando o espelho desta empresa+tipo foi sincronizado pela última vez com
+ * sucesso (cp_sync_log). Inclui a reconciliação de abertos (modo 'abertos'),
+ * que é a passada mais relevante para esta tela. null = sem registro.
+ */
+export async function ultimaSincronizacao(tipo: string, conta: Conta): Promise<string | null> {
+  try {
+    const { data } = await supabase
+      .from('cp_sync_log')
+      .select('fim')
+      .eq('conta_omie', conta)
+      .eq('tipo', tabelaContas(tipo))
+      .eq('status', 'ok')
+      .not('fim', 'is', null)
+      .order('fim', { ascending: false })
+      .limit(1);
+    const fim = data && data[0] ? (data[0] as { fim: string }).fim : null;
+    return fim || null;
+  } catch {
+    return null;
+  }
+}
+
+/** Títulos EM ABERTO de uma empresa+tipo (lidos do espelho, não da Omie ao vivo). */
 export async function titulosAbertos(tipo: string, conta: Conta): Promise<any> {
   const nomeCol = colNomeContraparte(tipo);
-  const cols = `conta_omie, codigo_lancamento, valor_documento, valor_pago, data_emissao, data_vencimento, numero_documento, numero_documento_fiscal, numero_parcela, status_titulo, ${nomeCol}, descricao_categoria`;
-  const rows = await lerContas(tipo, { conta, statusIn: STATUS_ABERTO }, cols);
-  rows.sort((a, b) => String(a.data_vencimento || '').localeCompare(String(b.data_vencimento || '')));
+  const cols = `conta_omie, codigo_lancamento, valor_documento, valor_pago, data_emissao, data_vencimento, data_previsao, numero_documento, numero_documento_fiscal, numero_parcela, status_titulo, ${nomeCol}, descricao_categoria`;
+  const [rows, sincronizadoEm] = await Promise.all([
+    lerContas(tipo, { conta, statusIn: STATUS_ABERTO }, cols),
+    ultimaSincronizacao(tipo, conta),
+  ]);
+  // Ordem padrão = PREVISÃO (é o que o card "Pagar/Receber hoje" da Omie usa),
+  // com o vencimento como reserva quando a previsão está vazia.
+  const chave = (r: any) => String(r.data_previsao || r.data_vencimento || '');
+  rows.sort((a, b) => chave(a).localeCompare(chave(b)) || String(a.data_vencimento || '').localeCompare(String(b.data_vencimento || '')));
   const titulos = rows.map((r) => {
     const doc = Number(r.valor_documento) || 0;
     const pago = Number(r.valor_pago) || 0;
@@ -401,6 +430,7 @@ export async function titulosAbertos(tipo: string, conta: Conta): Promise<any> {
       valorAberto: Math.max(0, doc - pago),
       dataEmissao: r.data_emissao,
       vencimento: r.data_vencimento,
+      previsao: r.data_previsao || null,
       numeroDoc: r.numero_documento || r.numero_documento_fiscal || null,
       parcela: r.numero_parcela || null,
       status: r.status_titulo,
@@ -408,7 +438,7 @@ export async function titulosAbertos(tipo: string, conta: Conta): Promise<any> {
       categoria: r.descricao_categoria || null,
     };
   });
-  return { tipo, conta, total: titulos.length, titulos };
+  return { tipo, conta, total: titulos.length, titulos, sincronizadoEm };
 }
 
 /** Consulta UM título no Omie (para o modal de baixa). */

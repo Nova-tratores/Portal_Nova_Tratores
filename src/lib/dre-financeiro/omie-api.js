@@ -476,6 +476,207 @@ async function aplicarBaixas(conta, dePagBR, atePagBR) {
 }
 
 // =============================================================================
+// Fase 4: reconciliação dos títulos EM ABERTO com a Omie (30/09/2026).
+// O sync de títulos só faz upsert numa janela de EMISSÃO, então:
+//   (a) título EXCLUÍDO na Omie ficava para sempre como aberto no espelho
+//       (ex.: RH-SAL duplicados apagados — apareciam em /ajustes/baixa-contas e
+//       contavam como ATRASADO no DRE);
+//   (b) título emitido antes da janela nunca era carregado nem atualizado
+//       (51 títulos a receber de 2022/2023 da NOVA, um de R$ 23 mil recebido).
+// Aqui: lista TODOS os abertos da Omie (sem janela) e faz upsert; depois,
+// para o que o espelho diz aberto e a Omie não devolveu, LISTA a janela de
+// emissão do título (mês ±1, todos os status): presente => update só dos
+// campos presentes; ausente => DELETE (a auditoria em contas_baixas/
+// contas_correcoes não tem FK e sobrevive). Teto por rodada; o resto fica
+// para o próximo ciclo.
+// ⚠️ NÃO usar ConsultarContaPagar/Receber título a título: "não cadastrado"
+// é ERRO para a Omie e 10 erros bloqueiam o método por 30 min (aconteceu em
+// 30/09/2026 e derrubou o modal de baixa). Qualquer "API bloqueada" aborta.
+// =============================================================================
+const {
+  diffPendentes, janelasPorEmissao, ehBloqueioOmie, ehListaVazia, patchDeTitulo, decidirPendentes,
+  STATUS_ABERTO: STATUS_ABERTO_ESPELHO
+} = require('./abertos-reconciliacao');
+const RECONCILIAR_TETO = parseInt(process.env.RECONCILIAR_ABERTOS_TETO, 10) || 200;
+const RECONCILIAR_MAX_FALHAS = 3; // faults de listagem toleradas por rodada (bem abaixo dos 10 do bloqueio)
+
+class OmieBloqueadaError extends Error {}
+
+// Lista títulos da Omie paginando. `extra` = filtros adicionais (janela de
+// emissão, só abertos...). Lança OmieBloqueadaError no bloqueio longo.
+async function listarTitulosOmie(conta, cfg, extra, s) {
+  const todos = [];
+  let pag = 1;
+  while (true) {
+    let r;
+    try {
+      r = await omieRequest(cfg.endpoint, cfg.call, {
+        pagina: pag,
+        registros_por_pagina: PAGE_SIZE,
+        ...extra
+      }, conta);
+    } catch (e) {
+      const fs = e.faultstring || e.message || '';
+      if (ehBloqueioOmie(fs)) throw new OmieBloqueadaError(fs);
+      if (ehListaVazia(fs) || (e.faultstring && /ERROR/i.test(e.faultstring))) break;
+      throw e;
+    }
+    const lista = r[cfg.listaKey] || [];
+    if (s) { s.paginaAtual = pag; s.totalPaginas = r.total_de_paginas || s.totalPaginas; }
+    if (lista.length === 0) break;
+    todos.push(...lista);
+    const totalPag = r.total_de_paginas || 0;
+    if (totalPag > 0) { if (pag >= totalPag) break; }
+    else if (lista.length < PAGE_SIZE) break;
+    pag++;
+    await sleep(SLEEP_BETWEEN_PAGES);
+  }
+  return todos;
+}
+
+async function lerAbertosEspelho(tabela, contaLabel) {
+  const out = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from(tabela)
+      .select('codigo_lancamento, synced_at, data_emissao')
+      .eq('conta_omie', contaLabel)
+      .in('status_titulo', STATUS_ABERTO_ESPELHO)
+      .order('codigo_lancamento', { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`Supabase select ${tabela}: ${error.message}`);
+    out.push(...(data || []));
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}
+
+async function reconciliarAbertosTipo(conta, tipo, mapas) {
+  const cfg = CONFIG[tipo];
+  const contaLabel = labelConta(conta);
+  const s = getSyncStateUnico(conta, tipo);
+  const resumo = { modo: 'abertos', abertos_omie: 0, upserts: 0, pendentes: 0, janelas: 0, excluidos: [], atualizados: 0, falhas: 0, indefinidos: 0, restantes: 0, bloqueio: null };
+  let logId = null;
+  const { data: log } = await supabaseAdmin
+    .from('cp_sync_log')
+    .insert({ conta_omie: contaLabel, tipo: cfg.tipoLog, status: 'em_andamento', parametros: { modo: 'abertos' } })
+    .select('id').single();
+  logId = log?.id;
+  const t0 = Date.now();
+  try {
+    s.rodando = true;
+    s.etapa = 'reconciliando abertos: listando na Omie';
+    const abertos = await listarTitulosOmie(conta, cfg, { filtrar_apenas_titulos_em_aberto: 'S' }, s);
+    resumo.abertos_omie = abertos.length;
+
+    s.etapa = 'reconciliando abertos: upsert';
+    const rows = abertos
+      .map(t => mapearTitulo(t, mapas.cat, mapas.dep, mapas.contra, contaLabel, cfg))
+      .filter(r => r.codigo_lancamento);
+    for (let i = 0; i < rows.length; i += PAGE_SIZE) {
+      const { error } = await supabaseAdmin
+        .from(cfg.tabela)
+        .upsert(rows.slice(i, i + PAGE_SIZE), { onConflict: 'codigo_lancamento,conta_omie' });
+      if (error) throw new Error(`Supabase upsert ${cfg.tabela}: ${error.message}`);
+      resumo.upserts += Math.min(PAGE_SIZE, rows.length - i);
+    }
+
+    s.etapa = 'reconciliando abertos: conferindo o espelho';
+    const espelho = await lerAbertosEspelho(cfg.tabela, contaLabel);
+    const { pendentes, restantes } = diffPendentes(espelho, rows.map(r => r.codigo_lancamento), RECONCILIAR_TETO);
+    resumo.pendentes = pendentes.length;
+    resumo.restantes = restantes;
+    console.log(`[reconciliar ${tipo} ${conta}] omie abertos=${abertos.length} espelho abertos=${espelho.length} pendentes=${pendentes.length} restantes=${restantes}`);
+
+    // Para cada mês de emissão com pendentes, lista a janela mês-1..mês+1 com
+    // TODOS os status. O que aparece é atualizado; o que não aparece na
+    // própria janela (listada até o fim) foi excluído na Omie.
+    const { janelas, semEmissao } = janelasPorEmissao(pendentes);
+    resumo.indefinidos += semEmissao.length;
+    const encontrados = new Map();
+    for (let j = 0; j < janelas.length; j++) {
+      const jan = janelas[j];
+      if (resumo.falhas >= RECONCILIAR_MAX_FALHAS) { resumo.indefinidos += jan.ids.length; continue; }
+      s.etapa = `reconciliando abertos: janela ${jan.mes} (${j + 1}/${janelas.length})`;
+      let completa = true;
+      try {
+        const lista = await listarTitulosOmie(conta, cfg, {
+          filtrar_por_emissao_de: jan.de,
+          filtrar_por_emissao_ate: jan.ate,
+          filtrar_apenas_titulos_em_aberto: 'N'
+        }, null);
+        for (const t of lista) if (t.codigo_lancamento_omie) encontrados.set(Number(t.codigo_lancamento_omie), t);
+        resumo.janelas++;
+      } catch (e) {
+        if (e instanceof OmieBloqueadaError) throw e;
+        completa = false;
+        resumo.falhas++;
+        console.warn(`[reconciliar ${tipo} ${conta}] janela ${jan.mes} (${jan.de}..${jan.ate}) falhou: ${e.message}`);
+      }
+      const dec = decidirPendentes(jan.ids, encontrados, completa);
+      resumo.indefinidos += dec.indefinidos.length;
+      for (const { id, titulo } of dec.atualizar) {
+        const { error } = await supabaseAdmin.from(cfg.tabela).update(patchDeTitulo(titulo))
+          .eq('conta_omie', contaLabel).eq('codigo_lancamento', id);
+        if (error) { resumo.falhas++; console.warn(`[reconciliar ${tipo} ${conta}] update ${id}: ${error.message}`); }
+        else resumo.atualizados++;
+      }
+      for (const id of dec.excluir) {
+        const { error } = await supabaseAdmin.from(cfg.tabela).delete()
+          .eq('conta_omie', contaLabel).eq('codigo_lancamento', id);
+        if (error) { resumo.falhas++; console.warn(`[reconciliar ${tipo} ${conta}] delete ${id}: ${error.message}`); }
+        else resumo.excluidos.push(id);
+      }
+      if (j < janelas.length - 1) await sleep(SLEEP_BETWEEN_PAGES);
+    }
+
+    s.etapa = 'concluido';
+    s.fim = new Date().toISOString();
+    if (logId) {
+      await supabaseAdmin.from('cp_sync_log').update({ status: 'ok', fim: s.fim, registros: resumo.upserts, parametros: resumo }).eq('id', logId);
+    }
+    console.log(`[reconciliar ${tipo} ${conta}] ok em ${Math.round((Date.now() - t0) / 1000)}s - janelas=${resumo.janelas} excluidos=${resumo.excluidos.length} atualizados=${resumo.atualizados} indefinidos=${resumo.indefinidos} falhas=${resumo.falhas}`);
+    return { ok: true, ...resumo };
+  } catch (e) {
+    if (e instanceof OmieBloqueadaError) resumo.bloqueio = e.message;
+    console.error(`[reconciliar ${tipo} ${conta}] erro: ${e.message}`);
+    s.erro = e.message;
+    s.fim = new Date().toISOString();
+    if (logId) {
+      await supabaseAdmin.from('cp_sync_log').update({ status: 'erro', fim: s.fim, registros: resumo.upserts, erro: e.message, parametros: resumo }).eq('id', logId);
+    }
+    return { ok: false, mensagem: e.message, ...resumo };
+  } finally {
+    s.rodando = false;
+  }
+}
+
+// Reconcilia pagar E receber da conta, buscando os mapas (categorias,
+// departamentos, contrapartes) UMA vez. Mesmo guard do sync: mapa de
+// contrapartes incompleto => aborta, porque o upsert regrava a linha inteira e
+// apagaria nome_fornecedor/nome_cliente.
+async function reconciliarAbertos(conta) {
+  if (!supabaseAdmin) return { ok: false, mensagem: 'Supabase nao configurado' };
+  const [cat, dep, contrapartes] = await Promise.all([
+    buscarCategorias(conta).catch(e => { console.log(`categorias: ${e.message}`); return {}; }),
+    buscarDepartamentos(conta).catch(e => { console.log(`departamentos: ${e.message}`); return {}; }),
+    buscarClientesFornecedores(conta).catch(e => { console.log(`contrapartes: ${e.message}`); return { mapa: {}, completo: false }; })
+  ]);
+  const contra = contrapartes.mapa || {};
+  if (!contrapartes.completo || Object.keys(contra).length === 0) {
+    const msg = `mapa de contrapartes incompleto (completo=${contrapartes.completo}, itens=${Object.keys(contra).length}) - reconciliacao abortada para nao apagar nomes`;
+    console.error(`[reconciliar ${conta}] ${msg}`);
+    return { ok: false, mensagem: msg };
+  }
+  const mapas = { cat, dep, contra };
+  const pagar = await reconciliarAbertosTipo(conta, 'pagar', mapas);
+  // Bloqueio da Omie é por MÉTODO, mas o receber usa outro método — segue.
+  const receber = await reconciliarAbertosTipo(conta, 'receber', mapas);
+  return { ok: pagar.ok && receber.ok, pagar, receber };
+}
+
+// =============================================================================
 // Movimentações de Conta Corrente (extrato) - persiste TODOS os campos do
 // /financas/mf/ ListarMovimentos na tabela movimentos_cc (sql/movimentos-cc.sql).
 // Diferente de buscarMovimentos/aplicarBaixas (que só usam a baixa e descartam
@@ -1354,11 +1555,21 @@ async function sincronizarTudo(conta, deStr, ateStr) {
       console.error(`[sync tudo ${conta}] aplicarBaixas erro: ${e.message}`);
       r3 = { ok: false, mensagem: e.message };
     }
+    // Fase 4: reconcilia os abertos com a Omie (traz os fora da janela de
+    // emissão e apaga os excluídos). Erro aqui não derruba as fases anteriores.
+    let r4 = { ok: true };
+    try {
+      r4 = await reconciliarAbertos(conta);
+    } catch (e) {
+      console.error(`[sync tudo ${conta}] reconciliarAbertos erro: ${e.message}`);
+      r4 = { ok: false, mensagem: e.message };
+    }
     return {
-      ok: r1.ok && r2.ok && r3.ok,
+      ok: r1.ok && r2.ok && r3.ok && r4.ok,
       pagar: r1,
       receber: r2,
       baixas: r3,
+      reconciliacao: r4,
       registros: (r1.registros || 0) + (r2.registros || 0)
     };
   } finally {
@@ -1425,6 +1636,7 @@ module.exports = {
   sincronizarTudo,
   buscarMovimentos,
   aplicarBaixas,
+  reconciliarAbertos,
   buscarContasCorrentes,
   sincronizarMovimentosCC,
   getMovSyncState,

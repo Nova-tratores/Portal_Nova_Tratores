@@ -10,15 +10,16 @@ import SemPermissao from '@/components/SemPermissao';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { authHeaders } from '@/lib/auth/client';
+import { tempoRelativo } from '@/lib/ajustes/tempo-relativo';
 
 // ---------- tipos ----------
 type Tipo = 'pagar' | 'receber';
 interface Titulo {
   conta: string; codigoLancamento: number | string; valorDocumento: number; valorPago: number;
-  valorAberto: number; dataEmissao?: string; vencimento?: string; numeroDoc?: string;
+  valorAberto: number; dataEmissao?: string; vencimento?: string; previsao?: string | null; numeroDoc?: string;
   parcela?: string; status?: string; contraparte?: string; categoria?: string;
 }
-interface AbertosPayload { titulos?: Titulo[]; total?: number; erro?: string }
+interface AbertosPayload { titulos?: Titulo[]; total?: number; erro?: string; sincronizadoEm?: string | null }
 interface ContaCorrente { codigo: string | number; descricao: string; tipo?: string; banco?: string }
 interface ConsultaPayload {
   ok?: boolean; statusTitulo?: string; valorDocumento?: number; baixaBloqueada?: boolean;
@@ -53,6 +54,9 @@ const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px s
 interface ColDef { key: string; label: string; type: 'num' | 'date' | 'text'; align?: 'right'; val: (l: Titulo) => number | string; txt: (l: Titulo) => string }
 const COLS: ColDef[] = [
   { key: 'vencimento', label: 'Vencimento', type: 'date', val: (l) => l.vencimento || '', txt: (l) => fmtData(l.vencimento) },
+  // Previsão de pagamento/recebimento: é a data que o card "Pagar/Receber hoje"
+  // da Omie usa. Sem previsão, cai no vencimento (mesma regra do servidor).
+  { key: 'previsao', label: 'Previsão', type: 'date', val: (l) => l.previsao || l.vencimento || '', txt: (l) => fmtData(l.previsao || l.vencimento) },
   { key: 'status', label: 'Status', type: 'text', val: (l) => l.status || '', txt: (l) => l.status || '' },
   { key: 'contraparte', label: 'Fornecedor/Cliente', type: 'text', val: (l) => decode(l.contraparte), txt: (l) => decode(l.contraparte) },
   { key: 'numeroDoc', label: 'Documento', type: 'text', val: (l) => l.numeroDoc || '', txt: (l) => l.numeroDoc || '' },
@@ -79,7 +83,8 @@ export default function BaixaContasPage() {
   const [status, setStatus] = useState('');
   const [resumo, setResumo] = useState('');
   const [carregando, setCarregando] = useState(false);
-  const [sort, setSort] = useState<{ key: string; dir: number }>({ key: 'vencimento', dir: 1 });
+  const [sincronizadoEm, setSincronizadoEm] = useState<string | null>(null);
+  const [sort, setSort] = useState<{ key: string; dir: number }>({ key: 'previsao', dir: 1 });
   const [filtros, setFiltros] = useState<Record<string, string>>({});
   const [modalTitulo, setModalTitulo] = useState<Titulo | null>(null);
 
@@ -94,6 +99,7 @@ export default function BaixaContasPage() {
       if (d.erro) { setStatus('Erro: ' + d.erro); return; }
       const ts = (d.titulos || []).map((l) => ({ ...l, contraparte: decode(l.contraparte), categoria: decode(l.categoria) }));
       setTitulos(ts);
+      setSincronizadoEm(d.sincronizadoEm || null);
       setFiltros({});
       const soma = ts.reduce((s, l) => s + (Number(l.valorAberto) || 0), 0);
       setResumo(`${d.total || ts.length} titulo(s) em aberto · total ${fmtBRL(soma)}`);
@@ -138,6 +144,9 @@ export default function BaixaContasPage() {
           <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 820 }}>
             Marca titulos <b>a pagar</b> e <b>a receber</b> como pagos/recebidos direto no Omie. Lista os titulos <b>em aberto</b> da empresa selecionada — <b>uma empresa por vez</b>. Clique em <b>Baixar</b> para liquidar um titulo.
           </p>
+          <p style={{ color: '#94a3b8', fontSize: '.72rem', maxWidth: 820, marginTop: 4 }}>
+            A lista vem do <b>espelho sincronizado</b> da Omie (cron a cada poucas horas); a baixa vai <b>direto na Omie</b>. Ordenada por <b>previsão</b>, como o card &quot;Pagar/Receber hoje&quot; da Omie.
+          </p>
         </div>
         <div style={{ marginLeft: 'auto' }}><ContaSelector /></div>
       </div>
@@ -165,9 +174,10 @@ export default function BaixaContasPage() {
               <button onClick={buscar} disabled={carregando} style={{ padding: '7px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1 }}>Atualizar</button>
               <div style={{ fontSize: '.72rem', color: '#94a3b8' }}>Empresa: <b style={{ color: '#475569' }}>{conta.toUpperCase()}</b> — troque no seletor &quot;Conta&quot; do topo.</div>
             </div>
-            <div style={{ marginTop: 8, fontSize: '.75rem' }}>
+            <div style={{ marginTop: 8, fontSize: '.75rem', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ color: status.startsWith('Erro') ? '#dc2626' : '#64748b' }}>{status}</span>
-              <span style={{ marginLeft: 8, color: '#94a3b8' }}>{resumo}</span>
+              <span style={{ color: '#94a3b8' }}>{resumo}</span>
+              {!carregando && <SeloSincronizacao iso={sincronizadoEm} />}
             </div>
           </div>
 
@@ -200,6 +210,7 @@ export default function BaixaContasPage() {
                     return (
                       <tr key={String(l.codigoLancamento)} style={{ borderTop: '1px solid #f1f5f9' }}>
                         <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#64748b' }}>{fmtData(l.vencimento) || '-'}</td>
+                        <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: l.previsao && l.previsao !== l.vencimento ? '#b45309' : '#64748b' }} title={l.previsao && l.previsao !== l.vencimento ? 'previsão diferente do vencimento' : undefined}>{fmtData(l.previsao || l.vencimento) || '-'}</td>
                         <td style={tdStyle}><StatusBadge s={l.status} /></td>
                         <td style={tdStyle}>{l.contraparte || '-'}</td>
                         <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>{l.numeroDoc || '-'}</td>
@@ -227,6 +238,22 @@ export default function BaixaContasPage() {
           onClose={() => setModalTitulo(null)} onBaixado={() => { setModalTitulo(null); buscar(); }} />
       )}
     </div>
+  );
+}
+
+// ---------- selo "espelho atualizado há X" ----------
+function SeloSincronizacao({ iso }: { iso: string | null }) {
+  const t = tempoRelativo(iso);
+  const cores: Record<string, [string, string]> = {
+    ok: ['#ecfdf5', '#047857'], atencao: ['#fef3c7', '#b45309'], critico: ['#fee2e2', '#b91c1c'], desconhecido: ['#f1f5f9', '#64748b'],
+  };
+  const [bg, fg] = cores[t.nivel];
+  const quando = iso ? new Date(/[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : iso.replace(' ', 'T') + 'Z').toLocaleString('pt-BR') : '';
+  return (
+    <span title={quando ? `último sync concluído em ${quando}` : 'nenhum sync registrado para esta empresa/tipo'}
+      style={{ padding: '2px 8px', borderRadius: 999, fontSize: '.7rem', background: bg, color: fg, whiteSpace: 'nowrap' }}>
+      espelho atualizado {t.texto}
+    </span>
   );
 }
 
@@ -336,7 +363,7 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
               </div>
             ) : (
               <>
-                <div style={{ marginBottom: 12, fontSize: '.72rem', color: '#64748b' }}>{titulo.conta} · {titulo.contraparte || ''} · doc {titulo.numeroDoc || '-'} · venc {fmtData(titulo.vencimento) || '-'} · lanc <span style={{ fontFamily: 'monospace' }}>{titulo.codigoLancamento}</span></div>
+                <div style={{ marginBottom: 12, fontSize: '.72rem', color: '#64748b' }}>{titulo.conta} · {titulo.contraparte || ''} · doc {titulo.numeroDoc || '-'} · venc {fmtData(titulo.vencimento) || '-'}{titulo.previsao && titulo.previsao !== titulo.vencimento ? ` · prev ${fmtData(titulo.previsao)}` : ''} · lanc <span style={{ fontFamily: 'monospace' }}>{titulo.codigoLancamento}</span></div>
 
                 <div style={{ border: '1px solid #e2e8f0', borderRadius: 6, padding: 12, marginBottom: 12 }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
