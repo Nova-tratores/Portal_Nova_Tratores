@@ -128,7 +128,8 @@ export async function pdfCheque(d: DadosCheque, o: OpcoesPdf): Promise<Buffer> {
         const txt = [d.tecnico, d.tecnicoCpf ? `CPF ${d.tecnicoCpf}` : ''].filter(Boolean).join(' — ');
         let yTxt = a.y - 3.2;
         if (imgTecnico) {
-          try { doc.image(imgTecnico, mm(cx - 22.5), mm(a.y - 11.2), { fit: [mm(45), mm(7.5)], align: 'center', valign: 'bottom' }); } catch { /* imagem inválida */ }
+          // imagem entre a legenda da linha de cima (termina ~165,5) e o nome (começa em y-3,2)
+          try { doc.image(imgTecnico, mm(cx - 22.5), mm(a.y - 10.2), { fit: [mm(45), mm(6.8)], align: 'center', valign: 'bottom' }); } catch { /* imagem inválida */ }
         } else { yTxt = a.y - 3.2; }
         if (txt) { doc.fillColor('#111').font('Helvetica').fontSize(6); doc.text(txt, mm(a.x0), mm(yTxt), { width: mm(a.x1 - a.x0), align: 'center', lineBreak: false }); }
       }

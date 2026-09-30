@@ -216,7 +216,8 @@ export function htmlCheque(dados: DadosCheque, o: OpcoesHtml): string {
         conteudo = (o.assinaturaTecnicoUrl ? img(o.assinaturaTecnicoUrl, 'Assinatura do técnico') : '') + (txt ? `<span class="asstxt">${esc(txt)}</span>` : '');
       }
     }
-    out.push(`<div class="assval" style="left:${a.x0}mm;top:${a.y - 11}mm;width:${a.x1 - a.x0}mm">${conteudo}</div>`);
+    // caixa de 10mm acima de cada linha (não invade a legenda da linha de cima)
+    out.push(`<div class="assval" style="left:${a.x0}mm;top:${a.y - 10.2}mm;width:${a.x1 - a.x0}mm">${conteudo}</div>`);
   }
   const v = G.via;
   out.push(`<div class="hl fina" style="left:${v.x0}mm;top:${v.y0}mm;width:${v.x1 - v.x0}mm"></div>`);
@@ -250,8 +251,8 @@ export const CSS_CHEQUE = `
   .campo .rotfantasma { font-size: 5.6pt; visibility: hidden; white-space: nowrap; line-height: 1; }
   .campo .val { flex: 1; min-width: 0; font-size: 6.2pt; line-height: 1; padding: 0 0.6mm 0.5mm; color: #111; white-space: nowrap; overflow: hidden; border-bottom: 0.2mm solid #b3b3b3; }
   .leg { font-size: 5.6pt; text-align: center; color: #333; line-height: 1; }
-  .assval { font-size: 6.6pt; text-align: center; color: #111; height: 10.5mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 0.6mm; gap: 0.4mm; }
-  .assval .assimg { max-height: 8.5mm; max-width: 45mm; object-fit: contain; }
+  .assval { font-size: 6.6pt; text-align: center; color: #111; height: 10mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 0.6mm; gap: 0.3mm; overflow: hidden; }
+  .assval .assimg { max-height: 7mm; max-width: 45mm; object-fit: contain; }
   .assval .asstxt { font-size: 6pt; }
   .assval .carimbo { display: inline-block; border: 0.35mm solid #1f4e79; color: #1f4e79; border-radius: 0.8mm; padding: 1.2mm 2.4mm; font-size: 5.4pt; font-weight: 700; line-height: 1.35; transform: rotate(-2deg); opacity: .85; }
   .numero { background: #E8462B; color: #fff; font-family: 'Arial Black', Arial, sans-serif; font-weight: 900; font-size: 17pt; display: flex; align-items: center; justify-content: flex-end; padding-right: 3.6mm; line-height: 1; }
