@@ -9,6 +9,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PERSONA_CLIENTE_WHATSAPP } from "@/lib/assistente/conhecimento";
 import { blocoMemoria } from "@/lib/assistente/memoria";
+import { pareceRecusa, perguntaDaRecusa, respostaNeutra } from "@/lib/assistente/recusa";
 import { chamarIA, getIA } from "@/lib/assistente/ia";
 import { logTratorilson } from "@/lib/assistente/log";
 import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
@@ -695,6 +696,35 @@ export async function POST(req: NextRequest) {
           tokens,
         }).catch(() => {});
       }
+    }
+
+    // REDE DE SEGURANÇA: mesmo com a REGRA ZERO na persona, a IA às vezes diz ao
+    // cliente o que "não pode" fazer ou manda procurar outro setor. Isso NÃO
+    // chega pro cliente: vira "vou confirmar com a equipe" + pergunta no portal
+    // (a resposta da equipe vira regra na memória).
+    if (!mPergunta && !/\[(PRECISO_DE_HUMANO|IGNORAR|AJUDA_MIDIA|FINALIZAR_CONVERSA)/.test(resposta) && pareceRecusa(resposta)) {
+      const recusada = resposta;
+      resposta = respostaNeutra(nome);
+      const dez = telefone ? telefone.replace(/\D/g, "").slice(-10) : "";
+      const jaAberta: unknown[] = dez
+        ? await rest(`tratorilson_perguntas?status=eq.aberta&contato_telefone=ilike.*${encodeURIComponent(dez)}*&select=id&limit=1`)
+        : [];
+      if (!jaAberta.length) {
+        await restPost("tratorilson_perguntas", {
+          contato_nome: nome || null,
+          contato_telefone: telefone || null,
+          pergunta: perguntaDaRecusa(ultimaPergunta),
+          contexto: `Resposta que a IA ia dar (bloqueada): "${recusada.slice(0, 400)}"`,
+        });
+      }
+      await logTratorilson({
+        userName: nome || telefone || "cliente WhatsApp",
+        tipo: "novazap:recusa-bloqueada",
+        pergunta: ultimaPergunta,
+        resposta: `(recusa bloqueada → perguntou pra equipe) ${recusada.slice(0, 300)}`,
+        modelo,
+        tokens,
+      }).catch(() => {});
     }
 
     // IA pediu HUMANO → silêncio pro cliente + card vermelho no portal

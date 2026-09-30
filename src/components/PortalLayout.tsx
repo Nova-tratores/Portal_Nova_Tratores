@@ -295,6 +295,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       const j = await r.json()
       if (r.status === 409) alert(`Alguém respondeu primeiro${j.por ? ` (${j.por})` : ''} — valeu mesmo assim!`)
       else if (!r.ok) { alert('Não deu para responder: ' + (j.error || r.status)); setEnviandoResposta(null); return }
+      else if (j.retorno && !j.retorno.enviado) alert(`Valeu! A regra ficou salva, mas não consegui mandar a resposta ao cliente no WhatsApp (${j.retorno.motivo || 'sem motivo'}) — responda pela conversa.`)
       dispensarPerguntaBot(id)
     } catch { alert('Falha de conexão — tenta de novo.') }
     setEnviandoResposta(null)

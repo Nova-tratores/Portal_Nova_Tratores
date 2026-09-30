@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
 import { gravarRegra } from "@/lib/assistente/memoria";
+import { retornarAoCliente } from "@/lib/assistente/retorno-cliente";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
     .update({ status: "respondida", resposta, respondido_por: quem, respondido_em: new Date().toISOString() })
     .eq("id", id)
     .eq("status", "aberta")
-    .select("id, pergunta, contato_nome, contato_telefone");
+    .select("id, pergunta, contexto, contato_nome, contato_telefone");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data || !data.length) {
     // alguém respondeu (ou fechou) primeiro
@@ -70,7 +71,18 @@ export async function POST(req: NextRequest) {
     `faça/responda assim: ${resposta}`;
   const regraId = await gravarRegra(conteudo, "clientes", `pergunta-tratorilson:${quem}`, "chatwoot");
 
-  return NextResponse.json({ ok: true, regraId });
+  // O cliente que ficou esperando ("vou confirmar e já te retorno") recebe a
+  // resposta no WhatsApp — a IA redige com a orientação da equipe (best-effort).
+  const retorno = await retornarAoCliente({
+    telefone: p.contato_telefone ? String(p.contato_telefone) : null,
+    nome: p.contato_nome ? String(p.contato_nome) : null,
+    pergunta: String(p.pergunta || ""),
+    contexto: p.contexto ? String(p.contexto) : null,
+    respostaEquipe: resposta,
+    quem: String(quem),
+  });
+
+  return NextResponse.json({ ok: true, regraId, retorno });
 }
 
 // Fechar sem responder (descartar) — some do alerta e da lista de abertas.

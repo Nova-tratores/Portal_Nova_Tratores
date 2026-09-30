@@ -107,6 +107,7 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
       const j = await r.json()
       if (r.status === 409) alert(`Alguém respondeu primeiro${j.por ? ` (${j.por})` : ''}.`)
       else if (!r.ok) { alert('Não deu: ' + (j.error || r.status)); return }
+      else if (j.retorno) alert(j.retorno.enviado ? 'Regra salva e resposta enviada ao cliente no WhatsApp.' : `Regra salva. Não consegui mandar ao cliente no WhatsApp: ${j.retorno.motivo || 'sem motivo'} — responda pela conversa.`)
       setRespostaPerg((m) => ({ ...m, [id]: '' }))
       carregarPerguntas(); carregarMemorias()
     } catch { alert('Falha de conexão.') }
