@@ -11,6 +11,13 @@ import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { authHeaders } from '@/lib/auth/client';
 import { tempoRelativo } from '@/lib/ajustes/tempo-relativo';
+import { RECORTES, RECORTE_PADRAO, ehRecorte, aplicarRecorte, resumir, type Recorte } from '@/lib/ajustes/baixa-contas-recorte';
+
+const LS_RECORTE = 'baixa-contas-recorte';
+function lerRecorteSalvo(): Recorte {
+  try { const v = localStorage.getItem(LS_RECORTE); if (ehRecorte(v)) return v; } catch { /* sem storage */ }
+  return RECORTE_PADRAO;
+}
 
 // ---------- tipos ----------
 type Tipo = 'pagar' | 'receber';
@@ -81,8 +88,15 @@ export default function BaixaContasPage() {
   const [tipo, setTipo] = useState<Tipo>('pagar');
   const [titulos, setTitulos] = useState<Titulo[]>([]);
   const [status, setStatus] = useState('');
-  const [resumo, setResumo] = useState('');
   const [carregando, setCarregando] = useState(false);
+  // Recorte rápido por previsão (lembrado no navegador). Começa no padrão e
+  // lê o storage depois de montar, para o SSR não divergir do cliente.
+  const [recorte, setRecorte] = useState<Recorte>(RECORTE_PADRAO);
+  useEffect(() => { setRecorte(lerRecorteSalvo()); }, []);
+  const escolherRecorte = useCallback((r: Recorte) => {
+    setRecorte(r);
+    try { localStorage.setItem(LS_RECORTE, r); } catch { /* sem storage */ }
+  }, []);
   const [sincronizadoEm, setSincronizadoEm] = useState<string | null>(null);
   const [sort, setSort] = useState<{ key: string; dir: number }>({ key: 'previsao', dir: 1 });
   const [filtros, setFiltros] = useState<Record<string, string>>({});
@@ -101,8 +115,6 @@ export default function BaixaContasPage() {
       setTitulos(ts);
       setSincronizadoEm(d.sincronizadoEm || null);
       setFiltros({});
-      const soma = ts.reduce((s, l) => s + (Number(l.valorAberto) || 0), 0);
-      setResumo(`${d.total || ts.length} titulo(s) em aberto · total ${fmtBRL(soma)}`);
       setStatus('');
     } catch (ex) {
       setStatus('Erro de rede: ' + (ex as Error).message);
@@ -116,8 +128,24 @@ export default function BaixaContasPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conta, tipo]);
 
+  // Recorte por previsão primeiro; o resumo (contagem + valor) segue o recorte,
+  // para o número da tela conversar com o card "Pagar/Receber hoje" da Omie.
+  const hojeRef = hojeISO();
+  const titulosNoRecorte = useMemo(() => aplicarRecorte(titulos, recorte, hojeRef), [titulos, recorte, hojeRef]);
+  const contagens = useMemo(() => {
+    const m = {} as Record<Recorte, { n: number; total: number }>;
+    for (const r of RECORTES) m[r.id] = resumir(aplicarRecorte(titulos, r.id, hojeRef));
+    return m;
+  }, [titulos, hojeRef]);
+  const resumo = useMemo(() => {
+    if (!titulos.length) return '';
+    const { n, total } = resumir(titulosNoRecorte);
+    const sufixo = recorte === 'todos' ? '' : ` (de ${titulos.length} em aberto no total)`;
+    return `${n} titulo(s) · total ${fmtBRL(total)}${sufixo}`;
+  }, [titulos, titulosNoRecorte, recorte]);
+
   const linhasVisiveis = useMemo(() => {
-    let rows = titulos.filter((l) => COLS.every((c) => {
+    let rows = titulosNoRecorte.filter((l) => COLS.every((c) => {
       const f = filtros[c.key]; if (!f) return true;
       return norm(c.txt(l)).indexOf(norm(f)) >= 0;
     }));
@@ -128,7 +156,7 @@ export default function BaixaContasPage() {
       return r * sort.dir;
     });
     return rows;
-  }, [titulos, filtros, sort]);
+  }, [titulosNoRecorte, filtros, sort]);
 
   const ordenarPor = useCallback((key: string) => {
     setSort((s) => s.key === key ? { key, dir: -s.dir } : { key, dir: 1 });
@@ -174,6 +202,20 @@ export default function BaixaContasPage() {
               <button onClick={buscar} disabled={carregando} style={{ padding: '7px 16px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando ? 0.5 : 1 }}>Atualizar</button>
               <div style={{ fontSize: '.72rem', color: '#94a3b8' }}>Empresa: <b style={{ color: '#475569' }}>{conta.toUpperCase()}</b> — troque no seletor &quot;Conta&quot; do topo.</div>
             </div>
+            <div style={{ marginTop: 10, display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+              <span style={{ fontSize: '.65rem', color: '#64748b', marginRight: 2 }}>Previsão:</span>
+              {RECORTES.map((r) => {
+                const ativo = recorte === r.id;
+                const c = contagens[r.id];
+                return (
+                  <button key={r.id} onClick={() => escolherRecorte(r.id)} title={r.dica}
+                    style={{ padding: '4px 10px', borderRadius: 999, border: `1px solid ${ativo ? '#2563eb' : '#cbd5e1'}`, background: ativo ? '#2563eb' : '#fff', color: ativo ? '#fff' : '#475569', fontSize: '.75rem', cursor: 'pointer', display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                    {r.rotulo}
+                    {c && <span style={{ fontSize: '.65rem', padding: '0 6px', borderRadius: 999, background: ativo ? 'rgba(255,255,255,.25)' : '#f1f5f9', color: ativo ? '#fff' : '#64748b' }}>{c.n}</span>}
+                  </button>
+                );
+              })}
+            </div>
             <div style={{ marginTop: 8, fontSize: '.75rem', display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
               <span style={{ color: status.startsWith('Erro') ? '#dc2626' : '#64748b' }}>{status}</span>
               <span style={{ color: '#94a3b8' }}>{resumo}</span>
@@ -204,7 +246,7 @@ export default function BaixaContasPage() {
                 </thead>
                 <tbody>
                   {linhasVisiveis.length === 0 ? (
-                    <tr><td colSpan={COLS.length + 1} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 40 }}>{carregando ? 'Carregando…' : 'Nenhum titulo em aberto para esta empresa/tipo.'}</td></tr>
+                    <tr><td colSpan={COLS.length + 1} style={{ ...tdStyle, textAlign: 'center', color: '#94a3b8', padding: 40 }}>{carregando ? 'Carregando…' : titulos.length && recorte !== 'todos' ? 'Nenhum titulo neste recorte de previsão — veja "Todos".' : 'Nenhum titulo em aberto para esta empresa/tipo.'}</td></tr>
                   ) : linhasVisiveis.map((l) => {
                     const parcial = (Number(l.valorPago) || 0) > 0;
                     return (

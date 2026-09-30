@@ -61,7 +61,8 @@ describe('detecção de faults', () => {
 
 describe('patchDeTitulo', () => {
   it('só com os campos presentes', () => {
-    const p = patchDeTitulo({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p: any = patchDeTitulo({
       codigo_lancamento_omie: 2148384176,
       status_titulo: 'RECEBIDO',
       valor_documento: 23000,
