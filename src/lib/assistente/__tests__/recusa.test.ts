@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { pareceRecusa, perguntaDaRecusa, respostaNeutra } from '../recusa';
+import { pareceRecusa, perguntaDaRecusa } from '../recusa';
 
 describe('pareceRecusa', () => {
   it('pega as recusas que apareceram no WhatsApp da Tereza (30/09/2026)', () => {
@@ -15,9 +15,7 @@ describe('pareceRecusa', () => {
     expect(pareceRecusa('Perfeito! Orçamento confirmado. Retornaremos em breve para dizer quando ficou agendado.')).toBe(false);
     expect(pareceRecusa('')).toBe(false);
   });
-  it('resposta neutra e pergunta pra equipe', () => {
-    expect(respostaNeutra('Tereza ADM')).toBe('Tereza, vou confirmar essa informação com a equipe aqui e já te retorno, combinado?');
-    expect(respostaNeutra(null)).toBe('vou confirmar essa informação com a equipe aqui e já te retorno, combinado?');
+  it('pergunta pra equipe', () => {
     expect(perguntaDaRecusa('Contato do financeiro')).toContain('"Contato do financeiro"');
   });
 });

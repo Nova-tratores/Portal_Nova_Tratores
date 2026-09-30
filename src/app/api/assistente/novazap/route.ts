@@ -9,7 +9,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { PERSONA_CLIENTE_WHATSAPP } from "@/lib/assistente/conhecimento";
 import { blocoMemoria } from "@/lib/assistente/memoria";
-import { pareceRecusa, perguntaDaRecusa, respostaNeutra } from "@/lib/assistente/recusa";
+import { pareceRecusa, perguntaDaRecusa } from "@/lib/assistente/recusa";
+import { dentroDoHorario, mensagemForaDoHorario } from "@/lib/assistente/horario";
 import { chamarIA, getIA } from "@/lib/assistente/ia";
 import { logTratorilson } from "@/lib/assistente/log";
 import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
@@ -495,6 +496,43 @@ export async function POST(req: NextRequest) {
 
   const nome = String(body?.contato?.nome || "").slice(0, 120);
   const telefone = String(body?.contato?.telefone || "").slice(0, 30);
+  const dezDigitos = telefone ? telefone.replace(/\D/g, "").slice(-10) : "";
+
+  // FORA DO HORÁRIO (seg–sex 07:30–11:30 / 12:30–17:30; sáb/dom/feriado fechado):
+  // avisa UMA vez por período fechado que alguém atende assim que possível e
+  // fica quieto até abrir. A mensagem do cliente fica na conversa pro time ver.
+  if (!dentroDoHorario()) {
+    const avisoRecente: unknown[] = dezDigitos
+      ? await rest(`tratorilson_log?tipo=eq.novazap:fora-horario&user_nome=ilike.*${encodeURIComponent(dezDigitos)}*&created_at=gte.${encodeURIComponent(new Date(Date.now() - 16 * 3600_000).toISOString())}&select=id&limit=1`)
+      : [];
+    const aviso = avisoRecente.length ? "" : mensagemForaDoHorario(nome);
+    await logTratorilson({
+      userName: telefone || nome || "cliente WhatsApp",
+      tipo: "novazap:fora-horario",
+      pergunta: String(body?.mensagens?.slice(-1)?.[0]?.texto || "").slice(0, 500),
+      resposta: aviso || "(fora do horário — já avisado neste período, silêncio)",
+      modelo: getIA().model,
+      tokens: 0,
+    }).catch(() => {});
+    return NextResponse.json({ resposta: aviso });
+  }
+
+  // AGUARDANDO A EQUIPE: já existe pergunta aberta deste contato → silêncio
+  // (a resposta da equipe vai pro cliente quando alguém responder no portal).
+  if (dezDigitos) {
+    const pendente: unknown[] = await rest(`tratorilson_perguntas?status=eq.aberta&contato_telefone=ilike.*${encodeURIComponent(dezDigitos)}*&select=id&limit=1`);
+    if (pendente.length) {
+      await logTratorilson({
+        userName: nome || telefone || "cliente WhatsApp",
+        tipo: "novazap:aguardando-equipe",
+        pergunta: String(body?.mensagens?.slice(-1)?.[0]?.texto || "").slice(0, 500),
+        resposta: "(pergunta pra equipe em aberto — silêncio até responderem)",
+        modelo: getIA().model,
+        tokens: 0,
+      }).catch(() => {});
+      return NextResponse.json({ resposta: "" });
+    }
+  }
   const ultimaPergunta = (() => {
     const m = [...chat].reverse().find((x) => x.role === "user");
     if (!m) return "";
@@ -672,8 +710,8 @@ export async function POST(req: NextRequest) {
     const mPergunta = resposta.match(/\[PERGUNTAR_EQUIPE:\s*([\s\S]*?)\]/);
     if (mPergunta) {
       const perguntaTxt = mPergunta[1].trim().slice(0, 600);
-      resposta = resposta.replace(/\[PERGUNTAR_EQUIPE:[\s\S]*?\]/g, "").trim();
-      if (!resposta) resposta = "Boa pergunta! Vou confirmar com a equipe aqui e já te retorno, combinado?";
+      // o cliente NÃO recebe nada agora (decisão do José): a resposta da equipe é que vai pra ele
+      resposta = "";
       if (perguntaTxt) {
         const dez = telefone ? telefone.replace(/\D/g, "").slice(-10) : "";
         const jaAbertaPerg: any[] = dez
@@ -704,7 +742,7 @@ export async function POST(req: NextRequest) {
     // (a resposta da equipe vira regra na memória).
     if (!mPergunta && !/\[(PRECISO_DE_HUMANO|IGNORAR|AJUDA_MIDIA|FINALIZAR_CONVERSA)/.test(resposta) && pareceRecusa(resposta)) {
       const recusada = resposta;
-      resposta = respostaNeutra(nome);
+      resposta = ""; // silêncio: quem responde é a equipe (retorno automático ao cliente)
       const dez = telefone ? telefone.replace(/\D/g, "").slice(-10) : "";
       const jaAberta: unknown[] = dez
         ? await rest(`tratorilson_perguntas?status=eq.aberta&contato_telefone=ilike.*${encodeURIComponent(dez)}*&select=id&limit=1`)

@@ -29,12 +29,6 @@ export function pareceRecusa(texto: string): boolean {
   return PADROES.some((re) => re.test(t));
 }
 
-/** Texto neutro que vai pro cliente no lugar da recusa. */
-export function respostaNeutra(nome?: string | null): string {
-  const n = (nome || '').trim().split(' ')[0];
-  return `${n ? `${n}, ` : ''}vou confirmar essa informação com a equipe aqui e já te retorno, combinado?`;
-}
-
 /** Pergunta que vai pros usuários do portal quando a IA tentou recusar. */
 export function perguntaDaRecusa(pedidoDoCliente: string): string {
   const p = String(pedidoDoCliente || '').trim().slice(0, 300);
