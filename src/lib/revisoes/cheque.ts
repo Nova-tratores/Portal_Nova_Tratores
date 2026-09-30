@@ -241,6 +241,8 @@ export function htmlCheque(dados: DadosCheque, o: OpcoesHtml): string {
 
 export const CSS_CHEQUE = `
   * { box-sizing: border-box; }
+  /* imprime as cores mesmo com "imprimir fundos" desligado no navegador (faixa, listras, número) */
+  html, body, .folha, .folha * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; color-adjust: exact !important; }
   html, body { margin: 0; background: #e9e6e6; font-family: Arial, Helvetica, sans-serif; color: #333; }
   .folha { width: 210mm; height: 297mm; background: #fff; margin: 0 auto; position: relative; overflow: hidden; box-shadow: 0 2px 14px rgba(0,0,0,.18); }
   .folha > div { position: absolute; }
