@@ -7,6 +7,7 @@ import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_PEDIDOS } from "@/lib/ppv/constants";
 import { linhasDoOrcamento, nomesServicos, somaHorasKm } from "@/lib/orcamentos/servicos";
 import { parseValorMisto } from "@/lib/marketing/custos";
+import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 
 interface ItemOrc {
   codigo?: string;
@@ -92,21 +93,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
   // 4) Recalcula o Valor_Total da OS (mesma fórmula do PATCH da OS)
   const ppvParaTotal = ppvCriado ? [...ppvAtuais, ppvId] : ppvAtuais;
-  let vPecas = 0;
-  if (ppvParaTotal.length > 0) {
-    const { data: items } = await supabase.from(TBL_ITENS).select("*").in("Id_PPV", ppvParaTotal);
-    const resumo: Record<string, { qtde: number; totalFin: number }> = {};
-    (items || []).forEach((item) => {
-      const cod = String(item.CodProduto || "");
-      const preco = parseFloat(item.Preco || 0);
-      let qtd = Math.abs(parseFloat(item.Qtde || 0));
-      if (String(item.TipoMovimento || "").toLowerCase().includes("devolu")) qtd = -qtd;
-      if (!resumo[cod]) resumo[cod] = { qtde: 0, totalFin: 0 };
-      resumo[cod].qtde += qtd;
-      resumo[cod].totalFin += preco * qtd;
-    });
-    Object.values(resumo).forEach((p) => { if (p.qtde !== 0) vPecas += p.totalFin; });
-  }
+  // peças COM o desconto percentual de cada PPV (mesma conta do PATCH da OS)
+  const vPecas = (await valorPecasDosPPVs(ppvParaTotal)).total;
   let vReq = 0;
   const { data: reqsOS } = await supabase
     .from("Requisicao")

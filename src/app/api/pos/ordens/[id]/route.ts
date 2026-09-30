@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
-import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_ITENS, TBL_PEDIDOS } from "@/lib/pos/constants";
+import { TBL_OS, TBL_LOGS_PPO, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
@@ -8,6 +8,7 @@ import { logAndNotify } from "@/lib/server/audit-notify";
 import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
 import { parseValorMisto } from "@/lib/marketing/custos";
+import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -233,23 +234,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
-  // Calcular totais
+  // Calcular totais — peças COM o desconto percentual de cada PPV (antes
+  // somava bruto e o desconto dado no PPV não mudava o Valor_Total da OS)
   const listaIds = String(dados.ppv || "").split(",").map((s: string) => s.trim()).filter(Boolean);
-  let vPecas = 0;
-  if (listaIds.length) {
-    const { data: items } = await supabase.from(TBL_ITENS).select("*").in("Id_PPV", listaIds);
-    const resumo: Record<string, { qtde: number; totalFin: number }> = {};
-    (items || []).forEach((item) => {
-      const cod = item.CodProduto;
-      const preco = parseFloat(item.Preco || 0);
-      let qtd = Math.abs(parseFloat(item.Qtde || 0));
-      if (String(item.TipoMovimento || "").toLowerCase().includes("devolu")) qtd = -qtd;
-      if (!resumo[cod]) resumo[cod] = { qtde: 0, totalFin: 0 };
-      resumo[cod].qtde += qtd;
-      resumo[cod].totalFin += preco * qtd;
-    });
-    Object.values(resumo).forEach((p) => { if (p.qtde !== 0) vPecas += p.totalFin; });
-  }
+  const vPecas = (await valorPecasDosPPVs(listaIds)).total;
 
   // Somar valor das requisições vinculadas (tabela Requisicao.ordem_servico)
   let vReq = 0;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_ITENS } from "@/lib/pos/constants";
+import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 
 export async function GET(req: NextRequest) {
   const ppv = req.nextUrl.searchParams.get("ppv") || "";
@@ -26,5 +27,8 @@ export async function GET(req: NextRequest) {
     .map((p) => ({ descricao: p.descricao, qtde: p.qtde, valor: p.qtde !== 0 ? p.totalFinanceiro / p.qtde : 0 }))
     .filter((p) => p.qtde !== 0);
 
-  return NextResponse.json(produtos);
+  // desconto percentual do(s) PPV(s) em R$ — o drawer abate do total de peças
+  // (senão o total mostrado divergia do Valor_Total salvo, que já desconta)
+  const pv = await valorPecasDosPPVs(listaIds);
+  return NextResponse.json({ produtos, desconto_ppv: pv.desconto });
 }

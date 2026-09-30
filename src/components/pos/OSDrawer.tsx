@@ -512,9 +512,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     try {
       const res = await fetch(`/api/pos/financeiro?ppv=${encodeURIComponent(ppvId)}`);
       if (!res.ok) return;
-      const list: Produto[] = await res.json();
+      const data = await res.json();
+      // formato novo { produtos, desconto_ppv }; aceita o array antigo no meio do deploy
+      const list: Produto[] = Array.isArray(data) ? data : (data.produtos || []);
+      const descPpv = Array.isArray(data) ? 0 : Number(data.desconto_ppv) || 0;
       setProdutos(list);
-      setTotalPecas(list.reduce((s, p) => s + p.valor * p.qtde, 0));
+      // total de peças COM o desconto do PPV — é a mesma conta do Valor_Total salvo
+      setTotalPecas(Math.max(0, list.reduce((s, p) => s + p.valor * p.qtde, 0) - descPpv));
     } catch {
       console.error("Erro ao carregar PPV");
     }

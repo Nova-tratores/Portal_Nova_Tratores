@@ -4,6 +4,7 @@ import { TBL_OS, TBL_ITENS, TBL_REQ_SOL, TBL_REQ_ATT, TBL_PEDIDOS } from "@/lib/
 import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { parseValorMisto } from "@/lib/marketing/custos";
+import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -81,7 +82,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const listaIds = String(ppvId || "").split(",").map((s: string) => s.trim()).filter(Boolean);
   let produtosHtml = "";
   let pecasSignRows = ""; // linhas das peças na folha de assinatura (com checkbox "não usado")
-  let totalPecas = 0;
+  let totalPecas = 0;     // já COM o desconto do PPV (entra no total da ordem)
+  let pecasBruto = 0;
+  let pecasDescPpv = 0;
 
   if (listaIds.length) {
     const { data: items } = await supabase.from(TBL_ITENS).select("*").in("Id_PPV", listaIds);
@@ -99,7 +102,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
     const prods = Object.entries(resumo).filter(([, p]) => p.qtde !== 0);
     // Sem peças: some da lista E do total (fica um PDF só do serviço).
-    totalPecas = comPecas ? prods.reduce((s, [, p]) => s + p.total, 0) : 0;
+    // COM peças: o total aplica o desconto percentual de cada PPV (a tabela
+    // continua com os preços cheios; o desconto sai como linha no resumo).
+    const pv = await valorPecasDosPPVs(listaIds);
+    pecasBruto = comPecas ? pv.bruto : 0;
+    pecasDescPpv = comPecas ? pv.desconto : 0;
+    totalPecas = comPecas ? pv.total : 0;
 
     if (prods.length > 0 && comPecas) {
       produtosHtml = `
@@ -430,7 +438,8 @@ ${viewMode ? "" : "<script>window.onload = function() { window.print(); }</scrip
       <tbody>
         <tr><td>Horas trabalhadas</td><td style="text-align:center">${qtdHoras}h</td><td style="text-align:right">R$ ${vHoras.toFixed(2)}</td></tr>
         <tr><td>Deslocamento</td><td style="text-align:center">${qtdKm} km</td><td style="text-align:right">R$ ${vKm.toFixed(2)}</td></tr>
-        ${totalPecas > 0 ? `<tr><td>Peças / Materiais</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalPecas.toFixed(2)}</td></tr>` : ""}
+        ${pecasBruto > 0 ? `<tr><td>Peças / Materiais</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${pecasBruto.toFixed(2)}</td></tr>` : ""}
+        ${pecasDescPpv > 0 ? `<tr class="discount"><td>Desconto peças (PPV)</td><td style="text-align:center">—</td><td style="text-align:right">- R$ ${pecasDescPpv.toFixed(2)}</td></tr>` : ""}
         ${totalReq > 0 ? `<tr><td>Requisições</td><td style="text-align:center">—</td><td style="text-align:right">R$ ${totalReq.toFixed(2)}</td></tr>` : ""}
         ${alimentacaoRows}
         ${descontoRows.join("")}
