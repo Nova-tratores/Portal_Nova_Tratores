@@ -5,6 +5,9 @@ import { getConfigPOS } from "@/lib/pos/config";
 import { formatarDataBR, safeGet } from "@/lib/pos/utils";
 import { parseValorMisto } from "@/lib/marketing/custos";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
+import { buscarPorOS as buscarAssinaturaCliente } from "@/lib/pos/assinatura-cliente-db";
+import { assinaturaTecnicoDisponivel } from "@/lib/revisoes/cheque-pdf";
+import { PORTAL_BASE } from "@/lib/portal-url";
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -226,6 +229,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // Folha de assinatura (Modelo "Limpo") — sai SEMPRE junto com a OS, numa nova página.
   const servTextoAssin = (servRealizado || servSolicitado || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // Assinatura DIGITAL do cliente (link /assinar) + rubrica do técnico, quando existem.
+  const esc = (v: unknown) => String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  let assinaturaClienteHtml = "";
+  try {
+    const a = await buscarAssinaturaCliente(idOs);
+    if (a?.assinado_em && a.assinatura_url) {
+      const quando = new Date(a.assinado_em).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
+      const g = a.assinado_geo, d = a.assinado_dispositivo;
+      const local = g ? `local ${g.lat.toFixed(5)}, ${g.lng.toFixed(5)}${g.precisao_m ? ` (±${g.precisao_m} m)` : ""}` : "local não informado";
+      const aparelho = d ? [d.modelo, d.plataforma && d.versao ? `${d.plataforma} ${d.versao}` : d.plataforma].filter(Boolean).join(" · ") : "";
+      assinaturaClienteHtml =
+        `<img src="${esc(a.assinatura_url)}" alt="Assinatura do cliente" style="display:block;max-height:52px;max-width:220px;object-fit:contain;margin:0 auto -6px">` +
+        `<div class="sign-digital">Assinado digitalmente por ${esc(a.assinado_nome || cliente)} em ${esc(quando)}${a.assinado_ip ? ` · IP ${esc(a.assinado_ip)}` : ""}<br>${esc(local)}${aparelho ? ` · ${esc(aparelho)}` : ""}</div>`;
+    }
+  } catch { /* tabela ausente ou sem assinatura */ }
+  const rubricaTecnico = assinaturaTecnicoDisponivel(tecnico);
+  const assinaturaTecnicoHtml = rubricaTecnico
+    ? `<img src="${PORTAL_BASE}${rubricaTecnico}" alt="Rubrica do técnico" style="display:block;max-height:44px;max-width:200px;object-fit:contain;margin:0 auto -4px">`
+    : "";
   const assinaturaHtml = `
   <div class="sign-page">
     <div class="header">
@@ -277,8 +300,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     <div class="declar">Declaro que os serviços descritos acima foram <b>executados e conferidos</b>, e que recebi o equipamento em condições de uso. Autorizo a cobrança dos valores correspondentes.</div>
 
     <div class="signs">
-      <div><div class="sign-line"></div><div class="sign-name">${cliente.toUpperCase()}</div><div class="sign-role">Cliente — assinatura e data</div></div>
-      <div><div class="sign-line"></div><div class="sign-name">${tecnico}${tecnico2 ? ` / ${tecnico2}` : ""}</div><div class="sign-role">Técnico responsável</div></div>
+      <div>${assinaturaClienteHtml}<div class="sign-line"${assinaturaClienteHtml ? ' style="margin-top:8px"' : ""}></div><div class="sign-name">${cliente.toUpperCase()}</div><div class="sign-role">Cliente — assinatura e data</div></div>
+      <div>${assinaturaTecnicoHtml}<div class="sign-line"${assinaturaTecnicoHtml ? ' style="margin-top:8px"' : ""}></div><div class="sign-name">${tecnico}${tecnico2 ? ` / ${tecnico2}` : ""}</div><div class="sign-role">Técnico responsável</div></div>
     </div>
   </div>`;
 
@@ -339,6 +362,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   .sign-line { border-top: 1.4px solid #000; margin-top: 44px; padding-top: 5px; }
   .sign-name { font-size: 10pt; font-weight: 700; color: #000; }
   .sign-role { font-size: 7pt; color: #888; text-transform: uppercase; letter-spacing: 0.6px; margin-top: 1px; }
+  .sign-digital { font-size: 6.5pt; color: #555; line-height: 1.4; margin-top: 8px; text-align: center; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; } }
 </style>
 ${viewMode ? "" : "<script>window.onload = function() { window.print(); }</script>"}
