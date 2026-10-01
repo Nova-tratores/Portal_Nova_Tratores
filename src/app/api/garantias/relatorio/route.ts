@@ -74,6 +74,9 @@ export async function GET(req: NextRequest) {
   };
 
   for (const g of data || []) {
+    // Cancelada por DUPLICAÇÃO fica fora de TUDO — contar horas/qtd dela
+    // seria contar o mesmo caso duas vezes (a original já conta).
+    if (g.status === 'cancelada') continue;
     const mont = g.montadora as { id: string; nome: string; cor: string | null } | null;
     const chave = mont?.id || 'sem_montadora';
     if (!grupos[chave]) grupos[chave] = novo(mont?.id || null, mont?.nome || 'Sem montadora', mont?.cor || null);

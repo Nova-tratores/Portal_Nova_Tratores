@@ -9,7 +9,8 @@ export type GarantiaStatus =
   | 'aguardando_servico'      // duas etapas: peças aprovadas, esperando o serviço
   | 'ressarcimento_fabrica'   // duas etapas: ressarcimento de horas/km na fábrica
   | 'aprovada'
-  | 'rejeitada';
+  | 'rejeitada'
+  | 'cancelada';              // SÓ por duplicação — aponta a garantia original
 
 export type GarantiaResultado = 'aprovada' | 'rejeitada';
 
@@ -222,6 +223,10 @@ export interface Garantia {
   resultado: GarantiaResultado | null;
   motivo_recusa: string | null;
   recusado_por: 'garantista' | 'fabrica' | null;
+  // Cancelamento por duplicação (único motivo de cancelamento que existe)
+  duplicada_de?: string | null;
+  duplicada_de_numero?: string | null;
+  cancelada_em?: string | null;
   retorno_fabrica_url: string | null;
   valor_pago_horas: number | null;
   valor_pago_km: number | null;

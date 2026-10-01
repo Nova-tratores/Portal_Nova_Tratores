@@ -75,7 +75,9 @@ describe('patchDeTitulo', () => {
       status_titulo: 'RECEBIDO', valor_documento: 23000, data_vencimento: '2024-03-21', data_previsao: '2024-04-30',
       data_emissao: '2024-03-21', alterado_por: 'P000454175', synced_at: '2026-09-30T12:00:00.000Z',
     });
-    expect(p.data_alteracao).toMatch(/^2026-08-19/);
+    // patchDeTitulo é .js com JSDoc — o TS infere o tipo pelo literal inicial
+    // e não enxerga os campos condicionais; o runtime tem o campo
+    expect((p as Record<string, unknown>).data_alteracao).toMatch(/^2026-08-19/);
     expect('valor_pago' in p).toBe(false);
     expect('data_pagamento' in p).toBe(false);
     expect('numero_documento' in p).toBe(false);

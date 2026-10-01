@@ -120,6 +120,9 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
 
   // Finalização
   const [motivoRecusa, setMotivoRecusa] = useState('');
+  // Cancelar por duplicação (único motivo de cancelamento que existe)
+  const [cancelDupAberto, setCancelDupAberto] = useState(false);
+  const [cancelDupNumero, setCancelDupNumero] = useState('');
   const [pecasAprovadas, setPecasAprovadas] = useState<Set<string>>(new Set());
   // Garantia paga M.O. (horas) e/ou Deslocamento (km)? Default: paga os dois.
   const [moAprovada, setMoAprovada] = useState(true);
@@ -271,7 +274,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Centraliza o enforcement: cada ação do drawer mapeia pra uma permissão.
   function acaoPermitida(acao: string): boolean {
     if (acao === 'enviar' || acao === 'enviar_sg' || acao === 'solicitar_ressarcimento') return podeEnviarFabrica;
-    if (acao === 'finalizar' || acao === 'retorno_pecas' || acao === 'recusar_interno' || acao === 'reabrir_recusa' || acao.startsWith('cobranca_') || acao.startsWith('devolucao_')) return podeFinalizar;
+    if (acao === 'finalizar' || acao === 'retorno_pecas' || acao === 'recusar_interno' || acao === 'reabrir_recusa' || acao === 'cancelar_duplicada' || acao.startsWith('cobranca_') || acao.startsWith('devolucao_')) return podeFinalizar;
     return podeAnalisar; // assumir, montadora, analise, pendencia, tipo_garantia, gerar_sg, atualizar_precos...
   }
 
@@ -378,6 +381,23 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
       }),
     });
 
+  // Cancela por DUPLICAÇÃO — sempre apontando a garantia que fica valendo
+  const cancelarDuplicada = () => {
+    const num = cancelDupNumero.trim();
+    if (!num) { setErro('Informe o número da garantia original (ex: GAR-0070).'); return Promise.resolve(false); }
+    if (!confirm(`Cancelar a ${g?.numero} como DUPLICATA da ${num.toUpperCase()}?\n\nEla vai pra aba Finalizadas e não reabre pela tela. A original segue valendo.`)) {
+      return Promise.resolve(false);
+    }
+    return chamar('cancelar_duplicada', `/api/garantias/${garantiaId}/cancelar-duplicada`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ duplicada_de: num, ator: userName }),
+    }).then((ok) => {
+      if (ok) { setCancelDupAberto(false); setCancelDupNumero(''); }
+      return ok;
+    });
+  };
+
   // Devolução das peças à fábrica (registrar/prazo/dispensar/reabrir)
   const acaoDevolucao = (acao: string, payload?: Record<string, unknown>) =>
     chamar(`devolucao_${acao}`, `/api/garantias/${garantiaId}/devolucao`, {
@@ -460,7 +480,8 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   const naFabrica = g?.status === 'enviada';
   // Valor que ESTA fábrica paga por hora/km (config da montadora; null = padrão)
   const valFab = valoresFabrica(g?.montadora);
-  const finalizada = g?.status === 'aprovada' || g?.status === 'rejeitada';
+  const cancelada = g?.status === 'cancelada';
+  const finalizada = g?.status === 'aprovada' || g?.status === 'rejeitada' || cancelada;
   const aguardandoTec = g?.status === 'bo_tecnico' || g?.status === 'info_pendente';
   const pendenciaAberta = g?.pendencias?.find((p) => p.status === 'aberta') || null;
   const temRetornoFabrica = !!g?.retorno_fabrica_url;
@@ -1683,8 +1704,73 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 </>
               )}
 
+              {/* Cancelar por duplicação — único motivo de cancelamento que existe */}
+              {!finalizada && podeFinalizar && (
+                <Secao titulo="Cancelar por duplicação" icone={<XCircle size={14} />}>
+                  {!cancelDupAberto ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, color: 'var(--portal-text-muted)', flex: 1, minWidth: 220, lineHeight: 1.5 }}>
+                        Abriram duas garantias pro <b>mesmo caso</b>? Cancele esta apontando a original.
+                        Duplicação é o único motivo de cancelamento — fábrica negar é Recusar, lá em cima.
+                      </span>
+                      <button onClick={() => setCancelDupAberto(true)} style={btn('#64748b')}>
+                        <XCircle size={14} /> Cancelar como duplicada…
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 9 }}>
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.4, display: 'block', marginBottom: 4 }}>
+                          Nº da garantia ORIGINAL (a que fica valendo)
+                        </label>
+                        <input
+                          value={cancelDupNumero}
+                          onChange={(e) => setCancelDupNumero(e.target.value)}
+                          placeholder="Ex: GAR-0070"
+                          autoFocus
+                          style={{ ...taStyle, resize: 'none' } as React.CSSProperties}
+                        />
+                      </div>
+                      <span style={{ fontSize: 12, color: 'var(--portal-text-muted)', lineHeight: 1.5 }}>
+                        Esta garantia sai do quadro (vai pra Finalizadas) e não reabre pela tela.
+                        A original segue normal e ganha uma nota na timeline.
+                      </span>
+                      <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                        <button onClick={() => { setCancelDupAberto(false); setCancelDupNumero(''); }}
+                          style={{ padding: '7px 13px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                          Voltar
+                        </button>
+                        <button onClick={cancelarDuplicada} disabled={!!busy || !cancelDupNumero.trim()}
+                          style={btn('#64748b', !!busy || !cancelDupNumero.trim())}>
+                          {busy === 'cancelar_duplicada' ? <Loader2 size={15} className="spin" /> : <XCircle size={15} />}
+                          Cancelar garantia (duplicada)
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </Secao>
+              )}
+
+              {/* Cancelada por duplicação */}
+              {cancelada && (
+                <Secao titulo="Garantia cancelada — duplicada" icone={<XCircle size={14} />}>
+                  <div style={{ fontSize: 13, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 8, padding: '10px 12px', lineHeight: 1.6 }}>
+                    Cancelada por <b>duplicação</b>{g.cancelada_em ? ` em ${fmtDataHora(g.cancelada_em)}` : ''} — o caso é o
+                    mesmo da <b>{g.duplicada_de_numero || 'garantia original'}</b>, que segue valendo.
+                    {g.duplicada_de && (
+                      <>
+                        {' '}
+                        <a href={`/garantias?id=${g.duplicada_de}`} style={{ color: '#2563eb', fontWeight: 700, textDecoration: 'none' }}>
+                          Abrir a {g.duplicada_de_numero || 'original'} →
+                        </a>
+                      </>
+                    )}
+                  </div>
+                </Secao>
+              )}
+
               {/* Finalizada */}
-              {finalizada && (
+              {finalizada && !cancelada && (
                 <Secao
                   titulo={g.status === 'aprovada' ? 'Garantia aprovada' : 'Garantia recusada'}
                   icone={g.status === 'aprovada' ? <CheckCircle2 size={14} /> : <XCircle size={14} />}

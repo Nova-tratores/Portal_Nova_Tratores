@@ -43,6 +43,7 @@ export const STATUS_ORDEM: GarantiaStatus[] = [
   'ressarcimento_fabrica',
   'aprovada',
   'rejeitada',
+  'cancelada',
 ];
 
 export const STATUS_LABEL: Record<GarantiaStatus, string> = {
@@ -55,6 +56,7 @@ export const STATUS_LABEL: Record<GarantiaStatus, string> = {
   ressarcimento_fabrica: 'Ressarcimento na fábrica',
   aprovada:              'Aprovada',
   rejeitada:             'Rejeitada',
+  cancelada:             'Cancelada (duplicada)',
 };
 
 // Cores por status (badges / colunas do Kanban)
@@ -68,6 +70,7 @@ export const STATUS_COR: Record<GarantiaStatus, string> = {
   ressarcimento_fabrica: '#c026d3',
   aprovada:              '#16a34a',
   rejeitada:             '#dc2626',
+  cancelada:             '#64748b',
 };
 
 // Etiqueta exibida na OS (Pós-Vendas)
@@ -81,10 +84,11 @@ export const OS_BADGE_LABEL: Record<GarantiaStatus, string> = {
   ressarcimento_fabrica: 'Ressarcimento na fábrica',
   aprovada:              'Garantia paga',
   rejeitada:             'Garantia não paga',
+  cancelada:             'Garantia cancelada (duplicada)',
 };
 
 // Status terminais
-export const STATUS_FINALIZADOS: GarantiaStatus[] = ['aprovada', 'rejeitada'];
+export const STATUS_FINALIZADOS: GarantiaStatus[] = ['aprovada', 'rejeitada', 'cancelada'];
 
 // Transições legais (documentação do fluxo — as rotas validam status na mão).
 // aguardando_servico/ressarcimento_fabrica: só montadoras com fluxo duas_etapas.
@@ -98,6 +102,9 @@ export const TRANSICOES: Record<GarantiaStatus, GarantiaStatus[]> = {
   ressarcimento_fabrica: ['info_pendente', 'aprovada', 'rejeitada'],
   aprovada:              [],
   rejeitada:             [],
+  // cancelada não entra no pipeline: só nasce pela ação "cancelar por
+  // duplicação" (qualquer status não-finalizado → cancelada) e é terminal
+  cancelada:             [],
 };
 
 // Tipos de campo do checklist configurável
