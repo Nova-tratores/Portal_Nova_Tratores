@@ -58,6 +58,7 @@ export const AGENDAMENTOS: Agendamento[] = [
     horarioBRT: '06:00–19:00 BRT',
     alvo: 'GET /api/estoque/cron/sync-recebimentos',
     arquivo: '.github/workflows/estoque-sync-recebimentos.yml',
+    obs: 'Em seguida roda o motor de alocação: abre demanda para peça recebida sem Prateleira/Andar/Caixa e fecha as já alocadas (painel "A alocar" em /ajustes/caracteristicas)',
   },
   {
     nome: 'Sync rápido de saldo',

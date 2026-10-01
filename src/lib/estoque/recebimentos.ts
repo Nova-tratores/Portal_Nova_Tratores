@@ -63,6 +63,7 @@ type RecebRow = Json & {
   qtd_maquinas?: number | null;
   produtos?: unknown;
   qtd_itens?: number | null;
+  recebido_em?: string | null;
 };
 interface RecebMeta {
   id_receb: number;
@@ -539,7 +540,18 @@ function recebOmieParaRow(reg: Json, contaLowStr: string): RecebRow | null {
     qtd_maquinas: maquinas.length,
     produtos,
     qtd_itens: produtos.length,
+    // Data do recebimento como COLUNA (só existia dentro de dados_raw, em DD/MM/AAAA):
+    // é o filtro do motor de alocação (src/lib/pecas/alocacao-server.ts).
+    recebido_em: status === 'Recebida' ? dataParaIso(pick(info, 'dRec')) : null,
   };
+}
+
+// Coluna `recebido_em` vem de sql/pecas-alocacao-pendencias.sql. Enquanto a migration
+// não for aplicada o upsert com ela falha — então, no 1º erro, o sync passa a gravar
+// SEM a coluna (até o processo reiniciar) em vez de parar de sincronizar.
+let colunaRecebidoEm = true;
+function semRecebidoEm(rows: RecebRow[]): RecebRow[] {
+  return rows.map((r) => { const { recebido_em: _fora, ...resto } = r; void _fora; return resto as RecebRow; });
 }
 
 interface ListarRecebOmieResp {
@@ -592,7 +604,13 @@ export async function sincronizarRecebimentos(conta: Conta): Promise<RecebSyncEs
         if (row) rows.push(row);
       }
       if (rows.length > 0) {
-        const { error } = await supabase.from('recebimentos_nfe').upsert(rows, { onConflict: 'conta_omie,id_receb' });
+        let { error } = await supabase.from('recebimentos_nfe')
+          .upsert(colunaRecebidoEm ? rows : semRecebidoEm(rows), { onConflict: 'conta_omie,id_receb' });
+        if (error && colunaRecebidoEm && /recebido_em/i.test(error.message)) {
+          colunaRecebidoEm = false;
+          console.warn('[sync-recebimentos] coluna recebido_em ausente — aplicar sql/pecas-alocacao-pendencias.sql');
+          ({ error } = await supabase.from('recebimentos_nfe').upsert(semRecebidoEm(rows), { onConflict: 'conta_omie,id_receb' }));
+        }
         if (error) {
           estado.erro = error.message;
           break;

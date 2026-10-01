@@ -9,7 +9,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
-import { Settings, Flag, AlertTriangle, Pencil, Layers, CheckCircle } from 'lucide-react';
+import { Settings, Flag, AlertTriangle, Pencil, Layers, CheckCircle, PackageOpen } from 'lucide-react';
+import PainelAlocacao, { useAlocacao } from '@/components/ajustes/PainelAlocacao';
+import { norm as normPos, type Pos, type ProdutoLoc } from '@/lib/ajustes/posicao';
 
 // ---------- tipos ----------
 interface Produto {
@@ -426,6 +428,58 @@ export default function CaracteristicasPage() {
   const [colunasOcultas, setColunasOcultas] = useState<string[]>([]);
   const [seletorAberto, setSeletorAberto] = useState(false);
   const [flashAberto, setFlashAberto] = useState(false); // modo "Conferir" (flashcard)
+  // "A alocar": peças RECEBIDAS sem Prateleira/Andar/Caixa. A demanda nasce sozinha no
+  // recebimento da nota e fecha sozinha quando a locação fica completa (qualquer tela).
+  const [painelAlocar, setPainelAlocar] = useState(false);
+  const [soAlocar, setSoAlocar] = useState(false);          // chip: matriz só com as peças a alocar
+  const [focoAlocar, setFocoAlocar] = useState<string | null>(null);
+  const alocacao = useAlocacao(!permLoading && !!userProfile && pode('ajustes', 'caracteristicas'));
+  const recarregarAlocacao = alocacao.recarregar;
+  const chavesAlocar = useMemo(() => new Set(alocacao.lista.grupos.map((g) => g.chave)), [alocacao.lista.grupos]);
+  // deep-link da notificação: /ajustes/caracteristicas?alocar=1[&cod=<código>]
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (q.get('alocar') === '1') { setFocoAlocar(q.get('cod')); setPainelAlocar(true); }
+  }, []);
+  // reflete na matriz a posição gravada pelo painel (sem recarregar as ~10 mil linhas)
+  const aplicarLocacaoLocal = useCallback((alvo: ProdutoLoc, pos: Pos, liberados: ProdutoLoc[]) => {
+    setDados((prev) => {
+      const cols = prev.colunas || [];
+      // usa a chave REAL (casing da Omie) da peça ou da matriz; só cai na canônica se não houver
+      const chaveReal = (car: Record<string, string>, canon: string): string =>
+        Object.keys(car).find((k) => normPos(k) === normPos(canon)) ?? cols.find((k) => normPos(k) === normPos(canon)) ?? canon;
+      const mesmo = (x: Produto, a: ProdutoLoc) => x.empresa === a.empresa && String(x.codigo_produto) === String(a.codigo_produto);
+      const limpar = (car: Record<string, string>, chaves: string[]) => {
+        for (const c of chaves) { const k = Object.keys(car).find((x) => normPos(x) === normPos(c)); if (k) car[k] = ''; }
+      };
+      let achou = false;
+      const produtos = (prev.produtos || []).map((x) => {
+        if (mesmo(x, alvo)) {
+          achou = true;
+          const car = { ...(x.caracteristicas || {}) };
+          car[chaveReal(car, '#PRATELEIRA')] = pos.prat;
+          car[chaveReal(car, '#ANDAR')] = pos.andar;
+          car[chaveReal(car, '#CAIXA')] = pos.caixa;
+          limpar(car, ['#ANDAR2', '#CAIXA2']);
+          return { ...x, caracteristicas: car };
+        }
+        if (liberados.some((l) => mesmo(x, l))) {
+          const car = { ...(x.caracteristicas || {}) };
+          limpar(car, ['#PRATELEIRA', '#ANDAR', '#CAIXA', '#ANDAR2', '#CAIXA2']);
+          return { ...x, caracteristicas: car };
+        }
+        return x;
+      });
+      // peça criada na própria entrada: ainda não estava na matriz carregada
+      if (!achou) {
+        produtos.push({
+          empresa: alvo.empresa, codigo_produto: alvo.codigo_produto, codigo: alvo.codigo, descricao: alvo.descricao,
+          caracteristicas: { [chaveReal({}, '#PRATELEIRA')]: pos.prat, [chaveReal({}, '#ANDAR')]: pos.andar, [chaveReal({}, '#CAIXA')]: pos.caixa },
+        });
+      }
+      return { ...prev, produtos };
+    });
+  }, []);
   const isTouch = useIsTouch();                          // tablet: bandeira sempre visivel
   // prefs de colunas (ordem + ocultas): carregadas do Supabase, com fallback localStorage.
   const prefsCarregadasRef = useRef(false);            // trava o loader async (roda 1x)
@@ -664,6 +718,7 @@ export default function CaracteristicasPage() {
     const termo = filtro.trim().toLowerCase();
     let arr = dados.produtos || [];
     if (empFiltro) arr = arr.filter((p) => p.empresa === empFiltro);
+    if (soAlocar) arr = arr.filter((p) => chavesAlocar.has(`${p.empresa}|${p.codigo_produto}`));
     if (termo) {
       arr = arr.filter((p) =>
         String(p.codigo || '').toLowerCase().includes(termo) ||
@@ -686,7 +741,7 @@ export default function CaracteristicasPage() {
       });
     }
     return arr;
-  }, [dados.produtos, filtro, empFiltro, filtros, sorts, valCol]);
+  }, [dados.produtos, filtro, empFiltro, filtros, sorts, valCol, soAlocar, chavesAlocar]);
 
   // Clique normal: define a coluna como criterio PRINCIPAL (inverte se ja for) e limpa a
   // secundaria. Shift+clique: adiciona/inverte como 2o criterio (desempate), max 2 niveis.
@@ -842,12 +897,13 @@ export default function CaracteristicasPage() {
         return { ...prev, produtos, colunas };
       });
       setMsg(`Gravado: ${col} = "${d.conteudo}"`, 'ok');
+      if (/^#(prateleira|andar|caixa)2?$/.test(normPos(col))) void recarregarAlocacao();
     } catch (ex) {
       setMsg('Erro de rede: ' + (ex as Error).message, 'erro');
     } finally {
       setSalvandoCelula(null);
     }
-  }, [setMsg]);
+  }, [setMsg, recarregarAlocacao]);
 
   const commitEdicao = useCallback((p: Produto) => {
     if (!editando) return;
@@ -983,17 +1039,41 @@ export default function CaracteristicasPage() {
             {empresas.map((e) => <option key={e} value={e}>{e}</option>)}
           </select>
         </div>
+        {alocacao.lista.totais.pecas > 0 && (
+          <label title="Mostra na matriz só as peças recebidas que ainda não têm Prateleira/Andar/Caixa"
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.78rem', color: soAlocar ? '#b45309' : '#475569', fontWeight: 600, cursor: 'pointer', padding: '6px 10px', border: `1px solid ${soAlocar ? '#fcd34d' : '#cbd5e1'}`, borderRadius: 999, background: soAlocar ? '#fffbeb' : '#fefefe' }}>
+            <input type="checkbox" checked={soAlocar} onChange={(e) => setSoAlocar(e.target.checked)} />
+            Só a alocar
+          </label>
+        )}
         <ControleOrdenacao cols={colsVisiveis.map((c) => ({ key: c, label: labelCol(c) }))} sorts={sorts} setSorts={setSorts} />
         <button onClick={abrirSugestoes} disabled={rodando} style={{ padding: '7px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: rodando ? 0.5 : 1 }} title="Sugere o Tipo: para produtos com o campo vazio">Sugerir Tipo:</button>
         <button onClick={exportarCSV} style={{ padding: '7px 14px', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Exportar CSV</button>
         <button onClick={gerarPDF} title="Gera um PDF (A4 paisagem) com todas as colunas da tela, respeitando os filtros e a ordenacao" style={{ padding: '7px 14px', background: '#dc2626', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer' }}>Gerar PDF</button>
         <button onClick={sincronizar} disabled={rodando} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: rodando ? 'wait' : 'pointer', opacity: rodando ? 0.5 : 1 }}>{rodando ? 'Sincronizando…' : 'Sincronizar agora'}</button>
+        <button onClick={() => setPainelAlocar(true)} title="Peças recebidas (nota de entrada) que ainda não têm Prateleira/Andar/Caixa"
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: alocacao.lista.totais.pecas > 0 ? '#b45309' : '#64748b', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', fontWeight: 600 }}>
+          <PackageOpen size={15} /> A alocar{alocacao.lista.totais.pecas > 0 ? ` (${alocacao.lista.totais.pecas})` : ''}
+        </button>
         <button onClick={() => setFlashAberto(true)} disabled={linhas.length === 0} title="Conferir um produto por vez (bom no tablet): sinalizar/corrigir cada caracteristica"
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: linhas.length === 0 ? 'not-allowed' : 'pointer', opacity: linhas.length === 0 ? 0.5 : 1 }}>
           <Layers size={15} /> Conferir
         </button>
         <MenuEngrenagem ocultasCount={colunasOcultas.length} onColunas={() => setSeletorAberto(true)} onRestaurar={restaurarOrdem} />
       </div>
+
+      {painelAlocar && (
+        <PainelAlocacao
+          lista={alocacao.lista}
+          carregando={alocacao.carregando}
+          erro={alocacao.erro}
+          recarregar={recarregarAlocacao}
+          produtos={dados.produtos || []}
+          focoCod={focoAlocar}
+          onFechar={() => setPainelAlocar(false)}
+          onLocacaoGravada={aplicarLocacaoLocal}
+        />
+      )}
 
       {flashAberto && (
         <ModalFlashcard

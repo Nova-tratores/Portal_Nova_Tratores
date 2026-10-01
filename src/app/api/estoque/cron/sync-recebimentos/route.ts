@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sincronizarRecebimentosTodasContas } from '@/lib/estoque/recebimentos';
 import { comCronRun } from '@/lib/cron/observar';
+import { sincronizarAlocacao } from '@/lib/pecas/alocacao-server';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -21,7 +22,17 @@ export async function GET(req: NextRequest) {
   if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  comCronRun('estoque-sync-recebimentos', () => sincronizarRecebimentosTodasContas(), { lockMinutos: 20 })
+  comCronRun('estoque-sync-recebimentos', async () => {
+    const sync = await sincronizarRecebimentosTodasContas();
+    // Depois do espelho atualizado: abre demanda de ALOCAÇÃO para peça recebida sem
+    // locação e fecha as já alocadas. Erro aqui não pode derrubar o sync.
+    try {
+      const a = await sincronizarAlocacao();
+      if (a.pulado) console.log('[alocacao]', a.pulado);
+      else if (a.abertas || a.fechadas) console.log(`[alocacao] abertas=${a.abertas} (${a.pecasNovas} peças) fechadas=${a.fechadas} notificados=${a.notificados}`);
+    } catch (e) { console.error('[alocacao] erro', (e as Error).message); }
+    return sync;
+  }, { lockMinutos: 20 })
     .then((r) => { if (r.pulado) console.log('[cron sync-recebimentos] pulado (já rodando)'); else if (r.erro) console.error('[cron sync-recebimentos bg]', r.erro); })
     .catch((e) => console.error('[cron sync-recebimentos bg]', (e as Error).message));
   return NextResponse.json({ ok: true, background: true, timestamp: new Date().toISOString() }, { status: 202 });

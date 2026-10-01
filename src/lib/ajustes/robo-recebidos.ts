@@ -22,6 +22,7 @@ import { hoje, addDias, parseAnyDate } from './dates';
 import { listarSemFamilia, alterarFamiliaProduto } from './familias';
 import { sugerirTipoDaDescricao } from './caracteristicas';
 import { baterHeartbeat } from '@/lib/agendamentos/heartbeat';
+import { responsavelClassificacao } from '@/lib/pecas/alocacao-server';
 
 // codigo_familia "Peças" — é POR EMPRESA no Omie (NÃO é o mesmo nas duas!).
 // CASTRO=5553603814, NOVA=2130452767. Usar o código errado faz o AlterarProduto
@@ -39,24 +40,8 @@ function familiaPecas(conta: Conta): number | null {
   return FAMILIA_PECAS[contaLow(conta)] ?? null;
 }
 
-/** Responsável pela CLASSIFICAÇÃO (confirmar família/localização/Tipo). Configurável em
- *  recebimento_classificacao_responsavel; fallback = responsável de peças do recebimento. */
-async function responsavelClassificacao(conta: Conta): Promise<string | null> {
-  const low = contaLow(conta);
-  const { data } = await supabase
-    .from('recebimento_classificacao_responsavel')
-    .select('responsavel_user_id')
-    .eq('conta_omie', low)
-    .maybeSingle();
-  if ((data as any)?.responsavel_user_id) return (data as any).responsavel_user_id;
-  const { data: fb } = await supabase
-    .from('recebimento_tipo_responsavel')
-    .select('responsavel_user_id')
-    .eq('conta_omie', low)
-    .eq('tipo', 'pecas')
-    .maybeSingle();
-  return (fb as any)?.responsavel_user_id || null;
-}
+// Responsável pela CLASSIFICAÇÃO (confirmar família/Tipo): `responsavelClassificacao`
+// mora em src/lib/pecas/alocacao-server.ts (mesmo cadastro da demanda de alocação).
 
 async function criarTarefa(userId: string, titulo: string, descricao: string): Promise<number | null> {
   const { data, error } = await supabase
@@ -115,15 +100,16 @@ export async function classificarRecebidos(conta: Conta, opts: { dry?: boolean }
     let tipoSug: string | null = null;
     try { tipoSug = (await sugerirTipoDaDescricao(conta, p.descricao)).tipo; } catch { /* segue sem sugestão */ }
 
-    let tarefaLoc: number | null = null, tarefaTipo: number | null = null;
+    // A tarefa "📍 Confirmar localização" saiu em 01/10/2026: a LOCAÇÃO agora é
+    // cobrada pela demanda de alocação (pecas_alocacao_pendencias, painel "A alocar"
+    // de /ajustes/caracteristicas), que abre no recebimento e fecha sozinha. Duas
+    // cobranças para a mesma peça só geravam tarefa esquecida em /tarefas.
+    const tarefaLoc: number | null = null;
+    let tarefaTipo: number | null = null;
     if (resp) {
-      tarefaLoc = await criarTarefa(resp,
-        `📍 Confirmar localização: ${p.codigo} — ${p.descricao}`,
-        `Produto recebido (${String(conta).toUpperCase()}) classificado automaticamente como Peças. Defina a posição em /ajustes/localizacao (#PRATELEIRA/#ANDAR/#CAIXA) e conclua esta tarefa.`);
       tarefaTipo = await criarTarefa(resp,
         `🏷️ Confirmar Tipo: ${p.codigo} — ${p.descricao}`,
         `Sugestão de Tipo: ${tipoSug || '(sem sugestão — definir manualmente)'}. Confirme em /ajustes/caracteristicas e conclua esta tarefa.`);
-      if (tarefaLoc) tarefas++;
       if (tarefaTipo) tarefas++;
     }
 

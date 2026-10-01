@@ -13,55 +13,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
+import { norm, getCar, posDe, chaveProd, labelSeg, posInvalida, posLabel, cmpSeg, ocupantesDe, type ProdutoLoc as Produto, type Pos } from '@/lib/ajustes/posicao';
+import { ModalMover, AvisoOcupado } from '@/components/ajustes/ModalMoverPeca';
 import { ChevronRight, ChevronDown, MapPin, AlertTriangle, Search, ArrowRightLeft, X, PackageOpen, Trash2, Plus, Tag, CheckCircle, ClipboardCheck } from 'lucide-react';
 
-// ---------- tipos ----------
-interface Produto {
-  empresa: string; codigo_produto: number | string; codigo?: string; descricao?: string;
-  modelo?: string; marca?: string; estoque?: number;
-  caracteristicas?: Record<string, string>;
-}
-interface Pos { prat: string; andar: string; caixa: string }
-
-// ---------- helpers ----------
-function norm(s: string): string { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase(); }
-// lê uma característica pelo nome canônico, sem se importar com casing/acento
-function getCar(car: Record<string, string> | undefined, canon: string): string {
-  if (!car) return '';
-  const alvo = norm(canon);
-  for (const k of Object.keys(car)) if (norm(k) === alvo) return String(car[k] ?? '');
-  return '';
-}
-// posição efetiva da peça (coalesce das secundárias raras)
-function posDe(p: Produto): Pos & { temLoc: boolean } {
-  const car = p.caracteristicas;
-  const prat = getCar(car, '#PRATELEIRA').trim();
-  const andar = (getCar(car, '#ANDAR') || getCar(car, '#ANDAR2')).trim();
-  const caixa = (getCar(car, '#CAIXA') || getCar(car, '#CAIXA2')).trim();
-  return { prat, andar, caixa, temLoc: !!(prat || andar || caixa) };
-}
-function chaveProd(p: { empresa: string; codigo_produto: number | string }): string { return `${p.empresa}|${p.codigo_produto}`; }
-function labelSeg(v: string): string { return v.trim() === '' ? '—' : v; }
-// segmento "placeholder"/sujo (XXX / 000 / 0000 / ---) — dado inválido de localização
-function segPlaceholder(v: string): boolean {
-  const s = v.trim();
-  if (s === '') return false;
-  return /^0+$/.test(s) || /^x+$/i.test(s) || /^-+$/.test(s);
-}
-// posição inválida: qualquer segmento preenchido é placeholder
-function posInvalida(pos: Pos): boolean {
-  return segPlaceholder(pos.prat) || segPlaceholder(pos.andar) || segPlaceholder(pos.caixa);
-}
-// posição legível (para a lista "a corrigir")
-function posLabel(pos: Pos): string { return `${labelSeg(pos.prat)} · ${labelSeg(pos.andar)} · ${labelSeg(pos.caixa)}`; }
-// ordena segmentos: vazio ('—') por último, resto numérico-aware
-function cmpSeg(a: string, b: string): number {
-  const ae = a.trim() === '', be = b.trim() === '';
-  if (ae && be) return 0;
-  if (ae) return 1;
-  if (be) return -1;
-  return a.localeCompare(b, 'pt-BR', { numeric: true, sensitivity: 'base' });
-}
+// tipos e helpers de posição: src/lib/ajustes/posicao.ts (compartilhados com o painel "A alocar")
 
 // remove todas as chaves de localização (qualquer casing) do objeto de características
 function limparLocKeys(car: Record<string, string>): Record<string, string> {
@@ -557,36 +513,7 @@ function LocalizacaoInvalida({ itens, termo, casa, podeEditar, onMover, onRemove
   );
 }
 
-// ---------------------------------------------------------------------------
-// Ocupantes de uma posição (exceto o próprio alvo), da empresa
-function ocupantesDe(produtosEmpresa: Produto[], pos: Pos, excetoKey?: string): Produto[] {
-  return produtosEmpresa.filter((p) => {
-    if (excetoKey && chaveProd(p) === excetoKey) return false;
-    const q = posDe(p);
-    return q.prat === pos.prat.trim() && q.andar === pos.andar.trim() && q.caixa === pos.caixa.trim();
-  });
-}
-
-// aviso de destino ocupado (avisar e deixar decidir): liberar todos ou manter (conflito)
-function AvisoOcupado({ ocupantes, liberar, setLiberar }: { ocupantes: Produto[]; liberar: boolean; setLiberar: (v: boolean) => void }) {
-  if (ocupantes.length === 0) return null;
-  return (
-    <div style={{ background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 8, padding: 10, marginTop: 10 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#b45309', fontWeight: 700, fontSize: '.8rem' }}>
-        <AlertTriangle size={15} /> Posição já ocupada por {ocupantes.length} peça(s)
-      </div>
-      <ul style={{ margin: '6px 0 8px', paddingLeft: 22, color: '#475569', fontSize: '.76rem' }}>
-        {ocupantes.slice(0, 6).map((o) => <li key={chaveProd(o)}>{o.codigo || o.codigo_produto} — {o.descricao || ''}</li>)}
-        {ocupantes.length > 6 && <li>… +{ocupantes.length - 6}</li>}
-      </ul>
-      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '.78rem', color: '#334155', cursor: 'pointer' }}>
-        <input type="checkbox" checked={liberar} onChange={(e) => setLiberar(e.target.checked)} />
-        Liberar a(s) peça(s) atual(is) desta posição (fica só a nova)
-      </label>
-      {!liberar && <div style={{ color: '#b45309', fontSize: '.72rem', marginTop: 4 }}>Sem marcar, a posição fica com <b>conflito</b> (mais de uma peça).</div>}
-    </div>
-  );
-}
+// ocupantesDe / AvisoOcupado / ModalMover / Campo: src/components/ajustes/ModalMoverPeca.tsx
 
 const modalWrap: React.CSSProperties = { position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 12 };
 const modalCard: React.CSSProperties = { ...box, width: 'min(560px, 96vw)', maxHeight: '90vh', overflow: 'auto', padding: 16 };
@@ -690,52 +617,6 @@ function ModalConferirPosicao({ deck, daEmpresa, conferidas, onMarcar, onTrocar,
 }
 
 // ---------------------------------------------------------------------------
-// Mover ESTE produto para uma posição digitada
-function ModalMover({ produto, produtosEmpresa, salvando, onCancelar, onConfirmar }: {
-  produto: Produto; produtosEmpresa: Produto[]; salvando: boolean;
-  onCancelar: () => void; onConfirmar: (target: Produto, pos: Pos, liberar: Produto[]) => void;
-}) {
-  const atual = posDe(produto);
-  const [prat, setPrat] = useState(atual.prat);
-  const [andar, setAndar] = useState(atual.andar);
-  const [caixa, setCaixa] = useState(atual.caixa);
-  const [liberar, setLiberar] = useState(false);
-  // sugestões (datalist) a partir dos valores existentes
-  const sugP = useMemo(() => Array.from(new Set(produtosEmpresa.map((p) => posDe(p).prat).filter(Boolean))).sort(cmpSeg), [produtosEmpresa]);
-  const sugA = useMemo(() => Array.from(new Set(produtosEmpresa.map((p) => posDe(p).andar).filter(Boolean))).sort(cmpSeg), [produtosEmpresa]);
-  const sugC = useMemo(() => Array.from(new Set(produtosEmpresa.map((p) => posDe(p).caixa).filter(Boolean))).sort(cmpSeg), [produtosEmpresa]);
-  const pos: Pos = { prat: prat.trim(), andar: andar.trim(), caixa: caixa.trim() };
-  const ocupantes = ocupantesDe(produtosEmpresa, pos, chaveProd(produto));
-  const vazio = !pos.prat && !pos.andar && !pos.caixa;
-
-  return (
-    <div style={modalWrap} onClick={onCancelar}>
-      <div style={modalCard} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
-          <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>Mover peça</h2>
-          <button onClick={onCancelar} style={{ ...btn, marginLeft: 'auto', padding: 6 }}><X size={16} /></button>
-        </div>
-        <div style={{ color: '#334155', fontSize: '.82rem', marginBottom: 4 }}><b>{produto.codigo || produto.codigo_produto}</b> — {produto.descricao || ''}</div>
-        <div style={{ color: '#94a3b8', fontSize: '.74rem', marginBottom: 10 }}>Empresa {produto.empresa} · atual: {labelSeg(atual.prat)} · {labelSeg(atual.andar)} · {labelSeg(atual.caixa)}</div>
-        <datalist id="sug-prat">{sugP.map((v) => <option key={v} value={v} />)}</datalist>
-        <datalist id="sug-andar">{sugA.map((v) => <option key={v} value={v} />)}</datalist>
-        <datalist id="sug-caixa">{sugC.map((v) => <option key={v} value={v} />)}</datalist>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
-          <Campo rotulo="Prateleira" v={prat} set={setPrat} list="sug-prat" />
-          <Campo rotulo="Andar" v={andar} set={setAndar} list="sug-andar" />
-          <Campo rotulo="Caixa" v={caixa} set={setCaixa} list="sug-caixa" />
-        </div>
-        <AvisoOcupado ocupantes={ocupantes} liberar={liberar} setLiberar={setLiberar} />
-        <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
-          <button onClick={onCancelar} style={btn}>Cancelar</button>
-          <button disabled={salvando || vazio} onClick={() => onConfirmar(produto, pos, liberar ? ocupantes : [])}
-            style={{ ...btnPrim, opacity: salvando || vazio ? .6 : 1 }}>{salvando ? 'Gravando…' : 'Mover para cá'}</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // Colocar / trocar produto NESTA posição (escolhe a peça por busca)
 function ModalColocar({ posicao, produtosEmpresa, salvando, onCancelar, onConfirmar }: {
   posicao: Pos; produtosEmpresa: Produto[]; salvando: boolean;
@@ -798,15 +679,5 @@ function ModalColocar({ posicao, produtosEmpresa, salvando, onCancelar, onConfir
         )}
       </div>
     </div>
-  );
-}
-
-function Campo({ rotulo, v, set, list }: { rotulo: string; v: string; set: (s: string) => void; list: string }) {
-  return (
-    <label style={{ fontSize: '.72rem', color: '#64748b', fontWeight: 600 }}>
-      {rotulo}
-      <input value={v} onChange={(e) => set(e.target.value)} list={list}
-        style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 8, padding: '8px 10px', fontSize: '.9rem', marginTop: 3, fontWeight: 500, color: '#0f172a' }} />
-    </label>
   );
 }

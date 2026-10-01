@@ -15,6 +15,8 @@ import { listarProdutos, gravarCaractProduto, listarCaracteristicas, sleep } fro
 import { decodeOmieTexto } from '@/lib/omie/texto';
 import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando } from './jobs';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
+import { fecharSeAlocada } from '@/lib/pecas/alocacao-server';
+import { norm as normCaract } from './posicao';
 
 // Identidade (do token, resolvida na rota) para auditar quem editou a característica.
 export interface AutorEdicao { userId?: string; userName: string }
@@ -222,6 +224,16 @@ async function atualizarCaractSupabase(label: string, codigoProduto: number | st
   const car = (data && (data as any).caracteristicas) || {};
   const valorAntigo = car[nome] == null ? '' : String(car[nome]);
   car[nome] = conteudo == null ? '' : String(conteudo);
+  // Peça ainda fora do espelho (cadastrada depois do último sync): antes o update
+  // atingia 0 linhas em silêncio — a Omie era gravada e o portal não mostrava.
+  // Agora a linha nasce aqui; o sync diário completa código/descrição.
+  if (!data) {
+    const { error: insErr } = await supabase
+      .from('produtos_caracteristicas')
+      .insert({ conta_omie: label, codigo_produto: codigoProduto, caracteristicas: car, atualizado_em: new Date().toISOString() });
+    if (insErr) throw insErr;
+    return { valorAntigo, codigo: null, descricao: null };
+  }
   const { error: upErr } = await supabase
     .from('produtos_caracteristicas')
     .update({ caracteristicas: car, atualizado_em: new Date().toISOString() })
@@ -259,8 +271,13 @@ export async function editarCaractProduto(empresa: string, codigoProduto: number
       detalhes: { empresa: empresaLabel, codigo_produto: cp, codigo, descricao, caracteristica: nome, de: valorAntigo, para: novo },
     });
   }
+  // Gravou característica de LOCAÇÃO → se a peça ficou com Prateleira/Andar/Caixa,
+  // fecha a demanda de alocação dela (peça recebida sem endereço). Nunca lança.
+  if (CHAVES_LOCACAO.has(normCaract(nome)) && novo.trim() !== '') await fecharSeAlocada(empresaLabel, cp, autor);
   return { ok: true, nome, conteudo: novo };
 }
+
+const CHAVES_LOCACAO = new Set(['#prateleira', '#andar', '#caixa', '#andar2', '#caixa2']);
 
 /** Catálogo da Omie: valores permitidos por característica (união + por empresa). */
 export async function catalogoCaracteristicas(): Promise<any> {
