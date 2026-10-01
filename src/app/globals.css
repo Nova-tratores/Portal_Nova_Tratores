@@ -5021,3 +5021,29 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
 [data-theme="dark"] .ppv-mini-card select {
   background: #fefefe !important;
 }
+
+/* ---- Tickets: anexo na timeline (chip clicável) ---- */
+.ticket-anexo-link {
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 2px 9px; border-radius: 999px;
+  font-weight: 700; font-size: 12.5px; line-height: 1.4;
+  color: #1d4ed8; background: rgba(37, 99, 235, .08);
+  border: 1px solid rgba(37, 99, 235, .35);
+  text-decoration: none; cursor: pointer; vertical-align: middle;
+  transition: background .12s, border-color .12s;
+}
+.ticket-anexo-link:hover { background: rgba(37, 99, 235, .16); border-color: #2563eb; }
+[data-theme="dark"] .ticket-anexo-link { color: #93c5fd; background: rgba(147, 197, 253, .12); border-color: rgba(147, 197, 253, .45); }
+[data-theme="dark"] .ticket-anexo-link:hover { background: rgba(147, 197, 253, .22); border-color: #93c5fd; }
+.ticket-anexo-img {
+  position: relative; display: block; width: fit-content; margin-top: 6px;
+  border: 1px solid var(--portal-border, #eee); border-radius: 8px; overflow: hidden;
+  cursor: zoom-in; transition: box-shadow .12s, border-color .12s;
+}
+.ticket-anexo-img:hover { border-color: #2563eb; box-shadow: 0 0 0 2px rgba(37, 99, 235, .25); }
+.ticket-anexo-img-rotulo {
+  position: absolute; right: 6px; bottom: 6px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 700;
+  color: #fefefe; background: rgba(17, 17, 17, .72); pointer-events: none;
+}

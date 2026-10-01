@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Send, User as UserIcon, Users, CalendarDays, Tag, Building2, Lock, Globe,
   ArrowRightLeft, BellRing, Plus, X, MessageSquare, CircleDot, PenLine, Paperclip,
-  CheckCircle2, RotateCcw, Ban, Clock, Link2, Unlink, ShoppingCart, Package,
+  CheckCircle2, RotateCcw, Ban, Clock, Link2, Unlink, ShoppingCart, Package, ExternalLink,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -363,15 +363,27 @@ export default function TicketDetalhePage({ params }: { params: Promise<{ id: st
               else if (e.tipo === 'anexo') {
                 const urlAnexo = typeof e.payload.url === 'string' ? e.payload.url : ''
                 const ehImagem = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(urlAnexo)
+                const nomeAnexo = String(e.payload.nome || 'um arquivo')
+                // Chip com clipe + sublinhado + ícone de "abre em nova aba": deixa
+                // claro que o anexo é clicável (antes era só texto em negrito).
                 texto = (
                   <>
                     anexou{' '}
                     {urlAnexo
-                      ? <a href={urlAnexo} target="_blank" rel="noopener noreferrer" style={{ fontWeight: 700, color: 'inherit' }}>{String(e.payload.nome || 'um arquivo')}</a>
-                      : <strong>{String(e.payload.nome || 'um arquivo')}</strong>}
+                      ? (
+                        <a href={urlAnexo} target="_blank" rel="noopener noreferrer" className="ticket-anexo-link"
+                          title={`Abrir "${nomeAnexo}" em nova aba`}>
+                          <Paperclip size={12} />
+                          <span style={{ textDecoration: 'underline', textUnderlineOffset: 2 }}>{nomeAnexo}</span>
+                          <ExternalLink size={11} style={{ opacity: .75 }} />
+                        </a>
+                      )
+                      : <strong>{nomeAnexo}</strong>}
                     {urlAnexo && ehImagem && (
-                      <a href={urlAnexo} target="_blank" rel="noopener noreferrer" style={{ display: 'block', marginTop: 6 }}>
-                        <img src={urlAnexo} alt={String(e.payload.nome || 'anexo')} style={{ maxWidth: 240, maxHeight: 150, borderRadius: 8, border: '1px solid var(--portal-border,#eee)', display: 'block' }} />
+                      <a href={urlAnexo} target="_blank" rel="noopener noreferrer" className="ticket-anexo-img"
+                        title={`Abrir "${nomeAnexo}" em nova aba`}>
+                        <img src={urlAnexo} alt={nomeAnexo} style={{ maxWidth: 240, maxHeight: 150, borderRadius: 8, display: 'block' }} />
+                        <span className="ticket-anexo-img-rotulo"><ExternalLink size={11} /> Abrir</span>
                       </a>
                     )}
                   </>
