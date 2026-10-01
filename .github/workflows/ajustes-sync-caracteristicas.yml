@@ -1,0 +1,25 @@
+name: Ajustes - Sync de características de peças (diário)
+
+# Atualiza o espelho `produtos_caracteristicas` (peças + características + locação
+# #PRATELEIRA/#ANDAR/#CAIXA) a partir do ListarProdutos da Omie, nas duas contas.
+# É a fonte de /ajustes/caracteristicas e das ETIQUETAS do PPV — sem este cron o
+# espelho só mudava no botão "Sincronizar agora" e peça nova não aparecia.
+# Roda às 03:00 BRT, depois do sync completo de produtos (02:00) pra não disputar
+# o rate limit da Omie. Requer os secrets PORTAL_URL e CRON_SECRET.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'    # 06:00 UTC = 03:00 BRT
+  workflow_dispatch: {}      # permite rodar manualmente
+
+jobs:
+  sync-caracteristicas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Disparar sync de características
+        run: |
+          curl -fsS --max-time 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/ajustes/caracteristicas/cron" \
+            -w "\nsync-caracteristicas: HTTP %{http_code}\n"

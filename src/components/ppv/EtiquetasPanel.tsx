@@ -23,6 +23,8 @@ interface ItemBusca {
   caracteristicas: Record<string, string> | null
   /** Data da NF de entrada (só nas "últimas compradas"). */
   chegou?: string | null
+  /** 'produtos' = cadastro novo ainda fora do sync de características (sem locação). */
+  origem?: 'caracteristicas' | 'produtos'
 }
 interface LinhaEtiqueta {
   conta: string // 'NOVA' | 'CASTRO' (cru — vai pro rastreio)
@@ -629,7 +631,14 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
                           </td>
                         )
                         if (col === 'codigo') return <td key={col} style={{ padding: '7px 10px', fontFamily: 'monospace', fontWeight: 700, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>{i.codigo}</td>
-                        if (col === 'descricao') return <td key={col} style={{ padding: '7px 10px', color: 'var(--portal-text)' }}>{i.descricao || <em style={{ color: 'var(--portal-text-muted)' }}>sem cadastro de características</em>}</td>
+                        if (col === 'descricao') return (
+                          <td key={col} style={{ padding: '7px 10px', color: 'var(--portal-text)' }}>
+                            {i.descricao || <em style={{ color: 'var(--portal-text-muted)' }}>sem cadastro de características</em>}
+                            {i.origem === 'produtos' && (
+                              <span title="Peça cadastrada na Omie depois da última sincronização de características (roda todo dia às 03:00 ou pelo botão em Ajustes → Características). A locação aparece depois dela." style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#fef3c7', color: '#92400e', whiteSpace: 'nowrap' }}>cadastro novo · sem locação</span>
+                            )}
+                          </td>
+                        )
                         const v = valColEtiq(i, col)
                         return <td key={col} style={{ padding: '7px 10px', color: 'var(--portal-text-secondary)', whiteSpace: (col.startsWith('#') || col === 'chegou') ? 'nowrap' : undefined }}>{v || '—'}</td>
                       })}

@@ -79,6 +79,17 @@ export const AGENDAMENTOS: Agendamento[] = [
     arquivo: '.github/workflows/estoque-sync-produtos.yml',
   },
   {
+    nome: 'Sync de características de peças',
+    modulo: 'Ajustes',
+    fonte: 'github',
+    cron: '0 6 * * *',
+    frequencia: 'Diário',
+    horarioBRT: '03:00 (diário)',
+    alvo: 'GET /api/ajustes/caracteristicas/cron',
+    arquivo: '.github/workflows/ajustes-sync-caracteristicas.yml',
+    obs: 'Espelho produtos_caracteristicas (/ajustes/caracteristicas e Etiquetas do PPV); também pelo botão "Sincronizar agora"',
+  },
+  {
     nome: 'Backfill CMC',
     modulo: 'Estoque',
     fonte: 'github',

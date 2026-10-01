@@ -43,15 +43,19 @@ function contaIdPorLabel(label: unknown): Conta | null {
 
 // ---- Sync (worker-ready) ----
 
-/** Inicia a varredura de características (todas as contas) em background. */
-export async function iniciarSyncCaracteristicas(criadoPor?: string): Promise<any> {
+/**
+ * Inicia a varredura de características (todas as contas) em background.
+ * Com `aguardar: true` (cron) espera o fim e devolve o resumo — a tela continua
+ * recebendo 202 na hora. O lock por job (`ajustes_jobs`) vale pros dois caminhos.
+ */
+export async function iniciarSyncCaracteristicas(criadoPor?: string, opts: { aguardar?: boolean } = {}): Promise<any> {
   if (await jobRodando('caracteristicas-sync', null)) {
     const ativo = await lerJobAtivo('caracteristicas-sync', null);
     return { ok: false, rodando: true, jaRodando: true, jobId: ativo?.id, etapa: ativo?.etapa };
   }
   const jobId = await criarJob('caracteristicas-sync', null, criadoPor);
 
-  (async () => {
+  const execucao = (async () => {
     const porConta: Record<string, number> = {};
     try {
       for (const c of getContasOmie()) {
@@ -91,12 +95,16 @@ export async function iniciarSyncCaracteristicas(criadoPor?: string): Promise<an
       }
       const resumo = { porConta, total: Object.values(porConta).reduce((a, b) => a + b, 0), geradoEm: new Date().toISOString() };
       await concluirJob(jobId, resumo);
+      return { ok: true, jobId, resumo };
     } catch (e: any) {
-      await falharJob(jobId, e.faultstring || e.message);
+      const erro = e.faultstring || e.message;
+      await falharJob(jobId, erro);
       console.error('[caract sync]', e);
+      return { ok: false, jobId, erro };
     }
   })();
 
+  if (opts.aguardar) return execucao;
   return { ok: true, rodando: true, jobId };
 }
 
