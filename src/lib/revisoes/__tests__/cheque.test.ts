@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   PAGINA_TALAO, dadosIniciais, dataBR, extrairHorimetro, modeloDoProjeto, normalizarDados, htmlCheque,
-  assinaturaTecnicoPadrao, slugTecnico, mensagemWhatsApp, CONCESSIONARIA_PADRAO,
+  assinaturaTecnicoPadrao, slugTecnico, mensagemWhatsApp, CONCESSIONARIA_PADRAO, classificarAnteriores, dadosAtrasadoSemOS,
 } from '../cheque';
 
 describe('páginas do talão', () => {
@@ -102,5 +102,36 @@ describe('htmlCheque', () => {
     expect(m).toContain('6075E CAB');
     expect(m).toContain('6165');
     expect(m).toContain('https://p/cheque/abc/assinar');
+  });
+});
+
+describe('revisões anteriores (cheques atrasados)', () => {
+  it('classifica enviada / cheque / pendente na ordem do talão', () => {
+    const r = classificarAnteriores(
+      900,
+      new Set([50]),
+      new Map([[600, { osId: 'OS-0802', atrasado: true }]]),
+      new Map([[300, { id: 'OS-0585', data: '23/07/2026', horimetro: '320,6 h' }]]),
+    );
+    expect(r.map((x) => [x.horas, x.situacao])).toEqual([[50, 'enviada'], [300, 'pendente'], [600, 'cheque']]);
+    expect(r[1].osRef?.id).toBe('OS-0585');
+    expect(r[2].chequeOsId).toBe('OS-0802');
+    expect(r[2].chequeAtrasado).toBe(true);
+  });
+
+  it('50h não tem anteriores; enviada vence cheque', () => {
+    expect(classificarAnteriores(50, new Set(), new Map(), new Map())).toEqual([]);
+    const r = classificarAnteriores(300, new Set([50]), new Map([[50, { osId: 'OS-1', atrasado: false }]]), new Map());
+    expect(r[0].situacao).toBe('enviada');
+  });
+
+  it('atrasado sem OS copia o trator e zera data/horímetro/OS', () => {
+    const base = { ...normalizarDados({}), cliente: 'LUIZ', chassi: 'MDI07513VS0005756', dataRevisao: '30/09/2026', horimetro: '502,6 h', os: '5349' };
+    const d = dadosAtrasadoSemOS(base);
+    expect(d.cliente).toBe('LUIZ');
+    expect(d.chassi).toBe('MDI07513VS0005756');
+    expect(d.dataRevisao).toBe('');
+    expect(d.horimetro).toBe('');
+    expect(d.os).toBe('');
   });
 });

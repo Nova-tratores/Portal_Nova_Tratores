@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { exigirAcessoModulo } from '@/lib/ajustes/permissao-server';
-import { linkCheque } from '@/lib/revisoes/cheque-db';
+import { linkCheque, listarChequesOS } from '@/lib/revisoes/cheque-db';
 import { garantirAssinatura, linkAssinatura } from '@/lib/pos/assinatura-cliente-db';
 import { normalizarDados } from '@/lib/revisoes/cheque';
 
@@ -21,21 +21,21 @@ export async function GET(req: NextRequest) {
   }
   const chassis = String(req.nextUrl.searchParams.get('chassis') || '').trim().toUpperCase();
   if (!chassis || !/^[A-Z0-9]{6,}$/.test(chassis)) return NextResponse.json({ error: 'chassis inválido' }, { status: 400 });
-  const { data, error } = await db.from('revisao_cheques')
-    .select('id,os_id,chassis,horas,pagina,dados,token,assinatura_cliente_url,assinado_em,assinado_nome,assinado_geo,assinado_dispositivo,assinatura_tecnico_url,updated_at')
-    .ilike('chassis', chassis)
-    .order('horas', { ascending: true });
+  const { data: ids, error } = await db.from('revisao_cheques').select('os_id').ilike('chassis', chassis);
   if (error) return NextResponse.json({ error: error.message }, { status: /revisao_cheques/.test(error.message) ? 503 : 500 });
-  const itens = await Promise.all((data || []).map(async (c) => {
+  // listarChequesOS lida com a migration dos atrasados aplicada ou não
+  const porOs = await Promise.all([...new Set((ids || []).map((r) => String(r.os_id)))].map((os) => listarChequesOS(os)));
+  const data = porOs.flat().filter((c) => c.chassis.toUpperCase() === chassis).sort((a, b) => a.horas - b.horas);
+  const itens = await Promise.all(data.map(async (c) => {
     const d = normalizarDados(c.dados);
     let linkAssinar = '';
     try { linkAssinar = linkAssinatura((await garantirAssinatura(c.os_id)).token); } catch { /* tabela ausente */ }
     return {
-      osId: c.os_id, horas: c.horas, pagina: c.pagina, chassis: c.chassis,
+      osId: c.os_id, horas: c.horas, pagina: c.pagina, chassis: c.chassis, atrasado: c.atrasado, osRef: c.os_ref,
       dataRevisao: d.dataRevisao, horimetro: d.horimetro, tecnico: d.tecnico, cliente: d.cliente, os: d.os,
       assinado: !!c.assinado_em, assinadoEm: c.assinado_em, assinadoNome: c.assinado_nome, assinadoGeo: c.assinado_geo || null, assinadoDispositivo: c.assinado_dispositivo || null,
       linkCheque: linkCheque(c.token), linkAssinar,
-      pdfUrl: `/api/revisoes/cheque-pdf?os=${encodeURIComponent(c.os_id)}`,
+      pdfUrl: `/api/revisoes/cheque-pdf?os=${encodeURIComponent(c.os_id)}&h=${c.horas}`,
     };
   }));
   return NextResponse.json({ itens });

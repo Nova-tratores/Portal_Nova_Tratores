@@ -1,8 +1,8 @@
-// PDF do cheque online de uma OS: GET ?os=OS-0494 (quem tem acesso a Revisões).
+// PDF do cheque online de uma OS: GET ?os=OS-0494 [&h=300 → cheque atrasado daquelas horas] (quem tem acesso a Revisões).
 // Usado pela tela de Revisões pra anexar o cheque no e-mail à Mahindra.
 import { NextRequest, NextResponse } from 'next/server';
 import { exigirAcessoModulo } from '@/lib/ajustes/permissao-server';
-import { ErroCheque, garantirCheque } from '@/lib/revisoes/cheque-db';
+import { ErroCheque, buscarPorOS, garantirCheque } from '@/lib/revisoes/cheque-db';
 import { pdfCheque } from '@/lib/revisoes/cheque-pdf';
 
 export const runtime = 'nodejs';
@@ -18,7 +18,9 @@ export async function GET(req: NextRequest) {
   const os = String(req.nextUrl.searchParams.get('os') || '').trim();
   if (!os) return NextResponse.json({ error: 'informe ?os=' }, { status: 400 });
   try {
-    const c = await garantirCheque(os);
+    const h = Number(req.nextUrl.searchParams.get('h') || 0);
+    const c = h ? await buscarPorOS(os, h) : await garantirCheque(os);
+    if (!c) return NextResponse.json({ error: `A OS ${os} não tem cheque das ${h} horas.` }, { status: 404 });
     const pdf = await pdfCheque(c.dados, { horas: c.horas, assinaturaClienteUrl: c.assinatura_cliente_url, assinaturaTecnicoUrl: c.assinatura_tecnico_url, carimbo: true });
     const nome = `cheque-revisao-${c.horas}h-${c.chassis.slice(-6)}.pdf`;
     return new NextResponse(new Uint8Array(pdf), { headers: { 'content-type': 'application/pdf', 'content-disposition': `inline; filename="${nome}"`, 'cache-control': 'no-store' } });

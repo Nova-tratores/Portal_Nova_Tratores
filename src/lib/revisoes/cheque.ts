@@ -285,3 +285,38 @@ export function mensagemWhatsApp(d: DadosCheque, horas: number, link: string): s
   const nome = (d.cliente || '').split(' ')[0];
   return `Olá${nome ? `, ${nome}` : ''}! Aqui é da Nova Tratores. A revisão de ${horas} horas do seu trator ${d.modelo} (chassi final ${d.chassi.slice(-4)}) foi concluída. Para registrar na Mahindra, precisamos da sua assinatura no cheque de revisão. É só abrir o link e assinar na tela do celular: ${link}`;
 }
+
+// ---- revisões ANTERIORES (cheques atrasados) ----
+// Uma OS de revisão pode gerar também os cheques das revisões anteriores que
+// nunca foram enviados (caso real: 6075E final 5756 chegou na 600h sem cheque
+// das 50h nem das 300h). Puro: quem lê o banco é cheque-db.ts.
+export type SituacaoAnterior = 'enviada' | 'cheque' | 'pendente';
+export interface OSRef { id: string; data: string; horimetro: string }
+export interface RevisaoAnterior {
+  horas: number;
+  situacao: SituacaoAnterior;
+  /** cheque já existente (nesta OS como atrasado, ou na própria OS daquela revisão) */
+  chequeOsId: string | null;
+  chequeAtrasado: boolean;
+  /** OS daquela revisão achada pelo chassi (fonte dos dados), se houver */
+  osRef: OSRef | null;
+}
+
+/** Classifica as revisões anteriores à atual: enviada (revisao_emails), com cheque, ou pendente. */
+export function classificarAnteriores(
+  horasAtual: number,
+  enviadas: Set<number>,
+  cheques: Map<number, { osId: string; atrasado: boolean }>,
+  osPorHoras: Map<number, OSRef>,
+): RevisaoAnterior[] {
+  return HORAS_CHEQUE.filter((h) => h < horasAtual).map((h) => {
+    const c = cheques.get(h) || null;
+    const situacao: SituacaoAnterior = enviadas.has(h) ? 'enviada' : c ? 'cheque' : 'pendente';
+    return { horas: h, situacao, chequeOsId: c?.osId ?? null, chequeAtrasado: !!c?.atrasado, osRef: osPorHoras.get(h) ?? null };
+  });
+}
+
+/** Dados de um cheque atrasado SEM OS daquela revisão: copia o trator/cliente da OS atual e deixa em branco o que é da revisão. */
+export function dadosAtrasadoSemOS(base: DadosCheque): DadosCheque {
+  return { ...base, dataRevisao: '', horimetro: '', os: '' };
+}
