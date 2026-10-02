@@ -3,13 +3,14 @@
 // (Clientes, Projeto, Tecnicos_Appsheet).
 
 import { supabase } from "@/lib/supabase";
-import { authHeaders } from "@/lib/auth/client";
 import {
   buscarHistoricoCliente as buscarHistoricoClienteCom,
   buscarUltimasOSPorCliente as buscarUltimasOSPorClienteCom,
   type HistoricoCliente,
   type UltimaOS,
 } from "./historico-cliente";
+import type { ChamadaResumo } from "./atendimento/performance";
+import { authHeaders } from "@/lib/auth/client";
 import type {
   ClienteInfo,
   ClienteOmie,
@@ -47,6 +48,25 @@ export async function listarRegistros(tipo?: TipoFeedback): Promise<FeedbackRegi
   const { data, error } = await q;
   if (error) throw wrapErr(error);
   return (data || []) as FeedbackRegistro[];
+}
+
+/** Ligações do cockpit (feedback_chamada) — só os campos que o relatório usa.
+ *  Paginado: o PostgREST corta em 1000 linhas por consulta. */
+export async function listarChamadasResumo(): Promise<ChamadaResumo[]> {
+  const PAGINA = 1000;
+  const tudo: ChamadaResumo[] = [];
+  for (let de = 0; ; de += PAGINA) {
+    const { data, error } = await supabase
+      .from("feedback_chamada")
+      .select("atendente_nome, iniciada_em, encerrada_em, duracao_seg, desfecho, humor_cliente, qualidade_conversa, feedback_id, cliente_key")
+      .order("iniciada_em", { ascending: false })
+      .range(de, de + PAGINA - 1);
+    if (error) throw wrapErr(error);
+    const lote = (data || []) as ChamadaResumo[];
+    tudo.push(...lote);
+    if (lote.length < PAGINA) break;
+  }
+  return tudo;
 }
 
 export async function inserirRegistro(

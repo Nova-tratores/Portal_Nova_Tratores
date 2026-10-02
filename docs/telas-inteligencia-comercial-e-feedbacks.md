@@ -487,3 +487,15 @@ A marcação "Não contatar" **não significa que o cliente pediu**: pode ser de
 - O "💀" deu lugar ao "🚫" nesses lugares (o emoji da caveira continua no CRM/RFM e no botão de marcar).
 
 **Validado** (10/09/2026): tsc/eslint/71 testes; cliente fictício marcado com a tag → ficha reduzida com os avisos, "Mostrar ficha completa" revelando o resto, fila em Cards e Lista com o selo; limpeza total depois.
+
+### 9.11 Relatórios — performance dos atendentes (10/09/2026)
+
+A tela `/feedbacks/relatorios` passou a medir os atendentes com as **duas fontes** que existem: os registros CRM/RFM (`feedback_registros.atendente_nome`) e as **ligações do cockpit** (`feedback_chamada`). Lib pura `src/lib/feedbacks/atendimento/performance.ts` (11 testes) e `listarChamadasResumo()` em `feedbacks/api.ts` (anon + RLS, paginado de 1000 em 1000).
+
+- **Nome normalizado** (`normalizarAtendente`: trim + espaços duplos): o banco tinha "Vinicius Correa " e "Vinicius Correa" como duas pessoas.
+- **Aba Geral** → tabela "Performance por Atendente" segue o filtro de datas da aba: Atendidos, Concluídos, % Conclusão, Ligações (🎧 N se está em ligação agora), Tempo em ligação, Contato efetivo, Conversões, Humor médio. Clicar na linha abre o modal com os atendimentos da pessoa.
+- **Aba Atendentes** → seletor de período (Hoje, Ontem, 7 dias, 30 dias, Este mês, Mês anterior, Tudo, Período…), cards da equipe, **ranking** completo (atendimentos por status, gerou serviço, ligações, tempo total e médio, contato efetivo, um contador por desfecho, conversões, humor e qualidade) com linha "Equipe", cards por atendente e tabela **dia a dia** (atendimentos · ligações por pessoa). "Exportar atendentes" gera CSV com todas essas colunas.
+- **Definições**: atendimento é datado pela conclusão, senão pela abertura, senão pela data de contato/criação; ligação conta só encerrada, pelo dia (local) em que começou; *contato efetivo* = ligação − "não atendeu" − "número errado"; *conversão* = serviço agendado + vendeu, taxa sobre os contatos efetivos; humor/qualidade = média dos termômetros 1–5; ranking ordena por conversões, depois concluídos, ligações, atendimentos. Ligações não têm fonte CRM/RFM, então o filtro de fonte não as afeta.
+- Se `feedback_chamada` não responder, a tela avisa em âmbar e segue só com os registros.
+
+**Validado** (10/09/2026): 82 testes; tsc/eslint; no navegador com 6 ligações fictícias (todos os desfechos, uma delas com o nome com espaço no fim) — ranking, cards, dia a dia e Geral batendo com o esperado; limpeza total depois.

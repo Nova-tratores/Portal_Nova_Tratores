@@ -1,24 +1,20 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { listarRegistros } from "@/lib/feedbacks/api";
+import { listarChamadasResumo, listarRegistros } from "@/lib/feedbacks/api";
 import type { FeedbackRegistro, TipoFeedback } from "@/lib/feedbacks/types";
+import {
+  agregarPerformance, CSV_PERFORMANCE_CABECALHO, linhaCSVPerformance, normalizarAtendente, periodoDoPreset, porDia, PRESETS_PERIODO, totalPerformance,
+  type ChamadaResumo, type PerformanceAtendente, type PresetPeriodo,
+} from "@/lib/feedbacks/atendimento/performance";
+import { formatarDuracao } from "@/lib/feedbacks/atendimento/tempo";
+import { DESFECHOS } from "@/lib/feedbacks/atendimento/chamada";
+import { emojiHumor } from "@/lib/feedbacks/atendimento/retorno";
 import styles from "@/components/feedbacks/feedbacks.module.css";
 import { COR_RFM, COR_CRM_BG, COR_CRM_FG, COR_RFM_BG, COR_RFM_FG } from "@/lib/feedbacks/cores";
 
 type Fonte = "todos" | TipoFeedback;
 type View = "geral" | "dia" | "atendentes";
-
-interface StatsAtendDet {
-  atendente: string;
-  hoje: number;
-  ontem: number;
-  sete: number;         // contatos nos últimos 7 dias
-  respondeu: number;    // dos últimos 7 dias: status_atendimento concluído
-  positiva: number;     // só CRM (satisfação)
-  negativa: number;     // só CRM (satisfação)
-  gerouServico: number; // 7 dias: atendimentos com "serviço confirmado" preenchido
-}
 
 interface StatsTecnico {
   tecnico: string;
@@ -34,15 +30,6 @@ interface StatsCliente {
   total: number;
   notaMedia: number | null;
   ultimoContato: string;
-}
-
-interface StatsAtendente {
-  atendente: string;
-  total: number;       // atendimentos que passou pela mão dele
-  concluidos: number;
-  semResposta: number;
-  emAberto: number;    // aberto/em_andamento
-  pctConclusao: number;
 }
 
 function dataRef(r: FeedbackRegistro): string {
@@ -141,14 +128,26 @@ export default function RelatoriosPage() {
   const [dataAte, setDataAte] = useState("");
   const [diaEscolhido, setDiaEscolhido] = useState(() => new Date().toISOString().slice(0, 10));
   const [atendenteAberto, setAtendenteAberto] = useState<string | null>(null);
+  const [chamadas, setChamadas] = useState<ChamadaResumo[]>([]);
+  const [erroChamadas, setErroChamadas] = useState<string | null>(null);
+  // Aba Atendentes: período próprio (presets + personalizado)
+  const [preset, setPreset] = useState<PresetPeriodo>("30d");
+  const [perDe, setPerDe] = useState("");
+  const [perAte, setPerAte] = useState("");
   const router = useRouter();
 
   const carregar = useCallback(async () => {
     setLoading(true);
     setErro(null);
     try {
-      const [crm, rfm] = await Promise.all([listarRegistros("crm"), listarRegistros("rfm")]);
+      const [crm, rfm, lig] = await Promise.all([
+        listarRegistros("crm"),
+        listarRegistros("rfm"),
+        // ligações do cockpit: se a tabela não existir ainda, o resto do relatório segue
+        listarChamadasResumo().catch((e) => { setErroChamadas(e instanceof Error ? e.message : String(e)); return [] as ChamadaResumo[]; }),
+      ]);
       setRegistros([...crm, ...rfm]);
+      setChamadas(lig);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -208,28 +207,12 @@ export default function RelatoriosPage() {
     return Array.from(map.values()).sort((a, b) => b.total - a.total).slice(0, 20);
   }, [filtradas]);
 
-  // Performance por ATENDENTE (quem trabalhou o contato/oportunidade).
-  // "Deu mais resultado" = mais atendimentos concluídos.
-  const statsAtendente = useMemo<StatsAtendente[]>(() => {
-    const map = new Map<string, StatsAtendente>();
-    for (const r of filtradas) {
-      if (!r.atendente_nome) continue;
-      let s = map.get(r.atendente_nome);
-      if (!s) {
-        s = { atendente: r.atendente_nome, total: 0, concluidos: 0, semResposta: 0, emAberto: 0, pctConclusao: 0 };
-        map.set(r.atendente_nome, s);
-      }
-      s.total++;
-      if (r.status_atendimento === "concluido") s.concluidos++;
-      else if (r.status_atendimento === "sem_resposta") s.semResposta++;
-      else s.emAberto++; // aberto / em_andamento
-    }
-    for (const s of map.values()) {
-      s.pctConclusao = s.total > 0 ? Math.round((s.concluidos / s.total) * 100) : 0;
-    }
-    return Array.from(map.values()).sort((a, b) => b.concluidos - a.concluidos || b.total - a.total);
-  }, [filtradas]);
-  const topAtendente = statsAtendente[0] || null;
+  // Performance por ATENDENTE (aba Geral: segue o filtro de datas da aba).
+  const perfGeral = useMemo<PerformanceAtendente[]>(
+    () => agregarPerformance(registros, chamadas, { de: dataDe || null, ate: dataAte || null }, fonte),
+    [registros, chamadas, dataDe, dataAte, fonte]
+  );
+  const topAtendente = perfGeral[0] || null;
 
   // Feedbacks que GERARAM RETORNO DE SERVIÇO = têm "serviço confirmado" preenchido.
   const retornosServico = useMemo(
@@ -239,50 +222,20 @@ export default function RelatoriosPage() {
 
   const doDia = useMemo(() => filtradas.filter((r) => dataRef(r).startsWith(diaEscolhido)), [filtradas, diaEscolhido]);
 
-  // Relatório DETALHADO por atendente: contatos por janela de tempo + respostas.
-  // Usa todos os registros (filtra só por fonte) — as janelas é que definem o tempo.
-  const statsAtendenteDet = useMemo<StatsAtendDet[]>(() => {
-    const hojeD = new Date();
-    const fmt = (d: Date) => d.toLocaleDateString("en-CA"); // YYYY-MM-DD local
-    const hojeStr = fmt(hojeD);
-    const ontemD = new Date(hojeD); ontemD.setDate(ontemD.getDate() - 1);
-    const ontemStr = fmt(ontemD);
-    const seteD = new Date(hojeD); seteD.setDate(seteD.getDate() - 6);
-    const seteStr = fmt(seteD);
-    const dataAt = (r: FeedbackRegistro) =>
-      (r.concluido_em || r.aberto_em || r.data_contato || r.criado_em || "").slice(0, 10);
-
-    const map = new Map<string, StatsAtendDet>();
-    for (const r of registros) {
-      if (fonte !== "todos" && r.tipo !== fonte) continue;
-      if (!r.atendente_nome) continue;
-      const d = dataAt(r);
-      if (!d) continue;
-      let s = map.get(r.atendente_nome);
-      if (!s) { s = { atendente: r.atendente_nome, hoje: 0, ontem: 0, sete: 0, respondeu: 0, positiva: 0, negativa: 0, gerouServico: 0 }; map.set(r.atendente_nome, s); }
-      if (d === hojeStr) s.hoje++;
-      if (d === ontemStr) s.ontem++;
-      if (d >= seteStr) {
-        s.sete++;
-        if ((r.revisao_confirmada || "").trim().length > 0) s.gerouServico++;
-        if (r.status_atendimento === "concluido") {
-          s.respondeu++;
-          // Positiva/negativa = satisfação, só faz sentido no CRM (feedback do serviço).
-          if (r.tipo === "crm") {
-            if (r.status_cliente === "Satisfeito" || r.nps === "Sim") s.positiva++;
-            else if (r.status_cliente === "Insatisfeito" || r.nps === "Não") s.negativa++;
-          }
-        }
-      }
-    }
-    return Array.from(map.values()).sort((a, b) => b.sete - a.sete || b.respondeu - a.respondeu);
-  }, [registros, fonte]);
+  // Aba Atendentes: período escolhido (presets), registros + ligações do cockpit.
+  const periodoAtend = useMemo(() => periodoDoPreset(preset, new Date(), { de: perDe || null, ate: perAte || null }), [preset, perDe, perAte]);
+  const perfAtend = useMemo<PerformanceAtendente[]>(() => agregarPerformance(registros, chamadas, periodoAtend, fonte), [registros, chamadas, periodoAtend, fonte]);
+  const totalAtend = useMemo(() => totalPerformance(perfAtend), [perfAtend]);
+  const diasAtend = useMemo(() => porDia(registros, chamadas, periodoAtend, fonte), [registros, chamadas, periodoAtend, fonte]);
+  const rotuloPeriodo = useMemo(() => {
+    if (!periodoAtend.de && !periodoAtend.ate) return "todo o histórico";
+    const f = (d: string | null) => (d ? d.split("-").reverse().join("/") : "…");
+    return periodoAtend.de === periodoAtend.ate ? f(periodoAtend.de) : `${f(periodoAtend.de)} a ${f(periodoAtend.ate)}`;
+  }, [periodoAtend]);
 
   function baixarCSVAtendentes() {
-    const headers = ["Atendente", "Contatos hoje", "Contatos ontem", "Contatos 7 dias", "Respondeu (7d)", "Positiva CRM (7d)", "Negativa CRM (7d)", "Gerou serviço (7d)", "Não gerou (7d)"];
-    const linhas: (string | number)[][] = statsAtendenteDet.map((s) => [
-      limpar(s.atendente), s.hoje, s.ontem, s.sete, s.respondeu, s.positiva, s.negativa, s.gerouServico, s.sete - s.gerouServico,
-    ]);
+    const headers = ["Período", ...CSV_PERFORMANCE_CABECALHO];
+    const linhas: (string | number)[][] = [...perfAtend, totalAtend].map((s) => [rotuloPeriodo, ...linhaCSVPerformance(s).map((v, k) => (k === 0 ? limpar(v) : v))]);
     const blob = new Blob([montarCSV(headers, linhas)], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -298,7 +251,7 @@ export default function RelatoriosPage() {
         </h1>
         {view === "atendentes" ? (
           <button onClick={baixarCSVAtendentes} style={btnPrimario}>
-            Exportar atendentes ({statsAtendenteDet.length})
+            Exportar atendentes ({perfAtend.length})
           </button>
         ) : (
           <button onClick={() => baixarCSV(filtradas, `relatorio-feedbacks-${new Date().toISOString().slice(0,10)}.csv`)} style={btnPrimario}>
@@ -346,12 +299,32 @@ export default function RelatoriosPage() {
               <input type="date" value={dataAte} onChange={(e) => setDataAte(e.target.value)} style={filtroInput} />
             </FiltroCampo>
           </>
+        ) : view === "atendentes" ? (
+          <>
+            <FiltroCampo label="Período">
+              <select value={preset} onChange={(e) => setPreset(e.target.value as PresetPeriodo)} style={filtroInput}>
+                {PRESETS_PERIODO.map((p) => <option key={p.valor} value={p.valor}>{p.rotulo}</option>)}
+              </select>
+            </FiltroCampo>
+            {preset === "custom" && (
+              <>
+                <FiltroCampo label="De">
+                  <input type="date" value={perDe} onChange={(e) => setPerDe(e.target.value)} style={filtroInput} />
+                </FiltroCampo>
+                <FiltroCampo label="Até">
+                  <input type="date" value={perAte} onChange={(e) => setPerAte(e.target.value)} style={filtroInput} />
+                </FiltroCampo>
+              </>
+            )}
+          </>
         ) : (
           <FiltroCampo label="Dia">
             <input type="date" value={diaEscolhido} onChange={(e) => setDiaEscolhido(e.target.value)} style={filtroInput} />
           </FiltroCampo>
         )}
       </div>
+
+      {erroChamadas && <div style={{ ...erroStyle, background: "#fef3c7", color: "#92400e" }}>Ligações do cockpit indisponíveis: {erroChamadas}. Os números de atendimentos continuam valendo.</div>}
 
       {erro && <div style={erroStyle}>{erro}</div>}
 
@@ -377,36 +350,41 @@ export default function RelatoriosPage() {
             <StatCard icon="🔧" label="Retornos de serviço" value={retornosServico.length} cor="#0369a1" />
           </div>
 
-          {/* Ranking de Atendentes — quem trabalhou os contatos/oportunidades */}
+          {/* Ranking de Atendentes — atendimentos (CRM/RFM) + ligações do cockpit */}
           <div style={secaoStyle}>
             <h2 style={tituloSecaoStyle}>🎧 Performance por Atendente</h2>
-            {topAtendente && topAtendente.concluidos > 0 && (
+            {topAtendente && (topAtendente.ligacoes.conversoes > 0 || topAtendente.atendimentos.concluidos > 0) && (
               <div style={destaqueAtendenteStyle}>
                 🏅 <strong>{topAtendente.atendente}</strong> foi quem mais deu resultado:{" "}
-                <strong>{topAtendente.concluidos}</strong> atendimento{topAtendente.concluidos !== 1 ? "s" : ""} concluído{topAtendente.concluidos !== 1 ? "s" : ""}
-                {" "}de {topAtendente.total} ({topAtendente.pctConclusao}% de conclusão).
+                {topAtendente.ligacoes.conversoes > 0 && <><strong>{topAtendente.ligacoes.conversoes}</strong> conversã{topAtendente.ligacoes.conversoes !== 1 ? "o" : "ões"} em ligação (serviço agendado + venda) e </>}
+                <strong>{topAtendente.atendimentos.concluidos}</strong> atendimento{topAtendente.atendimentos.concluidos !== 1 ? "s" : ""} concluído{topAtendente.atendimentos.concluidos !== 1 ? "s" : ""}
+                {" "}de {topAtendente.atendimentos.total} ({topAtendente.atendimentos.pctConclusao}% de conclusão).
+                {" "}<button type="button" onClick={() => setView("atendentes")} style={{ background: "none", border: "none", color: "#92400e", textDecoration: "underline", cursor: "pointer", fontSize: 12, fontWeight: 700 }}>ver detalhes →</button>
               </div>
             )}
             <div style={{ overflowX: "auto" }}>
               <table style={tabelaStyle}>
                 <thead>
                   <tr>
-                    <Th>Atendente</Th><Th>Atendidos</Th><Th>Concluídos</Th><Th>Sem resposta</Th><Th>Em aberto</Th><Th>% Conclusão</Th>
+                    <Th>Atendente</Th><Th>Atendidos</Th><Th>Concluídos</Th><Th>% Conclusão</Th><Th>Ligações</Th><Th>Tempo em ligação</Th><Th>Contato efetivo</Th><Th>Conversões</Th><Th>Humor médio</Th>
                   </tr>
                 </thead>
                 <tbody>
-                  {statsAtendente.map((s, i) => (
-                    <tr key={s.atendente}>
-                      <Td><strong>{i === 0 && s.concluidos > 0 ? "🏅 " : ""}{s.atendente}</strong></Td>
-                      <Td>{s.total}</Td>
-                      <Td><strong style={{ color: "#065f46" }}>{s.concluidos}</strong></Td>
-                      <Td>{s.semResposta}</Td>
-                      <Td>{s.emAberto}</Td>
-                      <Td><span style={badgePctStyle(s.pctConclusao)}>{s.pctConclusao}%</span></Td>
+                  {perfGeral.map((s, i) => (
+                    <tr key={s.atendente} onClick={() => setAtendenteAberto(s.atendente)} style={{ cursor: "pointer" }} title="Ver os atendimentos deste atendente">
+                      <Td><strong>{i === 0 && (s.ligacoes.conversoes > 0 || s.atendimentos.concluidos > 0) ? "🏅 " : ""}{s.atendente}</strong></Td>
+                      <Td>{s.atendimentos.total}</Td>
+                      <Td><strong style={{ color: "#065f46" }}>{s.atendimentos.concluidos}</strong></Td>
+                      <Td><span style={badgePctStyle(s.atendimentos.pctConclusao)}>{s.atendimentos.pctConclusao}%</span></Td>
+                      <Td>{s.ligacoes.total}{s.ligacoes.abertas > 0 && <span title="em ligação agora" style={{ marginLeft: 6, fontSize: 10, color: "#3730a3" }}>🎧 {s.ligacoes.abertas}</span>}</Td>
+                      <Td>{s.ligacoes.total > 0 ? formatarDuracao(s.ligacoes.tempoTotalSeg) : "—"}</Td>
+                      <Td>{s.ligacoes.taxaContato != null ? <span style={badgePctStyle(s.ligacoes.taxaContato)}>{s.ligacoes.contatoEfetivo} · {s.ligacoes.taxaContato}%</span> : "—"}</Td>
+                      <Td><strong style={{ color: "#0369a1" }}>{s.ligacoes.conversoes}</strong>{s.ligacoes.taxaConversao != null && <span style={{ fontSize: 10, opacity: 0.7 }}> ({s.ligacoes.taxaConversao}%)</span>}</Td>
+                      <Td>{s.ligacoes.humorMedio != null ? `${emojiHumor(Math.round(s.ligacoes.humorMedio))} ${s.ligacoes.humorMedio}` : "—"}</Td>
                     </tr>
                   ))}
-                  {statsAtendente.length === 0 && (
-                    <tr><Td colSpan={6}><em style={{ color: "var(--portal-text-muted)" }}>Nenhum atendimento iniciado ainda (atendentes aparecem quando alguém atende uma oportunidade).</em></Td></tr>
+                  {perfGeral.length === 0 && (
+                    <tr><Td colSpan={9}><em style={{ color: "var(--portal-text-muted)" }}>Nenhum atendimento no período (atendentes aparecem quando alguém atende um registro ou faz uma ligação no cockpit).</em></Td></tr>
                   )}
                 </tbody>
               </table>
@@ -494,54 +472,149 @@ export default function RelatoriosPage() {
           </div>
         </>
       ) : view === "atendentes" ? (
-        <div style={secaoStyle}>
-          <h2 style={tituloSecaoStyle}>🎧 Desempenho por atendente</h2>
-          <p style={{ fontSize: 12, color: "var(--portal-text-secondary)", marginTop: -4, marginBottom: 14 }}>
-            Contatos por período e qualidade das respostas (respostas medem os últimos 7 dias). &quot;Atendente&quot; = quem trabalhou o contato/oportunidade.
-          </p>
-          {statsAtendenteDet.length === 0 ? (
-            <div style={vazioStyle}>Nenhum atendimento registrado por atendentes ainda.</div>
-          ) : (
-            <div style={atendentesGrid}>
-              {statsAtendenteDet.map((s) => {
-                const taxa = s.sete > 0 ? Math.round((s.respondeu / s.sete) * 100) : 0;
-                return (
-                  <div key={s.atendente} className={styles.atendCard}
-                    onClick={() => setAtendenteAberto(s.atendente)}
-                    title="Ver todos os atendimentos deste atendente"
-                    style={{ cursor: "pointer" }}>
-                    <div style={{ fontSize: 15, fontWeight: 800, color: "var(--portal-text)", marginBottom: 10, textAlign: "center" }}>
-                      🎧 {s.atendente}
+        <>
+          {/* Resumo da equipe no período */}
+          <div style={statsGrid}>
+            <StatCard icon="🎧" label="Atendentes ativos" value={perfAtend.length} cor="#475569" />
+            <StatCard icon="📋" label="Atendimentos" value={totalAtend.atendimentos.total} cor="#dc2626" />
+            <StatCard icon="✅" label="Concluídos" value={`${totalAtend.atendimentos.concluidos} · ${totalAtend.atendimentos.pctConclusao}%`} cor="#10b981" />
+            <StatCard icon="📞" label="Ligações" value={totalAtend.ligacoes.total} cor="#d97706" />
+            <StatCard icon="⏱" label="Tempo em ligação" value={totalAtend.ligacoes.total ? formatarDuracao(totalAtend.ligacoes.tempoTotalSeg) : "—"} cor="#0369a1" />
+            <StatCard icon="🎯" label="Conversões" value={totalAtend.ligacoes.taxaConversao != null ? `${totalAtend.ligacoes.conversoes} · ${totalAtend.ligacoes.taxaConversao}%` : totalAtend.ligacoes.conversoes} cor="#7c3aed" />
+            <StatCard icon="🙂" label="Humor médio" value={totalAtend.ligacoes.humorMedio != null ? `${emojiHumor(Math.round(totalAtend.ligacoes.humorMedio))} ${totalAtend.ligacoes.humorMedio}` : "—"} cor="#ca8a04" />
+          </div>
+
+          {/* Ranking */}
+          <div style={secaoStyle}>
+            <h2 style={tituloSecaoStyle}>🏆 Ranking — {rotuloPeriodo}</h2>
+            <p style={{ fontSize: 12, color: "var(--portal-text-secondary)", marginTop: -6, marginBottom: 12 }}>
+              <strong>Atendimentos</strong> = registros CRM/RFM que passaram pela mão da pessoa (data de conclusão, senão de abertura).{" "}
+              <strong>Ligações</strong> = chamadas encerradas no cockpit. <strong>Contato efetivo</strong> = ligação em que alguém atendeu (tira “sem resposta” e “número errado”).{" "}
+              <strong>Conversão</strong> = serviço agendado + venda, sobre os contatos efetivos. Humor e qualidade são os termômetros de 1 a 5 marcados ao encerrar.
+            </p>
+            {perfAtend.length === 0 ? (
+              <div style={vazioStyle}>Nenhum atendimento nem ligação no período.</div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={tabelaStyle}>
+                  <thead>
+                    <tr>
+                      <Th>#</Th><Th>Atendente</Th>
+                      <Th>Atendimentos</Th><Th>Concluídos</Th><Th>Sem resp.</Th><Th>Em aberto</Th><Th>Gerou serviço</Th>
+                      <Th>Ligações</Th><Th>Tempo total</Th><Th>Média/lig.</Th><Th>Contato efetivo</Th>
+                      {DESFECHOS.map((d) => <Th key={d.valor}><span title={d.rotulo}>{d.emoji}</span></Th>)}
+                      <Th>Conversões</Th><Th>Humor</Th><Th>Qualidade</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...perfAtend, totalAtend].map((s, i) => {
+                      const ehTotal = i === perfAtend.length;
+                      const a = s.atendimentos, l = s.ligacoes;
+                      return (
+                        <tr key={s.atendente} onClick={ehTotal ? undefined : () => setAtendenteAberto(s.atendente)} style={{ cursor: ehTotal ? "default" : "pointer", background: ehTotal ? "#fafafa" : undefined, fontWeight: ehTotal ? 800 : undefined }} title={ehTotal ? undefined : "Ver os atendimentos deste atendente"}>
+                          <Td>{ehTotal ? "" : i === 0 ? "🏅" : i + 1}</Td>
+                          <Td><strong>{s.atendente}</strong>{l.abertas > 0 && <span title="em ligação agora" style={{ marginLeft: 6, fontSize: 10, color: "#3730a3" }}>🎧 agora</span>}</Td>
+                          <Td>{a.total}</Td>
+                          <Td><strong style={{ color: "#065f46" }}>{a.concluidos}</strong> <span style={badgePctStyle(a.pctConclusao)}>{a.pctConclusao}%</span></Td>
+                          <Td>{a.semResposta}</Td>
+                          <Td>{a.emAberto}</Td>
+                          <Td>{a.gerouServico}</Td>
+                          <Td><strong>{l.total}</strong></Td>
+                          <Td>{l.total ? formatarDuracao(l.tempoTotalSeg) : "—"}</Td>
+                          <Td>{l.tempoMedioSeg != null ? formatarDuracao(l.tempoMedioSeg) : "—"}</Td>
+                          <Td>{l.taxaContato != null ? <span style={badgePctStyle(l.taxaContato)}>{l.contatoEfetivo} · {l.taxaContato}%</span> : "—"}</Td>
+                          {DESFECHOS.map((d) => <Td key={d.valor}>{l.desfechos[d.valor] || <span style={{ opacity: 0.35 }}>0</span>}</Td>)}
+                          <Td><strong style={{ color: "#0369a1" }}>{l.conversoes}</strong>{l.taxaConversao != null && <span style={{ fontSize: 10, opacity: 0.7 }}> ({l.taxaConversao}%)</span>}</Td>
+                          <Td>{l.humorMedio != null ? `${emojiHumor(Math.round(l.humorMedio))} ${l.humorMedio}` : "—"}</Td>
+                          <Td>{l.qualidadeMedia != null ? `★ ${l.qualidadeMedia}` : "—"}</Td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Cards por atendente */}
+          {perfAtend.length > 0 && (
+            <div style={secaoStyle}>
+              <h2 style={tituloSecaoStyle}>🎧 Por atendente</h2>
+              <div style={atendentesGrid}>
+                {perfAtend.map((s, i) => {
+                  const a = s.atendimentos, l = s.ligacoes;
+                  return (
+                    <div key={s.atendente} className={styles.atendCard} onClick={() => setAtendenteAberto(s.atendente)} title="Ver todos os atendimentos deste atendente" style={{ cursor: "pointer" }}>
+                      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--portal-text)", marginBottom: 10, textAlign: "center" }}>
+                        {i === 0 ? "🏅" : "🎧"} {s.atendente}
+                      </div>
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                        <NumBloco n={a.total} label="Atendim." cor="#dc2626" />
+                        <NumBloco n={l.total} label="Ligações" cor="#d97706" />
+                        <NumBloco n={l.conversoes} label="Conversões" cor="#0369a1" />
+                      </div>
+                      <div style={{ borderTop: "1px dashed var(--portal-border)", margin: "12px 0 0", paddingTop: 10 }}>
+                        <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                          <PillResp bg="#d1fae5" fg="#065f46">✅ {a.concluidos} concluídos ({a.pctConclusao}%)</PillResp>
+                          <PillResp bg="#e0f2fe" fg="#075985">🔧 {a.gerouServico} gerou serviço</PillResp>
+                          {a.positiva + a.negativa > 0 && <PillResp bg="#f3f4f6" fg="#525252">😊 {a.positiva} · 😞 {a.negativa}</PillResp>}
+                        </div>
+                        {l.total > 0 ? (
+                          <>
+                            <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", marginBottom: 8 }}>
+                              <PillResp bg="#fef3c7" fg="#92400e">⏱ {formatarDuracao(l.tempoTotalSeg)} (média {formatarDuracao(l.tempoMedioSeg ?? 0)})</PillResp>
+                              <PillResp bg="#dbeafe" fg="#1e40af">📞 atendeu {l.contatoEfetivo}/{l.total} · {l.taxaContato}%</PillResp>
+                            </div>
+                            <div style={{ display: "flex", gap: 4, justifyContent: "center", flexWrap: "wrap", fontSize: 11 }}>
+                              {DESFECHOS.filter((d) => l.desfechos[d.valor] > 0).map((d) => (
+                                <span key={d.valor} className={styles.pill} style={{ background: "#f8fafc", color: "#334155", fontSize: 11 }} title={d.rotulo}>{d.emoji} {l.desfechos[d.valor]}</span>
+                              ))}
+                            </div>
+                            <div style={{ fontSize: 11, color: "var(--portal-text-secondary)", marginTop: 8, textAlign: "center" }}>
+                              Humor <strong>{l.humorMedio != null ? `${emojiHumor(Math.round(l.humorMedio))} ${l.humorMedio}` : "—"}</strong> · Qualidade <strong>{l.qualidadeMedia != null ? `★ ${l.qualidadeMedia}` : "—"}</strong>
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ fontSize: 11, color: "var(--portal-text-muted)", textAlign: "center" }}>Sem ligações pelo cockpit no período.</div>
+                        )}
+                      </div>
                     </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-                      <NumBloco n={s.hoje} label="Hoje" cor="#dc2626" />
-                      <NumBloco n={s.ontem} label="Ontem" cor="#f59e0b" />
-                      <NumBloco n={s.sete} label="7 dias" cor="#0369a1" />
-                    </div>
-                    <div style={{ borderTop: "1px dashed var(--portal-border)", margin: "12px 0 0", paddingTop: 10 }}>
-                      <div style={{ fontSize: 10, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8, textAlign: "center" }}>
-                        Últimos 7 dias
-                      </div>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap", marginBottom: 8 }}>
-                        <PillResp bg="#dbeafe" fg="#1e40af">✅ {s.respondeu} respondeu</PillResp>
-                        <PillResp bg="#e0f2fe" fg="#075985">🔧 {s.gerouServico} gerou serviço</PillResp>
-                        <PillResp bg="#f3f4f6" fg="#525252">↩ {s.sete - s.gerouServico} não gerou</PillResp>
-                      </div>
-                      <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
-                        <PillResp bg="#d1fae5" fg="#065f46">😊 {s.positiva} positiva</PillResp>
-                        <PillResp bg="#fee2e2" fg="#991b1b">😞 {s.negativa} negativa</PillResp>
-                        <span style={{ fontSize: 9, color: "var(--portal-text-muted)", alignSelf: "center" }}>(satisfação CRM)</span>
-                      </div>
-                      <div style={{ fontSize: 11, color: "var(--portal-text-secondary)", marginTop: 8, textAlign: "center" }}>
-                        Taxa de resposta: <strong>{taxa}%</strong>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
-        </div>
+
+          {/* Dia a dia */}
+          {diasAtend.length > 0 && (
+            <div style={secaoStyle}>
+              <h2 style={tituloSecaoStyle}>📅 Dia a dia — atendimentos · ligações</h2>
+              <div style={{ overflowX: "auto" }}>
+                <table style={tabelaStyle}>
+                  <thead>
+                    <tr>
+                      <Th>Dia</Th>
+                      {perfAtend.map((s) => <Th key={s.atendente}>{s.atendente.split(" ")[0]}</Th>)}
+                      <Th>Total</Th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {diasAtend.map((d) => (
+                      <tr key={d.dia}>
+                        <Td><strong>{d.dia.split("-").reverse().join("/")}</strong></Td>
+                        {perfAtend.map((s) => {
+                          const c = d.porAtendente[s.atendente];
+                          return <Td key={s.atendente}>{c ? <>{c.atendimentos} · <span style={{ color: "#d97706" }}>{c.ligacoes}</span></> : <span style={{ opacity: 0.3 }}>—</span>}</Td>;
+                        })}
+                        <Td><strong>{d.atendimentos} · <span style={{ color: "#d97706" }}>{d.ligacoes}</span></strong></Td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </>
       ) : (
         // View por dia
         <div style={secaoStyle}>
@@ -575,7 +648,7 @@ export default function RelatoriosPage() {
       {/* Modal: todos os atendimentos de um atendente (clique no card) */}
       {atendenteAberto && (() => {
         const lista = registros
-          .filter((r) => r.atendente_nome === atendenteAberto && (fonte === "todos" || r.tipo === fonte))
+          .filter((r) => normalizarAtendente(r.atendente_nome) === atendenteAberto && (fonte === "todos" || r.tipo === fonte))
           .sort((a, b) => (dataRef(b) || "").slice(0, 10).localeCompare((dataRef(a) || "").slice(0, 10)));
         return (
           <div onClick={() => setAtendenteAberto(null)}
