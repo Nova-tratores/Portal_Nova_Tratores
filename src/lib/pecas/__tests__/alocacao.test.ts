@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  agruparPorProduto, cfopSemEstoque, chaveProduto, copiasEtiqueta, dataBrParaIso, diasDesde, inicioAlocacao,
+  agruparPorProduto, cfopSemEstoque, chaveProduto, copiasEtiqueta, dataBrParaIso, dentroDoHorarioComercial, diasDesde, inicioAlocacao,
   locacaoCompleta, locacaoCurta, motivoFora, planejar,
   type EntradaPlano, type EspelhoCaract, type NotaRecebida, type PendenciaAlocacao,
 } from '../alocacao';
@@ -169,5 +169,18 @@ describe('tela', () => {
     expect(inicioAlocacao('2026-11-05')).toBe('2026-11-05');
     expect(inicioAlocacao('05/11/2026')).toBe('2026-10-01');
     expect(inicioAlocacao(undefined)).toBe('2026-10-01');
+  });
+});
+
+describe('agendador rápido', () => {
+  it('roda seg–sáb das 07h às 20h de Brasília (o servidor está em UTC)', () => {
+    const utc = (iso: string) => new Date(iso);
+    expect(dentroDoHorarioComercial(utc('2026-10-02T10:00:00Z'))).toBe(true);   // sex 07:00 BRT
+    expect(dentroDoHorarioComercial(utc('2026-10-02T09:59:00Z'))).toBe(false);  // sex 06:59 BRT
+    expect(dentroDoHorarioComercial(utc('2026-10-02T22:59:00Z'))).toBe(true);   // sex 19:59 BRT
+    expect(dentroDoHorarioComercial(utc('2026-10-02T23:00:00Z'))).toBe(false);  // sex 20:00 BRT
+    expect(dentroDoHorarioComercial(utc('2026-10-03T15:00:00Z'))).toBe(true);   // sáb 12:00 BRT
+    expect(dentroDoHorarioComercial(utc('2026-10-04T15:00:00Z'))).toBe(false);  // dom 12:00 BRT
+    expect(dentroDoHorarioComercial(utc('2026-10-05T01:00:00Z'))).toBe(false);  // dom 22:00 BRT (já é seg em UTC)
   });
 });

@@ -244,3 +244,11 @@ export function dataBrParaIso(s: unknown): string | null {
 export function inicioAlocacao(envValor?: string | null): string {
   return /^\d{4}-\d{2}-\d{2}$/.test(String(envValor || '')) ? String(envValor) : ALOCACAO_DESDE_PADRAO;
 }
+
+/** Seg–sáb, 07h–20h de Brasília (UTC-3, sem horário de verão) — janela do agendador rápido. */
+export function dentroDoHorarioComercial(agora: Date = new Date()): boolean {
+  const brt = new Date(agora.getTime() - 3 * 60 * 60 * 1000);
+  const dia = brt.getUTCDay();   // 0 = domingo
+  const hora = brt.getUTCHours();
+  return dia !== 0 && hora >= 7 && hora < 20;
+}

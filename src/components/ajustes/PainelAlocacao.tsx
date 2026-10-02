@@ -177,7 +177,7 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
       if (!r.ok && !d.pulado) throw new Error(d.erro || `Falha (${r.status})`);
       setAviso(d.pulado
         ? { texto: d.pulado, tipo: 'erro' }
-        : { texto: `Verificado: ${d.abertas || 0} demanda(s) nova(s), ${d.fechadas || 0} fechada(s).`, tipo: 'ok' });
+        : { texto: `Verificado na Omie (${(d.sync || []).reduce((n: number, s: { upserts?: number }) => n + (s.upserts || 0), 0)} notas recentes lidas): ${d.abertas || 0} demanda(s) nova(s), ${d.fechadas || 0} fechada(s).${(d.sync || []).some((s: { erro?: string | null }) => s.erro) ? ' Atenção: a leitura de uma das empresas falhou.' : ''}`, tipo: 'ok' });
       await recarregar();
     } catch (e) { setAviso({ texto: 'Erro: ' + (e as Error).message, tipo: 'erro' }); }
     finally { setVerificando(false); }
@@ -200,7 +200,7 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
             <button onClick={onFechar} style={{ ...btn, marginLeft: 'auto', padding: 6 }} title="Fechar"><X size={16} /></button>
           </div>
           <p style={{ margin: '6px 0 10px', fontSize: '.74rem', color: '#64748b' }}>
-            A demanda nasce quando a nota é recebida (portal ou Omie) e fecha sozinha quando a peça ganha as três posições.
+            A demanda nasce em até 10 minutos depois que a nota é recebida (portal ou Omie) e fecha sozinha quando a peça ganha as três posições.
           </p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
             <div style={{ display: 'inline-flex', border: '1px solid #cbd5e1', borderRadius: 8, overflow: 'hidden' }}>
@@ -218,8 +218,8 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="código, descrição, nota ou fornecedor"
               style={{ flex: 1, minWidth: 160, border: '1px solid #cbd5e1', borderRadius: 8, padding: '6px 8px', fontSize: '.78rem' }} />
             <button onClick={verificarAgora} disabled={verificando} style={{ ...btn, opacity: verificando ? .6 : 1 }}
-              title="Procura agora notas recebidas (sem esperar a rodada automática de 15 min)">
-              <RefreshCw size={14} /> {verificando ? 'Verificando…' : 'Verificar agora'}
+              title="Relê na Omie as notas recentes (emitidas nos últimos 45 dias) e atualiza as demandas — leva cerca de meio minuto. Sozinho, o portal faz isso a cada 10 min em horário comercial.">
+              <RefreshCw size={14} /> {verificando ? 'Buscando na Omie…' : 'Verificar agora'}
             </button>
           </div>
           {aviso && (

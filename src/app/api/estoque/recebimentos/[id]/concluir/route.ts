@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
 import { concluirRecebimento } from '@/lib/estoque/recebimentos';
+import { verificarAlocacaoDepoisDaEntrada } from '@/lib/pecas/alocacao-rapido';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -15,6 +16,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const r = await concluirRecebimento(conta, parseInt(id, 10), body.codigo_categoria || undefined);
     if (r.naoEncontrado) return NextResponse.json({ erro: r.erro }, { status: 404 });
     if (r.erro) return NextResponse.json({ erro: r.erro });
+    // Recebimento concluído → em segundo plano, abre a demanda de ALOCAÇÃO das peças
+    // recebidas sem locação (sync rápido das notas recentes + motor).
+    verificarAlocacaoDepoisDaEntrada(conta);
     return NextResponse.json(r);
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });

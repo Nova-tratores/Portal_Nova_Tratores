@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { protegerRota, autorDe, type OpcaoAcesso } from '@/lib/ajustes/permissao-server';
 import { registrarAuditLog } from '@/lib/server/audit-notify';
-import { dispensar, listarAbertas, listarEncerradas, reabrir, sincronizarAlocacao } from '@/lib/pecas/alocacao-server';
+import { dispensar, listarAbertas, listarEncerradas, reabrir } from '@/lib/pecas/alocacao-server';
+import { verificarAlocacaoRapido } from '@/lib/pecas/alocacao-rapido';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 // Demanda de ALOCAÇÃO de peça recebida (painel "A alocar" de /ajustes/caracteristicas).
 // A demanda nasce sozinha (motor encadeado no cron de recebimentos) e fecha sozinha
@@ -34,13 +35,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// "Verificar agora": roda o motor sem esperar o cron de 15 min.
+// "Verificar agora": relê na Omie as notas RECENTES (emitidas nos últimos 45 dias,
+// ~25 s) e roda o motor — sem esperar o agendador de 10 min nem o sync completo.
 export async function POST(req: NextRequest) {
   const acesso = await protegerRota(req, ACESSO);
   if (acesso.resposta) return acesso.resposta;
   try {
-    const r = await sincronizarAlocacao();
-    return NextResponse.json({ ok: !r.pulado, ...r });
+    const r = await verificarAlocacaoRapido();
+    return NextResponse.json({ ok: !r.alocacao.pulado, ...r.alocacao, sync: r.sync });
   } catch (e) {
     return NextResponse.json({ ok: false, erro: (e as Error).message }, { status: 500 });
   }

@@ -554,6 +554,20 @@ function semRecebidoEm(rows: RecebRow[]): RecebRow[] {
   return rows.map((r) => { const { recebido_em: _fora, ...resto } = r; void _fora; return resto as RecebRow; });
 }
 
+// Grava um lote no espelho. Devolve a mensagem de erro (ou null). Usado pelo sync
+// completo e pelo sync rápido.
+async function gravarRecebRows(rows: RecebRow[]): Promise<string | null> {
+  if (rows.length === 0) return null;
+  let { error } = await supabase.from('recebimentos_nfe')
+    .upsert(colunaRecebidoEm ? rows : semRecebidoEm(rows), { onConflict: 'conta_omie,id_receb' });
+  if (error && colunaRecebidoEm && /recebido_em/i.test(error.message)) {
+    colunaRecebidoEm = false;
+    console.warn('[sync-recebimentos] coluna recebido_em ausente — aplicar sql/pecas-alocacao-pendencias.sql');
+    ({ error } = await supabase.from('recebimentos_nfe').upsert(semRecebidoEm(rows), { onConflict: 'conta_omie,id_receb' }));
+  }
+  return error ? error.message : null;
+}
+
 interface ListarRecebOmieResp {
   faultstring?: string;
   nTotalPaginas?: number;
@@ -577,6 +591,9 @@ export async function sincronizarRecebimentos(conta: Conta): Promise<RecebSyncEs
   estado.erro = null;
 
   const low = String(conta).toLowerCase();
+  // A migration pode ter sido aplicada com o processo no ar: tenta a coluna de novo a
+  // cada rodada (senão a data de recebimento ficaria NULL até o próximo deploy).
+  colunaRecebidoEm = true;
   try {
     let pag = 1;
     const MAX_PAG = 200; // teto de segurança
@@ -604,15 +621,9 @@ export async function sincronizarRecebimentos(conta: Conta): Promise<RecebSyncEs
         if (row) rows.push(row);
       }
       if (rows.length > 0) {
-        let { error } = await supabase.from('recebimentos_nfe')
-          .upsert(colunaRecebidoEm ? rows : semRecebidoEm(rows), { onConflict: 'conta_omie,id_receb' });
-        if (error && colunaRecebidoEm && /recebido_em/i.test(error.message)) {
-          colunaRecebidoEm = false;
-          console.warn('[sync-recebimentos] coluna recebido_em ausente — aplicar sql/pecas-alocacao-pendencias.sql');
-          ({ error } = await supabase.from('recebimentos_nfe').upsert(semRecebidoEm(rows), { onConflict: 'conta_omie,id_receb' }));
-        }
-        if (error) {
-          estado.erro = error.message;
+        const erroGravar = await gravarRecebRows(rows);
+        if (erroGravar) {
+          estado.erro = erroGravar;
           break;
         }
         estado.upserts = (estado.upserts || 0) + rows.length;
@@ -632,6 +643,73 @@ export async function sincronizarRecebimentos(conta: Conta): Promise<RecebSyncEs
     estado.finalizadoEm = new Date().toISOString();
   }
   return estado;
+}
+
+// ===== Sync RÁPIDO: só as notas emitidas nos últimos N dias =====
+// O sync completo varre TODO o histórico (~20 min) e, na prática, o GitHub só o
+// dispara 3–4 vezes por dia. A demanda de alocação (src/lib/pecas) precisa saber da
+// nota recebida em MINUTOS. O ListarRecebimentos não filtra por data de alteração
+// (sondado em 02/10/2026: "Tag [DTALTERACAOATE] não faz parte da estrutura"), só por
+// EMISSÃO — e 96% das notas são recebidas em até 45 dias da emissão (mediana 2 dias).
+// Então: janela de emissão curta = 4–5 páginas por conta (~25 s). A nota antiga
+// recebida tarde continua coberta pelo sync completo.
+export interface RecebRecentesResultado {
+  conta: string;
+  dias: number;
+  paginas: number;
+  upserts: number;
+  duracaoMs: number;
+  erro: string | null;
+  pulado?: boolean;   // já havia um sync rápido desta conta em andamento
+}
+const recentesRodando: Record<string, boolean> = {};
+const fmtDataBR = (d: Date): string =>
+  `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+
+export async function sincronizarRecebimentosRecentes(conta: Conta, dias = 45): Promise<RecebRecentesResultado> {
+  const low = String(conta).toLowerCase();
+  const res: RecebRecentesResultado = { conta: String(conta), dias, paginas: 0, upserts: 0, duracaoMs: 0, erro: null };
+  if (recentesRodando[low]) return { ...res, pulado: true };
+  recentesRodando[low] = true;
+  const t0 = Date.now();
+  colunaRecebidoEm = true;
+  try {
+    const de = new Date(); de.setDate(de.getDate() - dias);
+    const ate = new Date(); ate.setDate(ate.getDate() + 1); // +1: o servidor roda em UTC
+    const MAX_PAG = 20; // teto de segurança (45 dias ≈ 5 páginas)
+    for (let pag = 1; pag <= MAX_PAG; pag++) {
+      const r = await omieRequest<ListarRecebOmieResp>(
+        URL_RECEBIMENTO,
+        'ListarRecebimentos',
+        { nPagina: pag, nRegistrosPorPagina: 50, cExibirDetalhes: 'S', cOrdenarPor: 'CODIGO', dtEmissaoDe: fmtDataBR(de), dtEmissaoAte: fmtDataBR(ate) },
+        { conta, retries: 2, maxWaitMs: 30_000 },
+      );
+      if (r.faultstring) {
+        if (!/n[aã]o existem registros|nenhum registro/i.test(r.faultstring)) res.erro = r.faultstring;
+        break;
+      }
+      const lista = (r.recebimentos || r.recebimento_cadastro || r.cadastros || []) as Json[];
+      if (lista.length === 0) break;
+      const rows: RecebRow[] = [];
+      for (const reg of lista) {
+        const row = recebOmieParaRow(reg, low);
+        if (row) rows.push(row);
+      }
+      const erroGravar = await gravarRecebRows(rows);
+      if (erroGravar) { res.erro = erroGravar; break; }
+      res.upserts += rows.length;
+      res.paginas = pag;
+      const totalPag = r.nTotalPaginas || r.total_de_paginas || r.nTotPaginas || 0;
+      if ((totalPag && pag >= totalPag) || lista.length < 50) break;
+      await sleep(700);
+    }
+  } catch (e) {
+    res.erro = (e as Error).message;
+  } finally {
+    recentesRodando[low] = false;
+    res.duracaoMs = Date.now() - t0;
+  }
+  return res;
 }
 
 // Roda o sync para TODAS as contas configuradas (usado pelo cron).

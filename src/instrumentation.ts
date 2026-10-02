@@ -115,5 +115,25 @@ export async function register(): Promise<void> {
     log('vigia de saúde dos robôs LIGADO (a cada 1h) — alerta admins se um cron parar');
   }
 
+  // Demanda de ALOCAÇÃO de peça recebida: relê as notas RECENTES da Omie e abre/fecha as
+  // demandas a cada 10 min em horário comercial. Fica AQUI (e não no GitHub Actions)
+  // porque o GitHub só dispara o cron de recebimentos 3–4 vezes por dia — a peça
+  // recebida levava horas para virar demanda. Leve: ~5 páginas de ListarRecebimentos
+  // por conta. Não tem cron equivalente no GitHub (sem duplicidade). SÓ produção.
+  // Desliga com ALOCACAO_RAPIDO=off.
+  if (process.env.NODE_ENV === 'production' && process.env.ALOCACAO_RAPIDO !== 'off') {
+    const { rodarAlocacaoRapidoAgendado } = await import('./lib/pecas/alocacao-rapido');
+    const rodarAlocacao = async () => {
+      try {
+        const r = await rodarAlocacaoRapidoAgendado();
+        if (r) log(`alocacao-rapido: ${r}`);
+      } catch (e) { log('alocacao-rapido falhou: ' + (e as Error).message); }
+    };
+    const DEZ_MIN_ALOC = 10 * 60 * 1000;
+    setInterval(() => { rodarAlocacao().catch(() => {}); }, DEZ_MIN_ALOC);
+    setTimeout(() => { rodarAlocacao().catch(() => {}); }, 2 * 60 * 1000); // 1ª rodada ~2min após o boot
+    log('alocação de peças recebidas LIGADA (a cada 10 min, seg–sáb 07h–20h BRT)');
+  }
+
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }
