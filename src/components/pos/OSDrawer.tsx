@@ -206,7 +206,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [saving, setSaving] = useState(false);
   const [aba, setAba] = useState<"os" | "ppv">("os");
   // Sub-abas no padrão Omie (modelo aprovado 04/09): cada card vive numa aba
-  const [abaOmie, setAbaOmie] = useState<"servicos" | "produtos" | "requisicoes" | "relatorio" | "alimentacao" | "garantia" | "obs" | "dados">("servicos");
+  const [abaOmie, setAbaOmie] = useState<"servicos" | "produtos" | "requisicoes" | "relatorio" | "garantia" | "obs" | "dados">("servicos");
   const [loadingData, setLoadingData] = useState(false);
   // Incrementado após importar um orçamento → força recarregar os dados da OS
   const [reloadKey, setReloadKey] = useState(0);
@@ -962,6 +962,141 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const I_DISC: React.CSSProperties = { marginBottom: 0, height: 30, fontSize: 12.5, padding: "0 8px" };
   const ppvIds = ppv.split(",").map((s) => s.trim()).filter(Boolean);
 
+  // Card Alimentação & Dias do Serviço — vive na aba "Requisições & Alimentação"
+  // (edit) e solto no painel da OS (create).
+  const cardAlimentacao = (oculto: boolean) => (
+    <div className="os-card" style={{ display: oculto ? "none" : undefined }}>
+      <div className="os-card-title"><i className="fas fa-utensils" /> Alimentação &amp; Dias do Serviço</div>
+      {/* Alimentação do Técnico (várias, sem limite) */}
+      <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacoes.length ? '#FFFBEB' : 'var(--portal-bg-secondary)', border: `1px solid ${alimentacoes.length ? '#FCD34D' : 'var(--portal-border)'}`, borderRadius: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>
+            <i className="fas fa-utensils" style={{ color: '#D97706', fontSize: 12 }} />
+            Alimentação do técnico
+            {alimentacoes.length > 0 && (
+              <span style={{ fontSize: 11, color: '#92400E', fontWeight: 700 }}>· {alimentacoes.length} · R$ {alimentacoes.reduce((s, a) => s + (a.valor || 0), 0).toFixed(2)}</span>
+            )}
+          </span>
+          <button type="button" onClick={() => setAlimentacoes(prev => [...prev, { data: new Date().toISOString().slice(0, 10), valor: 0, tecnicos: [tecnico1].filter(Boolean), no_pdf: false }])}
+            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: 'none', background: '#D97706', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+            <i className="fas fa-plus" style={{ fontSize: 10 }} /> Adicionar
+          </button>
+        </div>
+
+        {/* input escondido — o botão "anexar nota" de cada linha aponta pra cá */}
+        <input
+          ref={notaFileRef}
+          type="file"
+          accept=".pdf,image/*"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const idx = notaIdxRef.current;
+            if (idx >= 0) anexarNota(idx, e.target.files?.[0] || null);
+            e.target.value = '';
+          }}
+        />
+        {alimentacoes.length === 0 && (
+          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>
+            Nenhuma alimentação. Clique em &quot;Adicionar&quot;.
+          </div>
+        )}
+
+        {alimentacoes.map((a, i) => {
+          const upd = (patch: Partial<AlimentacaoItem>) => setAlimentacoes(prev => prev.map((x, idx) => idx === i ? { ...x, ...patch } : x))
+          const sel = a.tecnicos.length >= 2 ? 'ambos' : (a.tecnicos[0] && a.tecnicos[0] === tecnico2 ? 'tec2' : 'tec1')
+          const opts: { k: 'tec1' | 'tec2' | 'ambos'; label: string; on: boolean }[] = [
+            { k: 'tec1', label: 'Téc 1', on: !!tecnico1 },
+            { k: 'tec2', label: 'Téc 2', on: !!tecnico2 },
+            { k: 'ambos', label: 'Ambos', on: !!tecnico2 },
+          ]
+          return (
+            <div key={i} style={{ marginTop: 8, padding: 8, background: '#fff', border: '1px solid #FCD34D', borderRadius: 6, display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+              <div style={{ width: 130 }}>
+                <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0 }}>Data</label>
+                <input type="date" value={a.data} onChange={(e) => upd({ data: e.target.value })} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
+              </div>
+              <div style={{ width: 96 }}>
+                <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0 }}>Valor (R$)</label>
+                <input type="number" min={0} step={0.01} value={a.valor || ''} onChange={(e) => upd({ valor: parseFloat(e.target.value) || 0 })} placeholder="0,00" style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
+              </div>
+              <div>
+                <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0, display: 'block' }}>Técnico(s)</label>
+                <div style={{ display: 'flex', gap: 3 }}>
+                  {opts.map(opt => (
+                    <button key={opt.k} type="button" disabled={!opt.on}
+                      onClick={() => upd({ tecnicos: opt.k === 'ambos' ? [tecnico1, tecnico2].filter(Boolean) : opt.k === 'tec2' ? [tecnico2].filter(Boolean) : [tecnico1].filter(Boolean) })}
+                      style={{ padding: '6px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: opt.on ? 'pointer' : 'not-allowed',
+                        border: sel === opt.k ? '1px solid #D97706' : '1px solid #E5E7EB',
+                        background: sel === opt.k ? '#FEF3C7' : '#fff', color: sel === opt.k ? '#92400E' : '#9CA3AF', opacity: opt.on ? 1 : 0.4 }}>
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 12, color: a.no_pdf ? '#DC2626' : 'var(--portal-text-secondary)', paddingBottom: 6 }}>
+                <input type="checkbox" checked={a.no_pdf} onChange={(e) => upd({ no_pdf: e.target.checked })} style={{ accentColor: '#DC2626', width: 14, height: 14 }} />
+                Mostrar no PDF
+              </label>
+              {a.data && (() => {
+                const fotoNota = a.foto || fotosAlmocoDia[a.data];
+                if (fotoNota) {
+                  return (
+                    <a href={fotoNota} target="_blank" rel="noreferrer" title={a.foto ? 'Nota anexada pelo portal' : 'Nota anexada pelo técnico'} style={{ display: 'block', width: 40, height: 40, borderRadius: 6, overflow: 'hidden', border: '1px solid #86EFAC', flexShrink: 0 }}>
+                      <img src={fotoNota} alt="Nota do almoço" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    </a>
+                  );
+                }
+                // sem nota: em OS já salva, o admin anexa AQUI — e a
+                // despesa de alimentação abre automaticamente
+                return mode === 'edit' && osId ? (
+                  <button type="button" disabled={enviandoNota === i}
+                    onClick={() => { notaIdxRef.current = i; notaFileRef.current?.click(); }}
+                    title="Anexar a nota deste dia (abre a despesa de alimentação automaticamente, em nome do técnico, direto no financeiro)"
+                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 6, border: '1px dashed #F59E0B', background: '#FFFBEB', color: '#B45309', fontSize: 8.5, textAlign: 'center', lineHeight: 1.15, flexShrink: 0, cursor: 'pointer', fontWeight: 700 }}>
+                    {enviandoNota === i ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 12 }} /> : <><i className="fas fa-paperclip" style={{ fontSize: 10, marginBottom: 2 }} />anexar<br />nota</>}
+                  </button>
+                ) : (
+                  <span title="O técnico ainda não anexou a nota deste dia" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 6, border: '1px dashed #FCA5A5', color: '#DC2626', fontSize: 9, textAlign: 'center', lineHeight: 1.1, flexShrink: 0 }}>
+                    sem<br />nota
+                  </span>
+                );
+              })()}
+              <button type="button" onClick={() => setAlimentacoes(prev => prev.filter((_, idx) => idx !== i))} title="Remover" style={{ marginLeft: 'auto', width: 28, height: 28, borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
+                <i className="fas fa-times" style={{ fontSize: 12 }} />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      {diasExecucao.length > 0 && (() => {
+        return (
+        <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
+          <div style={{ fontSize: 11, color: 'var(--portal-text-secondary)', fontWeight: 600, marginBottom: 2 }}>Confirme os dias:</div>
+          {diasExecucao.map((entry) => {
+            const dia = entry.split(' ')[0]
+            const diaDate = /^\d{4}-\d{2}-\d{2}$/.test(dia) ? new Date(dia + 'T12:00:00') : null
+            const diaLabel = diaDate && !isNaN(diaDate.getTime()) ? diaDate.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }) : dia
+            return (
+              <div key={dia} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', borderRadius: 6, border: '1px solid var(--portal-border)', fontSize: 13 }}>
+                <input type="checkbox" checked style={{ accentColor: '#1E3A5F', width: 16, height: 16, cursor: 'pointer' }} onChange={(e) => {
+                  if (!e.target.checked) setDiasExecucao(prev => prev.filter(d => !d.startsWith(dia)))
+                }} />
+                <span style={{ fontWeight: 600, color: '#1E3A5F' }}>{diaLabel}</span>
+              </div>
+            )
+          })}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4, padding: '4px 10px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#15803D' }}>
+              <i className="fas fa-calendar-check" style={{ fontSize: 11, marginRight: 4 }} />
+              {diasExecucao.length} dia{diasExecucao.length > 1 ? 's' : ''} selecionado{diasExecucao.length > 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>)
+      })()}
+    </div>
+  );
+
   return (
     <>
       <div className="drawer-overlay active fs">
@@ -1130,8 +1265,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                             )}
                           </div>
                         </div>
-                        <button type="button" onClick={() => { setAba("os"); setAbaOmie("alimentacao"); }}
-                          title="Ver/adicionar alimentação do técnico"
+                        <button type="button" onClick={() => { setAba("ppv"); setAbaOmie("requisicoes"); }}
+                          title="Ver/adicionar alimentação do técnico (aba Requisições & Alimentação)"
                           style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", borderRadius: 4, border: "1px solid #d6d0c4", background: "#fff", color: "#B45309", fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
                           <i className="fas fa-utensils" /> Alimentação{alimentacoes.length > 0 ? ` (${alimentacoes.length})` : ""}
                         </button>
@@ -1171,14 +1306,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         {produtos.length > 0 && <span className="os-tab-badge">{produtos.length}</span>}
                       </button>
                       <button type="button" className={`os-tab ${aba === "ppv" && abaOmie === "requisicoes" ? "active" : ""}`} onClick={() => { setAba("ppv"); setAbaOmie("requisicoes"); }}>
-                        Requisições
-                        {requisicoes.length > 0 && <span className="os-tab-badge">{requisicoes.length}</span>}
+                        Requisições &amp; Alimentação
+                        {(requisicoes.length + alimentacoes.length) > 0 && <span className="os-tab-badge">{requisicoes.length + alimentacoes.length}</span>}
                       </button>
                       <button type="button" className={`os-tab ${aba === "os" && abaOmie === "relatorio" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("relatorio"); }}>
                         Relatório Técnico
-                      </button>
-                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "alimentacao" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("alimentacao"); }}>
-                        Alimentação
                       </button>
                       <button type="button" className={`os-tab ${aba === "os" && abaOmie === "garantia" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("garantia"); }}>
                         Garantia
@@ -1753,137 +1885,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                     )}
                   </div>
 
-                  {/* ── Datas do Serviço (inclui Alimentação/Almoço) ── */}
-                  <div className="os-card os-aba os-aba-alimentacao" style={{ order: -2 }}>
-                    <div className="os-card-title"><i className="fas fa-utensils" /> Alimentação &amp; Dias do Serviço</div>
-                    {/* Alimentação do Técnico (várias, sem limite) */}
-                    <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacoes.length ? '#FFFBEB' : 'var(--portal-bg-secondary)', border: `1px solid ${alimentacoes.length ? '#FCD34D' : 'var(--portal-border)'}`, borderRadius: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>
-                          <i className="fas fa-utensils" style={{ color: '#D97706', fontSize: 12 }} />
-                          Alimentação do técnico
-                          {alimentacoes.length > 0 && (
-                            <span style={{ fontSize: 11, color: '#92400E', fontWeight: 700 }}>· {alimentacoes.length} · R$ {alimentacoes.reduce((s, a) => s + (a.valor || 0), 0).toFixed(2)}</span>
-                          )}
-                        </span>
-                        <button type="button" onClick={() => setAlimentacoes(prev => [...prev, { data: new Date().toISOString().slice(0, 10), valor: 0, tecnicos: [tecnico1].filter(Boolean), no_pdf: false }])}
-                          style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: 'none', background: '#D97706', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-                          <i className="fas fa-plus" style={{ fontSize: 10 }} /> Adicionar
-                        </button>
-                      </div>
-
-                      {/* input escondido — o botão "anexar nota" de cada linha aponta pra cá */}
-                      <input
-                        ref={notaFileRef}
-                        type="file"
-                        accept=".pdf,image/*"
-                        style={{ display: 'none' }}
-                        onChange={(e) => {
-                          const idx = notaIdxRef.current;
-                          if (idx >= 0) anexarNota(idx, e.target.files?.[0] || null);
-                          e.target.value = '';
-                        }}
-                      />
-                      {alimentacoes.length === 0 && (
-                        <div style={{ marginTop: 6, fontSize: 11, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>
-                          Nenhuma alimentação. Clique em &quot;Adicionar&quot;.
-                        </div>
-                      )}
-
-                      {alimentacoes.map((a, i) => {
-                        const upd = (patch: Partial<AlimentacaoItem>) => setAlimentacoes(prev => prev.map((x, idx) => idx === i ? { ...x, ...patch } : x))
-                        const sel = a.tecnicos.length >= 2 ? 'ambos' : (a.tecnicos[0] && a.tecnicos[0] === tecnico2 ? 'tec2' : 'tec1')
-                        const opts: { k: 'tec1' | 'tec2' | 'ambos'; label: string; on: boolean }[] = [
-                          { k: 'tec1', label: 'Téc 1', on: !!tecnico1 },
-                          { k: 'tec2', label: 'Téc 2', on: !!tecnico2 },
-                          { k: 'ambos', label: 'Ambos', on: !!tecnico2 },
-                        ]
-                        return (
-                          <div key={i} style={{ marginTop: 8, padding: 8, background: '#fff', border: '1px solid #FCD34D', borderRadius: 6, display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                            <div style={{ width: 130 }}>
-                              <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0 }}>Data</label>
-                              <input type="date" value={a.data} onChange={(e) => upd({ data: e.target.value })} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
-                            </div>
-                            <div style={{ width: 96 }}>
-                              <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0 }}>Valor (R$)</label>
-                              <input type="number" min={0} step={0.01} value={a.valor || ''} onChange={(e) => upd({ valor: parseFloat(e.target.value) || 0 })} placeholder="0,00" style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
-                            </div>
-                            <div>
-                              <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0, display: 'block' }}>Técnico(s)</label>
-                              <div style={{ display: 'flex', gap: 3 }}>
-                                {opts.map(opt => (
-                                  <button key={opt.k} type="button" disabled={!opt.on}
-                                    onClick={() => upd({ tecnicos: opt.k === 'ambos' ? [tecnico1, tecnico2].filter(Boolean) : opt.k === 'tec2' ? [tecnico2].filter(Boolean) : [tecnico1].filter(Boolean) })}
-                                    style={{ padding: '6px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: opt.on ? 'pointer' : 'not-allowed',
-                                      border: sel === opt.k ? '1px solid #D97706' : '1px solid #E5E7EB',
-                                      background: sel === opt.k ? '#FEF3C7' : '#fff', color: sel === opt.k ? '#92400E' : '#9CA3AF', opacity: opt.on ? 1 : 0.4 }}>
-                                    {opt.label}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 12, color: a.no_pdf ? '#DC2626' : 'var(--portal-text-secondary)', paddingBottom: 6 }}>
-                              <input type="checkbox" checked={a.no_pdf} onChange={(e) => upd({ no_pdf: e.target.checked })} style={{ accentColor: '#DC2626', width: 14, height: 14 }} />
-                              Mostrar no PDF
-                            </label>
-                            {a.data && (() => {
-                              const fotoNota = a.foto || fotosAlmocoDia[a.data];
-                              if (fotoNota) {
-                                return (
-                                  <a href={fotoNota} target="_blank" rel="noreferrer" title={a.foto ? 'Nota anexada pelo portal' : 'Nota anexada pelo técnico'} style={{ display: 'block', width: 40, height: 40, borderRadius: 6, overflow: 'hidden', border: '1px solid #86EFAC', flexShrink: 0 }}>
-                                    <img src={fotoNota} alt="Nota do almoço" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                  </a>
-                                );
-                              }
-                              // sem nota: em OS já salva, o admin anexa AQUI — e a
-                              // despesa de alimentação abre automaticamente
-                              return mode === 'edit' && osId ? (
-                                <button type="button" disabled={enviandoNota === i}
-                                  onClick={() => { notaIdxRef.current = i; notaFileRef.current?.click(); }}
-                                  title="Anexar a nota deste dia (abre a despesa de alimentação automaticamente, em nome do técnico, direto no financeiro)"
-                                  style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 6, border: '1px dashed #F59E0B', background: '#FFFBEB', color: '#B45309', fontSize: 8.5, textAlign: 'center', lineHeight: 1.15, flexShrink: 0, cursor: 'pointer', fontWeight: 700 }}>
-                                  {enviandoNota === i ? <i className="fas fa-spinner fa-spin" style={{ fontSize: 12 }} /> : <><i className="fas fa-paperclip" style={{ fontSize: 10, marginBottom: 2 }} />anexar<br />nota</>}
-                                </button>
-                              ) : (
-                                <span title="O técnico ainda não anexou a nota deste dia" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 6, border: '1px dashed #FCA5A5', color: '#DC2626', fontSize: 9, textAlign: 'center', lineHeight: 1.1, flexShrink: 0 }}>
-                                  sem<br />nota
-                                </span>
-                              );
-                            })()}
-                            <button type="button" onClick={() => setAlimentacoes(prev => prev.filter((_, idx) => idx !== i))} title="Remover" style={{ marginLeft: 'auto', width: 28, height: 28, borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
-                              <i className="fas fa-times" style={{ fontSize: 12 }} />
-                            </button>
-                          </div>
-                        )
-                      })}
-                    </div>
-
-                    {diasExecucao.length > 0 && (() => {
-                      return (
-                      <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        <div style={{ fontSize: 11, color: 'var(--portal-text-secondary)', fontWeight: 600, marginBottom: 2 }}>Confirme os dias:</div>
-                        {diasExecucao.map((entry) => {
-                          const dia = entry.split(' ')[0]
-                          const diaDate = /^\d{4}-\d{2}-\d{2}$/.test(dia) ? new Date(dia + 'T12:00:00') : null
-                          const diaLabel = diaDate && !isNaN(diaDate.getTime()) ? diaDate.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' }) : dia
-                          return (
-                            <div key={dia} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', borderRadius: 6, border: '1px solid var(--portal-border)', fontSize: 13 }}>
-                              <input type="checkbox" checked style={{ accentColor: '#1E3A5F', width: 16, height: 16, cursor: 'pointer' }} onChange={(e) => {
-                                if (!e.target.checked) setDiasExecucao(prev => prev.filter(d => !d.startsWith(dia)))
-                              }} />
-                              <span style={{ fontWeight: 600, color: '#1E3A5F' }}>{diaLabel}</span>
-                            </div>
-                          )
-                        })}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginTop: 4, padding: '4px 10px', background: '#F0FDF4', border: '1px solid #BBF7D0', borderRadius: 6 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: '#15803D' }}>
-                            <i className="fas fa-calendar-check" style={{ fontSize: 11, marginRight: 4 }} />
-                            {diasExecucao.length} dia{diasExecucao.length > 1 ? 's' : ''} selecionado{diasExecucao.length > 1 ? 's' : ''}
-                          </span>
-                        </div>
-                      </div>)
-                    })()}
-                  </div>
+                  {/* Alimentação: em edição mora na aba Requisições & Alimentação */}
+                  {mode === "create" && cardAlimentacao(false)}
 
 
                   {/* ── Descrição (aba Lista de Serviços, no lugar da antiga tabela) ── */}
@@ -2074,6 +2077,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       {requisicoes.length > 0 && (
                         <div style={S_MT12}>
                           <label>Requisições Vinculadas ({requisicoes.length})</label>
+                          <div style={{ fontSize: 11, color: "var(--portal-text-muted)", marginBottom: 4 }}>
+                            <i className="fas fa-print" style={{ marginRight: 4 }} />Desmarque &quot;Mostrar no PDF&quot; pra tirar a requisição da folha e do total impresso (vale só nesta impressão).
+                          </div>
                           <div className="os-req-list">
                             {requisicoes.map((r, i) => (
                               <div key={i} className="os-req-item" style={{ flexWrap: "wrap", gap: 6 }}>
@@ -2082,6 +2088,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                                 <span style={S_REQ_MATERIAL}>{r.material}</span>
                                 {r.valor > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>R$ {r.valor.toFixed(2)}</span>}
                                 {r.solicitante && r.solicitante !== "N/A" && <span style={{ fontSize: 11, color: "var(--portal-text-muted)" }}>({r.solicitante})</span>}
+                                <label title="Desmarcada = fora da folha e do total impresso" style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12, fontWeight: 600, color: reqsOcultasPrint.has(r.id) ? "var(--portal-text-secondary)" : "#DC2626", margin: 0, textTransform: "none", letterSpacing: 0 }}>
+                                  <input type="checkbox" checked={!reqsOcultasPrint.has(r.id)} onChange={() => toggleReqPrint(r.id)} style={{ accentColor: "#DC2626", width: 14, height: 14, margin: 0 }} />
+                                  Mostrar no PDF
+                                </label>
                                 <button type="button" onClick={() => window.open(`/requisicoes/imprimir/${r.id}`, "_blank")} title="Imprimir esta requisição"
                                   style={{ fontSize: 10.5, color: "#0d9488", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
                                   <i className="fas fa-print" style={{ marginRight: 3 }} /> Imprimir
@@ -2148,6 +2158,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       </button>
                     </div>
                   )}
+                  {/* ── Alimentação & Dias do Serviço — mesma aba das requisições ── */}
+                  {mode === "edit" && cardAlimentacao(abaOmie !== "requisicoes")}
 
                   </div>{/* fim painel Peças / PPV */}
 
@@ -2194,22 +2206,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                         <button className="os-printmenu-item" onClick={() => imprimirOS(false)} style={printMenuItem}>
                           <i className="fas fa-file-lines" style={{ width: 16, color: "#64748b" }} /> Sem as peças
                         </button>
-                        {requisicoes.length > 0 && (
-                          <>
-                            <div style={{ height: 1, background: "var(--portal-border)", margin: "4px 6px" }} />
-                            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .5, padding: "2px 10px" }}>Requisições na impressão</div>
-                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", padding: "0 10px 2px" }}>Desmarcada = fora da folha e do total impresso</div>
-                            {requisicoes.map((r) => {
-                              const marcada = !reqsOcultasPrint.has(r.id);
-                              return (
-                                <label key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "5px 10px", cursor: "pointer", fontSize: 12, borderRadius: 6, opacity: marcada ? 1 : 0.55 }}>
-                                  <input type="checkbox" checked={marcada} onChange={() => toggleReqPrint(r.id)} style={{ accentColor: "#0369A1", cursor: "pointer" }} />
-                                  <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: marcada ? "none" : "line-through" }}>#{r.id} · {r.material}</span>
-                                  <span style={{ fontWeight: 700, whiteSpace: "nowrap" }}>R$ {(r.valor || 0).toFixed(2)}</span>
-                                </label>
-                              );
-                            })}
-                          </>
+                        {reqsOcultasPrint.size > 0 && (
+                          <div style={{ fontSize: 10.5, color: "#B45309", padding: "2px 10px 4px" }}>
+                            <i className="fas fa-eye-slash" style={{ marginRight: 4 }} />{reqsOcultasPrint.size} requisição(ões) fora da impressão (aba Requisições &amp; Alimentação)
+                          </div>
                         )}
                         {ppvIds.length > 0 && (
                           <>
@@ -2233,8 +2233,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   </button>
                 )}
                 <button className="os-rail-btn" onClick={() => { setAba("ppv"); setAbaOmie("requisicoes"); }}>
-                  <i className="fas fa-shopping-cart" /> Requisições{requisicoes.length > 0 ? ` (${requisicoes.length})` : ""}
+                  <i className="fas fa-shopping-cart" /> Requisições &amp; Alimentação{(requisicoes.length + alimentacoes.length) > 0 ? ` (${requisicoes.length + alimentacoes.length})` : ""}
                 </button>
+                {relatorioTecnico && (
+                  <button className="os-rail-btn" onClick={() => window.open(relatorioTecnico, "_blank", "noopener")}
+                    title="Abre o relatório preenchido pelo técnico (PDF) numa aba nova — é só mandar imprimir">
+                    <i className="fas fa-file-pdf" /> Imprimir relatório técnico
+                  </button>
+                )}
                 {!ordemOmie && !(servicoInterno && status === "Concluída") && (
                   <button
                     className="os-rail-btn omie"
