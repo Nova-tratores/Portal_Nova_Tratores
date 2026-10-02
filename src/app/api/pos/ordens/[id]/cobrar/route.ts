@@ -11,6 +11,8 @@ import { buscarWhatsappDoCliente } from "@/lib/chatwoot/contatos-cliente";
 import { garantirConversaContato, enviarTextoConversa, enviarPdfConversa, buscarContatosPorTexto, atualizarAtributosContato, listarConversasContato, listarMensagensConversa } from "@/lib/chatwoot/cliente";
 import { chatwootConfigurado, chatwootVariaveisFaltando } from "@/lib/chatwoot/config";
 import { nomeVendedorPorCodigo } from "@/lib/pos/omie";
+import { garantirAssinatura, linkAssinatura, resumoDaOS } from "@/lib/pos/assinatura-cliente-db";
+import { ehMensagemDeCobranca, mensagemAssinaturaCobranca, perguntaPagamento } from "@/lib/pos/cobranca";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -63,6 +65,20 @@ async function clienteCadastro(os: any): Promise<{ codigos: string[]; registros:
   const registros = (cad || []).filter((c) => (doc ? soDigitos(c.cnpj_cpf) === doc : true));
   const codigos = [...new Set(registros.map((c) => String(c.cod_cli)))];
   return { codigos, registros };
+}
+
+// Assinatura do cliente desta OS: garante o link (cria na 1ª vez) e monta a
+// mensagem com a explicação certa. null se a tabela não existir/OS sem resumo.
+async function assinaturaDaCobranca(id: string, email: string | null): Promise<{ assinada: boolean; revisaoHoras: number | null; link: string; mensagem: string } | null> {
+  try {
+    const a = await garantirAssinatura(id, email);
+    const resumo = await resumoDaOS(id);
+    const link = linkAssinatura(a.token);
+    return { assinada: !!a.assinado_em, revisaoHoras: resumo.revisaoHoras, link, mensagem: mensagemAssinaturaCobranca(resumo, link) };
+  } catch (e) {
+    console.warn("[cobrar] assinatura indisponível:", e);
+    return null;
+  }
 }
 
 interface DadosCobranca {
@@ -246,7 +262,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
           const ehCobranca = (mm: any) => {
             if (Number(mm.message_type) !== 1) return false;
             const t = String(mm.content || "");
-            if (/Segue o orçamento|Valor Total:|^Posso fechar para /i.test(t)) return true;
+            if (ehMensagemDeCobranca(t)) return true;
             const anexos = Array.isArray(mm.attachments) ? mm.attachments : [];
             return anexos.some((ax: any) => /(Ordem|Pedido)_\d+/i.test(String(ax?.file_name || ax?.data_url || "")));
           };
@@ -309,12 +325,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const d = await montarCobranca(id);
     if ("erro" in d) return NextResponse.json({ error: d.erro }, { status: d.status });
+    const assinatura = await assinaturaDaCobranca(id, auth.email || null);
     return NextResponse.json({
       cliente: d.cliente,
       contatos: d.contatos,
       avisoContatos: d.avisoContatos,
       valores: { os: d.valorOS, pv: d.valorPV, total: d.total },
       mensagem: d.mensagem(d.contatos[0]?.nome || ""),
+      assinatura: assinatura ? { assinada: assinatura.assinada, revisaoHoras: assinatura.revisaoHoras, mensagem: assinatura.mensagem, link: assinatura.link } : null,
     });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : "Erro ao montar a cobrança." }, { status: 502 });
@@ -403,12 +421,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       } catch (e) { console.warn("[cobrar] PDF do PV falhou:", e); }
     }
 
-    // Preferência de faturamento: salva no contato e pergunta depois dos PDFs
+    // Link de assinatura do cliente (revisão → explica que vai pra fábrica;
+    // manutenção → só pede a assinatura). Se ele JÁ assinou, não manda de novo.
+    const assin = await assinaturaDaCobranca(id, auth.email || null);
+    if (assin && !assin.assinada) {
+      try {
+        await enviarTextoConversa(conversa, assin.mensagem);
+        enviados.push(`link de assinatura (${assin.revisaoHoras ? `cheque de revisão ${assin.revisaoHoras}h` : "OS"})`);
+      } catch (e) { console.warn("[cobrar] link de assinatura falhou:", e); }
+    }
+
+    // Forma de pagamento escolhida no card: salva no contato e pergunta por último
     const preferencia = String(body?.preferencia || "").trim().slice(0, 60);
-    if (preferencia) {
+    const pergunta = perguntaPagamento(preferencia);
+    if (pergunta) {
       try { await atualizarAtributosContato(contatoId, { preferencia_faturamento: preferencia }); } catch { /* segue */ }
-      await enviarTextoConversa(conversa, `Posso fechar para ${preferencia}?`);
-      enviados.push(`pergunta "Posso fechar para ${preferencia}?"`);
+      await enviarTextoConversa(conversa, pergunta);
+      enviados.push(`pergunta "${pergunta}"`);
     }
 
     // Log na timeline da OS — hora do BRASIL (o Railway roda em UTC; sem o

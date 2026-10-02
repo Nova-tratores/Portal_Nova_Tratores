@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import Link from "next/link";
 import { PHASES } from "@/lib/pos/constants";
 import { diasEntre } from "@/lib/pos/utils";
+import { OPCOES_PAGAMENTO, normalizarPagamento, perguntaPagamento } from "@/lib/pos/cobranca";
 import type { KanbanCard } from "@/lib/pos/types";
 import { STATUS_COR, STATUS_LABEL } from "@/lib/garantias/constants";
 import { authHeaders } from "@/lib/auth/client";
@@ -150,7 +151,7 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
     try {
       const r = await fetch(`/api/pos/ordens/${osId}/cobrar`, {
         method: "POST", headers: { "Content-Type": "application/json", ...(await authHeaders()) },
-        body: JSON.stringify({ contatoId: contatoSel, preferencia: prefFat.trim() }),
+        body: JSON.stringify({ contatoId: contatoSel, preferencia: (normalizarPagamento(prefFat) ?? prefFat).trim() }),
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
@@ -173,8 +174,9 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
     setPrefFat(String(contato?.preferenciaFaturamento || ""));
     setPrefSalva(false);
   }, [contatoSel, dados]); // eslint-disable-line react-hooks/exhaustive-deps
-  const salvarPreferencia = async () => {
-    const v = prefFat.trim();
+  const escolherPagamento = (op: string) => { setPrefFat(op); salvarPreferencia(op); };
+  const salvarPreferencia = async (valor?: string) => {
+    const v = (valor ?? prefFat).trim();
     if (!contatoSel || v === String(contato?.preferenciaFaturamento || "")) return;
     try {
       const r = await fetch(`/api/pos/ordens/${osId}/cobrar`, {
@@ -362,16 +364,27 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
               {contatoSel > 0 && (
                 <div style={{ marginTop: 7 }}>
                   <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, color: "#94A3B8" }}>
-                    Preferência de faturamento {prefSalva && <span style={{ color: "#15803D" }}>✔ salva no NovaZap</span>}
+                    Forma de pagamento {prefSalva && <span style={{ color: "#15803D" }}>✔ salva no NovaZap</span>}
                   </div>
-                  <input value={prefFat} onChange={(e) => setPrefFat(e.target.value)} onBlur={salvarPreferencia}
-                    placeholder="ex.: 30 dias (vazio = não pergunta)"
-                    style={{ width: "100%", boxSizing: "border-box", marginTop: 3, fontSize: 12, padding: "5px 8px", border: "1px solid var(--border, #E2E8F0)", borderRadius: 6 }} />
-                  {prefFat.trim() && (
-                    <div style={{ fontSize: 10.5, color: "#64748B", marginTop: 2 }}>
-                      Depois dos PDFs ele pergunta: “Posso fechar para {prefFat.trim()}?”
-                    </div>
-                  )}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 4 }}>
+                    {OPCOES_PAGAMENTO.map((op) => {
+                      const ativa = (normalizarPagamento(prefFat) ?? prefFat.trim()) === op;
+                      return (
+                        <button key={op} type="button" onClick={() => escolherPagamento(ativa ? "" : op)}
+                          title={ativa ? "Clique pra não perguntar" : `Pergunta "${perguntaPagamento(op)}"`}
+                          style={{ border: `1.5px solid ${ativa ? "#15803D" : "var(--border, #CBD5E1)"}`, background: ativa ? "#15803D" : "var(--surface, #fefefe)", color: ativa ? "#fefefe" : "#334155", borderRadius: 999, padding: "4px 10px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>
+                          {op}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: "#64748B", marginTop: 3 }}>
+                    {dados.assinatura && !dados.assinatura.assinada && (
+                      <>Depois dos PDFs ele manda o <b>link de assinatura</b> ({dados.assinatura.revisaoHoras ? `cheque de revisão ${dados.assinatura.revisaoHoras}h — explica que vai pra fábrica` : "OS — só pede a assinatura"}).{" "}</>
+                    )}
+                    {dados.assinatura?.assinada && <>Cliente <b>já assinou</b> — o link não vai de novo.{" "}</>}
+                    {prefFat.trim() ? <>Por último pergunta: “{perguntaPagamento(prefFat)}”</> : <>Sem forma escolhida = não pergunta.</>}
+                  </div>
                 </div>
               )}
               {dados.mensagem && (
