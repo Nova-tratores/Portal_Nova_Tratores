@@ -13,7 +13,7 @@ import {
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
-  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus, Tags
+  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus, Tags, BookOpen,
 } from 'lucide-react'
 
 interface SystemCard {
@@ -85,6 +85,7 @@ const systems: SystemCard[] = [
   { id: 'pendencias', name: 'Pendências Frota', description: 'Abrir e acompanhar pendências dos veículos — com foto direto do celular', icon: <Wrench size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/pendencias', tag: 'PENDÊNCIAS', group: 'frota' },
 
   // Outros (cinza)
+  { id: 'conhecimento', name: 'Base de conhecimento', description: 'Como usar cada tela do portal — o mesmo texto do botão "?" do cabeçalho', icon: <BookOpen size={28} />, color: '#0369a1', gradient: 'linear-gradient(135deg, #0ea5e9, #0369a1)', href: '/conhecimento', tag: 'AJUDA', group: 'outros' },
   { id: 'opa', name: 'Opa', description: 'Sinalize ocorrências e coisas fora do lugar — todos veem até alguém resolver', icon: <AlertCircle size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/opa', tag: 'OCORRÊNCIAS', group: 'outros' },
   { id: 'avisos', name: 'Avisos', description: 'Comunicados e avisos para toda a equipe, com anexos e notificações', icon: <Megaphone size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)', href: '/avisos', tag: 'COMUNICADOS', group: 'outros' },
   { id: 'tarefas', name: 'Tarefas', description: 'Gestão de tarefas entre usuários', icon: <ClipboardCheck size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #374151)', href: '/tarefas', tag: 'TAREFAS', group: 'outros' },
@@ -132,6 +133,8 @@ const systemToModulo: Record<string, string> = {
   'dre': 'dre',
   'back-nova': 'back-nova',
   'supervisor-vendas': 'supervisor-vendas',
+  // 'conhecimento' fica de FORA de propósito: ler a base é de todo usuário logado
+  // (card sem módulo aparece para todos — ver aviso acima).
   'gestao-vendas': 'gestao-vendas',
   'vendas-modelo': 'vendas-modelo',
   'configuracoes': 'admin',

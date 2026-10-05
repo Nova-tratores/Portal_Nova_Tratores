@@ -38,6 +38,8 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   // Outros
   opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
   tickets: 'Outros', 'war-room': 'Financeiro',
+  // Base de conhecimento: LER é de todo mundo logado (sem módulo); as ações aqui são de quem escreve/aprova.
+  conhecimento: 'Outros',
 };
 
 export function grupoDoModulo(id: string): string {
@@ -48,6 +50,10 @@ export function grupoDoModulo(id: string): string {
 // Ações granulares por módulo. Módulo sem entrada aqui = só liga/desliga (acesso total).
 // (Fase 1: só Requisições. Os demais entram aqui conforme forem enforçados.)
 export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
+  conhecimento: [
+    { id: 'editar', label: 'Escrever e editar artigos (qualquer módulo)' },
+    { id: 'publicar', label: 'Publicar, arquivar e aprovar artigos (qualquer módulo)' },
+  ],
   requisicoes: [
     { id: 'criar', label: 'Criar requisição' },
     { id: 'editar', label: 'Editar requisição' },

@@ -34,6 +34,7 @@ export const MODULOS_NOTIFICAVEIS: { id: string; nome: string }[] = [
   { id: 'tarefas',     nome: 'Tarefas' },
   { id: 'tickets',     nome: 'Tickets' },
   { id: 'atividades',  nome: 'Atividades' },
+  { id: 'conhecimento', nome: 'Base de conhecimento' },
 ];
 
 // Resolve módulos obrigatórios pra uma categoria — combina globais + da

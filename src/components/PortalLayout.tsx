@@ -20,7 +20,8 @@ import {
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
   LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags
 } from 'lucide-react'
-import { MailCheck as IconEnviosEmail } from 'lucide-react'
+import { MailCheck as IconEnviosEmail, BookOpen } from 'lucide-react'
+import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import ChatPanel from './chat/ChatPanel'
@@ -60,6 +61,8 @@ const navItems: NavItem[] = [
   // Geral
   { id: 'dashboard', name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, tag: 'INÍCIO', gradient: '', group: 'geral' },
   { id: 'tickets', name: 'Tickets', href: '/tickets', icon: <Ticket size={18} />, tag: 'DEMANDAS', gradient: '', group: 'geral' },
+  // Base de conhecimento: aparece para todo mundo logado (o filtro abaixo libera o id).
+  { id: 'conhecimento', name: 'Base de conhecimento', href: '/conhecimento', icon: <BookOpen size={18} />, tag: 'AJUDA', gradient: '', group: 'geral' },
 
   // Serviços (azul claro)
   { id: 'pos', name: 'Pós-Vendas (OS)', href: '/pos', icon: <Settings size={18} />, tag: 'OS', gradient: '', group: 'servicos' },
@@ -583,7 +586,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const totalBell = notifData.naoLidas + chatData.totalNaoLidas
 
   const filteredNavItems = useMemo(() => navItems.filter(item => {
-    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat') return true
+    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat' || item.id === 'conhecimento') return true
     if (temAcesso(item.id)) return true
     // Visibilidade quando o usuário tem permissão por sub-página (ex.: 'ajustes:inventario')
     return (permissoes?.modulos_permitidos || []).some(m => m.startsWith(item.id + ':'))
@@ -877,6 +880,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           <SolicitacoesTratorilson open={zapPanelOpen} onClose={() => setZapPanelOpen(false)} />
           </div>
           )}
+
+          {/* Ajuda desta tela (base de conhecimento) — só aparece se a tela tem artigo publicado */}
+          <BotaoAjuda estilo={{
+            background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)',
+            color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: '11px', borderRadius: '12px',
+            display: 'flex', alignItems: 'center',
+          }} />
 
           {/* Ícone Notificações */}
           <button
