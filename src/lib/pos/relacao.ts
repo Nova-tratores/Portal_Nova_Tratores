@@ -10,6 +10,7 @@ import {
   dataMs, fmtDataCurta, fmtBRL, chaveMes, rotuloMes, hexToRgb, ehTokenPeriodo, passaPeriodo, rotuloPeriodo,
   agregarPor, type Agregado,
 } from "@/lib/ppv/relacao";
+import { rotuloNfse, valorNfse, situacaoNota } from "./nota";
 
 export { OPCOES_PERIODO, passaPeriodo, rotuloPeriodo, ehTokenPeriodo, fmtBRL, fmtDataCurta, dataMs, chaveMes, rotuloMes, topComOutros, type Agregado } from "@/lib/ppv/relacao";
 
@@ -27,6 +28,8 @@ export const COLS_RELACAO_OS = [
   { k: "dataFimServico", label: "Fim do serviço" },
   { k: "previsaoFaturamento", label: "Prev. faturamento" },
   { k: "ordemOmie", label: "Ordem Omie" },
+  { k: "nfse", label: "NFS-e" },
+  { k: "nfseValor", label: "Serviço na NFS-e" },
   { k: "ppvId", label: "PPV" },
   { k: "projeto", label: "Projeto / máquina" },
   { k: "servSolicitado", label: "Solicitação" },
@@ -101,6 +104,8 @@ export function colTextoOS(o: KanbanCard, k: ColOSKey): string {
     case "dataFimServico": return fmtDataCurta(o.dataFimServico);
     case "previsaoFaturamento": return fmtDataCurta(o.previsaoFaturamento);
     case "ordemOmie": return o.ordemOmie || "";
+    case "nfse": return rotuloNfse(o);
+    case "nfseValor": return situacaoNota(o) === "com_nfse" ? fmtBRL(valorNfse(o)) : "";
     case "ppvId": return o.ppvId || "";
     case "projeto": return o.projeto || "";
     case "servSolicitado": return o.servSolicitado === "-" ? "" : (o.servSolicitado || "");
@@ -125,9 +130,18 @@ export interface FiltrosOS {
   busca?: string;
   status?: string;            // fase exata ou FASE_PENDENTE_OS ("" = todas)
   tecnico?: string;           // filtro do header (nome exato, comparado normalizado)
+  cobranca?: CobrancaOS;      // "nota" = OS sem o selo de serviço interno · "interno" = com o selo ("" = todas)
   filtrosCol?: Partial<Record<ColOSKey, string>>;
   hoje?: Date;
 }
+/** Separação pelo selo "serviço interno" da OS (não pela NFS-e emitida). */
+export type CobrancaOS = "" | "nota" | "interno";
+export function passaCobranca(o: Pick<KanbanCard, "servicoInterno">, c?: CobrancaOS): boolean {
+  if (c === "interno") return !!o.servicoInterno;
+  if (c === "nota") return !o.servicoInterno;
+  return true;
+}
+
 export interface OrdemOS { key: ColOSKey; dir: "asc" | "desc" }
 
 const norm = (s: string) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
@@ -141,6 +155,7 @@ export function filtrarOS(lista: KanbanCard[], f: FiltrosOS): KanbanCard[] {
     if (f.status === FASE_PENDENTE_OS) { if (!estaPendente(o)) return false; }
     else if (f.status && o.status !== f.status) return false;
     if (tec && norm(o.tecnico) !== tec) return false;
+    if (!passaCobranca(o, f.cobranca)) return false;
     if (q) {
       const campos = [o.id, o.cliente, o.tecnico, o.ordemOmie, o.ppvId, o.servSolicitado, o.projeto, o.tipoServico, rotuloFaseOS(o.status), fmtBRL(valorOS(o)), String(o.valor ?? "")];
       if (!campos.some((v) => String(v || "").toLowerCase().includes(q))) return false;
@@ -182,6 +197,8 @@ const SORT_GET: Record<ColOSKey, (o: KanbanCard) => number | string> = {
   dataFimServico: (o) => dataMs(o.dataFimServico),
   previsaoFaturamento: (o) => dataMs(o.previsaoFaturamento),
   ordemOmie: (o) => Number(o.ordemOmie) || (o.ordemOmie || "").toLowerCase(),
+  nfse: (o) => Number(rotuloNfse(o)) || rotuloNfse(o),
+  nfseValor: (o) => valorNfse(o),
   ppvId: (o) => Number(String(o.ppvId || "").replace(/\D/g, "")) || 0,
   projeto: (o) => (o.projeto || "").toLowerCase(),
   servSolicitado: (o) => (o.servSolicitado || "").toLowerCase(),
@@ -201,6 +218,8 @@ export function resumoFiltrosOS(f: FiltrosOS, ordem?: OrdemOS): string[] {
   const r: string[] = [];
   if ((f.busca || "").trim()) r.push(`Busca: "${(f.busca || "").trim()}"`);
   if (f.tecnico) r.push(`Técnico: ${f.tecnico}`);
+  if (f.cobranca === "nota") r.push("Cobrança: com nota (sem as OS internas)");
+  else if (f.cobranca === "interno") r.push("Cobrança: só OS internas");
   if (f.status === FASE_PENDENTE_OS) r.push("Fase: Pendente (menos Concluída/Cancelada)");
   else if (f.status) r.push(`Fase: ${rotuloFaseOS(f.status)}`);
   for (const col of COLS_RELACAO_OS) {
@@ -216,13 +235,22 @@ export function resumoFiltrosOS(f: FiltrosOS, ordem?: OrdemOS): string[] {
 
 /** Totais (cards da tela, rodapé do PDF). */
 export function totaisOS(lista: KanbanCard[]) {
-  const t = { n: 0, valor: 0, pendentesN: 0, pendentesV: 0, concluidasN: 0, concluidasV: 0, canceladasN: 0, atrasadasN: 0, horas: 0, km: 0 };
+  const t = {
+    n: 0, valor: 0, pendentesN: 0, pendentesV: 0, concluidasN: 0, concluidasV: 0, canceladasN: 0, atrasadasN: 0, horas: 0, km: 0,
+    // com nota × interno = selo da OS (valor do portal); nfse* = NFS-e de serviço emitida (cache da Omie);
+    // semNfseN = concluída, não interna, faturada na Omie e o cache diz que não saiu nota.
+    comNotaN: 0, comNotaV: 0, internoN: 0, internoV: 0, nfseN: 0, nfseV: 0, semNfseN: 0,
+  };
   for (const o of lista) {
     const v = valorOS(o);
     t.n++; t.valor += v;
     if (estaPendente(o)) { t.pendentesN++; t.pendentesV += v; }
     if (o.status === "Concluída") { t.concluidasN++; t.concluidasV += v; }
     if (o.status === "Cancelada") t.canceladasN++;
+    if (o.servicoInterno) { t.internoN++; t.internoV += v; } else { t.comNotaN++; t.comNotaV += v; }
+    const sit = situacaoNota(o);
+    if (sit === "com_nfse") { t.nfseN++; t.nfseV += valorNfse(o); }
+    if (sit === "sem_nfse" && o.status === "Concluída") t.semNfseN++;
     if ((o.diasAtraso || 0) > 0 && estaPendente(o)) t.atrasadasN++;
     t.horas += Number(o.qtdHoras) || 0;
     t.km += Number(o.qtdKm) || 0;
@@ -261,9 +289,11 @@ export function porFaseOS(lista: KanbanCard[]): Agregado[] {
 export function gerarCSVOS(lista: KanbanCard[]): string {
   const sep = ";";
   const cell = (v: string) => (/[";\n\r]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v);
-  const head = [...COLS_RELACAO_OS.map((c) => c.label), "Valor (número)", "Horas", "Km", "Dias de atraso"].join(sep);
+  const head = [...COLS_RELACAO_OS.map((c) => c.label), "Serviço na NFS-e (número)", "Interna", "Valor (número)", "Horas", "Km", "Dias de atraso"].join(sep);
   const linhas = lista.map((o) => [
     ...COLS_RELACAO_OS.map((c) => cell(colTextoOS(o, c.k))),
+    situacaoNota(o) === "com_nfse" ? valorNfse(o).toFixed(2).replace(".", ",") : "",
+    o.servicoInterno ? "sim" : "não",
     valorOS(o).toFixed(2).replace(".", ","),
     String(Number(o.qtdHoras) || 0).replace(".", ","),
     String(Number(o.qtdKm) || 0).replace(".", ","),

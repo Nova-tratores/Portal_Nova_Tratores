@@ -12,8 +12,9 @@ import type { KanbanCard } from "@/lib/pos/types";
 import { PHASES } from "@/lib/pos/constants";
 import {
   COLS_RELACAO_OS, COLS_DATA_OS, FASES_OS, FASES_PDF_OS, FASE_PENDENTE_OS, faseOS, rotuloFaseOS, colTextoOS, filtrarOS, ordenarOS,
-  resumoFiltrosOS, totaisOS, estaPendente, gerarCSVOS, valorOS, OPCOES_PERIODO, fmtBRL, type ColOSKey, type OrdemOS,
+  resumoFiltrosOS, totaisOS, estaPendente, gerarCSVOS, valorOS, OPCOES_PERIODO, fmtBRL, type ColOSKey, type OrdemOS, type CobrancaOS,
 } from "@/lib/pos/relacao";
+import { situacaoNota } from "@/lib/pos/nota";
 import { gerarPdfLista, hojeISO } from "@/lib/propostas/pdf-lista";
 import { useAuditLog } from "@/hooks/useAuditLog";
 
@@ -26,6 +27,9 @@ interface Props {
 }
 
 const AZUL = "#0369A1";
+const ROXO = "#7C3AED"; // mesma cor do selo de serviço interno no drawer da OS
+// No PDF o valor de serviço da NFS-e fica só no rodapé (a folha não comporta mais uma coluna).
+const COLS_PDF = COLS_RELACAO_OS.filter((c) => c.k !== "nfseValor");
 const COR_PDF: [number, number, number] = [3, 105, 161];
 const T = { text: "var(--portal-text, #1e293b)", light: "var(--portal-text-secondary, #64748b)", border: "var(--portal-border, #e5e7eb)", surface: "var(--portal-bg-card, #fff)", bg: "var(--portal-bg-secondary, #f8fafc)" };
 
@@ -37,6 +41,7 @@ const inputBase: React.CSSProperties = { width: "100%", minWidth: 60, padding: "
 export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCardClick, onPhaseChange }: Props) {
   const { log } = useAuditLog();
   const [filtroStatus, setFiltroStatus] = useState("");
+  const [cobranca, setCobranca] = useState<CobrancaOS>("");
   const [filtrosCol, setFiltrosCol] = useState<Partial<Record<ColOSKey, string>>>({});
   const [ordem, setOrdem] = useState<OrdemOS>({ key: "data", dir: "desc" });
   const [gerando, setGerando] = useState(false);
@@ -44,19 +49,19 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
   const temFiltroCol = Object.values(filtrosCol).some((v) => v && v.trim());
 
   const filtradas = useMemo(
-    () => filtrarOS(orders, { busca: searchTerm, tecnico: tecnicoFiltro, status: filtroStatus, filtrosCol }),
-    [orders, searchTerm, tecnicoFiltro, filtroStatus, filtrosCol],
+    () => filtrarOS(orders, { busca: searchTerm, tecnico: tecnicoFiltro, status: filtroStatus, cobranca, filtrosCol }),
+    [orders, searchTerm, tecnicoFiltro, filtroStatus, cobranca, filtrosCol],
   );
   const ordenadas = useMemo(() => ordenarOS(filtradas, ordem), [filtradas, ordem]);
   const totais = useMemo(() => totaisOS(filtradas), [filtradas]);
 
   // Contagem por fase (busca + técnico + filtros de coluna, sem o atalho) — chips e seletor.
   const porFase = useMemo(() => {
-    const base = filtrarOS(orders, { busca: searchTerm, tecnico: tecnicoFiltro, filtrosCol });
+    const base = filtrarOS(orders, { busca: searchTerm, tecnico: tecnicoFiltro, cobranca, filtrosCol });
     const m: Record<string, number> = {};
     for (const o of base) m[o.status] = (m[o.status] || 0) + 1;
     return { m, pendentes: base.filter(estaPendente).length, total: base.length };
-  }, [orders, searchTerm, tecnicoFiltro, filtrosCol]);
+  }, [orders, searchTerm, tecnicoFiltro, cobranca, filtrosCol]);
   const fasesPresentes = useMemo(() => FASES_OS.filter((f) => porFase.m[f.nome]).map((f) => ({ ...f, n: porFase.m[f.nome] })), [porFase]);
   const tiposPresentes = useMemo(() => {
     const m: Record<string, number> = {};
@@ -65,11 +70,11 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
   }, [orders]);
 
   const filtrosResumo = useCallback(
-    () => resumoFiltrosOS({ busca: searchTerm, tecnico: tecnicoFiltro, status: filtroStatus, filtrosCol }, ordem),
-    [searchTerm, tecnicoFiltro, filtroStatus, filtrosCol, ordem],
+    () => resumoFiltrosOS({ busca: searchTerm, tecnico: tecnicoFiltro, status: filtroStatus, cobranca, filtrosCol }, ordem),
+    [searchTerm, tecnicoFiltro, filtroStatus, cobranca, filtrosCol, ordem],
   );
   const toggleSort = (k: ColOSKey) => setOrdem((s) => (s.key === k ? { key: k, dir: s.dir === "asc" ? "desc" : "asc" } : { key: k, dir: "asc" }));
-  const limpar = () => { setFiltroStatus(""); setFiltrosCol({}); };
+  const limpar = () => { setFiltroStatus(""); setCobranca(""); setFiltrosCol({}); };
   const avisar = (m: string) => { setAviso(m); setTimeout(() => setAviso(""), 3500); };
 
   // ====== IMPRIMIR (PDF no navegador — mesma lib da relação de /propostas e do PPV) ======
@@ -81,18 +86,19 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
       const resumo = filtrosResumo();
       await gerarPdfLista({
         titulo: "ORDENS DE SERVICO - RELACAO DA TELA",
-        colunas: COLS_RELACAO_OS.map((c) => c.label),
-        linhas: ordenadas.map((o) => COLS_RELACAO_OS.map((c) => colTextoOS(o, c.k) || "---")),
+        colunas: COLS_PDF.map((c) => c.label),
+        linhas: ordenadas.map((o) => COLS_PDF.map((c) => colTextoOS(o, c.k) || "---")),
         filtrosResumo: resumo,
         rodape: [
           { texto: `VALOR TOTAL (${totais.n} OS): ${fmtBRL(totais.valor)}`, destaque: true },
           { texto: `Pendentes: ${totais.pendentesN} · ${fmtBRL(totais.pendentesV)}   |   Concluídas: ${totais.concluidasN} · ${fmtBRL(totais.concluidasV)}   |   Canceladas: ${totais.canceladasN}   |   Horas: ${totais.horas}   |   Km: ${totais.km}` },
+          { texto: `Com nota: ${totais.comNotaN} · ${fmtBRL(totais.comNotaV)}   |   Interno: ${totais.internoN} · ${fmtBRL(totais.internoV)}   |   NFS-e emitidas: ${totais.nfseN} · serviço ${fmtBRL(totais.nfseV)}   (Valor = calculado pelo portal: serviço + peças + requisições; a NFS-e cobre só o serviço)` },
         ],
         arquivo: `os_relacao_${hojeISO()}.pdf`,
         legenda: FASES_PDF_OS.filter((f) => porFase.m[f.nome]).map((f) => ({ label: f.label, fill: f.fill, text: f.text })),
         estiloLinha: (i: number) => { const f = FASES_PDF_OS.find((x) => x.nome === ordenadas[i]?.status); return f ? { fill: f.fill, text: f.text, linha: f.linha } : null; },
-        colStatus: COLS_RELACAO_OS.findIndex((c) => c.k === "status"),
-        columnStyles: { 0: { cellWidth: 12 }, 2: { cellWidth: 24 }, 3: { cellWidth: 20 }, 4: { cellWidth: 18 }, 5: { cellWidth: 22, halign: "right", fontStyle: "bold", textColor: [3, 105, 161] }, 6: { cellWidth: 26 }, 7: { cellWidth: 18 }, 8: { cellWidth: 18 }, 9: { cellWidth: 18 }, 10: { cellWidth: 18 }, 11: { cellWidth: 16 }, 12: { cellWidth: 16 } },
+        colStatus: COLS_PDF.findIndex((c) => c.k === "status"),
+        columnStyles: { 0: { cellWidth: 12 }, 2: { cellWidth: 22 }, 3: { cellWidth: 18 }, 4: { cellWidth: 18 }, 5: { cellWidth: 22, halign: "right", fontStyle: "bold", textColor: [3, 105, 161] }, 6: { cellWidth: 24 }, 7: { cellWidth: 18 }, 8: { cellWidth: 18 }, 9: { cellWidth: 18 }, 10: { cellWidth: 18 }, 11: { cellWidth: 16 }, 12: { cellWidth: 16 }, 13: { cellWidth: 16 } },
         cor: COR_PDF,
       });
       log({ sistema: "pos", acao: "relatorio", entidade: "os_relacao", detalhes: { total: ordenadas.length, filtros: resumo } });
@@ -182,7 +188,7 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
           );
         })}
         <div style={{ flex: 1 }} />
-        {(filtroStatus || temFiltroCol) && (
+        {(filtroStatus || cobranca || temFiltroCol) && (
           <button type="button" style={{ ...btnBase, color: "#b91c1c", borderColor: "#fecaca", background: "#fef2f2" }} onClick={limpar}><i className="fas fa-times" /> Limpar filtros</button>
         )}
         <button type="button" style={btnBase} onClick={baixarCSV} title="Baixa um CSV (Excel) com a relação como está na tela"><i className="fas fa-file-csv" /> CSV</button>
@@ -200,13 +206,22 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
         <ResumoCard titulo="Concluídas" n={totais.concluidasN} valor={totais.concluidasV} cor="#1d4ed8" ativo={filtroStatus === "Concluída"} onClick={() => setFiltroStatus(filtroStatus === "Concluída" ? "" : "Concluída")} />
         <ResumoCard titulo="Atrasadas (pendentes)" n={totais.atrasadasN} cor="#b91c1c" sub={`${totais.horas} h · ${totais.km} km no filtro`} />
       </div>
+      {/* COM NOTA × INTERNO (selo da OS) e o que já virou NFS-e de serviço */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+        <ResumoCard titulo="Com nota" n={totais.comNotaN} valor={totais.comNotaV} cor={AZUL} ativo={cobranca === "nota"} onClick={() => setCobranca(cobranca === "nota" ? "" : "nota")} sub="sem as OS internas" />
+        <ResumoCard titulo="Interno" n={totais.internoN} valor={totais.internoV} cor={ROXO} ativo={cobranca === "interno"} onClick={() => setCobranca(cobranca === "interno" ? "" : "interno")} sub="não vira nota de serviço" />
+        <ResumoCard titulo="NFS-e emitidas (serviço)" n={totais.nfseN} valor={totais.nfseV} cor="#047857" sub={totais.semNfseN ? `${totais.semNfseN} concluída${totais.semNfseN !== 1 ? "s" : ""} sem nota` : "peças saem por pedido de venda"} />
+      </div>
+      <div style={{ fontSize: 12, color: T.light, marginTop: -4 }}>
+        <b>Valor</b> é o calculado pelo portal (serviço + peças + requisições − descontos). <b>Serviço na NFS-e</b> é só o serviço que saiu na nota da Omie; as peças são faturadas pelo pedido de venda.
+      </div>
 
       {/* TABELA */}
       <div style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 10, overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1500 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1720 }}>
           <thead>
             <tr style={{ borderBottom: `2px solid ${T.border}` }}>
-              {COLS_RELACAO_OS.map((c) => <Th key={c.k} k={c.k} label={c.label} right={c.k === "valor"} />)}
+              {COLS_RELACAO_OS.map((c) => <Th key={c.k} k={c.k} label={c.label} right={c.k === "valor" || c.k === "nfseValor"} />)}
               {onPhaseChange && <th style={{ ...thBase, cursor: "default", width: 190 }}>Alterar fase</th>}
             </tr>
             <tr style={{ background: T.bg }}>
@@ -220,6 +235,7 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
             ) : ordenadas.map((o) => {
               const f = faseOS(o.status);
               const atrasada = (o.diasAtraso || 0) > 0 && estaPendente(o);
+              const sitNota = situacaoNota(o);
               return (
                 <tr key={o.id} onClick={() => onCardClick(o)} className="pos-relacao-row" style={{ cursor: "pointer" }}>
                   <td style={{ ...tdBase, fontWeight: 800, fontSize: 14.5, whiteSpace: "nowrap" }}>{colTextoOS(o, "id")}{o.servicoInterno && <span title="Serviço interno" style={{ marginLeft: 6, fontSize: 9.5, fontWeight: 800, padding: "1px 5px", borderRadius: 4, background: "#f1f5f9", color: "#334155" }}>INT</span>}</td>
@@ -234,6 +250,14 @@ export default function RelacaoOS({ orders, searchTerm, tecnicoFiltro = "", onCa
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoOS(o, "dataFimServico") || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{colTextoOS(o, "previsaoFaturamento") || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{o.ordemOmie || <span style={{ color: "#94a3b8" }}>—</span>}</td>
+                  <td style={{ ...tdBase, whiteSpace: "nowrap" }}
+                    title={sitNota === "com_nfse" ? "NFS-e de serviço emitida na Omie" : sitNota === "sem_nfse" ? "Faturada na Omie sem NFS-e (recibo)" : sitNota === "interno" ? "Serviço interno: não vira nota de serviço" : sitNota === "nao_verificada" ? "Enviada à Omie; ainda sem faturamento no cache de NFS-e" : "Ainda não enviada à Omie"}>
+                    {sitNota === "com_nfse" ? <b>{colTextoOS(o, "nfse")}</b>
+                      : sitNota === "sem_nfse" ? <span style={{ fontSize: 12, fontWeight: 700, padding: "2px 7px", borderRadius: 6, background: "#FEF3C7", color: "#92400E" }}>sem nota</span>
+                      : sitNota === "interno" ? <span style={{ fontSize: 12, fontWeight: 700, color: ROXO }}>interna</span>
+                      : <span style={{ color: "#94a3b8" }}>—</span>}
+                  </td>
+                  <td style={{ ...tdBase, textAlign: "right", whiteSpace: "nowrap", fontWeight: 700 }}>{colTextoOS(o, "nfseValor") || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, whiteSpace: "nowrap" }}>{o.ppvId || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, fontSize: 12.5, maxWidth: 200, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={o.projeto}>{o.projeto || <span style={{ color: "#94a3b8" }}>—</span>}</td>
                   <td style={{ ...tdBase, fontSize: 12.5, fontStyle: "italic", color: T.light, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={o.servSolicitado}>{colTextoOS(o, "servSolicitado")}</td>

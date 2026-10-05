@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import SemPermissao from "@/components/SemPermissao";
@@ -19,6 +19,7 @@ import type { PerfilTecnico } from "@/components/pos/Header";
 import type { KanbanCard, ClienteOption } from "@/lib/pos/types";
 import RelacaoOS from "@/components/pos/RelacaoOS";
 import DashboardOS from "@/components/pos/DashboardOS";
+import { anexarNfse, type MapaNfse } from "@/lib/pos/nota";
 
 function PosPageInner() {
   const { userProfile } = useAuth();
@@ -41,6 +42,22 @@ function PosPageInner() {
   useEffect(() => {
     try { const v = localStorage.getItem("pos-view-mode"); if (v === "cards" || v === "relacao" || v === "dashboard") setViewMode(v); } catch { /* sem storage */ }
   }, []);
+  // NFS-e de serviço por OS (cache do dashboard de vendas) — só a Relação e o Dashboard usam; busca uma vez.
+  const [mapaNfse, setMapaNfse] = useState<MapaNfse | null>(null);
+  const nfsePedida = useRef(false);
+  useEffect(() => {
+    if (viewMode === "cards" || nfsePedida.current) return;
+    nfsePedida.current = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/pos/ordens/nfse", { headers: await authHeaders() });
+        const j = await res.json();
+        if (res.ok && j.mapa) setMapaNfse(j.mapa);
+        else nfsePedida.current = false;
+      } catch { nfsePedida.current = false; }
+    })();
+  }, [viewMode]);
+  const ordersNfse = useMemo(() => anexarNfse(orders, mapaNfse), [orders, mapaNfse]);
   const trocarViewMode = (v: "cards" | "relacao" | "dashboard") => { setViewMode(v); try { localStorage.setItem("pos-view-mode", v); } catch { /* sem storage */ } };
 
   // Casa cada técnico com o usuário do portal (financeiro_usu) pelo nome →
@@ -354,9 +371,9 @@ function PosPageInner() {
             ))}
           </div>
           {viewMode === "relacao" ? (
-            <RelacaoOS orders={orders} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onCardClick={handleCardClick} onPhaseChange={podeMoverFase ? handlePhaseChange : undefined} />
+            <RelacaoOS orders={ordersNfse} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onCardClick={handleCardClick} onPhaseChange={podeMoverFase ? handlePhaseChange : undefined} />
           ) : viewMode === "dashboard" ? (
-            <DashboardOS orders={orders} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onAbrirOS={handleCardClick} />
+            <DashboardOS orders={ordersNfse} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onAbrirOS={handleCardClick} />
           ) : (
                     <PhaseAccordion
             orders={orders}

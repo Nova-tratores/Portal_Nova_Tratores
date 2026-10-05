@@ -67,6 +67,8 @@ export interface KanbanCard {
   pendenciaMahindra?: PendenciaMahindra | null;
   servicoInterno: boolean;
   projetoCronograma?: { id: string; nome: string } | null;
+  // NFS-e de serviço da OS (cache do dashboard de vendas) — colada no cliente por anexarNfse (lib/pos/nota.ts)
+  nfse?: { temNota: boolean | null; nfseNum: string | null; valorServico: number | null } | null;
   // Extras do modo Relação / Dashboard (08/09/2026) — opcionais, vêm do GET /api/pos/ordens
   tipoServico?: string;
   revisao?: string;

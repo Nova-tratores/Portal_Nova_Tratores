@@ -10,7 +10,8 @@ import { useMemo, useState } from "react";
 import type { KanbanCard } from "@/lib/pos/types";
 import {
   OPCOES_PERIODO, passaPeriodo, rotuloPeriodo, estaPendente, valorOS, fmtBRL, FASES_OS, FASE_PENDENTE_OS, faseOS, rotuloFaseOS,
-  porMesDataOS, porMesFimOS, porTecnicoOS, porClienteOS, porTipoOS, porFaseOS, porMesPrevisaoOS, topComOutros, colTextoOS, type Agregado,
+  porMesDataOS, porMesFimOS, porTecnicoOS, porClienteOS, porTipoOS, porFaseOS, porMesPrevisaoOS, topComOutros, colTextoOS, totaisOS, passaCobranca,
+  type Agregado, type CobrancaOS,
 } from "@/lib/pos/relacao";
 import { Painel, Tile, PopupComposicao, estilosTema, useTemaEscuro, type Metrica, type Tema } from "@/components/comum/PainelBarras";
 
@@ -36,6 +37,7 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
   const [fase, setFase] = useState("");
   const [tipo, setTipo] = useState("");
   const [tecnico, setTecnico] = useState("");
+  const [cobranca, setCobranca] = useState<CobrancaOS>("");
   const [metrica, setMetrica] = useState<Metrica>("valor");
   // Popup de composição: barra clicada → OS que formam aquele valor.
   const [drill, setDrill] = useState<{ titulo: string; ids: string[] } | null>(null);
@@ -56,11 +58,12 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
     if (!passaPeriodo(o.data, tokenPeriodo)) return false;
     if (fase === FASE_PENDENTE_OS ? !estaPendente(o) : fase && o.status !== fase) return false;
     if (tipo && (o.tipoServico || "") !== tipo) return false;
+    if (!passaCobranca(o, cobranca)) return false;
     const tec = tecnico || tecnicoFiltro;
     if (tec && norm(o.tecnico || "") !== norm(tec)) return false;
     if (q && ![o.id, o.cliente, o.tecnico, o.ordemOmie, o.servSolicitado, o.projeto].some((v) => String(v || "").toLowerCase().includes(q))) return false;
     return true;
-  }), [orders, tokenPeriodo, fase, tipo, tecnico, tecnicoFiltro, q]);
+  }), [orders, tokenPeriodo, fase, tipo, cobranca, tecnico, tecnicoFiltro, q]);
 
   const kpi = useMemo(() => {
     const n = filtrados.length;
@@ -80,6 +83,9 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
     };
   }, [filtrados]);
 
+  // Com nota × interno (selo da OS) e NFS-e de serviço emitida (cache da Omie) — mesmas contas da Relação.
+  const nota = useMemo(() => totaisOS(filtrados), [filtrados]);
+
   const agMes = useMemo(() => porMesDataOS(filtrados), [filtrados]);
   const agFim = useMemo(() => porMesFimOS(filtrados), [filtrados]);
   const agPrev = useMemo(() => porMesPrevisaoOS(filtrados), [filtrados]);
@@ -94,6 +100,7 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
     fase === FASE_PENDENTE_OS ? "Pendente" : fase ? rotuloFaseOS(fase) : "Todas as fases",
     tipo || "Todos os tipos",
     tecnico || tecnicoFiltro || "Todos os técnicos",
+    ...(cobranca ? [cobranca === "nota" ? "Com nota" : "Interno"] : []),
   ].join(" · ");
 
   const comum = { tema: TEMA, metrica, dark, onBarra };
@@ -132,6 +139,14 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
             {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
           </select>
         </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <span style={lbl}>Cobrança</span>
+          <select value={cobranca} onChange={(e) => setCobranca(e.target.value as CobrancaOS)} style={select} title="Separa pelas OS marcadas como serviço interno">
+            <option value="">Todas</option>
+            <option value="nota">Com nota (sem as internas)</option>
+            <option value="interno">Interno</option>
+          </select>
+        </div>
         <div style={{ flex: 1 }} />
         <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
           <span style={lbl}>Métrica dos gráficos</span>
@@ -148,6 +163,8 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
         <Tile tema={TEMA} label="Ordens de serviço" valor={String(kpi.n)} sub={`${kpi.clientes} cliente${kpi.clientes !== 1 ? "s" : ""} · ${kpi.horas} h · ${kpi.km} km`} />
         <Tile tema={TEMA} label="Valor total" valor={fmtBRL(kpi.valor)} sub={filtrosTexto} destaque />
+        <Tile tema={TEMA} label="Com nota × interno" valor={fmtBRL(nota.comNotaV)} sub={`${nota.comNotaN} OS com nota · interno ${fmtBRL(nota.internoV)} (${nota.internoN} OS)`} />
+        <Tile tema={TEMA} label="NFS-e emitidas (serviço)" valor={fmtBRL(nota.nfseV)} sub={`${nota.nfseN} OS${nota.semNfseN ? ` · ${nota.semNfseN} concluída${nota.semNfseN !== 1 ? "s" : ""} sem nota` : ""} · peças fora`} cor="#047857" />
         <Tile tema={TEMA} label="Ticket médio" valor={fmtBRL(kpi.ticket)} sub="valor ÷ OS" />
         <Tile tema={TEMA} label="Pendentes" valor={fmtBRL(kpi.pendV)} sub={`${kpi.pendN} OS · ${kpi.atrasN} atrasada${kpi.atrasN !== 1 ? "s" : ""}`} cor="#047857" />
         <Tile tema={TEMA} label="Concluídas" valor={fmtBRL(kpi.concV)} sub={`${kpi.concN} OS · ${kpi.cancN} cancelada${kpi.cancN !== 1 ? "s" : ""}`} cor="#1d4ed8" />
@@ -201,8 +218,8 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
       {drill && (() => {
         const set = new Set(drill.ids);
         const linhas = filtrados.filter((o) => set.has(o.id)).sort((a, b) => valorOS(b) - valorOS(a))
-          .map((o) => ({ id: o.id, valor: valorOS(o), celulas: [colTextoOS(o, "id"), o.cliente || "", o.tecnico || "", o.tipoServico || "", colTextoOS(o, "data"), colTextoOS(o, "status"), colTextoOS(o, "valor")] }));
-        return <PopupComposicao tema={TEMA} titulo={drill.titulo} colunas={["Nº", "Cliente", "Técnico", "Tipo", "Data", "Fase", "Valor"]} linhas={linhas} colValor={6}
+          .map((o) => ({ id: o.id, valor: valorOS(o), celulas: [colTextoOS(o, "id"), o.cliente || "", o.tecnico || "", o.tipoServico || "", colTextoOS(o, "data"), colTextoOS(o, "status"), colTextoOS(o, "nfse") || "—", colTextoOS(o, "valor")] }));
+        return <PopupComposicao tema={TEMA} titulo={drill.titulo} colunas={["Nº", "Cliente", "Técnico", "Tipo", "Data", "Fase", "NFS-e", "Valor"]} linhas={linhas} colValor={7}
           onAbrir={onAbrirOS ? (id) => { const o = orders.find((x) => x.id === id); setDrill(null); if (o) onAbrirOS(o); } : undefined} onClose={() => setDrill(null)} />;
       })()}
     </div>
