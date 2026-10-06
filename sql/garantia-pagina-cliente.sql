@@ -35,10 +35,15 @@ create table if not exists public.garantia_cliente_eventos (
   criado_em timestamptz not null default now(),
   tipo      text not null check (tipo in (
               'visita', 'pergunta_rapida', 'faq', 'busca', 'busca_sem_resultado',
-              'whatsapp', 'consulta_trator', 'duvida_enviada')),
+              'whatsapp', 'consulta_trator', 'duvida_enviada', 'salvou_celular')),
   valor     text check (char_length(valor) <= 200),
   sessao    text check (char_length(sessao) <= 40)
 );
+-- Recria a lista de tipos (rodar de novo o arquivo atualiza quem já tinha a tabela).
+alter table public.garantia_cliente_eventos drop constraint if exists garantia_cliente_eventos_tipo_check;
+alter table public.garantia_cliente_eventos add constraint garantia_cliente_eventos_tipo_check check (tipo in (
+  'visita', 'pergunta_rapida', 'faq', 'busca', 'busca_sem_resultado',
+  'whatsapp', 'consulta_trator', 'duvida_enviada', 'salvou_celular'));
 create index if not exists garantia_cliente_eventos_criado_idx
   on public.garantia_cliente_eventos (criado_em desc);
 create index if not exists garantia_cliente_eventos_tipo_idx

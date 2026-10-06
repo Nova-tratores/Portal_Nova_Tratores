@@ -24,6 +24,16 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // O SW da página da garantia mora em /garantia/ mas cuida de "/garantia"
+        // (sem barra) — precisa da permissão de escopo. no-cache: versão nova
+        // do SW chega na próxima visita.
+        source: "/garantia/sw.js",
+        headers: [
+          { key: "Service-Worker-Allowed", value: "/garantia" },
+          { key: "Cache-Control", value: "no-cache" },
+        ],
+      },
+      {
         source: "/chatwoot-app",
         headers: [
           {

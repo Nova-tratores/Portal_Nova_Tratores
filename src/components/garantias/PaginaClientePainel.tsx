@@ -154,6 +154,7 @@ export default function PaginaClientePainel() {
             <Tile label="Dúvidas novas" valor={novas} cor={VERMELHO} />
             <Tile label="Cliques no WhatsApp" valor={r?.whatsapp ?? 0} cor="#16a34a" />
             <Tile label='Consultas "Meu trator"' valor={r?.consultas ?? 0} cor="#f59e0b" />
+            <Tile label="Salvaram no celular" valor={r?.salvaramNoCelular ?? 0} cor="#0d9488" />
           </div>
 
           {/* Rankings */}

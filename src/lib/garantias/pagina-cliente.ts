@@ -8,7 +8,7 @@
 
 export const TIPOS_EVENTO = [
   'visita', 'pergunta_rapida', 'faq', 'busca', 'busca_sem_resultado',
-  'whatsapp', 'consulta_trator', 'duvida_enviada',
+  'whatsapp', 'consulta_trator', 'duvida_enviada', 'salvou_celular',
 ] as const;
 export type TipoEvento = (typeof TIPOS_EVENTO)[number];
 
@@ -81,6 +81,7 @@ export type ResumoUso = {
   whatsapp: number;
   consultas: number;
   duvidasEnviadas: number;
+  salvaramNoCelular: number;
   porDia: { dia: string; visitas: number }[];
 };
 
@@ -101,6 +102,7 @@ export function resumirUso(eventos: { tipo: string; sessao: string | null; criad
     whatsapp: conta('whatsapp'),
     consultas: conta('consulta_trator'),
     duvidasEnviadas: conta('duvida_enviada'),
+    salvaramNoCelular: conta('salvou_celular'),
     porDia: [...dias.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([dia, visitas]) => ({ dia, visitas })),
   };
 }

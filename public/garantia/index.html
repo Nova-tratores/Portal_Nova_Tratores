@@ -11,6 +11,9 @@
 <meta property="og:type" content="website">
 <link rel="icon" href="/favicon.ico">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/garantia/manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Garantia NT">
 <style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
 <title>Garantia Mahindra · Nova Tratores</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -250,6 +253,15 @@ footer b{color:var(--fg)}
 [data-hide="1"]{display:none!important}
 @media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
 
+/* Sem internet + salvar no celular */
+.offline{background:var(--warn-soft);color:var(--warn);border-radius:8px;padding:10px 14px;font-weight:600;font-size:14px}
+.install{padding:16px;display:flex;gap:14px;align-items:flex-start;border-left:4px solid var(--red)}
+.install .ic{flex:none;width:44px;height:44px;border-radius:12px;background:var(--red-soft);color:var(--red-ink);display:flex;align-items:center;justify-content:center}
+.install .ic svg{width:24px;height:24px}
+.install b{display:block;font-size:16px}
+.install p{margin:4px 0 10px;color:var(--muted);font-size:14px}
+.install ol{margin:6px 0 0;padding-left:20px;font-size:14px}
+
 /* ===== Celular ===== */
 .rev-list{display:none}
 .bnav{display:none}
@@ -341,6 +353,8 @@ footer b{color:var(--fg)}
 </div>
 
 <main class="wrap">
+
+  <div class="offline" id="offline" hidden role="status">Você está sem internet. Esta é a versão salva no seu celular.</div>
 
   <section id="rapidas" data-quick>
     <div class="eyebrow">Perguntas rápidas</div>
@@ -448,6 +462,17 @@ footer b{color:var(--fg)}
     <a class="btn primary" href="#pergunte" id="nr-ask">Perguntar para a equipe</a>
   </div>
 
+  <div class="panel install" id="install" hidden>
+    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/></svg></div>
+    <div>
+      <b>Use mesmo sem internet</b>
+      <p>Esta página já fica guardada no seu celular. Salve na tela inicial para abrir com um toque, até onde não pega sinal.</p>
+      <button class="btn primary" type="button" id="install-btn" hidden>Salvar no celular</button>
+      <ol id="install-ios" hidden><li>Toque em <b>Compartilhar</b> (o quadrado com a seta para cima)</li><li>Escolha <b>Adicionar à Tela de Início</b></li></ol>
+      <p id="install-outro" hidden style="margin:0">No menu do navegador (⋮), escolha <b>Adicionar à tela inicial</b> ou <b>Instalar app</b>.</p>
+    </div>
+  </div>
+
   <section id="pergunte" data-sec data-always>
     <div class="band campo">
       <div class="eyebrow">Fale com a gente</div>
@@ -512,6 +537,32 @@ footer b{color:var(--fg)}
     try{fetch(API+"evento",{method:"POST",body:b,keepalive:true,headers:{"Content-Type":"text/plain"}}).catch(function(){});}catch(e){}
   }
   registrar("visita");
+
+  // Guardar no celular para usar sem internet (só no Portal, onde existe o /garantia/sw.js)
+  if(API&&"serviceWorker" in navigator){
+    navigator.serviceWorker.register("/garantia/sw.js",{scope:"/garantia"}).catch(function(){});
+  }
+  var offEl=document.getElementById("offline");
+  function estadoRede(){offEl.hidden=navigator.onLine!==false;}
+  window.addEventListener("online",estadoRede);window.addEventListener("offline",estadoRede);estadoRede();
+  (function(){
+    var box=document.getElementById("install"), btn=document.getElementById("install-btn");
+    var instalado=(window.matchMedia&&window.matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;
+    if(!API||instalado)return;
+    var ios=/iphone|ipad|ipod/i.test(navigator.userAgent);
+    box.hidden=false;
+    if(ios){document.getElementById("install-ios").hidden=false;return;}
+    var pedido=null;
+    document.getElementById("install-outro").hidden=false;
+    window.addEventListener("beforeinstallprompt",function(e){
+      e.preventDefault();pedido=e;btn.hidden=false;document.getElementById("install-outro").hidden=true;
+    });
+    btn.addEventListener("click",function(){
+      if(!pedido)return;pedido.prompt();
+      pedido.userChoice.then(function(r){if(r&&r.outcome==="accepted"){box.hidden=true;registrar("salvou_celular");}}).catch(function(){});
+      pedido=null;btn.hidden=true;
+    });
+  })();
   // Número de WhatsApp que recebe as dúvidas (DDI+DDD+número, só dígitos)
   var WHATS = "551433516049";
   var WHATS_TXT = "(14) 3351-6049";
@@ -794,6 +845,7 @@ footer b{color:var(--fg)}
     var nome=document.getElementById("a-nome").value.trim(), ch=document.getElementById("a-chassi").value.trim(), msg=document.getElementById("a-msg").value.trim();
     if(!nome||!msg){err.hidden=false;err.textContent="Preencha seu nome e a sua dúvida para preparar a mensagem.";return;}
     err.hidden=true;
+    if(navigator.onLine===false){err.hidden=false;err.textContent="Você está sem internet. A mensagem ficou pronta abaixo: copie e envie quando tiver sinal.";}
     var txt="Olá, Nova Tratores! Tenho uma dúvida sobre a garantia Mahindra.\n\nNome: "+nome+(ch?"\nFinal do chassi: "+ch:"")+"\n\n"+msg;
     document.getElementById("a-text").textContent=txt;
     document.getElementById("a-wa").href="https://wa.me/"+WHATS+"?text="+encodeURIComponent(txt);
