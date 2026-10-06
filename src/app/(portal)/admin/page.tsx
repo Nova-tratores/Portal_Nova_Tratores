@@ -572,12 +572,14 @@ export default function AdminPage() {
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
             backdropFilter: 'blur(8px)', zIndex: 50000,
-            display: 'flex', alignItems: 'center', justifyContent: 'center'
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: '16px', boxSizing: 'border-box'
           }}
         >
           <div style={{
-            background: 'var(--portal-bg-card)', borderRadius: '24px', width: '560px',
-            padding: '40px', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
+            background: 'var(--portal-bg-card)', borderRadius: '24px', width: '560px', maxWidth: '100%',
+            maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', boxSizing: 'border-box',
+            padding: '32px 32px 0', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -618,7 +620,7 @@ export default function AdminPage() {
                   }}
                 />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
                 <div>
                   <label style={{ fontSize: '12px', fontWeight: '700', color: '#525252', letterSpacing: '0.5px', display: 'block', marginBottom: '6px' }}>EMAIL *</label>
                   <input
@@ -704,7 +706,8 @@ export default function AdminPage() {
               </div>
             )}
 
-            {/* Botão */}
+            {/* Botão (rodapé fixo: sempre visível mesmo com a lista de módulos longa) */}
+            <div style={{ position: 'sticky', bottom: 0, background: 'var(--portal-bg-card)', padding: '12px 0 24px', marginTop: '8px' }}>
             <button
               onClick={criarUsuario}
               disabled={criando}
@@ -720,6 +723,7 @@ export default function AdminPage() {
               <UserPlus size={18} />
               {criando ? 'Criando...' : 'Criar Usuário'}
             </button>
+            </div>
           </div>
         </div>
       )}
