@@ -1,9 +1,9 @@
 'use client'
-// Cronograma faz parte da CENTRAL DE TRABALHO (Tarefas + Tickets + Cronograma).
+// Tarefas faz parte da CENTRAL DE TRABALHO (Tarefas + Tickets + Cronograma).
 import { Suspense } from 'react'
 import CentralNav from '@/components/trabalho/CentralNav'
 
-export default function CronogramaLayout({ children }: { children: React.ReactNode }) {
+export default function TarefasLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Suspense fallback={null}><CentralNav /></Suspense>

@@ -4,7 +4,9 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useParams } from 'next/navigation';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
-import { ChevronLeft, RefreshCw, Plus, AlertTriangle, Loader2, Flag, BarChart3, Repeat, Link2 } from 'lucide-react';
+import { ChevronLeft, RefreshCw, Plus, AlertTriangle, Loader2, Flag, BarChart3, Repeat, Link2, LayoutGrid, GanttChartSquare, List, CalendarDays, User as UserIcon, Columns3 } from 'lucide-react';
+import { authHeaders } from '@/lib/auth/client';
+import TicketModal from '@/components/tickets/TicketModal';
 import {
   carregarProjeto, recalcular, atualizarTarefa, carregarOSvinculada,
   type ProjetoCompleto,
@@ -19,6 +21,7 @@ const TarefaDrawer = dynamic(() => import('@/components/cronograma/TarefaDrawer'
 const AnalisePanel = dynamic(() => import('@/components/cronograma/AnalisePanel'), { ssr: false });
 const RecorrenciasPanel = dynamic(() => import('@/components/cronograma/RecorrenciasPanel'), { ssr: false });
 const VinculosPanel = dynamic(() => import('@/components/cronograma/VinculosPanel'), { ssr: false });
+import VistasCronograma, { type Vista } from '@/components/cronograma/VistasCronograma';
 
 const isoLocal = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -33,6 +36,10 @@ export default function TimelineProjetoPage() {
   const [drawer, setDrawer] = useState<{ tarefaId: string | null } | null>(null);
   const [painel, setPainel] = useState<'analise' | 'recorrencia' | 'vinculos' | null>(null);
   const [marcadores, setMarcadores] = useState<Marcador[]>([]);
+  const [ticketAberto, setTicketAberto] = useState<string | null>(null);
+  const [vista, setVista] = useState<'gantt' | Vista>('gantt');
+  useEffect(() => { try { const v = localStorage.getItem('cronograma-vista'); if (v) setVista(v as 'gantt' | Vista); } catch {} }, []);
+  const trocarVista = (v: 'gantt' | Vista) => { setVista(v); try { localStorage.setItem('cronograma-vista', v); } catch {} };
 
   const carregar = useCallback(async () => {
     try { setPc(await carregarProjeto(projetoId)); }
@@ -72,6 +79,14 @@ export default function TimelineProjetoPage() {
       setRecalculando(false);
     }
   }, [projetoId, carregar]);
+
+  // Projeto ligado a quadro: ao abrir, recalcula com o dia de hoje para o
+  // atraso dos tickets já aparecer replanejado (uma vez por abertura).
+  const quadroLigadoId = pc?.projeto.quadro_id;
+  const [replanejado, setReplanejado] = useState(false);
+  useEffect(() => {
+    if (quadroLigadoId && !replanejado) { setReplanejado(true); recalcEReload(); }
+  }, [quadroLigadoId, replanejado, recalcEReload]);
 
   const conflitos = useMemo(() => {
     if (!pc) return { porRecurso: [], tarefasEmConflito: new Set<string>() };
@@ -153,11 +168,13 @@ export default function TimelineProjetoPage() {
           </span>
         )}
 
+        <LigacaoQuadro projetoId={pc.projeto.id} quadroId={pc.projeto.quadro_id} onMudou={recalcEReload} />
+
         <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
-          <select value={viewMode} onChange={(e) => setViewMode(e.target.value as ViewMode)}
+          {vista === 'gantt' && <select value={viewMode} onChange={(e) => setViewMode(e.target.value as ViewMode)}
             style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#ddd)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text)' }}>
             <option value="Day">Dia</option><option value="Week">Semana</option><option value="Month">Mês</option>
-          </select>
+          </select>}
           <button onClick={recalcEReload} disabled={recalculando} title="Recalcular datas e caminho crítico"
             style={btn('#0ea5e9')}>
             <RefreshCw size={16} className={recalculando ? 'animate-spin' : ''} /> Recalcular
@@ -188,6 +205,12 @@ export default function TimelineProjetoPage() {
         </div>
       )}
 
+      <div role="group" aria-label="Forma de ver o cronograma" style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+        {([['gantt', 'Gantt', <GanttChartSquare key="g" size={15} />], ['lista', 'Lista', <List key="l" size={15} />], ['calendario', 'Calendário', <CalendarDays key="c" size={15} />], ['pessoa', 'Por pessoa', <UserIcon key="p" size={15} />], ['situacao', 'Por situação', <Columns3 key="s" size={15} />]] as const).map(([v, txt, ic]) => (
+          <button key={v} aria-pressed={vista === v} onClick={() => trocarVista(v)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: vista === v ? '1px solid #dc2626' : '1px solid var(--portal-border,#ddd)', background: vista === v ? 'rgba(220,38,38,.08)' : 'var(--portal-surface,#fff)', color: vista === v ? '#dc2626' : 'var(--portal-text-secondary,#555)' }}>{ic} {txt}</button>
+        ))}
+      </div>
+      {vista === 'gantt' ? (
       <div style={{ background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#eee)', borderRadius: 12, overflow: 'auto' }}>
         <GanttView
           tasks={frappeTasks}
@@ -197,6 +220,10 @@ export default function TimelineProjetoPage() {
           onClick={(id) => setDrawer({ tarefaId: id })}
         />
       </div>
+      ) : (
+        <VistasCronograma vista={vista} tarefas={pc.tarefas} recursos={pc.recursos}
+          onAbrir={(id) => setDrawer({ tarefaId: id })} onAbrirTicket={(id) => setTicketAberto(id)} onMoverDatas={onDateChange} />
+      )}
 
       {conflitos.porRecurso.length > 0 && (
         <div style={{ marginTop: 12, background: '#fffbeb', border: '1px solid #fde68a', borderRadius: 10, padding: 14 }}>
@@ -233,8 +260,12 @@ export default function TimelineProjetoPage() {
           onClose={() => setDrawer(null)}
           onSaved={async () => { setDrawer(null); await recalcEReload(); }}
           onRecalc={recalcEReload}
+          quadroLigado={!!pc.projeto.quadro_id}
+          onAbrirTicket={(id) => { setDrawer(null); setTicketAberto(id); }}
         />
       )}
+
+      {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={recalcEReload} />}
     </div>
   );
 }
@@ -244,3 +275,57 @@ const btn = (cor: string): React.CSSProperties => ({
   display: 'flex', alignItems: 'center', gap: 6, background: cor, color: '#fff', border: 'none',
   padding: '8px 14px', borderRadius: 9, fontWeight: 600, fontSize: 13, cursor: 'pointer',
 });
+
+// Projeto ↔ quadro de tickets (Central de Trabalho): mostra o quadro ligado
+// ou deixa escolher um / criar um com o nome do projeto.
+function LigacaoQuadro({ projetoId, quadroId, onMudou }: { projetoId: string; quadroId: string | null | undefined; onMudou: () => void }) {
+  const [quadros, setQuadros] = useState<{ id: string; nome: string; cor: string; pode_trabalhar: boolean }[] | null>(null);
+  const [erro, setErro] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/tickets/quadros', { headers: await authHeaders() });
+        const json = await res.json();
+        setQuadros(json.quadros || []);
+      } catch { setQuadros([]); }
+    })();
+  }, [quadroId]);
+  const ligar = async (payload: Record<string, unknown>) => {
+    setSalvando(true); setErro('');
+    try {
+      const res = await fetch('/api/trabalho/cronograma', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ acao: 'ligar', projeto_id: projetoId, ...payload }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) { setErro(json.error || 'Falha ao ligar'); return; }
+      onMudou();
+    } finally { setSalvando(false); }
+  };
+  const atual = quadros?.find((q) => q.id === quadroId);
+  const caixa: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--portal-text-secondary,#555)' };
+  if (quadroId) {
+    return (
+      <span style={caixa}>
+        <LayoutGrid size={14} color="#dc2626" /> Quadro:{' '}
+        <a href={`/tickets/quadros/${quadroId}`} style={{ fontWeight: 700, color: '#dc2626', textDecoration: 'none' }}>{atual?.nome || 'abrir'}</a>
+        <span title="Atrasos replanejam o cronograma sozinho" style={{ fontSize: 11.5, color: 'var(--portal-text-muted,#888)' }}>· replanejamento automático</span>
+      </span>
+    );
+  }
+  return (
+    <span style={caixa}>
+      <LayoutGrid size={14} /> Quadro de tickets:
+      <select disabled={salvando || !quadros} value="" onChange={(e) => {
+        const v = e.target.value;
+        if (v === '__novo') ligar({ criar: true }); else if (v) ligar({ quadro_id: v });
+      }} style={{ padding: '6px 8px', borderRadius: 8, border: '1px solid var(--portal-border,#ddd)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text)' }}>
+        <option value="">{quadros ? 'ligar a um quadro…' : 'carregando…'}</option>
+        <option value="__novo">+ Criar quadro com o nome do projeto</option>
+        {(quadros || []).filter((q) => q.pode_trabalhar).map((q) => <option key={q.id} value={q.id}>{q.nome}</option>)}
+      </select>
+      {erro && <span style={{ color: '#dc2626' }}>{erro}</span>}
+    </span>
+  );
+}

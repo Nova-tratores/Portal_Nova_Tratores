@@ -1,6 +1,8 @@
 'use client';
 import { useState } from 'react';
-import { X, Loader2, Trash2, Link2, AlertTriangle } from 'lucide-react';
+import { X, Loader2, Trash2, Link2, AlertTriangle, Ticket, Play } from 'lucide-react';
+import { authHeaders } from '@/lib/auth/client';
+import UserSelect from '@/components/tickets/UserSelect';
 import {
   criarTarefa, atualizarTarefa, registrarProgresso,
   criarDependencia, removerDependencia, alocar, desalocar, removerTarefa,
@@ -25,9 +27,13 @@ interface Props {
   onClose: () => void;
   onSaved: () => void | Promise<void>;   // fechar + recalcular
   onRecalc: () => void | Promise<void>;  // recalcular mantendo aberto
+  /** Projeto ligado a quadro de tickets (Central de Trabalho). */
+  quadroLigado?: boolean;
+  /** Abre o ticket da etapa numa janela. */
+  onAbrirTicket?: (ticketId: string) => void;
 }
 
-export default function TarefaDrawer({ pc, tarefaId, onClose, onSaved, onRecalc }: Props) {
+export default function TarefaDrawer({ pc, tarefaId, onClose, onSaved, onRecalc, quadroLigado, onAbrirTicket }: Props) {
   const editando = pc.tarefas.find((t) => t.id === tarefaId) ?? null;
 
   const [nome, setNome] = useState(editando?.nome ?? '');
@@ -38,6 +44,9 @@ export default function TarefaDrawer({ pc, tarefaId, onClose, onSaved, onRecalc 
   const [restricaoData, setRestricaoData] = useState<string>(editando?.restricao_data ?? '');
   const [prioridade, setPrioridade] = useState<number>(editando?.prioridade ?? 0);
   const [salvando, setSalvando] = useState(false);
+  const [respIniciar, setRespIniciar] = useState('');
+  const [iniciando, setIniciando] = useState(false);
+  const pessoaDoRecurso = !!(editando?.recurso_id && pc.recursos.find((r) => r.id === editando.recurso_id)?.ref_externa);
   const [erro, setErro] = useState<string | null>(null);
 
   async function salvar() {
@@ -112,6 +121,46 @@ export default function TarefaDrawer({ pc, tarefaId, onClose, onSaved, onRecalc 
             <Linha k="Folga" v={editando.folga_dias != null ? `${editando.folga_dias} dia(s)` : '—'} />
             <Linha k="Crítica" v={editando.e_critica ? 'Sim' : 'Não'} cor={editando.e_critica ? '#dc2626' : undefined} />
             <Linha k="Status" v={editando.status} />
+          </div>
+        )}
+
+        {/* Execução: etapa ↔ ticket (Central de Trabalho) */}
+        {editando && (
+          <div style={{ border: '1px solid var(--portal-border,#eee)', borderRadius: 10, padding: 12, margin: '8px 0', fontSize: 13 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted,#888)', textTransform: 'uppercase', letterSpacing: .4, marginBottom: 6 }}>Execução</div>
+            {editando.ticket_id ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span>Esta etapa anda num ticket. O status dele atualiza o cronograma sozinho.</span>
+                {onAbrirTicket && <button onClick={() => onAbrirTicket(editando.ticket_id!)} style={{ ...primary, flex: 'none', padding: '8px 12px' }}><Ticket size={15} /> Abrir ticket</button>}
+              </div>
+            ) : editando.status === 'concluida' ? (
+              <span>Etapa concluída.</span>
+            ) : !quadroLigado ? (
+              <span style={{ color: 'var(--portal-text-muted,#888)' }}>Ligue o projeto a um quadro (no topo da página) para iniciar etapas como tickets.</span>
+            ) : (
+              <>
+                <p style={{ margin: '0 0 8px' }}>Ao iniciar, nasce um ticket no quadro do projeto, com prazo no fim previsto. Quem recebe confirma.</p>
+                <div style={{ marginBottom: 8 }}>
+                  <UserSelect value={respIniciar} onChange={setRespIniciar} autoFocus={false}
+                    placeholder={pessoaDoRecurso ? 'Responsável: pessoa do recurso' : 'Responsável (padrão: você)'} />
+                </div>
+                <button disabled={iniciando} onClick={async () => {
+                  setIniciando(true); setErro(null)
+                  try {
+                    const res = await fetch('/api/trabalho/cronograma', {
+                      method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+                      body: JSON.stringify({ acao: 'iniciar', tarefa_id: editando.id, responsavel_id: respIniciar || null }),
+                    })
+                    const json = await res.json().catch(() => ({}))
+                    if (!res.ok) { setErro(json.error || 'Falha ao iniciar'); return }
+                    await onRecalc()
+                    if (onAbrirTicket && json.ticket?.id) onAbrirTicket(json.ticket.id)
+                  } finally { setIniciando(false) }
+                }} style={{ ...primary, flex: 'none', padding: '8px 14px' }}>
+                  {iniciando ? <Loader2 size={16} className="animate-spin" /> : <Play size={15} />} Iniciar (criar ticket)
+                </button>
+              </>
+            )}
           </div>
         )}
 

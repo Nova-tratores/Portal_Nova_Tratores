@@ -109,12 +109,17 @@ export function calcular(entrada: EntradaMotor): SaidaMotor {
     }
     if (t.status === 'em_andamento' && t.inicioReal) {
       const ini = t.inicioReal;
-      calc.set(id, base(ini, fimPorDuracao(cal, ini, d)));
+      let fimEx = fimPorDuracao(cal, ini, d);
+      // Replanejamento (projeto ligado a quadro): passou do previsto e não
+      // terminou → termina no mínimo hoje, empurrando as sucessoras.
+      if (entrada.hoje && fimEx < entrada.hoje) fimEx = proximoDiaUtil(cal, entrada.hoje);
+      calc.set(id, base(ini, fimEx));
       continue;
     }
 
-    // candidatos de início mais cedo
-    let inicio = inicioProjeto;
+    // candidatos de início mais cedo (com replanejamento, nada que ainda não
+    // começou fica marcado no passado)
+    let inicio = entrada.hoje ? maiorData(inicioProjeto, entrada.hoje) : inicioProjeto;
     if (
       (t.restricao === 'iniciar_nao_antes' || t.restricao === 'data_fixa') &&
       t.restricaoData

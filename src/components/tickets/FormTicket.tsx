@@ -15,8 +15,10 @@ interface Props {
   /** Print pronto ao abrir (ex.: captura do clique direito). */
   printInicial?: File | null
   /** Criar dentro de um quadro (aba Quadros): entra na coluna indicada. */
-  quadro?: { id: string; nome: string; colunaId?: string | null }
+  quadro?: { id: string; nome: string; colunaId?: string | null; temCronograma?: boolean }
 }
+
+const br = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7)
 
 const campoStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', borderRadius: 8, fontSize: 14,
@@ -34,6 +36,37 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro }:
   const [responsavelId, setResponsavelId] = useState('')
   const [categoria, setCategoria] = useState('')
   const [prazo, setPrazo] = useState('')
+  // Agenda do responsável (Central de Trabalho)
+  const [inicio, setInicio] = useState('')
+  const [duracao, setDuracao] = useState(1)
+  const [tocouInicio, setTocouInicio] = useState(false)
+  const [tocouPrazo, setTocouPrazo] = useState(false)
+  const [noCronograma, setNoCronograma] = useState(true)
+  const [agenda, setAgenda] = useState<{ sugestao: string; conflitos: { nome: string; ini: string; fim: string }[] } | null>(null)
+
+  useEffect(() => {
+    if (!responsavelId) { setAgenda(null); return }
+    let vivo = true
+    const tmr = setTimeout(async () => {
+      try {
+        const q = new URLSearchParams({ user: responsavelId, duracao: String(duracao) })
+        if (tocouInicio && inicio) q.set('inicio', inicio)
+        const res = await fetch('/api/trabalho/agenda?' + q.toString(), { headers: await authHeaders() })
+        const json = await res.json()
+        if (!vivo || !res.ok) return
+        setAgenda({ sugestao: json.sugestao, conflitos: json.conflitos || [] })
+        if (!tocouInicio) setInicio(json.sugestao)
+      } catch { /* sem agenda: segue manual */ }
+    }, 250)
+    return () => { vivo = false; clearTimeout(tmr) }
+  }, [responsavelId, duracao, inicio, tocouInicio])
+
+  // prazo acompanha início + dias, até a pessoa mexer nele
+  useEffect(() => {
+    if (tocouPrazo || !inicio) return
+    const d = new Date(inicio + 'T12:00:00'); d.setDate(d.getDate() + duracao - 1)
+    setPrazo(d.toISOString().slice(0, 10))
+  }, [inicio, duracao, tocouPrazo])
   const [terceiro, setTerceiro] = useState('')
   const [visibilidade, setVisibilidade] = useState<TicketVisibilidade>('privado')
   const [print, setPrint] = useState<File | null>(printInicial ?? null)
@@ -71,6 +104,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro }:
           responsavel_id: responsavelId,
           categoria: categoria.trim(),
           prazo: prazo || null,
+          ...(quadro?.temCronograma && noCronograma ? { cronograma: true, inicio: inicio || null, duracao } : {}),
           terceiro_envolvido: terceiro.trim(),
           visibilidade,
           anexos,
@@ -129,7 +163,43 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro }:
             <UserSelect value={responsavelId} onChange={setResponsavelId} placeholder="Escolher responsável..." autoFocus={false} />
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {/* Quando: o sistema olha a agenda do responsável e sugere a data */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 110px 1fr', gap: 12 }}>
+            <div>
+              <label style={rotuloStyle}>Começa em</label>
+              <input type="date" value={inicio} onChange={(e) => { setInicio(e.target.value); setTocouInicio(true) }} style={campoStyle} />
+            </div>
+            <div>
+              <label style={rotuloStyle}>Dias</label>
+              <input type="number" min={1} max={120} value={duracao} onChange={(e) => setDuracao(Math.max(1, Number(e.target.value) || 1))} style={campoStyle} />
+            </div>
+            <div>
+              <label style={rotuloStyle}>Prazo</label>
+              <input type="date" value={prazo} onChange={(e) => { setPrazo(e.target.value); setTocouPrazo(true) }} style={campoStyle} />
+            </div>
+          </div>
+          {responsavelId && agenda && (
+            <div style={{ marginTop: -4, padding: '9px 12px', borderRadius: 8, fontSize: 12.5, lineHeight: 1.45,
+              background: agenda.conflitos.length ? 'rgba(217,119,6,.1)' : 'rgba(22,163,74,.08)', color: agenda.conflitos.length ? '#b45309' : '#15803d' }}>
+              {agenda.conflitos.length
+                ? <>Atenção: essa pessoa já tem {agenda.conflitos.map((c) => `"${c.nome}" (${br(c.ini)}${c.fim !== c.ini ? '–' + br(c.fim) : ''})`).join(', ')} nesses dias. Dá para criar mesmo assim.</>
+                : <>Agenda livre nesses dias.</>}
+              {inicio !== agenda.sugestao && (
+                <> Sugestão: <strong>{br(agenda.sugestao)}</strong>, primeiro dia livre.{' '}
+                  <button type="button" onClick={() => { setInicio(agenda.sugestao); setTocouInicio(false) }}
+                    style={{ border: 'none', background: 'transparent', padding: 0, color: 'inherit', fontWeight: 800, textDecoration: 'underline', cursor: 'pointer' }}>Usar sugestão</button>
+                </>
+              )}
+            </div>
+          )}
+          {quadro?.temCronograma && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--portal-text-secondary, #555)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={noCronograma} onChange={(e) => setNoCronograma(e.target.checked)} />
+              Também pôr no cronograma do quadro (fica alinhado com o ticket)
+            </label>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12 }}>
             <div>
               <label style={rotuloStyle}>Categoria</label>
               <input value={categoria} onChange={(e) => setCategoria(e.target.value)} list="tickets-categorias"
@@ -137,10 +207,6 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro }:
               <datalist id="tickets-categorias">
                 {CATEGORIAS_SUGERIDAS.map((c) => <option key={c} value={c} />)}
               </datalist>
-            </div>
-            <div>
-              <label style={rotuloStyle}>Prazo</label>
-              <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} style={campoStyle} />
             </div>
           </div>
 

@@ -9,6 +9,8 @@ import {
   ClipboardCheck, Plus, Calendar, AlertTriangle, CheckCircle2,
   Clock, X, User, Flag, ChevronDown, Search, Loader2
 } from 'lucide-react'
+import TransformarTarefa from '@/components/trabalho/TransformarTarefa'
+import TicketModal from '@/components/tickets/TicketModal'
 
 interface PortalUser {
   id: string
@@ -32,6 +34,8 @@ interface Tarefa {
   criador: PortalUser | null
   atribuido: PortalUser | null
   computed_status: 'pendente' | 'atrasada' | 'concluida'
+  ticket_id?: string | null        // Central de Trabalho (sql/central-trabalho.sql)
+  papel_no_ticket?: string | null
 }
 
 const PRIORITY_MAP: Record<number, { label: string; color: string; bg: string }> = {
@@ -78,6 +82,8 @@ function TarefasPageInner() {
   const [search, setSearch] = useState('')
   const [showConcluidas, setShowConcluidas] = useState(false)
   const [tarefaAberta, setTarefaAberta] = useState<Tarefa | null>(null)
+  const [ticketAberto, setTicketAberto] = useState<string | null>(null)
+  const [avisoTrabalho, setAvisoTrabalho] = useState('')
 
   const carregarTudo = useCallback(async () => {
     if (!userProfile?.id) return
@@ -337,6 +343,15 @@ function TarefasPageInner() {
               </div>
             </div>
 
+            {!tarefaAberta.concluida && (
+              <div style={{ marginTop:'20px', paddingTop:'16px', borderTop:'1px solid #f0f0f0' }}>
+                <label style={{ display:'block', fontSize:'11px', fontWeight:'600', color:'#a3a3a3', marginBottom:'10px', textTransform:'uppercase', letterSpacing:'0.5px' }}>Cresceu? Leve para um ticket</label>
+                <TransformarTarefa tarefa={tarefaAberta}
+                  onAbrirTicket={(id) => { setTarefaAberta(null); setTicketAberto(id) }}
+                  onFeito={(msg, id) => { setAvisoTrabalho(msg); setTarefaAberta(null); carregarTudo(); if (id) setTicketAberto(id) }} />
+              </div>
+            )}
+
             <div style={{ marginTop:'24px', display:'flex', justifyContent:'center' }}>
               <button onClick={() => { marcarConcluida(tarefaAberta.id, !tarefaAberta.concluida); setTarefaAberta(null); }} style={{
                 padding:'12px 28px', borderRadius:'12px', border:'none',
@@ -351,6 +366,11 @@ function TarefasPageInner() {
             </div>
           </div>
         </div>
+      )}
+
+      {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={carregarTudo} />}
+      {avisoTrabalho && (
+        <div role="status" onClick={() => setAvisoTrabalho('')} style={{ position:'fixed', left:16, bottom:16, zIndex:1200, background:'#1a1a1a', color:'#fff', padding:'10px 14px', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>{avisoTrabalho}</div>
       )}
 
       {showCreate && (
@@ -410,6 +430,11 @@ function TarefaCard({ tarefa, onToggleDone, showAssignee, onClick }: {
           }}>
             {tarefa.titulo}
           </span>
+          {tarefa.ticket_id && (
+            <span style={{ fontSize: '10px', fontWeight: '700', color: '#dc2626', background: '#fef2f2', padding: '2px 8px', borderRadius: '6px', textTransform: 'uppercase' }}>
+              {tarefa.papel_no_ticket === 'origem' ? 'virou ticket' : 'no ticket'}
+            </span>
+          )}
           {tarefa.prioridade > 0 && (
             <span style={{
               fontSize: '10px', fontWeight: '600', color: priority.color,

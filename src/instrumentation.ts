@@ -135,5 +135,24 @@ export async function register(): Promise<void> {
     log('alocação de peças recebidas LIGADA (a cada 10 min, seg–sáb 07h–20h BRT)');
   }
 
+  // Central de Trabalho: replanejamento diário dos cronogramas ligados a quadros
+  // de tickets (etapa atrasada empurra as seguintes). Uma vez por dia, a partir
+  // das 06:00 BRT — antes da tela "Seu dia" das 7:30. SÓ produção.
+  if (process.env.NODE_ENV === 'production') {
+    const { recalcularProjetosLigados, hojeSP } = await import('./lib/trabalho/cronograma-server');
+    let ultimoDia = '';
+    const rodarReplanejamento = async () => {
+      const hora = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
+      const dia = hojeSP();
+      if (hora < 6 || dia === ultimoDia) return;
+      ultimoDia = dia;
+      try { log(`replanejamento: ${await recalcularProjetosLigados()} projeto(s) recalculado(s)`); }
+      catch (e) { log('replanejamento falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarReplanejamento().catch(() => {}); }, 30 * 60 * 1000);
+    setTimeout(() => { rodarReplanejamento().catch(() => {}); }, 3 * 60 * 1000);
+    log('replanejamento diário dos cronogramas ligados a quadros LIGADO (06:00 BRT)');
+  }
+
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }

@@ -8,6 +8,7 @@ import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import AcessoBloqueado from '@/components/AcessoBloqueado'
 import { usePathname, useRouter } from 'next/navigation'
 import TratorinoChat from '@/components/TratorinoChat'
+import PainelDoDia from '@/components/trabalho/PainelDoDia'
 import CaixaEmail from '@/components/CaixaEmail'
 import VigiaCameras from '@/components/VigiaCameras'
 import SolicitacoesTratorilson from '@/components/SolicitacoesTratorilson'
@@ -18,7 +19,7 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle, Columns,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, GanttChartSquare, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags
+  LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags
 } from 'lucide-react'
 import { MailCheck as IconEnviosEmail, BookOpen } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
@@ -60,7 +61,7 @@ const GROUP_ORDER = ['geral', 'servicos', 'pecas', 'financeiro', 'comercial', 'e
 const navItems: NavItem[] = [
   // Geral
   { id: 'dashboard', name: 'Dashboard', href: '/dashboard', icon: <LayoutDashboard size={18} />, tag: 'INÍCIO', gradient: '', group: 'geral' },
-  { id: 'tickets', name: 'Tickets', href: '/tickets', icon: <Ticket size={18} />, tag: 'DEMANDAS', gradient: '', group: 'geral' },
+  { id: 'tickets', name: 'Central de Trabalho', href: '/tickets/quadros', icon: <Ticket size={18} />, tag: 'TAREFAS · TICKETS · CRONOGRAMA', gradient: '', group: 'geral' },
   // Base de conhecimento: aparece para todo mundo logado (o filtro abaixo libera o id).
   { id: 'conhecimento', name: 'Base de conhecimento', href: '/conhecimento', icon: <BookOpen size={18} />, tag: 'AJUDA', gradient: '', group: 'geral' },
 
@@ -73,7 +74,6 @@ const navItems: NavItem[] = [
   { id: 'mapa-geral', name: 'Mapeamento Técnico', href: '/mapa-geral', icon: <MapPin size={18} />, tag: 'MAPA', gradient: '', group: 'servicos' },
   { id: 'fotos-tecnicos', name: 'Fotos Técnicos', href: '/fotos-tecnicos', icon: <Camera size={18} />, tag: 'FOTOS', gradient: '', group: 'servicos' },
   { id: 'lousa', name: 'Lousa Virtual', href: '/lousa', icon: <Calendar size={18} />, tag: 'AGENDA', gradient: '', group: 'servicos' },
-  { id: 'cronograma', name: 'Cronograma', href: '/cronograma', icon: <GanttChartSquare size={18} />, tag: 'GANTT', gradient: '', group: 'servicos' },
 
   // Peças (laranja)
   { id: 'ppv', name: 'Peças (Pedido de Venda)', href: '/ppv', icon: <Package size={18} />, tag: 'PEÇAS', gradient: '', group: 'pecas' },
@@ -1498,6 +1498,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       }}>
         {children}
       </main>
+
+      {/* Central de Trabalho: confirmar ticket recebido, "Seu dia" e atalho na dashboard */}
+      {!emIframe && userProfile?.id && <PainelDoDia nome={userProfile?.nome || ''} />}
 
       {/* Assistente Tratorilson (flutuante, global) — só no modo flutuante e pra quem tem acesso */}
       {/* No celular o Tratorilson NÃO flutua na lateral — fica só dentro do painel

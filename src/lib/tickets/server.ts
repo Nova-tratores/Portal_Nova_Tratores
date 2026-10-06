@@ -1,6 +1,7 @@
 // Tickets internos — regras de negócio no SERVIDOR (uso exclusivo nas rotas
 // /api/tickets/*, via service role). O browser só LÊ (RLS); toda mutação passa
 // por aqui para garantir transições válidas, timeline imutável e notificações.
+import { temCentral } from '@/lib/trabalho/modulo'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { filtrarDestinatarios, type PrefsDestinatario } from '@/lib/notif/prefs'
 import type { Autenticado } from '@/lib/auth/server'
@@ -14,7 +15,7 @@ import {
 // Acesso ao módulo (espelha temAcesso do usePermissoes, no servidor).
 export function temModuloTickets(auth: Autenticado): boolean {
   if (auth.isAdmin) return true
-  return auth.modulos.includes('tickets') || auth.modulos.some((m) => m.startsWith('tickets:'))
+  return temCentral(auth.modulos)
 }
 
 export interface TicketCarregado {

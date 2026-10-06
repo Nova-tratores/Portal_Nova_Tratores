@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic'
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Lock, Globe, Users, Settings, Plus, Search, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Lock, Globe, Users, Settings, Plus, Search, RefreshCw, GanttChart } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -27,6 +27,9 @@ interface Dados {
   usuarios: Record<string, UsuarioMin>
   pode_trabalhar: boolean
   pode_gerenciar: boolean
+  etapas?: Record<string, { fim: string | null; critica: boolean; status: string }>
+  projeto?: { id: string; nome: string } | null
+  passos?: Record<string, { feitas: number; total: number }>
 }
 
 export default function QuadroPage({ params }: { params: Promise<{ id: string }> }) {
@@ -78,15 +81,19 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
   }, [dados, busca])
 
   // Mover cartão: otimista, pela rota de ações do ticket (fica na linha do tempo).
-  const moverCartao = async (ticketId: string, colunaId: string) => {
+  const moverCartao = async (ticketId: string, colunaId: string, ordem?: string[]) => {
     if (!dados) return
     const antes = dados
-    setDados({ ...dados, tickets: dados.tickets.map((t) => (t.id === ticketId ? { ...t, quadro_coluna_id: colunaId } : t)) })
+    const posNova = new Map((ordem || []).map((x, i) => [x, i]))
+    setDados({ ...dados, tickets: dados.tickets.map((t) => {
+      const comCol = t.id === ticketId ? { ...t, quadro_coluna_id: colunaId } : t
+      return posNova.has(t.id) ? { ...comCol, quadro_posicao: posNova.get(t.id) } : comCol
+    }) })
     try {
       const res = await fetch(`/api/tickets/${ticketId}/acoes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ acao: 'coluna', coluna_id: colunaId }),
+        body: JSON.stringify({ acao: 'coluna', coluna_id: colunaId, ordem }),
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Falha ao mover')
@@ -147,6 +154,11 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
             {quadro.arquivado && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>arquivado</span>}
           </h1>
           {quadro.descricao && <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>{quadro.descricao}</p>}
+          {dados.projeto && (
+            <a href={`/cronograma/${dados.projeto.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6, fontSize: 12.5, fontWeight: 700, color: '#0369a1', textDecoration: 'none' }}>
+              <GanttChart size={13} /> Cronograma: {dados.projeto.nome}
+            </a>
+          )}
         </div>
         <button onClick={() => setIntegrantes(true)} title="Integrantes"
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 11px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary,#555)' }}>
@@ -200,13 +212,15 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
         onMover={moverCartao}
         onNovoTicket={(colunaId) => setNovoNaColuna(colunaId)}
         onColuna={acaoQuadro}
+        etapas={dados.etapas}
+        passos={dados.passos}
       />
 
       {abertoId && <TicketModal id={abertoId} onFechar={() => setAbertoId(null)} onMudou={() => carregar(true)} />}
 
       {novoNaColuna !== null && (
         <FormTicket
-          quadro={{ id: quadro.id, nome: quadro.nome, colunaId: novoNaColuna || null }}
+          quadro={{ id: quadro.id, nome: quadro.nome, colunaId: novoNaColuna || null, temCronograma: !!dados.projeto }}
           onFechar={() => setNovoNaColuna(null)}
           onCriado={(ticketId) => { setNovoNaColuna(null); carregar(true); setAbertoId(ticketId) }}
         />

@@ -13,6 +13,8 @@ import { carregarConfigCompras, avaliarBloqueio } from '@/lib/tickets/compras-se
 import type { Autenticado } from '@/lib/auth/server'
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
 import { colunaDoTicket } from '@/lib/tickets/quadros'
+import { planejarTicket, ErroTrabalho, etapasDosTickets } from '@/lib/trabalho/cronograma-server'
+import { contagemPassos } from '@/lib/trabalho/tarefas-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -123,6 +125,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ tickets: lista, usuarios, contadores, plano })
   }
 
+  // Meus pedidos: quem pediu acompanha fase (coluna do quadro), previsão do
+  // cronograma e o andamento das tarefas do ticket.
+  if (visao === 'pedidos' && lista.length) {
+    const ids = lista.map((t) => t.id)
+    const colIds = [...new Set(lista.map((t) => (t as Ticket & { quadro_coluna_id?: string | null }).quadro_coluna_id).filter(Boolean))] as string[]
+    const qIds = [...new Set(lista.map((t) => (t as Ticket & { quadro_id?: string | null }).quadro_id).filter(Boolean))] as string[]
+    const [etapas, passos, cols, qs] = await Promise.all([
+      etapasDosTickets(ids), contagemPassos(ids),
+      colIds.length ? supabaseAdmin.from('tickets_quadro_colunas').select('id, nome').in('id', colIds).then((r) => r.data || []) : Promise.resolve([] as { id: string; nome: string }[]),
+      qIds.length ? supabaseAdmin.from('tickets_quadros').select('id, nome').in('id', qIds).then((r) => r.data || []) : Promise.resolve([] as { id: string; nome: string }[]),
+    ])
+    const nomeCol = new Map(cols.map((c) => [c.id, c.nome]))
+    const nomeQ = new Map(qs.map((q) => [q.id, q.nome]))
+    const acompanhamento: Record<string, { quadro: string | null; coluna: string | null; etapa: { inicio: string | null; fim: string | null } | null; passos: { feitas: number; total: number } | null }> = {}
+    for (const t of lista as (Ticket & { quadro_id?: string | null; quadro_coluna_id?: string | null })[]) {
+      const e = etapas[t.id]
+      acompanhamento[t.id] = {
+        quadro: t.quadro_id ? nomeQ.get(t.quadro_id) || null : null,
+        coluna: t.quadro_coluna_id ? nomeCol.get(t.quadro_coluna_id) || null : null,
+        etapa: e ? { inicio: e.inicio, fim: e.fim } : null,
+        passos: passos[t.id] || null,
+      }
+    }
+    return NextResponse.json({ tickets: lista, usuarios, contadores, acompanhamento })
+  }
+
   return NextResponse.json({ tickets: lista, usuarios, contadores })
 }
 
@@ -170,18 +198,18 @@ export async function POST(req: NextRequest) {
     noQuadro.quadro_coluna_id = colunaDoTicket(body.quadro_coluna_id ? String(body.quadro_coluna_id) : null, c.colunas)
   }
 
-  const { data: criado, error } = await supabaseAdmin
-    .from('tickets')
-    .insert({
-      titulo, descricao, categoria, prazo,
-      terceiro_envolvido: terceiro,
-      visibilidade,
-      solicitante_id: auth.userId,
-      responsavel_id: responsavelId,
-      ...noQuadro,
-    })
-    .select('*')
-    .single()
+  const linha = {
+    titulo, descricao, categoria, prazo,
+    terceiro_envolvido: terceiro,
+    visibilidade,
+    solicitante_id: auth.userId,
+    responsavel_id: responsavelId,
+    ...noQuadro,
+  }
+  // Quem recebe confirma (Central de Trabalho). Sem a coluna, cria como antes.
+  let { data: criado, error } = await supabaseAdmin.from('tickets')
+    .insert({ ...linha, aceite: responsavelId === auth.userId ? 'ok' : 'pendente' }).select('*').single()
+  if (error?.code === '42703') ({ data: criado, error } = await supabaseAdmin.from('tickets').insert(linha).select('*').single())
   if (error || !criado) return NextResponse.json({ error: error?.message || 'Falha ao criar' }, { status: 500 })
 
   const ticket = criado as Ticket
@@ -194,10 +222,17 @@ export async function POST(req: NextRequest) {
   await notificarTicket(
     ticket, [responsavelId], auth.userId,
     `Novo ticket #${ticket.numero}: ${titulo}`,
-    'Você é o responsável por este ticket.',
+    responsavelId === auth.userId ? 'Você é o responsável por este ticket.' : 'Você é o responsável. Confirme se consegue fazer.',
   )
 
-  return NextResponse.json({ ticket })
+  // Já entra no cronograma do quadro, na data escolhida (agenda do responsável).
+  let avisoCronograma = ''
+  if (body.cronograma === true && ticket.quadro_id) {
+    try { await planejarTicket(ticket, { duracao: Number(body.duracao) || 1, inicio: body.inicio ? String(body.inicio) : null }) }
+    catch (e) { avisoCronograma = e instanceof ErroTrabalho ? e.message : 'Não foi possível pôr no cronograma.' }
+  }
+
+  return NextResponse.json({ ticket, avisoCronograma })
 }
 // --------------------------------------------------------------------------
 // Criação de uma Solicitação de Compras. O vendedor (chamador) abre a SC; a

@@ -15,7 +15,6 @@ const ABAS = [
   { modulo: 'revisoes', label: 'Revisões', href: '/revisoes' },
   { modulo: 'clientes', label: 'Clientes', href: '/clientes' },
   { modulo: 'mecanicos', label: 'Janela Mecânico', href: '/mecanicos' },
-  { modulo: 'cronograma', label: 'Cronograma', href: '/cronograma' },
   { modulo: 'sat', label: 'SAT', href: '/sat' },
   { modulo: 'mapa-geral', label: 'Mapa Técnico', href: '/mapa-geral' },
   { modulo: 'fotos-tecnicos', label: 'Fotos Técnicos', href: '/fotos-tecnicos' },

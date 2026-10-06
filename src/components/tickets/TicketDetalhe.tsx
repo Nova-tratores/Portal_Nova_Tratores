@@ -8,7 +8,7 @@ import { useRouter } from 'next/navigation'
 import {
   ArrowLeft, Send, User as UserIcon, Users, CalendarDays, Tag, Building2, Lock, Globe,
   ArrowRightLeft, BellRing, Plus, X, MessageSquare, CircleDot, PenLine, Paperclip,
-  CheckCircle2, RotateCcw, Ban, Clock, Link2, Unlink, ShoppingCart, Package, ExternalLink, LayoutGrid,
+  CheckCircle2, RotateCcw, Ban, Clock, Link2, Unlink, ShoppingCart, Package, ExternalLink, LayoutGrid, GanttChart,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -22,9 +22,12 @@ import {
 import StatusBadge from '@/components/tickets/StatusBadge'
 import UserSelect from '@/components/tickets/UserSelect'
 import CardVinculos from '@/components/tickets/CardVinculos'
+import TarefasDoTicket from '@/components/tickets/TarefasDoTicket'
 import type { TicketVinculoEnriquecido } from '@/lib/tickets/vinculos'
 import { SC_ETAPA_INFO, SC_CONFIANCA_INFO, margemPrevista, type PayloadSC, type ScEtapa } from '@/lib/tickets/compras'
 import PainelCompras from '@/components/tickets/compras/PainelCompras'
+
+const fmtData = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("pt-BR")
 
 const EVENTO_ICONE: Record<string, React.ReactNode> = {
   criacao: <CircleDot size={14} />,
@@ -90,6 +93,12 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   const [quadro, setQuadro] = useState<{ id: string; nome: string; cor: string; colunas: { id: string; nome: string }[] } | null>(null)
   const [modalQuadro, setModalQuadro] = useState(false)
   const [opcoesQuadro, setOpcoesQuadro] = useState<{ id: string; nome: string; cor: string }[] | null>(null)
+  // Cronograma ligado (sql/central-trabalho.sql)
+  const [etapa, setEtapa] = useState<{ projeto_id: string; projeto_nome: string; nome: string; inicio: string | null; fim: string | null; critica: boolean; status: string } | null>(null)
+  const [projetoQuadro, setProjetoQuadro] = useState<{ id: string; nome: string } | null>(null)
+  const [planejando, setPlanejando] = useState(false)
+  const [planDur, setPlanDur] = useState(2)
+  const [planIni, setPlanIni] = useState('')
 
   const abrirModalQuadro = async () => {
     setModalQuadro(true)
@@ -116,6 +125,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
       setUsuarios(json.usuarios || {})
       setVinculos(json.vinculos || [])
       setQuadro(json.quadro || null)
+      setEtapa(json.etapa || null)
+      setProjetoQuadro(json.projetoQuadro || null)
       setErro('')
     } catch {
       setErro('Falha de conexão')
@@ -201,6 +212,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   }
   const acao = poster(`/api/tickets/${id}/acoes`)
   const acaoCompras = poster(`/api/tickets/${id}/compras`)
+  const acaoTrabalho = poster('/api/trabalho/cronograma')
 
   if (carregando) {
     return <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando ticket...</div>
@@ -350,9 +362,51 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             </button>
           )}
         </div>
+        {!ehSC && <TarefasDoTicket ticketId={ticket.id} responsavelId={ticket.responsavel_id} encerrado={encerrado} onMudou={() => { carregar(true); onMudou?.() }} />}
+
         {erroAcao && (
           <div style={{ marginTop: 10, padding: '9px 12px', borderRadius: 8, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600 }}>
             {erroAcao}
+          </div>
+        )}
+
+        {/* Cronograma (Central de Trabalho): etapa ligada ou "Planejar" */}
+        {(etapa || projetoQuadro) && (
+          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--portal-border,#f0f0f0)', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
+            <GanttChart size={15} color="#0369a1" />
+            {etapa ? (
+              <>
+                <span>
+                  Etapa <strong>{etapa.nome}</strong> do cronograma <strong>{etapa.projeto_nome}</strong>
+                  {etapa.inicio && etapa.fim && <> · previsto {fmtData(etapa.inicio)} a {fmtData(etapa.fim)}</>}
+                  {etapa.status === 'concluida' && <> · <span style={{ color: '#059669', fontWeight: 700 }}>concluída</span></>}
+                  {etapa.critica && etapa.status !== 'concluida' && <> · <span style={{ color: '#dc2626', fontWeight: 700 }}>caminho crítico</span></>}
+                  {etapa.fim && ticket.prazo && etapa.status !== 'concluida' && etapa.fim > ticket.prazo && <> · <span style={{ color: '#d97706', fontWeight: 700 }}>previsão passou do prazo</span></>}
+                </span>
+                <a href={`/cronograma/${etapa.projeto_id}`} style={{ marginLeft: 'auto', fontWeight: 700, color: '#0369a1', textDecoration: 'none' }}>Ver no cronograma</a>
+              </>
+            ) : planejando ? (
+              <>
+                <span>Planejar em <strong>{projetoQuadro!.nome}</strong>:</span>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>duração
+                  <input id="plan-dur" type="number" min={1} max={365} value={planDur} onChange={(e) => setPlanDur(Number(e.target.value) || 1)} style={{ width: 60, padding: '5px 8px', borderRadius: 7, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }} /> dias
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 5 }}>a partir de
+                  <input id="plan-ini" type="date" value={planIni} onChange={(e) => setPlanIni(e.target.value)} style={{ padding: '5px 8px', borderRadius: 7, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }} />
+                </label>
+                <button disabled={agindo} style={botaoAcao(true)} onClick={() => acaoTrabalho({ acao: 'planejar', ticket_id: ticket.id, duracao: planDur, inicio: planIni || null }, () => setPlanejando(false))}>Planejar</button>
+                <button disabled={agindo} style={botaoAcao()} onClick={() => setPlanejando(false)}>Cancelar</button>
+              </>
+            ) : (
+              <>
+                <span>Este ticket ainda não está no cronograma <strong>{projetoQuadro!.nome}</strong>.</span>
+                {(souSolicitante || souResponsavel || isAdmin) && (
+                  <button disabled={agindo} style={{ ...botaoAcao(), marginLeft: 'auto' }} onClick={() => setPlanejando(true)}>
+                    <GanttChart size={14} /> Planejar no cronograma
+                  </button>
+                )}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -394,6 +448,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                 else if (e.payload.campo === 'quadro') texto = e.payload.para
                   ? <>colocou o ticket no quadro <strong>{String(e.payload.para)}</strong></>
                   : <>tirou o ticket do quadro{e.payload.de ? <> <strong>{String(e.payload.de)}</strong></> : null}</>
+                else if (e.payload.campo === 'tarefa') texto = <>{e.payload.acao === 'criada' ? 'criou a tarefa' : e.payload.acao === 'feita' ? 'concluiu a tarefa' : e.payload.acao === 'removida' ? 'removeu a tarefa' : 'reabriu a tarefa'} <strong>{String(e.payload.titulo || '')}</strong></>
+                else if (e.payload.campo === 'cronograma') texto = <>colocou o ticket no <strong>cronograma</strong></>
                 else if (e.payload.campo === 'coluna') texto = <>moveu o cartão{e.payload.de ? <> de {String(e.payload.de)}</> : null} para <strong>{String(e.payload.para)}</strong></>
                 else {
                   const campos = Object.keys((e.payload.mudancas as Record<string, unknown>) || {})

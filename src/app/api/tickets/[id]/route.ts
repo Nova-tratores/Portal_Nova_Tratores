@@ -5,6 +5,7 @@ import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { temModuloTickets, carregarTicket, podeVerTicket, carregarVinculos } from '@/lib/tickets/server'
 import type { TicketEvento } from '@/lib/tickets/constantes'
+import { etapasDosTickets, projetoDoQuadro } from '@/lib/trabalho/cronograma-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -65,5 +66,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (q) quadro = { ...q, colunas: (cols || []).map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome })) }
   }
 
-  return NextResponse.json({ ticket, participantes, eventos: eventos || [], usuarios, vinculos, quadro })
+  // Etapa do cronograma ligada + se o quadro tem cronograma (para "Planejar")
+  const etapa = (await etapasDosTickets([ticket.id]))[ticket.id] || null
+  const projetoQuadro = ticket.quadro_id && !etapa ? await projetoDoQuadro(ticket.quadro_id) : null
+
+  return NextResponse.json({ ticket, participantes, eventos: eventos || [], usuarios, vinculos, quadro, etapa, projetoQuadro })
 }

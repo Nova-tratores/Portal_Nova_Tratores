@@ -20,6 +20,7 @@ export interface ProjetoRow {
   os_ref: string | null;
   req_grupo_id: number | null;
   conta_omie: string | null;
+  quadro_id?: string | null; // Central de Trabalho (sql/central-trabalho.sql)
 }
 export interface TarefaRow {
   id: string;
@@ -43,6 +44,7 @@ export interface TarefaRow {
   fim_calc: string | null;
   folga_dias: number | null;
   e_critica: boolean;
+  ticket_id?: string | null; // Central de Trabalho (sql/central-trabalho.sql)
 }
 export interface DependenciaRow {
   id: string;

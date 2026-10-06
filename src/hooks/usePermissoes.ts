@@ -1,4 +1,5 @@
 'use client'
+import { ehModuloCentral, temCentral } from '@/lib/trabalho/modulo'
 import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 
@@ -57,6 +58,7 @@ export function usePermissoes(userId: string | undefined) {
   const temAcesso = (modulo: string): boolean => {
     if (isAdmin) return true
     const perms = permissoes?.modulos_permitidos ?? []
+    if (ehModuloCentral(modulo)) return temCentral(perms)
     return perms.includes(modulo) || perms.some((p) => p.startsWith(modulo + ':'))
   }
 

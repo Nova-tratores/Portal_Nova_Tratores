@@ -15,6 +15,8 @@ import {
   carregarQuadro, papeis, filtrarUsuariosAtivos, notificarIntegrantes,
   migrationFaltou, MSG_MIGRATION_QUADROS,
 } from '@/lib/tickets/quadros-server'
+import { etapasDosTickets, projetoDoQuadro } from '@/lib/trabalho/cronograma-server'
+import { contagemPassos } from '@/lib/trabalho/tarefas-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,8 +52,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const usuarios: Record<string, { id: string; nome: string; avatar_url: string | null }> = {}
     for (const u of us || []) usuarios[u.id] = u
 
+    const [etapas, projeto, passos] = await Promise.all([etapasDosTickets(lista.map((t) => t.id)), projetoDoQuadro(id), contagemPassos(lista.map((t) => t.id))])
     return NextResponse.json({
-      quadro: c.quadro, colunas: c.colunas, membros: c.membros, tickets: lista, usuarios,
+      quadro: c.quadro, colunas: c.colunas, membros: c.membros, tickets: lista, usuarios, etapas, projeto, passos,
       pode_trabalhar: p.trabalhar, pode_gerenciar: p.gerenciar,
     })
   } catch (e) { return tratar(e, 'GET') }

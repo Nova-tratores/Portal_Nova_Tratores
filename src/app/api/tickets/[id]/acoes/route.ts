@@ -20,6 +20,7 @@ import { STATUS_FINAIS, STATUS_INFO, type Ticket, type TicketParticipante, type 
 import { labelRequisicao } from '@/lib/tickets/vinculos'
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
 import { colunaDoTicket } from '@/lib/tickets/quadros'
+import { sincronizarEtapaDoTicket, moverEtapaDoTicket } from '@/lib/trabalho/cronograma-server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -113,7 +114,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (!novo || novo.ativo === false) return erro('Novo responsável inválido ou inativo')
 
     const anterior = ticket.responsavel_id
-    const { error } = await supabaseAdmin.from('tickets').update({ responsavel_id: para }).eq('id', id)
+    // Novo responsável confirma (Central de Trabalho); sem a coluna, segue sem.
+    let { error } = await supabaseAdmin.from('tickets').update({ responsavel_id: para, aceite: para === auth.userId ? 'ok' : 'pendente', aceite_motivo: null }).eq('id', id)
+    if (error?.code === '42703') ({ error } = await supabaseAdmin.from('tickets').update({ responsavel_id: para }).eq('id', id))
     if (error) return erro(error.message, 500)
 
     // O ticket sai da fila pessoal do responsável anterior.
@@ -127,6 +130,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       `Ticket #${ticket.numero} transferido para ${novo.nome}`,
       ticket.titulo)
     return NextResponse.json({ ok: true })
+  }
+
+  // --------------------------------------------------------------- aceite
+  // { acao:'aceite', decisao:'confirmar'|'nova_data'|'recusar', data?, motivo? }
+  // Quem recebeu o ticket (responsável) confirma, propõe outra data ou recusa.
+  // Quem pediu é avisado. sql/central-trabalho.sql (tickets.aceite).
+  if (acao === 'aceite') {
+    if (!souResponsavel) return erro('Só quem recebeu o ticket confirma.', 403)
+    const decisao = String(body.decisao || '')
+    const agora = new Date().toISOString()
+    const autor = await nomeDe(auth.userId)
+    if (decisao === 'confirmar' || decisao === 'nova_data') {
+      const patch: Record<string, unknown> = { aceite: 'ok', aceite_em: agora, aceite_motivo: null }
+      let novaData: string | null = null
+      if (decisao === 'nova_data') {
+        novaData = /^\d{4}-\d{2}-\d{2}$/.test(String(body.data || '')) ? String(body.data) : null
+        if (!novaData) return erro('Escolha a nova data')
+        patch.prazo = novaData
+      }
+      const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
+      if (error) return erro(error.code === '42703' ? 'A confirmação ainda não foi ativada no banco (rode sql/central-trabalho.sql).' : error.message, error.code === '42703' ? 503 : 500)
+      if (novaData) await moverEtapaDoTicket(id, novaData)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'aceite', para: 'ok', ...(novaData ? { data: novaData } : {}) })
+      await notificarTicket(ticket, [ticket.solicitante_id], auth.userId,
+        `${autor} confirmou o ticket #${ticket.numero}`, novaData ? `Com nova data: ${novaData.split('-').reverse().join('/')}` : ticket.titulo)
+      return NextResponse.json({ ok: true })
+    }
+    if (decisao === 'recusar') {
+      const motivo = String(body.motivo || '').trim()
+      if (!motivo) return erro('Diga por que não consegue — vai para quem pediu.')
+      const { error } = await supabaseAdmin.from('tickets').update({ aceite: 'recusado', aceite_em: agora, aceite_motivo: motivo.slice(0, 500) }).eq('id', id)
+      if (error) return erro(error.code === '42703' ? 'A confirmação ainda não foi ativada no banco (rode sql/central-trabalho.sql).' : error.message, error.code === '42703' ? 503 : 500)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'aceite', para: 'recusado', motivo })
+      await notificarTicket(ticket, [ticket.solicitante_id], auth.userId,
+        `${autor} recusou o ticket #${ticket.numero}`, motivo)
+      return NextResponse.json({ ok: true })
+    }
+    return erro('Decisão inválida')
   }
 
   // --------------------------------------------------------------- status
@@ -151,6 +192,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await notificarTicket(ticket, todos, auth.userId,
       `Ticket #${ticket.numero}: ${rotulo}`,
       `${autor} mudou o status para "${rotulo}"${motivo ? ` — ${motivo}` : ''}`)
+    // Etapa do cronograma ligada acompanha (andamento / concluída / volta).
+    await sincronizarEtapaDoTicket({ id, status: para })
     return NextResponse.json({ ok: true })
   }
 
@@ -334,6 +377,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const destino = c.colunas.find((x) => x.id === colunaId)
     if (!destino) return erro('Coluna inválida')
     const atual = colunaDoTicket(ticket.quadro_coluna_id, c.colunas)
+    // Ordem dos cartões na coluna de destino (arrastar para cima/baixo).
+    const ordem = Array.isArray(body.ordem) ? (body.ordem as unknown[]).map(String).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 500) : []
+    if (ordem.length) {
+      await Promise.all(ordem.map((tid, i) =>
+        supabaseAdmin.from('tickets').update({ quadro_posicao: i }).eq('id', tid).eq('quadro_id', ticket.quadro_id!)))
+        .catch(() => { /* migration pendente: sem ordem */ })
+    }
     if (atual === colunaId) return NextResponse.json({ ok: true })
     const { error } = await supabaseAdmin.from('tickets').update({ quadro_coluna_id: colunaId }).eq('id', id)
     if (error) return erro(error.message, 500)

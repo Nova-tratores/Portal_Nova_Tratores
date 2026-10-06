@@ -3,7 +3,7 @@
 // Arrastar o cartão troca a COLUNA (no celular: seletor "Mover para").
 // O criador do quadro inclui, renomeia, reordena e remove colunas aqui mesmo.
 import { useState } from 'react'
-import { Clock, CalendarDays, User as UserIcon, Pencil, Trash2, ChevronLeft, ChevronRight, Plus, Check, X } from 'lucide-react'
+import { Clock, CalendarDays, User as UserIcon, Pencil, Trash2, ChevronLeft, ChevronRight, Plus, Check, X, GanttChart, SquareCheck } from 'lucide-react'
 import { diasParado, prazoVencido, type Ticket, type UsuarioMin } from '@/lib/tickets/constantes'
 import { colunaDoTicket, type QuadroColuna } from '@/lib/tickets/quadros'
 import StatusBadge from '../StatusBadge'
@@ -18,9 +18,14 @@ interface Props {
   podeGerenciar: boolean
   isMobile: boolean
   onAbrir: (id: string) => void
-  onMover: (ticketId: string, colunaId: string) => Promise<void>
+  /** ordem = ids da coluna de destino já na ordem nova (arrastar para cima/baixo). */
+  onMover: (ticketId: string, colunaId: string, ordem?: string[]) => Promise<void>
   onNovoTicket: (colunaId: string) => void
   onColuna: (payload: Record<string, unknown>) => Promise<boolean>
+  /** Etapa do cronograma ligada a cada ticket (previsão, crítico). */
+  etapas?: Record<string, { fim: string | null; critica: boolean; status: string }>
+  /** Tarefas (passos) de cada ticket: selo "1/3 tarefas". */
+  passos?: Record<string, { feitas: number; total: number }>
 }
 
 const MIME = 'quadro-ticket-id'
@@ -31,10 +36,11 @@ const iconeBtn: React.CSSProperties = {
 
 export default function KanbanQuadro({
   colunas, tickets, usuarios, cor, meuId, podeTrabalhar, podeGerenciar, isMobile,
-  onAbrir, onMover, onNovoTicket, onColuna,
+  onAbrir, onMover, onNovoTicket, onColuna, etapas = {}, passos = {},
 }: Props) {
   const [arrastando, setArrastando] = useState<string | null>(null)
   const [over, setOver] = useState<string | null>(null)
+  const [antesDe, setAntesDe] = useState<string | null>(null) // cartão sobre o qual vai cair
   const [salvando, setSalvando] = useState<string | null>(null)
   const [renomeando, setRenomeando] = useState<{ id: string; nome: string } | null>(null)
   const [removendo, setRemovendo] = useState<{ id: string; destino: string } | null>(null)
@@ -45,13 +51,20 @@ export default function KanbanQuadro({
     const c = colunaDoTicket(t.quadro_coluna_id, colunas)
     if (c) porColuna.set(c, [...(porColuna.get(c) || []), t])
   }
+  const pos = (t: Ticket) => (t as Ticket & { quadro_posicao?: number | null }).quadro_posicao ?? Number.MAX_SAFE_INTEGER
+  for (const [k, l] of porColuna) porColuna.set(k, [...l].sort((a, b) => pos(a) - pos(b)))
   const podeMoverCartao = (t: Ticket) => podeTrabalhar || t.solicitante_id === meuId || t.responsavel_id === meuId
 
-  const mover = async (ticketId: string, colunaId: string) => {
+  const mover = async (ticketId: string, colunaId: string, antes: string | null = null) => {
     const t = tickets.find((x) => x.id === ticketId)
-    if (!t || colunaDoTicket(t.quadro_coluna_id, colunas) === colunaId) return
+    if (!t) return
+    const mesma = colunaDoTicket(t.quadro_coluna_id, colunas) === colunaId
+    if (mesma && (!antes || antes === ticketId)) return
+    const ids = (porColuna.get(colunaId) || []).map((x) => x.id).filter((x) => x !== ticketId)
+    const i = antes && antes !== '__fim' ? ids.indexOf(antes) : -1
+    if (i >= 0) ids.splice(i, 0, ticketId); else ids.push(ticketId)
     setSalvando(ticketId)
-    try { await onMover(ticketId, colunaId) } finally { setSalvando(null) }
+    try { await onMover(ticketId, colunaId, ids) } finally { setSalvando(null) }
   }
 
   const reordenar = (idx: number, delta: -1 | 1) => {
@@ -72,7 +85,7 @@ export default function KanbanQuadro({
           <div key={col.id}
             onDragOver={(e) => { if (!arrastando) return; e.preventDefault(); if (over !== col.id) setOver(col.id) }}
             onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node) && over === col.id) setOver(null) }}
-            onDrop={(e) => { e.preventDefault(); const id = arrastando; setArrastando(null); setOver(null); if (id) mover(id, col.id) }}
+            onDrop={(e) => { e.preventDefault(); const id = arrastando; const a = antesDe; setArrastando(null); setOver(null); setAntesDe(null); if (id) mover(id, col.id, a) }}
             style={{
               flex: '0 0 270px', width: 270, borderRadius: 12, padding: 10,
               background: alvo ? 'rgba(220,38,38,.06)' : 'var(--portal-bg,#f3f4f6)',
@@ -140,13 +153,15 @@ export default function KanbanQuadro({
                   <div key={t.id} role="button" tabIndex={0}
                     draggable={pode && !isMobile}
                     onDragStart={(e) => { setArrastando(t.id); e.dataTransfer.setData(MIME, t.id); e.dataTransfer.setData('text/plain', t.id); e.dataTransfer.effectAllowed = 'move' }}
-                    onDragEnd={() => { setArrastando(null); setOver(null) }}
+                    onDragEnd={() => { setArrastando(null); setOver(null); setAntesDe(null) }}
+                    onDragOver={(e) => { if (!arrastando || arrastando === t.id) return; const r = e.currentTarget.getBoundingClientRect(); const metadeDeBaixo = e.clientY > r.top + r.height / 2; const idx = lista.findIndex((x) => x.id === t.id); const alvo = metadeDeBaixo ? (lista[idx + 1]?.id ?? '__fim') : t.id; if (antesDe !== alvo) setAntesDe(alvo) }}
                     onClick={() => onAbrir(t.id)}
                     onKeyDown={(e) => { if (e.key === 'Enter') onAbrir(t.id) }}
                     style={{
                       display: 'flex', flexDirection: 'column', gap: 6, padding: 11, borderRadius: 10,
                       background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e5e7eb)',
                       borderLeft: `3px solid ${cor}`, cursor: pode && !isMobile ? 'grab' : 'pointer',
+                      boxShadow: arrastando && arrastando !== t.id && over === col.id && antesDe === t.id ? `0 -3px 0 0 ${cor}` : undefined,
                       opacity: arrastando === t.id || salvando === t.id ? .5 : 1,
                     }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6 }}>
@@ -161,6 +176,20 @@ export default function KanbanQuadro({
                           <CalendarDays size={11} /> {new Date(t.prazo + 'T12:00:00').toLocaleDateString('pt-BR')}
                         </span>
                       )}
+                      {passos[t.id] && (
+                        <span title="Tarefas deste ticket" style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 700, color: passos[t.id].feitas === passos[t.id].total ? '#16a34a' : undefined }}>
+                          <SquareCheck size={11} /> {passos[t.id].feitas}/{passos[t.id].total} tarefas
+                        </span>
+                      )}
+                      {etapas[t.id]?.fim && etapas[t.id].status !== 'concluida' && (
+                        <span title="Previsão do cronograma" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <GanttChart size={11} /> previsto até {new Date(etapas[t.id].fim + 'T12:00:00').toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
+                      {etapas[t.id]?.critica && etapas[t.id].status !== 'concluida' && (
+                        <span style={{ color: '#dc2626', fontWeight: 700 }}>caminho crítico</span>
+                      )}
+                      {(() => { const e = etapas[t.id]; if (!e?.fim || !t.prazo || e.status === 'concluida' || e.fim <= t.prazo) return null; const d = Math.round((new Date(e.fim).getTime() - new Date(t.prazo).getTime()) / 864e5); return <span style={{ color: '#d97706', fontWeight: 700 }}>atrasou {d}d</span> })()}
                       <span title="Dias sem movimento" style={{ display: 'flex', alignItems: 'center', gap: 3, color: dias >= 5 ? '#dc2626' : dias >= 2 ? '#d97706' : undefined, fontWeight: dias >= 2 ? 700 : undefined }}>
                         <Clock size={11} /> {dias === 0 ? 'hoje' : `${dias}d`}
                       </span>

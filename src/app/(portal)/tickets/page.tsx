@@ -7,6 +7,7 @@ export const dynamic = 'force-dynamic'
 
 import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import AcompanhamentoPedido, { type DadosAcompanhamento } from '@/components/trabalho/AcompanhamentoPedido'
 import {
   Inbox, Send, Eye, BarChart3, Plus, Search, Clock, CalendarDays, User as UserIcon, RefreshCw,
   GripVertical, ChevronUp, ChevronDown, Zap, List, Columns3,
@@ -41,6 +42,7 @@ function TicketsPageInner() {
 
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [usuarios, setUsuarios] = useState<Record<string, UsuarioMin>>({})
+  const [acomp, setAcomp] = useState<Record<string, DadosAcompanhamento>>({})
   const [contadores, setContadores] = useState<Record<Visao, number> | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
@@ -91,6 +93,7 @@ function TicketsPageInner() {
       if (!res.ok) { setErro(json.error || 'Falha ao carregar'); setTickets([]); return }
       setTickets(json.tickets || [])
       setUsuarios(json.usuarios || {})
+      setAcomp(json.acompanhamento || {})
       if (json.contadores) setContadores(json.contadores)
       aplicarPlanoLocal(json.plano || [])
     } catch {
@@ -399,6 +402,7 @@ function TicketsPageInner() {
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 12px', fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><UserIcon size={12} /> {resp?.nome || '—'}</span>
                     {visao !== 'pedidos' && sol && <span>pedido por {sol.nome}</span>}
+                    {visao === 'pedidos' && <AcompanhamentoPedido ticket={t as Ticket & { aceite?: string | null; aceite_motivo?: string | null }} dados={acomp[t.id]} />}
                     {t.categoria && <span>{t.categoria}</span>}
                     {t.prazo && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>
@@ -491,6 +495,7 @@ function TicketsPageInner() {
                       <UserIcon size={12} /> {resp?.nome || '—'}
                     </span>
                     {visao !== 'pedidos' && sol && <span>pedido por {sol.nome}</span>}
+                    {visao === 'pedidos' && <AcompanhamentoPedido ticket={t as Ticket & { aceite?: string | null; aceite_motivo?: string | null }} dados={acomp[t.id]} />}
                     {t.categoria && <span>{t.categoria}</span>}
                     {t.prazo && (
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: vencido ? '#dc2626' : undefined, fontWeight: vencido ? 700 : undefined }}>

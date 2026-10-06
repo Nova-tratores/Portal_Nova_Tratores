@@ -60,6 +60,12 @@ export interface EntradaMotor {
   dependencias: DepIn[];
   recursos: Recurso[];
   calendarios: Calendario[];
+  /**
+   * Replanejamento automático (projeto ligado a um quadro de tickets): com a
+   * data de hoje, etapa em andamento atrasada termina no mínimo hoje e etapa
+   * que não começou não fica no passado. Sem ela, o motor é o de sempre.
+   */
+  hoje?: string;
 }
 
 export interface TarefaOut {
