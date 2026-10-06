@@ -28,20 +28,43 @@ export const ESTANTES: Estante[] = [
 /** Prateleiras por estante, contadas de cima pra baixo. */
 export const PRATELEIRAS = [1, 2, 3, 4, 5, 6];
 
-/** Monta o código gravado no banco: ("MA1", 2) → "MA1-P2". */
-export function montarLocalizacao(estante: string, prateleira: number): string {
-  return `${estante.trim().toUpperCase()}-P${prateleira}`;
+/**
+ * Monta o código gravado no banco:
+ *   ("MA1", 2)                 → "MA1-P2"            (peça solta na prateleira)
+ *   ("MA1", 2, true)           → "MA1-P2-CX"         (dentro de caixa, sem identificação)
+ *   ("MA1", 2, true, "AZUL")   → "MA1-P2-CX:AZUL"    (dentro da caixa AZUL)
+ */
+export function montarLocalizacao(estante: string, prateleira: number, emCaixa?: boolean, caixaId?: string): string {
+  const base = `${estante.trim().toUpperCase()}-P${prateleira}`;
+  if (!emCaixa) return base;
+  const id = String(caixaId || '').trim();
+  return id ? `${base}-CX:${id}` : `${base}-CX`;
 }
 
-/** Decompõe "MA1-P2" → { estante: 'MA1', prateleira: 2 }; texto fora do padrão → null. */
-export function partesLocalizacao(cod: string | null | undefined): { estante: string; prateleira: number } | null {
-  const m = String(cod || '').trim().toUpperCase().match(/^([A-Z]{2}\d)-P(\d{1,2})$/);
+export interface PartesLocalizacao {
+  estante: string;
+  prateleira: number;
+  /** true quando a peça está dentro de uma caixa na prateleira */
+  emCaixa: boolean;
+  /** identificação da caixa ("AZUL", "C3"...) ou null */
+  caixa: string | null;
+}
+
+/** Decompõe "MA1-P2-CX:AZUL" → partes; texto fora do padrão → null. */
+export function partesLocalizacao(cod: string | null | undefined): PartesLocalizacao | null {
+  const m = String(cod || '').trim().match(/^([A-Za-z]{2}\d)-[Pp](\d{1,2})(-[Cc][Xx](?::(.+))?)?$/);
   if (!m) return null;
-  return { estante: m[1], prateleira: Number(m[2]) };
+  return {
+    estante: m[1].toUpperCase(),
+    prateleira: Number(m[2]),
+    emCaixa: !!m[3],
+    caixa: m[4]?.trim() || null,
+  };
 }
 
 /**
- * Rótulo humano: "MA1-P2" → "MAHINDRA 1 · Prateleira 2".
+ * Rótulo humano: "MA1-P2-CX:AZUL" → "MAHINDRA 1 · Prateleira 2 · Caixa AZUL".
+ * Sem o sufixo de caixa não acrescenta nada (peça solta na prateleira).
  * Código de estante desconhecido mantém o código ("XX9 · Prateleira 1");
  * texto fora do padrão volta como está (campo é livre de propósito).
  */
@@ -51,5 +74,7 @@ export function rotuloLocalizacao(cod: string | null | undefined): string {
   const partes = partesLocalizacao(bruto);
   if (!partes) return bruto;
   const estante = ESTANTES.find((e) => e.cod === partes.estante);
-  return `${estante ? estante.rotulo : partes.estante} · Prateleira ${partes.prateleira}`;
+  const base = `${estante ? estante.rotulo : partes.estante} · Prateleira ${partes.prateleira}`;
+  if (!partes.emCaixa) return base;
+  return `${base} · ${partes.caixa ? `Caixa ${partes.caixa}` : 'Em caixa'}`;
 }

@@ -107,7 +107,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // no controle de revisões)
   const [editTrator, setEditTrator] = useState<{ chassis: string; modelo: string } | null>(null);
   // Onde a peça está guardada nas estantes (sai na etiqueta do QR)
-  const [locEdit, setLocEdit] = useState<{ estante: string; prateleira: number } | null>(null);
+  const [locEdit, setLocEdit] = useState<{ estante: string; prateleira: number; emCaixa: boolean; caixaId: string } | null>(null);
   // Garante que a auto-sincronização com a OS roda só uma vez por garantia
   const autoSyncRef = useRef<string | null>(null);
 
@@ -620,7 +620,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     <button
                       onClick={() => {
                         const p = partesLocalizacao(g.localizacao);
-                        setLocEdit({ estante: p?.estante || ESTANTES[0].cod, prateleira: p?.prateleira || 1 });
+                        setLocEdit({ estante: p?.estante || ESTANTES[0].cod, prateleira: p?.prateleira || 1, emCaixa: p?.emCaixa || false, caixaId: p?.caixa || '' });
                       }}
                       disabled={!!busy}
                       style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 700, color: '#0d9488', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
@@ -646,12 +646,30 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                     >
                       {PRATELEIRAS.map((p) => <option key={p} value={p}>Prateleira {p}</option>)}
                     </select>
+                    <select
+                      value={locEdit.emCaixa ? 'caixa' : 'solta'}
+                      onChange={(e) => setLocEdit({ ...locEdit, emCaixa: e.target.value === 'caixa' })}
+                      title="A peça está solta na prateleira ou dentro de uma caixa?"
+                      style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border, #cbd5e1)', fontSize: 12.5, background: 'var(--portal-bg-input, #fff)', color: 'var(--portal-text)' }}
+                    >
+                      <option value="solta">Peça solta na prateleira</option>
+                      <option value="caixa">Dentro de caixa</option>
+                    </select>
+                    {locEdit.emCaixa && (
+                      <input
+                        value={locEdit.caixaId}
+                        onChange={(e) => setLocEdit({ ...locEdit, caixaId: e.target.value })}
+                        placeholder="Qual caixa? ex. C3, AZUL (opcional)"
+                        maxLength={20}
+                        style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border, #cbd5e1)', fontSize: 12.5, background: 'var(--portal-bg-input, #fff)', color: 'var(--portal-text)', width: 190 }}
+                      />
+                    )}
                     <button
                       onClick={async () => {
                         const ok = await chamar('localizacao', `/api/garantias/${garantiaId}`, {
                           method: 'PATCH',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ acao: 'localizacao', localizacao: montarLocalizacao(locEdit.estante, locEdit.prateleira), ator: userName }),
+                          body: JSON.stringify({ acao: 'localizacao', localizacao: montarLocalizacao(locEdit.estante, locEdit.prateleira, locEdit.emCaixa, locEdit.caixaId), ator: userName }),
                         });
                         if (ok) { setLocEdit(null); setAviso('Localização da peça salva — reimprima o QR pra etiqueta sair com ela.'); }
                       }}

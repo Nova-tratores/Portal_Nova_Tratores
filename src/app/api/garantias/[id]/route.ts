@@ -101,7 +101,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // Onde a peça está guardada (estantes da oficina). Editável em qualquer
   // status — a caixa muda de prateleira mesmo depois de finalizada.
   if (body.acao === 'localizacao') {
-    const loc = body.localizacao == null ? null : String(body.localizacao).trim().slice(0, 40) || null;
+    const loc = body.localizacao == null ? null : String(body.localizacao).trim().slice(0, 60) || null;
     const { data, error } = await supabase
       .from(TBL_GARANTIAS)
       .update({ localizacao: loc, updated_at: new Date().toISOString() })
