@@ -20,6 +20,7 @@ const COR_EVENTO: Record<string, string> = {
   devolucao_reabrir: '#b45309',
   aprovada: '#16a34a',
   rejeitada: '#dc2626',
+  localizacao: '#0d9488',
 };
 
 interface Props {

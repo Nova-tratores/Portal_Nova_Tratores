@@ -227,6 +227,8 @@ export interface Garantia {
   duplicada_de?: string | null;
   duplicada_de_numero?: string | null;
   cancelada_em?: string | null;
+  // Onde a peça está guardada na oficina ("MA1-P2") — lib/garantias/localizacao
+  localizacao?: string | null;
   retorno_fabrica_url: string | null;
   valor_pago_horas: number | null;
   valor_pago_km: number | null;

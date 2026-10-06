@@ -24,6 +24,7 @@ import RelatoTratorilsonSecao from './RelatoTratorilsonSecao';
 import ConversaFabrica from './ConversaFabrica';
 import DevolucaoPecasSecao from './DevolucaoPecasSecao';
 import { guiaDaMontadora } from '@/lib/garantias/guias';
+import { ESTANTES, PRATELEIRAS, montarLocalizacao, partesLocalizacao, rotuloLocalizacao } from '@/lib/garantias/localizacao';
 import { MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 
 interface Props {
@@ -105,6 +106,8 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
   // Correção manual de chassi/modelo (garantia criada antes do trator existir
   // no controle de revisões)
   const [editTrator, setEditTrator] = useState<{ chassis: string; modelo: string } | null>(null);
+  // Onde a peça está guardada nas estantes (sai na etiqueta do QR)
+  const [locEdit, setLocEdit] = useState<{ estante: string; prateleira: number } | null>(null);
   // Garante que a auto-sincronização com a OS roda só uma vez por garantia
   const autoSyncRef = useRef<string | null>(null);
 
@@ -605,6 +608,80 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                   <Campo label="Garantista" valor={g.garantista_nome} />
                 </div>
 
+                {/* Onde a peça está guardada nas estantes da oficina — sai em
+                    destaque na etiqueta do QR colada na caixa. Editável em
+                    qualquer status (a caixa muda de prateleira depois). */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700, color: g.localizacao ? 'var(--portal-text)' : 'var(--portal-text-muted)' }}>
+                    <MapPin size={14} color="#0d9488" />
+                    {g.localizacao ? rotuloLocalizacao(g.localizacao) : 'Peça sem localização nas estantes'}
+                  </div>
+                  {podeAnalisar && !locEdit && (
+                    <button
+                      onClick={() => {
+                        const p = partesLocalizacao(g.localizacao);
+                        setLocEdit({ estante: p?.estante || ESTANTES[0].cod, prateleira: p?.prateleira || 1 });
+                      }}
+                      disabled={!!busy}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 700, color: '#0d9488', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+                    >
+                      <Pencil size={12} /> {g.localizacao ? 'Alterar' : 'Definir'}
+                    </button>
+                  )}
+                </div>
+                {locEdit && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', background: 'var(--portal-bg-secondary, #f8fafc)', border: '1px solid var(--portal-border, #e2e8f0)', borderRadius: 8, padding: 10 }}>
+                    <select
+                      value={locEdit.estante}
+                      onChange={(e) => setLocEdit({ ...locEdit, estante: e.target.value })}
+                      style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border, #cbd5e1)', fontSize: 12.5, background: 'var(--portal-bg-input, #fff)', color: 'var(--portal-text)' }}
+                    >
+                      {ESTANTES.map((e) => <option key={e.cod} value={e.cod}>Estante {e.rotulo}</option>)}
+                    </select>
+                    <select
+                      value={locEdit.prateleira}
+                      onChange={(e) => setLocEdit({ ...locEdit, prateleira: Number(e.target.value) })}
+                      title="Prateleiras contadas de cima pra baixo"
+                      style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border, #cbd5e1)', fontSize: 12.5, background: 'var(--portal-bg-input, #fff)', color: 'var(--portal-text)' }}
+                    >
+                      {PRATELEIRAS.map((p) => <option key={p} value={p}>Prateleira {p}</option>)}
+                    </select>
+                    <button
+                      onClick={async () => {
+                        const ok = await chamar('localizacao', `/api/garantias/${garantiaId}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ acao: 'localizacao', localizacao: montarLocalizacao(locEdit.estante, locEdit.prateleira), ator: userName }),
+                        });
+                        if (ok) { setLocEdit(null); setAviso('Localização da peça salva — reimprima o QR pra etiqueta sair com ela.'); }
+                      }}
+                      disabled={!!busy}
+                      style={btn('#0d9488', !!busy)}
+                    >
+                      {busy === 'localizacao' ? <Loader2 size={14} className="spin" /> : <Save size={14} />} Salvar
+                    </button>
+                    {g.localizacao && (
+                      <button
+                        onClick={async () => {
+                          const ok = await chamar('localizacao', `/api/garantias/${garantiaId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ acao: 'localizacao', localizacao: null, ator: userName }),
+                          });
+                          if (ok) { setLocEdit(null); setAviso('Localização removida.'); }
+                        }}
+                        disabled={!!busy}
+                        style={btn('#94a3b8', !!busy)}
+                      >
+                        Remover
+                      </button>
+                    )}
+                    <button onClick={() => setLocEdit(null)} disabled={!!busy} style={btn('#64748b', !!busy)}>
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+
                 {/* Correção do chassi/modelo — garantia criada antes do trator
                     entrar no controle de revisões fica sem chassi (e a SG da
                     fábrica recusaria). Puxa do cadastro ou edita na mão. */}
@@ -694,7 +771,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 >
                   <QrCode size={13} /> QR code da garantia
                 </button>
-                {qrAberto && g && <QRGarantiaModal garantiaId={g.id} numero={g.numero} cliente={g.cliente} onClose={() => setQrAberto(false)} />}
+                {qrAberto && g && <QRGarantiaModal garantiaId={g.id} numero={g.numero} cliente={g.cliente} localizacao={g.localizacao} onClose={() => setQrAberto(false)} />}
                 {g.status !== 'rejeitada' && (
                   <button
                     onClick={async () => {

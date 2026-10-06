@@ -9,6 +9,7 @@ import {
   TBL_GAR_EMAILS,
 } from '@/lib/garantias/constants';
 import { registrarEvento } from '@/lib/garantias/server';
+import { rotuloLocalizacao } from '@/lib/garantias/localizacao';
 
 // GET /api/garantias/[id] — detalhe completo
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -94,6 +95,36 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         detalhe: 'Garantia em análise',
       });
     }
+    return NextResponse.json({ garantia: data });
+  }
+
+  // Onde a peça está guardada (estantes da oficina). Editável em qualquer
+  // status — a caixa muda de prateleira mesmo depois de finalizada.
+  if (body.acao === 'localizacao') {
+    const loc = body.localizacao == null ? null : String(body.localizacao).trim().slice(0, 40) || null;
+    const { data, error } = await supabase
+      .from(TBL_GARANTIAS)
+      .update({ localizacao: loc, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) {
+      console.error('Erro ao salvar localização:', error.message);
+      const colunaFalta = error.code === '42703' || /localizacao/i.test(error.message || '');
+      return NextResponse.json(
+        {
+          error: colunaFalta
+            ? 'Falha ao salvar: a coluna "localizacao" não existe no banco — aplique a migration sql/garantias-localizacao.sql no Supabase.'
+            : 'Falha ao salvar a localização.',
+        },
+        { status: 500 }
+      );
+    }
+    await registrarEvento(id, {
+      tipo: 'localizacao',
+      ator: body.ator || 'Garantista',
+      detalhe: loc ? `Peça guardada em: ${rotuloLocalizacao(loc)}` : 'Localização da peça removida',
+    });
     return NextResponse.json({ garantia: data });
   }
 

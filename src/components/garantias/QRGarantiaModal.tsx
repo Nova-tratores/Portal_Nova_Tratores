@@ -4,13 +4,16 @@
 // Dá pra copiar o link ou imprimir o QR pra colar na máquina/documentação.
 import { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { Copy, Printer, X } from 'lucide-react';
+import { Copy, MapPin, Printer, X } from 'lucide-react';
+import { rotuloLocalizacao } from '@/lib/garantias/localizacao';
 
-export default function QRGarantiaModal({ garantiaId, numero, cliente, onClose }: {
+export default function QRGarantiaModal({ garantiaId, numero, cliente, localizacao, onClose }: {
   garantiaId: string;
   numero: string;
   /** nome do cliente — sai no modal e na impressão pra identificar o QR colado na máquina */
   cliente?: string | null;
+  /** onde a peça está guardada ("MA1-P2") — sai em destaque na etiqueta impressa */
+  localizacao?: string | null;
   onClose: () => void;
 }) {
   const [dataUrl, setDataUrl] = useState('');
@@ -37,9 +40,13 @@ export default function QRGarantiaModal({ garantiaId, numero, cliente, onClose }
     // nome vem do cadastro — escapa pra não quebrar o HTML da folha
     const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const linhaCliente = cliente ? `<p class="cli">${esc(cliente)}</p>` : '';
+    // Localização nas estantes em DESTAQUE — é o que quem guarda/procura a
+    // caixa lê primeiro (ex. "MAHINDRA 1 · Prateleira 2").
+    const rotuloLoc = rotuloLocalizacao(localizacao);
+    const linhaLoc = rotuloLoc ? `<p class="loc">${esc(rotuloLoc)}</p>` : '';
     w.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>QR ${esc(numero)}</title>
-<style>body{font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;padding-top:30px;margin:0}img{width:64mm;height:64mm}h1{font-size:20px;margin:8px 0 2px}p{font-size:12px;color:#555;margin:2px 0}p.cli{font-size:15px;font-weight:bold;color:#111;margin:0 0 2px}</style>
-</head><body><img src="${dataUrl}" alt="QR"><h1>${esc(numero)}</h1>${linhaCliente}<p>Acompanhamento da garantia — aponte a câmera</p><script>window.onload=()=>window.print()</script></body></html>`);
+<style>body{font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;padding-top:30px;margin:0}img{width:64mm;height:64mm}h1{font-size:20px;margin:8px 0 2px}p{font-size:12px;color:#555;margin:2px 0}p.cli{font-size:15px;font-weight:bold;color:#111;margin:0 0 2px}p.loc{font-size:17px;font-weight:bold;color:#111;border:2.5px solid #111;padding:5px 14px;margin:8px 0 2px;letter-spacing:.5px;text-transform:uppercase}</style>
+</head><body><img src="${dataUrl}" alt="QR"><h1>${esc(numero)}</h1>${linhaCliente}${linhaLoc}<p>Acompanhamento da garantia — aponte a câmera</p><script>window.onload=()=>window.print()</script></body></html>`);
     w.document.close();
   };
 
@@ -56,6 +63,11 @@ export default function QRGarantiaModal({ garantiaId, numero, cliente, onClose }
           : <div style={{ height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 13 }}>Gerando…</div>}
         {cliente && (
           <div style={{ fontSize: 13, fontWeight: 700, color: '#0f172a', marginTop: 4 }}>{cliente}</div>
+        )}
+        {rotuloLocalizacao(localizacao) && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 700, color: '#0f172a', border: '1.5px solid #0f172a', borderRadius: 7, padding: '3px 10px', marginTop: 6 }}>
+            <MapPin size={13} /> {rotuloLocalizacao(localizacao)}
+          </div>
         )}
         <div style={{ fontSize: 11.5, color: '#64748b', margin: '6px 0 12px', lineHeight: 1.5 }}>
           Quem escanear vê a <strong>fase atual</strong>, o histórico e as <strong>fotos</strong> da garantia — sem precisar de login.
