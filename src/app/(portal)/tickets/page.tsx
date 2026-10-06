@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Inbox, Send, Eye, BarChart3, Plus, Search, Clock, CalendarDays, User as UserIcon, RefreshCw,
-  GripVertical, ChevronUp, ChevronDown, Zap,
+  GripVertical, ChevronUp, ChevronDown, Zap, List, Columns3,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -21,9 +21,12 @@ import {
 } from '@/lib/tickets/constantes'
 import StatusBadge from '@/components/tickets/StatusBadge'
 import FormTicket from '@/components/tickets/FormTicket'
+import KanbanTickets from '@/components/tickets/KanbanTickets'
 
 type Visao = 'fila' | 'pedidos' | 'acompanhando' | 'gerencial'
 const VISOES_VALIDAS = new Set<Visao>(['fila', 'pedidos', 'acompanhando', 'gerencial'])
+type ViewMode = 'lista' | 'kanban'
+const VIEW_MODE_KEY = 'tickets-view-mode'
 
 function TicketsPageInner() {
   const router = useRouter()
@@ -44,6 +47,18 @@ function TicketsPageInner() {
   const [filtroStatus, setFiltroStatus] = useState<TicketStatus | ''>('')
   const [encerrados, setEncerrados] = useState(false)
   const [modalNovo, setModalNovo] = useState(false)
+
+  // Lista × Kanban (só desktop — DnD HTML5 não funciona em touch); escolha
+  // guardada no navegador, mesmo padrão do ppv-view-mode.
+  const [viewMode, setViewMode] = useState<ViewMode>('lista')
+  useEffect(() => {
+    try { const v = localStorage.getItem(VIEW_MODE_KEY); if (v === 'lista' || v === 'kanban') setViewMode(v) } catch {}
+  }, [])
+  const trocarViewMode = useCallback((v: ViewMode) => {
+    setViewMode(v)
+    try { localStorage.setItem(VIEW_MODE_KEY, v) } catch {}
+  }, [])
+  const kanban = viewMode === 'kanban' && !isMobile
 
   // Fila pessoal: ordem planejada (ticket_id → posição) + "mexendo agora".
   const [plano, setPlano] = useState<Record<string, number>>({})
@@ -111,6 +126,27 @@ function TicketsPageInner() {
 
   useEffect(() => { if (userProfile) carregar() }, [carregar, userProfile])
 
+  // Troca de status pelo kanban: otimista, pela mesma rota dos botões da
+  // página do ticket (gera evento na timeline + notificação). Erro = rollback.
+  const mudarStatus = useCallback(async (id: string, para: TicketStatus) => {
+    const antes = tickets
+    setTickets((lista) => lista.map((t) => (t.id === id ? { ...t, status: para } : t)))
+    try {
+      const res = await fetch(`/api/tickets/${id}/acoes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ acao: 'status', para }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Falha ao mudar o status')
+      setErro('')
+      carregar(true)
+    } catch (e) {
+      setTickets(antes)
+      setErro(e instanceof Error ? e.message : 'Falha ao mudar o status')
+    }
+  }, [tickets, carregar])
+
   const filtrados = useMemo(() => {
     let lista = tickets
     if (filtroStatus) lista = lista.filter((t) => t.status === filtroStatus)
@@ -131,8 +167,9 @@ function TicketsPageInner() {
     return lista
   }, [tickets, filtroStatus, busca, visao, usuarios])
 
-  // Reordenar uma lista filtrada é ambíguo — grip e ▲▼ só sem filtro ativo.
-  const dndAtivo = visao === 'fila' && !busca.trim() && !filtroStatus && !encerrados
+  // Reordenar uma lista filtrada é ambíguo — grip e ▲▼ só sem filtro ativo
+  // (e só na Lista: no kanban o arrasto troca status, não a ordem pessoal).
+  const dndAtivo = visao === 'fila' && !busca.trim() && !filtroStatus && !encerrados && !kanban
 
   // Fila: "mexendo agora" no topo → depois a ordem planejada → depois o resto
   // na ordem da API (última atividade). Itens sem posição vão para o fim.
@@ -193,7 +230,7 @@ function TicketsPageInner() {
   ]
 
   return (
-    <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1100, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: kanban ? undefined : 1100, margin: '0 auto' }}>
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
@@ -256,7 +293,24 @@ function TicketsPageInner() {
             </button>
           ))}
         </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer', marginLeft: 'auto' }}>
+        {!isMobile && (
+          <div style={{ display: 'flex', marginLeft: 'auto', border: '1px solid var(--portal-border,#e5e7eb)', borderRadius: 8, overflow: 'hidden' }}>
+            {([['lista', 'Lista', <List key="l" size={14} />], ['kanban', 'Kanban', <Columns3 key="k" size={14} />]] as const).map(([v, rotulo, icone]) => {
+              const ativo = viewMode === v
+              return (
+                <button key={v} onClick={() => trocarViewMode(v)} title={`Ver como ${rotulo.toLowerCase()}`}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5, padding: '6px 11px', fontSize: 12, fontWeight: 700, cursor: 'pointer', border: 'none',
+                    background: ativo ? '#dc2626' : 'var(--portal-surface,#fff)',
+                    color: ativo ? '#fff' : 'var(--portal-text-muted,#888)',
+                  }}>
+                  {icone} {rotulo}
+                </button>
+              )
+            })}
+          </div>
+        )}
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer', marginLeft: isMobile ? 'auto' : undefined }}>
           <input type="checkbox" checked={encerrados} onChange={(e) => setEncerrados(e.target.checked)} />
           Incluir encerrados
         </label>
@@ -297,6 +351,18 @@ function TicketsPageInner() {
             </div>
           )}
         </div>
+      ) : kanban ? (
+        <KanbanTickets
+          tickets={ordenados}
+          usuarios={usuarios}
+          visao={visao}
+          encerrados={encerrados}
+          meuId={userProfile?.id}
+          isAdmin={isAdmin}
+          atualId={atualId}
+          onMarcarAtual={marcarAtual}
+          onMudarStatus={mudarStatus}
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {ordenados.map((t, i) => {
