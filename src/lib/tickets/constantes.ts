@@ -49,6 +49,8 @@ export interface Ticket {
   responsavel_id: string
   payload: Record<string, unknown>
   sc_etapa?: string | null // etapa do trilho da SC (NULL para ticket genérico)
+  quadro_id?: string | null        // quadro (sql/tickets-quadros.sql); NULL = fora de quadro
+  quadro_coluna_id?: string | null // coluna do quadro
   resolvido_em: string | null
   fechado_em: string | null
   ultima_atividade_em: string

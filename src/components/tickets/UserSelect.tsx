@@ -8,7 +8,7 @@ import type { UsuarioMin } from '@/lib/tickets/constantes'
 
 interface Props {
   value: string
-  onChange: (userId: string) => void
+  onChange: (userId: string, usuario?: UsuarioMin) => void
   excluir?: string[]          // ids que não devem aparecer
   placeholder?: string
   autoFocus?: boolean
@@ -83,7 +83,7 @@ export default function UserSelect({ value, onChange, excluir = [], placeholder 
               <button
                 key={u.id}
                 type="button"
-                onClick={() => { onChange(u.id); setAberto(false); setBusca('') }}
+                onClick={() => { onChange(u.id, u); setAberto(false); setBusca('') }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '8px 12px',
                   border: 'none', cursor: 'pointer', fontSize: 13, textAlign: 'left',

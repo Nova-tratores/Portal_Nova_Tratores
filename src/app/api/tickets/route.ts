@@ -11,6 +11,8 @@ import { STATUS_FINAIS, type Ticket, type TicketPlanoItem, type TicketVisibilida
 import { validarNovaSC } from '@/lib/tickets/compras'
 import { carregarConfigCompras, avaliarBloqueio } from '@/lib/tickets/compras-server'
 import type { Autenticado } from '@/lib/auth/server'
+import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
+import { colunaDoTicket } from '@/lib/tickets/quadros'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -157,6 +159,17 @@ export async function POST(req: NextRequest) {
     .from('financeiro_usu').select('id, nome, ativo').eq('id', responsavelId).maybeSingle()
   if (!resp || resp.ativo === false) return NextResponse.json({ error: 'Responsável inválido ou inativo' }, { status: 400 })
 
+  // Criado dentro de um quadro (sql/tickets-quadros.sql): precisa poder
+  // trabalhar nele; coluna inválida cai na primeira.
+  const noQuadro: { quadro_id?: string; quadro_coluna_id?: string | null } = {}
+  if (body.quadro_id) {
+    const c = await carregarQuadro(String(body.quadro_id))
+    if (!c || c.quadro.arquivado) return NextResponse.json({ error: 'Quadro não encontrado' }, { status: 404 })
+    if (!papeis(c, auth).trabalhar) return NextResponse.json({ error: 'Você não é integrante deste quadro.' }, { status: 403 })
+    noQuadro.quadro_id = c.quadro.id
+    noQuadro.quadro_coluna_id = colunaDoTicket(body.quadro_coluna_id ? String(body.quadro_coluna_id) : null, c.colunas)
+  }
+
   const { data: criado, error } = await supabaseAdmin
     .from('tickets')
     .insert({
@@ -165,6 +178,7 @@ export async function POST(req: NextRequest) {
       visibilidade,
       solicitante_id: auth.userId,
       responsavel_id: responsavelId,
+      ...noQuadro,
     })
     .select('*')
     .single()

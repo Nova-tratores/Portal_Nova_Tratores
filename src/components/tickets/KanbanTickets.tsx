@@ -21,12 +21,14 @@ interface Props {
   atualId: string | null
   onMarcarAtual: (id: string) => void
   onMudarStatus: (id: string, para: TicketStatus) => Promise<void>
+  /** Abre o ticket numa janela (sem trocar de página). */
+  onAbrir?: (id: string) => void
 }
 
 const MIME_ID = 'ticket-id'
 
 export default function KanbanTickets({
-  tickets, usuarios, visao, encerrados, meuId, isAdmin, atualId, onMarcarAtual, onMudarStatus,
+  tickets, usuarios, visao, encerrados, meuId, isAdmin, atualId, onMarcarAtual, onMudarStatus, onAbrir,
 }: Props) {
   const router = useRouter()
   // Enquanto um card está sendo arrastado: id + colunas em que pode ser solto.
@@ -118,8 +120,8 @@ export default function KanbanTickets({
                     draggable={arrastavel}
                     onDragStart={(e) => iniciarArrasto(t, e)}
                     onDragEnd={encerrarArrasto}
-                    onClick={() => router.push(`/tickets/${t.id}`)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/tickets/${t.id}`) }}
+                    onClick={() => (onAbrir ? onAbrir(t.id) : router.push(`/tickets/${t.id}`))}
+                    onKeyDown={(e) => { if (e.key === 'Enter') (onAbrir ? onAbrir(t.id) : router.push(`/tickets/${t.id}`)) }}
                     title={ehSC ? 'Solicitação de compras: a etapa muda dentro do ticket' : undefined}
                     style={{
                       display: 'flex', flexDirection: 'column', gap: 6, padding: 11, borderRadius: 10,

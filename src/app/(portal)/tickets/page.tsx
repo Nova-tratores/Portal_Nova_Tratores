@@ -22,6 +22,7 @@ import {
 import StatusBadge from '@/components/tickets/StatusBadge'
 import FormTicket from '@/components/tickets/FormTicket'
 import KanbanTickets from '@/components/tickets/KanbanTickets'
+import TicketModal from '@/components/tickets/TicketModal'
 
 type Visao = 'fila' | 'pedidos' | 'acompanhando' | 'gerencial'
 const VISOES_VALIDAS = new Set<Visao>(['fila', 'pedidos', 'acompanhando', 'gerencial'])
@@ -47,6 +48,8 @@ function TicketsPageInner() {
   const [filtroStatus, setFiltroStatus] = useState<TicketStatus | ''>('')
   const [encerrados, setEncerrados] = useState(false)
   const [modalNovo, setModalNovo] = useState(false)
+  // Ticket aberto na janela (clique no cartão)
+  const [abertoId, setAbertoId] = useState<string | null>(null)
 
   // Lista × Kanban (só desktop — DnD HTML5 não funciona em touch); escolha
   // guardada no navegador, mesmo padrão do ppv-view-mode.
@@ -362,6 +365,7 @@ function TicketsPageInner() {
           atualId={atualId}
           onMarcarAtual={marcarAtual}
           onMudarStatus={mudarStatus}
+          onAbrir={setAbertoId}
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -374,8 +378,8 @@ function TicketsPageInner() {
             if (isMobile) {
               return (
                 <div key={t.id} role="button" tabIndex={0}
-                  onClick={() => router.push(`/tickets/${t.id}`)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/tickets/${t.id}`) }}
+                  onClick={() => setAbertoId(t.id)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setAbertoId(t.id) }}
                   style={{
                     display: 'flex', flexDirection: 'column', gap: 8, padding: '13px 14px', borderRadius: 12,
                     border: ehAtual ? '1.5px solid #d97706' : '1px solid var(--portal-border,#e5e7eb)',
@@ -432,8 +436,8 @@ function TicketsPageInner() {
             }
             return (
               <div key={t.id} role="button" tabIndex={0}
-                onClick={() => router.push(`/tickets/${t.id}`)}
-                onKeyDown={(e) => { if (e.key === 'Enter') router.push(`/tickets/${t.id}`) }}
+                onClick={() => setAbertoId(t.id)}
+                onKeyDown={(e) => { if (e.key === 'Enter') setAbertoId(t.id) }}
                 draggable={dndAtivo}
                 onDragStart={(e) => {
                   setDragId(t.id)
@@ -524,8 +528,12 @@ function TicketsPageInner() {
       {modalNovo && (
         <FormTicket
           onFechar={() => setModalNovo(false)}
-          onCriado={(id) => { setModalNovo(false); router.push(`/tickets/${id}`) }}
+          onCriado={(id) => { setModalNovo(false); carregar(true); setAbertoId(id) }}
         />
+      )}
+
+      {abertoId && (
+        <TicketModal id={abertoId} onFechar={() => setAbertoId(null)} onMudou={() => carregar(true)} />
       )}
     </div>
   )

@@ -1,7 +1,7 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Ticket as TicketIcon, ShoppingCart } from 'lucide-react'
+import { Ticket as TicketIcon, ShoppingCart, LayoutGrid } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
@@ -15,8 +15,10 @@ export default function TicketsLayout({ children }: { children: React.ReactNode 
 
   // ADR-007: Solicitação de Compras (v2) é um tipo de ticket com trilho de alçadas.
   const emCompras = pathname?.startsWith('/tickets/compras')
+  const emQuadros = pathname?.startsWith('/tickets/quadros')
   const abas = [
-    { href: '/tickets', label: 'Tickets', icone: <TicketIcon size={16} />, ativo: !emCompras },
+    { href: '/tickets', label: 'Tickets', icone: <TicketIcon size={16} />, ativo: !emCompras && !emQuadros },
+    { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={16} />, ativo: !!emQuadros },
     { href: '/tickets/compras', label: 'Solicitações de Compras', icone: <ShoppingCart size={16} />, ativo: emCompras },
   ]
 

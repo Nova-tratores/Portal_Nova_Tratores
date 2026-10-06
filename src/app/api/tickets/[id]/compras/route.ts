@@ -13,7 +13,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import {
-  temModuloTickets, carregarTicket, podeVer, garantirParticipante,
+  temModuloTickets, carregarTicket, podeVerTicket, garantirParticipante,
   registrarEvento, notificarTicket, envolvidos,
 } from '@/lib/tickets/server'
 import type { EventoTipo } from '@/lib/tickets/constantes'
@@ -48,7 +48,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const carregado = await carregarTicket(id)
   if (!carregado) return erro('Ticket não encontrado', 404)
   const { ticket, participantes } = carregado
-  if (!podeVer(ticket, participantes, auth)) return erro('Ticket não encontrado', 404)
+  if (!(await podeVerTicket(ticket, participantes, auth))) return erro('Ticket não encontrado', 404)
   if (ticket.tipo !== 'compras') return erro('Este ticket não é uma Solicitação de Compras.')
 
   const etapa = (ticket.sc_etapa || '') as ScEtapa

@@ -3,7 +3,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { temModuloTickets, carregarTicket, podeVer, carregarVinculos } from '@/lib/tickets/server'
+import { temModuloTickets, carregarTicket, podeVerTicket, carregarVinculos } from '@/lib/tickets/server'
 import type { TicketEvento } from '@/lib/tickets/constantes'
 
 export const runtime = 'nodejs'
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { ticket, participantes } = carregado
 
   // Privado por padrão: quem não é envolvido nem admin não sabe que existe.
-  if (!podeVer(ticket, participantes, auth)) {
+  if (!(await podeVerTicket(ticket, participantes, auth))) {
     return NextResponse.json({ error: 'Ticket não encontrado' }, { status: 404 })
   }
 
@@ -55,5 +55,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const usuarios: Record<string, { id: string; nome: string; avatar_url: string | null }> = {}
   for (const u of usuariosData || []) usuarios[u.id] = u
 
-  return NextResponse.json({ ticket, participantes, eventos: eventos || [], usuarios, vinculos })
+  // Quadro do ticket (nome/cor + colunas, para o chip e a troca de coluna).
+  let quadro: { id: string; nome: string; cor: string; colunas: { id: string; nome: string }[] } | null = null
+  if (ticket.quadro_id) {
+    const [{ data: q }, { data: cols }] = await Promise.all([
+      supabaseAdmin.from('tickets_quadros').select('id, nome, cor').eq('id', ticket.quadro_id).maybeSingle(),
+      supabaseAdmin.from('tickets_quadro_colunas').select('id, nome, posicao').eq('quadro_id', ticket.quadro_id).order('posicao'),
+    ])
+    if (q) quadro = { ...q, colunas: (cols || []).map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome })) }
+  }
+
+  return NextResponse.json({ ticket, participantes, eventos: eventos || [], usuarios, vinculos, quadro })
 }

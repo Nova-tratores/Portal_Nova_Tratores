@@ -38,11 +38,26 @@ export function ehParticipanteAtivo(participantes: TicketParticipante[], userId:
 }
 
 // Quem pode VER (espelha a função SQL tickets_pode_ver, pro server decidir 403/404).
+// Em quadro, a visibilidade do QUADRO manda (sql/tickets-quadros.sql): esta
+// versão síncrona responde só pelo que não depende do quadro — use podeVerTicket.
 export function podeVer(t: Ticket, participantes: TicketParticipante[], auth: Autenticado): boolean {
   if (auth.isAdmin) return true
-  if (t.visibilidade === 'publico') return true
   if (t.solicitante_id === auth.userId || t.responsavel_id === auth.userId) return true
-  return ehParticipanteAtivo(participantes, auth.userId)
+  if (ehParticipanteAtivo(participantes, auth.userId)) return true
+  return !t.quadro_id && t.visibilidade === 'publico'
+}
+
+// Quem pode VER, incluindo quem enxerga o quadro do ticket.
+export async function podeVerTicket(t: Ticket, participantes: TicketParticipante[], auth: Autenticado): Promise<boolean> {
+  if (podeVer(t, participantes, auth)) return true
+  if (!t.quadro_id) return false
+  const { data: q } = await supabaseAdmin
+    .from('tickets_quadros').select('visibilidade, criado_por').eq('id', t.quadro_id).maybeSingle()
+  if (!q) return false
+  if (q.visibilidade === 'publico' || q.criado_por === auth.userId) return true
+  const { data: m } = await supabaseAdmin
+    .from('tickets_quadro_membros').select('user_id').eq('quadro_id', t.quadro_id).eq('user_id', auth.userId).maybeSingle()
+  return !!m
 }
 
 // Envolvidos "ativos" de um ticket (para notificar): solicitante + responsável

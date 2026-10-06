@@ -12,12 +12,14 @@ import { NextRequest, NextResponse } from 'next/server'
 import { autenticar, type Autenticado } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import {
-  temModuloTickets, carregarTicket, podeVer, ehParticipanteAtivo, envolvidos,
+  temModuloTickets, carregarTicket, podeVerTicket, ehParticipanteAtivo, envolvidos,
   garantirParticipante, registrarEvento, notificarTicket, validarTransicao, camposDoStatus,
   buscarRequisicaoResumo,
 } from '@/lib/tickets/server'
 import { STATUS_FINAIS, STATUS_INFO, type Ticket, type TicketParticipante, type TicketStatus } from '@/lib/tickets/constantes'
 import { labelRequisicao } from '@/lib/tickets/vinculos'
+import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
+import { colunaDoTicket } from '@/lib/tickets/quadros'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -50,7 +52,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const carregado = await carregarTicket(id)
   if (!carregado) return erro('Ticket não encontrado', 404)
   const { ticket, participantes } = carregado
-  if (!podeVer(ticket, participantes, auth)) return erro('Ticket não encontrado', 404)
+  if (!(await podeVerTicket(ticket, participantes, auth))) return erro('Ticket não encontrado', 404)
 
   const encerrado = STATUS_FINAIS.includes(ticket.status)
   const souResponsavel = ticket.responsavel_id === auth.userId
@@ -292,6 +294,51 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await registrarEvento(id, auth.userId, 'vinculo_removido', {
       vinculo_tipo: v.vinculo_tipo, vinculo_ref: v.vinculo_ref, label: v.vinculo_label,
     })
+    return NextResponse.json({ ok: true })
+  }
+
+  // ---------------------------------------------------------------- quadro
+  // { acao:'quadro', quadro_id: uuid | null } — coloca o ticket num quadro (na
+  // 1ª coluna) ou tira dele. Solicitante, responsável ou admin; para entrar,
+  // precisa poder trabalhar no quadro de destino (sql/tickets-quadros.sql).
+  if (acao === 'quadro') {
+    if (!souSolicitante && !souResponsavel && !auth.isAdmin) return erro('Só o solicitante ou o responsável muda o quadro.', 403)
+    const destinoId = body.quadro_id ? String(body.quadro_id) : null
+    if (destinoId === (ticket.quadro_id || null)) return erro('O ticket já está neste quadro.')
+    const nomeAntes = ticket.quadro_id ? (await carregarQuadro(ticket.quadro_id))?.quadro.nome ?? null : null
+    if (!destinoId) {
+      const { error } = await supabaseAdmin.from('tickets').update({ quadro_id: null, quadro_coluna_id: null }).eq('id', id)
+      if (error) return erro(error.message, 500)
+      await registrarEvento(id, auth.userId, 'edicao', { campo: 'quadro', de: nomeAntes, para: null })
+      return NextResponse.json({ ok: true })
+    }
+    const destino = await carregarQuadro(destinoId)
+    if (!destino || destino.quadro.arquivado) return erro('Quadro não encontrado', 404)
+    if (!papeis(destino, auth).trabalhar) return erro('Você não é integrante deste quadro.', 403)
+    const coluna = colunaDoTicket(null, destino.colunas)
+    const { error } = await supabaseAdmin.from('tickets').update({ quadro_id: destinoId, quadro_coluna_id: coluna }).eq('id', id)
+    if (error) return erro(error.message, 500)
+    await registrarEvento(id, auth.userId, 'edicao', { campo: 'quadro', de: nomeAntes, para: destino.quadro.nome })
+    return NextResponse.json({ ok: true })
+  }
+
+  // ---------------------------------------------------------------- coluna
+  // { acao:'coluna', coluna_id } — move o cartão dentro do quadro. Integrante
+  // do quadro ou envolvido no ticket. Não mexe no status (ciclo de vida).
+  if (acao === 'coluna') {
+    if (!ticket.quadro_id) return erro('Este ticket não está em um quadro.')
+    const c = await carregarQuadro(ticket.quadro_id)
+    if (!c) return erro('Quadro não encontrado', 404)
+    if (!papeis(c, auth).trabalhar && !ehEnvolvido(ticket, participantes, auth)) return erro('Você não pode mover cartões neste quadro.', 403)
+    const colunaId = String(body.coluna_id || '')
+    const destino = c.colunas.find((x) => x.id === colunaId)
+    if (!destino) return erro('Coluna inválida')
+    const atual = colunaDoTicket(ticket.quadro_coluna_id, c.colunas)
+    if (atual === colunaId) return NextResponse.json({ ok: true })
+    const { error } = await supabaseAdmin.from('tickets').update({ quadro_coluna_id: colunaId }).eq('id', id)
+    if (error) return erro(error.message, 500)
+    const de = c.colunas.find((x) => x.id === atual)?.nome ?? null
+    await registrarEvento(id, auth.userId, 'edicao', { campo: 'coluna', de, para: destino.nome })
     return NextResponse.json({ ok: true })
   }
 

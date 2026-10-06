@@ -3,7 +3,7 @@
 // A descrição de origem ("quem pediu e por quê") é imutável depois de criada.
 // Aceita um print da tela (clique direito) — vira evento 'anexo' na timeline.
 import { useEffect, useMemo, useState } from 'react'
-import { X, Ticket as TicketIcon, Lock, Globe, Paperclip } from 'lucide-react'
+import { X, Ticket as TicketIcon, Lock, Globe, Paperclip, LayoutGrid } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIAS_SUGERIDAS, type TicketVisibilidade } from '@/lib/tickets/constantes'
@@ -14,6 +14,8 @@ interface Props {
   onCriado: (ticketId: string) => void
   /** Print pronto ao abrir (ex.: captura do clique direito). */
   printInicial?: File | null
+  /** Criar dentro de um quadro (aba Quadros): entra na coluna indicada. */
+  quadro?: { id: string; nome: string; colunaId?: string | null }
 }
 
 const campoStyle: React.CSSProperties = {
@@ -26,7 +28,7 @@ const rotuloStyle: React.CSSProperties = {
   color: 'var(--portal-text-secondary, #555)', textTransform: 'uppercase', letterSpacing: .4,
 }
 
-export default function FormTicket({ onFechar, onCriado, printInicial }: Props) {
+export default function FormTicket({ onFechar, onCriado, printInicial, quadro }: Props) {
   const [titulo, setTitulo] = useState('')
   const [descricao, setDescricao] = useState('')
   const [responsavelId, setResponsavelId] = useState('')
@@ -72,6 +74,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial }: Props) 
           terceiro_envolvido: terceiro.trim(),
           visibilidade,
           anexos,
+          ...(quadro ? { quadro_id: quadro.id, quadro_coluna_id: quadro.colunaId || null } : {}),
         }),
       })
       const json = await res.json()
@@ -100,6 +103,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial }: Props) 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 17, fontWeight: 800, color: 'var(--portal-text, #111)', margin: 0 }}>
             <TicketIcon size={18} color="#dc2626" /> Novo Ticket
+            {quadro && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted, #888)' }}><LayoutGrid size={13} /> {quadro.nome}</span>}
           </h2>
           <button onClick={onFechar} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted, #888)' }}>
             <X size={20} />
@@ -146,6 +150,11 @@ export default function FormTicket({ onFechar, onCriado, printInicial }: Props) 
               placeholder="Ex: Corretora XYZ (opcional)" style={campoStyle} />
           </div>
 
+          {quadro ? (
+            <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #888)' }}>
+              Quem enxerga o quadro <strong>{quadro.nome}</strong> vai ver este ticket.
+            </div>
+          ) : (
           <div>
             <label style={rotuloStyle}>Visibilidade</label>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -166,6 +175,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial }: Props) 
               ))}
             </div>
           </div>
+          )}
 
           {print && printUrl && (
             <div>
