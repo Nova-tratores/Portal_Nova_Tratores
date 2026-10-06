@@ -10,6 +10,7 @@ import {
   Activity, Clock, Settings, ClipboardList, DollarSign, FileText, Mail, Ban, RotateCcw
 } from 'lucide-react'
 import PermissoesModulos from '@/components/admin/PermissoesModulos'
+import ContasSemCadastro from '@/components/admin/ContasSemCadastro'
 
 const MODULOS = [
   // Ajustes: módulo único que expande nas páginas (ações vêm de
@@ -172,6 +173,7 @@ export default function AdminPage() {
   const [showSenha, setShowSenha] = useState(false)
   const [criando, setCriando] = useState(false)
   const [criarErro, setCriarErro] = useState('')
+  const [versaoContas, setVersaoContas] = useState(0)
 
   // Estado do painel de atividades do usuário
   const [selectedUser, setSelectedUser] = useState<Usuario | null>(null)
@@ -437,6 +439,7 @@ export default function AdminPage() {
       if (!res.ok) { setCriarErro(result.error || 'Erro ao criar usuário'); setCriando(false); return }
       setShowNovoUsuario(false)
       setNovoNome(''); setNovoEmail(''); setNovoSenha('nova123'); setNovoFuncao(''); setNovoModulos([])
+      setVersaoContas((v) => v + 1)
       await carregar()
     } catch (err: any) {
       setCriarErro(err.message || 'Erro desconhecido')
@@ -1009,6 +1012,9 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* ===== Logins sem cadastro (Auth sem financeiro_usu) ===== */}
+      <ContasSemCadastro versao={versaoContas} onCadastrar={(email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) }} />
 
       {/* Modal de Atividades do Usuário */}
       {selectedUser && (() => {
