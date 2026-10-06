@@ -19,7 +19,8 @@ interface Nota {
   emitente?: { cnpj_cpf?: string };
   itens?: ItemNF[];
 }
-interface NotasResp { notas: Nota[]; total: number; pagina: number; porPagina: number; totalPaginas: number; erro?: string }
+interface NotaPendente { idReceb: string; conta: string; numeroNf: string; serie: string; fornecedor: string; emissao: string; etapa: string; status: string; rotulo: string; cancelada: boolean; valor: number; qtdItens: number }
+interface NotasResp { notas: Nota[]; total: number; pagina: number; porPagina: number; totalPaginas: number; pendentesRecebimento?: NotaPendente[]; erro?: string }
 interface Titulo { numero_documento: string; data_vencimento: string; valor_documento: number; status_titulo: string; data_pagamento?: string; valor_pago?: number }
 interface BackfillStatus { rodando: boolean; etapa?: string; processadas?: number; total?: number; emitentes_preenchidos?: number; categorias_preenchidas?: number; finalizadoEm?: string | null; erro?: string | null }
 interface ResolverStatus { rodando: boolean; etapa?: string; conta?: string; notas_sem_nome?: number; cnpjs_distintos?: number; cnpjs_resolvidos?: number; via_clientes_omie?: number; via_omie_api?: number; omie_calls?: number; notas_atualizadas?: number; finalizadoEm?: string | null; erro?: string | null }
@@ -287,6 +288,27 @@ export default function NotasEntradaPage() {
 
       {erro && <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{erro}</div>}
       {carregando && <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>}
+
+      {resp && !carregando && (resp.pendentesRecebimento?.length ?? 0) > 0 && (
+        <div data-testid="aviso-recebimento" style={{ background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '10px 14px', marginBottom: 12 }}>
+          <div style={{ fontSize: '.8rem', color: '#92400e', fontWeight: 700, marginBottom: 4 }}>
+            {resp.pendentesRecebimento!.length === 1 ? 'Esta NF ainda não é nota de entrada' : 'Estas NFs ainda não são notas de entrada'}
+          </div>
+          {resp.pendentesRecebimento!.map((p) => (
+            <div key={`${p.conta}-${p.idReceb}`} style={{ fontSize: '.78rem', color: '#78350f', lineHeight: 1.5 }}>
+              NF <strong>{p.numeroNf}</strong>{p.serie ? ` (série ${p.serie})` : ''} · {p.fornecedor} · emitida {p.emissao || '—'}{p.valor ? ` · ${fmtRS(p.valor)}` : ''}{conta === '' ? ` · ${p.conta}` : ''}
+              {' — '}
+              <strong>{p.rotulo}</strong>
+              {p.cancelada
+                ? '. Foi cancelada no Recebimento de NF-e da Omie, por isso não consta aqui.'
+                : '. Ela está no Recebimento de NF-e da Omie; só vira nota de entrada depois que alguém concluir o recebimento (etapa 60). '}
+              {!p.cancelada && (pode('estoque', 'recebimentos') || pode('ajustes', 'recebimentos')) && (
+                <Link href="/estoque/recebimentos" style={{ color: '#b45309', fontWeight: 700 }}>Abrir Recebimentos →</Link>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
 
       {resp && !carregando && (
         <>

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/estoque/conta';
-import { listarNotasEntrada, listarNotasEntradaTodas } from '@/lib/estoque/notas-entrada';
+import { listarNotasEntrada, listarNotasEntradaTodas, pendentesRecebimentoPorNF } from '@/lib/estoque/notas-entrada';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,8 +20,13 @@ export async function GET(req: NextRequest) {
       const r = await listarNotasEntradaTodas({ mes, ano, nf, fornecedor, descricao }, conta);
       return NextResponse.json(r);
     }
-    const r = await listarNotasEntrada({ mes, ano, nf, fornecedor, descricao, pagina }, conta);
-    return NextResponse.json(r);
+    // Busca por nº: avisa se a NF existe no Recebimento da Omie sem entrada concluída
+    // (não é nota de entrada ainda, por isso não está em `notas_entrada`).
+    const [r, pendentesRecebimento] = await Promise.all([
+      listarNotasEntrada({ mes, ano, nf, fornecedor, descricao, pagina }, conta),
+      nf ? pendentesRecebimentoPorNF(nf, conta) : Promise.resolve([]),
+    ]);
+    return NextResponse.json({ ...r, pendentesRecebimento });
   } catch (e) {
     return NextResponse.json({ erro: (e as Error).message }, { status: 500 });
   }

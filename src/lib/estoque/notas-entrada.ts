@@ -8,6 +8,7 @@ import { omieRequest } from './omie';
 import { fmtD, fmtCnpjBR, sleep } from './utils';
 import { getIgnorarFiltro } from './ignorar-clientes';
 import { getCredentials, getContasOmie, CONTA_DEFAULT, type Conta, type ContaFiltro } from './conta';
+import { filtrarPendentes, type NotaPendenteRecebimento, type RecebimentoPendenteRow } from './notas-entrada-pendentes';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 
@@ -331,6 +332,30 @@ export async function listarNotasEntrada(
   if (error) throw new Error(error.message);
   const notasNorm = (notas || []).map(normalizarNotaRow);
   return { notas: notasNorm, total: count || 0, pagina: pag, porPagina, totalPaginas: Math.ceil((count || 0) / porPagina) };
+}
+
+// ===== NF procurada que ainda está no Recebimento (não é nota de entrada) =====
+// `notas_entrada` vem do ListarNF (só entrada CONCLUÍDA). Quando o usuário busca
+// por número e a NF está em `recebimentos_nfe` sem a etapa 60, devolvemos a
+// pendência para a tela explicar em vez de "nenhuma nota". Erro aqui nunca
+// derruba a listagem (devolve []). `conta_omie` do espelho é MINÚSCULA.
+export async function pendentesRecebimentoPorNF(nf: string, conta: ContaFiltro): Promise<NotaPendenteRecebimento[]> {
+  const termo = String(nf || '').trim();
+  if (!termo) return [];
+  try {
+    let q = supabase
+      .from('recebimentos_nfe')
+      .select('id_receb,conta_omie,numero_nfe,serie_nfe,fornecedor,fornecedor_razao,emissao_nfe,etapa,status,total_nfe,qtd_itens')
+      .ilike('numero_nfe', '%' + termo + '%')
+      .neq('etapa', '60')
+      .limit(10);
+    if (conta) q = q.eq('conta_omie', conta.toLowerCase());
+    const { data, error } = await q;
+    if (error) return [];
+    return filtrarPendentes((data || []) as RecebimentoPendenteRow[]);
+  } catch {
+    return [];
+  }
 }
 
 // ===== Todas as notas de um período (campos mínimos, sem paginação) =====
