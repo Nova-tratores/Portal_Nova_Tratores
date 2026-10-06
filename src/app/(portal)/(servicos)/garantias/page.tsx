@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
-import { ShieldCheck, Loader2, LayoutGrid, CheckSquare, BarChart3, Search, Factory, PlusCircle } from 'lucide-react';
+import { ShieldCheck, Loader2, LayoutGrid, CheckSquare, BarChart3, Search, Factory, PlusCircle, QrCode } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/useIsMobile';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -14,9 +14,10 @@ import GarantiasRelatorio from '@/components/garantias/GarantiasRelatorio';
 import GarantiaBusca from '@/components/garantias/GarantiaBusca';
 import MontadorasConfig from '@/components/garantias/MontadorasConfig';
 import CriarGarantiaManualModal from '@/components/garantias/CriarGarantiaManualModal';
+import PaginaClientePainel from '@/components/garantias/PaginaClientePainel';
 import { gateBtn, estiloSemPermissao, MSG_SEM_PERMISSAO } from '@/lib/permissoes/ui';
 
-type Aba = 'pipeline' | 'finalizadas' | 'relatorio' | 'buscar' | 'montadoras';
+type Aba = 'pipeline' | 'finalizadas' | 'relatorio' | 'buscar' | 'montadoras' | 'cliente';
 
 function GarantiasPageInner() {
   const isMobile = useIsMobile();
@@ -52,8 +53,10 @@ function GarantiasPageInner() {
 
   // Abre garantia direto pela URL (?id=) — vindo de notificação
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get('id');
+    const sp = new URLSearchParams(window.location.search);
+    const id = sp.get('id');
     if (id) setDrawerId(id);
+    if (sp.get('aba') === 'cliente') setAba('cliente');
   }, []);
 
   useEffect(() => {
@@ -76,6 +79,7 @@ function GarantiasPageInner() {
     { id: 'finalizadas', label: 'Finalizadas', icone: <CheckSquare size={15} /> },
     { id: 'relatorio', label: 'Relatório', icone: <BarChart3 size={15} /> },
     { id: 'buscar', label: 'Buscar', icone: <Search size={15} /> },
+    { id: 'cliente', label: 'Página do cliente (QR)', icone: <QrCode size={15} /> },
     ...(podeMontadoras ? [{ id: 'montadoras' as Aba, label: 'Montadoras', icone: <Factory size={15} /> }] : []),
   ];
 
@@ -184,6 +188,7 @@ function GarantiasPageInner() {
       {aba === 'finalizadas' && <GarantiasHistorico onAbrir={setDrawerId} refreshKey={refreshKey} />}
       {aba === 'relatorio' && <GarantiasRelatorio refreshKey={refreshKey} />}
       {aba === 'buscar' && <GarantiaBusca onAbrir={setDrawerId} />}
+      {aba === 'cliente' && <PaginaClientePainel />}
       {aba === 'montadoras' && podeMontadoras && <MontadorasConfig criadoPor={userProfile?.nome || ''} />}
 
       {/* Drawer */}

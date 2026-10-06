@@ -16,6 +16,11 @@ const nextConfig: NextConfig = {
   //  redirects casa ignorando a caixa, então "/P/:id" pega também "/p/:id" e o
   //  redirect aponta pra si mesmo — ERR_TOO_MANY_REDIRECTS. Está no
   //  middleware.ts, onde a comparação é de string e respeita a caixa.)
+  // Página pública da garantia Mahindra (QR code do adesivo). Arquivo estático
+  // em public/garantia/ — fora do (portal), sem login.
+  async rewrites() {
+    return [{ source: "/garantia", destination: "/garantia/index.html" }];
+  },
   async headers() {
     return [
       {

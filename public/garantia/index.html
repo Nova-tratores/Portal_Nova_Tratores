@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Termo de garantia dos tratores Mahindra da Nova Tratores: prazos, revisões obrigatórias, peças e dúvidas.">
+<meta name="theme-color" content="#C21F30">
+<meta property="og:title" content="Garantia do seu trator Mahindra · Nova Tratores">
+<meta property="og:description" content="Prazos de garantia, revisões obrigatórias e dúvidas, num só lugar.">
+<meta property="og:image" content="https://portal.novatratores.com/garantia/capa-trator.jpg">
+<meta property="og:type" content="website">
+<link rel="icon" href="/favicon.ico">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>html{color-scheme:light}body{margin:0}img{max-width:100%}[hidden]{display:none!important}:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}</style>
+<title>Garantia Mahindra · Nova Tratores</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap">
+<style>
+/* Layout: coluna única mobile-first (QR code no adesivo), cabeçalho vermelho do termo + busca fixa, seções em sequência */
+:root{
+  --red:#C21F30; --red-ink:#9E1626; --red-soft:#FBEDEE;
+  --bg:#F6F4F3; --surface:#FFFFFF; --line:#E6E0DE; --fg:#1D1A1A; --muted:#6B6363;
+  --ok:#1F7A45; --ok-soft:#E5F3EA; --warn:#A3620A; --warn-soft:#FCF1DF; --bad:#B4232F; --bad-soft:#FBE7E9;
+  --on-red:#FFFFFF; --logo-bg:#FFFFFF; --wa:#1FA855; --wa-soft:#E3F6EA; --wa-ink:#137A3C;
+  --f-display:"Poppins",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-body:"Poppins",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --red:#E0424F; --red-ink:#FF8A93; --red-soft:#3A1E21;
+  --bg:#141212; --surface:#1E1B1B; --line:#342F2F; --fg:#F1ECEB; --muted:#A99F9E;
+  --ok:#5FD08C; --ok-soft:#183324; --warn:#F0B055; --warn-soft:#3A2B14; --bad:#FF7C86; --bad-soft:#3E1C20;
+  --on-red:#FFFFFF; --logo-bg:#1E1B1B; --wa:#1FA855; --wa-soft:#163323; --wa-ink:#6EDC98; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --red:#E0424F; --red-ink:#FF8A93; --red-soft:#3A1E21;
+  --bg:#141212; --surface:#1E1B1B; --line:#342F2F; --fg:#F1ECEB; --muted:#A99F9E;
+  --ok:#5FD08C; --ok-soft:#183324; --warn:#F0B055; --warn-soft:#3A2B14; --bad:#FF7C86; --bad-soft:#3E1C20;
+  --on-red:#FFFFFF; --logo-bg:#1E1B1B; --wa:#1FA855; --wa-soft:#163323; --wa-ink:#6EDC98; color-scheme:dark}
+
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.6 var(--f-body);margin:0}
+.wrap{max-width:760px;margin:0 auto;padding-inline:16px}
+h1,h2,h3{font-family:var(--f-display);text-wrap:balance;margin:0;line-height:1.1}
+a{color:var(--red-ink)}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--red);outline-offset:2px}
+
+/* Logo */
+.logobar{background:var(--logo-bg);border-bottom:1px solid var(--line)}
+.logobar .wrap{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-block:14px}
+.logobar img{height:64px;width:auto;max-width:72%;object-fit:contain;object-position:left center}
+@media (max-width:480px){.logobar img{height:auto;max-width:78%}}
+
+/* WhatsApp flutuante */
+.wa-fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));z-index:30;width:60px;height:60px;border-radius:50%;border:0;background:var(--wa);color:#FFFFFF;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.28)}
+.wa-fab svg{width:32px;height:32px}
+.wa-fab[aria-expanded="true"]{background:var(--fg);color:var(--bg)}
+.wa-menu{position:fixed;right:16px;bottom:calc(88px + env(safe-area-inset-bottom,0px));z-index:30;width:min(340px,calc(100vw - 32px));background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);overflow:hidden}
+.wa-menu header{background:var(--wa);color:#FFFFFF;padding:12px 16px}
+.wa-menu header b{display:block;font:700 19px/1.2 var(--f-display)}
+.wa-menu header span{font-size:13px;opacity:.95}
+.wa-opt{display:flex;gap:12px;align-items:center;padding:12px 16px;border-top:1px solid var(--line);text-decoration:none;color:var(--fg)}
+.wa-opt:first-of-type{border-top:0}
+.wa-opt:hover{background:var(--bg)}
+.wa-opt .ic{flex:none;width:40px;height:40px;border-radius:50%;background:var(--wa-soft);color:var(--wa-ink);display:flex;align-items:center;justify-content:center;font:800 15px/1 var(--f-display)}
+.wa-opt .tx{flex:1;min-width:0}
+.wa-opt .tx b{display:block}
+.wa-opt .tx small{display:block;color:var(--muted);font-size:13px;line-height:1.35}
+.wa-opt .tx em{font-style:normal;font-size:13px;font-weight:600;color:var(--wa-ink);font-variant-numeric:tabular-nums}
+footer{padding-bottom:96px!important}
+
+/* Pulsos */
+.qbtns button{display:inline-flex;align-items:center;gap:8px}
+.qbtns button::before{content:"";flex:none;width:8px;height:8px;border-radius:50%;background:var(--red)}
+.qbtns button[aria-pressed="true"]::before{background:var(--on-red)}
+.wa-fab::before,.wa-fab::after{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid var(--wa);pointer-events:none;opacity:0}
+.wa-fab .wa-badge{position:absolute;top:-2px;right:-2px;width:16px;height:16px;border-radius:50%;background:var(--red);border:2px solid var(--bg)}
+.wa-fab[aria-expanded="true"] .wa-badge{display:none}
+@media (prefers-reduced-motion:no-preference){
+  @keyframes ring{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.7);opacity:0}}
+  @keyframes glow{0%,100%{box-shadow:0 0 0 0 rgba(194,31,48,.45)}50%{box-shadow:0 0 0 10px rgba(194,31,48,0)}}
+  @keyframes dot{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.6);opacity:.45}}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+  .wa-fab[aria-expanded="false"]::before{animation:ring 2s ease-out infinite}
+  .wa-fab[aria-expanded="false"]::after{animation:ring 2s ease-out 1s infinite}
+  .wa-fab[aria-expanded="false"]{animation:bob 2.4s ease-in-out infinite}
+  .btn.primary{animation:glow 2.2s ease-in-out infinite}
+  .qbtns button::before{animation:dot 1.8s ease-in-out infinite}
+  .qbtns button:nth-child(3n+2)::before{animation-delay:.6s}
+  .qbtns button:nth-child(3n)::before{animation-delay:1.2s}
+  .qbtns button,.chips a{transition:transform .15s ease,border-color .15s ease}
+  .qbtns button:hover,.chips a:hover{transform:translateY(-2px)}
+  .qbtns button:active{transform:scale(.97)}
+  .qans:not([hidden]){animation:pop .22s ease-out}
+  @keyframes pop{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .wa-menu:not([hidden]){animation:pop .2s ease-out}
+  .faq summary::after{animation:plus 2s ease-in-out infinite}
+  .faq details:nth-child(3n+2) summary::after{animation-delay:.7s}
+  .faq details:nth-child(3n) summary::after{animation-delay:1.4s}
+  .faq details[open] summary::after{animation:none}
+  .faq details[open] .ans{animation:pop .22s ease-out}
+  @keyframes plus{0%,100%{box-shadow:0 0 0 0 rgba(194,31,48,.5)}60%{box-shadow:0 0 0 8px rgba(194,31,48,0)}}
+  .flash{animation:flash 1.4s ease-out}
+  @keyframes flash{0%{box-shadow:0 0 0 0 rgba(194,31,48,.55)}40%{box-shadow:0 0 0 8px rgba(194,31,48,.18)}100%{box-shadow:0 0 0 0 rgba(194,31,48,0)}}
+}
+/* Pergunta do FAQ com círculo do "+" */
+.faq summary::after{content:"+";position:absolute;right:14px;top:50%;margin-top:-14px;width:28px;height:28px;border-radius:50%;background:var(--red);color:var(--on-red);display:flex;align-items:center;justify-content:center;font:700 20px/1 var(--f-body)}
+.faq details[open] summary::after{content:"–";background:var(--fg);color:var(--bg)}
+.faq summary:hover{color:var(--red-ink)}
+[data-quick],#qans,#faq details,.panel,.band{scroll-margin-top:140px}
+.logobar span{font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);text-align:right}
+
+/* Perguntas rápidas */
+.qbtns{display:flex;flex-wrap:wrap;gap:8px}
+.qbtns button{background:var(--surface);border:1.5px solid var(--line);border-radius:999px;padding:9px 14px;font-weight:600;font-size:15px;cursor:pointer;text-align:left}
+.qbtns button:hover{border-color:var(--red);color:var(--red-ink)}
+.qbtns button[aria-pressed="true"]{background:var(--red);border-color:var(--red);color:var(--on-red)}
+.qans{margin-top:12px;padding:16px;border-left:4px solid var(--red)}
+.qans-q{font:700 18px/1.3 var(--f-display);margin-bottom:6px}
+.qans p{margin:0}
+.qans-foot{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:12px;font-weight:600;font-size:15px}
+
+/* Capas com foto */
+.top{background:linear-gradient(90deg,rgba(120,14,26,.95) 0%,rgba(150,20,36,.82) 42%,rgba(20,10,10,.12) 100%),url("/garantia/capa-trator.jpg") 70% center/cover no-repeat}
+.top .wrap{padding-block:22px 34px}
+.top h1,.top p,.top .brand{text-shadow:0 1px 10px rgba(0,0,0,.35)}
+@media (max-width:640px){
+  .top{background:linear-gradient(180deg,rgba(20,10,10,0) 0%,rgba(120,14,26,.45) 30%,rgba(120,14,26,.9) 62%,rgba(120,14,26,.97) 100%),url("/garantia/capa-trator.jpg") 72% 20%/cover no-repeat}
+  .top .wrap{padding-top:150px}
+}
+.band{position:relative;border-radius:12px;overflow:hidden;min-height:150px;display:flex;flex-direction:column;justify-content:flex-end;padding:18px 16px;margin-bottom:12px;color:#FFFFFF;background-size:cover;background-repeat:no-repeat}
+.band::before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,0) 20%,rgba(0,0,0,.66) 100%)}
+.band > *{position:relative}
+.band .eyebrow{color:#FFFFFF;opacity:.92}
+.band h2{font-size:24px;font-weight:700;text-shadow:0 2px 12px rgba(0,0,0,.4)}
+.band.soja{background-image:url("/garantia/capa-soja.jpg");background-position:center 62%}
+.band.campo{background-image:url("/garantia/capa-campo.jpg");background-position:center 55%}
+
+/* Cabeçalho */
+.top{background-color:var(--red);color:var(--on-red)}
+.brand{font:700 13px/1 var(--f-body);letter-spacing:.14em;text-transform:uppercase;opacity:.9}
+.top h1{font-size:clamp(26px,6.6vw,40px);font-weight:800;margin-top:8px;letter-spacing:.005em}
+.top p{margin:8px 0 0;font-size:15px;opacity:.92;max-width:52ch}
+.hero-num{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.hero-num div{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.28);padding:10px 14px;border-radius:6px;min-width:0}
+.hero-num b{display:block;font:700 20px/1.2 var(--f-display)}
+.hero-num span{font-size:13px;opacity:.9}
+
+/* Busca fixa */
+.searchbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:10;background:var(--bg);border-bottom:1px solid var(--line);padding-block:10px}
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);border:2px solid var(--line);border-radius:10px;padding:0 12px}
+.search:focus-within{border-color:var(--red)}
+.search svg{flex:none;color:var(--muted)}
+.search input{flex:1;min-width:0;border:0;background:transparent;padding:12px 0;font-size:17px;outline:none}
+.search button{border:0;background:transparent;color:var(--muted);padding:6px;cursor:pointer;font-size:14px}
+.chips{display:flex;gap:6px;overflow-x:auto;padding-top:10px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chips a{flex:none;text-decoration:none;color:var(--fg);background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:14px;font-weight:600}
+.chips a:hover{border-color:var(--red);color:var(--red-ink)}
+.result-info{font-size:14px;color:var(--muted);padding-top:8px}
+.result-info b{color:var(--fg)}
+
+main{display:flex;flex-direction:column;gap:28px;padding-block:22px 40px}
+section{scroll-margin-top:130px}
+.sec-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
+.sec-head h2{font-size:22px;font-weight:700}
+.eyebrow{font:700 12px/1 var(--f-body);letter-spacing:.12em;text-transform:uppercase;color:var(--red-ink);margin-bottom:6px}
+.note{font-size:14px;color:var(--muted);margin:8px 0 0}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px}
+
+/* Consultor */
+.calc{padding:16px;display:flex;flex-direction:column;gap:14px;border-top:4px solid var(--red)}
+.calc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.field label{font-size:14px;font-weight:600}
+.field input,.field select,.field textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:11px 12px;font-size:16px}
+.field textarea{min-height:110px;resize:vertical}
+.calc-out{display:flex;flex-direction:column;gap:10px}
+.banner{border-radius:8px;padding:12px 14px;font-weight:600}
+.banner small{display:block;font-weight:400;margin-top:2px}
+.banner.ok{background:var(--ok-soft);color:var(--ok)}
+.banner.bad{background:var(--bad-soft);color:var(--bad)}
+.banner.warn{background:var(--warn-soft);color:var(--warn)}
+.next-rev{display:flex;gap:14px;align-items:center;background:var(--bg);border-radius:8px;padding:12px 14px}
+.next-rev .big{font:800 30px/1 var(--f-display);color:var(--red-ink);white-space:nowrap}
+.hint{font-size:13px;color:var(--muted)}
+
+/* Cobertura geral */
+.cover{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+.cover .panel{padding:16px}
+.cover b{font:700 24px/1.2 var(--f-display);display:block;margin:4px 0}
+.cover .panel.main{border-color:var(--red);box-shadow:inset 0 0 0 1px var(--red)}
+
+/* Prazos */
+.group{overflow:hidden}
+.group + .group{margin-top:14px}
+.group h3{font-size:15px;font-weight:700;padding:12px 16px;background:var(--red-soft);color:var(--red-ink);text-transform:uppercase;letter-spacing:.03em}
+.row{display:flex;align-items:center;gap:10px;padding:12px 16px;border-top:1px solid var(--line)}
+.row .name{flex:1;min-width:0}
+.row .name small{display:block;color:var(--muted);font-size:13px}
+.row .term{font-weight:700;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.row .term.none{color:var(--bad)}
+.stat{flex:none;font-size:12px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
+.stat.ok{background:var(--ok-soft);color:var(--ok)}
+.stat.bad{background:var(--bad-soft);color:var(--bad)}
+
+/* Listas */
+.cards2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.cards2 .panel{padding:16px}
+.cards2 b.v{font:700 24px/1.2 var(--f-display);color:var(--red-ink)}
+.tags{display:flex;flex-wrap:wrap;gap:8px}
+.tags span{background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--bad);border-radius:6px;padding:8px 12px;font-weight:600}
+
+/* Revisões */
+.revs{overflow-x:auto}
+.revs table{border-collapse:collapse;min-width:640px;width:100%;font-variant-numeric:tabular-nums}
+.revs th,.revs td{padding:10px 8px;text-align:center;border:1px solid var(--line);white-space:nowrap}
+.revs th{background:var(--red);color:var(--on-red);font-family:var(--f-display);font-size:14px}
+.revs th:first-child,.revs td:first-child{text-align:left;position:sticky;left:0;background:var(--surface);color:var(--fg);font-weight:700}
+.revs td{background:var(--surface);font-weight:600}
+.revs td.due{background:var(--warn-soft);color:var(--warn)}
+.revs td.next{background:var(--red);color:var(--on-red)}
+.warn-box{border-left:4px solid var(--red);padding:12px 16px;margin-top:12px}
+.warn-box p{margin:0}
+
+/* FAQ */
+.faq details{border-top:1px solid var(--line)}
+.faq details:first-child{border-top:0}
+.faq summary{list-style:none;cursor:pointer;padding:14px 56px 14px 16px;font-weight:700;position:relative}
+.faq summary::-webkit-details-marker{display:none}
+.faq .ans{padding:0 16px 16px;color:var(--fg)}
+.faq .ans p{margin:0}
+
+/* Pergunte */
+.ask{padding:16px;display:flex;flex-direction:column;gap:12px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:0;border-radius:8px;padding:13px 18px;font-weight:700;font-size:16px;cursor:pointer;text-decoration:none}
+.btn.primary{background:var(--red);color:var(--on-red)}
+.btn.ghost{background:transparent;border:1px solid var(--line);color:var(--fg)}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.sent{background:var(--bg);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:10px}
+.sent pre{white-space:pre-wrap;margin:0;font:14px/1.45 var(--f-body)}
+
+mark{background:#FFE08A;color:#1D1A1A;border-radius:2px;padding:0 1px}
+.empty{padding:16px;text-align:center}
+.empty p{margin:0 0 10px}
+
+footer{border-top:1px solid var(--line);padding-block:20px 32px;font-size:14px;color:var(--muted)}
+footer b{color:var(--fg)}
+
+[data-hide="1"]{display:none!important}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+
+/* ===== Celular ===== */
+.rev-list{display:none}
+.bnav{display:none}
+@media (max-width:640px){
+  body{font-size:15px}
+  .logobar .wrap{padding-block:10px}
+  .logobar img{height:auto;max-width:62%}
+  .logobar span{font-size:10px;letter-spacing:.06em;line-height:1.3;max-width:34%}
+  .top .wrap{padding-top:96px;padding-bottom:20px}
+  .top h1{font-size:26px}
+  .top p{font-size:14px;margin-top:6px}
+  .hero-num{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:12px}
+  .hero-num div{padding:8px 8px;border-radius:8px}
+  .hero-num b{font-size:14px;line-height:1.2}
+  .hero-num span{font-size:11px;line-height:1.25;display:block}
+  .chips{display:none}
+  .searchbar{padding-block:8px}
+  .search input{padding:10px 0}
+  main{gap:22px;padding-block:16px 24px}
+  section{scroll-margin-top:76px}
+  [data-quick],#qans,#faq details,.panel,.band{scroll-margin-top:76px}
+  .qbtns{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .qbtns button{border-radius:12px;padding:10px 10px;font-size:13.5px;line-height:1.3;align-items:flex-start;min-height:56px}
+  .qbtns button::before{margin-top:5px}
+  .band{min-height:120px;padding:14px}
+  .band h2{font-size:21px}
+  .row{padding:11px 14px}
+  .row .term{font-size:14px}
+  .revs{display:none}
+  .rev-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+  .rev-list div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 6px;text-align:center}
+  .rev-list b{display:block;font-size:17px;color:var(--red-ink);font-variant-numeric:tabular-nums}
+  .rev-list span{font-size:12px;color:var(--muted)}
+  .rev-list .due{background:var(--warn-soft);border-color:var(--warn)}
+  .rev-list .due b,.rev-list .due span{color:var(--warn)}
+  .rev-list .next{background:var(--red);border-color:var(--red)}
+  .rev-list .next b,.rev-list .next span{color:var(--on-red)}
+  .bnav{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:25;background:var(--surface);border-top:1px solid var(--line);padding:6px 4px calc(6px + env(safe-area-inset-bottom,0px));box-shadow:0 -4px 16px rgba(0,0,0,.08)}
+  .bnav a{display:flex;flex-direction:column;align-items:center;gap:2px;text-decoration:none;color:var(--muted);font-size:10.5px;font-weight:600;padding:4px 0;border-radius:8px}
+  .bnav a svg{width:22px;height:22px}
+  .bnav a.on{color:var(--red-ink)}
+  .bnav a:active{background:var(--red-soft)}
+  .wa-fab{bottom:calc(78px + env(safe-area-inset-bottom,0px));width:56px;height:56px}
+  .wa-menu{bottom:calc(144px + env(safe-area-inset-bottom,0px))}
+  footer{padding-bottom:150px!important;font-size:13px}
+}
+</style>
+
+</head>
+<body>
+<div class="logobar">
+  <div class="wrap">
+    <img src="/Logo_Nova.png" alt="Nova Tratores" width="1536" height="280">
+    <span>Concessionária Mahindra</span>
+  </div>
+</div>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">Termo de garantia · Tratores Mahindra</div>
+    <h1>Garantia do seu trator Mahindra</h1>
+    <p>Tudo o que está no termo de garantia, explicado e fácil de achar. Busque um item ou role a página.</p>
+    <div class="hero-num">
+      <div><b>5 anos</b><span>ou 3.000 horas</span></div>
+      <div><b>25 a 95 cv</b><span>tratores cobertos</span></div>
+      <div><b>A partir da entrega</b><span>o que ocorrer primeiro</span></div>
+    </div>
+  </div>
+</header>
+
+<div class="searchbar">
+  <div class="wrap">
+    <div class="search">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="q" type="search" placeholder="Busque: motor, bateria, vidro, revisão…" autocomplete="off" aria-label="Buscar na garantia">
+      <button id="qclear" type="button" hidden>Limpar</button>
+    </div>
+    <nav class="chips" aria-label="Seções">
+      <a href="#rapidas">Perguntas rápidas</a>
+      <a href="#consulta">Meu trator</a>
+      <a href="#prazos">Prazos</a>
+      <a href="#revisoes">Revisões</a>
+      <a href="#pecas">Peças</a>
+      <a href="#nao-cobre">Não cobre</a>
+      <a href="#duvidas">Dúvidas</a>
+      <a href="#pergunte">Perguntar</a>
+    </nav>
+    <div class="result-info" id="qinfo" hidden></div>
+  </div>
+</div>
+
+<main class="wrap">
+
+  <section id="rapidas" data-quick>
+    <div class="eyebrow">Perguntas rápidas</div>
+    <div class="sec-head"><h2>Toque na sua dúvida</h2></div>
+    <div class="qbtns" id="qbtns" role="list"></div>
+    <div class="panel qans" id="qans" hidden aria-live="polite">
+      <div class="qans-q" id="qans-q"></div>
+      <p id="qans-a"></p>
+      <div class="qans-foot">
+        <a href="#" id="qans-more">Ver detalhes</a>
+        <a href="#pergunte" id="qans-ask">Não era isso? Pergunte para a equipe</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="consulta" data-sec>
+    <div class="band soja">
+      <div class="eyebrow">Consulta rápida</div>
+      <h2>Meu trator ainda está na garantia?</h2>
+    </div>
+    <div class="panel calc">
+      <div class="calc-grid">
+        <div class="field"><label for="c-entrega">Data de entrega</label><input id="c-entrega" type="date"></div>
+        <div class="field"><label for="c-horas">Horímetro atual (horas)</label><input id="c-horas" type="number" inputmode="numeric" min="0" step="1" placeholder="Ex.: 450"></div>
+        <div class="field"><label for="c-tipo">Como foi comprado</label>
+          <select id="c-tipo"><option value="padrao">Venda normal</option><option value="licitacao">Licitação</option></select></div>
+      </div>
+      <div class="calc-out" id="c-out">
+        <p class="hint">Preencha a data de entrega e o horímetro. A tabela de prazos e a de revisões mostram a situação de cada item.</p>
+      </div>
+    </div>
+    <p class="note">Esta consulta é uma estimativa. Quem confirma a garantia é a Nova Tratores, pelo termo assinado e pelo histórico de revisões.</p>
+  </section>
+
+  <section id="cobertura" data-sec>
+    <div class="eyebrow">Cobertura</div>
+    <div class="sec-head"><h2>Quanto tempo de garantia</h2></div>
+    <div class="cover">
+      <div class="panel main" data-item data-k="cobertura garantia geral 5 anos 3000 horas venda normal 25 cv 95 cv">
+        <div class="hint">Tratores Mahindra de 25 a 95 cv</div><b>5 anos ou 3.000 h</b><div>o que ocorrer primeiro, contado a partir da entrega.</div></div>
+      <div class="panel" data-item data-k="licitacao prefeitura governo 1 ano 1200 horas">
+        <div class="hint">Tratores vendidos em licitação</div><b>1 ano ou 1.200 h</b><div>o que ocorrer primeiro.</div></div>
+    </div>
+    <p class="note">Os prazos de cada sistema ou componente, logo abaixo, nunca passam da cobertura geral do trator.</p>
+  </section>
+
+  <section id="prazos" data-sec>
+    <div class="eyebrow">Prazos por item</div>
+    <div class="sec-head"><h2>Garantia de cada parte</h2></div>
+    <div class="panel group" id="g-trator"><h3>Trator</h3></div>
+    <div class="panel group" id="g-cabine"><h3>Cabine</h3></div>
+    <p class="note">Nos prazos com horas, vale o que ocorrer primeiro: o tempo ou o horímetro.</p>
+  </section>
+
+  <section id="revisoes" data-sec>
+    <div class="eyebrow">Obrigatório</div>
+    <div class="sec-head"><h2>Revisões obrigatórias</h2></div>
+    <div class="panel revs" data-item data-k="revisao revisoes obrigatorias 50 300 600 900 1200 1500 1800 2100 2400 2700 3000 horas horimetro manutencao preventiva">
+      <table>
+        <thead><tr id="rev-h"><th>Revisão</th></tr></thead>
+        <tbody><tr id="rev-t"><td>ou até</td></tr></tbody>
+      </table>
+    </div>
+    <div class="rev-list" id="rev-list" data-item data-k="revisao revisoes obrigatorias 50 300 600 900 1200 1500 1800 2100 2400 2700 3000 horas horimetro manutencao preventiva"></div>
+    <p class="note">Faça cada revisão quando o horímetro chegar nas horas indicadas ou até o prazo, o que vier primeiro.</p>
+    <div class="panel warn-box" data-item data-k="extincao perde garantia perder cancelar revisao fora oficina nao autorizada mecanico alteracao pecas">
+      <p><b>A garantia acaba se:</b> alguma revisão obrigatória não for feita no prazo, em concessionário ou oficina autorizada Mahindra; ou se peças e componentes forem alterados por profissional não autorizado pela Mahindra.</p>
+    </div>
+  </section>
+
+  <section id="pecas" data-sec>
+    <div class="eyebrow">Peças avulsas</div>
+    <div class="sec-head"><h2>Garantia de peças</h2></div>
+    <div class="cards2">
+      <div class="panel" data-item data-k="pecas peca instalada oficina autorizada concessionario ordem de servico os pos vendas 6 meses">
+        <b class="v">6 meses</b><p style="margin:6px 0 0">Peça <b>instalada por concessionário ou oficina autorizada Mahindra</b>. Conta a partir da Ordem de Serviço enviada ao Pós-Vendas.</p></div>
+      <div class="panel" data-item data-k="pecas peca comprada balcao loja venda 3 meses">
+        <b class="v">3 meses</b><p style="margin:6px 0 0">Peça <b>comprada no balcão</b> da concessionária Mahindra. Conta a partir da data da venda.</p></div>
+    </div>
+  </section>
+
+  <section id="nao-cobre" data-sec>
+    <div class="eyebrow">Fora da garantia</div>
+    <div class="sec-head"><h2>O que a garantia não cobre</h2></div>
+    <div class="tags">
+      <span data-item data-k="limpeza do tanque combustivel">Limpeza do tanque</span>
+      <span data-item data-k="sistema de alimentacao de combustivel diesel bomba injetora bico">Sistema de alimentação de combustível</span>
+      <span data-item data-k="limpezas e ajustes">Limpezas e ajustes</span>
+      <span data-item data-k="lavagens lavagem lavar">Lavagens</span>
+      <span data-item data-k="reapertos verificacoes regulagens regulagem aperto">Reapertos, verificações e regulagens</span>
+      <span data-item data-k="despesas de reboque guincho transporte frete">Despesas de reboque</span>
+      <span data-item data-k="vidros vidro cabine parabrisa para-brisa quebrado trincado">Vidros da cabine</span>
+    </div>
+  </section>
+
+  <section id="duvidas" data-sec>
+    <div class="eyebrow">Perguntas frequentes</div>
+    <div class="sec-head"><h2>Dúvidas comuns</h2></div>
+    <div class="panel faq" id="faq"></div>
+  </section>
+
+  <div class="panel empty" id="noresult" hidden>
+    <p><b>Não achamos “<span id="nr-term"></span>” no termo de garantia.</b></p>
+    <p class="hint">Mande a pergunta para a nossa equipe e respondemos você.</p>
+    <a class="btn primary" href="#pergunte" id="nr-ask">Perguntar para a equipe</a>
+  </div>
+
+  <section id="pergunte" data-sec data-always>
+    <div class="band campo">
+      <div class="eyebrow">Fale com a gente</div>
+      <h2>Ficou com alguma dúvida?</h2>
+    </div>
+    <form class="panel ask" id="askform" novalidate>
+      <div class="calc-grid">
+        <div class="field"><label for="a-nome">Seu nome</label><input id="a-nome" autocomplete="name" required></div>
+        <div class="field"><label for="a-chassi">Final do chassi (opcional)</label><input id="a-chassi" placeholder="Ex.: 5756"></div>
+      </div>
+      <div class="field"><label for="a-msg">Sua dúvida</label><textarea id="a-msg" required placeholder="Escreva aqui a sua pergunta sobre a garantia"></textarea></div>
+      <p class="hint" id="a-err" hidden></p>
+      <div class="btns"><button class="btn primary" type="submit">Preparar mensagem para o WhatsApp</button></div>
+      <div class="sent" id="a-sent" hidden>
+        <div class="banner ok" id="a-saved" hidden>Sua dúvida foi registrada para a equipe da Nova Tratores.<small>Para uma resposta mais rápida, envie também pelo WhatsApp.</small></div>
+        <div class="hint">Confira a mensagem e toque em “Abrir WhatsApp” para enviar à Nova Tratores.</div>
+        <pre id="a-text"></pre>
+        <div class="btns">
+          <a class="btn primary" id="a-wa" href="#" target="_blank" rel="noopener">Abrir WhatsApp</a>
+          <button class="btn ghost" type="button" id="a-copy">Copiar mensagem</button>
+        </div>
+        <div class="hint">Se o WhatsApp não abrir, copie a mensagem e envie para <b id="a-num"></b>.</div>
+      </div>
+    </form>
+  </section>
+</main>
+
+<nav class="bnav" aria-label="Navegação">
+  <a href="#rapidas" data-nav="rapidas"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5V14"/><path d="M12 17.5h.01"/></svg>Dúvidas</a>
+  <a href="#consulta" data-nav="consulta"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="7" cy="17" r="3"/><circle cx="17.5" cy="15.5" r="4.5"/><path d="M10 17h3M4 14V8h7l2 5"/><path d="M11 8V5h4l1 4"/></svg>Meu trator</a>
+  <a href="#prazos" data-nav="prazos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>Prazos</a>
+  <a href="#revisoes" data-nav="revisoes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Revisões</a>
+  <a href="#pergunte" data-nav="pergunte"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v11H8l-4 4z"/><path d="M8 9.5h8M8 12.5h5"/></svg>Perguntar</a>
+</nav>
+<div class="wa-menu" id="wa-menu" hidden role="dialog" aria-label="Falar pelo WhatsApp">
+  <header><b>Fale com a Nova Tratores</b><span>Escolha o setor e mande sua mensagem pelo WhatsApp</span></header>
+  <div id="wa-list"></div>
+</div>
+<button class="wa-fab" id="wa-fab" type="button" aria-expanded="false" aria-controls="wa-menu" aria-label="Falar pelo WhatsApp">
+  <span class="wa-badge" aria-hidden="true"></span>
+  <svg viewBox="0 0 32 32" fill="currentColor" aria-hidden="true"><path d="M16 3C8.8 3 3 8.7 3 15.8c0 2.5.7 4.9 2 7L3 29l6.4-2c2 1.1 4.3 1.7 6.6 1.7 7.2 0 13-5.7 13-12.8S23.2 3 16 3zm0 23.4c-2.1 0-4.1-.6-5.9-1.7l-.4-.3-3.8 1.2 1.2-3.7-.3-.4a10.4 10.4 0 0 1-1.7-5.7C5.1 9.9 10 5.2 16 5.2s10.9 4.7 10.9 10.6S22 26.4 16 26.4zm6-7.9c-.3-.2-1.9-1-2.2-1-.3-.1-.5-.2-.7.2l-1 1.2c-.2.2-.4.2-.7.1-.3-.2-1.4-.5-2.6-1.6-1-.9-1.6-1.9-1.8-2.2-.2-.3 0-.5.1-.7l.5-.6.3-.5c.1-.2 0-.4 0-.6l-1-2.4c-.3-.6-.5-.5-.7-.5h-.6c-.2 0-.6.1-.9.4-.3.3-1.2 1.1-1.2 2.7s1.2 3.1 1.4 3.4c.2.2 2.3 3.5 5.6 4.9 2.8 1.1 3.3.9 3.9.8.6-.1 1.9-.8 2.2-1.5.3-.7.3-1.4.2-1.5-.1-.2-.3-.3-.6-.4z"/></svg>
+</button>
+
+<footer>
+  <div class="wrap">
+    <b>Nova Tratores Máquinas Agrícolas Ltda</b> · CNPJ 31.463.139/0001-03<br>
+    Av. São Sebastião, 1065 · Jardim Ana Cristina · Piraju/SP · (14) 3351-6049<br>
+    Este resumo não substitui o Termo de Garantia assinado na entrega do equipamento.<br>
+    <small>Fotos de lavoura: Tiago Firmino Boaventura de Oliveira (CC BY 3.0) e Anton Atanasov (CC BY 2.0), via Wikimedia Commons.</small>
+  </div>
+</footer>
+
+<script>
+(function(){
+  // Registro de uso (só quando a página roda no Portal; fora dele não faz nada)
+  var API=/novatratores.com|railway.app|localhost/.test(location.hostname)?"/api/garantia-cliente/":null;
+  var SESSAO=(function(){var n=Math.random().toString(36).slice(2,10)+Date.now().toString(36);try{var s=sessionStorage.getItem("gar-sessao");if(!s){s=n;sessionStorage.setItem("gar-sessao",s);}return s;}catch(e){return n;}})();
+  function registrar(tipo,valor){
+    if(!API)return;
+    var b=JSON.stringify({tipo:tipo,valor:valor||null,sessao:SESSAO});
+    try{if(navigator.sendBeacon&&navigator.sendBeacon(API+"evento",new Blob([b],{type:"text/plain"})))return;}catch(e){}
+    try{fetch(API+"evento",{method:"POST",body:b,keepalive:true,headers:{"Content-Type":"text/plain"}}).catch(function(){});}catch(e){}
+  }
+  registrar("visita");
+  // Número de WhatsApp que recebe as dúvidas (DDI+DDD+número, só dígitos)
+  var WHATS = "551433516049";
+  var WHATS_TXT = "(14) 3351-6049";
+
+  // m = meses, h = horas (null = só tempo)
+  var TRATOR = [
+    {n:"Motor", m:60, h:3000, k:"motor bloco cabecote pistao virabrequim"},
+    {n:"Transmissão", m:60, h:3000, k:"transmissao cambio caixa marcha"},
+    {n:"Eixo traseiro", m:60, h:3000, k:"eixo traseiro diferencial"},
+    {n:"Eixo dianteiro", m:24, h:2000, k:"eixo dianteiro tracao 4x4"},
+    {n:"Sistema hidráulico", m:24, h:2000, k:"sistema hidraulico levante hidraulico oleo"},
+    {n:"Periféricos do motor e transmissão", d:"bomba d’água, alternador, motor de partida, bomba hidráulica, turbina", m:24, h:2000, k:"perifericos bomba dagua bomba de agua alternador motor de partida motor de arranque arranque bomba hidraulica turbina turbo"},
+    {n:"Sistema elétrico", m:6, h:null, k:"sistema eletrico fiacao chicote luz farol painel"},
+    {n:"Bateria", d:"padrão de fábrica", m:12, h:null, k:"bateria"},
+    {n:"Embreagem e disco de freio", m:3, h:null, k:"embreagem disco de freio freio"},
+    {n:"Ferramentas, tapetes e estofamento do banco", m:3, h:null, k:"ferramentas tapetes estofamento banco assento operador"}
+  ];
+  var CABINE = [
+    {n:"Frame estrutural", m:24, h:null, k:"cabine frame estrutural estrutura"},
+    {n:"Suportes de fixação", m:24, h:null, k:"cabine suportes de fixacao suporte"},
+    {n:"Teto", m:24, h:null, k:"cabine teto"},
+    {n:"Sistema elétrico da cabine", m:3, h:null, k:"cabine sistema eletrico"},
+    {n:"Ar-condicionado", m:3, h:null, k:"cabine ar condicionado ar-condicionado climatizador"},
+    {n:"Borrachas e tapete", m:3, h:null, k:"cabine borrachas borracha vedacao tapete"},
+    {n:"Vidros", m:0, h:null, none:true, k:"cabine vidros vidro parabrisa para-brisa"}
+  ];
+  var REVS = [[50,6],[300,12],[600,24],[900,36],[1200,48],[1500,60],[1800,60],[2100,60],[2400,60],[2700,60],[3000,60]];
+
+  var FAQ = [
+    ["Qual é a garantia do meu trator?","Tratores Mahindra de 25 a 95 cv têm 5 anos ou 3.000 horas de garantia, o que ocorrer primeiro, a partir da data de entrega. Cada parte tem o seu prazo, mostrado em “Garantia de cada parte”.","garantia geral quanto tempo"],
+    ["O que quer dizer “o que ocorrer primeiro”?","A garantia termina quando o trator chega ao limite de tempo ou ao limite de horas, o que acontecer antes. Exemplo: um trator com 3.000 horas em 3 anos de uso já saiu da garantia do motor, mesmo antes dos 5 anos.","ocorrer primeiro horas tempo horimetro"],
+    ["Comprei o trator por licitação. Muda alguma coisa?","Sim. Trator vendido em licitação tem 1 ano ou 1.200 horas de garantia, o que ocorrer primeiro. Os prazos de cada parte ficam limitados a essa cobertura.","licitacao prefeitura"],
+    ["Posso perder a garantia?","Sim, em dois casos: se alguma revisão obrigatória não for feita no prazo, em concessionário ou oficina autorizada Mahindra; ou se peças e componentes forem alterados por profissional não autorizado pela Mahindra.","perder perde extincao cancelar"],
+    ["Posso fazer a revisão em qualquer oficina?","Para manter a garantia, as revisões obrigatórias precisam ser feitas em concessionário ou oficina autorizada Mahindra.","revisao oficina mecanico autorizada"],
+    ["Quando faço cada revisão?","Na 50 h (ou até 6 meses), 300 h (ou 1 ano), 600 h (ou 2 anos), 900 h (ou 3 anos), 1.200 h (ou 4 anos) e depois a cada 300 h até 3.000 h (ou até 5 anos). Vale o que vier primeiro.","revisao quando prazo horas"],
+    ["Os vidros da cabine têm garantia?","Não. Os vidros da cabine estão sem garantia.","vidro vidros cabine"],
+    ["A bateria tem garantia?","Sim. A bateria padrão de fábrica tem 1 ano de garantia.","bateria"],
+    ["Qual a garantia da embreagem e do freio?","Embreagem e disco de freio têm 3 meses de garantia.","embreagem freio"],
+    ["Peça que comprei no balcão tem garantia?","Sim, 3 meses a partir da data da venda. Se a peça for instalada por concessionário ou oficina autorizada Mahindra, a garantia é de 6 meses, contados da Ordem de Serviço enviada ao Pós-Vendas.","peca pecas balcao"],
+    ["A garantia paga o reboque do trator?","Não. Despesas de reboque não são cobertas pela garantia.","reboque guincho transporte"],
+    ["Limpeza e regulagem entram na garantia?","Não. Limpeza do tanque, sistema de alimentação de combustível, limpezas e ajustes, lavagens, reapertos, verificações e regulagens não são cobertos.","limpeza regulagem ajuste lavagem combustivel"]
+  ];
+
+  function norm(s){return (s||"").toString().normalize("NFD").replace(/[̀-ͯ]/g,"").toLowerCase();}
+  function el(tag,cls,html){var e=document.createElement(tag);if(cls)e.className=cls;if(html!=null)e.innerHTML=html;return e;}
+  function prazo(it){
+    if(it.none) return "SEM GARANTIA";
+    var t = it.m>=12 ? (it.m/12)+(it.m===12?" ano":" anos") : it.m+" meses";
+    return it.h ? t+" ou "+it.h.toLocaleString("pt-BR")+" h" : t;
+  }
+  function fmtData(d){return d.toLocaleDateString("pt-BR");}
+  function addMeses(d,m){var r=new Date(d.getTime());r.setMonth(r.getMonth()+m);return r;}
+
+  // Prazos
+  function montarGrupo(id,lista){
+    var g=document.getElementById(id);
+    lista.forEach(function(it){
+      var r=el("div","row");r.setAttribute("data-item","");
+      r.setAttribute("data-k",it.n+" "+(it.d||"")+" "+it.k+" "+prazo(it));
+      r.innerHTML='<div class="name">'+it.n+(it.d?'<small>'+it.d+'</small>':'')+'</div><span class="stat" hidden></span><div class="term'+(it.none?' none':'')+'">'+prazo(it)+'</div>';
+      it._row=r;g.appendChild(r);
+    });
+  }
+  montarGrupo("g-trator",TRATOR);montarGrupo("g-cabine",CABINE);
+
+  // Revisões
+  var rh=document.getElementById("rev-h"), rt=document.getElementById("rev-t");
+  REVS.forEach(function(r){
+    rh.appendChild(el("th",null,r[0].toLocaleString("pt-BR")+" h"));
+    var prz=r[1]<12?r[1]+" meses":(r[1]/12)+(r[1]===12?" ano":" anos");
+    var td=el("td",null,prz);r.push(td);rt.appendChild(td);
+    var card=el("div",null,"<b>"+r[0].toLocaleString("pt-BR")+" h</b><span>ou até "+prz+"</span>");r.push(card);document.getElementById("rev-list").appendChild(card);
+  });
+
+  // FAQ
+  var faq=document.getElementById("faq");
+  FAQ.forEach(function(f){
+    var d=el("details");d.setAttribute("data-item","");d.setAttribute("data-k",f[0]+" "+f[1]+" "+f[2]);
+    d.innerHTML='<summary>'+f[0]+'</summary><div class="ans"><p>'+f[1]+'</p></div>';
+    d.querySelector("summary").addEventListener("click",function(){setTimeout(function(){if(d.open){irPara(d);registrar("faq",f[0]);}},0);});
+    faq.appendChild(d);
+  });
+
+  // Rolagem automática até o que foi tocado, com um brilho para marcar
+  var semMov=window.matchMedia&&window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function irPara(alvo){
+    if(!alvo)return;
+    setTimeout(function(){
+      try{alvo.scrollIntoView({behavior:semMov?"auto":"smooth",block:"start"});}catch(e){alvo.scrollIntoView();}
+      alvo.classList.remove("flash");void alvo.offsetWidth;alvo.classList.add("flash");
+    },60);
+  }
+  document.addEventListener("click",function(e){
+    var a=e.target.closest&&e.target.closest('a[href^="#"]');
+    if(!a)return;
+    var id=a.getAttribute("href").slice(1), alvo=id&&document.getElementById(id);
+    if(!alvo)return;
+    e.preventDefault();irPara(alvo);
+  });
+
+  // Barra inferior: acende a seção que está na tela
+  var navs=[].slice.call(document.querySelectorAll(".bnav a"));
+  if("IntersectionObserver" in window){
+    var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){navs.forEach(function(a){a.classList.toggle("on",a.getAttribute("data-nav")===e.target.id);});}});},{rootMargin:"-35% 0px -55% 0px"});
+    navs.forEach(function(a){var s=document.getElementById(a.getAttribute("data-nav"));if(s)io.observe(s);});
+  }
+
+  // WhatsApp flutuante: setores (número só dígitos, com DDI 55)
+  var SETORES = [
+    {sigla:"PV", nome:"Pós-Vendas", desc:"Serviços de manutenção e revisões de máquinas agrícolas", num:"551433516049", txt:"(14) 3351-6049", msg:"Olá! Vim pela página de garantia Mahindra e gostaria de falar com o Pós-Vendas sobre manutenção/revisão."},
+    {sigla:"DM", nome:"Gerente Comercial · Dougras Mogrs", desc:"Vendas de máquinas agrícolas", num:"5514996093534", txt:"(14) 99609-3534", msg:"Olá, Dougras! Vim pela página de garantia Mahindra e gostaria de falar sobre máquinas agrícolas."},
+    {sigla:"ZZ", nome:"Peças · Zezo", desc:"Peças para tratores e máquinas agrícolas", num:"5514997627413", txt:"(14) 99762-7413", msg:"Olá, Zezo! Vim pela página de garantia Mahindra e preciso de uma peça."}
+  ];
+  var waList=document.getElementById("wa-list"), waMenu=document.getElementById("wa-menu"), waFab=document.getElementById("wa-fab");
+  SETORES.forEach(function(s){
+    var a=el("a","wa-opt");a.href="https://wa.me/"+s.num+"?text="+encodeURIComponent(s.msg);a.target="_blank";a.rel="noopener";
+    a.addEventListener("click",function(){registrar("whatsapp",s.nome);});
+    a.innerHTML='<span class="ic">'+s.sigla+'</span><span class="tx"><b>'+s.nome+'</b><small>'+s.desc+'</small><em>'+s.txt+'</em></span>';
+    waList.appendChild(a);
+  });
+  function waToggle(abrir){waMenu.hidden=!abrir;waFab.setAttribute("aria-expanded",abrir?"true":"false");}
+  waFab.addEventListener("click",function(e){e.stopPropagation();waToggle(waMenu.hidden);});
+  document.addEventListener("click",function(e){if(!waMenu.hidden&&!waMenu.contains(e.target))waToggle(false);});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")waToggle(false);});
+
+  // Perguntas rápidas: [texto do botão, índice no FAQ, seção com os detalhes]
+  var QUICK = [
+    ["Quanto tempo de garantia tenho?",0,"cobertura"],
+    ["Quando faço as revisões?",5,"revisoes"],
+    ["Posso perder a garantia?",3,"revisoes"],
+    ["Posso revisar em qualquer oficina?",4,"revisoes"],
+    ["Comprei por licitação",2,"cobertura"],
+    ["Vidro da cabine tem garantia?",6,"prazos"],
+    ["Bateria tem garantia?",7,"prazos"],
+    ["Embreagem e freio",8,"prazos"],
+    ["Peça comprada no balcão",9,"pecas"],
+    ["A garantia paga o reboque?",10,"nao-cobre"],
+    ["O que é “o que ocorrer primeiro”?",1,"cobertura"]
+  ];
+  var qb=document.getElementById("qbtns"), qa=document.getElementById("qans"), qmore=document.getElementById("qans-more");
+  QUICK.forEach(function(x){
+    var b=el("button");b.type="button";b.setAttribute("role","listitem");b.setAttribute("aria-pressed","false");b.textContent=x[0];
+    b.addEventListener("click",function(){
+      var aberto=b.getAttribute("aria-pressed")==="true";
+      [].slice.call(qb.children).forEach(function(o){o.setAttribute("aria-pressed","false");});
+      if(aberto){qa.hidden=true;return;}
+      b.setAttribute("aria-pressed","true");
+      registrar("pergunta_rapida",x[0]);
+      document.getElementById("qans-q").textContent=FAQ[x[1]][0];
+      document.getElementById("qans-a").textContent=FAQ[x[1]][1];
+      qmore.href="#"+x[2];
+      qa.hidden=false;
+      irPara(qa);
+    });
+    qb.appendChild(b);
+  });
+  document.getElementById("qans-ask").addEventListener("click",function(){setTimeout(function(){document.getElementById("a-nome").focus({preventScroll:true});},300);});
+
+  // Consulta do trator
+  var cE=document.getElementById("c-entrega"), cH=document.getElementById("c-horas"), cT=document.getElementById("c-tipo"), out=document.getElementById("c-out");
+  function limparStatus(){
+    TRATOR.concat(CABINE).forEach(function(it){var s=it._row.querySelector(".stat");s.hidden=true;});
+    REVS.forEach(function(r){r[2].className="";r[3].className="";});
+  }
+  var consultaRegistrada=false;
+  function calcular(){
+    var horas=parseFloat(cH.value);
+    if(!cE.value||isNaN(horas)||horas<0){limparStatus();out.innerHTML='<p class="hint">Preencha a data de entrega e o horímetro. A tabela de prazos e a de revisões mostram a situação de cada item.</p>';return;}
+    var p=cE.value.split("-"), ent=new Date(+p[0],+p[1]-1,+p[2]), hoje=new Date();hoje.setHours(0,0,0,0);
+    if(ent>hoje){out.innerHTML='<div class="banner warn">A data de entrega está no futuro. Confira a data.</div>';limparStatus();return;}
+    var lic=cT.value==="licitacao", gM=lic?12:60, gH=lic?1200:3000;
+    var fimGeral=addMeses(ent,gM), geralOk=hoje<fimGeral&&horas<gH;
+    var html="";
+    if(geralOk){
+      var faltaH=gH-horas;
+      html+='<div class="banner ok">Dentro da garantia geral<small>Até '+fmtData(fimGeral)+' ou '+gH.toLocaleString("pt-BR")+' h. Faltam '+faltaH.toLocaleString("pt-BR")+' h no horímetro.</small></div>';
+    }else{
+      var motivo=horas>=gH?"o horímetro passou de "+gH.toLocaleString("pt-BR")+" h":"o prazo terminou em "+fmtData(fimGeral);
+      html+='<div class="banner bad">Garantia geral encerrada<small>Pela data e horas informadas, '+motivo+'.</small></div>';
+    }
+    // itens
+    TRATOR.concat(CABINE).forEach(function(it){
+      var s=it._row.querySelector(".stat");
+      var ok=!it.none&&geralOk&&hoje<addMeses(ent,it.m)&&(it.h==null||horas<it.h);
+      s.hidden=false;s.className="stat "+(ok?"ok":"bad");s.textContent=ok?"Em garantia":(it.none?"Não coberto":"Encerrada");
+    });
+    // revisões
+    var devidas=[], prox=null;
+    REVS.forEach(function(r){
+      var lim=addMeses(ent,r[1]), devida=horas>=r[0]||hoje>=lim;
+      r[2].className="";r[3].className="";
+      if(devida){devidas.push(r[0]);r[2].className="due";r[3].className="due";}
+      else if(!prox){prox=r;r[2].className="next";r[3].className="next";}
+    });
+    if(prox){
+      var limP=addMeses(ent,prox[1]);
+      html+='<div class="next-rev"><div class="big">'+prox[0].toLocaleString("pt-BR")+' h</div><div><b>Próxima revisão obrigatória</b><div class="hint">Quando o horímetro chegar em '+prox[0].toLocaleString("pt-BR")+' h (faltam '+(prox[0]-horas).toLocaleString("pt-BR")+' h) ou até '+fmtData(limP)+', o que vier primeiro.</div></div></div>';
+    }
+    if(devidas.length){
+      html+='<div class="banner warn">Revisões que já deveriam ter sido feitas: '+devidas.map(function(h){return h.toLocaleString("pt-BR")+" h";}).join(", ")+'<small>Se alguma delas não foi feita em oficina autorizada Mahindra, a garantia pode ter sido extinta. Fale com a gente para conferir.</small></div>';
+    }
+    html+='<p class="hint">Veja abaixo a situação de cada item em “Garantia de cada parte”.</p>';
+    if(!consultaRegistrada){consultaRegistrada=true;registrar("consulta_trator",lic?"licitação":"venda normal");}
+    out.innerHTML=html;
+  }
+  [cE,cH,cT].forEach(function(i){i.addEventListener("input",calcular);i.addEventListener("change",calcular);});
+  try{var sv=JSON.parse(localStorage.getItem("garantia-mahindra")||"null");if(sv){cE.value=sv.e||"";cH.value=sv.h||"";cT.value=sv.t||"padrao";calcular();}}catch(e){}
+  [cE,cH,cT].forEach(function(i){i.addEventListener("change",function(){try{localStorage.setItem("garantia-mahindra",JSON.stringify({e:cE.value,h:cH.value,t:cT.value}));}catch(e){}});});
+
+  // Busca
+  var q=document.getElementById("q"), qc=document.getElementById("qclear"), qi=document.getElementById("qinfo"), nr=document.getElementById("noresult");
+  var itens=[].slice.call(document.querySelectorAll("[data-item]"));
+  itens.forEach(function(i){i._k=norm(i.getAttribute("data-k")+" "+i.textContent);});
+  var secs=[].slice.call(document.querySelectorAll("[data-sec]"));
+  function limparMarcas(){[].slice.call(document.querySelectorAll("mark")).forEach(function(m){m.replaceWith(document.createTextNode(m.textContent));});document.body.normalize();}
+  function marcar(node,termos){
+    var w=document.createTreeWalker(node,NodeFilter.SHOW_TEXT,null),ns=[],n;
+    while((n=w.nextNode()))ns.push(n);
+    ns.forEach(function(t){
+      var txt=t.nodeValue,nt=norm(txt),best=null;
+      termos.forEach(function(term){var ix=nt.indexOf(term);if(ix>=0&&(best===null||ix<best[0]))best=[ix,term.length];});
+      if(!best||t.parentNode.closest("mark"))return;
+      var a=txt.slice(0,best[0]),b=txt.slice(best[0],best[0]+best[1]),c=txt.slice(best[0]+best[1]);
+      var f=document.createDocumentFragment();if(a)f.appendChild(document.createTextNode(a));var m=el("mark");m.textContent=b;f.appendChild(m);if(c)f.appendChild(document.createTextNode(c));
+      t.parentNode.replaceChild(f,t);
+    });
+  }
+  function buscar(){
+    var v=q.value.trim(), termos=norm(v).split(/\s+/).filter(function(t){return t.length>1;});
+    qc.hidden=!v; limparMarcas();
+    document.getElementById("rapidas").hidden=termos.length>0;
+    if(!termos.length){
+      itens.forEach(function(i){i.removeAttribute("data-hide");if(i.tagName==="DETAILS")i.open=false;});
+      secs.forEach(function(s){s.removeAttribute("data-hide");});
+      document.querySelectorAll(".group").forEach(function(g){g.removeAttribute("data-hide");});
+      qi.hidden=true;nr.hidden=true;return;
+    }
+    var achados=0;
+    itens.forEach(function(i){
+      var ok=termos.every(function(t){return i._k.indexOf(t)>=0;});
+      if(ok){i.removeAttribute("data-hide");achados++;if(i.tagName==="DETAILS")i.open=true;marcar(i,termos);}
+      else{i.setAttribute("data-hide","1");}
+    });
+    document.querySelectorAll(".group").forEach(function(g){g.setAttribute("data-hide",g.querySelector(".row:not([data-hide])")?"":"1");if(g.getAttribute("data-hide")==="")g.removeAttribute("data-hide");});
+    secs.forEach(function(s){
+      if(s.id==="consulta"){s.setAttribute("data-hide","1");return;}
+      if(s.hasAttribute("data-always")){s.removeAttribute("data-hide");return;}
+      var vis=s.querySelector("[data-item]:not([data-hide])");
+      if(vis)s.removeAttribute("data-hide");else s.setAttribute("data-hide","1");
+    });
+    qi.hidden=false;
+    qi.innerHTML=achados?'<b>'+achados+'</b> resultado'+(achados>1?'s':'')+' para “'+v.replace(/</g,"&lt;")+'”':'Nenhum resultado para “'+v.replace(/</g,"&lt;")+'”';
+    nr.hidden=achados>0;document.getElementById("nr-term").textContent=v;
+  }
+  var qTimer=null, ultimaBusca="";
+  q.addEventListener("input",function(){
+    buscar();
+    clearTimeout(qTimer);
+    qTimer=setTimeout(function(){
+      if(!q.value.trim())return;
+      var termo=q.value.trim();
+      if(termo.length>=3&&termo!==ultimaBusca){ultimaBusca=termo;registrar(document.querySelector("main [data-item]:not([data-hide])")?"busca":"busca_sem_resultado",termo);}
+      var primeiro=document.querySelector("main [data-item]:not([data-hide])");
+      if(!primeiro)primeiro=document.getElementById("noresult");
+      var r=primeiro.getBoundingClientRect();
+      if(r.top<130||r.top>window.innerHeight*0.6)irPara(primeiro);
+    },900);
+  });
+  qc.addEventListener("click",function(){q.value="";buscar();q.focus();});
+  document.getElementById("nr-ask").addEventListener("click",function(){
+    var m=document.getElementById("a-msg");if(!m.value)m.value="Tenho uma dúvida sobre a garantia: "+q.value.trim();
+    q.value="";buscar();setTimeout(function(){document.getElementById("a-nome").focus({preventScroll:true});},300);
+  });
+
+  // Pergunta
+  var form=document.getElementById("askform"), err=document.getElementById("a-err");
+  document.getElementById("a-num").textContent=WHATS_TXT;
+  form.addEventListener("submit",function(e){
+    e.preventDefault();
+    var nome=document.getElementById("a-nome").value.trim(), ch=document.getElementById("a-chassi").value.trim(), msg=document.getElementById("a-msg").value.trim();
+    if(!nome||!msg){err.hidden=false;err.textContent="Preencha seu nome e a sua dúvida para preparar a mensagem.";return;}
+    err.hidden=true;
+    var txt="Olá, Nova Tratores! Tenho uma dúvida sobre a garantia Mahindra.\n\nNome: "+nome+(ch?"\nFinal do chassi: "+ch:"")+"\n\n"+msg;
+    document.getElementById("a-text").textContent=txt;
+    document.getElementById("a-wa").href="https://wa.me/"+WHATS+"?text="+encodeURIComponent(txt);
+    document.getElementById("a-sent").hidden=false;
+    var salvo=document.getElementById("a-saved");salvo.hidden=true;
+    if(API){
+      fetch(API+"duvida",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({nome:nome,chassi_final:ch,mensagem:msg,sessao:SESSAO})})
+        .then(function(r){if(r.ok){salvo.hidden=false;}}).catch(function(){});
+    }
+  });
+  document.getElementById("a-wa").addEventListener("click",function(){registrar("whatsapp","Formulário de dúvida");});
+  document.getElementById("a-copy").addEventListener("click",function(){
+    var t=document.getElementById("a-text").textContent, b=this;
+    function sel(){var r=document.createRange();r.selectNodeContents(document.getElementById("a-text"));var s=getSelection();s.removeAllRanges();s.addRange(r);}
+    try{navigator.clipboard.writeText(t).then(function(){b.textContent="Copiada";setTimeout(function(){b.textContent="Copiar mensagem";},1800);},sel);}catch(e){sel();}
+  });
+})();
+</script>
+
+</body>
+</html>
