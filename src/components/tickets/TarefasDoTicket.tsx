@@ -76,7 +76,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
       {passos === null && <div style={{ padding: 8 }}><Loader2 size={16} className="spin" /></div>}
       {passos !== null && lista.length === 0 && (
         <p style={{ margin: '6px 0 0', fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>
-          Divida este ticket em passos menores. Cada tarefa tem responsável e prazo, e aparece na lista de Tarefas de quem vai fazer.
+          Divida este ticket em passos menores. Cada tarefa tem quem faz e prazo, e fica aqui dentro do ticket.
         </p>
       )}
       {lista.map((p) => {

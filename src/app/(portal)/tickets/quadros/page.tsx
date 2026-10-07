@@ -1,16 +1,36 @@
 'use client'
-// Quadros de tickets (estilo Trello): os quadros que você enxerga + criar novo.
+// CENTRAL DE TRABALHO — casa do módulo. Três coisas:
+//  1) Pra organizar: tickets que recebi e ainda não pus num bloco;
+//  2) Meus blocos: os quadros de cada um, por assunto, cada um de uma cor;
+//  3) Pedidos que fiz: o que pedi pra outras pessoas (dia, situação, fase).
 export const dynamic = 'force-dynamic'
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, LayoutGrid, Lock, Globe, Users, RefreshCw } from 'lucide-react'
+import Link from 'next/link'
+import { Plus, LayoutGrid, Lock, Globe, Users, RefreshCw, Inbox, Send, Clock, SquareCheck, List } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { authHeaders } from '@/lib/auth/client'
 import type { QuadroResumo } from '@/lib/tickets/quadros'
-import type { UsuarioMin } from '@/lib/tickets/constantes'
+import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
 import FormQuadro from '@/components/tickets/quadros/FormQuadro'
+import StatusBadge from '@/components/tickets/StatusBadge'
+import TicketModal from '@/components/tickets/TicketModal'
+import OrganizarTicket, { type TicketParaOrganizar } from '@/components/trabalho/OrganizarTicket'
+
+type TicketC = Ticket & { aceite?: string | null; aceite_motivo?: string | null }
+interface Central {
+  praOrganizar: TicketC[]
+  pedidos: TicketC[]
+  quadros: Record<string, { id: string; nome: string; cor: string }>
+  colunas: Record<string, string>
+  usuarios: Record<string, { id: string; nome: string }>
+  passos: Record<string, { feitas: number; total: number }>
+}
+
+const hojeISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
 
 export default function QuadrosPage() {
   const router = useRouter()
@@ -18,22 +38,30 @@ export default function QuadrosPage() {
   const isMobile = useIsMobile()
   const [quadros, setQuadros] = useState<QuadroResumo[]>([])
   const [usuarios, setUsuarios] = useState<Record<string, UsuarioMin>>({})
+  const [central, setCentral] = useState<Central | null>(null)
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
   const [arquivados, setArquivados] = useState(false)
   const [novo, setNovo] = useState(false)
+  const [organizando, setOrganizando] = useState<TicketParaOrganizar | null>(null)
+  const [ticketAberto, setTicketAberto] = useState<string | null>(null)
 
   const carregar = useCallback(async () => {
-    setCarregando(true)
     setErro('')
     try {
-      const res = await fetch(`/api/tickets/quadros${arquivados ? '?arquivados=1' : ''}`, { headers: await authHeaders() })
-      const json = await res.json()
-      if (!res.ok) { setErro(json.error || 'Falha ao carregar'); return }
-      setQuadros(json.quadros || [])
-      setUsuarios(json.usuarios || {})
-      setAviso(json.migracaoFaltando ? json.error : '')
+      const h = await authHeaders()
+      const [rq, rc] = await Promise.all([
+        fetch(`/api/tickets/quadros${arquivados ? '?arquivados=1' : ''}`, { headers: h }),
+        fetch('/api/trabalho/central', { headers: h }),
+      ])
+      const jq = await rq.json()
+      const jc = await rc.json()
+      if (!rq.ok) { setErro(jq.error || 'Falha ao carregar'); return }
+      setQuadros(jq.quadros || [])
+      setUsuarios(jq.usuarios || {})
+      setAviso(jq.migracaoFaltando ? jq.error : '')
+      if (rc.ok) setCentral(jc)
     } catch {
       setErro('Falha de conexão')
     } finally {
@@ -42,76 +70,204 @@ export default function QuadrosPage() {
   }, [arquivados])
 
   useEffect(() => { if (userProfile) carregar() }, [carregar, userProfile])
+  // Ticket/tarefa criados pela barra de cima, ou mudança feita no ticket aberto
+  useEffect(() => {
+    const f = () => carregar()
+    window.addEventListener('central-trabalho-mudou', f)
+    window.addEventListener('focus', f)
+    return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', f) }
+  }, [carregar])
+
+  const meus = quadros.filter((q) => q.meu)
+  const outrosPublicos = quadros.filter((q) => !q.meu && q.visibilidade === 'publico')
+  const hoje = hojeISO()
+  const nome = (id: string) => central?.usuarios[id]?.nome || '—'
+
+  const secao = (icone: React.ReactNode, titulo: string, extra?: React.ReactNode, id?: string) => (
+    <div id={id} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 0 10px', scrollMarginTop: 90 }}>
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--portal-text,#111)' }}>{icone} {titulo}</h2>
+      {extra}
+    </div>
+  )
+  const contador = (n: number, forte = false) => (
+    <span style={{ fontSize: 12, fontWeight: 800, padding: '1px 8px', borderRadius: 999, background: forte ? '#dc2626' : 'var(--portal-bg,#f1f1f1)', color: forte ? '#fff' : 'var(--portal-text-muted,#777)' }}>{n}</span>
+  )
+  const cartaoBloco = (q: QuadroResumo) => (
+    <button key={q.id} onClick={() => router.push(`/tickets/quadros/${q.id}`)}
+      style={{
+        display: 'flex', flexDirection: 'column', textAlign: 'left', borderRadius: 12, overflow: 'hidden', cursor: 'pointer', padding: 0,
+        border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', opacity: q.arquivado ? .6 : 1,
+      }}>
+      <div style={{ height: 8, background: q.cor }} />
+      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 800, color: 'var(--portal-text,#111)' }}>
+          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nome}</span>
+          {q.visibilidade === 'privado' ? <Lock size={13} style={{ opacity: .5 }} /> : <Globe size={13} style={{ opacity: .5 }} />}
+        </div>
+        {q.descricao && <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{q.descricao}</div>}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: 'var(--portal-text-muted,#888)', marginTop: 4 }}>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {q.membros.length}</span>
+          <span>{q.tickets_abertos} aberto{q.tickets_abertos === 1 ? '' : 's'}</span>
+          {q.arquivado && <span style={{ fontWeight: 700 }}>arquivado</span>}
+          {q.criado_por !== userProfile?.id && <span>de {usuarios[q.criado_por]?.nome?.split(' ')[0] || '—'}</span>}
+        </div>
+      </div>
+    </button>
+  )
 
   return (
     <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
           <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 20, fontWeight: 800, margin: 0, color: 'var(--portal-text,#111)' }}>
             <LayoutGrid size={20} color="#dc2626" /> Quadros
           </h1>
           <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>
-            Organize tickets por equipe ou projeto, com as colunas que fizerem sentido para vocês.
+            Seus blocos por assunto, o que chegou pra você e o que você pediu.
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} /> Mostrar arquivados
-          </label>
-          <button onClick={carregar} title="Atualizar"
+          <button onClick={() => carregar()} title="Atualizar"
             style={{ display: 'flex', padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
             <RefreshCw size={14} />
           </button>
           <button onClick={() => setNovo(true)} disabled={!!aviso}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: aviso ? .5 : 1 }}>
-            <Plus size={16} /> Novo quadro
+            <Plus size={16} /> Novo bloco
           </button>
         </div>
       </div>
 
-      {aviso && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{aviso}</div>}
-      {erro && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 12 }}>{erro}</div>}
+      {aviso && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{aviso}</div>}
+      {erro && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{erro}</div>}
 
       {carregando ? (
-        <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando quadros...</div>
-      ) : quadros.length === 0 && !aviso ? (
-        <div style={{ padding: '60px 20px', textAlign: 'center', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', color: 'var(--portal-text-muted,#888)' }}>
-          <LayoutGrid size={32} style={{ opacity: .35, marginBottom: 10 }} />
-          <div style={{ fontSize: 14, fontWeight: 600 }}>Nenhum quadro ainda.</div>
-          <div style={{ fontSize: 13, marginTop: 6 }}>Crie o primeiro e convide quem trabalha com você.</div>
-        </div>
+        <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando...</div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 14 }}>
-          {quadros.map((q) => (
-            <button key={q.id} onClick={() => router.push(`/tickets/quadros/${q.id}`)}
-              style={{
-                display: 'flex', flexDirection: 'column', textAlign: 'left', borderRadius: 12, overflow: 'hidden', cursor: 'pointer', padding: 0,
-                border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', opacity: q.arquivado ? .6 : 1,
-              }}>
-              <div style={{ height: 8, background: q.cor }} />
-              <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 800, color: 'var(--portal-text,#111)' }}>
-                  <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nome}</span>
-                  {q.visibilidade === 'privado' ? <Lock size={13} style={{ opacity: .5 }} /> : <Globe size={13} style={{ opacity: .5 }} />}
-                </div>
-                {q.descricao && <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{q.descricao}</div>}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: 'var(--portal-text-muted,#888)', marginTop: 4 }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {q.membros.length}</span>
-                  <span>{q.tickets_abertos} aberto{q.tickets_abertos === 1 ? '' : 's'}</span>
-                  {q.arquivado && <span style={{ fontWeight: 700 }}>arquivado</span>}
-                  {!q.pode_trabalhar && !q.arquivado && <span>só leitura</span>}
-                </div>
-                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted,#aaa)' }}>criado por {usuarios[q.criado_por]?.nome || '—'}</div>
+        <>
+          {/* 1) Pra organizar */}
+          {central && central.praOrganizar.length > 0 && (
+            <>
+              {secao(<Inbox size={17} color="#dc2626" />, 'Pra organizar', contador(central.praOrganizar.length, true))}
+              <div style={{ display: 'grid', gap: 8 }}>
+                {central.praOrganizar.map((t) => {
+                  const atrasado = !!t.prazo && t.prazo < hoje
+                  const pendente = t.aceite === 'pendente'
+                  return (
+                    <div key={t.id} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 12, border: `1px solid ${pendente ? 'rgba(220,38,38,.35)' : 'var(--portal-border,#e5e7eb)'}`, background: 'var(--portal-surface,#fff)' }}>
+                      <button onClick={() => setTicketAberto(t.id)} style={{ flex: '1 1 260px', minWidth: 0, textAlign: 'left', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: 'var(--portal-text,#111)' }}>
+                        <div style={{ fontSize: 14.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{t.numero} {t.titulo}</div>
+                        <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)', marginTop: 2 }}>
+                          {t.solicitante_id === userProfile?.id ? 'você criou para você' : `de ${nome(t.solicitante_id)}`}
+                          {' · '}<span style={{ color: atrasado ? '#dc2626' : undefined, fontWeight: atrasado ? 700 : 400 }}>{t.prazo ? `até ${br(t.prazo)}` : 'sem data'}</span>
+                          {pendente && <> · <b style={{ color: '#dc2626' }}>falta confirmar</b></>}
+                        </div>
+                      </button>
+                      <button onClick={() => setOrganizando({ id: t.id, numero: t.numero, titulo: t.titulo, prazo: t.prazo, visibilidade: t.visibilidade, aceite: t.aceite, solicitante_nome: t.solicitante_id === userProfile?.id ? undefined : nome(t.solicitante_id) })}
+                        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: pendente ? '#059669' : '#dc2626', color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer' }}>
+                        <LayoutGrid size={14} /> {pendente ? 'Confirmar e organizar' : 'Pôr num bloco'}
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
-            </button>
+            </>
+          )}
+
+          {/* 2) Meus blocos */}
+          {secao(<LayoutGrid size={17} color="#dc2626" />, 'Meus blocos', (
+            <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} /> Mostrar arquivados
+            </label>
           ))}
-        </div>
+          {meus.length === 0 && !aviso ? (
+            <div style={{ padding: '36px 20px', textAlign: 'center', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', color: 'var(--portal-text-muted,#888)' }}>
+              <LayoutGrid size={30} style={{ opacity: .35, marginBottom: 8 }} />
+              <div style={{ fontSize: 14, fontWeight: 600 }}>Você ainda não tem nenhum bloco.</div>
+              <div style={{ fontSize: 13, marginTop: 6 }}>Crie um por assunto (ex.: Oficina, Compras, Loja) e escolha a cor. Os tickets que você recebe vão para eles.</div>
+              <button onClick={() => setNovo(true)} disabled={!!aviso}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+                <Plus size={16} /> Criar meu primeiro bloco
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 12 }}>
+              {meus.map(cartaoBloco)}
+            </div>
+          )}
+          {outrosPublicos.length > 0 && (
+            <details style={{ marginTop: 12 }}>
+              <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Blocos públicos de outras pessoas ({outrosPublicos.length})</summary>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 12, marginTop: 10 }}>
+                {outrosPublicos.map(cartaoBloco)}
+              </div>
+            </details>
+          )}
+
+          {/* 3) Pedidos que fiz */}
+          {central && (
+            <>
+              {secao(<Send size={17} color="#dc2626" />, 'Pedidos que fiz', contador(central.pedidos.length), 'pedidos')}
+              {central.pedidos.length === 0 ? (
+                <div style={{ padding: '18px 16px', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>
+                  Nada pedido em aberto. Use <b>Novo ticket</b> lá em cima para pedir algo a alguém.
+                </div>
+              ) : (
+                <div style={{ display: 'grid', gap: 8 }}>
+                  {central.pedidos.map((t) => {
+                    const q = t.quadro_id ? central.quadros[t.quadro_id] : null
+                    const fase = t.quadro_coluna_id ? central.colunas[t.quadro_coluna_id] : null
+                    const p = central.passos[t.id]
+                    const atrasado = !!t.prazo && t.prazo < hoje && t.status !== 'resolvido'
+                    return (
+                      <button key={t.id} onClick={() => setTicketAberto(t.id)}
+                        style={{ display: 'flex', alignItems: 'stretch', gap: 12, textAlign: 'left', padding: 0, borderRadius: 12, overflow: 'hidden', cursor: 'pointer', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)' }}>
+                        <span style={{ width: 6, flex: 'none', background: q?.cor || 'var(--portal-border,#d4d4d4)' }} />
+                        <span style={{ flex: 1, minWidth: 0, padding: '11px 12px 11px 0', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                          <span style={{ flex: '1 1 240px', minWidth: 0 }}>
+                            <span style={{ display: 'block', fontSize: 14.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{t.numero} {t.titulo}</span>
+                            <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>
+                              para <b style={{ color: 'var(--portal-text-secondary,#555)' }}>{nome(t.responsavel_id)}</b>
+                              {q ? <> · {q.nome}{fase ? ` · ${fase}` : ''}</> : null}
+                              {p && p.total > 0 ? <> · <SquareCheck size={11} style={{ verticalAlign: -1 }} /> {p.feitas}/{p.total}</> : null}
+                            </span>
+                            {t.aceite === 'recusado' && (
+                              <span style={{ display: 'block', fontSize: 12.5, color: '#dc2626', fontWeight: 700, marginTop: 2 }}>Recusado{t.aceite_motivo ? `: ${t.aceite_motivo}` : ''}</span>
+                            )}
+                          </span>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            {t.aceite === 'pendente' && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>aguardando confirmar</span>}
+                            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: atrasado ? '#dc2626' : 'var(--portal-text-secondary,#555)' }}>
+                              <Clock size={13} /> {t.prazo ? br(t.prazo) : 'sem data'}{atrasado ? ' · atrasado' : ''}
+                            </span>
+                            <StatusBadge status={t.status} />
+                          </span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          <div style={{ marginTop: 24, textAlign: 'center' }}>
+            <Link href="/tickets" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
+              <List size={14} /> Ver todos os meus tickets em lista
+            </Link>
+          </div>
+        </>
       )}
 
       {novo && (
         <FormQuadro usuarios={usuarios} onFechar={() => setNovo(false)}
           onSalvo={(q) => { setNovo(false); router.push(`/tickets/quadros/${q.id}`) }} />
       )}
+      {organizando && (
+        <OrganizarTicket ticket={organizando} onFechar={() => setOrganizando(null)}
+          onFeito={() => { setOrganizando(null); carregar() }} />
+      )}
+      {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={carregar} />}
     </div>
   )
 }

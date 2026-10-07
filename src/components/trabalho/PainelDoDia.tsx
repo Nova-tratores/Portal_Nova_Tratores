@@ -11,8 +11,9 @@ import {
 import { authHeaders } from '@/lib/auth/client'
 import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
+import EscolhaBloco, { type EscolhaBlocoValor } from './EscolhaBloco'
 
-interface Pendente { id: string; numero: number; titulo: string; prazo: string | null; solicitante_nome: string; quadro_nome: string | null }
+interface Pendente { id: string; numero: number; titulo: string; prazo: string | null; solicitante_nome: string; quadro_id?: string | null; quadro_nome: string | null; visibilidade?: 'privado' | 'publico' }
 interface Item { tipo: 'andamento' | 'comeca' | 'ticket' | 'tarefa'; texto: string; detalhe?: string; ticketId?: string | null; atrasado?: boolean }
 interface Hoje { ativo: boolean; hora: string; pendentes: Pendente[]; itens: Item[]; confirmado: boolean; pedidos: number; preferencias: { atalho_flutuante: boolean } }
 
@@ -36,6 +37,8 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   const [motivo, setMotivo] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  // Bloco + privacidade escolhidos por quem recebe (por ticket pendente)
+  const [organizacao, setOrganizacao] = useState<{ id: string; valor: EscolhaBlocoValor } | null>(null)
 
   const carregar = useCallback(async () => {
     try {
@@ -54,6 +57,11 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
 
   if (!h?.ativo) return null
   const pend = h.pendentes[0]
+  const org: EscolhaBlocoValor = organizacao && pend && organizacao.id === pend.id
+    ? organizacao.valor
+    : { quadroId: null, visibilidade: pend?.visibilidade || 'privado' }
+  // Ticket criado direto num bloco fica nele; senão vai pro bloco escolhido.
+  const extraOrg = pend?.quadro_id ? {} : { quadro_id: org.quadroId, visibilidade: org.visibilidade }
   const mostrarDia = !pend && h.itens.length > 0 && ((h.hora >= '07:30' && !h.confirmado && !diaFechado) || verDia)
   const naDashboard = pathname === '/dashboard' || pathname === '/'
   const atalho = naDashboard && h.preferencias.atalho_flutuante && !pend && !mostrarDia
@@ -65,7 +73,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
       const res = await fetch(`/api/tickets/${pend.id}/acoes`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ acao: 'aceite', ...corpo }) })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) { setErro(json.error || 'Falha'); return }
-      setModo(null); setMotivo(''); setNovaData('')
+      setModo(null); setMotivo(''); setNovaData(''); setOrganizacao(null)
       await carregar()
     } finally { setSalvando(false) }
   }
@@ -89,7 +97,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   }
 
   const fundo: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }
-  const caixa: React.CSSProperties = { width: '100%', maxWidth: 520, background: 'var(--portal-bg-card,#fff)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }
+  const caixa: React.CSSProperties = { width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-bg-card,#fff)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }
   const topo: React.CSSProperties = { background: VERMELHO, color: '#fff', padding: '18px 20px' }
   const btn = (cor?: string): React.CSSProperties => ({ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: 'pointer', border: cor ? 'none' : '1px solid var(--portal-border,#e5e7eb)', background: cor || 'var(--portal-bg-card,#fff)', color: cor ? '#fff' : 'var(--portal-text,#111)' })
 
@@ -109,6 +117,11 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
               <div style={{ fontSize: 18, fontWeight: 800, margin: '4px 0 8px' }}>{pend.titulo}</div>
               <div style={{ color: 'var(--portal-text-secondary,#555)' }}>Prazo: <strong>{pend.prazo ? br(pend.prazo) : 'sem data'}</strong>
                 {' · '}<button onClick={() => setTicketAberto(pend.id)} style={{ border: 'none', background: 'transparent', padding: 0, color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}>ver detalhes</button></div>
+              {modo !== 'recusar' && !pend.quadro_id && (
+                <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed var(--portal-border,#e5e7eb)' }}>
+                  <EscolhaBloco valor={org} onChange={(v) => setOrganizacao({ id: pend.id, valor: v })} />
+                </div>
+              )}
               {modo === 'data' && (
                 <label style={{ display: 'block', marginTop: 12, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Consigo fazer até
                   <input type="date" value={novaData} onChange={(e) => setNovaData(e.target.value)} style={{ display: 'block', width: '100%', marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }} />
@@ -130,13 +143,13 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
                     <button style={btn()} onClick={() => setModo('recusar')}><CircleX size={15} /> Recusar</button>
                     <button style={btn()} onClick={sugerirData}><CalendarClock size={15} /> Propor outra data</button>
                   </span>
-                  <button style={btn('#059669')} disabled={salvando} onClick={() => decidir({ decisao: 'confirmar' })}><Check size={15} /> Confirmar</button>
+                  <button style={btn('#059669')} disabled={salvando} onClick={() => decidir({ decisao: 'confirmar', ...extraOrg })}><Check size={15} /> Confirmar</button>
                 </>
               ) : (
                 <>
                   <button style={btn()} onClick={() => { setModo(null); setErro('') }}>Voltar</button>
                   {modo === 'data'
-                    ? <button style={btn('#059669')} disabled={salvando || !novaData} onClick={() => decidir({ decisao: 'nova_data', data: novaData })}><Check size={15} /> Confirmar com esta data</button>
+                    ? <button style={btn('#059669')} disabled={salvando || !novaData} onClick={() => decidir({ decisao: 'nova_data', data: novaData, ...extraOrg })}><Check size={15} /> Confirmar com esta data</button>
                     : <button style={btn('#dc2626')} disabled={salvando || !motivo.trim()} onClick={() => decidir({ decisao: 'recusar', motivo })}><CircleX size={15} /> Recusar ticket</button>}
                 </>
               )}
@@ -182,9 +195,9 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
               {[
                 { ic: <Inbox size={16} />, txt: 'Para confirmar', n: h.pendentes.length, destaque: h.pendentes.length > 0, acao: () => carregar() },
                 { ic: <Sun size={16} />, txt: 'Meu dia', n: h.itens.length, acao: () => setVerDia(true) },
-                { ic: <Send size={16} />, txt: 'Meus pedidos', n: h.pedidos, acao: () => router.push('/tickets?aba=pedidos') },
+                { ic: <Send size={16} />, txt: 'Meus pedidos', n: h.pedidos, acao: () => router.push('/tickets/quadros#pedidos') },
                 { ic: <Plus size={16} />, txt: 'Novo ticket', acao: () => setNovo(true) },
-                { ic: <ArrowUpRight size={16} />, txt: 'Abrir a Central de Trabalho', acao: () => router.push('/tickets') },
+                { ic: <ArrowUpRight size={16} />, txt: 'Abrir a Central de Trabalho', acao: () => router.push('/tickets/quadros') },
               ].map((o) => (
                 <button key={o.txt} onClick={() => { setMenu(false); o.acao() }}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', border: 'none', background: 'transparent', padding: '11px 14px', fontSize: 13.5, cursor: 'pointer', textAlign: 'left', color: 'var(--portal-text,#111)' }}>

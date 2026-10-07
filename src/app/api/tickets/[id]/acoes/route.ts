@@ -60,6 +60,41 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const souSolicitante = ticket.solicitante_id === auth.userId
   const todos = envolvidos(ticket, participantes)
 
+  // Bloco (quadro) de quem RECEBEU + privacidade, escolhidos ao confirmar ou
+  // depois em "Pra organizar". Devolve mensagem de erro ou null.
+  // quadro_id: undefined = não mexe · null = tira do bloco · uuid = põe no bloco.
+  const organizar = async (quadroId: string | null | undefined, vis: unknown): Promise<string | null> => {
+    const patch: Record<string, unknown> = {}
+    const evento: Record<string, unknown> = {}
+    if (quadroId !== undefined && quadroId !== (ticket.quadro_id || null)) {
+      const nomeAntes = ticket.quadro_id ? (await carregarQuadro(ticket.quadro_id))?.quadro.nome ?? null : null
+      if (quadroId === null) {
+        patch.quadro_id = null; patch.quadro_coluna_id = null
+        evento.quadro = { de: nomeAntes, para: null }
+      } else {
+        const destino = await carregarQuadro(quadroId)
+        if (!destino || destino.quadro.arquivado) return 'Bloco não encontrado.'
+        if (!papeis(destino, auth).trabalhar) return 'Você não participa deste bloco.'
+        patch.quadro_id = quadroId
+        patch.quadro_coluna_id = colunaDoTicket(null, destino.colunas)
+        evento.quadro = { de: nomeAntes, para: destino.quadro.nome }
+      }
+    }
+    if (vis === 'publico' || vis === 'privado') {
+      if (vis !== ticket.visibilidade) { patch.visibilidade = vis; evento.visibilidade = { de: ticket.visibilidade, para: vis } }
+    }
+    if (Object.keys(patch).length === 0) return null
+    const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
+    if (error) return error.message
+    const q = evento.quadro as { de: unknown; para: unknown } | undefined
+    if (q) await registrarEvento(id, auth.userId, 'edicao', { campo: 'quadro', de: q.de, para: q.para })
+    const v = evento.visibilidade as { de: unknown; para: unknown } | undefined
+    if (v) await registrarEvento(id, auth.userId, 'edicao', { campo: 'visibilidade', de: v.de, para: v.para })
+    return null
+  }
+  const quadroDoCorpo = (): string | null | undefined =>
+    !('quadro_id' in body) ? undefined : body.quadro_id ? String(body.quadro_id) : null
+
   // ------------------------------------------------------------- comentar
   if (acao === 'comentar') {
     if (encerrado) return erro('Ticket encerrado — não aceita novos comentários.')
@@ -149,6 +184,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (!novaData) return erro('Escolha a nova data')
         patch.prazo = novaData
       }
+      // Quem recebeu já escolhe o bloco e se fica privado (antes de gravar o
+      // aceite: bloco inválido não pode deixar o ticket confirmado pela metade).
+      const errOrg = await organizar(quadroDoCorpo(), body.visibilidade)
+      if (errOrg) return erro(errOrg)
       const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
       if (error) return erro(error.code === '42703' ? 'A confirmação ainda não foi ativada no banco (rode sql/central-trabalho.sql).' : error.message, error.code === '42703' ? 503 : 500)
       if (novaData) await moverEtapaDoTicket(id, novaData)
@@ -249,9 +288,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ ok: true })
   }
 
+  // ------------------------------------------------------------- organizar
+  // { acao:'organizar', quadro_id?: uuid|null, visibilidade?: 'privado'|'publico' }
+  // Quem recebeu põe o ticket num bloco seu e decide se fica privado.
+  if (acao === 'organizar') {
+    if (!souResponsavel && !souSolicitante && !auth.isAdmin) return erro('Só quem recebeu ou quem pediu organiza o ticket.', 403)
+    const errOrg = await organizar(quadroDoCorpo(), body.visibilidade)
+    if (errOrg) return erro(errOrg)
+    return NextResponse.json({ ok: true })
+  }
+
   // --------------------------------------------------------- visibilidade
   if (acao === 'visibilidade') {
-    if (!souSolicitante && !auth.isAdmin) return erro('Só o solicitante altera a visibilidade.', 403)
+    if (!souSolicitante && !souResponsavel && !auth.isAdmin) return erro('Só quem pediu ou quem recebeu altera a visibilidade.', 403)
     const para = body.para === 'publico' ? 'publico' : 'privado'
     if (para === ticket.visibilidade) return erro('O ticket já está assim.')
     const { error } = await supabaseAdmin.from('tickets').update({ visibilidade: para }).eq('id', id)

@@ -41,7 +41,7 @@ export async function sugestaoAgenda(userId: string, duracao: number, desejado?:
 export async function pendentesDeAceite(userId: string) {
   try {
     const { data, error } = await supabaseAdmin.from('tickets')
-      .select('id, numero, titulo, prazo, solicitante_id, quadro_id, created_at')
+      .select('id, numero, titulo, prazo, solicitante_id, quadro_id, visibilidade, created_at')
       .eq('responsavel_id', userId).eq('aceite', 'pendente').not('status', 'in', `(${STATUS_FINAIS.join(',')})`)
       .order('created_at')
     if (error) return []

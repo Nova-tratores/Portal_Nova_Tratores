@@ -77,6 +77,8 @@ export async function listarQuadros(auth: Autenticado, incluirArquivados: boolea
         ...quadro,
         membros,
         tickets_abertos: abertosPor.get(quadro.id) || 0,
+        // "Meus blocos": criei ou fui adicionado (admin/público não contam)
+        meu: quadro.criado_por === auth.userId || membros.includes(auth.userId),
         pode_trabalhar: podeTrabalhar(quadro, membros, a),
         pode_gerenciar: podeGerenciar(quadro, a),
         _ver: podeVerQuadro(quadro, membros, a),

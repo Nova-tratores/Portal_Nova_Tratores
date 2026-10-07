@@ -106,8 +106,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
     try {
       const res = await fetch('/api/tickets/quadros', { headers: await authHeaders() })
       const json = await res.json()
-      setOpcoesQuadro(((json.quadros || []) as { id: string; nome: string; cor: string; pode_trabalhar: boolean }[])
-        .filter((q) => q.pode_trabalhar))
+      setOpcoesQuadro(((json.quadros || []) as { id: string; nome: string; cor: string; pode_trabalhar: boolean; meu?: boolean }[])
+        .filter((q) => q.pode_trabalhar && q.meu))
     } catch {
       setOpcoesQuadro([])
     }
@@ -237,7 +237,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   const podeCutucar = !encerrado && !souResponsavel && (souSolicitante || souParticipante || isAdmin)
   const podeEditar = !encerrado && (souResponsavel || souSolicitante || isAdmin)
   // Em quadro quem manda é a visibilidade do quadro — o botão some.
-  const podeVisibilidade = (souSolicitante || isAdmin) && !ticket.quadro_id
+  // Quem pediu ou quem recebeu decide se fica privado ou compartilhado (com o bloco).
+  const podeVisibilidade = souSolicitante || souResponsavel || isAdmin
   const podeMoverQuadro = !ehSC && (souSolicitante || souResponsavel || isAdmin)
   const colunaAtual = quadro ? (quadro.colunas.find((c) => c.id === ticket.quadro_coluna_id)?.id ?? quadro.colunas[0]?.id ?? '') : ''
 
@@ -281,12 +282,13 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)', marginBottom: 4 }}>
               {ehSC ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ShoppingCart size={11} /> SC #{ticket.numero}</span> : <>TICKET #{ticket.numero}</>}
               {quadro
-                ? <a href={`/tickets/quadros/${quadro.id}`} style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'inherit', textDecoration: 'none' }} title="Abrir o quadro">
+                ? <a href={`/tickets/quadros/${quadro.id}`} style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4, color: 'inherit', textDecoration: 'none' }} title="Abrir o bloco">
                     <span style={{ width: 8, height: 8, borderRadius: 2, background: quadro.cor }} /> <LayoutGrid size={11} /> {quadro.nome}
                   </a>
-                : ticket.visibilidade === 'privado'
-                  ? <span style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={11} /> privado</span>
-                  : <span style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Globe size={11} /> visível a todos</span>}
+                : null}
+              {ticket.visibilidade === 'privado'
+                ? <span style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Lock size={11} /> privado</span>
+                : <span style={{ marginLeft: 10, display: 'inline-flex', alignItems: 'center', gap: 4 }}><Globe size={11} /> {quadro ? 'compartilhado com o bloco' : 'visível a todos'}</span>}
             </div>
             <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text,#111)', margin: 0 }}>{ticket.titulo}</h1>
             <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 8, flexWrap: 'wrap', fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
@@ -343,7 +345,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           {podeVisibilidade && (
             <button disabled={agindo} style={botaoAcao()}
               onClick={() => acao({ acao: 'visibilidade', para: ticket.visibilidade === 'privado' ? 'publico' : 'privado' })}>
-              {ticket.visibilidade === 'privado' ? <><Globe size={14} /> Tornar visível</> : <><Lock size={14} /> Tornar privado</>}
+              {ticket.visibilidade === 'privado' ? <><Globe size={14} /> {quadro ? 'Compartilhar com o bloco' : 'Tornar visível'}</> : <><Lock size={14} /> Tornar privado</>}
             </button>
           )}
           {quadro && quadro.colunas.length > 0 && (
@@ -358,7 +360,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           )}
           {podeMoverQuadro && (
             <button disabled={agindo} style={botaoAcao()} onClick={abrirModalQuadro}>
-              <LayoutGrid size={14} /> {quadro ? 'Trocar de quadro' : 'Pôr num quadro'}
+              <LayoutGrid size={14} /> {quadro ? 'Trocar de bloco' : 'Pôr num bloco'}
             </button>
           )}
         </div>
@@ -444,10 +446,10 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               else if (e.tipo === 'participante_removido') texto = <>removeu <strong>{nome(String(e.payload.user_id || ''))}</strong> dos participantes</>
               else if (e.tipo === 'pedido_atualizacao') texto = <>pediu atualização{e.payload.texto ? <>: {String(e.payload.texto)}</> : null}</>
               else if (e.tipo === 'edicao') {
-                if (e.payload.campo === 'visibilidade') texto = <>tornou o ticket <strong>{e.payload.para === 'publico' ? 'visível a todos' : 'privado'}</strong></>
+                if (e.payload.campo === 'visibilidade') texto = <>tornou o ticket <strong>{e.payload.para === 'publico' ? 'compartilhado' : 'privado'}</strong></>
                 else if (e.payload.campo === 'quadro') texto = e.payload.para
-                  ? <>colocou o ticket no quadro <strong>{String(e.payload.para)}</strong></>
-                  : <>tirou o ticket do quadro{e.payload.de ? <> <strong>{String(e.payload.de)}</strong></> : null}</>
+                  ? <>colocou o ticket no bloco <strong>{String(e.payload.para)}</strong></>
+                  : <>tirou o ticket do bloco{e.payload.de ? <> <strong>{String(e.payload.de)}</strong></> : null}</>
                 else if (e.payload.campo === 'tarefa') texto = <>{e.payload.acao === 'criada' ? 'criou a tarefa' : e.payload.acao === 'feita' ? 'concluiu a tarefa' : e.payload.acao === 'removida' ? 'removeu a tarefa' : 'reabriu a tarefa'} <strong>{String(e.payload.titulo || '')}</strong></>
                 else if (e.payload.campo === 'cronograma') texto = <>colocou o ticket no <strong>cronograma</strong></>
                 else if (e.payload.campo === 'coluna') texto = <>moveu o cartão{e.payload.de ? <> de {String(e.payload.de)}</> : null} para <strong>{String(e.payload.para)}</strong></>
@@ -808,15 +810,15 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 420, maxHeight: '80vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
             <h3 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 16, fontWeight: 800, margin: '0 0 6px', color: 'var(--portal-text,#111)' }}>
-              <LayoutGrid size={16} color="#dc2626" /> {quadro ? 'Trocar de quadro' : 'Pôr num quadro'}
+              <LayoutGrid size={16} color="#dc2626" /> {quadro ? 'Trocar de bloco' : 'Pôr num bloco'}
             </h3>
             <p style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)', margin: '0 0 14px' }}>
               O ticket entra na primeira coluna. O status não muda.
             </p>
             {opcoesQuadro === null ? (
-              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Carregando quadros...</div>
+              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Carregando blocos...</div>
             ) : opcoesQuadro.filter((q) => q.id !== quadro?.id).length === 0 ? (
-              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Você não participa de nenhum outro quadro. Crie um na aba Quadros.</div>
+              <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Você não tem outro bloco. Crie um na página Quadros.</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {opcoesQuadro.filter((q) => q.id !== quadro?.id).map((q) => (
@@ -831,10 +833,10 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 16 }}>
               {quadro ? (
                 <button disabled={agindo} onClick={() => {
-                  if (window.confirm('Tirar este ticket do quadro?')) acao({ acao: 'quadro', quadro_id: null }, () => setModalQuadro(false))
+                  if (window.confirm('Tirar este ticket do bloco?')) acao({ acao: 'quadro', quadro_id: null }, () => setModalQuadro(false))
                 }}
                   style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#dc2626', fontWeight: 600 }}>
-                  Tirar do quadro
+                  Tirar do bloco
                 </button>
               ) : <span />}
               <button onClick={() => setModalQuadro(false)}

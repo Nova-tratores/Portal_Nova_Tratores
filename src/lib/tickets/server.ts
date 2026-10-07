@@ -48,10 +48,12 @@ export function podeVer(t: Ticket, participantes: TicketParticipante[], auth: Au
   return !t.quadro_id && t.visibilidade === 'publico'
 }
 
-// Quem pode VER, incluindo quem enxerga o quadro do ticket.
+// Quem pode VER, incluindo quem enxerga o quadro (bloco) do ticket.
+// Bloco é de quem recebeu: ticket PRIVADO num bloco fica só com os envolvidos;
+// "publico" num bloco = compartilhado com quem vê o bloco (sql/tickets-blocos.sql).
 export async function podeVerTicket(t: Ticket, participantes: TicketParticipante[], auth: Autenticado): Promise<boolean> {
   if (podeVer(t, participantes, auth)) return true
-  if (!t.quadro_id) return false
+  if (!t.quadro_id || t.visibilidade !== 'publico') return false
   const { data: q } = await supabaseAdmin
     .from('tickets_quadros').select('visibilidade, criado_por').eq('id', t.quadro_id).maybeSingle()
   if (!q) return false

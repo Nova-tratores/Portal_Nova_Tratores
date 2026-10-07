@@ -2,7 +2,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
-import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import SemPermissao from '@/components/SemPermissao'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import {
@@ -72,7 +71,6 @@ function formatDateRelative(d: string | null) {
 function TarefasPageInner() {
   const { userProfile } = useAuth()
   const { pode, isAdmin } = usePermissoes(userProfile?.id)
-  const podeCriar = pode('tarefas', 'criar')
   const podeConcluir = pode('tarefas', 'concluir')
   const [allTarefas, setAllTarefas] = useState<Tarefa[]>([])
   const [users, setUsers] = useState<PortalUser[]>([])
@@ -111,7 +109,9 @@ function TarefasPageInner() {
 
   // Filtragem 100% client-side
   const tarefasFiltradas = useMemo(() => {
-    let filtered = allTarefas
+    // PENDÊNCIAS: só as tarefas soltas (as automáticas dos robôs do estoque/DRE
+    // e as antigas). Tarefa de ticket mora dentro do ticket.
+    let filtered = allTarefas.filter(t => !t.ticket_id)
 
     if (tab === 'orfas') {
       // tarefas ABERTAS de usuário INATIVO ou SEM responsável (rede de segurança do admin)
@@ -191,7 +191,7 @@ function TarefasPageInner() {
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <ClipboardCheck size={22} color="#dc2626" />
-            <h1 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>Tarefas</h1>
+            <h1 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>Pendências</h1>
           </div>
 
           <div style={{ display: 'flex', background: '#f5f5f5', borderRadius: '10px', padding: '3px' }}>
@@ -203,7 +203,7 @@ function TarefasPageInner() {
                 fontSize: '13px', fontWeight: '600', cursor: 'pointer',
                 transition: 'all 0.2s'
               }}>
-                {t === 'minhas' ? 'Minhas Tarefas' : t === 'enviadas' ? 'Tarefas Enviadas' : `Órfãs${totalOrfas ? ` (${totalOrfas})` : ''}`}
+                {t === 'minhas' ? 'Minhas pendências' : t === 'enviadas' ? 'Enviadas' : `Órfãs${totalOrfas ? ` (${totalOrfas})` : ''}`}
               </button>
             ))}
           </div>
@@ -235,16 +235,7 @@ function TarefasPageInner() {
             Concluídas
           </button>
 
-          <button onClick={() => setShowCreate(true)} {...gateBtn(podeCriar)} style={{
-            padding: '10px 20px', borderRadius: '10px', border: 'none',
-            background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-            color: '#fff', fontSize: '13px', fontWeight: '600', cursor: 'pointer',
-            display: 'flex', alignItems: 'center', gap: '8px',
-            boxShadow: '0 4px 12px rgba(220,38,38,0.25)',
-            ...estiloSemPermissao(podeCriar)
-          }}>
-            <Plus size={18} /> Nova Tarefa
-          </button>
+          {/* Nova tarefa solta não existe mais: use "Nova tarefa" na barra (sempre dentro de um ticket). */}
         </div>
       </div>
 

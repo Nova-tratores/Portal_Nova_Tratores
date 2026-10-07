@@ -46,7 +46,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const { data: tickets, error } = await q
     if (error) throw Object.assign(new Error(error.message), { code: error.code })
 
-    const lista = (tickets || []) as Ticket[]
+    // Bloco compartilhado: ticket PRIVADO só aparece pra quem está nele
+    // (quem pediu, quem faz, participante) ou admin.
+    let lista = (tickets || []) as Ticket[]
+    if (!auth.isAdmin) {
+      const privados = lista.filter((t) => t.visibilidade !== 'publico' && t.solicitante_id !== auth.userId && t.responsavel_id !== auth.userId)
+      if (privados.length) {
+        const { data: parts } = await supabaseAdmin.from('tickets_participantes').select('ticket_id')
+          .eq('user_id', auth.userId).is('removido_em', null).in('ticket_id', privados.map((t) => t.id))
+        const participo = new Set((parts || []).map((p) => p.ticket_id))
+        const esconder = new Set(privados.filter((t) => !participo.has(t.id)).map((t) => t.id))
+        lista = lista.filter((t) => !esconder.has(t.id))
+      }
+    }
     const ids = [...new Set([c.quadro.criado_por, ...c.membros, ...lista.flatMap((t) => [t.solicitante_id, t.responsavel_id])])]
     const { data: us } = await supabaseAdmin.from('financeiro_usu').select('id, nome, avatar_url').in('id', ids)
     const usuarios: Record<string, { id: string; nome: string; avatar_url: string | null }> = {}

@@ -1,29 +1,54 @@
 'use client'
-// CENTRAL DE TRABALHO — barra única do módulo (Tarefas + Tickets + Cronograma).
-// Fica no topo de /tickets, /tickets/quadros, /tickets/compras, /cronograma e /tarefas.
+// CENTRAL DE TRABALHO — barra única do módulo. Fica no topo de /tickets*,
+// /cronograma* e /tarefas. Quadros (os blocos de cada um) é a casa; Cronograma
+// é a visão geral por dia; Pendências só aparece pra quem tem tarefas
+// automáticas (robôs do estoque / DRE). Criar ticket e tarefa = botões.
 import { useEffect, useState } from 'react'
 import { authHeaders } from '@/lib/auth/client'
 import Link from 'next/link'
-import { usePathname, useSearchParams } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import {
-  LayoutGrid, Ticket as TicketIcon, Send, GanttChartSquare, SquareCheck, ShoppingCart, X,
-  ArrowRight, ArrowLeft, CircleCheck, Clock, Calendar,
+  LayoutGrid, Ticket as TicketIcon, GanttChartSquare, SquareCheck, X, ListTodo,
+  ArrowRight, Users, Lock, Calendar,
 } from 'lucide-react'
+import FormTicket from '@/components/tickets/FormTicket'
+import TicketModal from '@/components/tickets/TicketModal'
+import FormTarefa from './FormTarefa'
 
 export default function CentralNav() {
   const pathname = usePathname() || ''
-  const sp = useSearchParams()
   const [ajuda, setAjuda] = useState(false)
-  const aba = sp?.get('aba')
-  const emTickets = pathname === '/tickets' || (pathname.startsWith('/tickets/') && !pathname.startsWith('/tickets/quadros') && !pathname.startsWith('/tickets/compras'))
+  const [novoTicket, setNovoTicket] = useState(false)
+  const [novaTarefa, setNovaTarefa] = useState(false)
+  const [ticketAberto, setTicketAberto] = useState<string | null>(null)
+  const [pendencias, setPendencias] = useState(0)
+
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      try {
+        const r = await fetch('/api/trabalho/central', { headers: await authHeaders() })
+        const j = await r.json()
+        if (vivo && r.ok) setPendencias(j.pendencias || 0)
+      } catch { /* sem contagem: a aba fica escondida */ }
+    })()
+    return () => { vivo = false }
+  }, [pathname])
+
+  const emQuadros = pathname.startsWith('/tickets')
   const abas = [
-    { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={16} />, ativo: pathname.startsWith('/tickets/quadros') },
-    { href: '/tickets', label: 'Tickets', icone: <TicketIcon size={16} />, ativo: emTickets && aba !== 'pedidos' },
-    { href: '/tickets?aba=pedidos', label: 'Meus pedidos', icone: <Send size={16} />, ativo: emTickets && aba === 'pedidos' },
+    { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={16} />, ativo: emQuadros },
     { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={16} />, ativo: pathname.startsWith('/cronograma') },
-    { href: '/tarefas', label: 'Tarefas', icone: <SquareCheck size={16} />, ativo: pathname.startsWith('/tarefas') },
-    { href: '/tickets/compras', label: 'Solicitações de Compras', icone: <ShoppingCart size={16} />, ativo: pathname.startsWith('/tickets/compras') },
+    ...(pendencias > 0 || pathname.startsWith('/tarefas')
+      ? [{ href: '/tarefas', label: 'Pendências', icone: <ListTodo size={16} />, ativo: pathname.startsWith('/tarefas'), n: pendencias }]
+      : []),
   ]
+  // Avisa a página aberta (Quadros/Cronograma) que algo novo foi criado.
+  const avisarMudanca = () => window.dispatchEvent(new Event('central-trabalho-mudou'))
+  const botao = (cor: string): React.CSSProperties => ({
+    display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: 'none', flex: 'none',
+    background: cor, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap',
+  })
 
   return (
     <>
@@ -37,12 +62,29 @@ export default function CentralNav() {
             borderBottom: a.ativo ? '2px solid #dc2626' : '2px solid transparent',
           }}>
             {a.icone} {a.label}
+            {'n' in a && typeof a.n === 'number' && a.n > 0 && (
+              <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 999, background: '#dc2626', color: '#fff' }}>{a.n}</span>
+            )}
           </Link>
         ))}
-        <button onClick={() => setAjuda(true)} title="Como funciona" aria-label="Como funciona a Central de Trabalho"
-          style={{ marginLeft: 'auto', flex: 'none', width: 30, height: 30, borderRadius: '50%', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>?</button>
+        <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingLeft: 12 }}>
+          <button onClick={() => setNovoTicket(true)} style={botao('#dc2626')}><TicketIcon size={15} /> Novo ticket</button>
+          <button onClick={() => setNovaTarefa(true)} style={botao('#16a34a')}><SquareCheck size={15} /> Nova tarefa</button>
+          <button onClick={() => setAjuda(true)} title="Como funciona" aria-label="Como funciona a Central de Trabalho"
+            style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>?</button>
+        </span>
       </nav>
       {ajuda && <ComoFunciona onFechar={() => setAjuda(false)} />}
+      {novoTicket && (
+        <FormTicket onFechar={() => setNovoTicket(false)}
+          onCriado={(id) => { setNovoTicket(false); avisarMudanca(); setTicketAberto(id) }} />
+      )}
+      {novaTarefa && (
+        <FormTarefa onFechar={() => setNovaTarefa(false)}
+          onNovoTicket={() => { setNovaTarefa(false); setNovoTicket(true) }}
+          onCriada={(id) => { setNovaTarefa(false); avisarMudanca(); setTicketAberto(id) }} />
+      )}
+      {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={avisarMudanca} />}
     </>
   )
 }
@@ -54,12 +96,11 @@ function ComoFunciona({ onFechar }: { onFechar: () => void }) {
   })
   const seta: React.CSSProperties = { display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-muted,#888)', textAlign: 'center', flex: 'none' }
   const passos = [
-    ['1. Planeje', 'Monte as etapas no Cronograma (duração, quem faz, o que depende do quê). O sistema calcula as datas e o caminho crítico.'],
-    ['2. Comece', 'Na etapa, clique Iniciar: nasce um ticket no quadro do projeto, com prazo e responsável. A etapa fica "em andamento" com a data real.'],
-    ['3. Execute', 'O trabalho anda no ticket: conversa, anexos, checklist de tarefas e a coluna do quadro.'],
-    ['4. Conclua', 'Ticket resolvido = etapa concluída no Cronograma. As etapas seguintes são recalculadas.'],
-    ['5. Atrasou?', 'Se o ticket passa do previsto sem resolver, o Cronograma replaneja sozinho e mostra a nova data de entrega.'],
-    ['6. Coisas soltas', 'Uma tarefa que cresceu vira ticket e etapa do Cronograma com um botão só: Transformar. Um ticket fora do plano entra com Planejar.'],
+    ['1. Peça', 'Novo ticket: o que precisa, para quem e até quando. Quem pediu acompanha o dia e a situação até o fim.'],
+    ['2. Quem recebe organiza', 'Confirma (ou propõe outra data / recusa) e escolhe em qual BLOCO o ticket vai e se fica privado ou compartilhado com o bloco.'],
+    ['3. Blocos', 'Cada pessoa tem os seus blocos, por assunto, cada um de uma cor. Dá pra convidar colegas para um bloco.'],
+    ['4. Tarefas', 'Nova tarefa sempre dentro de um ticket (que você criou ou recebeu): os passos pequenos, com quem faz e prazo.'],
+    ['5. Cronograma', 'Tudo que você pode ver, por dia, cada ticket na cor do seu bloco. Atrasados aparecem primeiro.'],
   ]
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onFechar() }} style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -70,18 +111,18 @@ function ComoFunciona({ onFechar }: { onFechar: () => void }) {
         </header>
         <div style={{ padding: 18, color: 'var(--portal-text,#111)' }}>
           <p style={{ margin: 0, color: 'var(--portal-text-secondary,#555)', fontSize: 13.5 }}>
-            O Cronograma diz <b>quando deveria</b> acontecer. O Ticket mostra <b>o que está acontecendo</b>. A Tarefa é o <b>passo pequeno</b> dentro disso. Qualquer um pode virar o outro, e as datas se ajustam sozinhas.
+            O <b>Ticket</b> é o pedido. Quem recebe guarda num dos seus <b>Blocos</b> (por assunto, cada um de uma cor). As <b>Tarefas</b> são os passos dentro do ticket. O <b>Cronograma</b> junta tudo por dia.
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '16px 0', flexWrap: 'wrap' }}>
-            <div style={caixa(false)}><SquareCheck size={22} color="#dc2626" /><b>Tarefa</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>o passo pequeno</small></div>
-            <div style={seta}><span>Transformar<br />ou incluir</span><ArrowRight size={18} /></div>
-            <div style={caixa(true)}><TicketIcon size={22} color="#dc2626" /><b>Ticket</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>o que está acontecendo</small></div>
-            <div style={seta}><ArrowLeft size={18} /><span>Iniciar</span></div>
-            <div style={caixa(false)}><Calendar size={22} color="#dc2626" /><b>Cronograma</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>quando deveria acontecer</small></div>
+            <div style={caixa(true)}><TicketIcon size={22} color="#dc2626" /><b>Ticket</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>o pedido</small></div>
+            <div style={seta}><span>quem recebe<br />escolhe</span><ArrowRight size={18} /></div>
+            <div style={caixa(false)}><LayoutGrid size={22} color="#dc2626" /><b>Bloco</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>organização, com cor</small></div>
+            <div style={seta}><span>por dia</span><ArrowRight size={18} /></div>
+            <div style={caixa(false)}><Calendar size={22} color="#dc2626" /><b>Cronograma</b><small style={{ color: 'var(--portal-text-muted,#888)' }}>tudo, na cor do bloco</small></div>
           </div>
           <div style={{ display: 'grid', gap: 6, marginBottom: 14, fontSize: 13.5 }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><CircleCheck size={16} color="#059669" /> Ticket <b>resolvido</b> = etapa <b>concluída</b> no cronograma</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Clock size={16} color="#d97706" /> Ticket <b>atrasado</b> = cronograma <b>empurra</b> as próximas etapas sozinho</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Lock size={16} color="#6b7280" /> <b>Privado</b>: só você, quem pediu e quem estiver no ticket</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><Users size={16} color="#059669" /> <b>Compartilhado</b>: quem participa do bloco também vê</div>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(210px,1fr))', gap: 10 }}>
             {passos.map(([t, d]) => (

@@ -40,7 +40,7 @@ export default function FormQuadro({ inicial, usuarios = {}, onFechar, onSalvo }
 
   const enviar = async (extra: Record<string, unknown> = {}) => {
     setErro('')
-    if (!nome.trim()) { setErro('Dê um nome ao quadro.'); return }
+    if (!nome.trim()) { setErro('Dê um nome ao bloco.'); return }
     setSalvando(true)
     try {
       const res = await fetch(editando ? `/api/tickets/quadros/${inicial!.id}` : '/api/tickets/quadros', {
@@ -59,11 +59,11 @@ export default function FormQuadro({ inicial, usuarios = {}, onFechar, onSalvo }
   }
 
   return (
-    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 1400, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '90vh', overflowY: 'auto', background: 'var(--portal-surface, #fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
           <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 17, fontWeight: 800, color: 'var(--portal-text, #111)', margin: 0 }}>
-            <LayoutGrid size={18} color={cor} /> {editando ? 'Configurar quadro' : 'Novo quadro'}
+            <LayoutGrid size={18} color={cor} /> {editando ? 'Configurar bloco' : 'Novo bloco'}
           </h2>
           <button onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted, #888)' }}><X size={20} /></button>
         </div>
@@ -77,7 +77,7 @@ export default function FormQuadro({ inicial, usuarios = {}, onFechar, onSalvo }
           <div>
             <label style={rotulo} htmlFor="q-desc">Descrição</label>
             <textarea id="q-desc" value={descricao} onChange={(e) => setDescricao(e.target.value)} rows={2} maxLength={500}
-              placeholder="Para que serve este quadro (opcional)" style={{ ...campo, resize: 'vertical' }} />
+              placeholder="Para que serve este bloco (opcional)" style={{ ...campo, resize: 'vertical' }} />
           </div>
           <div>
             <span style={rotulo}>Cor</span>
@@ -105,7 +105,7 @@ export default function FormQuadro({ inicial, usuarios = {}, onFechar, onSalvo }
               ))}
             </div>
             <p style={{ margin: '6px 0 0', fontSize: 12, color: 'var(--portal-text-muted, #888)' }}>
-              Em quadro público, quem não é integrante só olha; criar e mover cartões é dos integrantes.
+              Em bloco público, quem não é integrante só olha; criar e mover cartões é dos integrantes.
             </p>
           </div>
 
@@ -141,7 +141,7 @@ export default function FormQuadro({ inicial, usuarios = {}, onFechar, onSalvo }
             {editando && (
               <button type="button" disabled={salvando} onClick={() => {
                 const arquivar = !inicial!.arquivado
-                if (arquivar && !window.confirm('Arquivar este quadro? Ele sai da lista e ninguém cria tickets nele. Os tickets continuam existindo.')) return
+                if (arquivar && !window.confirm('Arquivar este bloco? Ele sai da lista e ninguém cria tickets nele. Os tickets continuam existindo.')) return
                 enviar({ arquivado: arquivar })
               }}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 12px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e7eb)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--portal-text-secondary, #555)' }}>
@@ -153,7 +153,7 @@ export default function FormQuadro({ inicial, usuarios = {}, onFechar, onSalvo }
               style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e7eb)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--portal-text-secondary, #555)' }}>Cancelar</button>
             <button type="button" onClick={() => enviar()} disabled={salvando}
               style={{ padding: '9px 18px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontSize: 14, fontWeight: 700, opacity: salvando ? .6 : 1 }}>
-              {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Criar quadro'}
+              {salvando ? 'Salvando...' : editando ? 'Salvar' : 'Criar bloco'}
             </button>
           </div>
         </div>

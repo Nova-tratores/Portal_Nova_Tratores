@@ -68,7 +68,8 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro }:
     setPrazo(d.toISOString().slice(0, 10))
   }, [inicio, duracao, tocouPrazo])
   const [terceiro, setTerceiro] = useState('')
-  const [visibilidade, setVisibilidade] = useState<TicketVisibilidade>('privado')
+  // Dentro de um bloco o padrão é compartilhar com o bloco; fora, privado.
+  const [visibilidade, setVisibilidade] = useState<TicketVisibilidade>(quadro ? 'publico' : 'privado')
   const [print, setPrint] = useState<File | null>(printInicial ?? null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -216,17 +217,12 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro }:
               placeholder="Ex: Corretora XYZ (opcional)" style={campoStyle} />
           </div>
 
-          {quadro ? (
-            <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #888)' }}>
-              Quem enxerga o quadro <strong>{quadro.nome}</strong> vai ver este ticket.
-            </div>
-          ) : (
           <div>
             <label style={rotuloStyle}>Visibilidade</label>
             <div style={{ display: 'flex', gap: 8 }}>
               {([
                 { valor: 'privado' as const, rotulo: 'Privado (só envolvidos)', icone: <Lock size={14} /> },
-                { valor: 'publico' as const, rotulo: 'Visível a todos', icone: <Globe size={14} /> },
+                { valor: 'publico' as const, rotulo: quadro ? `Compartilhado com o bloco ${quadro.nome}` : 'Visível a todos', icone: <Globe size={14} /> },
               ]).map((op) => (
                 <button key={op.valor} type="button" onClick={() => setVisibilidade(op.valor)}
                   style={{
@@ -241,7 +237,6 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro }:
               ))}
             </div>
           </div>
-          )}
 
           {print && printUrl && (
             <div>

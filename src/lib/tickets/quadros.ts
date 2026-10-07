@@ -35,6 +35,8 @@ export interface QuadroResumo extends Quadro {
   tickets_abertos: number
   pode_trabalhar: boolean
   pode_gerenciar: boolean
+  /** Criei ou sou integrante (o bloco é "meu"). */
+  meu?: boolean
 }
 
 export const COLUNAS_PADRAO = ['A fazer', 'Fazendo', 'Feito']
