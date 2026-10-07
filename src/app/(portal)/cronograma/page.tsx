@@ -2,13 +2,15 @@
 // CENTRAL DE TRABALHO — Cronograma GERAL: tudo que eu posso ver, em ordem de
 // dia (prazo), cada ticket na cor do seu bloco. Atrasados primeiro, sem data
 // por último. Os antigos "projetos" saíram: quem organiza agora são os blocos.
+// Vistas: Lista (por dia) · Gantt · Calendário · Kanban (VistasCronogramaGeral).
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { GanttChartSquare, RefreshCw, SquareCheck, AlertTriangle } from 'lucide-react'
+import { GanttChartSquare, RefreshCw, SquareCheck, AlertTriangle, List, CalendarDays, Columns3 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import type { Ticket } from '@/lib/tickets/constantes'
+import type { Ticket, TicketStatus } from '@/lib/tickets/constantes'
 import StatusBadge from '@/components/tickets/StatusBadge'
 import TicketModal from '@/components/tickets/TicketModal'
+import VistasCronogramaGeral, { type VistaGeral } from '@/components/trabalho/VistasCronogramaGeral'
 
 interface Dados {
   tickets: Ticket[]
@@ -18,6 +20,13 @@ interface Dados {
   eu: string
 }
 type Filtro = 'tudo' | 'faco' | 'pedi'
+type Vista = 'lista' | VistaGeral
+const VISTAS: [Vista, string, React.ReactNode][] = [
+  ['lista', 'Lista', <List key="l" size={15} />],
+  ['gantt', 'Gantt', <GanttChartSquare key="g" size={15} />],
+  ['calendario', 'Calendário', <CalendarDays key="c" size={15} />],
+  ['kanban', 'Kanban', <Columns3 key="k" size={15} />],
+]
 
 const SEM_BLOCO = '__sem__'
 const COR_SEM_BLOCO = '#9ca3af'
@@ -39,6 +48,11 @@ export default function CronogramaGeralPage() {
   const [filtro, setFiltro] = useState<Filtro>('tudo')
   const [ocultos, setOcultos] = useState<Set<string>>(new Set())
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
+  const [vista, setVista] = useState<Vista>('lista')
+  useEffect(() => {
+    try { const v = localStorage.getItem('cronograma-geral-vista'); if (v && VISTAS.some(([x]) => x === v)) setVista(v as Vista) } catch { /* sem storage */ }
+  }, [])
+  const trocarVista = (v: Vista) => { setVista(v); try { localStorage.setItem('cronograma-geral-vista', v) } catch { /* sem storage */ } }
 
   const carregar = useCallback(async () => {
     setErro('')
@@ -59,7 +73,40 @@ export default function CronogramaGeralPage() {
 
   const hoje = hojeISO()
   const blocoDe = (t: Ticket) => (t.quadro_id && dados?.quadros[t.quadro_id] ? t.quadro_id : SEM_BLOCO)
-  const corDe = (t: Ticket) => (t.quadro_id && dados?.quadros[t.quadro_id]?.cor) || COR_SEM_BLOCO
+  const corDe = useCallback((t: Ticket) => (t.quadro_id && dados?.quadros[t.quadro_id]?.cor) || COR_SEM_BLOCO, [dados])
+  const quem = useCallback((t: Ticket) => {
+    if (!dados) return ''
+    const eu = dados.eu
+    return t.responsavel_id === eu
+      ? (t.solicitante_id === eu ? 'eu mesmo' : `de ${dados.usuarios[t.solicitante_id]?.nome || '—'}`)
+      : `${dados.usuarios[t.responsavel_id]?.nome || '—'} faz`
+  }, [dados])
+  const progresso = useCallback((t: Ticket) => {
+    const p = dados?.passos[t.id]
+    return p && p.total > 0 ? Math.round((p.feitas / p.total) * 100) : null
+  }, [dados])
+
+  // Arrastar no Gantt/Calendário (prazo) e no Kanban (status): otimista, pela
+  // mesma rota dos botões do ticket (evento na timeline + notificação). O
+  // servidor decide quem pode; recusou = volta como estava + aviso.
+  const acaoTicket = useCallback(async (id: string, corpo: Record<string, unknown>, patch: Partial<Ticket>) => {
+    setDados((d) => d && { ...d, tickets: d.tickets.map((t) => (t.id === id ? { ...t, ...patch } : t)) })
+    try {
+      const res = await fetch(`/api/tickets/${id}/acoes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify(corpo),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(json.error || 'Não deu para mudar')
+      setErro('')
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : 'Não deu para mudar')
+    }
+    carregar()
+  }, [carregar])
+  const mudarPrazo = useCallback((id: string, prazo: string) => acaoTicket(id, { acao: 'editar', prazo }, { prazo }), [acaoTicket])
+  const mudarStatus = useCallback((id: string, para: TicketStatus) => acaoTicket(id, { acao: 'status', para }, { status: para }), [acaoTicket])
 
   // Legenda = só os blocos que aparecem na lista
   const legenda = useMemo(() => {
@@ -103,10 +150,6 @@ export default function CronogramaGeralPage() {
   const linha = (t: Ticket) => {
     const q = t.quadro_id ? dados!.quadros[t.quadro_id] : null
     const p = dados!.passos[t.id]
-    const eu = dados!.eu
-    const quem = t.responsavel_id === eu
-      ? (t.solicitante_id === eu ? 'eu mesmo' : `de ${dados!.usuarios[t.solicitante_id]?.nome || '—'}`)
-      : `${dados!.usuarios[t.responsavel_id]?.nome || '—'} faz`
     return (
       <button key={t.id} onClick={() => setTicketAberto(t.id)}
         style={{ display: 'flex', alignItems: 'stretch', width: '100%', textAlign: 'left', padding: 0, borderRadius: 10, overflow: 'hidden', cursor: 'pointer', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)' }}>
@@ -115,7 +158,7 @@ export default function CronogramaGeralPage() {
           <span style={{ flex: '1 1 220px', minWidth: 0 }}>
             <span style={{ display: 'block', fontSize: 14, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{t.numero} {t.titulo}</span>
             <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>
-              {quem}{q ? <> · <span style={{ color: q.cor, fontWeight: 700 }}>{q.nome}</span></> : null}
+              {quem(t)}{q ? <> · <span style={{ color: q.cor, fontWeight: 700 }}>{q.nome}</span></> : null}
               {p && p.total > 0 ? <> · <SquareCheck size={11} style={{ verticalAlign: -1 }} /> {p.feitas}/{p.total}</> : null}
             </span>
           </span>
@@ -151,6 +194,15 @@ export default function CronogramaGeralPage() {
         {([['tudo', 'Tudo'], ['faco', 'Que eu faço'], ['pedi', 'Que eu pedi']] as [Filtro, string][]).map(([v, l]) => (
           <button key={v} onClick={() => setFiltro(v)} style={pilula(filtro === v)}>{l}</button>
         ))}
+        <div role="group" aria-label="Forma de ver o cronograma" style={{ display: 'flex', gap: 4, marginLeft: isMobile ? 0 : 'auto', padding: 3, borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)' }}>
+          {VISTAS.map(([v, txt, ic]) => (
+            <button key={v} aria-pressed={vista === v} onClick={() => trocarVista(v)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none',
+                background: vista === v ? 'rgba(220,38,38,.1)' : 'transparent', color: vista === v ? '#dc2626' : 'var(--portal-text-muted,#666)' }}>
+              {ic} {txt}
+            </button>
+          ))}
+        </div>
       </div>
       {legenda.length > 0 && (
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 10 }}>
@@ -170,6 +222,9 @@ export default function CronogramaGeralPage() {
 
       {!dados ? (
         !erro && <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando...</div>
+      ) : vista !== 'lista' ? (
+        <VistasCronogramaGeral vista={vista} tickets={visiveis} hoje={hoje} corDe={corDe} quem={quem} progresso={progresso}
+          onAbrir={setTicketAberto} onMudarPrazo={mudarPrazo} onMudarStatus={mudarStatus} />
       ) : (
         <>
           {/* Próximas 2 semanas */}
