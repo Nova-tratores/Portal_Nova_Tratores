@@ -124,10 +124,13 @@ export interface HistOS {
   num_os: string | null; empresa: string | null; data_inclusao: string | null;
   data_faturamento: string | null; etapa: string | null; status: string | null;
   valor_total: number | null; descricao: string | null; servicos: string | null; num_nf: string | null;
+  // cockpit: código interno Omie (print), PV citado na OS, projeto (máquina) e NF
+  cod_os?: number | null; num_pedido_cli?: string | null; projeto?: string | null; link_nf?: string | null;
 }
 export interface HistPV {
   num_pedido: string | null; empresa: string | null; data_inclusao: string | null;
   etapa: string | null; valor_total: number | null; faturado: string | null; numero_nf: string | null;
+  cod_pedido?: number | null; link_nf?: string | null;
 }
 export interface HistReq {
   id: number; titulo: string | null; tipo: string | null; data: string | null;
@@ -135,8 +138,8 @@ export interface HistReq {
 }
 export interface HistoricoCliente { os: HistOS[]; pv: HistPV[]; requisicoes: HistReq[] }
 
-const SEL_OS = "num_os, empresa, data_inclusao, data_faturamento, etapa, status, valor_total, descricao, servicos, num_nf";
-const SEL_PV = "num_pedido, empresa, data_inclusao, etapa, valor_total, faturado, numero_nf";
+const SEL_OS = "num_os, empresa, data_inclusao, data_faturamento, etapa, status, valor_total, descricao, servicos, num_nf, cod_os, num_pedido_cli, projeto, link_nf";
+const SEL_PV = "num_pedido, empresa, data_inclusao, etapa, valor_total, faturado, numero_nf, cod_pedido, link_nf";
 
 export async function buscarHistoricoCliente(
   sb: Sb,

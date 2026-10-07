@@ -2,7 +2,7 @@
 // Cockpit de atendimento — tela de LEITURA para quem senta para ligar.
 // Três colunas: quem é (esq.) · contexto (centro) · a ligação (dir., fixa).
 // Linguagem de balcão, poucos botões, tudo visível sem caçar informação.
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import styles from "../feedbacks.module.css";
 import CardContatosWhatsapp from "./CardContatosWhatsapp";
 import { BannerBloqueio, FaixaBloqueio, VERMELHO, VERMELHO_ESCURO } from "./Bloqueado";
@@ -10,10 +10,14 @@ import { renderizarDetalhes, renderizarUltimaInteracao } from "../OportunidadeCa
 import { REGRA_ROTULO, STATUS_ATENDIMENTO_ROTULO, fmtDataBR, fmtMoeda, haQuanto } from "@/lib/feedbacks/atendimento/rotulos";
 import type { ContextoAtendimento } from "@/lib/feedbacks/atendimento/contexto";
 import type { RoteiroMontado } from "@/lib/feedbacks/atendimento/roteiro";
-import type { AtendimentoResumo, Maquina } from "@/lib/feedbacks/atendimento/puro";
+import { ligacoesPpvOs, type AtendimentoResumo, type Compra, type Maquina, type Servico } from "@/lib/feedbacks/atendimento/puro";
+import { linkNF, linkOS, linkPPV, linkPV, linkProjeto, SEM_ACESSO, type Acesso, type LinkDoc } from "@/lib/feedbacks/atendimento/links";
 import type { TipoFeedback } from "@/lib/feedbacks/types";
 
 export const COR_ATENDIMENTO = "#d97706";
+const COR_SERVICOS = "#7c3aed";
+const COR_COMPRAS = "#0f766e";
+const COR_MAQUINAS = "#0369a1";
 
 interface Props {
   ctx: ContextoAtendimento | null;
@@ -32,11 +36,28 @@ interface Props {
   onCorrigirCadastro?: () => void;
   /** 💀 marcar "Não contatar" / reativar (mesma regra do CRM) */
   onNaoContatar?: () => void;
+  /** módulos do usuário: decide se OS/PPV abrem a tela ou o PDF (links.ts) */
+  acesso?: Acesso;
+  /** clique numa máquina (ou no chip 🚜 de uma OS) → modal de histórico */
+  onAbrirMaquina?: (m: Maquina) => void;
+  /** auditoria: usuário abriu um documento a partir da ficha */
+  onAbrirDocumento?: (tipo: string, id: string) => void;
 }
 
-export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, onEditarPerfil, painelDireito, assuntoId, onEscolherAssunto, roteiro, onCorrigirCadastro, onNaoContatar }: Props) {
+export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, onEditarPerfil, painelDireito, assuntoId, onEscolherAssunto, roteiro, onCorrigirCadastro, onNaoContatar, acesso = SEM_ACESSO, onAbrirMaquina, onAbrirDocumento }: Props) {
   const id = ctx?.identidade ?? null;
   const emLigacao = assuntoId !== undefined && !!onEscolherAssunto;
+  // Destaque cruzado PPV ↔ POS: passar o mouse num item acende o par no outro card.
+  const [foco, setFoco] = useState<string[] | null>(null);
+  const vinculos = useMemo(() => ligacoesPpvOs(ctx?.servicos ?? [], ctx?.compras ?? []), [ctx?.servicos, ctx?.compras]);
+  const idsServico = (s: Servico) => [s.id_ordem, ...s.ppv_ids, ...(s.id_ordem ? vinculos.ppvsPorOs[s.id_ordem.toUpperCase()] ?? [] : [])].filter((x): x is string => !!x).map((x) => x.toUpperCase());
+  const idsCompra = (c: Compra) => [c.id_ppv, c.os_id, ...(c.id_ppv ? [vinculos.osPorPpv[c.id_ppv.toUpperCase()]] : [])].filter((x): x is string => !!x).map((x) => x.toUpperCase());
+  const aceso = (ids: string[]) => !!foco && ids.some((i) => foco.includes(i));
+  const maquinaDoChassi = (chassi: string | null): Maquina | null => {
+    if (!chassi || !ctx?.maquinas) return null;
+    const C = chassi.toUpperCase();
+    return ctx.maquinas.find((m) => m.chassi && (m.chassi === C || (C.length >= 7 && m.chassi.endsWith(C.slice(-7))) || (m.chassi.length >= 7 && C.endsWith(m.chassi.slice(-7))))) ?? null;
+  };
   // Cliente marcado "Não contatar": ficha em preto e branco, menos informação,
   // avisos vermelhos. "Mostrar ficha completa" revela o resto sem tirar a marca.
   const bloqueado = !!id?.nao_contatar;
@@ -174,59 +195,113 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
         </Card>
 
         {!ocultar && (<>
-        <Card cinza={cinza} titulo="Máquinas" emoji="🚜" cor="#0369a1" contagem={ctx?.maquinas?.length} carregando={carregando && !ctx} erro={ctx?.erros.maquinas}>
+        <Card cinza={cinza} titulo="Máquinas" emoji="🚜" cor={COR_MAQUINAS} contagem={ctx?.maquinas?.length} carregando={carregando && !ctx} erro={ctx?.erros.maquinas}>
           {!ctx?.maquinas?.length ? (
-            <Vazio>Nenhum trator no controle de revisões nem equipamento na pasta.</Vazio>
+            <Vazio>Nenhuma máquina encontrada (controle de revisões, projetos Omie, OS/PPV, CRM ou pasta).</Vazio>
           ) : (
-            <table style={tabela}>
-              <thead>
-                <tr><th>Máquina</th><th>Chassi</th><th>Entrega</th><th>Última revisão</th><th>Próxima revisão</th></tr>
-              </thead>
-              <tbody>
-                {ctx.maquinas.map((m, i) => <LinhaMaquina key={i} m={m} />)}
-              </tbody>
-            </table>
+            <>
+              <table style={tabela}>
+                <thead>
+                  <tr><th style={{ textAlign: "left" }}>Máquina</th><th style={{ textAlign: "left" }}>Chassi</th><th style={{ textAlign: "left" }}>Entrega</th><th style={{ textAlign: "left" }}>Última revisão</th><th style={{ textAlign: "left" }}>Próxima revisão</th><th /></tr>
+                </thead>
+                <tbody>
+                  {ctx.maquinas.map((m, i) => <LinhaMaquina key={`${m.chassi || m.modelo}-${i}`} m={m} onAbrir={onAbrirMaquina} />)}
+                </tbody>
+              </table>
+              <div style={{ fontSize: 10, opacity: 0.55, marginTop: 6 }}>Clique na máquina para ver o histórico completo (entrega, revisões, OS, peças, garantias, atendimentos).</div>
+            </>
           )}
         </Card>
 
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-          <Card cinza={cinza} titulo="Últimos serviços" emoji="🔧" cor="#7c3aed" contagem={ctx?.servicos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.os_portal}>
+          <Card cinza={cinza} titulo="Últimos serviços" emoji="🔧" cor={COR_SERVICOS} contagem={ctx?.servicos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.os_portal}>
             {!ctx?.servicos?.length ? (
               <Vazio>Nenhuma ordem de serviço encontrada.</Vazio>
             ) : (
               <ul style={lista}>
-                {ctx.servicos.map((s, i) => (
-                  <li key={i} style={itemCompacto}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
-                      <strong style={{ fontSize: 12 }}>{fmtDataBR(s.data)} · OS {s.numero ?? "—"}</strong>
-                      <span style={{ fontSize: 11, opacity: 0.7 }}>{s.origem === "omie" ? (s.empresa || "Omie") : "Oficina"}</span>
-                    </div>
-                    <div style={clamp3} title={s.descricao ?? undefined}>{s.descricao ?? "—"}</div>
-                    <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
-                      {[s.tecnico && `👤 ${s.tecnico}`, s.status, s.valor != null && fmtMoeda(s.valor), s.projeto].filter(Boolean).join(" · ")}
-                    </div>
-                  </li>
-                ))}
+                {ctx.servicos.map((s, i) => {
+                  const ids = idsServico(s);
+                  const doc = linkOS(s, acesso);
+                  const nf = linkNF(s.link_nf);
+                  const ppvsLigados = [...new Set([...s.ppv_ids, ...(s.id_ordem ? vinculos.ppvsPorOs[s.id_ordem.toUpperCase()] ?? [] : [])])];
+                  const maq = maquinaDoChassi(s.chassi);
+                  const rotulo = s.id_ordem ? (s.ordem_omie ? `${s.id_ordem} · OS ${s.ordem_omie}` : s.id_ordem) : `OS ${s.numero ?? "—"}`;
+                  return (
+                    <li key={`${s.origem}-${s.numero}-${i}`} style={{ ...itemCompacto, ...(aceso(ids) ? { outline: `2px solid ${COR_SERVICOS}`, outlineOffset: -1, background: "#f5f3ff" } : {}) }}
+                      onMouseEnter={() => ids.length && setFoco(ids)} onMouseLeave={() => setFoco(null)}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "baseline", flexWrap: "wrap" }}>
+                        <strong style={{ fontSize: 12 }}>
+                          {fmtDataBR(s.data)} · <LinkDocumento doc={doc} cor={COR_SERVICOS} onAbrir={() => onAbrirDocumento?.("os", s.id_ordem || `omie:${s.numero}`)}>{rotulo}</LinkDocumento>
+                        </strong>
+                        <span style={{ fontSize: 11, opacity: 0.7 }}>{s.origem === "omie" ? (s.empresa || "Omie") : "Oficina (POS)"}</span>
+                      </div>
+                      <div style={clamp3} title={s.descricao ?? undefined}>{s.descricao ?? "—"}</div>
+                      <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
+                        {[s.tecnico && `👤 ${s.tecnico}`, s.status, s.valor != null && fmtMoeda(s.valor)].filter(Boolean).join(" · ")}
+                      </div>
+                      {(ppvsLigados.length > 0 || nf || s.chassi || s.pv_numero) && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                          {ppvsLigados.map((p) => (
+                            <ChipLink key={p} doc={linkPPV(p, acesso)} cor={COR_COMPRAS} titulo={`PPV ligado a esta OS — ${linkPPV(p, acesso)?.titulo ?? p}`} onAbrir={() => onAbrirDocumento?.("ppv", p)}>🧾 {p}</ChipLink>
+                          ))}
+                          {s.pv_numero && <span className={styles.pill} style={{ background: "#ccfbf1", color: "#115e59" }} title="Pedido de venda citado nesta OS da Omie">PV {s.pv_numero}</span>}
+                          {s.chassi && (
+                            <button type="button" className={styles.pill} style={{ background: "#e0f2fe", color: "#075985", border: "none", cursor: maq && onAbrirMaquina ? "pointer" : "default" }}
+                              title={maq ? "Abrir o histórico desta máquina" : "Chassi citado na OS"} onClick={() => maq && onAbrirMaquina?.(maq)}>
+                              🚜 {maq?.modelo ? `${maq.modelo} · ` : ""}…{s.chassi.slice(-6)}
+                            </button>
+                          )}
+                          {nf && <ChipLink doc={nf} cor="#047857" titulo={nf.titulo} onAbrir={() => onAbrirDocumento?.("nf", s.numero || "")}>📄 NF</ChipLink>}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </Card>
 
-          <Card cinza={cinza} titulo="Últimas compras" emoji="🧾" cor="#0f766e" contagem={ctx?.pedidos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico}>
-            {!ctx?.pedidos?.length ? (
-              <Vazio>Nenhum pedido de venda encontrado.</Vazio>
+          <Card cinza={cinza} titulo="Últimas compras (PV · PPV)" emoji="🧾" cor={COR_COMPRAS} contagem={ctx?.compras?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.ppv}>
+            {!ctx?.compras?.length ? (
+              <Vazio>Nenhum pedido de venda nem pré-pedido encontrado.</Vazio>
             ) : (
               <ul style={lista}>
-                {ctx.pedidos.map((p, i) => (
-                  <li key={i} style={itemCompacto}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 6 }}>
-                      <strong style={{ fontSize: 12 }}>{fmtDataBR(p.data)} · PV {p.numero ?? "—"}</strong>
-                      <span style={{ fontSize: 12, fontWeight: 700 }}>{fmtMoeda(p.valor)}</span>
-                    </div>
-                    <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
-                      {[p.empresa, p.faturado ? `Faturado${p.nf ? ` · NF ${p.nf}` : ""}` : p.etapa && `Etapa ${p.etapa}`].filter(Boolean).join(" · ")}
-                    </div>
-                  </li>
-                ))}
+                {ctx.compras.map((c, i) => {
+                  const ids = idsCompra(c);
+                  const docPpv = linkPPV(c.id_ppv, acesso);
+                  const docPv = c.origem === "ppv" ? null : linkPV(c);
+                  const nf = linkNF(c.link_nf, c.nf);
+                  const osLigada = c.os_id || (c.id_ppv ? vinculos.osPorPpv[c.id_ppv.toUpperCase()] : null) || null;
+                  const servOs = osLigada ? ctx.servicos?.find((s) => s.id_ordem?.toUpperCase() === osLigada.toUpperCase()) : null;
+                  const docOs = osLigada ? linkOS({ id_ordem: osLigada, cod_os: servOs?.cod_os ?? null, empresa: servOs?.empresa ?? null, ordem_omie: servOs?.ordem_omie ?? null }, acesso) : null;
+                  return (
+                    <li key={`${c.id_ppv || ""}-${c.numero_pv || ""}-${i}`} style={{ ...itemCompacto, ...(aceso(ids) ? { outline: `2px solid ${COR_COMPRAS}`, outlineOffset: -1, background: "#f0fdfa" } : {}) }}
+                      onMouseEnter={() => ids.length && setFoco(ids)} onMouseLeave={() => setFoco(null)}>
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "baseline", flexWrap: "wrap" }}>
+                        <strong style={{ fontSize: 12 }}>
+                          {fmtDataBR(c.data)} ·{" "}
+                          {c.id_ppv && <LinkDocumento doc={docPpv} cor={COR_COMPRAS} onAbrir={() => onAbrirDocumento?.("ppv", c.id_ppv!)}>{c.id_ppv}</LinkDocumento>}
+                          {c.id_ppv && c.numero_pv && <span style={{ opacity: 0.5 }}> → </span>}
+                          {c.numero_pv && <LinkDocumento doc={c.origem === "ppv" ? docPpv : docPv} cor={COR_COMPRAS} onAbrir={() => onAbrirDocumento?.("pv", c.numero_pv!)}>PV {c.numero_pv}</LinkDocumento>}
+                          {!c.id_ppv && !c.numero_pv && "PV —"}
+                        </strong>
+                        <span style={{ fontSize: 12, fontWeight: 700 }}>{fmtMoeda(c.valor)}</span>
+                      </div>
+                      <div style={{ fontSize: 11, opacity: 0.75, marginTop: 2 }}>
+                        {[c.empresa, c.faturado ? `Faturado${c.nf ? ` · NF ${c.nf}` : ""}` : c.status && (c.origem === "ppv" ? `PPV: ${c.status}` : `Etapa ${c.status}`), c.tipo && c.tipo !== "Pedido" && c.tipo, c.tecnico && `👤 ${c.tecnico}`].filter(Boolean).join(" · ")}
+                      </div>
+                      {(osLigada || nf || c.projeto) && (
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 5 }}>
+                          {osLigada && <ChipLink doc={docOs} cor={COR_SERVICOS} titulo={`PPV nascido desta ordem de serviço — ${docOs?.titulo ?? osLigada}`} onAbrir={() => onAbrirDocumento?.("os", osLigada)}>🔧 {osLigada}</ChipLink>}
+                          {c.projeto && (() => { const maq = maquinaDoChassi(c.projeto.split(/\s+/).pop() || null); return (
+                            <button type="button" className={styles.pill} style={{ background: "#e0f2fe", color: "#075985", border: "none", cursor: maq && onAbrirMaquina ? "pointer" : "default" }} title={maq ? "Abrir o histórico desta máquina" : c.projeto} onClick={() => maq && onAbrirMaquina?.(maq)}>🚜 {maq?.modelo || c.projeto}</button>
+                          ); })()}
+                          {nf && <ChipLink doc={nf} cor="#047857" titulo={nf.titulo} onAbrir={() => onAbrirDocumento?.("nf", c.numero_pv || "")}>📄 NF</ChipLink>}
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </Card>
@@ -313,23 +388,62 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
 
 // ───────── sub-componentes ─────────
 
-function LinhaMaquina({ m }: { m: Maquina }) {
+const FONTE_PILULA: Record<Maquina["fonte"], { rotulo: string; bg: string; fg: string; titulo: string }> = {
+  tratores: { rotulo: "revisões", bg: "#e0f2fe", fg: "#075985", titulo: "Está no controle de revisões (tratores)" },
+  projeto: { rotulo: "Omie", bg: "#ede9fe", fg: "#5b21b6", titulo: "Projeto Omie faturado/atendido para este cliente" },
+  os: { rotulo: "OS/PPV", bg: "#f5f3ff", fg: "#6d28d9", titulo: "Chassi citado numa ordem de serviço ou PPV" },
+  crm: { rotulo: "CRM", bg: "#dcfce7", fg: "#166534", titulo: "Cadastrada pelo vendedor no CRM de vendas" },
+  pasta: { rotulo: "anotado", bg: "#f1f5f9", fg: "#475569", titulo: "Anotado na pasta (Funcionários e fazendas)" },
+};
+
+function LinhaMaquina({ m, onAbrir }: { m: Maquina; onAbrir?: (m: Maquina) => void }) {
   const p = m.proxima_revisao;
+  const clicavel = !!onAbrir && !!m.chassi;
+  const abrir = () => { if (clicavel) onAbrir!(m); };
+  const hrefProjeto = linkProjeto(m.projeto);
   return (
-    <tr>
-      <td><strong>{m.modelo ?? "—"}</strong>{m.fonte === "pasta" && <span style={{ fontSize: 10, opacity: 0.6 }}> (anotado)</span>}</td>
-      <td style={{ fontFamily: "monospace", fontSize: 12 }}>{m.chassi ?? "—"}</td>
-      <td>{fmtDataBR(m.entrega)}</td>
-      <td>{m.ultima_revisao ? `${m.ultima_revisao.rotulo} · ${fmtDataBR(m.ultima_revisao.data)}${m.ultima_revisao.horimetro != null ? ` · ${m.ultima_revisao.horimetro} h` : ""}` : "nenhuma registrada"}</td>
-      <td>
+    <tr onClick={abrir} style={{ cursor: clicavel ? "pointer" : "default" }} title={clicavel ? "Abrir o histórico desta máquina" : m.chassi ? undefined : "Sem chassi — não dá para montar o histórico"}
+      onKeyDown={(e) => { if (clicavel && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); abrir(); } }} tabIndex={clicavel ? 0 : -1}>
+      <td style={{ verticalAlign: "top", padding: "5px 4px 5px 0" }}>
+        <strong style={{ color: clicavel ? COR_MAQUINAS : "inherit" }}>{m.modelo ?? "—"}</strong>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 3, marginTop: 2 }}>
+          {m.fontes.map((f) => <span key={f} className={styles.pill} style={{ background: FONTE_PILULA[f].bg, color: FONTE_PILULA[f].fg, fontSize: 9, padding: "1px 7px" }} title={FONTE_PILULA[f].titulo}>{FONTE_PILULA[f].rotulo}</span>)}
+        </div>
+        {m.dono_tratores && <div style={{ fontSize: 10, color: "#92400e", marginTop: 2 }} title="Nome que consta no controle de revisões (vendido em nome de outra pessoa ou grafia diferente)">no controle de revisões: {m.dono_tratores}</div>}
+        {m.crm && <div style={{ fontSize: 10, color: "#166534", marginTop: 2 }}>CRM: {[m.crm.tipo, m.crm.ano && `ano ${m.crm.ano}`, m.crm.estado && `estado ${m.crm.estado}`, m.crm.horimetro != null && `${m.crm.horimetro} h`].filter(Boolean).join(" · ")}</div>}
+      </td>
+      <td style={{ fontFamily: "monospace", fontSize: 12, verticalAlign: "top", padding: "5px 4px" }}>{m.chassi ?? "—"}</td>
+      <td style={{ verticalAlign: "top", padding: "5px 4px" }}>{fmtDataBR(m.entrega)}</td>
+      <td style={{ verticalAlign: "top", padding: "5px 4px" }}>{m.ultima_revisao ? `${m.ultima_revisao.rotulo} · ${fmtDataBR(m.ultima_revisao.data)}${m.ultima_revisao.horimetro != null ? ` · ${m.ultima_revisao.horimetro} h` : ""}` : m.fontes.includes("tratores") ? "nenhuma registrada" : "—"}</td>
+      <td style={{ verticalAlign: "top", padding: "5px 4px" }}>
         {p ? (
           <span style={{ color: p.atrasada ? "#b91c1c" : "inherit", fontWeight: p.atrasada ? 800 : 500 }}>
             {p.horas} h · {p.data_estimada ? `${fmtDataBR(p.data_estimada)}${p.atrasada ? " · ATRASADA" : ` (${haQuanto(p.data_estimada)})`}` : "sem estimativa"}
           </span>
         ) : "—"}
       </td>
+      <td style={{ verticalAlign: "top", padding: "5px 0 5px 4px", textAlign: "right", whiteSpace: "nowrap" }}>
+        {clicavel && <button type="button" onClick={(e) => { e.stopPropagation(); abrir(); }} style={{ ...btn(COR_MAQUINAS, false), padding: "3px 9px", fontSize: 11 }}>histórico ›</button>}
+        {hrefProjeto && <a href={hrefProjeto} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} title="Ficha completa do projeto (Pasta Clientes)" style={{ fontSize: 11, color: COR_MAQUINAS, marginLeft: 6 }}>ficha ↗</a>}
+      </td>
     </tr>
   );
+}
+
+/** Número do documento como link (nova aba) ou texto quando não há para onde abrir. */
+function LinkDocumento({ doc, cor, onAbrir, children }: { doc: LinkDoc | null; cor: string; onAbrir?: () => void; children: React.ReactNode }) {
+  if (!doc) return <span title="Sem documento para abrir">{children}</span>;
+  return (
+    <a href={doc.href} target="_blank" rel="noopener noreferrer" title={`${doc.titulo} ↗`} onClick={onAbrir} style={{ color: cor, textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 2 }}>
+      {children}{doc.tipo === "pdf" ? <span style={{ fontSize: 9, opacity: 0.7 }}> PDF</span> : null}
+    </a>
+  );
+}
+
+function ChipLink({ doc, cor, titulo, onAbrir, children }: { doc: LinkDoc | null; cor: string; titulo: string; onAbrir?: () => void; children: React.ReactNode }) {
+  const estilo: React.CSSProperties = { background: "transparent", color: cor, border: `1px solid ${cor}`, textDecoration: "none", cursor: doc ? "pointer" : "default" };
+  if (!doc) return <span className={styles.pill} style={estilo} title={titulo}>{children}</span>;
+  return <a className={styles.pill} href={doc.href} target="_blank" rel="noopener noreferrer" style={estilo} title={`${titulo} ↗`} onClick={onAbrir}>{children} ↗</a>;
 }
 
 function LinhaAtendimento({ a, onEditar }: { a: AtendimentoResumo; onEditar: () => void }) {

@@ -15,8 +15,11 @@ import ModalPerfilCliente from "@/components/feedbacks/ModalPerfilCliente";
 import CorrigirCadastro from "@/components/feedbacks/atendimento/CorrigirCadastro";
 import { PainelBloqueado } from "@/components/feedbacks/atendimento/Bloqueado";
 import ModalConfirmarCaveira from "@/components/feedbacks/ModalConfirmarCaveira";
+import ModalHistoricoMaquina from "@/components/feedbacks/atendimento/ModalHistoricoMaquina";
 import { marcarNaoContatar, reativarContato } from "@/lib/feedbacks/caveira";
 import { useAuditLog } from "@/hooks/useAuditLog";
+import { usePermissoes } from "@/hooks/usePermissoes";
+import type { Maquina } from "@/lib/feedbacks/atendimento/puro";
 import { buscarClienteInfo, listarRegistros, upsertClienteInfo } from "@/lib/feedbacks/api";
 import { useAuth } from "@/hooks/useAuth";
 import { dadosDoContexto, montarRoteiro } from "@/lib/feedbacks/atendimento/roteiro";
@@ -41,10 +44,22 @@ export default function CockpitAtendimentoPage() {
   const [corrigindo, setCorrigindo] = useState(false);
   const [caveiraAberta, setCaveiraAberta] = useState(false);
   const [caveiraProcessando, setCaveiraProcessando] = useState(false);
+  const [maquinaAberta, setMaquinaAberta] = useState<Maquina | null>(null);
   const { log } = useAuditLog();
 
   const lig = useChamada(clienteKey);
   const { userProfile } = useAuth();
+  // Com o módulo, OS/PPV abrem a tela; sem ele, o PDF (links.ts).
+  const { temAcesso } = usePermissoes(userProfile?.id);
+  const acesso = { pos: temAcesso("pos"), ppv: temAcesso("ppv") };
+
+  const abrirMaquina = useCallback((m: Maquina) => {
+    setMaquinaAberta(m);
+    void log({ sistema: "feedbacks", acao: "abrir_maquina", entidade: "maquina", entidade_id: m.chassi || undefined, entidade_label: [m.modelo, m.chassi].filter(Boolean).join(" — "), detalhes: { cliente_key: clienteKey, fontes: m.fontes } });
+  }, [log, clienteKey]);
+  const abrirDocumento = useCallback((tipo: string, id: string) => {
+    void log({ sistema: "feedbacks", acao: "abrir_documento", entidade: tipo, entidade_id: id, entidade_label: id, detalhes: { cliente_key: clienteKey } });
+  }, [log, clienteKey]);
 
   const carregar = useCallback(async () => {
     if (!clienteKey) return;
@@ -187,6 +202,9 @@ export default function CockpitAtendimentoPage() {
         roteiro={roteiro}
         onCorrigirCadastro={ctx?.codigo_omie ? () => setCorrigindo(true) : undefined}
         onNaoContatar={ctx ? pedirCaveira : undefined}
+        acesso={acesso}
+        onAbrirMaquina={abrirMaquina}
+        onAbrirDocumento={abrirDocumento}
         painelDireito={
           id?.nao_contatar ? (
             <PainelBloqueado onReativar={pedirCaveira} motivosAbertos={ctx?.motivos?.oportunidades.length ?? 0} />
@@ -236,6 +254,9 @@ export default function CockpitAtendimentoPage() {
       )}
       {perfil && (
         <ModalPerfilCliente aberto nome={id?.nome || ctx?.nome || ""} codigoOmie={ctx?.codigo_omie ?? null} info={perfil.info} onFechar={() => setPerfil(null)} onSalvo={() => { setPerfil(null); void carregar(); }} />
+      )}
+      {maquinaAberta && (
+        <ModalHistoricoMaquina maquina={maquinaAberta} acesso={acesso} onFechar={() => setMaquinaAberta(null)} onAbrirDocumento={abrirDocumento} />
       )}
     </div>
   );

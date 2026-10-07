@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agruparFila, isoData, mesclarMaquinas, resumirAtendimentos, resumirPedidos, resumirTrator, unificarServicos } from "../puro";
+import { agruparFila, isoData, ligacoesPpvOs, mesclarMaquinas, mesclarMaquinasFontes, mesmoChassi, parsePpvIds, resumirAtendimentos, resumirPedidos, resumirTrator, semZeros, separarModeloChassi, unificarCompras, unificarServicos } from "../puro";
 import type { Trator } from "@/lib/revisoes/types";
 import type { FeedbackRegistro, Oportunidade } from "@/lib/feedbacks/types";
 
@@ -30,6 +30,112 @@ describe("unificarServicos", () => {
     expect(r[0].valor).toBe(350.5);
     expect(r[0].tecnico).toBe("Gabriel");
     expect(r[2].descricao).toBe("Troca de óleo");
+    // a OS Omie 4986 herda da POS 2 o id (abre /pos?id=2), o técnico e os PPVs
+    expect(r[1]).toMatchObject({ id_ordem: "2", tecnico: "Gabriel", ordem_omie: "4986", ppv_ids: [] });
+    expect(r[0]).toMatchObject({ id_ordem: "1", chassi: null, ppv_ids: [] });
+  });
+  it("casa a POS pela Ordem_Omie zero-padded OU pelo cod_os, traz ID_PPV, cod_os, NF e chassi", () => {
+    const r = unificarServicos(
+      [
+        { num_os: "5191", cod_os: 2500000001, empresa: "Nova Tratores", data_inclusao: "2026-07-27", data_faturamento: null, etapa: "60", status: null, valor_total: 5673, descricao: null, servicos: null, num_nf: "12", link_nf: "https://nf/12", num_pedido_cli: "6802", projeto: null },
+        { num_os: "4738", cod_os: 2479753317, empresa: "Nova Tratores", data_inclusao: "2026-03-12", data_faturamento: null, etapa: "50", status: null, valor_total: 566, descricao: null, servicos: '[{"desc":"MODELO: 6075E|CHASSI: MDI07513PS0006206|HOR: 310|Troca"}]', num_nf: null, link_nf: null, num_pedido_cli: null, projeto: null },
+      ],
+      [
+        { Id_Ordem: "OS-0597", Data: "2026-07-24", Status: "Concluída", Ordem_Omie: "000000000005191", id_omie: 5191, ID_PPV: "PPV-0361, PPV-0362", Projeto: "6075E CAB MDI07513PS0006206", Os_Tecnico: "DANILO" },
+        { Id_Ordem: "OS-0146", Data: "2026-03-11", Status: "Concluída", Ordem_Omie: "2479753317" },
+        { Id_Ordem: "OS-0817", Data: "2026-10-06", Status: "Enviar Omie", ID_PPV: "PPV-0503", Serv_Solicitado: "Vazamento. Chassis: MDI07513PS0006206" },
+      ]
+    );
+    expect(r.map((s) => s.numero)).toEqual(["OS-0817", "5191", "4738"]);
+    expect(r[1]).toMatchObject({ id_ordem: "OS-0597", ppv_ids: ["PPV-0361", "PPV-0362"], cod_os: 2500000001, link_nf: "https://nf/12", pv_numero: "6802", chassi: "MDI07513PS0006206", projeto: "6075E CAB MDI07513PS0006206" });
+    expect(r[2]).toMatchObject({ id_ordem: "OS-0146", chassi: "MDI07513PS0006206" });
+    expect(r[0]).toMatchObject({ origem: "portal", id_ordem: "OS-0817", ppv_ids: ["PPV-0503"], chassi: "MDI07513PS0006206", ordem_omie: null });
+  });
+});
+
+describe("helpers de número/chassi", () => {
+  it("semZeros, parsePpvIds, separarModeloChassi, mesmoChassi", () => {
+    expect(semZeros("000000000007353")).toBe("7353");
+    expect(semZeros("0")).toBe("0");
+    expect(semZeros(null)).toBe("");
+    expect(parsePpvIds("PPV-0201, PPV-0202;ppv-0203")).toEqual(["PPV-0201", "PPV-0202", "PPV-0203"]);
+    expect(parsePpvIds("")).toEqual([]);
+    expect(separarModeloChassi("6075E CAB MDI07513PS0006206")).toEqual({ modelo: "6075E CAB", chassi: "MDI07513PS0006206" });
+    expect(separarModeloChassi("Piccin Master 10000 04792")).toEqual({ modelo: "Piccin Master 10000 04792", chassi: null });
+    expect(mesmoChassi("MDI07513PS0006206", "mdi07513ps0006206")).toBe(true);
+    expect(mesmoChassi("MDI07513PS0006206", "S0006206")).toBe(true);
+    expect(mesmoChassi("MDI07513PS0006206", "MDI07513PS0006207")).toBe(false);
+    expect(mesmoChassi("ABC123", "ABC124")).toBe(false);
+  });
+});
+
+describe("unificarCompras", () => {
+  it("PPV que virou PV é UM item com os dois números; PPV sem PV entra com o status do kanban; PV avulso continua", () => {
+    const r = unificarCompras(
+      [
+        { num_pedido: "7353", empresa: "Nova Tratores", data_inclusao: "2026-07-02", etapa: "60", valor_total: 900, faturado: "S", numero_nf: "55", cod_pedido: 11, link_nf: "https://nf/55" },
+        { num_pedido: "1517", empresa: "Castro Pecas", data_inclusao: "2024-02-20", etapa: "Faturado", valor_total: 30000, faturado: "true", numero_nf: "", cod_pedido: 5579487314 },
+      ],
+      [
+        { id_pedido: "REM-0011", data: "01/07/2026 12:22", status: "Fechado", valor_total: 900, pedido_omie: "000000000007353", Id_Os: "OS-0489", Tipo_Pedido: "Remessa" },
+        { id_pedido: "PPV-0503", data: "06/10/2026 16:31", status: "Relatório Concluído", valor_total: 120, pedido_omie: "", Id_Os: "OS-0817", tecnico: "DANILO" },
+      ]
+    );
+    expect(r.map((c) => `${c.origem}:${c.id_ppv ?? ""}:${c.numero_pv ?? ""}`)).toEqual(["ppv:PPV-0503:", "ambos:REM-0011:7353", "pv::1517"]);
+    expect(r[1]).toMatchObject({ os_id: "OS-0489", faturado: true, nf: "55", link_nf: "https://nf/55", cod_pedido: 11, tipo: "Remessa", data: "2026-07-02" });
+    expect(r[0]).toMatchObject({ status: "Relatório Concluído", os_id: "OS-0817", tecnico: "DANILO", valor: 120, data: "2026-10-06", faturado: false });
+    expect(r[2]).toMatchObject({ faturado: true, cod_pedido: 5579487314, empresa: "Castro Pecas" });
+  });
+  it("mesmo nº de PV na Nova e na Castro: omie_empresa desempata", () => {
+    const r = unificarCompras(
+      [
+        { num_pedido: "4090", empresa: "Nova Tratores", data_inclusao: "2026-01-01", etapa: "60", valor_total: 1, faturado: "S", numero_nf: null },
+        { num_pedido: "4090", empresa: "Castro Pecas", data_inclusao: "2026-01-02", etapa: "60", valor_total: 2, faturado: "S", numero_nf: null },
+      ],
+      [{ id_pedido: "PPV-0001", data: "01/01/2026 10:00", status: "Fechado", pedido_omie: "4090", omie_empresa: "Castro Pecas" }]
+    );
+    expect(r.find((c) => c.empresa === "Castro Pecas")?.id_ppv).toBe("PPV-0001");
+    expect(r.find((c) => c.empresa === "Nova Tratores")?.id_ppv).toBeNull();
+  });
+});
+
+describe("ligacoesPpvOs", () => {
+  it("junta os dois lados (OS diz ID_PPV; PPV diz Id_Os) sem repetir", () => {
+    const s = unificarServicos([], [{ Id_Ordem: "OS-0817", Data: "2026-10-06", ID_PPV: "PPV-0503" }, { Id_Ordem: "OS-0700", Data: "2026-09-01" }]);
+    const c = unificarCompras([], [{ id_pedido: "PPV-0503", data: "06/10/2026", Id_Os: "OS-0817" }, { id_pedido: "PPV-0400", data: "01/09/2026", Id_Os: "os-0700" }]);
+    const v = ligacoesPpvOs(s, c);
+    expect(v.ppvsPorOs).toEqual({ "OS-0817": ["PPV-0503"], "OS-0700": ["PPV-0400"] });
+    expect(v.osPorPpv).toEqual({ "PPV-0503": "OS-0817", "PPV-0400": "OS-0700" });
+  });
+});
+
+describe("mesclarMaquinasFontes", () => {
+  it("deduplica por chassi (igual/final-7), acumula fontes, avisa dono diferente e prefere o modelo mais descritivo", () => {
+    const r = mesclarMaquinasFontes({
+      nomeCliente: "PEDRO ALCANTARA RIBEIRO NETO E OUTRO",
+      tratores: [trator({ Chassis: "MDI07513PS0006206", Modelo: "6075E", Cliente: "MARIA BEATRIZ", Entrega: "2026-03-27" })],
+      projetos: [{ nome: "6075E CAB MDI07513PS0006206", empresa: "Nova Tratores" }, { nome: "JF MIX 6000 393480", empresa: "Nova Tratores" }],
+      citados: [{ chassi: "S0006206", modelo: null }, { chassi: "KMBA1082J70B00009", modelo: "STRONGER 3200 HD" }],
+      crm: [{ id: 1, tipo: "Trator Usado", marca: "Mahindra", modelo: "6075E", ano: 2024, numero_serie: "mdi07513ps0006206", horimetro: 900, estado: "bom", observacoes: null }],
+      pasta: ["Grade GA 20", "Trator 6075E — ...0006206"],
+    });
+    const m6206 = r.find((m) => m.chassi === "MDI07513PS0006206")!;
+    expect(m6206.fontes).toEqual(["tratores", "projeto", "os", "crm"]);
+    expect(m6206.modelo).toBe("6075E CAB");
+    expect(m6206.dono_tratores).toBe("MARIA BEATRIZ");
+    expect(m6206.projeto).toEqual({ nome: "6075E CAB MDI07513PS0006206", empresa: "Nova Tratores" });
+    expect(m6206.crm?.horimetro).toBe(900);
+    expect(m6206.id_trator).toBe("1");
+    expect(r.find((m) => m.chassi === "KMBA1082J70B00009")).toMatchObject({ fonte: "os", modelo: "STRONGER 3200 HD" });
+    // projeto sem chassi reconhecível entra como máquina sem chassi; pasta não duplica o 6206
+    expect(r.find((m) => m.modelo === "JF MIX 6000 393480")?.chassi).toBeNull();
+    expect(r.filter((m) => m.fonte === "pasta").map((m) => m.modelo)).toEqual(["Grade GA 20"]);
+  });
+  it("mesmo nome do cliente não gera aviso; '2025.0' perde para um modelo de verdade", () => {
+    const r = mesclarMaquinasFontes({ nomeCliente: "ana", tratores: [trator({ Cliente: "ANA", Modelo: "2025.0", Chassis: "MBN1KG00123" })], projetos: [{ nome: "JIVO 245 MBN1KG00123", empresa: "Nova Tratores" }] });
+    expect(r).toHaveLength(1);
+    expect(r[0].dono_tratores).toBeNull();
+    expect(r[0].modelo).toBe("JIVO 245");
   });
 });
 

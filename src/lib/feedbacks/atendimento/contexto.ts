@@ -12,9 +12,11 @@ import { normalizarTelefoneWa } from "@/lib/feedbacks/telefone";
 import { clienteKey as montarKey, TAG_NAO_CONTATAR, type ClienteInfo, type FeedbackRegistro, type Oportunidade } from "@/lib/feedbacks/types";
 import type { Trator } from "@/lib/revisoes/types";
 import {
-  mesclarMaquinas, norm, resumirAtendimentos, resumirPedidos, tagsDoCadastro, temTag, unificarServicos,
-  TAG_PENDENCIA_CADASTRAL, type AtendimentoResumo, type Maquina, type OSPortalBruta, type Pedido, type Servico,
+  chassiDoServicoOmie, chassiPlausivel, mesclarMaquinasFontes, norm, resumirAtendimentos, semZeros, separarModeloChassi, tagsDoCadastro, temTag, unificarCompras, unificarServicos,
+  TAG_PENDENCIA_CADASTRAL, type AtendimentoResumo, type ChassiCitado, type Compra, type Maquina, type MaquinaCrm, type OSPortalBruta, type PPVBruto, type ProjetoMaquina, type Servico,
 } from "./puro";
+import { extrairChassis } from "@/lib/pos/extrairTrator";
+import type { HistOS } from "@/lib/feedbacks/historico-cliente";
 import { configR8, configRetorno, humoresRecentes, listarScripts } from "./roteiro-db";
 import { emailEhInterno, type ParametrosR8 } from "@/lib/feedbacks/oportunidades/r8-puro";
 import type { Script } from "./roteiro";
@@ -62,9 +64,12 @@ export interface ContextoAtendimento {
   codigos_omie: string[];
   identidade: Identidade | null;
   motivos: { oportunidades: Oportunidade[]; registros_abertos: AtendimentoResumo[] } | null;
+  /** CPF/CNPJ do cliente (cadastro Omie / PRINCIPAL) — usado para casar OS/PPV/projetos */
+  cnpj: string | null;
   maquinas: Maquina[] | null;
   servicos: Servico[] | null;
-  pedidos: Pedido[] | null;
+  /** PV da Omie ∪ PPV do portal (um item quando é o mesmo pedido) */
+  compras: Compra[] | null;
   requisicoes_count: number;
   pasta: Pick<ClienteInfo, "funcionarios" | "fazendas" | "equipamentos" | "cidade" | "email"> | null;
   atendimentos: AtendimentoResumo[] | null;
@@ -97,14 +102,12 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
   const guarda = <T,>(chave: string, p: Promise<T>): Promise<T | null> =>
     p.catch((e) => { erros[chave] = (e as Error)?.message || String(e); return null; });
 
-  const [info, principal, registros, oportunidades, historico, osPortal, tratores, whatsapp, roteiro, cfgRetorno, humores, cfgR8, car] = await Promise.all([
+  const [info, principal, registros, oportunidades, historico, whatsapp, roteiro, cfgRetorno, humores, cfgR8, car] = await Promise.all([
     guarda("pasta", carregarInfo(clienteKey, codigos, NOME)),
     guarda("cadastro", carregarPrincipal(codigos, nome)),
     guarda("atendimentos", carregarRegistros(codigos, NOME)),
     guarda("motivos", carregarOportunidades(codigos, NOME)),
     guarda("historico", buscarHistoricoCliente(sb, codigoOmie, nome || "", codigos)),
-    guarda("os_portal", carregarOSPortal(nome)),
-    guarda("maquinas", carregarTratores(nome)),
     guarda("whatsapp", buscarWhatsappDoCliente(codigos)),
     guarda("roteiro", listarScripts()),
     guarda("config_retorno", configRetorno()),
@@ -113,6 +116,22 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
     guarda("car", carregarCar(codigos)),
   ]);
 
+  // CPF/CNPJ: casa OS do portal (817 de 821 têm Cnpj_Cliente), PPV e projetos Omie
+  // sem depender da grafia do nome.
+  const cnpj = String(cad?.cnpj_cpf ?? principal?.find((p) => p.cnpj_cpf)?.cnpj_cpf ?? "").trim() || null;
+  const principalIds = (principal || []).map((p) => Number(p.id)).filter((n) => Number.isFinite(n));
+
+  const osPortal = await guarda("os_portal", carregarOSPortal(nome, cnpj));
+
+  // 2ª rodada: PPV precisa dos nºs de PV e das POS; máquinas precisam dos chassis citados.
+  const pvNums = (historico?.pv || []).map((p) => semZeros(p.num_pedido)).filter(Boolean);
+  const osIds = (osPortal || []).map((o) => String(o.Id_Ordem ?? "")).filter(Boolean);
+  const [ppvs, maquinasFontes] = await Promise.all([
+    guarda("ppv", carregarPPV(nome, cnpj, pvNums, osIds)),
+    guarda("maquinas", carregarMaquinasFontes(codigos, cnpj, nome, principalIds, chassisCitados(historico?.os || [], osPortal || []))),
+  ]);
+  const citados = [...chassisCitados(historico?.os || [], osPortal || []), ...chassisDosPPV(ppvs || [])];
+
   const identidade = montarIdentidade(nome, cad, principal, info, registros || [], (cfgR8 ?? {}) as ParametrosR8);
 
   return {
@@ -120,6 +139,7 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
     codigo_omie: codigoOmie,
     nome,
     codigos_omie: codigos,
+    cnpj,
     identidade,
     motivos: registros && oportunidades
       ? {
@@ -127,9 +147,11 @@ export async function montarContexto(clienteKey: string): Promise<ContextoAtendi
           registros_abertos: resumirAtendimentos(registros.filter((r) => r.status_atendimento === "aberto" || r.status_atendimento === "em_andamento"), 20),
         }
       : null,
-    maquinas: tratores ? mesclarMaquinas(tratores, info?.equipamentos || []) : null,
+    maquinas: maquinasFontes
+      ? mesclarMaquinasFontes({ ...maquinasFontes, citados, pasta: info?.equipamentos || [], nomeCliente: nome })
+      : null,
     servicos: historico ? unificarServicos(historico.os, osPortal || []) : null,
-    pedidos: historico ? resumirPedidos(historico.pv) : null,
+    compras: historico ? unificarCompras(historico.pv, ppvs || []) : null,
     requisicoes_count: historico?.requisicoes.length ?? 0,
     pasta: info ? { funcionarios: info.funcionarios || [], fazendas: info.fazendas || [], equipamentos: info.equipamentos || [], cidade: info.cidade, email: info.email } : null,
     atendimentos: registros ? resumirAtendimentos(registros) : null,
@@ -188,7 +210,8 @@ async function carregarInfo(key: string, codigos: string[], NOME: string): Promi
 }
 
 async function carregarPrincipal(codigos: string[], nome: string | null): Promise<Record<string, unknown>[]> {
-  const sel = "id_omie, nome_fantasia, razao_social, cnpj_cpf, email, telefone, endereco, numero, bairro, cidade, estado, lat, lng, latitude, longitude, culturas, area_hectares, observacoes, inativo";
+  // `id` = propriedade_id do CRM de vendas (visitas/maquinas apontam para ele)
+  const sel = "id, id_omie, nome_fantasia, razao_social, cnpj_cpf, email, telefone, endereco, numero, bairro, cidade, estado, lat, lng, latitude, longitude, culturas, area_hectares, observacoes, inativo";
   if (codigos.length > 0) {
     const { data, error } = await sb.from("portal_nt_clientes_PRINCIPAL").select(sel).in("id_omie", codigos);
     if (error) throw new Error(error.message);
@@ -229,25 +252,129 @@ async function carregarOportunidades(codigos: string[], NOME: string): Promise<O
   return [...out.values()].sort((a, b) => peso[a.prioridade] - peso[b.prioridade]);
 }
 
-async function carregarOSPortal(nome: string | null): Promise<OSPortalBruta[]> {
+const SEL_OS_PORTAL = "Id_Ordem, Os_Cliente, Cnpj_Cliente, Os_Tecnico, Os_Tecnico2, Data, Data_Fim_Servico, Serv_Solicitado, Serv_Realizado, Status, Tipo_Servico, Valor_Total, Projeto, Ordem_Omie, id_omie, ID_PPV";
+
+/**
+ * POS do portal por NOME e por CPF/CNPJ (duas consultas — um `.or` com nome
+ * contendo vírgula/parênteses quebra o filtro do PostgREST), sem repetir.
+ */
+async function carregarOSPortal(nome: string | null, cnpj: string | null): Promise<OSPortalBruta[]> {
   const n = (nome || "").trim();
-  if (n.length < 3) return [];
-  const { data, error } = await sb
-    .from("Ordem_Servico")
-    .select("Id_Ordem, Os_Cliente, Os_Tecnico, Os_Tecnico2, Data, Data_Fim_Servico, Serv_Solicitado, Serv_Realizado, Status, Tipo_Servico, Valor_Total, Projeto, Ordem_Omie")
-    .ilike("Os_Cliente", n)
-    .order("Data", { ascending: false })
-    .limit(30);
-  if (error) throw new Error(error.message);
-  return (data || []) as OSPortalBruta[];
+  const buscas: PromiseLike<{ data: unknown; error: { message: string } | null }>[] = [];
+  if (n.length >= 3) buscas.push(sb.from("Ordem_Servico").select(SEL_OS_PORTAL).ilike("Os_Cliente", n).order("Data", { ascending: false }).limit(40));
+  if (cnpj) buscas.push(sb.from("Ordem_Servico").select(SEL_OS_PORTAL).eq("Cnpj_Cliente", cnpj).order("Data", { ascending: false }).limit(40));
+  if (!buscas.length) return [];
+  const res = await Promise.all(buscas);
+  const out = new Map<string, OSPortalBruta>();
+  for (const r of res) {
+    if (r.error) throw new Error(r.error.message);
+    for (const o of (r.data || []) as OSPortalBruta[]) out.set(String(o.Id_Ordem), o);
+  }
+  return [...out.values()];
 }
 
-async function carregarTratores(nome: string | null): Promise<Trator[]> {
+/**
+ * PPV (pré-pedido do portal, tabela `pedidos`) por nome, documento, nº do PV
+ * (pedido_omie zero-padded) e POS de origem (Id_Os). Só 58 de 511 têm
+ * cliente_documento — por isso as quatro portas.
+ */
+async function carregarPPV(nome: string | null, cnpj: string | null, pvNums: string[], osIds: string[]): Promise<PPVBruto[]> {
+  const sel = "id_pedido, data, cliente, status, valor_total, pedido_omie, Id_Os, Projeto, tecnico, Tipo_Pedido, nf_numero, faturado_omie_em, omie_empresa";
   const n = (nome || "").trim();
-  if (n.length < 3) return [];
-  const { data, error } = await sb.from("tratores").select("*").ilike("Cliente", n).limit(50);
-  if (error) throw new Error(error.message);
-  return (data || []) as Trator[];
+  const buscas: PromiseLike<{ data: unknown; error: { message: string } | null }>[] = [];
+  if (n.length >= 3) buscas.push(sb.from("pedidos").select(sel).ilike("cliente", n).limit(60));
+  if (cnpj) buscas.push(sb.from("pedidos").select(sel).eq("cliente_documento", cnpj).limit(60));
+  if (pvNums.length) {
+    const variantes = [...new Set(pvNums.flatMap((p) => [p, p.padStart(15, "0")]))].slice(0, 200);
+    buscas.push(sb.from("pedidos").select(sel).in("pedido_omie", variantes).limit(200));
+  }
+  if (osIds.length) buscas.push(sb.from("pedidos").select(sel).in("Id_Os", osIds.slice(0, 100)).limit(200));
+  if (!buscas.length) return [];
+  const res = await Promise.all(buscas);
+  const out = new Map<string, PPVBruto>();
+  for (const r of res) {
+    if (r.error) throw new Error(r.error.message);
+    for (const p of (r.data || []) as PPVBruto[]) out.set(p.id_pedido, p);
+  }
+  return [...out.values()];
+}
+
+/** Chassis citados nas OS (portal: Projeto/Serv_Solicitado; Omie: projeto / cabeçalho do serviço). */
+function chassisCitados(osOmie: HistOS[], osPortal: OSPortalBruta[]): ChassiCitado[] {
+  const out: ChassiCitado[] = [];
+  for (const o of osPortal) {
+    const ch = extrairChassis({ Projeto: o.Projeto, Serv_Solicitado: o.Serv_Solicitado });
+    if (ch) out.push({ chassi: ch, modelo: separarModeloChassi(o.Projeto).chassi ? separarModeloChassi(o.Projeto).modelo : null });
+  }
+  for (const o of osOmie) {
+    const proj = separarModeloChassi(o.projeto);
+    if (proj.chassi) out.push({ chassi: proj.chassi, modelo: proj.modelo || null });
+    else {
+      const ch = chassiDoServicoOmie(o.servicos);
+      if (ch) out.push({ chassi: ch, modelo: (String(o.servicos || "").match(/MODELO\s*:\s*([^|"]+)/i)?.[1] || "").trim() || null });
+    }
+  }
+  return out;
+}
+
+function chassisDosPPV(ppvs: PPVBruto[]): ChassiCitado[] {
+  return ppvs.flatMap((p) => {
+    const { modelo, chassi } = separarModeloChassi(p.Projeto);
+    return chassi ? [{ chassi, modelo: modelo || null }] : [];
+  });
+}
+
+/**
+ * Fontes de máquinas do cliente (a mescla é pura, em `mesclarMaquinasFontes`):
+ * - `tratores` (controle de revisões): por nome E pelos chassis já conhecidos
+ *   (projetos / OS) — o trator pode estar em nome de outra pessoa;
+ * - projetos Omie "MODELO CHASSI" por código do cliente e por CPF/CNPJ
+ *   (mesma fonte da Pasta Clientes e do ícone de trator do POS/PPV);
+ * - CRM de vendas (`maquinas` por propriedade = portal_nt_clientes_PRINCIPAL.id);
+ *   tabela ausente ou erro = lista vazia.
+ */
+async function carregarMaquinasFontes(codigos: string[], cnpj: string | null, nome: string | null, principalIds: number[], citados: ChassiCitado[]): Promise<{ tratores: Trator[]; projetos: ProjetoMaquina[]; crm: MaquinaCrm[] }> {
+  const n = (nome || "").trim();
+
+  // projetos Omie
+  const projetos = new Map<string, ProjetoMaquina>();
+  const addProj = (rows: Record<string, unknown>[] | null) => {
+    for (const p of rows || []) {
+      if (p.inativo === "S" || !p.nome) continue;
+      projetos.set(`${p.nome}|${p.empresa}`, { nome: String(p.nome), empresa: String(p.empresa || "") });
+    }
+  };
+  const buscasProj: PromiseLike<unknown>[] = [];
+  if (codigos.length) buscasProj.push(sb.from("portal_nt_projetos_PRINCIPAL").select("nome, empresa, inativo").in("cod_cli_ultimo", codigos).limit(100).then(({ data }) => addProj(data as Record<string, unknown>[] | null)));
+  if (cnpj) buscasProj.push(sb.from("portal_nt_projetos_PRINCIPAL").select("nome, empresa, inativo").eq("cnpj_cpf_ultimo", cnpj).limit(100).then(({ data }) => addProj(data as Record<string, unknown>[] | null)));
+  await Promise.allSettled(buscasProj);
+
+  // tratores: por nome + pelos chassis conhecidos (projetos e OS)
+  const chassis = new Set<string>();
+  for (const p of projetos.values()) { const c = separarModeloChassi(p.nome).chassi; if (c) chassis.add(c); }
+  for (const c of citados) { const ch = chassiPlausivel(c.chassi); if (ch) chassis.add(ch); }
+  const tratores = new Map<string, Trator>();
+  const addTrat = (rows: Trator[] | null) => { for (const t of rows || []) tratores.set(String(t.ID ?? t.Chassis), t); };
+  const buscasTrat: PromiseLike<unknown>[] = [];
+  if (n.length >= 3) buscasTrat.push(sb.from("tratores").select("*").ilike("Cliente", n).limit(50).then(({ data, error }) => { if (error) throw new Error(error.message); addTrat(data as Trator[] | null); }));
+  const lista = [...chassis].slice(0, 60);
+  if (lista.length) {
+    buscasTrat.push(sb.from("tratores").select("*").in("Chassis", lista).limit(100).then(({ data }) => addTrat(data as Trator[] | null)));
+    // final-7 (chassi digitado incompleto num lado ou noutro)
+    buscasTrat.push(sb.from("tratores").select("*").or(lista.map((c) => `Chassis.ilike.%${c.slice(-7)}`).join(",")).limit(100).then(({ data }) => addTrat(data as Trator[] | null)));
+  }
+  const rt = await Promise.allSettled(buscasTrat);
+  const falhaNome = rt[0]?.status === "rejected" && n.length >= 3 ? (rt[0] as PromiseRejectedResult).reason : null;
+  if (falhaNome && tratores.size === 0) throw falhaNome instanceof Error ? falhaNome : new Error(String(falhaNome));
+
+  // CRM de vendas
+  let crm: MaquinaCrm[] = [];
+  if (principalIds.length) {
+    const { data, error } = await sb.from("maquinas").select("id, tipo, marca, modelo, ano, numero_serie, horimetro, estado, observacoes").in("propriedade_id", principalIds).limit(50);
+    if (!error) crm = (data || []) as MaquinaCrm[];
+  }
+
+  return { tratores: [...tratores.values()], projetos: [...projetos.values()], crm };
 }
 
 // --- identidade --------------------------------------------------------------
