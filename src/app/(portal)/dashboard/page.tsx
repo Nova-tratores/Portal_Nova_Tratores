@@ -1,9 +1,8 @@
 'use client'
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import DashboardMobile from '@/components/dashboard/DashboardMobile'
-import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
 import { useAuditLog } from '@/hooks/useAuditLog'
@@ -94,13 +93,6 @@ const systems: SystemCard[] = [
   { id: 'configuracoes', name: 'Configurações', description: 'Gestão de usuários, permissões e configurações gerais do portal', icon: <Settings size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #525252, #1a1a1a)', href: '/admin', tag: 'ADMIN', group: 'outros' },
 ]
 
-interface LogEntry {
-  id: string
-  sistema: string
-  acao: string
-  created_at: string
-}
-
 // Mapeia system.id para o módulo de permissão
 const systemToModulo: Record<string, string> = {
   // ⚠️ Card que NÃO estiver aqui aparece pra TODO MUNDO (o filtro devolve true
@@ -158,7 +150,6 @@ export default function DashboardPage() {
   const { log: auditLog } = useAuditLog()
   const [searchTerm, setSearchTerm] = useState('')
   const [hoveredCard, setHoveredCard] = useState<string | null>(null)
-  const [recentLogs, setRecentLogs] = useState<LogEntry[]>([])
   const [currentTime, setCurrentTime] = useState(new Date())
   const [minhasTarefas, setMinhasTarefas] = useState<any[]>([])
   const [tarefasLoading, setTarefasLoading] = useState(true)
@@ -186,34 +177,11 @@ export default function DashboardPage() {
     setOpenGroups(prev => prev.includes(key) ? prev.filter(k => k !== key) : [...prev, key])
   }
 
-  // Refresh ao voltar para a aba
-  const refreshDashboard = useCallback(() => {
-    if (!userProfile) return
-    supabase.from('portal_logs').select('*').eq('user_id', userProfile.id)
-      .order('created_at', { ascending: false }).limit(5)
-      .then(({ data }) => { if (data) setRecentLogs(data) })
-  }, [userProfile])
-  useRefreshOnFocus(refreshDashboard)
-
   // Relógio a cada 30s em vez de 1s — reduz 30x re-renders
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 30000)
     return () => clearInterval(timer)
   }, [])
-
-  useEffect(() => {
-    if (!userProfile) return
-    const loadLogs = async () => {
-      const { data } = await supabase
-        .from('portal_logs')
-        .select('*')
-        .eq('user_id', userProfile.id)
-        .order('created_at', { ascending: false })
-        .limit(5)
-      if (data) setRecentLogs(data)
-    }
-    loadLogs()
-  }, [userProfile])
 
   // Carregar pastas, favoritos, viewMode do localStorage
   useEffect(() => {
@@ -292,18 +260,7 @@ export default function DashboardPage() {
     loadTarefas()
   }, [userProfile])
 
-  const logAccess = async (system: SystemCard) => {
-    if (!userProfile) return
-    await supabase.from('portal_logs').insert([{
-      user_id: userProfile.id,
-      user_nome: userProfile.nome,
-      sistema: system.name,
-      acao: 'acesso'
-    }])
-  }
-
   const openSystem = async (system: SystemCard) => {
-    logAccess(system)
     auditLog({ sistema: system.id.replace('sistema-', ''), acao: 'acesso', entidade_label: system.name })
     if (system.external) {
       const appsComAuth = ['consulta-estoque', 'consulta-omie']

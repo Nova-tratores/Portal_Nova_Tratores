@@ -1,12 +1,14 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { supabase } from '@/lib/supabase'
+import UsoAba from '@/components/atividades/UsoAba'
 import {
   Activity, Search, Filter, ChevronDown, ChevronLeft, ChevronRight,
-  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags
+  Clock, User, Settings, ClipboardList, Wrench, DollarSign, Shield, FileText, Tags, BarChart3
 } from 'lucide-react'
 
 interface AuditEntry {
@@ -67,6 +69,9 @@ const PAGE_SIZE = 30
 
 function AtividadesPageInner() {
   const { userProfile } = useAuth()
+  const searchParams = useSearchParams()
+  // Aba: 'atividades' (audit_log) | 'uso' (monitor de uso por usuário/página). Deep-link ?tab=uso
+  const [aba, setAba] = useState<'atividades' | 'uso'>(searchParams.get('tab') === 'uso' ? 'uso' : 'atividades')
   const [logs, setLogs] = useState<AuditEntry[]>([])
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(0)
@@ -78,6 +83,8 @@ function AtividadesPageInner() {
   const [filtroBusca, setFiltroBusca] = useState('')
   const [filtroEntidade, setFiltroEntidade] = useState('')
   const [showFiltros, setShowFiltros] = useState(false)
+  const [filtroDe, setFiltroDe] = useState('')
+  const [filtroAte, setFiltroAte] = useState('')
 
   // Usuários únicos para o filtro
   const [usuarios, setUsuarios] = useState<{ id: string; nome: string }[]>([])
@@ -107,6 +114,8 @@ function AtividadesPageInner() {
 
     if (filtroSistema) query = query.eq('sistema', filtroSistema)
     if (filtroUsuario) query = query.eq('user_id', filtroUsuario)
+    if (filtroDe) query = query.gte('created_at', filtroDe + 'T00:00:00-03:00')
+    if (filtroAte) query = query.lte('created_at', filtroAte + 'T23:59:59-03:00')
     if (filtroEntidade) {
       const safeEntidade = filtroEntidade.replace(/%/g, '\\%')
       query = query.ilike('entidade_label', `%${safeEntidade}%`)
@@ -120,12 +129,12 @@ function AtividadesPageInner() {
     if (data) setLogs(data)
     if (count !== null) setTotalCount(count)
     setLoading(false)
-  }, [page, filtroSistema, filtroUsuario, filtroEntidade, filtroBusca])
+  }, [page, filtroSistema, filtroUsuario, filtroEntidade, filtroBusca, filtroDe, filtroAte])
 
   useEffect(() => { fetchLogs() }, [fetchLogs])
 
   // Reset page quando muda filtro
-  useEffect(() => { setPage(0) }, [filtroSistema, filtroUsuario, filtroEntidade, filtroBusca])
+  useEffect(() => { setPage(0) }, [filtroSistema, filtroUsuario, filtroEntidade, filtroBusca, filtroDe, filtroAte])
 
   const totalPages = Math.ceil(totalCount / PAGE_SIZE)
 
@@ -197,6 +206,19 @@ function AtividadesPageInner() {
         </div>
       </div>
 
+      {/* Abas */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '20px' }}>
+        {([['atividades', 'Atividades', <Activity key="a" size={14} />], ['uso', 'Uso do portal', <BarChart3 key="u" size={14} />]] as const).map(([k, label, icon]) => (
+          <button key={k} onClick={() => setAba(k)} style={{
+            display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', fontFamily: 'Inter', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+            background: aba === k ? '#dc2626' : '#ffffff', color: aba === k ? '#fff' : '#737373', border: aba === k ? '1px solid #dc2626' : '1px solid #e5e5e5',
+          }}>{icon}{label}</button>
+        ))}
+      </div>
+
+      {aba === 'uso' && <UsoAba usuarios={usuarios} />}
+
+      {aba === 'atividades' && (<>
       {/* Filtros */}
       <div style={{
         background: '#ffffff', borderRadius: '16px', border: '1px solid #f0f0f0',
@@ -297,6 +319,22 @@ function AtividadesPageInner() {
                   color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter', outline: 'none'
                 }}
               />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
+                PERÍODO
+              </label>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <input type="date" value={filtroDe} max={filtroAte || undefined} onChange={(e) => setFiltroDe(e.target.value)}
+                  style={{ padding: '8px 10px', borderRadius: '10px', background: '#fafafa', border: '1px solid #e5e5e5', color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter', outline: 'none' }} />
+                <span style={{ fontSize: '12px', color: '#a3a3a3' }}>até</span>
+                <input type="date" value={filtroAte} min={filtroDe || undefined} onChange={(e) => setFiltroAte(e.target.value)}
+                  style={{ padding: '8px 10px', borderRadius: '10px', background: '#fafafa', border: '1px solid #e5e5e5', color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter', outline: 'none' }} />
+                {(filtroDe || filtroAte) && (
+                  <button onClick={() => { setFiltroDe(''); setFiltroAte('') }} style={{ background: 'none', border: 'none', color: '#dc2626', fontSize: '12px', cursor: 'pointer', fontWeight: 600 }}>limpar</button>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -482,6 +520,7 @@ function AtividadesPageInner() {
           </button>
         </div>
       )}
+      </>)}
     </div>
   )
 }
@@ -490,5 +529,5 @@ export default function AtividadesPage() {
   const { userProfile } = useAuth();
   const { temAcesso, loading: loadingPerm } = usePermissoes(userProfile?.id);
   if (!loadingPerm && userProfile && !temAcesso('atividades')) return <SemPermissao />;
-  return <AtividadesPageInner />;
+  return <Suspense fallback={null}><AtividadesPageInner /></Suspense>;
 }

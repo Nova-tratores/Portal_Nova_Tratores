@@ -598,6 +598,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   // conta quem chegou pelo menu lateral, por notificação ou por link direto.
   const usoKey = userProfile?.id ? `portal-uso-${userProfile.id}` : ''
   const [uso, setUso] = useState<Record<string, number>>({})
+  const ultimaRotaUsoRef = useRef<{ rota: string; em: number }>({ rota: '', em: 0 })
 
   // Só depende da ROTA — nada de identidade de função aqui. `filteredNavItems`
   // muda de identidade a cada render (o temAcesso do usePermissoes não é
@@ -615,6 +616,24 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       localStorage.setItem(usoKey, JSON.stringify(atual))
     }
     setUso(atual)
+
+    // Monitor de uso: 1 beacon por troca de rota pro servidor contar (usuário × rota × dia).
+    // Fora de iframe (a /split abre dois painéis) e com trava de 15 s contra contagem
+    // dupla (Strict Mode / refresh). keepalive = sobrevive à navegação, como sendBeacon.
+    try {
+      if (typeof window !== 'undefined' && window.self === window.top) {
+        const agora = Date.now()
+        const u = ultimaRotaUsoRef.current
+        if (u.rota !== pathname || agora - u.em > 15000) {
+          ultimaRotaUsoRef.current = { rota: pathname, em: agora }
+          import('@/lib/auth/client').then(async ({ authHeaders }) => {
+            const h = await authHeaders()
+            if (!h.Authorization) return
+            await fetch('/api/uso/pagina', { method: 'POST', keepalive: true, headers: { 'Content-Type': 'application/json', ...h }, body: JSON.stringify({ rota: pathname }) })
+          }).catch(() => {})
+        }
+      }
+    } catch { /* best-effort */ }
   }, [pathname, usoKey])
 
   const maisUsados = useMemo(() => filteredNavItems

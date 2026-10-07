@@ -172,5 +172,25 @@ export async function register(): Promise<void> {
     log('replanejamento diário dos cronogramas ligados a quadros LIGADO (06:00 BRT)');
   }
 
+  // Monitor de uso (quem usa o quê): o buffer em memória (páginas por beacon do
+  // PortalLayout + chamadas de API contadas em autenticar()) desce ao banco UMA
+  // vez por minuto pela RPC portal_uso_incrementar. Só produção (USO_MONITOR=on
+  // liga no local; =off desliga). Em SIGTERM (deploy) tenta um último flush.
+  {
+    const { descarregarUso, monitorLigado } = await import('./lib/uso/buffer-server');
+    if (monitorLigado()) {
+      const rodarFlush = async () => {
+        const r = await descarregarUso();
+        if (!r.ok) log('monitor de uso: flush falhou: ' + r.erro);
+      };
+      setInterval(() => { rodarFlush().catch(() => {}); }, 60 * 1000);
+      const proc = process as unknown as { once?: (ev: string, fn: () => void) => void };
+      proc.once?.('SIGTERM', () => { rodarFlush().catch(() => {}); });
+      log('monitor de uso LIGADO (flush a cada 60 s)');
+    } else {
+      log('monitor de uso DESLIGADO (só produção; USO_MONITOR=on liga no local)');
+    }
+  }
+
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }

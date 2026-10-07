@@ -10,6 +10,7 @@
 //   if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
 //   if (!auth.isAdmin) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
 import { createClient } from '@supabase/supabase-js'
+import { registrarUsoApi } from '@/lib/uso/buffer-server'
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || ''
@@ -55,6 +56,8 @@ export async function autenticar(req: Request): Promise<Autenticado | null> {
 
   const isDev = perm?.is_dev === true
   const isAdmin = perm?.is_admin === true || isDev
+  // Monitor de uso: conta a chamada (só incrementa um Map em memória; flush a cada 60 s).
+  try { registrarUsoApi(userId, new globalThis.URL(req.url).pathname) } catch { /* best-effort */ }
   return {
     userId,
     email: data.user.email ?? null,
