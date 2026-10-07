@@ -15,6 +15,7 @@ const acao = (over: Partial<Acao> = {}) =>
     meta_receita: null,
     data_fim: null,
     responsavel_id: null,
+    leads_declarados: null,
     ...over,
   }) as EntradaROI['acao'];
 
@@ -190,6 +191,41 @@ describe('leads', () => {
     );
     expect(r.leads).toBe(3);
     expect(r.leadsQualificados).toBe(2);
+  });
+});
+
+// Numa feira o contato vai pro papel. Sem isso o relatório dizia "Leads
+// captados: Não registrado", pior que o número que a equipe garante.
+describe('total de leads informado', () => {
+  it('sem lead cadastrado, vale o número informado', () => {
+    const r = calcularROI(base({ acao: acao({ leads_declarados: 95 }) }));
+    expect(r.leads).toBe(95);
+    expect(r.leadsInformados).toBe(true);
+  });
+
+  it('havendo lead cadastrado, o número REAL manda e o informado é ignorado', () => {
+    const r = calcularROI(
+      base({ acao: acao({ leads_declarados: 95 }), leads: [lead({ id: 'a' }), lead({ id: 'b' })] }),
+    );
+    expect(r.leads).toBe(2);
+    expect(r.leadsInformados).toBe(false);
+  });
+
+  it('o informado alimenta custo por lead e conversão', () => {
+    const r = calcularROI(
+      base({
+        acao: acao({ leads_declarados: 100 }),
+        custos: [custo({ valor: 10_000 })],
+        propostas: [prop({ valor_total: 50_000 })],
+      }),
+    );
+    expect(r.custoPorLead).toBeCloseTo(100, 6);
+    expect(r.taxaConversaoLead).toBeCloseTo(0.01, 6);
+  });
+
+  it('informado zero ou negativo não conta', () => {
+    expect(calcularROI(base({ acao: acao({ leads_declarados: 0 }) })).leadsInformados).toBe(false);
+    expect(calcularROI(base({ acao: acao({ leads_declarados: -5 }) })).leads).toBe(0);
   });
 });
 

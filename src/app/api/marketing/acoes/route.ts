@@ -16,13 +16,16 @@ const CAMPOS = [
   'projeto_codigo', 'projeto_nome', 'projeto_empresa',
   'orcamento_previsto', 'meta_leads', 'meta_vendas', 'meta_receita',
   'responsavel_id', 'responsavel_nome', 'responsavel_email',
-  'publico_estimado', 'observacoes',
+  'publico_estimado', 'publico_total_evento', 'dias_participacao', 'stand_descricao',
+  'leads_declarados', 'observacoes',
 ] as const;
 
 /** Normaliza o que vem do formulário: número é número, data é data. */
 function normalizar(body: any) {
   const dados: any = apenas(body, CAMPOS);
-  for (const k of ['projeto_codigo', 'orcamento_previsto', 'meta_leads', 'meta_vendas', 'meta_receita', 'publico_estimado']) {
+  for (const k of ['projeto_codigo', 'orcamento_previsto', 'meta_leads', 'meta_vendas',
+                   'meta_receita', 'publico_estimado', 'publico_total_evento',
+                   'dias_participacao', 'leads_declarados']) {
     if (k in dados) dados[k] = num(dados[k]);
   }
   for (const k of ['data_inicio', 'data_fim']) {

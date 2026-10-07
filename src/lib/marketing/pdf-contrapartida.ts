@@ -14,7 +14,7 @@
 const pdfkitMod = require('pdfkit');
 const PDFDocument = pdfkitMod.default || pdfkitMod;
 
-import { NAO_REGISTRADO, type Relatorio } from './contrapartida';
+import { NAO_REGISTRADO, linhasExternas, type Relatorio } from './contrapartida';
 
 const ROSA = '#DB2777';
 const CINZA = '#555555';
@@ -83,14 +83,27 @@ export async function gerarPDFContrapartida(rel: Relatorio): Promise<Buffer> {
       cabecalho();
 
       for (const secao of rel.secoes) {
+        // Este documento é da FÁBRICA: linha marcada como interna fica só na
+        // tela. Se a seção inteira for interna, ela nem aparece.
+        const linhas = linhasExternas(secao);
+        if (linhas.length === 0 && !secao.tabela && !secao.texto) continue;
+
         espaco(60);
         doc.font('Helvetica-Bold').fontSize(12).fillColor(ROSA)
           .text(secao.titulo, M, doc.y, { width: larg });
         doc.y += 4;
 
-        for (const l of secao.linhas) {
-          const alturaValor = doc.font('Helvetica').fontSize(9).heightOfString(l.valor, { width: larg - 170 });
-          espaco(alturaValor + 8);
+        for (const l of linhas) {
+          // A altura da linha é a do MAIOR dos dois lados. Medir só o valor
+          // fazia rótulo longo ("Custos previstos (ainda não confirmados):")
+          // quebrar em duas linhas e a linha seguinte escrever por cima.
+          const alturaRotulo = doc.font('Helvetica-Bold').fontSize(9)
+            .heightOfString(`${l.rotulo}:`, { width: 160 });
+          const alturaValor = doc.font('Helvetica').fontSize(9)
+            .heightOfString(l.valor, { width: larg - 170 });
+          const altura = Math.max(alturaRotulo, alturaValor);
+
+          espaco(altura + 8);
           const y0 = doc.y;
           doc.font('Helvetica-Bold').fontSize(9).fillColor('#111111')
             .text(`${l.rotulo}:`, M, y0, { width: 160 });
@@ -98,7 +111,7 @@ export async function gerarPDFContrapartida(rel: Relatorio): Promise<Buffer> {
           doc.font('Helvetica').fontSize(9)
             .fillColor(l.valor === NAO_REGISTRADO ? '#b91c1c' : '#333333')
             .text(l.valor, M + 165, y0, { width: larg - 170 });
-          doc.y = Math.max(doc.y, y0 + alturaValor) + 3;
+          doc.y = y0 + altura + 3;
         }
 
         if (secao.tabela) {
@@ -192,27 +205,20 @@ export async function gerarPDFContrapartida(rel: Relatorio): Promise<Buffer> {
         doc.y += 6;
       }
 
-      // ── 9. O que ainda falta registrar ───────────────────────────────────
-      // Fica no documento de propósito: o PDF é também o checklist interno.
-      if (rel.pendencias.length > 0) {
-        espaco(50);
-        doc.y += 8;
-        const y0 = doc.y;
-        const alturaLista = doc.font('Helvetica').fontSize(9)
-          .heightOfString(rel.pendencias.map((p) => `• ${p}`).join('\n'), { width: larg - 16 });
-        espaco(alturaLista + 34);
-        doc.rect(M, doc.y, larg, alturaLista + 28).fillAndStroke('#fef2f2', '#dc2626');
-        doc.fillColor('#b91c1c').font('Helvetica-Bold').fontSize(10)
-          .text('Itens ainda não registrados', M + 8, doc.y + 6, { width: larg - 16 });
-        doc.font('Helvetica').fontSize(9).fillColor('#7f1d1d')
-          .text(rel.pendencias.map((p) => `• ${p}`).join('\n'), M + 8, doc.y + 4, { width: larg - 16 });
-        doc.y = Math.max(doc.y, y0) + 10;
-      }
+      // A caixa "Itens ainda não registrados" NÃO entra aqui: é conferência
+      // interna, e mandar pra fábrica a lista do que não fizemos não ajuda
+      // ninguém. Ela continua visível na aba Relatório, ANTES de enviar — que
+      // é onde serve pra alguma coisa. As lacunas seguem aparecendo linha a
+      // linha como "Não registrado", então o documento continua honesto.
 
       // "Página X de Y"
+      // ⚠️ O rodapé é escrito ABAIXO da margem inferior. Sem zerar a margem, o
+      // pdfkit entende que estourou a página e cria uma NOVA a cada escrita —
+      // era isso que gerava as folhas em branco no fim do documento.
       const range = doc.bufferedPageRange();
       for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
+        doc.page.margins.bottom = 0;
         doc.font('Helvetica').fontSize(8).fillColor('#999999')
           .text(`Página ${i - range.start + 1} de ${range.count}`, M, pageH - M + 8, {
             width: larg, align: 'right', lineBreak: false,

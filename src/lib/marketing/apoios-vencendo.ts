@@ -183,7 +183,7 @@ export async function cronApoiosVencendo(args: CronApoiosArgs = {}): Promise<Cro
   });
 
   await registrarEnvioLog({
-    chave: CHAVE, origem, ok: email.ok, motivo: email.motivo, assunto,
+    chave: CHAVE, origem, ok: email.ok, motivo: email.ok ? undefined : (email.erro || email.motivo), assunto,
     destinatarios: cfg.to, total: itens.length, usuario: args.usuario,
     detalhes: { vencidos, dias },
   });

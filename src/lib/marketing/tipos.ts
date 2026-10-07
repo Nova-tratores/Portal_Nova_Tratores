@@ -221,7 +221,16 @@ export interface Acao {
   responsavel_id: string | null;
   responsavel_nome: string | null;
   responsavel_email: string | null;
+  /** Quem passou no NOSSO stand (por dia). */
   publico_estimado: number | null;
+  // ── Colunas acrescentadas depois (marketing-questionario.sql e
+  //    marketing-leads-declarados.sql) ──
+  /** Público do evento INTEIRO, divulgado pelo organizador. */
+  publico_total_evento: number | null;
+  dias_participacao: number | null;
+  stand_descricao: string | null;
+  /** Total de leads informado quando eles não estão cadastrados. */
+  leads_declarados: number | null;
   observacoes: string | null;
   criado_por_id: string | null;
   criado_por_nome: string | null;

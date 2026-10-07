@@ -115,7 +115,7 @@ export async function enviarContrapartida(
   });
 
   await registrarEnvioLog({
-    chave: CHAVE, origem, ok: email.ok, motivo: email.motivo, assunto,
+    chave: CHAVE, origem, ok: email.ok, motivo: email.ok ? undefined : (email.erro || email.motivo), assunto,
     destinatarios: to, usuario: args.enviadoPor,
     detalhes: { apoio_id: args.apoioId, pendencias: rel.pendencias.length },
   });

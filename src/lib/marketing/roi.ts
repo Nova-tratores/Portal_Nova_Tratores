@@ -26,7 +26,8 @@ import {
 } from './tipos';
 
 export interface EntradaROI {
-  acao: Pick<Acao, 'id' | 'nome' | 'orcamento_previsto' | 'meta_leads' | 'meta_vendas' | 'meta_receita' | 'data_fim' | 'responsavel_id'>;
+  acao: Pick<Acao, 'id' | 'nome' | 'orcamento_previsto' | 'meta_leads' | 'meta_vendas'
+    | 'meta_receita' | 'data_fim' | 'responsavel_id' | 'leads_declarados'>;
   custos: Custo[];
   apoios: Apoio[];
   leads: Lead[];
@@ -69,6 +70,8 @@ export interface ResultadoROI {
   // Funil
   leads: number;
   leadsQualificados: number;
+  /** true = o total veio do campo "informado", não de leads cadastrados. */
+  leadsInformados: boolean;
   propostasN: number;
   propostasValor: number;
   pipelineAbertoN: number;
@@ -163,6 +166,14 @@ export function calcularROI(e: EntradaROI): ResultadoROI {
     (LEAD_QUALIFICADO as readonly string[]).includes(l.qualificacao),
   ).length;
 
+  // Numa feira o contato costuma ser anotado no papel. Quando NADA foi
+  // cadastrado, vale o total que a equipe informou — melhor que "não
+  // registrado". Havendo lead no sistema, o número real manda, e o informado é
+  // ignorado sozinho: ninguém precisa lembrar de apagá-lo depois.
+  const declarados = Number(e.acao?.leads_declarados ?? 0);
+  const usaInformado = leads.length === 0 && Number.isFinite(declarados) && declarados > 0;
+  const totalLeads = usaInformado ? Math.round(declarados) : leads.length;
+
   // ── Propostas ──────────────────────────────────────────────────────────────
   let propostasValor = 0;
   let pipelineAbertoN = 0;
@@ -223,8 +234,9 @@ export function calcularROI(e: EntradaROI): ResultadoROI {
     apoioAReceber,
     custoLiquido,
 
-    leads: leads.length,
+    leads: totalLeads,
     leadsQualificados,
+    leadsInformados: usaInformado,
     propostasN: (e.propostas ?? []).length,
     propostasValor,
     pipelineAbertoN,
@@ -235,12 +247,12 @@ export function calcularROI(e: EntradaROI): ResultadoROI {
     // ROI sobre o custo LÍQUIDO: o que a casa pôs do bolso. Custo líquido <= 0
     // (a fábrica pagou tudo) não tem ROI definido — mostrar travessão.
     roi: custoLiquido > 0 ? div(receitaAtribuida, custoLiquido) : null,
-    custoPorLead: div(c.confirmado, leads.length),
+    custoPorLead: div(c.confirmado, totalLeads),
     cac: div(c.confirmado, vendasN),
-    taxaConversaoLead: div(vendasN, leads.length),
+    taxaConversaoLead: div(vendasN, totalLeads),
     orcamentoVsRealizado: div(c.total, orcamento),
 
-    metaLeadsPercent: div(leads.length, Number(e.acao?.meta_leads ?? 0)),
+    metaLeadsPercent: div(totalLeads, Number(e.acao?.meta_leads ?? 0)),
     metaVendasPercent: div(vendasN, Number(e.acao?.meta_vendas ?? 0)),
     metaReceitaPercent: div(receitaAtribuida, parseValorMisto(e.acao?.meta_receita)),
 

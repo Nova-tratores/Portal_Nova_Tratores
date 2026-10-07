@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { montarRelatorio, txt, dinheiro, data, inteiro, NAO_REGISTRADO } from '../contrapartida';
+import { montarRelatorio, linhasExternas, txt, dinheiro, data, inteiro, NAO_REGISTRADO } from '../contrapartida';
 import type { DadosRelatorio } from '../contrapartida';
 import type { Acao, Apoio } from '../tipos';
 
@@ -48,7 +48,9 @@ const acaoVazia = {
   local_nome: null, cidade: null, uf: null, projeto_codigo: null, projeto_nome: null,
   projeto_empresa: null, orcamento_previsto: null, meta_leads: null, meta_vendas: null,
   meta_receita: null, responsavel_id: null, responsavel_nome: null, responsavel_email: null,
-  publico_estimado: null, observacoes: null, criado_por_id: null, criado_por_nome: null,
+  publico_estimado: null, publico_total_evento: null, dias_participacao: null,
+  stand_descricao: null, leads_declarados: null,
+  observacoes: null, criado_por_id: null, criado_por_nome: null,
   criado_em: '2026-01-01T00:00:00Z', atualizado_em: '2026-01-01T00:00:00Z', deleted_at: null,
 } as Acao;
 
@@ -168,6 +170,37 @@ describe('montarRelatorio', () => {
       dados({ midias: [{ id: 'v1', url: 'https://x/a.mp4', contrapartida: true, tipo: 'video' }] }),
     );
     expect(r.pendencias.some((p) => p.includes('evidência de contrapartida'))).toBe(false);
+  });
+
+  // O PDF vai pra FÁBRICA. Referência contábil nossa e, principalmente, a
+  // economia da revenda (retorno, custo por venda) não são prestação de contas
+  // do apoio — ficam só na tela.
+  it('marca como interna a linha que não deve ir à fábrica', () => {
+    const r = montarRelatorio(dados());
+    const internas = r.secoes.flatMap((s) => s.linhas.filter((l) => l.interno).map((l) => l.rotulo));
+    expect(internas).toContain('Projeto no Omie');
+    expect(internas).toContain('Situação do relatório');
+    expect(internas).toContain('Retorno sobre o investimento líquido');
+    expect(internas).toContain('Custo por venda');
+  });
+
+  it('linhasExternas remove as internas e mantém o resto', () => {
+    const r = montarRelatorio(dados());
+    for (const secao of r.secoes) {
+      const externas = linhasExternas(secao);
+      expect(externas.every((l) => !l.interno)).toBe(true);
+      expect(externas.length).toBeLessThanOrEqual(secao.linhas.length);
+    }
+    const s1 = r.secoes[0];
+    expect(linhasExternas(s1).map((l) => l.rotulo)).not.toContain('Projeto no Omie');
+    expect(linhasExternas(s1).map((l) => l.rotulo)).toContain('Ação');
+  });
+
+  it('separa público do evento do público do nosso stand', () => {
+    const r = montarRelatorio(dados());
+    const rotulos = r.secoes[0].linhas.map((l) => l.rotulo);
+    expect(rotulos).toContain('Público total do evento');
+    expect(rotulos).toContain('Visitantes no nosso stand (por dia)');
   });
 
   it('só foto marcada como contrapartida entra no anexo', () => {

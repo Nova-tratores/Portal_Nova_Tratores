@@ -23,8 +23,9 @@ export default function AcaoForm({
   const [f, setF] = useState<Record<string, any>>({
     nome: '', tipo: 'feira', status: 'planejada', empresa: 'NOVA',
     data_inicio: '', data_fim: '', local_nome: '', cidade: '', uf: '',
-    orcamento_previsto: '', meta_leads: '', meta_vendas: '', meta_receita: '',
-    publico_estimado: '', objetivo: '', observacoes: '',
+    orcamento_previsto: '', meta_leads: '', meta_vendas: '', meta_receita: '', leads_declarados: '',
+    publico_estimado: '', publico_total_evento: '', dias_participacao: '', stand_descricao: '',
+    objetivo: '', observacoes: '',
     responsavel_id: '', responsavel_nome: '', responsavel_email: '',
     projeto_codigo: '', projeto_nome: '', projeto_empresa: '',
     ...(inicial ?? {}),
@@ -155,10 +156,24 @@ export default function AcaoForm({
             Essa pessoa não está mais ativa no portal.
           </div>
         )}
-        <Campo label="Público estimado" largura="1 1 160px">
+      </div>
+
+      {/* Dois públicos diferentes, e confundir os dois enganava o relatório. */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
+        <Campo label="Visitantes no nosso stand (por dia)" ajuda="Estimativa de quem passou no estande.">
           <input type="number" min={0} style={estiloInput} value={f.publico_estimado ?? ''} onChange={(e) => set('publico_estimado', e.target.value)} />
         </Campo>
+        <Campo label="Público total do evento" ajuda="O número que o organizador divulgou.">
+          <input type="number" min={0} style={estiloInput} value={f.publico_total_evento ?? ''} onChange={(e) => set('publico_total_evento', e.target.value)} />
+        </Campo>
+        <Campo label="Dias de participação">
+          <input type="number" min={0} style={estiloInput} value={f.dias_participacao ?? ''} onChange={(e) => set('dias_participacao', e.target.value)} />
+        </Campo>
       </div>
+
+      <Campo label="Stand" ajuda="Tamanho, localização, e se era próprio ou dentro do espaço da fábrica." largura="1 1 100%">
+        <textarea rows={2} style={{ ...estiloInput, resize: 'vertical' }} value={f.stand_descricao ?? ''} onChange={(e) => set('stand_descricao', e.target.value)} />
+      </Campo>
 
       {/* Projeto do Omie — a ponte com o financeiro */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
@@ -211,6 +226,12 @@ export default function AcaoForm({
         </Campo>
         <Campo label="Meta de leads">
           <input type="number" min={0} style={estiloInput} value={f.meta_leads ?? ''} onChange={(e) => set('meta_leads', e.target.value)} />
+        </Campo>
+        <Campo
+          label="Leads captados (informado)"
+          ajuda="Use quando os contatos foram anotados no papel. Assim que houver lead cadastrado pelo /lead, o número real assume sozinho."
+        >
+          <input type="number" min={0} style={estiloInput} value={f.leads_declarados ?? ''} onChange={(e) => set('leads_declarados', e.target.value)} />
         </Campo>
         <Campo label="Meta de vendas (un.)">
           <input type="number" min={0} style={estiloInput} value={f.meta_vendas ?? ''} onChange={(e) => set('meta_vendas', e.target.value)} />

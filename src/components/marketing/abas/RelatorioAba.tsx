@@ -165,8 +165,9 @@ export default function RelatorioAba({ apoios, onMudou }: { apoios: any[]; onMud
                 </span>
               </Titulo>
               <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #64748b)', marginBottom: 8 }}>
-                O relatório não esconde o que falta. Preencha antes de mandar, ou envie assim mesmo
-                sabendo o que a fábrica vai ver.
+                Esta conferência é sua: ela NÃO vai no PDF. No documento as lacunas aparecem
+                linha a linha como &quot;Não registrado&quot;. Preencha antes de mandar, ou envie
+                assim mesmo sabendo o que a fábrica vai ver.
               </div>
               <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, color: 'var(--portal-text)' }}>
                 {previa.pendencias.map((p: string, i: number) => <li key={i} style={{ marginBottom: 3 }}>{p}</li>)}
@@ -179,8 +180,18 @@ export default function RelatorioAba({ apoios, onMudou }: { apoios: any[]; onMud
               <Titulo>{s.titulo}</Titulo>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 {s.linhas.map((l: any, j: number) => (
-                  <div key={j} style={{ display: 'flex', gap: 10, fontSize: 13, flexWrap: 'wrap' }}>
-                    <span style={{ minWidth: 200, fontWeight: 600, color: 'var(--portal-text)' }}>{l.rotulo}</span>
+                  <div key={j} style={{ display: 'flex', gap: 10, fontSize: 13, flexWrap: 'wrap', opacity: l.interno ? 0.65 : 1 }}>
+                    <span style={{ minWidth: 200, fontWeight: 600, color: 'var(--portal-text)' }}>
+                      {l.rotulo}
+                      {l.interno && (
+                        <span
+                          title="Só para uso interno — não entra no PDF enviado à fábrica"
+                          style={{ marginLeft: 6, fontSize: 10, fontWeight: 700, padding: '1px 5px', borderRadius: 2, background: 'var(--portal-bg)', border: '1px solid var(--portal-border)', color: 'var(--portal-text-muted, #64748b)' }}
+                        >
+                          INTERNO
+                        </span>
+                      )}
+                    </span>
                     <span style={{ flex: 1, color: l.valor === 'Não registrado' ? '#dc2626' : 'var(--portal-text)' }}>{l.valor}</span>
                   </div>
                 ))}

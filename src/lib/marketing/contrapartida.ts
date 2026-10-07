@@ -55,7 +55,17 @@ export function inteiro(v: unknown): string {
   return Number.isFinite(n) ? n.toLocaleString('pt-BR') : NAO_REGISTRADO;
 }
 
-export interface LinhaRelatorio { rotulo: string; valor: string }
+export interface LinhaRelatorio {
+  rotulo: string;
+  valor: string;
+  /**
+   * Interessa só à Nova Tratores; NÃO vai no PDF que a fábrica recebe.
+   * Referência contábil interna, situação do nosso fluxo e, principalmente,
+   * a economia da revenda: retorno, custo por lead e custo por venda são
+   * informação comercial nossa, não prestação de contas do apoio.
+   */
+  interno?: boolean;
+}
 export interface SecaoRelatorio {
   titulo: string;
   linhas: LinhaRelatorio[];
@@ -125,6 +135,16 @@ function linha(pend: string[], secao: string, rotuloTxt: string, valor: string):
   return { rotulo: rotuloTxt, valor };
 }
 
+/** Linha que fica só na tela: não entra no documento enviado à fábrica. */
+function interna(rotuloTxt: string, valor: string): LinhaRelatorio {
+  return { rotulo: rotuloTxt, valor, interno: true };
+}
+
+/** As linhas que a fábrica vê. */
+export function linhasExternas(secao: SecaoRelatorio): LinhaRelatorio[] {
+  return secao.linhas.filter((l) => !l.interno);
+}
+
 export function montarRelatorio(d: DadosRelatorio): Relatorio {
   const pend: string[] = [];
   const { acao, apoio } = d;
@@ -151,9 +171,14 @@ export function montarRelatorio(d: DadosRelatorio): Relatorio {
       linha(pend, '1', 'Local', txt(acao.local_nome)),
       linha(pend, '1', 'Cidade / UF', acao.cidade ? `${acao.cidade}${acao.uf ? ` / ${acao.uf}` : ''}` : NAO_REGISTRADO),
       linha(pend, '1', 'Empresa', txt(acao.empresa)),
-      linha(pend, '1', 'Projeto no Omie', txt(acao.projeto_nome)),
+      // Referência contábil nossa — a fábrica não tem o que fazer com ela.
+      interna('Projeto no Omie', txt(acao.projeto_nome)),
       linha(pend, '1', 'Responsável', txt(acao.responsavel_nome)),
-      linha(pend, '1', 'Público estimado do evento', inteiro(acao.publico_estimado)),
+      // Dois públicos diferentes: o do evento inteiro (organizador) e o que
+      // passou no NOSSO stand. Chamar os dois de "público do evento" enganava.
+      linha(pend, '1', 'Público total do evento', inteiro(acao.publico_total_evento)),
+      linha(pend, '1', 'Visitantes no nosso stand (por dia)', inteiro(acao.publico_estimado)),
+      linha(pend, '1', 'Dias de participação', inteiro(acao.dias_participacao)),
       linha(pend, '1', 'Objetivo', txt(acao.objetivo)),
     ],
   };
@@ -174,7 +199,7 @@ export function montarRelatorio(d: DadosRelatorio): Relatorio {
       linha(pend, '2', 'Forma do crédito', txt(apoio.forma_credito)),
       linha(pend, '2', 'Data do crédito', data(apoio.credito_em)),
       linha(pend, '2', 'Prazo da contrapartida', data(apoio.contrapartida_prazo)),
-      linha(pend, '2', 'Situação do relatório', txt(rotulo(STATUS_RELATORIO, apoio.relatorio_status))),
+      interna('Situação do relatório', txt(rotulo(STATUS_RELATORIO, apoio.relatorio_status))),
     ],
     texto: apoio.contrapartida_texto ? `Contrapartida acordada: ${apoio.contrapartida_texto}` : undefined,
   };
@@ -228,7 +253,8 @@ export function montarRelatorio(d: DadosRelatorio): Relatorio {
     titulo: '5. Resultados gerados',
     linhas: [
       linha(pend, '5', 'Leads captados', roi.leads > 0 ? inteiro(roi.leads) : NAO_REGISTRADO),
-      { rotulo: 'Leads qualificados', valor: inteiro(roi.leadsQualificados) },
+      // Sem lead cadastrado o qualificado é sempre 0 e não diz nada.
+      ...(roi.leadsInformados ? [] : [{ rotulo: 'Leads qualificados', valor: inteiro(roi.leadsQualificados) }]),
       linha(pend, '5', 'Propostas vinculadas', roi.propostasN > 0 ? inteiro(roi.propostasN) : NAO_REGISTRADO),
       { rotulo: 'Propostas em aberto', valor: `${inteiro(roi.pipelineAbertoN)} — ${brl(roi.pipelineAbertoValor)}` },
       { rotulo: 'Vendas fechadas', valor: inteiro(roi.vendasN) },
@@ -242,14 +268,17 @@ export function montarRelatorio(d: DadosRelatorio): Relatorio {
     titulo: '6. Investimento e retorno',
     linhas: [
       linha(pend, '6', 'Investimento confirmado', tot.confirmado > 0 ? brl(tot.confirmado) : NAO_REGISTRADO),
-      { rotulo: 'Custos previstos (ainda não confirmados)', valor: brl(tot.previsto) },
       { rotulo: 'Apoio recebido', valor: brl(roi.apoioRecebido) },
-      { rotulo: 'Investimento líquido da revenda', valor: brl(roi.custoLiquido) },
-      { rotulo: 'Orçamento previsto', valor: dinheiro(acao.orcamento_previsto) },
+      // Daqui pra baixo é economia NOSSA. Fica na tela, não no documento:
+      // retorno e custo por venda são informação comercial da revenda, não
+      // prestação de contas do apoio.
+      interna('Custos previstos (não confirmados)', brl(tot.previsto)),
+      interna('Investimento líquido da revenda', brl(roi.custoLiquido)),
+      interna('Orçamento previsto', dinheiro(acao.orcamento_previsto)),
       // ROI indefinido mostra travessão — nunca "Infinity".
-      { rotulo: 'Retorno sobre o investimento líquido', valor: roi.roi === null ? '—' : `${roi.roi.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}x` },
-      { rotulo: 'Custo por lead', valor: roi.custoPorLead === null ? '—' : brl(roi.custoPorLead) },
-      { rotulo: 'Custo por venda', valor: roi.cac === null ? '—' : brl(roi.cac) },
+      interna('Retorno sobre o investimento líquido', roi.roi === null ? '—' : `${roi.roi.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}x`),
+      interna('Custo por lead', roi.custoPorLead === null ? '—' : brl(roi.custoPorLead)),
+      interna('Custo por venda', roi.cac === null ? '—' : brl(roi.cac)),
     ],
     tabela: {
       cabecalho: ['Categoria', 'Valor', '%'],
