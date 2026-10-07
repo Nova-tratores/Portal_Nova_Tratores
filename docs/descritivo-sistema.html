@@ -1,0 +1,295 @@
+<title>Inventário do Portal Nova Tratores</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&display=swap">
+<style>
+:root{
+  --bg:#f6f5f2; --paper:#ffffff; --ink:#1c1b19; --ink-2:#4d4a45; --ink-3:#7a766f;
+  --line:#ddd9d1; --line-2:#ece9e2; --accent:#c8102e; --accent-ink:#ffffff;
+  --tint:#fbf1f2;
+  --g-servicos:#0369a1; --g-pecas:#ea580c; --g-financeiro:#4d7c0f; --g-comercial:#be123c;
+  --g-estoque:#6b7280; --g-frota:#1e40af; --g-ajustes:#7c3aed; --g-outros:#0f766e;
+  --code:#f0ede6; --code-ink:#3b3834;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#16171a; --paper:#1f2126; --ink:#ecebe7; --ink-2:#b8b5ae; --ink-3:#85827b;
+    --line:#33363c; --line-2:#2a2d33; --accent:#ff5a6e; --accent-ink:#1c1b19; --tint:#2a2024;
+    --g-servicos:#5bb8f0; --g-pecas:#fb923c; --g-financeiro:#a3e635; --g-comercial:#fb7185;
+    --g-estoque:#b0b5bd; --g-frota:#93a8ff; --g-ajustes:#c4a6ff; --g-outros:#5eead4;
+    --code:#2a2d33; --code-ink:#d6d3cc;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#16171a; --paper:#1f2126; --ink:#ecebe7; --ink-2:#b8b5ae; --ink-3:#85827b;
+  --line:#33363c; --line-2:#2a2d33; --accent:#ff5a6e; --accent-ink:#1c1b19; --tint:#2a2024;
+  --g-servicos:#5bb8f0; --g-pecas:#fb923c; --g-financeiro:#a3e635; --g-comercial:#fb7185;
+  --g-estoque:#b0b5bd; --g-frota:#93a8ff; --g-ajustes:#c4a6ff; --g-outros:#5eead4;
+  --code:#2a2d33; --code-ink:#d6d3cc;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:"Source Sans 3","Segoe UI",system-ui,sans-serif;font-size:16px;line-height:1.5;padding-block:0 64px;padding-inline:clamp(16px,4vw,40px)}
+.wrap{max-width:1180px;margin:0 auto}
+h1,h2,h3{font-family:"Barlow Condensed","Arial Narrow",Impact,sans-serif;text-wrap:balance;margin:0;line-height:1.05}
+h1{font-size:clamp(40px,6vw,64px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:32px;font-weight:600;margin-top:56px;padding-top:16px;border-top:3px solid var(--ink)}
+h3{font-size:22px;font-weight:600;margin-top:32px}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+header.top{padding-block:40px 24px;border-bottom:1px solid var(--line)}
+header.top .lede{max-width:64ch;color:var(--ink-2);margin-top:12px;font-size:17px}
+header.top .meta{margin-top:10px;font-size:13px;color:var(--ink-3)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin-top:28px}
+.kpi{background:var(--paper);padding:16px 18px 14px}
+.kpi .n{font-family:"Barlow Condensed",sans-serif;font-size:44px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;color:var(--accent)}
+.kpi .l{font-size:13px;color:var(--ink-2);margin-top:6px;font-weight:600}
+.kpi .h{font-size:12px;color:var(--ink-3);margin-top:2px}
+.stack{margin-top:40px;color:var(--ink-2);max-width:78ch}
+.stack b{color:var(--ink)}
+nav.toc{display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:24px;font-size:14px}
+nav.toc a{color:var(--ink-2);text-decoration:none;border-bottom:1px solid var(--line)}
+nav.toc a:hover,nav.toc a:focus-visible{color:var(--accent);border-color:var(--accent);outline:none}
+.group{display:flex;align-items:center;gap:12px;margin-top:40px}
+.group h3{margin:0}
+.swatch{width:14px;height:28px;background:var(--gc,var(--ink))}
+.group .sub{color:var(--ink-3);font-size:14px}
+.tblwrap{overflow-x:auto;margin-top:14px;border:1px solid var(--line);background:var(--paper)}
+table{border-collapse:collapse;width:100%;font-size:14.5px;min-width:640px}
+th,td{text-align:left;vertical-align:top;padding:10px 12px;border-bottom:1px solid var(--line-2)}
+th{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:600;background:var(--bg);white-space:nowrap}
+tr:last-child td{border-bottom:0}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.name{font-weight:600;white-space:nowrap}
+td.name .rt{display:block;font-weight:400;font-size:12.5px;color:var(--ink-3);font-family:ui-monospace,Consolas,monospace;white-space:normal}
+code{font-family:ui-monospace,Consolas,"Cascadia Mono",monospace;font-size:12.5px;background:var(--code);color:var(--code-ink);padding:1px 5px;border-radius:2px}
+td.tabs code{margin:1px 2px 1px 0;display:inline-block}
+.note{margin-top:16px;padding:14px 18px;border-left:4px solid var(--accent);background:var(--tint);color:var(--ink-2);font-size:15px}
+.note b{color:var(--ink)}
+ul.plain{padding-left:20px;color:var(--ink-2)}
+ul.plain li{margin-block:6px}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.two{grid-template-columns:1fr}h2{font-size:26px}.kpi .n{font-size:36px}}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">Nova Tratores · Portal interno · Levantamento de 15/09/2026</div>
+  <h1>Inventário do Portal Nova Tratores</h1>
+  <p class="lede">O que o sistema tem hoje, contado direto do código: telas, rotas de API, tabelas do Supabase, funções SQL e de biblioteca, crons e testes. Cada sistema com o que faz e em quais tabelas mora.</p>
+  <p class="meta">Fonte: varredura de <code>src/</code>, <code>sql/</code> e <code>.github/workflows/</code> no branch <code>main</code> com o trabalho local. Next.js 16 · Supabase · Railway · Omie.</p>
+
+  <div class="kpis">
+    <div class="kpi"><div class="n">192</div><div class="l">Telas</div><div class="h">page.tsx em src/app</div></div>
+    <div class="kpi"><div class="n">662</div><div class="l">Rotas de API</div><div class="h">route.ts em src/app/api</div></div>
+    <div class="kpi"><div class="n">~295</div><div class="l">Tabelas e views</div><div class="h">usadas via .from()</div></div>
+    <div class="kpi"><div class="n">179</div><div class="l">Tabelas versionadas</div><div class="h">CREATE TABLE em sql/ (237 migrations)</div></div>
+    <div class="kpi"><div class="n">1.424</div><div class="l">Funções de lib</div><div class="h">exports em src/lib (339 arquivos)</div></div>
+    <div class="kpi"><div class="n">34</div><div class="l">Funções SQL</div><div class="h">17 RPCs chamadas · 27 triggers · 17 views</div></div>
+    <div class="kpi"><div class="n">273</div><div class="l">Componentes React</div><div class="h">src/components</div></div>
+    <div class="kpi"><div class="n">41</div><div class="l">Crons</div><div class="h">GitHub Actions</div></div>
+    <div class="kpi"><div class="n">601</div><div class="l">Testes</div><div class="h">vitest, 42 arquivos</div></div>
+    <div class="kpi"><div class="n">300 mil</div><div class="l">Linhas de código</div><div class="h">ts · tsx · js · jsx</div></div>
+  </div>
+
+  <p class="stack"><b>Acesso:</b> módulos em <code>portal_permissoes.modulos_permitidos</code> (módulo puro = acesso total; <code>modulo:acao</code> = granular) e papéis Usuário / Admin / Dev. O catálogo agrupa os sistemas em <b>Serviços, Peças, Financeiro, Comercial, Estoque, Frota, Ajustes e Outros</b>, e é essa a ordem abaixo. <b>Integrações:</b> Omie ERP, Gmail, OpenRouteService, Rotaexata (GPS), NovaZap/Chatwoot (WhatsApp), OpenAI (Tratorilson e visão), DVR Intelbras, Supabase do RH.</p>
+
+  <nav class="toc" aria-label="Seções">
+    <a href="#sistemas">Sistemas por grupo</a><a href="#tabelas">Tabelas</a><a href="#funcoes">Funções</a><a href="#apis">APIs por área</a><a href="#crons">Crons</a><a href="#ressalvas">Ressalvas</a>
+  </nav>
+</header>
+
+<h2 id="sistemas">Os sistemas e o uso de cada um</h2>
+
+<div class="group" style="--gc:var(--g-servicos)"><span class="swatch"></span><h3>Serviços</h3><span class="sub">faixa azul · layout (portal)/(servicos)</span></div>
+<div class="tblwrap"><table>
+<thead><tr><th>Sistema</th><th class="n">Telas</th><th class="n">APIs</th><th>Uso resumido</th><th>Tabelas principais</th></tr></thead>
+<tbody>
+<tr><td class="name">Pós-Vendas (OS)<span class="rt">/pos</span></td><td class="n">1</td><td class="n">47</td><td>Ordens de serviço da oficina: criação, fases, técnicos, peças, alimentação, envio à Omie, PDF, NFS-e. Modos Cards, Relação e Dashboard. Alimentação lançada na OS vira Requisição automática.</td><td class="tabs"><code>Ordem_Servico</code><code>Ordem_Servico_Tecnicos</code><code>os_servicos_itens</code><code>os_nfse</code><code>os_mensal</code><code>logs_ppo</code><code>configuracoes_pos</code><code>pos_emails</code></td></tr>
+<tr><td class="name">Garantias<span class="rt">/garantias · /g/[id]</span></td><td class="n">2</td><td class="n">36</td><td>Solicitação de garantia à montadora, peças, anexos, aprovação ou recusa, cobrança ao cliente, devoluções e e-mails.</td><td class="tabs"><code>garantias</code><code>garantia_pecas</code><code>garantia_anexos</code><code>garantia_montadoras</code></td></tr>
+<tr><td class="name">Controle de Revisões<span class="rt">/revisoes · /revisoes/mahindra</span></td><td class="n">2</td><td class="n">7</td><td>Revisões periódicas dos tratores (50, 300, 600 h...), lembretes, e-mails e observações por trator.</td><td class="tabs"><code>tratores</code><code>revisoes</code><code>Tratores_Revisao</code><code>revisao_lembretes</code><code>revisao_emails</code><code>revisao_destinatarios</code><code>trator_observacoes</code></td></tr>
+<tr><td class="name">Janela Mecânicos<span class="rt">/mecanicos · /painel-mecanicos · /agenda-tecnicos</span></td><td class="n">3</td><td class="n">2</td><td>Jornada e agenda dos mecânicos de campo, alertas, push, ocorrências e resumo diário.</td><td class="tabs"><code>agenda_tecnico</code><code>tecnico_veiculos</code><code>tecnico_caminhos</code><code>mecanico_alertas</code><code>mecanico_notificacoes</code><code>mecanico_ocorrencias</code><code>resumo_diario_tecnico</code><code>push_subscriptions</code></td></tr>
+<tr><td class="name">SAT Digital<span class="rt">/sat</span></td><td class="n">1</td><td class="n">1</td><td>Solicitações de atendimento técnico em Kanban (RPC <code>concluir_sat</code>).</td><td class="tabs"><code>portal_sats</code></td></tr>
+<tr><td class="name">Mapeamento Técnico<span class="rt">/mapa-geral</span></td><td class="n">1</td><td class="n">2</td><td>Mapa de clientes, técnicos e rotas (GPS Rotaexata, geocode).</td><td class="tabs"><code>GPS_Viagens</code><code>clientes_coordenadas</code><code>geocode_cache</code><code>mapa_config</code></td></tr>
+<tr><td class="name">Fotos Técnicos<span class="rt">/fotos-tecnicos</span></td><td class="n">1</td><td class="n">—</td><td>Fotos anexadas pelos técnicos em cada OS (bucket <code>anexos</code>).</td><td class="tabs">storage</td></tr>
+<tr><td class="name">Lousa Virtual<span class="rt">/lousa</span></td><td class="n">1</td><td class="n">—</td><td>Agenda semanal de serviços cruzando OS e pedidos PPV.</td><td class="tabs"><code>Ordem_Servico</code><code>pedidos</code></td></tr>
+<tr><td class="name">Cronograma (Gantt)<span class="rt">/cronograma/*</span></td><td class="n">4</td><td class="n">1</td><td>Projetos com tarefas, dependências, baselines, calendários e recursos; motor CPM próprio e RPCs <code>cron_*</code>.</td><td class="tabs"><code>projetos</code><code>tarefas</code><code>dependencias</code><code>baselines</code><code>baseline_tarefas</code><code>calendarios</code><code>calendario_excecoes</code><code>recursos</code><code>alocacoes</code><code>recorrencias</code></td></tr>
+<tr><td class="name">Inspeções / Ocorrências</td><td class="n">—</td><td class="n">4</td><td>Inspeções de tratores e ocorrências de técnicos, com e-mails.</td><td class="tabs"><code>inspecoes</code><code>inspecao_emails</code><code>tecnico_ocorrencias</code><code>tecnico_justificativas</code></td></tr>
+</tbody></table></div>
+
+<div class="group" style="--gc:var(--g-pecas)"><span class="swatch"></span><h3>Peças</h3><span class="sub">faixa laranja · PecasNav</span></div>
+<div class="tblwrap"><table>
+<thead><tr><th>Sistema</th><th class="n">Telas</th><th class="n">APIs</th><th>Uso resumido</th><th>Tabelas principais</th></tr></thead>
+<tbody>
+<tr><td class="name">PPV · Pedido de Venda<span class="rt">/ppv · catalogo · etiquetas · unidades · liberacao/[id]</span></td><td class="n">5</td><td class="n">42</td><td>Kanban, Lista, Relação e Dashboard de pedidos de peças; itens com custo (CMC); tarefas por pedido; faturamento e Omie; histórico de fase por trigger; etiquetas com QR e fila de impressão; relatório semanal por e-mail.</td><td class="tabs"><code>pedidos</code><code>pedidos_status_hist</code><code>ppv_tarefas</code><code>ppv_tarefas_eventos</code><code>ppv_anexos</code><code>peca_unidades</code><code>peca_unidade_eventos</code><code>etiquetas_fila</code><code>etiquetas_folhas</code><code>Ordens_Omie</code><code>etapa_pedido</code></td></tr>
+<tr><td class="name">Catálogo de peças<span class="rt">/ppv/catalogo</span></td><td class="n">1</td><td class="n">4</td><td>Figuras explodidas por modelo, seções e peças clicáveis; ordem manual.</td><td class="tabs"><code>catalogo_modelos</code><code>catalogo_figuras</code><code>catalogo_figura_modelos</code><code>catalogo_pecas</code><code>catalogo_marcas</code><code>catalogo_produtos</code><code>vw_catalogo_*</code></td></tr>
+<tr><td class="name">Orçamentos<span class="rt">/orcamentos</span></td><td class="n">1</td><td class="n">6</td><td>Orçamento com peças, mão de obra e deslocamento; gera OS ou PPV.</td><td class="tabs"><code>orcamentos</code></td></tr>
+<tr><td class="name">Carrinhos<span class="rt">/carrinho/[token]</span></td><td class="n">1</td><td class="n">6</td><td>Lista de peças montada pelo técnico, que vira PPV ou orçamento; auto-fecha por cron.</td><td class="tabs"><code>carrinhos</code><code>carrinho_itens</code><code>carrinho_historico</code></td></tr>
+<tr><td class="name">Requisições<span class="rt">/requisicoes · /requisicoes/imprimir/[id]</span></td><td class="n">2</td><td class="n">≈10</td><td>Kanban de requisições de compra e serviço (pedido → cotação → financeiro), mapa de cotações com 5 fornecedores e anexos, PDF, tags, lixeira, bloqueio acima de R$ 500 com aprovação do Dev, histórico por card.</td><td class="tabs"><code>Requisicao</code><code>req_cotacao</code><code>req_usuarios</code><code>requisicao_tags</code><code>requisicao_grupos</code><code>requisicao_grupo_membros</code><code>requisicao_autorizacoes</code><code>Fornecedores</code><code>fornecedor_param</code><code>item_param</code></td></tr>
+</tbody></table></div>
+
+<div class="group" style="--gc:var(--g-financeiro)"><span class="swatch"></span><h3>Financeiro</h3><span class="sub">faixa verde</span></div>
+<div class="tblwrap"><table>
+<thead><tr><th>Sistema</th><th class="n">Telas</th><th class="n">APIs</th><th>Uso resumido</th><th>Tabelas principais</th></tr></thead>
+<tbody>
+<tr><td class="name">Financeiro (Chamados NF)<span class="rt">/financeiro/*</span></td><td class="n">20</td><td class="n">20</td><td>Kanbans de NF e boletos por setor (Financeiro, Peças, Pós-Vendas), chamados RH, contas a pagar e receber, rastreio de notas, envio de e-mail por usuário com senha criptografada, histórico e logs.</td><td class="tabs"><code>Chamado_NF</code><code>EnvioBoleto</code><code>finan_pagar</code><code>finan_receber</code><code>finan_rh</code><code>financeiro_usu</code><code>financeiro_emails</code><code>financeiro_envio_config</code><code>titulo_comentarios</code></td></tr>
+<tr><td class="name">DRE Financeiro<span class="rt">/dre-financeiro/*</span></td><td class="n">18</td><td class="n">63</td><td>Demonstrativo integrado da Omie: DRE por competência e caixa, análise mensal, composição por natureza, fluxo (Sankey), curva de saldo, calendário, vencidos, ciclo de caixa, pontualidade, patrimônio, rentabilidade, lucratividade, margens por família, vendas por modelo, clientes e monitor de anomalias. Semáforo de saúde financeira na home.</td><td class="tabs"><code>contas_pagar</code><code>contas_receber</code><code>contas_baixas</code><code>contas_correcoes</code><code>conta_corrente</code><code>movimentos_cc</code><code>dre_cache</code><code>qa_anomalias</code><code>qa_monitor_log</code><code>cp_patrimonio_snapshot</code><code>cp_sync_log</code><code>selic_cache</code><code>categorias_dashboard</code><code>omie_cache</code></td></tr>
+<tr><td class="name">War Room<span class="rt">/war-room · /war-room/config</span></td><td class="n">2</td><td class="n">10</td><td>Reunião semanal de gestão: snapshot dos indicadores por cron, pauta, decisões em ledger imutável por trigger, ações e membros.</td><td class="tabs"><code>war_room_snapshots</code><code>war_room_definicoes</code><code>war_room_membros</code><code>war_room_membros_log</code><code>war_room_decisoes</code><code>war_room_acoes</code><code>war_room_ponte</code><code>v_war_room_*</code></td></tr>
+</tbody></table></div>
+
+<div class="group" style="--gc:var(--g-comercial)"><span class="swatch"></span><h3>Comercial</h3><span class="sub">vermelho · Marketing em rosa</span></div>
+<div class="tblwrap"><table>
+<thead><tr><th>Sistema</th><th class="n">Telas</th><th class="n">APIs</th><th>Uso resumido</th><th>Tabelas principais</th></tr></thead>
+<tbody>
+<tr><td class="name">Proposta Comercial<span class="rt">/propostas · /p/[id]</span></td><td class="n">2</td><td class="n">5</td><td>Propostas de máquinas com PDF (bloco de assinatura por vendedor), QR Code, funil por status, previsão ponderada, tags e pedido de fábrica.</td><td class="tabs"><code>Formulario</code><code>v_formulario</code><code>proposta_tags</code><code>Proposta_Fabrica</code><code>v_proposta_fabrica</code><code>motivo_perda</code><code>vendedores</code><code>Configuracoes</code></td></tr>
+<tr><td class="name">Feedbacks &amp; CRM<span class="rt">/feedbacks/*</span></td><td class="n">9</td><td class="n">8</td><td>Fila e cockpit de atendimento por telefone (ligação com cronômetro, desfechos, roteiro por regra, humor e qualidade), CRM, RFM, oportunidades automáticas, agenda de retornos, relatórios de atendentes e contatos do WhatsApp lidos do NovaZap.</td><td class="tabs"><code>feedback_registros</code><code>feedback_chamada</code><code>feedback_script</code><code>feedback_config_regras</code><code>feedback_oportunidades</code><code>feedback_clientes_info</code><code>oportunidade_motivo</code><code>oportunidade_contatos</code></td></tr>
+<tr><td class="name">Pastas Clientes<span class="rt">/clientes/*</span></td><td class="n">5</td><td class="n">28</td><td>Ficha 360º do cliente: OS, PVs, NFs, tratores, projetos e e-mails; ranking; relatórios semanais por e-mail; consulta e print da Omie.</td><td class="tabs"><code>portal_nt_clientes_PRINCIPAL</code><code>portal_nt_clientes_cadastro_omie</code><code>portal_nt_clientes_os</code><code>portal_nt_clientes_pv</code><code>portal_nt_projetos_*</code><code>portal_nt_notas_*</code><code>clientes</code><code>Clientes_Omie</code><code>Clientes_Manuais</code><code>cliente_extras</code><code>cliente_etiquetas</code><code>clientes_relatorios_semanais</code><code>ignorar_clientes</code></td></tr>
+<tr><td class="name">Supervisor Vendas<span class="rt">/supervisor-vendas</span></td><td class="n">1</td><td class="n">5</td><td>Rotas e check-ins dos vendedores, visitas, mapa e alertas.</td><td class="tabs"><code>rotas_vendedor</code><code>checkin_vendedor</code><code>visitas</code><code>vw_visitas_detalhadas</code><code>vw_negocios_detalhados</code><code>comercial_veiculos</code><code>rastreio_pontos_relatorio</code></td></tr>
+<tr><td class="name">Gestão de Vendas<span class="rt">/gestao-vendas/*</span></td><td class="n">7</td><td class="n">6</td><td>Resultado mensal por vendedor (NOVA, CASTRO, TODAS): vendas de máquinas com CMC editável, comissões, custos, regras, bônus e carimbos do PDF.</td><td class="tabs"><code>vendas_itens</code><code>comissao_regras</code><code>comissao_pessoas</code><code>comissao_config</code><code>comissao_ajustes_vendas</code><code>comissao_ajustes_servicos</code><code>comissao_custos_vendedor</code><code>comissao_bonus_historico</code><code>gv_clientes_omie_cache</code><code>vendas_pedidos_invalidos</code></td></tr>
+<tr><td class="name">Vendas por Modelo<span class="rt">/vendas-modelo</span></td><td class="n">1</td><td class="n">(DRE)</td><td>Mesma tela do DRE, liberável ao Comercial: receita e quantidade por modelo, grade anual, PDF e log de atividade.</td><td class="tabs"><code>vendas_itens</code><code>produtos</code></td></tr>
+<tr><td class="name">Marketing &amp; Eventos<span class="rt">/marketing/* · /lead · /q/[token]</span></td><td class="n">8</td><td class="n">25</td><td>Ações de marketing (feira, dia de campo, patrocínio, mídia): apoio de fábrica com máquina de estados, custos híbridos, leads com captura mobile e fila offline, ROI, relatório de contrapartida em PDF e questionário pós-evento por link sem login.</td><td class="tabs"><code>mkt_acoes</code><code>mkt_apoios</code><code>mkt_custos</code><code>mkt_leads</code><code>mkt_acao_propostas</code><code>mkt_equipe</code><code>mkt_itens</code><code>mkt_realizadas</code><code>mkt_concorrentes</code><code>mkt_midias</code><code>mkt_avaliacoes</code><code>mkt_questionario_links</code><code>mkt_questionario_respostas</code></td></tr>
+<tr><td class="name">CRM (legado)<span class="rt">/crm/*</span></td><td class="n">6</td><td class="n">—</td><td>Telas antigas de funil, painel e roteiro, substituídas pelo Feedbacks &amp; CRM.</td><td class="tabs">—</td></tr>
+</tbody></table></div>
+
+<div class="group" style="--gc:var(--g-estoque)"><span class="swatch"></span><h3>Estoque</h3><span class="sub">cinza-prata · EstoqueNav</span></div>
+<div class="tblwrap"><table>
+<thead><tr><th>Sistema</th><th class="n">Telas</th><th class="n">APIs</th><th>Uso resumido</th><th>Tabelas principais</th></tr></thead>
+<tbody>
+<tr><td class="name">Consulta Estoque (Omie)<span class="rt">/estoque/*</span></td><td class="n">17</td><td class="n">111</td><td>Maior sistema em APIs. Dashboard de vendas (peças, serviços, máquinas, ano contra ano), curva ABC, giro, CMC, comissão de peças, cruzamento por família com reconciliação pelo razão, inteligência comercial (compras, clientes, RFM), sugestão de compra, kardex por produto, notas de entrada com DANFE, recebimentos e espelho Omie, cadastro de produto. Alimentado por 13 crons de sync.</td><td class="tabs"><code>produtos</code><code>Produtos_Completos</code><code>produtos_caracteristicas</code><code>produto_tipo</code><code>produto_fiscal</code><code>familias</code><code>vendas_itens</code><code>compras_itens</code><code>notas_entrada</code><code>recebimentos_nfe</code><code>recebimento_*</code><code>movimentacoes</code><code>movimentacao_produtos</code><code>movimentacao_snapshots</code><code>estoque_movimentos</code><code>cmc_historico</code><code>cmc_alertas</code><code>cmc_correcoes</code><code>sugestao_compra_snapshot</code><code>pedido_compra</code><code>pedido_compra_item</code><code>cfop</code><code>cfop_entrada_map</code><code>cenario_fiscal</code><code>omie_usuarios</code></td></tr>
+<tr><td class="name">Visual Estoque<span class="rt">/visual-estoque/*</span></td><td class="n">8</td><td class="n">18</td><td>Showroom virtual de máquinas: pátio, showroom, remessas, notas de entrada, margens, alertas e frota (port do app Express legado).</td><td class="tabs"><code>equipamentos</code><code>Equipamentos</code><code>remessas</code><code>painel_alertas</code></td></tr>
+<tr><td class="name">Conferência de Custos<span class="rt">/conferencia-custos</span></td><td class="n">1</td><td class="n">1</td><td>Conferência do custo real das máquinas do pátio e demo.</td><td class="tabs"><code>conferencia_custo_maquinas</code></td></tr>
+<tr><td class="name">Consulta Omie<span class="rt">/consulta-omie</span></td><td class="n">1</td><td class="n">1</td><td>Consulta direta de produto ou cliente na Omie.</td><td class="tabs">—</td></tr>
+</tbody></table></div>
+
+<div class="group" style="--gc:var(--g-frota)"><span class="swatch"></span><h3>Frota</h3><span class="sub">azul-escuro · FrotaNav</span></div>
+<div class="tblwrap"><table>
+<thead><tr><th>Sistema</th><th class="n">Telas</th><th class="n">APIs</th><th>Uso resumido</th><th>Tabelas principais</th></tr></thead>
+<tbody>
+<tr><td class="name">Frota<span class="rt">/frota/*</span></td><td class="n">14</td><td class="n">37</td><td>Veículos (ficha, FIPE, documentos, responsável), abastecimento (CSV do cartão unido às requisições; heatmap, km/L, PDF por departamento), multas, avarias, manutenções, paradas, checklists, custos (TCO), mapa e geocercas, motoristas mesclados com o RH, pendências com taxonomia Sistema › Subsistema › Componente e sincronização automática.</td><td class="tabs"><code>frota_veiculos</code><code>frota_responsaveis</code><code>frota_motoristas</code><code>frota_multas</code><code>frota_avarias</code><code>frota_documentos</code><code>frota_paradas</code><code>frota_dias</code><code>frota_odometro</code><code>frota_geocercas</code><code>frota_pendencias</code><code>frota_componentes</code><code>veiculo_checklist</code><code>veiculo_checklist_itens</code><code>abastecimentos</code><code>abastecimento_lotes</code><code>Placas</code><code>SupaPlacas</code><code>cad_trator</code><code>cad_autopropelido</code><code>departamento</code><code>vw_frota_*</code></td></tr>
+<tr><td class="name">Pendências Frota<span class="rt">/pendencias</span></td><td class="n">1</td><td class="n">(Frota)</td><td>Módulo mobile para abrir pendências com foto sem o módulo Frota inteiro.</td><td class="tabs"><code>frota_pendencias</code></td></tr>
+<tr><td class="name">Abastecimento (legado)<span class="rt">/abastecimento · /abastecimento/flex</span></td><td class="n">2</td><td class="n">7</td><td>Rotas antigas do dashboard; o real é /frota/abastecimento.</td><td class="tabs"><code>abastecimentos</code></td></tr>
+</tbody></table></div>
+
+<div class="group" style="--gc:var(--g-ajustes)"><span class="swatch"></span><h3>Ajustes</h3><span class="sub">/ajustes/* · port do "Omie CMC Garantia"</span></div>
+<div class="tblwrap"><table>
+<thead><tr><th class="n">Telas</th><th class="n">APIs</th><th>Uso resumido</th><th>Tabelas principais</th></tr></thead>
+<tbody>
+<tr><td class="n">24</td><td class="n">105</td><td>Ferramentas de correção do estoque na Omie: estoque negativo (scan noturno e correção assinada por HMAC), ajuste de custos, histórico de CMC, características (Tipo, Sistema/Subsistema, sinalizações, ordenação, auditoria e reversão), descrições, famílias, inventário (ciclos, contagens, ajustes, relatório), localização física, notas, pedidos antigos e encerramento informal, remessas, devolução triangular, correção e baixa de contas, alertas, saúde mensal, Mahindra e alteração em massa.</td><td class="tabs"><code>cmc_correcoes</code><code>cmc_estoque_ultima_varredura</code><code>inventario_ciclos</code><code>inventario_contagens</code><code>inventario_ajustes</code><code>inventario_tarefas</code><code>localizacao_conferida</code><code>caracteristicas_sinalizacoes</code><code>caracteristicas_ok</code><code>pedidos_encerrados_informais</code><code>remessas</code><code>ajustes_jobs</code></td></tr>
+</tbody></table></div>
+
+<div class="group" style="--gc:var(--g-outros)"><span class="swatch"></span><h3>Outros e transversais</h3></div>
+<div class="tblwrap"><table>
+<thead><tr><th>Sistema</th><th class="n">Telas</th><th class="n">APIs</th><th>Uso resumido</th><th>Tabelas principais</th></tr></thead>
+<tbody>
+<tr><td class="name">Dashboard (home)<span class="rt">/ · /dashboard</span></td><td class="n">2</td><td class="n">—</td><td>Cards dos sistemas por grupo, filtrados pelas permissões.</td><td class="tabs"><code>portal_permissoes</code></td></tr>
+<tr><td class="name">Administração<span class="rt">/admin</span></td><td class="n">1</td><td class="n">3</td><td>Usuários, papéis (Usuário, Admin, Dev), módulos e ações granulares.</td><td class="tabs"><code>portal_permissoes</code></td></tr>
+<tr><td class="name">Tickets<span class="rt">/tickets · /tickets/[id]</span></td><td class="n">2</td><td class="n">6</td><td>Pedidos internos entre setores: fila, timeline imutável, transferência, participantes, vínculo com requisições, auto-fechamento em 7 dias.</td><td class="tabs"><code>tickets</code><code>tickets_participantes</code><code>tickets_eventos</code><code>tickets_vinculos</code><code>tickets_plano</code></td></tr>
+<tr><td class="name">Opa<span class="rt">/opa</span></td><td class="n">1</td><td class="n">1</td><td>Ocorrências visíveis a todos até alguém resolver; pode abrir pendência de frota.</td><td class="tabs"><code>portal_opas</code><code>portal_opas_anexos</code><code>portal_opas_views</code></td></tr>
+<tr><td class="name">Avisos<span class="rt">/avisos</span></td><td class="n">1</td><td class="n">2</td><td>Comunicados com anexos, confirmação de leitura e publicação agendada.</td><td class="tabs"><code>portal_avisos</code><code>portal_avisos_lidos</code><code>portal_avisos_anexos</code><code>avisos_gerais</code><code>avisos_gerais_confirmados</code></td></tr>
+<tr><td class="name">Tarefas<span class="rt">/tarefas · /meu-painel</span></td><td class="n">2</td><td class="n">4</td><td>Tarefas entre usuários e painel pessoal.</td><td class="tabs"><code>portal_tarefas</code></td></tr>
+<tr><td class="name">Tratorilson (IA)<span class="rt">/tratorilson · chat flutuante · WhatsApp</span></td><td class="n">1</td><td class="n">10</td><td>Assistente com OpenAI/Groq no portal e no WhatsApp via NovaZap: busca trator, orçamento de revisão, deslocamento, transcrição de áudio.</td><td class="tabs"><code>tratorilson_log</code><code>tratorilson_config</code><code>tratorilson_solicitacoes</code></td></tr>
+<tr><td class="name">Chat interno e notificações</td><td class="n">header</td><td class="n">2</td><td>Chats entre usuários (Realtime), notificações in-app e push.</td><td class="tabs"><code>portal_chats</code><code>portal_chat_membros</code><code>portal_chat_leitura</code><code>mensagens_chat</code><code>portal_mensagens</code><code>portal_notificacoes</code><code>push_subscriptions</code></td></tr>
+<tr><td class="name">Atividades (auditoria)<span class="rt">/atividades</span></td><td class="n">1</td><td class="n">1</td><td>Log de ações por sistema.</td><td class="tabs"><code>audit_log</code><code>portal_logs</code></td></tr>
+<tr><td class="name">Agendamentos<span class="rt">/agendamentos</span></td><td class="n">1</td><td class="n">2</td><td>Status dos 41 crons via GitHub Actions API e heartbeat.</td><td class="tabs"><code>cron_runs</code><code>cron_heartbeat</code></td></tr>
+<tr><td class="name">Envios de e-mail (Dev)<span class="rt">/dev/envios-email</span></td><td class="n">1</td><td class="n">2</td><td>Configuração no banco dos relatórios que saem por e-mail.</td><td class="tabs"><code>email_envios_config</code><code>email_envios_log</code></td></tr>
+<tr><td class="name">Vigia das Câmeras<span class="rt">modal no menu</span></td><td class="n">—</td><td class="n">1</td><td>Eventos do DVR reportados por script local; canal 5 filtrado por IA de visão.</td><td class="tabs"><code>cameras_eventos</code></td></tr>
+<tr><td class="name">Tela dividida · TV · Dashboard Agro · Chatwoot app<span class="rt">/split · /tv-painel · /dashboard-agro · /chatwoot-app</span></td><td class="n">4</td><td class="n">—</td><td>Dois sistemas lado a lado; painel de TV; dashboard do segmento agro; painel embutido no NovaZap.</td><td class="tabs">—</td></tr>
+<tr><td class="name">Login · senha · perfil · público<span class="rt">/login · /resetar-senha</span></td><td class="n">2</td><td class="n">7</td><td>Autenticação Supabase, avatar, token externo, rotas sem login (versão, proposta pública, RH).</td><td class="tabs"><code>financeiro_usu</code><code>rh_funcionarios</code><code>rh_documentos</code></td></tr>
+</tbody></table></div>
+
+<h2 id="tabelas">Tabelas por domínio</h2>
+<p class="stack" style="margin-top:12px">300 nomes distintos passam pelo <code>.from()</code>; três são buckets de storage (<code>anexos</code>, <code>avatars</code>, <code>requisicoes</code>) e 17 são views. As dez mais referenciadas no código:</p>
+<div class="two">
+<div class="tblwrap"><table style="min-width:0">
+<thead><tr><th>Tabela</th><th class="n">Refs</th><th>Uso</th></tr></thead>
+<tbody>
+<tr><td><code>Chamado_NF</code></td><td class="n">94</td><td>Chamados de NF e boleto do Financeiro</td></tr>
+<tr><td><code>financeiro_usu</code></td><td class="n">90</td><td>Usuários do portal</td></tr>
+<tr><td><code>vendas_itens</code></td><td class="n">71</td><td>Itens vendidos (Omie), base dos dashboards</td></tr>
+<tr><td><code>produtos</code></td><td class="n">70</td><td>Produtos e peças, CMC, família, tipo</td></tr>
+<tr><td><code>Requisicao</code></td><td class="n">57</td><td>Requisições de compra e serviço</td></tr>
+<tr><td><code>portal_permissoes</code></td><td class="n">48</td><td>Módulos e papéis por usuário</td></tr>
+<tr><td><code>frota_veiculos</code></td><td class="n">45</td><td>Ficha dos veículos</td></tr>
+<tr><td><code>portal_nt_clientes_os</code></td><td class="n">39</td><td>OS por cliente</td></tr>
+<tr><td><code>portal_nt_clientes_cadastro_omie</code></td><td class="n">39</td><td>Clientes espelhados da Omie</td></tr>
+<tr><td><code>Ordem_Servico</code></td><td class="n">37</td><td>OS do Pós-Vendas</td></tr>
+</tbody></table></div>
+<div class="tblwrap"><table style="min-width:0">
+<thead><tr><th>Domínio</th><th class="n">Qtd</th><th>Prefixos</th></tr></thead>
+<tbody>
+<tr><td>Estoque / Omie</td><td class="n">~55</td><td><code>produtos*</code> <code>vendas_*</code> <code>recebimento*</code> <code>cmc_*</code> <code>inventario_*</code></td></tr>
+<tr><td>Serviços</td><td class="n">~45</td><td><code>Ordem_Servico*</code> <code>garantia*</code> <code>revisao*</code> <code>mecanico_*</code> <code>tecnico_*</code></td></tr>
+<tr><td>Comercial</td><td class="n">~40</td><td><code>portal_nt_clientes_*</code> <code>Formulario</code> <code>comissao_*</code> <code>rotas_vendedor</code></td></tr>
+<tr><td>Portal transversal</td><td class="n">~40</td><td><code>portal_*</code> <code>tickets*</code> <code>avisos_*</code> <code>audit_log</code> <code>cron_*</code></td></tr>
+<tr><td>Financeiro + DRE</td><td class="n">~30</td><td><code>Chamado_NF</code> <code>finan_*</code> <code>contas_*</code> <code>movimentos_cc</code> <code>qa_*</code></td></tr>
+<tr><td>Peças</td><td class="n">~30</td><td><code>pedidos*</code> <code>ppv_*</code> <code>peca_unidade*</code> <code>catalogo_*</code> <code>req_*</code></td></tr>
+<tr><td>Frota</td><td class="n">~28</td><td><code>frota_*</code> <code>veiculo_checklist*</code> <code>abastecimento*</code></td></tr>
+<tr><td>Marketing</td><td class="n">13</td><td><code>mkt_*</code></td></tr>
+<tr><td>War Room</td><td class="n">7 + 4 views</td><td><code>war_room_*</code> <code>v_war_room_*</code></td></tr>
+<tr><td>Feedbacks &amp; CRM</td><td class="n">~9</td><td><code>feedback_*</code> <code>oportunidade_*</code></td></tr>
+</tbody></table></div>
+</div>
+<div class="note"><b>179 tabelas têm CREATE TABLE versionado</b> em <code>sql/</code>. As outras ~115 são legado AppSheet ou Omie, criadas à mão no Supabase (<code>Chamado_NF</code>, <code>Requisicao</code>, <code>req_cotacao</code>, <code>Formulario</code>, <code>Ordem_Servico</code>, <code>Produtos_Completos</code>), sem migration e em boa parte sem RLS. Nomes com maiúscula são herança do AppSheet; os novos seguem snake_case com prefixo de domínio.</div>
+
+<h2 id="funcoes">Funções</h2>
+<h3>Funções SQL (34) e RPCs chamadas pelo app (17)</h3>
+<div class="tblwrap"><table>
+<thead><tr><th>Grupo</th><th>Funções</th><th>Uso</th></tr></thead>
+<tbody>
+<tr><td class="name">Feedbacks / cockpit</td><td class="tabs"><code>feedback_iniciar_chamada</code><code>feedback_encerrar_chamada</code><code>feedback_cancelar_chamada</code><code>feedback_chamada_recontar</code><code>feedback_chamada_touch</code><code>feedback_script_touch</code><code>feedback_touch_atualizado_em</code></td><td>Ciclo da ligação com efeitos no CRM e na oportunidade (SECURITY DEFINER); contadores e updated_at por trigger.</td></tr>
+<tr><td class="name">Cronograma</td><td class="tabs"><code>cron_criar_projeto</code><code>cron_criar_tarefa</code><code>cron_atualizar_tarefa</code><code>cron_criar_dependencia</code><code>cron_remover_dependencia</code><code>cron_salvar_baseline</code><code>cron_remover_baseline</code><code>cron_registrar_progresso</code><code>cron_gerar_ocorrencias</code><code>cron_aplicar_recalculo</code><code>cronograma</code></td><td>Escrita transacional do Gantt.</td></tr>
+<tr><td class="name">Frota</td><td class="tabs"><code>frota_norm_placa</code><code>frota_parse_valor</code><code>frota_placa_de_numplaca</code><code>frota_resolver_placa</code><code>frota_touch</code></td><td>Normalização de placa e valor; updated_at.</td></tr>
+<tr><td class="name">War Room</td><td class="tabs"><code>war_room_na_lista</code><code>war_room_nucleo</code><code>wr_decisoes_bloqueia_mutacao</code><code>wr_snapshot_imutavel_apos_fechar</code></td><td>Controle de acesso e imutabilidade do ledger de decisões.</td></tr>
+<tr><td class="name">Serviços / Peças</td><td class="tabs"><code>concluir_sat</code><code>resolver_opa</code><code>set_servico_interno</code><code>proximo_numero_sg_montadora</code><code>set_garantia_numero</code><code>set_peca_unidade_numero</code><code>trg_ppv_status_hist</code><code>trg_status_hist</code><code>trg_proposta_recalc</code><code>trg_sync_convertido</code></td><td>Numeração sequencial, histórico de fase do PPV, recálculo de proposta, conversão.</td></tr>
+<tr><td class="name">Portal</td><td class="tabs"><code>criar_permissao_padrao</code><code>tickets_pode_ver</code><code>requisicao_normalizar_solicitante</code><code>receb_touch_updated_at</code><code>fn_relatorio_atualizado</code><code>nt_nome_pessoa</code><code>nt_num</code></td><td>Permissão padrão no primeiro login, RLS de tickets, helpers de texto e número.</td></tr>
+</tbody></table></div>
+<p class="stack" style="margin-top:12px">Mais 27 triggers ligados a essas funções: histórico de status do PPV, updated_at, numeração, ledger do War Room e contadores de chamadas.</p>
+
+<h3>Funções TypeScript de biblioteca (1.424 exports em src/lib)</h3>
+<div class="tblwrap"><table>
+<thead><tr><th>Pasta</th><th class="n">Arquivos</th><th>O que concentra</th></tr></thead>
+<tbody>
+<tr><td class="name">estoque</td><td class="n">38</td><td>Sync Omie (produtos, vendas, compras, recebimentos, movimentos), CMC, cruzamento por família, sugestão de compra, dashboards</td></tr>
+<tr><td class="name">ajustes</td><td class="n">35</td><td>Negativos, correções, inventário, características, remessas, devolução, Omie em massa</td></tr>
+<tr><td class="name">feedbacks</td><td class="n">34</td><td>Cockpit (performance, previsão de revisão, roteiro, histórico do cliente, telefone), RFM, oportunidades</td></tr>
+<tr><td class="name">financeiro</td><td class="n">24</td><td>Chamados NF, boletos, e-mails, criptografia das senhas de envio</td></tr>
+<tr><td class="name">ppv</td><td class="n">20</td><td>Relação e dashboard, relatório por e-mail, etiquetas (HTML e Code128), kits</td></tr>
+<tr><td class="name">frota</td><td class="n">19</td><td>Pendências e motor de sync, RH, abastecimento, FIPE, checklists</td></tr>
+<tr><td class="name">pos</td><td class="n">18</td><td>Alimentação OS → Requisição, rotas ORS, relação e dashboard, Omie OS</td></tr>
+<tr><td class="name">dre-financeiro</td><td class="n">17</td><td>DRE, fluxo, composição, saúde financeira, vendas por modelo e PDF</td></tr>
+<tr><td class="name">marketing · garantias</td><td class="n">14 cada</td><td>ROI, custos, contrapartida em PDF, questionário · fluxo da SG, PDF, e-mails, devoluções</td></tr>
+<tr><td class="name">visual-estoque</td><td class="n">13</td><td>Port do app legado: pátio, showroom, remessas, alertas</td></tr>
+<tr><td class="name">cronograma · abastecimento</td><td class="n">10 cada</td><td>Motor CPM · parse e agregações de abastecimento</td></tr>
+<tr><td class="name">pecas, requisicoes, permissoes, omie, ocorrencias, gestao-vendas, chatwoot, assistente</td><td class="n">4 a 7</td><td>Catálogo, autorização de valor alto, catálogo de permissões, cliente Omie, contatos do NovaZap, IA (provider e persona)</td></tr>
+<tr><td class="name">war-room, tickets, revisoes, propostas, email, auth, omie-massa, charts, agendamentos, server</td><td class="n">2 a 3</td><td>Snapshot semanal, vínculos, lembretes, assinatura do PDF, envios configuráveis, sessão, status de crons</td></tr>
+<tr><td class="name">raiz</td><td class="n">8</td><td><code>supabase.ts</code> <code>whatsapp.ts</code> <code>cripto.ts</code> <code>texto.ts</code> <code>busca-segura.ts</code> <code>url-segura.ts</code> <code>tecnico-utils.ts</code> <code>push-mecanicos.ts</code></td></tr>
+</tbody></table></div>
+
+<h2 id="apis">Rotas de API por área (662)</h2>
+<div class="two">
+<div class="tblwrap"><table style="min-width:0"><thead><tr><th>Área</th><th class="n">Rotas</th></tr></thead><tbody>
+<tr><td>estoque</td><td class="n">111</td></tr><tr><td>ajustes</td><td class="n">101</td></tr><tr><td>dre-financeiro</td><td class="n">63</td></tr><tr><td>pos</td><td class="n">47</td></tr><tr><td>ppv</td><td class="n">42</td></tr><tr><td>frota</td><td class="n">37</td></tr><tr><td>garantias</td><td class="n">36</td></tr><tr><td>clientes</td><td class="n">28</td></tr><tr><td>marketing</td><td class="n">23</td></tr><tr><td>financeiro</td><td class="n">20</td></tr><tr><td>visual-estoque</td><td class="n">18</td></tr><tr><td>war-room</td><td class="n">10</td></tr>
+</tbody></table></div>
+<div class="tblwrap"><table style="min-width:0"><thead><tr><th>Área</th><th class="n">Rotas</th></tr></thead><tbody>
+<tr><td>feedbacks</td><td class="n">8</td></tr><tr><td>revisoes · abastecimento</td><td class="n">7 cada</td></tr><tr><td>tickets · orcamentos · gestao-vendas · carrinhos</td><td class="n">6 cada</td></tr><tr><td>supervisor-vendas · propostas · pecas</td><td class="n">5 cada</td></tr><tr><td>tratorilson · tarefas · omie-massa · catalogo · assistente</td><td class="n">4 cada</td></tr><tr><td>inspecoes · admin</td><td class="n">3 cada</td></tr><tr><td>q · push · publico · produtos · perfil · observacoes · mapa · fornecedores · dev · avisos · agendamentos</td><td class="n">2 cada</td></tr><tr><td>whatsapp · versao · sat · rh · portal-token · painel-mecanicos · opa · omie · ocorrencias · mecanicos · lembretes · figurinhas · cronograma · conferencia-custos · chatwoot · cameras · audit</td><td class="n">1 cada</td></tr>
+</tbody></table></div>
+</div>
+
+<h2 id="crons">Crons (41 workflows)</h2>
+<div class="tblwrap"><table>
+<thead><tr><th>Grupo</th><th>Workflows</th><th>Ritmo</th></tr></thead>
+<tbody>
+<tr><td class="name">Estoque / Omie (13)</td><td>sync-produtos, sync-estoque, sync-incremental, sync-movimentos, sync-compras, sync-recebimentos, sync-remessas, sync-selic, backfill-cmc, backfill-historico, backfill-noturno, backfill-os-servicos, enriquecer-notas, snapshot-sugestao-compra</td><td>de 15 min a diário</td></tr>
+<tr><td class="name">Ajustes (4)</td><td>classificar-recebidos, prewarm-recebimentos, scan-negativos, sync-notas</td><td>diário / a cada 3 h</td></tr>
+<tr><td class="name">Frota (5)</td><td>atualizar-fipe (mensal), fechar-dia, ocorrencias-auto, sync-cadastro, sync-eventos</td><td>diário</td></tr>
+<tr><td class="name">Serviços (5)</td><td>pos-auto-fase, pos-separar-pecas, garantias-devolucoes, garantias-emails, sync-nfs</td><td>diário</td></tr>
+<tr><td class="name">Peças (3)</td><td>pecas-abate (30 min), ppv-relatorio-lista (segunda), carrinhos-auto-fechar</td><td>—</td></tr>
+<tr><td class="name">Financeiro (4)</td><td>dre-financeiro-sync (3 h), dre-financeiro-relatorio-lista (segunda), financeiro-emails, war-room-snapshot (segunda)</td><td>—</td></tr>
+<tr><td class="name">Comercial (4)</td><td>clientes-relatorio-semanal (sexta), sync-rotas-comercial, supervisor-salvar-rotas, marketing-apoios-vencendo (segunda)</td><td>—</td></tr>
+<tr><td class="name">Portal (2)</td><td>avisos-publicar (15 min), tickets-auto-fechar</td><td>—</td></tr>
+</tbody></table></div>
+
+<h2 id="ressalvas">Ressalvas da contagem</h2>
+<ul class="plain">
+<li>"Tabela" aqui é o nome passado ao <code>.from()</code>: inclui as 17 views e pode repetir por grafia (<code>equipamentos</code> e <code>Equipamentos</code>; <code>requisicoes</code> bucket e tabela).</li>
+<li>Cinco migrations constam no CLAUDE.md como pendentes de confirmar no Supabase: <code>req-cotacao-anexos</code>, <code>opa-vinculo-veiculo</code>, <code>marketing-questionario</code>, <code>ppv-status-hist</code>, <code>cron-runs</code>.</li>
+<li>As telas em <code>/crm/*</code> e <code>/abastecimento/*</code> são legadas, substituídas por <code>/feedbacks</code> e <code>/frota/abastecimento</code>, e ainda contam nas 192.</li>
+<li>Cerca de 392 rotas de API não validam sessão. O inventário só registra; não muda isso.</li>
+</ul>
+</div>
