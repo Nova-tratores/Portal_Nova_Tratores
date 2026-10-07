@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import {
   Mail, Lock, User, Briefcase, Camera, LogIn, UserPlus, Eye, EyeOff
 } from 'lucide-react'
+import { erroEmail, sugestaoEmail, normalizarEmail } from '@/lib/auth/email'
 
 const DOMINIOS_PERMITIDOS = ['.novatratores.com'];
 
@@ -94,8 +95,37 @@ export default function LoginPage() {
         setLoading(false)
         return
       }
+      const emailLimpo = normalizarEmail(email)
+      const erroDoEmail = erroEmail(emailLimpo)
+      if (erroDoEmail) {
+        setError(erroDoEmail)
+        setLoading(false)
+        return
+      }
+      const sugestao = sugestaoEmail(emailLimpo)
+      if (sugestao && confirm(`Você quis dizer ${sugestao}?\n\nOK = usar ${sugestao}\nCancelar = manter ${emailLimpo}`)) {
+        setEmail(sugestao)
+        setError(`E-mail corrigido para ${sugestao}. Confira e clique em cadastrar de novo.`)
+        setLoading(false)
+        return
+      }
 
-      const { data, error: authError } = await supabase.auth.signUp({ email, password })
+      let { data, error: authError } = await supabase.auth.signUp({ email: emailLimpo, password })
+
+      // Login já existe (cadastro que parou no meio — antes desta correção o perfil
+      // falhava e ficava só o login): com a MESMA senha, entra e completa o perfil.
+      let retomando = false
+      if (authError && /already registered|already been registered/i.test(authError.message)) {
+        const entrou = await supabase.auth.signInWithPassword({ email: emailLimpo, password })
+        if (entrou.error || !entrou.data.user) {
+          setError('Este e-mail já tem conta. Use "Entrar" — se esqueceu a senha, peça ao administrador.')
+          setLoading(false)
+          return
+        }
+        data = { user: entrou.data.user, session: entrou.data.session }
+        authError = null
+        retomando = true
+      }
 
       if (authError) {
         setError('Erro no cadastro: ' + authError.message)
@@ -113,27 +143,27 @@ export default function LoginPage() {
           }
         }
 
-        const { error: dbError } = await supabase
-          .from('financeiro_usu')
-          .insert([{
-            id: data.user.id,
-            nome,
-            funcao,
-            avatar_url: avatarUrl,
-            email
-          }])
+        // O perfil é criado pelo SERVIDOR (o RLS de financeiro_usu bloqueia o
+        // navegador). A linha de permissões também não nasce aqui: o novo usuário
+        // fica sem acesso até um admin liberar em Administração.
+        const token = data.session?.access_token || (await supabase.auth.getSession()).data.session?.access_token || ''
+        const res = await fetch('/api/auth/perfil', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ nome, funcao, avatar_url: avatarUrl }),
+        })
+        const out = await res.json().catch(() => ({}))
 
-        if (dbError) {
-          setError('Erro ao salvar perfil: ' + dbError.message)
+        if (!res.ok) {
+          setError('Erro ao salvar perfil: ' + (out.error || 'falha no servidor'))
+        } else if (retomando && out.jaExistia) {
+          await supabase.auth.signOut()
+          setIsRegistering(false)
+          setError('Este e-mail já tem conta completa. Use "Entrar".')
         } else {
-          // A linha de permissões NÃO é mais criada pelo navegador (RLS bloqueia
-          // escrita em portal_permissoes). O novo usuário fica sem acesso até um
-          // admin liberar em Administração — ou, se o trigger opcional de
-          // p0-seguranca-rls-permissoes.sql estiver ativo, a linha vazia é criada
-          // automaticamente no cadastro.
           setIsRegistering(false)
           setError('')
-          alert('Conta criada com sucesso! Faça login.')
+          alert(retomando ? 'Cadastro concluído! Faça login.' : 'Conta criada com sucesso! Faça login.')
         }
       }
     } else {

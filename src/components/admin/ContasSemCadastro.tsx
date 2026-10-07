@@ -2,13 +2,13 @@
 // Administração: logins que existem no Supabase Auth mas NÃO têm cadastro no
 // Portal. Aparecem aqui sozinhos, para o admin cadastrar ou apagar o login.
 import { useCallback, useEffect, useState } from 'react'
-import { KeyRound, UserPlus, Trash2 } from 'lucide-react'
+import { KeyRound, UserPlus, Trash2, Mail } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 
 interface Conta { id: string; email: string; criado_em: string; ultimo_acesso: string | null; uso: string | null }
 const data = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : 'nunca')
 
-export default function ContasSemCadastro({ versao, onCadastrar }: { versao: number; onCadastrar: (email: string) => void }) {
+export default function ContasSemCadastro({ versao, onCadastrar, onTrocarEmail }: { versao: number; onCadastrar: (email: string) => void; onTrocarEmail?: (c: Conta) => void }) {
   const [contas, setContas] = useState<Conta[] | null>(null)
   const [erro, setErro] = useState('')
   const [apagando, setApagando] = useState<string | null>(null)
@@ -60,6 +60,7 @@ export default function ContasSemCadastro({ versao, onCadastrar }: { versao: num
               <p style={{ fontSize: 11, color: '#a3a3a3', margin: 0 }}>criada em {data(c.criado_em)} · último login {data(c.ultimo_acesso)}</p>
             </div>
             <button onClick={() => onCadastrar(c.email)} style={btn('#16a34a', '#f0fdf4', '#bbf7d0')}><UserPlus size={14} /> Cadastrar no Portal</button>
+            {onTrocarEmail && <button onClick={() => onTrocarEmail(c)} title="E-mail digitado errado? Troque pelo certo sem criar outro login" style={btn('#1d4ed8', '#eff6ff', '#bfdbfe')}><Mail size={14} /> Trocar e-mail</button>}
             {!c.uso && (confirmar === c.id ? (
               <>
                 <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>Apagar de vez?</span>

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import PermissoesModulos from '@/components/admin/PermissoesModulos'
 import ContasSemCadastro from '@/components/admin/ContasSemCadastro'
+import TrocarEmailModal from '@/components/admin/TrocarEmailModal'
 
 const MODULOS = [
   // Ajustes: módulo único que expande nas páginas (ações vêm de
@@ -174,6 +175,7 @@ export default function AdminPage() {
   const [criando, setCriando] = useState(false)
   const [criarErro, setCriarErro] = useState('')
   const [versaoContas, setVersaoContas] = useState(0)
+  const [trocarEmailDe, setTrocarEmailDe] = useState<{ id: string; nome?: string; email?: string | null } | null>(null)
 
   // Estado do painel de atividades do usuário
   const [selectedUser, setSelectedUser] = useState<Usuario | null>(null)
@@ -927,6 +929,19 @@ export default function AdminPage() {
                   <Mail size={13} /> Resetar
                 </button>
                 <button
+                  onClick={() => setTrocarEmailDe({ id: user.id, nome: user.nome, email: user.email })}
+                  title={`Trocar o e-mail de login de ${user.nome}`}
+                  style={{
+                    padding: '6px 12px', borderRadius: '8px', width: '100%', justifyContent: 'center',
+                    border: '1px solid #bfdbfe', background: '#eff6ff',
+                    color: '#1d4ed8', fontSize: '11px', fontWeight: '600',
+                    cursor: 'pointer', transition: '0.15s',
+                    display: 'inline-flex', alignItems: 'center', gap: '4px'
+                  }}
+                >
+                  <Mail size={13} /> E-mail
+                </button>
+                <button
                   onClick={() => { if (!isMe && confirm(`Inativar ${user.nome}? Ele não conseguirá entrar e some das listas, mas os dados ficam.`)) toggleAtivo(user.id, false) }}
                   disabled={isMe}
                   title={isMe ? 'Você não pode inativar a própria conta' : `Inativar ${user.nome}`}
@@ -1014,7 +1029,18 @@ export default function AdminPage() {
       )}
 
       {/* ===== Logins sem cadastro (Auth sem financeiro_usu) ===== */}
-      <ContasSemCadastro versao={versaoContas} onCadastrar={(email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) }} />
+      <ContasSemCadastro versao={versaoContas} onCadastrar={(email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) }} onTrocarEmail={(c) => setTrocarEmailDe({ id: c.id, email: c.email })} />
+
+      {trocarEmailDe && (
+        <TrocarEmailModal
+          usuario={trocarEmailDe}
+          onFechar={() => setTrocarEmailDe(null)}
+          onTrocado={(novo) => {
+            setUsuarios((us) => us.map((u) => (u.id === trocarEmailDe.id ? { ...u, email: novo } : u)))
+            setVersaoContas((v) => v + 1)
+          }}
+        />
+      )}
 
       {/* Modal de Atividades do Usuário */}
       {selectedUser && (() => {
