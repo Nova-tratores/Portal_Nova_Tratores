@@ -8,6 +8,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import ArtigoView from "@/components/conhecimento/Artigo";
 import EditorBlocos from "@/components/conhecimento/EditorBlocos";
+import { limparCacheAjuda } from "@/components/conhecimento/BotaoAjuda";
 import { conteudoEmEdicao, TIPOS_ARTIGO, type Artigo, type Conteudo, type TipoArtigo } from "@/lib/conhecimento/artigos";
 import type { Bloco } from "@/lib/conhecimento/blocos";
 import { acaoArtigo, criarArtigo, ErroApi, obterArtigo, rascunhar, type ArtigoResposta } from "@/lib/conhecimento/client";
@@ -98,6 +99,7 @@ function EditorPage() {
   const publicar = () => executar("publicar", async () => {
     const r = await acaoArtigo(id, { acao: "publicar", ...conteudo, resumo_mudanca: resumoMudanca, relevante });
     setSujo(false); setResumoMudanca(""); setRelevante(false);
+    limparCacheAjuda(); // o "?" das telas relê na próxima abertura
     setAviso({ tipo: "ok", texto: `Publicado (versão ${r.artigo?.versao}). Já aparece no botão "?" das telas ${conteudo.telas.join(", ") || "ligadas"}.` });
     await carregar();
   });
@@ -106,6 +108,13 @@ function EditorPage() {
     if (!confirm(confirmar)) return;
     void executar(acao, async () => { await acaoArtigo(id, { acao }); await carregar(); setAviso({ tipo: "ok", texto: "Feito." }); });
   };
+
+  const emDia = () => executar("revisado", async () => {
+    await acaoArtigo(id, { acao: "revisado" });
+    limparCacheAjuda();
+    await carregar();
+    setAviso({ tipo: "ok", texto: "Marcado como em dia. O aviso de \"pode estar desatualizado\" saiu do artigo." });
+  });
 
   const gerar = (modo: "ia" | "converter") => executar(modo, async () => {
     if (corpo.length && !confirm("Isso substitui o conteúdo atual do artigo. Continuar?")) return;
@@ -136,6 +145,10 @@ function EditorPage() {
 
       {aviso && (
         <div style={{ padding: "10px 14px", borderRadius: 10, marginBottom: 12, fontSize: 13, background: aviso.tipo === "ok" ? "#d1fae5" : "#fee2e2", color: aviso.tipo === "ok" ? "#065f46" : "#991b1b" }}>{aviso.texto}</div>
+      )}
+
+      {a?.revisao_pendente_desde && (
+        <RevisaoPendente desde={a.revisao_pendente_desde} motivo={a.revisao_motivo} podePublicar={podePublicar} ocupado={!!ocupado} aoConfirmar={emDia} />
       )}
 
       <div style={{ display: "grid", gridTemplateColumns: previa ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
@@ -253,6 +266,32 @@ function EditorPage() {
             {corpo.length ? <ArtigoView corpo={corpo} /> : <div style={{ fontSize: 13, color: "var(--portal-text-muted)", fontStyle: "italic" }}>Adicione blocos ou rascunhe com a IA.</div>}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/** O sistema mudou em algo que este artigo documenta: mostra o que mudou e deixa o responsável confirmar ou editar. */
+function RevisaoPendente({ desde, motivo, podePublicar, ocupado, aoConfirmar }: { desde: string; motivo: unknown; podePublicar: boolean; ocupado: boolean; aoConfirmar: () => void }) {
+  const m = (motivo && typeof motivo === "object" ? motivo : {}) as { commits?: { sha: string; titulo: string }[]; arquivos?: string[] };
+  return (
+    <div style={{ border: "1.5px solid #fca5a5", background: "#fef2f2", color: "#7f1d1d", borderRadius: 12, padding: "12px 14px", marginBottom: 12, fontSize: 13 }}>
+      <div style={{ fontWeight: 800 }}>⚠️ O sistema mudou em {new Date(desde).toLocaleDateString("pt-BR")} e este artigo pode ter ficado desatualizado.</div>
+      {m.commits && m.commits.length > 0 && (
+        <ul style={{ margin: "6px 0 0", paddingLeft: 18, fontSize: 12 }}>
+          {m.commits.map((c) => <li key={c.sha}>{c.titulo}</li>)}
+        </ul>
+      )}
+      {m.arquivos && m.arquivos.length > 0 && (
+        <div style={{ fontSize: 11, opacity: 0.75, marginTop: 6 }}>Partes do sistema tocadas: {m.arquivos.map((f) => f.split("/").slice(-2).join("/")).join(" · ")}</div>
+      )}
+      <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+        {podePublicar ? (
+          <>
+            <button type="button" disabled={ocupado} onClick={aoConfirmar} style={{ padding: "7px 14px", borderRadius: 10, border: "1.5px solid #15803d", background: "#fefefe", color: "#15803d", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>✓ Conferi, o texto continua valendo</button>
+            <span style={{ fontSize: 12 }}>ou edite abaixo e publique uma versão nova.</span>
+          </>
+        ) : <span style={{ fontSize: 12 }}>O responsável do módulo confirma ou publica a correção.</span>}
       </div>
     </div>
   );

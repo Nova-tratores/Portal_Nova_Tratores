@@ -1,6 +1,6 @@
 # Base de conhecimento (KMS) e treinamento (LMS)
 
-> Documento vivo. Entrega 1 (02–05/10/2026): base de conhecimento com o piloto do Pós-Vendas.
+> Documento vivo. Entrega 1 (02–05/10/2026): base de conhecimento com o piloto do Pós-Vendas. Entrega 2 (05/10/2026): versões, artigos desatualizados e novidades.
 > Plano completo das 4 entregas em `C:\Users\hhenr\.claude\plans\estou-pensando-em-considerar-wondrous-papert.md` (resumo abaixo).
 
 ## 1. Por que existe
@@ -54,10 +54,41 @@ Não é markdown nem HTML. Tipos: `p`, `titulo`, `lista` (itens com `sub`), `pas
 ### Testes
 `src/lib/conhecimento/__tests__/conhecimento.test.ts` (13): sanitização, busca sem acento, `trechos`, markdown → blocos, casamento tela × artigo e ordem por especificidade, permissões (módulo, categoria, responsável, ações), validação de conteúdo, validade, `dividirGuia`.
 
-## 3. Entregas seguintes (não feitas)
-2. **Mudança do sistema**: `sistema_releases` + workflow em push (`release-registrar.yml`, exige escopo `workflow` no token) → cruza arquivos alterados com `kb_artigos.fontes` e escopo dos commits com `modulo` → `revisao_pendente_desde` + notificação; rascunho de "novidades" por IA com confirmação de leitura.
+## 3. Entrega 2 — o que acontece quando o sistema muda (05/10/2026)
+
+O deploy é automático a cada push e antes ninguém ficava sabendo. Agora cada versão é registrada e gera duas coisas: artigos marcados para conferência e um rascunho de "O que mudou".
+
+### Fluxo
+1. **Workflow** `.github/workflows/release-registrar.yml` (primeiro por `push` do repositório; os outros 44 são cron). Monta `{sha, sha_anterior, commits:[{sha, titulo, autor, data, arquivos[]}]}` com `git rev-list` + `git diff-tree`, espera 6 min (o deploy do Railway leva uns 4) e chama `POST /api/conhecimento/releases` com `x-cron-secret` (mesmos segredos `CRON_SECRET` e `PORTAL_URL` dos crons). Tem `workflow_dispatch` para rodar à mão.
+2. **Rota** (`CRON_SECRET`, fail-closed, idempotente por `sha`) → `registrarRelease` em `lib/conhecimento/releases-db.ts`:
+   - grava `sistema_releases`;
+   - **artigos afetados**: artigo PUBLICADO cujas `fontes` (globs) casam com algum arquivo alterado que muda a tela → `revisao_pendente_desde` (mantém a data mais antiga) + `revisao_motivo` `{release, commits[], arquivos[]}` acumulado;
+   - **novidade**: para cada módulo com responsável e com commit `feat`/`fix`/`perf`, a IA reescreve os títulos dos commits em linguagem de quem usa a tela (JSON `{titulo, itens[]}`); se a IA falhar, vai o texto direto dos commits (`novidadeSemIA`). Entra em `kb_novidades` como **rascunho**;
+   - **um aviso por responsável** com a contagem de artigos e novidades.
+3. **Responsável**:
+   - no editor do artigo, o painel vermelho mostra os commits e os arquivos tocados, com **"Conferi, o texto continua valendo"** (ação `revisado`, tira o selo sem versão nova) ou editar e publicar;
+   - em `/conhecimento/novidades`, "Para você aprovar": edita título e texto com prévia, vê de onde saiu (commits), **Publicar**, salvar ou descartar. Também dá para escrever uma novidade à mão.
+4. **Leitor**: o aviso **"O que mudou no portal"** (`components/conhecimento/Novidades.tsx`, montado em `(portal)/layout.tsx`) aparece no canto uma vez, com as novidades publicadas nos últimos 30 dias dos módulos que ele usa; "Entendi" grava em `kb_novidades_lidas`. Histórico em `/conhecimento/novidades`. Enquanto o artigo está marcado, o botão "?" mostra "A tela mudou em DD/MM. Este texto pode estar desatualizado."
+
+### Regras puras (`lib/conhecimento/releases.ts`, 10 testes)
+- `lerCommit`: `tipo(escopo): descrição`. `modulosDoEscopo`: `pos/ppv` → pos e ppv; `feedbacks/relatorios` → feedbacks; apelidos (`pecas` → ppv, `os` → pos…). Só módulos **com responsável** contam (é assim que o piloto fica restrito ao Pós-Vendas sem lista fixa no código).
+- `moduloDoArquivo`: `src/{app/(portal)[/(grupo)], app/api, components, lib}/<modulo>/…`. `mudaATela`: fora testes, `.md`, e tudo que não está em `src/`.
+- `globParaRegex`: `**` atravessa pastas, `*` não. `artigosAfetados`, `novidadesPorModulo`, `juntarMotivo`, `lerPayloadRelease`.
+
+### Banco (`sql/sistema-releases.sql`, rollback `sql/rollback-sistema-releases.sql`)
+`sistema_releases` (sha único, commits, arquivos, modulos, contagens), `kb_novidades` (`texto` em markdown simples "- item"; status rascunho | publicado | descartado; origem ia | manual; commits de origem), `kb_novidades_lidas`. RLS ligado sem policy + REVOKE.
+
+### Simulação com os 12 últimos commits reais (05/10)
+Módulos por commit corretos (inclusive `feat(etiquetas)` → ppv pelos arquivos e `feat(revisoes)` → revisoes e pos). 1 artigo publicado marcado (Garantias). Rascunho de novidade para pos, garantias, tickets, ppv, revisoes e feedbacks. **Limite conhecido:** o seed deu a cada artigo as fontes do módulo inteiro (`src/lib/pos/**`…), então qualquer mudança no módulo marca TODOS os artigos dele (se os 39 estivessem publicados, 31 seriam marcados). O painel com os commits e o botão "Conferi" resolvem rápido; refinar as `fontes` por artigo reduz o ruído.
+
+### Acabamentos da entrega 1 que entraram junto
+- Aba Artigos, para quem edita: filtro **Tudo | Só publicados | Só rascunhos e edições pendentes**.
+- Publicar ou confirmar um artigo limpa o cache do botão "?" (`limparCacheAjuda`), então ele aparece na hora para quem publicou; os outros navegadores levam até 5 min ou um recarregamento.
+
+## 3b. Entregas seguintes (não feitas)
 3. **Treinamento**: `lms_trilhas/etapas/perguntas/atribuicoes/progresso`; trilha "Pós-Vendas — operação da OS" para a categoria Pós Vendas, nota mínima 70 %, prazo 7 dias; reciclagem só quando a versão nova é `relevante`; painel do gestor.
 4. **Tratorilson** lê a base (`buscar_conhecimento`), perguntas sem resposta viram lacunas/FAQ.
+- Não feito na entrega 2: rascunho de ARTIGO vindo junto com a entrega de código (pasta `conhecimento/rascunhos/`), e registro de visita de rota no servidor para achar telas usadas sem artigo.
 
 ## 4. Gotchas
 - `useSearchParams` em página cliente exige `<Suspense>` (feito em `/conhecimento` e no editor).

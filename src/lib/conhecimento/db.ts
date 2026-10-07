@@ -11,14 +11,16 @@ import {
   type Artigo, type ArtigoResumo, type Conteudo, type OrigemArtigo, type Responsaveis,
 } from "./artigos";
 
-export const MSG_MIGRATION = "Base de conhecimento ainda não instalada: rode sql/conhecimento-base.sql no SQL Editor do Supabase.";
+export const MSG_MIGRATION = "Base de conhecimento ainda não instalada por completo: rode sql/conhecimento-base.sql e sql/sistema-releases.sql no SQL Editor do Supabase.";
 
 /** Tabela/coluna kb_* ausente = migration não aplicada (situação esperada no deploy). */
 export function migrationFaltou(e: any): boolean {
   const code = String(e?.code || "");
   const msg = String(e?.message || "").toLowerCase();
-  if (code === "42P01" || code === "PGRST205" || code === "PGRST204" || code === "42703") return msg.includes("kb_") || code === "PGRST205" || code === "42P01";
-  return msg.includes("kb_") && (msg.includes("does not exist") || msg.includes("could not find"));
+  if (code === "42P01" || code === "PGRST205") return true;
+  const nossa = msg.includes("kb_") || msg.includes("sistema_releases");
+  if (code === "PGRST204" || code === "42703") return nossa;
+  return nossa && (msg.includes("does not exist") || msg.includes("could not find"));
 }
 
 export interface Autor { id: string; nome: string }

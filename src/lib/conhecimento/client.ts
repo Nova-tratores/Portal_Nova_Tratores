@@ -86,3 +86,24 @@ export function listarRetornos(): Promise<{ retornos: Retorno[] }> {
 export function resolverRetorno(id: string): Promise<unknown> {
   return chamar("/api/conhecimento/retornos", { method: "PATCH", body: JSON.stringify({ id }) });
 }
+
+// ---- novidades ("o que mudou") ------------------------------------------------
+export interface NovidadeApi {
+  id: string; modulo: string; titulo: string; texto: string; status: "rascunho" | "publicado" | "descartado"; origem: "ia" | "manual";
+  commits: { sha: string; titulo: string }[]; criado_em: string; publicado_por_nome: string | null; publicado_em: string | null; lida?: boolean;
+}
+export function novidadesPendentes(): Promise<{ pendentes: NovidadeApi[] }> {
+  return chamar("/api/conhecimento/novidades?pendentes=1");
+}
+export function listarNovidades(): Promise<{ historico: NovidadeApi[]; rascunhos: NovidadeApi[]; podePublicarEm: string[]; admin: boolean }> {
+  return chamar("/api/conhecimento/novidades");
+}
+export function marcarNovidadesLidas(ids: string[]): Promise<unknown> {
+  return chamar("/api/conhecimento/novidades", { method: "POST", body: JSON.stringify({ ids }) });
+}
+export function criarNovidadeApi(n: { modulo: string; titulo: string; texto: string }): Promise<{ novidade: NovidadeApi }> {
+  return chamar("/api/conhecimento/novidades", { method: "POST", body: JSON.stringify({ criar: n }) });
+}
+export function acaoNovidade(id: string, acao: "salvar" | "publicar" | "descartar", dados: { titulo?: string; texto?: string } = {}): Promise<{ novidade: NovidadeApi }> {
+  return chamar("/api/conhecimento/novidades", { method: "PATCH", body: JSON.stringify({ id, acao, ...dados }) });
+}

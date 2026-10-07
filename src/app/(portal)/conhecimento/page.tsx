@@ -29,6 +29,8 @@ function ConhecimentoPage() {
   const [retornos, setRetornos] = useState<Retorno[]>([]);
   const [erro, setErro] = useState<{ msg: string; migracao: boolean } | null>(null);
   const [carregando, setCarregando] = useState(true);
+  // só para quem edita: a aba Artigos mistura rascunho e publicado
+  const [situacao, setSituacao] = useState<"todos" | "publicados" | "rascunhos">("todos");
 
   useEffect(() => { const t = setTimeout(() => setQAplicado(q), 350); return () => clearTimeout(t); }, [q]);
 
@@ -50,9 +52,13 @@ function ConhecimentoPage() {
 
   const porModulo = useMemo(() => {
     const m = new Map<string, ResumoComPermissao[]>();
-    for (const a of dados?.artigos ?? []) (m.get(a.modulo) ?? m.set(a.modulo, []).get(a.modulo)!).push(a);
+    for (const a of dados?.artigos ?? []) {
+      if (situacao === "publicados" && a.status !== "publicado") continue;
+      if (situacao === "rascunhos" && a.status === "publicado" && !a.tem_rascunho) continue;
+      (m.get(a.modulo) ?? m.set(a.modulo, []).get(a.modulo)!).push(a);
+    }
     return Array.from(m.entries());
-  }, [dados]);
+  }, [dados, situacao]);
 
   const modulosComArtigo = useMemo(() => {
     const ids = new Set((dados?.artigos ?? []).map((a) => a.modulo));
@@ -70,6 +76,7 @@ function ConhecimentoPage() {
             Como usar cada tela do portal. O mesmo texto aparece no botão <strong>?</strong> do cabeçalho quando você está na tela.
           </div>
         </div>
+        <Link href="/conhecimento/novidades" style={{ ...pill, textDecoration: "none", color: "var(--portal-text-secondary)" }}>🆕 O que mudou</Link>
         {podeCriar && (
           <button type="button" onClick={() => router.push(`/conhecimento/editar/novo${modulo ? `?modulo=${modulo}` : ""}`)} style={btnPrimario}>+ Novo artigo</button>
         )}
@@ -103,6 +110,15 @@ function ConhecimentoPage() {
               <button key={m.id} type="button" onClick={() => setModulo(modulo === m.id ? "" : m.id)} style={{ ...pill, background: modulo === m.id ? m.cor : "transparent", color: modulo === m.id ? "#fefefe" : m.cor, borderColor: m.cor }}>{m.rotulo}</button>
             ))}
           </div>
+
+          {podeCriar && (
+            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 14, fontSize: 12, color: "var(--portal-text-muted)" }}>
+              Mostrar:
+              {([["todos", "Tudo"], ["publicados", "Só publicados"], ["rascunhos", "Só rascunhos e edições pendentes"]] as const).map(([k, rot]) => (
+                <button key={k} type="button" onClick={() => setSituacao(k)} style={{ ...pill, padding: "4px 12px", background: situacao === k ? "#475569" : "transparent", color: situacao === k ? "#fefefe" : "var(--portal-text-secondary)" }}>{rot}</button>
+              ))}
+            </div>
+          )}
 
           {carregando && !dados ? (
             <div style={vazio}>Carregando…</div>

@@ -5,6 +5,7 @@ import {
   atualizarMeta, descartarRascunho, mudarStatus, notificar, obter, publicar, registrarFeedback, registrarLeitura, salvarRascunho, versoes,
   type TipoFeedbackKb,
 } from "@/lib/conhecimento/db";
+import { marcarRevisado } from "@/lib/conhecimento/releases-db";
 import { entrar, erroResposta, negado, podeEditarModulo, podePublicarModulo } from "@/lib/conhecimento/rota";
 
 export const dynamic = "force-dynamic";
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest, ctx: Ctx) {
   }
 }
 
-// PATCH /api/conhecimento/<id> { acao: salvar | publicar | descartar | arquivar | reabrir | meta, ... }
+// PATCH /api/conhecimento/<id> { acao: salvar | publicar | descartar | arquivar | reabrir | revisado | meta, ... }
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const e = await entrar(req);
   if (e.resposta) return e.resposta;
@@ -82,6 +83,13 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
       const r = await mudarStatus(artigo, acao === "arquivar" ? "arquivado" : "reabrir");
       await audit(acao);
       return NextResponse.json({ ok: true, artigo: r });
+    }
+    if (acao === "revisado") {
+      // o sistema mudou, o responsável conferiu e o texto continua valendo: tira o selo sem versão nova
+      if (!podePub) return negado("Só o responsável do módulo confirma que o artigo está em dia.");
+      await marcarRevisado(artigo.id);
+      await audit("revisado");
+      return NextResponse.json({ ok: true });
     }
     if (acao === "meta") {
       if (!podePub) return negado();

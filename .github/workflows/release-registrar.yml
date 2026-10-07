@@ -1,0 +1,66 @@
+# Base de conhecimento — registra cada versão publicada.
+#
+# A cada push na main, manda para o portal os commits do push e os arquivos que
+# cada um alterou. O portal (POST /api/conhecimento/releases):
+#   - marca como "pode estar desatualizado" os artigos publicados cujas fontes
+#     foram tocadas;
+#   - cria o rascunho de "O que mudou" por módulo, para o responsável aprovar.
+#
+# Espera ~6 min antes de chamar: o deploy do Railway leva uns 4 min e a novidade
+# deve chegar depois que a versão nova já está no ar. A rota é idempotente por
+# sha, então rodar de novo à mão não duplica nada.
+name: Base de conhecimento - registrar versao
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+concurrency:
+  group: release-registrar-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  registrar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Montar payload (commits + arquivos)
+        env:
+          ANTES_EVENTO: ${{ github.event.before }}
+        run: |
+          set -euo pipefail
+          ANTES="${ANTES_EVENTO:-}"
+          # push novo de branch, force-push ou disparo manual: cai no commit anterior
+          if [ -z "$ANTES" ] || ! git cat-file -e "${ANTES}^{commit}" 2>/dev/null; then
+            ANTES="$(git rev-parse HEAD~1)"
+          fi
+          echo "intervalo: ${ANTES}..HEAD"
+          echo '[]' > commits.json
+          for SHA in $(git rev-list --no-merges --reverse "${ANTES}..HEAD"); do
+            TITULO="$(git log -1 --format=%s "$SHA")"
+            AUTOR="$(git log -1 --format=%an "$SHA")"
+            DATA="$(git log -1 --format=%aI "$SHA")"
+            git diff-tree --no-commit-id --name-only -r "$SHA" | jq -R -s 'split("\n") | map(select(length > 0)) | .[0:300]' > arquivos.json
+            jq --arg sha "$SHA" --arg titulo "$TITULO" --arg autor "$AUTOR" --arg data "$DATA" --slurpfile arq arquivos.json \
+              '. + [{sha: $sha, titulo: $titulo, autor: $autor, data: $data, arquivos: $arq[0]}]' commits.json > tmp.json && mv tmp.json commits.json
+          done
+          jq -n --arg sha "$(git rev-parse HEAD)" --arg antes "$ANTES" --slurpfile commits commits.json \
+            '{sha: $sha, sha_anterior: $antes, commits: $commits[0]}' > payload.json
+          echo "commits no payload: $(jq '.commits | length' payload.json)"
+
+      - name: Esperar o deploy do Railway
+        if: github.event_name == 'push'
+        run: sleep 360
+
+      - name: Enviar para o portal
+        run: |
+          curl -sS --fail-with-body --max-time 150 --retry 3 --retry-delay 30 --retry-all-errors -X POST \
+            -H "Content-Type: application/json" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            --data @payload.json \
+            "${{ secrets.PORTAL_URL }}/api/conhecimento/releases"
