@@ -121,7 +121,7 @@ export default function ConferenciaCustosPage() {
 
   const totais = useMemo(() => {
     const custoPortal = filtradas.reduce((s, m) => s + (m.cmc_portal || 0) * (m.estoque || 1), 0)
-    const custoPago = filtradas.reduce((s, m) => s + (m.custo_pago || 0), 0)
+    const custoPago = filtradas.reduce((s, m) => s + (Number(m.custo_pago) || 0), 0)
     const contatados = filtradas.filter(m => m.contatado).length
     const emDemo = filtradas.filter(m => m.origem === 'demonstracao').length
     return { custoPortal, custoPago, contatados, emDemo, total: filtradas.length }
@@ -294,9 +294,9 @@ const inpText: React.CSSProperties = {
   border: '1px solid var(--portal-border,#e5e5e5)', background: 'transparent',
 }
 
-function NumInput({ value, onChange, onBlur }: { value: number | null; onChange: (v: any) => void; onBlur: () => void }) {
+function NumInput({ value, onChange, onBlur }: { value: number | null; onChange: (v: number | null) => void; onBlur: () => void }) {
   return (
-    <input type="number" step="0.01" value={value ?? ''} onChange={e => onChange(e.target.value === '' ? null : e.target.value)} onBlur={onBlur}
+    <input type="number" step="0.01" value={value ?? ''} onChange={e => onChange(e.target.value === '' ? null : Number(e.target.value))} onBlur={onBlur}
       style={{ ...inpText, width: 100, textAlign: 'right' }} placeholder="—" />
   )
 }

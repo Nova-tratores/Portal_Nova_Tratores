@@ -22,6 +22,18 @@ interface FormEnvio { ativo: boolean; to: string; cc: string; bcc: string; param
 
 const fmtData = (iso: string) => { try { return new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' }) } catch { return iso } }
 
+// Resultado de uma linha do log. `ok=false` NÃO é sempre falha: o cron de segunda
+// roda mesmo com o envio desligado na tela e a lib registra o pulo com
+// motivo 'desativado' — isso aparecia como "Falhou" em vermelho e assustava.
+// O motivo é lido ANTES do `ok`: 'nada_a_enviar' vem com ok=true e não é envio.
+const PULOS: Record<string, string> = { desativado: 'desligado', nada_a_enviar: 'nada a enviar', sem_destinatario: 'sem destinatário' }
+const rotuloResultado = (l: { ok: boolean; motivo: string | null }): { texto: string; cor: string } => {
+  const pulo = l.motivo ? PULOS[l.motivo] : undefined
+  if (pulo) return { texto: `Pulado · ${pulo}`, cor: 'var(--portal-text-secondary, #64748b)' }
+  if (l.ok) return { texto: 'Enviado', cor: '#047857' }
+  return { texto: `Falhou · ${l.motivo || '?'}`, cor: '#b91c1c' }
+}
+
 const card: React.CSSProperties = { background: 'var(--portal-bg-card, #fff)', border: '1px solid var(--portal-border, #e5e7eb)', borderRadius: 12, padding: 18 }
 const lbl: React.CSSProperties = { display: 'block', fontSize: 11.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--portal-text-secondary, #64748b)', marginBottom: 4 }
 const input: React.CSSProperties = { width: '100%', padding: '9px 11px', fontSize: 14, borderRadius: 8, border: '1px solid var(--portal-border, #e5e7eb)', background: 'var(--portal-bg, #fff)', color: 'var(--portal-text, #1e293b)', outline: 'none', fontFamily: 'inherit' }
@@ -168,7 +180,8 @@ function EnviosEmailInner() {
               {av && <div style={{ fontSize: 13, fontWeight: 600, color: av.ok ? '#047857' : '#b91c1c' }}>{av.msg}</div>}
               <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #94a3b8)', borderTop: '1px dashed var(--portal-border, #e5e7eb)', paddingTop: 8 }}>
                 {it.config.padrao ? 'Ainda não salvo no banco' : `Salvo em ${it.config.atualizadoEm ? fmtData(it.config.atualizadoEm) : '—'}${it.config.atualizadoPor ? ` por ${it.config.atualizadoPor}` : ''}`}
-                {' · '}Último envio: {ultimo ? `${fmtData(ultimo.criado_em)} (${ultimo.origem}) — ${ultimo.ok ? 'OK' : `falhou: ${ultimo.motivo || '?'}`}` : 'nenhum'}
+                {' · '}Último envio: {ultimo ? `${fmtData(ultimo.criado_em)} (${ultimo.origem}) — ${rotuloResultado(ultimo).texto}` : 'nenhum'}
+                {ultimo?.motivo === 'desativado' && !f.ativo && ' (o cron de segunda roda mesmo assim; ligue e salve pra ele enviar)'}
               </div>
             </div>
           )
@@ -193,7 +206,7 @@ function EnviosEmailInner() {
                     <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>{fmtData(l.criado_em)}</td>
                     <td style={{ padding: '9px 14px' }}>{nomeDe(l.chave)}{l.assunto ? <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted, #94a3b8)' }}>{l.assunto}</div> : null}</td>
                     <td style={{ padding: '9px 14px' }}><span style={{ fontSize: 11, fontWeight: 800, padding: '2px 8px', borderRadius: 999, background: l.origem === 'cron' ? '#e0e7ff' : l.origem === 'teste' ? '#fef3c7' : '#dcfce7', color: l.origem === 'cron' ? '#3730a3' : l.origem === 'teste' ? '#92400e' : '#166534' }}>{l.origem}</span></td>
-                    <td style={{ padding: '9px 14px', fontWeight: 700, color: l.ok ? '#047857' : '#b91c1c', whiteSpace: 'nowrap' }}>{l.ok ? 'Enviado' : `Falhou · ${l.motivo || '?'}`}</td>
+                    <td style={{ padding: '9px 14px', fontWeight: 700, color: rotuloResultado(l).cor, whiteSpace: 'nowrap' }}>{rotuloResultado(l).texto}</td>
                     <td style={{ padding: '9px 14px', maxWidth: 320, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={(l.destinatarios || []).join(', ')}>{(l.destinatarios || []).join(', ') || '—'}</td>
                     <td style={{ padding: '9px 14px' }}>{l.total ?? '—'}</td>
                     <td style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>{l.usuario || '—'}</td>
