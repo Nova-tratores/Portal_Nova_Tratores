@@ -50,3 +50,6 @@ next-env.d.ts
 # KUHN — cookie de sessão + lista de URLs (locais, não commitar)
 catalogos/.kuhn-cookie.txt
 catalogos/kuhn-urls.txt
+
+# screenshots/snapshots do Playwright MCP (verificação visual local)
+.playwright-mcp/

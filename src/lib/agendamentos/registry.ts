@@ -5,7 +5,7 @@
 //     no Railway via `Bearer CRON_SECRET`. SÃO OS CRONS DE PRODUÇÃO QUE REALMENTE RODAM.
 //  2. Código / Railway (src/instrumentation.ts) — schedulers in-process
 //     (setInterval/setTimeout) dentro do `next start`.
-//  3. vercel.json → "crons" — NÃO executam no Railway (só valeriam num deploy Vercel).
+//  3. (histórico) vercel.json foi removido em 07/10/2026: nunca rodou no Railway; o único cron útil dele virou pos-sync-omie.yml.
 //
 // Esta lista alimenta a tela /agendamentos (somente leitura). Ao criar/alterar
 // um cron, ATUALIZE este arquivo para mantê-lo fiel.
@@ -173,6 +173,17 @@ export const AGENDAMENTOS: Agendamento[] = [
     obs: 'Mesmo sync do botão "Sincronizar" da Pasta Clientes; é o único que atualiza projetos (máquinas) com o último cliente',
   },
   {
+    nome: 'Sync cadastros Omie do POS (clientes PRINCIPAL, projetos, produtos)',
+    modulo: 'POS',
+    fonte: 'github',
+    cron: '10 8 * * *',
+    frequencia: 'Diário',
+    horarioBRT: '05:10 (diário)',
+    alvo: 'GET /api/pos/cron/sync-omie',
+    arquivo: '.github/workflows/pos-sync-omie.yml',
+    obs: 'Veio do vercel.json (que nunca rodou no Railway). Lembretes de revisão, GPS dos técnicos e expirar orçamentos foram descartados: tabelas vazias / 1 orçamento ativo',
+  },
+  {
     nome: 'Recalcular oportunidades (regras R1–R8)',
     modulo: 'Feedbacks',
     fonte: 'github',
@@ -252,48 +263,5 @@ export const AGENDAMENTOS: Agendamento[] = [
     arquivo: 'src/instrumentation.ts',
     condicional: 'Só com SYNC_FINANCEIRO_AUTO=on',
     obs: 'Backup do webhook do Omie',
-  },
-
-  // ───────────────── vercel.json (NÃO roda no Railway) ─────────────────
-  {
-    nome: 'Gravar GPS técnicos',
-    modulo: 'POS',
-    fonte: 'vercel-inativo',
-    cron: '0 */2 * * *',
-    frequencia: 'A cada 2 h',
-    alvo: 'GET /api/pos/cron/gravar-gps',
-    arquivo: 'vercel.json',
-    obs: 'Inativo no Railway',
-  },
-  {
-    nome: 'Lembretes de revisão',
-    modulo: 'Revisões',
-    fonte: 'vercel-inativo',
-    cron: '*/10 * * * *',
-    frequencia: 'A cada 10 min',
-    alvo: 'GET /api/revisoes/lembretes/cron',
-    arquivo: 'vercel.json',
-    obs: 'Inativo no Railway',
-  },
-  {
-    nome: 'Sync clientes/projetos Omie',
-    modulo: 'POS',
-    fonte: 'vercel-inativo',
-    cron: '0 */3 * * *',
-    frequencia: 'A cada 3 h',
-    alvo: 'GET /api/pos/cron/sync-omie',
-    arquivo: 'vercel.json',
-    obs: 'Inativo no Railway',
-  },
-  {
-    nome: 'Expirar orçamentos',
-    modulo: 'Orçamentos',
-    fonte: 'vercel-inativo',
-    cron: '0 7 * * *',
-    frequencia: 'Diário',
-    horarioBRT: '04:00 (diário)',
-    alvo: 'GET /api/orcamentos/expirar',
-    arquivo: 'vercel.json',
-    obs: 'Inativo no Railway',
   },
 ];

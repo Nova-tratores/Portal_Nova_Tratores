@@ -12,7 +12,7 @@ import {
   type FonteCron,
 } from '@/lib/agendamentos/registry'
 
-const ORDEM_FONTES: FonteCron[] = ['github', 'in-process', 'vercel-inativo']
+const ORDEM_FONTES: FonteCron[] = ['github', 'in-process'] // vercel.json foi removido em 07/10/2026 (nunca rodou no Railway)
 
 const ICONE_FONTE: Record<FonteCron, React.ReactNode> = {
   github: <Github size={16} />,
