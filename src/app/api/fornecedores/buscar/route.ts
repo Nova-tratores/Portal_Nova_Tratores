@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { corsChatwoot } from "@/lib/chatwoot/cors";
 
 // Busca de fornecedores para o seletor da integração com o Chatwoot
 // (tabela Fornecedores das Requisições). Busca insensível a acento por
@@ -11,13 +12,6 @@ const supabase = createClient(
     ""
 );
 
-const CHATWOOT_ORIGIN =
-  process.env.CHATWOOT_URL || "https://chatwoot-production-e3ef.up.railway.app";
-const CORS = {
-  "Access-Control-Allow-Origin": CHATWOOT_ORIGIN,
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
 
 function normalizar(s: string | null | undefined): string {
   return (s || "")
@@ -26,11 +20,13 @@ function normalizar(s: string | null | undefined): string {
     .toLowerCase();
 }
 
-export async function OPTIONS() {
+export async function OPTIONS(req: Request) {
+  const CORS = corsChatwoot(req, "GET, OPTIONS");
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
 export async function GET(req: NextRequest) {
+  const CORS = corsChatwoot(req, "GET, OPTIONS");
   const q = (req.nextUrl.searchParams.get("q") || "").trim();
   if (q.length < 2) {
     return NextResponse.json({ fornecedores: [] }, { headers: CORS });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { corsChatwoot } from "@/lib/chatwoot/cors";
 
 // Detalhe de um cliente por código Omie, para o popover do Chatwoot
 // (nome fantasia, endereço, telefone, e-mail). Cobre contatos vinculados
@@ -11,19 +12,14 @@ const supabase = createClient(
     ""
 );
 
-const CHATWOOT_ORIGIN =
-  process.env.CHATWOOT_URL || "https://chatwoot-production-e3ef.up.railway.app";
-const CORS = {
-  "Access-Control-Allow-Origin": CHATWOOT_ORIGIN,
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
 
-export async function OPTIONS() {
+export async function OPTIONS(req: Request) {
+  const CORS = corsChatwoot(req, "GET, OPTIONS");
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
 export async function GET(req: NextRequest) {
+  const CORS = corsChatwoot(req, "GET, OPTIONS");
   const cod = (req.nextUrl.searchParams.get("cod") || "").trim();
   const empresa = (req.nextUrl.searchParams.get("empresa") || "").trim();
   if (!cod) {

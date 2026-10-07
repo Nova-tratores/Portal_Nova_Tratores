@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { corsChatwoot } from "@/lib/chatwoot/cors";
 
 // Máquinas/tratores do cliente para a aba do Chatwoot — mesma fonte dos
 // PROJETOS da Pasta Clientes (portal_nt_projetos_PRINCIPAL, nome =
@@ -12,13 +13,6 @@ const supabase = createClient(
     ""
 );
 
-const CHATWOOT_ORIGIN =
-  process.env.CHATWOOT_URL || "https://chatwoot-production-e3ef.up.railway.app";
-const CORS = {
-  "Access-Control-Allow-Origin": CHATWOOT_ORIGIN,
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
 
 type Servico = { desc?: string };
 
@@ -52,11 +46,13 @@ function separarModeloChassis(nome: string): { modelo: string; chassis: string }
   return { modelo: nome, chassis: "" };
 }
 
-export async function OPTIONS() {
+export async function OPTIONS(req: Request) {
+  const CORS = corsChatwoot(req, "GET, OPTIONS");
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
 export async function GET(req: NextRequest) {
+  const CORS = corsChatwoot(req, "GET, OPTIONS");
   const cod = (req.nextUrl.searchParams.get("cod") || "").trim();
   // Alternativa: buscar direto pelo CPF/CNPJ (usado pelo ícone de trator
   // nos drawers do POS/PPV, que só têm o documento do cliente).

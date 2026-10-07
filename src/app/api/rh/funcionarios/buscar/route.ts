@@ -1,16 +1,10 @@
 import { NextResponse } from "next/server";
 import { listarFuncionariosRH, rhConfigurado } from "@/lib/frota/rh";
+import { corsChatwoot } from "@/lib/chatwoot/cors";
 
 // Busca de funcionários (RH) para o seletor da integração com o Chatwoot.
 // Reaproveita listarFuncionariosRH() (que NÃO traz salário) e devolve só os
 // campos escolhidos: nome, cargo, departamento, email.
-const CHATWOOT_ORIGIN =
-  process.env.CHATWOOT_URL || "https://chatwoot-production-e3ef.up.railway.app";
-const CORS = {
-  "Access-Control-Allow-Origin": CHATWOOT_ORIGIN,
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
 
 // remove acentos + minúsculas → busca insensível a acento e maiúscula/minúscula
 function normalizar(s: string | null | undefined): string {
@@ -20,11 +14,13 @@ function normalizar(s: string | null | undefined): string {
     .toLowerCase();
 }
 
-export async function OPTIONS() {
+export async function OPTIONS(req: Request) {
+  const CORS = corsChatwoot(req, "GET, OPTIONS");
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
 export async function GET(req: Request) {
+  const CORS = corsChatwoot(req, "GET, OPTIONS");
   const q = (new URL(req.url).searchParams.get("q") || "").trim();
 
   if (!rhConfigurado()) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { corsChatwoot } from "@/lib/chatwoot/cors";
 
 // Galeria de figurinhas do NovaZap (ChatWoot) — compartilhada por todo
 // mundo. Os arquivos vivem no bucket público `anexos`, pasta figurinhas/.
@@ -15,19 +16,13 @@ const BUCKET = "anexos";
 const PASTA = "figurinhas";
 const MAX_BYTES = 2 * 1024 * 1024; // 2MB por figurinha
 
-const CHATWOOT_ORIGIN =
-  process.env.CHATWOOT_URL || "https://chatwoot-production-e3ef.up.railway.app";
-const CORS = {
-  "Access-Control-Allow-Origin": CHATWOOT_ORIGIN,
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-};
-
-export async function OPTIONS() {
+export async function OPTIONS(req: Request) {
+  const CORS = corsChatwoot(req, "GET, POST, DELETE, OPTIONS");
   return new NextResponse(null, { status: 204, headers: CORS });
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const CORS = corsChatwoot(req, "GET, POST, DELETE, OPTIONS");
   try {
     const { data, error } = await supabase.storage
       .from(BUCKET)
@@ -50,6 +45,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  const CORS = corsChatwoot(req, "GET, POST, DELETE, OPTIONS");
   try {
     const body = await req.json();
     const base64 = String(body.base64 || "");
@@ -89,6 +85,7 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const CORS = corsChatwoot(req, "GET, POST, DELETE, OPTIONS");
   try {
     const caminho = req.nextUrl.searchParams.get("caminho") || "";
     // só deixa apagar dentro da pasta de figurinhas
