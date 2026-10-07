@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
-import { confirmarTipoAnexo } from '@/lib/financeiro/leitor-anexos'
 import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
 import { useRouter, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -26,7 +25,6 @@ import PrefEnvioBadge from '@/components/financeiro/PrefEnvioBadge'
 import EnvioGuiaModal from '@/components/financeiro/EnvioGuiaModal'
 import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
 import { autoEnviarENotificar } from '@/lib/financeiro/envioBoleto'
-import { textoConfirmacaoEnvio } from '@/lib/financeiro/tipo-anexo'
 import { montarMapasPref, acharMetodo } from '@/lib/financeiro/prefEnvio'
 import { authHeaders } from '@/lib/auth/client'
 import { labelSetor, ehDoSetor } from '@/lib/financeiro/setor'
@@ -306,14 +304,11 @@ export default function Kanban() {
       const r = await autoEnviarENotificar({
         card: t,
         remetente: userProfile?.nome || '',
-        confirmar: (avisos) => window.confirm(textoConfirmacaoEnvio(avisos)),
         audit: (a) => auditLog({ sistema: 'financeiro', entidade: 'Chamado_NF', entidade_id: String(t.id), entidade_label: `NF #${t.id} - ${t.nom_cliente || ''}`, ...a }),
       });
       if (r.status === 'enviado') {
         alert(`Boleto enviado por e-mail para: ${r.destinatarios.join(', ')}.\nCard movido para Aguardando Cliente!`);
         carregarDados();
-      } else if (r.status === 'avisos') {
-        alert('Envio cancelado. Confira os anexos do card antes de enviar.');
       } else if (r.status === 'erro' && r.semConfig) {
         setEnvioGuia({ motivo: 'sem_config', card: t });
       } else if (r.status === 'erro') {
@@ -918,7 +913,7 @@ function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
                 {!disabled && (
                     <>
                         <button title="Upload" onClick={() => fileInputRef.current.click()} style={miniActionBtn}><RefreshCw size={18} /></button>
-                        <input type="file" ref={fileInputRef} hidden onChange={async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f && await confirmarTipoAnexo(f, label)) onUpload(f) }} />
+                        <input type="file" ref={fileInputRef} hidden onChange={(e) => onUpload(e.target.files[0])} />
                     </>
                 )}
             </div>

@@ -42,9 +42,7 @@ export async function resolverCnpj(card) {
 //  - 'whatsapp_manual'  → cliente prefere WhatsApp (não tem envio automático)
 //  - 'sem_preferencia'  → cliente sem preferência cadastrada
 //  - 'sem_arquivo'      → não há boleto/NF anexados ainda
-//  - 'avisos'           → NF faltando/trocada ou boleto já enviado e ninguém confirmou
-//                         (`confirmar(avisos)` → true reenvia confirmado; sem ele, não envia)
-export async function tentarEnvioAutomaticoBoleto(card, remetente, confirmar) {
+export async function tentarEnvioAutomaticoBoleto(card, remetente) {
   const doc = await resolverCnpj(card)
   if (!doc) return { status: 'sem_preferencia' }
 
@@ -64,7 +62,7 @@ export async function tentarEnvioAutomaticoBoleto(card, remetente, confirmar) {
   const nUrls = [...new Set([...nfUrls(card), ...filhosGrupo.flatMap(nfUrls)])]
   if (!bUrls.length && !nUrls.length) return { status: 'sem_arquivo', metodo: 'email', destinatarios }
 
-  const enviar = async (confirmado) => {
+  try {
     const res = await fetch('/api/financeiro/enviar-boleto', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -79,19 +77,9 @@ export async function tentarEnvioAutomaticoBoleto(card, remetente, confirmar) {
         vencimento: card.vencimento_boleto || '',
         parcelas: montarParcelas(card),
         remetente: remetente || '',
-        confirmado,
       }),
     })
-    return { res, out: await res.json().catch(() => ({})) }
-  }
-
-  try {
-    let { res, out } = await enviar(false)
-    if (res.status === 409 && out.precisaConfirmar) {
-      const avisos = out.avisos || []
-      if (!confirmar || !(await confirmar(avisos))) return { status: 'avisos', metodo: 'email', destinatarios, avisos }
-      ;({ res, out } = await enviar(true))
-    }
+    const out = await res.json().catch(() => ({}))
     if (!res.ok) return { status: 'erro', metodo: 'email', destinatarios, erro: out.error || 'Falha no envio', semConfig: !!out.semConfig }
     return { status: 'enviado', metodo: 'email', destinatarios }
   } catch (e) {
@@ -117,8 +105,8 @@ async function notificarSetor({ alvo, titulo, descricao, link, userId }) {
 //  - ERRO: NÃO altera o status; avisa só o Pós-Vendas (precisa enviar manual).
 //  - WhatsApp: NÃO altera o status; avisa o Pós-Vendas (envio manual).
 // `card` deve já conter o boleto anexado (anexo_boleto).
-export async function autoEnviarENotificar({ card, remetente, userId, audit, confirmar }) {
-  const r = await tentarEnvioAutomaticoBoleto(card, remetente, confirmar)
+export async function autoEnviarENotificar({ card, remetente, userId, audit }) {
+  const r = await tentarEnvioAutomaticoBoleto(card, remetente)
   const cliente = card?.nom_cliente || 'cliente'
   const link = '/financeiro/kanban'
 
@@ -138,12 +126,6 @@ export async function autoEnviarENotificar({ card, remetente, userId, audit, con
     // do fluxo, então não espalha notificação pro setor.
     if (!r.semConfig) notificarSetor({ alvo: 'posvendas', titulo: `Falha no envio automático do boleto — ${cliente}`, descricao: `${r.erro || 'Erro desconhecido'}. Envie manualmente.`, link })
     audit?.({ acao: 'erro_envio', detalhes: { auto: true, cliente, erro: r.erro } })
-  } else if (r.status === 'avisos') {
-    // Envio automático (ninguém na tela pra confirmar) → não manda; o Pós-Vendas confere.
-    // Clique no envio rápido que a pessoa cancelou → não espalha notificação.
-    const motivo = (r.avisos || []).map(a => a.mensagem).join(' ')
-    if (!confirmar) notificarSetor({ alvo: 'posvendas', titulo: `Boleto NÃO enviado automaticamente — ${cliente}`, descricao: `${motivo} Confira os anexos e envie manualmente.`, link })
-    audit?.({ acao: 'erro_envio', detalhes: { auto: !confirmar, cliente, avisos: (r.avisos || []).map(a => a.codigo) } })
   } else if (r.status === 'whatsapp_manual') {
     notificarSetor({ alvo: 'posvendas', titulo: `Boleto pronto — enviar por WhatsApp — ${cliente}`, descricao: 'Cliente prefere WhatsApp (envio manual).', link })
   }

@@ -5,8 +5,6 @@ import { autenticar } from '@/lib/auth/server';
 import { urlSegura } from '@/lib/url-segura';
 import { formatarDataBR } from '@/lib/financeiro/parcelas';
 import { decrypt } from '@/lib/cripto';
-import { createHash } from 'crypto';
-import { avisosEnvio, semRepetidos } from '@/lib/financeiro/tipo-anexo';
 
 // Cada usuário envia PELO SEU e-mail (financeiro_envio_config). Não há mais
 // fallback pro Gmail da empresa — sem config, o envio pede pra configurar.
@@ -34,7 +32,6 @@ export async function POST(request: Request) {
     remetente?: string;
     parcelas?: { n: number; data: string; valor: string }[];
     chamadoId?: number | string; // id do card (Chamado_NF) — registra o envio no histórico de e-mails
-    confirmado?: boolean; // quem envia já viu os avisos (NF faltando/trocada, reenvio) e confirmou
   };
   try {
     body = await request.json();
@@ -69,45 +66,21 @@ export async function POST(request: Request) {
   const remetenteSan = sanitize(body.remetente || '');
 
   // Baixa cada arquivo (boletos + notas fiscais) da URL e anexa
-  let baixados: { filename: string; content: Buffer; hash: string; nome: string; ehNF: boolean }[] = [];
+  let attachments: { filename: string; content: Buffer }[] = [];
   try {
-    baixados = await Promise.all(
+    attachments = await Promise.all(
       todasUrls.map(async (url, i) => {
         const res = await fetch(url);
         if (!res.ok) throw new Error(`Falha ao baixar anexo (${res.status})`);
         const buffer = Buffer.from(await res.arrayBuffer());
         const limpo = url.split('?')[0];
         const nome = decodeURIComponent(limpo.substring(limpo.lastIndexOf('/') + 1)) || `anexo_${i + 1}.pdf`;
-        const hash = createHash('sha256').update(buffer).digest('hex');
-        return { filename: nome, content: buffer, hash, nome, ehNF: i >= urls.length };
+        return { filename: nome, content: buffer };
       })
     );
   } catch (e: any) {
     return NextResponse.json({ error: `Não foi possível anexar os arquivos: ${e.message}` }, { status: 502 });
   }
-
-  // Antes de mandar: avisa boleto no lugar da NF, card sem NF e reenvio. Quem
-  // está enviando confirma (confirmado=true) — o portal avisa, não proíbe.
-  const chamadoIdNum = Number(body.chamadoId) || 0;
-  if (!body.confirmado) {
-    let enviosAnteriores: { criado_em: string; destinatarios: string | null }[] = [];
-    if (chamadoIdNum) {
-      const { data } = await adminSupa.from('financeiro_emails')
-        .select('criado_em, destinatarios')
-        .eq('chamado_id', chamadoIdNum).eq('tipo', 'boleto').eq('direcao', 'enviado');
-      enviosAnteriores = data || [];
-    }
-    const avisos = avisosEnvio({
-      boletos: baixados.filter((b) => !b.ehNF),
-      nfs: baixados.filter((b) => b.ehNF),
-      enviosAnteriores,
-    });
-    if (avisos.length) {
-      return NextResponse.json({ error: 'Confira antes de enviar.', precisaConfirmar: true, avisos }, { status: 409 });
-    }
-  }
-  // O mesmo arquivo nunca vai duas vezes no e-mail (ex.: boleto anexado também como NF).
-  const attachments = semRepetidos(baixados).map(({ filename, content }) => ({ filename, content }));
 
   const agora = new Date();
   const horaAtual = agora.toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: 'numeric', hour12: false });
@@ -209,10 +182,11 @@ ${blocoValores}
     });
     // Registra o envio no histórico de e-mails do card (bloco "E-mails deste
     // boleto" + casamento das respostas do cliente via message-id).
-    if (chamadoIdNum) {
+    const chamadoId = Number(body.chamadoId) || 0;
+    if (chamadoId) {
       try {
         await adminSupa.from('financeiro_emails').insert({
-          chamado_id: chamadoIdNum,
+          chamado_id: chamadoId,
           tipo: 'boleto',
           direcao: 'enviado',
           de_email: fromEmail,

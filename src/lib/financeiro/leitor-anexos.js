@@ -9,7 +9,6 @@
 // =====================================================================
 import { parseNFeXML } from './nfe-parser'
 import { acharChaveNFe } from './chave-nfe'
-import { campoDoRotulo, tipoPorNome, tipoPorTexto, avisoAnexoTrocado } from './tipo-anexo'
 
 // ---------------------------------------------------------------------
 // Download do anexo (URL pública do storage) → File
@@ -147,39 +146,4 @@ export async function lerChaveNFeDeUrl(url) {
   }
 
   throw new Error('Formato de anexo não suportado para leitura da chave NF-e.')
-}
-
-// ---------------------------------------------------------------------
-// Boleto × nota fiscal no campo errado — AVISA antes de anexar (não proíbe)
-// ---------------------------------------------------------------------
-
-/** 'boleto' | 'nf' | null — pelo texto das 2 primeiras páginas do PDF; sem texto, pelo nome. */
-export async function detectarTipoAnexo(file) {
-  if (tipoArquivo(file) === 'pdf') {
-    try {
-      const pdf = await carregarPdf(file)
-      let texto = ''
-      for (let p = 1; p <= Math.min(pdf.numPages, 2); p++) {
-        const tc = await (await pdf.getPage(p)).getTextContent()
-        texto += ' ' + tc.items.map((it) => ('str' in it ? it.str : '')).join(' ')
-      }
-      const porTexto = tipoPorTexto(texto)
-      if (porTexto) return porTexto
-    } catch { /* PDF ilegível: cai no nome */ }
-  }
-  return tipoPorNome(file.name)
-}
-
-/**
- * Antes de anexar no campo `rotulo` ("NF PECA", "BOLETO 1"…): se o arquivo parece
- * ser do outro tipo, pergunta. Devolve true para seguir com o anexo.
- */
-export async function confirmarTipoAnexo(file, rotulo) {
-  if (!file) return false
-  try {
-    const aviso = avisoAnexoTrocado(campoDoRotulo(rotulo), await detectarTipoAnexo(file), file.name)
-    return aviso ? window.confirm(aviso) : true
-  } catch {
-    return true
-  }
 }

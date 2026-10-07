@@ -8,7 +8,6 @@ import { useAuditLog } from '@/hooks/useAuditLog'
 import { MessageCircle, Mail, Check, Pencil, Send, Plus, X } from 'lucide-react'
 import ConfigEmailEnvioModal from '@/components/financeiro/ConfigEmailEnvioModal'
 import { buscarFilhos, nfsLabel } from '@/lib/financeiro/grupo'
-import { textoConfirmacaoEnvio } from '@/lib/financeiro/tipo-anexo'
 
 // Junta os boletos anexados do card numa lista de URLs
 function boletoUrls(card) {
@@ -219,7 +218,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
   }
 
   // Envia o boleto por email — sucesso move o card pra Aguardando Cliente
-  const enviarBoleto = async (listaEmails, confirmado = false) => {
+  const enviarBoleto = async (listaEmails) => {
     const destinatarios = (listaEmails || []).map(e => e.trim()).filter(Boolean)
     if (destinatarios.length === 0) { alert('Adicione ao menos um email.'); return }
     if (urls.length === 0 && nfUrls.length === 0) { alert('Não há boleto nem nota fiscal anexados neste card para enviar.'); return }
@@ -239,16 +238,9 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
           vencimento: card?.vencimento_boleto || '',
           parcelas: montarParcelas(card),
           remetente: userProfile?.nome || '',
-          confirmado,
         }),
       })
       const out = await res.json().catch(() => ({}))
-      // NF faltando/trocada ou boleto já enviado → avisa; segue só se a pessoa confirmar.
-      if (res.status === 409 && out.precisaConfirmar) {
-        if (window.confirm(textoConfirmacaoEnvio(out.avisos || []))) return await enviarBoleto(destinatarios, true)
-        setAviso({ tipo: 'erro', msg: 'Envio cancelado. Confira os anexos do card.' })
-        return
-      }
       if (!res.ok) {
         // Usuário ainda não configurou o e-mail dele → pede na hora e reenvia depois.
         if (out.semConfig) { setEmailsPendentes(destinatarios); setConfigEmailOpen(true); return }

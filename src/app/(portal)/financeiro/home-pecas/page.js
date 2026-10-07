@@ -1,7 +1,6 @@
 'use client'
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
-import { confirmarTipoAnexo } from '@/lib/financeiro/leitor-anexos'
 import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
@@ -51,7 +50,7 @@ function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
                 {!disabled && (
                     <>
                         <button title="Upload" onClick={() => fileInputRef.current.click()} style={miniActionBtn}><RefreshCw size={18} color="var(--portal-text-secondary)" /></button>
-                        <input type="file" ref={fileInputRef} hidden onChange={async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f && await confirmarTipoAnexo(f, label)) onUpload(f) }} />
+                        <input type="file" ref={fileInputRef} hidden onChange={(e) => onUpload(e.target.files[0])} />
                     </>
                 )}
             </div>
