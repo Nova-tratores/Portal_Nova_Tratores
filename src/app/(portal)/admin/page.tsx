@@ -48,6 +48,9 @@ const MODULOS = [
   { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
   { id: 'opa', label: 'Opa (Ocorrências)', color: '#dc2626' },
+  // Peças não identificadas (aba do Opa): fotografar/cadastrar é de todos; este módulo
+  // é o "setor de peças" — identificar, precificar, mudar status, exportar, cadastros.
+  { id: 'opa-pecas', label: 'Peças S/Estoque — Opa (setor de peças)', color: '#ea580c' },
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#3b82f6' },
   { id: 'ppv', label: 'Peças (PPV)', color: '#ef4444' },
@@ -69,7 +72,7 @@ const MODULOS = [
   { id: 'war-room', label: 'War Room', color: '#b91c1c' },
 ]
 
-const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro']
+const CATEGORIAS = ['Pós Vendas', 'Peças', 'Comercial', 'Financeiro', 'T.I.']
 
 const SISTEMAS_MAP: Record<string, { label: string; icon: string }> = {
   revisoes: { label: 'Controle de Revisões', icon: 'wrench' },

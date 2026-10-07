@@ -72,6 +72,8 @@ export interface OpcoesFolha {
    *  sempre Carta). Com 'a4' a página sai 210×297 e a impressora não precisa
    *  encaixar nada — é o que evita o encolhimento de 2,7%. Default: carta. */
   papel?: 'carta' | 'a4'
+  /** Título da janela de impressão (padrão "Etiquetas de peças"). */
+  titulo?: string
 }
 /** @deprecated nome de quando a opção era só o offset — use OpcoesFolha. */
 export type OffsetFolha = OpcoesFolha
@@ -405,7 +407,7 @@ ${lado}
     </div>`
   }
 
-  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>Etiquetas de peças (folha 3×10)</title>
+  return `<!DOCTYPE html><html lang="pt-BR"><head><meta charset="utf-8"><title>${esc(off.titulo || 'Etiquetas de peças')} (folha 3×10)</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   @page { size: ${pagLarg}mm ${pagAlt}mm; margin: 0; }

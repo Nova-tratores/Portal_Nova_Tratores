@@ -882,16 +882,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               {/* balão vermelho com o fone vazado (aparece o fundo do botão) */}
               <path fill="#D6212B" fillRule="evenodd" clipRule="evenodd" d="M32 11.5c-11.4 0-20.7 8.9-20.7 19.9 0 4 1.3 7.8 3.5 11L11.5 52.5l10.4-3.1c2.9 1.6 6.3 2.5 10.1 2.5 11.4 0 20.7-8.9 20.7-19.9S43.4 11.5 32 11.5zM26.1 22.9c.6-.1 1.2.2 1.5.7l2.2 3.8c.3.6.2 1.3-.3 1.8l-1.8 1.8c1.2 2.7 3.6 5.1 6.3 6.3l1.8-1.8c.5-.5 1.2-.6 1.8-.3l3.8 2.2c.5.3.8.9.7 1.5-.4 2.3-2.5 3.9-4.8 3.6-7.9-.9-14.1-7.1-15-15-.3-2.3 1.3-4.4 3.6-4.8z" />
             </svg>
-            {chatData.totalNaoLidas > 0 && (
-              <span style={{
-                position: 'absolute', top: '-5px', right: '-5px', minWidth: 18, height: 18, borderRadius: 9,
-                background: '#22c55e', color: '#fff', fontSize: 10, fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', border: '2px solid var(--portal-header-bg)'
-              }}>{chatData.totalNaoLidas > 99 ? '99+' : chatData.totalNaoLidas}</span>
-            )}
+            {/* um contador só: solicitações novas (o chat do portal mostra o dele no Menu) */}
             {solNovas > 0 && (
               <span style={{
-                position: 'absolute', bottom: '-5px', right: '-5px', minWidth: 18, height: 18, borderRadius: 9,
+                position: 'absolute', top: '-5px', right: '-5px', minWidth: 18, height: 18, borderRadius: 9,
                 background: '#f59e0b', color: '#111', fontSize: 10, fontWeight: 700,
                 display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', border: '2px solid var(--portal-header-bg)'
               }}>{solNovas > 99 ? '99+' : solNovas}</span>
@@ -953,6 +947,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               <Menu size={20} />
               <span className="portal-menu-label">Menu</span>
               <ChevronDown size={14} className="portal-menu-chevron" style={{ transform: topMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+              {chatData.totalNaoLidas > 0 && (
+                <span title="Mensagens não lidas no chat do portal" style={{
+                  position: 'absolute', top: '-5px', right: '-5px', minWidth: 18, height: 18, borderRadius: 9,
+                  background: '#22c55e', color: '#fff', fontSize: 10, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px', border: '2px solid var(--portal-header-bg)'
+                }}>{chatData.totalNaoLidas > 99 ? '99+' : chatData.totalNaoLidas}</span>
+              )}
             </button>
 
             {/* Dropdown do menu cascata */}
@@ -985,7 +986,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   border: '1px solid var(--portal-border)', boxShadow: '0 16px 40px rgba(0,0,0,0.18)',
                   padding: 6, display: 'flex', flexDirection: 'column', gap: 2
                  }}>
-                  {item(<MessageCircle size={18} />, 'Chat do portal', () => setChatOpen(true))}
+                  {item(<MessageCircle size={18} />, 'Chat do portal', () => setChatOpen(true), chatData.totalNaoLidas)}
                   {item(<Calendar size={18} />, 'Lembretes', () => setLembretesOpen(true))}
                   {!emIframe && item(
                     <Columns size={18} />,

@@ -25,6 +25,8 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   'painel-mecanicos': 'Serviços', sat: 'Serviços', mapa: 'Serviços', 'fotos-tecnicos': 'Serviços',
   // Peças
   ppv: 'Peças', orcamentos: 'Peças', requisicoes: 'Peças',
+  // Peças não identificadas (dentro do Opa): capturar é de todos; o módulo dá identificar/precificar/status
+  'opa-pecas': 'Peças',
   // Financeiro
   financeiro: 'Financeiro', dre: 'Financeiro',
   // Comercial
