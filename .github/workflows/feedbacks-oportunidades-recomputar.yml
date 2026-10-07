@@ -1,0 +1,21 @@
+# Feedbacks — recálculo diário das oportunidades (regras R1..R8) que alimentam a
+# fila /feedbacks/atendimento e o "Por que ligar" do cockpit. A tela sempre
+# prometeu "automaticamente todo dia às 06:00", mas até 07/10/2026 nada
+# disparava a rota — só o botão "Recomputar agora". Roda depois do sync
+# completo da Omie (05:30 BRT), que atualiza OS e projetos.
+name: Feedbacks - Recalcular oportunidades
+
+on:
+  schedule:
+    - cron: '0 9 * * *'   # 06:00 BRT
+  workflow_dispatch: {}
+
+jobs:
+  recomputar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota de recálculo
+        run: |
+          curl -fsS --max-time 840 -X POST \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/feedbacks/oportunidades/recomputar"

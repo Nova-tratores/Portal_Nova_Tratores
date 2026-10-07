@@ -1,0 +1,23 @@
+# Clientes — sync completo da Omie 1x por dia: cadastro de clientes, PROJETOS
+# (máquinas "MODELO CHASSI" com o último cliente), OS e PV do ano corrente e
+# NFs, nas duas contas. É o mesmo que o botão "Sincronizar" da Pasta Clientes
+# faz — até 07/10/2026 só rodava na mão (ou ao abrir /clientes com dados com
+# mais de 6 h). Roda antes do recálculo das oportunidades (06:00 BRT), que
+# depende de OS e projetos atualizados.
+name: Clientes - Sync completo Omie
+
+on:
+  schedule:
+    - cron: '30 8 * * *'   # 05:30 BRT
+  workflow_dispatch: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar sync completo (clientes, projetos, OS, PV, NFs)
+        run: |
+          curl -fsS --max-time 1700 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/clientes/sync"
