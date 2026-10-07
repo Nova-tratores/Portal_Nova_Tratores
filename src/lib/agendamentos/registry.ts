@@ -173,7 +173,7 @@ export const AGENDAMENTOS: Agendamento[] = [
     obs: 'Mesmo sync do botão "Sincronizar" da Pasta Clientes; é o único que atualiza projetos (máquinas) com o último cliente',
   },
   {
-    nome: 'Sync cadastros Omie do POS (clientes PRINCIPAL, projetos, produtos)',
+    nome: 'Sync cadastros Omie do POS (clientes PRINCIPAL, projetos)',
     modulo: 'POS',
     fonte: 'github',
     cron: '10 8 * * *',

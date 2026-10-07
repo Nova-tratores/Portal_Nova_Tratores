@@ -1,7 +1,7 @@
 # POS — sync de cadastros da Omie 1x por dia: clientes → portal_nt_clientes_PRINCIPAL
 # (cadastro usado pelo POS, propostas, Agro e cockpit), projetos → portal_nt_projetos_PRINCIPAL
-# (só inclui projetos novos; o "último cliente" vem do sync completo das 05:30) e
-# produtos → Produtos_Completos. Estava no vercel.json (a cada 3 h), que nunca rodou
+# (só inclui projetos novos; o "último cliente" vem do sync completo das 05:30).
+# Estava no vercel.json (a cada 3 h), que nunca rodou
 # no Railway — até 07/10/2026 só o modal de sync do /dashboard e o botão de /propostas
 # atualizavam essas tabelas.
 name: POS - Sync cadastros Omie
@@ -15,7 +15,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Chamar sync de clientes, projetos e produtos
+      - name: Chamar sync de clientes e projetos
         run: |
           curl -fsS --max-time 900 \
             -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
