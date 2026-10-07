@@ -1,5 +1,7 @@
 'use client';
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
+import { useRascunho } from '@/lib/rascunho/useRascunho';
+import AvisoRascunho from '@/components/rascunho/AvisoRascunho';
 import { supabase } from '@/lib/supabase';
 import {
   FileText, Calendar, Layers, UserCircle,
@@ -230,12 +232,14 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     supabase.from('req_cotacao').select('*').eq('id', req.id).maybeSingle().then(({ data }) => {
       if (data) {
         setCotacaoData(data);
+        cotacaoSalvaRef.current = JSON.stringify(data);
         let count = 1;
         for (let i = 2; i <= 5; i++) {
           if (data[`fornecedor${i}`]) count = i;
         }
         setFornecedoresVisiveis(count);
       }
+      if (!data) cotacaoSalvaRef.current = JSON.stringify({});
       setCotacaoCarregada(true);
     });
   }, [modalAberto, modalCotacaoAberto, cotacaoCarregada, req.id]);
@@ -349,9 +353,24 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     }
   };
 
+  // Rascunho do Mapa de Cotações: os valores só vão pro banco no "Salvar"; até
+  // lá ficam guardados no navegador (fechar o mapa, recarregar ou o portal
+  // atualizar não perde nada). (07/10/2026)
+  const cotacaoSalvaRef = useRef<string | null>(null);
+  const rascunhoCotacao = useRascunho<Record<string, unknown>>(`req-cotacao:${req.id}`, cotacaoData, {
+    ativo: cotacaoCarregada,
+    vazio: (d) => cotacaoSalvaRef.current === null || JSON.stringify(d) === cotacaoSalvaRef.current,
+    restaurar: (d) => {
+      setCotacaoData(d);
+      let count = 1;
+      for (let i = 2; i <= 5; i++) if (d[`fornecedor${i}`]) count = i;
+      setFornecedoresVisiveis((v: number) => Math.max(v, count));
+    },
+  });
+
   const salvarCotacao = async () => {
     const { error } = await supabase.from('req_cotacao').upsert({ id: req.id, ...cotacaoData });
-    if (!error) alert("Mapa de Cotação atualizado!");
+    if (!error) { cotacaoSalvaRef.current = JSON.stringify(cotacaoData); rascunhoCotacao.limpar(); alert("Mapa de Cotação atualizado!"); }
     else alert('Erro ao salvar o mapa: ' + error.message);
   };
 
@@ -627,6 +646,8 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
             </div>
 
             <div className="p-6 space-y-4">
+              <AvisoRascunho em={rascunhoCotacao.recuperadoEm} onFechar={rascunhoCotacao.esconderAviso}
+                onDescartar={() => { rascunhoCotacao.limpar(); if (cotacaoSalvaRef.current) setCotacaoData(JSON.parse(cotacaoSalvaRef.current)); }} />
               {[...Array(fornecedoresVisiveis)].map((_, i) => {
                 const idx = i + 1;
                 return (

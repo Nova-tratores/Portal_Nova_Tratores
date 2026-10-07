@@ -12,7 +12,8 @@ import SemPermissao from '@/components/SemPermissao';
 import { useAuditLog } from '@/hooks/useAuditLog';
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus';
 import Kanban from '@/components/requisicoes/Kanban';
-import FormReq from '@/components/requisicoes/FormReq';
+import FormReq, { RASCUNHO_NOVA_REQ } from '@/components/requisicoes/FormReq';
+import { apagarRascunho } from '@/lib/rascunho/useRascunho';
 import FormFornecedor from '@/components/requisicoes/FormFornecedor';
 import TemplatePDF from '@/components/requisicoes/TemplatePDF';
 import {
@@ -859,6 +860,7 @@ function RequisicoesPageInner() {
                   }).catch(() => {})
                 ));
               }
+              apagarRascunho(RASCUNHO_NOVA_REQ); // criou: o rascunho não serve mais
               auditLog({ sistema: 'requisicoes', acao: 'criar', entidade: 'requisicao', entidade_label: String(nova.titulo || '') });
               notificarUsuariosReq('requisicao', `${userName} criou uma requisição`, String(nova.titulo || 'Nova requisição'), '/requisicoes');
               // Veicular Manutenção → a pendência da Frota nasce NA HORA (o motor

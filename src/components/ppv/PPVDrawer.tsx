@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
+import { useAlteracoesPendentes } from "@/lib/rascunho/pendencias";
 import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
 import { createPortal } from "react-dom";
 import type { PPVDetalhes, LogEntry } from "@/lib/ppv/types";
@@ -402,13 +403,24 @@ export default function PPVDrawer({
     }
   }, [modalClienteNome, open, carregarDadosCliente, onClienteConsumido]);
 
+  // Carrega do banco SÓ quando abre ou troca de pedido. Antes dependia de
+  // carregarDetalhes (que muda de identidade a cada render do pai): o refresh do
+  // kanban (60 s / volta pra aba / toast sumindo) recarregava a janela e APAGAVA o
+  // que a pessoa tinha digitado e não salvo. (07/10/2026)
+  // Digitou algo e ainda não salvou? (impede o portal de recarregar por cima e
+  // pergunta antes de fechar a página)
+  const [editou, setEditou] = useState(false);
+  useAlteracoesPendentes("ppv-drawer", open && editou);
+  const carregarDetalhesRef = useRef(carregarDetalhes);
+  useEffect(() => { carregarDetalhesRef.current = carregarDetalhes; });
   useEffect(() => {
     if (open && ppvId) {
       setShowLogs(false);
       setShowAnexos(false);
-      carregarDetalhes(ppvId);
+      setEditou(false);
+      carregarDetalhesRef.current(ppvId);
     }
-  }, [open, ppvId, carregarDetalhes]);
+  }, [open, ppvId]);
 
   // Modal "Novo Item" pediu o Importar Kit (botão com legenda ao lado da busca)
   useEffect(() => {
@@ -608,6 +620,7 @@ export default function PPVDrawer({
         departamentos: Object.entries(distDeptos).map(([codigo, perc]) => ({ codigo, perc })),
       });
       showToast("success", "Atualizado com sucesso!");
+      setEditou(false);
       onDirty?.();
       if (showLogs) carregarHistorico(); // atualiza o histórico se estiver aberto
       // NÃO fecha o modal — o usuário continua editando.
@@ -771,6 +784,7 @@ export default function PPVDrawer({
       try {
         await api.editarPedido({ id: ppvId!, status, observacao, tecnico, cliente, clienteDocumento, motivoCancelamento, pedidoOmie, osId: modalOSId, tipoPedido, projeto, usarProjetoOS, motivoSaida, userName: userProfile?.nome || "", substitutoTipo: temSubstituto ? substitutoTipo : null, substitutoId: temSubstituto ? substitutoId : null, desconto, categoriaPedido: infoCategoria, contaCorrente: infoContaCorrente, cenarioFiscal, previsaoFaturamento: previsaoFat, numParcelas, numContrato: infoNumContrato, contato: infoContato, dadosNF: infoDadosNF, consumoFinal: infoConsumoFinal, departamentos: Object.entries(distDeptos).map(([codigo, perc]) => ({ codigo, perc })) });
         onDirty?.();
+        setEditou(false);
       } catch { /* fecha mesmo se o auto-save falhar */ }
       // Garante que o aviso apareça por um instante (mínimo ~600ms), mesmo se salvar rápido.
       const resta = 600 - (Date.now() - t0);
@@ -871,7 +885,7 @@ export default function PPVDrawer({
       <div className="ppv-drawer-overlay fs" onClick={fecharComSalvar} style={{ padding: 0, alignItems: "stretch", overflow: "hidden", position: "fixed", inset: 0, zIndex: 200 }}>
         <div className={`ppv-modal-container fs ${showLogs ? "with-logs" : ""}`} onClick={(e) => e.stopPropagation()}
           style={{ width: "100vw", maxWidth: "none", height: "100vh", maxHeight: "100vh", margin: 0, borderRadius: 0 }}>
-          <div className="ppv-drawer" style={{ maxHeight: "100vh" }}>
+          <div className="ppv-drawer" style={{ maxHeight: "100vh" }} onInput={() => { if (!editou) setEditou(true); }}>
             {/* ── Barra superior (estilo Omie) ── */}
             <div className="ppv-omie-topbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 22px", borderBottom: "1px solid #E2E8F0", background: "#fff", position: "sticky", top: 0, zIndex: 12, flexShrink: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>

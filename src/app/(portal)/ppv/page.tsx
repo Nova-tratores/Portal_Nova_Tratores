@@ -230,7 +230,8 @@ function PPVApp() {
     // Reflete o card aberto na URL (dá pra linkar/favoritar/abrir direto)
     if (typeof window !== "undefined") window.history.replaceState(null, "", `/ppv?id=${encodeURIComponent(id)}`);
   }
-  function markDrawerDirty() { drawerDirty.current = true; }
+  // useCallback: função nova a cada render fazia o PPVDrawer recarregar do banco (e apagar o digitado)
+  const markDrawerDirty = useCallback(() => { drawerDirty.current = true; }, []);
   function closeDetails() {
     setDetailsOpen(false);
     setDetailsPPVId(null);
@@ -494,6 +495,7 @@ function PPVApp() {
               produtoDisplay={produtoDisplay}
               onProdutoDisplayChange={setProdutoDisplay}
               osAutofill={osAutofill}
+              onRestaurarVinculos={(c, id, disp) => { setClienteValue(c); setOsIdValue(id); setOsDisplayValue(disp); }}
             />
           </div>
         )}

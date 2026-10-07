@@ -12,6 +12,8 @@ import ModalBuscaClienteOrc from './ModalBuscaCliente'
 import ModalImportarKit from './ModalImportarKit'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { useRascunho } from '@/lib/rascunho/useRascunho'
+import AvisoRascunho from '@/components/rascunho/AvisoRascunho'
 
 type TipoOrcamento = 'pecas' | 'mao-de-obra' | 'completo'
 
@@ -113,6 +115,28 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
       setCarregando(false)
     })
   }, [editarId])
+
+  // Rascunho: o que foi digitado e não salvo sobrevive a recarga da página,
+  // troca de aba e atualização do portal. Orçamento existente: só guarda o que
+  // DIFERE do que está salvo no banco.
+  const dadosRascunho = { tipo, cliente, clienteManual, observacao, validade, itens, servicos, orcamentoId, orcamentoNumero, status }
+  type DadosRascunho = typeof dadosRascunho
+  const salvoRef = useRef<string | null>(null)
+  const assinatura = (d: DadosRascunho) => JSON.stringify({ ...d, tipo: undefined, orcamentoNumero: undefined })
+  useEffect(() => { if (!carregando && salvoRef.current === null) salvoRef.current = assinatura(dadosRascunho) })
+  const rascunho = useRascunho<DadosRascunho>(editarId ? `orcamento:${editarId}` : 'orcamento:novo', dadosRascunho, {
+    ativo: !carregando,
+    vazio: (d) => {
+      if (salvoRef.current !== null && assinatura(d) === salvoRef.current) return true
+      const algo = d.cliente?.nome?.trim() || d.observacao?.trim() || (d.itens || []).some((i) => i.descricao?.trim()) || (d.servicos || []).some(linhaPreenchida)
+      return !algo && !d.orcamentoId
+    },
+    restaurar: (d) => {
+      setTipo(d.tipo); setCliente(d.cliente); setClienteManual(d.clienteManual); setObservacao(d.observacao); setValidade(d.validade)
+      setItens(d.itens?.length ? d.itens : [{ codigo: '', descricao: '', quantidade: 1, preco: 0 }]); setServicos(d.servicos?.length ? d.servicos : [novaLinha()])
+      setOrcamentoId(d.orcamentoId); setOrcamentoNumero(d.orcamentoNumero); setStatus(d.status || 'ativo')
+    },
+  })
 
   // Flags baseadas no tipo
   const mostrarPecas = tipo === 'pecas' || tipo === 'completo'
@@ -236,6 +260,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
         const { error } = await gravarOrcamento(payload, orcamentoId)
         if (error) throw error
         showToast('Orçamento atualizado!')
+        salvoRef.current = assinatura(dadosRascunho); rascunho.limpar()
       } else {
         // Insert
         const numero = await gerarNumero()
@@ -244,6 +269,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
         setOrcamentoId(data!.id)
         setOrcamentoNumero(data!.numero)
         showToast(`Orçamento ${data!.numero} salvo!`)
+        salvoRef.current = assinatura({ ...dadosRascunho, orcamentoId: data!.id }); rascunho.limpar()
       }
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Erro ao salvar', 'error')
@@ -311,6 +337,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
         win.document.close()
       }
       showToast(`Orçamento ${numero} gerado!`)
+      salvoRef.current = null; rascunho.limpar() // a próxima renderização vira a referência do "salvo"
     } catch (e) {
       showToast(e instanceof Error ? e.message : 'Erro ao gerar', 'error')
     }
@@ -462,6 +489,8 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
   // ============================
   return (
     <div style={{ padding: isMobile ? '16px 12px' : '32px 40px', width: '100%', fontFamily: "'Poppins', sans-serif" }}>
+      <AvisoRascunho em={rascunho.recuperadoEm} onFechar={rascunho.esconderAviso}
+        onDescartar={() => { rascunho.limpar(); if (editarId) { salvoRef.current = null; window.location.reload() } else { limparTudo(); setTipo(null) } }} />
       {/* Toast */}
       {toast && (
         <div style={{

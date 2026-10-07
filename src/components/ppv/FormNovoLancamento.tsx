@@ -10,6 +10,8 @@ import { useAuth } from "@/hooks/useAuth";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
 import ModalProdutoEstoque from "./ModalProdutoEstoque";
 import SelecionarUsuarioModal from "./SelecionarUsuarioModal";
+import { useRascunho } from "@/lib/rascunho/useRascunho";
+import AvisoRascunho from "@/components/rascunho/AvisoRascunho";
 
 interface Props {
   onVoltar: () => void;
@@ -24,11 +26,13 @@ interface Props {
   onProdutoDisplayChange: (v: string) => void;
   // Dados da OS vinculada, pra auto-preencher (nonce muda a cada vínculo novo).
   osAutofill?: { nonce: number; tecnico: string; projeto: string; solicitacao: string } | null;
+  /** Rascunho recuperado: devolve ao pai cliente e OS (que moram lá). */
+  onRestaurarVinculos?: (cliente: string, osId: string, osDisplay: string) => void;
 }
 
 export default function FormNovoLancamento({
   onVoltar, onBuscaCliente, onBuscaOS, onBuscaProduto, onSaved,
-  clienteValue, osIdValue, osDisplayValue, produtoDisplay, onProdutoDisplayChange, osAutofill,
+  clienteValue, osIdValue, osDisplayValue, produtoDisplay, onProdutoDisplayChange, osAutofill, onRestaurarVinculos,
 }: Props) {
   const { tecnicos, productCache, showToast } = usePPV();
   const { userProfile } = useAuth();
@@ -53,6 +57,20 @@ export default function FormNovoLancamento({
   const [tentouEnviar, setTentouEnviar] = useState(false);
 
   const cartRef = useRef<HTMLDivElement>(null);
+
+  // Rascunho: o que foi digitado sobrevive a troca de aba, recarga da página e
+  // atualização do portal. Some ao salvar o lançamento.
+  const rascunhoDados = { cliente: clienteValue, osId: osIdValue, osDisplay: osDisplayValue, selectedProducts, tipoPedido, motivoSaida, tecnico, projeto, usarProjetoOS, observacao };
+  type DadosRascunho = typeof rascunhoDados;
+  const aplicarRascunho = (d: DadosRascunho | null) => {
+    setSelectedProducts(d?.selectedProducts || {}); setTipoPedido(d?.tipoPedido || TIPOS_PEDIDO[0].value); setMotivoSaida(d?.motivoSaida || MOTIVOS_SAIDA[0].value);
+    setTecnico(d?.tecnico || ""); setProjeto(d?.projeto || ""); setUsarProjetoOS(d?.usarProjetoOS ?? true); setObservacao(d?.observacao || "");
+    onRestaurarVinculos?.(d?.cliente || "", d?.osId || "", d?.osDisplay || "");
+  };
+  const rascunho = useRascunho<DadosRascunho>("ppv:novo-lancamento", rascunhoDados, {
+    vazio: (d) => !d.cliente && !d.osId && !d.tecnico && !d.observacao && Object.keys(d.selectedProducts || {}).length === 0,
+    restaurar: aplicarRascunho,
+  });
 
   // Vinculou uma OS → puxa o que dá dela: técnico (se estiver na lista), projeto,
   // motivo "Saída Técnico (Com OS)" e a observação = "Solicitação do cliente".
@@ -170,7 +188,7 @@ export default function FormNovoLancamento({
         } catch { /* PDF opcional */ }
       }
       setSelectedProducts({}); setTipoPedido(TIPOS_PEDIDO[0].value); setMotivoSaida(MOTIVOS_SAIDA[0].value);
-      setTecnico(""); setProjeto(""); setObservacao(""); setTentouEnviar(false); onSaved();
+      setTecnico(""); setProjeto(""); setObservacao(""); setTentouEnviar(false); rascunho.limpar(); onSaved();
     } catch (e) { showToast("error", e instanceof Error ? e.message : "Erro ao salvar"); }
     setSubmitting(false);
   }
@@ -189,6 +207,8 @@ export default function FormNovoLancamento({
         </button>
         <span className="ppv-form-title">Novo Lançamento</span>
       </div>
+
+      <AvisoRascunho em={rascunho.recuperadoEm} onFechar={rascunho.esconderAviso} onDescartar={() => { rascunho.limpar(); aplicarRascunho(null); }} />
 
       <div className="ppv-form-layout">
         {/* ════════ ESQUERDA: Formulário ════════ */}

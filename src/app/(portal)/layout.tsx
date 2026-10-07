@@ -2,6 +2,7 @@ import PortalLayout from '@/components/PortalLayout'
 import BugReporterChat from '@/components/BugReporterChat'
 import ReporterAcoes from '@/components/ReporterAcoes'
 import AutoAtualiza from '@/components/AutoAtualiza'
+import ProtecaoAlteracoes from '@/components/rascunho/ProtecaoAlteracoes'
 import Script from 'next/script'
 
 export default function PortalGroupLayout({
@@ -14,6 +15,8 @@ export default function PortalGroupLayout({
       <PortalLayout>{children}</PortalLayout>
       {/* recarrega sozinho quando sai deploy novo (fim do Ctrl+Shift+R) */}
       <AutoAtualiza />
+      {/* pergunta antes de sair com formulário não salvo + marca digitação recente */}
+      <ProtecaoAlteracoes />
       {/* Apontador de Falhas */}
       <Script
         src="/bug-reporter.js"

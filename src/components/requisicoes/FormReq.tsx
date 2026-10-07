@@ -4,6 +4,11 @@ import { supabase } from '@/lib/supabase';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { formatarLitros, formatarHodometro } from '@/lib/requisicoes/campos';
 import { FolderOpen, ChevronDown, Check } from 'lucide-react';
+import { useRascunho } from '@/lib/rascunho/useRascunho';
+import AvisoRascunho from '@/components/rascunho/AvisoRascunho';
+
+/** Chave do rascunho da nova requisição (a página apaga depois de criar). */
+export const RASCUNHO_NOVA_REQ = 'requisicao:nova';
 
 const EMPRESAS = {
   NOVA: { nome: "NOVA TRATORES MÁQUINAS AGRÍCOLAS LTDA", endereco: "AVENIDA SÃO SEBASTIÃO, 1065 | Piraju - SP" },
@@ -54,6 +59,25 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     cliente: '', cliente_cnpj: '', ordem_servico: '', fornecedor: '', obs: '',
     valor_cobrado_cliente: '', quem_ferramenta: '', Chassis_Modelo: '', litros_combustivel: '', combustivel: '', status: 'pedido',
     projeto_codigo: '', projeto_nome: ''
+  });
+
+  // Rascunho: o que foi digitado sobrevive a recarga da página, troca de aba e
+  // atualização do portal. A página apaga depois que a requisição é criada.
+  const formInicial = useRef(formData);
+  const dadosRascunho = { formData, tagsSelecionadas, gruposSel, osBusca, solBusca, projBusca, cliBusca };
+  type DadosRascunho = typeof dadosRascunho;
+  const aplicarRascunho = (d: DadosRascunho | null) => {
+    setFormData(d ? { ...formInicial.current, ...d.formData } : formInicial.current);
+    setTagsSelecionadas(d?.tagsSelecionadas || []); setGruposSel(d?.gruposSel || []);
+    setOsBusca(d?.osBusca || ''); setSolBusca(d?.solBusca || ''); setProjBusca(d?.projBusca || ''); setCliBusca(d?.cliBusca || '');
+  };
+  const rascunho = useRascunho<DadosRascunho>(RASCUNHO_NOVA_REQ, dadosRascunho, {
+    vazio: (d) => {
+      const ignorar = new Set(['data', 'empresa', 'endereco_empr', 'status']);
+      const mudou = Object.entries(d.formData || {}).some(([k, v]) => !ignorar.has(k) && String(v ?? '') !== String((formInicial.current as Record<string, unknown>)[k] ?? ''));
+      return !mudou && !(d.tagsSelecionadas || []).length && !(d.gruposSel || []).length;
+    },
+    restaurar: aplicarRascunho,
   });
 
   // Trator/Quadri rodam a diesel — sugere sozinho (editável no select).
@@ -196,6 +220,7 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     <div className="max-w-4xl mx-auto">
       {/* Fundo alterado para escuro para suportar as letras brancas pedidas */}
       <div className="bg-white rounded-2xl border border-zinc-200 shadow-lg p-8 md:p-12 text-black">
+        <AvisoRascunho em={rascunho.recuperadoEm} onFechar={rascunho.esconderAviso} onDescartar={() => { rascunho.limpar(); aplicarRascunho(null); }} />
         <div className="mb-10">
           <h2 className="text-3xl font-black uppercase tracking-tighter text-black">Nova Requisição</h2>
           <p className="text-base text-black mt-2">Preencha os dados técnicos abaixo para iniciar o processo.</p>
