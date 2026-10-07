@@ -120,6 +120,21 @@ export async function adicionarVendedoresEmLoteApi(nomes: string[]): Promise<{
   return postJson('/api/gestao-vendas/vendedores', { nomes })
 }
 
+// carimbo do PDF da proposta (nome/cargo/telefone)
+export async function salvarCarimboVendedorApi(
+  id: number,
+  campos: { carimbo_nome?: string | null; carimbo_cargo?: string | null; carimbo_telefone?: string | null },
+): Promise<{ vendedor: Vendedor; vendedores: Vendedor[] }> {
+  const res = await fetch('/api/gestao-vendas/vendedores', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+    body: JSON.stringify({ id, ...campos }),
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || `HTTP ${res.status}`)
+  return json
+}
+
 export type SalvarAjusteBody = {
   id?: number | null
   venda_id: string

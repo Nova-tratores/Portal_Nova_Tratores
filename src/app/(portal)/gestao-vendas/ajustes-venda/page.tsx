@@ -29,6 +29,7 @@ import {
 } from '@/lib/gestao-vendas/calculos'
 import { nomeEmpresaGV, type Vendedor, type VendaEnriquecida } from '@/lib/gestao-vendas/tipos'
 import { ErroCard, MultiSelectFiltro } from '../componentes'
+import CarimboVendedores from '@/components/gestao-vendas/CarimboVendedores'
 
 type Edits = {
   vendedor?: string | null
@@ -506,6 +507,8 @@ function GerenciarVendedores({
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [erro, setErro] = useState<string | null>(null)
+  const [mostrarCarimbos, setMostrarCarimbos] = useState(false)
+  const carimbosPendentes = vendedores.filter((v) => !(v.carimbo_nome ?? '').trim()).length
 
   async function adicionar() {
     const n = nome.trim()
@@ -591,9 +594,20 @@ function GerenciarVendedores({
         >
           {busy ? '⏳ Aguarde…' : candidatos ? '✕ Fechar Omie' : '🔄 Puxar do Omie'}
         </button>
+        <button
+          type="button"
+          onClick={() => setMostrarCarimbos((v) => !v)}
+          title="Nome, cargo e telefone que saem no carimbo do vendedor no PDF da proposta"
+          className="rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:border-gray-400 hover:text-gray-900"
+        >
+          {mostrarCarimbos ? '✕ Fechar carimbos' : '✍️ Carimbos do PDF'}
+          {!mostrarCarimbos && carimbosPendentes > 0 && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-800">{carimbosPendentes}</span>}
+        </button>
         {msg && <span className="text-xs text-green-700">{msg}</span>}
         {erro && <span className="text-xs text-red-600">{erro}</span>}
       </div>
+
+      {mostrarCarimbos && <CarimboVendedores vendedores={vendedores} onChange={onChange} />}
 
       {/* seleção de candidatos do Omie */}
       {candidatos && candidatos.length > 0 && (

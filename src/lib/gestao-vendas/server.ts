@@ -8,6 +8,7 @@ import { carregarVendedoresOmie, invalidarCacheMatching } from '@/lib/omie/match
 import type { Autenticado } from '@/lib/auth/server'
 import type {
   AjusteVenda,
+  CarimboVendedor,
   CustoMensalVendedor,
   PedidoVendaRelatorio,
   VendaEnriquecida,
@@ -270,10 +271,12 @@ export async function buscarAjustes(mes: number, ano: number, conta: string): Pr
   })
 }
 
+const COLS_VENDEDOR = 'id, nome, email, ativo, codigo, carimbo_nome, carimbo_cargo, carimbo_telefone'
+
 export async function buscarVendedoresAtivos(): Promise<Vendedor[]> {
   const { data, error } = await supabaseAdmin
     .from('vendedores')
-    .select('id, nome, email, ativo, codigo')
+    .select(COLS_VENDEDOR)
     .eq('ativo', true)
     // oficiais (com código) primeiro; importados do Omie / manuais (código null) depois, por nome
     .order('codigo', { ascending: true, nullsFirst: false })
@@ -363,6 +366,27 @@ export async function adicionarVendedor(nomeRaw: string, emailRaw?: string | nul
     .select('id, nome, email, ativo, codigo')
     .single()
   if (error) throw new Error(error.message)
+  return data
+}
+
+// ---------- carimbo do PDF da proposta ----------
+
+const limpa = (v: unknown): string | null => {
+  const s = typeof v === 'string' ? v.trim() : ''
+  return s ? s : null
+}
+
+// Atualiza nome/cargo/telefone do carimbo. Campo ausente no body = mantém;
+// string vazia = apaga (vira NULL).
+export async function atualizarCarimboVendedor(id: number, campos: Partial<CarimboVendedor>): Promise<Vendedor> {
+  const patch: Record<string, string | null> = {}
+  if ('carimbo_nome' in campos) patch.carimbo_nome = limpa(campos.carimbo_nome)
+  if ('carimbo_cargo' in campos) patch.carimbo_cargo = limpa(campos.carimbo_cargo)
+  if ('carimbo_telefone' in campos) patch.carimbo_telefone = limpa(campos.carimbo_telefone)
+  if (!Object.keys(patch).length) throw new Error('Nada pra atualizar.')
+  const { data, error } = await supabaseAdmin
+    .from('vendedores').update(patch).eq('id', id).select(COLS_VENDEDOR).single()
+  if (error) throw new Error(`vendedores: ${error.message}`)
   return data
 }
 

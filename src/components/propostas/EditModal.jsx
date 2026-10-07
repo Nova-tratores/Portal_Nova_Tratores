@@ -7,6 +7,7 @@ import { Copy, Trash2, FileDown, X, History, Search, Link2, Unlink } from 'lucid
 import { useAuditLog } from '@/hooks/useAuditLog'
 import HistoricoProposta from './HistoricoProposta'
 import { STATUS_PERDIDO } from './MotivoPerdaModal'
+import { desenharBlocoAssinatura, desenharRodape, validarDadosAssinatura } from '@/lib/propostas/pdf-assinatura'
 
 // Colunas que só existem na view v_formulario (aging/cores). NÃO podem ir num
 // INSERT/UPDATE da tabela "Formulario" — o PostgREST recusa coluna inexistente.
@@ -16,7 +17,6 @@ const semColsView = (obj) => { const o = { ...obj }; for (const k of COLS_VIEW) 
 export default function EditModal({ proposal, onClose }) {
   const [formData, setFormData] = useState(proposal || {})
   const [imagePreview, setImagePreview] = useState(proposal?.Imagem_Equipamento || '')
-  const [assinaturaDiretor, setAssinaturaDiretor] = useState(null)
   const [showHist, setShowHist] = useState(false)
   const [listaVendedores, setListaVendedores] = useState([])
   const [listaMotivos, setListaMotivos] = useState([])
@@ -46,8 +46,6 @@ export default function EditModal({ proposal, onClose }) {
   }, [proposal])
 
   const fetchConfig = async () => {
-    const { data } = await supabase.from('Configuracoes').select('assinatura_url').single()
-    if (data) setAssinaturaDiretor(data.assinatura_url)
     const { data: vends } = await supabase.from('vendedores').select('id,nome').eq('ativo', true).order('nome')
     if (vends) setListaVendedores(vends)
     const { data: mots } = await supabase.from('motivo_perda').select('*').eq('ativo', true).order('id')
@@ -98,6 +96,25 @@ export default function EditModal({ proposal, onClose }) {
     })
   }
 
+  // Vendedor da proposta (o selecionado no formulário, mesmo sem salvar) + dados
+  // da empresa. Devolve { vendedor, config } ou lança com mensagem clara.
+  const carregarDadosAssinatura = async () => {
+    const vid = formData.vendedor_id ? Number(formData.vendedor_id) : null
+    let vendedor = null
+    if (vid) {
+      const { data, error } = await supabase.from('vendedores')
+        .select('id, nome, carimbo_nome, carimbo_cargo, carimbo_telefone').eq('id', vid).maybeSingle()
+      if (error) throw new Error('Erro ao ler o vendedor: ' + error.message)
+      vendedor = data
+    }
+    const { data: config, error: errCfg } = await supabase.from('Configuracoes')
+      .select('razao_social, cnpj, ie, endereco, telefone').eq('id', 1).maybeSingle()
+    if (errCfg) throw new Error('Erro ao ler Configuracoes: ' + errCfg.message)
+    const erros = validarDadosAssinatura(vendedor, config)
+    if (erros.length) throw new Error(erros.join('\n'))
+    return { vendedor, config }
+  }
+
   const handleTrash = async () => {
     if (confirm("DESEJA REALMENTE MOVER ESTA PROPOSTA PARA A LIXEIRA?")) {
       // Soft-delete: marca deleted_at e PRESERVA o status do funil (não vira mais 'Lixeira').
@@ -127,6 +144,15 @@ export default function EditModal({ proposal, onClose }) {
   }
 
   const handlePrint = async () => {
+    // Falha explícita: sem vendedor/carimbo/config NÃO gera PDF.
+    let dadosAssinatura
+    try {
+      dadosAssinatura = await carregarDadosAssinatura()
+    } catch (e) {
+      alert('Não foi possível gerar o PDF:\n\n' + (e?.message || e))
+      return
+    }
+
     const doc = new jsPDF()
     const margin = 15
     const pageWidth = doc.internal.pageSize.getWidth()
@@ -301,31 +327,18 @@ export default function EditModal({ proposal, onClose }) {
       doc.text(`ESTA PROPOSTA E VALIDA POR ${formData.validade} DIAS.`, margin + 5, y + 31)
     }
 
-    // 266: a caixa de valores termina em 248 e o topo da assinatura fica 15,4mm
-    // acima da linha — em 260 o rabisco invadia a caixa. Aqui sobra ~2,6mm de folga.
-    y = 266
-    const lineW = 75
-    const midPointL = margin + (lineW / 2)
-    const directorLineX = pageWidth - margin - lineW
-
-    doc.setDrawColor(0); doc.line(margin, y, margin + lineW, y)
-    doc.setFontSize(7); doc.setTextColor(0); doc.setFont("helvetica", "bold")
-    doc.text(`${formData.Cliente || ''}`.toUpperCase(), midPointL, y + 5, { align: "center" })
-    doc.setFont("helvetica", "normal")
-    doc.text(`${formData['Cpf/Cpnj'] || ''}`, midPointL, y + 9, { align: "center" })
-    doc.text(`${formData.End_Entrega || ''}`, midPointL, y + 13, { align: "center" })
-    doc.text(`${formData.Cidade || ''}`, midPointL, y + 17, { align: "center" })
-
-    doc.line(directorLineX, y, pageWidth - margin, y)
-    if (assinaturaDiretor) {
-      // Imagem 476×154 (v2, sem dados bancários/endereço). Mesma escala vertical
-      // do desenho aprovado (185px = 41,9mm → 154px = 34,9mm); a linha preta
-      // interna (44,2% da altura) cai EXATAMENTE sobre a linha desenhada.
-      const assW = 82
-      const assH = assW / 2.351
-      // Encostada na margem direita (centrada ela passava 3,5mm da margem)
-      doc.addImage(assinaturaDiretor, 'PNG', pageWidth - margin - assW, y - assH * 0.442, assW, assH)
-    }
+    // Bloco de assinatura (comprador × vendedor) logo abaixo da caixa de condições.
+    // Só texto (sem imagem — as linhas ficam pra assinar no papel), quebra por
+    // largura; se não couber antes do rodapé vai pra página nova. Rodapé
+    // (IE/endereço/tel + "página N de M") em todas as páginas.
+    y += 38
+    desenharBlocoAssinatura(doc, {
+      proposta: formData,
+      vendedor: dadosAssinatura.vendedor,
+      config: dadosAssinatura.config,
+      y,
+    })
+    desenharRodape(doc, { config: dadosAssinatura.config, propostaId: formData.id })
 
     doc.save(`Proposta_${formData.Cliente || 'NovaTratores'}.pdf`)
   }

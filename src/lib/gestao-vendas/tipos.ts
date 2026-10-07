@@ -105,6 +105,16 @@ export type Vendedor = {
   email: string
   ativo: boolean
   codigo: number | null
+  // carimbo do PDF da proposta (sql/propostas-assinatura-vendedor.sql)
+  carimbo_nome?: string | null
+  carimbo_cargo?: string | null
+  carimbo_telefone?: string | null
+}
+
+export type CarimboVendedor = {
+  carimbo_nome: string | null
+  carimbo_cargo: string | null
+  carimbo_telefone: string | null
 }
 
 export type PedidoVendaItemEnriquecido = {
