@@ -221,6 +221,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   // SÓ pra quem é do pós-vendas (tem o módulo POS) — pedido do José, 03/09.
   const temSolicitacoes = temAcesso('pos')
   const [zapPanelOpen, setZapPanelOpen] = useState(false)
+  const [zapAba, setZapAba] = useState<'atendimento' | 'solicitacoes' | 'dispensadas' | undefined>(undefined)
   const [solNovas, setSolNovas] = useState(0)
   // Alerta CENTRAL: o Tratorilson pediu ajuda (não entendeu foto/vídeo ou o assunto)
   const [alertaHumano, setAlertaHumano] = useState<any[] | null>(null)
@@ -311,7 +312,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       localStorage.setItem('zap-humano-vistos', JSON.stringify([...new Set([...vistos, ...ids])].slice(-200)))
     } catch { /* sem storage */ }
     setAlertaHumano(null)
-    if (abrirPainel) setZapPanelOpen(true)
+    if (abrirPainel) { setZapAba('atendimento'); setZapPanelOpen(true) }
   }
   // Rodando dentro de um painel da tela dividida (/split)? Esconde o botão de dividir.
   const [emIframe, setEmIframe] = useState(false)
@@ -816,8 +817,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 <div style={{ padding: '16px 20px', background: '#dc2626', color: '#fff', display: 'flex', alignItems: 'center', gap: 10 }}>
                   <Bot size={22} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ fontWeight: 800, fontSize: 16 }}>O Tratorilson precisa de ajuda</div>
-                    <div style={{ fontSize: 12.5, opacity: 0.9 }}>Ele não conseguiu resolver sozinho — alguém do pós-vendas precisa assumir a conversa no NovaZap.</div>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>Cliente precisando de atendimento</div>
+                    <div style={{ fontSize: 12.5, opacity: 0.9 }}>Alguém do pós-vendas precisa assumir a conversa no NovaZap. Depois, atualize a memória do Tratorilson para ele saber responder da próxima vez.</div>
                   </div>
                 </div>
                 <div style={{ padding: 16, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -827,12 +828,13 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                         {s.contato_nome || 'Contato'} {s.contato_telefone ? <span style={{ fontWeight: 500, color: 'var(--portal-text-secondary)' }}>· {s.contato_telefone}</span> : null}
                       </div>
                       <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginTop: 4, lineHeight: 1.5 }}>{String(s.resumo || '').slice(0, 220)}</div>
+                      {s.link && <a href={s.link} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, fontSize: 12.5, fontWeight: 700, color: '#16a34a' }}>Abrir conversa no NovaZap</a>}
                     </div>
                   ))}
                 </div>
                 <div style={{ padding: '12px 16px', borderTop: '1px solid var(--portal-border)', display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
                   <button onClick={() => dispensarAlertaHumano(false)} style={{ background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 9, padding: '9px 16px', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: 13.5, fontWeight: 600 }}>Dispensar</button>
-                  <button onClick={() => dispensarAlertaHumano(true)} style={{ background: '#dc2626', border: 'none', borderRadius: 9, padding: '9px 18px', cursor: 'pointer', color: '#fff', fontSize: 13.5, fontWeight: 700 }}>Ver solicitações</button>
+                  <button onClick={() => dispensarAlertaHumano(true)} style={{ background: '#dc2626', border: 'none', borderRadius: 9, padding: '9px 18px', cursor: 'pointer', color: '#fff', fontSize: 13.5, fontWeight: 700 }}>Atender e atualizar memória</button>
                 </div>
               </div>
             </div>
@@ -877,7 +879,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             )}
           </button>
 
-          <SolicitacoesTratorilson open={zapPanelOpen} onClose={() => setZapPanelOpen(false)} />
+          <SolicitacoesTratorilson open={zapPanelOpen} onClose={() => setZapPanelOpen(false)} abaInicial={zapAba} />
           </div>
           )}
 

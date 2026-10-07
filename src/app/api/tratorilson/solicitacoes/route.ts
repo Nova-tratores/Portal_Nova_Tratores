@@ -5,6 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
 import { createClient } from "@supabase/supabase-js";
+import { chatwootConfigurado, urlConversa } from "@/lib/chatwoot/config";
 
 export const dynamic = "force-dynamic";
 
@@ -24,11 +25,20 @@ export async function GET(req: NextRequest) {
       .from("tratorilson_solicitacoes")
       .select("*")
       .order("created_at", { ascending: false })
-      .limit(30);
+      .limit(150);
     if (error) throw error;
-    const novas = (data || []).filter((s) => (s.fase || (s.status === "atendida" ? "concluida" : "nova")) === "nova").length;
+    const lista = (data || []).map((s) => ({
+      ...s,
+      link: s.conversa_id && chatwootConfigurado() ? urlConversa(s.conversa_id) : null,
+    }));
+    // badge do ícone: pedidos novos + clientes esperando atendimento
+    const novas = lista.filter((s) => (s.fase || (s.status === "atendida" ? "concluida" : "nova")) === "nova").length;
+    // "Dispensadas sem atualizar": cards de atendimento dispensados sem ensinar o Tratorilson
+    // + perguntas do Tratorilson que alguém fechou sem responder.
+    const { data: pergFechadas } = await sb().from("tratorilson_perguntas").select("*").eq("status", "fechada")
+      .order("criado_em", { ascending: false }).limit(60);
     return NextResponse.json(
-      { solicitacoes: data || [], novas },
+      { solicitacoes: lista, novas, perguntasFechadas: pergFechadas || [] },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch {

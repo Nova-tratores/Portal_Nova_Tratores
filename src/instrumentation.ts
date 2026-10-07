@@ -97,6 +97,24 @@ export async function register(): Promise<void> {
     log('tratorilson auto-processamento LIGADO (a cada 10min) — envio ao Omie é manual');
   }
 
+  // Vigia de CONVERSAS do NovaZap: cliente sem resposta há 10+ min (inclusive
+  // depois da mensagem automática de fora do horário) vira card "Precisa de
+  // atendimento" + alerta central pro pós-vendas. Só LÊ o Chatwoot. Só produção.
+  // VIGIA_CONVERSAS=off desliga.
+  if (process.env.NODE_ENV === 'production' && process.env.VIGIA_CONVERSAS !== 'off') {
+    const { vigiarConversas } = await import('./lib/assistente/vigia-conversas');
+    const rodarVigiaZap = async () => {
+      try {
+        const r = await vigiarConversas();
+        if (r.pulado) log('vigia-conversas: ' + r.pulado);
+        else if (r.avisos.length) log(`vigia-conversas: ${r.avisos.length} cliente(s) sem resposta`);
+      } catch (e) { log('vigia-conversas falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarVigiaZap().catch(() => {}); }, CINCO_MIN);
+    setTimeout(() => { rodarVigiaZap().catch(() => {}); }, 2 * 60 * 1000);
+    log('vigia de conversas do NovaZap LIGADO (a cada 5 min)');
+  }
+
   // Vigia de saúde dos robôs: alerta os admins no sino se um cron crítico PARAR.
   // Lê o heartbeat no Supabase (não depende do GITHUB_TOKEN) e não toca chave
   // Omie — só lê + escreve notificação —, então roda seguro aqui in-process. SÓ

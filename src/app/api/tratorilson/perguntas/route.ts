@@ -51,11 +51,14 @@ export async function POST(req: NextRequest) {
   if (!id || !resposta) return NextResponse.json({ error: "id e resposta obrigatórios" }, { status: 400 });
 
   const quem = auth.email || auth.userId;
+  // depois=true: ensinar AGORA uma pergunta que alguém tinha fechado sem responder
+  // (aba "Dispensadas sem atualizar"). O cliente já foi atendido: não manda retorno.
+  const depois = body?.depois === true;
   const { data, error } = await sb()
     .from("tratorilson_perguntas")
     .update({ status: "respondida", resposta, respondido_por: quem, respondido_em: new Date().toISOString() })
     .eq("id", id)
-    .eq("status", "aberta")
+    .in("status", depois ? ["aberta", "fechada"] : ["aberta"])
     .select("id, pergunta, contexto, contato_nome, contato_telefone");
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (!data || !data.length) {
@@ -73,6 +76,8 @@ export async function POST(req: NextRequest) {
 
   // O cliente que ficou esperando ("vou confirmar e já te retorno") recebe a
   // resposta no WhatsApp — a IA redige com a orientação da equipe (best-effort).
+  if (depois) return NextResponse.json({ ok: true, regraId, retorno: null });
+
   const retorno = await retornarAoCliente({
     telefone: p.contato_telefone ? String(p.contato_telefone) : null,
     nome: p.contato_nome ? String(p.contato_nome) : null,

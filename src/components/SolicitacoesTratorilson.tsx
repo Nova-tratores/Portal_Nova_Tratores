@@ -7,6 +7,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { X, ChevronLeft, ChevronRight, CalendarClock, CheckCircle2 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
+import { PrecisaAtendimento, DispensadasSemAtualizar, type CardAtendimento, type PerguntaFechada } from '@/components/tratorilson/AtendimentosTratorilson'
 
 interface Solicitacao {
   id: number
@@ -22,6 +23,13 @@ interface Solicitacao {
   fase: string | null
   data_servico: string | null
   status: string | null
+  conversa_id?: number | null
+  origem?: string | null
+  link?: string | null
+  memoria?: string | null
+  dispensa_motivo?: string | null
+  memoria_por?: string | null
+  memoria_em?: string | null
   detalhes: {
     pecas?: { codigo: string; descricao: string; qtd: number; preco: number }[]
     orcamento_numero?: string
@@ -46,8 +54,12 @@ const TIPO_ROTULO: Record<string, string> = {
   humano: '🔴 Precisa de atendimento humano',
 }
 
-export default function SolicitacoesTratorilson({ open, onClose }: { open: boolean; onClose: () => void }) {
+export type AbaZap = 'atendimento' | 'solicitacoes' | 'dispensadas'
+export default function SolicitacoesTratorilson({ open, onClose, abaInicial }: { open: boolean; onClose: () => void; abaInicial?: AbaZap }) {
   const [lista, setLista] = useState<Solicitacao[]>([])
+  const [pergFechadas, setPergFechadas] = useState<PerguntaFechada[]>([])
+  const [aba, setAba] = useState<AbaZap>('atendimento')
+  useEffect(() => { if (open && abaInicial) setAba(abaInicial) }, [open, abaInicial])
   const [mostrarConcluidas, setMostrarConcluidas] = useState(false)
   const [aviso, setAviso] = useState('')
 
@@ -56,6 +68,7 @@ export default function SolicitacoesTratorilson({ open, onClose }: { open: boole
       const r = await fetch('/api/tratorilson/solicitacoes', { headers: await authHeaders(), cache: 'no-store' })
       const d = await r.json()
       if (Array.isArray(d.solicitacoes)) setLista(d.solicitacoes)
+      if (Array.isArray(d.perguntasFechadas)) setPergFechadas(d.perguntasFechadas)
       setAviso(d.aviso || '')
     } catch { /* mantém a lista */ }
   }, [])
@@ -111,6 +124,15 @@ export default function SolicitacoesTratorilson({ open, onClose }: { open: boole
   if (!open) return null
 
   const colunas = FASES.filter(f => f.id !== 'concluida' || mostrarConcluidas)
+  // Atendimento humano tem aba própria (com a memória do Tratorilson); o kanban fica só com pedidos.
+  const kanban = lista.filter(s => s.tipo !== 'humano')
+  const pendentes = lista.filter(s => s.tipo === 'humano' && faseDe(s) !== 'concluida') as CardAtendimento[]
+  const dispensadas = lista.filter(s => s.tipo === 'humano' && s.memoria === 'dispensada') as CardAtendimento[]
+  const abas: { id: AbaZap; titulo: string; n: number; cor: string }[] = [
+    { id: 'atendimento', titulo: 'Precisa de atendimento', n: pendentes.length, cor: '#dc2626' },
+    { id: 'solicitacoes', titulo: 'Solicitações', n: kanban.filter(s => faseDe(s) !== 'concluida').length, cor: '#16a34a' },
+    { id: 'dispensadas', titulo: 'Dispensadas sem atualizar', n: dispensadas.length + pergFechadas.length, cor: '#d97706' },
+  ]
 
   return (
     <div
@@ -127,20 +149,30 @@ export default function SolicitacoesTratorilson({ open, onClose }: { open: boole
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--portal-border)' }}>
           <strong style={{ fontSize: 16, color: 'var(--portal-text)' }}>Solicitações do Tratorilson</strong>
-          <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
+          <div role="tablist" style={{ display: 'flex', gap: 4, marginLeft: 12, flexWrap: 'wrap' }}>
+            {abas.map(a => (
+              <button key={a.id} role="tab" aria-selected={aba === a.id} onClick={() => setAba(a.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', border: aba === a.id ? `1px solid ${a.cor}` : '1px solid var(--portal-border)', background: aba === a.id ? a.cor : 'transparent', color: aba === a.id ? '#fff' : 'var(--portal-text-secondary)' }}>
+                {a.titulo}<span style={{ fontSize: 11, padding: '0 6px', borderRadius: 8, background: aba === a.id ? 'rgba(255,255,255,.25)' : 'var(--portal-bg-secondary)' }}>{a.n}</span>
+              </button>
+            ))}
+          </div>
+          {aba === 'solicitacoes' && <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
             <input type="checkbox" checked={mostrarConcluidas} onChange={e => setMostrarConcluidas(e.target.checked)} />
             Mostrar concluídas
-          </label>
-          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: 6 }}>
+          </label>}
+          <button onClick={onClose} style={{ marginLeft: aba === 'solicitacoes' ? 0 : 'auto', background: 'transparent', border: 'none', color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: 6 }}>
             <X size={20} />
           </button>
         </div>
 
         {aviso && <div style={{ padding: '8px 18px', fontSize: 12, color: '#d97706' }}>{aviso}</div>}
 
-        <div style={{ flex: 1, display: 'flex', gap: 12, padding: 14, overflowX: 'auto' }}>
+        {aba === 'atendimento' && <div style={{ flex: 1, overflowY: 'auto' }}><PrecisaAtendimento cards={pendentes} onMudou={carregar} /></div>}
+        {aba === 'dispensadas' && <div style={{ flex: 1, overflowY: 'auto' }}><DispensadasSemAtualizar cards={dispensadas} perguntas={pergFechadas} onMudou={carregar} /></div>}
+        {aba === 'solicitacoes' && <div style={{ flex: 1, display: 'flex', gap: 12, padding: 14, overflowX: 'auto' }}>
           {colunas.map(col => {
-            const cards = lista.filter(s => faseDe(s) === col.id)
+            const cards = kanban.filter(s => faseDe(s) === col.id)
             return (
               <div key={col.id} style={{ minWidth: 235, width: 235, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
@@ -234,7 +266,7 @@ export default function SolicitacoesTratorilson({ open, onClose }: { open: boole
               </div>
             )
           })}
-        </div>
+        </div>}
       </div>
     </div>
   )

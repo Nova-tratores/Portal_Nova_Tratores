@@ -26,3 +26,23 @@ alter table tratorilson_solicitacoes enable row level security;
 -- v2 (03/09): kanban de fases
 alter table tratorilson_solicitacoes add column if not exists fase text not null default 'nova';
 alter table tratorilson_solicitacoes add column if not exists data_servico date;
+
+-- v3 (07/10/2026): vigia de conversas sem resposta + memória do Tratorilson
+--  * conversa_id: conversa do NovaZap (o painel abre direto nela)
+--  * origem: 'robo' (o Tratorilson pediu ajuda) | 'vigia' (cliente ficou sem resposta)
+--  * memoria: depois de atender, alguém ATUALIZA a memória (vira regra) ou
+--    DISPENSA com motivo (aparece na aba "Dispensadas sem atualizar").
+alter table tratorilson_solicitacoes add column if not exists conversa_id bigint;
+alter table tratorilson_solicitacoes add column if not exists origem text;
+alter table tratorilson_solicitacoes add column if not exists ultima_msg_em timestamptz;
+alter table tratorilson_solicitacoes add column if not exists memoria text
+  check (memoria in ('pendente', 'atualizada', 'dispensada'));
+alter table tratorilson_solicitacoes add column if not exists memoria_resposta text;
+alter table tratorilson_solicitacoes add column if not exists memoria_regra_id bigint;
+alter table tratorilson_solicitacoes add column if not exists memoria_por text;
+alter table tratorilson_solicitacoes add column if not exists memoria_em timestamptz;
+alter table tratorilson_solicitacoes add column if not exists dispensa_motivo text;
+create index if not exists idx_trat_sol_conversa on tratorilson_solicitacoes(conversa_id) where conversa_id is not null;
+revoke all on tratorilson_solicitacoes from anon, authenticated;
+
+notify pgrst, 'reload schema';
