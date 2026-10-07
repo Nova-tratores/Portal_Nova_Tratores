@@ -25,6 +25,12 @@ interface Resumo {
   naoEncontrados?: string[];
   negativos?: Array<{ codigo: string; saldo: number }>;
   vendaSemEstoque?: Array<{ codigo: string; vendida: number }>;
+  // a partir de 01/10/2026 (arquivos antigos nao trazem)
+  pedidosForaDoMes?: number;
+  criterioVenda?: string;
+  casadosSemPrefixo?: Array<{ codigo: string; sku: string }>;
+  codigosRepetidos?: string[];
+  avisos?: string[];
 }
 interface StatusPayload {
   rodando?: boolean;
@@ -248,7 +254,7 @@ export default function MahindraPage() {
           <section className="rounded-lg border border-slate-200 bg-white p-6">
             <p className="text-sm text-slate-600">
               O app le os codigos do template, busca no Omie a <b>posicao de estoque</b> no fim do mes e a
-              <b> quantidade vendida</b> (pedidos de venda faturados/concluidos) no mes, e devolve o arquivo
+              <b> quantidade vendida</b> (pedidos de venda faturados no mes, pela data de faturamento), e devolve o arquivo
               preenchido + um resumo de conferencia.
             </p>
             <p className="mt-2 rounded border border-amber-200 bg-amber-50 p-2 text-xs text-amber-700">
@@ -349,7 +355,13 @@ export default function MahindraPage() {
                   Mes {resumo.mes} • posicao em {resumo.dataFimBR} • {fmtNum(resumo.pedidosConsiderados)} pedidos de venda
                   etapa {(resumo.etapasVenda || ['60', '70']).join('/')} ({fmtNum(resumo.pedidosCancelados)} cancelados,
                   {' '}{fmtNum(resumo.pedidosForaEtapa)} fora da etapa ignorados).
+                  {resumo.criterioVenda === 'faturamento' && (
+                    <> Venda contada pela data de faturamento do pedido; {fmtNum(resumo.pedidosForaDoMes)} pedido(s) de outros meses ficaram de fora.</>
+                  )}
                 </div>
+                {(resumo.avisos || []).map((a, i) => (
+                  <Aviso key={i} cor="amber">{a}</Aviso>
+                ))}
                 {resumo.naoEncontrados && resumo.naoEncontrados.length > 0 && (
                   <Aviso cor="red">
                     {resumo.naoEncontrados.length} codigo(s) do template SEM produto no Omie (deixados em branco): {listaCodigos(resumo.naoEncontrados)}
@@ -358,6 +370,16 @@ export default function MahindraPage() {
                 {resumo.negativos && resumo.negativos.length > 0 && (
                   <Aviso cor="amber">
                     {resumo.negativos.length} peca(s) com saldo NEGATIVO (gravadas como 0 no arquivo): {listaCodigos(resumo.negativos.map((x) => `${x.codigo} (${x.saldo})`))}
+                  </Aviso>
+                )}
+                {resumo.casadosSemPrefixo && resumo.casadosSemPrefixo.length > 0 && (
+                  <Aviso cor="slate">
+                    {resumo.casadosSemPrefixo.length} peca(s) estao na Omie com o codigo em outra grafia (com/sem &quot;RP-&quot;) e foram somadas: {listaCodigos(resumo.casadosSemPrefixo.map((x) => `${x.codigo} = ${x.sku}`))}
+                  </Aviso>
+                )}
+                {resumo.codigosRepetidos && resumo.codigosRepetidos.length > 0 && (
+                  <Aviso cor="slate">
+                    {resumo.codigosRepetidos.length} codigo(s) aparecem mais de uma vez no template (a linha repetida recebe o mesmo valor, mas nao entra de novo nas somas acima): {listaCodigos(resumo.codigosRepetidos)}
                   </Aviso>
                 )}
                 {resumo.vendaSemEstoque && resumo.vendaSemEstoque.length > 0 && (

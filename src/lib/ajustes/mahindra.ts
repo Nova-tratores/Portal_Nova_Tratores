@@ -8,13 +8,14 @@
 //  2. Lemos os codigos da peca da tabela do template.
 //  3. Buscamos no Omie:
 //       - posicao de estoque no FIM do mes de referencia (ListarPosEstoque);
-//       - quantidade vendida no mes (PEDIDOS de venda / ListarPedidos, somente
-//         etapa 60/70 e nao cancelados), somada por peca.
+//       - quantidade vendida no mes: PEDIDOS de venda (ListarPedidos) FATURADOS
+//         NO MES (infoCadastro.dFat), etapa 60/70 e nao cancelados, por peca.
 //  4. Preenchemos as colunas QUANTIDADE DO ESTOQUE e QUANTIDADE VENDIDA no
 //     proprio template e devolvemos o xlsx + um resumo de conferencia.
 //
-// O casamento e' feito por CODIGO DA PECA == SKU do produto no Omie. Normalizamos
-// (trim/upper/sem espacos).
+// As REGRAS (o que e' venda do mes, casamento de codigo com/sem "RP-",
+// cabecalho, somas) vivem na lib pura ./mahindra-preencher.ts, com testes.
+// Aqui fica so' a casca: consulta a Omie, job em background e historico.
 //
 // OBS sobre estilos: o SheetJS community nao reescreve estilos/imagens ao salvar.
 // Valores, linhas/colunas e celulas mescladas sao preservados; logo/cores podem
@@ -30,93 +31,17 @@ import path from 'path';
 import { promises as fs } from 'fs';
 import type { Conta } from './conta';
 import { labelConta } from './conta';
-import { inicioMes, fimMes, fmtBR } from './dates';
+import { inicioMes, fimMes, fmtBR, hoje } from './dates';
 import { supabase } from './supabase';
 import { obterPosicaoEstoqueBulk, listarPedidos, normalizarPedido } from './omie';
 import { criarJob, atualizarJob, concluirJob, falharJob, lerJobAtivo, jobRodando, jobEstaVivo } from './jobs';
+import {
+  normCod, contarPecasTemplate, somarVendasDoMes, preencherTemplate,
+  type ResumoMahindra, type PedidoVenda,
+} from './mahindra-preencher';
 
-// referencia A1 de uma celula (coluna c, linha r) - ambos base 0
-const ref = (c: number, r: number) => XLSX.utils.encode_cell({ c, r });
-
-// normaliza um codigo de peca para comparacao
-function normCod(s: any): string {
-  return String(s == null ? '' : s).trim().toUpperCase().replace(/\s+/g, '');
-}
-
-interface TabelaInfo {
-  headerRow: number;
-  codCol: number;
-  descCol: number;
-  estCol: number;
-  vendCol: number;
-  range: XLSX.Range;
-}
-
-// Localiza a linha de cabecalho da tabela de pecas e as colunas relevantes.
-// Procura uma linha que tenha, ao mesmo tempo, uma coluna de CODIGO, uma de
-// ESTOQUE (quantidade) e uma de VENDIDA. Retorna indices base 0 ou null.
-export function localizarTabela(sheet: XLSX.WorkSheet): TabelaInfo | null {
-  const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
-  for (let r = range.s.r; r <= range.e.r; r++) {
-    let codCol = -1, descCol = -1, estCol = -1, vendCol = -1;
-    for (let c = range.s.c; c <= range.e.c; c++) {
-      const cell = sheet[ref(c, r)];
-      if (!cell || cell.v == null) continue;
-      const t = String(cell.v).toUpperCase();
-      if (codCol < 0 && /C[ÓO]DIGO/.test(t)) codCol = c;
-      if (descCol < 0 && /DESCRI/.test(t)) descCol = c;
-      if (estCol < 0 && /ESTOQUE/.test(t)) estCol = c;
-      if (vendCol < 0 && /VENDID/.test(t)) vendCol = c;
-    }
-    if (codCol >= 0 && estCol >= 0 && vendCol >= 0) {
-      return { headerRow: r, codCol, descCol, estCol, vendCol, range };
-    }
-  }
-  return null;
-}
-
-// escreve `value` na celula so se ela estiver vazia (nao sobrescreve dado do template)
-function setIfEmpty(sheet: XLSX.WorkSheet, c: number, r: number, value: any): void {
-  const cur = sheet[ref(c, r)];
-  if (cur && cur.v != null && String(cur.v).trim() !== '') return;
-  sheet[ref(c, r)] = (typeof value === 'number') ? { t: 'n', v: value } : { t: 's', v: String(value) };
-}
-
-// Preenche o cabecalho do template (Concessionaria, Mes/Ano) de forma best-effort:
-// acha a celula do rotulo e escreve na celula a' direita (se vazia).
-function preencherCabecalho(sheet: XLSX.WorkSheet, { concessionaria, mesAno }: { concessionaria?: string; mesAno?: string }): void {
-  try {
-    const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:A1');
-    for (let r = range.s.r; r <= range.e.r; r++) {
-      for (let c = range.s.c; c <= range.e.c; c++) {
-        const cell = sheet[ref(c, r)];
-        if (!cell || cell.v == null) continue;
-        const t = String(cell.v).toUpperCase();
-        if (/CONCESSION/.test(t) && concessionaria) setIfEmpty(sheet, c + 1, r, concessionaria);
-        else if (/M[ÊE]S\s*\/?\s*ANO/.test(t) && mesAno) setIfEmpty(sheet, c + 1, r, mesAno);
-      }
-    }
-  } catch { /* best-effort - nao quebra a geracao */ }
-}
-
-export interface ResumoMahindra {
-  mes: string;
-  dataInicioBR: string;
-  dataFimBR: string;
-  sheetName: string;
-  contaLabel: string;
-  totalPecas: number;
-  encontradas: number;
-  naoEncontrados: string[];
-  somaEstoque: number;
-  somaVendida: number;
-  etapasVenda: string[];
-  pedidosConsiderados: number;
-  pedidosCancelados: number;
-  pedidosForaEtapa: number;
-  negativos: Array<{ codigo: string; saldo: number }>;
-  vendaSemEstoque: Array<{ codigo: string; vendida: number }>;
-}
+export { localizarTabela } from './mahindra-preencher';
+export type { ResumoMahindra } from './mahindra-preencher';
 
 export interface GerarMahindraResult {
   buffer: Buffer;
@@ -144,106 +69,43 @@ export async function gerarArquivoMahindra(
   if (!mm) throw new Error('mes de referencia invalido (use AAAA-MM)');
   const ano = Number(mm[1]), mesN = Number(mm[2]);
   const dataInicioBR = fmtBR(inicioMes(ano, mesN));
-  const dataFimBR = fmtBR(fimMes(ano, mesN));
+  const fim = fimMes(ano, mesN);
+  const dataFimBR = fmtBR(fim);
+  const agora = hoje();
 
-  // --- le o template ---
-  let workbook: XLSX.WorkBook;
-  try { workbook = XLSX.read(templateBuffer, { type: 'buffer', cellStyles: true, cellDates: true }); }
-  catch (e) { throw new Error('falha ao ler o template xlsx: ' + (e as Error).message); }
-  const sheetName = (workbook.SheetNames || [])[0];
-  const sheet = sheetName ? workbook.Sheets[sheetName] : undefined;
-  if (!sheet) throw new Error('o template nao tem nenhuma planilha');
-
-  const tab = localizarTabela(sheet);
-  if (!tab) throw new Error('nao encontrei a tabela de pecas no template (preciso de um cabecalho com CODIGO, ESTOQUE e VENDIDA)');
-
-  // --- extrai os codigos da peca + a linha de cada um ---
-  const linhas: Array<{ row: number; codigo: string; codigoNorm: string; descricao: string }> = [];
-  for (let r = tab.headerRow + 1; r <= tab.range.e.r; r++) {
-    const cell = sheet[ref(tab.codCol, r)];
-    const cod = cell && cell.v != null ? String(cell.v).trim() : '';
-    if (!cod) continue;
-    if (!/[A-Za-z0-9]/.test(cod)) continue; // ignora celulas-lixo (ex.: "." solto no fim da planilha)
-    const descCell = tab.descCol >= 0 ? sheet[ref(tab.descCol, r)] : null;
-    linhas.push({ row: r, codigo: cod, codigoNorm: normCod(cod), descricao: descCell && descCell.v != null ? String(descCell.v) : '' });
-  }
-  if (linhas.length === 0) throw new Error('nenhum codigo de peca encontrado abaixo do cabecalho da tabela');
-  prog(`${linhas.length} pecas no template`);
+  // valida o template ANTES de gastar chamadas na Omie
+  prog(`${contarPecasTemplate(templateBuffer)} pecas no template`);
 
   // --- 1) posicao de estoque no fim do mes ---
   prog(`consultando posicao de estoque (${dataFimBR})...`);
   const posMap = await obterPosicaoEstoqueBulk(conta, { dataPosicaoBR: dataFimBR, onProgress: prog });
-  const estoquePorCod = new Map<string, { saldo: number; descricao: string | null }>();
+  const estoquePorCod = new Map<string, { saldo: number }>();
   for (const [, entry] of posMap) {
     const sku = entry.codigo != null ? normCod(entry.codigo) : null;
     if (!sku) continue;
-    const cur = estoquePorCod.get(sku) || { saldo: 0, descricao: entry.descricao || null };
+    const cur = estoquePorCod.get(sku) || { saldo: 0 };
     cur.saldo += Number(entry.saldoTotal || 0);
-    if (!cur.descricao && entry.descricao) cur.descricao = entry.descricao;
     estoquePorCod.set(sku, cur);
   }
 
-  // --- 2) vendas no mes (PEDIDOS DE VENDA, etapa 60/70) ---
+  // --- 2) vendas no mes (PEDIDOS DE VENDA faturados no mes, etapa 60/70) ---
+  // A janela do ListarPedidos pega pedido INCLUIDO ou ALTERADO no periodo. Pedido
+  // faturado no mes pode ter sido alterado depois, entao a janela vai do inicio
+  // do mes ATE HOJE (todo pedido faturado no mes tem alteracao >= o faturamento);
+  // o corte por mes e' feito em memoria, pela data de faturamento.
   const ETAPAS_VENDA = etapasVendaSet();
-  prog(`consultando pedidos de venda (${dataInicioBR} a ${dataFimBR})...`);
-  const pedidosBrutos = await listarPedidos(conta, dataInicioBR, dataFimBR, {});
-  const vendaPorCod = new Map<string, number>();
-  let pedidosConsiderados = 0, pedidosCancelados = 0, pedidosForaEtapa = 0;
-  for (const bruto of pedidosBrutos) {
-    const ped = normalizarPedido(bruto);
-    if (!ped) continue;
-    if (ped.cancelada) { pedidosCancelados++; continue; }
-    if (!ETAPAS_VENDA.has(String(ped.etapa))) { pedidosForaEtapa++; continue; }
-    pedidosConsiderados++;
-    for (const it of (ped.itens || [])) {
-      const sku = it.codigo != null ? normCod(it.codigo) : null;
-      if (!sku) continue;
-      vendaPorCod.set(sku, (vendaPorCod.get(sku) || 0) + Number(it.qtde || 0));
-    }
-  }
-  prog(`${pedidosConsiderados} pedidos de venda (etapa ${[...ETAPAS_VENDA].join('/')}); ${pedidosCancelados} cancelados, ${pedidosForaEtapa} fora da etapa ignorados`);
+  const janelaAteBR = fmtBR(agora.getTime() > fim.getTime() ? agora : fim);
+  prog(`consultando pedidos de venda (${dataInicioBR} a ${janelaAteBR})...`);
+  const pedidosBrutos = await listarPedidos(conta, dataInicioBR, janelaAteBR, {});
+  const pedidos = pedidosBrutos.map((b) => normalizarPedido(b)).filter(Boolean) as PedidoVenda[];
+  const vendas = somarVendasDoMes(pedidos, mes, ETAPAS_VENDA);
+  prog(`${vendas.pedidosConsiderados} pedidos faturados em ${mm[2]}/${mm[1]} (etapa ${[...ETAPAS_VENDA].join('/')}); ${vendas.pedidosCancelados} cancelados, ${vendas.pedidosForaEtapa} fora da etapa e ${vendas.pedidosForaDoMes} de outros meses ignorados`);
 
   // --- 3) preenche o template + monta resumo de conferencia ---
-  let somaEstoque = 0, somaVendida = 0;
-  const naoEncontrados: string[] = [];
-  const negativos: Array<{ codigo: string; saldo: number }> = [];
-  const vendaSemEstoque: Array<{ codigo: string; vendida: number }> = [];
-  for (const ln of linhas) {
-    const est = estoquePorCod.get(ln.codigoNorm);
-    const vend = vendaPorCod.get(ln.codigoNorm);
-    const existeNoOmie = !!est;  // bulk usa cExibeTodos='S' => traz produto mesmo com saldo 0
-    if (!existeNoOmie && vend == null) {
-      naoEncontrados.push(ln.codigo);
-      continue; // deixa as celulas em branco pro operador notar
-    }
-    const saldoReal = est ? Number(est.saldo || 0) : 0;
-    // saldo negativo vira 0 no arquivo (exigencia: Mahindra nao aceita negativo),
-    // mas continua listado em `negativos` pro operador conferir.
-    const saldoArquivo = saldoReal < 0 ? 0 : saldoReal;
-    const vendida = vend != null ? Number(vend) : 0;
-    sheet[ref(tab.estCol, ln.row)] = { t: 'n', v: saldoArquivo };
-    sheet[ref(tab.vendCol, ln.row)] = { t: 'n', v: vendida };
-    somaEstoque += saldoArquivo; somaVendida += vendida;
-    if (saldoReal < 0) negativos.push({ codigo: ln.codigo, saldo: saldoReal });
-    if (vendida > 0 && saldoArquivo === 0) vendaSemEstoque.push({ codigo: ln.codigo, vendida });
-  }
-
-  // cabecalho (best-effort)
-  preencherCabecalho(sheet, { concessionaria: contaLabel, mesAno: `${mm[2]}/${mm[1]}` });
-
-  const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xlsx', cellStyles: true }) as Buffer;
-  const resumo: ResumoMahindra = {
-    mes, dataInicioBR, dataFimBR, sheetName, contaLabel,
-    totalPecas: linhas.length,
-    encontradas: linhas.length - naoEncontrados.length,
-    naoEncontrados,
-    somaEstoque, somaVendida,
-    etapasVenda: [...ETAPAS_VENDA],
-    pedidosConsiderados, pedidosCancelados, pedidosForaEtapa,
-    negativos, vendaSemEstoque,
-  };
-  const filename = `Estoque_Venda_Mahindra_${contaLabel}_${mes}.xlsx`;
-  return { buffer, resumo, filename };
+  return preencherTemplate({
+    templateBuffer, mes, contaLabel, estoquePorCod, vendas,
+    etapasVenda: [...ETAPAS_VENDA], dataInicioBR, dataFimBR, hoje: agora,
+  });
 }
 
 // ============================================================================

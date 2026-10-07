@@ -1508,6 +1508,8 @@ export function normalizarPedido(p: any): any {
     numero: cab.numero_pedido ?? cab.cNumero ?? null,
     codigoCliente: cab.codigo_cliente ?? null,
     dataPrevisao: cab.data_previsao || cab.dPrevisao || null,
+    // data em que o pedido foi faturado (DD/MM/YYYY); so existe em pedido faturado
+    dataFaturamento: info.dFat || null,
     etapa: cab.etapa || null,
     status: (info.cStatus || info.status || (info.cCancelada === 'S' ? 'CANCELADO' : (info.cFaturada === 'S' ? 'FATURADO' : 'ATIVO'))),
     cancelada: info.cCancelada === 'S' || info.cancelado === 'S',
