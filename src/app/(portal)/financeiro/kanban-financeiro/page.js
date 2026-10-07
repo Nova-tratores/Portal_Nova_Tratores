@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
+import { confirmarTipoAnexo } from '@/lib/financeiro/leitor-anexos'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
@@ -980,9 +981,11 @@ return (
                           <input
                             type="file"
                             id="file_boleto_input"
-                            onChange={e => {
+                            onChange={async (e) => {
                               const file = e.target.files[0];
+                              e.target.value = '';
                               if (!file) return;
+                              if (!(await confirmarTipoAnexo(file, 'BOLETO'))) return;
                               setFileBoleto(file);
                               handleGerarBoletoFaturamentoFinal(tarefaSelecionada.id, file);
                             }}
@@ -1157,7 +1160,7 @@ function AttachmentTag({ icon, label, fileUrl, onUpload, disabled = false, onRem
                   {!disabled && (
                       <>
                           <button title="Substituir" onClick={() => fileInputRef.current.click()} style={miniActionBtn}><RefreshCw size={18} color="var(--portal-text-secondary)" /></button>
-                          <input type="file" hidden ref={fileInputRef} onChange={(e) => onUpload(e.target.files[0])} />
+                          <input type="file" hidden ref={fileInputRef} onChange={async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f && await confirmarTipoAnexo(f, label)) onUpload(f) }} />
                       </>
                   )}
                   {fileUrl && onRemove && !disabled && (

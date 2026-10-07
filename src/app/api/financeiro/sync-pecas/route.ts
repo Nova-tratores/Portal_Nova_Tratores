@@ -273,14 +273,20 @@ async function handler(req: NextRequest) {
             .select("id, num_nf_peca, anexo_nf_peca").eq("omie_num_pedido", numPedido).eq("omie_empresa", acc.name).limit(1);
           if (existeArr && existeArr.length) {
             jaExistiam++; porEmpresa[acc.name].jaExistiam++;
-            // Auto-conserto: card criado antes da NF sair fica sem número/DANFE.
-            // Se a nota já saiu no Omie, completa o card agora.
+            // Auto-conserto: card criado antes da NF sair fica sem número/DANFE — e card
+            // com o número mas SEM o PDF (o download do DANFE falhou na criação) também:
+            // sem isso o e-mail do boleto saía sem a nota e o card nunca se consertava.
             const ex = existeArr[0] as { id: number; num_nf_peca: string | null; anexo_nf_peca: string | null };
-            if (!String(ex.num_nf_peca || "").trim()) {
+            const semNumero = !String(ex.num_nf_peca || "").trim();
+            const semPdf = !String(ex.anexo_nf_peca || "").trim();
+            if (semNumero || semPdf) {
               const nf = await nfDoPedido(pv.cabecalho.codigo_pedido, numPedido, empKey, acc);
-              if (nf.num) {
-                if (!dryRun) await supabase.from("Chamado_NF").update({ num_nf_peca: nf.num, anexo_nf_peca: nf.url }).eq("id", ex.id);
-                relatorio.push({ empresa: acc.name, pedido: numPedido, atualizado_nf: nf.num, anexo: !!nf.url });
+              const upd: Record<string, unknown> = {};
+              if (semNumero && nf.num) upd.num_nf_peca = nf.num;
+              if (semPdf && nf.url) upd.anexo_nf_peca = nf.url;
+              if (Object.keys(upd).length) {
+                if (!dryRun) await supabase.from("Chamado_NF").update(upd).eq("id", ex.id);
+                relatorio.push({ empresa: acc.name, pedido: numPedido, atualizado_nf: nf.num, anexo: !!upd.anexo_nf_peca });
               }
             }
             continue;

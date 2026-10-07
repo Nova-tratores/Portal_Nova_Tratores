@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState, useRef, Suspense } from 'react'
 import { supabase } from '@/lib/supabase'
+import { confirmarTipoAnexo } from '@/lib/financeiro/leitor-anexos'
 import { exigeComprovantePago, temComprovantePago } from '@/lib/financeiro/constants'
 import { useRouter, useSearchParams, usePathname } from 'next/navigation'
 import Link from 'next/link'
@@ -41,7 +42,7 @@ function AttachmentTag({ icon, label, fileUrl, onUpload, onRemove, disabled }) {
                 {!disabled && onUpload && (
                     <button onClick={() => fileInputRef.current.click()} style={miniActionBtn} title="Substituir ou Anexar">
                         <RefreshCw size={18} color="var(--portal-text)" />
-                        <input type="file" ref={fileInputRef} hidden onChange={e => onUpload(e.target.files[0])} />
+                        <input type="file" ref={fileInputRef} hidden onChange={async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f && await confirmarTipoAnexo(f, label)) onUpload(f) }} />
                     </button>
                 )}
                 {!disabled && fileUrl && onRemove && (
@@ -1043,7 +1044,7 @@ function HomeFinanceiroContent() {
                 <div style={{ flex: 1, background: '#f0f9ff', padding: '35px', border: '1.5px dashed #0ea5e9', borderRadius: '20px' }}>
                     <label style={{ ...labelMStyle, color: '#0ea5e9', fontSize: '12px', fontWeight: '600', display: 'block', marginBottom: '20px' }}>PROCESSAMENTO DE BOLETO FINAL</label>
                     <div style={{ display: 'flex', gap: '20px', alignItems: 'stretch' }}>
-                        <input type="file" id="file_boleto_input" onChange={e => setFileBoleto(e.target.files[0])} style={{ display: 'none' }} />
+                        <input type="file" id="file_boleto_input" onChange={async (e) => { const f = e.target.files[0]; e.target.value = ''; if (f && await confirmarTipoAnexo(f, 'BOLETO')) setFileBoleto(f) }} style={{ display: 'none' }} />
                         <label htmlFor="file_boleto_input" style={{
                             flex: 1,
                             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '10px',
