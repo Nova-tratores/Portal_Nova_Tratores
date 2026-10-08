@@ -1,6 +1,8 @@
-// Quem recebe o alerta central das PERGUNTAS do Tratorilson (até 5 usuários).
+// Quem recebe os avisos do Tratorilson (perguntas, "precisa de atendimento" e
+// mensagem nova no NovaZap com o robô desligado). Devs recebem SEMPRE; esta
+// lista são os usuários a mais, escolhidos na página de Administração.
 // GET devolve os escolhidos + todos os usuários do portal (pra tela escolher);
-// PUT grava a lista (só Dev — a página da memória já é só-Dev).
+// PUT grava a lista (Admin/Dev).
 import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
 import { createClient } from "@supabase/supabase-js";
@@ -30,14 +32,14 @@ export async function GET(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   const auth = await autenticar(req);
-  if (!auth?.isDev) return NextResponse.json({ error: "só Dev" }, { status: 403 });
+  if (!auth?.isAdmin) return NextResponse.json({ error: "só Admin" }, { status: 403 });
   const body = await req.json().catch(() => null);
   const lista = Array.isArray(body?.notificados) ? body.notificados : null;
   if (!lista) return NextResponse.json({ error: "notificados obrigatório" }, { status: 400 });
   const limpos = lista
     .map((n: any) => ({ email: String(n?.email || "").trim().toLowerCase(), nome: String(n?.nome || "").trim() || null }))
     .filter((n: any) => n.email.includes("@"))
-    .slice(0, 5); // até 5 usuários
+    .slice(0, 30);
   const cli = sb();
   const { error: eDel } = await cli.from("tratorilson_notificados").delete().neq("id", 0);
   if (eDel) return NextResponse.json({ error: eDel.message }, { status: 500 });

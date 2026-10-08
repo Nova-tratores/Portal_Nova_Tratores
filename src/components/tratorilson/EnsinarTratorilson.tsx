@@ -52,14 +52,10 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
 
   useEffect(() => { fimRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [msgs])
 
-  // ── Perguntas do Tratorilson (situações novas do zap) + quem recebe o alerta ──
+  // ── Perguntas do Tratorilson (situações novas do zap) ──
   interface Pergunta { id: number; criado_em: string; contato_nome?: string; contato_telefone?: string; pergunta: string; contexto?: string; status: string; resposta?: string; respondido_por?: string }
-  interface UsuarioPortal { nome: string; email: string; avatar_url?: string }
   const [perguntas, setPerguntas] = useState<Pergunta[]>([])
   const [respostaPerg, setRespostaPerg] = useState<Record<number, string>>({})
-  const [usuarios, setUsuarios] = useState<UsuarioPortal[]>([])
-  const [notificados, setNotificados] = useState<string[]>([])
-  const [salvandoNotif, setSalvandoNotif] = useState(false)
   const [avisoPerg, setAvisoPerg] = useState('')
 
   const carregarPerguntas = useCallback(async () => {
@@ -70,32 +66,8 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
       if (j.aviso) setAvisoPerg(j.aviso)
     } catch { /* offline */ }
   }, [])
-  const carregarNotificados = useCallback(async () => {
-    try {
-      const r = await fetch('/api/tratorilson/notificados', { headers: { ...(await authHeaders()) } })
-      const j = await r.json()
-      if (Array.isArray(j.usuarios)) setUsuarios(j.usuarios)
-      if (Array.isArray(j.notificados)) setNotificados(j.notificados.map((n: any) => String(n.email || '').toLowerCase()))
-    } catch { /* offline */ }
-  }, [])
-  useEffect(() => { carregarPerguntas(); carregarNotificados() }, [carregarPerguntas, carregarNotificados])
+  useEffect(() => { carregarPerguntas() }, [carregarPerguntas])
 
-  const alternarNotificado = (email: string) => {
-    const e = email.toLowerCase()
-    setNotificados((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : (prev.length >= 5 ? prev : [...prev, e]))
-  }
-  const salvarNotificados = async () => {
-    setSalvandoNotif(true)
-    try {
-      const lista = usuarios.filter((u) => notificados.includes(u.email.toLowerCase())).map((u) => ({ email: u.email, nome: u.nome }))
-      const r = await fetch('/api/tratorilson/notificados', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ notificados: lista }),
-      })
-      if (!r.ok) alert('Não salvou: ' + ((await r.json()).error || r.status))
-    } catch { alert('Falha de conexão.') }
-    setSalvandoNotif(false)
-  }
   const responderPergunta = async (id: number) => {
     const resposta = (respostaPerg[id] || '').trim()
     if (!resposta) return
@@ -186,9 +158,11 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(300px, 1fr)', gap: 0 }}>
+      {/* Tela estreita: chat em cima, o resto embaixo. */}
+      <style>{`@media (max-width: 900px){.ens-split{grid-template-columns:minmax(0,1fr) !important}.ens-chat{border-right:none !important;border-bottom:1px solid var(--portal-border)}}`}</style>
+      <div className="ens-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(300px, 1fr)', gap: 0 }}>
         {/* Chat de ensino */}
-        <div style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', minHeight: 420, maxHeight: 560 }}>
+        <div className="ens-chat" style={{ display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', minHeight: 420, maxHeight: 560, minWidth: 0 }}>
           <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
             {msgs.map((m, i) => (
               <div key={i} style={{
@@ -332,29 +306,9 @@ export default function EnsinarTratorilson({ userName }: { userName?: string }) 
         </div>
       </div>
 
-      {/* ── Quem recebe o alerta central das perguntas (até 5) ── */}
-      <div style={{ borderTop: '1px solid var(--portal-border)', padding: '16px 18px' }}>
-        <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--portal-text)', marginBottom: 4 }}>Quem recebe as perguntas <span style={{ fontWeight: 500, fontSize: 12, color: 'var(--portal-text-muted)' }}>— escolha até 5 usuários ({notificados.length}/5)</span></div>
-        <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 10 }}>
-          Estes usuários veem o alerta no meio da tela quando o Tratorilson pergunta. O primeiro que responder fecha pra todos. Sem ninguém escolhido, os admins recebem.
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
-          {usuarios.map((u) => {
-            const on = notificados.includes(u.email.toLowerCase())
-            return (
-              <button key={u.email} onClick={() => alternarNotificado(u.email)}
-                title={u.email}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, border: on ? 'none' : '1px solid var(--portal-border)', borderRadius: 20, padding: '5px 12px', fontSize: 12, fontWeight: 700, cursor: 'pointer', background: on ? '#7c3aed' : 'var(--portal-bg-card)', color: on ? '#fff' : 'var(--portal-text-secondary)' }}>
-                {u.avatar_url ? <img src={u.avatar_url} alt="" style={{ width: 18, height: 18, borderRadius: '50%', objectFit: 'cover' }} /> : null}
-                {u.nome || u.email}
-              </button>
-            )
-          })}
-        </div>
-        <button onClick={salvarNotificados} disabled={salvandoNotif}
-          style={{ marginTop: 12, border: 'none', borderRadius: 8, padding: '8px 18px', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', background: '#7c3aed', color: '#fff', opacity: salvandoNotif ? 0.6 : 1 }}>
-          {salvandoNotif ? 'Salvando…' : 'Salvar notificados'}
-        </button>
+      {/* Quem recebe o alerta central: Devs sempre + escolhidos na Administração */}
+      <div style={{ borderTop: '1px solid var(--portal-border)', padding: '12px 18px', fontSize: 12, color: 'var(--portal-text-muted)' }}>
+        O alerta das perguntas aparece para os Devs e para quem for escolhido em <a href="/admin" style={{ color: '#7c3aed', fontWeight: 700 }}>Administração → Quem recebe os avisos do Tratorilson</a>. O primeiro que responder fecha pra todos.
       </div>
     </div>
   )

@@ -1,12 +1,13 @@
 // Perguntas do Tratorilson pra equipe — quando ele NÃO SABE lidar com uma
 // situação nova no WhatsApp, cria uma pergunta (rota /api/assistente/novazap).
-// GET lista (e diz se o chamador é um dos notificados do alerta central);
+// GET lista (e diz se o chamador recebe o alerta central: Devs + escolhidos no Admin);
 // POST responde (o PRIMEIRO que responder vence, e a resposta vira REGRA na
 // memória dele); PATCH fecha sem responder (descartar).
 import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
 import { gravarRegra } from "@/lib/assistente/memoria";
 import { retornarAoCliente } from "@/lib/assistente/retorno-cliente";
+import { souNotificadoTratorilson } from "@/lib/assistente/notificados";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -22,15 +23,11 @@ export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   try {
-    const [{ data: perguntas, error }, { data: notif }] = await Promise.all([
+    const [{ data: perguntas, error }, souNotificado] = await Promise.all([
       sb().from("tratorilson_perguntas").select("*").order("criado_em", { ascending: false }).limit(40),
-      sb().from("tratorilson_notificados").select("email"),
+      souNotificadoTratorilson(auth),
     ]);
     if (error) throw error;
-    const emails = (notif || []).map((n) => String(n.email || "").toLowerCase());
-    const meu = String(auth.email || "").toLowerCase();
-    // Lista vazia = ninguém configurado → admins recebem (ninguém fica sem saber)
-    const souNotificado = emails.length ? emails.includes(meu) : auth.isAdmin;
     const abertas = (perguntas || []).filter((p) => p.status === "aberta").length;
     return NextResponse.json(
       { perguntas: perguntas || [], abertas, souNotificado },
