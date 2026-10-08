@@ -15,6 +15,7 @@ import { fmtD, sleep, ehMesAtual } from './utils';
 import { getIgnorarFiltro } from './ignorar-clientes';
 import { CONTA_DEFAULT, type Conta, type ContaFiltro } from './conta';
 import type { ItemVenda } from './categorias';
+import { planejarGravacao, dataReferencia, lerDataBR, mesReferencia, chaveMes, type MesAnoRef } from './vendas-referencia';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 
@@ -35,6 +36,7 @@ export interface Pedido {
   quantidade: number;
   valor_unitario: number;
   data_pedido: string;
+  data_faturamento: string; // infoCadastro.dFat (DD/MM/AAAA) — decide o mês (ver vendas-referencia)
   numero_pedido: string;
   descricao: string;
   codigo_cliente: string;
@@ -93,20 +95,29 @@ export async function buscarItensDoBanco(mes: number, ano: number, conta: ContaF
   let todos: ItemVenda[] = [];
   let offset = 0;
   const { codigos } = await getIgnorarFiltro(conta);
-  const selecao = diaCorte != null
-    ? 'tipo,familia,valor_total,quantidade,codigo_categoria,cmc_unitario,data_pedido'
-    : 'tipo,familia,valor_total,quantidade,codigo_categoria,cmc_unitario';
+  const BASE = 'tipo,familia,valor_total,quantidade,codigo_categoria,cmc_unitario';
+  // O corte por dia usa o FATURAMENTO quando gravado (data_faturamento), senão a
+  // data do pedido. Sem a coluna (migration sql/vendas-itens-data-faturamento.sql
+  // ainda não aplicada) a consulta é refeita só com data_pedido.
+  let selecao = diaCorte != null ? BASE + ',data_pedido,data_faturamento' : BASE;
   while (true) {
-    let q = filtroConta(
-      supabase
-        .from('vendas_itens')
-        .select(selecao)
-        .eq('mes', mes)
-        .eq('ano', ano),
-      conta,
-    );
-    if (codigos.length > 0) q = (q as typeof q).not('codigo_cliente', 'in', '(' + codigos.join(',') + ')');
-    const { data } = await q.range(offset, offset + 999);
+    const consulta = (sel: string) => {
+      let q = filtroConta(
+        supabase
+          .from('vendas_itens')
+          .select(sel)
+          .eq('mes', mes)
+          .eq('ano', ano),
+        conta,
+      );
+      if (codigos.length > 0) q = (q as typeof q).not('codigo_cliente', 'in', '(' + codigos.join(',') + ')');
+      return q.range(offset, offset + 999);
+    };
+    let { data, error } = await consulta(selecao);
+    if (error && /data_faturamento/.test(error.message)) {
+      selecao = BASE + ',data_pedido';
+      ({ data, error } = await consulta(selecao));
+    }
     if (!data || data.length === 0) break;
     todos = todos.concat(data as ItemVenda[]);
     if (data.length < 1000) break;
@@ -115,7 +126,8 @@ export async function buscarItensDoBanco(mes: number, ano: number, conta: ContaF
   if (diaCorte != null) {
     const limite = Math.min(diaCorte, new Date(ano, mes, 0).getDate());
     todos = todos.filter((r) => {
-      const d = parseInt(String((r as { data_pedido?: string }).data_pedido ?? '').split('/')[0]) || 0;
+      const linha = r as { data_pedido?: string; data_faturamento?: string | null };
+      const d = lerDataBR(dataReferencia({ data_pedido: linha.data_pedido ?? '', data_faturamento: linha.data_faturamento }))?.dia ?? 0;
       return d > 0 && d <= limite;
     });
   }
@@ -124,7 +136,11 @@ export async function buscarItensDoBanco(mes: number, ano: number, conta: ContaF
 }
 
 // === Pedidos da API Omie (ListarPedidos paginado) ===
-export async function buscarPedidosPeriodo(de: string, ate: string, conta: Conta): Promise<Pedido[]> {
+// A Omie devolve o pedido incluído OU alterado na janela (não filtra por
+// faturamento). `descartados`, quando passado, recebe o número dos pedidos que
+// vieram cancelados ou fora das etapas faturadas (60/70) — quem grava usa isso
+// para tirar do espelho um pedido que foi cancelado depois de faturado.
+export async function buscarPedidosPeriodo(de: string, ate: string, conta: Conta, descartados?: Set<string>): Promise<Pedido[]> {
   const pedidos: Pedido[] = [];
   let pag = 1;
   let totalPaginas: number | null = null;
@@ -154,10 +170,13 @@ export async function buscarPedidosPeriodo(de: string, ate: string, conta: Conta
     for (const p of r.pedido_venda_produto) {
       const info = (p.infoCadastro || {}) as Record<string, unknown>;
       const cab = (p.cabecalho || {}) as Record<string, unknown>;
-      if (info.cancelado === 'S') continue;
-      if (cab.etapa !== '60' && cab.etapa !== '70') continue;
-      const dataPedido = String(cab.data_previsao || info.dInc || '');
       const numPedido = String(cab.numero_pedido || '');
+      if (info.cancelado === 'S' || (cab.etapa !== '60' && cab.etapa !== '70')) {
+        if (descartados && numPedido) descartados.add(numPedido);
+        continue;
+      }
+      const dataPedido = String(cab.data_previsao || info.dInc || '');
+      const dataFaturamento = String(info.dFat || '');
       const infoAdic = (p.informacoes_adicionais || {}) as Record<string, unknown>;
       const codCategoria = String(infoAdic.codigo_categoria || '');
       const nomeVendedor =
@@ -174,6 +193,7 @@ export async function buscarPedidosPeriodo(de: string, ate: string, conta: Conta
           quantidade: num(pr.quantidade),
           valor_unitario: num(pr.valor_unitario),
           data_pedido: dataPedido,
+          data_faturamento: dataFaturamento,
           numero_pedido: numPedido,
           descricao: String(pr.descricao || pr.descricao_produto || pr.codigo || ''),
           codigo_cliente: String(cab.codigo_cliente || ''),
@@ -297,6 +317,7 @@ function mapPedidoParaRow(p: Pedido, mes: number, ano: number, conta: Conta, cmc
     tipo: info.tipo || null,
     familia: info.familia || null,
     data_pedido: p.data_pedido || null,
+    data_faturamento: p.data_faturamento || null,
     numero_pedido: p.numero_pedido || null,
     descricao: p.descricao || null,
     codigo_cliente: p.codigo_cliente || null,
@@ -309,26 +330,124 @@ function mapPedidoParaRow(p: Pedido, mes: number, ano: number, conta: Conta, cmc
   };
 }
 
-/** Mapa (codigo_produto|data_pedido → cmc_unitario>0) das linhas já gravadas do mês. */
-async function carregarCmcExistente(mes: number, ano: number, conta: Conta): Promise<Record<string, number>> {
+/**
+ * Mapa (numero_pedido|codigo_produto → cmc_unitario>0) das linhas já gravadas
+ * dos pedidos que vão ser regravados — em QUALQUER mês, porque o pedido pode
+ * estar trocando de mês. Preserva o CMC enriquecido (backfill diário via Omie)
+ * antes do delete+reinsert; sem isto o re-sync do mês corrente zera o custo.
+ */
+async function carregarCmcPorPedidos(numeros: string[], conta: Conta): Promise<Record<string, number>> {
   const mapa: Record<string, number> = {};
-  const LOTE = 1000;
-  let offset = 0;
-  while (true) {
-    const { data } = await supabase
-      .from('vendas_itens')
-      .select('codigo_produto,data_pedido,cmc_unitario')
-      .eq('mes', mes).eq('ano', ano).eq('conta_omie', conta)
-      .not('cmc_unitario', 'is', null).gt('cmc_unitario', 0)
-      .range(offset, offset + LOTE - 1);
-    const lote = (data || []) as Array<{ codigo_produto: unknown; data_pedido: unknown; cmc_unitario: unknown }>;
-    lote.forEach((r) => {
-      if (r.codigo_produto && r.data_pedido) mapa[String(r.codigo_produto) + '|' + String(r.data_pedido)] = num(r.cmc_unitario);
-    });
-    if (lote.length < LOTE) break;
-    offset += LOTE;
+  for (let i = 0; i < numeros.length; i += 200) {
+    const lote = numeros.slice(i, i + 200);
+    let offset = 0;
+    while (true) {
+      const { data, error } = await supabase
+        .from('vendas_itens')
+        .select('id,numero_pedido,codigo_produto,cmc_unitario')
+        .eq('conta_omie', conta)
+        .in('numero_pedido', lote)
+        .gt('cmc_unitario', 0)
+        .order('id')
+        .range(offset, offset + 999);
+      if (error) throw new Error('carregarCmcPorPedidos [' + conta + ']: ' + error.message);
+      const linhas = (data || []) as Array<{ numero_pedido: unknown; codigo_produto: unknown; cmc_unitario: unknown }>;
+      linhas.forEach((r) => {
+        if (r.numero_pedido && r.codigo_produto) mapa[String(r.numero_pedido) + '|' + String(r.codigo_produto)] = num(r.cmc_unitario);
+      });
+      if (linhas.length < 1000) break;
+      offset += 1000;
+    }
   }
   return mapa;
+}
+
+/** Apaga do espelho os pedidos (por número, em qualquer mês) da conta. */
+async function apagarPedidos(numeros: string[], conta: Conta): Promise<void> {
+  for (let i = 0; i < numeros.length; i += 200) {
+    const lote = numeros.slice(i, i + 200);
+    const { error } = await supabase.from('vendas_itens').delete().eq('conta_omie', conta).in('numero_pedido', lote);
+    if (error) throw new Error('Delete vendas_itens por pedido falhou: ' + error.message);
+  }
+}
+
+const semDataFaturamento = (r: Record<string, unknown>) => {
+  const c = { ...r };
+  delete c.data_faturamento;
+  return c;
+};
+
+// Sem a migration sql/vendas-itens-data-faturamento.sql o insert é refeito sem
+// a coluna. Rearmado a cada gravação (aplicar a migration vale sem redeploy).
+async function inserirLinhas(rows: Array<Record<string, unknown>>): Promise<void> {
+  let semColuna = false;
+  for (let i = 0; i < rows.length; i += 500) {
+    let lote = rows.slice(i, i + 500);
+    if (semColuna) lote = lote.map(semDataFaturamento);
+    let { error } = await supabase.from('vendas_itens').insert(lote);
+    if (error && !semColuna && /data_faturamento/.test(error.message)) {
+      semColuna = true;
+      ({ error } = await supabase.from('vendas_itens').insert(lote.map(semDataFaturamento)));
+    }
+    if (error) throw new Error('Insert vendas_itens falhou (lote ' + i + '): ' + error.message);
+  }
+}
+
+/**
+ * Grava um lote de pedidos vindo da Omie no espelho. Cada pedido vai para o mês
+ * do faturamento (ver vendas-referencia). Apaga antes:
+ *   - os meses do `escopo` INTEIROS (tira a cópia errada que o sync antigo
+ *     deixou lá — pedido de outro mês gravado pela janela de alteração);
+ *   - os pedidos regravados e os descartados (cancelados / fora de 60-70) em
+ *     QUALQUER mês da conta.
+ * `escopo` null = delta: só mexe nos pedidos que vieram.
+ * Quem chama garante que a janela da Omie cobre do início do escopo até hoje
+ * (pedido faturado no mês e alterado depois só volta numa janela que alcance a
+ * alteração) — senão limpar o mês inteiro perderia pedido.
+ */
+export async function gravarPedidos(
+  pedidos: Pedido[],
+  descartados: Iterable<string>,
+  escopo: MesAnoRef[] | null,
+  conta: Conta,
+): Promise<{ gravados: number; foraDoEscopo: number; apagados: number }> {
+  const plano = planejarGravacao(pedidos, descartados, escopo);
+  const grupos = [...plano.porMes.values()];
+  const codigosArr = [...new Set(grupos.flatMap((g) => g.itens.map((p) => p.codigo_produto)).filter(Boolean))];
+  for (let i = 0; i < codigosArr.length; i++) {
+    await getProdutoCached(codigosArr[i], conta);
+    if (i > 0 && i % 5 === 0) await sleep(500);
+  }
+  const numeros = [...plano.numerosApagar];
+  const cmcPedidos = await carregarCmcPorPedidos(numeros, conta);
+  // Fallback final: CMC do snapshot atual de `produtos` (sem Omie).
+  const cmcProdutos = codigosArr.length > 0 ? await carregarCmcProdutos(conta) : {};
+  const rows: Array<Record<string, unknown>> = [];
+  for (const g of grupos) {
+    const codigosMes = [...new Set(g.itens.map((p) => p.codigo_produto).filter(Boolean))];
+    const cmcMap = await preCarregarCMCPorMes(codigosMes, g.mes, g.ano, conta);
+    for (const p of g.itens) {
+      let cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
+      if ((cmc === null || cmc === 0) && p.codigo_produto) {
+        const prev = cmcPedidos[p.numero_pedido + '|' + p.codigo_produto];
+        if (prev > 0) cmc = prev;
+      }
+      if ((cmc === null || cmc === 0) && p.codigo_produto) {
+        const snap = cmcProdutos[String(p.codigo_produto)];
+        if (snap > 0) cmc = snap;
+      }
+      rows.push(mapPedidoParaRow(p, g.mes, g.ano, conta, cmc));
+    }
+  }
+  if (escopo) {
+    for (const m of escopo) {
+      const { error } = await supabase.from('vendas_itens').delete().eq('mes', m.mes).eq('ano', m.ano).eq('conta_omie', conta);
+      if (error) throw new Error('Delete vendas_itens ' + m.mes + '/' + m.ano + ' falhou: ' + error.message);
+    }
+  }
+  await apagarPedidos(numeros, conta);
+  await inserirLinhas(rows);
+  return { gravados: rows.length, foraDoEscopo: plano.foraDoEscopo, apagados: numeros.length };
 }
 
 /**
@@ -355,47 +474,46 @@ async function carregarCmcProdutos(conta: Conta): Promise<Record<string, number>
   return mapa;
 }
 
+/**
+ * Sincroniza um ou mais meses CONTÍGUOS numa chamada ListarPedidos. A janela vai
+ * do 1º dia do primeiro mês até HOJE: a Omie filtra por inclusão/alteração, e
+ * pedido faturado no mês e alterado depois só volta numa janela que alcance a
+ * alteração. O que vier de outro mês é ignorado aqui (fica onde está).
+ * `cache_controle` é gravado mesmo para mês sem venda (0 legítimo, não re-sincroniza).
+ * Devolve os pedidos que caíram nos meses pedidos.
+ */
+export async function sincronizarMesesVendas(meses: MesAnoRef[], conta: Conta): Promise<Pedido[]> {
+  if (meses.length === 0) return [];
+  const ordenados = [...meses].sort((a, b) => a.ano - b.ano || a.mes - b.mes);
+  const primeiro = ordenados[0];
+  const hoje = new Date();
+  const de = fmtD(new Date(primeiro.ano, primeiro.mes - 1, 1));
+  const descartados = new Set<string>();
+  const pedidos = await buscarPedidosPeriodo(de, fmtD(hoje), conta, descartados);
+  if (pedidos.length === 0 && descartados.size === 0) {
+    // Janela inteira vazia: não apaga nada (pode ser falha silenciosa); só
+    // marca como sincronizado o mês que já está vazio no espelho.
+    for (const m of ordenados) {
+      if (!(await temItensCacheados(m.mes, m.ano, conta))) {
+        await salvarControleCache('vendas', m.mes, m.ano, ehMesAtual(m.mes, m.ano) ? fmtD(hoje) : fmtD(new Date(m.ano, m.mes, 0)), conta);
+      }
+    }
+    return [];
+  }
+  await gravarPedidos(pedidos, descartados, ordenados, conta);
+  for (const m of ordenados) {
+    const dataControle = ehMesAtual(m.mes, m.ano) ? fmtD(hoje) : fmtD(new Date(m.ano, m.mes, 0));
+    await salvarControleCache('vendas', m.mes, m.ano, dataControle, conta);
+  }
+  const chaves = new Set(ordenados.map(chaveMes));
+  return pedidos.filter((p) => {
+    const ref = mesReferencia(p);
+    return ref != null && chaves.has(chaveMes(ref));
+  });
+}
+
 async function buscarESalvarItensOmieInner(mes: number, ano: number, conta: Conta): Promise<Pedido[]> {
-  const de = fmtD(new Date(ano, mes - 1, 1));
-  const ate = fmtD(new Date(ano, mes, 0));
-  const pedidos = await buscarPedidosPeriodo(de, ate, conta);
-  const codigosArr = [...new Set(pedidos.map((p) => p.codigo_produto).filter(Boolean))];
-  for (let i = 0; i < codigosArr.length; i++) {
-    await getProdutoCached(codigosArr[i], conta);
-    if (i > 0 && i % 5 === 0) await sleep(500);
-  }
-  if (pedidos.length > 0) {
-    const cmcMap = await preCarregarCMCPorMes(codigosArr, mes, ano, conta);
-    // Preserva o cmc_unitario já enriquecido (backfill diário via Omie) antes do
-    // delete+reinsert. Sem isto, o re-sync do mês corrente zera o custo, pois
-    // resolverCMC só lê cmc_historico — que não tem o mês atual. (bug: dashboard
-    // de vendas sem custos no mês corrente.)
-    const cmcExistente = await carregarCmcExistente(mes, ano, conta);
-    // Fallback final: CMC do snapshot atual de `produtos` (sem Omie).
-    const cmcProdutos = await carregarCmcProdutos(conta);
-    const rows = [];
-    for (const p of pedidos) {
-      let cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
-      if ((cmc === null || cmc === 0) && p.codigo_produto && p.data_pedido) {
-        const prev = cmcExistente[p.codigo_produto + '|' + p.data_pedido];
-        if (prev > 0) cmc = prev;
-      }
-      if ((cmc === null || cmc === 0) && p.codigo_produto) {
-        const snap = cmcProdutos[String(p.codigo_produto)];
-        if (snap > 0) cmc = snap;
-      }
-      rows.push(mapPedidoParaRow(p, mes, ano, conta, cmc));
-    }
-    const delResp = await supabase.from('vendas_itens').delete().eq('mes', mes).eq('ano', ano).eq('conta_omie', conta);
-    if (delResp.error) throw new Error('Delete vendas_itens falhou: ' + delResp.error.message);
-    for (let i = 0; i < rows.length; i += 500) {
-      const insResp = await supabase.from('vendas_itens').insert(rows.slice(i, i + 500));
-      if (insResp.error) throw new Error('Insert vendas_itens falhou: ' + insResp.error.message);
-    }
-    const dataControle = ehMesAtual(mes, ano) ? fmtD(new Date()) : ate;
-    await salvarControleCache('vendas', mes, ano, dataControle, conta);
-  }
-  return pedidos;
+  return sincronizarMesesVendas([{ mes, ano }], conta);
 }
 
 export async function buscarESalvarItensOmie(mes: number, ano: number, conta: Conta): Promise<Pedido[]> {
@@ -434,46 +552,12 @@ async function buscarIncrementalMesAtualInner(mes: number, ano: number, conta: C
   }
   const deDelta = ultimaData;
 
-  const pedidosNovos = await buscarPedidosPeriodo(deDelta, hoje, conta);
-  const codigosArr = [...new Set(pedidosNovos.map((p) => p.codigo_produto).filter(Boolean))];
-  for (let i = 0; i < codigosArr.length; i++) {
-    await getProdutoCached(codigosArr[i], conta);
-    if (i > 0 && i % 5 === 0) await sleep(500);
-  }
-
-  if (pedidosNovos.length > 0) {
-    const datasParaLimpar = new Set(pedidosNovos.map((p) => p.data_pedido).filter(Boolean));
-    // Preserva o cmc_unitario já enriquecido das datas que serão re-inseridas.
-    const cmcExistente = await carregarCmcExistente(mes, ano, conta);
-    for (const dt of datasParaLimpar) {
-      const delResp = await supabase
-        .from('vendas_itens')
-        .delete()
-        .eq('mes', mes)
-        .eq('ano', ano)
-        .eq('data_pedido', dt)
-        .eq('conta_omie', conta);
-      if (delResp.error) throw new Error('Erro ao deletar itens delta ' + dt + ': ' + delResp.error.message);
-    }
-    const cmcMap = await preCarregarCMCPorMes(codigosArr, mes, ano, conta);
-    const cmcProdutos = await carregarCmcProdutos(conta);
-    const rows = [];
-    for (const p of pedidosNovos) {
-      let cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
-      if ((cmc === null || cmc === 0) && p.codigo_produto && p.data_pedido) {
-        const prev = cmcExistente[p.codigo_produto + '|' + p.data_pedido];
-        if (prev > 0) cmc = prev;
-      }
-      if ((cmc === null || cmc === 0) && p.codigo_produto) {
-        const snap = cmcProdutos[String(p.codigo_produto)];
-        if (snap > 0) cmc = snap;
-      }
-      rows.push(mapPedidoParaRow(p, mes, ano, conta, cmc));
-    }
-    for (let i = 0; i < rows.length; i += 500) {
-      const insResp = await supabase.from('vendas_itens').insert(rows.slice(i, i + 500));
-      if (insResp.error) throw new Error('Erro ao inserir itens delta lote ' + i + ': ' + insResp.error.message);
-    }
+  // Delta: regrava só os pedidos que vieram (cada um no mês do faturamento,
+  // inclusive mês passado) e tira os cancelados/estornados de onde estiverem.
+  const descartados = new Set<string>();
+  const pedidosNovos = await buscarPedidosPeriodo(deDelta, hoje, conta, descartados);
+  if (pedidosNovos.length > 0 || descartados.size > 0) {
+    await gravarPedidos(pedidosNovos, descartados, null, conta);
   }
 
   await salvarControleCache('vendas', mes, ano, hoje, conta);

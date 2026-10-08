@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { negarSemDashboard } from '@/lib/estoque/dashboard-auth';
 import { parseConta } from '@/lib/estoque/conta';
 import { montarDashboard } from '@/lib/estoque/dashboard';
 
@@ -9,6 +10,8 @@ export const maxDuration = 60;
 // `modo=ano` (ou mes=0) agrega o ano inteiro em vez de um mês.
 // Portado de /api/dashboard (server.js:1395).
 export async function GET(req: NextRequest) {
+  const negado = await negarSemDashboard(req);
+  if (negado) return negado;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
   const now = new Date();

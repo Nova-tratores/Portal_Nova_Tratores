@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { negarSemDashboard } from '@/lib/estoque/dashboard-auth';
 import { parseConta } from '@/lib/estoque/conta';
 import { listarVendas } from '@/lib/estoque/dashboard-listas';
 
@@ -8,6 +9,8 @@ export const maxDuration = 60;
 // Vendas detalhadas do mês (com filtro de card/categoria). `modo=ano` (ou
 // mes=0) lista o ano inteiro. Portado de /api/dashboard/vendas (server.js:3116).
 export async function GET(req: NextRequest) {
+  const negado = await negarSemDashboard(req);
+  if (negado) return negado;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
   const mesParam = parseInt(sp.get('mes') || '');

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { negarSemDashboard } from '@/lib/estoque/dashboard-auth';
 import { parseConta } from '@/lib/estoque/conta';
 import { listarPedidoItens } from '@/lib/estoque/dashboard-listas';
 
@@ -7,6 +8,8 @@ export const dynamic = 'force-dynamic';
 // Itens de um pedido (popup de composição). Portado de
 // /api/dashboard/pedido-itens (server.js:3292).
 export async function GET(req: NextRequest) {
+  const negado = await negarSemDashboard(req);
+  if (negado) return negado;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
   const numeroPedido = sp.get('numero_pedido');

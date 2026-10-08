@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { negarSemDashboard } from '@/lib/estoque/dashboard-auth';
 import { parseConta } from '@/lib/estoque/conta';
 import { listarCategoriasVendas } from '@/lib/estoque/dashboard-listas';
 
@@ -7,6 +8,8 @@ export const dynamic = 'force-dynamic';
 // Grupos de categoria presentes em vendas (dropdown). Portado de
 // /api/dashboard/categorias-vendas (server.js:3070).
 export async function GET(req: NextRequest) {
+  const negado = await negarSemDashboard(req);
+  if (negado) return negado;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   try {
     const categorias = await listarCategoriasVendas(conta);

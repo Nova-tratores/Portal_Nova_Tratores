@@ -11,13 +11,11 @@
 
 import { supabase } from './supabase';
 import { omieRequest } from './omie';
-import { fmtD, parseDataBR, sleep, ehMesAtual } from './utils';
+import { fmtD, parseDataBR, sleep } from './utils';
 import {
-  buscarPedidosPeriodo,
   getProdutoCached,
-  preCarregarCMCPorMes,
-  resolverCMC,
   buscarESalvarItensOmie,
+  sincronizarMesesVendas,
   salvarControleCache,
   temItensCacheados,
   type Pedido,
@@ -113,8 +111,9 @@ export function agruparEmRunsContiguos(meses: MesAno[], tamMax: number): MesAno[
 }
 
 // ============================================================================
-// buscarESalvarItensOmieRange: busca vários meses contíguos em UMA chamada
-// ListarPedidos e distribui os itens nos meses corretos por data_pedido.
+// buscarESalvarItensOmieRange: vários meses contíguos em UMA chamada
+// ListarPedidos (janela do 1º mês até hoje) — cada pedido cai no mês do
+// FATURAMENTO (ver vendas-referencia / sincronizarMesesVendas).
 // (No monolito havia dedup in-flight compartilhado; aqui basta a versão direta —
 //  os jobs admin rodam sob lock per-conta, então não há corrida com a UI.)
 // ============================================================================
@@ -124,73 +123,7 @@ export async function buscarESalvarItensOmieRange(meses: MesAno[], conta: Conta)
     await buscarESalvarItensOmie(meses[0].mes, meses[0].ano, conta);
     return;
   }
-  const primeiro = meses[0];
-  const ultimo = meses[meses.length - 1];
-  const de = fmtD(new Date(primeiro.ano, primeiro.mes - 1, 1));
-  const ate = fmtD(new Date(ultimo.ano, ultimo.mes, 0));
-
-  const pedidos = await buscarPedidosPeriodo(de, ate, conta);
-
-  const codigosArr = [...new Set(pedidos.map((p) => p.codigo_produto).filter(Boolean))];
-  // Cacheia tipo/familia de cada produto (getProdutoCached usa Supabase + Omie)
-  for (let i = 0; i < codigosArr.length; i++) {
-    await getProdutoCached(codigosArr[i], conta);
-    if (i > 0 && i % 5 === 0) await sleep(500);
-  }
-
-  // Pré-carrega CMC histórico por mês para lookup rápido
-  const cmcPorMes: Record<string, Record<string, number>> = {};
-  for (const m of meses) {
-    cmcPorMes[m.mes + '-' + m.ano] = await preCarregarCMCPorMes(codigosArr, m.mes, m.ano, conta);
-  }
-
-  // Distribui pedidos entre os meses do range por data_pedido
-  const porMes: Record<string, Array<Record<string, unknown>>> = {};
-  meses.forEach((m) => { porMes[m.mes + '-' + m.ano] = []; });
-  for (const p of pedidos) {
-    if (!p.data_pedido) continue;
-    const dt = parseDataBR(p.data_pedido);
-    const m = dt.getMonth() + 1;
-    const a = dt.getFullYear();
-    const k = m + '-' + a;
-    if (!porMes[k]) continue;
-    const info = await getProdutoCached(p.codigo_produto, conta);
-    const cmcMap = cmcPorMes[k] || {};
-    const cmc = await resolverCMC(p.codigo_produto, p.data_pedido, cmcMap, conta);
-    porMes[k].push({
-      mes: m, ano: a,
-      codigo_produto: p.codigo_produto,
-      valor_total: p.valor_total,
-      quantidade: p.quantidade,
-      valor_unitario: p.valor_unitario,
-      tipo: info.tipo || null,
-      familia: info.familia || null,
-      data_pedido: p.data_pedido || null,
-      numero_pedido: p.numero_pedido || null,
-      descricao: p.descricao || null,
-      codigo_cliente: p.codigo_cliente || null,
-      codigo_categoria: p.codigo_categoria || null,
-      cmc_unitario: cmc,
-      vendedor: p.vendedor || null,
-      nome_cliente: p.nome_cliente || null,
-      departamento: p.departamento || null,
-      conta_omie: conta,
-    });
-  }
-
-  // Salva cada mês (mesmo com 0 itens, pra registrar o cache_controle)
-  for (const m of meses) {
-    const k = m.mes + '-' + m.ano;
-    const rows = porMes[k] || [];
-    const delResp = await supabase.from('vendas_itens').delete().eq('mes', m.mes).eq('ano', m.ano).eq('conta_omie', conta);
-    if (delResp.error) throw new Error('Delete vendas_itens falhou: ' + delResp.error.message);
-    for (let i = 0; i < rows.length; i += 500) {
-      const insResp = await supabase.from('vendas_itens').insert(rows.slice(i, i + 500));
-      if (insResp.error) throw new Error('Insert vendas_itens falhou: ' + insResp.error.message);
-    }
-    const dataControle = ehMesAtual(m.mes, m.ano) ? fmtD(new Date()) : ate;
-    await salvarControleCache('vendas', m.mes, m.ano, dataControle, conta);
-  }
+  await sincronizarMesesVendas(meses, conta);
 }
 
 // ============================================================================

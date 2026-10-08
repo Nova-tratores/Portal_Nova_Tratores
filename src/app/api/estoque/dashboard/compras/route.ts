@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { negarSemDashboard } from '@/lib/estoque/dashboard-auth';
 import { parseConta } from '@/lib/estoque/conta';
 import { listarCompras } from '@/lib/estoque/dashboard-listas';
 
@@ -8,6 +9,8 @@ export const maxDuration = 60;
 // Compras (entradas) do período, só peças — itens que compõem o card "Comprei".
 // `modo=ano` (ou mes=0) soma os 12 meses do ano. Portado de /api/dashboard/compras.
 export async function GET(req: NextRequest) {
+  const negado = await negarSemDashboard(req);
+  if (negado) return negado;
   const conta = parseConta(req.nextUrl.searchParams.get('conta'));
   const sp = req.nextUrl.searchParams;
   const mes = parseInt(sp.get('mes') || '');

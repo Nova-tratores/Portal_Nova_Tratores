@@ -12,6 +12,10 @@ import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import { chartColors } from '@/lib/estoque/chartColors';
+import { authHeaders } from '@/lib/auth/client';
+
+// As rotas do dashboard exigem login (token da sessão no header).
+const getDash = async (url: string) => fetch(url, { headers: await authHeaders() });
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 type Metrica = 'venda' | 'custo' | 'margem';
@@ -206,7 +210,7 @@ export default function DashboardPage() {
     setComprasItens(null);
     try {
       const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
-      const r = await fetch(`/api/estoque/dashboard?${periodoParam}&ano=${ano}${catParam}${contaParam}`);
+      const r = await getDash(`/api/estoque/dashboard?${periodoParam}&ano=${ano}${catParam}${contaParam}`);
       const d = (await r.json()) as DashboardResp;
       if (d.erro) { setErro(d.erro); return; }
       setDados(d);
@@ -218,14 +222,14 @@ export default function DashboardPage() {
   }, [periodoParam, ano, categoria, contaParam]);
 
   useEffect(() => {
-    fetch(`/api/estoque/dashboard/categorias-vendas?_=1${contaParam}`)
+    getDash(`/api/estoque/dashboard/categorias-vendas?_=1${contaParam}`)
       .then((r) => r.json())
       .then((d) => setCategoriasOpts(d.categorias || []))
       .catch(() => setCategoriasOpts([]));
   }, [contaParam]);
 
   useEffect(() => {
-    fetch(`/api/estoque/dashboard/tendencia?_=1${contaParam}`)
+    getDash(`/api/estoque/dashboard/tendencia?_=1${contaParam}`)
       .then((r) => r.json())
       .then((d) => {
         const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; pecasBalcao?: number; pecasOficina?: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number; psAno2Ant?: number; compras?: number }>;
@@ -252,7 +256,7 @@ export default function DashboardPage() {
     setHist(null);
     setHistMetric('valor');
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
-    const r = await fetch(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
+    const r = await getDash(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
     const d = (await r.json()) as HistResp;
     if (!d.erro) setHist(d);
   }, [categoria, contaParam]);
@@ -262,7 +266,7 @@ export default function DashboardPage() {
     setVendasCard({ nome });
     setVendasSort({ col: '', dir: 'asc' });
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
-    const r = await fetch(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
+    const r = await getDash(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
     const d = await r.json();
     if (!d.erro) setVendas(d.vendas || []);
   }, [periodoParam, ano, categoria, contaParam]);
@@ -270,7 +274,7 @@ export default function DashboardPage() {
   const abrirCompras = useCallback(async () => {
     setComprasItens(null);
     setComprasAberto(true);
-    const r = await fetch(`/api/estoque/dashboard/compras?${periodoParam}&ano=${ano}${contaParam}`);
+    const r = await getDash(`/api/estoque/dashboard/compras?${periodoParam}&ano=${ano}${contaParam}`);
     const d = await r.json();
     if (!d.erro) setComprasItens(d.compras || []);
   }, [periodoParam, ano, contaParam]);
@@ -279,7 +283,7 @@ export default function DashboardPage() {
     setVendas(null);
     setVendasCard({ nome });
     setVendasSort({ col: '', dir: 'asc' });
-    const r = await fetch(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&familiaMaquina=${encodeURIComponent(familia)}${contaParam}`);
+    const r = await getDash(`/api/estoque/dashboard/vendas?${periodoParam}&ano=${ano}&familiaMaquina=${encodeURIComponent(familia)}${contaParam}`);
     const d = await r.json();
     if (!d.erro) setVendas(d.vendas || []);
   }, [periodoParam, ano, contaParam]);
@@ -291,7 +295,7 @@ export default function DashboardPage() {
     setOsPendente(false);
     setOsErro('');
     setOsAberto(true);
-    const r = await fetch(`/api/estoque/dashboard/os?${periodoParam}&ano=${ano}${contaParam}`);
+    const r = await getDash(`/api/estoque/dashboard/os?${periodoParam}&ano=${ano}${contaParam}`);
     const d = await r.json();
     if (d.erro) {
       setOsErro(d.erro);
@@ -304,7 +308,7 @@ export default function DashboardPage() {
 
   const abrirPedido = useCallback(async (numero: string) => {
     setPedidoItens({ numero, itens: [] });
-    const r = await fetch(`/api/estoque/dashboard/pedido-itens?numero_pedido=${encodeURIComponent(numero)}&${periodoParam}&ano=${ano}${contaParam}`);
+    const r = await getDash(`/api/estoque/dashboard/pedido-itens?numero_pedido=${encodeURIComponent(numero)}&${periodoParam}&ano=${ano}${contaParam}`);
     const d = await r.json();
     setPedidoItens({ numero, itens: d.itens || [] });
   }, [periodoParam, ano, contaParam]);
@@ -329,7 +333,7 @@ export default function DashboardPage() {
         codigo_cliente: v.codigo_cliente != null ? String(v.codigo_cliente) : '',
         data: v.data_pedido || '',
       });
-      const r = await fetch(`/api/estoque/dashboard/nf?${qs.toString()}`);
+      const r = await getDash(`/api/estoque/dashboard/nf?${qs.toString()}`);
       const d = await r.json();
       const candidatos: NotaCand[] = d.candidatos || [];
       if (candidatos.length === 0) alert('NF não encontrada para este pedido (nota fora do backfill, pedido sem NF ou faturado depois).');
@@ -371,7 +375,7 @@ export default function DashboardPage() {
     if (!num) return;
     const cc = conta === 'NOVA' || conta === 'CASTRO' ? conta : 'NOVA';
     try {
-      const r = await fetch(`/api/estoque/dashboard/nf?conta=${cc}&nfse=${encodeURIComponent(num)}`);
+      const r = await getDash(`/api/estoque/dashboard/nf?conta=${cc}&nfse=${encodeURIComponent(num)}`);
       const d = await r.json();
       const candidatos: NotaCand[] = d.candidatos || [];
       if (!candidatos.length) { alert(`NFS-e ${num} não encontrada no cache de notas.`); return; }

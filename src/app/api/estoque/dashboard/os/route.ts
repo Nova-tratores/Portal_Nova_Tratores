@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { negarSemDashboard } from '@/lib/estoque/dashboard-auth';
 import { parseConta } from '@/lib/estoque/conta';
 import { obterServicosPopup } from '@/lib/estoque/os';
 
@@ -10,6 +11,8 @@ export const maxDuration = 60;
 // ainda não sincronizado volta pendente=true e o refresh é agendado.
 // `modo=ano` (ou mes=0) lista o ano inteiro.
 export async function GET(req: NextRequest) {
+  const negado = await negarSemDashboard(req);
+  if (negado) return negado;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
   const mesParam = parseInt(sp.get('mes') || '');

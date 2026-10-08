@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { negarSemDashboard } from '@/lib/estoque/dashboard-auth';
 import { parseConta, CONTA_DEFAULT } from '@/lib/ajustes/conta';
 import { consultarPedido, normalizarPedido } from '@/lib/ajustes/omie';
 import { buscarNotasPorIdPedido, buscarNotasPorClienteData, buscarNfsePorNumero } from '@/lib/ajustes/notas';
@@ -12,6 +13,8 @@ export const maxDuration = 60;
 // (NF avulsa, pedido excluído, backfill incompleto), cai no fallback cliente+data.
 // Retorna { candidatos: [{ numero, nCodNF, tipo, dataEmissao, valorNF, cancelada }], via }.
 export async function GET(req: NextRequest) {
+  const negado = await negarSemDashboard(req);
+  if (negado) return negado;
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta')) ?? CONTA_DEFAULT;
   const numeroPedido = (sp.get('numero_pedido') || '').trim();
