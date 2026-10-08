@@ -68,10 +68,12 @@ export default function KanbanTickets({
   }
 
   return (
-    <div style={{
+    <div className="kt-board" style={{
       display: 'grid', gridTemplateColumns: `repeat(${colunas.length}, minmax(230px, 1fr))`, gap: 12,
-      overflowX: 'auto', alignItems: 'start', paddingBottom: 8,
+      overflowX: 'auto', alignItems: 'start', paddingBottom: 8, maxWidth: '100%',
     }}>
+      {/* Celular/tablet: as colunas rolam de lado e "encaixam" uma por vez. */}
+      <style>{`@media (max-width: 768px){.kt-board{scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch}.kt-col{scroll-snap-align:start}.kt-zap{min-width:36px;min-height:32px;justify-content:center}}`}</style>
       {colunas.map((status) => {
         const info = STATUS_INFO[status]
         const lista = porStatus[status] || []
@@ -79,7 +81,7 @@ export default function KanbanTickets({
         const bloqueada = !!arrastando && !arrastando.permitidos.has(status)
         const alvo = !!arrastando && colunaOver === status && !bloqueada
         return (
-          <div key={status}
+          <div key={status} className="kt-col"
             onDragOver={(e) => {
               if (!arrastando) return
               e.preventDefault()
@@ -171,7 +173,7 @@ export default function KanbanTickets({
                       )}
                     </div>
                     {visao === 'fila' && !final && (
-                      <button onClick={(e) => { e.stopPropagation(); onMarcarAtual(t.id) }}
+                      <button className="kt-zap" onClick={(e) => { e.stopPropagation(); onMarcarAtual(t.id) }}
                         title={ehAtual ? 'Deixar de destacar este ticket' : 'Estou mexendo neste agora'}
                         style={{
                           alignSelf: 'flex-end', display: 'flex', alignItems: 'center', gap: 4, padding: '3px 8px', borderRadius: 8, cursor: 'pointer', fontSize: 11, fontWeight: 700,

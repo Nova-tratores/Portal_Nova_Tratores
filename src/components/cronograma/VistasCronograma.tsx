@@ -145,7 +145,7 @@ function Calendario({ etapas, onAbrir, onMoverDatas }: { etapas: TarefaRow[]; on
   const nav: React.CSSProperties = { display: 'flex', alignItems: 'center', padding: 6, borderRadius: 8, border: '1px solid var(--portal-border,#ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text,#111)' };
   return (
     <div style={{ ...cartao, overflow: 'auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid var(--portal-border,#eee)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 12px', borderBottom: '1px solid var(--portal-border,#eee)' }}>
         <button style={nav} aria-label="Mês anterior" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() - 1, 1))}><ChevronLeft size={16} /></button>
         <b style={{ minWidth: 160, textAlign: 'center', color: 'var(--portal-text,#111)', textTransform: 'capitalize' }}>{mes.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}</b>
         <button style={nav} aria-label="Próximo mês" onClick={() => setMes(new Date(mes.getFullYear(), mes.getMonth() + 1, 1))}><ChevronRight size={16} /></button>

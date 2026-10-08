@@ -18,6 +18,7 @@ import KanbanTickets from '@/components/tickets/KanbanTickets'
 import PainelIntegrantes from '@/components/tickets/quadros/PainelIntegrantes'
 import FormQuadro from '@/components/tickets/quadros/FormQuadro'
 import TicketModal from '@/components/tickets/TicketModal'
+import { definirBlocoAtual } from '@/lib/trabalho/bloco-atual'
 
 interface Dados {
   quadro: Quadro
@@ -70,8 +71,16 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
   useEffect(() => {
     const foco = () => carregar(true)
     window.addEventListener('focus', foco)
-    return () => window.removeEventListener('focus', foco)
+    // "Novo ticket" da barra criou algo (talvez neste bloco)
+    window.addEventListener('central-trabalho-mudou', foco)
+    return () => { window.removeEventListener('focus', foco); window.removeEventListener('central-trabalho-mudou', foco) }
   }, [carregar])
+  // Avisa a barra: "Novo ticket" sugere este bloco (só se posso trabalhar nele).
+  const blocoNome = dados?.pode_trabalhar && !dados.quadro.arquivado ? dados.quadro.nome : null
+  useEffect(() => {
+    definirBlocoAtual(blocoNome ? { id, nome: blocoNome } : null)
+    return () => definirBlocoAtual(null)
+  }, [id, blocoNome])
 
   const ticketsFiltrados = useMemo(() => {
     const q = busca.trim().toLowerCase()
@@ -159,7 +168,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
           <input type="checkbox" checked={encerrados} onChange={(e) => setEncerrados(e.target.checked)} /> Incluir encerrados
         </label>
         <button onClick={() => carregar()} title="Atualizar"
-          style={{ display: 'flex', padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: isMobile ? 36 : undefined, minHeight: isMobile ? 36 : undefined, padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
           <RefreshCw size={14} />
         </button>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>

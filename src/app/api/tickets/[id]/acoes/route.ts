@@ -110,7 +110,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const autor = await nomeDe(auth.userId)
     await notificarTicket(ticket, todos, auth.userId,
       `${autor} comentou no ticket #${ticket.numero}`,
-      texto.length > 120 ? texto.slice(0, 117) + '...' : texto)
+      texto.length > 120 ? texto.slice(0, 117) + '...' : texto, 'ticket_resposta')
     return NextResponse.json({ ok: true })
   }
 
@@ -130,7 +130,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (err) return erro(err, 500)
     const autor = await nomeDe(auth.userId)
     await notificarTicket(ticket, todos, auth.userId,
-      `${autor} anexou uma imagem no ticket #${ticket.numero}`, nome)
+      `${autor} anexou uma imagem no ticket #${ticket.numero}`, nome, 'ticket_resposta')
     return NextResponse.json({ ok: true })
   }
 
@@ -234,7 +234,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const rotulo = STATUS_INFO[para].label
     await notificarTicket(ticket, todos, auth.userId,
       `Ticket #${ticket.numero}: ${rotulo}`,
-      `${autor} mudou o status para "${rotulo}"${motivo ? ` — ${motivo}` : ''}`)
+      `${autor} mudou o status para "${rotulo}"${motivo ? ` — ${motivo}` : ''}`,
+      para === 'resolvido' || para === 'fechado' ? 'ticket_concluido' : undefined)
     // Etapa do cronograma ligada acompanha (andamento / concluída / volta).
     await sincronizarEtapaDoTicket({ id, status: para })
     return NextResponse.json({ ok: true })

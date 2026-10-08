@@ -84,7 +84,7 @@ export default function AnalisePanel({ pc, onChanged }: { pc: ProjetoCompleto; o
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 14, marginTop: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(300px,100%),1fr))', gap: 14, marginTop: 14 }}>
       {/* caminho crítico */}
       <Card titulo={<><Flag size={15} color="#dc2626" /> Caminho crítico</>}>
         <Linha k="Fim do projeto" v={fmt(pc.projeto.data_fim_calc)} />

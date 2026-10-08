@@ -25,8 +25,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Ticket não encontrado' }, { status: 404 })
   }
 
-  // Timeline e vínculos (requisições + cotações) em paralelo.
-  const [{ data: eventos }, vinculos] = await Promise.all([
+  // Tudo que não depende de outra consulta vai junto (a janela abre mais rápido):
+  // timeline, vínculos, quadro + colunas, etapa do cronograma e projeto do quadro.
+  const [{ data: eventos }, vinculos, quadroRes, colsRes, etapas, projetoDoBloco] = await Promise.all([
     supabaseAdmin
       .from('tickets_eventos')
       .select('*')
@@ -34,6 +35,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .order('created_at', { ascending: true })
       .limit(1000),
     carregarVinculos(id),
+    ticket.quadro_id
+      ? supabaseAdmin.from('tickets_quadros').select('id, nome, cor').eq('id', ticket.quadro_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    ticket.quadro_id
+      ? supabaseAdmin.from('tickets_quadro_colunas').select('id, nome, posicao').eq('quadro_id', ticket.quadro_id).order('posicao')
+      : Promise.resolve({ data: [] }),
+    etapasDosTickets([ticket.id]),
+    ticket.quadro_id ? projetoDoQuadro(ticket.quadro_id) : Promise.resolve(null),
   ])
 
   const ids = new Set<string>([ticket.solicitante_id, ticket.responsavel_id])
@@ -58,17 +67,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
   // Quadro do ticket (nome/cor + colunas, para o chip e a troca de coluna).
   let quadro: { id: string; nome: string; cor: string; colunas: { id: string; nome: string }[] } | null = null
-  if (ticket.quadro_id) {
-    const [{ data: q }, { data: cols }] = await Promise.all([
-      supabaseAdmin.from('tickets_quadros').select('id, nome, cor').eq('id', ticket.quadro_id).maybeSingle(),
-      supabaseAdmin.from('tickets_quadro_colunas').select('id, nome, posicao').eq('quadro_id', ticket.quadro_id).order('posicao'),
-    ])
-    if (q) quadro = { ...q, colunas: (cols || []).map((c: { id: string; nome: string }) => ({ id: c.id, nome: c.nome })) }
-  }
+  const q = quadroRes.data as { id: string; nome: string; cor: string } | null
+  if (q) quadro = { ...q, colunas: ((colsRes.data || []) as { id: string; nome: string }[]).map((c) => ({ id: c.id, nome: c.nome })) }
 
   // Etapa do cronograma ligada + se o quadro tem cronograma (para "Planejar")
-  const etapa = (await etapasDosTickets([ticket.id]))[ticket.id] || null
-  const projetoQuadro = ticket.quadro_id && !etapa ? await projetoDoQuadro(ticket.quadro_id) : null
+  const etapa = etapas[ticket.id] || null
+  const projetoQuadro = etapa ? null : projetoDoBloco
 
   return NextResponse.json({ ticket, participantes, eventos: eventos || [], usuarios, vinculos, quadro, etapa, projetoQuadro })
 }

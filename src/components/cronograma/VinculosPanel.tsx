@@ -13,7 +13,7 @@ import {
 
 export default function VinculosPanel({ pc, onChanged }: { pc: ProjetoCompleto; onChanged: () => void | Promise<void> }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(320px,1fr))', gap: 14, marginTop: 14 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(min(320px,100%),1fr))', gap: 14, marginTop: 14 }}>
       <BlocoOS pc={pc} onChanged={onChanged} />
       <BlocoGrupo pc={pc} onChanged={onChanged} />
     </div>

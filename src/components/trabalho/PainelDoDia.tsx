@@ -99,7 +99,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   }
 
   const fundo: React.CSSProperties = { position: 'fixed', inset: 0, zIndex: 1300, background: 'rgba(0,0,0,.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }
-  const caixa: React.CSSProperties = { width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-bg-card,#fff)', borderRadius: 16, overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }
+  const caixa: React.CSSProperties = { width: '100%', maxWidth: 520, maxHeight: '92vh', overflowY: 'auto', background: 'var(--portal-bg-card,#fff)', borderRadius: 16, overflowX: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,.4)' }
   const topo: React.CSSProperties = { background: VERMELHO, color: '#fff', padding: '18px 20px' }
   const btn = (cor?: string): React.CSSProperties => ({ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '9px 14px', borderRadius: 10, fontSize: 13.5, fontWeight: 700, cursor: 'pointer', border: cor ? 'none' : '1px solid var(--portal-border,#e5e7eb)', background: cor || 'var(--portal-bg-card,#fff)', color: cor ? '#fff' : 'var(--portal-text,#111)' })
 
@@ -173,7 +173,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
               {h.itens.map((i, k) => (
                 <li key={k} style={{ display: 'flex', gap: 10, alignItems: 'flex-start', padding: '10px 0', borderBottom: '1px solid var(--portal-border,#f0f0f0)', fontSize: 14, color: 'var(--portal-text,#111)' }}>
                   <span style={{ flex: 'none', width: 30, height: 30, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--portal-bg,#fafafa)', color: '#dc2626' }}>{ICONE[i.tipo]}</span>
-                  <span style={{ flex: 1 }}>
+                  <span style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                     <strong>{i.texto}</strong>{i.detalhe && <> — <span style={{ color: i.atrasado ? '#dc2626' : 'var(--portal-text-secondary,#555)', fontWeight: i.atrasado ? 700 : 400 }}>{i.detalhe}</span></>}
                     {i.ticketId && <> · <button onClick={() => setTicketAberto(i.ticketId!)} style={{ border: 'none', background: 'transparent', padding: 0, color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}>abrir</button></>}
                   </span>
@@ -192,7 +192,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
       {atalho && (
         <div style={{ position: 'fixed', right: 22, bottom: 'calc(22px + env(safe-area-inset-bottom, 0px))', zIndex: 900 }}>
           {menu && (
-            <div style={{ position: 'absolute', right: 0, bottom: 70, width: 290, background: 'var(--portal-bg-card,#fff)', border: '1px solid var(--portal-border,#f0f0f0)', borderRadius: 14, boxShadow: '0 16px 40px rgba(0,0,0,.18)', overflow: 'hidden' }}>
+            <div style={{ position: 'absolute', right: 0, bottom: 70, width: 290, maxWidth: 'calc(100vw - 44px)', background: 'var(--portal-bg-card,#fff)', border: '1px solid var(--portal-border,#f0f0f0)', borderRadius: 14, boxShadow: '0 16px 40px rgba(0,0,0,.18)', overflow: 'hidden' }}>
               <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--portal-border,#f0f0f0)', fontWeight: 800, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--portal-text,#111)' }}><Kanban size={16} color="#dc2626" /> Central de Trabalho</div>
               {[
                 { ic: <Inbox size={16} />, txt: 'Para confirmar', n: h.pendentes.length, destaque: h.pendentes.length > 0, acao: () => carregar() },

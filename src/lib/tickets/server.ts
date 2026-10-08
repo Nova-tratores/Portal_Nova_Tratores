@@ -24,13 +24,12 @@ export interface TicketCarregado {
 }
 
 export async function carregarTicket(id: string): Promise<TicketCarregado | null> {
-  const { data: ticket } = await supabaseAdmin.from('tickets').select('*').eq('id', id).maybeSingle()
+  // Ticket e participantes juntos (uma ida ao banco a menos em toda rota).
+  const [{ data: ticket }, { data: participantes }] = await Promise.all([
+    supabaseAdmin.from('tickets').select('*').eq('id', id).maybeSingle(),
+    supabaseAdmin.from('tickets_participantes').select('*').eq('ticket_id', id).order('created_at'),
+  ])
   if (!ticket) return null
-  const { data: participantes } = await supabaseAdmin
-    .from('tickets_participantes')
-    .select('*')
-    .eq('ticket_id', id)
-    .order('created_at')
   return { ticket: ticket as Ticket, participantes: (participantes || []) as TicketParticipante[] }
 }
 
@@ -109,12 +108,17 @@ export async function registrarEvento(
 
 // Notifica via portal_notificacoes (sino do portal). Nunca notifica o autor;
 // respeita as preferências de silenciamento (módulo 'tickets').
+// `variante` vai na coluna `icone` e dá ao aviso ícone/cor próprios no sino
+// (PortalLayout → NOTIF_ICONS); sem variante = ícone padrão de tickets.
+export type VarianteNotifTicket = 'tarefa_nova' | 'tarefa_feita' | 'ticket_resposta' | 'ticket_concluido'
+
 export async function notificarTicket(
   t: Ticket,
   destinatarios: string[],
   autorId: string | null,
   titulo: string,
   descricao?: string,
+  variante?: VarianteNotifTicket,
 ) {
   const alvo = [...new Set(destinatarios)].filter((id) => id && id !== autorId)
   if (alvo.length === 0) return
@@ -134,6 +138,7 @@ export async function notificarTicket(
       titulo,
       descricao: descricao || null,
       link: `/tickets/${t.id}`,
+      icone: variante || null,
     })),
   )
 }

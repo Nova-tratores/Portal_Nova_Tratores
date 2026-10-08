@@ -140,7 +140,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
         {dados.pessoas.length > 1 ? (
           <select value={dados.user} onChange={(e) => setUser(e.target.value)} aria-label="De quem é a fila"
-            style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontSize: 13.5, fontWeight: 700 }}>
+            style={{ maxWidth: '100%', padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontSize: 13.5, fontWeight: 700 }}>
             {dados.pessoas.map((p) => <option key={p.id} value={p.id}>{p.id === dados.eu ? `${p.nome} (eu)` : p.nome}</option>)}
           </select>
         ) : (
@@ -165,7 +165,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
       {/* O que muda antes de salvar */}
       {ordem && (
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', padding: '10px 12px', borderRadius: 10, marginBottom: 10, border: '1px solid rgba(217,119,6,.4)', background: 'rgba(217,119,6,.08)' }}>
-          <div style={{ flex: 1, minWidth: 240, fontSize: 13, color: 'var(--portal-text,#111)' }}>
+          <div style={{ flex: 1, minWidth: 'min(240px, 100%)', fontSize: 13, color: 'var(--portal-text,#111)' }}>
             <b>Ordem nova (ainda não salva).</b>{' '}
             {efeitos.length === 0 ? 'Nenhuma previsão muda.' : (
               <span>
@@ -177,7 +177,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
               </span>
             )}
           </div>
-          <span style={{ display: 'flex', gap: 8 }}>
+          <span style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button onClick={() => setOrdem(null)} style={btn()}><RotateCcw size={14} /> Desfazer</button>
             <button onClick={salvarOrdem} disabled={salvando} style={btn('#16a34a')}><Save size={14} /> {salvando ? 'Salvando...' : 'Salvar ordem'}</button>
           </span>
@@ -187,7 +187,7 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
       {fila.length === 0 ? (
         <div style={{ padding: '40px 20px', textAlign: 'center', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', color: muted, fontSize: 14 }}>Fila vazia.</div>
       ) : (
-        <div style={{ display: 'grid', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 6 }}>
           {fila.map((i, n) => {
             const t = i.t
             const p = previsao.get(i.id)

@@ -65,7 +65,7 @@ export default function ComprasPipelinePage() {
   const nome = (id: string) => usuarios[id]?.nome || '—'
 
   return (
-    <div style={{ padding: 20, maxWidth: 1280, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(12px, 2.5vw, 20px)', maxWidth: 1280, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 18, fontWeight: 800, color: 'var(--portal-text,#111)', margin: 0 }}>
           <ShoppingCart size={19} color="#dc2626" /> Solicitações de Compras

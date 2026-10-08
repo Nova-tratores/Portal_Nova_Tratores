@@ -32,8 +32,8 @@ export default function RecursosPage() {
   const nomeCal = (id: string | null) => cals.find((c) => c.id === id)?.nome ?? '—';
 
   return (
-    <div style={{ padding: 24, maxWidth: 900, margin: '0 auto' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+    <div style={{ padding: 'clamp(12px, 3vw, 24px)', maxWidth: 900, margin: '0 auto' }}>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 20, fontWeight: 700, color: 'var(--portal-text)' }}>
           <Users size={22} color="#dc2626" /> Recursos
         </h1>
@@ -46,12 +46,12 @@ export default function RecursosPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {recursos.length === 0 && <div style={{ color: 'var(--portal-text-muted,#888)', textAlign: 'center', padding: 40 }}>Nenhum recurso. Crie o primeiro.</div>}
           {recursos.map((r) => (
-            <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#eee)', borderRadius: 10, padding: '12px 14px', opacity: r.ativo ? 1 : 0.5 }}>
+            <div key={r.id} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#eee)', borderRadius: 10, padding: '12px 14px', opacity: r.ativo ? 1 : 0.5 }}>
               <span style={{ color: 'var(--portal-text-muted,#888)' }}>{TIPO_ICON[r.tipo]}</span>
-              <span style={{ flex: 1, fontWeight: 600, color: 'var(--portal-text)' }}>{r.nome}</span>
+              <span style={{ flex: '1 1 140px', minWidth: 0, fontWeight: 600, color: 'var(--portal-text)' }}>{r.nome}</span>
               <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>{r.tipo}</span>
               <select value={r.calendario_id ?? ''} onChange={async (e) => { await atualizarRecurso(r.id, { calendarioId: e.target.value || null }); carregar(); }}
-                style={{ ...input, width: 'auto', fontSize: 13 }} title="Calendário">
+                style={{ ...input, width: 'auto', maxWidth: '100%', fontSize: 13 }} title="Calendário">
                 <option value="">— calendário —</option>
                 {cals.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
               </select>

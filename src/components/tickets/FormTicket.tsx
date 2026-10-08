@@ -8,7 +8,7 @@ import { authHeaders } from '@/lib/auth/client'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIAS_SUGERIDAS, type TicketVisibilidade } from '@/lib/tickets/constantes'
 import UserSelect from './UserSelect'
-import { dataMinima } from '@/lib/trabalho/agenda'
+import { dataMinima, diaUtil, fimDeSemana } from '@/lib/trabalho/agenda'
 
 interface Props {
   onFechar: () => void
@@ -125,7 +125,8 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
           responsavel_id: responsavelId,
           categoria: categoria.trim(),
           prazo: indeterminado ? null : (prazo || null),
-          inicio: inicio || null,
+          // Contínuo não começa no fim de semana: cai na segunda.
+          inicio: inicio ? (indeterminado ? diaUtil(inicio) : inicio) : null,
           ...(urgente ? { urgente: true } : {}),
           ...(quadro?.temCronograma && noCronograma ? { cronograma: true, duracao } : {}),
           terceiro_envolvido: terceiro.trim(),
@@ -149,7 +150,8 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
       position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }} onClick={onFechar}>
-      <div
+      <style>{`@media (max-width: 480px){.ct-ft-caixa{padding:16px !important}.ct-ft-quando{grid-template-columns:1fr 1fr !important}.ct-ft-quando > div:first-child{grid-column:1 / -1}}`}</style>
+      <div className="ct-ft-caixa"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto',
@@ -157,12 +159,12 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
           boxShadow: '0 20px 60px rgba(0,0,0,.3)',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 17, fontWeight: 800, color: 'var(--portal-text, #111)', margin: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 18 }}>
+          <h2 style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', minWidth: 0, gap: 8, fontSize: 17, fontWeight: 800, color: 'var(--portal-text, #111)', margin: 0 }}>
             <TicketIcon size={18} color="#dc2626" /> Novo Ticket
             {quadro && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted, #888)' }}><LayoutGrid size={13} /> {quadro.nome}</span>}
           </h2>
-          <button onClick={onFechar} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted, #888)' }}>
+          <button onClick={onFechar} style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted, #888)', flex: 'none', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0 }}>
             <X size={20} />
           </button>
         </div>
@@ -195,7 +197,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
               </div>
 
               {/* Quando: começa · dias · prazo (mínimo amanhã, salvo muito urgente) */}
-              <div style={{ display: 'grid', gridTemplateColumns: indeterminado ? '1fr' : '1fr 90px 1fr', gap: 10 }}>
+              <div className={indeterminado ? undefined : 'ct-ft-quando'} style={{ display: 'grid', gridTemplateColumns: indeterminado ? '1fr' : '1fr 90px 1fr', gap: 10 }}>
                 <div>
                   <label style={rotuloStyle}>Começa em</label>
                   <input type="date" value={inicio} min={minimo} onChange={(e) => { setInicio(e.target.value); setTocouInicio(true) }} style={campoStyle} />
@@ -213,8 +215,13 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
               </div>
               <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, cursor: 'pointer', color: indeterminado ? '#0369a1' : 'var(--portal-text-secondary, #555)' }}>
                 <input type="checkbox" checked={indeterminado} onChange={(e) => setIndeterminado(e.target.checked)} style={{ marginTop: 2 }} />
-                <span><strong>Prazo indeterminado</strong> — trabalho contínuo: aparece todo dia no Cronograma até alguém concluir.</span>
+                <span><strong>Prazo indeterminado</strong> — trabalho contínuo: aparece todo dia útil (seg a sex) no Cronograma até alguém concluir.</span>
               </label>
+              {indeterminado && inicio && fimDeSemana(inicio) && (
+                <div style={{ fontSize: 12.5, color: '#0369a1' }}>
+                  {rotuloSugestao(inicio)} é fim de semana — começa na {rotuloSugestao(diaUtil(inicio))}.
+                </div>
+              )}
 
               {agenda && agenda.conflitos.length > 0 && !urgente && (
                 <div style={{ padding: '8px 10px', borderRadius: 8, fontSize: 12.5, lineHeight: 1.45, background: 'rgba(217,119,6,.1)', color: '#b45309' }}>
@@ -273,7 +280,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
 
           <div>
             <label style={rotuloStyle}>Visibilidade</label>
-            <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {([
                 { valor: 'privado' as const, rotulo: 'Privado (só envolvidos)', icone: <Lock size={14} /> },
                 { valor: 'publico' as const, rotulo: quadro ? `Compartilhado com o bloco ${quadro.nome}` : 'Visível a todos', icone: <Globe size={14} /> },
@@ -296,7 +303,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
             <div>
               <label style={rotuloStyle}><Paperclip size={11} style={{ display: 'inline', marginRight: 4 }} />Print anexado</label>
               <div style={{ position: 'relative', display: 'inline-block' }}>
-                <img src={printUrl} alt="Print da tela" style={{ maxWidth: 240, maxHeight: 150, borderRadius: 8, border: '1px solid var(--portal-border, #e5e7eb)', display: 'block' }} />
+                <img src={printUrl} alt="Print da tela" style={{ maxWidth: 'min(240px, 100%)', maxHeight: 150, borderRadius: 8, border: '1px solid var(--portal-border, #e5e7eb)', display: 'block' }} />
                 <button type="button" onClick={() => setPrint(null)} title="Remover print"
                   style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: 6, border: 'none', background: 'rgba(0,0,0,.6)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <X size={13} />
@@ -311,7 +318,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10, marginTop: 4 }}>
             <button onClick={onFechar} disabled={salvando}
               style={{ padding: '9px 16px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e7eb)', background: 'transparent', cursor: 'pointer', fontSize: 14, color: 'var(--portal-text-secondary, #555)' }}>
               Cancelar

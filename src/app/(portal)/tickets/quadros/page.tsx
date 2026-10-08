@@ -83,7 +83,7 @@ export default function QuadrosPage() {
   const nome = (id: string) => central?.usuarios[id]?.nome || '—'
 
   const secao = (icone: React.ReactNode, titulo: string, extra?: React.ReactNode, id?: string) => (
-    <div id={id} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 10px', scrollMarginTop: 90 }}>
+    <div id={id} style={{ display: 'flex', alignItems: 'center', gap: 8, rowGap: 8, flexWrap: 'wrap', margin: '18px 0 10px', scrollMarginTop: 90 }}>
       <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--portal-text,#111)' }}>{icone} {titulo}</h2>
       {extra}
     </div>
@@ -126,7 +126,7 @@ export default function QuadrosPage() {
           {numero(r.andamento, 'fazendo')}
           {numero(r.atrasados, r.atrasados === 1 ? 'atrasado' : 'atrasados', '#dc2626', true)}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderTop: '1px solid var(--portal-border,#f0f0f0)', fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, rowGap: 4, flexWrap: 'wrap', padding: '9px 14px', borderTop: '1px solid var(--portal-border,#f0f0f0)', fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>
           <span style={{ display: 'flex' }} title={pessoas.map((id) => usuarios[id]?.nome || '—').join(', ')}>
             {pessoas.slice(0, 4).map((id, i) => {
               const u = usuarios[id]
@@ -187,16 +187,16 @@ export default function QuadrosPage() {
 
           {/* 2) Meus blocos */}
           {secao(<LayoutGrid size={17} color="#dc2626" />, 'Meus blocos', (
-            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer' }}>
                 <input type="checkbox" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} /> Mostrar arquivados
               </label>
               <button onClick={() => carregar()} title="Atualizar"
-                style={{ display: 'flex', padding: 7, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 7, minWidth: isMobile ? 36 : undefined, minHeight: isMobile ? 36 : undefined, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
                 <RefreshCw size={14} />
               </button>
               <button onClick={() => setNovo(true)} disabled={!!aviso}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: aviso ? .5 : 1 }}>
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', minHeight: isMobile ? 36 : undefined, borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: aviso ? .5 : 1 }}>
                 <Plus size={15} /> Novo bloco
               </button>
             </div>
@@ -212,14 +212,14 @@ export default function QuadrosPage() {
               </button>
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(230px, 100%), 1fr))', gap: 12 }}>
               {meus.map(cartaoBloco)}
             </div>
           )}
           {outrosPublicos.length > 0 && (
             <details style={{ marginTop: 12 }}>
               <summary style={{ cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Blocos públicos de outras pessoas ({outrosPublicos.length})</summary>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 12, marginTop: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(230px, 100%), 1fr))', gap: 12, marginTop: 10 }}>
                 {outrosPublicos.map(cartaoBloco)}
               </div>
             </details>

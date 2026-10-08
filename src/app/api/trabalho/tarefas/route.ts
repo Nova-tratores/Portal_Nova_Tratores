@@ -10,7 +10,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import {
-  temModuloTickets, carregarTicket, podeVerTicket, garantirParticipante, registrarEvento, notificarTicket,
+  temModuloTickets, carregarTicket, podeVerTicket, garantirParticipante, registrarEvento, notificarTicket, envolvidos,
 } from '@/lib/tickets/server'
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
 import { colunaDoTicket } from '@/lib/tickets/quadros'
@@ -44,6 +44,9 @@ export async function POST(req: NextRequest) {
       const { error } = await supabaseAdmin.from('portal_tarefas').update({ ticket_id: c.ticket.id, papel_no_ticket: 'passo', updated_at: new Date().toISOString() }).eq('id', tarefa.id)
       if (error) throw Object.assign(new Error(error.message), { code: error.code })
       await registrarEvento(c.ticket.id, auth.userId, 'edicao', { campo: 'tarefa', acao: 'criada', titulo: tarefa.titulo })
+      const { data: autor } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', auth.userId).maybeSingle()
+      await notificarTicket(c.ticket, envolvidos(c.ticket, c.participantes), auth.userId,
+        `${autor?.nome || 'Alguém'} adicionou uma tarefa no ticket #${c.ticket.numero}`, tarefa.titulo, 'tarefa_nova')
       return NextResponse.json({ ok: true, ticket_id: c.ticket.id })
     }
 

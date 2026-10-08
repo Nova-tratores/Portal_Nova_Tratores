@@ -148,7 +148,7 @@ export default function TimelineProjetoPage() {
   const nomeRecurso = (id: string) => pc.recursos.find((r) => r.id === id)?.nome ?? '?';
 
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ padding: 16, minWidth: 0 }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         <Link href="/cronograma" style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--portal-text-muted,#888)', textDecoration: 'none' }}>
           <ChevronLeft size={18} /> Projetos
@@ -170,7 +170,7 @@ export default function TimelineProjetoPage() {
 
         <LigacaoQuadro projetoId={pc.projeto.id} quadroId={pc.projeto.quadro_id} onMudou={recalcEReload} />
 
-        <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {vista === 'gantt' && <select value={viewMode} onChange={(e) => setViewMode(e.target.value as ViewMode)}
             style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#ddd)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text)' }}>
             <option value="Day">Dia</option><option value="Week">Semana</option><option value="Month">Mês</option>

@@ -181,22 +181,22 @@ function TarefasPageInner() {
   return (
     <div style={{ fontFamily: 'Montserrat, sans-serif', color: '#1a1a1a' }}>
       {/* Header */}
-      <div style={{
+      <div className="ct-tf-head" style={{
         position: 'sticky', top: '84px', zIndex: 30,
         background: '#fff', borderBottom: '1px solid #f0f0f0',
         padding: '16px 32px',
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         gap: '16px', flexWrap: 'wrap'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+        <div className="ct-tf-esq" style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <ClipboardCheck size={22} color="#dc2626" />
             <h1 style={{ fontSize: '18px', fontWeight: '600', margin: 0 }}>Pendências</h1>
           </div>
 
-          <div style={{ display: 'flex', background: '#f5f5f5', borderRadius: '10px', padding: '3px' }}>
+          <div className="ct-tf-tabs" style={{ display: 'flex', background: '#f5f5f5', borderRadius: '10px', padding: '3px' }}>
             {(['minhas', 'enviadas', ...(isAdmin ? ['orfas'] as const : [])] as const).map(t => (
-              <button key={t} onClick={() => setTab(t)} style={{
+              <button key={t} className="ct-tf-tab" onClick={() => setTab(t)} style={{
                 padding: '8px 20px', borderRadius: '8px', border: 'none',
                 background: tab === t ? (t === 'orfas' ? '#b45309' : '#dc2626') : 'transparent',
                 color: tab === t ? '#fff' : '#737373',
@@ -209,8 +209,8 @@ function TarefasPageInner() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
+        <div className="ct-tf-dir" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="ct-tf-busca" style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             background: '#f5f5f5', borderRadius: '10px', padding: '8px 14px'
           }}>
@@ -240,7 +240,7 @@ function TarefasPageInner() {
       </div>
 
       {/* Content */}
-      <div style={{ padding: '24px 32px', maxWidth: '1100px', margin: '0 auto' }}>
+      <div className="ct-tf-conteudo" style={{ padding: '24px 32px', maxWidth: '1100px', margin: '0 auto' }}>
         {loading ? (
           <div style={{ padding: '60px', textAlign: 'center', color: '#a3a3a3' }}>
             <Loader2 size={28} style={{ animation: 'spin 1s linear infinite', margin: '0 auto 12px' }} />
@@ -264,7 +264,7 @@ function TarefasPageInner() {
                   onClick={() => setTarefaAberta(t)}
                 />
                 {tab === 'orfas' && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 12px', fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderTop: 'none', borderRadius: '0 0 8px 8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '6px 12px', fontSize: 12, color: '#92400e', background: '#fffbeb', border: '1px solid #fde68a', borderTop: 'none', borderRadius: '0 0 8px 8px' }}>
                     <span>{t.atribuido_a == null ? 'sem responsável' : `responsável inativo: ${t.atribuido?.nome || '—'}`} · reatribuir para</span>
                     <select defaultValue="" onChange={(e) => reatribuir(t.id, e.target.value)}
                       style={{ fontSize: 12, border: '1px solid #cbd5e1', borderRadius: 6, padding: '3px 6px', background: '#fff' }}>
@@ -280,11 +280,11 @@ function TarefasPageInner() {
       </div>
 
       {tarefaAberta && (
-        <div style={{ position:'fixed', inset:0, zIndex:100, display:'flex', alignItems:'center', justifyContent:'center' }}>
+        <div className="ct-tf-fundo" style={{ position:'fixed', inset:0, zIndex:100, display:'flex', alignItems:'center', justifyContent:'center' }}>
           <div onClick={() => setTarefaAberta(null)} style={{ position:'absolute', inset:0, background:'rgba(0,0,0,0.5)', backdropFilter:'blur(6px)' }} />
-          <div style={{ position:'relative', background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'600px', padding:'36px', boxShadow:'0 20px 60px rgba(0,0,0,0.15)', maxHeight:'90vh', overflowY:'auto' }}>
+          <div className="ct-tf-modal" style={{ position:'relative', background:'#fff', borderRadius:'20px', width:'100%', maxWidth:'600px', padding:'36px', boxShadow:'0 20px 60px rgba(0,0,0,0.15)', maxHeight:'90vh', overflowY:'auto' }}>
             <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:'24px' }}>
-              <div style={{ flex:1 }}>
+              <div style={{ flex:1, minWidth:0, overflowWrap:'anywhere' }}>
                 <div style={{ display:'flex', alignItems:'center', gap:'10px', flexWrap:'wrap', marginBottom:'8px' }}>
                   <span style={{ fontSize:'11px', fontWeight:'600', color: STATUS_MAP[tarefaAberta.computed_status].color, background: STATUS_MAP[tarefaAberta.computed_status].bg, padding:'4px 12px', borderRadius:'8px', textTransform:'uppercase', display:'inline-flex', alignItems:'center', gap:'4px' }}>
                     {(() => { const I = STATUS_MAP[tarefaAberta.computed_status].icon; return <I size={12} />; })()}
@@ -309,7 +309,7 @@ function TarefasPageInner() {
               </div>
             )}
 
-            <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
+            <div className="ct-tf-grid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'16px' }}>
               {tarefaAberta.criador && (
                 <div style={{ background:'#fafafa', borderRadius:'10px', padding:'14px' }}>
                   <label style={{ display:'block', fontSize:'11px', fontWeight:'600', color:'#a3a3a3', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'0.5px' }}>Criada por</label>
@@ -375,6 +375,21 @@ function TarefasPageInner() {
 
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @media (max-width: 768px) {
+          .ct-tf-head { padding: 12px !important; }
+          .ct-tf-esq { flex-wrap: wrap; gap: 10px !important; max-width: 100%; }
+          .ct-tf-tabs { flex-wrap: wrap; max-width: 100%; }
+          .ct-tf-tab { padding: 8px 12px !important; }
+          .ct-tf-dir { flex-wrap: wrap; width: 100%; }
+          .ct-tf-busca { flex: 1 1 180px; min-width: 0; }
+          .ct-tf-busca input { width: 100% !important; min-width: 0; }
+          .ct-tf-dir > button { min-height: 36px; }
+          .ct-tf-conteudo { padding: 16px 12px !important; }
+          .ct-tf-card { padding: 14px !important; gap: 12px !important; }
+          .ct-tf-fundo { padding: 12px; }
+          .ct-tf-modal { padding: 20px !important; }
+        }
+        @media (max-width: 480px) { .ct-tf-grid { grid-template-columns: 1fr !important; } }
       `}</style>
     </div>
   )
@@ -393,7 +408,7 @@ function TarefaCard({ tarefa, onToggleDone, showAssignee, onClick }: {
   const StatusIcon = status.icon
 
   return (
-    <div onClick={onClick} style={{
+    <div onClick={onClick} className="ct-tf-card" style={{
       display: 'flex', alignItems: 'center', gap: '16px',
       padding: '18px 24px', background: '#fff',
       border: `1px solid ${tarefa.computed_status === 'atrasada' ? '#fecaca' : '#f0f0f0'}`,
@@ -534,14 +549,14 @@ function CriarTarefaModal({ users, criadorId, onClose, onCreated }: {
   }
 
   return (
-    <div style={{
+    <div className="ct-tf-fundo" style={{
       position: 'fixed', inset: 0, zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'center'
     }}>
       <div onClick={onClose} style={{
         position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.5)'
       }} />
-      <div style={{
+      <div className="ct-tf-modal" style={{
         position: 'relative', background: '#fff', borderRadius: '20px',
         width: '100%', maxWidth: '520px', padding: '32px',
         boxShadow: '0 20px 60px rgba(0,0,0,0.15)',
@@ -592,7 +607,7 @@ function CriarTarefaModal({ users, criadorId, onClose, onCreated }: {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div className="ct-tf-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <div>
               <label style={labelSt}>Prazo</label>
               <div style={{ position: 'relative' }}>

@@ -77,3 +77,21 @@ export async function removerPasso(ticketId: string, passoId: number) {
 export async function carregarTarefa(id: number) {
   return ok(await supabaseAdmin.from(TBL).select('*').eq('id', id).maybeSingle()) as any
 }
+
+/** Edita título, quem faz e prazo de um passo. Devolve antes/depois (para aviso e timeline). */
+export async function editarPasso(ticketId: string, passoId: number, d: { titulo?: string; atribuido_a?: string | null; prazo?: string | null }) {
+  const antes = ok(await supabaseAdmin.from(TBL).select('id, titulo, prazo, atribuido_a')
+    .eq('id', passoId).eq('ticket_id', ticketId).maybeSingle()) as { id: number; titulo: string; prazo: string | null; atribuido_a: string | null } | null
+  if (!antes) throw Object.assign(new Error('Tarefa não encontrada'), { status: 404 })
+  const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+  if (d.titulo !== undefined) {
+    const titulo = String(d.titulo || '').trim().slice(0, 200)
+    if (!titulo) throw Object.assign(new Error('A tarefa precisa de um texto.'), { status: 400 })
+    patch.titulo = titulo
+  }
+  if (d.atribuido_a !== undefined && d.atribuido_a) patch.atribuido_a = d.atribuido_a
+  if (d.prazo !== undefined) patch.prazo = d.prazo ? new Date(d.prazo + 'T12:00:00').toISOString() : null
+  const depois = ok(await supabaseAdmin.from(TBL).update(patch).eq('id', passoId).eq('ticket_id', ticketId)
+    .select('id, titulo, prazo, concluida, atribuido_a, criado_por, created_at').single()) as PassoTicket
+  return { antes, depois }
+}

@@ -79,7 +79,7 @@ export default function ComprasConfigPage() {
   }
 
   return (
-    <div style={{ padding: 20, maxWidth: 640, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(12px, 2.5vw, 20px)', maxWidth: 640, margin: '0 auto' }}>
       <button onClick={() => router.push('/tickets/compras')}
         style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
         <ArrowLeft size={15} /> Solicitações de Compras

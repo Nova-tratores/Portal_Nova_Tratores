@@ -114,7 +114,7 @@ export default function CronogramaGeralPage() {
   const visiveis = useMemo(() => visiveisBase(dados, filtro), [dados, filtro])
 
   const pilula = (ativo: boolean): React.CSSProperties => ({
-    padding: '6px 12px', borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: 'pointer',
+    padding: isMobile ? '8px 12px' : '6px 12px', borderRadius: 999, fontSize: 13, fontWeight: 700, cursor: 'pointer',
     border: ativo ? '2px solid #dc2626' : '1px solid var(--portal-border,#e5e7eb)',
     background: ativo ? 'rgba(220,38,38,.08)' : 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)',
   })
@@ -126,16 +126,16 @@ export default function CronogramaGeralPage() {
         {vista !== 'fila' && ([['tudo', 'Tudo'], ['faco', 'Que eu faço'], ['pedi', 'Que eu pedi']] as [Filtro, string][]).map(([v, l]) => (
           <button key={v} onClick={() => setFiltro(v)} style={pilula(filtro === v)}>{l}</button>
         ))}
-        <div role="group" aria-label="Forma de ver o cronograma" style={{ display: 'flex', gap: 4, marginLeft: isMobile ? 0 : 'auto', padding: 3, borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)' }}>
+        <div role="group" aria-label="Forma de ver o cronograma" style={{ display: 'flex', flexWrap: 'wrap', maxWidth: '100%', gap: 4, marginLeft: isMobile ? 0 : 'auto', padding: 3, borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)' }}>
           {VISTAS.map(([v, txt, ic]) => (
             <button key={v} aria-pressed={vista === v} onClick={() => trocarVista(v)}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none',
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: isMobile ? '8px 10px' : '5px 10px', borderRadius: 7, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: 'none',
                 background: vista === v ? 'rgba(220,38,38,.1)' : 'transparent', color: vista === v ? '#dc2626' : 'var(--portal-text-muted,#666)' }}>
               {ic} {txt}
             </button>
           ))}
         </div>
-        <button onClick={carregar} title="Atualizar" style={{ display: 'flex', padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
+        <button onClick={carregar} title="Atualizar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: isMobile ? 36 : undefined, minHeight: isMobile ? 36 : undefined, padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
           <RefreshCw size={14} />
         </button>
       </div>

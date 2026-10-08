@@ -13,6 +13,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { FrappeTask } from 'frappe-gantt'
 import { STATUS_INFO, type Ticket } from '@/lib/tickets/constantes'
 import type { ViewMode } from '@/components/cronograma/GanttView'
+import { fimDeSemana, diaUtil } from '@/lib/trabalho/agenda'
 
 const GanttView = dynamic(() => import('@/components/cronograma/GanttView'), { ssr: false })
 
@@ -103,7 +104,7 @@ function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props
     const p = noPlano(t, hoje)
     const ni = iso(inicio), nf = iso(fim)
     // Contínuo: só o início muda (continua sem prazo até alguém concluir).
-    if (p.continuo) { if (ni !== p.inicio) onMudarDatas(id, ni, null); return }
+    if (p.continuo) { const d = diaUtil(ni); if (d !== p.inicio) onMudarDatas(id, d, null); return }
     if (ni !== p.inicio || nf !== p.fim) onMudarDatas(id, ni, nf)
   }, [comPrazo, onMudarDatas, hoje])
 
@@ -165,7 +166,10 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
     for (const t of tickets) {
       const p = noPlano(t, hoje)
       if (p.continuo) {
-        for (let d = p.inicio > primeiroDoMes ? p.inicio : primeiroDoMes, i = 0; d <= ultimo && i < 40; d = somaDias(d, 1), i++) por(d, t)
+        // Contínuo é trabalho do dia a dia: só dias úteis (sem sábado/domingo).
+        for (let d = p.inicio > primeiroDoMes ? p.inicio : primeiroDoMes, i = 0; d <= ultimo && i < 40; d = somaDias(d, 1), i++) {
+          if (!fimDeSemana(d)) por(d, t)
+        }
         continue
       }
       if (p.atrasado) { por(hoje, t); continue }
@@ -182,7 +186,7 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
     setArr(null); setArrDe(null); setSobre(null)
     if (!t) return
     const p = noPlano(t, hoje)
-    if (p.continuo) { if (alvo !== p.inicio) onMudarDatas(t.id, alvo, null); return }
+    if (p.continuo) { const ini = diaUtil(alvo); if (ini !== p.inicio) onMudarDatas(t.id, ini, null); return }
     if (!de) return
     const delta = difDias(de, alvo)
     if (!delta) return

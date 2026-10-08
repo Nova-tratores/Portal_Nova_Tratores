@@ -32,8 +32,9 @@ export default function CalendariosPage() {
   const calSel = cals.find((c) => c.id === sel) ?? null;
 
   return (
-    <div style={{ padding: 24, maxWidth: 980, margin: '0 auto' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+    <div style={{ padding: 'clamp(12px, 3vw, 24px)', maxWidth: 980, margin: '0 auto' }}>
+      <style>{`@media (max-width: 700px){.ct-cal-grid{grid-template-columns:1fr !important}}`}</style>
+      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 18 }}>
         <h1 style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 20, fontWeight: 700, color: 'var(--portal-text)' }}>
           <CalendarDays size={22} color="#dc2626" /> Calendários
         </h1>
@@ -43,7 +44,7 @@ export default function CalendariosPage() {
       {loading ? (
         <div style={{ display: 'flex', justifyContent: 'center', padding: 50 }}><Loader2 className="animate-spin" /></div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: '240px 1fr', gap: 16 }}>
+        <div className="ct-cal-grid" style={{ display: 'grid', gridTemplateColumns: '240px minmax(0, 1fr)', gap: 16 }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {cals.map((c) => (
               <button key={c.id} onClick={() => setSel(c.id)} style={{

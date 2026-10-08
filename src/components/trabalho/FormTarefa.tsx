@@ -104,10 +104,10 @@ export default function FormTarefa({ onFechar, onCriada, onNovoTicket, ticketIni
       <div role="dialog" aria-modal="true" aria-labelledby="ft-t" style={{ width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', background: 'var(--portal-surface,#fff)', borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,.3)' }}>
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--portal-border,#eee)' }}>
           <h2 id="ft-t" style={{ margin: 0, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--portal-text,#111)' }}><SquareCheck size={18} color={VERDE} /> Nova tarefa</h2>
-          <button onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}><X size={18} /></button>
+          <button onClick={onFechar} aria-label="Fechar" style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#888)', minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 0, flex: 'none' }}><X size={18} /></button>
         </header>
 
-        <div style={{ padding: 18, overflowY: 'auto', display: 'grid', gap: 14 }}>
+        <div style={{ padding: 18, overflowY: 'auto', display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: 14 }}>
           <div>
             <span style={rotulo}>Para quem?</span>
             <UserSelect value={resp} onChange={(id, u) => { setResp(id); setRespNome(u?.nome || ''); setPedido('') }} placeholder="Digite o nome da pessoa..." barraBusca />
@@ -182,14 +182,14 @@ export default function FormTarefa({ onFechar, onCriada, onNovoTicket, ticketIni
             )}
           </div>
 
-          <div style={{ maxWidth: 200 }}>
+          <div style={{ maxWidth: 200, width: '100%' }}>
             <label style={rotulo} htmlFor="ft-prazo">Prazo</label>
             <input id="ft-prazo" type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} style={campo} />
           </div>
           {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
         </div>
 
-        <footer style={{ padding: '12px 18px', borderTop: '1px solid var(--portal-border,#eee)', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+        <footer style={{ padding: '12px 18px', borderTop: '1px solid var(--portal-border,#eee)', display: 'flex', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 8 }}>
           <button onClick={onFechar} style={{ padding: '9px 14px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text,#111)', fontWeight: 600 }}>Cancelar</button>
           <button onClick={salvar} disabled={salvando || !ticketId || !ticketValido || !titulo.trim()}
             style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, border: 'none', background: VERDE, color: '#fff', fontWeight: 700, cursor: 'pointer', opacity: salvando || !ticketId || !ticketValido || !titulo.trim() ? .6 : 1 }}>

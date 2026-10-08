@@ -150,7 +150,8 @@ export default function FormSC({ onFechar, onCriado }: Props) {
       position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }} onClick={onFechar}>
-      <div onClick={(e) => e.stopPropagation()}
+      <style>{`@media (max-width: 520px){.ct-sc-caixa{padding:16px !important}.ct-sc-grid{grid-template-columns:1fr 1fr !important}.ct-sc-grid > div:first-child{grid-column:1 / -1}.ct-sc-grid2{grid-template-columns:1fr !important}}`}</style>
+      <div onClick={(e) => e.stopPropagation()} className="ct-sc-caixa"
         style={{
           width: '100%', maxWidth: 600, maxHeight: '92vh', overflowY: 'auto',
           background: 'var(--portal-surface, #fff)', borderRadius: 14, padding: 22,
@@ -216,7 +217,7 @@ export default function FormSC({ onFechar, onCriado }: Props) {
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 110px', gap: 12 }}>
+          <div className="ct-sc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 110px', gap: 12 }}>
             <div>
               <label style={rotuloStyle}>Marca</label>
               <input value={marca} onChange={(e) => setMarca(e.target.value)} maxLength={80}
@@ -262,7 +263,7 @@ export default function FormSC({ onFechar, onCriado }: Props) {
 
           {destino === 'cliente' && (
             <>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 170px', gap: 12 }}>
+              <div className="ct-sc-grid2" style={{ display: 'grid', gridTemplateColumns: '1fr 170px', gap: 12 }}>
                 <div>
                   <label style={rotuloStyle}>Cliente destino *</label>
                   <input value={clienteDestino} onChange={(e) => setClienteDestino(e.target.value)} maxLength={160}

@@ -3,7 +3,7 @@
 // Caixa verde no topo do ticket: progresso, lista com responsável e prazo,
 // marcar feita, remover (com confirmação na própria linha) e adicionar.
 import { useCallback, useEffect, useState } from 'react'
-import { SquareCheck, Trash2, User as UserIcon, Plus, Loader2 } from 'lucide-react'
+import { SquareCheck, Trash2, User as UserIcon, Plus, Loader2, Pencil, Check } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import UserSelect from './UserSelect'
 
@@ -26,6 +26,17 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
   const [prazo, setPrazo] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [removendo, setRemovendo] = useState<number | null>(null)
+  // Edição na própria linha: texto, quem faz e prazo.
+  const [editando, setEditando] = useState<{ id: number; titulo: string; resp: string; prazo: string } | null>(null)
+  const [salvandoEdicao, setSalvandoEdicao] = useState(false)
+  const salvarEdicao = async () => {
+    if (!editando || !editando.titulo.trim()) return
+    setSalvandoEdicao(true)
+    try {
+      const ok = await chamar('PATCH', { tarefa_id: editando.id, editar: true, titulo: editando.titulo, atribuido_a: editando.resp || null, prazo: editando.prazo || null })
+      if (ok) setEditando(null)
+    } finally { setSalvandoEdicao(false) }
+  }
 
   const carregar = useCallback(async () => {
     try {
@@ -81,6 +92,31 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
       )}
       {lista.map((p) => {
         const atrasada = !p.concluida && p.prazo && p.prazo.slice(0, 10) < hojeISO()
+        if (editando?.id === p.id) {
+          const campo: React.CSSProperties = { padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontSize: 13, minWidth: 0 }
+          return (
+            <div key={p.id} className="tarefas-ticket-form" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 190px 150px auto', gap: 6, padding: '8px 0', borderBottom: '1px dashed var(--portal-border,#e5e7eb)' }}>
+              <input autoFocus value={editando.titulo} maxLength={200} aria-label="Texto da tarefa"
+                onChange={(e) => setEditando({ ...editando, titulo: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') salvarEdicao(); if (e.key === 'Escape') setEditando(null) }}
+                style={campo} />
+              <UserSelect value={editando.resp} autoFocus={false} placeholder="Quem faz"
+                onChange={(id, u) => { setEditando({ ...editando, resp: id }); if (u) setNomeResp((n) => ({ ...n, [id]: u.nome })) }} />
+              <input type="date" value={editando.prazo} aria-label="Prazo da tarefa"
+                onChange={(e) => setEditando({ ...editando, prazo: e.target.value })} style={campo} />
+              <span style={{ display: 'flex', gap: 6 }}>
+                <button onClick={salvarEdicao} disabled={salvandoEdicao || !editando.titulo.trim()}
+                  style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: 'none', background: VERDE, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: salvandoEdicao || !editando.titulo.trim() ? .6 : 1 }}>
+                  <Check size={14} /> Salvar
+                </button>
+                <button onClick={() => setEditando(null)} aria-label="Cancelar edição"
+                  style={{ padding: '7px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-secondary,#555)', fontSize: 13 }}>
+                  Cancelar
+                </button>
+              </span>
+            </div>
+          )
+        }
         return (
           <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 0', borderBottom: '1px dashed var(--portal-border,#e5e7eb)', fontSize: 13.5, flexWrap: 'wrap' }}>
             <input type="checkbox" checked={p.concluida} disabled={!podeMexer || encerrado} aria-label={`Feita: ${p.titulo}`}
@@ -97,8 +133,13 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
                   style={{ padding: '3px 10px', borderRadius: 6, border: '1px solid var(--portal-border,#ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-secondary,#555)' }}>Cancelar</button>
               </span>
             ) : (
-              <button onClick={() => setRemovendo(p.id)} title="Remover tarefa" aria-label="Remover tarefa"
-                style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#aaa)', display: 'flex', padding: 4 }}><Trash2 size={14} /></button>
+              <span style={{ display: 'flex' }}>
+                <button onClick={() => { setRemovendo(null); setEditando({ id: p.id, titulo: p.titulo, resp: p.atribuido_a || '', prazo: p.prazo ? p.prazo.slice(0, 10) : '' }) }}
+                  title="Editar tarefa" aria-label={`Editar tarefa: ${p.titulo}`}
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#888)', display: 'flex', padding: 4 }}><Pencil size={14} /></button>
+                <button onClick={() => setRemovendo(p.id)} title="Remover tarefa" aria-label="Remover tarefa"
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-muted,#aaa)', display: 'flex', padding: 4 }}><Trash2 size={14} /></button>
+              </span>
             ))}
           </div>
         )
@@ -120,7 +161,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
         </div>
       )}
       {erro && <div style={{ marginTop: 8, fontSize: 12.5, fontWeight: 600, color: '#dc2626' }}>{erro}</div>}
-      <style>{`@media (max-width: 720px){ .tarefas-ticket-form{ grid-template-columns: 1fr 1fr !important } .tarefas-ticket-form > input:first-child{ grid-column: 1 / -1 } }`}</style>
+      <style>{`@media (max-width: 900px){ .tarefas-ticket-form{ grid-template-columns: 1fr 1fr !important } .tarefas-ticket-form > input:first-child{ grid-column: 1 / -1 } }`}</style>
     </div>
   )
 }

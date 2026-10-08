@@ -31,6 +31,19 @@ export function diasLivres(ocup: Ocupacao[], desde: string, duracao: number, n: 
   return out
 }
 
+/** Sábado ou domingo? */
+export function fimDeSemana(iso: string): boolean {
+  const dow = new Date(iso + 'T12:00:00Z').getUTCDay()
+  return dow === 0 || dow === 6
+}
+
+/** O próprio dia, ou a segunda seguinte se cair no fim de semana. */
+export function diaUtil(iso: string): string {
+  let d = iso
+  while (fimDeSemana(d)) d = soma(d, 1)
+  return d
+}
+
 /**
  * Data mínima de um pedido novo: pelo menos 1 dia de folga (amanhã).
  * Só o "muito urgente" fura a fila e pode ser para hoje.
