@@ -8,23 +8,30 @@ import { X, Mail, KeyRound, ShieldCheck } from 'lucide-react'
 
 export default function ConfigEmailEnvioModal({ open, onClose, onSaved, emailInicial = '' }) {
   const [email, setEmail] = useState(emailInicial)
-  const [provedor, setProvedor] = useState('gmail')
+  const [provedor, setProvedor] = useState(/@novatratores\.com\.br$/i.test(emailInicial) ? 'empresa' : 'gmail')
   const [senha, setSenha] = useState('')
   const [host, setHost] = useState('')
   const [port, setPort] = useState('')
   const [secure, setSecure] = useState(true)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  const [podeForcar, setPodeForcar] = useState(false)
 
   if (!open) return null
 
-  const salvar = async () => {
+  const mudarEmail = (v) => {
+    setEmail(v)
+    // e-mail da empresa → já escolhe o servidor da empresa
+    if (/@novatratores\.com\.br$/i.test(v.trim()) && provedor === 'gmail') setProvedor('empresa')
+  }
+
+  const salvar = async (forcar = false) => {
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim())) { setErro('Informe um e-mail válido.'); return }
-    if (!senha.trim()) { setErro('Informe a senha de app do e-mail.'); return }
+    if (!senha.trim()) { setErro('Informe a senha do e-mail.'); return }
     if (provedor === 'outro' && (!host.trim() || !port)) { setErro('Informe o servidor SMTP e a porta.'); return }
-    setSalvando(true); setErro('')
+    setSalvando(true); setErro(''); setPodeForcar(false)
     try {
-      const body = { email_envio: email.trim(), senha: senha.trim(), provedor }
+      const body = { email_envio: email.trim(), senha: senha.trim(), provedor, forcar }
       if (provedor === 'outro') { body.smtp_host = host.trim(); body.smtp_port = Number(port) || null; body.smtp_secure = secure }
       const res = await fetch('/api/financeiro/config-envio', {
         method: 'POST',
@@ -32,7 +39,7 @@ export default function ConfigEmailEnvioModal({ open, onClose, onSaved, emailIni
         body: JSON.stringify(body),
       })
       const out = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(out.error || 'Falha ao salvar a configuração.')
+      if (!res.ok) { setPodeForcar(!!out.podeForcar); throw new Error(out.error || 'Falha ao salvar a configuração.') }
       onSaved?.()
     } catch (e) { setErro(e.message) }
     setSalvando(false)
@@ -57,12 +64,13 @@ export default function ConfigEmailEnvioModal({ open, onClose, onSaved, emailIni
 
           <div>
             <label style={lbl}>Seu e-mail</label>
-            <input style={inp} type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="voce@empresa.com.br" autoFocus />
+            <input style={inp} type="email" value={email} onChange={e => mudarEmail(e.target.value)} placeholder="voce@novatratores.com.br" autoFocus />
           </div>
 
           <div>
             <label style={lbl}>Provedor</label>
             <select style={inp} value={provedor} onChange={e => setProvedor(e.target.value)}>
+              <option value="empresa">E-mail da empresa (@novatratores.com.br)</option>
               <option value="gmail">Gmail / Google Workspace</option>
               <option value="outlook">Outlook / Office 365</option>
               <option value="outro">Outro (SMTP manual)</option>
@@ -82,8 +90,13 @@ export default function ConfigEmailEnvioModal({ open, onClose, onSaved, emailIni
           )}
 
           <div>
-            <label style={lbl}><KeyRound size={12} style={{ verticalAlign: -2, marginRight: 4 }} />Senha de app</label>
-            <input style={inp} type="password" value={senha} onChange={e => setSenha(e.target.value)} placeholder="senha de app (16 dígitos no Gmail)" />
+            <label style={lbl}><KeyRound size={12} style={{ verticalAlign: -2, marginRight: 4 }} />{provedor === 'empresa' ? 'Senha do e-mail' : 'Senha de app'}</label>
+            <input style={inp} type="password" value={senha} onChange={e => setSenha(e.target.value)} placeholder={provedor === 'empresa' ? 'a mesma senha do webmail' : 'senha de app (16 dígitos no Gmail)'} />
+            {provedor === 'empresa' && (
+              <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
+                Use a <strong>senha normal da sua caixa</strong> (a do webmail). Servidor: mail.novatratores.com.br.
+              </div>
+            )}
             {provedor === 'gmail' && (
               <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', marginTop: 6, lineHeight: 1.5 }}>
                 No Gmail <strong>não é a senha normal</strong>: gere uma <strong>Senha de App</strong> em Conta Google → Segurança → Verificação em 2 etapas → <em>Senhas de app</em> (16 dígitos).
@@ -91,11 +104,16 @@ export default function ConfigEmailEnvioModal({ open, onClose, onSaved, emailIni
             )}
           </div>
 
-          {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600 }}>{erro}</div>}
+          {erro && <div style={{ fontSize: 12.5, color: '#dc2626', fontWeight: 600, lineHeight: 1.5 }}>{erro}</div>}
+          {podeForcar && !salvando && (
+            <button onClick={() => salvar(true)} style={{ alignSelf: 'flex-start', background: 'transparent', border: 'none', padding: 0, color: 'var(--portal-text-secondary)', fontSize: 12, textDecoration: 'underline', cursor: 'pointer' }}>
+              Salvar mesmo assim
+            </button>
+          )}
 
           <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
-            <button onClick={salvar} disabled={salvando} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: '#e8730c', color: '#fff', fontSize: 14, fontWeight: 700, cursor: salvando ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-              <ShieldCheck size={16} /> {salvando ? 'Salvando…' : 'Salvar e enviar'}
+            <button onClick={() => salvar(false)} disabled={salvando} style={{ flex: 1, padding: '12px', borderRadius: 10, border: 'none', background: '#e8730c', color: '#fff', fontSize: 14, fontWeight: 700, cursor: salvando ? 'wait' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <ShieldCheck size={16} /> {salvando ? 'Testando a conta…' : 'Salvar e enviar'}
             </button>
             <button onClick={onClose} disabled={salvando} style={{ padding: '12px 18px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Cancelar</button>
           </div>

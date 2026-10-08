@@ -70,10 +70,7 @@ function ConfiguracoesContent() {
           setEnvioHost(c.smtp_host || '')
           setEnvioPort(c.smtp_port ? String(c.smtp_port) : '')
           setEnvioSecure(c.smtp_secure !== false)
-          const h = (c.smtp_host || '').toLowerCase()
-          if (h.includes('gmail')) setEnvioProvedor('gmail')
-          else if (h.includes('office365') || h.includes('outlook')) setEnvioProvedor('outlook')
-          else if (h) setEnvioProvedor('outro')
+          if (c.provedor) setEnvioProvedor(c.provedor)
         }
       } catch {}
 
@@ -120,7 +117,7 @@ function ConfiguracoesContent() {
     } catch (err) { alert("Erro: " + err.message) } finally { setUpdating(false) }
   }
 
-  const salvarEnvio = async () => {
+  const salvarEnvio = async (forcar = false) => {
     setEnvioSalvando(true); setEnvioMsg(null)
     try {
       const res = await fetch('/api/financeiro/config-envio', {
@@ -133,11 +130,16 @@ function ConfiguracoesContent() {
           smtp_host: envioHost.trim(),
           smtp_port: envioPort,
           smtp_secure: envioSecure,
+          forcar,
         }),
       })
       const out = await res.json().catch(() => ({}))
+      if (!res.ok && out.podeForcar && window.confirm(`O teste da conta falhou:\n\n${out.error}\n\nSalvar mesmo assim?`)) {
+        setEnvioSalvando(false)
+        return salvarEnvio(true)
+      }
       if (!res.ok) throw new Error(out.error || 'Falha ao salvar')
-      setEnvioMsg({ tipo: 'ok', msg: 'E-mail de envio salvo!' })
+      setEnvioMsg({ tipo: 'ok', msg: out.teste?.ok ? 'E-mail de envio salvo — envio e caixa de entrada testados.' : 'E-mail de envio salvo!' })
       setEnvioConfigurado(!!envioEmail.trim())
       setEnvioSenha('')
     } catch (e) { setEnvioMsg({ tipo: 'erro', msg: e.message }) } finally { setEnvioSalvando(false) }
@@ -244,6 +246,7 @@ function ConfiguracoesContent() {
                 <div style={{ display: 'grid', gridTemplateColumns: compacto ? 'repeat(auto-fit, minmax(220px, 1fr))' : '1fr 1fr', gap: compacto ? '16px' : '25px' }}>
                   <div style={inputGroup}><label style={labelStyle}>PROVEDOR</label>
                     <select style={inputStyle} value={envioProvedor} onChange={e => setEnvioProvedor(e.target.value)}>
+                      <option value="empresa">E-mail da empresa (@novatratores.com.br)</option>
                       <option value="gmail">Gmail / Google Workspace</option>
                       <option value="outlook">Outlook / Microsoft 365</option>
                       <option value="outro">Outro (SMTP manual)</option>
@@ -263,11 +266,11 @@ function ConfiguracoesContent() {
                   </>)}
                 </div>
                 {envioMsg && <p style={{ marginTop: '18px', color: envioMsg.tipo === 'ok' ? '#059669' : '#dc2626', fontWeight: '800' }}>{envioMsg.msg}</p>}
-                <button onClick={salvarEnvio} disabled={envioSalvando} style={{ marginTop: '30px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {envioSalvando ? 'SALVANDO...' : <><Save size={20} /> SALVAR E-MAIL DE ENVIO</>}
+                <button onClick={() => salvarEnvio(false)} disabled={envioSalvando} style={{ marginTop: '30px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {envioSalvando ? 'TESTANDO A CONTA...' : <><Save size={20} /> SALVAR E-MAIL DE ENVIO</>}
                 </button>
                 <p style={{ marginTop: '18px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.6 }}>
-                  Gmail: crie a Senha de app em <b>myaccount.google.com → Segurança → Verificação em duas etapas → Senhas de app</b> (precisa da 2FA ligada). Se não configurar nada aqui, o envio usa o e-mail padrão da empresa.
+                  E-mail da empresa: use a senha normal da caixa (a do webmail). Gmail: crie a Senha de app em <b>myaccount.google.com → Segurança → Verificação em duas etapas → Senhas de app</b> (precisa da 2FA ligada). Se não configurar nada aqui, o envio usa o e-mail padrão da empresa.
                 </p>
               </div>
             )}

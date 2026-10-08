@@ -1,10 +1,10 @@
-import nodemailer from 'nodemailer';
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { urlSegura } from '@/lib/url-segura';
 import { formatarDataBR } from '@/lib/financeiro/parcelas';
 import { decrypt } from '@/lib/cripto';
+import { criarTransporte, enviarComCopia, traduzirErroEmail, type ContaEmail } from '@/lib/financeiro/email-conta';
 import { createHash } from 'crypto';
 import { avisosEnvio, semRepetidos } from '@/lib/financeiro/tipo-anexo';
 
@@ -164,6 +164,8 @@ ${blocoValores}
   // config, devolve semConfig=true pra UI pedir o e-mail/senha na hora.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let envioTransporter: any = null;
+  let envioCfg: ContaEmail | null = null;
+  let envioSenha = '';
   let fromEmail = '';
   let cfgErro: string | null = null;
   try {
@@ -174,12 +176,9 @@ ${blocoValores}
       .maybeSingle();
     if (cfg?.email_envio && cfg?.senha_enc && cfg?.smtp_host && cfg?.smtp_port) {
       const senha = decrypt(cfg.senha_enc);
-      envioTransporter = nodemailer.createTransport({
-        host: cfg.smtp_host,
-        port: cfg.smtp_port,
-        secure: cfg.smtp_secure !== false,
-        auth: { user: cfg.email_envio, pass: senha },
-      });
+      envioCfg = cfg;
+      envioSenha = senha;
+      envioTransporter = criarTransporte(cfg, senha);
       fromEmail = cfg.email_envio;
     }
   } catch (e) {
@@ -200,13 +199,13 @@ ${blocoValores}
   const fromName = remetenteSan || 'Nova Tratores';
 
   try {
-    const info = await envioTransporter.sendMail({
+    const info = await enviarComCopia(envioCfg as ContaEmail, envioSenha, {
       from: `"${fromName}" <${fromEmail}>`,
       to: destinatarios.join(', '),
       subject,
       html,
       attachments,
-    });
+    }, envioTransporter);
     // Registra o envio no histórico de e-mails do card (bloco "E-mails deste
     // boleto" + casamento das respostas do cliente via message-id).
     if (chamadoIdNum) {
@@ -229,6 +228,6 @@ ${blocoValores}
     return NextResponse.json({ ok: true, id: info.messageId, enviados: destinatarios, de: fromEmail });
   } catch (error: any) {
     console.error('Erro ao enviar boleto por email:', error);
-    return NextResponse.json({ error: `Falha ao enviar email: ${error.message}` }, { status: 500 });
+    return NextResponse.json({ error: `Falha ao enviar email: ${traduzirErroEmail(error, envioCfg?.smtp_host)}` }, { status: 500 });
   }
 }

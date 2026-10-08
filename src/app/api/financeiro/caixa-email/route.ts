@@ -10,10 +10,10 @@
 //   POST {uid, texto} → responde na mesma conversa (SMTP do usuário)
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import nodemailer from "nodemailer";
 import { autenticar } from "@/lib/auth/server";
 import { decrypt } from "@/lib/cripto";
 import { comImap } from "@/lib/financeiro/imapPool";
+import { enviarComCopia, escolherPasta, traduzirErroEmail } from "@/lib/financeiro/email-conta";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -106,15 +106,14 @@ const decodificar = (buf: Buffer, charset: string) => {
   return pareceMojibake && !utf8Quebrado ? utf8 : latin;
 };
 
-// Traduz a aba do painel pra pasta REAL da caixa (Gmail marca as pastas
-// especiais com \Junk e \Sent — os nomes mudam com o idioma da conta).
+// Traduz a aba do painel pra pasta REAL da caixa: pela marca \Junk/\Sent
+// (Gmail — o nome muda com o idioma) ou pelo nome (cPanel: "INBOX.Sent").
 async function resolverPasta(client: any, pasta: string): Promise<string> {
   if (pasta !== "spam" && pasta !== "enviados") return "INBOX";
-  const alvo = pasta === "spam" ? "\\Junk" : "\\Sent";
   try {
     const caixas = await client.list();
-    const hit = (caixas || []).find((c: any) => String(c.specialUse || "") === alvo);
-    if (hit?.path) return hit.path;
+    const hit = escolherPasta(caixas || [], pasta);
+    if (hit) return hit;
   } catch { /* cai nos nomes padrão do Gmail */ }
   return pasta === "spam" ? "[Gmail]/Spam" : "[Gmail]/E-mails enviados";
 }
@@ -339,7 +338,7 @@ export async function GET(req: NextRequest) {
     cacheLista.set(chaveCache, { ts: Date.now(), payload });
     return NextResponse.json(payload);
   } catch (e) {
-    return NextResponse.json({ error: `Não consegui conectar na sua caixa: ${e instanceof Error ? e.message : e}` }, { status: 502 });
+    return NextResponse.json({ error: `Não consegui conectar na sua caixa: ${traduzirErroEmail(e)}` }, { status: 502 });
   }
 }
 
@@ -407,10 +406,6 @@ export async function POST(req: NextRequest) {
   if (!original?.de) return NextResponse.json({ error: "Não consegui identificar o e-mail original." }, { status: 404 });
 
   try {
-    const transporter = nodemailer.createTransport({
-      host: cfg.smtp_host, port: cfg.smtp_port, secure: cfg.smtp_secure !== false,
-      auth: { user: cfg.email_envio, pass: senha },
-    });
     const assunto = /^re:/i.test(original.assunto) ? original.assunto : `Re: ${original.assunto}`;
     let html = corpo.split("\n").map((l) => l.replace(/[<>&]/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" }[c] as string))).join("<br>");
     // Assinatura do usuário (colada do Gmail na config da caixa) vai no fim
@@ -423,7 +418,7 @@ export async function POST(req: NextRequest) {
       const assinatura = String((ass as any)?.assinatura_html || "").trim();
       if (assinatura) html += `<br><br>${assinatura}`;
     } catch { /* coluna ausente — resposta sai sem assinatura */ }
-    const info = await transporter.sendMail({
+    const info = await enviarComCopia(cfg, senha, {
       from: `"Nova Tratores" <${cfg.email_envio}>`,
       to: original.de,
       subject: assunto,
@@ -453,6 +448,6 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ ok: true, para: original.de });
   } catch (e) {
-    return NextResponse.json({ error: `Falha ao enviar: ${e instanceof Error ? e.message : e}` }, { status: 502 });
+    return NextResponse.json({ error: `Falha ao enviar: ${traduzirErroEmail(e, cfg.smtp_host)}` }, { status: 502 });
   }
 }

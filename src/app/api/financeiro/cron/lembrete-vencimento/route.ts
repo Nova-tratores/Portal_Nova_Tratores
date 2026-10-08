@@ -5,8 +5,8 @@
 // O lembrete sai pelo e-mail de quem fez o envio original (mesma conversa).
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import nodemailer from "nodemailer";
 import { decrypt } from "@/lib/cripto";
+import { enviarComCopia } from "@/lib/financeiro/email-conta";
 import { formatarBRL, valorTotalCard, formatarDataBR, montarParcelas } from "@/lib/financeiro/parcelas";
 
 export const runtime = "nodejs";
@@ -105,10 +105,7 @@ export async function POST(req: NextRequest) {
         .select("email_envio, smtp_host, smtp_port, smtp_secure, senha_enc")
         .eq("user_id", original.user_id).maybeSingle();
       if (!cfg?.email_envio || !cfg?.senha_enc) { stats.erros.push(`#${card.id}: remetente sem config de e-mail`); continue; }
-      const transporter = nodemailer.createTransport({
-        host: cfg.smtp_host, port: cfg.smtp_port, secure: cfg.smtp_secure !== false,
-        auth: { user: cfg.email_envio, pass: decrypt(cfg.senha_enc) },
-      });
+      const senhaCfg = decrypt(cfg.senha_enc);
 
       // Cards agrupados no principal (boleto único): NFs dos filhos entram no lembrete
       const { data: filhosGrupo } = await supabase.from("Chamado_NF").select("*").eq("grupo_pai_id", card.id);
@@ -150,7 +147,7 @@ ${bloco}
       }
       const attachments = await baixarAnexos([...boletos, ...nfs]);
 
-      const info = await transporter.sendMail({
+      const info = await enviarComCopia(cfg, senhaCfg, {
         from: `"Nova Tratores" <${cfg.email_envio}>`,
         to: original.destinatarios,
         subject: assunto,

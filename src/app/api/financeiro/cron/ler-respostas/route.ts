@@ -8,6 +8,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ImapFlow } from "imapflow";
 import { simpleParser } from "mailparser";
 import { decrypt } from "@/lib/cripto";
+import { imapOpcoes } from "@/lib/financeiro/email-conta";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -50,22 +51,16 @@ export async function POST(req: NextRequest) {
     : new Date(Date.now() - 7 * 86400000);
 
   const { data: configs } = await supabase.from("financeiro_envio_config")
-    .select("user_id, email_envio, smtp_host, senha_enc");
+    .select("user_id, email_envio, smtp_host, smtp_port, smtp_secure, senha_enc");
 
   const stats = { caixas: 0, examinados: 0, respostas: 0, duplicadas: 0, erros: [] as string[] };
   const novasRespostas: { chamado_id: number; de: string; trecho: string }[] = [];
 
   for (const cfg of configs || []) {
     if (!cfg.email_envio || !cfg.senha_enc || !cfg.smtp_host) continue;
-    // smtp.gmail.com → imap.gmail.com (padrão dos provedores)
-    const imapHost = String(cfg.smtp_host).replace(/^smtp/i, "imap");
     let client: ImapFlow | null = null;
     try {
-      client = new ImapFlow({
-        host: imapHost, port: 993, secure: true,
-        auth: { user: cfg.email_envio, pass: decrypt(cfg.senha_enc) },
-        logger: false,
-      });
+      client = new ImapFlow(imapOpcoes(cfg, decrypt(cfg.senha_enc)));
       await client.connect();
       stats.caixas++;
       const lock = await client.getMailboxLock("INBOX");

@@ -2,6 +2,7 @@
 // reaproveitar deixa a caixa de e-mail do portal quase instantânea.
 // A conexão fica viva por até 4 min sem uso e é derrubada/recriada sozinha.
 import { ImapFlow } from "imapflow";
+import { imapOpcoes, type ContaEmail } from "./email-conta";
 
 const IDLE_MS = 4 * 60 * 1000;
 
@@ -31,7 +32,7 @@ function agendarIdle(chave: string) {
 /** Devolve uma conexão IMAP viva (reaproveitada quando possível). */
 export async function pegarImap(
   userId: string,
-  cfg: { smtp_host: string; email_envio: string },
+  cfg: ContaEmail,
   senha: string,
 ): Promise<ImapFlow> {
   const chave = `${userId}:${cfg.email_envio}`;
@@ -43,13 +44,7 @@ export async function pegarImap(
     derrubar(chave);
   }
 
-  const client = new ImapFlow({
-    host: String(cfg.smtp_host).replace(/^smtp/i, "imap"), port: 993, secure: true,
-    auth: { user: cfg.email_envio, pass: senha },
-    logger: false,
-    // mantém a sessão respirando (NOOP) pra não cair por inatividade
-    emitLogs: false,
-  });
+  const client = new ImapFlow({ ...imapOpcoes(cfg, senha), emitLogs: false });
   client.on("close", () => derrubar(chave));
   client.on("error", () => derrubar(chave));
 
@@ -70,7 +65,7 @@ export async function pegarImap(
  *  reconecta UMA vez e tenta de novo. */
 export async function comImap<T>(
   userId: string,
-  cfg: { smtp_host: string; email_envio: string },
+  cfg: ContaEmail,
   senha: string,
   fn: (client: ImapFlow) => Promise<T>,
 ): Promise<T> {
