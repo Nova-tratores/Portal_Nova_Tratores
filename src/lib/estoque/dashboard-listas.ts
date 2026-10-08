@@ -50,10 +50,68 @@ export interface HistoricoResult {
 interface HistItem extends ItemVenda {
   mes: number;
   ano: number;
-  numero_pedido?: string | null;
+  /** Pedidos distintos da linha (1 na leitura crua; vários na linha agrupada da RPC). */
+  pedidos: string[];
 }
 
-/** Histórico mês a mês (desde Jan/2023) de um card específico (por chave). */
+// 1º ano lido: o histórico mostra desde 2023, mas 2022 entra como base do Δ.
+const HIST_DESDE_ANO = 2022;
+
+/**
+ * Linhas JÁ AGRUPADAS por conta × mês × família × tipo × categoria (RPC
+ * `vendas_resumo_mensal`, sql/vendas-resumo-mensal.sql), no formato de
+ * ItemVenda para reaproveitar a classificação dos cards: valor_total = soma,
+ * quantidade = 1 e cmc_unitario = custo somado (o card faz cmc × qtd).
+ * Exclui os clientes ignorados, como os cards. null = RPC ainda não existe.
+ */
+async function lerResumoMensal(conta: ContaFiltro): Promise<HistItem[] | null> {
+  const { codigos } = await getIgnorarFiltro(conta);
+  const out: HistItem[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase
+      .rpc('vendas_resumo_mensal', { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null, p_ignorar: codigos.map(String) })
+      .order('conta_omie').order('ano').order('mes').order('familia').order('tipo').order('codigo_categoria')
+      .range(offset, offset + 999);
+    if (error) {
+      if (error.code === 'PGRST202' || error.code === '42883' || /vendas_resumo_mensal/.test(error.message)) return null;
+      throw new Error('vendas_resumo_mensal: ' + error.message);
+    }
+    const linhas = (data || []) as Array<{ ano: number; mes: number; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; pedidos: string[] | null }>;
+    for (const l of linhas) {
+      out.push({
+        ano: l.ano, mes: l.mes, familia: l.familia, tipo: l.tipo, codigo_categoria: l.codigo_categoria,
+        valor_total: num(l.valor), quantidade: 1, cmc_unitario: num(l.custo), pedidos: l.pedidos || [],
+      });
+    }
+    if (linhas.length < 1000) break;
+  }
+  return out;
+}
+
+/** Caminho antigo (sem a RPC): itens crus de vendas_itens, paginados. */
+async function lerItensCrus(anos: number[], conta: ContaFiltro): Promise<HistItem[]> {
+  const { codigos } = await getIgnorarFiltro(conta);
+  const out: HistItem[] = [];
+  for (const ano of anos) {
+    for (let offset = 0; ; offset += 1000) {
+      let q = filtroConta(
+        supabase
+          .from('vendas_itens')
+          .select('id,mes,ano,tipo,familia,valor_total,numero_pedido,codigo_categoria,cmc_unitario,quantidade')
+          .eq('ano', ano),
+        conta,
+      );
+      if (codigos.length > 0) q = q.not('codigo_cliente', 'in', '(' + codigos.join(',') + ')');
+      const { data } = await q.order('id').range(offset, offset + 999);
+      const linhas = (data || []) as Array<ItemVenda & { mes: number; ano: number; numero_pedido: string | null }>;
+      for (const l of linhas) out.push({ ...l, pedidos: l.numero_pedido ? [l.numero_pedido] : [] });
+      if (linhas.length < 1000) break;
+    }
+  }
+  return out;
+}
+
+/** Histórico mês a mês (desde Jan/2022 — a tela mostra desde 2023) de um card específico (por chave). */
 export async function montarHistorico(
   catKey: string,
   filtroCategoria: string | null,
@@ -63,33 +121,14 @@ export async function montarHistorico(
 
   const now = new Date();
   const meses: Array<{ mes: number; ano: number; label: string }> = [];
-  const d = new Date(2023, 0, 1);
+  const d = new Date(HIST_DESDE_ANO, 0, 1);
   while (d <= now) {
     meses.push({ mes: d.getMonth() + 1, ano: d.getFullYear(), label: MESES_CURTO[d.getMonth()] + '/' + d.getFullYear() });
     d.setMonth(d.getMonth() + 1);
   }
 
   const anos = [...new Set(meses.map((m) => m.ano))];
-  let todosItens: HistItem[] = [];
-  for (const ano of anos) {
-    let offset = 0;
-    while (true) {
-      const { data } = await filtroConta(
-        supabase
-          .from('vendas_itens')
-          .select('mes,ano,tipo,familia,valor_total,numero_pedido,codigo_categoria,cmc_unitario,quantidade')
-          .eq('ano', ano),
-        conta,
-      )
-        .order('mes', { ascending: true })
-        .order('numero_pedido', { ascending: true })
-        .range(offset, offset + 999);
-      if (!data || data.length === 0) break;
-      todosItens = todosItens.concat(data as HistItem[]);
-      if (data.length < 1000) break;
-      offset += 1000;
-    }
-  }
+  const todosItens: HistItem[] = (await lerResumoMensal(conta)) ?? (await lerItensCrus(anos, conta));
 
   type OSMensalRow = { mes: number; ano: number; valor_total: number; valor_nota: number | null; valor_interno: number | null; qtde_os: number | null; qtde_os_nota: number | null; qtde_os_interno: number | null };
   let todosOS: OSMensalRow[] = [];
@@ -134,7 +173,16 @@ export async function montarHistorico(
     // Total Geral = peças + serviços COM NOTA (fallback: total de OS quando o split falta)
     else if (catKey === 'totalGeral') { valor = agg.totalPecas + (osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS); custo = agg.totalCusto; }
     else { const b = agg.porKey[catKey]; valor = b?.valor || 0; custo = b?.custo || 0; }
-    const pedidosUnicos = new Set(itensMes.map((it) => it.numero_pedido).filter(Boolean)).size;
+    // Pedidos que têm item DESTE card (no app antigo era o mês inteiro, com máquinas).
+    const codigosFiltro = expandirCategoriaFiltro(filtroCategoria);
+    const pedidosMes = new Set<string>();
+    for (const it of itensMes) {
+      if (codigosFiltro && !codigosFiltro.includes(it.codigo_categoria || '')) continue;
+      const card = classificarCardPeca(it, fixed);
+      if (!card) continue;
+      if (catKey === 'totalPecas' || catKey === 'totalGeral' || card.key === catKey) it.pedidos.forEach((n) => pedidosMes.add(n));
+    }
+    const pedidosUnicos = pedidosMes.size;
     const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: pedidosUnicos };
     if (catKey === 'servico') {
       ponto.valorNota = osMes ? (osMes.valor_nota == null ? null : num(osMes.valor_nota)) : null;

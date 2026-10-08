@@ -13,6 +13,7 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import { chartColors } from '@/lib/estoque/chartColors';
 import { authHeaders } from '@/lib/auth/client';
+import HistoricoGrade from '@/components/estoque/HistoricoGrade';
 
 // As rotas do dashboard exigem login (token da sessão no header).
 const getDash = async (url: string) => fetch(url, { headers: await authHeaders() });
@@ -161,6 +162,15 @@ export default function DashboardPage() {
   const [histCard, setHistCard] = useState<string | null>(null);
   const [hist, setHist] = useState<HistResp | null>(null);
   const [histMetric, setHistMetric] = useState<'valor' | 'qtd'>('valor');
+  // Grade ano×mês (padrão) ou gráfico de linhas; escolha lembrada no navegador.
+  // (o painel só aparece depois de um clique, então ler o storage no 1º render não causa divergência visível)
+  const [histView, setHistView] = useState<'grade' | 'grafico'>(() => {
+    try { return typeof window !== 'undefined' && localStorage.getItem('estoque-hist-view') === 'grafico' ? 'grafico' : 'grade'; } catch { return 'grade'; }
+  });
+  const trocarHistView = useCallback((v: 'grade' | 'grafico') => {
+    setHistView(v);
+    try { localStorage.setItem('estoque-hist-view', v); } catch { /* sem storage */ }
+  }, []);
 
   const [vendas, setVendas] = useState<VendaRow[] | null>(null);
   const [vendasCard, setVendasCard] = useState<{ nome: string } | null>(null);
@@ -740,7 +750,19 @@ export default function DashboardPage() {
             return (
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
                 <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Histórico — {hist?.nome ? fixLabel(hist.nome) : '…'}</h2>
-                {temQtd && (
+                <div style={{ display: 'inline-flex', border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden', marginLeft: 'auto' }}>
+                  {(['grade', 'grafico'] as const).map((op) => (
+                    <button
+                      key={op}
+                      onClick={() => trocarHistView(op)}
+                      style={{
+                        border: 'none', cursor: 'pointer', padding: '5px 12px', fontSize: '.85rem', fontWeight: 600,
+                        background: histView === op ? '#111827' : '#fff', color: histView === op ? '#fff' : '#374151',
+                      }}
+                    >{op === 'grade' ? 'Grade' : 'Gráfico'}</button>
+                  ))}
+                </div>
+                {temQtd && histView === 'grafico' && (
                   <div style={{ display: 'inline-flex', border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden' }}>
                     {(['valor', 'qtd'] as const).map((op) => (
                       <button
@@ -757,14 +779,22 @@ export default function DashboardPage() {
               </div>
             );
           })()}
-          {!hist ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div> : (() => {
+          {!hist ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div> : histView === 'grade' ? (
+            <HistoricoGrade
+              meses={hist.meses}
+              servico={histCard === 'servico'}
+              metrica={metrica}
+              baseMin={BASE_MIN_PECAS}
+              onMes={(a, m) => { setAno(a); setMes(m); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+            />
+          ) : (() => {
             const temSplit = hist.meses.some((m) => m.valorNota != null);
             const custoTodoZero = hist.meses.every((m) => !m.custo);
             const modoQtd = histCard === 'servico' && histMetric === 'qtd';
             return (
               <div style={{ width: '100%', height: 340 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={hist.meses}>
+                  <LineChart data={hist.meses.filter((m) => m.ano >= 2023)}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                     <XAxis dataKey="label" tick={{ fontSize: 13 }} />
                     {modoQtd ? (
