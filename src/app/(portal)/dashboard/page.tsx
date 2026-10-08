@@ -61,6 +61,7 @@ const systems: SystemCard[] = [
   // Financeiro (verde)
   { id: 'sistema-financeiro', name: 'Financeiro', description: 'Gestão de NF, boletos, contas a pagar e receber, chamados RH', icon: <DollarSign size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #10B981, #059669)', href: '/financeiro', tag: 'FINANÇAS', group: 'financeiro' },
   { id: 'dre', name: 'DRE Financeiro', description: 'Demonstração do Resultado do Exercício com dados integrados do Omie', icon: <TrendingUp size={28} />, color: '#10B981', gradient: 'linear-gradient(135deg, #059669, #047857)', href: '/dre-financeiro', tag: 'DRE', group: 'financeiro' },
+  { id: 'painel-omie', name: 'Painel Omie', description: 'Relatórios de oficina, peças, comercial e comissões dos técnicos', icon: <BarChart3 size={28} />, color: '#1f5c46', gradient: 'linear-gradient(135deg, #1f5c46, #14532d)', href: '/painel-omie', tag: 'RELATORIOS', group: 'financeiro' },
 
   // Comercial (roxo)
   { id: 'proposta-comercial', name: 'Proposta Comercial', description: 'Geração de propostas com PDF e QR Code para clientes', icon: <FileText size={28} />, color: '#DC2626', gradient: 'linear-gradient(135deg, #DC2626, #B91C1C)', href: '/propostas', tag: 'VENDAS', group: 'comercial' },
@@ -123,6 +124,7 @@ const systemToModulo: Record<string, string> = {
   'avisos': 'avisos',
   'dashboard-agro': 'dashboard-agro',
   'dre': 'dre',
+  'painel-omie': 'painel-omie',
   'back-nova': 'back-nova',
   'supervisor-vendas': 'supervisor-vendas',
   // 'conhecimento' fica de FORA de propósito: ler a base é de todo usuário logado

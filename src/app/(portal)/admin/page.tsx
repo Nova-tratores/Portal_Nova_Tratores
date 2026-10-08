@@ -53,6 +53,7 @@ const MODULOS = [
   { id: 'opa-pecas', label: 'Peças S/Estoque — Opa (setor de peças)', color: '#ea580c' },
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#3b82f6' },
+  { id: 'painel-omie', label: 'Painel Omie (relatorios)', color: '#1f5c46' },
   { id: 'ppv', label: 'Peças (PPV)', color: '#ef4444' },
   // Pendências da frota: abrir/acompanhar pendências dos carros sem precisar
   // do módulo Frota inteiro (quem tem Frota também acessa).
