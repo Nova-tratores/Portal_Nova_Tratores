@@ -12,6 +12,8 @@ import LogPanel from "./LogPanel";
 import EmailsPecasOS from "./EmailsPecasOS";
 import ModalBuscaProduto from "@/components/ppv/ModalBuscaProduto";
 import ModalImportarKit from "@/components/orcamentos/ModalImportarKit";
+import ItemOrcamentoModal from "@/components/ppv/ItemOrcamentoModal";
+import ModalEditarItemOS from "./ModalEditarItemOS";
 import { PPVMiniProvider } from "@/lib/ppv/PPVContext";
 import OSGarantiaInfo from "@/components/garantias/OSGarantiaInfo";
 import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
@@ -203,6 +205,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   const [addProdTarget, setAddProdTarget] = useState("");
   const [addProdQtd, setAddProdQtd] = useState(1);
   const [addingProduto, setAddingProduto] = useState(false);
+  // Peça da lista: info (mesmo modal do PPV ao clicar no código) e edição
+  const [detalheProd, setDetalheProd] = useState<Produto | null>(null);
+  const [editandoProd, setEditandoProd] = useState<Produto | null>(null);
   const [saving, setSaving] = useState(false);
   const [aba, setAba] = useState<"os" | "ppv">("os");
   // Sub-abas no padrão Omie (modelo aprovado 04/09): cada card vive numa aba
@@ -2032,9 +2037,26 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       {produtos.length > 0 && (
                         <div className="os-produtos-list">
                           {produtos.map((p, i) => (
-                            <div key={i} className="os-produto-item">
-                              <span>{p.descricao} <b>(x{p.qtde})</b></span>
-                              <span style={S_PRODUTO_VALOR}>R$ {(p.valor * p.qtde).toFixed(2)}</span>
+                            <div key={`${p.ppvId}-${p.codigo}-${i}`} className="os-produto-item" style={{ alignItems: "center", gap: 10 }}>
+                              <span style={{ minWidth: 0 }}>
+                                {p.codigo && (
+                                  <button type="button" onClick={() => setDetalheProd(p)} title="Item de Orçamento — dados do produto + impostos"
+                                    style={{ padding: 0, marginRight: 6, border: "none", background: "transparent", cursor: "pointer", fontWeight: 600, fontSize: "inherit", fontFamily: "inherit", color: "#2563EB", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                    {p.codigo}<i className="fas fa-circle-info" style={{ fontSize: 10, color: "#93C5FD" }} />
+                                  </button>
+                                )}
+                                {p.descricao} <b>(x{p.qtde})</b>
+                                {ppvIds.length > 1 && p.ppvId && <span style={{ marginLeft: 6, fontSize: 11, color: "var(--portal-text-secondary)" }}>PPV {p.ppvId}</span>}
+                              </span>
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+                                <span style={S_PRODUTO_VALOR}>R$ {(p.valor * p.qtde).toFixed(2)}</span>
+                                {p.codigo && p.ppvId && (
+                                  <button type="button" onClick={() => setEditandoProd(p)} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Editar quantidade, valor ou remover"}
+                                    style={{ border: "none", background: "transparent", color: "var(--portal-text-secondary)", cursor: podeEditar ? "pointer" : "not-allowed", padding: 2, fontSize: 13 }}>
+                                    <i className="fas fa-pen" />
+                                  </button>
+                                )}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -2400,6 +2422,31 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
         </PPVMiniProvider>
         <ModalImportarKit open={kitOSOpen} onClose={() => setKitOSOpen(false)} onImportar={(produtos, _horas, rotulo) => { setKitOSOpen(false); importarKitNaOS(produtos, rotulo); }} />
       </div>
+
+      {/* Clicar no código da peça = mesmo modal do PPV (dados do produto + impostos) */}
+      <ItemOrcamentoModal
+        open={!!detalheProd}
+        ppvId={detalheProd?.ppvId || null}
+        pedidoOmie={detalheProd?.pedidoOmie}
+        conta={detalheProd?.conta || "NOVA"}
+        codigo={detalheProd?.codigo || null}
+        descricao={detalheProd?.descricao}
+        quantidade={detalheProd?.qtde}
+        preco={detalheProd?.valor}
+        userName={userName || ""}
+        onClose={() => setDetalheProd(null)}
+        showToast={(tipo, msg) => { if (tipo === "error") alert(msg); }}
+        itens={produtos.filter((p) => p.codigo && p.ppvId === detalheProd?.ppvId).map((p) => ({ codigo: p.codigo!, descricao: p.descricao, conta: p.conta || "NOVA", quantidade: p.qtde, preco: p.valor }))}
+        onIrPara={(it) => setDetalheProd(produtos.find((p) => p.ppvId === detalheProd?.ppvId && p.codigo === it.codigo) || null)}
+      />
+      <ModalEditarItemOS
+        item={editandoProd && editandoProd.codigo && editandoProd.ppvId ? { ppvId: editandoProd.ppvId, codigo: editandoProd.codigo, descricao: editandoProd.descricao, qtde: editandoProd.qtde, valor: editandoProd.valor } : null}
+        tecnico={tecnico1 || ""}
+        userName={userName}
+        podeEditar={podeEditar}
+        onClose={() => setEditandoProd(null)}
+        onSalvo={() => loadPPV(ppv)}
+      />
     </>
   );
 }

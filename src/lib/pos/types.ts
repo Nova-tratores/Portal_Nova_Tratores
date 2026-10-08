@@ -100,6 +100,11 @@ export interface Produto {
   descricao: string;
   qtde: number;
   valor: number;
+  // de qual PPV é a peça (a OS pode ter mais de um) — para abrir/editar o item
+  ppvId?: string;
+  pedidoOmie?: string;
+  codigo?: string;
+  conta?: "NOVA" | "CASTRO";
 }
 
 export interface LogEntry {
