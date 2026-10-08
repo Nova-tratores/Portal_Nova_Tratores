@@ -28,6 +28,7 @@ import TicketModal from '@/components/tickets/TicketModal'
 type Visao = 'fila' | 'pedidos' | 'acompanhando' | 'gerencial'
 const VISOES_VALIDAS = new Set<Visao>(['fila', 'pedidos', 'acompanhando', 'gerencial'])
 type ViewMode = 'lista' | 'kanban'
+type Papel = '' | 'resp' | 'sol'
 const VIEW_MODE_KEY = 'tickets-view-mode'
 
 function TicketsPageInner() {
@@ -45,6 +46,17 @@ function TicketsPageInner() {
     if (visao !== 'gerencial') { router.replace('/tickets/quadros'); return }
     if (!carregandoPerm && userProfile && !isAdmin) router.replace('/tickets/quadros')
   }, [visao, isAdmin, carregandoPerm, userProfile, router])
+  // Filtro por pessoa vive na URL (?pessoa=<id>&papel=resp|sol) — o admin
+  // copia o link e manda; trocar de aba mantém o filtro.
+  const pessoa = searchParams.get('pessoa') || ''
+  const papelParam = searchParams.get('papel')
+  const papel: Papel = papelParam === 'resp' || papelParam === 'sol' ? papelParam : ''
+  const setParams = useCallback((mudancas: Record<string, string>) => {
+    const qs = new URLSearchParams(searchParams.toString())
+    for (const [k, v] of Object.entries(mudancas)) { if (v) qs.set(k, v); else qs.delete(k) }
+    const str = qs.toString()
+    router.replace(str ? `/tickets?${str}` : '/tickets')
+  }, [router, searchParams])
 
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [usuarios, setUsuarios] = useState<Record<string, UsuarioMin>>({})
@@ -159,8 +171,29 @@ function TicketsPageInner() {
     }
   }, [tickets, carregar])
 
+  // Pessoas que aparecem nos tickets desta aba (responsável ou solicitante),
+  // com quantos tickets cada uma toca — é daqui que sai o seletor.
+  const pessoasOpcoes = useMemo(() => {
+    const qtd = new Map<string, number>()
+    for (const t of tickets) {
+      for (const id of new Set([t.responsavel_id, t.solicitante_id])) {
+        if (id) qtd.set(id, (qtd.get(id) || 0) + 1)
+      }
+    }
+    return [...qtd.entries()]
+      .map(([id, n]) => ({ id, nome: usuarios[id]?.nome || '—', n }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+  }, [tickets, usuarios])
+
+  const porPessoa = useMemo(() => {
+    if (!pessoa) return tickets
+    return tickets.filter((t) => papel === 'resp' ? t.responsavel_id === pessoa
+      : papel === 'sol' ? t.solicitante_id === pessoa
+      : t.responsavel_id === pessoa || t.solicitante_id === pessoa)
+  }, [tickets, pessoa, papel])
+
   const filtrados = useMemo(() => {
-    let lista = tickets
+    let lista = porPessoa
     if (filtroStatus) lista = lista.filter((t) => t.status === filtroStatus)
     const q = busca.trim().toLowerCase()
     if (q) {
@@ -177,11 +210,11 @@ function TicketsPageInner() {
       lista = [...lista].sort((a, b) => new Date(a.ultima_atividade_em).getTime() - new Date(b.ultima_atividade_em).getTime())
     }
     return lista
-  }, [tickets, filtroStatus, busca, visao, usuarios])
+  }, [porPessoa, filtroStatus, busca, visao, usuarios])
 
   // Reordenar uma lista filtrada é ambíguo — grip e ▲▼ só sem filtro ativo
   // (e só na Lista: no kanban o arrasto troca status, não a ordem pessoal).
-  const dndAtivo = visao === 'fila' && !busca.trim() && !filtroStatus && !encerrados && !kanban
+  const dndAtivo = visao === 'fila' && !busca.trim() && !filtroStatus && !pessoa && !encerrados && !kanban
 
   // Fila: "mexendo agora" no topo → depois a ordem planejada → depois o resto
   // na ordem da API (última atividade). Itens sem posição vão para o fim.
@@ -230,9 +263,9 @@ function TicketsPageInner() {
 
   const contagemStatus = useMemo(() => {
     const c: Partial<Record<TicketStatus, number>> = {}
-    for (const t of tickets) c[t.status] = (c[t.status] || 0) + 1
+    for (const t of porPessoa) c[t.status] = (c[t.status] || 0) + 1
     return c
-  }, [tickets])
+  }, [porPessoa])
 
   const abas: { id: Visao; label: string; icone: React.ReactNode }[] = [
     { id: 'fila', label: 'Minha fila', icone: <Inbox size={15} /> },
@@ -250,7 +283,7 @@ function TicketsPageInner() {
             const qtd = contadores?.[a.id]
             const ativo = visao === a.id
             return (
-              <button key={a.id} onClick={() => router.push(`/tickets?aba=${a.id}`)}
+              <button key={a.id} onClick={() => setParams({ aba: a.id })}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
                   fontSize: 13, fontWeight: 700, cursor: 'pointer',
@@ -305,6 +338,38 @@ function TicketsPageInner() {
             </button>
           ))}
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <select value={pessoa} onChange={(e) => setParams({ pessoa: e.target.value, papel: e.target.value ? papel : '' })}
+            title="Filtrar por pessoa (responsável ou solicitante)"
+            style={{
+              padding: '6px 10px', borderRadius: 8, fontSize: 12.5, fontWeight: pessoa ? 700 : 500, cursor: 'pointer', maxWidth: 240,
+              border: pessoa ? '1.5px solid #dc2626' : '1px solid var(--portal-border,#e5e7eb)',
+              background: pessoa ? 'rgba(220,38,38,.07)' : 'var(--portal-surface,#fff)',
+              color: pessoa ? '#dc2626' : 'var(--portal-text-muted,#888)',
+            }}>
+            <option value="">Todas as pessoas</option>
+            {pessoasOpcoes.map((p) => <option key={p.id} value={p.id}>{p.nome} ({p.n})</option>)}
+          </select>
+          {pessoa && (
+            <div style={{ display: 'flex', gap: 4 }}>
+              {([['', 'Qualquer papel'], ['resp', 'Responsável'], ['sol', 'Solicitante']] as const).map(([v, rotulo]) => (
+                <button key={v || 'todos'} onClick={() => setParams({ papel: v })}
+                  style={{
+                    padding: '5px 10px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                    border: papel === v ? '1.5px solid #dc2626' : '1px solid var(--portal-border,#e5e7eb)',
+                    background: papel === v ? 'rgba(220,38,38,.07)' : 'transparent',
+                    color: papel === v ? '#dc2626' : 'var(--portal-text-muted,#888)',
+                  }}>
+                  {rotulo}
+                </button>
+              ))}
+              <button onClick={() => setParams({ pessoa: '', papel: '' })} title="Limpar filtro de pessoa"
+                style={{ padding: '5px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', color: 'var(--portal-text-muted,#888)' }}>
+                ×
+              </button>
+            </div>
+          )}
+        </div>
         {!isMobile && (
           <div style={{ display: 'flex', marginLeft: 'auto', border: '1px solid var(--portal-border,#e5e7eb)', borderRadius: 8, overflow: 'hidden' }}>
             {([['lista', 'Lista', <List key="l" size={14} />], ['kanban', 'Kanban', <Columns3 key="k" size={14} />]] as const).map(([v, rotulo, icone]) => {
@@ -348,12 +413,24 @@ function TicketsPageInner() {
         }}>
           <Inbox size={32} style={{ opacity: .35, marginBottom: 10 }} />
           <div style={{ fontSize: 14, fontWeight: 600 }}>
-            {visao === 'fila' && 'Nada na sua fila — nenhum ticket sob sua responsabilidade.'}
-            {visao === 'pedidos' && 'Você ainda não abriu nenhum ticket.'}
-            {visao === 'acompanhando' && 'Você não está acompanhando nenhum ticket de outras pessoas.'}
-            {visao === 'gerencial' && 'Nenhum ticket em aberto na empresa.'}
+            {pessoa ? `Nenhum ticket de ${usuarios[pessoa]?.nome || 'essa pessoa'} nesta aba${papel === 'resp' ? ' como responsável' : papel === 'sol' ? ' como solicitante' : ''}.` : (
+              <>
+                {visao === 'fila' && 'Nada na sua fila — nenhum ticket sob sua responsabilidade.'}
+                {visao === 'pedidos' && 'Você ainda não abriu nenhum ticket.'}
+                {visao === 'acompanhando' && 'Você não está acompanhando nenhum ticket de outras pessoas.'}
+                {visao === 'gerencial' && 'Nenhum ticket em aberto na empresa.'}
+              </>
+            )}
           </div>
-          {visao === 'fila' && (contadores?.pedidos || 0) > 0 && (
+          {pessoa && (
+            <div style={{ fontSize: 13, marginTop: 8 }}>
+              <button onClick={() => setParams({ pessoa: '', papel: '' })}
+                style={{ border: 'none', background: 'transparent', cursor: 'pointer', padding: 0, fontSize: 13, fontWeight: 700, color: '#dc2626', textDecoration: 'underline' }}>
+                Limpar filtro de pessoa
+              </button>
+            </div>
+          )}
+          {!pessoa && visao === 'fila' && (contadores?.pedidos || 0) > 0 && (
             <div style={{ fontSize: 13, marginTop: 8 }}>
               Os tickets que você abriu para outras pessoas estão em{' '}
               <button onClick={() => router.push('/tickets?aba=pedidos')}
