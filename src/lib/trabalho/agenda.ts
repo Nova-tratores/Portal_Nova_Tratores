@@ -16,11 +16,25 @@ export function conflitos(ocup: Ocupacao[], ini: string, duracao: number): Ocupa
  * sem nada da pessoa. Pula sábado e domingo para o início. Até 120 dias.
  */
 export function proximoLivre(ocup: Ocupacao[], desde: string, duracao: number): string {
-  for (let i = 0; i < 120; i++) {
+  return diasLivres(ocup, desde, duracao, 1)[0] ?? desde
+}
+
+/** Os `n` primeiros dias de início livres (dias úteis, até 120 dias à frente). */
+export function diasLivres(ocup: Ocupacao[], desde: string, duracao: number, n: number): string[] {
+  const out: string[] = []
+  for (let i = 0; i < 120 && out.length < n; i++) {
     const d = soma(desde, i)
     const dow = new Date(d + 'T12:00:00Z').getUTCDay()
     if (dow === 0 || dow === 6) continue
-    if (!conflitos(ocup, d, duracao).length) return d
+    if (!conflitos(ocup, d, duracao).length) out.push(d)
   }
-  return desde
+  return out
+}
+
+/**
+ * Data mínima de um pedido novo: pelo menos 1 dia de folga (amanhã).
+ * Só o "muito urgente" fura a fila e pode ser para hoje.
+ */
+export function dataMinima(hoje: string, urgente: boolean): string {
+  return urgente ? hoje : soma(hoje, 1)
 }

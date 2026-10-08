@@ -221,7 +221,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
     return (
       <div style={{ padding: 60, textAlign: 'center' }}>
         <div style={{ color: '#dc2626', fontWeight: 700, marginBottom: 14 }}>{erro || 'Ticket não encontrado'}</div>
-        <button onClick={() => (onFechar ? onFechar() : router.push('/tickets'))} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--portal-border,#ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-secondary,#555)' }}>
+        <button onClick={() => (onFechar ? onFechar() : router.push('/tickets/quadros'))} style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid var(--portal-border,#ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text-secondary,#555)' }}>
           Voltar aos tickets
         </button>
       </div>
@@ -240,7 +240,6 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   // Quem pediu ou quem recebeu decide se fica privado ou compartilhado (com o bloco).
   const podeVisibilidade = souSolicitante || souResponsavel || isAdmin
   const podeMoverQuadro = !ehSC && (souSolicitante || souResponsavel || isAdmin)
-  const colunaAtual = quadro ? (quadro.colunas.find((c) => c.id === ticket.quadro_coluna_id)?.id ?? quadro.colunas[0]?.id ?? '') : ''
 
   const cartao: React.CSSProperties = {
     background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e5e7eb)',
@@ -270,9 +269,9 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           </button>
         </div>
       ) : (
-      <button onClick={() => router.push(ehSC ? '/tickets/compras' : '/tickets')}
+      <button onClick={() => router.push(ehSC ? '/tickets/compras' : '/tickets/quadros')}
         style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
-        <ArrowLeft size={15} /> {ehSC ? 'Solicitações de Compras' : 'Tickets'}
+        <ArrowLeft size={15} /> {ehSC ? 'Solicitações de Compras' : 'Quadros'}
       </button>
       )}
 
@@ -314,56 +313,102 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
             <PainelCompras ticket={ticket} uid={uid} isAdmin={isAdmin} agindo={agindo} onAcao={acaoCompras} />
           </div>
         )}
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: ehSC ? 12 : 14, paddingTop: ehSC ? 0 : 14, borderTop: ehSC ? 'none' : '1px solid var(--portal-border,#f0f0f0)' }}>
-          {!ehSC && proximosStatus.map((s) => {
-            const cfg = ROTULO_STATUS_ACAO[s]
-            if (!cfg) return null
-            const rotulo = s === 'em_andamento' && ticket.status === 'resolvido' && souSolicitante && !souResponsavel
-              ? 'Contestar (reabrir)' : cfg.rotulo
-            return (
-              <button key={s} disabled={agindo} style={botaoAcao(cfg.destaque)}
-                onClick={() => {
-                  if (s === 'cancelado' && !window.confirm('Cancelar este ticket? Essa ação encerra a demanda.')) return
-                  acao({ acao: 'status', para: s })
-                }}>
-                {cfg.icone} {rotulo}
+        {/* Todo ticket precisa estar num bloco antes de andar */}
+        {!ehSC && !quadro && !encerrado && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 14, padding: '10px 12px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600 }}>
+            <LayoutGrid size={15} />
+            <span style={{ flex: 1, minWidth: 200 }}>
+              {souResponsavel ? 'Este ticket ainda não está em nenhum bloco. Escolha um para poder trabalhar nele.' : 'Esperando quem recebeu escolher o bloco.'}
+            </span>
+            {podeMoverQuadro && (
+              <button disabled={agindo} onClick={abrirModalQuadro}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: 'none', background: '#d97706', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                <LayoutGrid size={14} /> Escolher bloco
               </button>
-            )
-          })}
-          {podeTransferir && (
-            <button disabled={agindo} style={botaoAcao()} onClick={() => { setNovoResponsavel(''); setModalTransferir(true) }}>
-              <ArrowRightLeft size={14} /> Transferir
-            </button>
-          )}
-          {podeCutucar && (
-            <button disabled={agindo} style={botaoAcao()}
-              onClick={() => acao({ acao: 'pedir_atualizacao' })}
-              title="Registra a cobrança na timeline (visível a todos) e notifica o responsável">
-              <BellRing size={14} /> Pedir atualização
-            </button>
-          )}
-          {podeVisibilidade && (
-            <button disabled={agindo} style={botaoAcao()}
-              onClick={() => acao({ acao: 'visibilidade', para: ticket.visibilidade === 'privado' ? 'publico' : 'privado' })}>
-              {ticket.visibilidade === 'privado' ? <><Globe size={14} /> {quadro ? 'Compartilhar com o bloco' : 'Tornar visível'}</> : <><Lock size={14} /> Tornar privado</>}
-            </button>
-          )}
-          {quadro && quadro.colunas.length > 0 && (
-            <label style={{ ...botaoAcao(), cursor: 'default' }} title="Coluna do quadro (não muda o status)">
-              <LayoutGrid size={14} />
-              <select value={colunaAtual} disabled={agindo} aria-label="Coluna do quadro"
-                onChange={(e) => acao({ acao: 'coluna', coluna_id: e.target.value })}
-                style={{ border: 'none', background: 'transparent', fontSize: 12.5, fontWeight: 700, color: 'inherit', cursor: 'pointer', outline: 'none' }}>
-                {quadro.colunas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
-              </select>
-            </label>
-          )}
-          {podeMoverQuadro && (
-            <button disabled={agindo} style={botaoAcao()} onClick={abrirModalQuadro}>
-              <LayoutGrid size={14} /> {quadro ? 'Trocar de bloco' : 'Pôr num bloco'}
-            </button>
-          )}
-        </div>
+            )}
+          </div>
+        )}
+        {/* Ações em grupos: Situação · Bloco · Pessoas (cancelar fica à parte, discreto) */}
+        {(() => {
+          // Sem bloco o ticket não anda (só dá para cancelar) — ver aviso acima.
+          const status = ehSC || !quadro ? [] : proximosStatus.filter((s) => s !== 'cancelado' && ROTULO_STATUS_ACAO[s])
+          const podeCancelar = !ehSC && proximosStatus.includes('cancelado')
+          const temBloco = !!quadro || podeMoverQuadro || podeVisibilidade
+          // Quem pediu para outra pessoa vê a agenda (Fila) dela: quando o pedido sai.
+          const verAgenda = !ehSC && !encerrado && souSolicitante && !souResponsavel
+          const temPessoas = podeTransferir || podeCutucar || verAgenda
+          if (!status.length && !podeCancelar && !temBloco && !temPessoas) return null
+          const grupo = (titulo: string, filhos: React.ReactNode) => (
+            <div style={{ display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', gap: isMobile ? 6 : 12, flexDirection: isMobile ? 'column' : 'row' }}>
+              <span style={{ flex: 'none', width: isMobile ? undefined : 70, fontSize: 11, fontWeight: 800, letterSpacing: .4, textTransform: 'uppercase', color: 'var(--portal-text-muted,#999)' }}>{titulo}</span>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', flex: 1 }}>{filhos}</div>
+            </div>
+          )
+          return (
+            <div style={{ display: 'grid', gap: 10, marginTop: ehSC ? 12 : 14, paddingTop: ehSC ? 0 : 14, borderTop: ehSC ? 'none' : '1px solid var(--portal-border,#f0f0f0)' }}>
+              {(status.length > 0 || podeCancelar) && grupo('Situação', <>
+                {status.map((s) => {
+                  const cfg = ROTULO_STATUS_ACAO[s]!
+                  const rotulo = s === 'em_andamento' && ticket.status === 'resolvido' && souSolicitante && !souResponsavel
+                    ? 'Contestar (reabrir)' : cfg.rotulo
+                  return (
+                    <button key={s} disabled={agindo} style={botaoAcao(cfg.destaque)} onClick={() => acao({ acao: 'status', para: s })}>
+                      {cfg.icone} {rotulo}
+                    </button>
+                  )
+                })}
+                {podeCancelar && (
+                  <button disabled={agindo}
+                    style={{ ...botaoAcao(), marginLeft: 'auto', border: 'none', background: 'transparent', color: '#dc2626' }}
+                    onClick={() => { if (window.confirm('Cancelar este ticket? Essa ação encerra a demanda.')) acao({ acao: 'status', para: 'cancelado' }) }}>
+                    <Ban size={14} /> Cancelar ticket
+                  </button>
+                )}
+              </>)}
+              {temBloco && grupo('Bloco', <>
+                {/* Bloco = assunto (sem andamento próprio — o andamento é a Situação) */}
+                {quadro && (
+                  <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o bloco"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 8, fontSize: 12.5, fontWeight: 800, textDecoration: 'none',
+                      color: 'var(--portal-text,#111)', background: quadro.cor + '1f', border: `1px solid ${quadro.cor}55` }}>
+                    <span style={{ width: 10, height: 10, borderRadius: 3, background: quadro.cor }} /> {quadro.nome}
+                  </a>
+                )}
+                {podeMoverQuadro && (
+                  <button disabled={agindo} style={botaoAcao()} onClick={abrirModalQuadro}>
+                    <LayoutGrid size={14} /> {quadro ? 'Trocar de bloco' : 'Pôr num bloco'}
+                  </button>
+                )}
+                {podeVisibilidade && (
+                  <button disabled={agindo} style={botaoAcao()}
+                    onClick={() => acao({ acao: 'visibilidade', para: ticket.visibilidade === 'privado' ? 'publico' : 'privado' })}>
+                    {ticket.visibilidade === 'privado' ? <><Globe size={14} /> {quadro ? 'Compartilhar com o bloco' : 'Tornar visível'}</> : <><Lock size={14} /> Tornar privado</>}
+                  </button>
+                )}
+              </>)}
+              {temPessoas && grupo('Pessoas', <>
+                {verAgenda && (
+                  <a href={`/cronograma?fila=${ticket.responsavel_id}`} style={{ ...botaoAcao(), textDecoration: 'none' }}
+                    title="Ver a fila de trabalho dessa pessoa e a previsão do seu pedido">
+                    <CalendarDays size={14} /> Ver agenda de {nome(ticket.responsavel_id).split(' ')[0]}
+                  </a>
+                )}
+                {podeTransferir && (
+                  <button disabled={agindo} style={botaoAcao()} onClick={() => { setNovoResponsavel(''); setModalTransferir(true) }}>
+                    <ArrowRightLeft size={14} /> Transferir
+                  </button>
+                )}
+                {podeCutucar && (
+                  <button disabled={agindo} style={botaoAcao()}
+                    onClick={() => acao({ acao: 'pedir_atualizacao' })}
+                    title="Registra a cobrança na timeline (visível a todos) e notifica o responsável">
+                    <BellRing size={14} /> Pedir atualização
+                  </button>
+                )}
+              </>)}
+            </div>
+          )
+        })()}
         {!ehSC && <TarefasDoTicket ticketId={ticket.id} responsavelId={ticket.responsavel_id} encerrado={encerrado} onMudou={() => { carregar(true); onMudou?.() }} />}
 
         {erroAcao && (
@@ -831,14 +876,8 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               </div>
             )}
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, marginTop: 16 }}>
-              {quadro ? (
-                <button disabled={agindo} onClick={() => {
-                  if (window.confirm('Tirar este ticket do bloco?')) acao({ acao: 'quadro', quadro_id: null }, () => setModalQuadro(false))
-                }}
-                  style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: '#dc2626', fontWeight: 600 }}>
-                  Tirar do bloco
-                </button>
-              ) : <span />}
+              {/* Todo ticket fica num bloco: dá para trocar, não para tirar. */}
+              <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)', alignSelf: 'center' }}>Todo ticket fica num bloco.</span>
               <button onClick={() => setModalQuadro(false)}
                 style={{ padding: '8px 14px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--portal-text-secondary,#555)' }}>
                 Fechar

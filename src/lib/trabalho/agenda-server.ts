@@ -7,7 +7,7 @@ import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { cronogramaAdmin } from '@/lib/cronograma/supabase-server'
 import { STATUS_FINAIS } from '@/lib/tickets/constantes'
 import { hojeSP } from './cronograma-server'
-import { proximoLivre, conflitos, type Ocupacao } from './agenda'
+import { diasLivres, dataMinima, conflitos, type Ocupacao } from './agenda'
 
 /** O que ocupa os dias da pessoa: etapas do cronograma + tickets com prazo. */
 export async function ocupacaoDe(userId: string): Promise<Ocupacao[]> {
@@ -28,12 +28,16 @@ export async function ocupacaoDe(userId: string): Promise<Ocupacao[]> {
   return out
 }
 
-export async function sugestaoAgenda(userId: string, duracao: number, desejado?: string | null) {
+/** Sugestões a partir da data mínima (amanhã; hoje só se for muito urgente). */
+export async function sugestaoAgenda(userId: string, duracao: number, desejado?: string | null, urgente = false) {
   const ocup = await ocupacaoDe(userId)
   const hoje = hojeSP()
-  const sugestao = proximoLivre(ocup, hoje, duracao)
+  const minimo = dataMinima(hoje, urgente)
+  // Muito urgente fura a fila: a data é hoje, ocupado ou não.
+  const sugestoes = urgente ? [hoje] : diasLivres(ocup, minimo, duracao, 4)
+  const sugestao = sugestoes[0] ?? minimo
   const inicio = desejado || sugestao
-  return { hoje, sugestao, ocupacao: ocup, conflitos: conflitos(ocup, inicio, duracao) }
+  return { hoje, minimo, sugestao, sugestoes, ocupacao: ocup, conflitos: conflitos(ocup, inicio, duracao) }
 }
 
 
@@ -68,18 +72,41 @@ export async function itensDoDia(userId: string): Promise<ItemDia[]> {
       }
     }
   } catch { /* sem cronograma */ }
+  // Mesma regra do Cronograma/Fila: resolvido já foi feito (só espera quem
+  // pediu confirmar) e Solicitação de Compras segue o trilho dela — não entram.
   const { data: tks } = await supabaseAdmin.from('tickets').select('id, numero, titulo, status, prazo')
-    .eq('responsavel_id', userId).not('status', 'in', `(${STATUS_FINAIS.join(',')})`)
+    .eq('responsavel_id', userId).neq('tipo', 'compras').not('status', 'in', `(${[...STATUS_FINAIS, 'resolvido'].join(',')})`)
+  const abertos = new Map((tks || []).map((t) => [t.id as string, t]))
+  const noDia = new Map<string, ItemDia>()
   for (const t of tks || []) {
     if (ticketsNaEtapa.has(t.id)) continue
     const vence = t.prazo && t.prazo <= hoje
-    if (t.status === 'em_andamento' || vence) itens.push({ tipo: 'ticket', texto: `#${t.numero} ${t.titulo}`, detalhe: t.prazo ? (t.prazo < hoje ? `atrasado desde ${br(t.prazo)}` : t.prazo === hoje ? 'prazo hoje' : `prazo ${br(t.prazo)}`) : 'em andamento', ticketId: t.id, atrasado: !!t.prazo && t.prazo < hoje })
+    if (t.status === 'em_andamento' || vence) {
+      const item: ItemDia = { tipo: 'ticket', texto: `#${t.numero} ${t.titulo}`, detalhe: t.prazo ? (t.prazo < hoje ? `atrasado desde ${br(t.prazo)}` : t.prazo === hoje ? 'prazo hoje' : `prazo ${br(t.prazo)}`) : 'em andamento', ticketId: t.id, atrasado: !!t.prazo && t.prazo < hoje }
+      noDia.set(t.id, item)
+      itens.push(item)
+    }
   }
-  const { data: tarefas } = await supabaseAdmin.from('portal_tarefas').select('titulo, prazo')
+  const { data: tarefas } = await supabaseAdmin.from('portal_tarefas').select('titulo, prazo, ticket_id')
     .eq('atribuido_a', userId).eq('concluida', false).not('prazo', 'is', null).lte('prazo', hoje + 'T23:59:59')
   for (const x of tarefas || []) {
     const d = String(x.prazo).slice(0, 10)
-    itens.push({ tipo: 'tarefa', texto: x.titulo, detalhe: d < hoje ? `atrasada desde ${br(d)}` : 'vence hoje', atrasado: d < hoje })
+    const quando = d < hoje ? `atrasada desde ${br(d)}` : 'vence hoje'
+    if (!x.ticket_id) {
+      itens.push({ tipo: 'tarefa', texto: x.titulo, detalhe: quando, atrasado: d < hoje })
+      continue
+    }
+    // Tarefa de dentro de um ticket = passo dele: aparece NO ticket (o mesmo
+    // cartão do Kanban), não como item a mais. Ticket resolvido/encerrado ou
+    // de outra pessoa não entra.
+    const t = abertos.get(x.ticket_id)
+    if (!t || ticketsNaEtapa.has(t.id)) continue
+    const passo = `passo "${x.titulo}" ${quando}`
+    const ja = noDia.get(t.id)
+    if (ja) { ja.detalhe = ja.detalhe ? `${ja.detalhe} · ${passo}` : passo; ja.atrasado = ja.atrasado || d < hoje; continue }
+    const item: ItemDia = { tipo: 'ticket', texto: `#${t.numero} ${t.titulo}`, detalhe: passo, ticketId: t.id, atrasado: d < hoje }
+    noDia.set(t.id, item)
+    itens.push(item)
   }
   return itens
 }

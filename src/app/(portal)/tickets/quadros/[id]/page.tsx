@@ -1,22 +1,22 @@
 'use client'
-// Um quadro: colunas próprias + cartões (tickets). Clique no cartão abre a
-// janela do ticket; arrastar troca a coluna. Quem criou o quadro mexe nas
-// colunas, nos integrantes e nas configurações.
+// Um BLOCO = um assunto (pasta da pessoa). Dentro, os tickets por SITUAÇÃO
+// (Aberto, Em andamento, Aguardando…, Resolvido) — o bloco não tem andamento
+// próprio, para não confundir com a situação. Arrastar muda a situação;
+// clique abre a janela do ticket. Quem criou mexe nos integrantes e no nome/cor.
 export const dynamic = 'force-dynamic'
 
 import { use, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Lock, Globe, Users, Settings, Plus, Search, RefreshCw, GanttChart } from 'lucide-react'
+import { ArrowLeft, Users, Settings, Search, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { authHeaders } from '@/lib/auth/client'
-import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
+import type { Ticket, TicketStatus, UsuarioMin } from '@/lib/tickets/constantes'
 import type { Quadro, QuadroColuna } from '@/lib/tickets/quadros'
-import KanbanQuadro from '@/components/tickets/quadros/KanbanQuadro'
+import KanbanTickets from '@/components/tickets/KanbanTickets'
 import PainelIntegrantes from '@/components/tickets/quadros/PainelIntegrantes'
 import FormQuadro from '@/components/tickets/quadros/FormQuadro'
-import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
 
 interface Dados {
@@ -46,9 +46,10 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
   const [busca, setBusca] = useState('')
   const [encerrados, setEncerrados] = useState(false)
   const [abertoId, setAbertoId] = useState<string | null>(null)
-  const [novoNaColuna, setNovoNaColuna] = useState<string | null>(null)
   const [integrantes, setIntegrantes] = useState(false)
   const [config, setConfig] = useState(false)
+  // Filtro de quem faz / quem pediu.
+  const [quem, setQuem] = useState<'tudo' | 'faco' | 'pedi'>('tudo')
 
   const carregar = useCallback(async (silencioso = false) => {
     if (!silencioso) setCarregando(true)
@@ -74,37 +75,33 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
 
   const ticketsFiltrados = useMemo(() => {
     const q = busca.trim().toLowerCase()
-    if (!dados || !q) return dados?.tickets || []
-    return dados.tickets.filter((t) =>
-      t.titulo.toLowerCase().includes(q) || String(t.numero).includes(q)
-      || (dados.usuarios[t.responsavel_id]?.nome || '').toLowerCase().includes(q))
-  }, [dados, busca])
+    const eu = userProfile?.id
+    return (dados?.tickets || []).filter((t) => {
+      if (quem === 'faco' && t.responsavel_id !== eu) return false
+      if (quem === 'pedi' && t.solicitante_id !== eu) return false
+      return !q || t.titulo.toLowerCase().includes(q) || String(t.numero).includes(q)
+        || (dados!.usuarios[t.responsavel_id]?.nome || '').toLowerCase().includes(q)
+    })
+  }, [dados, busca, quem, userProfile?.id])
 
-  // Mover cartão: otimista, pela rota de ações do ticket (fica na linha do tempo).
-  const moverCartao = async (ticketId: string, colunaId: string, ordem?: string[]) => {
-    if (!dados) return
-    const antes = dados
-    const posNova = new Map((ordem || []).map((x, i) => [x, i]))
-    setDados({ ...dados, tickets: dados.tickets.map((t) => {
-      const comCol = t.id === ticketId ? { ...t, quadro_coluna_id: colunaId } : t
-      return posNova.has(t.id) ? { ...comCol, quadro_posicao: posNova.get(t.id) } : comCol
-    }) })
+  // Arrastar troca a situação (mesma rota dos botões do ticket).
+  const mudarStatus = async (ticketId: string, para: TicketStatus) => {
     try {
       const res = await fetch(`/api/tickets/${ticketId}/acoes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ acao: 'coluna', coluna_id: colunaId, ordem }),
+        body: JSON.stringify({ acao: 'status', para }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(json.error || 'Falha ao mover')
+      if (!res.ok) throw new Error(json.error || 'Falha ao mudar a situação')
       setErroAcao('')
     } catch (e) {
-      setDados(antes)
-      setErroAcao(e instanceof Error ? e.message : 'Falha ao mover')
+      setErroAcao(e instanceof Error ? e.message : 'Falha ao mudar a situação')
     }
+    carregar(true)
   }
 
-  // Ações do quadro (colunas/integrantes). true = deu certo.
+  // Ações do bloco (integrantes). true = deu certo.
   const acaoQuadro = async (payload: Record<string, unknown>): Promise<boolean> => {
     try {
       const res = await fetch(`/api/tickets/quadros/${id}`, {
@@ -133,7 +130,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
     )
   }
 
-  const { quadro, colunas, membros, usuarios } = dados
+  const { quadro, membros, usuarios } = dados
   const pessoas = [...new Set([quadro.criado_por, ...membros])]
 
   return (
@@ -143,48 +140,21 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
         <ArrowLeft size={15} /> Quadros
       </button>
 
-      {/* Cabeçalho */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 12, marginBottom: 12, background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e5e7eb)', borderTop: `4px solid ${quadro.cor}` }}>
-        <div style={{ flex: '1 1 260px', minWidth: 0 }}>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 19, fontWeight: 800, margin: 0, color: 'var(--portal-text,#111)' }}>
-            {quadro.nome}
-            <span title={quadro.visibilidade === 'privado' ? 'Privado: só integrantes' : 'Público: todos de Tickets veem'} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>
-              {quadro.visibilidade === 'privado' ? <><Lock size={12} /> privado</> : <><Globe size={12} /> público</>}
-            </span>
-            {quadro.arquivado && <span style={{ fontSize: 12, fontWeight: 700, color: '#b45309' }}>arquivado</span>}
-          </h1>
-          {quadro.descricao && <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>{quadro.descricao}</p>}
-          {dados.projeto && (
-            <a href={`/cronograma/${dados.projeto.id}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 6, fontSize: 12.5, fontWeight: 700, color: '#0369a1', textDecoration: 'none' }}>
-              <GanttChart size={13} /> Cronograma: {dados.projeto.nome}
-            </a>
-          )}
-        </div>
-        <button onClick={() => setIntegrantes(true)} title="Integrantes"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 11px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary,#555)' }}>
-          <Users size={14} /> {pessoas.length}
-        </button>
-        {dados.pode_gerenciar && (
-          <button onClick={() => setConfig(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 11px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary,#555)' }}>
-            <Settings size={14} /> Configurar
-          </button>
-        )}
-        {dados.pode_trabalhar && (
-          <button onClick={() => setNovoNaColuna(colunas[0]?.id || '')}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', cursor: 'pointer', fontSize: 13.5, fontWeight: 700 }}>
-            <Plus size={15} /> Novo ticket
-          </button>
-        )}
-      </div>
+      {quadro.arquivado && <div style={{ marginBottom: 10, fontSize: 12.5, fontWeight: 700, color: '#b45309' }}>Este bloco está arquivado.</div>}
 
       {/* Filtros */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, flex: '1 1 220px', maxWidth: 340, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)' }}>
           <Search size={14} style={{ opacity: .5, flexShrink: 0 }} />
-          <input id="busca-quadro" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar no quadro..."
+          <input id="busca-quadro" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar no bloco..."
             style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, width: '100%', color: 'var(--portal-text,#111)' }} />
         </div>
+        {([['tudo', 'Tudo'], ['faco', 'Que eu faço'], ['pedi', 'Que eu pedi']] as const).map(([v, l]) => (
+          <button key={v} onClick={() => setQuem(v)}
+            style={{ padding: '6px 12px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: 'pointer',
+              border: quem === v ? '1.5px solid #dc2626' : '1px solid var(--portal-border,#e5e7eb)',
+              background: quem === v ? 'rgba(220,38,38,.08)' : 'var(--portal-surface,#fff)', color: quem === v ? '#dc2626' : 'var(--portal-text-secondary,#555)' }}>{l}</button>
+        ))}
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer' }}>
           <input type="checkbox" checked={encerrados} onChange={(e) => setEncerrados(e.target.checked)} /> Incluir encerrados
         </label>
@@ -192,39 +162,30 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
           style={{ display: 'flex', padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
           <RefreshCw size={14} />
         </button>
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 8 }}>
+          <button onClick={() => setIntegrantes(true)} title="Integrantes"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 11px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary,#555)' }}>
+            <Users size={14} /> {pessoas.length}
+          </button>
+          {dados.pode_gerenciar && (
+            <button onClick={() => setConfig(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 11px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--portal-text-secondary,#555)' }}>
+              <Settings size={14} /> Configurar
+            </button>
+          )}
+        </span>
         {!dados.pode_trabalhar && !quadro.arquivado && (
-          <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>Você vê este quadro, mas só integrantes criam e movem cartões.</span>
+          <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>Você vê este bloco, mas só integrantes mexem nos tickets.</span>
         )}
       </div>
 
       {erroAcao && <div style={{ padding: '10px 12px', borderRadius: 8, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600, marginBottom: 10 }}>{erroAcao}</div>}
 
-      <KanbanQuadro
-        colunas={colunas}
-        tickets={ticketsFiltrados}
-        usuarios={usuarios}
-        cor={quadro.cor}
-        meuId={userProfile?.id}
-        podeTrabalhar={dados.pode_trabalhar}
-        podeGerenciar={dados.pode_gerenciar && !quadro.arquivado}
-        isMobile={isMobile}
-        onAbrir={setAbertoId}
-        onMover={moverCartao}
-        onNovoTicket={(colunaId) => setNovoNaColuna(colunaId)}
-        onColuna={acaoQuadro}
-        etapas={dados.etapas}
-        passos={dados.passos}
-      />
+      <KanbanTickets tickets={ticketsFiltrados} usuarios={usuarios} visao="acompanhando" encerrados={encerrados}
+        meuId={userProfile?.id} isAdmin={isAdmin} atualId={null} onMarcarAtual={() => {}}
+        onMudarStatus={mudarStatus} onAbrir={setAbertoId} />
 
       {abertoId && <TicketModal id={abertoId} onFechar={() => setAbertoId(null)} onMudou={() => carregar(true)} />}
-
-      {novoNaColuna !== null && (
-        <FormTicket
-          quadro={{ id: quadro.id, nome: quadro.nome, colunaId: novoNaColuna || null, temCronograma: !!dados.projeto }}
-          onFechar={() => setNovoNaColuna(null)}
-          onCriado={(ticketId) => { setNovoNaColuna(null); carregar(true); setAbertoId(ticketId) }}
-        />
-      )}
 
       {integrantes && (
         <PainelIntegrantes membros={membros} criadoPor={quadro.criado_por} usuarios={usuarios}

@@ -60,14 +60,27 @@ export async function listarQuadros(auth: Autenticado, incluirArquivados: boolea
   const ids = quadros.map((x) => x.id)
   const [membrosRes, ticketsRes] = await Promise.all([
     supabaseAdmin.from('tickets_quadro_membros').select('quadro_id, user_id').in('quadro_id', ids),
-    supabaseAdmin.from('tickets').select('quadro_id').in('quadro_id', ids).not('status', 'in', `(${STATUS_FINAIS.join(',')})`),
+    supabaseAdmin.from('tickets').select('quadro_id, status, prazo').in('quadro_id', ids).not('status', 'in', `(${STATUS_FINAIS.join(',')})`),
   ])
   const membrosPor = new Map<string, string[]>()
   for (const m of ok(membrosRes) as { quadro_id: string; user_id: string }[]) {
     membrosPor.set(m.quadro_id, [...(membrosPor.get(m.quadro_id) || []), m.user_id])
   }
+  // Capa do bloco: abertos, em andamento, atrasados e o próximo prazo (só a data —
+  // o título pode ser de ticket privado).
+  const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
   const abertosPor = new Map<string, number>()
-  for (const t of ok(ticketsRes) as { quadro_id: string }[]) abertosPor.set(t.quadro_id, (abertosPor.get(t.quadro_id) || 0) + 1)
+  const resumoPor = new Map<string, { andamento: number; atrasados: number; proximo: string | null }>()
+  for (const t of ok(ticketsRes) as { quadro_id: string; status: string; prazo: string | null }[]) {
+    abertosPor.set(t.quadro_id, (abertosPor.get(t.quadro_id) || 0) + 1)
+    const r = resumoPor.get(t.quadro_id) || { andamento: 0, atrasados: 0, proximo: null }
+    if (t.status === 'em_andamento') r.andamento++
+    if (t.status !== 'resolvido' && t.prazo) {
+      if (t.prazo < hoje) r.atrasados++
+      else if (!r.proximo || t.prazo < r.proximo) r.proximo = t.prazo
+    }
+    resumoPor.set(t.quadro_id, r)
+  }
 
   return quadros
     .map((quadro) => {
@@ -77,6 +90,7 @@ export async function listarQuadros(auth: Autenticado, incluirArquivados: boolea
         ...quadro,
         membros,
         tickets_abertos: abertosPor.get(quadro.id) || 0,
+        resumo: resumoPor.get(quadro.id) || { andamento: 0, atrasados: 0, proximo: null },
         // "Meus blocos": criei ou fui adicionado (admin/público não contam)
         meu: quadro.criado_por === auth.userId || membros.includes(auth.userId),
         pode_trabalhar: podeTrabalhar(quadro, membros, a),

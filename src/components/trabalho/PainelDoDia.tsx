@@ -62,6 +62,8 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
     : { quadroId: null, visibilidade: pend?.visibilidade || 'privado' }
   // Ticket criado direto num bloco fica nele; senão vai pro bloco escolhido.
   const extraOrg = pend?.quadro_id ? {} : { quadro_id: org.quadroId, visibilidade: org.visibilidade }
+  // Todo ticket precisa estar num bloco: sem bloco escolhido não confirma.
+  const faltaBloco = !!pend && !pend.quadro_id && !org.quadroId
   const mostrarDia = !pend && h.itens.length > 0 && ((h.hora >= '07:30' && !h.confirmado && !diaFechado) || verDia)
   const naDashboard = pathname === '/dashboard' || pathname === '/'
   const atalho = naDashboard && h.preferencias.atalho_flutuante && !pend && !mostrarDia
@@ -143,13 +145,13 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
                     <button style={btn()} onClick={() => setModo('recusar')}><CircleX size={15} /> Recusar</button>
                     <button style={btn()} onClick={sugerirData}><CalendarClock size={15} /> Propor outra data</button>
                   </span>
-                  <button style={btn('#059669')} disabled={salvando} onClick={() => decidir({ decisao: 'confirmar', ...extraOrg })}><Check size={15} /> Confirmar</button>
+                  <button style={btn('#059669')} disabled={salvando || faltaBloco} title={faltaBloco ? 'Escolha um bloco' : undefined} onClick={() => decidir({ decisao: 'confirmar', ...extraOrg })}><Check size={15} /> Confirmar</button>
                 </>
               ) : (
                 <>
                   <button style={btn()} onClick={() => { setModo(null); setErro('') }}>Voltar</button>
                   {modo === 'data'
-                    ? <button style={btn('#059669')} disabled={salvando || !novaData} onClick={() => decidir({ decisao: 'nova_data', data: novaData, ...extraOrg })}><Check size={15} /> Confirmar com esta data</button>
+                    ? <button style={btn('#059669')} disabled={salvando || !novaData || faltaBloco} onClick={() => decidir({ decisao: 'nova_data', data: novaData, ...extraOrg })}><Check size={15} /> Confirmar com esta data</button>
                     : <button style={btn('#dc2626')} disabled={salvando || !motivo.trim()} onClick={() => decidir({ decisao: 'recusar', motivo })}><CircleX size={15} /> Recusar ticket</button>}
                 </>
               )}

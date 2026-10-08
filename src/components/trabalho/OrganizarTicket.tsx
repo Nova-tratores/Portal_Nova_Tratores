@@ -82,13 +82,13 @@ export default function OrganizarTicket({ ticket, onFechar, onFeito }: {
                 <button style={btn()} onClick={() => setModo('recusar')}><CircleX size={15} /> Recusar</button>
                 <button style={btn()} onClick={() => setModo('data')}><CalendarClock size={15} /> Outra data</button>
               </span>
-              <button style={btn('#059669')} disabled={salvando} onClick={() => enviar({ acao: 'aceite', decisao: 'confirmar', ...organizacao })}><Check size={15} /> Confirmar</button>
+              <button style={btn('#059669')} disabled={salvando || !valor.quadroId} title={!valor.quadroId ? 'Escolha um bloco' : undefined} onClick={() => enviar({ acao: 'aceite', decisao: 'confirmar', ...organizacao })}><Check size={15} /> Confirmar</button>
             </>
           ) : (
             <>
               <button style={btn()} onClick={() => { setModo(null); setErro('') }}>Voltar</button>
               {modo === 'data'
-                ? <button style={btn('#059669')} disabled={salvando || !novaData} onClick={() => enviar({ acao: 'aceite', decisao: 'nova_data', data: novaData, ...organizacao })}><Check size={15} /> Confirmar com esta data</button>
+                ? <button style={btn('#059669')} disabled={salvando || !novaData || !valor.quadroId} onClick={() => enviar({ acao: 'aceite', decisao: 'nova_data', data: novaData, ...organizacao })}><Check size={15} /> Confirmar com esta data</button>
                 : <button style={btn('#dc2626')} disabled={salvando || !motivo.trim()} onClick={() => enviar({ acao: 'aceite', decisao: 'recusar', motivo })}><CircleX size={15} /> Recusar ticket</button>}
             </>
           )}

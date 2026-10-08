@@ -1,7 +1,7 @@
 // CENTRAL DE TRABALHO — Cronograma GERAL: tudo que eu posso ver, por dia,
 // cada ticket na cor do seu bloco.
 // GET /api/trabalho/cronograma-geral ->
-//   tickets em aberto (não resolvidos) em que:
+//   tickets em aberto (inclui resolvido esperando confirmação) em que:
 //     - eu pedi, eu faço ou participo; ou
 //     - estão num bloco que eu vejo E foram compartilhados com o bloco; ou
 //     - estão fora de bloco e são "visível a todos".
@@ -16,7 +16,8 @@ import { contagemPassos } from '@/lib/trabalho/tarefas-server'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const FORA = '(resolvido,fechado,cancelado)'
+// resolvido entra (espera o pedinte confirmar): aparece só no Kanban
+const FORA = '(fechado,cancelado)'
 
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req)

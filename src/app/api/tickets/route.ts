@@ -13,7 +13,8 @@ import { carregarConfigCompras, avaliarBloqueio } from '@/lib/tickets/compras-se
 import type { Autenticado } from '@/lib/auth/server'
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
 import { colunaDoTicket } from '@/lib/tickets/quadros'
-import { planejarTicket, ErroTrabalho, etapasDosTickets } from '@/lib/trabalho/cronograma-server'
+import { planejarTicket, ErroTrabalho, etapasDosTickets, hojeSP } from '@/lib/trabalho/cronograma-server'
+import { dataMinima } from '@/lib/trabalho/agenda'
 import { contagemPassos } from '@/lib/trabalho/tarefas-server'
 
 export const runtime = 'nodejs'
@@ -181,6 +182,12 @@ export async function POST(req: NextRequest) {
   if (!titulo) return NextResponse.json({ error: 'Informe o título do ticket' }, { status: 400 })
   if (!descricao) return NextResponse.json({ error: 'Descreva o pedido (quem pediu e por quê fica registrado)' }, { status: 400 })
   if (!responsavelId) return NextResponse.json({ error: 'Escolha o responsável' }, { status: 400 })
+  // Prazo: no mínimo 1 dia de folga. Só "muito urgente" fura a fila (hoje).
+  const urgente = body.urgente === true
+  if (prazo && prazo < dataMinima(hojeSP(), urgente)) {
+    return NextResponse.json({ error: urgente ? 'O prazo não pode ser no passado.' : 'Deixe pelo menos 1 dia de prazo. Se for para hoje, marque "Muito urgente".' }, { status: 400 })
+  }
+  const inicioTrabalho = /^\d{4}-\d{2}-\d{2}$/.test(String(body.inicio || '')) && (!prazo || String(body.inicio) <= prazo) ? String(body.inicio) : null
 
   // O responsável precisa ser um usuário ativo do portal.
   const { data: resp } = await supabaseAdmin
@@ -204,6 +211,8 @@ export async function POST(req: NextRequest) {
     visibilidade,
     solicitante_id: auth.userId,
     responsavel_id: responsavelId,
+    // payload.inicio = 1º dia do trabalho (o Cronograma mostra do início ao prazo)
+    ...(urgente || inicioTrabalho ? { payload: { ...(urgente ? { urgente: true } : {}), ...(inicioTrabalho ? { inicio: inicioTrabalho } : {}) } } : {}),
     ...noQuadro,
   }
   // Quem recebe confirma (Central de Trabalho). Sem a coluna, cria como antes.

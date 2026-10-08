@@ -3,6 +3,8 @@
 //   praOrganizar: tickets que EU recebi e ainda não estão em nenhum bloco
 //   pedidos:      tickets que EU criei para outra pessoa (dia, situação, bloco)
 //   paraTarefa:   tickets abertos que criei OU recebi (onde dá pra pôr tarefa)
+//   envolvidos:   por ticket de paraTarefa, quem está nele (pedinte, quem faz e
+//                 participantes) — a Nova tarefa mostra os tickets "em comum"
 //   pendencias:   tarefas soltas (automáticas) em aberto atribuídas a mim
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
@@ -38,14 +40,20 @@ export async function GET(req: NextRequest) {
   const idsQuadro = [...new Set(lista.map((t) => t.quadro_id).filter(Boolean))] as string[]
   const idsColuna = [...new Set(pedidos.map((t) => t.quadro_coluna_id).filter(Boolean))] as string[]
   const idsUsuarios = [...new Set(lista.flatMap((t) => [t.solicitante_id, t.responsavel_id]))]
-  const [qs, cols, us, passos, pend] = await Promise.all([
+  const [qs, cols, us, passos, pend, parts] = await Promise.all([
     idsQuadro.length ? supabaseAdmin.from('tickets_quadros').select('id, nome, cor').in('id', idsQuadro) : Promise.resolve({ data: [] }),
     idsColuna.length ? supabaseAdmin.from('tickets_quadro_colunas').select('id, nome').in('id', idsColuna) : Promise.resolve({ data: [] }),
     idsUsuarios.length ? supabaseAdmin.from('financeiro_usu').select('id, nome, avatar_url').in('id', idsUsuarios) : Promise.resolve({ data: [] }),
     contagemPassos(pedidos.map((t) => t.id)),
     supabaseAdmin.from('portal_tarefas').select('id', { count: 'exact', head: true })
       .eq('atribuido_a', auth.userId).is('ticket_id', null).eq('concluida', false),
+    paraTarefa.length
+      ? supabaseAdmin.from('tickets_participantes').select('ticket_id, user_id').in('ticket_id', paraTarefa.map((t) => t.id)).is('removido_em', null)
+      : Promise.resolve({ data: [] }),
   ])
+  const envolvidos: Record<string, string[]> = {}
+  for (const t of paraTarefa) envolvidos[t.id] = [t.solicitante_id, t.responsavel_id]
+  for (const x of (parts.data || []) as { ticket_id: string; user_id: string }[]) envolvidos[x.ticket_id]?.push(x.user_id)
   const quadros: Record<string, { id: string; nome: string; cor: string }> = {}
   for (const q of (qs.data || []) as { id: string; nome: string; cor: string }[]) quadros[q.id] = q
   const colunas: Record<string, string> = {}
@@ -54,7 +62,7 @@ export async function GET(req: NextRequest) {
   for (const u of (us.data || []) as { id: string; nome: string; avatar_url: string | null }[]) usuarios[u.id] = u
 
   return NextResponse.json({
-    praOrganizar, pedidos, paraTarefa, quadros, colunas, usuarios, passos,
+    praOrganizar, pedidos, paraTarefa, envolvidos, quadros, colunas, usuarios, passos,
     pendencias: pend.count || 0,
   })
 }

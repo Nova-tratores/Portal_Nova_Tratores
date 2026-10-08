@@ -9,16 +9,34 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Ticket as TicketIcon, GanttChartSquare, SquareCheck, X, ListTodo,
-  ArrowRight, Users, Lock, Calendar,
+  ArrowRight, Users, Lock, Calendar, BarChart3,
 } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
+import { usePermissoes } from '@/hooks/usePermissoes'
 import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
 import FormTarefa from './FormTarefa'
 
 export default function CentralNav() {
   const pathname = usePathname() || ''
+  const { userProfile } = useAuth()
+  const { isAdmin } = usePermissoes(userProfile?.id)
   const [ajuda, setAjuda] = useState(false)
   const [novoTicket, setNovoTicket] = useState(false)
+  const [preenchido, setPreenchido] = useState<{ titulo: string; descricao: string } | null>(null)
+  // Link da notificação "Fulano pediu para você abrir um ticket": abre o Novo
+  // ticket já preenchido e limpa a URL.
+  useEffect(() => {
+    const sp = new URLSearchParams(window.location.search)
+    if (sp.get('novoTicket') !== '1') return
+    const titulo = sp.get('titulo') || ''
+    const de = sp.get('pedidoDe') || ''
+    // A URL só existe no navegador: ler e abrir o form aqui é sincronizar com algo de fora.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPreenchido({ titulo, descricao: de ? `Pedido de ${de}: ${titulo}` : titulo })
+    setNovoTicket(true)
+    window.history.replaceState(null, '', window.location.pathname)
+  }, [pathname])
   const [novaTarefa, setNovaTarefa] = useState(false)
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
   const [pendencias, setPendencias] = useState(0)
@@ -35,10 +53,13 @@ export default function CentralNav() {
     return () => { vivo = false }
   }, [pathname])
 
-  const emQuadros = pathname.startsWith('/tickets')
+  // /tickets (exato) é só a Visão gerencial; o resto de /tickets* é Quadros.
+  const naGerencial = pathname === '/tickets'
+  const emQuadros = pathname.startsWith('/tickets') && !naGerencial
   const abas = [
     { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={16} />, ativo: emQuadros },
     { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={16} />, ativo: pathname.startsWith('/cronograma') },
+    ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão gerencial', icone: <BarChart3 size={16} />, ativo: naGerencial }] : []),
     ...(pendencias > 0 || pathname.startsWith('/tarefas')
       ? [{ href: '/tarefas', label: 'Pendências', icone: <ListTodo size={16} />, ativo: pathname.startsWith('/tarefas'), n: pendencias }]
       : []),
@@ -76,7 +97,8 @@ export default function CentralNav() {
       </nav>
       {ajuda && <ComoFunciona onFechar={() => setAjuda(false)} />}
       {novoTicket && (
-        <FormTicket onFechar={() => setNovoTicket(false)}
+        <FormTicket tituloInicial={preenchido?.titulo} descricaoInicial={preenchido?.descricao}
+          onFechar={() => { setNovoTicket(false); setPreenchido(null) }}
           onCriado={(id) => { setNovoTicket(false); avisarMudanca(); setTicketAberto(id) }} />
       )}
       {novaTarefa && (

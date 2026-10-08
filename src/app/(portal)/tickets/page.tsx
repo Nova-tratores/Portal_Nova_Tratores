@@ -34,11 +34,17 @@ function TicketsPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { userProfile } = useAuth()
-  const { isAdmin } = usePermissoes(userProfile?.id)
+  const { isAdmin, loading: carregandoPerm } = usePermissoes(userProfile?.id)
   const isMobile = useIsMobile()
 
   const abaParam = searchParams.get('aba') as Visao | null
   const visao: Visao = abaParam && VISOES_VALIDAS.has(abaParam) ? abaParam : 'fila'
+  // Central de Trabalho: os tickets moram DENTRO de cada bloco (não se
+  // misturam). Aqui só fica a Visão gerencial (admin); o resto vai pra Quadros.
+  useEffect(() => {
+    if (visao !== 'gerencial') { router.replace('/tickets/quadros'); return }
+    if (!carregandoPerm && userProfile && !isAdmin) router.replace('/tickets/quadros')
+  }, [visao, isAdmin, carregandoPerm, userProfile, router])
 
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [usuarios, setUsuarios] = useState<Record<string, UsuarioMin>>({})
@@ -239,7 +245,7 @@ function TicketsPageInner() {
     <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: kanban ? undefined : 1100, margin: '0 auto' }}>
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <div style={{ display: visao === 'gerencial' ? 'none' : 'flex', gap: 6, flexWrap: 'wrap' }}>
           {abas.map((a) => {
             const qtd = contadores?.[a.id]
             const ativo = visao === a.id

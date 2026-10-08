@@ -23,12 +23,16 @@ interface Props {
   onMudarStatus: (id: string, para: TicketStatus) => Promise<void>
   /** Abre o ticket numa janela (sem trocar de página). */
   onAbrir?: (id: string) => void
+  /** Cor do bloco na borda esquerda do card (Cronograma / bloco). */
+  corDe?: (t: Ticket) => string
+  /** Selos extras no topo do card (ex.: URGENTE, nome do bloco). */
+  extra?: (t: Ticket) => React.ReactNode
 }
 
 const MIME_ID = 'ticket-id'
 
 export default function KanbanTickets({
-  tickets, usuarios, visao, encerrados, meuId, isAdmin, atualId, onMarcarAtual, onMudarStatus, onAbrir,
+  tickets, usuarios, visao, encerrados, meuId, isAdmin, atualId, onMarcarAtual, onMudarStatus, onAbrir, corDe, extra,
 }: Props) {
   const router = useRouter()
   // Enquanto um card está sendo arrastado: id + colunas em que pode ser solto.
@@ -126,6 +130,7 @@ export default function KanbanTickets({
                     style={{
                       display: 'flex', flexDirection: 'column', gap: 6, padding: 11, borderRadius: 10,
                       border: ehAtual ? '1.5px solid #d97706' : '1px solid var(--portal-border,#e5e7eb)',
+                      ...(corDe ? { borderLeft: `4px solid ${corDe(t)}` } : {}),
                       background: ehAtual ? 'rgba(217,119,6,.06)' : 'var(--portal-surface,#fff)',
                       cursor: arrastavel ? 'grab' : 'pointer',
                       opacity: arrastando?.id === t.id || salvando === t.id ? .5 : 1,
@@ -146,6 +151,7 @@ export default function KanbanTickets({
                         <Clock size={11} /> {dias === 0 ? 'hoje' : `${dias}d`}
                       </span>
                     </div>
+                    {extra?.(t)}
                     <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text,#111)', lineHeight: 1.3, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
                       {t.titulo}
                     </div>

@@ -33,6 +33,8 @@ export interface QuadroColuna {
 export interface QuadroResumo extends Quadro {
   membros: string[]
   tickets_abertos: number
+  /** Capa do bloco (listarQuadros). */
+  resumo?: { andamento: number; atrasados: number; proximo: string | null }
   pode_trabalhar: boolean
   pode_gerenciar: boolean
   /** Criei ou sou integrante (o bloco é "meu"). */

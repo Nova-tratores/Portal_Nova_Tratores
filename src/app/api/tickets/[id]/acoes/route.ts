@@ -69,8 +69,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (quadroId !== undefined && quadroId !== (ticket.quadro_id || null)) {
       const nomeAntes = ticket.quadro_id ? (await carregarQuadro(ticket.quadro_id))?.quadro.nome ?? null : null
       if (quadroId === null) {
-        patch.quadro_id = null; patch.quadro_coluna_id = null
-        evento.quadro = { de: nomeAntes, para: null }
+        // Todo ticket fica num bloco (Central de Trabalho): não dá para tirar.
+        return 'Todo ticket precisa ficar num bloco — escolha outro bloco em vez de tirar.'
       } else {
         const destino = await carregarQuadro(quadroId)
         if (!destino || destino.quadro.arquivado) return 'Bloco não encontrado.'
@@ -186,6 +186,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
       // Quem recebeu já escolhe o bloco e se fica privado (antes de gravar o
       // aceite: bloco inválido não pode deixar o ticket confirmado pela metade).
+      // Todo ticket precisa estar num bloco: sem bloco não confirma.
+      if (!ticket.quadro_id && !quadroDoCorpo()) return erro('Escolha em qual bloco este ticket vai ficar.')
       const errOrg = await organizar(quadroDoCorpo(), body.visibilidade)
       if (errOrg) return erro(errOrg)
       const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
@@ -214,6 +216,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (ticket.tipo === 'compras') return erro('Solicitação de Compras segue o trilho de aprovação — use as ações da SC.')
     const para = String(body.para || '') as TicketStatus
     if (!STATUS_INFO[para]) return erro('Status inválido')
+    // Todo ticket precisa estar num bloco antes de andar (cancelar pode sempre).
+    if (!ticket.quadro_id && para !== 'cancelado') return erro('Ponha este ticket num bloco antes de trabalhar nele.')
     const invalida = validarTransicao(ticket, para, auth)
     if (invalida) return erro(invalida, 403)
     const motivo = String(body.motivo || '').trim()
@@ -332,6 +336,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         mudancas.prazo = { de: ticket.prazo, para: novoPrazo }
       }
     }
+    // Planejamento (moram no payload): 1º dia do trabalho (Cronograma: do
+    // início ao prazo), dias de trabalho e horas por dia (Fila).
+    const payloadAtual = (ticket.payload || {}) as Record<string, unknown>
+    const novoPayload: Record<string, unknown> = { ...payloadAtual }
+    if ('inicio' in body) {
+      const novo = /^\d{4}-\d{2}-\d{2}$/.test(String(body.inicio || '')) ? String(body.inicio) : null
+      if (novo !== (payloadAtual.inicio ?? null)) { novoPayload.inicio = novo; mudancas.inicio = { de: payloadAtual.inicio ?? null, para: novo } }
+    }
+    if ('dias' in body) {
+      const n = Math.round(Number(body.dias))
+      if (!(n >= 1 && n <= 120)) return erro('Dias de trabalho: de 1 a 120')
+      if (n !== payloadAtual.dias) { novoPayload.dias = n; mudancas.dias = { de: payloadAtual.dias ?? null, para: n } }
+    }
+    if ('horas_dia' in body) {
+      const h = Math.round(Number(body.horas_dia) * 2) / 2
+      if (!(h >= 0.5 && h <= 12)) return erro('Horas por dia: de 0,5 a 12')
+      if (h !== payloadAtual.horas_dia) { novoPayload.horas_dia = h; mudancas.horas_dia = { de: payloadAtual.horas_dia ?? null, para: h } }
+    }
+    if (['inicio', 'dias', 'horas_dia'].some((k) => k in mudancas)) patch.payload = novoPayload
     if (Object.keys(patch).length === 0) return erro('Nada para alterar')
     const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
     if (error) return erro(error.message, 500)
@@ -398,12 +421,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const destinoId = body.quadro_id ? String(body.quadro_id) : null
     if (destinoId === (ticket.quadro_id || null)) return erro('O ticket já está neste quadro.')
     const nomeAntes = ticket.quadro_id ? (await carregarQuadro(ticket.quadro_id))?.quadro.nome ?? null : null
-    if (!destinoId) {
-      const { error } = await supabaseAdmin.from('tickets').update({ quadro_id: null, quadro_coluna_id: null }).eq('id', id)
-      if (error) return erro(error.message, 500)
-      await registrarEvento(id, auth.userId, 'edicao', { campo: 'quadro', de: nomeAntes, para: null })
-      return NextResponse.json({ ok: true })
-    }
+    // Todo ticket fica num bloco: dá para trocar, não para tirar.
+    if (!destinoId) return erro('Todo ticket precisa ficar num bloco — escolha outro bloco.')
     const destino = await carregarQuadro(destinoId)
     if (!destino || destino.quadro.arquivado) return erro('Quadro não encontrado', 404)
     if (!papeis(destino, auth).trabalhar) return erro('Você não é integrante deste quadro.', 403)

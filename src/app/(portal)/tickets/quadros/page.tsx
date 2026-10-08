@@ -2,13 +2,12 @@
 // CENTRAL DE TRABALHO — casa do módulo. Três coisas:
 //  1) Pra organizar: tickets que recebi e ainda não pus num bloco;
 //  2) Meus blocos: os quadros de cada um, por assunto, cada um de uma cor;
-//  3) Pedidos que fiz: o que pedi pra outras pessoas (dia, situação, fase).
+//  3) Pedidos que fiz: o que pedi pra outras pessoas (dia, situação, bloco).
 export const dynamic = 'force-dynamic'
 
 import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { Plus, LayoutGrid, Lock, Globe, Users, RefreshCw, Inbox, Send, Clock, SquareCheck, List } from 'lucide-react'
+import { Plus, LayoutGrid, Lock, Globe, Users, RefreshCw, Inbox, Send, Clock, SquareCheck } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { authHeaders } from '@/lib/auth/client'
@@ -84,7 +83,7 @@ export default function QuadrosPage() {
   const nome = (id: string) => central?.usuarios[id]?.nome || '—'
 
   const secao = (icone: React.ReactNode, titulo: string, extra?: React.ReactNode, id?: string) => (
-    <div id={id} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '22px 0 10px', scrollMarginTop: 90 }}>
+    <div id={id} style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '18px 0 10px', scrollMarginTop: 90 }}>
       <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 800, margin: 0, color: 'var(--portal-text,#111)' }}>{icone} {titulo}</h2>
       {extra}
     </div>
@@ -92,52 +91,64 @@ export default function QuadrosPage() {
   const contador = (n: number, forte = false) => (
     <span style={{ fontSize: 12, fontWeight: 800, padding: '1px 8px', borderRadius: 999, background: forte ? '#dc2626' : 'var(--portal-bg,#f1f1f1)', color: forte ? '#fff' : 'var(--portal-text-muted,#777)' }}>{n}</span>
   )
-  const cartaoBloco = (q: QuadroResumo) => (
-    <button key={q.id} onClick={() => router.push(`/tickets/quadros/${q.id}`)}
-      style={{
-        display: 'flex', flexDirection: 'column', textAlign: 'left', borderRadius: 12, overflow: 'hidden', cursor: 'pointer', padding: 0,
-        border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', opacity: q.arquivado ? .6 : 1,
-      }}>
-      <div style={{ height: 8, background: q.cor }} />
-      <div style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 15, fontWeight: 800, color: 'var(--portal-text,#111)' }}>
-          <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nome}</span>
-          {q.visibilidade === 'privado' ? <Lock size={13} style={{ opacity: .5 }} /> : <Globe size={13} style={{ opacity: .5 }} />}
-        </div>
-        {q.descricao && <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{q.descricao}</div>}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontSize: 12, color: 'var(--portal-text-muted,#888)', marginTop: 4 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {q.membros.length}</span>
-          <span>{q.tickets_abertos} aberto{q.tickets_abertos === 1 ? '' : 's'}</span>
-          {q.arquivado && <span style={{ fontWeight: 700 }}>arquivado</span>}
-          {q.criado_por !== userProfile?.id && <span>de {usuarios[q.criado_por]?.nome?.split(' ')[0] || '—'}</span>}
-        </div>
+  // Capa do bloco: o que é, quem está, e em que pé está (sem precisar abrir).
+  const cartaoBloco = (q: QuadroResumo) => {
+    const r = q.resumo || { andamento: 0, atrasados: 0, proximo: null }
+    const pessoas = [...new Set([q.criado_por, ...q.membros])]
+    const numero = (n: number, rotulo: string, cor?: string, ultimo?: boolean) => (
+      <div style={{ flex: 1, textAlign: 'center', padding: '2px 4px', borderRight: ultimo ? 'none' : '1px solid var(--portal-border,#eee)' }}>
+        <div style={{ fontSize: 22, fontWeight: 800, lineHeight: 1.1, color: cor && n > 0 ? cor : 'var(--portal-text,#111)' }}>{n}</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: cor && n > 0 ? cor : 'var(--portal-text-muted,#888)' }}>{rotulo}</div>
       </div>
-    </button>
-  )
+    )
+    return (
+      <button key={q.id} onClick={() => router.push(`/tickets/quadros/${q.id}`)}
+        style={{
+          display: 'flex', flexDirection: 'column', textAlign: 'left', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', padding: 0,
+          border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', opacity: q.arquivado ? .6 : 1,
+          boxShadow: '0 2px 8px rgba(0,0,0,.05)',
+        }}>
+        <div style={{ padding: '14px 14px 12px', display: 'flex', flexDirection: 'column', gap: 4, background: q.cor + '14', borderBottom: `1px solid ${q.cor}33` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ width: 30, height: 30, flex: 'none', borderRadius: 8, background: q.cor, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><LayoutGrid size={16} /></span>
+            <span style={{ flex: 1, minWidth: 0, fontSize: 16, fontWeight: 800, color: 'var(--portal-text,#111)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{q.nome}</span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
+            {q.visibilidade === 'privado'
+              ? <><Lock size={12} /> Só quem está no bloco vê</>
+              : <><Globe size={12} /> Todos podem ver</>}
+            {q.arquivado && <b> · arquivado</b>}
+          </div>
+          {q.descricao && <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary,#666)', marginTop: 2, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>{q.descricao}</div>}
+        </div>
+        <div style={{ display: 'flex', padding: '12px 10px' }}>
+          {numero(q.tickets_abertos, 'em aberto')}
+          {numero(r.andamento, 'fazendo')}
+          {numero(r.atrasados, r.atrasados === 1 ? 'atrasado' : 'atrasados', '#dc2626', true)}
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderTop: '1px solid var(--portal-border,#f0f0f0)', fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>
+          <span style={{ display: 'flex' }} title={pessoas.map((id) => usuarios[id]?.nome || '—').join(', ')}>
+            {pessoas.slice(0, 4).map((id, i) => {
+              const u = usuarios[id]
+              const ini = (u?.nome || '?').split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase()
+              return u?.avatar_url
+                // eslint-disable-next-line @next/next/no-img-element
+                ? <img key={id} src={u.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--portal-surface,#fff)', marginLeft: i ? -7 : 0 }} />
+                : <span key={id} style={{ width: 24, height: 24, borderRadius: '50%', fontSize: 10, fontWeight: 800, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: q.cor, color: '#fff', border: '2px solid var(--portal-surface,#fff)', marginLeft: i ? -7 : 0 }}>{ini}</span>
+            })}
+            {pessoas.length > 4 && <span style={{ marginLeft: 4, fontWeight: 700 }}>+{pessoas.length - 4}</span>}
+          </span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={12} /> {pessoas.length} {pessoas.length === 1 ? 'pessoa' : 'pessoas'}</span>
+          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
+            {r.proximo ? <><Clock size={12} /> próximo {br(r.proximo)}</> : q.tickets_abertos === 0 ? 'vazio' : 'sem data'}
+          </span>
+        </div>
+      </button>
+    )
+  }
 
   return (
     <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <h1 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 20, fontWeight: 800, margin: 0, color: 'var(--portal-text,#111)' }}>
-            <LayoutGrid size={20} color="#dc2626" /> Quadros
-          </h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>
-            Seus blocos por assunto, o que chegou pra você e o que você pediu.
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <button onClick={() => carregar()} title="Atualizar"
-            style={{ display: 'flex', padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
-            <RefreshCw size={14} />
-          </button>
-          <button onClick={() => setNovo(true)} disabled={!!aviso}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: aviso ? .5 : 1 }}>
-            <Plus size={16} /> Novo bloco
-          </button>
-        </div>
-      </div>
-
       {aviso && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{aviso}</div>}
       {erro && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{erro}</div>}
 
@@ -176,9 +187,19 @@ export default function QuadrosPage() {
 
           {/* 2) Meus blocos */}
           {secao(<LayoutGrid size={17} color="#dc2626" />, 'Meus blocos', (
-            <label style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer' }}>
-              <input type="checkbox" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} /> Mostrar arquivados
-            </label>
+            <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={arquivados} onChange={(e) => setArquivados(e.target.checked)} /> Mostrar arquivados
+              </label>
+              <button onClick={() => carregar()} title="Atualizar"
+                style={{ display: 'flex', padding: 7, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
+                <RefreshCw size={14} />
+              </button>
+              <button onClick={() => setNovo(true)} disabled={!!aviso}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', opacity: aviso ? .5 : 1 }}>
+                <Plus size={15} /> Novo bloco
+              </button>
+            </div>
           ))}
           {meus.length === 0 && !aviso ? (
             <div style={{ padding: '36px 20px', textAlign: 'center', borderRadius: 12, border: '1px dashed var(--portal-border,#ddd)', color: 'var(--portal-text-muted,#888)' }}>
@@ -216,7 +237,6 @@ export default function QuadrosPage() {
                 <div style={{ display: 'grid', gap: 8 }}>
                   {central.pedidos.map((t) => {
                     const q = t.quadro_id ? central.quadros[t.quadro_id] : null
-                    const fase = t.quadro_coluna_id ? central.colunas[t.quadro_coluna_id] : null
                     const p = central.passos[t.id]
                     const atrasado = !!t.prazo && t.prazo < hoje && t.status !== 'resolvido'
                     return (
@@ -228,7 +248,7 @@ export default function QuadrosPage() {
                             <span style={{ display: 'block', fontSize: 14.5, fontWeight: 800, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>#{t.numero} {t.titulo}</span>
                             <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted,#888)' }}>
                               para <b style={{ color: 'var(--portal-text-secondary,#555)' }}>{nome(t.responsavel_id)}</b>
-                              {q ? <> · {q.nome}{fase ? ` · ${fase}` : ''}</> : null}
+                              {q ? <> · {q.nome}</> : null}
                               {p && p.total > 0 ? <> · <SquareCheck size={11} style={{ verticalAlign: -1 }} /> {p.feitas}/{p.total}</> : null}
                             </span>
                             {t.aceite === 'recusado' && (
@@ -251,11 +271,6 @@ export default function QuadrosPage() {
             </>
           )}
 
-          <div style={{ marginTop: 24, textAlign: 'center' }}>
-            <Link href="/tickets" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--portal-text-muted,#888)' }}>
-              <List size={14} /> Ver todos os meus tickets em lista
-            </Link>
-          </div>
         </>
       )}
 
