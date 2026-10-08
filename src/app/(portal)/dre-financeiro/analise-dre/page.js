@@ -476,8 +476,8 @@ export default function AnaliseDre() {
         : 'bg-amber-100 text-amber-800'
     var top = b.lista.slice(0, 5)
     return (
-      <div className="border border-slate-200 rounded p-3">
-        <div className="flex items-baseline gap-2 mb-2">
+      <div className="border border-slate-200 rounded p-3" style={{ minWidth: 0 }}>
+        <div className="flex items-baseline gap-2 mb-2 flex-wrap">
           <span className={'text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded ' + corBadge}>{b.titulo}</span>
           <span className="text-[10px] text-slate-500">{b.sub}</span>
           {b.lista.length > 5 && <span className="text-[10px] text-slate-400 ml-auto">+ {b.lista.length - 5} nao mostrados</span>}
@@ -924,11 +924,20 @@ export default function AnaliseDre() {
         .adre-var-down { background: rgba(239,68,68,0.15);  color: #b91c1c; }
         .adre-var-neutral { color: #64748b; }
         .adre-card-mom-yoy { font-size: 10px; line-height: 1.2; }
+        #adre-tabela-scroll{-webkit-overflow-scrolling:touch;max-width:100%}
+        #adre-kpis > div{min-width:0;overflow-wrap:anywhere}
+        @media (max-width: 768px) {
+          #adre-tabela-scroll th:first-child,
+          #adre-tabela-scroll td:first-child{min-width:140px;max-width:170px;white-space:normal;word-break:break-word}
+          #adre-tabela-scroll{max-height:70vh}
+          .dre-a-chart{height:220px !important}
+          .dre-a-popup-head h2{font-size:16px}
+        }
       `}</style>
 
       {/* Cabecalho: titulo + controles (regime, periodo, granularidade, acoes) */}
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1 className="text-2xl font-semibold text-slate-800">Análise do DRE</h1>
           <p className="text-xs text-slate-500" id="adre-subtitulo">{subtitulo}</p>
         </div>
@@ -1014,10 +1023,10 @@ export default function AnaliseDre() {
 
       {/* Bloco 2: Margens evoluindo + Receita bruta */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 mb-4">
-        <div className="bg-white border border-slate-200 rounded-lg p-3 lg:col-span-2">
+        <div className="bg-white border border-slate-200 rounded-lg p-3 lg:col-span-2" style={{ minWidth: 0 }}>
           <div className="flex items-center justify-between mb-1 gap-2 flex-wrap">
             <div className="text-xs uppercase tracking-wide text-slate-500" id="adre-chart-margens-titulo">Margens evoluindo ({margemModo === 'rs' ? 'R$' : '%'})</div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="inline-flex rounded border border-slate-300 overflow-hidden" title="Margens em % da Receita Líquida ou em valor (R$)">
                 <button onClick={() => setMargemModo('pct')} className={'px-2 py-0.5 text-[10px] ' + (margemModo === 'pct' ? ativo : inativo)}>%</button>
                 <button onClick={() => setMargemModo('rs')} className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (margemModo === 'rs' ? ativo : inativo)}>R$</button>
@@ -1025,15 +1034,15 @@ export default function AnaliseDre() {
               <div className="text-[10px] text-slate-400" id="adre-chart-info">{chartInfo}</div>
             </div>
           </div>
-          <div style={{ height: '280px', position: 'relative' }}>
+          <div className="dre-a-chart" style={{ height: '280px', position: 'relative' }}>
             <canvas ref={refCanvasMargens} id="adre-chart-margens"></canvas>
           </div>
         </div>
-        <div className="bg-white border border-slate-200 rounded-lg p-3">
+        <div className="bg-white border border-slate-200 rounded-lg p-3" style={{ minWidth: 0 }}>
           <div className="flex items-center justify-between mb-1">
             <div className="text-xs uppercase tracking-wide text-slate-500">Receita bruta (R$)</div>
           </div>
-          <div style={{ height: '280px', position: 'relative' }}>
+          <div className="dre-a-chart" style={{ height: '280px', position: 'relative' }}>
             <canvas ref={refCanvasReceita} id="adre-chart-receita"></canvas>
           </div>
         </div>
@@ -1041,7 +1050,7 @@ export default function AnaliseDre() {
 
       {/* Bloco 3: Insights automaticos */}
       <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
           <div className="text-xs uppercase tracking-wide text-slate-500">
             Insights automáticos
             {mesFoco && <span className="ml-2 normal-case tracking-normal text-amber-700 font-medium">— mês em foco: {rotuloMes(mesFoco)}</span>}
@@ -1066,7 +1075,7 @@ export default function AnaliseDre() {
             Tabela horizontal — variações por linha
             {mesFoco && <span className="ml-2 normal-case tracking-normal text-amber-700 font-medium">— MoM/YoY relativos a {rotuloMes(mesFoco)}</span>}
           </span>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-wrap">
             <label className="text-[10px]"><input type="checkbox" checked={mostrarGrupos} onChange={(e) => setMostrarGrupos(e.target.checked)} /> grupos</label>
             <label className="text-[10px]"><input type="checkbox" checked={mostrarContas} onChange={(e) => setMostrarContas(e.target.checked)} /> contas (nível 3)</label>
             <label className="text-[10px]"><input type="checkbox" checked={destacarVar} onChange={(e) => setDestacarVar(e.target.checked)} /> destacar variações</label>
@@ -1105,8 +1114,8 @@ export default function AnaliseDre() {
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setPopupMes(null)} />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[96vw] max-w-[1100px] max-h-[88vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-3">
-              <div>
+            <div className="border-b border-slate-200 px-3 md:px-5 py-3 flex items-center justify-between gap-3 dre-a-popup-head">
+              <div style={{ minWidth: 0 }}>
                 <h2 className="text-lg font-semibold text-slate-800">Composição de {rotuloMes(popup.k)}</h2>
                 <div className="text-sm text-slate-500 mt-0.5">
                   Lucro Bruto <b className={corValor(popup.lb)}>{fmtBRL(popup.lb)}</b>
@@ -1115,10 +1124,10 @@ export default function AnaliseDre() {
                   {' · '}regime {regime === 'competencia' ? 'Competência' : 'Omie'}
                 </div>
               </div>
-              <button onClick={() => setPopupMes(null)} className="text-slate-500 hover:text-slate-900 text-3xl leading-none">&times;</button>
+              <button onClick={() => setPopupMes(null)} className="text-slate-500 hover:text-slate-900 text-3xl leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>&times;</button>
             </div>
 
-            <div className="overflow-y-auto p-4 space-y-4">
+            <div className="overflow-y-auto p-3 md:p-4 space-y-4">
               {/* Waterfall do DRE do mes */}
               <div>
                 <div className="text-sm uppercase tracking-wide text-slate-500 mb-2">O que compõe o resultado do mês</div>
@@ -1131,7 +1140,7 @@ export default function AnaliseDre() {
                       <div key={w.label}>
                         <div
                           onClick={clicavel ? (() => setPopupDespOpAberto((v) => !v)) : undefined}
-                          className={'flex justify-between px-3 py-2 text-base '
+                          className={'flex justify-between gap-2 px-3 py-2 text-sm md:text-base '
                             + (isRes ? 'bg-slate-100 font-bold border-t border-slate-300 ' : (isSub ? 'bg-slate-50 font-semibold ' : ''))
                             + (i > 0 ? 'border-t border-slate-100 ' : '')
                             + (clicavel ? 'cursor-pointer hover:bg-sky-50' : '')}

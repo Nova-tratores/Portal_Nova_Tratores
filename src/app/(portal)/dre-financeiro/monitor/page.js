@@ -49,25 +49,25 @@ const MODULO_CLS = {
     card: 'bg-red-50 border-2 border-red-300 rounded-xl p-4',
     titulo: 'text-sm font-extrabold text-red-900 uppercase tracking-wide',
     totalComAlerta: 'text-red-900', // quando total > 0
-    btn: 'btn-rodar mt-3 w-full px-2 py-1 text-xs font-bold rounded bg-red-600 hover:bg-red-700 text-white',
+    btn: 'btn-rodar mt-3 w-full px-2 py-1 max-md:min-h-9 text-xs font-bold rounded bg-red-600 hover:bg-red-700 text-white',
   },
   contas_receber: {
     card: 'bg-emerald-50 border-2 border-emerald-300 rounded-xl p-4',
     titulo: 'text-sm font-extrabold text-emerald-900 uppercase tracking-wide',
     totalComAlerta: 'text-emerald-900',
-    btn: 'btn-rodar mt-3 w-full px-2 py-1 text-xs font-bold rounded bg-emerald-600 hover:bg-emerald-700 text-white',
+    btn: 'btn-rodar mt-3 w-full px-2 py-1 max-md:min-h-9 text-xs font-bold rounded bg-emerald-600 hover:bg-emerald-700 text-white',
   },
   faturamento: {
     card: 'bg-fuchsia-50 border-2 border-fuchsia-300 rounded-xl p-4',
     titulo: 'text-sm font-extrabold text-fuchsia-900 uppercase tracking-wide',
     totalComAlerta: 'text-fuchsia-900',
-    btn: 'btn-rodar mt-3 w-full px-2 py-1 text-xs font-bold rounded bg-fuchsia-600 hover:bg-fuchsia-700 text-white',
+    btn: 'btn-rodar mt-3 w-full px-2 py-1 max-md:min-h-9 text-xs font-bold rounded bg-fuchsia-600 hover:bg-fuchsia-700 text-white',
   },
   compras: {
     card: 'bg-amber-50 border-2 border-amber-300 rounded-xl p-4',
     titulo: 'text-sm font-extrabold text-amber-900 uppercase tracking-wide',
     totalComAlerta: 'text-amber-900',
-    btn: 'btn-rodar mt-3 w-full px-2 py-1 text-xs font-bold rounded bg-amber-600 hover:bg-amber-700 text-white',
+    btn: 'btn-rodar mt-3 w-full px-2 py-1 max-md:min-h-9 text-xs font-bold rounded bg-amber-600 hover:bg-amber-700 text-white',
   },
 }
 
@@ -444,8 +444,8 @@ export default function MonitorPage() {
     <>
       {/* Cabecalho: titulo + botao "rodar todos" */}
       <div className="flex items-baseline justify-between mb-4 flex-wrap gap-2">
-        <div>
-          <h1 className="text-3xl font-extrabold text-slate-800">Monitor de Qualidade dos Dados</h1>
+        <div className="min-w-0">
+          <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-800">Monitor de Qualidade dos Dados</h1>
           <p className="text-sm text-slate-500 mt-1">Robôs que conferem se os lançamentos no Omie estão completos (categoria, departamento, cliente/fornecedor, custo, valor).</p>
         </div>
         <button
@@ -494,7 +494,7 @@ export default function MonitorPage() {
       </div>
 
       {/* Filtros + tabela de anomalias */}
-      <div className="bg-white border border-slate-200 rounded-lg p-4">
+      <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 min-w-0">
         <div className="flex items-center gap-3 flex-wrap mb-3">
           <h2 className="text-lg font-extrabold text-slate-700">Anomalias</h2>
           {nSel > 0 ? (
@@ -506,11 +506,11 @@ export default function MonitorPage() {
               ✉ Criar tarefa de correção ({nSel})
             </button>
           ) : null}
-          <label className="text-xs text-slate-500 ml-auto">Módulo</label>
+          <label className="text-xs text-slate-500 md:ml-auto">Módulo</label>
           <select
             value={fModulo}
             onChange={(e) => setFModulo(e.target.value)}
-            className="border border-slate-300 rounded px-2 py-1 text-sm"
+            className="border border-slate-300 rounded px-2 py-1 text-sm max-md:min-h-9"
           >
             <option value="">Todos</option>
             <option value="contas_pagar">Contas a Pagar</option>
@@ -522,7 +522,7 @@ export default function MonitorPage() {
           <select
             value={fStatus}
             onChange={(e) => setFStatus(e.target.value)}
-            className="border border-slate-300 rounded px-2 py-1 text-sm"
+            className="border border-slate-300 rounded px-2 py-1 text-sm max-md:min-h-9"
           >
             <option value="aberta">Abertas</option>
             <option value="resolvida">Resolvidas</option>
@@ -534,8 +534,8 @@ export default function MonitorPage() {
           {tabelaStatus}
           {anomalias.length !== linhasVisiveis.length ? ' — ' + linhasVisiveis.length + ' após filtros' : ''}
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+          <table className="w-full text-sm max-md:min-w-[900px]">
             <thead>
               <tr className="text-left text-slate-500 border-b border-slate-200 align-bottom">
                 {/* checkbox selecionar todos */}
@@ -639,14 +639,14 @@ export default function MonitorPage() {
 
       {/* Modal: criar tarefa(s) de correcao */}
       {modalAberto ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => !enviando && setModalAberto(false)}>
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-3 sm:p-4" onClick={() => !enviando && setModalAberto(false)}>
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] md:max-h-[85vh] overflow-hidden flex flex-col" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-slate-200">
               <h3 className="text-lg font-extrabold text-slate-800">Criar tarefa de correção</h3>
               <p className="text-xs text-slate-500 mt-1">Uma tarefa por anomalia. O responsável já vem pré-selecionado pelo &quot;Incluído Por&quot; quando identificado — ajuste se precisar.</p>
             </div>
             <div className="p-4 overflow-y-auto flex-1">
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
                 <label className="text-xs font-semibold text-slate-600">Prazo (opcional, para todas)</label>
                 <input type="date" value={modalPrazo} onChange={(e) => setModalPrazo(e.target.value)}
                   className="border border-slate-300 rounded px-2 py-1 text-sm" />
@@ -661,12 +661,12 @@ export default function MonitorPage() {
                         {(MODULO_LABEL[a.modulo] || a.modulo)} · {a.conta_omie} · {fmtBRL(a.valor)}
                         {a.data_vencimento ? ' · venc. ' + fmtData(a.data_vencimento) : ''}
                       </div>
-                      <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <label className="text-xs text-slate-500">Responsável</label>
                         <select
                           value={it.atribuido_a || ''}
                           onChange={(e) => setItemUsuario(a.id, e.target.value)}
-                          className="border border-slate-300 rounded px-2 py-1 text-sm flex-1"
+                          className="border border-slate-300 rounded px-2 py-1 text-sm flex-1 min-w-0 max-md:min-h-9"
                         >
                           <option value="">— escolher —</option>
                           {usuarios.map((u) => (
@@ -682,11 +682,11 @@ export default function MonitorPage() {
                 })}
               </div>
             </div>
-            <div className="p-4 border-t border-slate-200 flex items-center justify-end gap-2">
+            <div className="p-4 border-t border-slate-200 flex items-center justify-end gap-2 flex-wrap">
               <button type="button" onClick={() => setModalAberto(false)} disabled={enviando}
-                className="px-3 py-1.5 text-sm text-slate-600 hover:text-slate-900">Cancelar</button>
+                className="px-3 py-1.5 max-md:min-h-9 text-sm text-slate-600 hover:text-slate-900">Cancelar</button>
               <button type="button" onClick={confirmarEnvio} disabled={enviando}
-                className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold rounded shadow">
+                className="px-4 py-1.5 max-md:min-h-9 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-bold rounded shadow">
                 {enviando ? '⏳ criando…' : 'Criar ' + modalItens.length + ' tarefa(s)'}
               </button>
             </div>
@@ -708,7 +708,7 @@ export default function MonitorPage() {
                 const quando = l.fim ? new Date(l.fim).toLocaleString('pt-BR') : (l.inicio ? new Date(l.inicio).toLocaleString('pt-BR') : '—')
                 const cor = l.status === 'erro' ? 'text-red-600' : 'text-slate-600'
                 return (
-                  <div key={i} className={cor}>
+                  <div key={i} className={cor + ' break-words min-w-0'}>
                     {quando}{' · '}
                     <b>{MODULO_LABEL[l.modulo] || l.modulo}</b>{' '}{l.conta_omie}{' · '}
                     {l.status === 'erro'

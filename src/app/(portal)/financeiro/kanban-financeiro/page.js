@@ -431,9 +431,9 @@ return (
     <FinanceiroNav />
 
     <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
-      <header style={{ padding: '20px 32px 16px' }}>
-      <div style={{ display:'flex', gap:'12px', alignItems:'center', flexWrap:'wrap' }}>
-          <div style={{ position: 'relative', flex: '1 1 420px', maxWidth: '560px' }}>
+      <header className="fin-k-header" style={{ padding: '20px 32px 16px' }}>
+      <div className="fin-k-toolbar" style={{ display:'flex', gap:'12px', alignItems:'center', flexWrap:'wrap' }}>
+          <div className="fin-k-search" style={{ position: 'relative', flex: '1 1 420px', maxWidth: '560px', minWidth: 0 }}>
               <Search size={16} style={{ ...iconFilterStyle, left: '12px' }} title="Buscar" />
               <input type="text" placeholder="Buscar por cliente, nº da nota, vencimento, condição ou ID..." value={filtroBusca} onChange={e => setFiltroBusca(e.target.value)} style={{...inputFilterStyle, fontSize:'13px', padding:'10px 36px 10px 36px'}} />
               {filtroBusca && <X size={14} onClick={() => setFiltroBusca('')} style={{position:'absolute', right: '10px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'var(--portal-text-muted)'}} title="Limpar busca" />}
@@ -442,9 +442,9 @@ return (
       </header>
 
       {filtroBusca.trim() ? (
-      <div style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px 24px' }}>
+      <div className="fin-k-results" style={{ flex: 1, overflowY: 'auto', padding: '0 24px 24px 24px' }}>
         <div style={{ fontSize: '13px', color: 'var(--portal-text-muted)', marginBottom: '12px' }}>{chamadosFiltrados.length} resultado{chamadosFiltrados.length !== 1 ? 's' : ''}</div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '14px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: '14px' }}>
           {chamadosFiltrados.map((t, idx) => {
             const statusLabel = { gerar_boleto: 'GERAR BOLETO', validar_pix: 'VALIDAR PIX', enviar_cliente: 'ENVIAR CLIENTE', aguardando_vencimento: 'AGUARDANDO', sem_boleto: 'SEM BOLETO', pago: 'PAGO', vencido: 'VENCIDO', concluido: 'CONCLUÍDO' }[t.status] || t.status
             const statusColor = t.status === 'vencido' ? '#ef4444' : t.status === 'pago' || t.status === 'concluido' ? '#22c55e' : t.status === 'gerar_boleto' ? '#3b82f6' : '#d97706'
@@ -471,7 +471,7 @@ return (
         </div>
       </div>
       ) : (
-      <div style={{ flex: 1, display: 'flex', gap: '16px', overflowX: 'auto', overflowY: 'hidden', padding: '0 24px 24px 24px', boxSizing: 'border-box' }}>
+      <div className="fin-k-board" style={{ flex: 1, display: 'flex', gap: '16px', overflowX: 'auto', overflowY: 'hidden', padding: '0 24px 24px 24px', boxSizing: 'border-box', minWidth: 0 }}>
       {colunas.map(col => {
         const cardsCol = chamadosFiltrados.filter(c => {
             if (col.id === 'pago') return (c.status === 'pago' || c.status === 'concluido');
@@ -479,7 +479,7 @@ return (
             return c.status === col.id;
         });
         return (
-        <div key={col.id} style={{ width: '300px', flex: '0 0 300px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 12px' }}>
+        <div key={col.id} className="fin-k-col" style={{ width: '300px', flex: '0 0 300px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 12px' }}>
         <h3 className="fin-col-title" style={{ ...colTitleStyle, background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: '#111111', borderRadius: '10px', borderBottom: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '1px 9px', fontSize: '12px', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span>
         {col.id === 'gerar_boleto' && (
           <button onClick={() => setAgruparOpen(true)} title="Juntar cards do mesmo cliente num só (boleto único pra todas as NFs)"
@@ -605,10 +605,10 @@ return (
 
     {/* --- MODAL DETALHES --- */}
     {tarefaSelecionada && (
-      <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} style={{ position: 'fixed', inset: 0, background: 'var(--portal-bg-card)', backdropFilter: 'blur(15px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '16px', overflow:'hidden', boxShadow: '0 40px 100px rgba(47, 54, 64, 0.1)', border: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column' }}>
+      <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} style={{ position: 'fixed', inset: 0, background: 'var(--portal-bg-card)', backdropFilter: 'blur(15px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="fin-k-overlay">
+      <div className="fin-k-modal" style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '16px', overflow:'hidden', boxShadow: '0 40px 100px rgba(47, 54, 64, 0.1)', border: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column' }}>
 
-        <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
+        <div className="fin-k-modal-top" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
           <button onClick={() => setTarefaSelecionada(null)} className="btn-back" title="Voltar para a visualização do quadro"><ArrowLeft size={18}/> VOLTAR AO PAINEL</button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {isAdmin && (
@@ -617,9 +617,9 @@ return (
             <button onClick={() => setTarefaSelecionada(null)} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Fechar"><X size={18}/> Fechar</button>
           </div>
         </div>
-        <div style={{ flex: 1, padding: '30px 60px 60px', overflowY: 'auto' }}>
+        <div className="fin-k-modal-body" style={{ flex: 1, padding: '30px 60px 60px', overflowY: 'auto', minWidth: 0 }}>
 
-          <h2 style={{fontSize:'32px', fontWeight:'400', margin:'30px 0 16px', letterSpacing:'-1px', color:'var(--portal-text)', lineHeight: '1.1'}}>{tarefaSelecionada.nom_cliente?.toUpperCase()}</h2>
+          <h2 className="fin-k-title" style={{fontSize:'32px', fontWeight:'400', margin:'30px 0 16px', letterSpacing:'-1px', color:'var(--portal-text)', lineHeight: '1.1'}}>{tarefaSelecionada.nom_cliente?.toUpperCase()}</h2>
 
           {/* BADGE DE FASE ATUAL + TIMERS */}
           {(() => {
@@ -644,7 +644,7 @@ return (
             );
           })()}
 
-          <div style={{display:'flex', gap:'30px', marginBottom:'50px'}}>
+          <div className="fin-k-fields" style={{display:'flex', gap:'30px', marginBottom:'50px'}}>
             <div style={fieldBoxModal}>
               <label style={labelModalStyle}>Condição</label>
               <select
@@ -691,8 +691,8 @@ return (
 
           {/* --- SEÇÃO BOLETO PARCELADO --- */}
           {isBoletoParcelado && (
-            <div style={{ display:'flex', flexDirection:'column', gap:'16px', marginBottom:'50px', background:'var(--portal-bg-secondary)', padding:'40px', border:'1px solid var(--portal-border)' }}>
-              <div style={{ display:'flex', gap:'30px', borderBottom:'1px solid var(--portal-border)', paddingBottom:'20px' }}>
+            <div className="fin-k-box-lg" style={{ display:'flex', flexDirection:'column', gap:'16px', marginBottom:'50px', background:'var(--portal-bg-secondary)', padding:'40px', border:'1px solid var(--portal-border)' }}>
+              <div className="fin-k-parc-head" style={{ display:'flex', gap:'30px', borderBottom:'1px solid var(--portal-border)', paddingBottom:'20px' }}>
                 <div style={{ flex: 1 }}>
                   <label style={labelModalStyle}>Qtd. Parcelas</label>
                   <select
@@ -723,7 +723,7 @@ return (
                   };
                   const c = cores[p.estado];
                   return (
-                    <div key={i} style={{ display:'grid', gridTemplateColumns:'130px 190px 160px 1fr', gap:'16px', alignItems:'center', background: c.fundo, padding:'18px', border:`1.5px solid ${c.borda}`, borderRadius:'8px' }}>
+                    <div key={i} className="fin-k-cascade" style={{ display:'grid', gridTemplateColumns:'130px 190px 160px 1fr', gap:'16px', alignItems:'center', background: c.fundo, padding:'18px', border:`1.5px solid ${c.borda}`, borderRadius:'8px' }}>
                       <div>
                         <div style={{ fontSize:'11px', color:'var(--portal-text-secondary)', fontWeight:'700', letterSpacing:'1px', marginBottom:'4px' }}>{p.num}ª PARCELA</div>
                         <div style={{ fontSize:'13px', fontWeight:'800', color: c.label }}>{c.texto}</div>
@@ -785,7 +785,7 @@ return (
 
           {/* --- SEÇÃO CARTÃO PARCELADO --- */}
           {isCartaoParcelado && (
-            <div style={{ display:'flex', gap:'30px', marginBottom:'50px', background:'var(--portal-bg-secondary)', padding:'40px', border:'1px solid var(--portal-border)' }}>
+            <div className="fin-k-box-lg fin-k-parc-head" style={{ display:'flex', gap:'30px', marginBottom:'50px', background:'var(--portal-bg-secondary)', padding:'40px', border:'1px solid var(--portal-border)' }}>
               <div style={{ flex: 1 }}>
                 <label style={labelModalStyle}>Qtd. Parcelas no Cartão</label>
                 <select
@@ -807,7 +807,7 @@ return (
           )}
 
           {/* === INFORMAÇÕES + DOCUMENTOS EM GRID COMPACTO === */}
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>
+          <div className="fin-k-grid2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>
 
             {/* NF + OBS */}
             <div style={{ background:'var(--portal-bg-secondary)', border:'1px solid var(--portal-border)', padding:'24px', display:'flex', flexDirection:'column', gap:'16px' }}>
@@ -939,7 +939,7 @@ return (
                     ? Object.entries(l.detalhes).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')
                     : '';
                   return (
-                    <div key={i} style={{ display:'flex', gap:'12px', alignItems:'flex-start', padding:'12px 14px', background:'var(--portal-bg-card)', borderRadius:'10px', border:'1px solid var(--portal-border)' }}>
+                    <div key={i} className="fin-k-logrow" style={{ display:'flex', gap:'12px', alignItems:'flex-start', padding:'12px 14px', background:'var(--portal-bg-card)', borderRadius:'10px', border:'1px solid var(--portal-border)' }}>
                       <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#dc2626', marginTop:'6px', flexShrink:0 }} />
                       <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontSize:'13.5px', fontWeight:'600', color:'var(--portal-text)' }}>{l.nome} <span style={{ fontWeight:'400', color:'var(--portal-text-secondary)' }}>— {l.acao}</span></div>
@@ -955,7 +955,7 @@ return (
 
           {/* Mover para Pago ou Voltar ao fluxo — só no modal para sem_boleto */}
           {tarefaSelecionada.status === 'sem_boleto' && (
-            <div style={{ marginTop:'20px', background:'#f0fdf4', padding:'20px', borderRadius:'16px', border:'1px solid #bbf7d0', display:'flex', justifyContent:'center', gap:'12px' }}>
+            <div style={{ marginTop:'20px', background:'#f0fdf4', padding:'20px', borderRadius:'16px', border:'1px solid #bbf7d0', display:'flex', justifyContent:'center', gap:'12px' }} className="fin-k-wrap">
               <button
                 onClick={() => { handleActionMoveStatus(tarefaSelecionada, 'gerar_boleto'); setTarefaSelecionada(null); }}
                 style={{ background: 'var(--portal-bg-card)', color: '#2563eb', border: '1px solid #93c5fd', padding: '14px 32px', borderRadius: '12px', cursor: 'pointer', fontSize: '15px', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px', transition: '0.2s' }}
@@ -971,13 +971,13 @@ return (
             </div>
           )}
 
-          <div style={{marginTop:'60px', display:'flex', gap:'20px'}}>
+          <div className="fin-k-actions" style={{marginTop:'60px', display:'flex', gap:'20px'}}>
               {/* BLOCO DE PROCESSAMENTO */}
               {(tarefaSelecionada.status === 'gerar_boleto' || tarefaSelecionada.status === 'validar_pix') && !isPixOuCartaoVista && !isCheque && (
-                <div style={{flex: 1, background:'rgba(79, 70, 229, 0.03)', padding:'40px', borderRadius:'24px', border:'2px dashed #4f46e5'}}>
+                <div className="fin-k-box-lg" style={{flex: 1, background:'rgba(79, 70, 229, 0.03)', padding:'40px', borderRadius:'24px', border:'2px dashed #4f46e5'}}>
                     <label style={{...labelModalStyle, color:'#4f46e5', fontSize: '15px', fontWeight:'700'}}>ANEXAR BOLETO FINAL E PROCESSAR</label>
-                    <div style={{display:'flex', gap:'30px', marginTop:'25px', alignItems: 'center'}}>
-                      <div style={{flex: 1, position: 'relative'}}>
+                    <div className="fin-k-wrap" style={{display:'flex', gap:'30px', marginTop:'25px', alignItems: 'center'}}>
+                      <div style={{flex: 1, position: 'relative', minWidth: 0}}>
                           <input
                             type="file"
                             id="file_boleto_input"
@@ -1132,6 +1132,7 @@ return (
       audit={(a) => auditLog({ sistema: 'financeiro', entidade: 'Chamado_NF', ...a })}
     />
 
+    <style>{FIN_K_CSS}</style>
     <style jsx global>{`
       .kanban-card { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 8px; transition: 0.3s ease; overflow: hidden; margin-bottom: 12px; flex-shrink: 0; }
       .kanban-card:hover { transform: translateY(-3px); box-shadow: 0 8px 20px rgba(47, 54, 64, 0.06); border-color: var(--portal-text-secondary); }
@@ -1150,7 +1151,7 @@ return (
 function AttachmentTag({ icon, label, fileUrl, onUpload, disabled = false, onRemove }) {
       const fileInputRef = useRef(null);
       return (
-          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '0px', overflow: 'hidden', minWidth:'280px', marginBottom: '5px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: '0px', overflow: 'hidden', minWidth:'280px', marginBottom: '5px' }} className="fin-k-attach">
               <div style={{ padding: '0 15px', color: 'var(--portal-text)' }}>{icon}</div>
               <span style={{ padding: '12px 20px', fontSize: '13px', color: fileUrl ? '#27ae60' : 'var(--portal-text-secondary)', borderRight: '1px solid var(--portal-border)', flex: 1, textTransform:'uppercase', letterSpacing:'1px', fontWeight: '600', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
               <div style={{ display: 'flex', background: 'var(--portal-bg-card)' }}>
@@ -1191,3 +1192,54 @@ const labelModalStyle = { fontSize:'15px', color:'var(--portal-text-secondary)',
 const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '30px', borderRadius: '0px', background: 'var(--portal-bg-secondary)', flex: 1 };
 const fieldBoxInner = { padding: '10px', background: 'transparent' };
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '10px 15px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', hover: { background: 'var(--portal-bg-secondary)' } };
+
+const FIN_K_CSS = `
+@media (max-width: 1024px) {
+  .fin-k-board { scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+  .fin-k-col { scroll-snap-align: start; }
+  .fin-k-cascade { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: 12px !important; }
+  .fin-k-cascade > :last-child { grid-column: 1 / -1; }
+  .fin-k-cascade input { width: 100%; box-sizing: border-box; min-width: 0; }
+  .fin-k-attach { min-width: 0 !important; }
+  .fin-k-actions { flex-wrap: wrap; }
+  .fin-k-modal-body { padding: 24px 28px 36px !important; }
+  .fin-k-fields { flex-wrap: wrap; }
+  .fin-k-fields > * { flex: 1 1 220px !important; min-width: 0; }
+  .fin-k-actions > * { min-width: 220px; }
+}
+@media (max-width: 768px) {
+  .fin-k-header { padding: 12px 12px 10px !important; }
+  .fin-k-toolbar { gap: 10px !important; }
+  .fin-k-search { flex: 1 1 100% !important; min-width: 0; max-width: 100% !important; }
+  .fin-k-search input { font-size: 16px !important; padding: 12px 40px 12px 40px !important; }
+  .fin-k-toggle { min-height: 44px; font-size: 14px !important; padding: 0 16px !important; }
+  .fin-k-count { padding: 0 12px !important; }
+  .fin-k-results { padding: 0 12px 20px !important; }
+  .fin-k-board { scroll-snap-type: x mandatory; padding: 0 12px 24px !important; gap: 10px !important; }
+  .fin-k-col { flex: 0 0 85% !important; width: 85% !important; min-width: 0; max-width: 400px; padding: 0 8px !important; box-sizing: border-box; }
+  .fin-k-overlay { padding: 12px; box-sizing: border-box; }
+  .fin-k-modal { width: 100% !important; max-width: 100% !important; max-height: 92vh !important; border-radius: 18px !important; }
+  .fin-k-modal-top { padding: 10px 12px !important; flex-wrap: wrap; gap: 8px; }
+  .fin-k-modal-top .btn-back { padding: 10px 14px; font-size: 12px; }
+  .fin-k-modal-top > div { flex-wrap: wrap; }
+  .fin-k-modal-body { padding: 14px 14px 24px !important; }
+  .fin-k-title { font-size: 22px !important; margin: 10px 0 18px !important; letter-spacing: -0.5px !important; }
+  .fin-k-fields { flex-wrap: wrap; gap: 12px !important; margin-bottom: 24px !important; }
+  .fin-k-fields > * { flex: 1 1 100% !important; min-width: 0; padding: 14px 16px !important; }
+  .fin-k-fields input, .fin-k-fields select { font-size: 20px !important; }
+  .fin-k-grid2 { grid-template-columns: minmax(0, 1fr) !important; gap: 14px !important; }
+  .fin-k-grid2 > * { min-width: 0; padding: 16px !important; }
+  .fin-k-box-lg { padding: 18px 14px !important; }
+  .fin-k-parc-head { flex-wrap: wrap; gap: 14px !important; }
+  .fin-k-parc-head > * { flex: 1 1 200px; min-width: 0; }
+  .fin-k-parc-head select, .fin-k-parc-head > * > div { font-size: 18px !important; }
+  .fin-k-cascade { padding: 12px !important; }
+  .fin-k-logrow { flex-wrap: wrap; }
+  .fin-k-logrow > :last-child { width: 100%; padding-left: 20px; white-space: normal !important; }
+  .fin-k-wrap { flex-wrap: wrap; }
+  .fin-k-wrap > * { min-width: 0; }
+  .fin-k-actions { flex-direction: column; gap: 12px !important; margin-top: 28px !important; }
+  .fin-k-actions > * { min-width: 0; flex: 0 0 auto !important; }
+  .fin-k-actions button { padding: 14px !important; letter-spacing: 1px !important; font-size: 13px !important; gap: 10px !important; }
+}
+`;

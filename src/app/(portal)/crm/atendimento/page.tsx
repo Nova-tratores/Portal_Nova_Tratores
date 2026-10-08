@@ -5,6 +5,7 @@
 // recalcula o score. Demo interativa: responda o passo 6 e veja o score mudar.
 import { useState } from 'react';
 import Ideia from '@/components/crm/Ideia';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { CONVERSAS, JORNADA_L8, CRITERIOS_L8, ARGUMENTOS, lead } from '@/lib/crm/demo';
 
 export default function AtendimentoPage() {
@@ -12,6 +13,8 @@ export default function AtendimentoPage() {
   const [respostaJanela, setRespostaJanela] = useState<{ rotulo: string; peso: number } | null>(null);
   const [enviado5, setEnviado5] = useState(false);
   const [mostraArgs, setMostraArgs] = useState(false);
+  const isMobile = useIsMobile();
+  const isMedio = useIsMobile(1180);
 
   const conversa = CONVERSAS.find((c) => c.leadId === ativa)!;
   const l = lead(ativa);
@@ -21,7 +24,7 @@ export default function AtendimentoPage() {
   const corVeredito = score >= 70 ? '#1B7A5F' : score >= 40 ? '#d97706' : '#dc2626';
 
   return (
-    <div style={{ padding: '20px 16px 60px', color: 'var(--portal-text)' }}>
+    <div style={{ padding: isMobile ? '14px 4px 40px' : '20px 16px 60px', color: 'var(--portal-text)' }}>
       <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>Cockpit de Atendimento</h1>
 
       <div style={{ maxWidth: 1100 }}>
@@ -34,7 +37,7 @@ export default function AtendimentoPage() {
         </Ideia>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(230px, 280px) minmax(280px, 1fr) minmax(280px, 360px)', gap: 12, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : isMedio ? 'minmax(200px, 260px) minmax(0, 1fr)' : 'minmax(230px, 280px) minmax(280px, 1fr) minmax(280px, 360px)', gap: 12, alignItems: 'start' }}>
         {/* ── FILA ── */}
         <div style={col}>
           <div style={colTitulo}>Fila (por urgência de SLA)</div>
@@ -73,7 +76,7 @@ export default function AtendimentoPage() {
         {/* ── CONVERSA ── */}
         <div style={col}>
           <div style={colTitulo}>{l.nome} · {l.telefone.replace(/^55/, '+55 ')}</div>
-          <div style={{ padding: 14, display: 'grid', gap: 8, minHeight: 260 }}>
+          <div style={{ padding: isMobile ? 10 : 14, display: 'grid', gap: 8, minHeight: isMobile ? 160 : 260 }}>
             {conversa.mensagens.map((m, i) => (
               <div
                 key={i}
@@ -105,7 +108,7 @@ export default function AtendimentoPage() {
         </div>
 
         {/* ── JORNADA ── */}
-        <div style={col}>
+        <div style={isMedio && !isMobile ? { ...col, gridColumn: '1 / -1' } : col}>
           <div style={colTitulo}>Jornada — passo a passo</div>
           <div style={{ padding: '12px 14px' }}>
             {ativa !== 'l8' ? (

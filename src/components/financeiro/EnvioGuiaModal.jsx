@@ -73,8 +73,8 @@ export default function EnvioGuiaModal({ info, onClose, onAbrirCard, onConfigEma
   const onAcao = c.acao ? acoes[c.acao] : null
 
   return (
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-      <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '20px', width: '100%', maxWidth: '560px', boxShadow: '0 25px 60px rgba(0,0,0,.3)', overflow: 'hidden' }}>
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, zIndex: 10500, background: 'rgba(0,0,0,.55)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '12px' }}>
+      <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '20px', width: '100%', maxWidth: '560px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,.3)' }}>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '18px 22px', background: c.bg, borderBottom: '1px solid var(--portal-border)' }}>
           <Icon size={22} color={c.cor} style={{ flexShrink: 0 }} />

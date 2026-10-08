@@ -20,7 +20,7 @@ function ModalAssinatura({ a, cliente, onClose }: { a: Assinatura; cliente: stri
   const quando = a.assinado_em ? new Date(a.assinado_em).toLocaleString("pt-BR", { dateStyle: "full", timeStyle: "medium" }) : "—";
   const maps = g ? `https://www.google.com/maps?q=${g.lat},${g.lng}` : null;
   const linha = (rot: string, val: React.ReactNode) => (
-    <div style={{ display: "grid", gridTemplateColumns: "150px 1fr", gap: 8, padding: "6px 0", borderBottom: "1px solid #f1f5f9", fontSize: 13 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(96px, 150px) minmax(0, 1fr)", gap: 8, padding: "6px 0", borderBottom: "1px solid #f1f5f9", fontSize: 13 }}>
       <div style={{ color: "#6b7280" }}>{rot}</div><div style={{ color: "#111827", wordBreak: "break-word" }}>{val}</div>
     </div>
   );
@@ -31,7 +31,7 @@ function ModalAssinatura({ a, cliente, onClose }: { a: Assinatura; cliente: stri
           <b style={{ color: "#1d4ed8", fontSize: 15 }}>Assinatura do cliente · OS {a.os_id}</b>
           <button type="button" onClick={onClose} style={{ marginLeft: "auto", border: 0, background: "transparent", fontSize: 20, cursor: "pointer", color: "#6b7280" }} aria-label="Fechar">×</button>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 16, padding: 16 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(320px, 100%), 1fr))", gap: 16, padding: 16 }}>
           <div>
             <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, background: "#fff", padding: 12, textAlign: "center" }}>
               {a.assinatura_url
@@ -136,7 +136,7 @@ export default function AssinaturaClienteBloco({ osId, podeEditar }: { osId: str
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <button type="button" style={btnCheio} onClick={() => copiar(r.link, "link")}>{copiado === "link" ? "Link copiado!" : "Copiar link"}</button>
             <button type="button" style={btn} onClick={() => copiar(r.mensagemWhatsApp, "msg")} title="Copia a mensagem pronta com o link">{copiado === "msg" ? "Mensagem copiada!" : "Copiar mensagem"}</button>
-            <input placeholder="WhatsApp do cliente (DDD + número)" value={telefone} onChange={(e) => setTelefone(e.target.value)} style={{ ...inp, width: 230 }} />
+            <input placeholder="WhatsApp do cliente (DDD + número)" value={telefone} onChange={(e) => setTelefone(e.target.value)} style={{ ...inp, width: 230, maxWidth: "100%" }} />
             <a href={waLink} target="_blank" rel="noreferrer" style={{ ...btnCheio, background: "#25D366", borderColor: "#25D366", textDecoration: "none" }}>Enviar pelo WhatsApp</a>
           </div>
           <div style={{ fontSize: 11, color: "#6b7280", marginTop: 6, wordBreak: "break-all" }}>{r.link}</div>
@@ -149,7 +149,7 @@ export default function AssinaturaClienteBloco({ osId, podeEditar }: { osId: str
               <img src={a.assinatura_url} alt="Assinatura do cliente" style={{ height: 64, maxWidth: 240, objectFit: "contain", background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6, padding: 4 }} />
             </button>
           )}
-          <div style={{ flex: 1, minWidth: 240 }}>
+          <div style={{ flex: 1, minWidth: "min(240px, 100%)" }}>
             <ProvaAssinatura c={{ assinado_em: a.assinado_em, assinado_nome: a.assinado_nome, assinado_ip: a.assinado_ip, assinado_geo: a.assinado_geo, assinado_dispositivo: a.assinado_dispositivo }} />
             <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
               <button type="button" style={btnCheio} onClick={() => setModal(true)}>Ver detalhes e mapa</button>

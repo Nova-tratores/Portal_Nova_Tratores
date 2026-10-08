@@ -581,7 +581,7 @@ export default function LousaPage() {
         >
           <div style={{
             background: 'var(--portal-bg-card, #fff)', borderRadius: 20, width: 520, maxWidth: '95vw',
-            padding: 32, boxShadow: '0 25px 60px rgba(0,0,0,0.15)',
+            maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(18px, 4vw, 32px)', boxShadow: '0 25px 60px rgba(0,0,0,0.15)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--portal-text, #1a1a1a)', margin: 0 }}>
@@ -599,7 +599,7 @@ export default function LousaPage() {
             {/* Tipo de marcação */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', letterSpacing: 1, display: 'block', marginBottom: 6 }}>TIPO</label>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 6 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(76px, 1fr))', gap: 6 }}>
                 {(Object.keys(TIPO_CONFIG) as TipoMarca[]).map(t => {
                   const cfg = TIPO_CONFIG[t]
                   const Icon = cfg.icon
@@ -856,7 +856,7 @@ export default function LousaPage() {
         >
           <div style={{
             background: 'var(--portal-bg-card, #fff)', borderRadius: 20, width: 460, maxWidth: '95vw',
-            padding: 32, boxShadow: '0 25px 60px rgba(0,0,0,0.15)',
+            maxHeight: '90vh', overflowY: 'auto', padding: 'clamp(18px, 4vw, 32px)', boxShadow: '0 25px 60px rgba(0,0,0,0.15)',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -1031,7 +1031,7 @@ export default function LousaPage() {
                       </div>
                       <span style={{ fontSize: 16, fontWeight: 800, color: '#059669' }}>{brl(o.valor)}</span>
                     </div>
-                    <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div style={{ padding: '14px 16px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(240px, 100%), 1fr))', gap: 12 }}>
                       {[
                         { l: 'Técnico', v: o.tecnico || '—', icon: User },
                         { l: 'Cidade', v: o.cidade || '—', icon: MapPin },

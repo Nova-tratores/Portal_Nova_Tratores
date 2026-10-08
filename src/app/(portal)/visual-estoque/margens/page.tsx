@@ -62,7 +62,7 @@ export default function MargensPage() {
   const td: React.CSSProperties = { padding: '10px 12px', fontSize: 12, textAlign: 'right', whiteSpace: 'nowrap' }
 
   return (
-    <div style={{ padding: '20px 32px' }}>
+    <div className="est-page" style={{ padding: '20px 32px' }}>
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 18 }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>

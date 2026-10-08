@@ -134,12 +134,12 @@ export default function FrotaParadasPage() {
   };
 
   const selStyle: React.CSSProperties = {
-    padding: '7px 10px', borderRadius: 0, border: '1px solid var(--portal-border)',
+    padding: '7px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', maxWidth: '100%',
     background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13.5,
   };
 
   return (
-    <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+    <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <Coffee size={20} color="#1e40af" /> Paradas & trajetos

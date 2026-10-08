@@ -336,7 +336,7 @@ export default function AvisosPage() {
           </div>
           <p style={{ fontSize: 14, color: '#737373', margin: 0 }}>Comunicados e avisos para toda a equipe</p>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
           {(podeCriar || podeStatus || podeExcluir) && (
             <>
               <button onClick={() => setShowInativos(!showInativos)} style={{
@@ -368,8 +368,8 @@ export default function AvisosPage() {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {agendados.map(a => (
-              <div key={a.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 18px', borderRadius: 12, background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
+              <div key={a.id} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 14, padding: isMobile ? '12px 14px' : '14px 18px', borderRadius: 12, background: '#F0F9FF', border: '1px solid #BAE6FD' }}>
+                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: '#0C4A6E', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{a.titulo}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 3, fontSize: 12, color: '#0369A1', flexWrap: 'wrap' }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontWeight: 600 }}><Clock size={12} /> Sai em {fmtQuando(a.agendar_para!)}</span>
@@ -413,7 +413,7 @@ export default function AvisosPage() {
                 {/* Header do aviso */}
                 <div
                   onClick={() => toggleExpandido(aviso.id)}
-                  style={{ padding: '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 14 }}
+                  style={{ padding: isMobile ? '14px 14px' : '16px 20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14 }}
                 >
                   {/* Indicador novo */}
                   {isNovo && (
@@ -437,7 +437,7 @@ export default function AvisosPage() {
                         <span style={{ fontSize: 10.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, background: '#F0F0F0', color: '#999' }}>Inativo</span>
                       )}
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 12, color: '#9CA3AF' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 14, rowGap: 4, fontSize: 12, color: '#9CA3AF' }}>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Users size={11} /> {aviso.criado_por_nome}</span>
                       <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Clock size={11} /> {new Date(aviso.created_at).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                       {(aviso.anexos?.length || 0) > 0 && (
@@ -456,8 +456,8 @@ export default function AvisosPage() {
 
                 {/* Conteudo expandido */}
                 {isExpanded && (
-                  <div style={{ padding: '0 22px 20px', borderTop: '1px solid #f5f5f5' }}>
-                    <div style={{ padding: '16px 0', fontSize: 14, lineHeight: 1.7, color: '#333', whiteSpace: 'pre-wrap' }}>
+                  <div style={{ padding: isMobile ? '0 14px 16px' : '0 22px 20px', borderTop: '1px solid #f5f5f5' }}>
+                    <div style={{ padding: '16px 0', fontSize: 14, lineHeight: 1.7, color: '#333', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
                       {aviso.conteudo}
                     </div>
 
@@ -522,7 +522,7 @@ export default function AvisosPage() {
 
                     {/* Acoes admin */}
                     {(podeStatus || podeExcluir) && (
-                    <div style={{ display: 'flex', gap: 8, marginTop: 16, paddingTop: 14, borderTop: '1px solid #f5f5f5' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 16, paddingTop: 14, borderTop: '1px solid #f5f5f5' }}>
                       <button onClick={(e) => { e.stopPropagation(); toggleAtivo(aviso) }} {...gateBtn(podeStatus)} style={{
                         display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px',
                         borderRadius: 6, border: '1px solid #E4E4E7', background: '#fff',
@@ -553,11 +553,11 @@ export default function AvisosPage() {
 
       {/* Modal Novo Aviso */}
       {showModal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}>
-          <div style={{ background: '#fff', borderRadius: 16, padding: 32, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'auto' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10000, padding: isMobile ? 10 : 16 }}>
+          <div style={{ background: '#fff', borderRadius: 16, padding: isMobile ? 18 : 32, width: '100%', maxWidth: 560, maxHeight: '90vh', overflow: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: '#111', margin: 0 }}>Novo Aviso</h2>
-              <button onClick={() => setShowModal(false)} style={{ background: '#F0F0F0', border: 'none', cursor: 'pointer', width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <button onClick={() => setShowModal(false)} style={{ background: '#F0F0F0', border: 'none', cursor: 'pointer', width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <X size={16} color="#555" />
               </button>
             </div>
@@ -598,10 +598,10 @@ export default function AvisosPage() {
             {/* Prioridade */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 13, fontWeight: 700, color: '#333', display: 'block', marginBottom: 6 }}>Prioridade</label>
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {Object.entries(PRIORIDADE_CONFIG).map(([key, cfg]) => (
                   <button key={key} onClick={() => setPrioridade(key)} style={{
-                    flex: 1, padding: '9px 0', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                    flex: '1 1 70px', padding: '9px 0', borderRadius: 8, fontSize: 13, fontWeight: 700,
                     border: `2px solid ${prioridade === key ? cfg.color : '#E4E4E7'}`,
                     background: prioridade === key ? cfg.bg : '#fff',
                     color: prioridade === key ? cfg.color : '#999',
@@ -635,7 +635,7 @@ export default function AvisosPage() {
                       <FileText size={14} color="#dc2626" />
                       <span style={{ flex: 1, fontSize: 13, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
                       <span style={{ fontSize: 11, color: '#999' }}>{formatBytes(f.size)}</span>
-                      <button onClick={() => removerArquivo(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex' }}>
+                      <button onClick={() => removerArquivo(i)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 32, minHeight: 32, flexShrink: 0 }}>
                         <X size={14} color="#999" />
                       </button>
                     </div>

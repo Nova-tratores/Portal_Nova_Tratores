@@ -9,7 +9,7 @@ export default function SemPermissao() {
       minHeight: 'calc(100vh - 64px)', display: 'flex', alignItems: 'center',
       justifyContent: 'center', fontFamily: 'Inter, sans-serif'
     }}>
-      <div style={{ textAlign: 'center', maxWidth: '420px', padding: '40px' }}>
+      <div style={{ textAlign: 'center', maxWidth: '420px', padding: 'clamp(20px, 6vw, 40px)' }}>
         <div style={{
           width: '80px', height: '80px', borderRadius: '20px', margin: '0 auto 24px',
           background: '#fef2f2', display: 'flex', alignItems: 'center', justifyContent: 'center'

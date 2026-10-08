@@ -31,6 +31,7 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
@@ -127,6 +128,7 @@ export default function CalendarioPage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta } = useDreConta()
+  const isMobile = useIsMobile()
 
   // --- Estado de controles (espelha as vars do IIFE da fonte) ---------------
   const agora = new Date()
@@ -410,6 +412,12 @@ export default function CalendarioPage() {
   }
   function ConteudoCelula({ info }) {
     if (!info) return null
+    if (isMobile) {
+      // Celular: so o valor curto (sem "R$ "); o detalhe abre no drawer ao tocar.
+      const v = tipo === 'ambos' ? info.saldo : info.total
+      const cls = tipo === 'ambos' ? (info.saldo >= 0 ? 'text-emerald-800' : 'text-red-800') : 'text-slate-800'
+      return <div className={'text-[12px] leading-tight font-bold tracking-tight truncate mt-0.5 ' + cls}>{fmtBRLcurto(v).replace('R$ ', '')}</div>
+    }
     if (tipo === 'ambos') {
       const saldoCor = info.saldo >= 0 ? 'text-emerald-800' : 'text-red-800'
       return (
@@ -437,7 +445,7 @@ export default function CalendarioPage() {
     const primeiro = new Date(ano, mes - 1, 1)
     const diaSemInicio = primeiro.getDay()
     const ultimoDia = new Date(ano, mes, 0).getDate()
-    const altura = tipo === 'ambos' ? 'h-28' : 'h-24'
+    const altura = isMobile ? 'h-16' : (tipo === 'ambos' ? 'h-28' : 'h-24')
 
     const cells = []
     let key = 0
@@ -454,12 +462,12 @@ export default function CalendarioPage() {
       cells.push(
         <div
           key={'d' + d}
-          className={altura + ' border-r border-b border-slate-200 p-2 cursor-pointer hover:bg-blue-50 transition ' + cor + ' ' + ehHoje + ' ' + fimDeSemana}
+          className={altura + ' border-r border-b border-slate-200 ' + (isMobile ? 'p-1 min-w-0 overflow-hidden' : 'p-2') + ' cursor-pointer hover:bg-blue-50 transition ' + cor + ' ' + ehHoje + ' ' + fimDeSemana}
           onClick={() => abrirDrawer(iso)}
         >
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-semibold text-slate-700">{d}</span>
-            {info && <span><Bolinhas d={info} /></span>}
+          <div className={isMobile ? 'flex items-center justify-between gap-0.5 min-w-0' : 'flex items-center justify-between'}>
+            <span className={isMobile ? 'text-xs font-semibold text-slate-700' : 'text-sm font-semibold text-slate-700'}>{d}</span>
+            {info && <span className={isMobile ? 'flex flex-wrap justify-end leading-none' : undefined}><Bolinhas d={info} /></span>}
           </div>
           <ConteudoCelula info={info} />
         </div>
@@ -617,13 +625,13 @@ export default function CalendarioPage() {
     <div className="text-slate-900">
       {/* ===================== Toolbar superior ===================== */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <button type="button" onClick={irAnterior} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100">{'←'}</button>
-        <h1 className="text-2xl font-semibold text-slate-800 min-w-[180px] text-center">{tituloPeriodo}</h1>
-        <button type="button" onClick={irProximo} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100">{'→'}</button>
-        <button type="button" onClick={irHoje} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 text-sm">Hoje</button>
+        <button type="button" onClick={irAnterior} className="px-3 py-1 max-md:min-h-9 border border-slate-300 rounded bg-white hover:bg-slate-100">{'←'}</button>
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800 min-w-[150px] sm:min-w-[180px] text-center">{tituloPeriodo}</h1>
+        <button type="button" onClick={irProximo} className="px-3 py-1 max-md:min-h-9 border border-slate-300 rounded bg-white hover:bg-slate-100">{'→'}</button>
+        <button type="button" onClick={irHoje} className="px-3 py-1 max-md:min-h-9 border border-slate-300 rounded bg-white hover:bg-slate-100 text-sm">Hoje</button>
 
         {/* Toggle Mes / Ano / Lista */}
-        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm ml-2">
+        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm ml-0 sm:ml-2">
           {['mes', 'ano', 'lista'].map((v, i) => {
             const ativo = view === v
             const label = v === 'mes' ? 'Mes' : v === 'ano' ? 'Ano' : 'Lista'
@@ -632,7 +640,7 @@ export default function CalendarioPage() {
                 key={v}
                 type="button"
                 onClick={() => setView(v)}
-                className={'px-3 py-1 transition ' + (i > 0 ? 'border-l border-slate-300 ' : '') +
+                className={'px-3 py-1 max-md:min-h-9 transition ' + (i > 0 ? 'border-l border-slate-300 ' : '') +
                   (ativo ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
               >
                 {label}
@@ -645,15 +653,15 @@ export default function CalendarioPage() {
         <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm" role="group">
           <button
             type="button" onClick={() => setTipo('pagar')}
-            className={'px-3 py-1 transition ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+            className={'px-3 py-1 max-md:min-h-9 transition ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
           >A Pagar</button>
           <button
             type="button" onClick={() => setTipo('receber')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
           >A Receber</button>
           <button
             type="button" onClick={() => setTipo('ambos')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
           >Ambos</button>
         </div>
 
@@ -661,16 +669,16 @@ export default function CalendarioPage() {
         <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm" role="group" title="Data usada para posicionar os titulos no calendario">
           <button
             type="button" onClick={() => setEixo('vencimento')}
-            className={'px-3 py-1 transition ' + (eixo === 'vencimento' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+            className={'px-3 py-1 max-md:min-h-9 transition ' + (eixo === 'vencimento' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
           >Vencimento</button>
           <button
             type="button" onClick={() => setEixo('emissao')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (eixo === 'emissao' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (eixo === 'emissao' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
           >Emissao</button>
           <button
             type="button" onClick={() => setEixo('inclusao')}
             title="Data de inclusao (criacao) do lancamento no Omie — util em Contas a Pagar, onde a nota do fornecedor e lancada dias apos a emissao"
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (eixo === 'inclusao' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (eixo === 'inclusao' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
           >Criacao</button>
         </div>
 
@@ -714,7 +722,7 @@ export default function CalendarioPage() {
 
       {/* ===================== Filtros ===================== */}
       <div className="flex items-center gap-2 mb-4 flex-wrap text-sm">
-        <select value={filtros.status} onChange={(e) => mudarFiltro('status', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white">
+        <select value={filtros.status} onChange={(e) => mudarFiltro('status', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white max-md:min-h-9 max-md:w-full">
           <option value="">Todos os status</option>
           <option value="A_VENCER">A vencer</option>
           <option value="A_VENCER_PROXIMO">Proximos 7 dias</option>
@@ -722,23 +730,23 @@ export default function CalendarioPage() {
           <option value="LIQUIDADO">Liquidado</option>
           <option value="PARCIAL">Pagamento parcial</option>
         </select>
-        <select value={filtros.fornecedor} onChange={(e) => mudarFiltro('fornecedor', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white max-w-[260px]">
+        <select value={filtros.fornecedor} onChange={(e) => mudarFiltro('fornecedor', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white max-w-[260px] max-md:max-w-full max-md:w-full max-md:min-h-9">
           <option value="">{tipo === 'receber' ? 'Todos os clientes' : (tipo === 'ambos' ? 'Todos os terceiros' : 'Todos os fornecedores')}</option>
           {opcoes.fornecedores.map((f) => <option key={f.codigo} value={f.codigo}>{f.nome || f.codigo}</option>)}
         </select>
-        <select value={filtros.grupo} onChange={(e) => mudarFiltro('grupo', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white max-w-[260px]">
+        <select value={filtros.grupo} onChange={(e) => mudarFiltro('grupo', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white max-w-[260px] max-md:max-w-full max-md:w-full max-md:min-h-9">
           <option value="">Todos os grupos</option>
           {opcoes.grupos.map((f) => <option key={f.codigo} value={f.codigo}>{f.nome || f.codigo}</option>)}
         </select>
-        <select value={filtros.categoria} onChange={(e) => mudarFiltro('categoria', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white max-w-[260px]">
+        <select value={filtros.categoria} onChange={(e) => mudarFiltro('categoria', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white max-w-[260px] max-md:max-w-full max-md:w-full max-md:min-h-9">
           <option value="">Todas as categorias</option>
           {opcoes.categorias.map((f) => <option key={f.codigo} value={f.codigo}>{f.nome || f.codigo}</option>)}
         </select>
-        <select value={filtros.departamento} onChange={(e) => mudarFiltro('departamento', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white max-w-[260px]">
+        <select value={filtros.departamento} onChange={(e) => mudarFiltro('departamento', e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white max-w-[260px] max-md:max-w-full max-md:w-full max-md:min-h-9">
           <option value="">Todos os departamentos</option>
           {opcoes.departamentos.map((f) => <option key={f.codigo} value={f.codigo}>{f.nome || f.codigo}</option>)}
         </select>
-        <button type="button" onClick={limparFiltros} className="px-3 py-1 border border-slate-300 rounded text-slate-600 hover:bg-slate-100">Limpar</button>
+        <button type="button" onClick={limparFiltros} className="px-3 py-1 max-md:min-h-9 border border-slate-300 rounded text-slate-600 hover:bg-slate-100">Limpar</button>
       </div>
 
       {/* ===================== Calendario mensal ===================== */}
@@ -746,7 +754,7 @@ export default function CalendarioPage() {
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
           <div className="grid grid-cols-7 bg-slate-100 text-xs font-semibold text-slate-600 uppercase">
             {DIAS_SEM.map((d) => (
-              <div key={d} className="px-2 py-2 text-center border-r border-slate-200 last:border-r-0">{d}</div>
+              <div key={d} className="px-0.5 sm:px-2 py-2 text-center border-r border-slate-200 last:border-r-0 min-w-0">{d}</div>
             ))}
           </div>
           <div className="grid grid-cols-7">
@@ -760,15 +768,15 @@ export default function CalendarioPage() {
       {/* ===================== Calendario anual ===================== */}
       {view === 'ano' && (
         <div className="overflow-x-auto">
-          <div className="min-w-[1100px]">
+          <div className="md:min-w-[1100px]">
             {erroAno ? (
               <div className="p-6 text-center text-red-600">{erroAno}</div>
             ) : (
               <>
                 {/* Cards de trimestre */}
-                <div className="grid grid-cols-12 gap-2 mb-2">
+                <div className="grid grid-cols-4 md:grid-cols-12 gap-2 mb-2">
                   {trimestres.map((t) => (
-                    <div key={t.nome} className={'col-span-3 p-2 rounded-lg border ' + corBgTrim(t)}>
+                    <div key={t.nome} className={'col-span-2 md:col-span-3 p-2 rounded-lg border min-w-0 ' + corBgTrim(t)}>
                       <div className="flex items-center justify-between">
                         <div className="text-xs font-bold text-slate-700 uppercase tracking-wide">{t.nome}</div>
                         <div className="text-[10px] text-slate-500">{t.count}</div>
@@ -786,7 +794,7 @@ export default function CalendarioPage() {
                   ))}
                 </div>
                 {/* 12 cards de mes */}
-                <div className="grid grid-cols-12 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-12 gap-2">
                   {meses.map((m) => {
                     const ehHoje = (m.mes === hojeM && ano === hojeA)
                     const ring = ehHoje ? 'ring-2 ring-blue-500' : ''
@@ -795,7 +803,7 @@ export default function CalendarioPage() {
                       <div
                         key={m.mes}
                         onClick={abrirMes}
-                        className={'col-span-1 block p-2 rounded-lg border border-slate-200 hover:border-slate-400 hover:shadow transition cursor-pointer ' + corCardMes(m) + ' ' + ring}
+                        className={'col-span-1 block p-2 min-w-0 rounded-lg border border-slate-200 hover:border-slate-400 hover:shadow transition cursor-pointer ' + corCardMes(m) + ' ' + ring}
                       >
                         <div className="flex items-center justify-between mb-1">
                           <div className="text-xs font-semibold text-slate-800">{NOMES_MES[m.mes - 1].slice(0, 3)}</div>
@@ -855,7 +863,7 @@ export default function CalendarioPage() {
                     key={esc}
                     type="button"
                     onClick={() => setEscopoLista(esc)}
-                    className={'px-3 py-1 transition ' + (i > 0 ? 'border-l border-slate-300 ' : '') +
+                    className={'px-3 py-1 max-md:min-h-9 transition ' + (i > 0 ? 'border-l border-slate-300 ' : '') +
                       (on ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}
                   >{esc === 'mes' ? 'Mes' : 'Ano'}</button>
                 )
@@ -934,11 +942,11 @@ export default function CalendarioPage() {
         className={'fixed top-0 right-0 h-full w-full md:w-[640px] bg-white shadow-2xl z-50 transform transition-transform overflow-y-auto ' +
           (drawerAberto ? 'translate-x-0' : 'translate-x-full')}
       >
-        <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between">
+        <div className="sticky top-0 bg-white border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
           <h2 className="font-semibold text-slate-800">Titulos {eixo === 'emissao' ? 'emitidos' : eixo === 'inclusao' ? 'criados' : 'vencendo'} em {fmtBRdata(drawerData)}</h2>
-          <button onClick={fecharDrawer} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">{'×'}</button>
+          <button onClick={fecharDrawer} className="text-slate-500 hover:text-slate-900 text-2xl leading-none max-md:min-w-9 max-md:min-h-9 shrink-0">{'×'}</button>
         </div>
-        <div className="p-5">
+        <div className="p-3 sm:p-5">
           {drawerCarregando ? (
             <div className="text-slate-500 text-sm">Carregando...</div>
           ) : drawerErro ? (
@@ -949,7 +957,7 @@ export default function CalendarioPage() {
             <>
               {/* Resumo */}
               {tipo === 'ambos' ? (
-                <div className="mb-4 grid grid-cols-3 gap-2 text-center">
+                <div className="mb-4 grid grid-cols-3 gap-2 text-center [&>div]:min-w-0 [&>div]:break-words">
                   <div className="border border-emerald-200 bg-emerald-50 rounded p-2">
                     <div className="text-xs text-emerald-700">Entradas</div>
                     <div className="font-bold text-emerald-800">{fmtBRLfull(drwEntrada)}</div>
@@ -985,7 +993,7 @@ export default function CalendarioPage() {
                   return (
                     <div key={t.codigo_lancamento || i} className={'border ' + corBorda + ' rounded-lg p-3 hover:border-slate-300 transition'}>
                       <div className="flex items-start justify-between gap-2 mb-1">
-                        <div className="font-medium text-slate-800 text-sm">
+                        <div className="font-medium text-slate-800 text-sm min-w-0 break-words">
                           {tipo === 'ambos' && <TipoBadge t={t.tipo} />}
                           {t.nome_contraparte || <span className="text-slate-400">Sem nome</span>}
                         </div>

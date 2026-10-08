@@ -53,8 +53,8 @@ export default function HistoricoReceber() {
       <main style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
         {/* BARRA DE PESQUISA */}
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '30px', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '300px', minWidth: 0 }}>
             <label style={{ fontSize: '10px', color: '#9e9e9e', letterSpacing: '1px', marginLeft: '5px' }}>PESQUISAR CLIENTE / ID</label>
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#9e9e9e' }} />
@@ -63,7 +63,7 @@ export default function HistoricoReceber() {
                 placeholder="Pesquisar cliente ou ID..."
                 value={pesquisa}
                 onChange={(e) => setPesquisa(e.target.value)}
-                style={{ padding: '15px 15px 15px 45px', width: '300px', borderRadius: '12px', border: '0.5px solid #d1d1d1', outline: 'none', fontSize: '14px', background: '#fff', color: '#333' }}
+                style={{ padding: '15px 15px 15px 45px', width: '100%', boxSizing: 'border-box', borderRadius: '12px', border: '0.5px solid #d1d1d1', outline: 'none', fontSize: '14px', background: '#fff', color: '#333' }}
               />
             </div>
           </div>
@@ -71,7 +71,9 @@ export default function HistoricoReceber() {
 
         {/* TABELA */}
         <div style={{ background: '#fff', borderRadius: '25px', border: '0.5px solid #d1d1d1', overflow: 'hidden', boxShadow: '0 15px 35px rgba(0,0,0,0.05)' }}>
-          <table style={{ width:'100%', borderCollapse:'collapse', textAlign:'left' }}>
+          {/* rolagem horizontal só da tabela no celular (a página não rola de lado) */}
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <table style={{ width:'100%', minWidth: '640px', borderCollapse:'collapse', textAlign:'left' }}>
             <thead>
               <tr style={{ background: '#f8fafc', borderBottom: '0.5px solid #e2e8f0' }}>
                 <th style={thStyle}>ID</th>
@@ -109,8 +111,9 @@ export default function HistoricoReceber() {
               ))}
             </tbody>
           </table>
+          </div>
           {listaFiltrada.length === 0 && (
-            <div style={{padding:'80px', textAlign:'center'}}>
+            <div style={{padding:'clamp(32px, 8vw, 80px) clamp(16px, 8vw, 80px)', textAlign:'center'}}>
                 <p style={{ fontSize:'16px', color:'#9e9e9e' }}>Nenhum registro encontrado no histórico.</p>
             </div>
           )}

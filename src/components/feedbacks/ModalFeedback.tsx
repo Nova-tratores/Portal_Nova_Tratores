@@ -250,12 +250,15 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
   const headerBg = gradTipo(tipo);
 
   return (
-    <div style={overlayStyle} onClick={onFechar}>
-      <div style={wrapperStyle} onClick={(e) => e.stopPropagation()}>
-      <div style={{ ...modalStyle, ...(showLog ? { borderTopRightRadius: 0, borderBottomRightRadius: 0 } : {}) }}>
+    <div className="fbmf-fundo" style={overlayStyle} onClick={onFechar}>
+      {/* Celular/tablet: as duas colunas (atendimento | dados do cliente) ficam uma embaixo da outra e rolam juntas. */}
+      <style>{`@media (max-width: 860px){.fbmf-fundo{padding:8px !important}.fbmf-wrap{flex-direction:column;width:100%;overflow-y:auto}.fbmf-modal{flex:0 1 auto !important}.fbmf-split{flex-direction:column;overflow-y:auto}.fbmf-col{flex:none !important;overflow:visible !important;padding:16px !important;border-right:none !important}.fbmf-head{padding:14px 16px !important}.fbmf-foot{padding:12px 16px !important}} @media (max-width: 480px){.fbmf-row{grid-template-columns:minmax(0,1fr) !important}}`}</style>
+      <div className="fbmf-wrap" style={wrapperStyle} onClick={(e) => e.stopPropagation()}>
+      <div className="fbmf-modal" style={{ ...modalStyle, ...(showLog ? { borderTopRightRadius: 0, borderBottomRightRadius: 0 } : {}) }}>
         {/* Header */}
-        <header
+        <header className="fbmf-head"
           style={{
+            gap: 8,
             padding: "18px 24px",
             borderBottom: "1px solid var(--portal-border)",
             display: "flex",
@@ -288,9 +291,9 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
         </header>
 
         {/* Body — dividido ao meio: esquerda atendimento, direita dados do cliente */}
-        <div style={splitBody}>
+        <div className="fbmf-split" style={splitBody}>
           {/* Coluna ESQUERDA — atendimento */}
-          <div style={colLeft}>
+          <div className="fbmf-col" style={colLeft}>
           {erro && <div style={erroStyle}>{erro}</div>}
           <div style={colTitulo}>📝 Atendimento</div>
 
@@ -416,13 +419,13 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
           </div>
 
           {/* Coluna DIREITA — dados do cliente (Omie + mapa + tags) */}
-          <div style={colRight}>
+          <div className="fbmf-col" style={colRight}>
             <PainelDadosCliente ref={painelRef} codigoOmie={form.codigo_omie || null} nome={form.nome} cor={corCabec} mostrarBotaoSalvar={false} />
           </div>
         </div>
 
         {/* Footer */}
-        <footer style={footerStyle}>
+        <footer className="fbmf-foot" style={footerStyle}>
           {editando && onCaveira ? (
             <button
               onClick={() => onCaveira(registro!)}
@@ -434,7 +437,7 @@ export default function ModalFeedback({ tipo, aberto, registro, prefill, onFecha
               {clienteNaoContatar ? "Reativar contato" : "Não contatar"}
             </button>
           ) : <span />}
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10 }}>
             <button onClick={onFechar} style={btnGhostStyle} disabled={salvando}>Cancelar</button>
             <button onClick={handleSalvar} disabled={salvando} style={{ ...btnPrimaryStyle, opacity: salvando ? 0.6 : 1, cursor: salvando ? "wait" : "pointer" }}>
               {salvando ? "Salvando…" : "Salvar atendimento + dados"}
@@ -498,7 +501,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 function Row({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 0 }}>
+    <div className="fbmf-row" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 0 }}>
       {children}
     </div>
   );

@@ -175,7 +175,7 @@ export default function SugestaoCompraPage() {
   if (!permLoading && userProfile && !pode('estoque', 'sugestao-compra')) return <SemPermissao />;
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -188,7 +188,7 @@ export default function SugestaoCompraPage() {
       </div>
 
       {/* abas */}
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #eee', margin: '14px 0 12px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, borderBottom: '1px solid #eee', margin: '14px 0 12px' }}>
         <button onClick={() => setView('sugestoes')} style={tabBtn(view === 'sugestoes')}>Sugestões</button>
         <button onClick={() => setView('pedidos')} style={tabBtn(view === 'pedidos')}>Pedidos abertos</button>
       </div>
@@ -222,7 +222,7 @@ export default function SugestaoCompraPage() {
         {chipsOn.size > 0 && <button onClick={() => setChipsOn(new Set())} style={{ padding: '5px 11px', borderRadius: 16, fontSize: '.74rem', border: 'none', background: 'none', color: '#dc2626', cursor: 'pointer' }}>limpar</button>}
       </div>
 
-      <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
+      <div className="est-scroll" style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
         <TabelaOrdenavel<Item> colunas={colunas} linhas={filtradas} chaveLinha={(i) => i.sku} carregando={carregando} />
       </div>
 
@@ -338,7 +338,7 @@ function AbaPedidos() {
     <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 14, boxShadow: '0 1px 4px rgba(0,0,0,.04)' }}>
       {carregando ? <div style={{ color: '#888', fontSize: '.82rem', padding: 10 }}>Carregando…</div>
         : pedidos.length === 0 ? <div style={{ color: '#bbb', fontSize: '.82rem', padding: 10 }}>Nenhum pedido aberto. Gere um a partir das Sugestões.</div>
-          : <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+          : <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>{['Pedido', 'Conta', 'Fornecedor', 'Data', 'Itens', 'Pedida × Recebida', 'Dias', 'Status', ''].map((h, i) => <th key={i} style={th}>{h}</th>)}</tr></thead>
               <tbody>
                 {pedidos.map((p) => (
@@ -358,7 +358,7 @@ function AbaPedidos() {
                   </tr>
                 ))}
               </tbody>
-            </table>}
+            </table></div>}
       {receberId && <ModalReceber pedidoId={receberId} onFechar={() => setReceberId(null)} onRecebido={() => { setReceberId(null); setCarregando(true); carregar(); }} />}
     </div>
   );
@@ -413,7 +413,7 @@ function ModalReceber({ pedidoId, onFechar, onRecebido }: { pedidoId: number; on
           <div><label style={{ fontSize: '.68rem', color: '#888', display: 'block' }}>NF (opcional)</label><input value={nf} onChange={(e) => setNf(e.target.value)} placeholder="nº da nota" style={{ padding: '6px 8px', border: '1px solid #e0e0e0', borderRadius: 6, width: 140 }} /></div>
         </div>
         {erro && <div style={{ color: '#991b1b', fontSize: '.8rem', marginBottom: 8 }}>{erro}</div>}
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>{['SKU', 'Descrição', 'Pedida', 'Já receb.', 'Receber agora'].map((h, i) => <th key={i} style={{ ...td, fontSize: '.64rem', color: '#888', textTransform: 'uppercase', fontWeight: 600 }}>{h}</th>)}</tr></thead>
           <tbody>
             {itens.map((it) => (
@@ -426,8 +426,8 @@ function ModalReceber({ pedidoId, onFechar, onRecebido }: { pedidoId: number; on
               </tr>
             ))}
           </tbody>
-        </table>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
+        </table></div>
+        <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: 10, marginTop: 14 }}>
           <button onClick={onFechar} style={{ padding: '8px 16px', background: 'none', border: '1px solid #ddd', borderRadius: 8, cursor: 'pointer', color: '#666' }}>Cancelar</button>
           <button onClick={confirmar} disabled={salvando} style={{ padding: '8px 18px', background: '#0f766e', color: '#fff', border: 'none', borderRadius: 8, fontWeight: 700, cursor: salvando ? 'wait' : 'pointer' }}>{salvando ? 'Salvando…' : 'Confirmar recebimento'}</button>
         </div>

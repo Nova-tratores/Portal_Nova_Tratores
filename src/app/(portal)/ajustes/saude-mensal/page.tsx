@@ -85,7 +85,7 @@ export default function SaudeMensalPage() {
   const tipos = k?.alertasPorTipo ? Object.entries(k.alertasPorTipo) : [];
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Saude mensal</h1>

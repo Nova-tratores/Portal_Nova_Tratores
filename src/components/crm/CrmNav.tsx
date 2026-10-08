@@ -3,6 +3,7 @@
 // mesmo esquema das faixas Peças/Serviços/Frota/Financeiro.
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 const ABAS = [
   { label: 'A Ideia', href: '/crm' },
@@ -15,6 +16,7 @@ const ABAS = [
 
 export default function CrmNav() {
   const pathname = usePathname() ?? '';
+  const isMobile = useIsMobile();
   return (
     <div
       className="print:hidden"
@@ -22,7 +24,7 @@ export default function CrmNav() {
         display: 'flex',
         alignItems: 'flex-end',
         gap: 4,
-        padding: '12px 16px 0',
+        padding: isMobile ? '8px 8px 0' : '12px 16px 0',
         background: 'linear-gradient(135deg, #2FA37C, #12463C)',
         boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
         overflowX: 'auto',
@@ -39,8 +41,8 @@ export default function CrmNav() {
               display: 'flex',
               alignItems: 'center',
               gap: 7,
-              padding: '11px 18px',
-              fontSize: 14.5,
+              padding: isMobile ? '10px 12px' : '11px 18px',
+              fontSize: isMobile ? 13.5 : 14.5,
               fontWeight: ativo ? 700 : 600,
               color: '#111111',
               background: ativo ? '#fefefe' : 'rgba(255,255,255,0.30)',

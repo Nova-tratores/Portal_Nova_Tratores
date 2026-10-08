@@ -290,21 +290,21 @@ export default function AderenciaPage() {
     <>
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <h1 className="text-2xl font-semibold text-slate-800">Pontualidade · Realizado vs Previsto</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Pontualidade · Realizado vs Previsto</h1>
 
         {/* Toggle de TIPO (replicado da header global da fonte) */}
-        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm ml-2" role="group">
+        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm ml-0 sm:ml-2" role="group">
           <button type="button" onClick={() => setTipo('pagar')}
-            className={'px-3 py-1 transition ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>A Pagar</button>
+            className={'px-3 py-1 max-md:min-h-9 transition ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>A Pagar</button>
           <button type="button" onClick={() => setTipo('receber')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>A Receber</button>
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>A Receber</button>
           <button type="button" onClick={() => setTipo('ambos')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Ambos</button>
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Ambos</button>
         </div>
 
-        <span className="text-xs text-slate-500 ml-4">Janela:</span>
+        <span className="text-xs text-slate-500 ml-0 sm:ml-4">Janela:</span>
         <select value={dias} onChange={(e) => setDias(parseInt(e.target.value, 10))}
-          className="border border-slate-300 rounded px-2 py-1 text-sm">
+          className="border border-slate-300 rounded px-2 py-1 text-sm max-md:min-h-9">
           <option value={30}>Ult. 30 dias</option>
           <option value={90}>Ult. 90 dias</option>
           <option value={180}>Ult. 6 meses</option>
@@ -313,17 +313,17 @@ export default function AderenciaPage() {
           <option value={730}>Ult. 24 meses</option>
         </select>
 
-        <span className="text-xs text-slate-500 ml-2">Granularidade:</span>
+        <span className="text-xs text-slate-500 ml-0 sm:ml-2">Granularidade:</span>
         <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm">
           <button type="button" onClick={() => setGran('mes')}
-            className={'px-3 py-1 transition ' + (gran === 'mes' ? 'bg-slate-800 text-white' : inativoToggle)}>Mes</button>
+            className={'px-3 py-1 max-md:min-h-9 transition ' + (gran === 'mes' ? 'bg-slate-800 text-white' : inativoToggle)}>Mes</button>
           <button type="button" onClick={() => setGran('semana')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (gran === 'semana' ? 'bg-slate-800 text-white' : inativoToggle)}>Semana</button>
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (gran === 'semana' ? 'bg-slate-800 text-white' : inativoToggle)}>Semana</button>
         </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6 [&>div]:min-w-0 [&>div]:break-words">
         <div className="bg-white rounded-lg border border-slate-200 p-4">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Pontualidade</div>
           <div className={corAderencia}>{kpiAderencia}</div>
@@ -379,7 +379,7 @@ export default function AderenciaPage() {
       </div>
 
       {/* Grafico previsto vs realizado */}
-      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
+      <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 mb-6 min-w-0">
         <canvas ref={chartRef} height="120" />
       </div>
 

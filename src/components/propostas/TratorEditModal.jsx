@@ -71,12 +71,12 @@ export default function TratorEditModal({ onClose }) {
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[6000]">
       <div className="bg-white w-[95%] max-w-[1000px] h-[90vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden">
-        <div className="px-8 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
+        <div className="px-4 md:px-8 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
           <h2 className="font-black text-zinc-900">EDICAO DE TRATORES</h2>
           <button onClick={onClose} className="font-black text-zinc-500 hover:text-red-600 bg-transparent border-none cursor-pointer">FECHAR [X]</button>
         </div>
 
-        <div className="px-8 py-6 overflow-y-auto flex-1">
+        <div className="px-4 md:px-8 py-6 overflow-y-auto flex-1">
           <div className="relative mb-6">
             <label className="text-[11px] font-black text-zinc-700 mb-2 block">PESQUISAR TRATOR PARA EDITAR</label>
             <input className="w-full px-4 py-3 bg-zinc-900 text-white rounded-xl border-none text-sm font-bold" value={busca}
@@ -122,7 +122,7 @@ export default function TratorEditModal({ onClose }) {
                   <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>MARCA</label><input value={formData.marca} onChange={e => setFormData({ ...formData, marca: e.target.value })} className={inputStyle} /></div>
                   <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>MODELO</label><input value={formData.modelo} onChange={e => setFormData({ ...formData, modelo: e.target.value })} className={inputStyle} /></div>
                 </div>
-                <div className="flex">
+                <div className="flex flex-wrap">
                   <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>ANO</label><input value={formData.ano} onChange={e => setFormData({ ...formData, ano: e.target.value })} className={inputStyle} /></div>
                   <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>FINAME / NCM</label><input value={formData['finame/ncm']} onChange={e => setFormData({ ...formData, 'finame/ncm': e.target.value })} className={inputStyle} /></div>
                 </div>
@@ -130,7 +130,7 @@ export default function TratorEditModal({ onClose }) {
 
               <div className="text-xs font-black text-red-600 uppercase">II. MOTOR E COMBUSTIVEL</div>
               <div className="border border-zinc-200 bg-white rounded-xl overflow-hidden">
-                <div className="flex">
+                <div className="flex flex-wrap">
                   <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>MOTOR</label><input value={formData.motor} onChange={e => setFormData({ ...formData, motor: e.target.value })} className={inputStyle} /></div>
                   <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>BOMBA INJETORA</label><input value={formData.bomb_inje} onChange={e => setFormData({ ...formData, bomb_inje: e.target.value })} className={inputStyle} /></div>
                   <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>CAPACIDADE TANQUE</label><input value={formData.capacit_comb} onChange={e => setFormData({ ...formData, capacit_comb: e.target.value })} className={inputStyle} /></div>
@@ -157,7 +157,7 @@ export default function TratorEditModal({ onClose }) {
                   <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>OLEO MOTOR</label><input value={formData.oleo_motor} onChange={e => setFormData({ ...formData, oleo_motor: e.target.value })} className={inputStyle} /></div>
                   <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>OLEO TRANSMISSAO</label><input value={formData.oleo_trasmissao} onChange={e => setFormData({ ...formData, oleo_trasmissao: e.target.value })} className={inputStyle} /></div>
                 </div>
-                <div className="flex">
+                <div className="flex flex-wrap">
                   <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>DIANTEIRA MINIMA E MAXIMA</label><input value={formData.diant_min_max} onChange={e => setFormData({ ...formData, diant_min_max: e.target.value })} className={inputStyle} /></div>
                   <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>TRASEIRA MINIMA E MAXIMA</label><input value={formData.tras_min_max} onChange={e => setFormData({ ...formData, tras_min_max: e.target.value })} className={inputStyle} /></div>
                 </div>

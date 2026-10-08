@@ -257,7 +257,7 @@ export default function LocalizacaoPage() {
   if (!permLoading && userProfile && !pode('ajustes', 'localizacao')) return <SemPermissao />;
 
   return (
-    <div style={{ padding: 16, maxWidth: 1100, margin: '0 auto' }}>
+    <div className="est-page est-touch" style={{ padding: 16, maxWidth: 1100, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <MapPin size={22} color="#1d4ed8" />
         <h1 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#0f172a', margin: 0 }}>Localização física</h1>
@@ -332,7 +332,7 @@ export default function LocalizacaoPage() {
                     let nA = 0; for (const arr of arvore.get(prat)!.get(andar)!.values()) nA += arr.filter(casa).length;
                     if (buscando && nA === 0) return null;
                     return (
-                      <div key={kA} style={{ paddingLeft: 18 }}>
+                      <div key={kA} className="loc-ind" style={{ paddingLeft: 18 }}>
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           <button onClick={() => toggle(kA)} style={{ ...linhaBtn, flex: 1, fontWeight: 600, color: '#334155' }}>
                             {estaAberto(kA) ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
@@ -352,7 +352,7 @@ export default function LocalizacaoPage() {
                           const conflito = arr.length > 1;
                           const pos: Pos = { prat, andar, caixa };
                           return (
-                            <div key={`${kA}|C|${caixa}`} style={{ paddingLeft: 20, paddingRight: 10, paddingBottom: 8, borderTop: '1px solid #f8fafc' }}>
+                            <div key={`${kA}|C|${caixa}`} className="loc-ind" style={{ paddingLeft: 20, paddingRight: 10, paddingBottom: 8, borderTop: '1px solid #f8fafc' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0 4px' }}>
                                 <span style={{ fontWeight: 600, color: '#0f172a', fontSize: '.82rem' }}>Caixa {labelSeg(caixa)}</span>
                                 {conflito && (
@@ -367,7 +367,7 @@ export default function LocalizacaoPage() {
                                 )}
                               </div>
                               {visiveis.map((p) => (
-                                <div key={chaveProd(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#fff', border: '1px solid #eef2f7', borderRadius: 8, marginBottom: 4 }}>
+                                <div key={chaveProd(p)} className="loc-item" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', background: '#fff', border: '1px solid #eef2f7', borderRadius: 8, marginBottom: 4 }}>
                                   <PackageOpen size={15} color="#94a3b8" />
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '.8rem' }}>{p.codigo || p.codigo_produto}</div>
@@ -452,7 +452,7 @@ function SemLocalizacao({ itens, termo, casa, podeEditar, onDefinir }: {
       {aberto && (
         <div style={{ padding: 10 }}>
           {mostra.map((p) => (
-            <div key={chaveProd(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+            <div key={chaveProd(p)} className="loc-item" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '.8rem' }}>{p.codigo || p.codigo_produto}</div>
                 <div style={{ color: '#64748b', fontSize: '.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 560 }}>{p.descricao || '—'}</div>
@@ -491,7 +491,7 @@ function LocalizacaoInvalida({ itens, termo, casa, podeEditar, onMover, onRemove
         <div style={{ padding: 10 }}>
           <div style={{ color: '#9a3412', fontSize: '.72rem', marginBottom: 6 }}>Posições com dado inválido (XXX / 000 / 0000). Corrija com <b>Mover</b> ou <b>Remova</b>.</div>
           {mostra.map((p) => (
-            <div key={chaveProd(p)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
+            <div key={chaveProd(p)} className="loc-item" style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 8px', borderBottom: '1px solid #f1f5f9' }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 600, color: '#0f172a', fontSize: '.8rem' }}>{p.codigo || p.codigo_produto}</div>
                 <div style={{ color: '#64748b', fontSize: '.72rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 460 }}>

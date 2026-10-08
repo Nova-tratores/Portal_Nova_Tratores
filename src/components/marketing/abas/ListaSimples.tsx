@@ -249,7 +249,7 @@ export default function ListaSimples({
       {itens.length === 0 ? (
         <Vazio>{spec.vazio}</Vazio>
       ) : (
-        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))' }}>
           {itens.map((it) => {
             const anexo = it.foto_url || it.evidencia_url || (spec.rota === 'midias' ? it.url : null);
             const ehLink = typeof anexo === 'string' && /^https?:/.test(anexo);

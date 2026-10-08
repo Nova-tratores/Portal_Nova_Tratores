@@ -84,9 +84,9 @@ export default function RemessasPage() {
   ]
 
   return (
-    <div style={{ padding: '20px 32px' }}>
+    <div className="est-page" style={{ padding: '20px 32px' }}>
       {/* Sub-abas */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 16 }}>
         {abas.map(a => (
           <button key={a.id} onClick={() => { setAba(a.id); setStatusFiltro('todas') }} style={{
             padding: '8px 18px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: aba === a.id ? 700 : 500,

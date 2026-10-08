@@ -224,7 +224,7 @@ export default function FrotaCustosPage() {
   const td: React.CSSProperties = { fontSize: 13.5, color: 'var(--portal-text)', textAlign: 'right', padding: '8px 12px', whiteSpace: 'nowrap' };
 
   return (
-    <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+    <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <DollarSign size={20} color="#1e40af" /> Custos & TCO
@@ -419,7 +419,7 @@ function ModalCustos({ linha, meses, entradas, onClose }: {
           {linha.status === 'vendido' && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px' }}>VENDIDO</span>}
           {linha.status === 'arquivado' && <span style={{ fontSize: 9.5, fontWeight: 800, color: '#475569', background: '#e2e8f0', borderRadius: 999, padding: '2px 7px' }}>ARQUIVADO</span>}
           <div style={{ flex: 1 }} />
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)', minWidth: 36, minHeight: 36 }}><X size={18} /></button>
         </div>
         <div style={{ padding: '8px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: 13.5, color: 'var(--portal-text)' }}>
           <span>Últimos {meses} meses</span>

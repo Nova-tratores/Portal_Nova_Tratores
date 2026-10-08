@@ -136,7 +136,8 @@ export default function TratorilsonPainel() {
   const valor: React.CSSProperties = { fontSize: 26, fontWeight: 800, color: 'var(--portal-text)', marginTop: 2 }
 
   return (
-    <div style={{ padding: 24, width: '100%', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' }}>
+    <div style={{ padding: 'clamp(12px, 3vw, 24px)', width: '100%', boxSizing: 'border-box', fontFamily: 'Inter, sans-serif' }}>
+      <style>{`@media (max-width: 900px){.trt-split{grid-template-columns:minmax(0,1fr) !important}}`}</style>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
         <div style={{ width: 38, height: 38, borderRadius: 11, background: 'linear-gradient(135deg,#dc2626,#991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Bot size={20} color="#fff" />
@@ -181,7 +182,7 @@ export default function TratorilsonPainel() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
           <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--portal-text)' }}>Atualizar OS pelo relatório <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontWeight: 500 }}>(teste — prévia antes de gravar)</span></div>
           <div style={{ flex: 1 }} />
-          <input value={osNum} onChange={(e) => setOsNum(e.target.value)} placeholder="Nº da OS" style={{ width: 110, padding: '7px 9px', border: '1px solid var(--portal-border)', borderRadius: 8, fontSize: 14, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)' }} />
+          <input value={osNum} onChange={(e) => setOsNum(e.target.value)} placeholder="Nº da OS" style={{ width: 110, maxWidth: '100%', padding: '7px 9px', border: '1px solid var(--portal-border)', borderRadius: 8, fontSize: 14, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)' }} />
           <button onClick={gerarPrevia} disabled={gerando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, border: 'none', background: 'linear-gradient(135deg,#dc2626,#991b1b)', color: '#fff', fontWeight: 700, cursor: gerando ? 'default' : 'pointer' }}>
             {gerando ? <Loader2 size={14} className="spin" /> : <Bot size={14} />} Gerar prévia
           </button>
@@ -316,7 +317,7 @@ export default function TratorilsonPainel() {
         </button>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16, marginTop: 14, alignItems: 'start' }}>
+      <div className="trt-split" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) minmax(0, 1fr)', gap: 16, marginTop: 14, alignItems: 'start' }}>
         {/* Lista */}
         <div style={{ ...card, padding: 0, overflow: 'hidden' }}>
           <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--portal-border)', fontWeight: 700, fontSize: 13, color: 'var(--portal-text)' }}>

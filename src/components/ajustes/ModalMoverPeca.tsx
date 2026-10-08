@@ -66,7 +66,7 @@ export function ModalMover({ produto, produtosEmpresa, salvando, onCancelar, onC
 
   return (
     <div style={modalWrap} onClick={onCancelar}>
-      <div style={modalCard} onClick={(e) => e.stopPropagation()}>
+      <div className="est-touch" style={modalCard} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <h2 style={{ fontSize: '1rem', fontWeight: 700, margin: 0 }}>{titulo}</h2>
           <button onClick={onCancelar} style={{ ...btn, marginLeft: 'auto', padding: 6 }}><X size={16} /></button>
@@ -77,13 +77,13 @@ export function ModalMover({ produto, produtosEmpresa, salvando, onCancelar, onC
         <datalist id="sug-prat">{sugP.map((v) => <option key={v} value={v} />)}</datalist>
         <datalist id="sug-andar">{sugA.map((v) => <option key={v} value={v} />)}</datalist>
         <datalist id="sug-caixa">{sugC.map((v) => <option key={v} value={v} />)}</datalist>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
           <Campo rotulo="Prateleira" v={prat} set={setPrat} list="sug-prat" />
           <Campo rotulo="Andar" v={andar} set={setAndar} list="sug-andar" />
           <Campo rotulo="Caixa" v={caixa} set={setCaixa} list="sug-caixa" />
         </div>
         <AvisoOcupado ocupantes={ocupantes} liberar={liberar} setLiberar={setLiberar} />
-        <div style={{ display: 'flex', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 14, justifyContent: 'flex-end' }}>
           <button onClick={onCancelar} style={btn}>Cancelar</button>
           <button disabled={salvando || vazio} onClick={() => onConfirmar(produto, pos, liberar ? ocupantes : [])}
             style={{ ...btnPrim, opacity: salvando || vazio ? .6 : 1 }}>{salvando ? 'Gravando…' : rotuloConfirmar}</button>

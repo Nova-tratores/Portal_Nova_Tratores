@@ -46,7 +46,7 @@ export default function ComissaoPage() {
   for (let y = now.getFullYear(); y >= 2022; y--) anos.push(y);
 
   return (
-    <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Comissão</h1>
@@ -121,7 +121,7 @@ function ConfigTab({ contaParam, setErro }: { contaParam: string; setErro: (s: s
   return (
     <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, maxWidth: 420 }}>
       <label style={{ display: 'block', color: '#888', fontSize: '.7rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 6, fontWeight: 600 }}>Comissão base de serviços (%)</label>
-      <div style={{ display: 'flex', gap: 10 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
         <input value={base} onChange={(e) => setBase(e.target.value)} type="number" step="0.01" style={{ ...inputStyle, width: 120 }} />
         <button onClick={salvar} style={btnPrimary}>Salvar</button>
         {salvo && <span style={{ color: '#16a34a', fontSize: '.8rem', alignSelf: 'center' }}>Salvo ✓</span>}
@@ -178,7 +178,7 @@ function PessoasTab({ contaParam, setErro }: { contaParam: string; setErro: (s: 
   return (
     <>
       <div style={{ display: 'flex', gap: 8, marginBottom: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-        <Field label="Nome"><input value={nome} onChange={(e) => setNome(e.target.value)} style={{ ...inputStyle, width: 200 }} /></Field>
+        <Field label="Nome"><input value={nome} onChange={(e) => setNome(e.target.value)} style={{ ...inputStyle, width: 200, maxWidth: '100%' }} /></Field>
         <Field label="Tipo">
           <select value={tipo} onChange={(e) => setTipo(e.target.value)} style={inputStyle}>
             {['vendedor', 'motorista', 'tecnico', 'todos'].map((t) => <option key={t} value={t}>{t}</option>)}
@@ -313,7 +313,7 @@ function ServicosTab({ contaParam, mes, ano, setErro }: { contaParam: string; me
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
         <button onClick={sync} style={btnGhost} disabled={carregando}>{carregando ? 'Processando…' : 'Sincronizar OS do mês'}</button>
       </div>
       <Cards>
@@ -370,7 +370,7 @@ function ServicoRow({ s, editando, onEditar, contaParam, onSalvo, setErro }: { s
             <Field label="V1 %"><input value={f.divisao_v1_pct} onChange={(e) => setF({ ...f, divisao_v1_pct: e.target.value })} type="number" style={{ ...inputStyle, width: 70 }} /></Field>
             <Field label="V2 %"><input value={f.divisao_v2_pct} onChange={(e) => setF({ ...f, divisao_v2_pct: e.target.value })} type="number" style={{ ...inputStyle, width: 70 }} /></Field>
             <Field label="Override %"><input value={f.comissao_override_pct} onChange={(e) => setF({ ...f, comissao_override_pct: e.target.value })} type="number" placeholder="auto" style={{ ...inputStyle, width: 80 }} /></Field>
-            <Field label="Justificativa"><input value={f.justificativa} onChange={(e) => setF({ ...f, justificativa: e.target.value })} style={{ ...inputStyle, width: 200 }} /></Field>
+            <Field label="Justificativa"><input value={f.justificativa} onChange={(e) => setF({ ...f, justificativa: e.target.value })} style={{ ...inputStyle, width: 200, maxWidth: '100%' }} /></Field>
             <button onClick={salvar} style={btnPrimary}>Salvar</button>
           </div>
         </td></tr>
@@ -402,7 +402,7 @@ function VendasTab({ contaParam, mes, ano, setErro }: { contaParam: string; mes:
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14, alignItems: 'flex-end' }}>
         <Sel label="Grupo" value={grupo} onChange={setGrupo} options={[{ value: '', label: 'Todos' }, { value: 'maquinas', label: 'Máquinas' }, { value: 'pecas', label: 'Peças' }]} />
       </div>
       <Cards>
@@ -457,7 +457,7 @@ function VendaRow({ v, editando, onEditar, contaParam, onSalvo, setErro }: { v: 
             <Field label="Override %"><input value={f.comissao_override_pct} onChange={(e) => setF({ ...f, comissao_override_pct: e.target.value })} type="number" placeholder="regra" style={{ ...inputStyle, width: 80 }} /></Field>
             <Field label="Custos extras"><input value={f.custos_extras} onChange={(e) => setF({ ...f, custos_extras: e.target.value })} type="number" style={{ ...inputStyle, width: 90 }} /></Field>
             <Field label="Desconto"><input value={f.desconto} onChange={(e) => setF({ ...f, desconto: e.target.value })} type="number" style={{ ...inputStyle, width: 90 }} /></Field>
-            <Field label="Justificativa"><input value={f.justificativa} onChange={(e) => setF({ ...f, justificativa: e.target.value })} style={{ ...inputStyle, width: 220 }} /></Field>
+            <Field label="Justificativa"><input value={f.justificativa} onChange={(e) => setF({ ...f, justificativa: e.target.value })} style={{ ...inputStyle, width: 220, maxWidth: '100%' }} /></Field>
             <button onClick={salvar} style={btnPrimary}>Salvar</button>
           </div>
         </td></tr>
@@ -507,7 +507,7 @@ function CustosTab({ contaParam, mes, ano, setErro }: { contaParam: string; mes:
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
         <button onClick={copiar} style={btnGhost}>Copiar do mês anterior</button>
       </div>
       <Cards>
@@ -555,7 +555,7 @@ function RelatorioTab({ contaParam, mes, ano, setErro }: { contaParam: string; m
 
   return (
     <>
-      <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'flex-end' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 14, alignItems: 'flex-end' }}>
         <Sel label="Domínio" value={dominio} onChange={setDominio} options={[{ value: 'ambos', label: 'Ambos' }, { value: 'servicos', label: 'Serviços' }, { value: 'vendas', label: 'Vendas' }]} />
       </div>
       {data && (

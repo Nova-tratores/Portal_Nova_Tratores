@@ -95,7 +95,7 @@ export default function LeadsAba({
             : 'Nenhum lead com esse filtro.'}
         </Vazio>
       ) : (
-        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))' }}>
+        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))' }}>
           {lista.map((l) => (
             <Painel key={l.id} style={{ borderLeft: `3px solid ${cor(QUALIFICACOES_LEAD, l.qualificacao)}` }}>
               <div style={{ fontSize: 13, color: 'var(--portal-text)', whiteSpace: 'pre-wrap' }}>{l.texto}</div>

@@ -120,11 +120,11 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
       <div style={{ background: "#fff", borderRadius: 20, width: "100%", maxWidth: 1200, display: "flex", flexDirection: "column", overflow: "hidden", boxShadow: "0 25px 60px rgba(0,0,0,0.25)", margin: "auto 0" }}>
 
         {/* Header */}
-        <div style={{ padding: "18px 28px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", gap: 16, background: "#FAFBFC" }}>
+        <div style={{ padding: "18px 28px", borderBottom: "1px solid #E2E8F0", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 16, background: "#FAFBFC" }}>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: "linear-gradient(135deg, #dc2626, #b91c1c)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff" }}>
             <i className="fas fa-tools" style={{ fontSize: 20 }} />
           </div>
-          <div style={{ flex: 1 }}>
+          <div style={{ flex: "1 1 220px", minWidth: 0 }}>
             <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: "#1E293B" }}>Kits de Revisão & Manutenção</h3>
             <p style={{ fontSize: 12, color: "#94A3B8", margin: 0 }}>{totalRevisoes} revisões · {totalManutencao} manutenções · {totalQuad} quadriciclos</p>
           </div>
@@ -141,7 +141,7 @@ export default function ModalRevisoes({ open, onClose, onSaved }: Props) {
             ))}
           </div>
 
-          <div style={{ display: "flex", gap: 6 }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
             <button onClick={() => abrirNova("revisao")}
               style={{ padding: "8px 14px", borderRadius: 8, border: "none", background: "#dc2626", color: "#fff", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
               <i className="fas fa-plus" /> Revisão

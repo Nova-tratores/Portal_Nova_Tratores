@@ -26,7 +26,7 @@ export default function FeedbacksLayout({ children }: { children: React.ReactNod
   return (
     <div style={{ minHeight: "calc(100vh - 64px)", background: "var(--portal-bg)" }}>
       <FeedbackTabs />
-      <div style={{ padding: "0 24px 32px" }}>{children}</div>
+      <div style={{ padding: "0 clamp(10px, 2.5vw, 24px) 32px" }}>{children}</div>
     </div>
   );
 }

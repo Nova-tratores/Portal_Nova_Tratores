@@ -127,7 +127,7 @@ export default function DescricoesPage() {
   const statusColor = statusTipo === 'erro' ? '#dc2626' : statusTipo === 'ok' ? '#047857' : '#64748b';
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Descrições de produto</h1>
         <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 920 }}>
@@ -165,7 +165,7 @@ export default function DescricoesPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.75rem' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.75rem' }}>
         <span style={{ color: statusColor }}>{status}</span>
         {produtos.length > 0 && (
           <span style={{ marginLeft: 'auto', color: '#64748b' }}>

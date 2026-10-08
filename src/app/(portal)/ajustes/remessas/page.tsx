@@ -242,7 +242,7 @@ export default function RemessasPage() {
   if (!permLoading && userProfile && !pode('ajustes', 'remessas')) return <SemPermissao />;
 
   return (
-    <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Remessas em aberto</h1>
@@ -285,7 +285,7 @@ export default function RemessasPage() {
 
       {/* Progresso do lote em andamento */}
       {loteRodando && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem', color: '#1d4ed8' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 8, padding: '10px 14px', marginBottom: 12, fontSize: '.82rem', color: '#1d4ed8' }}>
           <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid #93c5fd', borderTopColor: '#1d4ed8', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
           <b>Devolvendo em lote…</b> {lote?.etapa || ''}
           {lote?.progresso?.total ? <span style={{ color: '#64748b' }}>({fmtNum(lote?.progresso?.feito)}/{fmtNum(lote?.progresso?.total)})</span> : null}
@@ -402,8 +402,8 @@ export default function RemessasPage() {
 
       {/* Modal de confirmacao da devolucao em massa */}
       {modalDevolver && (
-        <div onClick={() => !iniciandoLote && setModalDevolver(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 560, display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
+        <div className="est-overlay" onClick={() => !iniciandoLote && setModalDevolver(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 560, maxHeight: '90vh', overflowY: 'auto', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
             <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Devolver {fmtNum(selecao.size)} remessa(s)</h2>
               <button onClick={() => setModalDevolver(false)} disabled={iniciandoLote} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
@@ -433,14 +433,14 @@ export default function RemessasPage() {
 
       {/* Popup de detalhes (read-only) */}
       {detalheSel && (
-        <div onClick={() => setDetalheSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div className="est-overlay" onClick={() => setDetalheSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 760, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
             <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Remessa #{detalheSel.numero || detalheSel.idRemessa}</h2>
               <button onClick={() => setDetalheSel(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
             </div>
             <div style={{ padding: 18, overflowY: 'auto', fontSize: '.82rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', marginBottom: 12, fontSize: '.76rem', color: '#475569' }}>
+              <div className="est-stack-xs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', marginBottom: 12, fontSize: '.76rem', color: '#475569' }}>
                 <div>Destinatario: <b>{detalheSel.nomeCliente || ('#' + (detalheSel.codigoCliente || '?'))}</b></div>
                 <div>CNPJ/CPF: <b>{detalheSel.cnpjCliente || '-'}</b></div>
                 <div>Origem: <b>{detalheSel.numeroOS ? 'OS nº ' + detalheSel.numeroOS : 'Manual'}</b></div>
@@ -458,7 +458,7 @@ export default function RemessasPage() {
                 </div>
               )}
               <h3 style={{ fontWeight: 600, color: '#334155', marginBottom: 4, fontSize: '.82rem' }}>Itens ({detalheSel.itens.length})</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+              <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6 }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px' }}>Codigo</th>
                   <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px' }}>Descricao</th>
@@ -481,7 +481,7 @@ export default function RemessasPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
             <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <button onClick={() => setDetalheSel(null)} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, cursor: 'pointer', marginLeft: 'auto' }}>Fechar</button>

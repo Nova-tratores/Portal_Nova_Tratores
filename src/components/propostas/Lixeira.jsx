@@ -41,7 +41,7 @@ export default function Lixeira({ onClose, embed = false }) {
 
   const conteudo = (
       <>
-        <div className="px-8 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
+        <div className="px-4 md:px-8 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
           <div className="flex items-center gap-4">
             <span className="text-2xl">&#128465;</span>
             <h2 className="font-black text-zinc-900">LIXEIRA DO SISTEMA</h2>
@@ -49,18 +49,18 @@ export default function Lixeira({ onClose, embed = false }) {
           {!embed && <button onClick={onClose} className="font-black text-zinc-500 hover:text-red-600 bg-transparent border-none cursor-pointer">FECHAR [X]</button>}
         </div>
 
-        <div className="px-8 py-4 bg-zinc-50 border-b border-zinc-200">
+        <div className="px-4 md:px-8 py-4 bg-zinc-50 border-b border-zinc-200">
           <label className="text-[10px] font-black text-zinc-700 block mb-1">PESQUISAR NA LIXEIRA</label>
           <input className="w-full px-3 py-3 rounded-lg border border-zinc-200 font-bold text-sm outline-none focus:ring-2 focus:ring-red-500/40" placeholder="Buscar por cliente, modelo ou ID..." value={filtro} onChange={(e) => setFiltro(e.target.value)} />
         </div>
 
-        <div className="p-5 overflow-y-auto flex-1">
+        <div className="p-3 md:p-5 overflow-auto flex-1">
           {loading ? (
             <div className="text-center font-black mt-12 text-zinc-400">CARREGANDO...</div>
           ) : listaFiltrada.length === 0 ? (
             <div className="text-center text-zinc-400 mt-12 font-black">NENHUM ITEM ENCONTRADO</div>
           ) : (
-            <table className="w-full border-collapse bg-white rounded-xl overflow-hidden border border-zinc-200">
+            <table className="w-full min-w-[560px] border-collapse bg-white rounded-xl overflow-hidden border border-zinc-200">
               <thead>
                 <tr>
                   <th className="text-left p-4 bg-zinc-900 text-white text-xs font-black uppercase">ID</th>

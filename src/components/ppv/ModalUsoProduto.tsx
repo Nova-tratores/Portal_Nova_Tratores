@@ -83,7 +83,7 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
         <div style={{ background: "#fff", width: "100%", maxWidth: 1040, maxHeight: "94vh", borderRadius: 16, boxShadow: "0 24px 60px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden" }}
           onClick={(e) => e.stopPropagation()}>
           {/* Cabeçalho */}
-          <div style={{ padding: "18px 22px", borderBottom: "1px solid rgba(0,0,0,0.5)", display: "flex", alignItems: "center", gap: 12 }}>
+          <div style={{ padding: "18px 22px", borderBottom: "1px solid rgba(0,0,0,0.5)", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
             <div style={{ width: 40, height: 40, borderRadius: 10, background: "#FFF7ED", color: "#EA580C", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               <i className="fas fa-magnifying-glass-chart" />
             </div>
@@ -111,7 +111,7 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
                   return (
                     <div key={c.conta} style={{ flex: "1 1 300px", border: "1px solid rgba(0,0,0,0.5)", borderRadius: 11, padding: "10px 14px", background: "#fff" }}>
                       <div style={{ fontSize: 12.5, fontWeight: 700, color: "#475569", marginBottom: 8 }}>{c.conta}{(c.marca || c.familia) ? <span style={{ fontWeight: 500, color: "#94a3b8" }}> · {[c.marca, c.familia].filter(Boolean).join(" / ")}</span> : null}</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
                         {[
                           { l: "Valor Venda", v: fmtRS(c.valor_venda), cor: "#059669" },
                           { l: "CMC", v: fmtRS(c.cmc), cor: "#059669" },
@@ -119,7 +119,7 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
                         ].map((f) => (
                           <div key={f.l}>
                             <div style={{ fontSize: 10.5, color: "#94a3b8", textTransform: "uppercase", letterSpacing: .4 }}>{f.l}</div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: f.cor, fontVariantNumeric: "tabular-nums" }}>{f.v}</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: f.cor, fontVariantNumeric: "tabular-nums", overflowWrap: "anywhere" }}>{f.v}</div>
                           </div>
                         ))}
                       </div>
@@ -131,13 +131,13 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
           </div>
 
           {/* Resumo */}
-          <div style={{ display: "flex", gap: 10, padding: "14px 22px", borderBottom: "1px solid rgba(0,0,0,0.5)" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, padding: "14px 22px", borderBottom: "1px solid rgba(0,0,0,0.5)" }}>
             {[
               { k: "PPVs no total", v: dados?.total_ppvs ?? 0, cor: "#0f172a" },
               { k: "Em aberto", v: dados?.em_aberto ?? 0, cor: "#EA580C" },
               { k: "Qtd. somada", v: dados?.total_qtde ?? 0, cor: "#0f172a" },
             ].map((c) => (
-              <div key={c.k} style={{ flex: 1, background: "#f8fafc", border: "1px solid rgba(0,0,0,0.5)", borderRadius: 11, padding: "10px 14px" }}>
+              <div key={c.k} style={{ flex: "1 1 120px", minWidth: 0, background: "#f8fafc", border: "1px solid rgba(0,0,0,0.5)", borderRadius: 11, padding: "10px 14px" }}>
                 <div style={{ fontSize: 11.5, color: "#64748b", textTransform: "uppercase", letterSpacing: .5 }}>{c.k}</div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: c.cor, fontVariantNumeric: "tabular-nums" }}>{c.v}</div>
               </div>
@@ -159,7 +159,7 @@ export default function ModalUsoProduto({ open, codigo, descricao, onClose, onAb
             ) : lista.length === 0 ? (
               <div style={{ padding: 40, textAlign: "center", color: "#94a3b8" }}>Nenhum PPV {soAberto ? "em aberto " : ""}usou este produto.</div>
             ) : (
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13.5 }}>
+              <table style={{ width: "100%", minWidth: 520, borderCollapse: "collapse", fontSize: 13.5 }}>
                 <thead>
                   <tr style={{ textAlign: "left", color: "#94a3b8", fontSize: 11.5, textTransform: "uppercase", letterSpacing: .5 }}>
                     <th style={{ padding: "9px 22px" }}>PPV</th><th style={{ padding: "9px 8px" }}>Cliente</th>

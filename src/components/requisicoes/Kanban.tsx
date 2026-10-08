@@ -820,7 +820,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
         )}
         {/* No PC as colunas ficam lado a lado; no celular renderiza só a fase escolhida */}
         {/* Colunas esticam pra ocupar a tela inteira (sem teto de largura) */}
-        <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto pb-8 scrollbar-hide justify-start">
+        <div className="flex flex-col md:flex-row gap-4 md:overflow-x-auto md:snap-x pb-8 scrollbar-hide justify-start">
           {(isMobile ? colunas.filter((c) => c.id === faseMobile) : colunas).map((col) => {
             let items = filtradas.filter((r: any) => r.status === col.id);
             if (col.id === 'financeiro') {
@@ -845,7 +845,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
                 onDragOver={(e) => handleDragOver(e, col.id)}
                 onDragLeave={() => setColunaArrastando(null)}
                 onDrop={(e) => handleDrop(e, col.id)}
-                className={`w-full md:flex-1 md:min-w-[300px] flex flex-col rounded-2xl transition-all duration-300 border ${
+                className={`w-full md:flex-1 md:min-w-[260px] 2xl:min-w-[300px] md:snap-start flex flex-col rounded-2xl transition-all duration-300 border ${
                   isOver ? 'bg-orange-50/50 border-orange-200' : 'bg-transparent border-transparent'
                 }`}
               >
@@ -931,7 +931,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
       /* MODO LISTA — todas as fases numa tabela só, respeitando os filtros */
       <div className="px-3 md:px-6 mt-2 pb-10">
         <div className="bg-white border border-zinc-200 overflow-x-auto">
-          <table className="w-full text-[13.5px] text-black">
+          <table className="w-full min-w-[860px] text-[13.5px] text-black">
             <thead>
               <tr className="bg-orange-600 text-white text-left">
                 <th className="px-3 py-3 font-bold">#</th>

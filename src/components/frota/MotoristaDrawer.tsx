@@ -77,7 +77,7 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 13.5 }}>
       <span style={{ color: 'var(--portal-text)' }}>{rotulo}</span>
-      <span style={{ color: 'var(--portal-text)', fontWeight: 600, textAlign: 'right' }}>{valor ?? '—'}</span>
+      <span style={{ color: 'var(--portal-text)', fontWeight: 600, textAlign: 'right', minWidth: 0, overflowWrap: 'anywhere' }}>{valor ?? '—'}</span>
     </div>
   );
 }
@@ -157,7 +157,7 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, display: 'flex', justifyContent: 'flex-end' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(640px, 100%)', height: '100%', background: 'var(--portal-bg)', display: 'flex', flexDirection: 'column', boxShadow: '-12px 0 40px rgba(0,0,0,0.3)' }}>
         {/* Cabeçalho */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--portal-border)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 'clamp(10px, 2.5vw, 14px) clamp(12px, 3vw, 18px)', borderBottom: '1px solid var(--portal-border)' }}>
           {m?.foto_url ? (
             <img src={m.foto_url} alt="" style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', background: 'var(--portal-bg-secondary)' }} />
           ) : (
@@ -180,7 +180,7 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
               ⚠ Ocorrência
             </button>
           )}
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={20} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)', minWidth: 36, minHeight: 36, flexShrink: 0 }}><X size={20} /></button>
         </div>
 
         {/* Modal de ocorrência rápida (categoria Frota, motorista pré-selecionado) */}
@@ -193,7 +193,7 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
           criadoPor={userProfile?.nome || undefined}
         />
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: 'clamp(10px, 3vw, 16px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
           {erro && <div style={{ color: '#b91c1c', fontSize: 13 }}>{erro}</div>}
           {!det && !erro && <div style={{ color: 'var(--portal-text)', fontSize: 13 }}>Carregando…</div>}
 
@@ -217,7 +217,7 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                   ? 'Fora do RH — cadastro vindo da Rota Exata (rastreador).'
                   : 'Dados do RH — pra corrigir o cadastro, edite lá no sistema de RH.'}
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '6px 18px' }}>
                 <Linha rotulo="CPF" valor={m.cpf_mascarado} />
                 {det?.rh && <Linha rotulo="RG" valor={det.rh.rg} />}
                 {det?.rh && <Linha rotulo="Nascimento" valor={fmtData(det.rh.data_nascimento)} />}
@@ -261,7 +261,7 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
             <Secao titulo="Habilitação (CNH)" icone={<IdCard size={13} />}>
               {!editando ? (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: '6px 18px' }}>
                     <Linha rotulo="Número" valor={m.cnh} />
                     <Linha rotulo="Categoria" valor={m.cnh_categoria} />
                     <Linha rotulo="Validade" valor={m.cnh_validade ? fmtData(m.cnh_validade) : null} />
@@ -300,7 +300,7 @@ export default function MotoristaDrawer({ rhId, portalId, nome, podeEditar, onCl
                 </>
               ) : (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))', gap: 10 }}>
                     <label style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                       Nº da CNH
                       <input value={form.cnh} onChange={(e) => setForm((f) => ({ ...f, cnh: e.target.value }))} placeholder="00000000000"

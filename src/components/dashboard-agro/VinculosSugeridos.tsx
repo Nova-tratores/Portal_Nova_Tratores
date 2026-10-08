@@ -132,9 +132,9 @@ export default function VinculosSugeridos() {
   }, [dados, ordem])
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 16px 60px' }}>
+    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px clamp(10px, 2.5vw, 16px) 60px' }}>
       {/* cabeçalho */}
-      <div style={{ background: 'var(--portal-bg-card,#fefefe)', border: '1px solid var(--portal-border,#e5e7eb)', borderTop: `4px solid ${VERDE}`, borderRadius: 10, padding: '16px 20px', marginBottom: 16 }}>
+      <div style={{ background: 'var(--portal-bg-card,#fefefe)', border: '1px solid var(--portal-border,#e5e7eb)', borderTop: `4px solid ${VERDE}`, borderRadius: 10, padding: '16px clamp(12px, 3vw, 20px)', marginBottom: 16 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
           <Link2 size={24} style={{ color: VERDE }} />
           <h1 style={{ margin: 0, fontSize: 20, fontWeight: 900, color: 'var(--portal-text,#111111)' }}>Vínculos CAR ↔ cliente sugeridos pelas visitas</h1>
@@ -156,13 +156,13 @@ export default function VinculosSugeridos() {
         {(['pendente', 'aceita', 'rejeitada', 'todas'] as const).map((s) => (
           <button key={s} type="button" onClick={() => setStatus(s)} style={{ ...botao(status === s ? VERDE_ESCURO : '#6b7280', status === s), textTransform: 'capitalize' }}>{s}</button>
         ))}
-        <select value={municipio} onChange={(e) => setMunicipio(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-input,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 13 }}>
+        <select value={municipio} onChange={(e) => setMunicipio(e.target.value)} style={{ maxWidth: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-input,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 13 }}>
           <option value="">Todos os municípios</option>
           {municipios.map((m) => <option key={m.ibge} value={String(m.ibge)}>{m.nome}</option>)}
         </select>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: '1px solid var(--portal-border,#e5e7eb)', borderRadius: 6, padding: '4px 8px', background: 'var(--portal-bg-input,#fefefe)' }}>
           <Search size={14} style={{ color: 'var(--portal-text-muted,#6b7280)' }} />
-          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="cliente, propriedade ou CAR" style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--portal-text,#111111)', minWidth: 200 }} />
+          <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="cliente, propriedade ou CAR" style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: 'var(--portal-text,#111111)', minWidth: 'min(200px, 55vw)' }} />
         </div>
         <button type="button" onClick={carregar} title="Recarregar" style={botao('#6b7280', false)}><RefreshCw size={13} /> Atualizar</button>
       </div>

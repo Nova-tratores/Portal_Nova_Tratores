@@ -460,7 +460,7 @@ export default function CruzamentoFamiliaPage() {
   for (let y = agora.getFullYear(); y >= agora.getFullYear() - 4; y--) anos.push(y);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Cruzamento por Família</h1>
@@ -476,7 +476,7 @@ export default function CruzamentoFamiliaPage() {
       </div>
 
       {/* Abas */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 16 }}>
         {([['mes', 'Tabela do mês'], ['grafico', 'Gráfico mensal'], ['estoqueTipo', 'Estoque por Tipo'], ['reconciliacao', 'Reconciliação']] as [Tab, string][]).map(([id, label]) => (
           <button key={id} onClick={() => setTab(id)}
             style={{ padding: '8px 16px', border: '1px solid', borderColor: tab === id ? '#dc2626' : '#e0e0e0', background: tab === id ? '#dc2626' : '#fff', color: tab === id ? '#fff' : '#666', borderRadius: 8, fontSize: '.82rem', fontWeight: 600, cursor: 'pointer' }}>

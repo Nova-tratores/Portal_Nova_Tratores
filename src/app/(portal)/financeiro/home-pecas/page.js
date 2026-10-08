@@ -36,12 +36,12 @@ const METODOS_PAGAR = ['Boleto', 'Boleto Parcelado', 'Pix', 'Cartão de Crédito
 function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
     const fileInputRef = useRef(null);
     return (
-        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '16px', minWidth: '280px', overflow: 'hidden', transition: '0.2s' }}>
+        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '16px', minWidth: 'min(280px, 100%)', maxWidth: '100%', boxSizing: 'border-box', overflow: 'hidden', transition: '0.2s' }}>
             <div style={{ padding: '0 18px', color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', alignSelf: 'stretch', display: 'flex', alignItems: 'center', borderRight: '1px solid var(--portal-border)' }}>
                 <FileText size={18} />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, padding: '12px 15px' }}>
-                <span style={{ fontSize: '13px', color: 'var(--portal-text)', fontWeight: '600', letterSpacing: '0.5px' }}>{label}</span>
+            <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0, padding: '12px 15px' }}>
+                <span style={{ fontSize: '13px', color: 'var(--portal-text)', fontWeight: '600', letterSpacing: '0.5px', overflowWrap: 'anywhere' }}>{label}</span>
                 <span style={{ fontSize: '11px', color: fileUrl ? '#10b981' : '#f87171', fontWeight: '600' }}>{fileUrl ? 'ARQUIVO PRONTO' : 'PENDENTE'}</span>
             </div>
             <div style={{ display: 'flex', borderLeft: '1px solid var(--portal-border)' }}>
@@ -333,7 +333,7 @@ function HomePosVendasContent() {
   return (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav>
-        <button onClick={sincronizarPecas} disabled={sincPecas} title="Buscar pedidos de venda faturados (categoria Peças) no Omie e gerar os chamados" style={{
+        <button className="fin-h-touch" onClick={sincronizarPecas} disabled={sincPecas} title="Buscar pedidos de venda faturados (categoria Peças) no Omie e gerar os chamados" style={{
           background: 'var(--portal-bg-secondary)', color: '#c2410c',
           border: '1px solid #fed7aa', padding: '8px 14px', borderRadius: '8px', fontWeight: '700',
           cursor: sincPecas ? 'default' : 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px', marginRight: '8px', transition: '0.2s',
@@ -341,7 +341,7 @@ function HomePosVendasContent() {
           <RefreshCw size={14} className={sincPecas ? 'spin' : ''} /> {sincPecas ? 'SINCRONIZANDO…' : 'SINCRONIZAR OMIE'}
         </button>
         <div style={{ position: 'relative' }}>
-          <button onClick={() => setShowNovoMenu(s => !s)} style={{
+          <button className="fin-h-touch" onClick={() => setShowNovoMenu(s => !s)} style={{
             background: '#A6FF3B', color:'#123300',
             border:'none', padding:'8px 16px', borderRadius:'8px', fontWeight:'700',
             cursor:'pointer', fontSize:'12px', display: 'flex', alignItems: 'center', gap: '6px',
@@ -413,9 +413,9 @@ function HomePosVendasContent() {
         )
       })()}
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '30px' }}>
+      <div className="fin-h-cols" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: '30px' }}>
           {/* COLUNA FATURAMENTO (FILTRADA: SEM PIX, APENAS ENVIAR OU COBRAR) */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
+          <div className="fin-h-col" style={{ display: 'flex', flexDirection: 'column', gap: '0', minWidth: 0, borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
               <div style={{ ...colHeaderStyle, background: '#c5e29f', color: '#111111', border: 'none', marginBottom: '14px' }}>TAREFA FATURAMENTO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaBoletos.length}</span></div>
               {listaBoletos.map(t => (
                 <div key={`boleto-${t.id}`} className="task-card" style={{ borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px' }}>
@@ -454,7 +454,7 @@ function HomePosVendasContent() {
           </div>
 
           {/* COLUNA CLIENTE SEM BOLETO */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0', borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
+          <div className="fin-h-col" style={{ display: 'flex', flexDirection: 'column', gap: '0', minWidth: 0, borderRight: '1px solid var(--portal-border)', paddingRight: '20px' }}>
               <div style={{ ...colHeaderStyle, background: '#fde68a', color: '#111111', border: 'none', marginBottom: '14px' }}>CLIENTE SEM BOLETO<span style={{ marginLeft: '10px', background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontVariantNumeric: 'tabular-nums' }}>{listaSemBoleto.length}</span></div>
               {listaSemBoleto.map(t => (
                 <div key={`sb-${t.id}`} onClick={() => setTarefaSelecionada(t)} className="task-card" style={{ cursor: 'pointer', borderRadius: '12px', border: '1px solid rgba(0,0,0,0.5)', marginBottom: '8px' }}>
@@ -489,10 +489,10 @@ function HomePosVendasContent() {
 
       {/* --- MODAL DETALHES --- */}
       {tarefaSelecionada && (
-        <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '95%', maxHeight: '95vh', borderRadius: '30px', display: 'flex', flexDirection: 'column', overflow:'hidden', boxShadow:'0 25px 60px rgba(0,0,0,0.15)', border: '1px solid var(--portal-border)', position: 'relative' }}>
-            <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)' }}>
-              <button onClick={() => setTarefaSelecionada(null)} style={btnBackStyle}><ArrowLeft size={18}/> VOLTAR AO PAINEL</button>
+        <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} className="fin-h-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="fin-h-modal" style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '95%', maxHeight: '95vh', borderRadius: '30px', display: 'flex', flexDirection: 'column', overflow:'hidden', boxShadow:'0 25px 60px rgba(0,0,0,0.15)', border: '1px solid var(--portal-border)', position: 'relative' }}>
+            <div className="fin-h-mhead" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)' }}>
+              <button onClick={() => setTarefaSelecionada(null)} className="fin-h-back" style={btnBackStyle}><ArrowLeft size={18}/> VOLTAR AO PAINEL</button>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 {isAdmin && (
                   <button onClick={() => excluirCard(tarefaSelecionada)} style={{ background: '#dc2626', border: '1px solid #dc2626', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#fff', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Excluir card (somente admin)"><Trash2 size={16}/> Excluir</button>
@@ -500,15 +500,16 @@ function HomePosVendasContent() {
                 <button onClick={() => setTarefaSelecionada(null)} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Fechar"><X size={18}/> Fechar</button>
               </div>
             </div>
-            <div style={{ flex: 1, padding: '30px 50px 50px', overflowY:'auto', color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-card)' }}>
+            <div className="fin-h-mbody" style={{ flex: 1, padding: '30px 50px 50px', overflowY:'auto', color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-card)' }}>
 
-              <div style={{marginTop: '35px'}}>
+              <div className="fin-h-mtitlebox" style={{marginTop: '35px'}}>
                   {(() => {
                     const nomeField = tarefaSelecionada.gTipo === 'pagar' ? 'fornecedor' : 'nom_cliente';
                     const nomeAtual = tarefaSelecionada.nom_cliente || tarefaSelecionada.fornecedor || tarefaSelecionada.funcionario || tarefaSelecionada.cliente;
                     if (podeEditar && tarefaSelecionada.gTipo !== 'rh') {
                       return (
                         <input
+                          className="fin-h-mtitle"
                           style={{fontSize:'32px', fontWeight:'400', margin:0, letterSpacing:'-1px', color:'var(--portal-text)', lineHeight:'1.1', border:'none', borderBottom:'2px dashed var(--portal-border)', background:'transparent', width:'100%', outline:'none', padding:'2px 0'}}
                           defaultValue={nomeAtual || ''}
                           placeholder="Nome"
@@ -517,7 +518,7 @@ function HomePosVendasContent() {
                         />
                       );
                     }
-                    return <h2 style={{fontSize:'32px', fontWeight:'400', margin:0, letterSpacing: '-1px', color:'var(--portal-text)', lineHeight: '1.1'}}>{nomeAtual}</h2>;
+                    return <h2 className="fin-h-mtitle" style={{fontSize:'32px', fontWeight:'400', margin:0, letterSpacing: '-1px', color:'var(--portal-text)', lineHeight: '1.1', overflowWrap: 'anywhere'}}>{nomeAtual}</h2>;
                   })()}
 
                   {/* INTEGRACAO OMIE — posicionada logo após o título pra ficar imediatamente visível */}
@@ -550,8 +551,8 @@ function HomePosVendasContent() {
                     />
                   )}
 
-                  <div style={{display:'flex', gap:'30px', marginTop:'40px', marginBottom:'45px'}}>
-                      <div style={fieldBoxModal}>
+                  <div className="fin-h-mvals" style={{display:'flex', gap:'30px', marginTop:'40px', marginBottom:'45px'}}>
+                      <div className="fin-h-mfield" style={fieldBoxModal}>
                         <label style={labelMStyle}>{tarefaSelecionada.gTipo === 'rh' ? 'MOTIVO' : 'CONDICAO/METODO'}</label>
                         {podeEditar && tarefaSelecionada.gTipo !== 'rh' ? (
                           <select
@@ -569,14 +570,14 @@ function HomePosVendasContent() {
                       </div>
                       {tarefaSelecionada.gTipo !== 'rh' && (
                         <>
-                          <div style={fieldBoxModal}>
+                          <div className="fin-h-mfield" style={fieldBoxModal}>
                             <label style={labelMStyle}>VALOR DO REGISTRO</label>
                             <div style={{display:'flex', alignItems:'center', gap:'10px'}}>
                               <span style={{fontSize:'22px', color:'var(--portal-text-secondary)'}}>R$</span>
                               <input type="number" disabled={!podeEditar} style={{ ...inputStyleLight, border:'none', padding:0, fontSize:'34px', background:'transparent', cursor: podeEditar ? 'text' : 'not-allowed' }} defaultValue={tarefaSelecionada.valor_exibicao || tarefaSelecionada.valor} onBlur={e => handleUpdateField(tarefaSelecionada, tarefaSelecionada.gTipo === 'boleto' ? 'valor_servico' : 'valor', e.target.value)} />
                             </div>
                           </div>
-                          <div style={fieldBoxModal}>
+                          <div className="fin-h-mfield" style={fieldBoxModal}>
                             <label style={labelMStyle}>DATA DE VENCIMENTO</label>
                             <input type="date" disabled={!podeEditar} style={{ ...inputStyleLight, border:'none', padding:0, fontSize:'30px', background:'transparent', color:'#ef4444', cursor: podeEditar ? 'text' : 'not-allowed' }} defaultValue={tarefaSelecionada.vencimento_boleto || tarefaSelecionada.data_vencimento} onBlur={e => handleUpdateField(tarefaSelecionada, tarefaSelecionada.gTipo === 'boleto' ? 'vencimento_boleto' : 'data_vencimento', e.target.value)} />
                           </div>
@@ -586,7 +587,7 @@ function HomePosVendasContent() {
 
                   {/* CAMPOS ESPECIFICOS PAGAR */}
                   {tarefaSelecionada.gTipo === 'pagar' && (
-                    <div style={{ display:'flex', flexDirection:'column', gap:'24px', padding:'40px', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'16px', marginBottom:'45px' }}>
+                    <div className="fin-h-mblock" style={{ display:'flex', flexDirection:'column', gap:'24px', padding:'40px', background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'16px', marginBottom:'45px' }}>
                       {tarefaSelecionada.metodo !== 'Carnê ISS' && (
                       <div style={fieldBoxInner}>
                         <label style={labelMStyle}>NUMERO DA NOTA FISCAL</label>
@@ -602,14 +603,14 @@ function HomePosVendasContent() {
 
                   {/* REQUISICOES */}
                   {tarefaSelecionada.gTipo === 'pagar' && (
-                    <div style={{ border:'1px solid var(--portal-border)', padding:'35px', background:'#fef2f2', marginBottom:'45px', borderRadius:'22px' }}>
-                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'20px' }}>
+                    <div className="fin-h-mblock" style={{ border:'1px solid var(--portal-border)', padding:'35px', background:'#fef2f2', marginBottom:'45px', borderRadius:'22px' }}>
+                      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', flexWrap:'wrap', gap:'10px', marginBottom:'20px' }}>
                         <label style={labelMStyle}>REQUISICOES</label>
                         <button onClick={() => handleAddRequisicao(tarefaSelecionada)} style={{ background:'var(--portal-bg-card)', color:'var(--portal-text-secondary)', border:'1px solid var(--portal-border)', padding:'8px 18px', borderRadius:'12px', cursor:'pointer', fontSize:'12px', fontWeight:'600', letterSpacing:'1px' }}>+ ADICIONAR</button>
                       </div>
                       {/* Anexos do formato antigo (anexo_requisicao) — criados pelo formulário */}
                       {tarefaSelecionada.anexo_requisicao && tarefaSelecionada.anexo_requisicao.split(',').filter(u => u.trim()).map((url, i) => (
-                        <div key={`old-${i}`} style={{ display:'grid', gridTemplateColumns:'180px 1fr', gap:'20px', alignItems:'center', background:'var(--portal-bg-card)', padding:'18px', borderBottom:'1px solid var(--portal-border)', marginBottom:'4px', borderRadius:'14px' }}>
+                        <div key={`old-${i}`} className="fin-h-reqrow-old" style={{ display:'grid', gridTemplateColumns:'180px 1fr', gap:'20px', alignItems:'center', background:'var(--portal-bg-card)', padding:'18px', borderBottom:'1px solid var(--portal-border)', marginBottom:'4px', borderRadius:'14px' }}>
                           <div>
                             <label style={{ ...labelMStyle, fontSize:'11px', display:'block', marginBottom:'6px' }}>REQUISIÇÃO {i + 1}</label>
                           </div>
@@ -618,7 +619,7 @@ function HomePosVendasContent() {
                       ))}
                       {/* Anexos do formato novo (requisicoes_json) */}
                       {getRequisicoes(tarefaSelecionada).map((req, i) => (
-                        <div key={i} style={{ display:'grid', gridTemplateColumns:'180px 1fr auto', gap:'20px', alignItems:'center', background:'var(--portal-bg-card)', padding:'18px', borderBottom:'1px solid var(--portal-border)', marginBottom:'4px', borderRadius:'14px' }}>
+                        <div key={i} className="fin-h-reqrow" style={{ display:'grid', gridTemplateColumns:'180px 1fr auto', gap:'20px', alignItems:'center', background:'var(--portal-bg-card)', padding:'18px', borderBottom:'1px solid var(--portal-border)', marginBottom:'4px', borderRadius:'14px' }}>
                           <div>
                             <label style={{ ...labelMStyle, fontSize:'11px', display:'block', marginBottom:'6px' }}>N. REQUISICAO</label>
                             <input placeholder="Ex: 00123" defaultValue={req.numero} style={inputStyleLight} onBlur={e => {
@@ -638,13 +639,13 @@ function HomePosVendasContent() {
                   )}
 
                   {!isBoleto30 && isParcelamento && (
-                      <div style={{ display:'flex', flexDirection:'column', gap:'20px', background:'#fef2f2', padding:'40px', border:'1px solid var(--portal-border)', marginBottom:'45px', borderRadius:'22px' }}>
-                          <div style={{ display:'flex', gap:'40px', borderBottom:'1px solid var(--portal-border)', paddingBottom:'20px' }}>
+                      <div className="fin-h-mblock" style={{ display:'flex', flexDirection:'column', gap:'20px', background:'#fef2f2', padding:'40px', border:'1px solid var(--portal-border)', marginBottom:'45px', borderRadius:'22px' }}>
+                          <div style={{ display:'flex', flexWrap:'wrap', gap:'40px', rowGap:'12px', borderBottom:'1px solid var(--portal-border)', paddingBottom:'20px' }}>
                               <div><label style={labelMStyle}>QUANTIDADE</label><select style={{ ...inputStyleLight, width:'120px', padding:'10px' }} value={tarefaSelecionada.qtd_parcelas || 1} onChange={e => handleUpdateField(tarefaSelecionada, 'qtd_parcelas', e.target.value)}>{[1,2,3,4,5].map(n => <option key={n} value={n}>{n}x</option>)}</select></div>
                               <div><label style={labelMStyle}>VALOR PARCELA</label><p style={{fontSize:'22px', color:'var(--portal-text)'}}>{formatarMoeda(valorIndividual)}</p></div>
                           </div>
                           <div style={{ display:'flex', flexDirection:'column', gap:'15px' }}>
-                              <div style={cascadeRowStyle}>
+                              <div className="fin-h-cascade" style={cascadeRowStyle}>
                                   <span style={cascadeLabelStyle}>1a PARCELA</span>
                                   <input type="date" disabled={!podeEditar} style={{ ...inputCascadeStyle, cursor: podeEditar ? 'text' : 'not-allowed' }} defaultValue={tarefaSelecionada.vencimento_boleto} onBlur={e => handleUpdateField(tarefaSelecionada, 'vencimento_boleto', e.target.value)} />
                                   <span style={cascadeValueStyle}>{formatarMoeda(valorIndividual)}</span>
@@ -655,7 +656,7 @@ function HomePosVendasContent() {
                                   const rawDates = (tarefaSelecionada.datas_parcelas || "").split(/[\s,]+/).filter(d => d.includes('-'));
                                   if (rawDates.length > 0 && rawDates[0] === tarefaSelecionada.vencimento_boleto) rawDates.shift();
                                   return (
-                                      <div key={pNum} style={cascadeRowStyle}>
+                                      <div key={pNum} className="fin-h-cascade" style={cascadeRowStyle}>
                                           <span style={cascadeLabelStyle}>{pNum}a PARCELA</span>
                                           <input type="date" disabled={!podeEditar} style={{ ...inputCascadeStyle, cursor: podeEditar ? 'text' : 'not-allowed' }} defaultValue={rawDates[i] || ""} onBlur={e => { let arr = [...rawDates]; while (arr.length < (tarefaSelecionada.qtd_parcelas || 1) - 1) arr.push(''); arr[i] = e.target.value; handleUpdateField(tarefaSelecionada, 'datas_parcelas', arr.filter(d => d).join(', ')); }} />
                                           <span style={cascadeValueStyle}>{formatarMoeda(valorIndividual)}</span>
@@ -668,7 +669,7 @@ function HomePosVendasContent() {
                   )}
 
                   {tarefaSelecionada.gTipo === 'rh' && (
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'30px', border:'1px solid var(--portal-border)', padding:'45px', background:'#fef2f2', borderRadius:'22px' }}>
+                  <div className="fin-h-mgrid fin-h-mblock" style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'30px', border:'1px solid var(--portal-border)', padding:'45px', background:'#fef2f2', borderRadius:'22px' }}>
                         <div style={fieldBoxInner}><label style={labelMStyle}>TITULO</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.titulo} onBlur={e => handleUpdateField(tarefaSelecionada, 'titulo', e.target.value)} /></div>
                         <div style={fieldBoxInner}><label style={labelMStyle}>SETOR</label><input style={{...inputStyleLight, color:'#0ea5e9'}} defaultValue={tarefaSelecionada.setor} onBlur={e => handleUpdateField(tarefaSelecionada, 'setor', e.target.value)} /></div>
                         <div style={{...fieldBoxInner, gridColumn:'span 2'}}><label style={labelMStyle}>DESCRICAO</label><textarea style={{...inputStyleLight, height:'100px', resize:'none'}} defaultValue={tarefaSelecionada.descricao} onBlur={e => handleUpdateField(tarefaSelecionada, 'descricao', e.target.value)} /></div>
@@ -676,7 +677,7 @@ function HomePosVendasContent() {
                   )}
 
                   {tarefaSelecionada.gTipo === 'boleto' && (
-                  <div style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'30px', border:'1px solid var(--portal-border)', padding:'45px', background:'#fef2f2', borderRadius:'22px' }}>
+                  <div className="fin-h-mgrid fin-h-mblock" style={{ display:'grid', gridTemplateColumns:'repeat(2, 1fr)', gap:'30px', border:'1px solid var(--portal-border)', padding:'45px', background:'#fef2f2', borderRadius:'22px' }}>
                         {(tarefaSelecionada.num_nf_servico || !tarefaSelecionada.num_nf_peca) && (
                           <div style={fieldBoxInner}><label style={labelMStyle}>NF SERVICO</label><input style={inputStyleLight} defaultValue={tarefaSelecionada.num_nf_servico} onBlur={e => handleUpdateField(tarefaSelecionada, 'num_nf_servico', e.target.value)} /></div>
                         )}
@@ -693,13 +694,13 @@ function HomePosVendasContent() {
                   )}
 
                   {/* === DOCUMENTOS - LAYOUT INTERATIVO === */}
-                  <div style={{marginTop:'45px'}}>
+                  <div className="fin-h-mdocs" style={{marginTop:'45px'}}>
 
                       {/* --- FATURAMENTO (BOLETO) --- */}
                       {tarefaSelecionada.gTipo === 'boleto' && (
-                        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px' }}>
+                        <div className="fin-h-docgrid" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'25px' }}>
                           {/* COLUNA: NOTAS FISCAIS ENVIADAS */}
-                          <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'22px', padding:'30px' }}>
+                          <div className="fin-h-docbox" style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'22px', padding:'30px', minWidth:0 }}>
                             <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
                               <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'#dcfce7', display:'flex', alignItems:'center', justifyContent:'center' }}><FileText size={18} color="#16a34a"/></div>
                               <div>
@@ -722,7 +723,7 @@ function HomePosVendasContent() {
 
                           {/* COLUNA: BOLETO DEVOLVIDO PELO FINANCEIRO — não mostra para Pix/Cheque/Cartões (não geram boleto) nem sem_boleto */}
                           {!exigeComprovantePago(tarefaSelecionada.forma_pagamento) && tarefaSelecionada.status !== 'sem_boleto' && (
-                          <div style={{ background: tarefaSelecionada.anexo_boleto ? '#eff6ff' : '#fef2f2', border: `1px solid ${tarefaSelecionada.anexo_boleto ? '#bfdbfe' : '#fecaca'}`, borderRadius:'22px', padding:'30px' }}>
+                          <div style={{ background: tarefaSelecionada.anexo_boleto ? '#eff6ff' : '#fef2f2', border: `1px solid ${tarefaSelecionada.anexo_boleto ? '#bfdbfe' : '#fecaca'}`, borderRadius:'22px', padding:'30px', minWidth:0 }} className="fin-h-docbox">
                             <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
                               <div style={{ width:'36px', height:'36px', borderRadius:'50%', background: tarefaSelecionada.anexo_boleto ? '#dbeafe' : '#fee2e2', display:'flex', alignItems:'center', justifyContent:'center' }}>
                                 {tarefaSelecionada.anexo_boleto ? <CheckCircle size={18} color="#3b82f6"/> : <Calendar size={18} color="#dc2626"/>}
@@ -743,7 +744,7 @@ function HomePosVendasContent() {
                                 })().map((boleto, i) => (
                                   <div key={i}
                                     onClick={() => window.open(boleto.url, '_blank')}
-                                    style={{ display:'flex', alignItems:'center', gap:'15px', background:'var(--portal-bg-card)', border:'1px solid #bfdbfe', borderRadius:'16px', padding:'18px', cursor:'pointer', transition:'0.2s' }}
+                                    style={{ display:'flex', alignItems:'center', gap:'15px', background:'var(--portal-bg-card)', border:'1px solid #bfdbfe', borderRadius:'16px', padding:'18px', cursor:'pointer', transition:'0.2s', minWidth:0 }}
                                   >
                                     <div style={{ width:'44px', height:'44px', borderRadius:'12px', background:'#dbeafe', display:'flex', alignItems:'center', justifyContent:'center' }}>
                                       <Eye size={20} color="#3b82f6"/>
@@ -772,7 +773,7 @@ function HomePosVendasContent() {
 
                       {/* --- REQUISICOES (PAGAR) --- */}
                       {tarefaSelecionada.gTipo === 'pagar' && (
-                        <div style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'22px', padding:'30px' }}>
+                        <div className="fin-h-docbox" style={{ background:'#fef2f2', border:'1px solid #fecaca', borderRadius:'22px', padding:'30px' }}>
                           <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
                             <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'#fee2e2', display:'flex', alignItems:'center', justifyContent:'center' }}><FileText size={18} color="#dc2626"/></div>
                             <div>
@@ -789,7 +790,7 @@ function HomePosVendasContent() {
 
                       {/* --- RH --- */}
                       {tarefaSelecionada.gTipo === 'rh' && tarefaSelecionada.anexo && (
-                        <div style={{ background:'#f5f3ff', border:'1px solid #c4b5fd', borderRadius:'22px', padding:'30px' }}>
+                        <div className="fin-h-docbox" style={{ background:'#f5f3ff', border:'1px solid #c4b5fd', borderRadius:'22px', padding:'30px' }}>
                           <div style={{ display:'flex', alignItems:'center', gap:'10px', marginBottom:'20px' }}>
                             <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:'#ede9fe', display:'flex', alignItems:'center', justifyContent:'center' }}><FileText size={18} color="#8b5cf6"/></div>
                             <div style={{ fontSize:'14px', color:'#8b5cf6', fontWeight:'600', letterSpacing:'1px', textTransform:'uppercase' }}>Documentos RH</div>
@@ -819,21 +820,21 @@ function HomePosVendasContent() {
                     </div>
                   )}
 
-                  <div style={{display:'flex', gap:'20px', marginTop:'45px'}}>
+                  <div className="fin-h-actions" style={{display:'flex', gap:'20px', marginTop:'45px'}}>
                     {tarefaSelecionada.status === 'enviar_cliente' && (
-                        <button onClick={() => handleConfirmarEnvioBoleto(tarefaSelecionada)} style={btnActionGreen}>
+                        <button onClick={() => handleConfirmarEnvioBoleto(tarefaSelecionada)} className="fin-h-btnbig" style={btnActionGreen}>
                           <Send size={22}/> MARCAR COMO ENVIADO AO CLIENTE
                         </button>
                     )}
                     {tarefaSelecionada.tarefa?.includes('Cobrar') && (
-                        <button onClick={() => handleConcluirRecobranca(tarefaSelecionada)} style={btnActionBlue}>
+                        <button onClick={() => handleConcluirRecobranca(tarefaSelecionada)} className="fin-h-btnbig" style={btnActionBlue}>
                           <DollarSign size={22}/> CLIENTE RECOBRADO
                         </button>
                     )}
                   </div>
 
                   {/* HISTÓRICO DESTE CARD — o que foi alterado, quem alterou, data e hora */}
-                  <div style={{ marginTop:'45px', background:'var(--portal-bg-secondary)', border:'1px solid var(--portal-border)', borderRadius:'16px', padding:'24px' }}>
+                  <div className="fin-h-mblock" style={{ marginTop:'45px', background:'var(--portal-bg-secondary)', border:'1px solid var(--portal-border)', borderRadius:'16px', padding:'24px' }}>
                     <label style={{...labelMStyle, marginBottom:'14px', display:'flex', alignItems:'center', gap:'8px'}}><Clock size={15}/> HISTÓRICO DESTE CARD</label>
                     {cardLogs.length === 0 ? (
                       <p style={{ fontSize:'13px', color:'var(--portal-text-secondary)', margin:0 }}>Nenhuma alteração registrada ainda.</p>
@@ -844,7 +845,7 @@ function HomePosVendasContent() {
                             ? Object.entries(l.detalhes).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')
                             : '';
                           return (
-                            <div key={i} style={{ display:'flex', gap:'12px', alignItems:'flex-start', padding:'12px 14px', background:'var(--portal-bg-card)', borderRadius:'10px', border:'1px solid var(--portal-border)' }}>
+                            <div key={i} style={{ display:'flex', flexWrap:'wrap', gap:'12px', alignItems:'flex-start', padding:'12px 14px', background:'var(--portal-bg-card)', borderRadius:'10px', border:'1px solid var(--portal-border)' }}>
                               <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#dc2626', marginTop:'6px', flexShrink:0 }} />
                               <div style={{ flex:1, minWidth:0 }}>
                                 <div style={{ fontSize:'13.5px', fontWeight:'600', color:'var(--portal-text)' }}>{l.nome} <span style={{ fontWeight:'400', color:'var(--portal-text-secondary)' }}>— {l.acao}</span></div>
@@ -867,6 +868,47 @@ function HomePosVendasContent() {
       <style jsx global>{`
         .task-card { transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); cursor: pointer; border-radius: 20px; overflow: hidden; border: 1px solid var(--portal-border); margin-bottom: 5px; background: var(--portal-bg-card); }
         .task-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: #d1d5db; }
+        /* ---- responsivo (fin-h-) ---- */
+        @media (max-width: 1279px) {
+          .fin-h-cascade { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)) !important; }
+          .fin-h-cascade > * { min-width: 0; }
+          .fin-h-cascade > :last-child { grid-column: 1 / -1; }
+          .fin-h-cascade input { width: 100%; box-sizing: border-box; }
+        }
+        @media (max-width: 1023px) {
+          .fin-h-mbody { padding: 24px 28px 40px !important; }
+          .fin-h-docgrid { grid-template-columns: minmax(0, 1fr) !important; }
+          .fin-h-reqrow { grid-template-columns: minmax(0, 1fr) auto !important; }
+          .fin-h-reqrow > :first-child { grid-column: 1 / -1; }
+          .fin-h-reqrow-old { grid-template-columns: minmax(0, 1fr) !important; }
+        }
+        @media (max-width: 768px) {
+          .fin-h-touch { min-height: 36px; }
+          .fin-h-cols { display: flex !important; overflow-x: auto; -webkit-overflow-scrolling: touch; scroll-snap-type: x mandatory; gap: 12px !important; padding-bottom: 6px; }
+          .fin-h-cols > .fin-h-col { flex: 0 0 min(85%, 380px); scroll-snap-align: start; border-right: none !important; padding-right: 0 !important; }
+          .fin-h-overlay { padding: 12px; box-sizing: border-box; }
+          .fin-h-modal { max-width: 100% !important; max-height: 90vh !important; border-radius: 16px !important; }
+          .fin-h-mhead { flex-wrap: wrap; gap: 8px; padding: 10px 12px !important; }
+          .fin-h-mhead > div { flex-wrap: wrap; }
+          .fin-h-back { padding: 8px 12px !important; margin-bottom: 0 !important; font-size: 13px !important; }
+          .fin-h-mbody { padding: 14px 14px 24px !important; }
+          .fin-h-mtitlebox { margin-top: 8px !important; }
+          .fin-h-mtitle { font-size: 22px !important; }
+          .fin-h-mvals { flex-direction: column; gap: 12px !important; margin-top: 20px !important; margin-bottom: 24px !important; }
+          .fin-h-mfield { padding: 16px !important; min-width: 0; }
+          .fin-h-mfield input, .fin-h-mfield select { font-size: 22px !important; min-width: 0; }
+          .fin-h-mfield p { font-size: 20px !important; overflow-wrap: anywhere; }
+          .fin-h-mblock { padding: 14px !important; margin-bottom: 24px !important; }
+          .fin-h-mgrid { grid-template-columns: minmax(0, 1fr) !important; gap: 12px !important; }
+          .fin-h-mgrid > * { grid-column: auto !important; min-width: 0; }
+          .fin-h-reqrow, .fin-h-reqrow-old { gap: 10px !important; padding: 12px !important; }
+          .fin-h-cascade { gap: 10px !important; }
+          .fin-h-mdocs { margin-top: 24px !important; }
+          .fin-h-docgrid { gap: 14px !important; }
+          .fin-h-docbox { padding: 14px !important; }
+          .fin-h-actions { flex-direction: column; gap: 12px !important; margin-top: 24px !important; }
+          .fin-h-btnbig { padding: 14px 16px !important; font-size: 14px !important; }
+        }
       `}</style>
 
       <ConfirmarFaseModal
@@ -897,7 +939,7 @@ const inputStyleLight = { width: '100%', padding: '20px', border: '1px solid var
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '12px 15px', color: '#374151', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' };
 const btnActionGreen = { flex:1, color:'#fff', background:'linear-gradient(135deg, #16a34a 0%, #15803d 100%)', border:'none', padding:'22px', borderRadius:'18px', cursor:'pointer', display:'flex', alignItems:'center', gap:'15px', fontSize:'16px', justifyContent:'center', fontWeight: '600', boxShadow: '0 10px 25px rgba(22, 163, 74, 0.3)', transition: '0.3s' };
 const btnActionBlue = { flex:1, color:'#fff', background:'linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%)', border:'none', padding:'22px', borderRadius:'18px', cursor:'pointer', display:'flex', alignItems:'center', gap:'15px', fontSize:'16px', justifyContent:'center', fontWeight: '600', boxShadow: '0 10px 25px rgba(37, 99, 235, 0.3)', transition: '0.3s' };
-const cascadeRowStyle = { display: 'grid', gridTemplateColumns: '150px 220px 180px 320px', gap: '20px', alignItems: 'center', background: 'var(--portal-bg-card)', padding: '15px', borderRadius: '14px', border: '1px solid var(--portal-border)' };
+const cascadeRowStyle = { display: 'grid', gridTemplateColumns: '150px 220px 180px minmax(0, 320px)', gap: '20px', alignItems: 'center', background: 'var(--portal-bg-card)', padding: '15px', borderRadius: '14px', border: '1px solid var(--portal-border)' };
 const cascadeLabelStyle = { fontSize: '12px', color: 'var(--portal-text-secondary)', fontWeight: '600', letterSpacing: '1px' };
 const inputCascadeStyle = { background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '8px', color: 'var(--portal-text)', padding: '8px 12px', fontSize: '14px', outline: 'none' };
 const cascadeValueStyle = { fontSize: '18px', color: 'var(--portal-text)', fontWeight: '500' };

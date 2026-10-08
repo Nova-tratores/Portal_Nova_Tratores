@@ -174,15 +174,15 @@ export default function DashboardOS({ orders, searchTerm = "", tecnicoFiltro = "
         <div style={{ ...card, alignItems: "center", padding: 40, color: TEMA.textLight, fontWeight: 600 }}>Nenhuma OS no filtro.</div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 12 }}>
             <Painel {...comum} titulo="Por data (mês da OS)" sub={`${agMes.length} mês${agMes.length !== 1 ? "es" : ""}`} itens={agMes} horizontal={false} />
             <Painel {...comum} titulo="Por fim do serviço (mês)" sub="OS sem data de fim viram 'Sem fim'" itens={agFim} horizontal={false} corDe={(a) => (a.chave === "zzzz" ? (dark ? "#64748b" : "#94a3b8") : dark ? TEMA.accentDark : TEMA.accent)} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 12 }}>
             <Painel {...comum} titulo="Por técnico" sub="top 10 + outros" itens={agTec} horizontal />
             <Painel {...comum} titulo="Por fase" sub="cores iguais às da relação" itens={agFase} horizontal corDe={(a) => faseOS(a.chave).text} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 12 }}>
             <Painel {...comum} titulo="Por tipo de serviço" itens={agTipo} horizontal />
             <Painel {...comum} titulo="Por previsão de faturamento" sub={kpi.semPrev ? `${kpi.semPrev} sem previsão informada` : "todas com previsão"} itens={agPrev} horizontal={false} corDe={(a) => (a.chave === "zzzz" ? (dark ? "#64748b" : "#94a3b8") : dark ? TEMA.accentDark : TEMA.accent)} />
           </div>

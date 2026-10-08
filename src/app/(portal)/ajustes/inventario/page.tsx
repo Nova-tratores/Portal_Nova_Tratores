@@ -328,7 +328,7 @@ export default function InventarioPage() {
   const freq = resultado?.frequencias;
 
   return (
-    <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Inventario rotativo (curva ABC)</h1>
@@ -378,7 +378,7 @@ export default function InventarioPage() {
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 24 }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 16px', display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
           <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Ciclos</h2>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'flex-end', gap: 8 }}>
             <label style={{ fontSize: '.7rem', color: '#64748b' }}>Capacidade
               <input type="number" min="1" value={capacidade} onChange={(e) => setCapacidade(e.target.value)} placeholder="auto" style={{ display: 'block', width: 96, border: '1px solid #cbd5e1', borderRadius: 6, padding: '4px 8px', fontSize: '.82rem', marginTop: 2 }} />
             </label>
@@ -457,11 +457,11 @@ export default function InventarioPage() {
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8 }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Produtos do inventario</h2>
-          <input type="text" value={busca} onChange={(e) => onBusca(e.target.value)} placeholder="buscar SKU ou descricao..." style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', fontSize: '.82rem', width: 256 }} />
+          <input type="text" value={busca} onChange={(e) => onBusca(e.target.value)} placeholder="buscar SKU ou descricao..." style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', fontSize: '.82rem', width: 256, maxWidth: '100%' }} />
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: '.72rem', color: '#64748b', cursor: 'pointer' }} title="Inclui produtos removidos do inventario (ex.: maquinas) - aparecem esmaecidos">
             <input type="checkbox" checked={mostrarInativos} onChange={(e) => setMostrarInativos(e.target.checked)} /> Mostrar inativos
           </label>
-          <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.72rem' }}>
+          <div style={{ marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 4, fontSize: '.72rem' }}>
             <span style={{ color: '#64748b', marginRight: 4 }}>Classe:</span>
             {['', 'A', 'B', 'C'].map((cl) => (
               <button key={cl || 'todas'} onClick={() => setFiltroClasse(cl)} style={{ padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: '.72rem', background: filtroClasse === cl ? '#cbd5e1' : '#f1f5f9', color: '#334155', fontWeight: filtroClasse === cl ? 600 : 400 }}>{cl || 'Todas'}</button>

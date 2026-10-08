@@ -96,6 +96,31 @@ const CSS = `
 .io-btn.red{background:#dc2626;color:#fff;}
 .io-btn.gray{background:#fff;color:#334155;border:1px solid #d1d5db;}
 .io-ic{width:1em;height:1em;vertical-align:-.13em;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;color:#8a8378;}
+/* Responsivo (só layout): abaixo de 1366px os painéis laterais (Histórico e
+   Localização) descem pra baixo do item, em vez de espremer o card do meio. */
+@media (max-width:1365px){
+.io-row{flex-wrap:wrap;width:100% !important;max-width:1180px !important;}
+.io-row>.io-card{order:-1;flex:1 1 100% !important;}
+.io-row>.io-side{flex:1 1 300px;width:auto !important;max-height:none !important;}
+}
+@media (max-width:900px){
+.io-g-head{grid-template-columns:80px minmax(0,1fr) !important;}
+.io-g-head>:nth-child(3){grid-column:1 / -1;}
+.io-foot{grid-template-columns:repeat(3,1fr);}
+}
+@media (max-width:768px){
+.io-ov{padding:6px;}
+.io-title{flex-wrap:wrap;padding:10px 12px;}
+.io-body{padding:12px 12px 0;}
+.io-actions{padding:10px 12px;}
+.io-g3{grid-template-columns:repeat(auto-fit,minmax(150px,1fr)) !important;}
+.io-g4,.io-grid4{grid-template-columns:repeat(2,minmax(0,1fr)) !important;}
+.io-grid3{grid-template-columns:repeat(2,minmax(0,1fr));}
+.io-foot{grid-template-columns:repeat(2,1fr);}
+}
+@media (max-width:420px){
+.io-grid3{grid-template-columns:minmax(0,1fr);}
+}
 `;
 
 export interface ItemLista { codigo: string; descricao: string; conta: Conta; quantidade: number; preco: number }
@@ -285,9 +310,9 @@ export default function ItemOrcamentoModal({
     <div className="io-ov" onClick={fecharComAviso}>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       {Sprite}
-      <div style={{ display: "flex", alignItems: "stretch", justifyContent: "center", gap: 6, maxWidth: "98vw", margin: "0 auto", width: "fit-content" }} onClick={(e) => e.stopPropagation()}>
+      <div className="io-row" style={{ display: "flex", alignItems: "stretch", justifyContent: "center", gap: 6, maxWidth: "98vw", margin: "0 auto", width: "fit-content" }} onClick={(e) => e.stopPropagation()}>
       {/* Painel SECUNDÁRIO anexado à esquerda: histórico do produto (entrada + vendas) */}
-      <div style={{ width: 340, flexShrink: 0, background: "#fff", borderRadius: 8, boxShadow: "0 18px 50px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "92vh" }}>
+      <div className="io-side" style={{ width: 340, flexShrink: 0, background: "#fff", borderRadius: 8, boxShadow: "0 18px 50px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "92vh" }}>
         <div style={{ padding: "13px 16px", borderBottom: "1px solid rgba(0,0,0,0.5)", fontWeight: 800, fontSize: 14, color: "#1f1f1f", display: "flex", alignItems: "center", gap: 8 }}>
           <svg className="io-ic" style={{ width: 15, height: 15, color: "#EA580C" }}><use href="#io-i-clock" /></svg> Histórico do produto
         </div>
@@ -315,7 +340,7 @@ export default function ItemOrcamentoModal({
 
         <div className="io-body">
           {/* Cabeçalho */}
-          <div style={{ display: "grid", gridTemplateColumns: "80px 1fr 360px", gap: 14, marginBottom: 12 }}>
+          <div className="io-g-head" style={{ display: "grid", gridTemplateColumns: "80px 1fr 360px", gap: 14, marginBottom: 12 }}>
             <div style={{ width: 80, height: 70, borderRadius: 6, background: "#e8730c", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 600, textAlign: "center", padding: 6 }}>{codigo}</div>
             <div>
               <label className="io-l">Produto <svg className="io-ic"><use href="#io-i-link" /></svg></label>
@@ -333,12 +358,12 @@ export default function ItemOrcamentoModal({
             </div>
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 14, marginBottom: 6 }}>
+          <div className="io-g3" style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1.4fr", gap: 14, marginBottom: 6 }}>
             <div><label className="io-l">Quantidade</label><div className="io-ctl ro"><input className="num" value={qtd.toLocaleString("pt-BR", { minimumFractionDigits: 4 })} readOnly /></div></div>
             <div><label className="io-l">Local de Estoque</label><div className="io-ctl"><input value="Estoque Balcão" readOnly /></div></div>
             <div />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr", gap: 14, marginBottom: 4 }}>
+          <div className="io-g3" style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr 1fr", gap: 14, marginBottom: 4 }}>
             <div><label className="io-l">Preço Unitário de Venda</label><div className="io-ctl ro"><input className="num" value={precoUnit.toLocaleString("pt-BR", { minimumFractionDigits: 2 })} readOnly /></div></div>
             <div><label className="io-l">Tabela de Preço</label><div className="io-ctl ro"><input value="Preço de Venda do Cadastro do Produto" readOnly /></div></div>
             <div><label className="io-l">% do Desconto</label><div className="io-ctl ro"><input className="num" value="0,00" readOnly /></div></div>
@@ -406,7 +431,7 @@ export default function ItemOrcamentoModal({
         </div>
       </div>
       {/* Painel SECUNDÁRIO anexado à DIREITA: localização/características do produto */}
-      <div style={{ width: 300, flexShrink: 0, background: "#fff", borderRadius: 8, boxShadow: "0 18px 50px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "92vh" }}>
+      <div className="io-side" style={{ width: 300, flexShrink: 0, background: "#fff", borderRadius: 8, boxShadow: "0 18px 50px rgba(0,0,0,0.3)", display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "92vh" }}>
         <div style={{ padding: "13px 16px", borderBottom: "1px solid rgba(0,0,0,0.5)", fontWeight: 800, fontSize: 14, color: "#1f1f1f", display: "flex", alignItems: "center", gap: 8 }}>
           <svg className="io-ic" style={{ width: 15, height: 15, color: "#EA580C" }}><use href="#io-i-search" /></svg> Localização do produto
         </div>
@@ -624,7 +649,7 @@ function PainelDados({ dados, loading, codigo }: { dados: ProdutoDados | null; l
   return (
     <div>
       {/* Destaque: Estoque · Valor de Custo · Valor de Venda · Código */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 12 }}>
+      <div className="io-g4" style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, marginBottom: 12 }}>
         {destaque("Estoque", dados?.estoque ?? "—")}
         {destaque("Valor de Custo (CMC)", brl(dados?.cmc))}
         {destaque("Valor de Venda", brl(dados?.valorVenda))}

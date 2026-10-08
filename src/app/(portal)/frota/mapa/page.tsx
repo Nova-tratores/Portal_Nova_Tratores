@@ -147,7 +147,7 @@ export default function FrotaMapaPage() {
   };
 
   return (
-    <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+    <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <MapIcon size={20} color="#1e40af" /> Mapa & rastreamento
@@ -157,7 +157,7 @@ export default function FrotaMapaPage() {
         </span>
         <div style={{ flex: 1 }} />
         {/* Busca de cliente/local: escolher → o mapa voa até lá */}
-        <div style={{ position: 'relative', width: 300 }}>
+        <div className="frota-busca-box" style={{ position: 'relative', width: 300, maxWidth: '100%' }}>
           <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
           <input
             value={busca}

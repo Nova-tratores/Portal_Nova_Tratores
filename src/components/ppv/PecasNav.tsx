@@ -9,6 +9,30 @@ import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 
+// Responsividade da faixa (PC estreito / tablet / notebook com menu aberto): as
+// guias rolam na horizontal DENTRO da faixa em vez de serem cortadas. O padding
+// de 11px preserva os cantos côncavos da guia ativa (::before/::after) e o
+// badge do "Retiradas" (top:-6px), que o overflow cortaria; a margem negativa
+// mantém a posição de hoje no desktop largo (onde nada rola). No celular
+// (≤768px) quem manda é o globals.css (segmented control).
+export const PECAS_TOPBAR_CSS = `
+@media (min-width: 769px) {
+  .ppv-x-topbar .ppv-topbar-actions {
+    min-width: 0; overflow-x: auto; overflow-y: hidden;
+    margin-left: -11px; padding: 8px 11px 0; scrollbar-width: none;
+  }
+  .ppv-x-topbar .ppv-topbar-actions::-webkit-scrollbar { display: none; }
+  .ppv-x-topbar .ppv-topbar-nav-btn { flex-shrink: 0; }
+}
+@media (min-width: 769px) and (max-width: 1279px) {
+  .ppv-x-topbar { padding: 0 14px; }
+  .ppv-x-topbar .ppv-topbar-nav-btn { padding: 11px 16px; font-size: 14px; }
+}
+@media (min-width: 769px) and (max-width: 1023px) {
+  .ppv-x-topbar .ppv-topbar-nav-btn { padding: 10px 12px; font-size: 13px; gap: 6px; }
+}
+`;
+
 export default function PecasNav() {
   const pathname = usePathname() ?? '';
   const { userProfile } = useAuth();
@@ -28,7 +52,8 @@ export default function PecasNav() {
   if (abas.length <= 1) return null; // só uma tela liberada → barra não ajuda
 
   return (
-    <div className="ppv-topbar">
+    <div className="ppv-topbar ppv-x-topbar">
+      <style>{PECAS_TOPBAR_CSS}</style>
       <div className="ppv-topbar-actions">
         {abas.map((a) => (
           <a

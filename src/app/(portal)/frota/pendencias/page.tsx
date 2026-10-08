@@ -465,7 +465,7 @@ export default function FrotaPendenciasPage() {
 
   const sistemas = useMemo(() => [...new Set(componentes.map((c) => c.sistema))], [componentes]);
   const seletorComponente = (sistema: string, setSistema: (s: string) => void, compIdSel: string, setCompIdSel: (s: string) => void) => (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 10 }}>
       <div>
         <label style={lbl}>Sistema</label>
         <select style={inp} value={sistema} onChange={(e) => { setSistema(e.target.value); setCompIdSel(''); }}>
@@ -508,7 +508,7 @@ export default function FrotaPendenciasPage() {
             </button>
           ))}
         </div>
-        <div style={{ position: 'relative', minWidth: 240 }}>
+        <div className="frota-busca-box" style={{ position: 'relative', minWidth: 240 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar placa, modelo, responsável..." style={{ ...inp, padding: '9px 30px 9px 32px' }} />
           {busca && <X size={14} onClick={() => setBusca('')} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', cursor: 'pointer', color: 'var(--portal-text)' }} />}
@@ -559,12 +559,12 @@ export default function FrotaPendenciasPage() {
         <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderLeft: '4px solid #1e40af', borderRadius: 0, overflow: 'hidden' }}>
           {grupos.map((g, i) => (
             <button key={g.placa} onClick={() => setAbertoPlaca(g.placa)}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', padding: '10px 14px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: i < grupos.length - 1 ? '1px solid var(--portal-border)' : 'none' }}
+              style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', width: '100%', textAlign: 'left', padding: '10px 14px', cursor: 'pointer', background: 'transparent', border: 'none', borderBottom: i < grupos.length - 1 ? '1px solid var(--portal-border)' : 'none' }}
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
-              <div style={{ width: 64, flexShrink: 0 }}>{fotoBox(g, 44, '8px')}</div>
+              <div className="frota-hide-m" style={{ width: 64, flexShrink: 0 }}>{fotoBox(g, 44, '8px')}</div>
               <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.5, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', width: 90, flexShrink: 0 }}>{g.placa}</span>
-              <span style={{ fontSize: 13, color: 'var(--portal-text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              <span style={{ fontSize: 13, color: 'var(--portal-text)', flex: '1 1 120px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {g.nome}{g.responsavel ? ` · ${g.responsavel}` : ''}
               </span>
               {pills(g)}
@@ -582,9 +582,9 @@ export default function FrotaPendenciasPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '14px 20px', borderBottom: '1px solid rgba(0,0,0,0.5)' }}>
               <Plus size={17} color="#1e40af" />
               <div style={{ flex: 1, fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>Nova pendência</div>
-              <button onClick={() => setNgAberta(false)} style={{ width: 30, height: 30, border: 'none', borderRadius: 0, cursor: 'pointer', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
+              <button onClick={() => setNgAberta(false)} style={{ width: 36, height: 36, flexShrink: 0, border: 'none', borderRadius: 0, cursor: 'pointer', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
             </div>
-            <div style={{ padding: '16px 20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ padding: 'clamp(12px, 3vw, 16px) clamp(12px, 3vw, 20px) clamp(14px, 3vw, 20px)', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div>
                 <label style={lbl}>Veículo</label>
                 <select style={inp} value={ngPlaca} autoFocus
@@ -605,7 +605,7 @@ export default function FrotaPendenciasPage() {
                 <label style={lbl}>Título da pendência</label>
                 <input style={inp} spellCheck lang="pt-BR" value={ngTitulo} onChange={(e) => setNgTitulo(e.target.value)} placeholder="Ex: Câmbio raspando na 3ª marcha" />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10 }}>
+              <div className="frota-g1" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 160px) minmax(0, 1fr)', gap: 10 }}>
                 <div>
                   <label style={lbl}>Km atual</label>
                   <input style={inp} inputMode="numeric" value={ngKm} onChange={(e) => setNgKm(e.target.value)} onBlur={(e) => setNgKm(formatarHodometro(e.target.value))} placeholder="Ex: 12.500" />
@@ -657,13 +657,13 @@ export default function FrotaPendenciasPage() {
                 <X size={18} />
               </button>
             </div>
-            <div style={{ padding: '14px 22px', borderBottom: '1px solid rgba(0,0,0,0.5)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <div style={{ padding: '14px clamp(12px, 3vw, 22px)', borderBottom: '1px solid rgba(0,0,0,0.5)', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: 0.5, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{aberto.placa}</span>
               <span style={{ fontSize: 14, color: 'var(--portal-text)', flex: 1 }}>{aberto.nome}</span>
               {aberto.responsavel && <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>Responsável: {aberto.responsavel}</span>}
             </div>
 
-            <div style={{ padding: '16px 22px 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
+            <div style={{ padding: 'clamp(12px, 3vw, 16px) clamp(12px, 3vw, 22px) 22px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 18 }}>
 
               {/* ── EM ABERTO ── */}
               <div>
@@ -719,7 +719,7 @@ export default function FrotaPendenciasPage() {
                         {GRAVIDADE_AJUDA[nGravidade]}
                       </div>
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 10 }}>
+                    <div className="frota-g1" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 160px) minmax(0, 1fr)', gap: 10 }}>
                       <div>
                         <label style={lbl}>Data da ocorrência</label>
                         <input style={inp} type="date" value={nData} onChange={(e) => setNData(e.target.value)} />
@@ -760,8 +760,8 @@ export default function FrotaPendenciasPage() {
                     const comp = p.componente_id ? compPorId.get(p.componente_id) : undefined;
                     return (
                       <div key={p.id} style={{ border: p.id === pendDestaque ? '2px solid #f59e0b' : '1px solid var(--portal-border)', background: p.id === pendDestaque ? '#fffbeb' : undefined, borderRadius: 0, padding: '12px 14px' }}>
-                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-                          <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ flex: '1 1 240px', minWidth: 0 }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', lineHeight: 1.35 }}>{p.titulo}</span>
                               {badgeOrigem(p.origem)}
@@ -791,7 +791,7 @@ export default function FrotaPendenciasPage() {
                             )}
                           </div>
                           {!p.pseudo && (
-                            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                            <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
                               {!p.componente_id && classifId !== p.id && componentes.length > 0 && (
                                 <button onClick={() => { setClassifId(p.id); setCSistema(''); setCCompId(''); }} title="Classificar no sistema/componente"
                                   style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '7px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', cursor: 'pointer', background: 'var(--portal-bg-card)', color: '#1e3a8a', fontSize: 12, fontWeight: 700 }}>
@@ -834,7 +834,7 @@ export default function FrotaPendenciasPage() {
                               <label style={lbl}>Como foi resolvido?</label>
                               <textarea style={{ ...inp, resize: 'none', minHeight: 56 }} spellCheck lang="pt-BR" value={rComo} onChange={(e) => setRComo(e.target.value)} placeholder="Ex: Troca do kit de embreagem na oficina interna" />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: 10 }}>
                               <div>
                                 <label style={lbl}>Vincular a</label>
                                 <select style={inp} value={rTipo} onChange={(e) => setRTipo(e.target.value as any)}>

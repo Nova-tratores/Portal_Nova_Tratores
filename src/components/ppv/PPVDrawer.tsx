@@ -883,12 +883,33 @@ export default function PPVDrawer({
         </div>
       )}
       <div className="ppv-drawer-overlay fs" onClick={fecharComSalvar} style={{ padding: 0, alignItems: "stretch", overflow: "hidden", position: "fixed", inset: 0, zIndex: 200 }}>
-        <div className={`ppv-modal-container fs ${showLogs ? "with-logs" : ""}`} onClick={(e) => e.stopPropagation()}
+        <div className={`ppv-modal-container fs ppv-x-drawer ${showLogs ? "with-logs" : ""}`} onClick={(e) => e.stopPropagation()}
           style={{ width: "100vw", maxWidth: "none", height: "100vh", maxHeight: "100vh", margin: 0, borderRadius: 0 }}>
+          {/* Responsivo (só layout): tabelas de colunas fixas rolam na horizontal
+              DENTRO da caixa em vez de cortar; abaixo de 1200px a caixa de totais
+              desce pra baixo do cabeçalho; no celular 100dvh evita que a barra
+              do navegador esconda a barra de ações. ≥1200px fica igual. */}
+          <style>{`
+            @supports (height: 100dvh) {
+              .ppv-x-drawer { height: 100dvh !important; max-height: 100dvh !important; }
+              .ppv-x-drawer > .ppv-drawer { max-height: 100dvh !important; }
+            }
+            .ppv-x-drawer .ppv-tabela-itens { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+            .ppv-x-drawer .ppv-tabela-itens .ppv-item-linha { min-width: 1070px; }
+            .ppv-x-drawer .ppv-x-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            @media (max-width: 1199px) {
+              .ppv-x-drawer .ppv-x-head { flex-direction: column; }
+              .ppv-x-drawer .ppv-x-head > .os-omie-totais { min-width: 0; }
+            }
+            @media (min-width: 769px) and (max-width: 1199px) {
+              .ppv-x-drawer .ppv-g-vendedor { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+              .ppv-x-drawer .ppv-g-empilha { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) !important; }
+            }
+          `}</style>
           <div className="ppv-drawer" style={{ maxHeight: "100vh" }} onInput={() => { if (!editou) setEditou(true); }}>
             {/* ── Barra superior (estilo Omie) ── */}
             <div className="ppv-omie-topbar" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 22px", borderBottom: "1px solid #E2E8F0", background: "#fff", position: "sticky", top: 0, zIndex: 12, flexShrink: 0 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flexWrap: "wrap" }}>
                 <span style={{ fontSize: 18, fontWeight: 700, color: "#334155", whiteSpace: "nowrap" }}>Pedido de Venda</span>
                 <span style={{ fontSize: 13, fontWeight: 700, color: "#c2570a", background: "#fff3e6", border: "1px solid #f5c99a", borderRadius: 6, padding: "2px 8px", whiteSpace: "nowrap" }}>#{ppvId}</span>
                 <select value={status} onChange={(e) => mudarStatusPPV(e.target.value)} disabled={!podeEditar} title="Fase do PPV"
@@ -932,7 +953,7 @@ export default function PPVDrawer({
                     <>
                       {/* ── Cabeçalho estilo Omie ── */}
                       <div className="ppv-omie-head" style={{ background: "#fff", border: "1px solid #E2E8F0", borderRadius: 4, padding: "12px 14px", marginBottom: 12 }}>
-                       <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
+                       <div className="ppv-x-head" style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
                        <div style={{ flex: 1, minWidth: 0 }}>
                         {/* Cliente + Consulta de Crédito + Previsão de Faturamento */}
                         <div className="ppv-g-cliente" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
@@ -943,7 +964,7 @@ export default function PPVDrawer({
                                 style={{ position: "relative", width: 40, height: 34, borderRadius: 3, background: "#e8730c", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: "help" }}>
                                 {(cliente || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
                                 {showCliInfo && (
-                                  <div style={{ position: "absolute", top: "115%", left: 0, zIndex: 50, width: 340, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", padding: 12, color: "#334155", cursor: "default" }}>
+                                  <div style={{ position: "absolute", top: "115%", left: 0, zIndex: 50, width: 340, maxWidth: "calc(100vw - 40px)", background: "#fff", border: "1px solid #E2E8F0", borderRadius: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", padding: 12, color: "#334155", cursor: "default" }}>
                                     <div style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", marginBottom: 8, whiteSpace: "normal" }}>{cliente || "—"}</div>
                                     {[["CPF / CNPJ", clienteDoc], ["Telefone", clienteTelefone], ["E-mail", clienteEmail], ["Cidade", clienteCidade], ["Endereço", clienteEndereco]].map(([rot, val]) => (
                                       <div key={rot} style={{ display: "flex", gap: 8, fontSize: 12.5, padding: "3px 0", borderTop: "1px solid #F1F5F9" }}>
@@ -1272,7 +1293,8 @@ export default function PPVDrawer({
                         {sefaz.erro || "Faturado — a NF-e ainda não apareceu no Omie. A autorização na SEFAZ leva alguns instantes; clique em Atualizar."}
                       </div>
                     ) : sefaz && sefaz.eventos.length > 0 ? (
-                      <div style={{ border: "1px solid #d8d2c6", borderRadius: 4, overflow: "hidden" }}>
+                      <div className="ppv-x-scroll">
+                      <div style={{ border: "1px solid #d8d2c6", borderRadius: 4, overflow: "hidden", minWidth: 520 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "40px 200px 1fr 130px", gap: 8, alignItems: "center", padding: "8px 12px", background: "#edeae4", borderBottom: "1px solid #d8d2c6", fontSize: 12, fontWeight: 700, color: "#5f574c" }}>
                           <span /><span>Data e Hora</span><span>Descrição</span><span>Usuário</span>
                         </div>
@@ -1290,6 +1312,7 @@ export default function PPVDrawer({
                           <span>{sefaz.eventos.length} registro(s)</span>
                           {sefaz.atualizadoEm && <span>Atualizado em {new Date(sefaz.atualizadoEm).toLocaleString("pt-BR")}</span>}
                         </div>
+                      </div>
                       </div>
                     ) : (
                       <div style={{ padding: 20, textAlign: "center", color: "#94a3b8", fontSize: 13, border: "1px dashed #e2ddd3", borderRadius: 4 }}>
@@ -1458,7 +1481,8 @@ export default function PPVDrawer({
                         )}
                       </div>
                       <div style={{ fontSize: 12.5, color: "#94a3b8", marginBottom: 10 }}>Distribui o valor do pedido ({formatarMoeda(totalFinal)}) entre os departamentos.</div>
-                      <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
+                      <div className="ppv-x-scroll">
+                      <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden", minWidth: 420 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "44px 1fr 160px 120px", background: "#F1F5F9", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#64748b" }}>
                           <span /><span>Departamento</span><span style={{ textAlign: "right" }}>Valor Distribuído</span><span style={{ textAlign: "right" }}>% da Distribuição</span>
                         </div>
@@ -1483,6 +1507,7 @@ export default function PPVDrawer({
                           <span style={{ textAlign: "right" }}>{somaDeptos.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}%</span>
                         </div>
                       </div>
+                      </div>
                       <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>1 - {departamentos.length} de {departamentos.length} registros</div>
                     </div>
                   )}
@@ -1496,7 +1521,8 @@ export default function PPVDrawer({
                         </button>
                       </div>
                       <div style={{ fontSize: 12.5, color: "#94a3b8", marginBottom: 10 }}>Abaixo as parcelas e vencimentos desta venda.</div>
-                      <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden" }}>
+                      <div className="ppv-x-scroll">
+                      <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, overflow: "hidden", minWidth: 580 }}>
                         <div style={{ display: "grid", gridTemplateColumns: "120px 80px 1fr 150px 90px", background: "#F1F5F9", padding: "10px 14px", fontSize: 12, fontWeight: 700, color: "#64748b" }}>
                           <span>Situação</span><span>Parcela</span><span>Vencimento</span><span style={{ textAlign: "right" }}>Valor a Receber</span><span style={{ textAlign: "right" }}>Percentual</span>
                         </div>
@@ -1521,6 +1547,7 @@ export default function PPVDrawer({
                           <span style={{ textAlign: "right" }}>{formatarMoeda(totalFinal)}</span>
                           <span style={{ textAlign: "right", color: "#64748b" }}>100%</span>
                         </div>
+                      </div>
                       </div>
                       <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 8 }}>1 - {parcelas.length} de {parcelas.length} registros</div>
                     </div>

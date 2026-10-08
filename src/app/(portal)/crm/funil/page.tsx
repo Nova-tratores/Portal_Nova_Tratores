@@ -3,6 +3,7 @@
 // trava que impede fechar "ganho" com aprovação pendente.
 import { useState } from 'react';
 import Ideia from '@/components/crm/Ideia';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import {
   DEALS, ESTAGIOS, lead, maquina, pisoVendedor, custoTotal,
   alcadaRequerida, valorPonderado, brl,
@@ -10,6 +11,7 @@ import {
 
 export default function FunilPage() {
   const [aviso, setAviso] = useState<string | null>(null);
+  const isMobile = useIsMobile();
   const abertos = DEALS.filter((d) => !d.ganho && !d.perdido);
 
   const tentarFechar = (codigo: string, pendente: boolean, alcada: string) => {
@@ -21,7 +23,7 @@ export default function FunilPage() {
   };
 
   return (
-    <div style={{ padding: '20px 16px 60px', color: 'var(--portal-text)' }}>
+    <div style={{ padding: isMobile ? '14px 4px 40px' : '20px 16px 60px', color: 'var(--portal-text)' }}>
       <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>Funil de Vendas</h1>
 
       <div style={{ maxWidth: 980 }}>
@@ -45,13 +47,13 @@ export default function FunilPage() {
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12 }}>
+      <div style={{ display: 'flex', gap: 12, overflowX: 'auto', paddingBottom: 12, WebkitOverflowScrolling: 'touch', ...(isMobile ? { scrollSnapType: 'x mandatory' } : {}) }}>
         {ESTAGIOS.map((e) => {
           const cards = abertos.filter((d) => d.estagio === e.codigo);
           const total = cards.reduce((s, d) => s + (d.valorNegociado ?? 0), 0);
           const pond = cards.reduce((s, d) => s + valorPonderado(d), 0);
           return (
-            <div key={e.codigo} style={{ minWidth: 265, flexShrink: 0 }}>
+            <div key={e.codigo} style={isMobile ? { flex: '0 0 85%', minWidth: 0, scrollSnapAlign: 'start' } : { minWidth: 265, flexShrink: 0 }}>
               <div
                 style={{
                   background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
@@ -114,7 +116,7 @@ export default function FunilPage() {
                       <button
                         onClick={() => tentarFechar(d.codigo, pendente, alcada)}
                         style={{
-                          marginTop: 8, width: '100%', padding: '6px 0', borderRadius: 7, cursor: 'pointer',
+                          marginTop: 8, width: '100%', padding: isMobile ? '10px 0' : '6px 0', borderRadius: 7, cursor: 'pointer',
                           border: pendente ? '1px solid #f59e0b' : '1px solid var(--portal-border)',
                           background: 'var(--portal-bg-secondary)', color: 'var(--portal-text)',
                           fontSize: 12, fontWeight: 700,

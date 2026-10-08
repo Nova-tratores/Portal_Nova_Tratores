@@ -76,7 +76,7 @@ export default function AgruparCardsModal({ open, cards, onClose, onDone, audit 
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(8px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
       <div style={{ background: 'var(--portal-bg-card)', width: '760px', maxWidth: '100%', maxHeight: '92vh', borderRadius: '16px', border: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.2)' }}>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '18px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '18px clamp(14px, 3vw, 24px)', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
           <Link2 size={18} color="#4338ca" />
           <div style={{ flex: 1 }}>
             <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--portal-text)' }}>Juntar cards num boleto único</div>
@@ -88,7 +88,7 @@ export default function AgruparCardsModal({ open, cards, onClose, onDone, audit 
             style={{ background: 'transparent', border: '1px solid var(--portal-border)', borderRadius: '8px', padding: '6px', cursor: 'pointer', color: 'var(--portal-text-secondary)', display: 'flex' }}><X size={16} /></button>
         </div>
 
-        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px clamp(12px, 3vw, 24px)' }}>
           {lista.length === 0 && (
             <p style={{ fontSize: '13px', color: 'var(--portal-text-secondary)', textAlign: 'center', padding: '30px 0' }}>Nenhum card na fase Gerar Boleto.</p>
           )}
@@ -100,14 +100,14 @@ export default function AgruparCardsModal({ open, cards, onClose, onDone, audit 
               <div key={c.id} onClick={() => !bloqueado && toggle(c)}
                 title={bloqueado ? 'Só dá pra juntar cards do mesmo cliente' : ''}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 14px', marginBottom: '8px',
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px 12px', padding: '12px 14px', marginBottom: '8px',
                   border: `1.5px solid ${marcado ? '#4338ca' : 'var(--portal-border)'}`, borderRadius: '10px',
                   background: marcado ? 'rgba(67,56,202,0.06)' : 'var(--portal-bg-card)',
                   opacity: bloqueado ? 0.4 : 1, cursor: bloqueado ? 'not-allowed' : 'pointer', transition: '0.15s',
                 }}>
                 <input type="checkbox" readOnly checked={marcado} disabled={bloqueado}
                   style={{ width: '17px', height: '17px', accentColor: '#4338ca', cursor: 'inherit', flexShrink: 0 }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ flex: '1 1 160px', minWidth: 0 }}>
                   <div style={{ fontSize: '14px', fontWeight: 600, color: 'var(--portal-text)' }}>
                     <span style={{ color: '#9ca3af', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>#{c.id}</span>{' '}
                     {c.nom_cliente?.toUpperCase() || '—'}
@@ -138,8 +138,8 @@ export default function AgruparCardsModal({ open, cards, onClose, onDone, audit 
           })}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '16px 24px', borderTop: '1px solid var(--portal-border)', flexShrink: 0, background: 'var(--portal-bg-secondary)' }}>
-          <div style={{ flex: 1, fontSize: '13px', color: 'var(--portal-text-secondary)' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '10px 14px', padding: '16px clamp(14px, 3vw, 24px)', borderTop: '1px solid var(--portal-border)', flexShrink: 0, background: 'var(--portal-bg-secondary)' }}>
+          <div style={{ flex: '1 1 180px', minWidth: 0, fontSize: '13px', color: 'var(--portal-text-secondary)' }}>
             {selIds.length === 0
               ? 'Nenhum card marcado'
               : <>{selIds.length} card{selIds.length > 1 ? 's' : ''} · Total: <b style={{ color: '#16a34a', fontSize: '15px' }}>{formatarMoeda(total)}</b></>}

@@ -532,8 +532,9 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const totalFisicas = etiquetas.reduce((s, e) => s + Math.max(1, e.copias), 0)
 
   return (
-    <div style={{ padding: embedded ? '18px 22px 40px' : '18px 22px', maxWidth: 1100, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+    <div className="ppv-x-etq" style={{ padding: embedded ? '18px 22px 40px' : '18px 22px', maxWidth: 1100, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+      <style>{'@media (max-width: 768px) { .ppv-x-etq { padding-left: 10px !important; padding-right: 10px !important; } }'}</style>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
         {!embedded && (
           <Link href="/ppv" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
             <ArrowLeft size={15} /> PPV
@@ -797,11 +798,11 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       </div>
 
       {/* Fila de etiquetas */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '18px 0 8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, margin: '18px 0 8px' }}>
         <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>
           Fila de impressão ({totalFisicas} etiqueta{totalFisicas === 1 ? '' : 's'})
         </h2>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {etiquetas.length > 0 && (
             <button onClick={limparFilaServer} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
               <Trash2 size={13} /> Limpar
@@ -826,7 +827,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
           Nenhuma etiqueta na fila — busque uma peça acima e adicione.
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))', gap: 10 }}>
           {etiquetas.map(e => (
             <div key={e.id} style={{ border: '1.5px dashed #94a3b8', borderRadius: 8, padding: '10px 12px', position: 'relative', background: 'var(--portal-bg-card)' }}>
               <button onClick={() => removerFilaServer(e.id)} title="Remover etiqueta"

@@ -15,7 +15,7 @@ const txt = 'var(--portal-text,#111111)'
 const mut = 'var(--portal-text-muted,#6b7280)'
 const borda = '1px solid var(--portal-border,#e5e7eb)'
 
-const secao: React.CSSProperties = { border: borda, borderRadius: 10, padding: '12px 14px', background: 'var(--portal-bg-card,#fefefe)' }
+const secao: React.CSSProperties = { border: borda, borderRadius: 10, padding: '12px 14px', background: 'var(--portal-bg-card,#fefefe)', minWidth: 0 }
 const h3: React.CSSProperties = { margin: '0 0 8px', fontSize: 13, fontWeight: 800, color: txt, textTransform: 'uppercase', letterSpacing: .4 }
 const td: React.CSSProperties = { padding: '5px 8px', fontSize: 12, borderBottom: borda, color: txt, verticalAlign: 'top' }
 const th: React.CSSProperties = { ...td, fontWeight: 700, color: 'var(--portal-text-secondary,#374151)', background: 'var(--portal-bg-secondary,#f3f4f6)', whiteSpace: 'nowrap' }
@@ -23,11 +23,11 @@ const botao = (cor: string, cheio: boolean): React.CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 6, fontSize: 12, fontWeight: 700,
   border: `1px solid ${cor}`, background: cheio ? cor : 'transparent', color: cheio ? '#fefefe' : cor, cursor: 'pointer',
 })
-const input: React.CSSProperties = { padding: '6px 8px', borderRadius: 6, border: borda, background: 'var(--portal-bg-input,#fefefe)', color: txt, fontSize: 13 }
+const input: React.CSSProperties = { padding: '6px 8px', borderRadius: 6, border: borda, background: 'var(--portal-bg-input,#fefefe)', color: txt, fontSize: 13, maxWidth: '100%' }
 
 function Dado({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: 8, fontSize: 13, padding: '3px 0' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 130px) minmax(0, 1fr)', gap: 8, fontSize: 13, padding: '3px 0' }}>
       <span style={{ color: mut }}>{rotulo}</span><span style={{ color: txt, fontWeight: 600, wordBreak: 'break-word' }}>{children}</span>
     </div>
   )
@@ -96,8 +96,8 @@ export default function FichaImovel({ codCar, onFechar, onMudou }: { codCar: str
     <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,.45)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '4vh 12px', overflowY: 'auto' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(980px, 100%)', background: 'var(--portal-bg,#f9fafb)', borderRadius: 12, border: borda, boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
         {/* cabeçalho */}
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px', borderBottom: borda, borderTop: `4px solid ${corCultura(p?.cultura_principal)}`, borderRadius: '12px 12px 0 0', background: 'var(--portal-bg-card,#fefefe)' }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', padding: '14px clamp(12px, 3vw, 16px)', borderBottom: borda, borderTop: `4px solid ${corCultura(p?.cultura_principal)}`, borderRadius: '12px 12px 0 0', background: 'var(--portal-bg-card,#fefefe)' }}>
+          <div style={{ flex: '1 1 220px', minWidth: 0 }}>
             <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
               <span style={{ width: 14, height: 14, borderRadius: 3, background: corCultura(p?.cultura_principal), border: '1px solid rgba(0,0,0,.25)' }} />
               <h2 style={{ margin: 0, fontSize: 18, fontWeight: 900, color: txt }}>{p?.cultura_nome || (d ? 'Diversificado' : 'Carregando…')}</h2>
@@ -108,14 +108,14 @@ export default function FichaImovel({ codCar, onFechar, onMudou }: { codCar: str
             <div style={{ fontSize: 13, color: txt, marginTop: 2 }}>{d?.imovel?.municipio}{d?.imovel ? ` · ${fmtHa(d.imovel.area_ha)} (${d.imovel.modulos_fiscais ? Number(d.imovel.modulos_fiscais).toFixed(1) + ' módulos fiscais' : '—'})` : ''}</div>
           </div>
           {maps && <a href={maps} target="_blank" rel="noreferrer" style={{ ...botao('#1d4ed8', false), textDecoration: 'none' }}><MapPin size={13} /> Google Maps <ExternalLink size={11} /></a>}
-          <button type="button" onClick={onFechar} style={{ ...botao('#6b7280', false), padding: 6 }} title="Fechar (Esc)"><X size={16} /></button>
+          <button type="button" onClick={onFechar} style={{ ...botao('#6b7280', false), padding: 6, minWidth: 36, minHeight: 36, justifyContent: 'center' }} title="Fechar (Esc)"><X size={16} /></button>
         </div>
 
         {erro && <div style={{ display: 'flex', gap: 8, padding: '8px 16px', background: 'rgba(220,38,38,.10)', borderLeft: '4px solid #dc2626', color: txt, fontSize: 13 }}><AlertTriangle size={16} style={{ color: '#dc2626' }} /> {erro}</div>}
         {!d && !erro && <div style={{ padding: 30, textAlign: 'center', color: mut }}>Carregando a ficha…</div>}
 
         {d && (
-          <div style={{ padding: 14, display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))' }}>
+          <div style={{ padding: 'clamp(8px, 2.5vw, 14px)', display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(min(380px, 100%), 1fr))' }}>
             {/* perfil */}
             <section style={secao}>
               <h3 style={h3}>Perfil estimado · safra {p?.ano_safra ?? '—'}</h3>
@@ -232,6 +232,7 @@ export default function FichaImovel({ codCar, onFechar, onMudou }: { codCar: str
             <section style={secao}>
               <h3 style={h3}>Uso do solo por safra <span style={{ fontWeight: 400, textTransform: 'none', color: mut }}>· MapBiomas, hectares</span></h3>
               {pivot.linhas.length === 0 ? <div style={{ fontSize: 13, color: mut }}>Sem classe de uso agropecuário no satélite.</div> : (
+                <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr><th style={th}>Cultura</th>{pivot.anos.map((a) => <th key={a} style={{ ...th, textAlign: 'right' }}>{a}</th>)}</tr></thead>
                   <tbody>
@@ -243,6 +244,7 @@ export default function FichaImovel({ codCar, onFechar, onMudou }: { codCar: str
                     ))}
                   </tbody>
                 </table>
+                </div>
               )}
             </section>
 

@@ -112,7 +112,7 @@ export default function ProjetosBusca() {
 
             {!sel ? (
               <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
                   <div>
                     <div style={rotulo}>Modelo</div>
                     <input value={fModelo} onChange={(e) => aoDigitar("modelo", e.target.value)} placeholder="ex.: 6060" autoFocus style={inputEstilo} />
@@ -171,7 +171,7 @@ export default function ProjetosBusca() {
 
                 {ficha && (
                   <>
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(100px, 1fr))", gap: 6 }}>
                       {[
                         { label: "OSs", valor: String(ficha.resumo?.total_os ?? 0) },
                         { label: "Faturadas", valor: String(ficha.resumo?.os_faturadas ?? 0) },

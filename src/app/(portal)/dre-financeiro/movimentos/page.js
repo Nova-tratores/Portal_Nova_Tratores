@@ -402,7 +402,9 @@ export default function MovimentosPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', minWidth: 0 }}>
+      {/* Celular: alvos de toque >= 36px nos botoes/campos da tela */}
+      <style>{`@media (max-width: 768px) { .dre-b-toque { min-height: 36px; } }`}</style>
       {/* Cabeçalho + ações */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap' }}>
         <div>
@@ -414,14 +416,14 @@ export default function MovimentosPage() {
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           <div style={{ display: 'inline-flex', borderRadius: '8px', overflow: 'hidden', border: '1px solid #10B981' }}>
             {[['extrato', 'Extrato'], ['antecipacoes', 'Antecipações']].map(([id, label], i) => (
-              <button key={id} type="button" onClick={() => setModo(id)} style={{
+              <button key={id} type="button" onClick={() => setModo(id)} className="dre-b-toque" style={{
                 padding: '6px 12px', fontSize: '12px', fontWeight: 700, cursor: 'pointer',
                 border: 'none', borderLeft: i ? '1px solid #10B981' : 'none',
                 background: modo === id ? '#10B981' : '#fff', color: modo === id ? '#fff' : '#047857'
               }}>{label}</button>
             ))}
           </div>
-          <button type="button" onClick={exportarCSV}
+          <button type="button" onClick={exportarCSV} className="dre-b-toque"
             disabled={modo === 'antecipacoes' ? !opsFiltradas.length : !linhas.length}
             style={{
               ...estiloAtalho,
@@ -429,7 +431,7 @@ export default function MovimentosPage() {
             }}>
             ⬇️ Exportar CSV
           </button>
-          <button type="button" onClick={sincronizar} disabled={rodando} style={{
+          <button type="button" onClick={sincronizar} disabled={rodando} className="dre-b-toque" style={{
             padding: '7px 14px', borderRadius: '8px', border: 'none', cursor: rodando ? 'default' : 'pointer',
             background: rodando ? '#94a3b8' : '#10B981', color: '#fff', fontSize: '13px', fontWeight: 700
           }}>
@@ -464,24 +466,24 @@ export default function MovimentosPage() {
         display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap'
       }}>
         <label style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          De <input type="date" value={de} onChange={(e) => setDe(e.target.value)} style={estiloInput} />
+          De <input type="date" value={de} onChange={(e) => setDe(e.target.value)} className="dre-b-toque" style={estiloInput} />
         </label>
         <label style={{ fontSize: '12px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '6px' }}>
-          Até <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} style={estiloInput} />
+          Até <input type="date" value={ate} onChange={(e) => setAte(e.target.value)} className="dre-b-toque" style={estiloInput} />
         </label>
-        <div style={{ display: 'flex', gap: '6px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
           {atalhos.map((a) => (
-            <button key={a.label} type="button" onClick={a.fn} style={estiloAtalho}>{a.label}</button>
+            <button key={a.label} type="button" onClick={a.fn} className="dre-b-toque" style={estiloAtalho}>{a.label}</button>
           ))}
         </div>
         {modo === 'extrato' && (
           <>
-            <select value={natureza} onChange={(e) => setNatureza(e.target.value)} style={estiloInput}>
+            <select value={natureza} onChange={(e) => setNatureza(e.target.value)} className="dre-b-toque" style={estiloInput}>
               <option value="">Entradas + Saídas</option>
               <option value="R">Só entradas (recebimentos)</option>
               <option value="P">Só saídas (pagamentos)</option>
             </select>
-            <select value={cc} onChange={(e) => setCc(e.target.value)} style={{ ...estiloInput, maxWidth: '220px' }}>
+            <select value={cc} onChange={(e) => setCc(e.target.value)} className="dre-b-toque" style={{ ...estiloInput, maxWidth: '220px', minWidth: 0 }}>
               <option value="">Todas as contas correntes</option>
               {ccOptions.map((c) => (
                 <option key={c.codigo} value={c.codigo}>{c.nome}</option>
@@ -493,13 +495,13 @@ export default function MovimentosPage() {
           type="text"
           placeholder={modo === 'antecipacoes' ? '🔎 Buscar cliente da duplicata...' : '🔎 Buscar contraparte, documento, categoria...'}
           value={busca} onChange={(e) => setBusca(e.target.value)}
-          style={{ ...estiloInput, flex: 1, minWidth: '220px' }}
+          className="dre-b-toque" style={{ ...estiloInput, flex: 1, minWidth: 'min(220px, 100%)', boxSizing: 'border-box' }}
         />
       </div>
 
       {modo === 'extrato' && (<>
       {/* KPIs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '10px' }}>
         {kpis.map((k) => (
           <div key={k.label} style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '12px 14px' }}>
             <div style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '.5px' }}>{k.label}</div>
@@ -522,7 +524,7 @@ export default function MovimentosPage() {
             {!dados?.precisaMigration && ' Clique em "Sincronizar período (Omie)" para buscar os movimentos.'}
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
@@ -584,7 +586,7 @@ export default function MovimentosPage() {
 
       {modo === 'antecipacoes' && (<>
       {/* KPIs das antecipações */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '10px' }}>
         {[
           { label: 'Valor antecipado (cheio)', valor: ant?.totais?.valorCheio || 0, cor: '#334155' },
           { label: 'Juros pagos', valor: ant?.totais?.juros || 0, cor: VERMELHO },
@@ -607,10 +609,10 @@ export default function MovimentosPage() {
       </div>
 
       {/* Sub-visão: agrupado por operação ou lista plana de duplicatas */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
         <div style={{ display: 'inline-flex', borderRadius: '8px', overflow: 'hidden', border: '1px solid #cbd5e1' }}>
           {[['operacoes', 'Por operação'], ['duplicatas', 'Lista de duplicatas']].map(([id, label], i) => (
-            <button key={id} type="button" onClick={() => setAntVisao(id)} style={{
+            <button key={id} type="button" onClick={() => setAntVisao(id)} className="dre-b-toque" style={{
               padding: '5px 11px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', border: 'none',
               borderLeft: i ? '1px solid #cbd5e1' : 'none',
               background: antVisao === id ? '#475569' : '#fff', color: antVisao === id ? '#fff' : '#475569'
@@ -696,7 +698,7 @@ export default function MovimentosPage() {
             Nenhuma duplicata descontada no período.
           </div>
         ) : (
-          <div style={{ overflowX: 'auto' }}>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
@@ -760,7 +762,7 @@ export default function MovimentosPage() {
           </summary>
           <div style={{ marginTop: '8px', fontSize: '12px', color: '#475569' }}>
             {ant.pendentes.map((p, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', padding: '3px 0', borderTop: i ? '1px solid #f1f5f9' : 'none' }}>
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '10px', flexWrap: 'wrap', padding: '3px 0', borderTop: i ? '1px solid #f1f5f9' : 'none' }}>
                 <span>{fmtData(p.data)} · {p.cliente} <EmpresaBadge conta={p.conta_omie} /></span>
                 <b>{formatBRL(p.valor)}</b>
               </div>

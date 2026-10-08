@@ -99,14 +99,14 @@ export default function ResumoAba({ ficha, roi }: { ficha: any; roi: any }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
             {categorias.map((c) => (
               <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 150, fontSize: 13, color: 'var(--portal-text)' }}>{c.label}</div>
+                <div style={{ flex: '0 1 150px', minWidth: 0, overflowWrap: 'anywhere', fontSize: 13, color: 'var(--portal-text)' }}>{c.label}</div>
                 <div style={{ flex: 1, height: 16, background: 'var(--portal-bg)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{ width: `${maior > 0 ? (c.valor / maior) * 100 : 0}%`, height: '100%', background: ROSA }} />
                 </div>
-                <div style={{ width: 120, textAlign: 'right', fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>
+                <div style={{ flex: '0 1 120px', minWidth: 0, textAlign: 'right', fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>
                   {brl(c.valor)}
                 </div>
-                <div style={{ width: 50, textAlign: 'right', fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
+                <div style={{ width: 50, flex: 'none', textAlign: 'right', fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
                   {c.percent.toFixed(0)}%
                 </div>
               </div>

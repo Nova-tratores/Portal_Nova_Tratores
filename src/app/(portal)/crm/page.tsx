@@ -1,6 +1,7 @@
 'use client';
 // CRM de Desova — página "A Ideia": explica o conceito do módulo inteiro.
 import Link from 'next/link';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { META_VALOR, META_DIAS, brl } from '@/lib/crm/demo';
 
 const CARDS = [
@@ -42,9 +43,10 @@ const CARDS = [
 ];
 
 export default function CrmIdeiaPage() {
+  const isMobile = useIsMobile();
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: '24px 16px 60px', color: 'var(--portal-text)' }}>
-      <h1 style={{ fontSize: 26, fontWeight: 800, marginBottom: 4 }}>CRM de Desova — a ideia</h1>
+    <div style={{ maxWidth: 1000, margin: '0 auto', padding: isMobile ? '16px 4px 40px' : '24px 16px 60px', color: 'var(--portal-text)' }}>
+      <h1 style={{ fontSize: isMobile ? 21 : 26, fontWeight: 800, marginBottom: 4 }}>CRM de Desova — a ideia</h1>
       <p style={{ color: 'var(--portal-text-secondary)', marginBottom: 20, fontSize: 14.5 }}>
         Objetivo: liquidar <strong style={{ color: '#1B7A5F' }}>{brl(META_VALOR)}</strong> em estoque de
         máquinas em <strong style={{ color: '#1B7A5F' }}>{META_DIAS} dias</strong>, com 1 vendedor em campo
@@ -56,7 +58,7 @@ export default function CrmIdeiaPage() {
           background: 'var(--portal-bg-card)',
           border: '1px solid var(--portal-border)',
           borderRadius: 10,
-          padding: '16px 20px',
+          padding: isMobile ? '12px 14px' : '16px 20px',
           marginBottom: 22,
           fontSize: 14,
           lineHeight: 1.65,
@@ -82,7 +84,7 @@ export default function CrmIdeiaPage() {
         </ol>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(290px, 1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(290px, 100%), 1fr))', gap: 14 }}>
         {CARDS.map((c) => (
           <Link
             key={c.href}

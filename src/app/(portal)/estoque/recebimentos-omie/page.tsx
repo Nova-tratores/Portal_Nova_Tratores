@@ -224,7 +224,7 @@ export default function RecebimentosPage() {
   const lista = data?.recebimentos || [];
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Recebimentos (Omie)</h1>
@@ -304,7 +304,7 @@ export default function RecebimentosPage() {
       </div>
 
       {data && data.totalPaginas > 1 && (
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', marginTop: 18, alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center', marginTop: 18, alignItems: 'center' }}>
           <button onClick={() => setPagina((p) => Math.max(1, p - 1))} disabled={pagina <= 1} style={pgBtn(pagina <= 1)}>←</button>
           <span style={{ fontSize: 12, color: '#888' }}>Página {pagina} de {data.totalPaginas} ({data.total} itens)</span>
           <button onClick={() => setPagina((p) => p + 1)} disabled={pagina >= data.totalPaginas} style={pgBtn(pagina >= data.totalPaginas)}>→</button>
@@ -397,7 +397,7 @@ function ConcluirModal({ receb, contaParam, onClose, onAbrirProduto, onSucesso, 
           </div>
         ))}
       </div>
-      <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
         <button onClick={onClose} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600, background: '#f1f1f1', color: '#666' }}>Cancelar</button>
         <button onClick={confirmar} disabled={enviando} style={{ padding: '9px 20px', borderRadius: 10, border: 'none', cursor: enviando ? 'wait' : 'pointer', fontSize: 13, fontWeight: 600, background: '#16a34a', color: '#fff' }}>{enviando ? 'Concluindo…' : 'Concluir no Omie'}</button>
       </div>
@@ -453,7 +453,7 @@ function ProdutoModal({ idProd, contaUp, onClose, onMsg }: { idProd: string; con
             CMC: {fmtRS(e.cmc as number)}
           </div>
           <label style={lbl}>Preço de venda (atualiza no Omie)</label>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
             <input type="number" step="0.01" min="0" value={preco} onChange={(ev) => setPreco(ev.target.value)} style={{ flex: 1, padding: '10px 14px', border: '1px solid #e0e0e0', borderRadius: 10, fontSize: 14 }} />
             <button onClick={salvar} style={{ ...btnSm, background: '#16a34a', color: '#fff', padding: '11px 18px' }}>Salvar</button>
           </div>
@@ -466,7 +466,7 @@ function ProdutoModal({ idProd, contaUp, onClose, onMsg }: { idProd: string; con
 function ModalShell({ children, onClose, z = 100 }: { children: React.ReactNode; onClose: () => void; z?: number }) {
   return (
     <div onClick={(e) => { if (e.target === e.currentTarget) onClose(); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: z, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 14, padding: 24, maxWidth: 560, width: '95%', maxHeight: '85vh', overflowY: 'auto', position: 'relative', boxShadow: '0 8px 30px rgba(0,0,0,.12)' }}>
+      <div className="est-modal" style={{ background: '#fff', borderRadius: 14, padding: 24, maxWidth: 560, width: '95%', maxHeight: '85vh', overflowY: 'auto', position: 'relative', boxShadow: '0 8px 30px rgba(0,0,0,.12)' }}>
         <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 16, cursor: 'pointer', fontSize: '1.3rem', color: '#bbb', background: 'none', border: 'none' }}>×</button>
         {children}
       </div>

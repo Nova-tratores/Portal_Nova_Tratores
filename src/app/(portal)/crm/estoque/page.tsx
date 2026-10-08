@@ -2,6 +2,7 @@
 // Estoque de Desova — ordenado pela dor: o chassi mais velho primeiro,
 // com a sangria por dia visível. É a tela que muda a conversa de desconto.
 import Ideia from '@/components/crm/Ideia';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import {
   MAQUINAS, diasDesde, faixaDe, custoPatio, custoTotal, pisoVendedor,
   sangriaDia, brl, brl2, TAXA_PATIO_MES,
@@ -9,10 +10,12 @@ import {
 
 export default function EstoquePage() {
   const linhas = [...MAQUINAS].sort((a, b) => diasDesde(b.entradaPatio) - diasDesde(a.entradaPatio));
+  const isMobile = useIsMobile();
+  const stickyCol: React.CSSProperties = isMobile ? { position: 'sticky', left: 0, zIndex: 1, background: 'var(--portal-bg-card)' } : {};
   const sangriaTotal = linhas.filter((m) => m.status !== 'vendida').reduce((s, m) => s + sangriaDia(m), 0);
 
   return (
-    <div style={{ maxWidth: 1060, margin: '0 auto', padding: '20px 16px 60px', color: 'var(--portal-text)' }}>
+    <div style={{ maxWidth: 1060, margin: '0 auto', padding: isMobile ? '14px 4px 40px' : '20px 16px 60px', color: 'var(--portal-text)' }}>
       <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 10 }}>Estoque de Desova</h1>
 
       <Ideia titulo="A ideia desta tela">
@@ -24,12 +27,12 @@ export default function EstoquePage() {
         Hoje o pátio desta demonstração sangra <b style={{ color: '#dc2626' }}>{brl2(sangriaTotal)}/dia</b>.
       </Ideia>
 
-      <div style={{ overflowX: 'auto', border: '1px solid var(--portal-border)', borderRadius: 10 }}>
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid var(--portal-border)', borderRadius: 10 }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 900 }}>
           <thead>
             <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
-              {['Chassi / Modelo', 'Dias de pátio', 'Faixa', 'Sangria/dia', 'Custo congelado', '+ Pátio acumulado', 'Custo real hoje', 'Piso do vendedor', 'Tabela', 'Margem potencial', 'Comissão'].map((h) => (
-                <th key={h} style={{ padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--portal-text-secondary)', whiteSpace: 'nowrap' }}>
+              {['Chassi / Modelo', 'Dias de pátio', 'Faixa', 'Sangria/dia', 'Custo congelado', '+ Pátio acumulado', 'Custo real hoje', 'Piso do vendedor', 'Tabela', 'Margem potencial', 'Comissão'].map((h, hi) => (
+                <th key={h} style={{ ...(hi === 0 ? { ...stickyCol, background: isMobile ? 'var(--portal-bg-secondary)' : undefined } : {}), padding: '10px 12px', fontSize: 11.5, textTransform: 'uppercase', letterSpacing: 0.4, color: 'var(--portal-text-secondary)', whiteSpace: 'nowrap' }}>
                   {h}
                 </th>
               ))}
@@ -45,7 +48,7 @@ export default function EstoquePage() {
               const margem = m.valorTabela - total;
               return (
                 <tr key={m.id} style={{ borderTop: '1px solid var(--portal-border)' }}>
-                  <td style={{ padding: '10px 12px' }}>
+                  <td style={{ ...stickyCol, padding: '10px 12px', ...(isMobile ? { minWidth: 140 } : {}) }}>
                     <b>{m.modelo}</b>
                     <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)' }}>
                       {m.chassi} · {m.condicao}{m.status === 'reservada' ? ' · RESERVADA' : ''}

@@ -228,8 +228,9 @@ export default function UnidadesRastreioPage() {
   return (
     <div className="pecas-skin">
     <PecasNav />
-    <div style={{ padding: '18px 22px', maxWidth: 1200, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+    <style>{'@media (max-width: 768px) { .ppv-x-unid { padding: 12px 10px !important; } }'}</style>
+    <div className="ppv-x-unid" style={{ padding: '18px 22px', maxWidth: 1200, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 14 }}>
         <Link href="/ppv" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
           <ArrowLeft size={15} /> PPV
         </Link>
@@ -258,7 +259,7 @@ export default function UnidadesRastreioPage() {
           }}>{a.rotulo}</button>
         ))}
         {aba !== 'conferencia' && (
-          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar código, UN-, nome ou OS…" style={{ ...selStyle, marginLeft: 'auto', minWidth: 230 }} />
+          <input value={q} onChange={e => setQ(e.target.value)} placeholder="Buscar código, UN-, nome ou OS…" style={{ ...selStyle, marginLeft: 'auto', minWidth: 'min(230px, 100%)' }} />
         )}
       </div>
 
@@ -288,7 +289,7 @@ export default function UnidadesRastreioPage() {
       {/* Conferência liberado × faturado */}
       {aba === 'conferencia' && (
         <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+          <table style={{ width: '100%', minWidth: 760, borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
                 <th style={{ padding: '8px 10px', width: 110 }}>PPV</th>
@@ -341,7 +342,7 @@ export default function UnidadesRastreioPage() {
       {/* Tabela */}
       {aba !== 'conferencia' && (
       <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+        <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
               {aba === 'pendentes' && podeLiberar && <th style={{ padding: '8px 8px', width: 26 }} />}

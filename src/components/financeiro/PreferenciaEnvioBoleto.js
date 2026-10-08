@@ -330,7 +330,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
     const listaEmails = splitEmails(pref.email)
     return (
       <div style={wrap}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={titulo}><Send size={15} /> Preferência de envio do boleto</div>
           <button type="button" onClick={() => setEditando(true)} title="Editar preferência" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid var(--portal-border)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: 'var(--portal-text-secondary)', fontSize: '12px', fontWeight: 600 }}>
             <Pencil size={13} /> Editar
@@ -384,7 +384,7 @@ export default function PreferenciaEnvioBoleto({ card, cnpj: cnpjProp, nome: nom
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {emails.map((em, i) => (
             <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-              <input type="email" value={em} onChange={e => { const arr = [...emails]; arr[i] = e.target.value; setEmails(arr) }} placeholder="email@cliente.com" style={inputBase} />
+              <input type="email" value={em} onChange={e => { const arr = [...emails]; arr[i] = e.target.value; setEmails(arr) }} placeholder="email@cliente.com" style={{ ...inputBase, flex: 1, minWidth: 0 }} />
               {emails.length > 1 && (
                 <button type="button" onClick={() => setEmails(emails.filter((_, j) => j !== i))} title="Remover" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 40, height: 40, borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: '#dc2626', cursor: 'pointer', flexShrink: 0 }}><X size={16} /></button>
               )}

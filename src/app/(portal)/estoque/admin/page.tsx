@@ -125,7 +125,7 @@ export default function AdminEstoquePage() {
   if (!permLoading && userProfile && !pode('estoque', 'admin')) return <SemPermissao />;
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 900, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Admin Estoque</h1>
@@ -152,7 +152,7 @@ export default function AdminEstoquePage() {
             <input value={c.palavras_chave} placeholder={c.slug === 'pecas_diversas' ? 'palavras,chave (opcional)' : 'palavras,chave'} onChange={(e) => setCats((p) => p.map((x, j) => (j === i ? { ...x, palavras_chave: e.target.value } : x)))} style={{ ...inp, flex: 2 }} />
           </div>
         ))}
-        <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
           <button onClick={salvarCats} disabled={salvandoCat} style={btn(salvandoCat)}>{salvandoCat ? 'Salvando…' : 'Salvar categorias'}</button>
         </div>
         {catMsg && <div style={{ marginTop: 12, fontSize: 13, color: catMsg.startsWith('Erro') ? '#dc2626' : '#16a34a' }}>{catMsg}</div>}

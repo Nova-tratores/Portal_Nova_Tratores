@@ -138,7 +138,7 @@ export default function LembretesPanel({
       }}
     >
       <div style={{
-        width: '440px', height: '100vh', background: 'var(--portal-bg-card)',
+        width: '440px', maxWidth: '100vw', height: '100%', background: 'var(--portal-bg-card)',
         boxShadow: '-8px 0 30px rgba(0,0,0,0.1)',
         display: 'flex', flexDirection: 'column',
         animation: 'slideInRight 0.3s ease-out'
@@ -207,11 +207,11 @@ export default function LembretesPanel({
         {showForm && (
           <div style={{
             padding: '20px 24px', borderBottom: '1px solid var(--portal-border)',
-            background: 'var(--portal-bg-secondary)', flexShrink: 0
+            background: 'var(--portal-bg-secondary)', flexShrink: 0, maxHeight: '60vh', overflowY: 'auto'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <span style={{ fontSize: '13px', fontWeight: '700', color: 'var(--portal-text)', letterSpacing: '0.5px' }}>NOVO LEMBRETE</span>
-              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}><X size={16} /></button>
+              <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={16} /></button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>

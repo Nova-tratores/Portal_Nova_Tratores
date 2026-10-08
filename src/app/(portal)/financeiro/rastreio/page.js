@@ -59,7 +59,7 @@ function Secao({ titulo, itens, children }) {
   )
 }
 
-const linha = { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', fontSize: '13px', color: '#334155', padding: '7px 0', borderBottom: '1px dashed #f1f4f8' }
+const linha = { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap', overflowWrap: 'anywhere', fontSize: '13px', color: '#334155', padding: '7px 0', borderBottom: '1px dashed #f1f4f8' }
 const chip = (bg, cor) => ({ fontSize: '10.5px', fontWeight: 800, padding: '2px 9px', borderRadius: '999px', background: bg, color: cor, whiteSpace: 'nowrap' })
 
 // refKeys de TODOS os docs da ficha — o diálogo de vincular não deve oferecer
@@ -103,7 +103,7 @@ function FichaDocumento({ ficha, onMudou }) {
     <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', overflow: 'hidden', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' }}>
       {/* cabeçalho */}
       <div style={{ padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', background: 'linear-gradient(135deg,#f8fafc,#fff)' }}>
-        <div style={{ flex: 1, minWidth: '220px' }}>
+        <div style={{ flex: '1 1 220px', minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', flexWrap: 'wrap' }}>
             <span style={{ fontSize: '18px', fontWeight: 800, color: '#0f172a' }}>
               {ficha.numeroNf ? `NF ${ficha.numeroNf}` : rep?.label || 'Documento'}
@@ -334,7 +334,7 @@ function RastreioInner() {
       <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', padding: '18px 20px', marginBottom: '18px', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' }}>
         <label style={{ fontSize: '10px', color: '#9e9e9e', letterSpacing: '1px', marginLeft: '5px', textTransform: 'uppercase' }}>Rastrear documento</label>
         <div style={{ display: 'flex', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: '1 1 380px' }}>
+          <div style={{ position: 'relative', flex: '1 1 380px', minWidth: 0 }}>
             <ScanSearch size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#9e9e9e' }} />
             <input
               value={termo}
@@ -346,7 +346,7 @@ function RastreioInner() {
             />
           </div>
           <button onClick={submeter} disabled={carregando || termo.trim().length < 2}
-            style={{ padding: '14px 26px', borderRadius: '12px', border: 'none', background: carregando || termo.trim().length < 2 ? '#c7d2fe' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            style={{ padding: '14px 26px', borderRadius: '12px', border: 'none', justifyContent: 'center', flex: '0 1 auto', background: carregando || termo.trim().length < 2 ? '#c7d2fe' : '#2563eb', color: '#fff', fontSize: '13px', fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' }}>
             {carregando ? <Loader2 size={16} className="animate-spin" /> : <ScanSearch size={16} />} RASTREAR
           </button>
         </div>
@@ -368,13 +368,13 @@ function RastreioInner() {
       ))}
 
       {carregando && (
-        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', padding: '60px', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', padding: 'clamp(28px, 6vw, 60px) clamp(16px, 6vw, 60px)', textAlign: 'center', color: '#94a3b8', fontSize: '14px' }}>
           <Loader2 size={18} className="animate-spin" style={{ verticalAlign: '-4px', marginRight: '8px' }} /> Rastreando o documento nas contas, requisições, notas e boletos…
         </div>
       )}
 
       {!carregando && resposta && resposta.fichas.length === 0 && (
-        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', padding: '60px', textAlign: 'center', color: '#9e9e9e', fontSize: '15px' }}>
+        <div style={{ background: '#fff', borderRadius: '16px', border: '1px solid #e9ecf1', padding: 'clamp(28px, 6vw, 60px) clamp(16px, 6vw, 60px)', textAlign: 'center', color: '#9e9e9e', fontSize: '15px' }}>
           Nada encontrado pra “{resposta.termo?.bruto}”. Tente o nº da nota sem zeros à esquerda, o #id da requisição ou o nome do fornecedor.
         </div>
       )}

@@ -217,7 +217,7 @@ export default function AgendaTecnicosPage() {
 
   return (
     <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24, flexWrap: 'wrap', gap: 12 }}>
         <h1 style={{ fontSize: 22, fontWeight: 700, color: '#1E3A5F', margin: 0 }}>
           <Calendar size={22} style={{ verticalAlign: 'middle', marginRight: 8 }} />
           Agenda dos Técnicos
@@ -384,10 +384,10 @@ export default function AgendaTecnicosPage() {
       {showForm && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16,
         }}>
           <div style={{
-            background: '#fff', borderRadius: 16, padding: 24, width: '100%', maxWidth: 480,
+            background: '#fff', borderRadius: 16, padding: 'clamp(16px, 4vw, 24px)', width: '100%', maxWidth: 480,
             maxHeight: '90vh', overflowY: 'auto',
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>

@@ -1,4 +1,5 @@
 import { ContaProvider } from '@/components/estoque/ContaProvider';
+import EstResponsiveStyles from '@/components/estoque/ResponsiveStyles';
 import AjustesNav from './AjustesNav';
 
 // Layout do módulo Ajustes (ex-"Omie CMC Garantia" / back.novatratores.com):
@@ -8,6 +9,7 @@ import AjustesNav from './AjustesNav';
 export default function AjustesLayout({ children }: { children: React.ReactNode }) {
   return (
     <ContaProvider>
+      <EstResponsiveStyles />
       <AjustesNav />
       {children}
     </ContaProvider>

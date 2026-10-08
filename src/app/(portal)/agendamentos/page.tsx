@@ -139,7 +139,7 @@ function Secao({ fonte, runs }: { fonte: FonteCron; runs: RunsMap }) {
       {/* Cabeçalho da seção */}
       <div
         style={{
-          display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px',
+          display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, padding: '14px 16px',
           background: cor.bg, borderBottom: `1px solid ${cor.border}`, color: cor.fg,
         }}
       >
@@ -163,6 +163,9 @@ function Secao({ fonte, runs }: { fonte: FonteCron; runs: RunsMap }) {
         </div>
       )}
 
+      {/* Tabela: largura mínima das colunas — em tela estreita rola DENTRO da seção */}
+      <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+      <div style={{ minWidth: 1040 }}>
       {/* Cabeçalho das colunas */}
       <div
         style={{
@@ -182,6 +185,8 @@ function Secao({ fonte, runs }: { fonte: FonteCron; runs: RunsMap }) {
       {itens.map((a) => (
         <Linha key={`${a.fonte}-${a.nome}-${a.arquivo}`} a={a} run={runs[a.arquivo]} />
       ))}
+      </div>
+      </div>
     </div>
   )
 }
@@ -241,11 +246,11 @@ export default function AgendamentosPage() {
   if (userProfile && !isAdmin) return <SemPermissao />
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
+    <div style={{ padding: '24px clamp(12px, 3vw, 32px)', maxWidth: 1200, margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: 20, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <div>
-          <h2 style={{ fontSize: 28, fontWeight: 800, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h2 style={{ fontSize: 'clamp(22px, 5vw, 28px)', fontWeight: 800, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Clock size={26} style={{ color: '#dc2626' }} />
             Sincronizações &amp; Agendamentos
           </h2>

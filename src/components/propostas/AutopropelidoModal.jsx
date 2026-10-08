@@ -46,12 +46,12 @@ export default function AutopropelidoModal({ onClose }) {
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[5000]">
       <div className="bg-white w-[95%] max-w-[1100px] h-[90vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden">
-        <div className="px-8 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
+        <div className="px-4 md:px-8 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
           <h2 className="font-black text-zinc-900">CADASTRAR NOVO AUTOPROPELIDO</h2>
           <button onClick={onClose} className="font-black text-zinc-500 hover:text-red-600 bg-transparent border-none cursor-pointer">FECHAR [X]</button>
         </div>
 
-        <div className="px-8 py-6 overflow-y-auto flex-1">
+        <div className="px-4 md:px-8 py-6 overflow-y-auto flex-1">
           <form onSubmit={handleSave} className="flex flex-col gap-5">
             <div className="text-xs font-black text-red-600 uppercase">I. IDENTIFICACAO E FOTO</div>
             <div className="text-center">
@@ -71,7 +71,7 @@ export default function AutopropelidoModal({ onClose }) {
                 <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>MARCA</label><input required value={formData.marca} onChange={e => setFormData({ ...formData, marca: e.target.value })} className={inputStyle} placeholder="Ex: KUHN" /></div>
                 <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>MODELO</label><input required value={formData.modelo} onChange={e => setFormData({ ...formData, modelo: e.target.value })} className={inputStyle} placeholder="Ex: STRONGER 3200 HD" /></div>
               </div>
-              <div className="flex">
+              <div className="flex flex-wrap">
                 <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>ANO</label><input value={formData.ano} onChange={e => setFormData({ ...formData, ano: e.target.value })} className={inputStyle} placeholder="Ex: 2026" /></div>
                 <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>FINAME / NCM</label><input value={formData['finame/ncm']} onChange={e => setFormData({ ...formData, 'finame/ncm': e.target.value })} className={inputStyle} placeholder="Ex: 03540770 / 84244900" /></div>
               </div>
@@ -79,7 +79,7 @@ export default function AutopropelidoModal({ onClose }) {
 
             <div className="text-xs font-black text-red-600 uppercase">II. MOTOR E TRANSMISSAO</div>
             <div className="border border-zinc-200 bg-white rounded-xl overflow-hidden">
-              <div className="flex">
+              <div className="flex flex-wrap">
                 <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>MOTOR</label><input value={formData.motor} onChange={e => setFormData({ ...formData, motor: e.target.value })} className={inputStyle} placeholder="Ex: MWM de 280 cv" /></div>
                 <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>TRANSMISSAO</label><input value={formData.transmissao} onChange={e => setFormData({ ...formData, transmissao: e.target.value })} className={inputStyle} placeholder="Ex: Eletronica hidrostatica - 4WD" /></div>
                 <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>TANQUE DE COMBUSTIVEL (L)</label><input value={formData.tanque_comb} onChange={e => setFormData({ ...formData, tanque_comb: e.target.value })} className={inputStyle} placeholder="Ex: 400" /></div>
@@ -93,7 +93,7 @@ export default function AutopropelidoModal({ onClose }) {
                 <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>BARRA DE PULVERIZACAO (M)</label><input value={formData.barra_pulv} onChange={e => setFormData({ ...formData, barra_pulv: e.target.value })} className={inputStyle} placeholder="Ex: 32M" /></div>
                 <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>NUMERO DE SECOES</label><input value={formData.num_secoes} onChange={e => setFormData({ ...formData, num_secoes: e.target.value })} className={inputStyle} placeholder="Ex: 19 - Air System" /></div>
               </div>
-              <div className="flex">
+              <div className="flex flex-wrap">
                 <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>ESPACAMENTO ENTRE BICOS (CM)</label><input value={formData.espac_bicos} onChange={e => setFormData({ ...formData, espac_bicos: e.target.value })} className={inputStyle} placeholder="Ex: 50" /></div>
                 <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>VAO LIVRE (M)</label><input value={formData.vao_livre} onChange={e => setFormData({ ...formData, vao_livre: e.target.value })} className={inputStyle} placeholder="Ex: 1,8" /></div>
                 <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>BITOLA (M)</label><input value={formData.bitola} onChange={e => setFormData({ ...formData, bitola: e.target.value })} className={inputStyle} placeholder="Ex: Ajustavel 2,80 a 3,50" /></div>
@@ -102,7 +102,7 @@ export default function AutopropelidoModal({ onClose }) {
 
             <div className="text-xs font-black text-red-600 uppercase">IV. TECNOLOGIA</div>
             <div className="border border-zinc-200 bg-white rounded-xl overflow-hidden">
-              <div className="flex">
+              <div className="flex flex-wrap">
                 <div className="flex-1 p-3 border-r border-zinc-200 flex flex-col"><label className={labelStyle}>TECNOLOGIA</label><input value={formData.tecnologia} onChange={e => setFormData({ ...formData, tecnologia: e.target.value })} className={inputStyle} placeholder="Ex: TRIMBLE 1060" /></div>
                 <div className="flex-1 p-3 flex flex-col"><label className={labelStyle}>TELEMETRIA</label><input value={formData.telemetria} onChange={e => setFormData({ ...formData, telemetria: e.target.value })} className={inputStyle} placeholder="Ex: Liberacao por 1 ano gratis" /></div>
               </div>
@@ -110,7 +110,7 @@ export default function AutopropelidoModal({ onClose }) {
           </form>
         </div>
 
-        <div className="px-8 py-5 bg-white border-t border-zinc-200">
+        <div className="px-4 md:px-8 py-5 bg-white border-t border-zinc-200">
           <button onClick={handleSave} disabled={loading} className="w-full py-4 bg-red-600 text-white border-none rounded-xl font-black cursor-pointer text-base hover:bg-red-700 transition-colors disabled:opacity-50">{loading ? 'CADASTRANDO...' : 'SALVAR AUTOPROPELIDO NO SISTEMA'}</button>
         </div>
       </div>

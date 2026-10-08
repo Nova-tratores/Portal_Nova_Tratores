@@ -147,7 +147,7 @@ export default function HomeDreFinanceiro() {
     <>
       <div className="flex items-baseline justify-between mb-5 flex-wrap gap-2">
         <div>
-          <h1 className="text-4xl font-extrabold text-slate-800">Resumo Executivo</h1>
+          <h1 className="text-2xl sm:text-4xl font-extrabold text-slate-800">Resumo Executivo</h1>
           <p className="text-sm text-slate-500 mt-1" id="home-meta">{meta}</p>
         </div>
         <button
@@ -165,7 +165,7 @@ export default function HomeDreFinanceiro() {
       {saude && Array.isArray(saude.sinais) && saude.sinais.length > 0 && (
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-3 flex-wrap">
-            <h2 className="text-xl font-extrabold text-slate-700 uppercase tracking-wide">Saude Financeira</h2>
+            <h2 className="text-lg sm:text-xl font-extrabold text-slate-700 uppercase tracking-wide">Saude Financeira</h2>
             {saude.indice && <StatusResumo indice={saude.indice} />}
             <span className="text-sm text-slate-400">semaforo de deterioracao · caixa primeiro · tendencia dos ult. 3 meses</span>
           </div>
@@ -183,7 +183,7 @@ export default function HomeDreFinanceiro() {
         {podeVerTela('/dre-financeiro/patrimonio') && (
         <Link href="/dre-financeiro/patrimonio" className="bg-sky-100 border-2 border-sky-300 rounded-xl p-5 hover:border-sky-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-sky-900 font-extrabold">Patrimonio Operacional</div>
-          <div className="text-5xl font-extrabold text-sky-900 mt-2" id="kpi-patrimonio">
+          <div className="text-4xl sm:text-5xl font-extrabold text-sky-900 mt-2 break-words" id="kpi-patrimonio">
             {d.patrimonio ? fmtBRL(d.patrimonio.operacional) : '--'}
           </div>
           <div className="text-base text-sky-800 mt-3" id="kpi-patrimonio-sub">
@@ -196,7 +196,7 @@ export default function HomeDreFinanceiro() {
         {podeVerTela('/dre-financeiro/ciclo-caixa') && (
         <Link href="/dre-financeiro/ciclo-caixa" className="bg-violet-100 border-2 border-violet-300 rounded-xl p-5 hover:border-violet-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-violet-900 font-extrabold">Ciclo de Caixa (CCC)</div>
-          <div className={'text-5xl font-extrabold mt-2 ' + cccCor} id="kpi-ccc">
+          <div className={'text-4xl sm:text-5xl font-extrabold mt-2 break-words ' + cccCor} id="kpi-ccc">
             {d.ciclo ? fmtDias(d.ciclo.ccc) : '--'}
           </div>
           <div className="text-base text-violet-800 mt-3" id="kpi-ccc-sub">
@@ -211,7 +211,7 @@ export default function HomeDreFinanceiro() {
           <div className="text-sm uppercase tracking-wide text-emerald-900 font-extrabold">
             Resultado <span id="kpi-resultado-mes-rotulo">{d.mes_atual ? rotMes(d.mes_atual) : 'mes'}</span>
           </div>
-          <div className={'text-5xl font-extrabold mt-2 ' + resCor} id="kpi-resultado">
+          <div className={'text-4xl sm:text-5xl font-extrabold mt-2 break-words ' + resCor} id="kpi-resultado">
             {rMes !== null ? fmtBRL(rMes) : '--'}
           </div>
           <div className="text-base text-emerald-800 mt-3" id="kpi-resultado-sub">
@@ -230,7 +230,7 @@ export default function HomeDreFinanceiro() {
         {podeVerTela('/dre-financeiro/aderencia') && (
         <Link href="/dre-financeiro/aderencia" className="bg-rose-100 border-2 border-rose-300 rounded-xl p-5 hover:border-rose-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-rose-900 font-extrabold">Pontualidade ultimos 30d</div>
-          <div className={'text-5xl font-extrabold mt-2 ' + aderCor} id="kpi-aderencia">
+          <div className={'text-4xl sm:text-5xl font-extrabold mt-2 break-words ' + aderCor} id="kpi-aderencia">
             {(ader !== null && ader !== undefined) ? fmtPct(ader) : '--'}
           </div>
           <div className="text-base text-rose-800 mt-3">% pago no prazo (contas a pagar)</div>
@@ -241,7 +241,7 @@ export default function HomeDreFinanceiro() {
         {podeVerTela('/dre-financeiro/rentabilidade?tab=capital') && (
         <Link href="/dre-financeiro/rentabilidade?tab=capital" className="bg-amber-100 border-2 border-amber-300 rounded-xl p-5 hover:border-amber-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-amber-900 font-extrabold">Capital Parado em Estoque</div>
-          <div className="text-5xl font-extrabold text-amber-900 mt-2" id="kpi-capital">
+          <div className="text-4xl sm:text-5xl font-extrabold text-amber-900 mt-2 break-words" id="kpi-capital">
             {d.capital_parado ? fmtBRL(d.capital_parado.valor) : '--'}
           </div>
           <div className="text-base text-amber-800 mt-3" id="kpi-capital-sub">
@@ -257,7 +257,7 @@ export default function HomeDreFinanceiro() {
         {podeVerTela('/dre-financeiro/calendario') && (
         <Link href="/dre-financeiro/calendario" className="bg-teal-100 border-2 border-teal-300 rounded-xl p-5 hover:border-teal-500 hover:shadow-lg transition block">
           <div className="text-sm uppercase tracking-wide text-teal-900 font-extrabold">Vencimentos proximos 7 dias</div>
-          <div className="text-3xl font-extrabold mt-2 flex gap-3 items-baseline flex-wrap">
+          <div className="text-2xl sm:text-3xl font-extrabold mt-2 flex gap-3 items-baseline flex-wrap">
             <span className="text-emerald-700" id="kpi-venc-receber">{venc ? '+' + fmtBRL(venc.a_receber) : '--'}</span>
             <span className="text-base text-teal-600">·</span>
             <span className="text-red-700" id="kpi-venc-pagar">{venc ? '−' + fmtBRL(venc.a_pagar) : '--'}</span>
@@ -271,110 +271,110 @@ export default function HomeDreFinanceiro() {
       </div>
 
       {/* Atalhos por categoria (cards coloridos pra cada pagina) */}
-      <div id="home-todas-paginas" className="mb-3 flex items-baseline justify-between">
+      <div id="home-todas-paginas" className="mb-3 flex items-baseline justify-between flex-wrap gap-x-3 gap-y-1">
         <h2 className="text-xl font-extrabold text-slate-700 uppercase tracking-wide">Todas as paginas</h2>
         <span className="text-sm text-slate-500">Atalhos rapidos por categoria</span>
       </div>
 
       {/* Categoria: Caixa & Vencimentos */}
-      <div className="mb-2 mt-2 flex items-baseline gap-2">
+      <div className="mb-2 mt-2 flex items-baseline gap-x-2 flex-wrap">
         <h3 className="text-lg font-extrabold text-slate-700 uppercase tracking-wide">Caixa &amp; Vencimentos</h3>
         <span className="text-sm text-slate-400">quando o dinheiro entra e sai</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-        <Link href="/dre-financeiro/calendario" className="bg-blue-100 border-2 border-blue-300 hover:border-blue-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/calendario" className="bg-blue-100 border-2 border-blue-300 hover:border-blue-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-blue-900">Calendario</div>
           <div className="text-sm text-blue-800 mt-1">Vencimentos mes a mes</div>
         </Link>
-        <Link href="/dre-financeiro/curva-saldo" className="bg-cyan-100 border-2 border-cyan-300 hover:border-cyan-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/curva-saldo" className="bg-cyan-100 border-2 border-cyan-300 hover:border-cyan-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-cyan-900">Curva de Saldo</div>
           <div className="text-sm text-cyan-800 mt-1">Projecao 30-365 dias</div>
         </Link>
-        <Link href="/dre-financeiro/fluxo" className="bg-orange-100 border-2 border-orange-300 hover:border-orange-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/fluxo" className="bg-orange-100 border-2 border-orange-300 hover:border-orange-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-orange-900">Fluxo (Sankey)</div>
           <div className="text-sm text-orange-800 mt-1">Caminho do dinheiro grupo→cat→terceiro</div>
         </Link>
-        <Link href="/dre-financeiro/fluxo?modo=treemap" className="bg-yellow-100 border-2 border-yellow-300 hover:border-yellow-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/fluxo?modo=treemap" className="bg-yellow-100 border-2 border-yellow-300 hover:border-yellow-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-yellow-900">Fluxo (Treemap)</div>
           <div className="text-sm text-yellow-800 mt-1">Composicao por categoria</div>
         </Link>
       </div>
 
       {/* Categoria: Prazos & Eficiencia */}
-      <div className="mb-2 mt-2 flex items-baseline gap-2">
+      <div className="mb-2 mt-2 flex items-baseline gap-x-2 flex-wrap">
         <h3 className="text-lg font-extrabold text-slate-700 uppercase tracking-wide">Prazos &amp; Eficiencia</h3>
         <span className="text-sm text-slate-400">prazos de giro e cumprimento</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-        <Link href="/dre-financeiro/ciclo-caixa" className="bg-violet-100 border-2 border-violet-300 hover:border-violet-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/ciclo-caixa" className="bg-violet-100 border-2 border-violet-300 hover:border-violet-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-violet-900">Ciclo de Caixa</div>
           <div className="text-sm text-violet-800 mt-1">DSO + DIO − DPO</div>
         </Link>
-        <Link href="/dre-financeiro/aderencia" className="bg-pink-100 border-2 border-pink-300 hover:border-pink-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/aderencia" className="bg-pink-100 border-2 border-pink-300 hover:border-pink-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-pink-900">Pontualidade</div>
           <div className="text-sm text-pink-800 mt-1">Realizado vs previsto</div>
         </Link>
       </div>
 
       {/* Categoria: Resultado (DRE) */}
-      <div className="mb-2 mt-2 flex items-baseline gap-2">
+      <div className="mb-2 mt-2 flex items-baseline gap-x-2 flex-wrap">
         <h3 className="text-lg font-extrabold text-slate-700 uppercase tracking-wide">Resultado (DRE)</h3>
         <span className="text-sm text-slate-400">receita, despesas e lucro</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-        <Link href="/dre-financeiro/dre" className="bg-emerald-100 border-2 border-emerald-300 hover:border-emerald-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/dre" className="bg-emerald-100 border-2 border-emerald-300 hover:border-emerald-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-emerald-900">DRE</div>
           <div className="text-sm text-emerald-800 mt-1">Resultado consolidado</div>
         </Link>
-        <Link href="/dre-financeiro/analise-dre" className="bg-fuchsia-100 border-2 border-fuchsia-300 hover:border-fuchsia-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/analise-dre" className="bg-fuchsia-100 border-2 border-fuchsia-300 hover:border-fuchsia-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-fuchsia-900">Analise DRE</div>
           <div className="text-sm text-fuchsia-800 mt-1">Insights MoM/YoY + atipicos</div>
         </Link>
       </div>
 
       {/* Categoria: Patrimonio & Rentabilidade */}
-      <div className="mb-2 mt-2 flex items-baseline gap-2">
+      <div className="mb-2 mt-2 flex items-baseline gap-x-2 flex-wrap">
         <h3 className="text-lg font-extrabold text-slate-700 uppercase tracking-wide">Patrimonio &amp; Rentabilidade</h3>
         <span className="text-sm text-slate-400">ativos, margem e custo de capital</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
-        <Link href="/dre-financeiro/patrimonio" className="bg-sky-100 border-2 border-sky-300 hover:border-sky-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/patrimonio" className="bg-sky-100 border-2 border-sky-300 hover:border-sky-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-sky-900">Patrimonio</div>
           <div className="text-sm text-sky-800 mt-1">Balanco + cobertura</div>
         </Link>
-        <Link href="/dre-financeiro/rentabilidade?tab=margens" className="bg-lime-100 border-2 border-lime-300 hover:border-lime-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/rentabilidade?tab=margens" className="bg-lime-100 border-2 border-lime-300 hover:border-lime-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-lime-900">Margens por venda</div>
           <div className="text-sm text-lime-800 mt-1">Margem real (CMV + capital)</div>
         </Link>
-        <Link href="/dre-financeiro/rentabilidade?tab=capital" className="bg-amber-100 border-2 border-amber-300 hover:border-amber-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/rentabilidade?tab=capital" className="bg-amber-100 border-2 border-amber-300 hover:border-amber-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-amber-900">Capital parado</div>
           <div className="text-sm text-amber-800 mt-1">Estoque sem giro + SELIC</div>
         </Link>
       </div>
 
       {/* Categoria: Comercial */}
-      <div className="mb-2 mt-2 flex items-baseline gap-2">
+      <div className="mb-2 mt-2 flex items-baseline gap-x-2 flex-wrap">
         <h3 className="text-lg font-extrabold text-slate-700 uppercase tracking-wide">Comercial</h3>
         <span className="text-sm text-slate-400">vendas e clientes</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        <Link href="/dre-financeiro/vendas-modelo" className="bg-fuchsia-100 border-2 border-fuchsia-300 hover:border-fuchsia-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/vendas-modelo" className="bg-fuchsia-100 border-2 border-fuchsia-300 hover:border-fuchsia-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-fuchsia-900">Vendas/Modelo</div>
           <div className="text-sm text-fuchsia-800 mt-1">Serie mensal por modelo</div>
         </Link>
-        <Link href="/dre-financeiro/clientes" className="bg-rose-100 border-2 border-rose-300 hover:border-rose-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/clientes" className="bg-rose-100 border-2 border-rose-300 hover:border-rose-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-rose-900">Clientes</div>
           <div className="text-sm text-rose-800 mt-1">ABC Pareto + inadimplencia</div>
         </Link>
       </div>
 
       {/* Categoria: Qualidade dos dados */}
-      <div className="mb-2 mt-6 flex items-baseline gap-2">
+      <div className="mb-2 mt-6 flex items-baseline gap-x-2 flex-wrap">
         <h3 className="text-lg font-extrabold text-slate-700 uppercase tracking-wide">Qualidade dos Dados</h3>
         <span className="text-sm text-slate-400">robos que conferem os lancamentos no Omie</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-        <Link href="/dre-financeiro/monitor" className="bg-red-100 border-2 border-red-300 hover:border-red-500 hover:shadow rounded-lg p-4 transition">
+        <Link href="/dre-financeiro/monitor" className="bg-red-100 border-2 border-red-300 hover:border-red-500 hover:shadow rounded-lg p-3 sm:p-4 transition min-w-0 break-words">
           <div className="text-base font-extrabold text-red-900">Monitor de Qualidade</div>
           <div className="text-sm text-red-800 mt-1">Anomalias por modulo (categoria, custo, cliente...)</div>
         </Link>

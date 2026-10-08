@@ -260,7 +260,7 @@ function PendenciasInner() {
   };
 
   return (
-    <div style={{ padding: 'clamp(12px, 3vw, 28px)', maxWidth: 860, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(12px, 3vw, 28px)', maxWidth: 860, margin: '0 auto', boxSizing: 'border-box', width: '100%' }}>
       {/* topo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <Wrench size={20} color="#1e40af" />
@@ -321,7 +321,7 @@ function PendenciasInner() {
             <div style={{ position: 'sticky', top: 0, zIndex: 5, display: 'flex', alignItems: 'center', gap: 8, padding: '14px 16px', background: '#1e40af', color: '#fff' }}>
               <Plus size={18} />
               <div style={{ flex: 1, fontSize: 16, fontWeight: 800 }}>Abrir pendência</div>
-              <button onClick={() => setFAberto(false)} style={{ width: 34, height: 34, border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,.18)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
+              <button onClick={() => setFAberto(false)} style={{ width: 36, height: 36, flexShrink: 0, border: 'none', cursor: 'pointer', background: 'rgba(255,255,255,.18)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={18} /></button>
             </div>
             <div style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
               <div>
@@ -350,7 +350,7 @@ function PendenciasInner() {
                     onChange={(e) => { escolherFoto(e.target.files?.[0] || null); e.target.value = ''; }} />
                 </label>
                 {fFoto && (
-                  <button onClick={() => escolherFoto(null)} style={{ marginTop: 6, padding: '6px 12px', border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)', fontSize: 12.5, cursor: 'pointer' }}>
+                  <button onClick={() => escolherFoto(null)} style={{ marginTop: 6, minHeight: 36, padding: '6px 12px', border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)', fontSize: 12.5, cursor: 'pointer' }}>
                     Trocar foto
                   </button>
                 )}
@@ -361,7 +361,7 @@ function PendenciasInner() {
                 <input style={inp} spellCheck lang="pt-BR" value={fTitulo} onChange={(e) => setFTitulo(e.target.value)} placeholder="Ex: Pneu dianteiro esquerdo careca" />
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
                 <div>
                   <label style={lbl}>Sistema</label>
                   <select style={inp} value={fSistema} onChange={(e) => { setFSistema(e.target.value); setFCompId(''); }}>
@@ -382,7 +382,7 @@ function PendenciasInner() {
 
               {avisoSemelhantes()}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 140px) minmax(0, 1fr)', gap: 10 }}>
                 <div>
                   <label style={lbl}>Km atual</label>
                   <input style={inp} inputMode="numeric" value={fKm} onChange={(e) => setFKm(e.target.value)} onBlur={(e) => setFKm(formatarHodometro(e.target.value))} placeholder="12.500" />

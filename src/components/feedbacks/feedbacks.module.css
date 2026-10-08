@@ -248,3 +248,36 @@
 .pop {
   animation: fbPop 0.28s ease both;
 }
+
+/* ── Responsivo ─────────────────────────────────────────────────────────── */
+/* Barra de abas: menos recuo no celular (as abas já rolam de lado). */
+@media (max-width: 768px) {
+  .tabBar { padding: 10px 10px 0; }
+  .tab { padding: 10px 12px 12px; }
+}
+
+/* Cockpit do atendimento (3 colunas: quem é · contexto · ligação).
+   Notebook pequeno/tablet: "quem é" + ligação em cima, contexto embaixo.
+   Celular: uma coluna — quem é, ligação, contexto. */
+@media (max-width: 1279px) {
+  .cockpitGrid {
+    grid-template-columns: minmax(240px, 300px) minmax(0, 1fr) !important;
+    grid-template-areas: "esq dir" "meio meio";
+  }
+  .cockpitEsq { grid-area: esq; }
+  .cockpitMeio { grid-area: meio; }
+  .cockpitDir { grid-area: dir; position: static !important; }
+}
+@media (max-width: 760px) {
+  .cockpitGrid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: "esq" "dir" "meio";
+  }
+}
+@media (max-width: 560px) {
+  .cockpitDuo { grid-template-columns: minmax(0, 1fr) !important; }
+}
+/* Fila "Quem ligar hoje": no celular o botão Atender desce para baixo do cliente. */
+@media (max-width: 480px) {
+  .filaCard { grid-template-columns: minmax(0, 1fr) !important; padding: 12px !important; }
+}

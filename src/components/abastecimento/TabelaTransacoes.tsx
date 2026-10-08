@@ -12,7 +12,7 @@ import { gerarPdfTransacoes } from '@/lib/abastecimento/pdf';
 import { gerarCsvTransacoes } from '@/lib/abastecimento/csv';
 import type { TransacaoRow, TransacoesResp } from '@/lib/abastecimento/tipos';
 
-const selStyle: React.CSSProperties = { padding: '8px 10px', border: '1px solid #ddd', borderRadius: 8, fontSize: '.82rem', background: '#fff', color: '#444' };
+const selStyle: React.CSSProperties = { padding: '8px 10px', border: '1px solid #ddd', borderRadius: 8, fontSize: '.82rem', background: '#fff', color: '#444', maxWidth: '100%' };
 
 function fmtDataHora(iso: string): string {
   return new Date(iso).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });

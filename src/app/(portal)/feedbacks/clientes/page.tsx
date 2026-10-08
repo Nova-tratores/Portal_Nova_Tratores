@@ -204,9 +204,11 @@ export default function ClientesPage() {
       {loading ? (
         <div style={vazioStyle}>Carregando…</div>
       ) : (
-        <div style={layoutStyle}>
+        <div className="fbcli-layout" style={layoutStyle}>
+          {/* Celular/tablet: lista em cima (altura limitada) e a ficha embaixo. */}
+          <style>{`@media (max-width: 860px){.fbcli-layout{grid-template-columns:minmax(0,1fr) !important;height:auto !important;min-height:0 !important}.fbcli-side{max-height:45vh}.fbcli-main{padding:14px !important;overflow:visible !important}.fbcli-head{flex-wrap:wrap}} @media (max-width: 560px){.fbcli-extra{grid-template-columns:minmax(0,1fr) !important}}`}</style>
           {/* Sidebar — lista de clientes */}
-          <aside style={sidebarStyle}>
+          <aside className="fbcli-side" style={sidebarStyle}>
             <input
               type="text"
               value={filtro}
@@ -258,7 +260,7 @@ export default function ClientesPage() {
           </aside>
 
           {/* Conteúdo — perfil do selecionado */}
-          <main style={mainStyle}>
+          <main className="fbcli-main" style={{ ...mainStyle, minWidth: 0 }}>
             {!selecionada ? (
               <div style={{ padding: 60, textAlign: "center", color: "var(--portal-text-muted)", fontSize: 14, fontStyle: "italic" }}>
                 Selecione um cliente à esquerda para ver perfil e histórico.
@@ -266,8 +268,8 @@ export default function ClientesPage() {
             ) : (
               <>
                 {/* Header do perfil */}
-                <div style={perfilHeaderStyle}>
-                  <div style={{ flex: 1 }}>
+                <div className="fbcli-head" style={perfilHeaderStyle}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <h2 style={{ fontSize: 22, fontWeight: 800, color: "var(--portal-text)", margin: 0, marginBottom: 4 }}>
                       {selecionada.nome}
                     </h2>
@@ -321,7 +323,7 @@ export default function ClientesPage() {
 
                 {/* Funcionários + Fazendas */}
                 {infoSelecionada && (infoSelecionada.funcionarios.length > 0 || infoSelecionada.fazendas.length > 0) && (
-                  <div style={infoExtraStyle}>
+                  <div className="fbcli-extra" style={infoExtraStyle}>
                     {infoSelecionada.funcionarios.length > 0 && (
                       <div>
                         <SecaoTitulo>👥 Funcionários ({infoSelecionada.funcionarios.length})</SecaoTitulo>

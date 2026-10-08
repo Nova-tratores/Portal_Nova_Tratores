@@ -120,7 +120,7 @@ export default function FlexPage() {
             Qual combustível compensa em cada veículo flex, pelos números reais da frota.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex overflow-hidden rounded-lg border border-red-600">
             {PERIODOS.map((p, i) => (
               <button
@@ -250,13 +250,13 @@ function ModalDetalhe({ v, meses, detalhe, carregando, onClose }: {
   onClose: () => void
 }) {
   return (
-    <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+    <div onClick={onClose} className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
       <div
         onClick={(e) => e.stopPropagation()}
         className="flex max-h-[85vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl bg-white shadow-2xl"
       >
         {/* Cabeçalho: veículo + veredito — o modal se explica sozinho */}
-        <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-5 py-3">
+        <div className="flex items-start justify-between gap-3 border-b border-gray-200 px-3 py-3 sm:px-5">
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-lg font-bold tabular-nums text-gray-900">{v.placa}</span>
@@ -285,7 +285,7 @@ function ModalDetalhe({ v, meses, detalhe, carregando, onClose }: {
           </button>
         </div>
 
-        <div className="overflow-y-auto px-5 py-3">
+        <div className="overflow-y-auto px-3 py-3 sm:px-5">
           {carregando && !detalhe ? (
             <p className="py-6 text-center text-sm text-gray-400">Carregando abastecimentos…</p>
           ) : !detalhe || detalhe.length === 0 ? (

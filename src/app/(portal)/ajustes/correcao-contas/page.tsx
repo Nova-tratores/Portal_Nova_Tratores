@@ -212,7 +212,7 @@ export default function CorrecaoContasPage() {
   const maxTotal = topRanking.reduce((m, r) => Math.max(m, r.total), 0) || 1;
 
   return (
-    <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Correcao de contas</h1>
@@ -259,9 +259,9 @@ export default function CorrecaoContasPage() {
               const ativo = grupoSel && String(grupoSel.codigo) === String(r.codigo);
               return (
                 <button key={String(r.codigo)} onClick={() => abrirLancamentos(r)} title={`${r.descricao} · ${fmtBRL(r.total)} (${r.n} lanc.)`}
-                  style={{ display: 'grid', gridTemplateColumns: '260px 1fr 130px', alignItems: 'center', gap: 10, background: ativo ? '#eff6ff' : 'transparent', border: 'none', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', textAlign: 'left' }}>
+                  className="rank-row" style={{ display: 'grid', gridTemplateColumns: '260px 1fr 130px', alignItems: 'center', gap: 10, background: ativo ? '#eff6ff' : 'transparent', border: 'none', borderRadius: 6, padding: '4px 6px', cursor: 'pointer', textAlign: 'left' }}>
                   <span style={{ fontSize: '.78rem', color: '#334155', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.descricao || '(sem)'}</span>
-                  <span style={{ background: '#e2e8f0', borderRadius: 4, height: 18, position: 'relative' }}>
+                  <span className="rank-bar" style={{ background: '#e2e8f0', borderRadius: 4, height: 18, position: 'relative' }}>
                     <span style={{ position: 'absolute', inset: 0, width: `${Math.max(2, (r.total / maxTotal) * 100)}%`, background: '#3b82f6', borderRadius: 4 }} />
                   </span>
                   <span style={{ fontSize: '.78rem', color: '#1e293b', fontWeight: 600, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(r.total)} <span style={{ color: '#94a3b8', fontWeight: 400 }}>({r.n})</span></span>
@@ -626,7 +626,7 @@ function ModalMassa({ rows, tipo, criadoPor, carregarCats, carregarDeps, onClose
 
 function Overlay({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ display: 'contents' }}>{children}</div>
     </div>
   );

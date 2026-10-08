@@ -1064,7 +1064,7 @@ function ClientesPageInner() {
                 </div>
 
                 {/* Abas de coluna */}
-                <div style={{ display: 'flex', gap: 4, marginBottom: 10 }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
                   {([
                     { id: 'todas', label: 'Todas', count: ordens.length },
                     { id: 'ativas', label: 'Ativas', count: totalAtivas },
@@ -1188,7 +1188,7 @@ function ClientesPageInner() {
                           <div style={{ border: '1px solid #FED7AA', background: '#FFFBF5', borderRadius: 10, padding: '9px 12px', marginTop: 12 }}>
                             <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#EA580C', marginBottom: 6 }}>Peças do PV {numRef} ({pecas.length})</div>
                             {pecas.map((p: any, pi: number) => (
-                              <div key={pi} style={{ display: 'grid', gridTemplateColumns: '96px 1fr auto auto', gap: 10, alignItems: 'baseline', fontSize: 12.5, color: '#475569', padding: '2px 0' }}>
+                              <div key={pi} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0, 1fr) auto auto', gap: 10, alignItems: 'baseline', fontSize: 12.5, color: '#475569', padding: '2px 0' }}>
                                 <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#EA580C', fontWeight: 600 }}>{p.codigo || '-'}</span>
                                 <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descricao || p.desc || '-'}</span>
                                 <span style={{ color: '#94A3B8', fontVariantNumeric: 'tabular-nums' }}>{p.quantidade}×</span>
@@ -1224,7 +1224,7 @@ function ClientesPageInner() {
                     </button>
                   </div>
                   {pvsSemOS.length > 0 && (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(360px, 1fr))', gap: 12 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
                       {pvsSemOS.map((pv, pi) => (
                         <div key={pv.num_pedido} className="cli-card"
                           style={{
@@ -1295,7 +1295,7 @@ function ClientesPageInner() {
         {subNF && (
           <div onClick={e => { if (e.target === e.currentTarget && !subSalvando) setSubNF(null) }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 440, maxWidth: '95vw', padding: 26 }}>
+            <div className="cli-mpad" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 440, maxWidth: '95vw', padding: 26 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <h2 style={{ fontSize: 19, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Marcar NF como substituída</h2>
                 <button onClick={() => setSubNF(null)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
@@ -1344,7 +1344,7 @@ function ClientesPageInner() {
         {showAnexar && (
           <div onClick={e => { if (e.target === e.currentTarget && !anexando) setShowAnexar(null) }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 460, maxWidth: '95vw', padding: 28 }}>
+            <div className="cli-mpad" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 460, maxWidth: '95vw', padding: 28 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
                 <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>
                   Anexar {showAnexar === 'os' ? 'Ordem de Serviço' : 'Pedido de Venda'}
@@ -2761,7 +2761,7 @@ function ClientesPageInner() {
 
   // ============ LISTA DE CLIENTES ============
   return (
-    <div style={{ padding: '16px 32px 32px', width: '100%', boxSizing: 'border-box' }}>
+    <div className="cli-page" style={{ padding: '16px 32px 32px', width: '100%', boxSizing: 'border-box' }}>
       {/* Abas: Clientes × Por Máquina (estilo aba de navegador) */}
       <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', marginBottom: 16 }}>
         {([{ id: 'clientes', label: 'Clientes', icon: <Users size={16} /> }, { id: 'maquinas', label: 'Por Máquina', icon: <Wrench size={16} /> }] as const).map(t => {
@@ -3010,7 +3010,7 @@ function ClientesPageInner() {
       {showCriarCliente && (
         <div onClick={e => { if (e.target === e.currentTarget && !criando) setShowCriarCliente(false) }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 580, maxWidth: '95vw', maxHeight: '92vh', overflow: 'auto', padding: 28 }}>
+          <div className="cli-mpad" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 580, maxWidth: '95vw', maxHeight: '92vh', overflow: 'auto', padding: 28 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Criar Cliente</h2>
               <button onClick={() => setShowCriarCliente(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
@@ -3050,7 +3050,7 @@ function ClientesPageInner() {
               <div><label style={lblModal}>NÚMERO</label><input value={formCli.numero} onChange={e => setFormCli(p => ({ ...p, numero: e.target.value }))} style={inpModal} /></div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 70px 110px', gap: 12, marginBottom: 18 }}>
+            <div className="cli-g2-xs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 70px 110px', gap: 12, marginBottom: 18 }}>
               <div><label style={lblModal}>BAIRRO</label><input value={formCli.bairro} onChange={e => setFormCli(p => ({ ...p, bairro: e.target.value }))} style={inpModal} /></div>
               <div><label style={lblModal}>CIDADE</label><input value={formCli.cidade} onChange={e => setFormCli(p => ({ ...p, cidade: e.target.value }))} style={inpModal} /></div>
               <div><label style={lblModal}>UF</label><input value={formCli.estado} maxLength={2} onChange={e => setFormCli(p => ({ ...p, estado: e.target.value.toUpperCase() }))} style={inpModal} /></div>
@@ -3073,7 +3073,7 @@ function ClientesPageInner() {
       {showCriarProjeto && (
         <div onClick={e => { if (e.target === e.currentTarget && !criando) setShowCriarProjeto(false) }}
           style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 440, maxWidth: '95vw', padding: 28 }}>
+          <div className="cli-mpad" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 440, maxWidth: '95vw', padding: 28 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Criar Projeto</h2>
               <button onClick={() => setShowCriarProjeto(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>

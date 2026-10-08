@@ -56,12 +56,12 @@ export default function EquipamentoEditModal({ onClose }) {
   return (
     <div className="fixed inset-0 bg-black/85 flex justify-center items-center z-[9999]">
       <div className="bg-zinc-50 w-[95%] max-w-[850px] max-h-[92vh] flex flex-col rounded-2xl border border-zinc-200 shadow-2xl overflow-hidden">
-        <div className="px-8 py-5 border-b border-zinc-200 flex justify-between items-center bg-white">
+        <div className="px-4 md:px-8 py-5 border-b border-zinc-200 flex justify-between items-center bg-white">
           <h2 className="text-lg font-black text-zinc-900">{selectedItem ? 'EDITAR: ' + selectedItem.modelo : 'GERENCIAR ESTOQUE'}</h2>
           <button onClick={onClose} className="text-red-600 font-bold bg-transparent border-none cursor-pointer">FECHAR [X]</button>
         </div>
 
-        <div className="p-6 overflow-y-auto">
+        <div className="p-4 md:p-6 overflow-y-auto">
           {!selectedItem ? (
             <div className="p-2.5">
               <label className="text-[11px] font-extrabold text-zinc-600 uppercase">PESQUISAR OU SELECIONAR DA LISTA</label>
@@ -92,7 +92,7 @@ export default function EquipamentoEditModal({ onClose }) {
                 {file && <p className="text-[10px] text-emerald-600 font-bold mt-1">Nova imagem selecionada: {file.name}</p>}
               </div>
 
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-5">
                 <div className="flex flex-col gap-2"><label className="text-[11px] font-extrabold text-zinc-600">MARCA</label><input value={selectedItem.marca || ''} className={inputStyle} onChange={e => setSelectedItem({ ...selectedItem, marca: e.target.value })} /></div>
                 <div className="flex flex-col gap-2"><label className="text-[11px] font-extrabold text-zinc-600">MODELO</label><input value={selectedItem.modelo || ''} className={inputStyle} onChange={e => setSelectedItem({ ...selectedItem, modelo: e.target.value })} /></div>
                 <div className="flex flex-col gap-2"><label className="text-[11px] font-extrabold text-zinc-600">ANO</label><select value={selectedItem.ano || ''} className={inputStyle} onChange={e => setSelectedItem({ ...selectedItem, ano: e.target.value })}>{anosRecentes.map(ano => <option key={ano} value={ano}>{ano}</option>)}</select></div>

@@ -342,7 +342,17 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
   return (
     <>
       {/* Cards */}
-      <main className="ppv-cards-wrapper">
+      {/* Responsivo: abaixo de 1100px a linha da Lista (colunas fixas 235/180/150/140)
+          estourava a largura — as colunas encolhem; o celular usa o PPVMobile. */}
+      <style>{`
+        @media (max-width: 1100px) and (min-width: 721px) {
+          .ppv-x-phase .ppv-list-row { grid-template-columns: minmax(130px, 200px) minmax(0, 1fr) minmax(0, 140px) 96px minmax(96px, 120px); gap: 10px; }
+        }
+        @media (max-width: 480px) {
+          .ppv-x-phase .ppv-cards-grid { grid-template-columns: minmax(0, 1fr); }
+        }
+      `}</style>
+      <main className="ppv-cards-wrapper ppv-x-phase">
         {loading ? (
           <SkeletonCards />
         ) : activePhase ? (

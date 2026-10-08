@@ -63,7 +63,7 @@ export default function NovoChamadoRH() {
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif', color: '#1e293b' }}>
       <FinanceiroNav />
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 'clamp(16px, 4vw, 32px) clamp(12px, 3vw, 20px)' }}>
         <div style={{ width: '100%', maxWidth: '720px' }}>
 
           <h2 style={{ fontWeight: '500', fontSize: '24px', color: '#1e293b', marginBottom: '32px' }}>Novo Chamado de RH</h2>

@@ -11,6 +11,7 @@
 import { useMemo, useState } from "react";
 import { Painel, Tile, PopupComposicao, estilosTema, useTemaEscuro, type Metrica, type Tema } from "@/components/comum/PainelBarras";
 import type { KanbanItem } from "@/lib/ppv/types";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { STATUS_COLORS, STATUS_OPTIONS, rotuloStatus } from "@/lib/ppv/constants";
 import {
   OPCOES_PERIODO, passaPeriodo, rotuloPeriodo, isRemessa, statusNorm, estaAberto, fmtBRL, valorNum,
@@ -35,6 +36,8 @@ const { card, select: selectStyle, lbl } = estilosTema(TEMA_PPV);
 
 export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
   const dark = useTemaEscuro();
+  const empilhar = useIsMobile(900); // celular/tablet: "Por cliente" e a tabela um embaixo do outro
+  const mobile = useIsMobile();
   const corBarra = dark ? LARANJA_ESCURO : LARANJA;
 
   // ---- filtros (uma linha, acima dos painéis) ----
@@ -98,33 +101,33 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
   ].join(" · ");
 
   return (
-    <div style={{ padding: "14px 16px 30px", display: "flex", flexDirection: "column", gap: 12, fontFamily: "'Poppins', sans-serif", color: "var(--ppv-text)" }}>
+    <div style={{ padding: mobile ? "10px 10px 24px" : "14px 16px 30px", display: "flex", flexDirection: "column", gap: 12, minWidth: 0, fontFamily: "'Poppins', sans-serif", color: "var(--ppv-text)" }}>
       {/* FILTROS — uma linha */}
       <div style={{ ...card, flexDirection: "row", flexWrap: "wrap", alignItems: "flex-end", gap: 12 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, maxWidth: "100%" }}>
           <span style={lbl}>Período (data do pedido)</span>
-          <div style={{ display: "flex", gap: 6 }}>
-            <select value={periodo} onChange={(e) => setPeriodo(e.target.value)} style={selectStyle}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            <select value={periodo} onChange={(e) => setPeriodo(e.target.value)} style={{ ...selectStyle, maxWidth: "100%" }}>
               {OPCOES_PERIODO.filter((o) => o.valor !== "sem_data").map((o) => <option key={o.valor || "todas"} value={o.valor}>{o.valor ? o.label : "Todo o histórico"}</option>)}
             </select>
-            {periodo === "a_partir" && <input type="date" value={aPartir} onChange={(e) => setAPartir(e.target.value)} style={selectStyle} />}
+            {periodo === "a_partir" && <input type="date" value={aPartir} onChange={(e) => setAPartir(e.target.value)} style={{ ...selectStyle, maxWidth: "100%" }} />}
           </div>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, maxWidth: "100%" }}>
           <span style={lbl}>Fase</span>
-          <select value={fase} onChange={(e) => setFase(e.target.value)} style={selectStyle}>
+          <select value={fase} onChange={(e) => setFase(e.target.value)} style={{ ...selectStyle, maxWidth: "100%" }}>
             <option value="">Todas</option>
             <option value="__abertos">Pendente (menos Faturado/Cancelada)</option>
             {fasesPresentes.map((f) => <option key={f.value} value={f.value}>{f.label} ({f.n})</option>)}
           </select>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, maxWidth: "100%" }}>
           <span style={lbl}>Tipo</span>
-          <select value={tipo} onChange={(e) => setTipo(e.target.value as "TODOS" | "PPV" | "REM")} style={selectStyle}>
+          <select value={tipo} onChange={(e) => setTipo(e.target.value as "TODOS" | "PPV" | "REM")} style={{ ...selectStyle, maxWidth: "100%" }}>
             <option value="TODOS">PPV + REM</option><option value="PPV">Só PPV</option><option value="REM">Só REM</option>
           </select>
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, maxWidth: "100%" }}>
           <span style={lbl}>Técnico</span>
           <select value={tecnico} onChange={(e) => setTecnico(e.target.value)} style={{ ...selectStyle, maxWidth: 220 }}>
             <option value="">Todos</option>
@@ -132,7 +135,7 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
           </select>
         </div>
         <div style={{ flex: 1 }} />
-        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0, maxWidth: "100%" }}>
           <span style={lbl}>Métrica dos gráficos</span>
           <div style={{ display: "inline-flex", border: "1px solid var(--ppv-border-light)", borderRadius: 3, overflow: "hidden" }}>
             {(["valor", "n"] as Metrica[]).map((m) => (
@@ -145,7 +148,7 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
       </div>
 
       {/* NÚMEROS DE CABEÇA */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(170px, 100%), 1fr))", gap: 10 }}>
         <Tile tema={TEMA_PPV} label="Pedidos" valor={String(kpi.n)} sub={`${kpi.clientes} cliente${kpi.clientes !== 1 ? "s" : ""}`} />
         <Tile tema={TEMA_PPV} label="Valor total" valor={fmtBRL(kpi.valor)} sub={filtrosTexto} destaque />
         <Tile tema={TEMA_PPV} label="Ticket médio" valor={fmtBRL(kpi.ticket)} sub="valor ÷ pedidos" />
@@ -157,17 +160,17 @@ export default function DashboardPPV({ orders, onAbrirPedido }: Props) {
         <div style={{ ...card, alignItems: "center", padding: 40, color: "var(--ppv-text-light)", fontWeight: 600 }}>Nenhum pedido no filtro.</div>
       ) : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 12 }}>
             <Painel titulo="Por data (mês do pedido)" sub={`${agMes.length} mês${agMes.length !== 1 ? "es" : ""}`} itens={agMes} metrica={metrica} horizontal={false} tema={TEMA_PPV} dark={dark} onBarra={onBarra} />
             <Painel titulo="Por previsão de faturamento" sub={kpi.semPrevisao ? `${kpi.semPrevisao} sem previsão informada` : "todos com previsão"} itens={agPrev} metrica={metrica} horizontal={false} tema={TEMA_PPV} dark={dark} onBarra={onBarra}
               corDe={(a) => (a.chave === "zzzz" ? (dark ? "#64748b" : "#94a3b8") : corBarra)} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(440px, 1fr))", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(440px, 100%), 1fr))", gap: 12 }}>
             <Painel titulo="Por técnico" sub="top 10 + outros" itens={agTec} metrica={metrica} horizontal tema={TEMA_PPV} dark={dark} onBarra={onBarra} />
             <Painel titulo="Por fase" sub="cores iguais às da tela" itens={agFase} metrica={metrica} horizontal tema={TEMA_PPV} dark={dark} onBarra={onBarra}
               corDe={(a) => STATUS_COLORS[a.chave]?.text || corBarra} />
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 3fr) minmax(0, 2fr)", gap: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: empilhar ? "minmax(0, 1fr)" : "minmax(0, 3fr) minmax(0, 2fr)", gap: 12 }}>
             <Painel titulo="Por cliente" sub="top 12 + outros" itens={agCliTop} metrica={metrica} horizontal tema={TEMA_PPV} dark={dark} onBarra={onBarra} altura={Math.max(300, agCliTop.length * 30 + 40)} />
             <div style={{ ...card, padding: 0, overflow: "hidden" }}>
               <div style={{ padding: "12px 16px 8px", display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>

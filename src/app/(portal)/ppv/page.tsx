@@ -28,6 +28,7 @@ import ItemOrcamentoModal from "@/components/ppv/ItemOrcamentoModal";
 import ModalProdutoManual from "@/components/ppv/ModalProdutoManual";
 import ModalRevisoes from "@/components/ppv/ModalRevisoes";
 import BotaoRetiradas from "@/components/ppv/BotaoRetiradas";
+import { PECAS_TOPBAR_CSS } from "@/components/ppv/PecasNav";
 import { useRefreshOnFocus } from "@/hooks/useRefreshOnFocus";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
 
@@ -347,7 +348,7 @@ function PPVApp() {
   );
 
   const headerActions = (
-    <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+    <div style={{ display: "flex", alignItems: "center", gap: 9, flexWrap: "wrap", marginLeft: "auto" }}>
       <button onClick={() => setActiveTab("formTab")} disabled={!podeCriar} title={!podeCriar ? MSG_SEM_PERMISSAO : undefined}
         style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 20px", borderRadius: 10, border: "none", background: "var(--ppv-primary, #dc2626)", color: "#fff", fontSize: 15, fontWeight: 600, cursor: podeCriar ? "pointer" : "not-allowed", opacity: podeCriar ? 1 : 0.55, fontFamily: "'Poppins', sans-serif", whiteSpace: "nowrap" }}>
         <i className="fas fa-plus-circle" /> Novo Lançamento
@@ -379,7 +380,8 @@ function PPVApp() {
       <Toast message={toast.message} type={toast.type} visible={toast.visible} onClose={hideToast} />
 
       {/* ===== TOP BAR ===== */}
-      <div className="ppv-topbar">
+      <div className="ppv-topbar ppv-x-topbar">
+        <style>{PECAS_TOPBAR_CSS}</style>
         {/* Abas (estilo Chrome) à direita: só Gestão e Catálogo */}
         <div className="ppv-topbar-actions">
           <button className={`ppv-topbar-nav-btn ${activeTab === "kanbanTab" ? "active" : ""}`} onClick={() => setActiveTab("kanbanTab")}>
@@ -441,7 +443,7 @@ function PPVApp() {
         {activeTab === "kanbanTab" && !isMobile && (
           <div className="flex flex-1 flex-col overflow-auto" style={bgPattern}>
             {/* Alternar Cards ⇄ Lista */}
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "10px 16px 0" }}>
+            <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 6, padding: "10px 16px 0" }}>
               <button type="button" onClick={() => trocarViewMode("cards")} title="Ver em cards"
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 3, border: "1px solid #e2ddd3", background: viewMode === "cards" ? "#e8730c" : "#fff", color: viewMode === "cards" ? "#fff" : "#5f574c", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
                 <i className="fas fa-table-cells-large" /> Cards
@@ -470,7 +472,7 @@ function PPVApp() {
         )}
 
         {activeTab === "catalogoTab" && (
-          <div className="pecas-skin flex-1 overflow-hidden p-4" style={bgPattern}>
+          <div className="pecas-skin flex-1 overflow-hidden p-2 md:p-4" style={bgPattern}>
             <CatalogoNovo userName={userProfile?.nome || ""} />
           </div>
         )}
@@ -482,7 +484,7 @@ function PPVApp() {
         )}
 
         {activeTab === "formTab" && (
-          <div className="flex-1 overflow-y-auto p-5" style={bgPattern}>
+          <div className="flex-1 overflow-y-auto p-3 md:p-5" style={bgPattern}>
             <FormNovoLancamento
               onVoltar={() => setActiveTab("kanbanTab")}
               onBuscaCliente={() => handleBuscaCliente("main")}

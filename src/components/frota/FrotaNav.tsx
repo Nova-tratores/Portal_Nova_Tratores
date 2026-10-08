@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
+import { useIsMobile } from '@/hooks/useIsMobile';
 import { GRUPOS_FROTA, PAGINAS_FROTA, slugDaPagina } from '@/app/(portal)/frota/paginas';
 import { podeTelaFrota } from '@/lib/permissoes/frota';
 
@@ -12,6 +13,8 @@ export default function FrotaNav() {
   const pathname = usePathname() ?? '';
   const { userProfile } = useAuth();
   const { permissoes, isAdmin, loading } = usePermissoes(userProfile?.id);
+  // celular: guias numa linha só, rolando DENTRO da faixa (sem empilhar 3–4 linhas)
+  const mobile = useIsMobile();
 
   if (loading) return null;
 
@@ -30,11 +33,11 @@ export default function FrotaNav() {
         display: 'flex',
         alignItems: 'flex-end',
         gap: 3,
-        padding: '10px 24px 0',
+        padding: mobile ? '8px 12px 0' : '10px 24px 0',
         background: 'linear-gradient(135deg, #3B82F6, #1E3A8A)', // degradê mais visível (igual estilo do Peças)
         overflowX: 'auto', WebkitOverflowScrolling: 'touch', // celular: as guias rolam DENTRO da faixa
         boxShadow: '0 1px 4px var(--portal-shadow)',
-        flexWrap: 'wrap',
+        flexWrap: mobile ? 'nowrap' : 'wrap',
       }}
     >
       {GRUPOS_FROTA.map((grupo) => {
@@ -51,8 +54,9 @@ export default function FrotaNav() {
                 display: 'flex',
                 alignItems: 'center',
                 gap: 7,
-                padding: '11px 20px',
-                fontSize: 14,
+                padding: mobile ? '10px 14px' : '11px 20px',
+                fontSize: mobile ? 13 : 14,
+                flexShrink: 0,
                 fontWeight: ativo ? 700 : 500,
                 color: '#111111', // fonte PRETA sempre (#111827 era remapeado pra branco no escuro)
                 // #fefefe: branco "de verdade" que o modo escuro NÃO converte (o #fff vira card escuro)

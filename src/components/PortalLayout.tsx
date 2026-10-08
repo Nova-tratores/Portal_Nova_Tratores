@@ -19,7 +19,8 @@ import {
   LayoutDashboard, Bell, ChevronRight, ChevronDown, Activity, Lock, MessageCircle, Columns,
   CheckCheck, Trash2, ExternalLink, Calendar, Users, Calculator, BarChart3, Eye, Camera, Wheat, Megaphone,
   Sun, Moon, Volume2, Check, MapPin, ShieldCheck, Building, SlidersHorizontal, AlertCircle, Headset,
-  LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags
+  LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags,
+  ListPlus, CircleCheckBig, MessageSquarePlus, BadgeCheck
 } from 'lucide-react'
 import { MailCheck as IconEnviosEmail, BookOpen } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
@@ -135,6 +136,16 @@ const NOTIF_COLORS: Record<string, string> = {
   admin: '#dc2626', sistema: '#6b7280', tickets: '#0891b2', frota: '#0d9488',
 }
 
+// Variantes (coluna `icone`) — avisos de ticket com cara própria no sino.
+// Gravadas por notificarTicket (lib/tickets/server.ts).
+const NOTIF_VARIANTES: Record<string, { icone: import('react').ReactNode; cor: string; rotulo: string }> = {
+  tarefa_nova: { icone: <ListPlus size={18} />, cor: '#7c3aed', rotulo: 'Nova tarefa' },
+  tarefa_feita: { icone: <CircleCheckBig size={18} />, cor: '#16a34a', rotulo: 'Tarefa concluída' },
+  ticket_resposta: { icone: <MessageSquarePlus size={18} />, cor: '#d97706', rotulo: 'Novidade no ticket' },
+  ticket_concluido: { icone: <BadgeCheck size={18} />, cor: '#059669', rotulo: 'Ticket concluído' },
+}
+const variante = (icone: string | null | undefined) => (icone && NOTIF_VARIANTES[icone]) || null
+
 const timeAgo = (date: string) => {
   const diff = Date.now() - new Date(date).getTime()
   const min = Math.floor(diff / 60000)
@@ -224,10 +235,14 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [zapPanelOpen, setZapPanelOpen] = useState(false)
   const [zapAba, setZapAba] = useState<'atendimento' | 'solicitacoes' | 'dispensadas' | undefined>(undefined)
   const [solNovas, setSolNovas] = useState(0)
+  // Os ALERTAS CENTRAIS do Tratorilson (abaixo) só aparecem pra quem recebe os
+  // avisos dele: Devs + usuários escolhidos na página de Administração.
+  // O servidor decide (souNotificado); o painel/badge do zap segue do pós-vendas.
+  const [souNotificadoBot, setSouNotificadoBot] = useState(false)
   // Alerta CENTRAL: o Tratorilson pediu ajuda (não entendeu foto/vídeo ou o assunto)
   const [alertaHumano, setAlertaHumano] = useState<any[] | null>(null)
   useEffect(() => {
-    if (!temSolicitacoes) return
+    if (!temSolicitacoes && !souNotificadoBot) return
     let vivo = true
     const carregar = async () => {
       try {
@@ -236,6 +251,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         const d = await r.json()
         if (!vivo) return
         setSolNovas(d.novas || 0)
+        if (!d.souNotificado) { setAlertaHumano(null); return }
         // solicitações tipo 'humano' ainda não vistas → alerta no meio da tela
         const lista = Array.isArray(d.solicitacoes) ? d.solicitacoes : []
         const humanas = lista.filter((s: any) => s.tipo === 'humano' && (s.fase || 'nova') !== 'concluida')
@@ -248,7 +264,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     carregar()
     const t = setInterval(carregar, 60000)
     return () => { vivo = false; clearInterval(t) }
-  }, [zapPanelOpen, temSolicitacoes])
+  }, [zapPanelOpen, temSolicitacoes, souNotificadoBot])
   // Alerta CENTRAL 2: o Tratorilson NÃO SABE lidar com uma situação nova e
   // PERGUNTA pros usuários escolhidos — quem responder primeiro ensina ele
   // (a resposta vira regra na memória). Dispensar só esconde pra este usuário;
@@ -257,7 +273,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [respostaBot, setRespostaBot] = useState<Record<number, string>>({})
   const [enviandoResposta, setEnviandoResposta] = useState<number | null>(null)
   useEffect(() => {
-    if (!temSolicitacoes) return
+    if (!userProfile?.id) return
     let vivo = true
     const carregar = async () => {
       try {
@@ -265,6 +281,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         const r = await fetch('/api/tratorilson/perguntas', { headers: await authHeaders(), cache: 'no-store' })
         const d = await r.json()
         if (!vivo) return
+        setSouNotificadoBot(!!d.souNotificado)
         if (!d.souNotificado) { setPerguntasBot(null); return }
         const abertas = (Array.isArray(d.perguntas) ? d.perguntas : []).filter((p: any) => p.status === 'aberta')
         let vistos: number[] = []
@@ -276,7 +293,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
     carregar()
     const t = setInterval(carregar, 60000)
     return () => { vivo = false; clearInterval(t) }
-  }, [temSolicitacoes])
+  }, [userProfile?.id])
   const dispensarPerguntaBot = (id: number) => {
     try {
       const vistos: number[] = JSON.parse(localStorage.getItem('bot-pergunta-vistos') || '[]')
@@ -319,12 +336,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [emIframe, setEmIframe] = useState(false)
   useEffect(() => { try { setEmIframe(window.self !== window.top) } catch { setEmIframe(true) } }, [])
   // Tooltip da notificação (mostra o conteúdo completo ao passar o mouse)
-  const [notifHover, setNotifHover] = useState<{ titulo: string; descricao: string; tempo: any; tipo: string; top: number; left: number } | null>(null)
+  const [notifHover, setNotifHover] = useState<{ titulo: string; descricao: string; tempo: any; tipo: string; varianteId?: string | null; top: number; left: number } | null>(null)
   const [topMenuOpen, setTopMenuOpen] = useState(false)
   const isMobile = useIsMobile()
+  // Abaixo de 1024px o menu lateral abre POR CIMA do conteúdo (não empurra a
+  // página — senão sobrava uma faixa estreita e a tela estourava na lateral).
+  const sidebarSobrepoe = useIsMobile(1023)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)  // menuzinho da foto (celular)
   const [notifPrefsOpen, setNotifPrefsOpen] = useState(false)
-  const [toasts, setToasts] = useState<{ id: string; chatId?: string; titulo: string; avatar: string | null; preview: string; tipo: string; link?: string; timestamp: number }[]>([])
+  const [toasts, setToasts] = useState<{ id: string; chatId?: string; titulo: string; avatar: string | null; preview: string; tipo: string; varianteId?: string | null; link?: string; timestamp: number }[]>([])
   const lastChatNotifIdRef = useRef<string | null>(null)
   const lastSysNotifIdRef = useRef<string | null>(null)
   const bellRef = useRef<HTMLDivElement>(null)
@@ -556,6 +576,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       avatar: null,
       preview: lastSysNotif.descricao || '',
       tipo: lastSysNotif.tipo,
+      varianteId: lastSysNotif.icone,
       link: lastSysNotif.link || undefined,
       timestamp: Date.now()
     }, ...prev].slice(0, 4))
@@ -574,7 +595,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       setChatOpen(true)
       chatData.setChatAtivo(t.chatId)
     } else if (t.link) {
-      router.push(t.link)
+      // link de fora (ex.: conversa no NovaZap) abre em outra aba
+      if (/^https?:\/\//.test(t.link)) window.open(t.link, '_blank', 'noopener')
+      else router.push(t.link)
     }
     setToasts(prev => prev.filter(x => x.id !== t.id))
   }
@@ -665,20 +688,22 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         tempo: c.ultima_mensagem?.created_at || c.updated_at,
         lida: false,
         link: null as string | null,
-        tipo: 'chat'
+        tipo: 'chat',
+        varianteId: null as string | null
       }
     }),
     // Notificações do sistema
     ...notifData.notificacoes.slice(0, 20).map(n => ({
       id: n.id,
       chatId: null as string | null,
-      icone: NOTIF_ICONS[n.tipo] || <Bell size={18} />,
+      icone: variante(n.icone)?.icone || NOTIF_ICONS[n.tipo] || <Bell size={18} />,
       titulo: n.titulo,
       descricao: n.descricao || '',
       tempo: n.created_at,
       lida: n.lida,
       link: n.link,
-      tipo: n.tipo
+      tipo: n.tipo,
+      varianteId: n.icone
     }))
   ].sort((a, b) => new Date(b.tempo).getTime() - new Date(a.tempo).getTime()), [chatData.chats, notifData.notificacoes, userProfile?.id])
 
@@ -715,14 +740,15 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       <header className="portal-header" style={{
         position: 'sticky', top: 0, zIndex: 50,
         padding: '0 32px', height: '84px',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
         background: 'var(--portal-header-bg)',
         borderBottom: '1px solid var(--portal-border)',
         boxShadow: `0 1px 3px var(--portal-shadow)`
       }}>
-        {/* Left: menu + logo */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        {/* Left: menu + logo + atalhos (ocupa o que sobrar; minWidth 0 deixa encolher) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flex: 1, minWidth: 0 }}>
           <button
+            className="portal-hamburger"
             onClick={() => setSidebarOpen(!sidebarOpen)}
             style={{
               background: 'none', border: 'none', color: 'var(--portal-text-secondary)',
@@ -734,20 +760,23 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           >
             {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
-          <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none' }}>
+          <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center', gap: '12px', textDecoration: 'none', flex: '0 1 auto', minWidth: 0 }}>
             <img
               src="/Logo_Nova.png"
               alt="Nova Tratores"
               className="portal-logo"
-              style={{ height: '50px' }}
+              style={{ height: '50px', width: 'auto', maxWidth: '100%', objectFit: 'contain', objectPosition: 'left center' }}
             />
           </Link>
 
           {/* Apps mais usados — atalho direto, sem passar pelo dashboard.
-              Escondidos em tela estreita (a top bar não comporta). */}
+              Só aparecem os que CABEM: a faixa tem a altura de uma linha e a quebra
+              de linha fica escondida — o que não cabe some, do menos usado para
+              o mais usado, em qualquer largura de tela. */}
           {maisUsados.length > 0 && (
             <div className="topbar-atalhos" style={{
-              display: 'flex', alignItems: 'center', gap: 3,
+              display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap',
+              flex: 1, minWidth: 0, height: 38, overflow: 'hidden',
               paddingLeft: 14, borderLeft: '1px solid var(--portal-border)',
             }}>
               {maisUsados.map(item => {
@@ -760,8 +789,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                     href={item.href}
                     title={`${item.name} — atalho (um dos seus mais usados)`}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 7,
-                      padding: '8px 13px', borderRadius: 10, textDecoration: 'none',
+                      display: 'flex', alignItems: 'center', gap: 7, flex: 'none', height: 38, boxSizing: 'border-box',
+                      padding: '0 13px', borderRadius: 10, textDecoration: 'none',
                       background: ativo ? `${cor}18` : 'transparent',
                       color: ativo ? cor : 'var(--portal-text-secondary)',
                       fontSize: 13.5, fontWeight: 400, whiteSpace: 'nowrap',
@@ -782,8 +811,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
           )}
         </div>
 
-        {/* Right: chat + sino + user */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+        {/* Right: chat + sino + user (nunca encolhe) */}
+        <div className="portal-header-right" style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 'none' }}>
 
           {/* Vigia das câmeras — o botão saiu do header (abre pelo Menu),
               mas o componente fica montado pro modal + som em tempo real.
@@ -1103,7 +1132,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                     </div>
                   ) : (
                     bellItems.map(item => {
-                      const cor = NOTIF_COLORS[item.tipo] || '#dc2626'
+                      const vari = variante(item.varianteId)
+                      const cor = vari?.cor || NOTIF_COLORS[item.tipo] || '#dc2626'
                       return (
                       <div
                         key={item.id}
@@ -1113,7 +1143,8 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                             setChatOpen(true)
                             chatData.setChatAtivo(item.chatId)
                           } else if (item.link) {
-                            router.push(item.link)
+                            if (/^https?:\/\//.test(item.link)) window.open(item.link, '_blank', 'noopener')
+                            else router.push(item.link)
                             if (!item.lida && item.tipo !== 'chat') notifData.marcarComoLida(item.id)
                           }
                           setBellOpen(false)
@@ -1130,7 +1161,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                           const r = e.currentTarget.getBoundingClientRect()
                           const TW = 360
                           const left = r.left - TW - 12 >= 12 ? r.left - TW - 12 : Math.min(r.right + 12, window.innerWidth - TW - 12)
-                          setNotifHover({ titulo: item.titulo, descricao: item.descricao, tempo: item.tempo, tipo: item.tipo, top: r.top, left: Math.max(12, left) })
+                          setNotifHover({ titulo: item.titulo, descricao: item.descricao, tempo: item.tempo, tipo: item.tipo, varianteId: item.varianteId, top: r.top, left: Math.max(12, left) })
                         }}
                         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; setNotifHover(null) }}
                       >
@@ -1164,7 +1195,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                             {!item.lida && (
                               <div style={{
                                 width: '7px', height: '7px', borderRadius: '50%',
-                                background: item.tipo === 'chat' ? '#3b82f6' : '#dc2626', flexShrink: 0
+                                background: item.tipo === 'chat' ? '#3b82f6' : vari ? cor : '#dc2626', flexShrink: 0
                               }} />
                             )}
                           </div>
@@ -1172,6 +1203,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                             fontSize: '12px', color: 'var(--portal-text-secondary)', margin: 0,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
                           }}>
+                            {vari && (
+                              <span style={{
+                                display: 'inline-block', marginRight: 6, padding: '1px 7px', borderRadius: 999,
+                                fontSize: 10.5, fontWeight: 700, color: cor, background: `${cor}1f`, verticalAlign: 1
+                              }}>{vari.rotulo}</span>
+                            )}
                             {item.descricao}
                           </p>
                         </div>
@@ -1255,7 +1292,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {/* ===== SIDEBAR ===== */}
       <div style={{
         position: 'fixed', top: '84px', left: 0, bottom: 0,
-        width: sidebarOpen ? '260px' : '0px', overflow: 'hidden',
+        width: sidebarOpen ? 'min(260px, 85vw)' : '0px', overflow: 'hidden',
         transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         zIndex: 40, background: 'var(--portal-sidebar-bg)',
         borderRight: sidebarOpen ? '1px solid var(--portal-border)' : 'none',
@@ -1514,7 +1551,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* ===== MAIN CONTENT ===== */}
       <main style={{
-        marginLeft: sidebarOpen ? '260px' : '0px',
+        marginLeft: sidebarOpen && !sidebarSobrepoe ? '260px' : '0px',
         transition: 'margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
         minHeight: 'calc(100vh - 84px)',
         background: 'var(--portal-bg)'
@@ -1541,12 +1578,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {bellOpen && notifHover && (
         <div style={{
           position: 'fixed', top: Math.max(12, Math.min(notifHover.top, window.innerHeight - 240)), left: notifHover.left,
-          width: 360, maxHeight: '60vh', overflowY: 'auto', zIndex: 100000, pointerEvents: 'none',
+          width: 'min(360px, calc(100vw - 24px))', maxHeight: '60vh', overflowY: 'auto', zIndex: 100000, pointerEvents: 'none',
           background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14,
           boxShadow: '0 16px 48px rgba(0,0,0,0.22)', padding: '16px 18px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
-            <span style={{ color: NOTIF_COLORS[notifHover.tipo] || '#dc2626', display: 'flex' }}>{NOTIF_ICONS[notifHover.tipo] || <Bell size={16} />}</span>
+            <span style={{ color: variante(notifHover.varianteId)?.cor || NOTIF_COLORS[notifHover.tipo] || '#dc2626', display: 'flex' }}>{variante(notifHover.varianteId)?.icone || NOTIF_ICONS[notifHover.tipo] || <Bell size={16} />}</span>
             <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: 'var(--portal-text-muted)' }}>{timeAgo(notifHover.tempo)}</span>
           </div>
           <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 8, lineHeight: 1.35, wordBreak: 'break-word' }}>{notifHover.titulo}</div>
@@ -1596,7 +1633,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             animation: 'cfgSlideIn 0.25s ease-out'
           }}>
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '22px 26px', borderBottom: '1px solid var(--portal-border)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, padding: isMobile ? '16px 18px' : '22px 26px', borderBottom: '1px solid var(--portal-border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                 <div style={{
                   width: '44px', height: '44px', borderRadius: '12px',
@@ -1620,7 +1657,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </div>
 
             {/* Abas */}
-            <div style={{ display: 'flex', gap: '6px', padding: '14px 20px', borderBottom: '1px solid var(--portal-border)' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', padding: '14px 20px', borderBottom: '1px solid var(--portal-border)' }}>
               {([
                 { id: 'perfil', label: 'Perfil', icon: <UserIcon size={15} /> },
                 { id: 'aparencia', label: 'Aparência', icon: <Sun size={15} /> },
@@ -1642,7 +1679,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
             </div>
 
             {/* Conteúdo */}
-            <div style={{ flex: 1, overflow: 'auto', padding: '24px 26px' }}>
+            <div style={{ flex: 1, overflow: 'auto', padding: isMobile ? '18px 18px' : '24px 26px' }}>
 
             {perfilMsg && (
               <div style={{
@@ -1682,7 +1719,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--portal-text-secondary)', letterSpacing: '0.5px', display: 'block', marginBottom: '8px' }}>NOME</label>
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input value={perfilNome} onChange={(e) => setPerfilNome(e.target.value)} style={{
-                      flex: 1, padding: '11px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)',
+                      flex: 1, minWidth: 0, padding: '11px 14px', borderRadius: '10px', border: '1.5px solid var(--portal-border)',
                       background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: '14px', outline: 'none'
                     }} />
                     <button onClick={salvarNome} disabled={perfilBusy || !perfilNome.trim()} style={{
@@ -1768,7 +1805,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               <label style={{ fontSize: '12px', fontWeight: '700', color: 'var(--portal-text-secondary)', letterSpacing: '1px', display: 'block', margin: '26px 0 12px' }}>
                 MODELO DO DASHBOARD
               </label>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '10px' }}>
                 {[
                   { id: 'omie', label: 'Estilo Omie', icon: <LayoutDashboard size={18} />, desc: 'Tiles coloridos por categoria' },
                   { id: 'grade', label: 'Grade', icon: <LayoutGrid size={18} />, desc: 'Grupos com cards' },
@@ -1869,12 +1906,12 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
       {avisosPendentes.length > 0 && (
         <div style={{
           position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 60000, padding: 16,
           animation: 'avisoFadeIn 0.3s ease-out',
         }}>
           <div style={{
             background: 'var(--portal-bg-card)', borderRadius: 20, width: '100%', maxWidth: 500,
-            overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
+            maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.25)',
             animation: 'avisoScaleIn 0.3s ease-out',
           }}>
             {(() => {
@@ -1883,7 +1920,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               return (
                 <>
                   <div style={{ height: 5, background: prioColor }} />
-                  <div style={{ padding: '28px 32px' }}>
+                  <div style={{ padding: isMobile ? '20px 18px' : '28px 32px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
                       <div style={{
                         width: 52, height: 52, borderRadius: 14,
@@ -1896,7 +1933,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                         <div style={{ fontSize: 11, fontWeight: 700, color: '#a3a3a3', letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
                           Aviso Importante {avisosPendentes.length > 1 ? `(1 de ${avisosPendentes.length})` : ''}
                         </div>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)' }}>{aviso.titulo}</div>
+                        <div style={{ fontSize: isMobile ? 18 : 20, fontWeight: 800, color: 'var(--portal-text)', overflowWrap: 'anywhere' }}>{aviso.titulo}</div>
                       </div>
                     </div>
                     <div style={{
@@ -1966,7 +2003,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                 }} />
               )}
               {!isChat && (
-                <div style={{ height: '3px', background: 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
+                <div style={{ height: '3px', background: variante(t.varianteId) ? variante(t.varianteId)!.cor : 'linear-gradient(90deg, #dc2626, #ef4444)', animation: 'toastProgress 6s linear forwards' }} />
               )}
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px 18px' }}>
                 {/* Avatar / Ícone */}
@@ -1986,7 +2023,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
                   ) : isChat ? (
                     <MessageCircle size={20} color="#fff" />
                   ) : (
-                    <span style={{ display: 'flex', color: 'var(--portal-text-secondary)' }}>{NOTIF_ICONS[t.tipo] || <Bell size={18} />}</span>
+                    <span style={{ display: 'flex', color: variante(t.varianteId)?.cor || 'var(--portal-text-secondary)' }}>{variante(t.varianteId)?.icone || NOTIF_ICONS[t.tipo] || <Bell size={18} />}</span>
                   )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -2040,16 +2077,26 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* ===== CSS ===== */}
       <style>{`
-        /* Atalhos da top bar: vão sumindo conforme a tela aperta, do último
-           para o primeiro, para nunca empurrarem o sino e o avatar. */
-        @media (max-width: 1500px) { .topbar-atalhos a:nth-child(4) { display: none; } }
-        @media (max-width: 1320px) { .topbar-atalhos a:nth-child(3) { display: none; } }
-        @media (max-width: 1150px) { .topbar-atalhos { display: none !important; } }
+        /* Atalhos da top bar: cabem quantos der (ver .topbar-atalhos); no
+           celular a barra é só logo + sino + foto. */
+        @media (max-width: 640px) { .topbar-atalhos { display: none !important; } }
+        /* Tablet / notebook estreito: nome do usuário e rótulo "Menu" saem do
+           topo pra caber tudo numa linha (acima de 900px nada muda). */
+        @media (max-width: 900px) {
+          .portal-header { padding: 0 16px !important; }
+          .portal-user-name, .portal-menu-label, .portal-menu-chevron { display: none !important; }
+          .portal-menu-btn { padding: 11px !important; }
+          .portal-user-chip { padding: 6px !important; }
+        }
         /* Barra de cima no CELULAR: encolhe pra tudo caber (o avatar sumia cortado).
            Só afeta <= 640px; no PC nada muda. */
         @media (max-width: 640px) {
           .portal-header { padding: 0 12px !important; gap: 8px; }
           .portal-logo { height: 34px !important; }
+          .portal-hamburger { padding: 6px !important; }
+          .portal-header-right { gap: 6px !important; }
+          .portal-header-right > button { padding: 9px !important; }
+          .portal-user-chip { padding: 4px !important; }
           /* Só logo + sino + foto. Chat e Menu entram no menuzinho da foto. */
           .portal-chat-btn, .portal-menu-btn { display: none !important; }
           .portal-user-name { display: none !important; }

@@ -12,11 +12,13 @@
 
 import { useEffect, useState } from 'react'
 import { ajudaDaTela, NOTA_CONTA } from '@/lib/dre-financeiro/ajuda'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const VERDE = '#10B981'
 
 export default function AjudaTela({ pathname, cor = VERDE }) {
   const [aberto, setAberto] = useState(false)
+  const isMobile = useIsMobile()
   const ajuda = ajudaDaTela(pathname)
 
   // Esc fecha (mesmo padrao dos modais das telas do modulo).
@@ -39,7 +41,13 @@ export default function AjudaTela({ pathname, cor = VERDE }) {
         onClick={() => setAberto(true)}
         aria-label={`Ajuda: o que é a tela ${ajuda.titulo}`}
         title={`O que é esta tela? — ${ajuda.titulo}`}
-        style={{
+        style={isMobile ? {
+          // Celular: area de toque de 36px, transparente; o circulo fica no span.
+          width: '36px', height: '36px', margin: '-8px', padding: 0, cursor: 'pointer',
+          border: 'none', background: 'transparent',
+          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0,
+        } : {
           width: '20px', height: '20px', borderRadius: '50%', cursor: 'pointer',
           border: `1.5px solid ${cor}`, background: '#fff', color: cor,
           fontSize: '12px', fontWeight: 700, lineHeight: 1, padding: 0,
@@ -47,7 +55,14 @@ export default function AjudaTela({ pathname, cor = VERDE }) {
           flexShrink: 0,
         }}
       >
-        ?
+        {isMobile ? (
+          <span style={{
+            width: '22px', height: '22px', borderRadius: '50%', boxSizing: 'border-box',
+            border: `1.5px solid ${cor}`, background: '#fff', color: cor,
+            fontSize: '13px', fontWeight: 700, lineHeight: 1,
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+          }}>?</span>
+        ) : '?'}
       </button>
 
       {aberto && (
@@ -55,7 +70,7 @@ export default function AjudaTela({ pathname, cor = VERDE }) {
           onClick={() => setAberto(false)}
           style={{
             position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(15,23,42,0.45)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '12px' : '16px',
           }}
         >
           <div
@@ -65,14 +80,14 @@ export default function AjudaTela({ pathname, cor = VERDE }) {
             onClick={(e) => e.stopPropagation()}
             style={{
               background: '#fff', borderRadius: '12px', width: '100%', maxWidth: '640px',
-              maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
-              cursor: 'default',
+              maxHeight: isMobile ? '90vh' : '85vh', overflowY: 'auto', boxShadow: '0 20px 50px rgba(0,0,0,0.25)',
+              cursor: 'default', boxSizing: 'border-box',
             }}
           >
             {/* Cabecalho do painel */}
             <div style={{
               display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-              gap: '12px', padding: '16px 18px 12px', borderBottom: '1px solid #e2e8f0',
+              gap: '12px', padding: isMobile ? '12px 12px 10px 14px' : '16px 18px 12px', borderBottom: '1px solid #e2e8f0',
               position: 'sticky', top: 0, background: '#fff', borderRadius: '12px 12px 0 0',
             }}>
               <div>
@@ -90,13 +105,14 @@ export default function AjudaTela({ pathname, cor = VERDE }) {
                 style={{
                   border: 'none', background: 'transparent', cursor: 'pointer',
                   fontSize: '22px', lineHeight: 1, color: '#94a3b8', padding: '0 2px',
+                  ...(isMobile ? { minWidth: '36px', minHeight: '36px', flexShrink: 0 } : {}),
                 }}
               >
                 ×
               </button>
             </div>
 
-            <div style={{ padding: '14px 18px 18px' }}>
+            <div style={{ padding: isMobile ? '12px 14px 14px' : '14px 18px 18px' }}>
               <Secao titulo="O que esta tela mostra">
                 <p style={{ fontSize: '13px', color: '#334155', lineHeight: 1.6, margin: 0 }}>
                   {ajuda.oQueMostra}

@@ -38,12 +38,12 @@ export default function NovidadesPage() {
   const modulosParaCriar = dados?.admin ? MODULOS_KB.map((m) => m.id) : dados?.podePublicarEm ?? [];
 
   return (
-    <div style={{ paddingTop: 20, maxWidth: 860, margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
+    <div style={{ padding: "20px 12px 0", maxWidth: "calc(860px + 24px)", margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
       <div style={{ fontSize: 12, marginBottom: 10 }}>
         <Link href="/conhecimento" style={{ color: "#0369a1", fontWeight: 700, textDecoration: "none" }}>← Base de conhecimento</Link>
       </div>
-      <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 16 }}>
-        <div style={{ flex: 1 }}>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 12, marginBottom: 16 }}>
+        <div style={{ flex: "1 1 220px", minWidth: 0 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "var(--portal-text)" }}>🆕 O que mudou no portal</h1>
           <div style={{ fontSize: 12, color: "var(--portal-text-secondary)", marginTop: 2 }}>Mudanças nas telas que você usa, em ordem da mais recente.</div>
         </div>
@@ -113,7 +113,7 @@ function Rascunho({ n, aoMudar }: { n: NovidadeApi; aoMudar: () => void }) {
           {n.origem === "ia" ? "rascunho da IA" : "texto direto dos commits"} · {new Date(n.criado_em).toLocaleString("pt-BR")}
         </span>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 12 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))", gap: 12 }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <input style={campo} value={tituloN} onChange={(e) => setTituloN(e.target.value)} placeholder="Título" />
           <textarea style={{ ...campo, resize: "vertical", minHeight: 110, lineHeight: 1.5 }} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="- uma mudança por linha" />
@@ -134,7 +134,7 @@ function Rascunho({ n, aoMudar }: { n: NovidadeApi; aoMudar: () => void }) {
         </div>
       )}
       {erro && <div style={{ marginTop: 8, fontSize: 12, color: "#991b1b" }}>{erro}</div>}
-      <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
         <button type="button" style={btnPrimario} disabled={!!ocupado} onClick={() => agir("publicar")}>{ocupado === "publicar" ? "Publicando…" : "Publicar"}</button>
         <button type="button" style={btnSec} disabled={!!ocupado} onClick={() => agir("salvar")}>Salvar rascunho</button>
         <button type="button" style={{ ...btnSec, marginLeft: "auto", color: "#991b1b" }} disabled={!!ocupado} onClick={() => agir("descartar")}>Descartar</button>
@@ -157,15 +157,15 @@ function FormNovidade({ modulos, aoSalvar }: { modulos: string[]; aoSalvar: () =
   }
   return (
     <section style={{ ...card, marginBottom: 20 }}>
-      <div style={{ display: "grid", gridTemplateColumns: "200px minmax(0,1fr)", gap: 8, marginBottom: 8 }}>
-        <select style={campo} value={modulo} onChange={(e) => setModulo(e.target.value)}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+        <select style={{ ...campo, flex: "0 0 200px", maxWidth: "100%" }} value={modulo} onChange={(e) => setModulo(e.target.value)}>
           {modulos.map((m) => <option key={m} value={m}>{rotuloModulo(m)}</option>)}
         </select>
-        <input style={campo} value={tituloN} onChange={(e) => setTituloN(e.target.value)} placeholder="Título da novidade" />
+        <input style={{ ...campo, flex: "1 1 160px", minWidth: 0 }} value={tituloN} onChange={(e) => setTituloN(e.target.value)} placeholder="Título da novidade" />
       </div>
       <textarea style={{ ...campo, resize: "vertical", minHeight: 90 }} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="- uma mudança por linha" />
       {erro && <div style={{ marginTop: 6, fontSize: 12, color: "#991b1b" }}>{erro}</div>}
-      <div style={{ marginTop: 8, display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ marginTop: 8, display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
         <button type="button" style={btnPrimario} disabled={ocupado} onClick={salvar}>Criar rascunho</button>
         <span style={{ fontSize: 11, color: "var(--portal-text-muted)" }}>Entra em “Para você aprovar”; só aparece para a equipe depois de publicar.</span>
       </div>

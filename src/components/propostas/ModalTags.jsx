@@ -77,8 +77,8 @@ export default function ModalTags({ open, onClose }) {
 
   return (
     <div onClick={e => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 60000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: '#fff', borderRadius: 20, width: 600, maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.2)' }}>
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 60000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+      <div style={{ background: '#fff', borderRadius: 20, width: 600, maxWidth: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.2)' }}>
 
         {/* Header */}
         <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -98,8 +98,8 @@ export default function ModalTags({ open, onClose }) {
 
         {/* Criar nova tag */}
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #F1F5F9' }}>
-          <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-            <div style={{ flex: 1 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'flex-end' }}>
+            <div style={{ flex: '1 1 180px', minWidth: 0 }}>
               <label style={{ fontSize: 11, fontWeight: 700, color: '#64748B', display: 'block', marginBottom: 4 }}>NOVA TAG</label>
               <input
                 value={novoNome}
@@ -121,7 +121,7 @@ export default function ModalTags({ open, onClose }) {
               <Plus size={14} /> Criar
             </button>
           </div>
-          <div style={{ display: 'flex', gap: 4, marginTop: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
             {CORES.map(c => (
               <div key={c} onClick={() => setNovoCor(c)}
                 style={{ width: 22, height: 22, borderRadius: 6, background: c, cursor: 'pointer', border: novoCor === c ? '2px solid #1E293B' : '2px solid transparent', transition: 'border .15s' }} />

@@ -18,7 +18,7 @@ const mut = 'var(--portal-text-muted,#6b7280)'
 const borda = '1px solid var(--portal-border,#e5e7eb)'
 const td: React.CSSProperties = { padding: '7px 9px', fontSize: 13, verticalAlign: 'top', borderBottom: borda, color: txt }
 const th: React.CSSProperties = { ...td, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-secondary,#374151)', background: 'var(--portal-bg-secondary,#f3f4f6)', whiteSpace: 'nowrap', position: 'sticky', top: 0, cursor: 'pointer', userSelect: 'none' }
-const input: React.CSSProperties = { padding: '6px 8px', borderRadius: 6, border: borda, background: 'var(--portal-bg-input,#fefefe)', color: txt, fontSize: 13 }
+const input: React.CSSProperties = { padding: '6px 8px', borderRadius: 6, border: borda, background: 'var(--portal-bg-input,#fefefe)', color: txt, fontSize: 13, maxWidth: '100%' }
 const botao = (cor: string, cheio: boolean): React.CSSProperties => ({
   display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 11px', borderRadius: 6, fontSize: 12, fontWeight: 700,
   border: `1px solid ${cor}`, background: cheio ? cor : 'transparent', color: cheio ? '#fefefe' : cor, cursor: 'pointer',
@@ -107,8 +107,8 @@ export default function ProspeccaoCar() {
   const paginas = Math.max(Math.ceil(total / LIMITE), 1)
 
   return (
-    <div style={{ maxWidth: 1500, margin: '0 auto', padding: '16px 16px 60px' }}>
-      <div style={{ background: 'var(--portal-bg-card,#fefefe)', border: borda, borderTop: `4px solid ${VERDE}`, borderRadius: 10, padding: '14px 18px', marginBottom: 12 }}>
+    <div style={{ maxWidth: 1500, margin: '0 auto', padding: '16px clamp(10px, 2.5vw, 16px) 60px' }}>
+      <div style={{ background: 'var(--portal-bg-card,#fefefe)', border: borda, borderTop: `4px solid ${VERDE}`, borderRadius: 10, padding: '14px clamp(12px, 3vw, 18px)', marginBottom: 12 }}>
         <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10 }}>
           <Target size={22} style={{ color: VERDE }} />
           <h1 style={{ margin: 0, fontSize: 19, fontWeight: 900, color: txt }}>Lista de prospecção por imóvel rural</h1>
@@ -144,7 +144,7 @@ export default function ProspeccaoCar() {
         </select>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: borda, borderRadius: 6, padding: '3px 8px', background: 'var(--portal-bg-input,#fefefe)' }}>
           <Search size={14} style={{ color: mut }} />
-          <input value={f.q} onChange={(e) => mudar({ q: e.target.value })} placeholder="código do CAR" style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: txt, width: 140 }} />
+          <input value={f.q} onChange={(e) => mudar({ q: e.target.value })} placeholder="código do CAR" style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: 13, color: txt, width: 140, minWidth: 0 }} />
         </div>
         <button type="button" onClick={() => { setPagina(0); setF(FILTROS_PADRAO) }} style={botao('#6b7280', false)}>Limpar</button>
         <button type="button" onClick={carregar} style={botao('#6b7280', false)}><RefreshCw size={13} /> Atualizar</button>
@@ -204,11 +204,11 @@ export default function ProspeccaoCar() {
         </table>
       </div>
 
-      <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 10, fontSize: 12, color: mut }}>
+      <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 10, fontSize: 12, color: mut }}>
         <button type="button" disabled={pagina === 0} onClick={() => setPagina((p) => Math.max(p - 1, 0))} style={{ ...botao('#6b7280', false), opacity: pagina === 0 ? .4 : 1 }}>← Anterior</button>
         <span>página {pagina + 1} de {paginas.toLocaleString('pt-BR')}</span>
         <button type="button" disabled={pagina + 1 >= paginas} onClick={() => setPagina((p) => p + 1)} style={{ ...botao('#6b7280', false), opacity: pagina + 1 >= paginas ? .4 : 1 }}>Próxima →</button>
-        <span style={{ marginLeft: 'auto' }}>O CSV não leva dado de pessoa física de fonte pública — só o imóvel, a estimativa e o cliente vinculado pela Nova. Toda exportação fica registrada.</span>
+        <span style={{ marginLeft: 'auto', minWidth: 0 }}>O CSV não leva dado de pessoa física de fonte pública — só o imóvel, a estimativa e o cliente vinculado pela Nova. Toda exportação fica registrada.</span>
       </div>
 
       {ficha && <FichaImovel codCar={ficha} onFechar={() => setFicha(null)} onMudou={carregar} />}

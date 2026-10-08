@@ -124,7 +124,7 @@ export default function FrotaMotoristasPage() {
   }, [motoristas, busca, segmento]);
 
   return (
-    <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+    <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       {/* Cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
         <div style={{ width: 48, height: 48, borderRadius: 0, background: 'linear-gradient(135deg, #1E40AF, #1E3A8A)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -158,7 +158,7 @@ export default function FrotaMotoristasPage() {
         <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--portal-text)' }}>Pessoas</h3>
         <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>{filtrados.length} de {motoristas.length}</span>
         <div style={{ flex: 1 }} />
-        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden', overflowX: 'auto', maxWidth: '100%' }}>
           {([
             ['todos', `Ativos (${ativos.length})`],
             ['motoristas', `Só motoristas (${kMotoristas.length})`],
@@ -168,8 +168,10 @@ export default function FrotaMotoristasPage() {
             <button
               key={k}
               onClick={() => setSegmento(k)}
+              className="frota-touch"
               style={{
                 padding: '7px 12px', border: 'none', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                whiteSpace: 'nowrap', flexShrink: 0,
                 background: segmento === k ? '#1e40af' : 'var(--portal-bg-input)',
                 color: segmento === k ? '#fff' : 'var(--portal-text-secondary)',
               }}
@@ -178,12 +180,13 @@ export default function FrotaMotoristasPage() {
             </button>
           ))}
         </div>
-        <div style={{ position: 'relative' }}>
+        <div className="frota-busca-box" style={{ position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Nome, cargo, departamento…"
+            className="frota-busca frota-touch"
             style={{ padding: '8px 12px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
           />
         </div>
@@ -193,7 +196,7 @@ export default function FrotaMotoristasPage() {
       {carregando && <div style={{ color: 'var(--portal-text)', fontSize: 13 }}>Carregando…</div>}
 
       {/* Grid de pessoas — mesmo padrão dos cards de veículos */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 14 }}>
         {filtrados.map((m) => (
           <button
             key={m.rh_id || m.id}

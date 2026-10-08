@@ -7,6 +7,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import AjudaTela from '@/components/dre-financeiro/AjudaTela'
@@ -81,6 +82,7 @@ export default function DreFinanceiroLayout({ children }) {
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
   const { conta, setConta, contas } = useDreConta()
   const pathname = usePathname()
+  const isMobile = useIsMobile()
 
   // Pode ver uma TELA do DRE? Quem tem 'financeiro' (ou admin) vê todas;
   // senão, vê só as telas liberadas via 'dre:<slug>' ('dre' puro = todas).
@@ -118,7 +120,8 @@ export default function DreFinanceiroLayout({ children }) {
       <div style={{
         background: '#fff', borderBottom: '1px solid #e2e8f0',
         position: 'sticky', top: 0, zIndex: 20,
-        padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '10px'
+        padding: isMobile ? '10px' : '12px 16px', display: 'flex', flexDirection: 'column',
+        gap: isMobile ? '8px' : '10px', minWidth: 0
       }}>
         {/* Linha 1: titulo + seletor de conta */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
@@ -143,7 +146,8 @@ export default function DreFinanceiroLayout({ children }) {
                       border: 'none', borderLeft: i === 0 ? 'none' : `1px solid ${VERDE}`,
                       background: ativo ? VERDE : '#fff',
                       color: ativo ? '#fff' : '#047857',
-                      transition: '0.15s'
+                      transition: '0.15s',
+                      ...(isMobile ? { minHeight: '36px' } : {}),
                     }}
                   >
                     {c.label}
@@ -155,7 +159,10 @@ export default function DreFinanceiroLayout({ children }) {
         </div>
 
         {/* Linha 2: sub-navegacao agrupada por categoria (espelha o header.ejs da fonte) */}
-        <nav style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <nav style={{
+          display: 'flex', gap: '8px', flexWrap: isMobile ? 'nowrap' : 'wrap', alignItems: 'center',
+          ...(isMobile ? { overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '4px', minWidth: 0 } : {}),
+        }}>
           {GRUPOS.map((grupo, gi) => {
             // Esconde itens sem permissão; se o grupo ficar vazio, some inteiro.
             const itens = grupo.itens.filter((item) => podeVerTela(item.href))
@@ -164,7 +171,8 @@ export default function DreFinanceiroLayout({ children }) {
             <div
               key={grupo.label || `g${gi}`}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap',
+                display: 'inline-flex', alignItems: 'center', gap: '6px', flexWrap: isMobile ? 'nowrap' : 'wrap',
+                flexShrink: isMobile ? 0 : undefined,
                 borderLeft: grupo.label ? '1px solid #e2e8f0' : 'none',
                 paddingLeft: grupo.label ? '8px' : 0,
               }}
@@ -172,7 +180,7 @@ export default function DreFinanceiroLayout({ children }) {
               {grupo.label && (
                 <span style={{
                   fontSize: '10px', fontWeight: 700, color: '#94a3b8',
-                  textTransform: 'uppercase', letterSpacing: '.5px',
+                  textTransform: 'uppercase', letterSpacing: '.5px', whiteSpace: 'nowrap',
                 }}>
                   {grupo.label}
                 </span>
@@ -191,6 +199,7 @@ export default function DreFinanceiroLayout({ children }) {
                       whiteSpace: 'nowrap',
                       background: ativo ? c.on : c.bg,
                       color: ativo ? '#fff' : c.fg,
+                      ...(isMobile ? { minHeight: '36px', display: 'inline-flex', alignItems: 'center', boxSizing: 'border-box', flexShrink: 0 } : {}),
                     }}
                   >
                     {item.icon} {item.label}
@@ -204,7 +213,7 @@ export default function DreFinanceiroLayout({ children }) {
       </div>
 
       {/* Conteudo da tela */}
-      <div style={{ padding: '16px' }}>
+      <div style={{ padding: isMobile ? '10px' : '16px', minWidth: 0 }}>
         {children}
       </div>
     </div>

@@ -86,7 +86,7 @@ export default function MontadorasConfig({ criadoPor }: Props) {
           <p>Nenhuma montadora cadastrada ainda.</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 12 }}>
           {montadoras.map((m) => (
             <div
               key={m.id}

@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import SemPermissao from '@/components/SemPermissao'
 import {
@@ -37,6 +38,7 @@ export default function SupervisorVendasPage() {
   const [carros, setCarros] = useState<any[]>([])
   const [carrosErro, setCarrosErro] = useState<string>('')
   const [showVincular, setShowVincular] = useState(false)
+  const isMobile = useIsMobile()
 
   const carregar = useCallback(async () => {
     setLoading(true)
@@ -134,15 +136,15 @@ export default function SupervisorVendasPage() {
   }
 
   return (
-    <div style={{ padding: '24px 32px', minHeight: '100%' }}>
+    <div style={{ padding: isMobile ? '14px 10px' : '24px 32px', minHeight: '100%' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: isMobile ? 16 : 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg, #dc2626, #991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff' }}>
             <TrendingUp size={22} />
           </div>
           <div>
-            <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Supervisor Vendas</h1>
+            <h1 style={{ fontSize: isMobile ? 19 : 22, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Supervisor Vendas</h1>
             <p style={{ fontSize: 13, color: 'var(--portal-text-muted)', margin: 0 }}>Gestão de vendedores, visitas e negócios</p>
           </div>
         </div>
@@ -156,10 +158,10 @@ export default function SupervisorVendasPage() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'flex', gap: 4, background: 'var(--portal-bg-secondary)', padding: 4, borderRadius: 12, width: 'fit-content', marginBottom: 24 }}>
+      <div style={{ display: 'flex', gap: 4, background: 'var(--portal-bg-secondary)', padding: 4, borderRadius: 12, width: 'fit-content', maxWidth: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch', boxSizing: 'border-box', marginBottom: isMobile ? 16 : 24 }}>
         {TABS.map(t => (
           <button key={t.id} onClick={() => setTab(t.id)} style={{
-            display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8,
+            display: 'flex', alignItems: 'center', gap: 6, padding: isMobile ? '9px 12px' : '8px 16px', borderRadius: 8, flexShrink: 0, whiteSpace: 'nowrap',
             background: tab === t.id ? 'var(--portal-bg-card)' : 'transparent',
             border: tab === t.id ? '1px solid var(--portal-border)' : '1px solid transparent',
             boxShadow: tab === t.id ? '0 1px 3px rgba(0,0,0,0.06)' : 'none',
@@ -177,7 +179,7 @@ export default function SupervisorVendasPage() {
         <>
           {/* VISÃO GERAL */}
           {tab === 'geral' && kpis && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(4, 1fr)', gap: isMobile ? 10 : 14 }}>
               {[
                 { label: 'Visitas Hoje', value: kpis.visitasHoje, bg: '#1D4ED8' },
                 { label: 'Visitas Semana', value: kpis.visitasSemana, bg: '#2563EB' },
@@ -188,8 +190,8 @@ export default function SupervisorVendasPage() {
                 { label: 'Pós Vendas Pendentes', value: kpis.posVendasPendentes, bg: kpis.posVendasPendentes > 0 ? '#EA580C' : '#94A3B8' },
                 { label: 'Total Negócios', value: kpis.totalNegocios, bg: '#475569' },
               ].map(c => (
-                <div key={c.label} style={{ background: c.bg, color: '#fff', borderRadius: 14, padding: '20px 22px' }}>
-                  <div style={{ fontSize: 28, fontWeight: 800 }}>{c.value}</div>
+                <div key={c.label} style={{ background: c.bg, color: '#fff', borderRadius: 14, padding: isMobile ? '14px 14px' : '20px 22px', minWidth: 0 }}>
+                  <div style={{ fontSize: isMobile ? 20 : 28, fontWeight: 800, overflowWrap: 'anywhere' }}>{c.value}</div>
                   <div style={{ fontSize: 12, opacity: 0.8, marginTop: 4 }}>{c.label}</div>
                 </div>
               ))}
@@ -198,16 +200,16 @@ export default function SupervisorVendasPage() {
 
           {/* VENDEDORES */}
           {tab === 'vendedores' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
               {vendedores.map((v: any) => {
                 const dias = diasDesde(v.ultimaVisita)
                 return (
                   <div key={v.id} onClick={() => { setFiltroVendedor(v.id); setTab('visitas') }}
-                    style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14, padding: '18px 20px', cursor: 'pointer', transition: 'all .2s' }}
+                    style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14, padding: isMobile ? '14px 14px' : '18px 20px', cursor: 'pointer', transition: 'all .2s' }}
                     onMouseEnter={e => { e.currentTarget.style.borderColor = '#fecaca' }}
                     onMouseLeave={e => { e.currentTarget.style.borderColor = '' }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
                       <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--portal-text)' }}>{v.nome}</span>
                       {dias > 3 && <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '2px 8px', borderRadius: 6 }}>{dias}d inativo</span>}
                     </div>
@@ -248,14 +250,14 @@ export default function SupervisorVendasPage() {
                 ) : visitas.slice(0, 50).map((v: any, i: number) => {
                   const tc = tipoCores[v.tipo] || { bg: '#F1F5F9', text: '#475569' }
                   return (
-                    <div key={v.id || i} onClick={() => setVisitaSelecionada(v)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 18px', borderBottom: '1px solid #f5f5f5', flexWrap: 'wrap', cursor: 'pointer', transition: 'background .15s' }}
+                    <div key={v.id || i} onClick={() => setVisitaSelecionada(v)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: isMobile ? '12px 12px' : '12px 18px', borderBottom: '1px solid #f5f5f5', flexWrap: 'wrap', cursor: 'pointer', transition: 'background .15s' }}
                       onMouseEnter={e => { e.currentTarget.style.background = '#FAFAFA' }}
                       onMouseLeave={e => { e.currentTarget.style.background = '' }}
                     >
                       <span style={{ fontSize: 13, fontWeight: 600, color: '#2563EB', minWidth: 100 }}>{v.vendedor_nome}</span>
                       <span style={{ fontSize: 12, color: '#64748B', minWidth: 120 }}>{fmtData(v.data_visita)}</span>
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 6, background: tc.bg, color: tc.text }}>{v.tipo}</span>
-                      <span style={{ fontSize: 13, color: 'var(--portal-text)', flex: 1 }}>{v.cliente_nome || '-'} {v.propriedade_nome ? `· ${v.propriedade_nome}` : ''}</span>
+                      <span style={{ fontSize: 13, color: 'var(--portal-text)', flex: 1, minWidth: isMobile ? '100%' : undefined }}>{v.cliente_nome || '-'} {v.propriedade_nome ? `· ${v.propriedade_nome}` : ''}</span>
                       {v.retroativa && <span style={{ fontSize: 10, fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '2px 6px', borderRadius: 4 }}>Retroativa</span>}
                       {v.acionar_pos_vendas && <span style={{ fontSize: 10, fontWeight: 700, color: '#EA580C', background: '#FFF7ED', padding: '2px 6px', borderRadius: 4 }}>Pós Venda</span>}
                       {v.tipo === 'presencial' && !v.latitude && <span style={{ fontSize: 10, fontWeight: 700, color: '#DC2626', background: '#FEF2F2', padding: '2px 6px', borderRadius: 4 }}>Sem GPS</span>}
@@ -321,7 +323,7 @@ export default function SupervisorVendasPage() {
                 </div>
               )}
 
-              <div id="supervisor-mapa" style={{ width: '100%', height: 'calc(100vh - 300px)', minHeight: 440, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
+              <div id="supervisor-mapa" style={{ width: '100%', height: isMobile ? '65vh' : 'calc(100vh - 300px)', minHeight: isMobile ? 340 : 440, borderRadius: 14, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
                 <MapaCarros carros={carros} visitas={visitasMapa} tipoCores={tipoCores} fmtVisita={fmtData} onVisitaClick={(v: any) => setVisitaSelecionada(v)} />
               </div>
             </div>
@@ -330,10 +332,10 @@ export default function SupervisorVendasPage() {
           {/* PÓS VENDAS */}
           {tab === 'pos-vendas' && (
             <div>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
                 {(['pendentes', 'resolvidos', 'todos'] as const).map(f => (
                   <button key={f} onClick={() => setFiltroPosVendas(f)} style={{
-                    padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                    padding: isMobile ? '9px 14px' : '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
                     background: filtroPosVendas === f ? '#dc2626' : 'var(--portal-bg-secondary)',
                     color: filtroPosVendas === f ? '#fff' : 'var(--portal-text-secondary)',
                   }}>
@@ -346,13 +348,13 @@ export default function SupervisorVendasPage() {
                   .filter((v: any) => filtroPosVendas === 'todos' ? true : filtroPosVendas === 'pendentes' ? !v.pos_vendas_resolvido : v.pos_vendas_resolvido)
                   .map((v: any) => (
                     <div key={v.id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: '14px 18px', opacity: v.pos_vendas_resolvido ? 0.6 : 1 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                        <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+                        <div style={{ minWidth: 0 }}>
                           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)' }}>{v.cliente_nome}</span>
                           <span style={{ fontSize: 12, color: '#64748B', marginLeft: 8 }}>{v.vendedor_nome} · {fmtData(v.data_visita)}</span>
                         </div>
                         <button onClick={() => resolverPosVendas(v.id, !v.pos_vendas_resolvido)} {...gateBtn(podeResolver)} style={{
-                          padding: '4px 12px', borderRadius: 6, border: 'none', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                          padding: isMobile ? '8px 14px' : '4px 12px', borderRadius: 6, border: 'none', fontSize: isMobile ? 12 : 11, fontWeight: 600, cursor: 'pointer',
                           background: v.pos_vendas_resolvido ? '#FEF3C7' : '#D1FAE5',
                           color: v.pos_vendas_resolvido ? '#92400E' : '#065F46',
                           ...estiloSemPermissao(podeResolver)
@@ -389,7 +391,7 @@ export default function SupervisorVendasPage() {
                         </div>
                         {items.map((a: any, i: number) => (
                           <div key={i} style={{ background: corBg, borderLeft: `3px solid ${corBorder}`, borderRadius: 8, padding: '10px 16px', marginBottom: 6 }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text)' }}>{a.vendedor}</span>
                               <span style={{ fontSize: 11, color: '#64748B' }}>{a.data ? fmtData(a.data) : ''}</span>
                               <span style={{ fontSize: 11, fontWeight: 600, color: corBorder, marginLeft: 'auto' }}>{a.tipo === 'sem_gps' ? 'Sem GPS' : a.tipo === 'retroativa' ? 'Retroativa' : 'Inativo'}</span>

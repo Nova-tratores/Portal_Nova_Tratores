@@ -142,14 +142,14 @@ export default function SolicitacoesTratorilson({ open, onClose, abaInicial }: {
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width: 'min(1280px, 98vw)', height: 'min(760px, 92vh)', background: 'var(--portal-bg)', borderRadius: 16,
+          width: 'min(1280px, 100%)', height: 'min(760px, 92vh)', background: 'var(--portal-bg)', borderRadius: 16,
           border: '1px solid var(--portal-border)', boxShadow: '0 24px 64px rgba(0,0,0,.4)',
           display: 'flex', flexDirection: 'column', overflow: 'hidden',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--portal-border)' }}>
-          <strong style={{ fontSize: 16, color: 'var(--portal-text)' }}>Solicitações do Tratorilson</strong>
-          <div role="tablist" style={{ display: 'flex', gap: 4, marginLeft: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '14px 18px', borderBottom: '1px solid var(--portal-border)' }}>
+          <strong style={{ fontSize: 16, color: 'var(--portal-text)', minWidth: 0 }}>Solicitações do Tratorilson</strong>
+          <div role="tablist" style={{ display: 'flex', gap: 4, flexWrap: 'wrap', minWidth: 0 }}>
             {abas.map(a => (
               <button key={a.id} role="tab" aria-selected={aba === a.id} onClick={() => setAba(a.id)}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 11px', borderRadius: 8, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', border: aba === a.id ? `1px solid ${a.cor}` : '1px solid var(--portal-border)', background: aba === a.id ? a.cor : 'transparent', color: aba === a.id ? '#fff' : 'var(--portal-text-secondary)' }}>
@@ -161,7 +161,7 @@ export default function SolicitacoesTratorilson({ open, onClose, abaInicial }: {
             <input type="checkbox" checked={mostrarConcluidas} onChange={e => setMostrarConcluidas(e.target.checked)} />
             Mostrar concluídas
           </label>}
-          <button onClick={onClose} style={{ marginLeft: aba === 'solicitacoes' ? 0 : 'auto', background: 'transparent', border: 'none', color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: 6 }}>
+          <button onClick={onClose} style={{ marginLeft: aba === 'solicitacoes' ? 0 : 'auto', background: 'transparent', border: 'none', color: 'var(--portal-text-secondary)', cursor: 'pointer', padding: 6, minWidth: 36, minHeight: 36, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <X size={20} />
           </button>
         </div>
@@ -170,11 +170,11 @@ export default function SolicitacoesTratorilson({ open, onClose, abaInicial }: {
 
         {aba === 'atendimento' && <div style={{ flex: 1, overflowY: 'auto' }}><PrecisaAtendimento cards={pendentes} onMudou={carregar} /></div>}
         {aba === 'dispensadas' && <div style={{ flex: 1, overflowY: 'auto' }}><DispensadasSemAtualizar cards={dispensadas} perguntas={pergFechadas} onMudou={carregar} /></div>}
-        {aba === 'solicitacoes' && <div style={{ flex: 1, display: 'flex', gap: 12, padding: 14, overflowX: 'auto' }}>
+        {aba === 'solicitacoes' && <div style={{ flex: 1, minHeight: 0, display: 'flex', gap: 12, padding: 14, overflowX: 'auto', scrollSnapType: 'x proximity' }}>
           {colunas.map(col => {
             const cards = kanban.filter(s => faseDe(s) === col.id)
             return (
-              <div key={col.id} style={{ minWidth: 235, width: 235, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div key={col.id} style={{ minWidth: 235, width: 235, flexShrink: 0, scrollSnapAlign: 'start', display: 'flex', flexDirection: 'column', gap: 8 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 4px' }}>
                   <span style={{ width: 10, height: 10, borderRadius: 5, background: col.cor }} />
                   <strong style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{col.titulo}</strong>

@@ -22,7 +22,7 @@ const PAGINAS = [
 ]
 
 const selectClass =
-  'rounded-md border border-gray-300 bg-white px-2 py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500'
+  'rounded-md border border-gray-300 bg-white px-2 py-2 sm:py-1 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-red-500'
 
 export default function GvNav() {
   const pathname = usePathname()
@@ -31,14 +31,14 @@ export default function GvNav() {
   const anos = Array.from({ length: 6 }, (_, i) => anoAtual - 3 + i)
 
   return (
-    <nav className="print:hidden sticky top-0 z-20 mb-2 flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-4 py-2">
+    <nav className="print:hidden sticky top-0 z-20 mb-2 flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-2 py-2 sm:px-4">
       {PAGINAS.map((p) => {
         const ativo = p.href === '/gestao-vendas' ? pathname === p.href : pathname.startsWith(p.href)
         return (
           <Link
             key={p.href}
             href={p.href}
-            className={`whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium no-underline ${
+            className={`whitespace-nowrap rounded-md px-2.5 py-2 sm:py-1 text-xs font-medium no-underline ${
               ativo ? 'bg-red-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -47,8 +47,8 @@ export default function GvNav() {
         )
       })}
 
-      <div className="ml-auto flex items-center gap-2">
-        <span className="text-[11px] text-gray-500">Loja</span>
+      <div className="ml-auto flex flex-wrap items-center gap-2">
+        <span className="text-xs sm:text-[11px] text-gray-500">Loja</span>
         <div className="inline-flex overflow-hidden rounded-lg border border-red-600" role="group" aria-label="Loja">
           {LOJAS.map((e, i) => {
             const ativo = conta === e.value
@@ -57,7 +57,7 @@ export default function GvNav() {
                 key={e.value}
                 type="button"
                 onClick={() => setConta(e.value)}
-                className={`px-3 py-1 text-xs font-semibold transition-colors ${
+                className={`px-3 py-2 sm:py-1 text-xs font-semibold transition-colors ${
                   i > 0 ? 'border-l border-red-600' : ''
                 } ${ativo ? 'bg-red-600 text-white' : 'bg-white text-red-700 hover:bg-red-50'}`}
               >

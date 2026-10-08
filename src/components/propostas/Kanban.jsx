@@ -295,8 +295,8 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
       {/* BUSCA — filtra por qualquer campo */}
       <div className="bg-white border border-zinc-200 rounded-xl p-4 mb-4">
         <label className="block text-xs font-semibold text-zinc-500 mb-2">Filtrar por cliente, ID, marca, modelo, cidade, valor ou status</label>
-        <div className="flex gap-3 items-center">
-          <div className="relative flex-1">
+        <div className="flex flex-wrap gap-3 items-center">
+          <div className="relative flex-1 min-w-[200px]">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-600 pointer-events-none" />
             <input type="text" placeholder="Digite cliente, ID, marca, modelo, cidade, valor ou status..." value={busca} onChange={e => setBusca(e.target.value)} className={`${filterInputStyle} pl-9`} />
           </div>
@@ -337,11 +337,11 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
 
       {modo === 'kanban' ? (
         /* VISÃO KANBAN */
-        <div className="flex gap-4 overflow-x-auto pb-2">
+        <div className="flex gap-4 overflow-x-auto snap-x pb-2">
           {COLUNAS.map(col => {
             const doStatus = filtradas.filter(c => c.status === col.nome)
             return (
-              <div key={col.nome} className="flex-1 min-w-[260px]">
+              <div key={col.nome} className="flex-1 min-w-[260px] snap-start">
                 <div className="flex items-center justify-between mb-2 px-1">
                   <span className={`text-sm font-semibold px-2.5 py-1 rounded-md ${col.cor}`}>{col.label}</span>
                   <span className="text-sm font-bold text-zinc-400">{doStatus.length}</span>
@@ -377,8 +377,8 @@ export default function Kanban({ onCardClick, onGerarRelatorio, modo = 'tabela' 
         </div>
       ) : (
         /* VISÃO LISTA */
-        <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-          <table className="w-full border-collapse">
+        <div className="bg-white border border-zinc-200 rounded-xl overflow-x-auto">
+          <table className="w-full min-w-[1200px] border-collapse">
             <thead>
               <tr className="border-b-2 border-zinc-200">
                 <Th k="id" label="ID" className="text-left px-5 py-4 text-sm font-bold text-zinc-500 tracking-wide" />

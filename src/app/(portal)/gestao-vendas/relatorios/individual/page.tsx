@@ -62,15 +62,15 @@ export default function GvRelatorioIndividualPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Link href="/gestao-vendas/relatorios" className="text-sm text-gray-500 hover:text-gray-800">
           ← Voltar aos relatórios
         </Link>
-        <div className="flex items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
           <select
             value={vendedor}
             onChange={(e) => setSelecionado(e.target.value)}
-            className="rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
+            className="max-w-full rounded-md border border-gray-300 bg-white px-2 py-1.5 text-sm"
             aria-label="Vendedor"
           >
             {nomes.map((n) => (
@@ -112,7 +112,7 @@ export default function GvRelatorioIndividualPage() {
       ) : (
         <>
           {resultado && (
-            <div className="grid gap-2 text-center md:grid-cols-3 lg:grid-cols-6">
+            <div className="grid grid-cols-2 gap-2 text-center md:grid-cols-3 lg:grid-cols-6">
               <Resumo titulo="Venda total" valor={formatBRL(resultado.venda)} />
               <Resumo titulo="CMC" valor={formatBRL(resultado.cmc)} />
               <Resumo titulo="Comissão" valor={formatBRL(resultado.comissao)} />
@@ -136,7 +136,7 @@ export default function GvRelatorioIndividualPage() {
               <tbody>
                 {porCliente.map(([nome, a]) => (
                   <tr key={nome} className="border-t border-gray-100">
-                    <td className="max-w-[360px] truncate px-3 py-1" title={nome}>{nome}</td>
+                    <td className="max-w-[200px] sm:max-w-[360px] truncate px-3 py-1" title={nome}>{nome}</td>
                     <td className="px-3 py-1 text-right tabular-nums">{a.qtd}</td>
                     <td className="px-3 py-1 text-right tabular-nums">{formatBRL(a.cmc)}</td>
                     <td className="px-3 py-1 text-right tabular-nums">{formatBRL(a.venda)}</td>

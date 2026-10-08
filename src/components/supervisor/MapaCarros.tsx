@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { distKm, filtrarEspetos, segmentarTrajeto } from '@/lib/frota/gps'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 interface Carro { placa: string; descricao?: string | null; pessoa_nome?: string | null; vinculo_tipo?: string | null }
 // Lugar conhecido (geocerca ou propriedade de cliente) — vira um pin discreto
@@ -57,6 +58,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const rotaLayerRef = useRef<any>(null)
   const visitasLayerRef = useRef<any>(null)
   const locaisLayerRef = useRef<any>(null)
+  const isMobile = useIsMobile()
   const [mostrarLocais, setMostrarLocais] = useState(true)
   const [mostrarVisitas, setMostrarVisitas] = useState(true)
   const onVisitaClickRef = useRef(onVisitaClick)
@@ -384,7 +386,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
 
       {/* Painel de controle */}
-      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1000, background: 'rgba(255,255,255,0.97)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', width: 240, maxHeight: 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div style={{ position: 'absolute', top: 10, left: 10, zIndex: 1000, background: 'rgba(255,255,255,0.97)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', width: isMobile ? 'min(190px, calc(100% - 20px))' : 240, maxHeight: isMobile ? '45%' : 'calc(100% - 20px)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {!carroSel ? (
           <>
             <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: 12, fontWeight: 700, color: '#64748B', letterSpacing: 0.3 }}>
@@ -459,7 +461,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
 
       {/* Liga/desliga as camadas de contexto (aparecem quando a tela passou os dados) */}
       {(locais.length > 0 || visitas.length > 0) && (
-        <div style={{ position: 'absolute', bottom: 12, right: 12, zIndex: 1000, display: 'flex', gap: 6 }}>
+        <div style={{ position: 'absolute', ...(isMobile ? { top: 10, right: 10, flexDirection: 'column', alignItems: 'flex-end' } as React.CSSProperties : { bottom: 12, right: 12 }), zIndex: 1000, display: 'flex', gap: 6 }}>
           {visitas.length > 0 && (
             <button
               onClick={() => setMostrarVisitas((v) => !v)}
@@ -500,7 +502,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       )}
 
       {resumo && placaSel && (
-        <div style={{ position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: '#1E293B', color: '#fff', borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 14, whiteSpace: 'nowrap' }}>
+        <div style={{ position: 'absolute', bottom: 12, ...(isMobile ? { left: 8, right: 8, flexWrap: 'wrap', justifyContent: 'center', gap: 8, padding: '8px 10px', fontSize: 12 } as React.CSSProperties : { left: '50%', transform: 'translateX(-50%)', gap: 14, padding: '8px 16px', fontSize: 13, whiteSpace: 'nowrap' } as React.CSSProperties), zIndex: 1000, background: '#1E293B', color: '#fff', borderRadius: 10, fontWeight: 700, display: 'flex', alignItems: 'center' }}>
           <span>{fmtData(placaSel)}</span>
           <span style={{ color: '#60a5fa' }}>{resumo.km} km</span>
           <span style={{ color: '#fbbf24' }}>{resumo.paradas} paradas</span>
@@ -517,7 +519,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
 
       {/* TIMELINE — onde passou, que horas, paradas, velocidade e o motorista do dia */}
       {timelineAberta && timeline.length > 0 && placaSel && (
-        <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, width: 292, maxHeight: 'calc(100% - 20px)', background: 'rgba(255,255,255,0.98)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', top: 10, right: 10, ...(isMobile ? { left: 10, zIndex: 1001, maxHeight: 'calc(100% - 110px)' } : { zIndex: 1000, width: 292, maxHeight: 'calc(100% - 20px)' }), background: 'rgba(255,255,255,0.98)', borderRadius: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.18)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ padding: '10px 12px', borderBottom: '1px solid #eee' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontSize: 12, fontWeight: 800, color: '#334155', letterSpacing: 0.3 }}>🕒 TIMELINE — {fmtData(placaSel)}</span>

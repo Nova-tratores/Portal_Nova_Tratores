@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { X, Car, Search } from 'lucide-react'
 import { normalizarPlaca as norm } from '@/lib/frota/placa'
 
@@ -14,6 +15,7 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
   const [classMap, setClassMap] = useState<Record<string, Classif>>({})
   const [loading, setLoading] = useState(true)
   const [busca, setBusca] = useState('')
+  const isMobile = useIsMobile()
   const [salvandoPlaca, setSalvandoPlaca] = useState<string | null>(null)
 
   useEffect(() => {
@@ -71,9 +73,9 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
   if (typeof document === 'undefined') return null
 
   return createPortal(
-    <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 18, width: 620, maxWidth: '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '22px 24px', borderBottom: '1px solid var(--portal-border, #eee)' }}>
+    <div onClick={e => { if (e.target === e.currentTarget) onClose() }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 12 : 16 }}>
+      <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 18, width: 620, maxWidth: isMobile ? '100%' : '96vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, padding: isMobile ? '14px 14px' : '22px 24px', borderBottom: '1px solid var(--portal-border, #eee)' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #dc2626, #991b1b)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Car size={20} color="#fff" /></div>
             <div>
@@ -81,10 +83,10 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
               <p style={{ fontSize: 12, color: '#94a3b8', margin: 0 }}>Classifique e escolha quais aparecem no mapa</p>
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'var(--portal-bg-secondary, #f5f5f5)', border: 'none', borderRadius: 9, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
+          <button onClick={onClose} style={{ background: 'var(--portal-bg-secondary, #f5f5f5)', border: 'none', borderRadius: 9, width: isMobile ? 36 : 32, height: isMobile ? 36 : 32, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
         </div>
 
-        <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--portal-border, #eee)' }}>
+        <div style={{ padding: isMobile ? '12px 14px' : '14px 24px', borderBottom: '1px solid var(--portal-border, #eee)' }}>
           <div style={{ position: 'relative' }}>
             <Search size={15} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#9CA3AF' }} />
             <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar placa ou modelo..." style={{ width: '100%', padding: '10px 12px 10px 34px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e5e5)', fontSize: 13, boxSizing: 'border-box', background: 'var(--portal-bg-card, #fff)', color: 'var(--portal-text, #1a1a1a)' }} />
@@ -102,7 +104,7 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
             const isComercial = cat === 'comercial'
             const pessoaVal = c?.pessoa_id ? `${c.vinculo_tipo}:${c.pessoa_id}` : ''
             return (
-              <div key={a.adesao_id} style={{ padding: '11px 24px', borderBottom: '1px solid var(--portal-border, #f1f5f9)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              <div key={a.adesao_id} style={{ padding: isMobile ? '11px 14px' : '11px 24px', borderBottom: '1px solid var(--portal-border, #f1f5f9)', display: 'flex', alignItems: 'center', gap: isMobile ? 8 : 12, flexWrap: 'wrap' }}>
                 <div style={{ flex: '1 1 150px', minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text, #1a1a1a)' }}>{a.placa}</div>
                   {a.descricao && <div style={{ fontSize: 11, color: '#94a3b8' }}>{a.descricao}</div>}
@@ -128,7 +130,7 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
                         const p = pessoas.find(x => x.tipo === tipo && x.id === id)
                         salvar(a, { pessoa_id: id, pessoa_nome: p?.nome || '', vinculo_tipo: tipo })
                       }}
-                      style={{ flex: '0 0 150px', padding: '6px 8px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e5e5)', fontSize: 12, background: 'var(--portal-bg-card, #fff)', color: 'var(--portal-text, #1a1a1a)' }}
+                      style={{ flex: isMobile ? '1 1 150px' : '0 0 150px', minWidth: 0, padding: isMobile ? '9px 8px' : '6px 8px', borderRadius: 8, border: '1px solid var(--portal-border, #e5e5e5)', fontSize: 12, background: 'var(--portal-bg-card, #fff)', color: 'var(--portal-text, #1a1a1a)' }}
                     >
                       <option value="">Sem dono</option>
                       {pessoas.map(p => <option key={`${p.tipo}:${p.id}`} value={`${p.tipo}:${p.id}`}>{p.nome}</option>)}

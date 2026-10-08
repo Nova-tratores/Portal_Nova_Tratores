@@ -40,7 +40,7 @@ export default function TipoPicker({ tipos, selecionados, onChange }: {
         Tipos ({selecionados.size}) <span style={{ color: '#999', fontWeight: 400 }}>▾</span>
       </button>
       {aberto && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, marginTop: 4, width: 300, maxHeight: 380, display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #ddd', borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,.16)' }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 50, marginTop: 4, width: 300, maxWidth: 'calc(100vw - 24px)', maxHeight: 380, display: 'flex', flexDirection: 'column', background: '#fff', border: '1px solid #ddd', borderRadius: 10, boxShadow: '0 10px 30px rgba(0,0,0,.16)' }}>
           <div style={{ padding: 8, borderBottom: '1px solid #eee' }}>
             <input autoFocus value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar Tipo…"
               style={{ width: '100%', border: '1px solid #ddd', borderRadius: 6, padding: '6px 8px', fontSize: '.8rem', boxSizing: 'border-box' }} />

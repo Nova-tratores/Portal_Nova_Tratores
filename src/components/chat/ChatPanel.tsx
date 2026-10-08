@@ -546,7 +546,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
             />
           ) : chat.chatAtivo && chatAtual ? (
             <div style={{
-              flex: 1, display: 'flex', flexDirection: 'column',
+              flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column',
               background: '#f5f5f0',
               ...(mobileView === 'list' ? { display: 'none' } : {})
             }}
@@ -648,7 +648,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                             }}
                           >
                             <div style={{
-                              maxWidth: '65%', minWidth: '80px',
+                              maxWidth: '65%', minWidth: '80px', overflowWrap: 'anywhere',
                               padding: msg.tipo === 'imagem' || msg.tipo === 'video' ? '4px' : '8px 12px',
                               borderRadius: isMine
                                 ? (sameSender ? '8px 4px 8px 8px' : '8px 0px 8px 8px')
@@ -719,7 +719,7 @@ export default function ChatPanel({ open, onClose, chat, userId, userProfile, is
                                   <audio
                                     src={msg.arquivo_url}
                                     controls
-                                    style={{ height: '36px', width: '220px' }}
+                                    style={{ height: '36px', width: '220px', maxWidth: '100%' }}
                                   />
                                 </div>
                               )}

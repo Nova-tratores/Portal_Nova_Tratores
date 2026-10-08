@@ -132,7 +132,7 @@ export default function GvVendasPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Vendas do Mês</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Vendas do Mês</h1>
         <p className="text-sm text-gray-500">
           {nomeEmpresaGV(conta)} — {formatCompetencia(mes, ano)}. Por padrão, famílias de peças e
           máquinas começam desmarcadas no filtro; itens sem família não entram.
@@ -155,7 +155,7 @@ export default function GvVendasPage() {
           placeholder="Buscar pedido, produto, cliente, vendedor…"
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
-          className="w-64 rounded border border-gray-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-500"
+          className="w-full sm:w-64 box-border rounded border border-gray-300 bg-white px-2 py-2 sm:py-1 text-xs focus:outline-none focus:ring-1 focus:ring-red-500"
         />
         {filtroAtivo && (
           <button
@@ -164,7 +164,7 @@ export default function GvVendasPage() {
               setFamilias(opcoesFamilias.filter((f) => !FAMILIA_EXCLUIDA_PADRAO.test(f)))
               setBusca('')
             }}
-            className="text-xs text-gray-500 hover:text-gray-800"
+            className="min-h-9 sm:min-h-0 text-xs text-gray-500 hover:text-gray-800"
           >
             ✕ Restaurar padrão
           </button>

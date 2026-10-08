@@ -436,8 +436,8 @@ export default function MeuPainelPage() {
         <div style={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
         <div style={{ position: 'absolute', bottom: -20, left: -20, width: 100, height: 100, borderRadius: '50%', background: 'rgba(255,255,255,0.03)' }} />
 
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', position: 'relative', zIndex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, position: 'relative', zIndex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, minWidth: 0 }}>
             <div style={{
               width: 52, height: 52, borderRadius: 16, overflow: 'hidden',
               border: '2px solid rgba(255,255,255,0.2)', background: 'rgba(255,255,255,0.1)',
@@ -451,11 +451,11 @@ export default function MeuPainelPage() {
                 </span>
               )}
             </div>
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', fontWeight: 600, letterSpacing: 1, textTransform: 'uppercase', marginBottom: 2 }}>
                 Bem-vindo
               </div>
-              <div style={{ fontSize: 20, fontWeight: 700, color: '#fff' }}>
+              <div style={{ fontSize: 20, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {primeiroNome}
               </div>
             </div>
@@ -463,7 +463,7 @@ export default function MeuPainelPage() {
 
           {/* Pontuação */}
           <div style={{
-            background: `${pontosColor}20`, borderRadius: 14, padding: '8px 14px',
+            background: `${pontosColor}20`, borderRadius: 14, padding: '8px 14px', flexShrink: 0,
             display: 'flex', alignItems: 'center', gap: 6, border: `1px solid ${pontosColor}40`,
           }}>
             <Star size={16} color={pontosColor} fill={pontosColor} />
@@ -481,7 +481,7 @@ export default function MeuPainelPage() {
 
         {/* Stats rápidos */}
         <div style={{
-          display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10,
+          display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10,
           marginTop: 16, position: 'relative', zIndex: 1,
         }}>
           {[
@@ -490,11 +490,11 @@ export default function MeuPainelPage() {
             { label: 'Ocorrências', value: ocorrenciasSemJust.length, color: ocorrenciasSemJust.length > 0 ? '#EF4444' : '#10B981' },
           ].map((s, i) => (
             <div key={i} style={{
-              background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 12px',
+              background: 'rgba(255,255,255,0.08)', borderRadius: 12, padding: '10px 6px',
               textAlign: 'center',
             }}>
               <div style={{ fontSize: 22, fontWeight: 800, color: s.color }}>{s.value}</div>
-              <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 600, letterSpacing: 0.5 }}>{s.label}</div>
+              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -649,8 +649,8 @@ export default function MeuPainelPage() {
                     position: 'absolute', left: 0, top: 0, bottom: 0, width: 4,
                     background: '#3B82F6', borderRadius: '14px 0 0 14px',
                   }} />
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1E293B' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 6 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: '#1E293B', minWidth: 0, overflowWrap: 'anywhere' }}>
                       {s.cliente || 'Cliente não informado'}
                     </div>
                     {s.hora && (
@@ -672,7 +672,7 @@ export default function MeuPainelPage() {
                       {s.solicitacao.substring(0, 120)}{s.solicitacao.length > 120 ? '...' : ''}
                     </div>
                   )}
-                  <div style={{ display: 'flex', gap: 8, marginTop: 6 }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
                     {s.ordem && (
                       <span style={{ fontSize: 10, fontWeight: 600, color: '#64748B', background: '#F1F5F9', padding: '2px 8px', borderRadius: 4 }}>
                         OS {s.ordem}
@@ -710,7 +710,7 @@ export default function MeuPainelPage() {
               <span style={{ fontSize: 15, fontWeight: 700, color: '#7C3AED' }}>Novo Caminho</span>
               <button onClick={() => setShowCaminhoForm(false)} style={{
                 background: '#F1F5F9', border: 'none', cursor: 'pointer', color: '#94A3B8',
-                width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
                 <X size={16} />
               </button>
@@ -799,7 +799,7 @@ export default function MeuPainelPage() {
               {/* Navegação semana */}
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <button onClick={() => { const d = new Date(semanaRef); d.setDate(d.getDate() - 7); setSemanaRef(d) }} style={{
-                  background: '#F1F5F9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+                  background: '#F1F5F9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', minWidth: 40, minHeight: 36,
                 }}>
                   <ChevronLeft size={16} color="#64748B" />
                 </button>
@@ -808,14 +808,14 @@ export default function MeuPainelPage() {
                     {formatDateBR(weekStart)} - {formatDateBR(weekEnd)}
                   </span>
                   <button onClick={() => setSemanaRef(new Date())} style={{
-                    background: 'none', border: 'none', color: '#3B82F6', fontSize: 11,
+                    background: 'none', border: 'none', color: '#3B82F6', fontSize: 12, padding: '4px 6px',
                     fontWeight: 600, cursor: 'pointer', display: 'block', margin: '2px auto 0',
                   }}>
                     Semana atual
                   </button>
                 </div>
                 <button onClick={() => { const d = new Date(semanaRef); d.setDate(d.getDate() + 7); setSemanaRef(d) }} style={{
-                  background: '#F1F5F9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer',
+                  background: '#F1F5F9', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', minWidth: 40, minHeight: 36,
                 }}>
                   <ChevronRight size={16} color="#64748B" />
                 </button>
@@ -932,7 +932,7 @@ export default function MeuPainelPage() {
                   <Package size={14} color="#F59E0B" />
                   <span style={{ fontSize: 11, fontWeight: 700, color: '#F59E0B', letterSpacing: 0.5 }}>REQUISIÇÃO APROVADA</span>
                 </div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#1E293B' }}>{req.material_solicitado}</div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#1E293B', overflowWrap: 'anywhere' }}>{req.material_solicitado}</div>
                 <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>
                   {req.quantidade && `Qtd: ${req.quantidade}`}
                   {req.id_ordem && ` • OS: ${req.id_ordem}`}
@@ -959,8 +959,8 @@ export default function MeuPainelPage() {
                     <AlertOctagon size={15} color="#DC2626" />
                     <span style={{ fontSize: 11, fontWeight: 900, color: '#DC2626', letterSpacing: 0.5 }}>VOCÊ RECEBEU UMA OCORRÊNCIA</span>
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', minWidth: 0 }}>
                       <span style={{
                         fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
                         background: `${rot.cor}18`, color: rot.cor,
@@ -976,13 +976,13 @@ export default function MeuPainelPage() {
                       {oc.id_ordem && <span style={{ fontSize: 11, color: '#94A3B8' }}>{oc.id_ordem}</span>}
                     </div>
                     <span style={{
-                      fontSize: 15, fontWeight: 900, color: '#fff',
+                      fontSize: 15, fontWeight: 900, color: '#fff', flexShrink: 0, whiteSpace: 'nowrap',
                       background: '#DC2626', padding: '3px 12px', borderRadius: 8,
                     }}>
                       −{oc.pontos_descontados} pts
                     </span>
                   </div>
-                  <div style={{ fontSize: 13, color: '#475569', marginBottom: 4, lineHeight: 1.4 }}>{oc.descricao}</div>
+                  <div style={{ fontSize: 13, color: '#475569', marginBottom: 4, lineHeight: 1.4, overflowWrap: 'anywhere' }}>{oc.descricao}</div>
                   {(anexosOc.length > 0 || oc.detalhes?.maps_url) && (
                     <div style={{ display: 'flex', gap: 6, marginBottom: 6, flexWrap: 'wrap' }}>
                       {anexosOc.map((a, i) => (
@@ -1044,7 +1044,7 @@ export default function MeuPainelPage() {
                             <div key={`${f.name}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#475569' }}>
                               <Paperclip size={11} color="#94A3B8" />
                               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{f.name}</span>
-                              <button onClick={() => setJustArquivos(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', padding: 0 }}><X size={12} /></button>
+                              <button onClick={() => setJustArquivos(prev => prev.filter((_, j) => j !== i))} style={{ background: 'none', border: 'none', color: '#DC2626', cursor: 'pointer', padding: 0, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><X size={14} /></button>
                             </div>
                           ))}
                         </div>

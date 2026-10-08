@@ -906,7 +906,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
 
       {/* Banner: adicionando a um carrinho salvo */}
       {carrinhoAtivo && (
-        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 18px", background: "#fff7ed", borderBottom: "1px solid #fed7aa", color: "#9a3412", fontSize: 13 }}>
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 10, padding: "9px 18px", background: "#fff7ed", borderBottom: "1px solid #fed7aa", color: "#9a3412", fontSize: 13 }}>
           <i className="fas fa-cart-plus" />
           <span style={{ flex: 1 }}>Adicionando peças ao carrinho <b>{carrinhoAtivo.nome}</b>. Clique numa peça pra incluir.</span>
           <button onClick={() => setCarrinhosOpen(true)} style={{ border: "1px solid #fed7aa", background: "#fff", color: "#9a3412", borderRadius: 8, padding: "6px 12px", fontSize: 12.5, fontWeight: 600, cursor: "pointer" }}>Ver carrinho</button>
@@ -969,16 +969,16 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
             ) : (
               <div style={{ background: "#fff", border: "1px solid #e9ecf1", borderRadius: 12, overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,.04)" }}>
                 {/* Cabeçalho: deixa explícito o que é código e o que é descrição */}
-                <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "10px 16px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0", fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: .8 }}>
-                  <span style={{ width: 168, flexShrink: 0 }}>Código</span>
+                <div style={{ display: "flex", alignItems: "center", gap: isMobile ? 10 : 16, padding: isMobile ? "10px 10px" : "10px 16px", background: "#f8fafc", borderBottom: "2px solid #e2e8f0", fontSize: 12, fontWeight: 800, color: "#64748b", textTransform: "uppercase", letterSpacing: .8 }}>
+                  <span style={{ width: isMobile ? 110 : 168, flexShrink: 0 }}>Código</span>
                   <span style={{ flex: 1 }}>Descrição</span>
                   <span style={{ width: 70, textAlign: "right" }}>Qtd</span>
                   <span style={{ width: 38 }} />
                 </div>
                 {resultados.map((p) => (
-                  <div key={p.id} className="cat-row" style={{ display: "flex", alignItems: "flex-start", gap: 16, padding: "14px 16px", borderBottom: "1px solid #f1f4f8", transition: "background .12s" }}>
+                  <div key={p.id} className="cat-row" style={{ display: "flex", alignItems: "flex-start", gap: isMobile ? 10 : 16, padding: isMobile ? "12px 10px" : "14px 16px", borderBottom: "1px solid #f1f4f8", transition: "background .12s" }}>
                     {/* CÓDIGO — monoespaçado e destacado, coluna fixa */}
-                    <code style={{ width: 168, flexShrink: 0, fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: 15, fontWeight: 800, letterSpacing: .5, color: "#EA580C", background: "#fef2f2", border: "1px solid #FED7AA", padding: "7px 10px", borderRadius: 8, textAlign: "center" }}>{p.code}</code>
+                    <code style={{ width: isMobile ? 110 : 168, flexShrink: 0, overflowWrap: "anywhere", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", fontSize: isMobile ? 13 : 15, fontWeight: 800, letterSpacing: .5, color: "#EA580C", background: "#fef2f2", border: "1px solid #FED7AA", padding: "7px 10px", borderRadius: 8, textAlign: "center" }}>{p.code}</code>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       {/* DESCRIÇÃO */}
                       <div style={{ fontSize: 17, fontWeight: 600, color: "#0f172a", lineHeight: 1.3 }}>{p.name}</div>
@@ -1039,7 +1039,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                     <i className="fas fa-chevron-right" style={{ marginLeft: "auto", fontSize: 12, color: "#cbd5e1" }} />
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: 20 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(310px, 100%), 1fr))", gap: 20 }}>
                     {agrupar(lista).map(cardFamilia)}
                   </div>
                 </div>
@@ -1053,7 +1053,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
         {vista === "modelos" && marcaSel && (
           <div style={{ padding: 18 }}>
             {/* Cabeçalho da marca */}
-            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 16, padding: "14px 18px", borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 16 }}>
               {marcaSel.logo_url && !imgErro[`marca:${marcaSel.slug}`] && (
                 <img src={marcaSel.logo_url} alt={marcaSel.nome} onError={() => setImgErro((s) => ({ ...s, [`marca:${marcaSel.slug}`]: true }))} style={{ height: 64, maxWidth: 210, objectFit: "contain" }} />
               )}
@@ -1077,7 +1077,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
             {/* Filtro por tipo — só aparece se a marca tiver mais de um */}
             {tiposDaMarca.length > 1 && chipsTipo(tiposDaMarca, modelosDaMarca)}
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(310px, 1fr))", gap: 20 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(310px, 100%), 1fr))", gap: 20 }}>
               {agrupar(modelosVisiveis).map((f, i, arr) => modoOrdenar ? (
                 <div key={`ord-${f.nome}`} style={{ position: "relative" }}>
                   <div style={{ position: "absolute", top: 10, right: 10, zIndex: 6, display: "flex", alignItems: "center", gap: 6 }}>
@@ -1099,7 +1099,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
         {/* ===== VARIANTES DE UMA LINHA (ex.: as 62 PST DUO, por chassi/versão) ===== */}
         {vista === "variantes" && familiaSel && (
           <div style={{ padding: 18 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 16, padding: "14px 18px", borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 16 }}>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 16, padding: "14px 18px", borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 16 }}>
               <div style={{ width: 96, height: 68, borderRadius: 10, overflow: "hidden", background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #eef1f6", flexShrink: 0 }}>
                 {familiaSel.image_url ? <img src={familiaSel.image_url} alt={familiaSel.nome} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 26, color: "#cbd5e1" }} />}
               </div>
@@ -1128,7 +1128,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
         {/* ===== SISTEMAS DO TRATOR ===== */}
         {vista === "sistemas" && modeloSel && (
           <div style={{ padding: 18 }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 18, padding: 18, borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 20, position: "relative", overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,.05)" }}>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 18, padding: 18, borderRadius: 14, background: "#fff", border: "1px solid #e9ecf1", marginBottom: 20, position: "relative", overflow: "hidden", boxShadow: "0 1px 2px rgba(16,24,40,.05)" }}>
               <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: 4, background: "#EA580C" }} />
               <div style={{ width: 120, height: 84, borderRadius: 10, overflow: "hidden", background: "linear-gradient(180deg,#fbfcfe,#eef2f7)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", border: "1px solid #eef1f6", marginLeft: 6 }}>
                 {modeloSel.image_url && !imgErro[modeloSel.slug] ? <img src={modeloSel.image_url} alt={modeloSel.nome} onError={() => setImgErro((s) => ({ ...s, [modeloSel.slug]: true }))} style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} /> : <i className="fas fa-tractor" style={{ fontSize: 32, color: "#cbd5e1" }} />}
@@ -1185,7 +1185,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                 })}
               </div>
 
-              <div style={{ flex: "1 1 300px", minWidth: 280 }}>
+              <div style={{ flex: "1 1 300px", minWidth: "min(280px, 100%)" }}>
                 {!secaoAtual ? (
                   <div style={{ padding: 60, textAlign: "center", color: "#94a3b8", background: "#fff", borderRadius: 16, border: "1px solid #e9ecf1" }}>
                     <i className="fas fa-hand-point-left" style={{ fontSize: 30, display: "block", marginBottom: 12, color: "#cbd5e1" }} />
@@ -1204,7 +1204,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                         </span>
                       </div>
                     ); })()}
-                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 18 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(250px, 100%), 1fr))", gap: 18 }}>
                       {figuras.map((f) => {
                         const { cor } = estiloSistema(secaoAtual);
                         return (
@@ -1231,8 +1231,8 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
         {/* ===== DETALHE DA FIGURA (vista explodida + peças) ===== */}
         {vista === "figura" && figura && (
           <div style={{ display: "flex", gap: 0, height: "100%", flexWrap: "wrap", background: "#fff" }}>
-            <div ref={leftPanelRef} style={{ flex: "1 1 360px", minWidth: 300, padding: 18, borderRight: "1px solid #eef0f3", overflowY: "auto", scrollbarGutter: "stable", maxHeight: "100%", display: "flex", flexDirection: "column" }}>
-              <div style={{ marginBottom: 12, display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 10 }}>
+            <div ref={leftPanelRef} style={{ flex: "1 1 360px", minWidth: "min(300px, 100%)", padding: isMobile ? 10 : 18, borderRight: "1px solid #eef0f3", overflowY: "auto", scrollbarGutter: "stable", maxHeight: "100%", display: "flex", flexDirection: "column" }}>
+              <div style={{ marginBottom: 12, display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: "#EA580C", letterSpacing: 0.5 }}>{figura.code}</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: "#0f172a" }}>{figura.name}</div>
@@ -1326,7 +1326,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                           <div style={{
                             position: "absolute", left: `${Math.min(Math.max(esquerda, 16), 84)}%`, top: `calc(${(h.y / imgDim.h) * 100}% + ${26 / zoom}px)`,
                             transform: `translateX(-50%) scale(${1 / zoom})`, transformOrigin: "top center", zIndex: 9,
-                            background: "#0f172a", color: "#fff", borderRadius: 14, padding: "16px 20px", minWidth: 330, maxWidth: 460,
+                            background: "#0f172a", color: "#fff", borderRadius: 14, padding: "16px 20px", minWidth: "min(330px, 78vw)", maxWidth: "min(460px, 90vw)",
                             boxShadow: "0 16px 40px rgba(0,0,0,.42)", border: "2px solid #EA580C", pointerEvents: "none",
                           }}>
                             <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
@@ -1420,7 +1420,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
               <>
                 {/* Dica: pisca até o usuário abrir a lista pela primeira vez */}
                 {!jaAbriuPainel && (
-                  <div style={{ position: "absolute", right: 76, top: "50%", transform: "translateY(-50%)", zIndex: 21, background: "#EA580C", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 16, boxShadow: "0 8px 24px rgba(220,38,38,.4)", display: "flex", alignItems: "center", gap: 10, pointerEvents: "none", whiteSpace: "nowrap" }}>
+                  <div style={{ position: "absolute", right: 76, top: "50%", transform: "translateY(-50%)", zIndex: 21, background: "#EA580C", color: "#fff", padding: "12px 18px", borderRadius: 12, fontSize: 16, boxShadow: "0 8px 24px rgba(220,38,38,.4)", display: "flex", alignItems: "center", gap: 10, pointerEvents: "none", whiteSpace: isMobile ? "normal" : "nowrap", maxWidth: isMobile ? 190 : undefined }}>
                     <i className="fas fa-hand-point-right" style={{ fontSize: 18 }} />
                     Clique aqui para ver a lista de peças
                   </div>
@@ -1433,9 +1433,9 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
               </>
             )}
 
-            <div style={{ flex: painelAberto ? "1 1 380px" : "0 0 0px", minWidth: painelAberto ? 340 : 0, width: painelAberto ? undefined : 0, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "100%", transition: "flex-basis .2s ease, min-width .2s ease" }}>
+            <div style={{ flex: painelAberto ? "1 1 380px" : "0 0 0px", minWidth: painelAberto ? "min(340px, 100%)" : 0, width: painelAberto ? undefined : 0, overflow: "hidden", display: "flex", flexDirection: "column", maxHeight: "100%", transition: "flex-basis .2s ease, min-width .2s ease" }}>
               <div style={{ display: "flex", alignItems: "center", padding: "13px 16px", fontSize: 13, fontWeight: 400, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.6, borderBottom: "1px solid #eef0f3", background: "#fafbfc", position: "sticky", top: 0, zIndex: 1 }}>
-                <span style={{ width: 44 }}>Ref</span><span style={{ width: 180 }}>Código</span><span style={{ flex: 1 }}>Nome</span><span style={{ width: 56 }}>Qtd</span>
+                <span style={{ width: 44 }}>Ref</span><span style={{ width: isMobile ? 120 : 180 }}>Código</span><span style={{ flex: 1 }}>Nome</span><span style={{ width: 56 }}>Qtd</span>
                 <button onClick={() => setPainelAberto(false)} title="Esconder as peças"
                   style={{ width: 34, height: 34, border: "none", background: "#f1f5f9", color: "#475569", borderRadius: 8, cursor: "pointer", flexShrink: 0 }}>
                   <i className="fas fa-chevron-right" />
@@ -1449,14 +1449,14 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
                       onClick={() => selecionarPecaDaLista(p)} title="Clique para destacar no desenho"
                       style={{ display: "flex", alignItems: "center", padding: "13px 16px", borderBottom: "1px solid #f3f5f8", background: ativo ? "#fff7ed" : "transparent", transition: "background .12s", cursor: "pointer" }}>
                       <span style={{ width: 44 }}><span style={{ display: "inline-flex", width: 28, height: 28, borderRadius: "50%", alignItems: "center", justifyContent: "center", fontSize: 13.5, fontWeight: 400, background: ativo ? "#EA580C" : "#eef2f7", color: ativo ? "#fff" : "#475569" }}>{p.reference}</span></span>
-                      <span style={{ width: 180, display: "flex", alignItems: "center", gap: 6 }}>
-                        <code style={{ fontSize: 16.5, fontWeight: 400, color: "#EA580C", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", letterSpacing: .3 }}>{p.code}</code>
+                      <span style={{ width: isMobile ? 120 : 180, flexShrink: 0, minWidth: 0, display: "flex", alignItems: "center", gap: 6 }}>
+                        <code style={{ fontSize: isMobile ? 14 : 16.5, fontWeight: 400, color: "#EA580C", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace", letterSpacing: .3, overflowWrap: "anywhere", minWidth: 0 }}>{p.code}</code>
                         <button onClick={(e) => { e.stopPropagation(); copiarCodigo(p.code); }} title="Copiar código"
                           style={{ border: "none", background: "transparent", cursor: "pointer", color: copiado === p.code ? "#16a34a" : "#94a3b8", fontSize: 14, padding: 2, flexShrink: 0 }}>
                           <i className={`fas ${copiado === p.code ? "fa-check" : "fa-copy"}`} />
                         </button>
                       </span>
-                      <span style={{ flex: 1, fontSize: 16.5, paddingRight: 8, color: "#0f172a", lineHeight: 1.35, fontWeight: 400 }}>{p.name}</span>
+                      <span style={{ flex: 1, minWidth: 0, fontSize: isMobile ? 14.5 : 16.5, paddingRight: 8, color: "#0f172a", lineHeight: 1.35, fontWeight: 400, overflowWrap: "anywhere" }}>{p.name}</span>
                       <span style={{ width: 56, fontSize: 15, color: "#64748b" }}>{p.qtd} {p.unit}</span>
                       <button className="cat-add" onClick={(e) => { e.stopPropagation(); addPeca({ code: p.code, name: p.name }); }} title={onSelecionarPeca ? "Adicionar ao lançamento" : "Adicionar ao carrinho"} style={{ width: 36, height: 36, border: "none", background: "#EA580C", color: "#fff", borderRadius: 8, cursor: "pointer", flexShrink: 0, fontSize: 14 }}><i className="fas fa-plus" /></button>
                     </div>
@@ -1477,7 +1477,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
 
       {/* Gaveta do carrinho */}
       {!onSelecionarPeca && cartOpen && (
-        <div style={{ position: "fixed", inset: 0, zIndex: 4500, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
+        <div style={{ position: "fixed", inset: 0, zIndex: 4500, display: "flex", alignItems: "center", justifyContent: "center", padding: isMobile ? 8 : 24 }}>
           <div onClick={() => setCartOpen(false)} style={{ position: "absolute", inset: 0, background: "rgba(15,23,42,0.55)" }} />
           <div style={{ position: "relative", width: 780, maxWidth: "96%", maxHeight: "92vh", background: "#fff", borderRadius: 18, boxShadow: "0 30px 70px rgba(0,0,0,0.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ padding: "20px 24px", borderBottom: "1px solid #eef0f3", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
@@ -1487,7 +1487,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
 
             <div style={{ flex: 1, overflow: "auto", padding: "8px 0" }}>
               {cart.length === 0 ? <div style={{ padding: 40, textAlign: "center", color: "#94a3b8", fontSize: 17 }}>Carrinho vazio.</div> : cart.map((it) => (
-                <div key={it.code} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 24px", borderBottom: "1px solid #f5f7fa" }}>
+                <div key={it.code} style={{ display: "flex", alignItems: "center", gap: isMobile ? 8 : 12, padding: isMobile ? "12px 14px" : "14px 24px", borderBottom: "1px solid #f5f7fa" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 17, fontWeight: 400, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.name}</div>
                     <code style={{ fontSize: 15, fontWeight: 400, color: "#EA580C", fontFamily: "ui-monospace, Menlo, monospace" }}>{it.code}</code>
@@ -1502,7 +1502,7 @@ export default function CatalogoNovo({ onSelecionarPeca, userName, modeloInicial
               ))}
             </div>
 
-            <div style={{ borderTop: "1px solid #eef0f3", padding: 24 }}>
+            <div style={{ borderTop: "1px solid #eef0f3", padding: isMobile ? 14 : 24 }}>
               {/* Copiar códigos + PDF do carrinho */}
               <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
                 <button disabled={cart.length === 0} onClick={copiarCodigosCarrinho}

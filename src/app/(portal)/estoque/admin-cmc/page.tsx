@@ -95,7 +95,7 @@ export default function AdminCMCPage() {
   if (!permLoading && userProfile && !pode('estoque', 'admin-cmc')) return <SemPermissao />;
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Admin CMC</h1>
@@ -140,7 +140,7 @@ export default function AdminCMCPage() {
             <option value="com_cmc">Com CMC</option>
             <option value="sem_cmc">Sem CMC</option>
           </select>
-          <input value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { setPagina(1); carregarVendas(); } }} placeholder="descrição / pedido / código" style={{ ...inp, width: 240 }} />
+          <input value={busca} onChange={(e) => setBusca(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { setPagina(1); carregarVendas(); } }} placeholder="descrição / pedido / código" style={{ ...inp, width: 240, maxWidth: '100%' }} />
           <button onClick={() => { setPagina(1); carregarVendas(); }} disabled={carregando} style={btn(carregando)}>Buscar</button>
         </div>
         {vendas?.erro && <div style={{ color: '#dc2626', fontSize: 13 }}>{vendas.erro}</div>}

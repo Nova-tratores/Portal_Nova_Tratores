@@ -94,7 +94,7 @@ function GarantiasPageInner() {
   return (
     <div style={{ padding: isMobile ? '16px 12px' : '28px 32px', maxWidth: 1280, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, flexWrap: 'wrap' }}>
         <div
           style={{
             width: 48,
@@ -110,7 +110,7 @@ function GarantiasPageInner() {
         >
           <ShieldCheck size={24} />
         </div>
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: '1 1 220px', minWidth: 0 }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--portal-text)' }}>Garantias</h1>
           <p style={{ margin: 0, fontSize: 13, color: 'var(--portal-text-muted)' }}>
             Controle do ciclo de garantias — da solicitação do técnico ao retorno da fábrica.

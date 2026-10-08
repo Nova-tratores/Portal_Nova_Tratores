@@ -67,7 +67,7 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
   ];
 
   const Cabecalho = ({ r, lado }: { r: any; lado: string }) => (
-    <div className="flex-1 min-w-0 px-5 py-4">
+    <div className="flex-1 min-w-0 px-3 py-4 md:px-5">
       <div className="text-[11px] uppercase tracking-[0.2em] text-black">{lado}</div>
       <div className="flex items-baseline gap-2 mt-1">
         <span className="text-[22px] text-black tracking-tight">#{r.id}</span>
@@ -78,11 +78,11 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
   );
 
   return (
-    <div className="fixed inset-0 z-[85] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={onFechar}>
+    <div className="fixed inset-0 z-[85] bg-black/70 backdrop-blur-sm flex items-center justify-center p-2 md:p-4" onClick={onFechar}>
       <div className="bg-white w-full max-w-6xl max-h-[94vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-zinc-200 flex items-center gap-3">
+        <div className="px-4 md:px-6 py-4 border-b border-zinc-200 flex flex-wrap items-center gap-3">
           <ArrowLeftRight size={18} className="text-orange-600" />
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <div className="text-[15px] text-black">Comparar requisições</div>
             <div className="text-[13px] text-black">
               {linhas.length - iguais} campo(s) diferente(s) de {linhas.length} — o que difere está destacado.
@@ -98,7 +98,7 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
 
         {/* Cabeçalho das duas colunas — fica fixo ao rolar */}
         <div className="flex border-b border-zinc-200 bg-zinc-50/70 sticky top-0">
-          <div className="w-[160px] shrink-0" />
+          <div className="w-[90px] md:w-[160px] shrink-0" />
           <Cabecalho r={a} lado="Esquerda" />
           <div className="w-px bg-zinc-200" />
           <Cabecalho r={b} lado="Direita" />
@@ -109,13 +109,13 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
             const difere = String(l.a).trim() !== String(l.b).trim();
             return (
               <div key={l.label} className={`flex items-stretch border-b border-zinc-100 ${difere ? 'bg-amber-50/60' : i % 2 ? 'bg-zinc-50/40' : ''}`}>
-                <div className="w-[160px] shrink-0 px-5 py-3 text-[12px] uppercase tracking-wider text-black flex items-center gap-1.5">
+                <div className="w-[90px] md:w-[160px] shrink-0 px-2 py-3 md:px-5 text-[12px] uppercase tracking-wider text-black flex items-center gap-1.5">
                   {difere ? <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" /> : <span className="w-1.5 h-1.5 shrink-0" />}
                   {l.label}
                 </div>
-                <div className={`flex-1 min-w-0 px-5 py-3 text-[14px] whitespace-pre-wrap break-words ${l.a ? 'text-black' : 'text-zinc-300'}`}>{l.a || '—'}</div>
+                <div className={`flex-1 min-w-0 px-2 py-3 md:px-5 text-[14px] whitespace-pre-wrap break-words ${l.a ? 'text-black' : 'text-zinc-300'}`}>{l.a || '—'}</div>
                 <div className="w-px bg-zinc-200" />
-                <div className={`flex-1 min-w-0 px-5 py-3 text-[14px] whitespace-pre-wrap break-words ${l.b ? 'text-black' : 'text-zinc-300'}`}>{l.b || '—'}</div>
+                <div className={`flex-1 min-w-0 px-2 py-3 md:px-5 text-[14px] whitespace-pre-wrap break-words ${l.b ? 'text-black' : 'text-zinc-300'}`}>{l.b || '—'}</div>
               </div>
             );
           })}
@@ -126,14 +126,14 @@ export default function CompararReqs({ a, b, dadosCompartilhados, onFechar, onTr
             const difere = ta !== tb;
             return (
               <div key={campo} className={`flex items-stretch border-b border-zinc-100 ${difere ? 'bg-amber-50/60' : ''}`}>
-                <div className="w-[160px] shrink-0 px-5 py-3 text-[12px] uppercase tracking-wider text-black flex items-center gap-1.5">
+                <div className="w-[90px] md:w-[160px] shrink-0 px-2 py-3 md:px-5 text-[12px] uppercase tracking-wider text-black flex items-center gap-1.5">
                   {difere ? <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" /> : <span className="w-1.5 h-1.5 shrink-0" />}
                   <Icone size={13} /> {n}
                 </div>
                 {[ta, tb].map((tem, idx) => (
                   <React.Fragment key={idx}>
                     {idx === 1 && <div className="w-px bg-zinc-200" />}
-                    <div className={`flex-1 min-w-0 px-5 py-3 text-[14px] flex items-center gap-1.5 ${tem ? 'text-emerald-600' : 'text-zinc-300'}`}>
+                    <div className={`flex-1 min-w-0 px-2 py-3 md:px-5 text-[14px] flex items-center gap-1.5 ${tem ? 'text-emerald-600' : 'text-zinc-300'}`}>
                       {tem ? <><Check size={15} /> anexado</> : <><Minus size={15} /> não tem</>}
                     </div>
                   </React.Fragment>

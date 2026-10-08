@@ -55,8 +55,8 @@ export default function HistoricoRH() {
       <main style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
         {/* BARRA DE PESQUISA */}
-        <div style={{ display: 'flex', gap: '15px', marginBottom: '30px', alignItems: 'flex-end' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', marginBottom: '30px', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '300px', minWidth: 0 }}>
             <label style={{ fontSize: '10px', color: '#9e9e9e', letterSpacing: '1px', marginLeft: '5px' }}>PESQUISAR FUNCIONÁRIO / TÍTULO</label>
             <div style={{ position: 'relative' }}>
               <Search size={18} style={{ position: 'absolute', left: '15px', top: '50%', transform: 'translateY(-50%)', color: '#9e9e9e' }} />
@@ -65,17 +65,17 @@ export default function HistoricoRH() {
                 placeholder="Pesquisar funcionário ou título..."
                 value={busca}
                 onChange={(e) => setBusca(e.target.value)}
-                style={{ padding: '15px 15px 15px 45px', width: '300px', borderRadius: '12px', border: '0.5px solid #d1d1d1', outline: 'none', fontSize: '14px', background: '#fff', color: '#333' }}
+                style={{ padding: '15px 15px 15px 45px', width: '100%', boxSizing: 'border-box', borderRadius: '12px', border: '0.5px solid #d1d1d1', outline: 'none', fontSize: '14px', background: '#fff', color: '#333' }}
               />
             </div>
           </div>
         </div>
 
         {/* CARDS */}
-        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(380px, 1fr))', gap: '20px' }}>
+        <section style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 380px), 1fr))', gap: '20px' }}>
           {chamadosFiltrados.length > 0 ? (
             chamadosFiltrados.map((c) => (
-              <div key={c.id} style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #d1d1d1', padding: '28px', boxShadow: '0 15px 35px rgba(0,0,0,0.05)', position: 'relative' }}>
+              <div key={c.id} style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #d1d1d1', padding: 'clamp(16px, 4vw, 28px)', minWidth: 0, boxShadow: '0 15px 35px rgba(0,0,0,0.05)', position: 'relative' }}>
 
                 <div style={{ position: 'absolute', top: 0, right: 0, padding: '8px 18px', background: '#22c55e', color: '#fff', fontSize: '10px', fontWeight: '400', borderRadius: '0 0 0 12px', letterSpacing: '1px' }}>CONCLUÍDO</div>
 
@@ -104,7 +104,7 @@ export default function HistoricoRH() {
               </div>
             ))
           ) : (
-            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: '80px', background: '#fff', borderRadius: '20px', border: '0.5px solid #d1d1d1' }}>
+            <div style={{ gridColumn: '1/-1', textAlign: 'center', padding: 'clamp(32px, 8vw, 80px) clamp(16px, 8vw, 80px)', background: '#fff', borderRadius: '20px', border: '0.5px solid #d1d1d1' }}>
               <UserCheck size={48} color="#d1d1d1" style={{ marginBottom: '16px' }} />
               <p style={{ color: '#9e9e9e', fontSize: '16px' }}>Nenhum chamado de RH concluído foi encontrado.</p>
             </div>

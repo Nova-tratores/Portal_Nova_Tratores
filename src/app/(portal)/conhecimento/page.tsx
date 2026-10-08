@@ -68,9 +68,9 @@ function ConhecimentoPage() {
   const podeCriar = dados?.podeCriar ?? false;
 
   return (
-    <div style={{ paddingTop: 20, maxWidth: 1100, margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
+    <div style={{ padding: "20px 12px 0", maxWidth: "calc(1100px + 24px)", margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 14 }}>
-        <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ flex: 1, minWidth: "min(240px, 100%)" }}>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "var(--portal-text)" }}>📚 Base de conhecimento</h1>
           <div style={{ fontSize: 12, color: "var(--portal-text-secondary)", marginTop: 2 }}>
             Como usar cada tela do portal. O mesmo texto aparece no botão <strong>?</strong> do cabeçalho quando você está na tela.
@@ -83,7 +83,7 @@ function ConhecimentoPage() {
       </div>
 
       {podeCriar && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
           {([
             ["artigos", `Artigos`],
             ["fila", `Para aprovar${fila.length ? ` (${fila.length})` : ""}`],
@@ -104,7 +104,7 @@ function ConhecimentoPage() {
         <>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 14 }}>
             <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar: fase, botão, regra, tela…" autoFocus
-              style={{ flex: 1, minWidth: 260, padding: "10px 14px", borderRadius: 999, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-card)", color: "var(--portal-text)", fontSize: 14, outline: "none" }} />
+              style={{ flex: 1, minWidth: "min(260px, 100%)", padding: "10px 14px", borderRadius: 999, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-card)", color: "var(--portal-text)", fontSize: 14, outline: "none" }} />
             <button type="button" onClick={() => setModulo("")} style={{ ...pill, background: !modulo ? "#111111" : "transparent", color: !modulo ? "#fefefe" : "var(--portal-text-secondary)" }}>Todos</button>
             {modulosComArtigo.map((m) => (
               <button key={m.id} type="button" onClick={() => setModulo(modulo === m.id ? "" : m.id)} style={{ ...pill, background: modulo === m.id ? m.cor : "transparent", color: modulo === m.id ? "#fefefe" : m.cor, borderColor: m.cor }}>{m.rotulo}</button>
@@ -112,7 +112,7 @@ function ConhecimentoPage() {
           </div>
 
           {podeCriar && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 14, fontSize: 12, color: "var(--portal-text-muted)" }}>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 14, fontSize: 12, color: "var(--portal-text-muted)" }}>
               Mostrar:
               {([["todos", "Tudo"], ["publicados", "Só publicados"], ["rascunhos", "Só rascunhos e edições pendentes"]] as const).map(([k, rot]) => (
                 <button key={k} type="button" onClick={() => setSituacao(k)} style={{ ...pill, padding: "4px 12px", background: situacao === k ? "#475569" : "transparent", color: situacao === k ? "#fefefe" : "var(--portal-text-secondary)" }}>{rot}</button>
@@ -126,11 +126,11 @@ function ConhecimentoPage() {
             <div style={vazio}>{qAplicado ? "Nada encontrado com esse termo." : podeCriar ? "Ainda não há artigos publicados. Os rascunhos ficam na aba \"Para aprovar\"." : "Ainda não há artigos publicados para as telas que você usa."}</div>
           ) : porModulo.map(([mod, lista]) => (
             <section key={mod} style={{ marginBottom: 22 }}>
-              <h2 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: corModulo(mod), margin: "0 0 8px", display: "flex", alignItems: "center", gap: 8 }}>
+              <h2 style={{ fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.6, color: corModulo(mod), margin: "0 0 8px", display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
                 {rotuloModulo(mod)} <span style={{ fontWeight: 600, color: "var(--portal-text-muted)" }}>· {lista.length}</span>
                 {dados?.responsaveis[mod] && <span style={{ fontWeight: 600, color: "var(--portal-text-muted)", textTransform: "none", letterSpacing: 0 }}>· responsável: {dados.responsaveis[mod]}</span>}
               </h2>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 10 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))", gap: 10 }}>
                 {lista.map((a) => <CardArtigo key={a.id} a={a} />)}
               </div>
             </section>
@@ -140,7 +140,7 @@ function ConhecimentoPage() {
 
       {aba === "fila" && (
         fila.length === 0 ? <div style={vazio}>Nada esperando aprovação nos módulos que você edita.</div> : (
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(300px, 1fr))", gap: 10 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(300px, 100%), 1fr))", gap: 10 }}>
             {fila.map((a) => <CardArtigo key={a.id} a={a} editar />)}
           </div>
         )

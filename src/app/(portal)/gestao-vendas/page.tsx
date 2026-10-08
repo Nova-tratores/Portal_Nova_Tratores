@@ -24,6 +24,7 @@ import {
 } from '@/lib/gestao-vendas/calculos'
 import { nomeEmpresaGV } from '@/lib/gestao-vendas/tipos'
 import { ErroCard } from './componentes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const COR_SERIE = '#2a78d6'
 const COR_GRID = '#e1e0d9'
@@ -64,7 +65,7 @@ export default function GvDashboardPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Gestão de Vendas</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestão de Vendas</h1>
         <p className="text-sm text-gray-500">
           {nomeEmpresaGV(conta)} — {formatCompetencia(mes, ano)}
         </p>
@@ -85,7 +86,7 @@ export default function GvDashboardPage() {
 
       {/* Cards por família (mesma visão do dashboard de estoque) */}
       <div>
-        <div className="mb-2 flex items-baseline justify-between">
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
           <h2 className="text-base font-semibold text-gray-900">Resultado por Família</h2>
           <span className="text-xs text-gray-500">
             comparativos: mês anterior e mesmo mês do ano anterior
@@ -97,7 +98,7 @@ export default function GvDashboardPage() {
         ) : !familiasCards || familiasCards.familias.length === 0 ? (
           <p className="text-sm text-gray-500">Sem dados de família no período.</p>
         ) : (
-          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(240px,1fr))]">
+          <div className="grid gap-3 [grid-template-columns:repeat(auto-fill,minmax(min(240px,100%),1fr))]">
             {familiasCards.familias.map((f) => (
               <CardFamilia key={f.nome} f={f} />
             ))}
@@ -222,6 +223,7 @@ function GraficoBarras({
   loading: boolean
 }) {
   const altura = Math.max(220, dados.length * 34 + 40)
+  const isMobile = useIsMobile()
   return (
     <div className="rounded-lg border border-gray-200 bg-white">
       <div className="border-b border-gray-100 px-4 py-3">
@@ -235,7 +237,7 @@ function GraficoBarras({
           <p className="text-sm text-gray-500">Sem dados.</p>
         ) : (
           <ResponsiveContainer width="100%" height={altura}>
-            <BarChart data={dados} layout="vertical" margin={{ left: 8, right: 56, top: 4 }}>
+            <BarChart data={dados} layout="vertical" margin={{ left: isMobile ? 0 : 8, right: isMobile ? 44 : 56, top: 4 }}>
               <CartesianGrid horizontal={false} stroke={COR_GRID} />
               <XAxis
                 type="number"
@@ -247,7 +249,7 @@ function GraficoBarras({
               <YAxis
                 type="category"
                 dataKey="nome"
-                width={150}
+                width={isMobile ? 100 : 150}
                 tick={{ fontSize: 11, fill: '#52514e' }}
                 axisLine={false}
                 tickLine={false}

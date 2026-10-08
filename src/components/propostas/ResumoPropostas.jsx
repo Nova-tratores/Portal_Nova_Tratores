@@ -127,11 +127,11 @@ export default function ResumoPropostas() {
     <div className="w-full">
       {/* PRÉ-CONFIGURAÇÕES */}
       <div className="bg-white border border-zinc-200 rounded-xl p-4 mb-4 flex flex-wrap items-center gap-6">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-zinc-400 uppercase tracking-wide mr-1">Período:</span>
           {JANELAS.map(j => <button key={j.k} onClick={() => setJanela(j.k)} className={btn(janela === j.k)}>{j.label}</button>)}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-bold text-zinc-400 uppercase tracking-wide mr-1">Agrupar por:</span>
           {DIMS.map(d => <button key={d.k} onClick={() => setDim(d.k)} className={`${btn(dim === d.k)} inline-flex items-center gap-1.5`}><d.Icon size={14} /> {d.label}</button>)}
         </div>
@@ -155,8 +155,8 @@ export default function ResumoPropostas() {
       </div>
 
       {/* TABELA AGREGADA */}
-      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-        <table className="w-full border-collapse">
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-x-auto">
+        <table className="w-full min-w-[620px] border-collapse">
           <thead>
             <tr className="border-b-2 border-zinc-200">
               <Th k="chave" label={dimLabel} />

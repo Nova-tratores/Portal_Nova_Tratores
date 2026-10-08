@@ -240,9 +240,15 @@ function PropostaComercialPageInner() {
         .chrome-tab-active::before { left: -12px; border-bottom-right-radius: 12px; box-shadow: 6px 6px 0 6px #ffffff; }
         .chrome-tab-active::after  { right: -12px; border-bottom-left-radius: 12px; box-shadow: -6px 6px 0 6px #ffffff; }
         .chrome-tabs-base { height: 10px; background: #ffffff; border-radius: 10px 10px 0 0; position: relative; z-index: 2; }
+        /* Responsivo: abaixo de 900px as guias rolam na horizontal dentro da faixa */
+        @media (max-width: 900px) {
+          .chrome-tabs { overflow-x: auto; overflow-y: hidden; padding: 0 12px; scrollbar-width: none; }
+          .chrome-tabs::-webkit-scrollbar { display: none; }
+          .chrome-tab { flex-shrink: 0; padding: 10px 14px 11px; font-size: 13.5px; white-space: nowrap; }
+        }
       `}</style>
       {/* HEADER */}
-      <div className="w-full px-6 pt-6 pb-2">
+      <div className="w-full px-3 pt-3 pb-2 md:px-6 md:pt-6">
         <div className="w-full">
           {/* TABS — estilo Chrome (folder tabs) */}
           <div className="mb-4">
@@ -335,7 +341,7 @@ function PropostaComercialPageInner() {
       </div>
 
       {/* CONTEUDO */}
-      <div className="px-6 mt-4 w-full">
+      <div className="px-3 md:px-6 mt-4 w-full">
         {view === 'lixeira' ? (
           <Lixeira embed />
         ) : view === 'resumo' ? (

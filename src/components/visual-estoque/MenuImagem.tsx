@@ -98,7 +98,7 @@ export default function MenuImagem({
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={onClose}>
-      <div onClick={e => e.stopPropagation()} style={{ width: 460, maxHeight: '85vh', overflow: 'auto', background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: 460, maxWidth: 'calc(100vw - 24px)', maxHeight: '85vh', overflow: 'auto', background: '#fff', borderRadius: 14, padding: 20, boxShadow: '0 20px 60px rgba(0,0,0,0.3)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <div style={{ fontSize: 14, fontWeight: 800 }}>Imagem · {item.descricao.substring(0, 38)}</div>
           <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer' }}><X size={18} /></button>
@@ -140,7 +140,7 @@ export default function MenuImagem({
               <Search size={14} /> {buscando ? 'Buscando...' : 'Buscar na internet'}
             </button>
             {resultados.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
                 {resultados.map((u, i) => (
                   <img key={i} src={u} alt="" onClick={() => salvarImagem(u)}
                     style={{ width: '100%', height: 80, objectFit: 'cover', borderRadius: 8, cursor: 'pointer', border: '1px solid #e5e5e5' }} />
@@ -151,7 +151,7 @@ export default function MenuImagem({
         ) : (
           <>
             <input style={{ ...box, marginBottom: 10 }} placeholder="Filtrar..." value={filtroCopiar} onChange={e => setFiltroCopiar(e.target.value)} />
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8 }}>
               {copiarFiltrado.map((c, i) => (
                 <img key={i} src={c.imagem_url} alt={c.descricao} title={c.descricao} onClick={() => salvarImagem(c.imagem_url)}
                   style={{ width: '100%', height: 64, objectFit: 'cover', borderRadius: 6, cursor: 'pointer', border: '1px solid #e5e5e5' }} />

@@ -120,7 +120,7 @@ export default function GarantiaBusca({ onAbrir }: Props) {
           <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginBottom: 8 }}>
             {resultados.length} resultado(s)
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 10 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(250px, 100%), 1fr))', gap: 10 }}>
             {resultados.map((g) => (
               <GarantiaMiniCard key={g.id} garantia={g} onClick={() => onAbrir(g.id)} />
             ))}

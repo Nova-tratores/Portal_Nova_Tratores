@@ -71,7 +71,7 @@ export default function EncerramentoDetalhePage() {
 
   if (carregando) return <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Carregando…</div>;
   if (erro || !e) return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 900, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 8, padding: 16 }}>Encerramento nao encontrado: {erro || 'sem dados'}</div>
       <div style={{ marginTop: 12 }}><Link href="/ajustes/pedidos" style={{ color: '#2563eb', textDecoration: 'none' }}>← voltar p/ Pedidos</Link></div>
     </div>
@@ -82,13 +82,13 @@ export default function EncerramentoDetalhePage() {
   const errN = itens.length - okN;
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Encerramento informal · pedido #{e.numero_pedido || '?'}</h1>
           <p style={{ color: '#64748b', fontSize: '.82rem' }}>Recibo da operacao. Log id {e.id} · gravado em {fmtDT(e.criado_em)}.</p>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ marginLeft: 'auto', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
           <Link href="/ajustes/pedidos" style={{ padding: '7px 12px', background: '#e2e8f0', color: '#334155', borderRadius: 6, fontSize: '.82rem', textDecoration: 'none' }}>← voltar p/ Pedidos</Link>
         </div>
       </div>

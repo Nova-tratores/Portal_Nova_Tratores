@@ -66,7 +66,7 @@ export default function WarRoomConfigPage() {
       <div style={card}>
         <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}><UserPlus size={16} /> Adicionar / promover</div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          <div style={{ flex: 1, minWidth: 220 }}><UserSelect value={novoId} onChange={setNovoId} placeholder="Escolher usuário" excluir={ativos.map((m) => m.user_id)} /></div>
+          <div style={{ flex: 1, minWidth: 'min(220px, 100%)' }}><UserSelect value={novoId} onChange={setNovoId} placeholder="Escolher usuário" excluir={ativos.map((m) => m.user_id)} /></div>
           <select value={novoNivel} onChange={(e) => setNovoNivel(e.target.value as 'nucleo' | 'membro')} style={{ ...btn, cursor: 'pointer' }}>
             <option value="membro">Membro</option>
             <option value="nucleo">Núcleo</option>
@@ -81,12 +81,12 @@ export default function WarRoomConfigPage() {
         {ativos.length === 0 && <div style={{ fontSize: 13, color: 'var(--portal-text-muted,#888)' }}>Ninguém na lista ainda.</div>}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {ativos.map((m) => (
-            <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 4px', borderBottom: '1px solid var(--portal-border,#f0f0f0)' }}>
+            <div key={m.user_id} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '8px 4px', borderBottom: '1px solid var(--portal-border,#f0f0f0)' }}>
               {m.avatar_url
                 // eslint-disable-next-line @next/next/no-img-element
                 ? <img src={m.avatar_url} alt="" style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover' }} />
                 : <span style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--portal-border,#e5e7eb)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}><UserIcon size={14} /></span>}
-              <span style={{ flex: 1, fontSize: 14 }}>{m.nome}{!m.usuario_ativo && <span style={{ fontSize: 11, color: '#dc2626' }}> (inativo)</span>}</span>
+              <span style={{ flex: '1 1 140px', minWidth: 0, fontSize: 14 }}>{m.nome}{!m.usuario_ativo && <span style={{ fontSize: 11, color: '#dc2626' }}> (inativo)</span>}</span>
               <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: m.nivel === 'nucleo' ? '#b91c1c' : '#6b7280' }}>
                 {m.nivel === 'nucleo' ? <Shield size={13} /> : <UserIcon size={13} />} {m.nivel}
               </span>

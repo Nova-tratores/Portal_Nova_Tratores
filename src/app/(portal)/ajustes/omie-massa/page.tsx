@@ -404,7 +404,7 @@ export default function OmieMassaPage() {
   const loading = aba === 'servicos' ? servLoading : prodLoading;
 
   return (
-    <div style={{ padding: '20px 24px', maxWidth: 1600, margin: '0 auto' }}>
+    <div className="est-page" style={{ padding: '20px 24px', maxWidth: 1600, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, marginBottom: 14 }}>
         <div>
           <h1 style={{ margin: 0, fontSize: '1.25rem', color: '#0f172a' }}>Omie em Massa</h1>
@@ -412,7 +412,7 @@ export default function OmieMassaPage() {
             Edite os cadastros direto na tabela (conta NOVA). Nada é gravado até você revisar e confirmar.
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {(['servicos', 'produtos'] as const).map((t) => (
             <button key={t} onClick={() => { setAba(t); setResultado(null); setFiltro(''); setFillCol(''); setFillVal(''); }}
               style={{ ...btn, ...(aba === t ? { background: '#0f172a', color: '#fff', border: '1px solid #0f172a' } : {}) }}>
@@ -526,7 +526,7 @@ export default function OmieMassaPage() {
           <span style={{ fontSize: '.85rem' }}>
             <strong>{pendencias.reduce((n, p) => n + p.difs.length, 0)}</strong> campo(s) alterado(s) em <strong>{pendencias.length}</strong> item(ns)
           </span>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             <button onClick={() => setEdits({})} style={{ ...btn, background: 'transparent', color: '#cbd5e1', border: '1px solid #475569' }}>Descartar</button>
             <button onClick={() => setModal({ itens: pendencias })} style={{ ...btn, background: '#fff', color: '#0f172a' }}>Revisar e aplicar</button>
           </div>
@@ -535,7 +535,7 @@ export default function OmieMassaPage() {
 
       {/* modal de revisão */}
       {modal && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div className="est-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={() => !aplicando && setModal(null)}>
           <div style={{ background: '#fff', borderRadius: 12, maxWidth: 720, width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
             onClick={(e) => e.stopPropagation()}>
@@ -568,7 +568,7 @@ export default function OmieMassaPage() {
 
       {/* modal: Produtos Utilizados de UM serviço */}
       {prodServ && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div className="est-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={() => setProdServ(null)}>
           <div style={{ background: '#fff', borderRadius: 12, maxWidth: 760, width: '100%', maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
             onClick={(e) => e.stopPropagation()}>
@@ -583,7 +583,7 @@ export default function OmieMassaPage() {
                 <div style={{ padding: 24, textAlign: 'center', color: '#94a3b8', fontSize: '.85rem' }}>Este serviço não tem produtos cadastrados.</div>
               )}
               {!prodServ.loading && prodServ.produtos.length > 0 && (
-                <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                <div className="est-scroll"><table style={{ borderCollapse: 'collapse', width: '100%' }}>
                   <thead>
                     <tr>
                       {['Código', 'Descrição', 'Qtde', 'Local de estoque'].map((h) => (
@@ -601,7 +601,7 @@ export default function OmieMassaPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
             <div style={{ padding: '12px 18px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
@@ -613,7 +613,7 @@ export default function OmieMassaPage() {
 
       {/* modal: Produtos Utilizados de TODOS os serviços */}
       {todosProdServ && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
+        <div className="est-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.55)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}
           onClick={() => !todosProdServ.loading && setTodosProdServ(null)}>
           <div style={{ background: '#fff', borderRadius: 12, maxWidth: 900, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column' }}
             onClick={(e) => e.stopPropagation()}>
@@ -653,7 +653,7 @@ export default function OmieMassaPage() {
                       {s.inativo === 'S' && <span style={{ marginLeft: 8, fontSize: '.68rem', color: '#b45309', border: '1px solid #fcd34d', background: '#fffbeb', borderRadius: 6, padding: '1px 6px' }}>inativo</span>}
                       <span style={{ marginLeft: 8, fontSize: '.72rem', color: '#64748b', fontWeight: 400 }}>{s.produtos.length} produto(s)</span>
                     </div>
-                    <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+                    <div className="est-scroll"><table style={{ borderCollapse: 'collapse', width: '100%' }}>
                       <tbody>
                         {s.produtos.map((p, i) => (
                           <tr key={i}>
@@ -664,7 +664,7 @@ export default function OmieMassaPage() {
                           </tr>
                         ))}
                       </tbody>
-                    </table>
+                    </table></div>
                   </div>
                 ));
               })()}

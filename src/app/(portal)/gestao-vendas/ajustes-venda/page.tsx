@@ -312,7 +312,7 @@ export default function GvAjustesPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Ajustes por Venda</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Ajustes por Venda</h1>
         <p className="text-sm text-gray-500">
           {nomeEmpresaGV(conta)} — {formatCompetencia(mes, ano)} — {ordenadas.length} de {linhas.length} venda(s).
           Save acontece ao sair do campo (blur). Cor da margem: &lt;80% vermelho · 80–89% amarelo ·
@@ -337,7 +337,7 @@ export default function GvAjustesPage() {
         <button
           type="button"
           onClick={soMaquinas}
-          className={`rounded-full border px-2 py-0.5 text-xs transition-colors ${
+          className={`rounded-full border px-2 py-1.5 sm:py-0.5 text-xs transition-colors ${
             modoSoMaquinas
               ? 'border-red-500 bg-red-500 text-white'
               : 'border-gray-300 bg-white text-gray-600 hover:border-gray-400 hover:text-gray-900'
@@ -581,7 +581,7 @@ function GerenciarVendedores({
           type="button"
           onClick={() => { setAbrindo((v) => !v); setErro(null); setMsg(null) }}
           disabled={busy}
-          className="rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:border-gray-400 hover:text-gray-900 disabled:opacity-50"
+          className="rounded-full border border-gray-300 bg-white px-2.5 py-1.5 sm:py-0.5 text-xs text-gray-700 hover:border-gray-400 hover:text-gray-900 disabled:opacity-50"
         >
           ➕ Adicionar vendedor
         </button>
@@ -590,7 +590,7 @@ function GerenciarVendedores({
           onClick={abrirOmie}
           disabled={busy}
           title="Lista os vendedores do Omie que ainda não estão salvos p/ você escolher quais adicionar (ignora nomes com “/” e remove o cargo)"
-          className="rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:border-gray-400 hover:text-gray-900 disabled:opacity-50"
+          className="rounded-full border border-gray-300 bg-white px-2.5 py-1.5 sm:py-0.5 text-xs text-gray-700 hover:border-gray-400 hover:text-gray-900 disabled:opacity-50"
         >
           {busy ? '⏳ Aguarde…' : candidatos ? '✕ Fechar Omie' : '🔄 Puxar do Omie'}
         </button>
@@ -598,7 +598,7 @@ function GerenciarVendedores({
           type="button"
           onClick={() => setMostrarCarimbos((v) => !v)}
           title="Nome, cargo e telefone que saem no carimbo do vendedor no PDF da proposta"
-          className="rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs text-gray-700 hover:border-gray-400 hover:text-gray-900"
+          className="rounded-full border border-gray-300 bg-white px-2.5 py-1.5 sm:py-0.5 text-xs text-gray-700 hover:border-gray-400 hover:text-gray-900"
         >
           {mostrarCarimbos ? '✕ Fechar carimbos' : '✍️ Carimbos do PDF'}
           {!mostrarCarimbos && carimbosPendentes > 0 && <span className="ml-1 rounded bg-amber-100 px-1 text-[10px] text-amber-800">{carimbosPendentes}</span>}
@@ -668,7 +668,7 @@ function GerenciarVendedores({
               onKeyDown={(e) => { if (e.key === 'Enter') adicionar() }}
               placeholder="Nome do vendedor"
               autoFocus
-              className="mt-0.5 h-8 w-56 rounded-md border border-gray-300 bg-white px-2 text-xs normal-case text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500"
+              className="mt-0.5 h-9 sm:h-8 w-56 max-w-full rounded-md border border-gray-300 bg-white px-2 text-xs normal-case text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500"
             />
           </label>
           <label className="flex flex-col text-[10px] uppercase tracking-wide text-gray-500">
@@ -678,7 +678,7 @@ function GerenciarVendedores({
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') adicionar() }}
               placeholder="opcional"
-              className="mt-0.5 h-8 w-56 rounded-md border border-gray-300 bg-white px-2 text-xs normal-case text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500"
+              className="mt-0.5 h-9 sm:h-8 w-56 max-w-full rounded-md border border-gray-300 bg-white px-2 text-xs normal-case text-gray-800 focus:outline-none focus:ring-1 focus:ring-red-500"
             />
           </label>
           <button

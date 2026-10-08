@@ -38,12 +38,12 @@ export default function ClientDrawer({ visible, onClose, onSaved }: ClientDrawer
   return (
     <div className="drawer-overlay active">
       <div className="modal-container">
-        <div className="drawer" style={{ width: 600, display: "block" }}>
-          <div style={{ padding: "25px 40px", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--portal-bg-secondary)" }}>
+        <div className="drawer" style={{ width: 600, maxWidth: "100%", display: "block" }}>
+          <div style={{ padding: "clamp(16px, 4vw, 25px) clamp(16px, 5vw, 40px)", borderBottom: "1px solid var(--border)", display: "flex", justifyContent: "space-between", alignItems: "center", background: "var(--portal-bg-secondary)" }}>
             <div style={{ fontSize: 20, fontWeight: 700 }}>Novo Cliente Manual</div>
             <button style={{ background: "none", border: "none", fontSize: 24, cursor: "pointer" }} onClick={onClose}>&times;</button>
           </div>
-          <div style={{ padding: "30px 40px" }}>
+          <div style={{ padding: "clamp(16px, 4vw, 30px) clamp(16px, 5vw, 40px)" }}>
             <label>Nome Completo</label><input type="text" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} />
             <label>CPF / CNPJ</label><input type="text" value={form.cpf} onChange={(e) => setForm({ ...form, cpf: e.target.value })} />
             <label>E-mail</label><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
@@ -51,7 +51,7 @@ export default function ClientDrawer({ visible, onClose, onSaved }: ClientDrawer
             <label>Endereço</label><input type="text" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} />
             <label>Cidade</label><input type="text" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
           </div>
-          <div style={{ padding: "20px 40px", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", background: "var(--portal-bg-secondary)" }}>
+          <div style={{ padding: "20px clamp(16px, 5vw, 40px)", borderTop: "1px solid var(--border)", display: "flex", justifyContent: "flex-end", background: "var(--portal-bg-secondary)" }}>
             <button onClick={salvar} disabled={saving} style={{ padding: "12px 30px", background: "#10B981", color: "white", border: "none", borderRadius: 6, fontWeight: 600, cursor: "pointer" }}>
               {saving ? "Salvando..." : "Cadastrar Cliente"}
             </button>

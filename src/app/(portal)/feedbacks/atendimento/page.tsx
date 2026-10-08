@@ -146,7 +146,7 @@ export default function FilaAtendimentoPage() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar cliente ou código…"
-          style={{ marginLeft: "auto", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--portal-border)", fontSize: 13, minWidth: 260, background: "var(--portal-bg-card)" }}
+          style={{ marginLeft: "auto", padding: "8px 12px", borderRadius: 999, border: "1px solid var(--portal-border)", fontSize: 13, minWidth: "min(260px, 100%)", maxWidth: "100%", background: "var(--portal-bg-card)" }}
         />
         <div style={{ display: "inline-flex", border: "1px solid var(--portal-border)", borderRadius: 999, overflow: "hidden" }}>
           <button type="button" onClick={() => trocarModo("cards")} style={{ ...btnChip(modo === "cards" ? COR_ATENDIMENTO : "#64748b", modo === "cards"), border: 0, borderRadius: 0 }}>▤ Cards</button>
@@ -282,7 +282,7 @@ function Item({ l, meuId, atendendo, onAtender }: { l: LinhaFila; meuId: string 
   // bloqueado: detalhes em preto e branco; o vermelho do aviso fica de fora do filtro
   const cz: React.CSSProperties = l.caveira ? { filter: "grayscale(1)", opacity: 0.75 } : {};
   return (
-    <li className={styles.card} style={{ ["--fb-accent" as string]: l.caveira ? "#dc2626" : prio.fg, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", padding: "12px 16px" }}>
+    <li className={`${styles.card} ${styles.filaCard}`} style={{ ["--fb-accent" as string]: l.caveira ? "#dc2626" : prio.fg, display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "center", padding: "12px 16px" }}>
       <div style={{ minWidth: 0 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <strong style={{ fontSize: 15 }}>{l.caveira && "🚫 "}{l.nome}</strong>

@@ -559,11 +559,11 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                 <button
                   onClick={() => setVerTimeline((v) => !v)}
                   title="Histórico"
-                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: verTimeline ? '#0ea5e9' : 'var(--portal-text-muted)' }}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: verTimeline ? '#0ea5e9' : 'var(--portal-text-muted)', minWidth: 36, minHeight: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}
                 >
                   <History size={19} />
                 </button>
-                <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}>
+                <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', minWidth: 36, minHeight: 36, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                   <X size={20} />
                 </button>
               </div>
@@ -661,7 +661,7 @@ export default function GarantiaDrawer({ garantiaId, userName, userId, onClose, 
                         onChange={(e) => setLocEdit({ ...locEdit, caixaId: e.target.value })}
                         placeholder="Qual caixa? ex. C3, AZUL (opcional)"
                         maxLength={20}
-                        style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border, #cbd5e1)', fontSize: 12.5, background: 'var(--portal-bg-input, #fff)', color: 'var(--portal-text)', width: 190 }}
+                        style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border, #cbd5e1)', fontSize: 12.5, background: 'var(--portal-bg-input, #fff)', color: 'var(--portal-text)', width: 190, maxWidth: '100%' }}
                       />
                     )}
                     <button

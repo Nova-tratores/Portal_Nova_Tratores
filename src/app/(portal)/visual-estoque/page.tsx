@@ -36,9 +36,9 @@ export default function VisualEstoqueDashboard() {
   if (!pLoading && userProfile && !temAcesso('consulta-estoque')) return <SemPermissao />
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 1400, margin: '0 auto' }}>
+    <div className="est-page" style={{ padding: '24px 32px', maxWidth: 1400, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--portal-text, #1a1a1a)', margin: 0 }}>Visual Estoque</h1>
           <p style={{ fontSize: 13, color: 'var(--portal-text-secondary, #737373)', margin: '4px 0 0' }}>Resumo geral do estoque de máquinas e peças</p>
@@ -65,7 +65,7 @@ export default function VisualEstoqueDashboard() {
       ) : (
         <>
           {/* Summary Cards */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 28 }}>
+          <div className="est-cols2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 16, marginBottom: 28 }}>
             {[
               { l: 'Máquinas em Estoque', v: fmtN(data.totalProdutos), icon: Package, bg: '#EFF6FF', c: '#2563EB', b: '#BFDBFE' },
               { l: 'Valor Total Estoque', v: fmt(data.valorTotalEstoque), icon: DollarSign, bg: '#ECFDF5', c: '#059669', b: '#A7F3D0' },
@@ -89,7 +89,7 @@ export default function VisualEstoqueDashboard() {
               <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text, #1a1a1a)' }}>Máquinas por Família</span>
               <span style={{ fontSize: 12, color: '#9CA3AF', fontWeight: 500 }}>({data.familias.length})</span>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'var(--portal-bg, #fafafa)' }}>
                   {['Família', 'Produtos', 'Estoque', 'Valor Total', 'Custo Capital'].map(h => (
@@ -108,11 +108,11 @@ export default function VisualEstoqueDashboard() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           {/* Peças resumo + por tipo */}
-          <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: 16 }}>
+          <div className="est-stack" style={{ display: 'grid', gridTemplateColumns: '300px minmax(0, 1fr)', gap: 16 }}>
             <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 14, border: '1px solid var(--portal-border, #e5e5e5)', padding: 22 }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text, #1a1a1a)', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Package size={16} color="#dc2626" /> Peças

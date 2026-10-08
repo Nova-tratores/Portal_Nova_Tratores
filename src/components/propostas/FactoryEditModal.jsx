@@ -54,7 +54,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[2000]">
       <div className={`bg-zinc-50 w-[95%] max-w-[650px] rounded-2xl flex flex-col overflow-hidden shadow-2xl ${isLocked ? 'border-4 border-emerald-500' : 'border border-zinc-200'}`}>
-        <div className="px-10 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
+        <div className="px-4 md:px-10 py-5 bg-white border-b border-zinc-200 flex justify-between items-center">
           <div>
             <h2 className="text-base font-black text-zinc-900">
               {isLocked ? 'VISUALIZACAO DE REGISTRO' : 'EDICAO DE FABRICA'} #{formData.id}
@@ -68,7 +68,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
           <div className="flex flex-col gap-6">
             <section className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
               <div className="px-4 py-2.5 bg-zinc-50 text-[9px] font-extrabold text-zinc-400 border-b border-zinc-200">LOGISTICA FABRICA</div>
-              <div className="flex">
+              <div className="flex flex-wrap">
                 <div className="flex-1 p-4 border-r border-zinc-100 flex flex-col gap-1">
                   <label className="text-[8px] font-bold text-zinc-400">VENDEDOR FABRICA</label>
                   <input value={formData.vendedor_fab || ''} disabled={isLocked} onChange={e => setFormData({ ...formData, vendedor_fab: e.target.value })} className={inputStyle} />
@@ -82,7 +82,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
 
             <section className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
               <div className="px-4 py-2.5 bg-zinc-50 text-[9px] font-extrabold text-zinc-400 border-b border-zinc-200">FASE E VALOR</div>
-              <div className="flex">
+              <div className="flex flex-wrap">
                 <div className="flex-1 p-4 border-r border-zinc-100 flex flex-col gap-1">
                   <label className="text-[8px] font-bold text-zinc-400">VALOR FINAL (R$)</label>
                   <input type="number" value={formData.valor_final || ''} disabled={isLocked} onChange={e => setFormData({ ...formData, valor_final: e.target.value })} className={inputStyle} />
@@ -96,7 +96,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
 
             <section className="bg-white rounded-xl border border-zinc-200 overflow-hidden">
               <div className="px-4 py-2.5 bg-zinc-50 text-[9px] font-extrabold text-zinc-400 border-b border-zinc-200">CUSTO E FRETE</div>
-              <div className="flex border-b border-zinc-100">
+              <div className="flex flex-wrap border-b border-zinc-100">
                 <div className="flex-1 p-4 border-r border-zinc-100 flex flex-col gap-1">
                   <label className="text-[8px] font-bold text-zinc-400">CUSTO (R$)</label>
                   <input type="number" value={formData.custo ?? ''} onChange={e => setFormData({ ...formData, custo: e.target.value })} className={inputStyle} />
@@ -110,7 +110,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
                   </select>
                 </div>
               </div>
-              <div className="flex">
+              <div className="flex flex-wrap">
                 <div className="flex-1 p-4 flex flex-col gap-1">
                   <label className="text-[8px] font-bold text-zinc-400">VALOR DO FRETE (R$)</label>
                   <input type="number" value={formData.frete_valor ?? ''} onChange={e => setFormData({ ...formData, frete_valor: e.target.value })} className={inputStyle} />
@@ -152,7 +152,7 @@ export default function FactoryEditModal({ order, onClose, onConvert }) {
           </div>
         </div>
 
-        <div className="px-10 py-6 bg-white border-t border-zinc-200 flex flex-col gap-3">
+        <div className="px-4 md:px-10 py-6 bg-white border-t border-zinc-200 flex flex-col gap-3">
           {isLocked && (
             <p className="text-emerald-600 font-bold text-center w-full text-xs">
               CARD CONVERTIDO — apenas custo/frete são editáveis (os demais campos ficam bloqueados).

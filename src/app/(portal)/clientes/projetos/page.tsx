@@ -186,9 +186,9 @@ function ProjetosPageInner() {
   const totalPendente = filteredProjetos.filter(p => p.nf_servico_pendente > 0).length
 
   return (
-    <div style={{ padding: '32px 40px', maxWidth: 1400, margin: '0 auto' }}>
+    <div className="cli-page" style={{ padding: '32px 40px', maxWidth: 1400, margin: '0 auto' }}>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 28 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 28 }}>
         <div>
           <a href="/clientes" style={{ color: '#6B7280', fontSize: 13, textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: 6, marginBottom: 8 }}>
             <ArrowLeft size={14} /> Voltar para Clientes
@@ -262,8 +262,8 @@ function ProjetosPageInner() {
         </div>
       ) : viewMode === 'projeto' ? (
         /* ========== VISAO POR PROJETO ========== */
-        <div style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 200px 60px 70px 60px 70px 70px 110px 28px', padding: '12px 20px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>
+        <div className="cli-xs" style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', background: '#fff' }}>
+          <div className="cli-mw900" style={{ display: 'grid', gridTemplateColumns: '1fr 200px 60px 70px 60px 70px 70px 110px 28px', padding: '12px 20px', background: '#F9FAFB', borderBottom: '1px solid #E5E7EB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5 }}>
             <span>Projeto</span><span>Cliente</span><span style={{ textAlign: 'center' }}>OS</span><span style={{ textAlign: 'center' }}>NF Serv.</span><span style={{ textAlign: 'center' }}>PV</span><span style={{ textAlign: 'center' }}>NF Peca</span><span style={{ textAlign: 'center' }}>Pend.</span><span style={{ textAlign: 'right' }}>Valor Total</span><span></span>
           </div>
 
@@ -277,7 +277,7 @@ function ProjetosPageInner() {
             return (
               <div key={key}>
                 <div onClick={() => toggleProjeto(key)}
-                  style={{
+                  className="cli-mw900" style={{
                     display: 'grid', gridTemplateColumns: '1fr 200px 60px 70px 60px 70px 70px 110px 28px',
                     padding: '14px 20px', borderBottom: '1px solid #F3F4F6', cursor: 'pointer',
                     background: isExp ? '#F0F4FF' : temPendente ? '#FFFBEB' : 'transparent',
@@ -355,12 +355,12 @@ function ProjetosPageInner() {
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#059669', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <FileText size={14} /> Notas Fiscais de Servico ({p.nfs_servico.length})
                         </div>
-                        <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 110px 100px 70px', padding: '10px 16px', background: '#F9FAFB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.3 }}>
+                        <div className="cli-xs" style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+                          <div className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 110px 100px 70px', padding: '10px 16px', background: '#F9FAFB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.3 }}>
                             <span>OS</span><span>NF</span><span>Cliente</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span><span></span>
                           </div>
                           {p.nfs_servico.map((nf, i) => (
-                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 110px 100px 70px', padding: '10px 16px', borderTop: '1px solid #F3F4F6', fontSize: 13, color: '#374151', alignItems: 'center' }}>
+                            <div key={i} className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 110px 100px 70px', padding: '10px 16px', borderTop: '1px solid #F3F4F6', fontSize: 13, color: '#374151', alignItems: 'center' }}>
                               <span style={{ fontWeight: 600 }}>{nf.num_os}</span>
                               <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#6B7280' }}>{nf.numero_nf || '-'}</span>
                               <span style={{ color: '#6B7280', fontSize: 13 }}>{nf.cliente}</span>
@@ -386,12 +386,12 @@ function ProjetosPageInner() {
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#D97706', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <AlertTriangle size={14} /> OS Faturadas sem Nota Fiscal ({p.nfs_servico_pendentes.length})
                         </div>
-                        <div style={{ border: '1px solid #FDE68A', borderRadius: 10, overflow: 'hidden', background: '#FFFBEB' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 100px', padding: '10px 16px', background: '#FEF3C7', fontSize: 11, color: '#92400E', textTransform: 'uppercase', fontWeight: 600 }}>
+                        <div className="cli-xs" style={{ border: '1px solid #FDE68A', borderRadius: 10, overflow: 'hidden', background: '#FFFBEB' }}>
+                          <div className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 100px', padding: '10px 16px', background: '#FEF3C7', fontSize: 11, color: '#92400E', textTransform: 'uppercase', fontWeight: 600 }}>
                             <span>OS</span><span>Cliente</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span>
                           </div>
                           {p.nfs_servico_pendentes.map((nf, i) => (
-                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 100px', padding: '10px 16px', borderTop: '1px solid #FDE68A', fontSize: 13, color: '#92400E', alignItems: 'center' }}>
+                            <div key={i} className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 100px', padding: '10px 16px', borderTop: '1px solid #FDE68A', fontSize: 13, color: '#92400E', alignItems: 'center' }}>
                               <span style={{ fontWeight: 600 }}>{nf.num_os}</span>
                               <span>{nf.cliente}</span>
                               <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(nf.valor)}</span>
@@ -408,12 +408,12 @@ function ProjetosPageInner() {
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#EA580C', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <Package size={14} /> Notas Fiscais de Peca ({p.nfs_peca.length})
                         </div>
-                        <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 110px 100px 70px', padding: '10px 16px', background: '#F9FAFB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.3 }}>
+                        <div className="cli-xs" style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden', background: '#fff' }}>
+                          <div className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 110px 100px 70px', padding: '10px 16px', background: '#F9FAFB', fontSize: 11, color: '#6B7280', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.3 }}>
                             <span>PV</span><span>NF</span><span>Cliente</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span><span></span>
                           </div>
                           {p.nfs_peca.map((nf, i) => (
-                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 110px 100px 70px', padding: '10px 16px', borderTop: '1px solid #F3F4F6', fontSize: 13, color: '#374151', alignItems: 'center' }}>
+                            <div key={i} className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '80px 90px 1fr 110px 100px 70px', padding: '10px 16px', borderTop: '1px solid #F3F4F6', fontSize: 13, color: '#374151', alignItems: 'center' }}>
                               <span style={{ fontWeight: 600 }}>{nf.num_pedido}</span>
                               <span style={{ fontFamily: 'monospace', fontSize: 12, color: '#6B7280' }}>{nf.numero_nf || '-'}</span>
                               <span style={{ color: '#6B7280', fontSize: 13 }}>{nf.cliente}</span>
@@ -439,12 +439,12 @@ function ProjetosPageInner() {
                         <div style={{ fontSize: 13, fontWeight: 700, color: '#D97706', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
                           <AlertTriangle size={14} /> PV Faturados sem Nota Fiscal ({p.nfs_peca_pendentes.length})
                         </div>
-                        <div style={{ border: '1px solid #FDE68A', borderRadius: 10, overflow: 'hidden', background: '#FFFBEB' }}>
-                          <div style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 100px', padding: '10px 16px', background: '#FEF3C7', fontSize: 11, color: '#92400E', textTransform: 'uppercase', fontWeight: 600 }}>
+                        <div className="cli-xs" style={{ border: '1px solid #FDE68A', borderRadius: 10, overflow: 'hidden', background: '#FFFBEB' }}>
+                          <div className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 100px', padding: '10px 16px', background: '#FEF3C7', fontSize: 11, color: '#92400E', textTransform: 'uppercase', fontWeight: 600 }}>
                             <span>PV</span><span>Cliente</span><span style={{ textAlign: 'right' }}>Valor</span><span>Data</span>
                           </div>
                           {p.nfs_peca_pendentes.map((nf, i) => (
-                            <div key={i} style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 100px', padding: '10px 16px', borderTop: '1px solid #FDE68A', fontSize: 13, color: '#92400E', alignItems: 'center' }}>
+                            <div key={i} className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '90px 1fr 120px 100px', padding: '10px 16px', borderTop: '1px solid #FDE68A', fontSize: 13, color: '#92400E', alignItems: 'center' }}>
                               <span style={{ fontWeight: 600 }}>{nf.num_pedido}</span>
                               <span>{nf.cliente}</span>
                               <span style={{ textAlign: 'right', fontWeight: 600 }}>{fmt(nf.valor)}</span>
@@ -491,7 +491,7 @@ function ProjetosPageInner() {
             return (
               <div key={key} style={{ border: '1px solid #E5E7EB', borderRadius: 12, overflow: 'hidden', background: '#fff', boxShadow: isExp ? '0 4px 12px rgba(0,0,0,0.06)' : 'none', transition: 'box-shadow .2s' }}>
                 <div onClick={() => toggleCliente(key)}
-                  style={{ display: 'flex', alignItems: 'center', padding: '18px 24px', cursor: 'pointer', gap: 16, background: isExp ? '#F8FAFC' : '#fff', userSelect: 'none' }}>
+                  className="cli-wrap" style={{ display: 'flex', alignItems: 'center', padding: '18px 24px', cursor: 'pointer', gap: 16, background: isExp ? '#F8FAFC' : '#fff', userSelect: 'none' }}>
                   <ChevronDown size={18} color="#6B7280" style={{ transition: 'transform .2s', transform: isExp ? 'rotate(0)' : 'rotate(-90deg)', flexShrink: 0 }} />
                   <div style={{ width: 42, height: 42, borderRadius: 10, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Building2 size={20} color="#2563EB" />
@@ -531,10 +531,10 @@ function ProjetosPageInner() {
                       return (
                         <div key={pKey} style={{ borderBottom: '1px solid #F3F4F6' }}>
                           <div onClick={() => toggleProjeto(pKey)}
-                            style={{ display: 'flex', alignItems: 'center', padding: '14px 24px 14px 44px', cursor: 'pointer', gap: 12, background: isPExp ? '#F0F4FF' : temPend ? '#FFFDF5' : 'transparent', transition: 'background .15s' }}>
+                            className="cli-wrap" style={{ display: 'flex', alignItems: 'center', padding: '14px 24px 14px 44px', cursor: 'pointer', gap: 12, background: isPExp ? '#F0F4FF' : temPend ? '#FFFDF5' : 'transparent', transition: 'background .15s' }}>
                             <FolderOpen size={16} color={p.inativo ? '#D1D5DB' : '#2563EB'} style={{ flexShrink: 0 }} />
                             <span style={{ fontWeight: 600, fontSize: 14, color: '#111827', flex: 1 }}>{p.nome}</span>
-                            <div style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 13, flexShrink: 0 }}>
+                            <div className="cli-wrap" style={{ display: 'flex', gap: 16, alignItems: 'center', fontSize: 13, flexShrink: 0 }}>
                               <span style={{ color: '#374151', fontWeight: 600 }}>{p.os_total} OS</span>
                               {p.nf_servico > 0 ? <span style={{ color: '#059669', fontWeight: 700 }}>{p.nf_servico} NF</span> : <span style={{ color: '#D1D5DB' }}>-</span>}
                               {p.pv_total > 0 ? <span style={{ color: '#EA580C', fontWeight: 600 }}>{p.pv_total} PV</span> : <span style={{ color: '#D1D5DB' }}>-</span>}
@@ -751,9 +751,9 @@ function ProjetosPageInner() {
 
       {/* Modal Criar Projeto */}
       {showCriar && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 12 }}
           onClick={e => { if (e.target === e.currentTarget) setShowCriar(false) }}>
-          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 420, boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
+          <div style={{ background: '#fff', borderRadius: 12, padding: 28, width: 420, maxWidth: '92vw', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
               <div style={{ fontSize: 16, fontWeight: 700, color: '#111' }}>Criar Projeto</div>
               <button onClick={() => setShowCriar(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>

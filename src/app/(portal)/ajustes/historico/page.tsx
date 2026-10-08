@@ -152,7 +152,7 @@ export default function AjustesHistoricoPage() {
   if (!permLoading && userProfile && !pode('ajustes', 'historico')) return <SemPermissao />;
 
   return (
-    <div style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1400, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b' }}>Histórico de ajustes</h1>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
@@ -179,7 +179,7 @@ export default function AjustesHistoricoPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14, borderBottom: '1px solid #e2e8f0' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14, borderBottom: '1px solid #e2e8f0' }}>
         {([['cmc', 'Correções de custo (CMC)'], ['caract', 'Características']] as const).map(([k, label]) => (
           <button key={k} onClick={() => setAba(k)} style={{ padding: '8px 16px', fontSize: '.82rem', fontWeight: 600, border: 'none', background: 'none', cursor: 'pointer', color: aba === k ? '#2563eb' : '#64748b', borderBottom: aba === k ? '2px solid #2563eb' : '2px solid transparent', marginBottom: -1 }}>{label}</button>
         ))}

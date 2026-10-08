@@ -47,11 +47,11 @@ function LinhaVendedor({ v, onChange }: { v: Vendedor; onChange: (vs: Vendedor[]
     }
   }
 
-  const input = 'h-7 w-full rounded border border-gray-300 bg-white px-2 text-xs text-gray-900 focus:border-red-500 focus:outline-none'
+  const input = 'h-9 sm:h-7 w-full rounded border border-gray-300 bg-white px-2 text-xs text-gray-900 focus:border-red-500 focus:outline-none'
 
   return (
     <tr className="border-t border-gray-100 align-middle">
-      <td className="px-2 py-1.5 text-xs">
+      <td className="sticky left-0 z-10 bg-white px-2 py-1.5 text-xs">
         <div className="flex items-center gap-1.5">
           <span className={`inline-block h-2 w-2 shrink-0 rounded-full ${completo ? 'bg-green-500' : 'bg-amber-400'}`} title={completo ? 'Pronto pro PDF' : 'Falta o nome do carimbo — o PDF da proposta vai recusar'} />
           <span className="truncate font-medium text-gray-800" title={v.nome}>{v.nome}</span>
@@ -66,7 +66,7 @@ function LinhaVendedor({ v, onChange }: { v: Vendedor; onChange: (vs: Vendedor[]
             type="button"
             onClick={salvar}
             disabled={busy || !sujo}
-            className="h-7 rounded-md bg-red-600 px-3 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-40"
+            className="h-9 sm:h-7 rounded-md bg-red-600 px-3 text-xs font-medium text-white hover:bg-red-700 disabled:opacity-40"
           >
             {busy ? '…' : 'Salvar'}
           </button>
@@ -82,7 +82,7 @@ export default function CarimboVendedores({ vendedores, onChange }: { vendedores
   const pendentes = vendedores.filter((v) => !carimboCompleto(v)).length
   return (
     <div className="mt-2 border-t border-gray-100 pt-2">
-      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+      <div className="mb-1.5 flex flex-wrap items-center gap-2 text-xs sm:text-[11px] text-gray-500">
         <span>Carimbo do PDF da proposta: nome, cargo e telefone que saem embaixo da linha de assinatura do vendedor.</span>
         {pendentes > 0 && <span className="rounded bg-amber-50 px-1.5 py-0.5 text-amber-700">{pendentes} vendedor(es) sem nome de carimbo — o PDF da proposta recusa gerar pra eles.</span>}
       </div>
@@ -90,7 +90,7 @@ export default function CarimboVendedores({ vendedores, onChange }: { vendedores
         <table className="w-full min-w-[720px] text-left">
           <thead className="bg-gray-50 text-[10px] uppercase tracking-wide text-gray-500">
             <tr>
-              <th className="px-2 py-1.5 font-medium">Vendedor</th>
+              <th className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 font-medium">Vendedor</th>
               <th className="px-2 py-1.5 font-medium">Nome no carimbo</th>
               <th className="px-2 py-1.5 font-medium">Cargo</th>
               <th className="px-2 py-1.5 font-medium">Telefone</th>

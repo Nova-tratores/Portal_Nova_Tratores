@@ -161,7 +161,7 @@ export default function TabelaOrdenavel<T>({ colunas, linhas, chaveLinha, carreg
           </tbody>
         </table>
       </div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 0', flexWrap: 'wrap' }}>
         {carregando && <span style={{ color: '#888', fontSize: '.8rem' }}>Carregando…</span>}
         {!carregando && temFiltro && (
           <span style={{ color: '#888', fontSize: '.76rem' }}>{filtradas.length} de {linhas.length} registro(s) após o filtro</span>

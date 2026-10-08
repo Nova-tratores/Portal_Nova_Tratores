@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { authHeaders } from '@/lib/auth/client'
 import { useRouter, useSearchParams } from 'next/navigation'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { User, Volume2, Palette, Camera, Save, Play, CheckCircle2, Moon, Sun, Mail } from 'lucide-react'
 
 function ConfiguracoesContent() {
@@ -15,6 +16,8 @@ function ConfiguracoesContent() {
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
   const router = useRouter()
+  // abaixo de 900px o menu de abas vai pro topo e o painel ocupa a largura toda
+  const compacto = useIsMobile(900)
 
   const [nome, setNome] = useState('')
   const [email, setEmail] = useState('')
@@ -148,27 +151,29 @@ function ConfiguracoesContent() {
 
       <div style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
 
-        <main style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', gap: '30px' }}>
-          <div style={{ width: '300px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-            <button onClick={() => setTab('perfil')} style={{ ...tabBtnStyle, background: tab === 'perfil' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'perfil' ? '#fff' : '#64748b' }}>
+        <main style={{ maxWidth: '1200px', margin: '0 auto', display: 'flex', flexDirection: compacto ? 'column' : 'row', gap: compacto ? '16px' : '30px' }}>
+          <div style={compacto
+            ? { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px' }
+            : { width: '300px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <button onClick={() => setTab('perfil')} style={{ ...tabBtnStyle, ...(compacto ? { padding: '12px 14px', fontSize: '14px', gap: '10px' } : null), background: tab === 'perfil' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'perfil' ? '#fff' : '#64748b' }}>
               <User size={20} /> Perfil do Usuário
             </button>
-            <button onClick={() => setTab('som')} style={{ ...tabBtnStyle, background: tab === 'som' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'som' ? '#fff' : '#64748b' }}>
+            <button onClick={() => setTab('som')} style={{ ...tabBtnStyle, ...(compacto ? { padding: '12px 14px', fontSize: '14px', gap: '10px' } : null), background: tab === 'som' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'som' ? '#fff' : '#64748b' }}>
               <Volume2 size={20} /> Sons e Alertas
             </button>
-            <button onClick={() => setTab('tema')} style={{ ...tabBtnStyle, background: tab === 'tema' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'tema' ? '#fff' : '#64748b' }}>
+            <button onClick={() => setTab('tema')} style={{ ...tabBtnStyle, ...(compacto ? { padding: '12px 14px', fontSize: '14px', gap: '10px' } : null), background: tab === 'tema' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'tema' ? '#fff' : '#64748b' }}>
               <Palette size={20} /> Personalização e Tema
             </button>
-            <button onClick={() => setTab('envio')} style={{ ...tabBtnStyle, background: tab === 'envio' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'envio' ? '#fff' : '#64748b' }}>
+            <button onClick={() => setTab('envio')} style={{ ...tabBtnStyle, ...(compacto ? { padding: '12px 14px', fontSize: '14px', gap: '10px' } : null), background: tab === 'envio' ? '#000' : 'rgba(255,255,255,0.6)', color: tab === 'envio' ? '#fff' : '#64748b' }}>
               <Mail size={20} /> E-mail de Envio
             </button>
           </div>
 
-          <div style={{ flex: 1, background: 'var(--bg-card)', backdropFilter: 'blur(15px)', borderRadius: '35px', padding: '50px', border: '1px solid var(--borda)', boxShadow: '0 30px 60px rgba(0,0,0,0.05)' }}>
+          <div style={{ flex: 1, background: 'var(--bg-card)', backdropFilter: 'blur(15px)', borderRadius: compacto ? '20px' : '35px', padding: compacto ? '20px 16px' : '50px', minWidth: 0, border: '1px solid var(--borda)', boxShadow: '0 30px 60px rgba(0,0,0,0.05)' }}>
             
             {tab === 'perfil' && (
               <form onSubmit={handleUpdatePerfil}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '30px', marginBottom: '40px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: compacto ? '20px' : '30px', marginBottom: compacto ? '24px' : '40px' }}>
                   <div style={{ position: 'relative' }}>
                     <div style={{ width: '120px', height: '120px', borderRadius: '40px', background: '#f1f5f9', overflow: 'hidden', border: '4px solid #fff', boxShadow: '0 10px 20px rgba(0,0,0,0.1)' }}>
                       <img src={avatarFile ? URL.createObjectURL(avatarFile) : avatarUrl || 'https://via.placeholder.com/150'} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Avatar" />
@@ -182,12 +187,12 @@ function ConfiguracoesContent() {
                     <p style={{ color: 'var(--texto-secundario)', fontSize: '14px' }}>{userProfile?.funcao}</p>
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: compacto ? 'repeat(auto-fit, minmax(220px, 1fr))' : '1fr 1fr', gap: compacto ? '16px' : '25px' }}>
                   <div style={inputGroup}><label style={labelStyle}>NOME COMPLETO</label><input style={inputStyle} value={nome} onChange={e => setNome(e.target.value)} /></div>
                   <div style={inputGroup}><label style={labelStyle}>E-MAIL (APENAS LEITURA)</label><input style={{...inputStyle, opacity: 0.6}} value={email} disabled /></div>
                   <div style={inputGroup}><label style={labelStyle}>NOVA SENHA</label><input type="password" style={inputStyle} placeholder="••••••••" value={senha} onChange={e => setSenha(e.target.value)} /></div>
                 </div>
-                <button disabled={updating} type="submit" style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: '20px 40px', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <button disabled={updating} type="submit" style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '15px' }}>
                   {updating ? 'SALVANDO...' : <><Save size={20} /> SALVAR ALTERAÇÕES</>}
                 </button>
               </form>
@@ -198,8 +203,8 @@ function ConfiguracoesContent() {
                  <h2 style={{ fontSize: '24px', fontWeight: '900', color: 'var(--texto-principal)', marginBottom: '10px' }}>Sons de Notificação</h2>
                  <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                     {sonsDisponiveis.map((som) => (
-                      <div key={som.id} onClick={() => tocarPrevia(som.id)} style={{ padding: '25px', borderRadius: '20px', border: somSelecionado === som.id ? '2px solid #000' : '1px solid var(--borda)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+                      <div key={som.id} onClick={() => tocarPrevia(som.id)} style={{ padding: compacto ? '16px' : '25px', gap: '12px', borderRadius: '20px', border: somSelecionado === som.id ? '2px solid #000' : '1px solid var(--borda)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: compacto ? '12px' : '20px', minWidth: 0 }}>
                           <div style={{ width: '45px', height: '45px', borderRadius: '12px', background: somSelecionado === som.id ? '#000' : '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', color: somSelecionado === som.id ? '#fff' : '#000' }}>
                             <Play size={20} fill={somSelecionado === som.id ? "white" : "none"} />
                           </div>
@@ -209,24 +214,24 @@ function ConfiguracoesContent() {
                       </div>
                     ))}
                  </div>
-                 <button onClick={handleUpdatePerfil} disabled={updating} style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: '20px 40px', borderRadius: '18px', fontWeight: '900', cursor: 'pointer' }}>SALVAR PREFERÊNCIA DE SOM</button>
+                 <button onClick={handleUpdatePerfil} disabled={updating} style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer' }}>SALVAR PREFERÊNCIA DE SOM</button>
               </div>
             )}
 
             {tab === 'tema' && (
               <div>
                 <h2 style={{ fontSize: '24px', fontWeight: '900', color: 'var(--texto-principal)', marginBottom: '30px' }}>Escolha o Tema</h2>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
-                  <div onClick={() => mudarTemaLocal('claro')} style={{ padding: '40px', borderRadius: '25px', border: temaSelecionado === 'claro' ? '3px solid #000' : '1px solid var(--borda)', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', cursor: 'pointer' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: compacto ? 'repeat(auto-fit, minmax(220px, 1fr))' : '1fr 1fr', gap: compacto ? '16px' : '25px' }}>
+                  <div onClick={() => mudarTemaLocal('claro')} style={{ padding: compacto ? '24px 16px' : '40px', borderRadius: '25px', border: temaSelecionado === 'claro' ? '3px solid #000' : '1px solid var(--borda)', background: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', cursor: 'pointer' }}>
                     <Sun size={48} color="#fbbf24" /><b style={{ color: '#000' }}>MODO CLARO</b>
                     {temaSelecionado === 'claro' && <CheckCircle2 size={24} color="#000" />}
                   </div>
-                  <div onClick={() => mudarTemaLocal('escuro')} style={{ padding: '40px', borderRadius: '25px', border: temaSelecionado === 'escuro' ? '3px solid #3b82f6' : '1px solid var(--borda)', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', cursor: 'pointer' }}>
+                  <div onClick={() => mudarTemaLocal('escuro')} style={{ padding: compacto ? '24px 16px' : '40px', borderRadius: '25px', border: temaSelecionado === 'escuro' ? '3px solid #3b82f6' : '1px solid var(--borda)', background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '15px', cursor: 'pointer' }}>
                     <Moon size={48} color="#3b82f6" /><b style={{ color: '#fff' }}>MODO ESCURO</b>
                     {temaSelecionado === 'escuro' && <CheckCircle2 size={24} color="#3b82f6" />}
                   </div>
                 </div>
-                <button onClick={handleUpdatePerfil} disabled={updating} style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: '20px 40px', borderRadius: '18px', fontWeight: '900', cursor: 'pointer' }}>SALVAR PREFERÊNCIA DE TEMA</button>
+                <button onClick={handleUpdatePerfil} disabled={updating} style={{ marginTop: '40px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer' }}>SALVAR PREFERÊNCIA DE TEMA</button>
               </div>
             )}
 
@@ -236,7 +241,7 @@ function ConfiguracoesContent() {
                 <p style={{ color: 'var(--texto-secundario)', fontSize: '14px', lineHeight: 1.6, marginBottom: '30px' }}>
                   Os boletos e cobranças que você enviar sairão deste e-mail (aparece como <b>De:</b> no card). Use uma <b>Senha de app</b> — não a senha normal da conta. A senha é guardada criptografada.
                 </p>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '25px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: compacto ? 'repeat(auto-fit, minmax(220px, 1fr))' : '1fr 1fr', gap: compacto ? '16px' : '25px' }}>
                   <div style={inputGroup}><label style={labelStyle}>PROVEDOR</label>
                     <select style={inputStyle} value={envioProvedor} onChange={e => setEnvioProvedor(e.target.value)}>
                       <option value="gmail">Gmail / Google Workspace</option>
@@ -258,7 +263,7 @@ function ConfiguracoesContent() {
                   </>)}
                 </div>
                 {envioMsg && <p style={{ marginTop: '18px', color: envioMsg.tipo === 'ok' ? '#059669' : '#dc2626', fontWeight: '800' }}>{envioMsg.msg}</p>}
-                <button onClick={salvarEnvio} disabled={envioSalvando} style={{ marginTop: '30px', background: '#000', color: '#fff', border: 'none', padding: '20px 40px', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <button onClick={salvarEnvio} disabled={envioSalvando} style={{ marginTop: '30px', background: '#000', color: '#fff', border: 'none', padding: compacto ? '16px 24px' : '20px 40px', maxWidth: '100%', borderRadius: '18px', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '12px' }}>
                   {envioSalvando ? 'SALVANDO...' : <><Save size={20} /> SALVAR E-MAIL DE ENVIO</>}
                 </button>
                 <p style={{ marginTop: '18px', fontSize: '12px', color: '#94a3b8', lineHeight: 1.6 }}>

@@ -59,11 +59,11 @@ export default function RegrasOportunidade({ onFechar }: { onFechar: () => void 
   return (
     <div onClick={onFechar} style={{ position: 'fixed', inset: 0, zIndex: 3000, background: 'rgba(0,0,0,.45)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: '5vh 12px', overflowY: 'auto' }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(1100px, 100%)', background: 'var(--portal-bg-card,#fefefe)', borderRadius: 12, border: borda, borderTop: `4px solid ${VERDE}`, boxShadow: '0 20px 50px rgba(0,0,0,.3)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: borda }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '14px clamp(12px, 3vw, 16px)', borderBottom: borda }}>
           <SlidersHorizontal size={20} style={{ color: VERDE }} />
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 900, color: txt }}>Regras de oportunidade</h2>
           <span style={{ fontSize: 12, color: mut }}>{regras.length} regra(s)</span>
-          <button type="button" onClick={onFechar} style={{ ...botao('#6b7280', false), padding: 6, marginLeft: 'auto' }} title="Fechar (Esc)"><X size={16} /></button>
+          <button type="button" onClick={onFechar} style={{ ...botao('#6b7280', false), padding: 6, marginLeft: 'auto', minWidth: 36, minHeight: 36, justifyContent: 'center' }} title="Fechar (Esc)"><X size={16} /></button>
         </div>
         <div style={{ padding: '10px 16px', fontSize: 12, lineHeight: 1.5, color: 'var(--portal-text-secondary,#374151)' }}>
           Para cada cultura e faixa de área, diga qual máquina oferecer e por quê. A prioridade vai de 1 (mais importante) a 5; os pesos dizem quanto contam a área da cultura, o crédito recente e o fato de o imóvel ainda não ser cliente.
@@ -71,7 +71,7 @@ export default function RegrasOportunidade({ onFechar }: { onFechar: () => void 
         </div>
         {erro && <div style={{ display: 'flex', gap: 8, padding: '8px 16px', background: 'rgba(220,38,38,.10)', borderLeft: '4px solid #dc2626', color: txt, fontSize: 13 }}><AlertTriangle size={16} style={{ color: '#dc2626' }} /> {erro}</div>}
 
-        <div style={{ overflowX: 'auto', padding: '0 16px 16px' }}>
+        <div style={{ overflowX: 'auto', padding: '0 clamp(8px, 2.5vw, 16px) 16px' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 980 }}>
             <thead>
               <tr>

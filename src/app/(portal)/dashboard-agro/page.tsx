@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { BarChart3, Sprout, Link2, MapPin, Target } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import SemPermissao from '@/components/SemPermissao'
 import { authHeaders } from '@/lib/auth/client'
 import PlanoCarAba from '@/components/dashboard-agro/PlanoCarAba'
@@ -38,6 +39,8 @@ export default function DashboardAgroPage() {
   const { temAcesso, loading } = usePermissoes(userProfile?.id)
   const router = useRouter()
   const searchParams = useSearchParams()
+  // celular: guias mais compactas (continuam numa linha só, rolando dentro da faixa)
+  const mobile = useIsMobile()
   const tabInicial = searchParams?.get('tab') as Aba | null
   const [aba, setAba] = useState<Aba>(tabInicial && ABAS.includes(tabInicial) ? tabInicial : 'dashboard')
 
@@ -71,11 +74,12 @@ export default function DashboardAgroPage() {
   }
 
   return (
-    <div style={{ width: '100%', height: 'calc(100vh - 84px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    // dvh = altura VISÍVEL (no celular a barra do navegador não corta o rodapé); no PC é igual a vh
+    <div style={{ width: '100%', height: 'calc(100dvh - 84px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* Faixa verde com guias estilo Chrome (mesmo desenho do FrotaNav) */}
       <div
         style={{
-          display: 'flex', alignItems: 'flex-end', gap: 3, padding: '10px 24px 0',
+          display: 'flex', alignItems: 'flex-end', gap: 3, padding: mobile ? '8px 12px 0' : '10px 24px 0',
           height: ALTURA_FAIXA, boxSizing: 'border-box', flexShrink: 0,
           background: 'linear-gradient(135deg, #22c55e, #15803d)',
           overflowX: 'auto', WebkitOverflowScrolling: 'touch',
@@ -91,7 +95,7 @@ export default function DashboardAgroPage() {
               onClick={() => trocar(g.id)}
               style={{
                 display: 'flex', alignItems: 'center', gap: 7,
-                padding: '11px 20px', fontSize: 14, fontWeight: ativo ? 700 : 500,
+                padding: mobile ? '10px 14px' : '11px 20px', fontSize: mobile ? 13 : 14, fontWeight: ativo ? 700 : 500, flexShrink: 0,
                 color: '#111111', // fonte PRETA sempre (#111827 é remapeado pra branco no escuro)
                 // #fefefe: branco "de verdade" que o modo escuro NÃO converte (o #fff vira card escuro)
                 background: ativo ? '#fefefe' : 'rgba(255,255,255,0.30)',
@@ -144,7 +148,8 @@ export default function DashboardAgroPage() {
           </div>
         )}
         {aba === 'mapa' && (
-          <div style={{ position: 'absolute', inset: 0, background: 'var(--portal-bg)' }}>
+          // overflowY: no celular barra + legenda podem passar da altura — rola em vez de cortar o mapa
+          <div style={{ position: 'absolute', inset: 0, overflowY: 'auto', background: 'var(--portal-bg)' }}>
             <MapaCar />
           </div>
         )}

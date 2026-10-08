@@ -88,7 +88,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
 
   return (
     <>
-      <header>
+      <header style={{ flexWrap: "wrap", rowGap: 10 }}>
         {/* Busca na ESQUERDA + perfis dos técnicos (filtro por foto) na direita
             dela + botões na cor da faixa azul (sem o logo — pedido de 21/08) */}
         <div className="search-box" style={{ position: "relative" }}>

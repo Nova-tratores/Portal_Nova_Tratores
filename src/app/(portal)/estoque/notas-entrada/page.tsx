@@ -228,7 +228,7 @@ export default function NotasEntradaPage() {
   for (let y = now.getFullYear(); y >= 2022; y--) anos.push(y);
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Notas de Entrada</h1>
@@ -242,20 +242,20 @@ export default function NotasEntradaPage() {
         {pode('estoque', 'dashboard') && (<Link href="/estoque/dashboard" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>→ Dashboard</Link>)}
       </div>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+      <div className="est-touch" style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <Sel label="Mês" value={mes} onChange={(v) => { setMes(parseInt(v)); setPagina(1); }} options={MESES.map((m, i) => ({ value: i + 1, label: m }))} />
         <Sel label="Ano" value={ano} onChange={(v) => { setAno(parseInt(v)); setPagina(1); }} options={anos.map((y) => ({ value: y, label: String(y) }))} />
-        <div>
+        <div className="est-grow">
           <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Buscar NF</label>
           <input value={nf} onChange={(e) => { setNf(e.target.value); setPagina(1); }} placeholder="nº da NF" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 140 }} />
         </div>
-        <div>
+        <div className="est-grow">
           <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Fornecedor</label>
-          <input value={fornecedor} onChange={(e) => { setFornecedor(e.target.value); setPagina(1); }} placeholder="nome do emitente" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 200 }} />
+          <input value={fornecedor} onChange={(e) => { setFornecedor(e.target.value); setPagina(1); }} placeholder="nome do emitente" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 200, maxWidth: '100%' }} />
         </div>
-        <div>
+        <div className="est-grow">
           <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Descrição do produto</label>
-          <input value={descricao} onChange={(e) => { setDescricao(e.target.value); setPagina(1); }} placeholder="ex.: filtro, óleo, engate" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 220 }} />
+          <input value={descricao} onChange={(e) => { setDescricao(e.target.value); setPagina(1); }} placeholder="ex.: filtro, óleo, engate" style={{ padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', width: 220, maxWidth: '100%' }} />
         </div>
         <button onClick={exportarCSV} disabled={exportando} title="Baixa um CSV com todas as notas de entrada, item a item (todo o histórico desde 11/2022, respeitando os filtros de texto e a conta)." style={{ padding: '9px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#666', borderRadius: 8, fontSize: '.78rem', fontWeight: 600, cursor: exportando ? 'wait' : 'pointer', marginLeft: 'auto' }}>
           {exportando ? 'Gerando…' : 'Exportar CSV (todas as notas)'}
@@ -384,7 +384,7 @@ function NotaRow({ n, expandida, onToggle, selecionado, onToggleSelecao, titulos
       {expandida && (
         <tr>
           <td colSpan={8} style={{ ...tdStyle, background: '#fafafa' }}>
-            <div style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
               <button onClick={onVerDanfe} style={linkBtn}>Ver DANFE</button>
               <button onClick={onVerContasPagar} style={linkBtn}>Ver contas a pagar</button>
             </div>
@@ -437,7 +437,7 @@ function pgBtn(disabled: boolean): React.CSSProperties {
 
 function Sel({ label, value, onChange, options }: { label: string; value: string | number; onChange: (v: string) => void; options: Array<{ value: string | number; label: string }> }) {
   return (
-    <div>
+    <div className="est-grow">
       <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>{label}</label>
       <select value={value} onChange={(e) => onChange(e.target.value)} style={{ padding: '9px 12px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 8, fontSize: '.82rem', outline: 'none' }}>
         {options.map((o) => <option key={String(o.value)} value={o.value}>{o.label}</option>)}

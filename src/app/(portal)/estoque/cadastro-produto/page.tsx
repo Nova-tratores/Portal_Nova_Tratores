@@ -75,7 +75,7 @@ export default function CadastroProdutoPage() {
   const c = dados?.custos;
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
       <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Cadastro de Produto</h1>
       <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 18 }}>Detalhes completos, custos, margens e histórico de CMC</p>
 
@@ -90,7 +90,7 @@ export default function CadastroProdutoPage() {
           onChange={(e) => setCodigo(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && buscar()}
           placeholder="Codigo do produto"
-          style={{ padding: '10px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 10, fontSize: 13, width: 320, outline: 'none' }}
+          style={{ padding: '10px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 10, fontSize: 13, width: 320, maxWidth: '100%', outline: 'none' }}
         />
         <button
           onClick={buscar}
@@ -149,7 +149,7 @@ export default function CadastroProdutoPage() {
           )}
 
           <Card titulo="Histórico: CMC × Venda média × Margem">
-            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
               {PERIODOS.map((p) => (
                 <button
                   key={p}

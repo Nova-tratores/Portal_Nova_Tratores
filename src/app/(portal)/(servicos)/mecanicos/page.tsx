@@ -610,9 +610,9 @@ export default function MecanicosPage() {
     ]
 
     return (
-      <div style={{ padding: '28px 32px', maxWidth: '100%', margin: 0 }}>
+      <div style={{ padding: 'clamp(14px, 2.5vw, 28px) clamp(12px, 2.5vw, 32px)', maxWidth: '100%', margin: 0 }}>
         {/* Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid #F1F5F9' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20, paddingBottom: 20, borderBottom: '1px solid #F1F5F9', flexWrap: 'wrap' }}>
           <button onClick={voltarLista} style={{ width: 34, height: 34, borderRadius: 8, border: '1px solid #E5E7EB', background: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
             <ArrowLeft size={16} color="#6B7280" />
           </button>
@@ -899,8 +899,8 @@ export default function MecanicosPage() {
                   )}
 
                   {/* Tabela OS x GPS */}
-                  <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <div style={{ background: '#fff', border: '1px solid #E5E7EB', borderRadius: 8, overflow: 'auto' }}>
+                    <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
                       <thead>
                         <tr style={{ background: '#F9FAFB' }}>
                           <th style={thStyle}>OS</th>
@@ -1249,7 +1249,7 @@ export default function MecanicosPage() {
                   </div>
                   {isExpanded && mesData && (
                     <div style={{ borderTop: '1px solid #F3F4F6', padding: '14px 16px' }}>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8, marginBottom: 14 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: 8, marginBottom: 14 }}>
                         <MiniCard label="Ordens" value={mesData.ordens.length} bg="#EFF6FF" color="#2563EB" />
                         <MiniCard label="Requisicoes" value={mesData.requisicoes.length} bg="#F5F3FF" color="#7C3AED" />
                         <MiniCard label="Alertas" value={mesData.alertas.length} bg="#FEF2F2" color="#DC2626" />
@@ -1396,8 +1396,8 @@ export default function MecanicosPage() {
 
   // ── LISTA DE MECANICOS ──
   return (
-    <div style={{ padding: '28px 24px', maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, paddingBottom: 20, borderBottom: '1px solid #F1F5F9' }}>
+    <div style={{ padding: 'clamp(14px, 2.5vw, 28px) clamp(12px, 2vw, 24px)', maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24, paddingBottom: 20, borderBottom: '1px solid #F1F5F9', flexWrap: 'wrap' }}>
         <div style={{ width: 36, height: 36, borderRadius: 8, background: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Users size={18} color="#fff" />
         </div>
@@ -1486,7 +1486,7 @@ export default function MecanicosPage() {
           <p style={{ fontSize: 12 }}>Configure os mecanicos em Admin {'->'} Permissoes com role &quot;tecnico&quot;</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(280px, 100%), 1fr))', gap: 10 }}>
           {mecanicos.map(m => {
             const initials = m.nome.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()
             const pendentes = m.alertas_pendentes + m.ocorrencias_pendentes

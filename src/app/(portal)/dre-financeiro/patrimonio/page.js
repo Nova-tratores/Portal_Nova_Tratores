@@ -382,7 +382,7 @@ export default function PatrimonioPage() {
     ativosLinhas.forEach((x) => {
       const pc = totalAt > 0 ? (100 * x.valor / totalAt) : 0
       html += '<div class="mb-2">'
-      html += '<div class="flex justify-between text-xs mb-0.5"><span class="text-slate-700">' + x.label + '</span><span class="font-medium">' + fmtBRL(x.valor) + ' <span class="text-slate-400">(' + pc.toFixed(1) + '%)</span></span></div>'
+      html += '<div class="flex justify-between flex-wrap gap-x-2 text-xs mb-0.5"><span class="text-slate-700">' + x.label + '</span><span class="font-medium">' + fmtBRL(x.valor) + ' <span class="text-slate-400">(' + pc.toFixed(1) + '%)</span></span></div>'
       html += '<div class="h-2 bg-slate-100 rounded overflow-hidden"><div class="' + x.cor + ' h-full" style="width:' + pc + '%"></div></div>'
       html += '</div>'
     })
@@ -423,7 +423,7 @@ export default function PatrimonioPage() {
     // KPIs no topo (HTML fiel)
     let html = ''
     html += '<div class="text-sm text-slate-700 mb-3">' + (d.descricao || '') + '</div>'
-    html += '<div class="grid grid-cols-3 gap-2 mb-3">'
+    html += '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">'
     html += '<div class="bg-slate-50 border border-slate-200 rounded p-2"><div class="text-[10px] uppercase text-slate-500">Total em aberto</div><div class="text-lg font-bold text-slate-800">' + fmtBRL(d.total) + '</div><div class="text-[10px] text-slate-500">' + d.qtd + ' titulos</div></div>'
     html += '<div class="bg-emerald-50 border border-emerald-200 rounded p-2"><div class="text-[10px] uppercase text-emerald-700">' + entidadePlural + ' externos</div><div class="text-lg font-bold text-emerald-800">' + fmtBRL(d.total_externos) + '</div><div class="text-[10px] text-emerald-700">' + d.qtd_entidades + ' ' + entidadePlural + '</div></div>'
     const excluido = (d.excluido_intercompany || 0) + (d.excluido_sem_cliente || 0)
@@ -525,8 +525,8 @@ export default function PatrimonioPage() {
     }
     const atrasoCor = drillIsReceber.current ? 'text-red-700' : 'text-slate-700'
     let html = '<div class="border border-slate-300 rounded-lg p-3 bg-white">'
-    html += '<div class="flex items-start justify-between gap-2 mb-2">'
-    html += '<div><div class="text-base font-bold text-slate-900">' + (e.nome || '(sem nome)') + '</div>'
+    html += '<div class="flex items-start justify-between gap-2 mb-2 flex-wrap">'
+    html += '<div class="min-w-0 break-words"><div class="text-base font-bold text-slate-900">' + (e.nome || '(sem nome)') + '</div>'
     html += '<div class="text-xs text-slate-500">'
     if (e.cnpj) html += 'CNPJ ' + e.cnpj + ' · '
     if (e.cidade) html += e.cidade + (e.estado ? '/' + e.estado : '') + ' · '
@@ -537,7 +537,7 @@ export default function PatrimonioPage() {
     html += '</div></div>'
 
     // Tabela de titulos
-    html += '<div class="border border-slate-200 rounded overflow-hidden mt-2"><table class="w-full text-xs"><thead class="bg-slate-50 text-slate-600"><tr>'
+    html += '<div class="border border-slate-200 rounded overflow-x-auto mt-2"><table class="w-full text-xs"><thead class="bg-slate-50 text-slate-600"><tr>'
     html += '<th class="text-left px-2 py-1">NF / Parc</th>'
     html += '<th class="text-left px-2 py-1">Vencimento</th>'
     html += '<th class="text-left px-2 py-1">Status</th>'
@@ -706,7 +706,7 @@ export default function PatrimonioPage() {
           ? Math.max(0, Math.floor((new Date(hojeISO) - new Date(t.data_vencimento)) / 86400000)) : 0
         const corAtraso = atrasoDias > 0 ? 'text-red-700' : 'text-emerald-700'
 
-        html += '<div class="grid grid-cols-3 gap-2 mb-4">'
+        html += '<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">'
         html += '<div class="bg-slate-50 border border-slate-200 rounded p-2"><div class="text-[10px] uppercase text-slate-500">Valor documento</div><div class="text-base font-bold text-slate-800">' + fmtBRL(doc) + '</div></div>'
         html += '<div class="bg-emerald-50 border border-emerald-200 rounded p-2"><div class="text-[10px] uppercase text-emerald-700">Valor pago</div><div class="text-base font-bold text-emerald-800">' + fmtBRL(pago) + '</div></div>'
         html += '<div class="bg-amber-50 border border-amber-200 rounded p-2"><div class="text-[10px] uppercase text-amber-700">Em aberto</div><div class="text-base font-bold text-amber-800">' + fmtBRL(aberto) + '</div>'
@@ -862,20 +862,20 @@ export default function PatrimonioPage() {
     <>
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <h1 className="text-2xl font-semibold text-slate-800">Patrimonio Consolidado</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Patrimonio Consolidado</h1>
         <span className="text-xs text-slate-500 ml-2">Snapshot atual</span>
         <button onClick={salvarSnapshot} disabled={snapBusy}
-          className="ml-auto px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-60">Salvar snapshot diario</button>
+          className="ml-auto px-3 py-1 max-md:min-h-9 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 disabled:opacity-60">Salvar snapshot diario</button>
         <span className="text-xs text-slate-500">{snapStatus}</span>
       </div>
 
       {/* Patrimonio operacional - destaque */}
-      <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-6 mb-6 text-white cursor-pointer hover:from-slate-700 hover:to-slate-600 transition"
+      <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-lg p-4 sm:p-6 mb-6 text-white cursor-pointer hover:from-slate-700 hover:to-slate-600 transition"
         onClick={() => abrirDetalhe('patrimonio')}>
-        <div className="flex items-center justify-between">
-          <div>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="min-w-0">
             <div className="text-xs uppercase tracking-widest text-slate-300">Patrimonio operacional</div>
-            <div className="text-4xl font-bold mt-1">{d ? fmtBRL(d.patrimonio_operacional) : '--'}</div>
+            <div className="text-3xl sm:text-4xl font-bold mt-1 break-words">{d ? fmtBRL(d.patrimonio_operacional) : '--'}</div>
             <div className="text-sm text-slate-300 mt-1">
               Ativos <span>{d ? fmtBRL(d.total_ativos) : '--'}</span> &middot; Passivos <span>{d ? fmtBRL(d.total_passivos) : '--'}</span>
             </div>
@@ -885,28 +885,28 @@ export default function PatrimonioPage() {
       </div>
 
       {/* Cards: 4 ativos + 1 passivo (clicaveis -> abrem popup) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <div className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:border-blue-400 hover:shadow transition" onClick={() => abrirDetalhe('pecas')}>
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words cursor-pointer hover:border-blue-400 hover:shadow transition" onClick={() => abrirDetalhe('pecas')}>
           <div className="text-xs text-slate-500 uppercase tracking-wide">Estoque pecas</div>
           <div className="text-xl font-bold text-blue-700 mt-1">{a ? fmtBRL(a.estoque_pecas) : '--'}</div>
           <div className="text-xs text-slate-500">{a ? pct(a.estoque_pecas, d.total_ativos) : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:border-indigo-400 hover:shadow transition" onClick={() => abrirDetalhe('maquinas')}>
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words cursor-pointer hover:border-indigo-400 hover:shadow transition" onClick={() => abrirDetalhe('maquinas')}>
           <div className="text-xs text-slate-500 uppercase tracking-wide">Estoque maquinas</div>
           <div className="text-xl font-bold text-indigo-700 mt-1">{a ? fmtBRL(a.estoque_maquinas) : '--'}</div>
           <div className="text-xs text-slate-500">{a ? pct(a.estoque_maquinas, d.total_ativos) : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:border-purple-400 hover:shadow transition" onClick={() => abrirDetalhe('frota')}>
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words cursor-pointer hover:border-purple-400 hover:shadow transition" onClick={() => abrirDetalhe('frota')}>
           <div className="text-xs text-slate-500 uppercase tracking-wide">Frota (compartilhada)</div>
           <div className="text-xl font-bold text-purple-700 mt-1">{a ? fmtBRL(a.frota) : '--'}</div>
           <div className="text-xs text-slate-500">{a ? pct(a.frota, d.total_ativos) : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:border-emerald-400 hover:shadow transition" onClick={() => abrirDetalhe('a_receber')}>
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words cursor-pointer hover:border-emerald-400 hover:shadow transition" onClick={() => abrirDetalhe('a_receber')}>
           <div className="text-xs text-slate-500 uppercase tracking-wide">A receber em aberto</div>
           <div className="text-xl font-bold text-emerald-700 mt-1">{a ? fmtBRL(a.a_receber_aberto) : '--'}</div>
           <div className="text-xs text-slate-500">{a ? pct(a.a_receber_aberto, d.total_ativos) : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:border-red-400 hover:shadow transition" onClick={() => abrirDetalhe('a_pagar')}>
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words cursor-pointer hover:border-red-400 hover:shadow transition" onClick={() => abrirDetalhe('a_pagar')}>
           <div className="text-xs text-slate-500 uppercase tracking-wide">A pagar em aberto</div>
           <div className="text-xl font-bold text-red-700 mt-1">{p ? fmtBRL(p.a_pagar_aberto) : '--'}</div>
           <div className="text-xs text-slate-500">passivo &middot; clique p/ detalhes</div>
@@ -921,7 +921,7 @@ export default function PatrimonioPage() {
             <canvas ref={compRef} />
           </div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4 cursor-pointer hover:border-slate-400 hover:shadow transition"
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words cursor-pointer hover:border-slate-400 hover:shadow transition"
           onClick={() => abrirDetalhe('balanco')} title="Clique p/ ver o balanco detalhado">
           <div className="flex items-center justify-between mb-2">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Balanco visual</div>
@@ -947,27 +947,27 @@ export default function PatrimonioPage() {
 
       {/* Ciclo de Caixa */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 mb-6">
-        <div className="flex items-baseline gap-3 mb-3">
+        <div className="flex items-baseline gap-x-3 flex-wrap mb-3">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Ciclo de Caixa</div>
           <div className="text-xs text-slate-400">{cicloFonte}</div>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <div className="border border-emerald-200 bg-emerald-50 rounded p-3 cursor-help" title={'DSO — Days Sales Outstanding (dias de venda em aberto).\nEm media, quantos dias voce demora pra receber das vendas que faz.\nFormula: (A receber em aberto) / (vendas medias por dia nos ultimos 90 dias).\nMenor = melhor (clientes pagando mais rapido).'}>
+          <div className="border border-emerald-200 bg-emerald-50 rounded p-3 min-w-0 cursor-help" title={'DSO — Days Sales Outstanding (dias de venda em aberto).\nEm media, quantos dias voce demora pra receber das vendas que faz.\nFormula: (A receber em aberto) / (vendas medias por dia nos ultimos 90 dias).\nMenor = melhor (clientes pagando mais rapido).'}>
             <div className="text-xs text-emerald-800 uppercase tracking-wide">DSO <span className="text-emerald-600">ⓘ</span></div>
             <div className="text-xl font-bold text-emerald-900 mt-1">{ciclo && ciclo.dso !== null ? ciclo.dso + 'd' : '--'}</div>
             <div className="text-[10px] text-emerald-700">dias para receber</div>
           </div>
-          <div className="border border-blue-200 bg-blue-50 rounded p-3 cursor-help" title={'DIO — Days Inventory Outstanding (dias de estoque).\nEm media, quantos dias o estoque dura ate ser vendido.\nFormula: (Estoque pecas + maquinas) / (vendas medias por dia nos ultimos 90 dias).\nMenor = giro mais rapido. Estoque parado = capital amarrado.'}>
+          <div className="border border-blue-200 bg-blue-50 rounded p-3 min-w-0 cursor-help" title={'DIO — Days Inventory Outstanding (dias de estoque).\nEm media, quantos dias o estoque dura ate ser vendido.\nFormula: (Estoque pecas + maquinas) / (vendas medias por dia nos ultimos 90 dias).\nMenor = giro mais rapido. Estoque parado = capital amarrado.'}>
             <div className="text-xs text-blue-800 uppercase tracking-wide">DIO <span className="text-blue-600">ⓘ</span></div>
             <div className="text-xl font-bold text-blue-900 mt-1">{ciclo && ciclo.dio !== null ? ciclo.dio + 'd' : '--'}</div>
             <div className="text-[10px] text-blue-700">dias de estoque</div>
           </div>
-          <div className="border border-red-200 bg-red-50 rounded p-3 cursor-help" title={'DPO — Days Payable Outstanding (dias de pagamento em aberto).\nEm media, quantos dias voce demora pra pagar os fornecedores.\nFormula: (A pagar em aberto) / (compras medias por dia nos ultimos 90 dias).\nMaior = mais prazo dos fornecedores (bom p/ caixa, ate certo limite).'}>
+          <div className="border border-red-200 bg-red-50 rounded p-3 min-w-0 cursor-help" title={'DPO — Days Payable Outstanding (dias de pagamento em aberto).\nEm media, quantos dias voce demora pra pagar os fornecedores.\nFormula: (A pagar em aberto) / (compras medias por dia nos ultimos 90 dias).\nMaior = mais prazo dos fornecedores (bom p/ caixa, ate certo limite).'}>
             <div className="text-xs text-red-800 uppercase tracking-wide">DPO <span className="text-red-600">ⓘ</span></div>
             <div className="text-xl font-bold text-red-900 mt-1">{ciclo && ciclo.dpo !== null ? ciclo.dpo + 'd' : '--'}</div>
             <div className="text-[10px] text-red-700">dias para pagar</div>
           </div>
-          <div className="border border-slate-300 bg-slate-100 rounded p-3 cursor-help" title={'Ciclo de Caixa (Cash Conversion Cycle).\nDias entre voce pagar a mercadoria/insumo e receber dos clientes.\nFormula: DSO + DIO − DPO.\nMenor = dinheiro retorna mais rapido. Negativo = clientes pagam antes dos fornecedores (excelente, raro fora de varejo).\nGeral: < 60d folgado, 60-120d normal, > 120d apertado.'}>
+          <div className="border border-slate-300 bg-slate-100 rounded p-3 min-w-0 cursor-help" title={'Ciclo de Caixa (Cash Conversion Cycle).\nDias entre voce pagar a mercadoria/insumo e receber dos clientes.\nFormula: DSO + DIO − DPO.\nMenor = dinheiro retorna mais rapido. Negativo = clientes pagam antes dos fornecedores (excelente, raro fora de varejo).\nGeral: < 60d folgado, 60-120d normal, > 120d apertado.'}>
             <div className="text-xs text-slate-700 uppercase tracking-wide">Ciclo <span className="text-slate-500">ⓘ</span></div>
             <div className={'text-xl font-bold mt-1 ' + corCiclo}>{ciclo && ciclo.ciclo !== null ? ciclo.ciclo + 'd' : '--'}</div>
             <div className="text-[10px] text-slate-600">DSO + DIO &minus; DPO</div>
@@ -997,7 +997,7 @@ export default function PatrimonioPage() {
 
       {/* Cobertura de obrigacoes */}
       <div className="bg-white rounded-lg border border-slate-200 p-4 mb-6">
-        <div className="flex items-baseline gap-3 mb-3">
+        <div className="flex items-baseline gap-x-3 flex-wrap mb-3">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Cobertura de obrigacoes</div>
           <div className="text-xs text-slate-400">(a receber vs a pagar por janela)</div>
         </div>
@@ -1018,7 +1018,7 @@ export default function PatrimonioPage() {
                   j.classificacao === 'confortavel' ? 'text-emerald-700' : 'text-slate-700'
             const saldoCor = j.saldo_liquido >= 0 ? 'text-emerald-700' : 'text-red-700'
             return (
-              <div key={i} className={'border ' + cor + ' rounded p-3'}>
+              <div key={i} className={'border ' + cor + ' rounded p-3 min-w-0'}>
                 <div className="text-xs uppercase tracking-wide text-slate-600">Ate {j.dias} dias</div>
                 <div className={'text-2xl font-bold ' + corCob + ' mt-1'}>{j.cobertura !== null ? j.cobertura + 'x' : 'n/a'}</div>
                 <div className="text-[10px] capitalize text-slate-500">{j.classificacao.replace('_', ' ')}</div>
@@ -1034,15 +1034,15 @@ export default function PatrimonioPage() {
       <div className="bg-white rounded-lg border border-slate-200 p-4">
         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Evolucao historica</div>
-          <div className="flex items-center gap-2">
-            <select value={diasHist} onChange={(e) => setDiasHist(e.target.value)} className="border border-slate-300 rounded px-2 py-1 text-xs">
+          <div className="flex items-center gap-2 flex-wrap">
+            <select value={diasHist} onChange={(e) => setDiasHist(e.target.value)} className="border border-slate-300 rounded px-2 py-1 text-xs max-md:min-h-9">
               <option value="30">30 dias</option>
               <option value="90">90 dias</option>
               <option value="180">180 dias</option>
               <option value="365">365 dias</option>
               <option value="730">2 anos</option>
             </select>
-            <select value={diasBackfill} onChange={(e) => setDiasBackfill(e.target.value)} className="border border-slate-300 rounded px-2 py-1 text-xs">
+            <select value={diasBackfill} onChange={(e) => setDiasBackfill(e.target.value)} className="border border-slate-300 rounded px-2 py-1 text-xs max-md:min-h-9">
               <option value="30">Backfill 30d</option>
               <option value="90">Backfill 90d</option>
               <option value="180">Backfill 180d</option>
@@ -1050,7 +1050,7 @@ export default function PatrimonioPage() {
               <option value="730">Backfill 2 anos</option>
             </select>
             <button onClick={reconstruirHistorico} disabled={backfillBusy}
-              className="px-3 py-1 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 disabled:opacity-60"
+              className="px-3 py-1 max-md:min-h-9 bg-purple-600 text-white text-xs rounded hover:bg-purple-700 disabled:opacity-60"
               title="Cria snapshots historicos retroativos. Estoque/frota usam valor atual; a_receber/a_pagar sao reconstruidos das datas de emissao/pagamento.">Reconstruir historico</button>
             <span className="text-xs text-slate-500">{backfillStatus}</span>
           </div>
@@ -1069,12 +1069,12 @@ export default function PatrimonioPage() {
       {modalAberto && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharModal} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800">{modalTitulo}</h2>
-              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">×</button>
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-24px)] max-w-3xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+            <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
+              <h2 className="font-semibold text-slate-800 min-w-0 break-words">{modalTitulo}</h2>
+              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
             </div>
-            <div className="p-5 overflow-y-auto" onClick={onModalBodyClick}>
+            <div className="p-3 sm:p-5 overflow-y-auto" onClick={onModalBodyClick}>
               {modalCorpo.tipo === 'carregando' && <div className="text-slate-500 text-sm">Carregando...</div>}
               {modalCorpo.tipo === 'html' && <div dangerouslySetInnerHTML={{ __html: modalCorpo.html }} />}
               {modalCorpo.tipo === 'drill' && drillView && (
@@ -1096,15 +1096,15 @@ export default function PatrimonioPage() {
       {modal2Aberto && (
         <>
           <div className="fixed inset-0 bg-black/50 z-[60]" onClick={fecharModal2} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between bg-slate-50">
-              <div>
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-24px)] max-w-2xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
+            <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2 bg-slate-50">
+              <div className="min-w-0 break-words">
                 <h2 className="font-semibold text-slate-800">{modal2Titulo}</h2>
                 <div className="text-xs text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: modal2Subtitulo }} />
               </div>
-              <button onClick={fecharModal2} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">×</button>
+              <button onClick={fecharModal2} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
             </div>
-            <div className="p-5 overflow-y-auto" dangerouslySetInnerHTML={{ __html: modal2Html }} />
+            <div className="p-3 sm:p-5 overflow-y-auto" dangerouslySetInnerHTML={{ __html: modal2Html }} />
           </div>
         </>
       )}

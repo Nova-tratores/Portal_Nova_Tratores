@@ -106,7 +106,7 @@ export default function CicloCaixaDreFinanceiro() {
     const clsTr = isCons ? 'font-bold bg-slate-100' : ''
     return (
       <tr className={'border-b border-slate-100 ' + clsTr}>
-        <td className="px-3 py-2">{nome}</td>
+        <td className={'px-3 py-2 sticky left-0 z-[1] ' + (isCons ? 'bg-slate-100' : 'bg-white')}>{nome}</td>
         <td className="px-3 py-2 text-right">{fmtBRL(x.receita_periodo)}</td>
         <td className="px-3 py-2 text-right">{fmtBRL(x.cmv_periodo)}</td>
         <td className="px-3 py-2 text-right">{fmtBRL(x.a_receber_aberto)}</td>
@@ -124,8 +124,8 @@ export default function CicloCaixaDreFinanceiro() {
     <>
       {/* Cabecalho + seletor de periodo */}
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-800">Ciclo de Conversao de Caixa</h1>
+        <div className="min-w-0">
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Ciclo de Conversao de Caixa</h1>
           <p className="text-xs text-slate-500">DSO, DPO, DIO e CCC - quanto tempo leva entre pagar fornecedor e receber do cliente.</p>
         </div>
         <div className="flex items-center gap-2 text-xs text-slate-600">
@@ -134,7 +134,7 @@ export default function CicloCaixaDreFinanceiro() {
             id="cc-meses"
             value={meses}
             onChange={(e) => setMeses(e.target.value)}
-            className="border border-slate-300 rounded px-2 py-1"
+            className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
           >
             <option value="3">3 meses</option>
             <option value="6">6 meses</option>
@@ -191,17 +191,17 @@ export default function CicloCaixaDreFinanceiro() {
               <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 flex h-12 rounded overflow-hidden border border-slate-200">
                 <div
                   style={{ width: pctDIO + '%', background: 'rgba(245,158,11,0.85)' }}
-                  className="flex items-center justify-center text-[11px] text-white font-bold"
+                  className="flex items-center justify-center text-[11px] text-white font-bold whitespace-nowrap overflow-hidden min-w-0"
                   title="DIO: dias parado em estoque"
                 >DIO {fmtDias(c.dio)}</div>
                 <div
                   style={{ width: pctDSO + '%', background: 'rgba(59,130,246,0.85)' }}
-                  className="flex items-center justify-center text-[11px] text-white font-bold"
+                  className="flex items-center justify-center text-[11px] text-white font-bold whitespace-nowrap overflow-hidden min-w-0"
                   title="DSO: dias para receber"
                 >DSO {fmtDias(c.dso)}</div>
                 <div
                   style={{ width: pctDPO + '%', background: 'rgba(16,185,129,0.85)' }}
-                  className="flex items-center justify-center text-[11px] text-white font-bold"
+                  className="flex items-center justify-center text-[11px] text-white font-bold whitespace-nowrap overflow-hidden min-w-0"
                   title="DPO: dias para pagar (entra na conta como CREDITO de tempo)"
                 >DPO {fmtDias(c.dpo)}</div>
               </div>
@@ -224,10 +224,11 @@ export default function CicloCaixaDreFinanceiro() {
       {/* Por empresa */}
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
         <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 font-semibold">Quebra por empresa</div>
-        <table className="w-full text-xs">
+        <div className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
+        <table className="w-full text-xs max-md:min-w-[760px]">
           <thead className="bg-slate-50 text-slate-600">
             <tr>
-              <th className="text-left px-3 py-2">Empresa</th>
+              <th className="text-left px-3 py-2 sticky left-0 z-[2] bg-slate-50">Empresa</th>
               <th className="text-right px-3 py-2">Receita (periodo)</th>
               <th className="text-right px-3 py-2">CMV (periodo)</th>
               <th className="text-right px-3 py-2">A Receber</th>
@@ -249,6 +250,7 @@ export default function CicloCaixaDreFinanceiro() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
     </>
   )

@@ -64,7 +64,7 @@ export default function NotasEntradaPage() {
   const td: React.CSSProperties = { padding: '10px 12px', fontSize: 12, textAlign: 'right', whiteSpace: 'nowrap' }
 
   return (
-    <div style={{ padding: '20px 32px' }}>
+    <div className="est-page" style={{ padding: '20px 32px' }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 200 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: 10, color: '#9CA3AF' }} />

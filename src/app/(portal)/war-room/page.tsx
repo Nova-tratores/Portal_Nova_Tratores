@@ -59,8 +59,8 @@ function Sparkline({ vals, cor = '#b91c1c' }: { vals: (number | null)[]; cor?: s
   return <svg width={W} height={H} style={{ display: 'block' }}><polyline points={path} fill="none" stroke={cor} strokeWidth={1.8} /></svg>
 }
 
-const card: React.CSSProperties = { background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#eee)', borderRadius: 12, padding: 16 }
-const secTitulo: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 15, fontWeight: 700, margin: '4px 0 10px', color: 'var(--portal-text,#111)' }
+const card: React.CSSProperties = { background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#eee)', borderRadius: 12, padding: 'clamp(12px, 3vw, 16px)', minWidth: 0 }
+const secTitulo: React.CSSProperties = { display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 15, fontWeight: 700, margin: '4px 0 10px', color: 'var(--portal-text,#111)' }
 const btn: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }
 const btnPrim: React.CSSProperties = { ...btn, background: '#b91c1c', color: '#fff', border: '1px solid #b91c1c' }
 const inp: React.CSSProperties = { width: '100%', padding: '9px 12px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)', fontSize: 14 }
@@ -71,7 +71,7 @@ function Modal({ titulo, onClose, children }: { titulo: string; onClose: () => v
       <div onClick={(e) => e.stopPropagation()} style={{ ...card, width: '100%', maxWidth: 520, marginTop: 40 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <strong style={{ fontSize: 16 }}>{titulo}</strong>
-          <button onClick={onClose} style={{ ...btn, padding: 6 }}><X size={16} /></button>
+          <button onClick={onClose} style={{ ...btn, padding: 6, minWidth: 36, minHeight: 36, justifyContent: 'center' }}><X size={16} /></button>
         </div>
         {children}
       </div>
@@ -222,7 +222,7 @@ export default function WarRoomPage() {
   }
 
   return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+    <div style={{ maxWidth: 960, margin: '0 auto', padding: 'clamp(10px, 2.5vw, 16px)', display: 'flex', flexDirection: 'column', gap: 16 }}>
       {/* cabeçalho */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
         <div>
@@ -232,7 +232,7 @@ export default function WarRoomPage() {
             {data.meu_nivel && <span> · seu acesso: <strong>{data.meu_nivel}</strong></span>}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <button style={btn} disabled={gerandoPdf} onClick={gerarPDF}><Printer size={14} /> {gerandoPdf ? 'Gerando…' : 'Gerar PDF'}</button>
           <button style={btn} onClick={carregar}><RefreshCw size={14} /> Atualizar</button>
         </div>
@@ -439,7 +439,7 @@ function FonteLinha({ fonte, onSalvar }: { fonte: Any; onSalvar: () => void }) {
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
       <span style={{ fontSize: 13, flex: 1, minWidth: 160 }}>{String(fonte.nome)}</span>
       <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>meta {BRL(meta)}</span>
-      <input value={realizado} onChange={(e) => setRealizado(e.target.value)} style={{ ...inp, width: 120 }} />
+      <input value={realizado} onChange={(e) => setRealizado(e.target.value)} style={{ ...inp, width: 120, maxWidth: '100%' }} />
       <button style={btn} disabled={salvando} onClick={salvar}>Salvar</button>
       <div style={{ width: '100%' }}><Barra val={Number(realizado) || 0} max={meta} cor="#059669" /></div>
     </div>

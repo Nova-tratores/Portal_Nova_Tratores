@@ -753,10 +753,10 @@ function PillResp({ bg, fg, children }: { bg: string; fg: string; children: Reac
 }
 
 const atendentesGrid: React.CSSProperties = {
-  display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))", gap: 14,
+  display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(260px, 100%), 1fr))", gap: 14,
 };
 const topoStyle: React.CSSProperties = { display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", marginBottom: 16 };
-const pillsStyle: React.CSSProperties = { display: "flex", gap: 6, marginBottom: 16 };
+const pillsStyle: React.CSSProperties = { display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 16 };
 const pillStyle: React.CSSProperties = {
   padding: "8px 18px", border: "1.5px solid var(--portal-border)",
   borderRadius: 20, fontSize: 12, fontWeight: 700, cursor: "pointer",

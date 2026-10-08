@@ -134,7 +134,7 @@ export default function ContagemPage() {
   const pendentesFreeze = tarefas.filter((t) => t.status === 'pendente').length;
 
   return (
-    <div style={{ maxWidth: 760, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page est-touch" style={{ maxWidth: 760, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 8 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Contagem de inventario</h1>
@@ -151,7 +151,7 @@ export default function ContagemPage() {
 
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, marginBottom: 14, flexWrap: 'wrap', fontSize: '.82rem' }}>
         <label style={{ color: '#64748b' }}>Seu nome
-          <input type="text" value={contador} onChange={(e) => salvarContador(e.target.value)} placeholder="quem esta contando" style={{ display: 'block', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', marginTop: 2, width: 224 }} />
+          <input type="text" value={contador} onChange={(e) => salvarContador(e.target.value)} placeholder="quem esta contando" style={{ display: 'block', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', marginTop: 2, width: 224, maxWidth: '100%' }} />
         </label>
         <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
           <div style={{ fontSize: '.65rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '.4px' }}>Progresso do dia</div>

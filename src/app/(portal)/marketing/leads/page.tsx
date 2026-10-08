@@ -99,7 +99,7 @@ export default function LeadsGeraisPage() {
       ) : lista.length === 0 ? (
         <Vazio>Nenhum lead. A captura acontece na tela do celular, em /lead.</Vazio>
       ) : (
-        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(310px, 1fr))' }}>
+        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fill, minmax(min(310px, 100%), 1fr))' }}>
           {lista.map((l) => {
             const idade = diasAte(String(l.capturado_em).slice(0, 10));
             const esfriando = l.qualificacao === 'novo' && idade !== null && idade < -7;

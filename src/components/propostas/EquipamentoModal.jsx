@@ -37,13 +37,13 @@ export default function EquipamentoModal({ onClose }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex justify-center items-center z-[9999] p-2.5">
       <div className="bg-zinc-50 w-full max-w-[800px] max-h-[90vh] flex flex-col rounded-xl border border-zinc-200 shadow-2xl overflow-hidden">
-        <div className="px-8 py-5 border-b border-zinc-200 flex justify-between items-center bg-white">
+        <div className="px-4 md:px-8 py-5 border-b border-zinc-200 flex justify-between items-center bg-white">
           <h2 className="text-lg font-black text-zinc-900">CADASTRAR EQUIPAMENTO</h2>
           <button onClick={onClose} className="text-red-600 font-bold bg-transparent border-none cursor-pointer">FECHAR [X]</button>
         </div>
         <form onSubmit={handleSave} className="flex-1 flex flex-col overflow-hidden">
-          <div className="p-8 overflow-y-auto">
-            <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-5">
+          <div className="p-4 md:p-8 overflow-y-auto">
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(180px,100%),1fr))] gap-5">
               <div className="flex flex-col gap-2"><label className="text-[11px] font-extrabold text-zinc-600 tracking-wide">MARCA</label><input name="marca" required className={inputStyle} onChange={handleChange} placeholder="Ex: Massey Ferguson" /></div>
               <div className="flex flex-col gap-2"><label className="text-[11px] font-extrabold text-zinc-600 tracking-wide">MODELO</label><input name="modelo" required className={inputStyle} onChange={handleChange} placeholder="Ex: MF 4275" /></div>
               <div className="flex flex-col gap-2"><label className="text-[11px] font-extrabold text-zinc-600 tracking-wide">ANO DE FABRICACAO</label><select name="ano" value={formData.ano} className={inputStyle} onChange={handleChange}>{anosRecentes.map(ano => <option key={ano} value={ano}>{ano}</option>)}</select></div>
@@ -53,7 +53,7 @@ export default function EquipamentoModal({ onClose }) {
             <div className="flex flex-col gap-2 mt-5"><label className="text-[11px] font-extrabold text-zinc-600">FOTO DO EQUIPAMENTO</label><input type="file" accept="image/*" required className={inputStyle} onChange={(e) => setFile(e.target.files[0])} /></div>
             <div className="flex flex-col gap-2 mt-5"><label className="text-[11px] font-extrabold text-zinc-600">CONFIGURACAO PADRAO (DETALHADA)</label><textarea name="configuracao" rows="5" className={inputStyle} onChange={handleChange} placeholder="Descreva os itens de serie..." /></div>
           </div>
-          <div className="px-8 py-5 border-t border-zinc-200 bg-white">
+          <div className="px-4 md:px-8 py-5 border-t border-zinc-200 bg-white">
             <button type="submit" disabled={loading} className="w-full py-4 bg-red-600 text-white border-none rounded-xl font-bold text-base cursor-pointer hover:bg-red-700 transition-colors disabled:opacity-50">{loading ? 'GRAVANDO DADOS...' : 'SALVAR EQUIPAMENTO NO ESTOQUE'}</button>
           </div>
         </form>

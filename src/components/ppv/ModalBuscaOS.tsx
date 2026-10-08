@@ -130,8 +130,8 @@ export default function ModalBuscaOS({ open, onClose, onSelect }: Props) {
                 {termo ? "Nenhuma OS encontrada para este filtro" : "Nenhuma OS aberta"}
               </div>
             ) : (
-              <div style={{ borderRadius: 10, border: "1px solid var(--ppv-border-light)", overflow: "hidden" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <div style={{ borderRadius: 10, border: "1px solid var(--ppv-border-light)", overflowX: "auto", overflowY: "hidden" }}>
+                <table style={{ width: "100%", minWidth: 560, borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: "var(--ppv-primary-light)" }}>
                       <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)" }}>ID</th>

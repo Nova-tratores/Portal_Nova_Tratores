@@ -64,12 +64,12 @@ export default function AutoAtualiza() {
     <div role="status" style={{
       position: 'fixed', left: '50%', bottom: 18, transform: 'translateX(-50%)', zIndex: 2000,
       display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px 10px 16px', borderRadius: 12,
-      background: '#111111', color: '#fefefe', boxShadow: '0 10px 30px rgba(0,0,0,.3)', fontSize: 13.5, maxWidth: 'calc(100vw - 32px)',
+      background: '#111111', color: '#fefefe', boxShadow: '0 10px 30px rgba(0,0,0,.3)', fontSize: 13.5, width: 'max-content', maxWidth: 'calc(100vw - 32px)', boxSizing: 'border-box',
     }}>
       <RefreshCw size={16} />
-      <span>Saiu uma versão nova do portal. Salve o que estiver fazendo e atualize quando puder.</span>
+      <span style={{ minWidth: 0 }}>Saiu uma versão nova do portal. Salve o que estiver fazendo e atualize quando puder.</span>
       <button onClick={() => window.location.reload()} style={{ border: 'none', borderRadius: 8, padding: '6px 12px', background: '#dc2626', color: '#fefefe', fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>Atualizar agora</button>
-      <button onClick={() => setEscondida(true)} aria-label="Fechar" style={{ border: 'none', background: 'transparent', color: '#fefefe', cursor: 'pointer', display: 'flex', padding: 2 }}><X size={15} /></button>
+      <button onClick={() => setEscondida(true)} aria-label="Fechar" style={{ border: 'none', background: 'transparent', color: '#fefefe', cursor: 'pointer', display: 'flex', padding: 6, flexShrink: 0 }}><X size={15} /></button>
     </div>
   );
 }

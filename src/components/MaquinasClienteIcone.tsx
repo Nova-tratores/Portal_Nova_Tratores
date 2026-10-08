@@ -58,7 +58,7 @@ export default function MaquinasClienteIcone({ doc }: { doc?: string | null }) {
         <i className="fas fa-tractor" />
       </button>
       {aberto && (
-        <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 90, width: 320, background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, boxShadow: "0 14px 34px rgba(0,0,0,0.18)", padding: 10 }}>
+        <div style={{ position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 90, width: 320, maxWidth: "calc(100vw - 24px)", background: "#fff", border: "1px solid #E2E8F0", borderRadius: 6, boxShadow: "0 14px 34px rgba(0,0,0,0.18)", padding: 10 }}>
           <div style={{ fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5, color: "#94a3b8", marginBottom: 7 }}>
             <i className="fas fa-tractor" style={{ marginRight: 5 }} />Máquinas do cliente{maquinas ? ` (${maquinas.length})` : ""}
           </div>

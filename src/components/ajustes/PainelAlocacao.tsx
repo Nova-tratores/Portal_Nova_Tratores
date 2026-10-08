@@ -187,11 +187,11 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
 
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,.45)', zIndex: 50, display: 'flex', justifyContent: 'flex-end' }} onClick={onFechar}>
-      <div onClick={(e) => e.stopPropagation()}
+      <div className="est-touch" onClick={(e) => e.stopPropagation()}
         style={{ width: 'min(760px, 100vw)', height: '100%', background: '#f8fafc', display: 'flex', flexDirection: 'column', boxShadow: '-8px 0 24px rgba(15,23,42,.18)' }}>
         {/* cabeçalho */}
         <div style={{ padding: '14px 16px 10px', background: '#fff', borderBottom: '1px solid #e2e8f0' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             <PackageOpen size={18} color="#1d4ed8" />
             <h2 style={{ fontSize: '1.05rem', fontWeight: 700, margin: 0, color: '#0f172a' }}>A alocar</h2>
             <span style={{ fontSize: '.74rem', color: '#64748b' }}>
@@ -270,7 +270,7 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
             const parcial = p ? locacaoEtiqueta(p.caracteristicas) : '';
             return (
               <div key={g.chave} style={{ background: '#fff', border: '1px solid #e2e8f0', borderLeft: `4px solid ${EMPRESA_COR[g.conta_omie] || '#64748b'}`, borderRadius: 8, padding: '10px 12px' }}>
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                <div className="est-pa-row" style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                       <span style={{ fontSize: 10, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fefefe', background: EMPRESA_COR[g.conta_omie] || '#6b7280' }}>{EMPRESA_LABEL[g.conta_omie] || g.conta_omie}</span>
@@ -289,17 +289,17 @@ export default function PainelAlocacao({ lista, carregando, erro, recarregar, pr
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div className="est-pa-acoes" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                     <button onClick={() => setAlocar(g)} style={btnPrim}><MapPin size={14} /> Alocar</button>
                     <button onClick={() => { setDispensar(dispensar === g.chave ? null : g.chave); setMotivo(''); }} style={btn}
                       title="Para peça que não vai para prateleira (ex.: fica no chão, já saiu)">Dispensar</button>
                   </div>
                 </div>
                 {dispensar === g.chave && (
-                  <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
                     <input autoFocus value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Motivo (obrigatório) — ex.: peça grande, fica no pátio"
                       onKeyDown={(e) => { if (e.key === 'Enter') confirmarDispensa(g); }}
-                      style={{ flex: 1, border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 9px', fontSize: '.78rem' }} />
+                      style={{ flex: '1 1 200px', minWidth: 0, border: '1px solid #cbd5e1', borderRadius: 8, padding: '7px 9px', fontSize: '.78rem' }} />
                     <button disabled={salvando} onClick={() => confirmarDispensa(g)} style={{ ...btn, color: '#b91c1c', borderColor: '#fecaca', opacity: salvando ? .6 : 1 }}>Confirmar dispensa</button>
                   </div>
                 )}

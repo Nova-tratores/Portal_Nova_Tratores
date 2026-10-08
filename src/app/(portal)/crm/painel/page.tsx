@@ -45,7 +45,7 @@ export default function PainelPage() {
       </Ideia>
 
       {/* Faixa superior — ritmo */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))', gap: 12, marginBottom: 14 }}>
         <Tile rotulo={`Realizado (dia ${DIAS_CORRIDOS} de ${META_DIAS})`} valor={brl(realizado)} sub={`meta ${brl(META_VALOR)} · ${((realizado / META_VALOR) * 100).toFixed(1).replace('.', ',')}%`} />
         <Tile
           rotulo="PRECISA FATURAR POR DIA"
@@ -68,7 +68,7 @@ export default function PainelPage() {
       </div>
 
       {/* Onde está travado */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 12, marginBottom: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(190px, 100%), 1fr))', gap: 12, marginBottom: 14 }}>
         <Tile rotulo="Travado no banco" valor={brl(travadoBanco)} sub="ação: reunião com o gerente" />
         <Tile rotulo="Aguardando alçada" valor={brl(aguardandoAlcada)} sub="ação: o GESTOR decide hoje" cor="#d97706" />
         <Tile rotulo="Em risco (SLA estourado)" valor={brl(emRisco.reduce((s, d) => s + (d.valorNegociado ?? 0), 0))} sub={`${emRisco.length} negócio(s) esfriando`} cor="#dc2626" />
@@ -76,7 +76,7 @@ export default function PainelPage() {
       </div>
 
       {/* Funil + perdas */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
         <div style={caixa}>
           <b style={{ fontSize: 14 }}>Funil aberto (valor por estágio)</b>
           <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
@@ -85,7 +85,7 @@ export default function PainelPage() {
               const total = cards.reduce((s, d) => s + (d.valorNegociado ?? 0), 0);
               return (
                 <div key={e.codigo} style={{ fontSize: 12.5 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                     <span>{e.nome}</span>
                     <b>{cards.length} · {brl(total)}</b>
                   </div>
@@ -102,7 +102,7 @@ export default function PainelPage() {
           <b style={{ fontSize: 14 }}>Perdas por motivo</b>
           <div style={{ marginTop: 10, display: 'grid', gap: 8 }}>
             {perdas.map((d) => (
-              <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 13 }}>
+              <div key={d.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, fontSize: 13 }}>
                 <span>{MOTIVOS[d.perdido!.motivo] ?? d.perdido!.motivo}</span>
                 <b style={{ color: '#dc2626' }}>{brl(d.valorNegociado ?? 0)}</b>
               </div>

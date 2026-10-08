@@ -92,9 +92,17 @@ export default function FotosTecnicosPage() {
   if (!loadingPerm && userProfile && !temAcesso('fotos-tecnicos')) return <SemPermissao />
 
   return (
-    <div style={{ padding: '24px 28px', maxWidth: 1400, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(14px, 2.5vw, 24px) clamp(12px, 2.5vw, 28px)', maxWidth: 1400, margin: '0 auto' }}>
+      {/* Responsivo: abaixo de 900px a lista de OS fica em cima e as fotos embaixo */}
+      <style>{`
+        @media (max-width: 900px) {
+          .ft-layout { flex-direction: column; gap: 16px !important; }
+          .ft-lista { width: 100% !important; }
+          .ft-lista-scroll { max-height: 40vh !important; }
+        }
+      `}</style>
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, flexWrap: 'wrap', gap: 10 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#1E293B', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Camera size={24} color="#C41E2A" />
@@ -125,9 +133,9 @@ export default function FotosTecnicosPage() {
         />
       </div>
 
-      <div style={{ display: 'flex', gap: 24 }}>
+      <div className="ft-layout" style={{ display: 'flex', gap: 24 }}>
         {/* Lista de OS */}
-        <div style={{ width: 340, flexShrink: 0 }}>
+        <div className="ft-lista" style={{ width: 340, flexShrink: 0 }}>
           {loading ? (
             <div style={{ textAlign: 'center', padding: 40, color: '#94A3B8' }}>Carregando...</div>
           ) : listaFiltrada.length === 0 ? (
@@ -135,7 +143,7 @@ export default function FotosTecnicosPage() {
               {busca ? 'Nenhum resultado' : 'Nenhum relatorio encontrado'}
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
+            <div className="ft-lista-scroll" style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 'calc(100vh - 200px)', overflowY: 'auto' }}>
               {listaFiltrada.map(item => (
                 <div
                   key={item.os}
@@ -181,7 +189,7 @@ export default function FotosTecnicosPage() {
         </div>
 
         {/* Detalhe da OS */}
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           {loadingOS ? (
             <div style={{ textAlign: 'center', padding: 60, color: '#94A3B8' }}>Carregando fotos...</div>
           ) : !osSelecionada ? (
@@ -296,13 +304,13 @@ export default function FotosTecnicosPage() {
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#475569', marginBottom: 10 }}>
                     Assinaturas
                   </div>
-                  <div style={{ display: 'flex', gap: 16 }}>
+                  <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
                     {osSelecionada.assinaturas.map(ass => (
                       <div key={ass.label} style={{
                         background: '#fff', borderRadius: 10, border: '1px solid #F1F5F9',
                         padding: 12, textAlign: 'center',
                       }}>
-                        <img src={ass.url} alt={ass.label} style={{ maxWidth: 200, maxHeight: 80 }} />
+                        <img src={ass.url} alt={ass.label} style={{ maxWidth: 'min(200px, 100%)', maxHeight: 80 }} />
                         <div style={{ fontSize: 11, color: '#64748B', fontWeight: 600, marginTop: 6 }}>{ass.label}</div>
                       </div>
                     ))}

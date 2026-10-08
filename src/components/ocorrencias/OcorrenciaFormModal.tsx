@@ -110,8 +110,8 @@ export default function OcorrenciaFormModal({
 
   if (!aberto) return null
   return (
-    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100 }} onClick={onFechar}>
-      <div style={{ background: 'var(--portal-bg-card)', borderRadius: 12, padding: 28, width: '100%', maxWidth: 640, maxHeight: '92vh', overflow: 'auto', border: '1px solid var(--portal-border)' }} onClick={e => e.stopPropagation()}>
+    <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: 12 }} onClick={onFechar}>
+      <div style={{ background: 'var(--portal-bg-card)', borderRadius: 12, padding: 'clamp(16px, 4vw, 28px)', width: '100%', maxWidth: 640, maxHeight: '92vh', overflow: 'auto', border: '1px solid var(--portal-border)' }} onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
           <h2 style={{ fontSize: 19, fontWeight: 700, color: 'var(--portal-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 9 }}>
             <AlertOctagon size={20} color="#DC2626" /> Registrar ocorrência
@@ -160,7 +160,7 @@ export default function OcorrenciaFormModal({
               </div>
             )}
             {sub && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 10, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>Agravar (pontos extras):</span>
                 <div style={{ display: 'inline-flex', alignItems: 'center', gap: 0, border: '1px solid var(--portal-border)', borderRadius: 8, overflow: 'hidden' }}>
                   <button onClick={() => setPontosExtras(p => Math.max(0, p - 1))} title="Tirar 1 ponto extra"

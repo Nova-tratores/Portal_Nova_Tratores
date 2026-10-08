@@ -159,7 +159,7 @@ export default function NotasPage() {
   const notas = dados?.notas || [];
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Notas fiscais de saida</h1>
@@ -180,7 +180,7 @@ export default function NotasPage() {
         </div>
       ) : (
         <>
-          <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #e2e8f0', marginBottom: 16 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, borderBottom: '1px solid #e2e8f0', marginBottom: 16 }}>
             <button onClick={() => setModo('numero')} style={tabStyle(modo === 'numero')}>Por numero</button>
             <button onClick={() => setModo('cliente')} style={tabStyle(modo === 'cliente')}>Por cliente</button>
           </div>
@@ -249,7 +249,7 @@ export default function NotasPage() {
             </div>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.72rem' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.72rem' }}>
             <label style={{ color: '#64748b' }}>Tipo:</label>
             <select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value as TipoFiltro)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '4px 8px', fontSize: '.72rem' }}>
               <option value="todas">Todas (NF-e + NFS-e)</option>

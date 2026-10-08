@@ -185,7 +185,7 @@ export default function AjusteCustosPage() {
   const aviso = lista.length > MAX_LINHAS ? ` — mostrando as primeiras ${MAX_LINHAS}, refine a busca para ver o resto` : '';
 
   return (
-    <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Ajuste de custos (CMC inicial)</h1>

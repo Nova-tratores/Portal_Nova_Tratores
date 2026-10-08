@@ -478,7 +478,7 @@ export default function DashboardPage() {
       {/* Breadcrumb quando dentro de uma pasta */}
       {activeFolder !== 'todos' && !editingFolder && (
         <div style={{
-          display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px',
+          display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px', flexWrap: 'wrap',
           padding: '14px 22px', borderRadius: '16px',
           background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
           boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
@@ -498,9 +498,9 @@ export default function DashboardPage() {
             <ChevronRight size={18} style={{ transform: 'rotate(180deg)' }} />
             Voltar
           </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', minWidth: 0 }}>
             <FolderOpen size={24} color="#f59e0b" />
-            <span style={{ fontSize: '22px', fontWeight: '800', color: 'var(--portal-text)' }}>
+            <span style={{ fontSize: '22px', fontWeight: '800', color: 'var(--portal-text)', overflowWrap: 'anywhere' }}>
               {folders.find(f => f.id === activeFolder)?.name}
             </span>
             <span style={{
@@ -559,7 +559,7 @@ export default function DashboardPage() {
       {/* Edit mode banner */}
       {editingFolder && (
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10,
           padding: '12px 20px', borderRadius: '12px', marginBottom: '16px',
           background: '#fef2f2', border: '1px solid #fecaca'
         }}>
@@ -635,7 +635,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Search */}
-        <div style={{ position: 'relative', width: '240px' }}>
+        <div style={{ position: 'relative', width: '240px', maxWidth: '100%' }}>
           <Search size={14} style={{
             position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3'
           }} />
@@ -771,7 +771,7 @@ export default function DashboardPage() {
                   <span style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>{gc.label}</span>
                   <span style={{ fontSize: 11, fontWeight: 700, color: gc.color, background: `${gc.color}12`, padding: '2px 8px', borderRadius: 6 }}>{group.items.length}</span>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(230px, 100%), 1fr))', gap: 10 }}>
                   {group.items.map((system, i) => {
                     const isFav = favoritos.includes(system.id)
                     return (
@@ -812,7 +812,7 @@ export default function DashboardPage() {
       )}
 
       {viewMode === 'grade' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
           {groupedDisplayed.map((group) => {
             const isOpen = openGroups.includes(group.key)
             const gc = group.config
@@ -862,7 +862,7 @@ export default function DashboardPage() {
                   overflow: 'hidden', transition: 'max-height 0.35s ease, opacity 0.25s ease',
                 }}>
                   <div style={{ borderTop: `1px solid ${gc.color}15`, padding: '12px 14px' }}>
-                    <div style={{ display: 'grid', gridTemplateColumns: group.items.length >= 5 ? 'repeat(auto-fill, minmax(240px, 1fr))' : 'repeat(auto-fill, minmax(210px, 1fr))', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: group.items.length >= 5 ? 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))' : 'repeat(auto-fill, minmax(min(210px, 100%), 1fr))', gap: 8 }}>
                       {group.items.map((system, i) => {
                         const isFav = favoritos.includes(system.id)
                         return (
@@ -981,13 +981,14 @@ export default function DashboardPage() {
           onClick={(e) => { if (e.target === e.currentTarget && !syncRunning) setShowSync(false) }}
           style={{
             position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(8px)', zIndex: 50000,
+            backdropFilter: 'blur(8px)', zIndex: 50000, padding: 16,
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}
         >
           <div style={{
-            background: '#fff', borderRadius: '24px', width: '480px',
-            padding: '40px', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
+            background: '#fff', borderRadius: '24px', width: '100%', maxWidth: '480px',
+            maxHeight: '90vh', overflowY: 'auto',
+            padding: 'clamp(20px, 5vw, 40px)', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>

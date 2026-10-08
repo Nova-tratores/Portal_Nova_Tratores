@@ -131,12 +131,12 @@ export default function FrotaAvariasPage() {
     .reduce((s, a) => s + (Number(a.valor) || 0), 0);
 
   const inputStyle: React.CSSProperties = {
-    padding: '8px 10px', borderRadius: 0, fontSize: 13,
+    padding: '8px 10px', borderRadius: 0, fontSize: 13, maxWidth: '100%',
     border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)',
   };
 
   return (
-    <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+    <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <CarFront size={20} color="#b45309" /> Avarias

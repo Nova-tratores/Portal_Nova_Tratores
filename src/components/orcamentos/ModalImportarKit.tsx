@@ -175,10 +175,10 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', padding: 8 }}
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div style={{ width: 760, maxHeight: 600, display: 'flex', flexDirection: 'column', borderRadius: 16, background: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden', fontFamily: "'Poppins', sans-serif" }}>
+      <div className="ok-kit" style={{ width: 760, maxWidth: '100%', maxHeight: 'min(600px, 94vh)', display: 'flex', flexDirection: 'column', borderRadius: 16, background: '#fff', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', overflow: 'hidden', fontFamily: "'Poppins', sans-serif" }}>
         {/* Header */}
         <div style={{ padding: '16px 22px', borderBottom: '1px solid #f0f0f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -193,9 +193,10 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: '#a3a3a3', cursor: 'pointer', lineHeight: 1 }}>&times;</button>
         </div>
 
-        <div style={{ display: 'flex', flex: 1, minHeight: 0 }}>
+        <style>{'@media (max-width: 640px) { .ok-kit-body { flex-direction: column; overflow-y: auto; } .ok-kit-left { width: auto !important; max-height: 42vh; border-right: none !important; border-bottom: 1px solid #f0f0f0; } .ok-kit-right { flex: none !important; overflow: visible !important; padding: 12px !important; } }'}</style>
+        <div className="ok-kit-body" style={{ display: 'flex', flex: 1, minHeight: 0 }}>
           {/* ESQUERDA: modelos */}
-          <div style={{ width: 300, borderRight: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+          <div className="ok-kit-left" style={{ width: 300, borderRight: '1px solid #f0f0f0', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
             <div style={{ padding: '12px 14px', borderBottom: '1px solid #f5f5f5' }}>
               <div style={{ position: 'relative' }}>
                 <Search size={14} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3' }} />
@@ -218,7 +219,7 @@ export default function ModalImportarKit({ open, onClose, onImportar }: Props) {
           </div>
 
           {/* DIREITA: horas do modelo em foco */}
-          <div style={{ flex: 1, overflow: 'auto', padding: '16px 20px', background: '#fbfbfb' }}>
+          <div className="ok-kit-right" style={{ flex: 1, overflow: 'auto', padding: '16px 20px', background: '#fbfbfb' }}>
             {preview ? (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>

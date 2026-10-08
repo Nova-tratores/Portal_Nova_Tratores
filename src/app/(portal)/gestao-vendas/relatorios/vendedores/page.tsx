@@ -38,7 +38,7 @@ export default function GvRelatorioVendedoresPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Link href="/gestao-vendas/relatorios" className="text-sm text-gray-500 hover:text-gray-800">
           ← Voltar aos relatórios
         </Link>
@@ -79,7 +79,7 @@ export default function GvRelatorioVendedoresPage() {
                 className="bg-red-100 text-[10px] uppercase text-red-900"
                 style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
               >
-                <th className="min-w-[170px] px-3 py-2 text-left font-semibold">Indicador</th>
+                <th className="sticky left-0 z-10 bg-red-100 min-w-[130px] sm:min-w-[170px] px-3 py-2 text-left font-semibold">Indicador</th>
                 {resultados.map((r) => (
                   <th key={r.vendedor} className="min-w-[110px] px-3 py-2 text-right font-semibold">
                     {r.vendedor}
@@ -116,7 +116,7 @@ export default function GvRelatorioVendedoresPage() {
               </tr>
               {CAMPOS_CUSTO.map((campo) => (
                 <tr key={campo} className="border-t border-gray-100">
-                  <td className="px-3 py-1 text-gray-500">{ROTULOS_CUSTO[campo]}</td>
+                  <td className="sticky left-0 z-10 bg-white px-3 py-1 text-gray-500">{ROTULOS_CUSTO[campo]}</td>
                   {resultados.map((r) => (
                     <td key={r.vendedor} className="px-3 py-1 text-right tabular-nums text-gray-500">
                       {formatBRL(mapCustos.get(r.vendedor)?.[campo] ?? 0)}
@@ -179,7 +179,7 @@ function Linha({
     <tr
       className={`border-t border-gray-100 ${destaque ? 'bg-gray-50 font-semibold' : ''} ${borda ? 'border-t-2 border-gray-300' : ''}`}
     >
-      <td className="px-3 py-1.5">{rotulo}</td>
+      <td className={`sticky left-0 z-10 px-3 py-1.5 ${destaque ? 'bg-gray-50' : 'bg-white'}`}>{rotulo}</td>
       {rs.map((r) => (
         <td key={r.vendedor} className={`px-3 py-1.5 text-right tabular-nums ${cls(r)}`}>
           {pega(r)}

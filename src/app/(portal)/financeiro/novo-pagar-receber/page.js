@@ -328,8 +328,14 @@ export default function NovoPagarReceber() {
   return (
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif', color: '#1e293b' }}>
       <FinanceiroNav />
+      <style>{`
+        @media (max-width: 520px) {
+          .fin-o-parcela-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; }
+          .fin-o-parcela-row > .fin-o-parcela-label { grid-column: 1 / -1; }
+        }
+      `}</style>
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 'clamp(16px, 4vw, 32px) clamp(12px, 3vw, 20px)' }}>
         <div style={{ width: '100%', maxWidth: '720px' }}>
 
           <h2 style={{ fontWeight: '500', fontSize: '24px', color: '#1e293b', marginBottom: '32px' }}>Novo Registro Financeiro</h2>
@@ -371,8 +377,8 @@ export default function NovoPagarReceber() {
                           onMouseEnter={e => e.currentTarget.style.background = '#fffbeb'}
                           onMouseLeave={e => e.currentTarget.style.background = '#fff'}
                         >
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <div>
+                          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', gap: '4px 10px' }}>
+                            <div style={{ minWidth: 0 }}>
                               <span style={{ fontSize: '14px', fontWeight: '700', color: '#1e293b' }}>NF {g.nota}</span>
                               <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '10px' }}>{g.fornecedor}</span>
                             </div>
@@ -397,7 +403,7 @@ export default function NovoPagarReceber() {
                 <div style={{ background: '#fff', borderRadius: '10px', border: '1px solid #fde68a', overflow: 'hidden' }}>
                   <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: '12px', background: '#fef3c7' }}>
                     <CheckCircle size={18} style={{ color: '#d97706', flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
+                    <div style={{ flex: 1, minWidth: 0, overflowWrap: 'anywhere' }}>
                       <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>NF {notaSelecionada.nota}</div>
                       <div style={{ fontSize: '12px', color: '#6b7280' }}>{notaSelecionada.fornecedor} · R$ {notaSelecionada.valorTotal.toFixed(2).replace('.', ',')}</div>
                     </div>
@@ -412,8 +418,8 @@ export default function NovoPagarReceber() {
                       Requisicoes vinculadas ({notaSelecionada.reqs.length})
                     </div>
                     {notaSelecionada.reqs.map(r => (
-                      <div key={r.id} style={{ padding: '8px 0', borderBottom: '1px solid #f3f4f6', fontSize: '13px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
+                      <div key={r.id} style={{ padding: '8px 0', borderBottom: '1px solid #f3f4f6', fontSize: '13px', display: 'flex', flexWrap: 'wrap', gap: '6px 10px', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ minWidth: 0 }}>
                           <span style={{ fontWeight: '600', color: '#1e293b' }}>#{r.id}</span>
                           <span style={{ color: '#6b7280', marginLeft: '8px' }}>{r.titulo}</span>
                         </div>
@@ -562,7 +568,7 @@ export default function NovoPagarReceber() {
             )}
 
             {/* VALOR + VENCIMENTO */}
-            <div style={{ display: 'grid', gridTemplateColumns: formData.metodo === 'Boleto Parcelado' ? '1fr' : '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: formData.metodo === 'Boleto Parcelado' ? '1fr' : 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
               <Field label="Valor Total" icon={<Hash size={18} />}>
                 <input type="number" step="0.01" placeholder="0,00" required style={inputIconStyle} value={formData.valor} onChange={e => setFormData({...formData, valor: e.target.value})} />
               </Field>
@@ -581,7 +587,7 @@ export default function NovoPagarReceber() {
                   <label style={{ ...labelStyle, marginBottom: 0, color: '#0c4a6e' }}>Parcelamento</label>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '12px' }}>
                   <label style={{ fontSize: '13px', color: '#0c4a6e', fontWeight: '500', whiteSpace: 'nowrap' }}>Quantidade de Parcelas</label>
                   <input
                     type="number" min="2" max="48" value={qtdParcelas}
@@ -621,8 +627,8 @@ export default function NovoPagarReceber() {
                 {parcelas.length > 0 && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     {parcelas.map((p, i) => (
-                      <div key={i} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr', gap: '10px', alignItems: 'center', background: '#fff', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e0f2fe' }}>
-                        <span style={{ fontSize: '13px', fontWeight: '700', color: '#0c4a6e' }}>Parcela {i + 1}</span>
+                      <div key={i} className="fin-o-parcela-row" style={{ display: 'grid', gridTemplateColumns: '80px minmax(0, 1fr) minmax(0, 1fr)', gap: '10px', alignItems: 'center', background: '#fff', padding: '10px 14px', borderRadius: '8px', border: '1px solid #e0f2fe' }}>
+                        <span className="fin-o-parcela-label" style={{ fontSize: '13px', fontWeight: '700', color: '#0c4a6e' }}>Parcela {i + 1}</span>
                         <input
                           type="number" step="0.01" placeholder="Valor"
                           value={p.valor}
@@ -723,10 +729,10 @@ export default function NovoPagarReceber() {
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {notaSelecionada.reqs.map(r => (
-                      <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', padding: '8px 0', borderBottom: '1px solid #dbeafe' }}>
+                      <div key={r.id} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: '8px', fontSize: '13px', padding: '8px 0', borderBottom: '1px solid #dbeafe' }}>
                         <span style={{ fontSize: '10px', background: '#dbeafe', color: '#1d4ed8', padding: '2px 8px', borderRadius: '4px', fontWeight: '700' }}>REQ</span>
                         <span style={{ fontWeight: '600', color: '#1e293b' }}>#{r.id}</span>
-                        <span style={{ color: '#6b7280', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.titulo}</span>
+                        <span style={{ color: '#6b7280', flex: '1 1 120px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.titulo}</span>
                         <span style={{ fontSize: '12px', fontWeight: '600', color: '#1e293b' }}>R$ {r.valor_despeza || '0,00'}</span>
                         <a href={`/requisicoes/imprimir/${r.id}`} target="_blank" rel="noopener noreferrer" title="Ver/Imprimir PDF da Requisição" style={{ fontSize: '10px', background: '#dbeafe', color: '#1d4ed8', padding: '3px 8px', borderRadius: '4px', fontWeight: '700', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '4px' }}>
                           <FileText size={10} /> PDF

@@ -147,7 +147,7 @@ export default function NovoChamadoNF() {
     <div style={{ minHeight: '100vh', background: '#f8fafc', fontFamily: 'Inter, sans-serif', color: '#1e293b' }}>
       <FinanceiroNav />
 
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '32px 20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: 'clamp(16px, 4vw, 32px) clamp(12px, 3vw, 20px)' }}>
         <div style={{ width: '100%', maxWidth: '720px' }}>
 
           <h2 style={{ fontWeight: '500', fontSize: '24px', color: '#1e293b', marginBottom: '32px' }}>Novo Faturamento</h2>
@@ -166,7 +166,7 @@ export default function NovoChamadoNF() {
 
             {/* DOCUMENTOS DINÂMICOS */}
             {tipoNF && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: 'clamp(14px, 4vw, 24px)', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
                 {(tipoNF === 'servico' || tipoNF === 'ambas') && (
                   <div>
                     <label style={labelStyle}>N. Nota Servico</label>
@@ -184,7 +184,7 @@ export default function NovoChamadoNF() {
               </div>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '16px' }}>
               <Field label="Nome do Cliente" icon={<User size={18} />}>
                 <input type="text" placeholder="Buscar cliente no banco..." required autoComplete="off" value={formData.nom_cliente} style={inputIconStyle}
                   onChange={(e) => { setFormData({ ...formData, nom_cliente: e.target.value }); setCliShow(true); }}
@@ -248,15 +248,15 @@ export default function NovoChamadoNF() {
 
             {/* PARCELAMENTO */}
             {(formData.forma_pagamento === 'Boleto Parcelado' || formData.forma_pagamento === 'Cartão Parcelado') && (
-              <div style={{ padding: '24px', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
+              <div style={{ padding: 'clamp(14px, 4vw, 24px)', background: '#ffffff', borderRadius: '12px', border: '1px solid #e5e7eb' }}>
                 <label style={labelStyle}>Numero de Parcelas (Maximo 5)</label>
                 <input type="number" min="1" max="5" placeholder="Quantidade" style={{ ...inputStyle, marginBottom: '20px' }}
                   onChange={(e) => setFormData({ ...formData, qtd_parcelas: Math.min(5, parseInt(e.target.value) || 1) })} />
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                   {Array.from({ length: formData.qtd_parcelas }).map((_, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280', minWidth: '80px' }}>{i + 1}a Parcela</span>
-                      <input type="date" required style={{ ...inputStyle, flex: 1 }} onChange={(e) => {
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#6b7280', minWidth: '80px', flexShrink: 0 }}>{i + 1}a Parcela</span>
+                      <input type="date" required style={{ ...inputStyle, flex: 1, minWidth: 0 }} onChange={(e) => {
                         const d = [...datasParcelas]; d[i] = e.target.value; setDatasParcelas(d);
                       }} />
                     </div>

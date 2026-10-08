@@ -7,6 +7,7 @@ import {
   X, ExternalLink, Copy, Check,
 } from 'lucide-react';
 import { anexosDaReq } from '@/lib/requisicoes/anexos';
+import { useIsMobile } from '@/hooks/useIsMobile';
 
 // Valor monetário -> number. Aceita pt-BR ("1.234,56"), americano ("800.00")
 // e número puro. Antes o ponto era SEMPRE tratado como milhar: "800.00"
@@ -44,6 +45,7 @@ type View = 'lista' | 'form' | 'ficha';
 
 export default function FormFornecedor({ onSave, editarId }: { onSave: any; editarId?: string | null }) {
   const [fornecedores, setFornecedores] = useState<any[]>([]);
+  const isMobile = useIsMobile();
   const [loading, setLoading] = useState(true);
   const [editando, setEditando] = useState<any>(null);
   const [filtro, setFiltro] = useState('');
@@ -288,14 +290,14 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     return (
       <div
         onClick={fecharFicha}
-        style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,20,30,.55)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', animation: 'fadeIn .18s' }}
+        style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(15,20,30,.55)', backdropFilter: 'blur(2px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: isMobile ? '3vh 8px' : '5vh 16px', animation: 'fadeIn .18s' }}
       >
         <div
           onClick={(e) => e.stopPropagation()}
           style={{ ...card, width: '100%', maxWidth: 760, maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,.32)' }}
         >
           {/* Cabeçalho fixo */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '20px 22px', borderBottom: '1px solid var(--portal-border)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: isMobile ? 10 : 16, padding: isMobile ? '14px 14px' : '20px 22px', borderBottom: '1px solid var(--portal-border)' }}>
             <Avatar nome={fichaForn.nome} size={58} />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--portal-text)', lineHeight: 1.15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{fichaForn.nome}</div>
@@ -308,7 +310,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
           </div>
 
           {/* Corpo rolável */}
-          <div style={{ padding: '18px 22px', overflowY: 'auto' }}>
+          <div style={{ padding: isMobile ? '14px 12px' : '18px 22px', overflowY: 'auto' }}>
             {/* Dados cadastrais completos, com copiar */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', margin: '0 2px 10px' }}>
               <span style={{ fontSize: 12.5, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>Dados cadastrais</span>
@@ -316,7 +318,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
                 {copiado === '__tudo__' ? <><Check size={14} color="#059669" /> Copiado!</> : <><Copy size={14} /> Copiar tudo</>}
               </button>
             </div>
-            <div style={{ ...card, padding: '4px 16px', marginBottom: 18, display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', columnGap: 24 }}>
+            <div style={{ ...card, padding: '4px 16px', marginBottom: 18, display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : 'repeat(2, 1fr)', columnGap: 24 }}>
               {dadosForn.map(([rot, val]) => (
                 <div key={rot} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 0', borderBottom: '1px solid var(--portal-border)', minWidth: 0 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -333,7 +335,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: isMobile ? 'repeat(2, minmax(0, 1fr))' : 'repeat(3, 1fr)', gap: 12 }}>
               <div style={kpi}><div style={kpiLbl}>Requisições</div><div style={{ fontSize: 26, fontWeight: 700, color: '#2563eb', marginTop: 5 }}>{st?.count || 0}</div></div>
               <div style={kpi}><div style={kpiLbl}>Valor total</div><div style={{ fontSize: 22, fontWeight: 700, color: '#059669', marginTop: 5, fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(st?.total || 0)}</div></div>
               <div style={kpi}><div style={kpiLbl}>Última compra</div><div style={{ fontSize: 18, fontWeight: 600, color: 'var(--portal-text)', marginTop: 8 }}>{st?.last ? new Date(st.last).toLocaleDateString('pt-BR') : '—'}</div></div>
@@ -405,8 +407,8 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
     const statusTxt = (s: string, aviso?: string) => s === 'buscando' ? <span style={{ color: '#2563eb', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · consultando…</span>
       : s === 'ok' ? <span style={{ color: '#059669', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · preenchido{aviso ? <span style={{ color: '#d97706' }}> · {aviso}</span> : ''}</span>
       : s === 'erro' ? <span style={{ color: '#EA580C', fontWeight: 600, textTransform: 'none', letterSpacing: 0 }}> · não encontrado, preencha à mão</span> : null;
-    const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 };
-    const fg = (span2 = false): React.CSSProperties => ({ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: span2 ? 'span 2' : undefined });
+    const grid: React.CSSProperties = { display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr)' : '1fr 1fr', gap: 14 };
+    const fg = (span2 = false): React.CSSProperties => ({ display: 'flex', flexDirection: 'column', gap: 6, gridColumn: span2 && !isMobile ? 'span 2' : undefined });
     return (
       <div style={{ animation: 'fadeIn .3s', maxWidth: 680, margin: '0 auto' }}>
         <button onClick={cancelarEdicao} style={{ ...btnGhost, marginBottom: 16 }}><ArrowLeft size={16} /> Voltar</button>
@@ -417,7 +419,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
           </div>
 
           {/* Identificação */}
-          <div style={{ ...card, padding: '20px 22px', marginBottom: 16 }}>
+          <div style={{ ...card, padding: isMobile ? '16px 14px' : '20px 22px', marginBottom: 16 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#EA580C', marginBottom: 16 }}>Identificação</div>
             <div style={grid}>
               <div style={fg()}>
@@ -431,7 +433,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
           </div>
 
           {/* Endereço */}
-          <div style={{ ...card, padding: '20px 22px', marginBottom: 16 }}>
+          <div style={{ ...card, padding: isMobile ? '16px 14px' : '20px 22px', marginBottom: 16 }}>
             <div style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '.04em', textTransform: 'uppercase', color: '#EA580C', marginBottom: 16 }}>Endereço <span style={{ textTransform: 'none', letterSpacing: 0, color: 'var(--portal-text-muted)', fontWeight: 500 }}>— p/ Omie</span></div>
             <div style={grid}>
               <div style={fg()}><span style={lbl}>CEP{statusTxt(cepStatus)}</span><input name="cep" maxLength={9} value={formData.cep} onChange={(e) => { const v = e.target.value; setFormData((p) => ({ ...p, cep: v })); buscarCep(v); }} style={inp} placeholder="00000-000" /></div>
@@ -449,7 +451,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
             <div style={fg(true)}><span style={lbl}>Descrição do que fornece</span><input name="descricao" value={formData.descricao} onChange={handleChange} style={inp} placeholder="Ex: Peças agrícolas" /></div>
           </div>
 
-          <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, justifyContent: 'flex-end' }}>
             <button type="button" onClick={cancelarEdicao} style={btnGhost}>Cancelar</button>
             <button type="submit" style={btnRed}><CheckCircle2 size={16} /> {editando ? 'Salvar alterações' : 'Salvar fornecedor'}</button>
           </div>
@@ -470,7 +472,7 @@ export default function FormFornecedor({ onSave, editarId }: { onSave: any; edit
   return (
     <div style={{ animation: 'fadeIn .3s' }}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
-        <div style={{ position: 'relative', flex: 1, minWidth: 220 }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: 'min(220px, 100%)' }}>
           <Search size={16} style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
           <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="Buscar fornecedor por nome, CNPJ ou serviço…" style={{ ...inp, paddingLeft: 38, background: 'var(--portal-bg-card)' }} />
         </div>

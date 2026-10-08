@@ -111,7 +111,7 @@ export default function SplitPage() {
           onMouseDown={() => setArrastando(true)}
           onTouchStart={() => setArrastando(true)}
           title="Arraste para redimensionar"
-          style={{ flexShrink: 0, background: arrastando ? '#EA580C' : 'var(--portal-border)', cursor: vertical ? 'row-resize' : 'col-resize', width: vertical ? '100%' : 6, height: vertical ? 6 : '100%', transition: 'background .12s' }}
+          style={{ flexShrink: 0, background: arrastando ? '#EA580C' : 'var(--portal-border)', cursor: vertical ? 'row-resize' : 'col-resize', width: vertical ? '100%' : 6, height: vertical ? 12 : '100%', touchAction: 'none', transition: 'background .12s' }}
         />
         <iframe key={`b-${dir}`} src={dir} title="Painel 2" style={{ border: 'none', flex: 1, minWidth: 0, minHeight: 0, pointerEvents: arrastando ? 'none' : 'auto' }} />
       </div>

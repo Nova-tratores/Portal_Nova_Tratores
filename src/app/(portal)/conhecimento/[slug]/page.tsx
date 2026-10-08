@@ -40,7 +40,7 @@ export default function ArtigoPage() {
   const a = dados.artigo;
 
   return (
-    <div style={{ paddingTop: 20, maxWidth: 860, margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
+    <div style={{ padding: "20px 12px 0", maxWidth: "calc(860px + 24px)", margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
       <div style={{ fontSize: 12, marginBottom: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <Link href="/conhecimento" style={{ color: "#0369a1", fontWeight: 700, textDecoration: "none" }}>← Base de conhecimento</Link>
         <span style={{ color: corModulo(a.modulo), fontWeight: 700 }}>· {rotuloModulo(a.modulo)}</span>
@@ -48,7 +48,7 @@ export default function ArtigoPage() {
         {dados.podeEditar && <Link href={`/conhecimento/editar/${a.id}`} style={{ marginLeft: "auto", color: "#475569", fontWeight: 700, textDecoration: "none" }}>✎ Editar</Link>}
       </div>
 
-      <article style={{ background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 16, padding: "22px 26px" }}>
+      <article style={{ background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)", borderRadius: 16, padding: "clamp(16px, 4vw, 22px) clamp(14px, 4vw, 26px)" }}>
         {a.status !== "publicado" && (
           <div style={{ fontSize: 12, color: "#92400e", background: "#fef3c7", borderRadius: 8, padding: "6px 10px", marginBottom: 12 }}>
             Este artigo ainda não foi publicado: só quem edita o módulo consegue ver.

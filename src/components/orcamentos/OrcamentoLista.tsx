@@ -280,7 +280,7 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 12, marginBottom: 20, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ flex: 1, minWidth: 240 }}>
+        <div style={{ flex: 1, minWidth: 'min(240px, 100%)' }}>
           <div style={{ position: 'relative' }}>
             <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3' }} />
             <input
@@ -383,9 +383,9 @@ export default function OrcamentoLista({ onNovo, onEditar, podeCriar = true, pod
       /* DESKTOP: tabela */
       <div style={{
         background: '#fff', borderRadius: 16, border: '1px solid #f0f0f0',
-        overflow: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+        overflowX: 'auto', overflowY: 'hidden', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
       }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#fafafa' }}>
               <th style={thStyle}>NÚMERO</th>

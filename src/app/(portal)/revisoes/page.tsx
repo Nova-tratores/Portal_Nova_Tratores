@@ -944,16 +944,16 @@ function DashboardAgrupadoInner() {
     <div className="min-h-screen text-zinc-800 p-4 md:p-12 overflow-x-hidden">
       <div className="max-w-6xl mx-auto">
         <header className="mb-12">
-          <div className="flex items-end justify-between mb-8">
+          <div className="flex flex-wrap items-end justify-between gap-4 mb-8">
             <div>
-              <h1 className="text-4xl font-semibold text-zinc-900 tracking-tight">Controle Revisões</h1>
+              <h1 className="text-3xl md:text-4xl font-semibold text-zinc-900 tracking-tight">Controle Revisões</h1>
               <p className="text-zinc-500 text-base mt-1">
                 {tratores.length} unidades
                 {loadingEmails && <span className="text-zinc-500 ml-3 animate-pulse">carregando emails...</span>}
                 {emailsCarregados && <span className="text-zinc-500 ml-3">{emails.length} emails</span>}
               </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
               <a
                 href="/revisoes/mahindra"
                 title="Revisões de 50h e 900h realizadas — controle de cobrança da Mahindra + exportação Excel"
@@ -1360,7 +1360,7 @@ function DashboardAgrupadoInner() {
                                 <div className="expand-enter ml-[46px] mr-3 mb-2 rounded-lg bg-zinc-50 border border-zinc-200 p-4">
                                   {inspFeita ? (
                                     <div className="space-y-3">
-                                      <div className="grid grid-cols-3 gap-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                         <div>
                                           <p className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Data</p>
                                           <p className="text-base text-zinc-700">{inspEmail?.date ? new Date(inspEmail.date).toLocaleDateString("pt-BR") : (inspData ? formatarData(inspData) : "—")}</p>
@@ -1523,7 +1523,7 @@ function DashboardAgrupadoInner() {
                                 <div className="expand-enter ml-[46px] mr-3 mb-2 rounded-lg bg-zinc-50 border border-zinc-200 p-4">
                                   {isFeita ? (
                                     <div className="space-y-3">
-                                      <div className="grid grid-cols-3 gap-3">
+                                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                         <div>
                                           <p className="text-xs text-zinc-400 uppercase tracking-wider mb-1">Data</p>
                                           <p className="text-base text-zinc-700">{formatarData(data)}</p>
@@ -2216,7 +2216,7 @@ function DashboardAgrupadoInner() {
                       <div>
                         <h4 className="text-sm font-medium text-zinc-500 uppercase tracking-wider mb-3">Envio</h4>
                         <div className="rounded-xl border border-zinc-200 p-4 space-y-4">
-                          <div className="grid grid-cols-3 gap-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                             <div>
                               <label className="text-xs text-zinc-400 uppercase tracking-wider mb-1 block">Revisão</label>
                               <select

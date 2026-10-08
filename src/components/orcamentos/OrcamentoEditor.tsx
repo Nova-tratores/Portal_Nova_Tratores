@@ -739,7 +739,7 @@ export default function OrcamentoEditor({ userName, editarId, onVoltar, podeEdit
             </div>
           ) : (
           <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-            <table style={{ width: '100%', minWidth: undefined, borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: '#fafafa' }}>
                   <th style={thStyle}>#</th>

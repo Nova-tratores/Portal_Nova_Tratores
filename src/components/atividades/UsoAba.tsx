@@ -123,7 +123,7 @@ export default function UsoAba({ usuarios }: { usuarios: { id: string; nome: str
           )}
 
           {/* Gráficos */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(420px, 1fr))', gap: '16px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(420px, 100%), 1fr))', gap: '16px', marginBottom: '20px' }}>
             <Painel tema={TEMA_USO} titulo="Acessos por dia" sub="páginas vistas (tooltip mostra usuários)" itens={porDia} metrica="n" horizontal={false} altura={240} dark={dark} />
             <Painel tema={TEMA_USO} titulo="Acessos por módulo" sub="1º segmento da rota" itens={porModulo} metrica="n" horizontal altura={Math.max(240, porModulo.length * 26 + 60)} dark={dark} />
           </div>

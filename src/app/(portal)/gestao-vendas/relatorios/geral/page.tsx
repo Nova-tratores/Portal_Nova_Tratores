@@ -157,7 +157,7 @@ export default function GvRelatorioGeralPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between print:hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <Link href="/gestao-vendas/relatorios" className="text-sm text-gray-500 hover:text-gray-800">
           ← Voltar aos relatórios
         </Link>
@@ -194,7 +194,7 @@ export default function GvRelatorioGeralPage() {
                   setFiltroCategorias([])
                   setFiltroVendedores([])
                 }}
-                className="text-xs text-gray-500 hover:text-gray-800"
+                className="min-h-9 sm:min-h-0 text-xs text-gray-500 hover:text-gray-800"
               >
                 ✕ Limpar tudo
               </button>
@@ -297,7 +297,7 @@ function MultiSelectFiltro({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex min-w-[170px] max-w-[240px] items-center justify-between gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-left text-xs"
+        className="flex min-w-[170px] max-w-[240px] items-center justify-between gap-1 rounded border border-gray-300 bg-white px-2 py-2 sm:py-1 text-left text-xs"
         title={values.length > 0 ? values.map(rotular).join(', ') : undefined}
       >
         <span className="truncate">
@@ -307,7 +307,7 @@ function MultiSelectFiltro({
         <span className="shrink-0 text-gray-400">▾</span>
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 flex max-h-80 w-80 flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-md">
+        <div className="absolute z-20 mt-1 flex max-h-80 w-80 max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-md">
           <input
             type="text"
             placeholder="Buscar…"
@@ -362,7 +362,7 @@ function TabelaAgregada({ itens }: { itens: ItemOrdenado[] }) {
     <table className="w-full text-xs">
       <thead className="bg-gray-50 text-[10px] uppercase text-gray-500">
         <tr>
-          <th className="px-3 py-1.5 text-left font-medium">Item</th>
+          <th className="sticky left-0 z-10 bg-gray-50 px-3 py-1.5 text-left font-medium">Item</th>
           <th className="px-3 py-1.5 text-right font-medium">Qtd</th>
           <th className="px-3 py-1.5 text-right font-medium">Custo</th>
           <th className="px-3 py-1.5 text-right font-medium">Venda</th>
@@ -377,7 +377,7 @@ function TabelaAgregada({ itens }: { itens: ItemOrdenado[] }) {
       </tbody>
       <tfoot>
         <tr className="border-t-2 border-gray-300 bg-gray-50 font-semibold">
-          <td className="px-3 py-1.5">Total</td>
+          <td className="sticky left-0 z-10 bg-gray-50 px-3 py-1.5">Total</td>
           <td className="px-3 py-1.5 text-right tabular-nums">{total.qtd}</td>
           <td className="px-3 py-1.5 text-right tabular-nums">{formatBRL(total.custo)}</td>
           <td className="px-3 py-1.5 text-right tabular-nums">{formatBRL(total.venda)}</td>
@@ -396,7 +396,7 @@ function LinhaTabela({ item }: { item: ItemOrdenado }): ReactNode {
     cor === 'verde' ? 'text-green-700' : cor === 'amarelo' ? 'text-yellow-700' : 'text-red-700'
   return (
     <tr className="border-t border-gray-100">
-      <td className="max-w-[400px] truncate px-3 py-1" title={chave}>
+      <td className="sticky left-0 z-10 bg-white max-w-[160px] sm:max-w-[400px] truncate px-3 py-1" title={chave}>
         {chave}
       </td>
       <td className="px-3 py-1 text-right tabular-nums">{agregado.qtd}</td>

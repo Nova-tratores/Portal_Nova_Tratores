@@ -24,7 +24,7 @@ export function CabecalhoRelatorio({
 }) {
   return (
     <header
-      className="flex items-center justify-between bg-red-700 px-6 py-4 text-white"
+      className="flex flex-wrap items-center justify-between gap-2 bg-red-700 px-3 py-3 sm:px-6 sm:py-4 text-white"
       style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
     >
       <div className="text-base font-semibold uppercase tracking-wide">
@@ -86,7 +86,7 @@ export function MultiSelectFiltro({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="flex min-w-[160px] max-w-[240px] items-center justify-between gap-1 rounded border border-gray-300 bg-white px-2 py-1 text-left text-xs"
+        className="flex min-w-[160px] max-w-[240px] items-center justify-between gap-1 rounded border border-gray-300 bg-white px-2 py-2 sm:py-1 text-left text-xs"
         title={values.length > 0 ? values.map(rotular).join(', ') : undefined}
       >
         <span className="truncate">
@@ -96,7 +96,7 @@ export function MultiSelectFiltro({
         <span className="shrink-0 text-gray-400">▾</span>
       </button>
       {open && (
-        <div className="absolute z-20 mt-1 flex max-h-80 w-80 flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-md">
+        <div className="absolute z-20 mt-1 flex max-h-80 w-80 max-w-[calc(100vw-24px)] flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-md">
           <input
             type="text"
             placeholder="Buscar…"
@@ -163,7 +163,7 @@ export function SecaoRelatorio({
   return (
     <section style={{ breakInside: 'avoid' }}>
       <h2
-        className="flex items-center justify-between bg-red-100 px-3 py-1.5 text-sm font-semibold uppercase tracking-wide text-red-900"
+        className="flex flex-wrap items-center justify-between gap-x-2 bg-red-100 px-3 py-1.5 text-sm font-semibold uppercase tracking-wide text-red-900"
         style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' }}
       >
         <span>{titulo}</span>

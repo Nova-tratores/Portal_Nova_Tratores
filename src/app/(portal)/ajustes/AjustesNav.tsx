@@ -33,6 +33,7 @@ export default function AjustesNav() {
 
   return (
     <nav
+      className="est-nav"
       style={{
         background: '#fff',
         borderBottom: '1px solid #e2e8f0',
@@ -49,6 +50,7 @@ export default function AjustesNav() {
       {blocos.map(({ dep, itens }, idx) => (
         <div
           key={dep.key}
+          className="est-nav-row"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -60,6 +62,7 @@ export default function AjustesNav() {
         >
           {/* divisor gráfico do departamento */}
           <span
+            className="est-nav-tag"
             style={{
               display: 'inline-flex',
               alignItems: 'center',

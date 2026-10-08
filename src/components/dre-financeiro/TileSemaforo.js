@@ -42,9 +42,9 @@ export default function TileSemaforo({ sinal }) {
   return (
     <Link
       href={sinal.href}
-      className={`${c.bg} border-2 ${c.border} ${c.hover} hover:shadow rounded-xl p-4 transition block`}
+      className={`${c.bg} border-2 ${c.border} ${c.hover} hover:shadow rounded-xl p-4 transition block min-w-0`}
     >
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div className={`text-xs uppercase tracking-wide font-extrabold ${c.txt} flex items-center gap-1.5`}>
           <span className={`inline-block w-2.5 h-2.5 rounded-full ${c.dot}`} aria-hidden="true"></span>
           {sinal.label}
@@ -55,7 +55,7 @@ export default function TileSemaforo({ sinal }) {
           </span>
         )}
       </div>
-      <div className={`text-3xl font-extrabold mt-2 ${c.txt}`}>
+      <div className={`text-3xl font-extrabold mt-2 break-words ${c.txt}`}>
         {fmtValor(sinal.valor, sinal.unidade)}
       </div>
       <div className={`text-xs mt-2 ${c.sub}`}>{sinal.sub}</div>

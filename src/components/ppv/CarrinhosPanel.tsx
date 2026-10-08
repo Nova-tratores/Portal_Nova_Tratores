@@ -466,7 +466,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
                 {sel.itens.length === 0 ? <div style={{ padding: 18, textAlign: "center", color: "#94a3b8", fontSize: 17 }}>Sem peças ainda.</div>
                   : sel.itens.map((it) => (
                     <div key={it.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 14px", borderBottom: "1px solid #f5f7fa" }}>
-                      <code style={{ fontSize: 17, fontWeight: 700, color: "#dc2626", width: 150 }}>{it.codigo}</code>
+                      <code style={{ fontSize: isMobile ? 15 : 17, fontWeight: 700, color: "#dc2626", width: isMobile ? 100 : 150, flexShrink: 0, overflowWrap: "anywhere" }}>{it.codigo}</code>
                       <span style={{ flex: 1, fontSize: 17, color: "#0f172a", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{it.descricao}</span>
                       {!it.cadastrado && (
                         <button onClick={() => { setCriarProd(it); setProdPreco("0.00"); }}
@@ -672,10 +672,10 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
       {/* Modal do PPV: Novo Item (busca) + peças já no pedido + peças do carrinho */}
       {ppvModal && (
         <div onClick={(e) => { if (e.target === e.currentTarget) setPpvModal(null); }}
-          style={{ position: "fixed", inset: 0, zIndex: 5200, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          style={{ position: "fixed", inset: 0, zIndex: 5200, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: isMobile ? 6 : 20 }}>
           <div style={{ width: 1060, maxWidth: "97vw", maxHeight: "92vh", background: "#fff", borderRadius: 16, boxShadow: "0 30px 70px rgba(0,0,0,0.4)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             {/* Cabeçalho: PPV + dados do cliente */}
-            <div style={{ padding: "16px 22px", borderBottom: "1px solid #eef0f3", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+            <div style={{ padding: isMobile ? "12px 14px" : "16px 22px", borderBottom: "1px solid #eef0f3", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontSize: 19, fontWeight: 700, color: "#0f172a" }}><i className="fas fa-box" style={{ color: "#EA580C", marginRight: 9 }} />{ppvModal.label}</div>
                 {ppvCarregando ? (
@@ -693,9 +693,9 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
               <button onClick={() => setPpvModal(null)} style={{ border: "none", background: "#f1f5f9", borderRadius: 8, width: 36, height: 36, cursor: "pointer", color: "#475569", flexShrink: 0 }}><i className="fas fa-times" /></button>
             </div>
 
-            <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 0 }}>
+            <div style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: isMobile ? "column" : "row", overflowY: isMobile ? "auto" : undefined, gap: 0 }}>
               {/* ESQUERDA: Novo Item (busca) + peças já no pedido */}
-              <div style={{ flex: "1.2 1 0", minWidth: 0, padding: 18, overflowY: "auto", borderRight: "1px solid #eef0f3" }}>
+              <div style={{ flex: isMobile ? "0 0 auto" : "1.2 1 0", minWidth: 0, padding: isMobile ? 12 : 18, overflowY: isMobile ? "visible" : "auto", borderRight: isMobile ? "none" : "1px solid #eef0f3", borderBottom: isMobile ? "1px solid #eef0f3" : undefined }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}><i className="fas fa-plus" style={{ color: "#EA580C", marginRight: 6 }} /> Novo item — buscar produto</div>
                 <div style={{ position: "relative", marginBottom: 10 }}>
                   <i className="fas fa-search" style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#EA580C", fontSize: 13 }} />
@@ -712,7 +712,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
                       <button key={`${p.codigo}-${i}`} onClick={() => addProdutoNoPpv(p)} disabled={addindo}
                         title="Clique pra incluir 1 no pedido (clicar de novo soma +1)"
                         style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", padding: "10px 13px", border: "none", borderBottom: "1px solid #f5f7fa", background: addFlash === p.codigo ? "#ecfdf5" : "transparent", cursor: addindo ? "wait" : "pointer" }}>
-                        <code style={{ fontSize: 16.5, fontWeight: 700, color: "#EA580C", fontFamily: "ui-monospace, Menlo, monospace", flexShrink: 0 }}>{p.codigo}</code>
+                        <code style={{ fontSize: isMobile ? 14 : 16.5, fontWeight: 700, color: "#EA580C", fontFamily: "ui-monospace, Menlo, monospace", flexShrink: 0 }}>{p.codigo}</code>
                         <span style={{ flex: 1, fontSize: 14, color: "#334155", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.descricao}</span>
                         <span style={{ fontSize: 13.5, fontWeight: 600, color: "#475569", whiteSpace: "nowrap" }}>R$ {Number(p.preco || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                         {addFlash === p.codigo ? <span style={{ fontSize: 12, fontWeight: 700, color: "#16a34a", whiteSpace: "nowrap" }}><i className="fas fa-check" /> adicionado</span> : <i className="fas fa-plus" style={{ color: "#16a34a" }} />}
@@ -737,7 +737,7 @@ export default function CarrinhosPanel({ userName, onEditarPecas, onClose }: { u
               </div>
 
               {/* DIREITA: peças do carrinho (copiar código ou incluir direto) */}
-              <div style={{ flex: "1 1 0", minWidth: 0, padding: 18, overflowY: "auto", background: "#fafbfc" }}>
+              <div style={{ flex: isMobile ? "0 0 auto" : "1 1 0", minWidth: 0, padding: isMobile ? 12 : 18, overflowY: isMobile ? "visible" : "auto", background: "#fafbfc" }}>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 8 }}><i className="fas fa-cart-shopping" style={{ color: "#EA580C", marginRight: 6 }} /> Peças do carrinho ({sel?.itens.length || 0})</div>
                 <div style={{ border: "1px solid #eef0f3", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
                   {(sel?.itens || []).map((i) => (

@@ -378,7 +378,7 @@ export default function EstoqueNegativoPage() {
   };
 
   return (
-    <div style={{ maxWidth: 1840, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1840, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Produtos com estoque negativo (CMC distorcido)</h1>
@@ -577,7 +577,7 @@ const mTd: React.CSSProperties = { padding: '4px 8px', borderBottom: '1px solid 
 
 function MiniTabela({ headers, rows }: { headers: string[]; rows: React.ReactNode[][] }) {
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6, marginBottom: 4 }}>
+    <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6, marginBottom: 4 }}>
       <thead><tr>{headers.map((h, i) => <th key={i} style={mTh}>{h}</th>)}</tr></thead>
       <tbody>
         {rows.length === 0 ? (
@@ -586,7 +586,7 @@ function MiniTabela({ headers, rows }: { headers: string[]; rows: React.ReactNod
           <tr key={i}>{cells.map((c, j) => <td key={j} style={mTd}>{c}</td>)}</tr>
         ))}
       </tbody>
-    </table>
+    </table></div>
   );
 }
 
@@ -600,7 +600,7 @@ function ModalProduto({ p, onClose }: { p: ProdutoNegativo; onClose: () => void 
   const skuModal = p.codigo || p.codigoIntegracao || (p.codigoProduto != null ? p.codigoProduto : '');
   const c = p.ultimaCorrecao;
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 920, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Produto {skuModal} - {p.descricao || ''}</h2>

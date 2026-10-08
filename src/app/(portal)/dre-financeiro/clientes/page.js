@@ -196,11 +196,19 @@ export default function ClientesPage() {
         .atraso-baixo { background: #fef3c7; color: #92400e; }
         .atraso-medio { background: #fed7aa; color: #9a3412; }
         .atraso-alto  { background: #fecaca; color: #991b1b; }
+        /* Celular: tabela larga rola DENTRO do .cli-scroll, coluna Cliente fixa a esquerda */
+        @media (max-width: 768px) {
+          .cli-scroll { -webkit-overflow-scrolling: touch; }
+          .dre-b-cli-abc { min-width: 980px; }
+          .dre-b-cli-inad { min-width: 620px; }
+          .dre-b-cli-abc td:nth-child(2), .dre-b-cli-inad td:nth-child(2) { position: sticky; left: 0; z-index: 2; background: var(--portal-bg-card, #fff); min-width: 150px; max-width: 180px; }
+          .dre-b-cli-abc th:nth-child(2), .dre-b-cli-inad th:nth-child(2) { left: 0; z-index: 6; }
+        }
       `}</style>
 
       {/* Cabecalho: titulo + filtros de periodo + botoes */}
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold text-slate-800">Clientes</h1>
           <p className="text-xs text-slate-500">Análise ABC de receita e ranking de inadimplência (NOVA + CASTRO consolidado por CNPJ).</p>
         </div>
@@ -208,26 +216,26 @@ export default function ClientesPage() {
           <label>De:</label>
           <input
             type="month"
-            className="border border-slate-300 rounded px-2 py-1"
+            className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
             value={desde}
             onChange={(e) => setDesde(e.target.value)}
           />
           <label>Até:</label>
           <input
             type="month"
-            className="border border-slate-300 rounded px-2 py-1"
+            className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
             value={ate}
             onChange={(e) => setAte(e.target.value)}
           />
           <button
-            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded disabled:opacity-60"
+            className="px-3 py-1 max-md:min-h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded disabled:opacity-60"
             onClick={carregar}
             disabled={carregando}
           >
             {carregando ? 'Carregando...' : 'Carregar'}
           </button>
           <button
-            className="px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs rounded"
+            className="px-3 py-1 max-md:min-h-9 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs rounded"
             title="Exporta ABC e inadimplencia em CSV (UTF-8 com BOM)"
             onClick={exportarCSV}
           >
@@ -239,7 +247,7 @@ export default function ClientesPage() {
       <div className="text-xs text-slate-500 mb-3">{status}</div>
 
       {/* KPIs ABC */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-4 [&>div]:min-w-0 [&>div]:break-words">
         <div className="bg-white rounded-lg border border-slate-200 p-3">
           <div className="text-[10px] text-slate-500 uppercase tracking-wide">Receita Total</div>
           <div className="text-lg font-bold text-emerald-700 mt-1">{kpis.receita}</div>
@@ -266,16 +274,16 @@ export default function ClientesPage() {
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-4">
         <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 flex items-center justify-between flex-wrap gap-2">
           <span>ABC — clientes por receita do período</span>
-          <div className="flex items-center gap-3 text-[10px]">
+          <div className="flex items-center gap-3 text-[10px] flex-wrap">
             <label><input type="radio" name="cli-filtro-abc" value="todos" checked={filtroAbc === 'todos'} onChange={() => setFiltroAbc('todos')} /> todos</label>
             <label><input type="radio" name="cli-filtro-abc" value="A" checked={filtroAbc === 'A'} onChange={() => setFiltroAbc('A')} /> só A</label>
             <label><input type="radio" name="cli-filtro-abc" value="B" checked={filtroAbc === 'B'} onChange={() => setFiltroAbc('B')} /> só B</label>
             <label><input type="radio" name="cli-filtro-abc" value="C" checked={filtroAbc === 'C'} onChange={() => setFiltroAbc('C')} /> só C</label>
-            <label>Buscar: <input type="text" className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-48" placeholder="nome / CNPJ" value={buscaAbc} onChange={(e) => setBuscaAbc(e.target.value)} /></label>
+            <label>Buscar: <input type="text" className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-48 max-w-full max-md:min-h-9" placeholder="nome / CNPJ" value={buscaAbc} onChange={(e) => setBuscaAbc(e.target.value)} /></label>
           </div>
         </div>
         <div className="cli-scroll">
-          <table className="cli-table">
+          <table className="cli-table dre-b-cli-abc">
             <thead>
               <tr>
                 <th>#</th>
@@ -343,7 +351,7 @@ export default function ClientesPage() {
       </div>
 
       {/* Inadimplencia: KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3 [&>div]:min-w-0 [&>div]:break-words">
         <div className="bg-white rounded-lg border border-red-300 p-3 bg-red-50/30">
           <div className="text-[10px] text-red-700 uppercase tracking-wide">Total em atraso</div>
           <div className="text-xl font-bold text-red-700 mt-1">{kpis.inadTotal}</div>
@@ -362,14 +370,14 @@ export default function ClientesPage() {
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-4">
         <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 flex items-center justify-between flex-wrap gap-2">
           <span>Inadimplência — devedores com vencimento &lt; hoje</span>
-          <div className="flex items-center gap-3 text-[10px]">
+          <div className="flex items-center gap-3 text-[10px] flex-wrap">
             <label><input type="radio" name="cli-filtro-inad" value="todos" checked={filtroInad === 'todos'} onChange={() => setFiltroInad('todos')} /> todos</label>
             <label><input type="radio" name="cli-filtro-inad" value="alto" checked={filtroInad === 'alto'} onChange={() => setFiltroInad('alto')} /> só &gt;90d</label>
-            <label>Buscar: <input type="text" className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-48" placeholder="nome / CNPJ" value={buscaInad} onChange={(e) => setBuscaInad(e.target.value)} /></label>
+            <label>Buscar: <input type="text" className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-48 max-w-full max-md:min-h-9" placeholder="nome / CNPJ" value={buscaInad} onChange={(e) => setBuscaInad(e.target.value)} /></label>
           </div>
         </div>
         <div className="cli-scroll">
-          <table className="cli-table">
+          <table className="cli-table dre-b-cli-inad">
             <thead>
               <tr>
                 <th>#</th>

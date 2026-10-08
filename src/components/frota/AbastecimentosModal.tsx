@@ -124,18 +124,18 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
               </button>
             ))}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)', minWidth: 36, minHeight: 36 }}><X size={18} /></button>
         </div>
 
         {/* Corpo */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '10px 16px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '10px clamp(8px, 2.5vw, 16px)' }}>
           {carregando && <div style={{ fontSize: 13, color: 'var(--portal-text)', padding: 20, textAlign: 'center' }}>Carregando…</div>}
           {!carregando && linhas.length === 0 && (
             <div style={{ fontSize: 13, color: 'var(--portal-text)', padding: 20, textAlign: 'center' }}>Nenhum abastecimento registrado.</div>
           )}
           {grupos.map((g) => (
             <div key={g.chave} style={{ marginBottom: 10 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 10px', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 0, fontSize: 13.5 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', padding: '6px 10px', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 0, fontSize: 13.5 }}>
                 <strong style={{ color: 'var(--portal-text)', textTransform: 'capitalize' }}>{g.rotulo}</strong>
                 <span style={{ color: 'var(--portal-text)' }}>{g.itens.length} abastecimento{g.itens.length > 1 ? 's' : ''}</span>
                 <div style={{ flex: 1 }} />
@@ -145,7 +145,7 @@ export default function AbastecimentosModal({ placa, onClose }: Props) {
               </div>
               {/* nas visões semana/mês o grupo é só o resumo; no dia lista as linhas */}
               {visao === 'dia' && g.itens.map((l, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px 5px 22px', fontSize: 13, color: 'var(--portal-text)', borderBottom: '1px dashed var(--portal-border)', flexWrap: 'wrap' }}>
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '5px 10px 5px clamp(10px, 3vw, 22px)', fontSize: 13, color: 'var(--portal-text)', borderBottom: '1px dashed var(--portal-border)', flexWrap: 'wrap' }}>
                   <span style={{ minWidth: 38, color: 'var(--portal-text)' }}>{fmtHora(l.data_transacao)}</span>
                   <strong style={{ minWidth: 52, color: 'var(--portal-text)' }}>{fmtL(Number(l.litros))} L</strong>
                   {l.combustivel && <span style={{ fontSize: 11.5, fontWeight: 700, color: /etanol|alcool|álcool/i.test(l.combustivel) ? '#15803d' : /gasolina/i.test(l.combustivel) ? '#b45309' : 'var(--portal-text-muted)', background: 'var(--portal-bg-secondary)', borderRadius: 999, padding: '1px 8px' }}>{l.combustivel}</span>}

@@ -153,9 +153,9 @@ export default function ModalBuscaCliente({ open, onClose, onSelect }: Props) {
                 {termo ? "Nenhum cliente encontrado para este filtro" : "Digite para pesquisar clientes..."}
               </div>
             ) : (
-              <div style={{ borderRadius: 10, border: "1px solid var(--ppv-border-light)", overflow: "hidden" }}>
+              <div style={{ borderRadius: 10, border: "1px solid var(--ppv-border-light)", overflowX: "auto", overflowY: "hidden" }}>
                 {/* Header fixo */}
-                <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse" }}>
                   <thead>
                     <tr style={{ background: "var(--ppv-primary-light)" }}>
                       <th style={{ padding: "10px 16px", textAlign: "left", fontSize: 11, fontWeight: 800, textTransform: "uppercase", color: "var(--ppv-text-light)", borderBottom: "1px solid var(--ppv-border-light)" }}>Cliente</th>
@@ -165,8 +165,8 @@ export default function ModalBuscaCliente({ open, onClose, onSelect }: Props) {
                   </thead>
                 </table>
                 {/* Body scrollável */}
-                <div style={{ maxHeight: 400, overflowY: "auto" }}>
-                  <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <div style={{ maxHeight: 400, overflowY: "auto", minWidth: 620 }}>
+                  <table style={{ width: "100%", minWidth: 620, borderCollapse: "collapse" }}>
                     <tbody>
                       {filtrados.map((c, idx) => (
                         <tr

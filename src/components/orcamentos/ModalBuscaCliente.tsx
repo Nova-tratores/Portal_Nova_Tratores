@@ -75,17 +75,17 @@ export default function ModalBuscaClienteOrc({ open, onClose, onSelect }: Props)
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
       <div style={{
-        width: 800, maxHeight: 560, display: 'flex', flexDirection: 'column',
+        width: 800, maxWidth: '96vw', maxHeight: 'min(560px, 92vh)', display: 'flex', flexDirection: 'column',
         borderRadius: 12, background: '#FFFAF5', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
       }}>
         <div style={{
           display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '20px 32px', borderBottom: '1px solid rgba(251,146,60,0.3)',
+          padding: '20px clamp(14px, 4vw, 32px)', borderBottom: '1px solid rgba(251,146,60,0.3)',
         }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>Buscar Cliente</h2>
           <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: 24, color: '#94a3b8', cursor: 'pointer' }}>&times;</button>
         </div>
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px 32px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px clamp(14px, 4vw, 32px)' }}>
           <input
             ref={inputRef}
             type="text"
@@ -100,7 +100,7 @@ export default function ModalBuscaClienteOrc({ open, onClose, onSelect }: Props)
             }}
           />
           <div style={{ maxHeight: 360, overflow: 'auto', borderRadius: 8, border: '1px solid rgba(251,146,60,0.3)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', minWidth: 560, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'rgba(255,237,213,0.4)' }}>
                   <th style={thS}>CLIENTE</th>

@@ -33,6 +33,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 import { removerDevolucoes } from '@/lib/dre-financeiro/deducoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 // ---------------------------------------------------------------------------
 // Constantes de layout (espelham as do <script> da fonte)
@@ -189,6 +190,11 @@ function carregarChartLib() {
 export default function DrePage() {
   const { userProfile, loading } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  // Celular: 1a coluna (conta) mais estreita; o grafico de despesas usa o mesmo
+  // offset para continuar alinhado as colunas de mes.
+  const isMobile = useIsMobile()
+  const colContaPx = isMobile ? 150 : COL_CONTA_PX
+  const offsetGraficoPx = isMobile ? colContaPx + 3 * COL_AUX_PX : OFFSET_GRAFICO_PX
 
   // "Exportar CSV" restrito a um único usuário (gate de UI). O email vem de
   // financeiro_usu (select '*' do useAuth), gravado no login. Ficheiro .js -> sem cast.
@@ -950,7 +956,7 @@ export default function DrePage() {
       data: { labels, datasets },
       options: {
         responsive: true, maintainAspectRatio: false,
-        layout: { padding: { left: OFFSET_GRAFICO_PX, right: 0 } },
+        layout: { padding: { left: offsetGraficoPx, right: 0 } },
         interaction: { mode: 'index', intersect: false },
         onClick: function (evt, els, chart) {
           if (granularidade !== 'mes') return
@@ -1017,14 +1023,14 @@ export default function DrePage() {
     if (escalaDespesas === 'auto' && clamp) infoTxt += ' · ' + clamp.fora + ' ponto(s) fora da escala (ver tooltip)'
     setDespesasInfo(infoTxt)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chartReady, dados, granularidade, nivelDespesas, escalaDespesas, colunasAtuais, rotuloColuna, valorPorColuna])
+  }, [chartReady, dados, granularidade, nivelDespesas, escalaDespesas, colunasAtuais, rotuloColuna, valorPorColuna, offsetGraficoPx])
 
   // Ajusta larguras da tabela/wrapper do grafico e scrolla pra direita (port fiel)
   useEffect(() => {
     if (!dados) return
     const colunas = colunasAtuais()
     const nMeses = mostrarMeses ? colunas.length : 0
-    const larguraTotalPx = COL_CONTA_PX + 3 * COL_AUX_PX + nMeses * COL_MES_PX
+    const larguraTotalPx = colContaPx + 3 * COL_AUX_PX + nMeses * COL_MES_PX
     if (tabelaRef.current) tabelaRef.current.style.width = larguraTotalPx + 'px'
     if (despesasWrapRef.current) despesasWrapRef.current.style.width = larguraTotalPx + 'px'
     if (scrollPosDir.current) {
@@ -1032,7 +1038,7 @@ export default function DrePage() {
       const sc = scrollRef.current
       if (sc) requestAnimationFrame(() => { sc.scrollLeft = sc.scrollWidth })
     }
-  }, [dados, mostrarMeses, granularidade, colunasAtuais])
+  }, [dados, mostrarMeses, granularidade, colunasAtuais, colContaPx])
 
   // =========================================================================
   // Modal de drill-down (port fiel de abrirModalDetalhe + helpers)
@@ -1631,11 +1637,18 @@ export default function DrePage() {
         .dre-scroll :global(thead th:first-child) { z-index: 30; background: #f1f5f9; }
         .dre-scroll :global(td.dre-cell-mes) { cursor: pointer; transition: background 0.1s; }
         .dre-scroll :global(td.dre-cell-mes:hover) { background: #dbeafe !important; outline: 1px solid #3b82f6; }
+        .dre-scroll { -webkit-overflow-scrolling: touch; max-width: 100%; }
+        .dre-a-kpis > div { min-width: 0; overflow-wrap: anywhere; }
+        @media (max-width: 768px) {
+          .dre-a-kpis .text-lg { font-size: 15px; }
+          .dre-scroll { max-height: 75vh; }
+          .dre-scroll :global(td:first-child) { white-space: normal; word-break: break-word; }
+        }
       `}</style>
 
       {/* Cabecalho: titulo + controles */}
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1 className="text-2xl font-semibold text-slate-800">DRE Consolidada</h1>
           <p className="text-xs text-slate-500">
             {regime === 'competencia'
@@ -1693,7 +1706,7 @@ export default function DrePage() {
       </div>
 
       {/* Barra de abas (Consolidado / Margens por Familia) */}
-      <div className="flex items-center gap-1 border-b border-slate-200 mb-3">
+      <div className="flex items-center gap-1 border-b border-slate-200 mb-3 flex-wrap">
         {[['consolidado', 'Consolidado'], ['familias', 'Margens por Família']].map(([k, lbl]) => (
           <button key={k} onClick={() => setAba(k)}
             className={'px-4 py-2 text-sm font-medium -mb-px border-b-2 ' +
@@ -1726,7 +1739,7 @@ export default function DrePage() {
       )}
 
       {/* KPIs Consolidado */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 dre-a-kpis">
         <div className="bg-white rounded-lg border border-slate-200 p-3">
           <div className="text-[10px] text-slate-500 uppercase tracking-wide">Receita Bruta</div>
           <div className="text-lg font-bold text-emerald-700 mt-1">{kpi ? kpi.receita : '--'}</div>
@@ -1778,23 +1791,24 @@ export default function DrePage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         {/* PECA A — Cascata do resultado */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3">
+        <div className="bg-white border border-slate-200 rounded-lg p-3" style={{ minWidth: 0 }}>
           <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">
             Cascata do resultado{resumo ? ' — ' + resumo.sel.label : ''}
           </div>
-          <div style={{ height: 300, position: 'relative' }}>
+          <div style={{ height: isMobile ? 240 : 300, position: 'relative' }}>
             <canvas ref={cascataRef}></canvas>
           </div>
         </div>
 
         {/* PECA C — Resumo DRE (R$, AV%, AH%) */}
-        <div className="bg-white border border-slate-200 rounded-lg p-3">
-          <div className="flex items-center justify-between mb-2">
+        <div className="bg-white border border-slate-200 rounded-lg p-3" style={{ minWidth: 0 }}>
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
             <div className="text-xs uppercase tracking-wide text-slate-500">Resumo DRE</div>
             <div className="text-[10px] text-slate-400">
               AV% = sobre receita líquida · AH% = vs {dreComparar === 'ano_anterior' ? 'ano anterior' : 'período anterior'}
             </div>
           </div>
+          <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <table className="w-full text-xs">
             <thead>
               <tr className="text-slate-500 border-b border-slate-200">
@@ -1819,32 +1833,33 @@ export default function DrePage() {
               )}
             </tbody>
           </table>
+          </div>
         </div>
       </div>
 
       {/* PECA B — Evolucao das margens (%) */}
       <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-1 flex-wrap gap-2">
           <div className="text-xs uppercase tracking-wide text-slate-500">
             Evolução das margens (%) — por {margem12M ? '12 meses móveis' : (dreUnidade === 'mes' ? 'mês' : dreUnidade === 'trimestre' ? 'trimestre' : 'ano')}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <label className="text-[10px] flex items-center gap-1" title="Suaviza a sazonalidade somando os últimos 12 meses em cada ponto">
               <input type="checkbox" checked={margem12M} onChange={(e) => setMargem12M(e.target.checked)} /> 12M móvel
             </label>
             <div className="text-[10px] text-slate-400">{graficoInfo}</div>
           </div>
         </div>
-        <div style={{ height: 260, position: 'relative' }}>
+        <div style={{ height: isMobile ? 220 : 260, position: 'relative' }}>
           <canvas ref={margemRef}></canvas>
         </div>
       </div>
 
       {/* Tabela DRE + Grafico de despesas */}
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-4">
-        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 flex items-center justify-between">
+        <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 flex items-center justify-between flex-wrap gap-2">
           <span>Demonstracao do Resultado</span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <label className="text-[10px]">
               <input type="checkbox" checked={mostrarContas} onChange={(e) => setMostrarContas(e.target.checked)} /> mostrar contas (nivel 3)
             </label>
@@ -1867,7 +1882,7 @@ export default function DrePage() {
             <thead className="bg-slate-50 text-slate-600">
               <tr>
                 <th className="text-left px-2 py-2 sticky left-0 bg-slate-50"
-                  style={{ width: COL_CONTA_PX, minWidth: COL_CONTA_PX, maxWidth: COL_CONTA_PX }}>Conta</th>
+                  style={{ width: colContaPx, minWidth: colContaPx, maxWidth: colContaPx }}>Conta</th>
                 <th className="text-right px-2 py-2 bg-slate-100" style={{ width: COL_AUX_PX }}>NOVA</th>
                 <th className="text-right px-2 py-2 bg-slate-100" style={{ width: COL_AUX_PX }}>CASTRO</th>
                 <th className="text-right px-2 py-2 bg-slate-200 font-bold" style={{ width: COL_AUX_PX }}>Consolidado</th>
@@ -1913,7 +1928,7 @@ export default function DrePage() {
             <span className="text-xs uppercase tracking-wide text-slate-500">
               Evolução mensal das despesas — por {nivelDespesas === 'categoria' ? 'categoria' : 'conta'}
             </span>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="inline-flex rounded border border-slate-300 overflow-hidden"
                 title="Conta: 1 linha por conta DRE (nivel 3). Categoria: 1 linha por categoria Omie (nivel 4, top 8 + Outros).">
                 <button onClick={() => setNivelDespesas('conta')}
@@ -1948,11 +1963,11 @@ export default function DrePage() {
       {/* Intercompany detalhe (so no regime Omie) */}
       {inter && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-4">
-          <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
             <div className="text-xs uppercase tracking-wide text-amber-800 font-semibold">Operacoes intercompany excluidas</div>
             <div className="text-[10px] text-amber-700">Excluidos do consolidado: vendas, custos, impostos e despesas com a outra empresa do grupo</div>
           </div>
-          <div className="grid grid-cols-2 gap-4 text-xs">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
             <div>
               <div className="text-amber-900 font-bold mb-1">NOVA → CASTRO</div>
               <div className="grid grid-cols-2 gap-1 text-amber-800">
@@ -1981,7 +1996,7 @@ export default function DrePage() {
 
       {/* Rodape: atualizar do Omie (so no regime Omie) */}
       {regime === 'omie' && (
-        <div className="flex justify-end items-center gap-2 mt-6 mb-3 text-xs text-slate-500">
+        <div className="flex justify-end items-center gap-2 mt-6 mb-3 text-xs text-slate-500 flex-wrap">
           <span>Cache em Supabase. Re-busca completa via Omie:</span>
           <button onClick={() => {
             if (!confirm('Re-buscar todos os meses do Omie? Pode levar 1-2 min para periodos longos e consumir cota de API.')) return
@@ -2008,16 +2023,16 @@ export default function DrePage() {
 
       {/* Modal de drill-down */}
       {modalAberto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4"
           style={{ background: 'rgba(15,23,42,0.6)' }}
           onClick={(e) => { if (e.target === e.currentTarget) fecharModal() }}>
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[88vh] flex flex-col">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] md:max-h-[88vh] flex flex-col" style={{ minWidth: 0 }}>
             <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div className="text-xs uppercase tracking-wide text-slate-500">{modalCtx ? modalCtx.classif : '--'}</div>
                 <h3 className="font-bold text-lg text-slate-800">{modalCtx ? modalCtx.titulo : '--'}</h3>
               </div>
-              <button onClick={fecharModal} className="text-2xl text-slate-400 hover:text-slate-700 leading-none">×</button>
+              <button onClick={fecharModal} className="text-2xl text-slate-400 hover:text-slate-700 leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>×</button>
             </div>
             <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 text-xs flex flex-wrap gap-3 items-center">
               <span className="text-slate-700">{modalResumo}</span>
@@ -2039,7 +2054,7 @@ export default function DrePage() {
                 Buscar:
                 <input type="text" value={modalBusca} onChange={(e) => setModalBusca(e.target.value)}
                   placeholder="cliente, descricao, categoria..."
-                  className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-56" />
+                  className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-56" style={{ maxWidth: '100%', boxSizing: 'border-box' }} />
               </label>
             </div>
 
@@ -2088,12 +2103,12 @@ export default function DrePage() {
 
             {/* View treemap */}
             <div className="flex-1 p-3" style={{ display: modalView === 'treemap' ? '' : 'none' }}>
-              <div style={{ position: 'relative', height: '100%', minHeight: 420 }}>
+              <div style={{ position: 'relative', height: '100%', minHeight: isMobile ? 300 : 420 }}>
                 <canvas ref={treemapRef}></canvas>
               </div>
             </div>
 
-            <div className="px-4 py-2 border-t border-slate-200 bg-slate-50 text-xs flex justify-between items-center">
+            <div className="px-4 py-2 border-t border-slate-200 bg-slate-50 text-xs flex flex-wrap justify-between items-center gap-2">
               <span className="text-slate-500">{modalCarregando ? '' : (modalLista.length + ' de ' + modalMovimentos.length + ' movimentos')}</span>
               <span className="font-bold text-slate-800">{modalCarregando ? '' : ('Total: ' + fmtBRL(modalTotalFiltrado))}</span>
             </div>
@@ -2103,17 +2118,17 @@ export default function DrePage() {
 
       {/* Modal de detalhe do grafico de familias: vendas que compoem o ponto clicado */}
       {famDetCtx && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-4"
           style={{ background: 'rgba(15,23,42,0.6)' }}
           onClick={(e) => { if (e.target === e.currentTarget) setFamDetCtx(null) }}>
-          <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[88vh] flex flex-col">
+          <div className="bg-white rounded-lg shadow-2xl w-full max-w-6xl max-h-[90vh] md:max-h-[88vh] flex flex-col" style={{ minWidth: 0 }}>
             <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
-              <div>
+              <div style={{ minWidth: 0 }}>
                 <div className="text-xs uppercase tracking-wide text-slate-500">Vendas que compõem a margem</div>
                 <h3 className="font-bold text-lg text-slate-800">{famDetCtx.titulo}</h3>
                 {famDetCtx.resumo && <div className="text-[11px] text-slate-500 mt-0.5">{famDetCtx.resumo}</div>}
               </div>
-              <button onClick={() => setFamDetCtx(null)} className="text-2xl text-slate-400 hover:text-slate-700 leading-none">×</button>
+              <button onClick={() => setFamDetCtx(null)} className="text-2xl text-slate-400 hover:text-slate-700 leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>×</button>
             </div>
             <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 text-xs flex flex-wrap gap-3 items-center">
               <span className="text-slate-700">
@@ -2123,7 +2138,7 @@ export default function DrePage() {
                 Buscar:
                 <input type="text" value={famDetBusca} onChange={(e) => setFamDetBusca(e.target.value)}
                   placeholder="cliente, máquina/item, pedido..."
-                  className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-56" />
+                  className="border border-slate-300 rounded px-2 py-0.5 text-xs ml-1 w-56" style={{ maxWidth: '100%', boxSizing: 'border-box' }} />
               </label>
             </div>
             <div className="overflow-auto flex-1">
@@ -2197,8 +2212,9 @@ export default function DrePage() {
 function FamiliasTab({ dadosFam, carregandoFam, erroFam, regime, dreUnidade, setDreUnidade,
   metricaFam, setMetricaFam, famModel, famChartRef, tgAtivo, tgInativo }) {
   const model = famModel
+  const isMobile = useIsMobile()
 
-  const COL_FAM_PX = 200
+  const COL_FAM_PX = isMobile ? 130 : 200
   const COL_PER_PX = 110
 
   return (
@@ -2232,11 +2248,11 @@ function FamiliasTab({ dadosFam, carregandoFam, erroFam, regime, dreUnidade, set
         <>
           {/* Tabela: familia x periodo (MB% em cima, ML% embaixo) */}
           <div className="bg-white border border-slate-200 rounded-lg overflow-hidden mb-4">
-            <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 flex items-center justify-between">
+            <div className="px-3 py-2 bg-slate-50 border-b border-slate-200 text-xs uppercase tracking-wide text-slate-600 flex items-center justify-between flex-wrap gap-1">
               <span>Margens por família</span>
               <span className="text-[10px] normal-case text-slate-400">linha de cima: margem bruta % · linha de baixo: margem líquida %</span>
             </div>
-            <div className="overflow-auto" style={{ maxHeight: '70vh' }}>
+            <div className="overflow-auto" style={{ maxHeight: '70vh', WebkitOverflowScrolling: 'touch' }}>
               <table className="text-xs" style={{ tableLayout: 'fixed', minWidth: COL_FAM_PX + model.colInfo.length * COL_PER_PX }}>
                 <thead className="bg-slate-50 text-slate-600">
                   <tr>
@@ -2290,7 +2306,7 @@ function FamiliasTab({ dadosFam, carregandoFam, erroFam, regime, dreUnidade, set
                   className={'px-3 py-1 border-l border-slate-300 ' + (metricaFam === 'liquida' ? tgAtivo : tgInativo)}>Margem Líquida %</button>
               </div>
             </div>
-            <div style={{ height: 440, position: 'relative' }}>
+            <div style={{ height: isMobile ? 320 : 440, position: 'relative' }}>
               <canvas ref={famChartRef}></canvas>
             </div>
             <div className="text-[10px] text-slate-400 mt-1">

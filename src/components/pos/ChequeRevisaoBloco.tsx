@@ -162,7 +162,7 @@ export default function ChequeRevisaoBloco({ osId, podeEditar, horas: horasAlvo,
 
       {editando && form && (
         <div style={{ marginTop: 10, padding: 10, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 6 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))", gap: 8 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(220px, 100%), 1fr))", gap: 8 }}>
             {!atrasado && (
               <label style={{ fontSize: 11, color: "#374151" }}>Revisão
                 <select value={horas} onChange={(e) => setHoras(Number(e.target.value))} style={inp}>

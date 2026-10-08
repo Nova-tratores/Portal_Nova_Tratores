@@ -332,11 +332,11 @@ export default function PatioPage() {
   }
 
   return (
-    <div style={{ display: 'flex', height: 'calc(100vh - 130px)', overflow: 'hidden' }}>
+    <div className="pat-wrap" style={{ display: 'flex', height: 'calc(100vh - 130px)', overflow: 'hidden' }}>
       {/* Main map area */}
-      <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+      <div className="pat-main" style={{ flex: 1, minWidth: 0, overflow: 'auto', position: 'relative' }}>
         {/* HUD */}
-        <div style={{
+        <div className="pat-hud" style={{
           position: 'sticky', top: 0, zIndex: 20, display: 'flex', alignItems: 'center', gap: 0, padding: '8px 16px',
           background: 'rgba(255,255,255,0.95)', borderBottom: '1px solid var(--portal-border, #e5e5e5)', backdropFilter: 'blur(8px)',
           fontSize: 12, flexWrap: 'wrap',
@@ -427,7 +427,7 @@ export default function PatioPage() {
             </div>
 
             {/* Ambientes externos */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, padding: '0 16px 24px' }}>
+            <div className="est-stack" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 16, padding: '0 16px 24px' }}>
               {['barracao', 'fartura', 'demonstracao'].map(amb => {
                 const cfg = AMB_CONFIG[amb]
                 const maquinas = data?.ambientes[amb] || []
@@ -505,8 +505,8 @@ export default function PatioPage() {
       </div>
 
       {/* Sidebar */}
-      <div style={{
-        width: 320, borderLeft: '1px solid var(--portal-border, #e5e5e5)', background: 'var(--portal-bg-card, #fff)',
+      <div className="pat-side" style={{
+        width: 320, flexShrink: 0, borderLeft: '1px solid var(--portal-border, #e5e5e5)', background: 'var(--portal-bg-card, #fff)',
         display: 'flex', flexDirection: 'column', overflow: 'hidden',
       }}>
         {/* Tabs */}

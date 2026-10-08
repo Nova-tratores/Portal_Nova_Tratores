@@ -80,7 +80,7 @@ export default function IgnorarClientesPage() {
   if (!permLoading && userProfile && !pode('estoque', 'ignorar-clientes')) return <SemPermissao />;
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Ignorar Clientes</h1>
@@ -115,7 +115,7 @@ export default function IgnorarClientesPage() {
             {contas.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
           </select>
         </div>
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead><tr>{['Conta', 'CNPJ', 'Nome', 'Nota', 'Adicionado', ''].map((h, i) => <th key={i} style={th}>{h}</th>)}</tr></thead>
           <tbody>
             {lista.length === 0 ? (
@@ -131,7 +131,7 @@ export default function IgnorarClientesPage() {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   );

@@ -225,7 +225,7 @@ export default function SatPage() {
             <p style={{ fontSize: 13, color: 'var(--portal-text-secondary, #737373)', margin: 0 }}>Solicitações de atendimento técnico</p>
           </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
           <button onClick={() => setShowCancelados(v => !v)} style={{
             padding: '9px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
             border: '1px solid var(--portal-border, #e5e5e5)', background: showCancelados ? '#fef2f2' : 'var(--portal-bg-card, #fff)',
@@ -243,7 +243,7 @@ export default function SatPage() {
       </div>
 
       {/* Kanban — no celular as colunas empilham (1 por vez), senão ficam espremidas */}
-      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : (showCancelados ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)'), gap: isMobile ? 12 : 16, alignItems: 'start' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fit, minmax(240px, 1fr))', gap: isMobile ? 12 : 16, alignItems: 'start' }}>
         {COLUNAS.map(col => {
           const itens = sats.filter(s => s.status === col.key)
           return (
@@ -288,7 +288,7 @@ export default function SatPage() {
         const t = TIPO_SAT[detalhe.tipo as TipoSat] || TIPO_SAT.manutencao
         return (
           <div onClick={e => { if (e.target === e.currentTarget) setDetalhe(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-            <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 18, width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto', padding: 28 }}>
+            <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 18, width: 520, maxWidth: '95vw', maxHeight: '90vh', overflow: 'auto', padding: isMobile ? 18 : 28 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
                 <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: 0.4, color: t.cor, background: t.bg, padding: '4px 10px', borderRadius: 6 }}>{t.label}</span>
                 <button onClick={() => setDetalhe(null)} style={{ background: 'var(--portal-bg-secondary, #f5f5f5)', border: 'none', borderRadius: 9, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>
@@ -372,7 +372,7 @@ export default function SatPage() {
       {/* ===== Modal Novo SAT ===== */}
       {showModal && (
         <div onClick={e => { if (e.target === e.currentTarget) setShowModal(false) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 18, width: 560, maxWidth: '95vw', maxHeight: '92vh', overflow: 'auto', padding: 28 }}>
+          <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 18, width: 560, maxWidth: '95vw', maxHeight: '92vh', overflow: 'auto', padding: isMobile ? 18 : 28 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 22 }}>
               <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text, #1a1a1a)', margin: 0 }}>Novo SAT</h2>
               <button onClick={() => setShowModal(false)} style={{ background: 'var(--portal-bg-secondary, #f5f5f5)', border: 'none', borderRadius: 9, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} /></button>

@@ -43,7 +43,7 @@ export default function ConfigEmailEnvioModal({ open, onClose, onSaved, emailIni
 
   return (
     <div onClick={() => !salvando && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 9500, background: 'rgba(0,0,0,.5)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '6vh 16px' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, width: '100%', maxWidth: 480, boxShadow: '0 24px 60px rgba(0,0,0,.3)', overflow: 'hidden' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 16, width: '100%', maxWidth: 480, maxHeight: '88vh', overflowY: 'auto', boxShadow: '0 24px 60px rgba(0,0,0,.3)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--portal-border)' }}>
           <Mail size={18} color="#e8730c" />
           <div style={{ flex: 1, fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>Configurar meu e-mail de envio</div>

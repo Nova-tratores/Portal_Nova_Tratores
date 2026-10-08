@@ -165,7 +165,7 @@ export default function BaixaContasPage() {
   if (!permLoading && userProfile && !pode('ajustes', 'baixa-contas')) return <SemPermissao />;
 
   return (
-    <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Baixar contas</h1>
@@ -390,7 +390,7 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
   }, [ccSel, valor, data, juros, multa, desconto, obs, conciliar, conta, tipo, titulo, onBaixado]);
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 520, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Marcar como pago / recebido</h2>
@@ -424,14 +424,14 @@ function ModalBaixa({ titulo, tipo, conta, onClose, onBaixado }: {
                   )}
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div className="est-stack-xs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                   <div><label style={lblStyle}>{verbo}</label><input type="date" value={data} onChange={(e) => setData(e.target.value)} style={selStyle} /></div>
                   <div><label style={lblStyle}>Valor</label><input type="number" step="0.01" min="0" value={valor} onChange={(e) => setValor(e.target.value)} style={{ ...selStyle, textAlign: 'right' }} /></div>
                 </div>
 
                 <details style={{ marginTop: 12 }}>
                   <summary style={{ fontSize: '.72rem', color: '#64748b', cursor: 'pointer', userSelect: 'none' }}>Juros / multa / desconto (opcional)</summary>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 8 }}>
+                  <div className="est-stack-xs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginTop: 8 }}>
                     <div><label style={lblStyle}>Juros</label><input type="number" step="0.01" min="0" value={juros} onChange={(e) => setJuros(e.target.value)} style={{ ...selStyle, textAlign: 'right' }} /></div>
                     <div><label style={lblStyle}>Multa</label><input type="number" step="0.01" min="0" value={multa} onChange={(e) => setMulta(e.target.value)} style={{ ...selStyle, textAlign: 'right' }} /></div>
                     <div><label style={lblStyle}>Desconto</label><input type="number" step="0.01" min="0" value={desconto} onChange={(e) => setDesconto(e.target.value)} style={{ ...selStyle, textAlign: 'right' }} /></div>

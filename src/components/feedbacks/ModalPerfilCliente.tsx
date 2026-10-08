@@ -111,9 +111,10 @@ export default function ModalPerfilCliente({ aberto, nome, codigoOmie, info, onF
   }
 
   return (
-    <div style={overlayStyle} onClick={onFechar}>
+    <div className="fbpc-fundo" style={overlayStyle} onClick={onFechar}>
+      <style>{`@media (max-width: 640px){.fbpc-fundo{padding:8px !important}.fbpc-corpo{padding:14px !important}.fbpc-linha{grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important}.fbpc-linha > :first-child{grid-column:1 / -1}.fbpc-linha > button{justify-self:start;min-width:36px;min-height:36px}.fbpc-duo{grid-template-columns:minmax(0,1fr) !important}}`}</style>
       <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
-        <header style={headerStyle}>
+        <header style={{ ...headerStyle, gap: 8 }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, opacity: 0.85, textTransform: "uppercase", letterSpacing: 0.8 }}>
               👤 Perfil estendido
@@ -123,7 +124,7 @@ export default function ModalPerfilCliente({ aberto, nome, codigoOmie, info, onF
           <button onClick={onFechar} style={btnFecharStyle}>✕</button>
         </header>
 
-        <div style={bodyStyle}>
+        <div className="fbpc-corpo" style={bodyStyle}>
           {erro && <div style={erroStyle}>{erro}</div>}
 
           {/* Dados de contato */}
@@ -146,7 +147,7 @@ export default function ModalPerfilCliente({ aberto, nome, codigoOmie, info, onF
               <button type="button" onClick={adicionarFunc} style={btnAdicionar}>+ Adicionar</button>
             </div>
             {form.funcionarios.map((fn, i) => (
-              <div key={i} style={linhaStyle}>
+              <div key={i} className="fbpc-linha" style={linhaStyle}>
                 <input type="text" placeholder="Nome" value={fn.nome} onChange={(e) => updFunc(i, { nome: e.target.value })} style={inputStyle} />
                 <input type="text" placeholder="Cargo" value={fn.cargo} onChange={(e) => updFunc(i, { cargo: e.target.value })} style={inputStyle} />
                 <input type="text" placeholder="Telefone" value={fn.telefone} onChange={(e) => updFunc(i, { telefone: e.target.value })} style={inputStyle} />
@@ -208,7 +209,7 @@ export default function ModalPerfilCliente({ aberto, nome, codigoOmie, info, onF
 }
 
 function Row({ children }: { children: React.ReactNode }) {
-  return <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{children}</div>;
+  return <div className="fbpc-duo" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>{children}</div>;
 }
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (

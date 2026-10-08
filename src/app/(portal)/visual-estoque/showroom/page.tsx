@@ -79,8 +79,8 @@ export default function ShowroomPage() {
   if (!pLoading && userProfile && !pode('consulta-estoque', 'showroom')) return <SemPermissao />
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 1400, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+    <div className="est-page" style={{ padding: '24px 32px', maxWidth: 1400, margin: '0 auto' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--portal-text, #1a1a1a)', margin: 0 }}>Showroom</h1>
           <p style={{ fontSize: 13, color: '#9CA3AF', margin: '4px 0 0' }}>

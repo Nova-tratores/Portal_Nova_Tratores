@@ -149,14 +149,14 @@ function NovaMultaModal({ motoristas, onClose, onCriada }: { motoristas: Motoris
   return (
     <div
       onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(6px, 2vw, 16px)' }}
     >
-      <div style={{ background: 'var(--portal-bg-card)', borderRadius: 14, width: '100%', maxWidth: 540, maxHeight: '90vh', overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div className="frota-modal-in" style={{ background: 'var(--portal-bg-card)', borderRadius: 14, width: '100%', maxWidth: 540, maxHeight: '90vh', overflow: 'auto', padding: 20, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <h3 style={{ margin: 0, fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <ShieldAlert size={16} color="#b91c1c" /> Nova multa (manual)
           </h3>
-          <button onClick={onClose} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)' }}>
+          <button onClick={onClose} aria-label="Fechar" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text-muted)', minWidth: 36, minHeight: 36 }}>
             <X size={18} />
           </button>
         </div>
@@ -165,7 +165,7 @@ function NovaMultaModal({ motoristas, onClose, onCriada }: { motoristas: Motoris
           carro na data é atribuído automaticamente, e o auto de infração pode ser anexado depois no card.
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <div className="frota-g1" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
           <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
             Veículo *
             <select value={form.veiculo_id} onChange={set('veiculo_id')} style={inputNM}>
@@ -376,7 +376,7 @@ export default function FrotaMultasPage() {
   }, [multas]);
 
   return (
-    <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+    <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <ShieldAlert size={20} color="#b91c1c" /> Multas
@@ -387,7 +387,7 @@ export default function FrotaMultasPage() {
         </span>
         <div style={{ flex: 1 }} />
         {/* Abas: em aberto / encerradas (pagas · descontadas · arquivadas) / todas */}
-        <div style={{ display: 'flex', gap: 4, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 10, padding: 3 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 10, padding: 3 }}>
           {([
             ['abertas', `Em aberto (${abertas.length})`],
             ['encerradas', `Encerradas (${encerradas.length})`],

@@ -28,7 +28,7 @@ export default function GvRelatoriosPage() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Relatórios</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Relatórios</h1>
         <p className="text-sm text-gray-500">Imprimíveis para diretoria — {formatCompetencia(mes, ano)}</p>
       </div>
       <div className="grid gap-3 md:grid-cols-3">

@@ -182,8 +182,8 @@ export default function AgendaPage() {
                 </div>
 
                 {/* Info */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                <div style={{ flex: "1 1 200px", minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8, marginBottom: 4 }}>
                     <strong style={{ fontSize: 14, color: "var(--portal-text)" }}>{item.cliente}</strong>
                     <span style={{ ...statusChipStyle, background: cor.bg, color: cor.fg }}>
                       {cor.emoji} {cor.label}
@@ -256,7 +256,7 @@ const listaStyle: React.CSSProperties = { display: "flex", flexDirection: "colum
 const itemStyle: React.CSSProperties = {
   background: "var(--portal-bg-card)", border: "1px solid var(--portal-border)",
   borderRadius: 10, padding: "14px 18px",
-  display: "flex", alignItems: "center", gap: 16,
+  display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap",
   boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
 };
 const statusChipStyle: React.CSSProperties = {

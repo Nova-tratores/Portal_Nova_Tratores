@@ -183,9 +183,11 @@ export default function MinhasGarantias({ tecnicoNome }: Props) {
                           <span style={{ fontSize: 13, fontWeight: 800, color: '#1E293B' }}>{g.numero}</span>
                           <span
                             style={{
-                              fontSize: 9,
+                              fontSize: 11,
                               fontWeight: 700,
                               textTransform: 'uppercase',
+                              flexShrink: 0,
+                              whiteSpace: 'nowrap',
                               color: STATUS_COR[g.status],
                               background: STATUS_COR[g.status] + '1c',
                               padding: '3px 7px',
@@ -195,7 +197,7 @@ export default function MinhasGarantias({ tecnicoNome }: Props) {
                             {STATUS_LABEL[g.status]}
                           </span>
                         </div>
-                        <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>
+                        <div style={{ fontSize: 12, color: '#475569', marginTop: 4, overflowWrap: 'anywhere' }}>
                           OS {g.id_ordem} · {g.cliente || 'Cliente'}
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
@@ -521,6 +523,7 @@ function NovaGarantia({
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
+    minWidth: 0,
     padding: '10px 12px',
     borderRadius: 10,
     border: '1px solid #E2E8F0',
@@ -636,8 +639,8 @@ function NovaGarantia({
                     >
                       {sel && <CheckCircle2 size={14} color="#fff" />}
                     </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1E293B' }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#1E293B', overflowWrap: 'anywhere' }}>
                         {p.cod_produto ? `${p.cod_produto} · ` : ''}
                         {p.descricao}
                       </div>

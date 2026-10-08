@@ -27,21 +27,21 @@ function KpiCard({ icon: Icon, label, value, sub, color }) {
       background: '#fff',
       border: '0.5px solid #e2e8f0',
       borderRadius: '20px',
-      padding: '28px 30px',
+      padding: 'clamp(16px, 3vw, 28px) clamp(16px, 3vw, 30px)',
       display: 'flex',
       flexDirection: 'column',
       gap: '10px',
       boxShadow: '0 4px 20px rgba(0,0,0,0.04)',
       minWidth: 0,
-      flex: 1,
+      flex: '1 1 160px',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
         <span style={{ fontSize: '10px', letterSpacing: '1.5px', color: '#9e9e9e', textTransform: 'uppercase' }}>{label}</span>
         <div style={{ background: color + '18', borderRadius: '10px', padding: '8px', display: 'flex' }}>
           <Icon size={18} color={color} />
         </div>
       </div>
-      <span style={{ fontSize: '30px', color: '#1a1a1a', letterSpacing: '-1px' }}>{value}</span>
+      <span style={{ fontSize: 'clamp(22px, 5vw, 30px)', color: '#1a1a1a', letterSpacing: '-1px', overflowWrap: 'anywhere' }}>{value}</span>
       {sub && <span style={{ fontSize: '12px', color: '#9e9e9e' }}>{sub}</span>}
     </div>
   )
@@ -229,7 +229,7 @@ export default function Dashboard() {
 
         {/* FUNIL DE STATUS */}
         <div className="no-print" style={{ maxWidth: '500px', marginBottom: '40px' }}>
-          <div style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #e2e8f0', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+          <div style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #e2e8f0', padding: 'clamp(16px, 3vw, 30px)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
             <p style={{ margin: '0 0 24px', fontSize: '11px', letterSpacing: '1.5px', color: '#9e9e9e' }}>FUNIL DE STATUS</p>
             {Object.entries(STATUS_LABELS).map(([key, label]) => (
               <StatusBar
@@ -245,8 +245,8 @@ export default function Dashboard() {
 
         {/* FILTROS E ZOOM */}
         <section className="no-print" style={{ marginBottom: '30px' }}>
-          <div style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #e2e8f0', padding: '24px 30px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+          <div style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #e2e8f0', padding: 'clamp(16px, 3vw, 24px) clamp(16px, 3vw, 30px)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
               <p style={{ margin: 0, fontSize: '11px', letterSpacing: '1.5px', color: '#9e9e9e' }}>FILTROS E VISUALIZACAO</p>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <button onClick={() => setZoom(z => Math.max(50, z - 10))} style={{ background: '#f5f5f5', border: 'none', borderRadius: '8px', padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><ZoomOut size={16} color="#666" /></button>
@@ -255,7 +255,7 @@ export default function Dashboard() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ flex: 2, minWidth: '200px' }}>
+              <div style={{ flex: '2 1 200px', minWidth: 0 }}>
                 <label style={{ fontSize: '10px', letterSpacing: '1px', color: '#9e9e9e', display: 'block', marginBottom: '6px' }}>PESQUISAR</label>
                 <div style={{ position: 'relative' }}>
                   <Search size={14} color="#bbb" style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)' }} />
@@ -267,7 +267,7 @@ export default function Dashboard() {
                   />
                 </div>
               </div>
-              <div style={{ minWidth: '160px' }}>
+              <div style={{ flex: '1 1 160px', minWidth: 0 }}>
                 <label style={{ fontSize: '10px', letterSpacing: '1px', color: '#9e9e9e', display: 'block', marginBottom: '6px' }}>STATUS</label>
                 <select value={filtroStatus} onChange={e => setFiltroStatus(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter', outline: 'none', background: '#fff', cursor: 'pointer' }}>
                   <option value="todos">Todos</option>
@@ -276,11 +276,11 @@ export default function Dashboard() {
                   ))}
                 </select>
               </div>
-              <div style={{ minWidth: '140px' }}>
+              <div style={{ flex: '1 1 140px', minWidth: 0 }}>
                 <label style={{ fontSize: '10px', letterSpacing: '1px', color: '#9e9e9e', display: 'block', marginBottom: '6px' }}>VENCIMENTO DE</label>
                 <input type="date" value={filtroDataInicio} onChange={e => setFiltroDataInicio(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter', outline: 'none', boxSizing: 'border-box' }} />
               </div>
-              <div style={{ minWidth: '140px' }}>
+              <div style={{ flex: '1 1 140px', minWidth: 0 }}>
                 <label style={{ fontSize: '10px', letterSpacing: '1px', color: '#9e9e9e', display: 'block', marginBottom: '6px' }}>VENCIMENTO ATE</label>
                 <input type="date" value={filtroDataFim} onChange={e => setFiltroDataFim(e.target.value)} style={{ width: '100%', padding: '10px 12px', border: '0.5px solid #e2e8f0', borderRadius: '10px', fontSize: '13px', fontFamily: 'Inter', outline: 'none', boxSizing: 'border-box' }} />
               </div>
@@ -298,8 +298,8 @@ export default function Dashboard() {
 
         {/* TABELA NA TELA */}
         <section className="no-print" style={{ marginBottom: '40px', transform: `scale(${zoom / 100})`, transformOrigin: 'top left', width: `${10000 / zoom}%` }}>
-          <div style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #e2e8f0', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+          <div style={{ background: '#fff', borderRadius: '20px', border: '0.5px solid #e2e8f0', padding: 'clamp(12px, 3vw, 30px)', boxShadow: '0 4px 20px rgba(0,0,0,0.04)', overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            <table style={{ width: '100%', minWidth: '680px', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
                   <th style={{ padding: '12px 14px', textAlign: 'left', fontSize: '10px', letterSpacing: '1.5px', color: '#9e9e9e' }}>PROCESSO / TAREFA</th>

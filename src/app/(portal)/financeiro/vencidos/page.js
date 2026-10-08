@@ -11,6 +11,7 @@ import {
   CheckCircle, Eye, FileText, ExternalLink
 } from 'lucide-react'
 import FinanceiroNav from '@/components/financeiro/FinanceiroNav'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 const rowStyle = { display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: 'var(--portal-text-secondary)' }
 const labelStyle = { fontSize: '11px', color: 'var(--portal-text-muted)', textTransform: 'uppercase', marginBottom: '4px', fontWeight: '600', letterSpacing: '0.5px' }
@@ -39,6 +40,7 @@ export default function VencidosPage() {
   const [filtro, setFiltro] = useState('')
   const [selecionado, setSelecionado] = useState(null)
   const [loading, setLoading] = useState(true)
+  const isMobile = useIsMobile()
 
   const notificarMovimento = (t, novoStatus, descExtra) => {
     const label = `NF #${t.id} - ${t.nom_cliente || ''}`
@@ -145,7 +147,7 @@ export default function VencidosPage() {
     <div style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--portal-bg-secondary)' }}>
       <FinanceiroNav />
 
-      <div style={{ padding: '28px 32px', maxWidth: '1100px', margin: '0 auto' }}>
+      <div style={{ padding: isMobile ? '16px 12px' : '28px 32px', maxWidth: '1100px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '20px', flexWrap: 'wrap', gap: '16px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -181,12 +183,13 @@ export default function VencidosPage() {
             display: 'flex', alignItems: 'center', gap: '8px',
             background: 'var(--portal-bg-card)', borderRadius: '10px', padding: '8px 14px',
             border: '1px solid var(--portal-border)',
+            width: isMobile ? '100%' : undefined, boxSizing: 'border-box', minWidth: 0,
           }}>
             <Search size={16} color="var(--portal-text-muted)" />
             <input
               type="text" placeholder="Buscar cliente, NF ou ID..."
               value={filtro} onChange={e => setFiltro(e.target.value)}
-              style={{ border: 'none', outline: 'none', background: 'none', fontSize: '13px', width: '200px', color: 'var(--portal-text)' }}
+              style={{ border: 'none', outline: 'none', background: 'none', fontSize: isMobile ? '16px' : '13px', width: isMobile ? '100%' : '200px', minWidth: 0, flex: isMobile ? 1 : undefined, color: 'var(--portal-text)' }}
             />
             {filtro && <X size={14} onClick={() => setFiltro('')} style={{ cursor: 'pointer', color: 'var(--portal-text-muted)' }} />}
           </div>
@@ -196,7 +199,7 @@ export default function VencidosPage() {
         {loading ? (
           <div style={{ textAlign: 'center', padding: '60px', color: 'var(--portal-text-muted)' }}>Carregando...</div>
         ) : cardsFiltrados.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '80px', color: 'var(--portal-text-muted)' }}>
+          <div style={{ textAlign: 'center', padding: isMobile ? '40px 16px' : '80px', color: 'var(--portal-text-muted)' }}>
             <CheckCircle size={48} color="var(--portal-text-faint)" style={{ marginBottom: '16px' }} />
             <p style={{ fontSize: '15px', fontWeight: '500' }}>
               {filtro ? 'Nenhum resultado encontrado' : 'Nenhum card vencido'}
@@ -208,15 +211,15 @@ export default function VencidosPage() {
               <div key={t.id} onClick={() => setSelecionado(t)} className="kanban-card" style={{
                 background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '12px',
                 borderLeft: '4px solid #ef4444', cursor: 'pointer', transition: 'all 0.15s',
-                display: 'grid', gridTemplateColumns: '1fr auto auto auto', alignItems: 'center',
-                padding: '16px 20px', gap: '16px',
+                display: 'grid', gridTemplateColumns: isMobile ? 'minmax(0, 1fr) auto' : '1fr auto auto auto', alignItems: 'center',
+                padding: isMobile ? '12px 14px' : '16px 20px', gap: isMobile ? '8px 12px' : '16px',
               }}>
                 {/* Cliente + ID */}
-                <div style={{ minWidth: 0 }}>
+                <div style={{ minWidth: 0, gridColumn: isMobile ? '1 / -1' : undefined }}>
                   <div style={{ fontSize: '14px', fontWeight: '600', color: 'var(--portal-text)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {t.nom_cliente?.toUpperCase()}
                   </div>
-                  <div style={{ display: 'flex', gap: '10px', marginTop: '3px', fontSize: '12px', color: 'var(--portal-text-muted)' }}>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: '3px', fontSize: '12px', color: 'var(--portal-text-muted)' }}>
                     <span>#{t.id}</span>
                     {t.num_nf_servico && <span>NFS {t.num_nf_servico}</span>}
                     {t.num_nf_peca && <span>NFP {t.num_nf_peca}</span>}
@@ -224,14 +227,14 @@ export default function VencidosPage() {
                 </div>
 
                 {/* Forma + Vencimento */}
-                <div style={{ textAlign: 'center', minWidth: '140px' }}>
-                  <div style={{ ...rowStyle, justifyContent: 'center' }}><CreditCard size={13} /> {t.forma_pagamento || 'N/A'}</div>
-                  <div style={{ ...rowStyle, justifyContent: 'center', color: '#ef4444', marginTop: '2px' }}><Calendar size={13} /> {formatarDataBR(t.vencimento_boleto)}</div>
+                <div style={{ textAlign: isMobile ? 'left' : 'center', minWidth: isMobile ? 0 : '140px' }}>
+                  <div style={{ ...rowStyle, justifyContent: isMobile ? 'flex-start' : 'center' }}><CreditCard size={13} /> {t.forma_pagamento || 'N/A'}</div>
+                  <div style={{ ...rowStyle, justifyContent: isMobile ? 'flex-start' : 'center', color: '#ef4444', marginTop: '2px' }}><Calendar size={13} /> {formatarDataBR(t.vencimento_boleto)}</div>
                 </div>
 
                 {/* Valor */}
-                <div style={{ textAlign: 'right', minWidth: '120px' }}>
-                  <div style={{ fontSize: '18px', fontWeight: '600', color: 'var(--portal-text)' }}>
+                <div style={{ textAlign: 'right', minWidth: isMobile ? 0 : '120px' }}>
+                  <div style={{ fontSize: isMobile ? '16px' : '18px', fontWeight: '600', color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>
                     {formatarMoeda(t.valor_servico || t.valor)}
                   </div>
                   {t.recombrancas_qtd > 0 && (
@@ -242,7 +245,7 @@ export default function VencidosPage() {
                 </div>
 
                 {/* Badge atraso */}
-                <div style={{ minWidth: '90px', textAlign: 'right' }}>
+                <div style={{ minWidth: isMobile ? 0 : '90px', textAlign: 'right', gridColumn: isMobile ? '1 / -1' : undefined }}>
                   <span style={{
                     background: t.diasAtraso > 30 ? '#dc2626' : t.diasAtraso > 7 ? '#ef4444' : 'rgba(239,68,68,0.1)',
                     color: t.diasAtraso > 7 ? '#fff' : '#ef4444',
@@ -260,15 +263,15 @@ export default function VencidosPage() {
 
       {/* Modal detalhes */}
       {selecionado && (
-        <div onClick={e => { if (e.target === e.currentTarget) setSelecionado(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}>
-          <div style={{ background: 'var(--portal-bg-card)', borderRadius: '20px', width: '100%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto', padding: '28px', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
+        <div onClick={e => { if (e.target === e.currentTarget) setSelecionado(null) }} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(8px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? '12px' : '16px' }}>
+          <div style={{ background: 'var(--portal-bg-card)', borderRadius: isMobile ? '16px' : '20px', width: '100%', maxWidth: '540px', maxHeight: '90vh', overflowY: 'auto', padding: isMobile ? '16px' : '28px', boxSizing: 'border-box', boxShadow: '0 20px 60px rgba(0,0,0,0.15)' }}>
             {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
-              <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', gap: '10px' }}>
+              <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                 <h2 style={{ margin: 0, fontSize: '17px', fontWeight: '600', color: 'var(--portal-text)' }}>
                   {selecionado.nom_cliente?.toUpperCase()}
                 </h2>
-                <div style={{ display: 'flex', gap: '10px', marginTop: '4px', fontSize: '12px', color: 'var(--portal-text-muted)' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: '4px', fontSize: '12px', color: 'var(--portal-text-muted)' }}>
                   <span>ID #{selecionado.id}</span>
                   {selecionado.cnpj_cliente && <span>· {selecionado.cnpj_cliente}</span>}
                 </div>
@@ -389,16 +392,16 @@ export default function VencidosPage() {
             )}
 
             {/* Ações */}
-            <div style={{ display: 'flex', gap: '10px', marginTop: '4px' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginTop: '4px' }}>
               <button onClick={() => handlePedirRecobranca(selecionado)} style={{
-                flex: 1, padding: '13px', borderRadius: '12px', border: 'none',
+                flex: '1 1 140px', padding: '13px', borderRadius: '12px', border: 'none',
                 background: '#f97316', color: '#fff',
                 fontSize: '13px', fontWeight: '600', cursor: 'pointer',
               }}>
                 Pedir Recobrança
               </button>
               <button onClick={() => handleMarcarPago(selecionado)} style={{
-                flex: 1, padding: '13px', borderRadius: '12px', border: 'none',
+                flex: '1 1 140px', padding: '13px', borderRadius: '12px', border: 'none',
                 background: '#22c55e', color: '#fff',
                 fontSize: '13px', fontWeight: '600', cursor: 'pointer',
               }}>

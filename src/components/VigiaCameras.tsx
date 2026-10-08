@@ -252,13 +252,13 @@ export default function VigiaCameras() {
           <div
             onClick={(e) => e.stopPropagation()}
             style={{
-              width: 'min(720px, 96vw)', maxHeight: '88vh', overflowY: 'auto',
+              width: '100%', maxWidth: 720, maxHeight: '88vh', overflowY: 'auto',
               background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)',
               borderRadius: 18, boxShadow: '0 24px 64px rgba(0,0,0,0.35)', padding: 18,
             }}
           >
             {/* Cabeçalho */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginBottom: 16 }}>
               <span style={{
                 width: 42, height: 42, borderRadius: 12, background: 'linear-gradient(135deg, #dc2626, #991b1b)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', flexShrink: 0,
@@ -296,7 +296,7 @@ export default function VigiaCameras() {
             {/* Duas colunas: esquerda = configurações · direita = como funciona + disparos */}
             <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
               {/* ── Coluna esquerda ── */}
-              <div style={{ flex: '1 1 320px', minWidth: 290, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ flex: '1 1 320px', minWidth: 'min(290px, 100%)', display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {/* MEU AVISO */}
                 <div style={cartao}>
                   <div style={tituloSecao}>
@@ -408,7 +408,7 @@ export default function VigiaCameras() {
               </div>
 
               {/* ── Coluna direita ── */}
-              <div style={{ flex: '1 1 300px', minWidth: 280, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              <div style={{ flex: '1 1 300px', minWidth: 'min(280px, 100%)', display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {/* QUANDO APITA */}
                 <div style={{ ...cartao, background: 'rgba(220,38,38,0.06)', borderColor: 'rgba(220,38,38,0.25)' }}>
                   <div style={tituloSecao}>

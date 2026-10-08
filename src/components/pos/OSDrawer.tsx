@@ -1104,7 +1104,35 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
 
   return (
     <>
-      <div className="drawer-overlay active fs">
+      <div className="drawer-overlay active fs pos-osd">
+        {/* Responsivo (tablet/celular): abas roláveis, cabeçalho empilha, trilho de ações vira barra embaixo até 900px */}
+        <style>{`
+          .pos-osd .os-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+          .pos-osd .os-tab { flex-shrink: 0; white-space: nowrap; }
+          @media (max-width: 1023px) {
+            .pos-osd .pos-osd-grid5 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
+            .pos-osd .pos-osd-checks { flex-wrap: wrap; height: auto !important; min-height: 34px; row-gap: 6px !important; }
+            .pos-osd .os-summary .os-omie-totais { flex: 1 1 100%; }
+          }
+          @media (max-width: 900px) {
+            .pos-osd .os-header { flex-wrap: wrap; gap: 8px; }
+            .pos-osd .os-header-left { flex-wrap: wrap; min-width: 0; }
+            .pos-osd .modal-container { flex-direction: column; }
+            .pos-osd .os-action-rail { width: 100%; align-self: auto; border-left: none; border-top: 1px solid var(--border); border-radius: 0; max-height: none; flex-direction: row; flex-wrap: wrap; gap: 8px; padding: 10px 12px; position: sticky; bottom: 0; box-shadow: 0 -6px 18px rgba(0,0,0,0.08); }
+            .pos-osd .os-rail-btn { width: auto; flex: 1 1 30%; justify-content: center; padding: 10px 12px; min-height: 40px; }
+            .pos-osd .os-action-rail > div { flex: 1 1 30%; }
+            .pos-osd .os-action-rail > div > .os-rail-btn { width: 100%; }
+            .pos-osd .os-rail-btn.primary { order: -1; flex: 1 1 100%; margin-bottom: 0; }
+            .pos-osd .os-rail-sep, .pos-osd .os-rail-hint { flex: 1 1 100%; }
+          }
+          @media (max-width: 640px) {
+            .pos-osd .pos-osd-grid2 { grid-template-columns: 1fr !important; gap: 10px !important; }
+            .pos-osd .os-summary { padding: 10px !important; }
+            .pos-osd .os-tab { padding: 10px 14px; font-size: 14px; }
+            .pos-osd .os-rail-btn, .pos-osd .os-action-rail > div { flex-basis: 45%; }
+            .pos-osd .os-rail-btn.primary { flex-basis: 100%; }
+          }
+        `}</style>
         <div className="modal-container">
           <div className="drawer os-drawer">
             {/* Header */}
@@ -1204,17 +1232,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                   {/* ── Cabeçalho estilo Omie (clone do PPVDrawer, dados da OS) ── */}
                   {mode === "edit" && clienteInfo && (
                     <div className="os-summary" style={{ order: -6, background: "#fff", borderRadius: 4, padding: "12px 14px" }}>
-                     <div style={{ display: "flex", gap: 16, alignItems: "stretch" }}>
-                     <div style={{ flex: 1, minWidth: 0 }}>
+                     <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "stretch" }}>
+                     <div style={{ flex: "1 1 520px", minWidth: 0 }}>
                       {/* Cliente + Previsão de Faturamento */}
-                      <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
+                      <div className="pos-osd-grid2" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
                         <div>
                           <label style={L_OMIE}>Cliente</label>
                           <div style={{ display: "flex", gap: 8 }}>
                             <div style={{ width: 40, height: 34, borderRadius: 3, background: "#F5A623", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
                               {(clienteInfo.nome || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase() || "?"}
                             </div>
-                            <input type="text" value={`${clienteInfo.nome}${clienteInfo.cpf ? "   ·   " + clienteInfo.cpf : ""}`} readOnly onClick={() => podeEditar && setMostrarTrocaCliente((o) => !o)} placeholder="Clique na lupa para trocar o cliente..." style={{ marginBottom: 0, flex: 1, cursor: "pointer", fontWeight: 500 }} />
+                            <input type="text" value={`${clienteInfo.nome}${clienteInfo.cpf ? "   ·   " + clienteInfo.cpf : ""}`} readOnly onClick={() => podeEditar && setMostrarTrocaCliente((o) => !o)} placeholder="Clique na lupa para trocar o cliente..." style={{ marginBottom: 0, flex: 1, minWidth: 0, cursor: "pointer", fontWeight: 500 }} />
                             <button type="button" onClick={() => podeEditar && setMostrarTrocaCliente((o) => !o)} title="Trocar cliente" style={{ flexShrink: 0, width: 40, borderRadius: 3, border: "1px solid var(--border)", background: "#fff", color: "#334155", cursor: "pointer" }}>
                               <i className="fas fa-search" />
                             </button>
@@ -1228,7 +1256,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       </div>
 
                       {/* Técnicos · Desconto (estilo PPV) · Alimentação · marcações discretas */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 0.9fr auto 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
+                      <div className="pos-osd-grid5" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 0.9fr auto 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
                         <div>
                           <label style={L_OMIE}>Técnico</label>
                           <select value={tecnico1} disabled={!podeEditar} onChange={(e) => setTecnico1(e.target.value)} style={{ marginBottom: 0 }}>
@@ -1275,7 +1303,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", borderRadius: 4, border: "1px solid #d6d0c4", background: "#fff", color: "#B45309", fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
                           <i className="fas fa-utensils" /> Alimentação{alimentacoes.length > 0 ? ` (${alimentacoes.length})` : ""}
                         </button>
-                        <div style={{ display: "flex", gap: 16, alignItems: "center", height: 34 }}>
+                        <div className="pos-osd-checks" style={{ display: "flex", gap: 16, alignItems: "center", height: 34 }}>
                           <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#64748b", fontWeight: 500, cursor: "pointer", textTransform: "none", letterSpacing: 0, margin: 0, whiteSpace: "nowrap" }}>
                             <input type="checkbox" checked={servicoOficina} onChange={(e) => setServicoOficina(e.target.checked)} disabled={!podeEditar} style={{ marginBottom: 0 }} />
                             Serviço na oficina
@@ -1906,7 +1934,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           <option value="Revisão">Revisão</option>
                         </select>
                       </div>
-                      <div style={{ width: 300 }}>
+                      <div style={{ width: 300, maxWidth: "100%" }}>
                         <label style={L_DISC}>Projeto / Equipamento</label>
                         <div style={{ display: "flex", gap: 6 }}>
                           <input type="text" value={projeto} readOnly onClick={() => podeEditar && setShowProjModal(true)} placeholder="Clique na lupa..." style={{ ...I_DISC, flex: 1, cursor: "pointer" }} />
@@ -1949,7 +1977,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       </div>
                     </div>
                     {tipoServico === "Revisão" && (
-                      <div style={{ width: 320, marginBottom: 12 }}>
+                      <div style={{ width: 320, maxWidth: "100%", marginBottom: 12 }}>
                         <label style={L_DISC}>Plano de Revisão</label>
                         <input type="text" value={revisao} readOnly onClick={() => podeEditar && setShowRevModal(true)} placeholder="Escolher plano..." style={{ ...I_DISC, cursor: "pointer" }} />
                       </div>

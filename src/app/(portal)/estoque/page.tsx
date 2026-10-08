@@ -93,18 +93,19 @@ export default function EstoqueBuscaPage() {
   const v = dados?.vendas;
 
   return (
-    <div style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1100, margin: '0 auto', padding: '20px 24px' }}>
       <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Consulta Estoque Omie</h1>
       <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 18 }}>Consulta produtos, estoque, vendas, compras e CMC</p>
 
-      <div style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+      <div className="est-touch" style={{ display: 'flex', gap: 10, marginBottom: 18, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <input
           type="text"
           value={codigo}
           onChange={(e) => setCodigo(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && buscar()}
           placeholder="Codigo do produto"
-          style={{ padding: '10px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 10, fontSize: 13, width: 320, outline: 'none' }}
+          style={{ padding: '10px 16px', border: '1px solid #e0e0e0', background: '#fff', color: '#333', borderRadius: 10, fontSize: 13, width: 320, maxWidth: '100%', minWidth: 0, outline: 'none' }}
+          className="est-grow"
         />
         <button
           onClick={() => buscar()}
@@ -167,7 +168,7 @@ export default function EstoqueBuscaPage() {
 
           {v && (
             <Card titulo="Vendas por Periodo">
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 8 }}>
+              <div className="est-cols2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,minmax(0,1fr))', gap: 8 }}>
                 <VendaCard label="Mes Atual" periodo={v.ma.p} qtd={v.ma.q} atual />
                 <VendaCard label="Mes Anterior" periodo={v.mant.p} qtd={v.mant.q} />
                 <VendaCard label="Mesmo Mes Ano Ant." periodo={v.maaa.p} qtd={v.maaa.q} />
@@ -175,7 +176,7 @@ export default function EstoqueBuscaPage() {
               </div>
               <div style={{ marginTop: 10 }}>
                 {dados.vendasLista.length > 0 ? (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
+                  <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
                     <thead>
                       <tr>
                         <th style={thStyle}>Data</th><th style={thStyle}>Pedido</th><th style={thStyle}>Cliente</th><th style={thStyle}>Qtd</th><th style={thStyle}>Valor Unit.</th><th style={thStyle}>Total</th>
@@ -193,7 +194,7 @@ export default function EstoqueBuscaPage() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table></div>
                 ) : (
                   <p style={{ color: '#bbb', padding: 12, fontSize: '.8rem', textAlign: 'center' }}>Nenhuma venda faturada encontrada nos ultimos 12 meses.</p>
                 )}
@@ -207,7 +208,7 @@ export default function EstoqueBuscaPage() {
 
           <Card titulo="Ultimas Compras (Notas de Entrada)">
             {dados.compras.length > 0 ? (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
+              <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '.8rem' }}>
                 <thead>
                   <tr>
                     <th style={thStyle}>Data</th><th style={thStyle}>NF</th><th style={thStyle}>Fornecedor</th><th style={thStyle}>Qtd</th><th style={thStyle}>Val.Unit.</th><th style={thStyle}>Total</th>
@@ -225,7 +226,7 @@ export default function EstoqueBuscaPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             ) : (
               <p style={{ color: '#bbb', padding: 12, fontSize: '.8rem', textAlign: 'center' }}>Nenhuma compra encontrada.</p>
             )}

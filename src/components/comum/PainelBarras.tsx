@@ -132,8 +132,8 @@ export function Painel({ tema, titulo, sub, itens, metrica, horizontal, corDe, a
 
   return (
     <div style={card}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-        <div><b style={{ fontSize: 14, color: tema.text }}>{titulo}</b>{sub && <span style={{ fontSize: 12, color: tema.textLight, marginLeft: 8 }}>{sub}</span>}{onBarra && <span style={{ fontSize: 11, color: tema.textLight, marginLeft: 8 }}>· clique na barra pra ver o que compõe</span>}</div>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+        <div style={{ minWidth: 0 }}><b style={{ fontSize: 14, color: tema.text }}>{titulo}</b>{sub && <span style={{ fontSize: 12, color: tema.textLight, marginLeft: 8 }}>{sub}</span>}{onBarra && <span style={{ fontSize: 11, color: tema.textLight, marginLeft: 8 }}>· clique na barra pra ver o que compõe</span>}</div>
         <div style={{ display: "inline-flex", gap: 4 }}>
           <button type="button" onClick={() => setModo("grafico")} style={botao(modo === "grafico")}>Gráfico</button>
           <button type="button" onClick={() => setModo("tabela")} style={botao(modo === "tabela")}>Tabela</button>
@@ -202,11 +202,11 @@ export function PopupComposicao({ tema, titulo, colunas, linhas, colValor = -1, 
     <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 9000, background: "rgba(15,23,42,0.55)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: "100%", maxWidth: 960, maxHeight: "85vh", display: "flex", flexDirection: "column", background: tema.surface, border: `1px solid ${tema.border}`, borderTop: `4px solid ${tema.accent}`, borderRadius: 8, boxShadow: "0 24px 60px rgba(0,0,0,0.3)", fontFamily: "inherit", color: tema.text }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, padding: "14px 18px 10px" }}>
-          <div>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>{titulo}</div>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, overflowWrap: "anywhere" }}>{titulo}</div>
             <div style={{ fontSize: 12.5, color: tema.textLight, marginTop: 2 }}>{linhas.length} registro{linhas.length !== 1 ? "s" : ""} · total <b style={{ color: tema.text }}>{fmtBRL(total)}</b>{onAbrir ? " · clique numa linha pra abrir" : ""}</div>
           </div>
-          <button type="button" onClick={onClose} aria-label="Fechar" style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 20, color: tema.textLight, lineHeight: 1 }}>×</button>
+          <button type="button" onClick={onClose} aria-label="Fechar" style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 20, color: tema.textLight, lineHeight: 1, minWidth: 36, minHeight: 36, flexShrink: 0 }}>×</button>
         </div>
         <div style={{ overflow: "auto", borderTop: `1px solid ${tema.border}` }}>
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>

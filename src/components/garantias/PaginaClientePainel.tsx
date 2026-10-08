@@ -158,7 +158,7 @@ export default function PaginaClientePainel() {
           </div>
 
           {/* Rankings */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(300px, 100%), 1fr))', gap: 12 }}>
             <Ranking titulo="Perguntas rápidas mais tocadas" itens={dados?.perguntasRapidas} />
             <Ranking titulo="Dúvidas comuns mais abertas" itens={dados?.faq} />
             <Ranking titulo="O que os clientes mais pesquisam" itens={dados?.buscas} />

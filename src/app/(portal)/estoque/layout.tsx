@@ -1,4 +1,5 @@
 import { ContaProvider } from '@/components/estoque/ContaProvider';
+import EstResponsiveStyles from '@/components/estoque/ResponsiveStyles';
 import EstoqueNav from './EstoqueNav';
 
 // Layout do módulo Estoque: provê o contexto de conta (NOVA/CASTRO/Todas) a
@@ -7,6 +8,7 @@ import EstoqueNav from './EstoqueNav';
 export default function EstoqueLayout({ children }: { children: React.ReactNode }) {
   return (
     <ContaProvider>
+      <EstResponsiveStyles />
       <EstoqueNav />
       {children}
     </ContaProvider>

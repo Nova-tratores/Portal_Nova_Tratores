@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import {
   LayoutDashboard, Columns3, BarChart3, History, Receipt, Users,
   PlusCircle, FileText, DollarSign, UserCog, AlertTriangle, Search
@@ -50,6 +51,7 @@ export default function FinanceiroNav({ children = null }) {
   const pathname = usePathname()
   const { userProfile } = useAuth()
   const [vencidosCount, setVencidosCount] = useState(0)
+  const isMobile = useIsMobile()
 
   const funcao = userProfile?.funcao
   const links = funcao === 'Financeiro' ? LINKS_FINANCEIRO
@@ -89,18 +91,22 @@ export default function FinanceiroNav({ children = null }) {
       position: 'sticky', top: '84px', zIndex: 30,
       background: 'linear-gradient(135deg, #D8F0B2, #A9D47D)',
       boxShadow: '0 1px 4px var(--portal-shadow)',
-      padding: '0 24px',
+      padding: isMobile ? '0 12px' : '0 24px',
     }}>
       <div style={{
         display: 'flex', alignItems: 'flex-end',
-        height: '56px', gap: '8px',
+        // Celular: as guias ocupam a linha toda (rolam por dentro) e os botões
+        // do slot sobem pra uma linha própria acima delas, quebrando se precisar.
+        height: isMobile ? 'auto' : '56px', minHeight: isMobile ? '48px' : undefined,
+        flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? '6px' : '8px',
       }}>
         {/* Nav — guias estilo Chrome, ancoradas na base da faixa verde.
             className fin-tabs-nav: exceção à regra ".portal-dark nav" que
             pintava um card escuro POR CIMA da faixa verde no modo escuro. */}
         <nav className="fin-tabs-nav" style={{
           display: 'flex', alignItems: 'flex-end', gap: '3px',
-          flex: 1, overflowX: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch',
+          flex: isMobile ? '1 1 100%' : 1, overflowX: 'auto', minWidth: 0, WebkitOverflowScrolling: 'touch',
+          paddingTop: isMobile ? '6px' : undefined,
         }}>
           {links.map(link => {
             const isActive = pathname === link.href
@@ -111,8 +117,8 @@ export default function FinanceiroNav({ children = null }) {
             return (
               <Link key={link.href} href={link.href} style={{
                 display: 'flex', alignItems: 'center', gap: '7px',
-                padding: '11px 20px', borderRadius: '11px 11px 0 0',
-                fontSize: '15px', fontWeight: isActive ? '600' : '500',
+                padding: isMobile ? '10px 12px' : '11px 20px', borderRadius: '11px 11px 0 0',
+                fontSize: isMobile ? '13px' : '15px', flexShrink: 0, fontWeight: isActive ? '600' : '500',
                 // Guias: fechadas com letra PRETA; a ATIVA é PRETA com fonte BRANCA (18/08)
                 color: isActive ? '#fefefe' : hasVencidos ? '#b91111' : '#111111',
                 background: isActive ? '#111111' : hasVencidos ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.45)',
@@ -142,7 +148,9 @@ export default function FinanceiroNav({ children = null }) {
 
         {/* Action buttons (slot) */}
         {children && (
-          <div style={{ display: 'flex', alignItems: 'center', alignSelf: 'center', gap: '8px', flexShrink: 0 }}>
+          <div style={isMobile
+            ? { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '6px', width: '100%', minWidth: 0, order: -1, paddingTop: '8px' }
+            : { display: 'flex', alignItems: 'center', alignSelf: 'center', gap: '8px', flexShrink: 0 }}>
             {children}
           </div>
         )}

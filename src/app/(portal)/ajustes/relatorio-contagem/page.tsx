@@ -126,7 +126,7 @@ export default function RelatorioContagemPage() {
   const linhas = dados?.linhas || [];
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Relatorio de contagem de estoque</h1>
@@ -137,7 +137,7 @@ export default function RelatorioContagemPage() {
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
           <div>
             <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Codigos (opcional, separados por virgula)</label>
-            <input type="text" value={codigos} onChange={(e) => setCodigos(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && carregar()} placeholder="todos os negativos da varredura" style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: 280 }} />
+            <input type="text" value={codigos} onChange={(e) => setCodigos(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && carregar()} placeholder="todos os negativos da varredura" style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem', width: 280, maxWidth: '100%' }} />
           </div>
           <button onClick={carregar} disabled={carregando || !conta} style={{ padding: '7px 14px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: carregando ? 'wait' : 'pointer', opacity: carregando || !conta ? 0.5 : 1 }}>Gerar</button>
           <button onClick={exportarCSV} disabled={!linhas.length} style={{ padding: '7px 14px', background: '#059669', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.82rem', cursor: linhas.length ? 'pointer' : 'not-allowed', opacity: linhas.length ? 1 : 0.5 }}>Exportar CSV</button>

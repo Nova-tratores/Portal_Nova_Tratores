@@ -57,6 +57,7 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import AjudaTela from '@/components/dre-financeiro/AjudaTela'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { useDreConta } from '@/lib/dre-financeiro/format'
 import {
   rotuloPeriodo, rotuloMetrica, rotuloFamilia, rotuloTop, rotuloVisualizacao, rotuloAgrupamento,
@@ -792,7 +793,7 @@ export default function VendasModelo({ variante = 'dre' }) {
 
       {/* ---- Cabecalho da tela + toolbar ------------------------------------ */}
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <div>
+        <div className="min-w-0">
           {/* Na variante comercial o titulo ja esta na faixa vermelha. */}
           {!comercial && <h1 className="text-2xl font-semibold text-slate-800">Vendas por Modelo</h1>}
           <p className="text-xs text-slate-500">Receita e quantidade mes a mes, modelo a modelo</p>
@@ -801,7 +802,7 @@ export default function VendasModelo({ variante = 'dre' }) {
           <button
             onClick={exportarPdf}
             disabled={!dados || pdfBusy || carregando}
-            className={'px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-xs rounded' + (!dados || pdfBusy || carregando ? ' opacity-60 cursor-not-allowed' : '')}
+            className={'px-3 py-1 max-md:min-h-9 bg-red-600 hover:bg-red-700 text-white text-xs rounded' + (!dados || pdfBusy || carregando ? ' opacity-60 cursor-not-allowed' : '')}
             title={carregando ? 'Aguarde os dados carregarem' : 'Baixa um PDF (A4 paisagem) com os KPIs, o gráfico e a tabela modelo × meses, com os filtros desta tela'}
           >
             {pdfBusy ? 'Gerando PDF…' : carregando ? 'Carregando…' : 'Baixar PDF'}
@@ -809,7 +810,7 @@ export default function VendasModelo({ variante = 'dre' }) {
           <button
             onClick={sincronizarModelos}
             disabled={backfillBusy}
-            className={'px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded' + (backfillBusy ? ' opacity-60 cursor-not-allowed' : '')}
+            className={'px-3 py-1 max-md:min-h-9 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded' + (backfillBusy ? ' opacity-60 cursor-not-allowed' : '')}
             title="Puxa o campo 'modelo' de todos os produtos via ListarProdutos paginado (~3-5min para ~5k itens). Roda em background; recarregue depois."
           >
             Sincronizar modelos do Omie
@@ -819,7 +820,7 @@ export default function VendasModelo({ variante = 'dre' }) {
           <select
             value={meses}
             onChange={(e) => setMeses(e.target.value)}
-            className="border border-slate-300 rounded px-2 py-1"
+            className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
           >
             <option value="3">3 meses</option>
             <option value="6">6 meses</option>
@@ -831,13 +832,13 @@ export default function VendasModelo({ variante = 'dre' }) {
             type="month"
             value={desde}
             onChange={(e) => setDesde(e.target.value)}
-            className={'border border-slate-300 rounded px-2 py-1' + (meses === '__desde__' ? '' : ' hidden')}
+            className={'border border-slate-300 rounded px-2 py-1 max-md:min-h-9' + (meses === '__desde__' ? '' : ' hidden')}
           />
           <label className="ml-2">Metrica:</label>
           <select
             value={metrica}
             onChange={(e) => { setMetrica(e.target.value); setGridPage(0) }}
-            className="border border-slate-300 rounded px-2 py-1"
+            className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
           >
             <option value="receita">Receita R$</option>
             <option value="qtd">Quantidade</option>
@@ -847,7 +848,7 @@ export default function VendasModelo({ variante = 'dre' }) {
       </div>
 
       {/* ---- KPIs ----------------------------------------------------------- */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 [&>div]:min-w-0 [&>div]:break-words">
         <div className="bg-white rounded-lg border border-slate-200 p-4">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Modelos distintos</div>
           <div className="text-2xl font-bold text-slate-800 mt-1">{tg ? fmtN(tg.modelos) : '--'}</div>
@@ -867,8 +868,8 @@ export default function VendasModelo({ variante = 'dre' }) {
       </div>
 
       {/* ---- Grafico (total da metrica por mes) ----------------------------- */}
-      <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4">
-        <div className="flex items-center justify-between mb-1">
+      <div className="bg-white border border-slate-200 rounded-lg p-3 mb-4 min-w-0">
+        <div className="flex items-center justify-between flex-wrap gap-x-2 mb-1">
           <div className="text-xs uppercase tracking-wide text-slate-500">Evolucao mensal</div>
           <div className="text-[10px] text-slate-400">
             {dados ? dados.meses.length + ' meses · ' + fmtN(dados.totaisGerais.modelos) + ' modelos no filtro' : ''}
@@ -885,7 +886,7 @@ export default function VendasModelo({ variante = 'dre' }) {
         <select
           value={familia}
           onChange={(e) => setFamilia(e.target.value)}
-          className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[180px]"
+          className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[180px] max-md:min-h-9 max-md:flex-1"
         >
           <option value="">Todas</option>
           <option value="__TODAS_MAQUINAS__">⚙ Todas as maquinas</option>
@@ -895,30 +896,30 @@ export default function VendasModelo({ variante = 'dre' }) {
             <option key={f} value={f}>{f}</option>
           ))}
         </select>
-        <label className="text-xs text-slate-500 ml-2">Modelo:</label>
+        <label className="text-xs text-slate-500 ml-0 sm:ml-2">Modelo:</label>
         <select
           value={modelo}
           onChange={(e) => setModelo(e.target.value)}
-          className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[200px] max-w-[280px]"
+          className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[200px] max-w-[280px] max-md:min-w-0 max-md:max-w-full max-md:min-h-9 max-md:flex-1"
         >
           <option value="">Todos ({modelosDoSelect.length})</option>
           {modelosDoSelect.map((m) => (
             <option key={m} value={m}>{m}</option>
           ))}
         </select>
-        <label className="text-xs text-slate-500 ml-2">Busca:</label>
+        <label className="text-xs text-slate-500 ml-0 sm:ml-2">Busca:</label>
         <input
           type="text"
           placeholder="texto livre..."
           value={busca}
           onChange={(e) => { setBusca(e.target.value); setGridPage(0) }}
-          className="border border-slate-300 rounded px-2 py-1 w-60"
+          className="border border-slate-300 rounded px-2 py-1 w-60 max-w-full max-md:min-h-9 max-md:flex-1 max-md:min-w-0"
         />
-        <label className="text-xs text-slate-500 ml-2">Top:</label>
+        <label className="text-xs text-slate-500 ml-0 sm:ml-2">Top:</label>
         <select
           value={top}
           onChange={(e) => { setTop(parseInt(e.target.value, 10)); setGridPage(0) }}
-          className="border border-slate-300 rounded px-2 py-1"
+          className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
         >
           <option value={20}>Top 20</option>
           <option value={50}>Top 50</option>
@@ -935,30 +936,30 @@ export default function VendasModelo({ variante = 'dre' }) {
         <div className="inline-flex rounded border border-slate-300 overflow-hidden text-xs">
           <button
             onClick={() => setViewMode('tabela')}
-            className={'px-3 py-1 ' + (viewMode === 'tabela' ? ATIVO : INATIVO)}
+            className={'px-3 py-1 max-md:min-h-9 ' + (viewMode === 'tabela' ? ATIVO : INATIVO)}
           >
             Tabela
           </button>
           <button
             onClick={() => setViewMode('grade')}
-            className={'px-3 py-1 border-l border-slate-300 ' + (viewMode === 'grade' ? ATIVO : INATIVO)}
+            className={'px-3 py-1 max-md:min-h-9 border-l border-slate-300 ' + (viewMode === 'grade' ? ATIVO : INATIVO)}
           >
             Grade anual
           </button>
         </div>
         <div
-          className="inline-flex rounded border border-slate-300 overflow-hidden text-xs ml-2"
+          className="inline-flex rounded border border-slate-300 overflow-hidden text-xs ml-0 sm:ml-2"
           title="Por modelo: variantes (6075E + 6075E CAB → 6075E). Por potência: agrupa por faixa de cv (25cv, 40/50cv...)"
         >
           <button
             onClick={() => { if (modoAgrupamento !== 'modelo') { setModoAgrupamento('modelo'); setGridPage(0) } }}
-            className={'px-3 py-1 ' + (modoAgrupamento === 'modelo' ? ATIVO : INATIVO)}
+            className={'px-3 py-1 max-md:min-h-9 ' + (modoAgrupamento === 'modelo' ? ATIVO : INATIVO)}
           >
             Por modelo
           </button>
           <button
             onClick={() => { if (modoAgrupamento !== 'potencia') { setModoAgrupamento('potencia'); setGridPage(0) } }}
-            className={'px-3 py-1 border-l border-slate-300 ' + (modoAgrupamento === 'potencia' ? ATIVO : INATIVO)}
+            className={'px-3 py-1 max-md:min-h-9 border-l border-slate-300 ' + (modoAgrupamento === 'potencia' ? ATIVO : INATIVO)}
           >
             Por potência
           </button>
@@ -969,11 +970,11 @@ export default function VendasModelo({ variante = 'dre' }) {
       {/* ---- Tabela pivotada ------------------------------------------------ */}
       {viewMode === 'tabela' && (
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-          <div ref={tabelaWrapRef} className="overflow-x-auto">
+          <div ref={tabelaWrapRef} className="overflow-x-auto [-webkit-overflow-scrolling:touch]">
             <table className="w-full text-xs">
               <thead className="bg-slate-50 text-slate-600 sticky top-0">
                 <tr>
-                  <th className="text-left px-2 py-2 sticky left-0 bg-slate-50 z-10 min-w-[140px] max-w-[180px]">Modelo</th>
+                  <th className="text-left px-2 py-2 sticky left-0 bg-slate-50 z-10 min-w-[110px] sm:min-w-[140px] max-w-[180px]">Modelo</th>
                   <th className="text-left px-2 py-2 min-w-[110px]">Familia</th>
                   {mesesDataset.map((m) => (
                     <th key={m} className="text-right px-2 py-2 whitespace-nowrap">{rotuloMes(m)}</th>
@@ -998,7 +999,7 @@ export default function VendasModelo({ variante = 'dre' }) {
                     return (
                       <tr key={m.modelo} className="border-b border-slate-100 hover:bg-blue-50">
                         <td
-                          className="px-2 py-1 sticky left-0 bg-white truncate max-w-[180px] text-[11px]"
+                          className="px-2 py-1 sticky left-0 z-[1] bg-white truncate max-w-[130px] sm:max-w-[180px] text-[11px]"
                           title={tituloCel}
                         >
                           {m.modelo}
@@ -1108,7 +1109,7 @@ export default function VendasModelo({ variante = 'dre' }) {
   return (
     <div style={{ fontFamily: 'Inter, sans-serif' }}>
       <FaixaComercial conta={conta} setConta={setConta} contas={contas} />
-      <div style={{ padding: '16px' }}>{corpo}</div>
+      <div className="p-[10px] md:p-4 min-w-0">{corpo}</div>
     </div>
   )
 }
@@ -1120,11 +1121,12 @@ export default function VendasModelo({ variante = 'dre' }) {
 // hex #fff/#e2e8f0/#1e293b/#64748b sao os que o modo escuro global remapeia).
 // ===========================================================================
 function FaixaComercial({ conta, setConta, contas }) {
+  const isMobile = useIsMobile()
   return (
     <div style={{
       background: '#fff', borderBottom: '1px solid #e2e8f0',
       position: 'sticky', top: 0, zIndex: 20,
-      padding: '12px 16px', display: 'flex', alignItems: 'center',
+      padding: isMobile ? '10px' : '12px 16px', display: 'flex', alignItems: 'center',
       justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1148,6 +1150,7 @@ function FaixaComercial({ conta, setConta, contas }) {
                   background: ativo ? VERMELHO : '#fff',
                   color: ativo ? '#fff' : VERMELHO_TXT,
                   transition: '0.15s',
+                  ...(isMobile ? { minHeight: '36px' } : {}),
                 }}
               >
                 {c.label}
@@ -1244,7 +1247,7 @@ function GradeAnual({ dados, metrica, modelosFiltrados, gridPage, setGridPage, a
   const anosRender = [].concat(anosOrdenados).reverse()
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg p-3">
+    <div className="bg-white border border-slate-200 rounded-lg p-3 min-w-0">
       <GradeStyles />
       <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
         <div className="text-xs text-slate-600 font-medium">{pageInfo}</div>
@@ -1252,14 +1255,14 @@ function GradeAnual({ dados, metrica, modelosFiltrados, gridPage, setGridPage, a
           <button
             onClick={() => { if (pageClamped > 0) setGridPage(pageClamped - 1) }}
             disabled={prevDisabled}
-            className="px-2 py-1 text-xs border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-2 py-1 max-md:min-h-9 text-xs border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             « Anteriores 7
           </button>
           <button
             onClick={() => setGridPage(pageClamped + 1)}
             disabled={nextDisabled}
-            className="px-2 py-1 text-xs border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-2 py-1 max-md:min-h-9 text-xs border border-slate-300 rounded bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Próximos 7 »
           </button>
@@ -1284,8 +1287,8 @@ function GradeAnual({ dados, metrica, modelosFiltrados, gridPage, setGridPage, a
         })}
       </div>
 
-      {/* Conteudo: um bloco por ano */}
-      <div>
+      {/* Conteudo: um bloco por ano (em tela estreita rola na horizontal aqui dentro) */}
+      <div className="dre-b-vm-grade">
         {anosRender.map((ano) => {
           const tint = tintIdx % 6
           tintIdx++
@@ -1455,27 +1458,27 @@ function VmModal({ ctx, dados, erro, carregando, showCmc, setShowCmc, onClose })
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4"
       style={{ background: 'rgba(15,23,42,0.6)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[88vh] flex flex-col">
+      <div className="bg-white rounded-lg shadow-2xl w-full max-w-5xl max-h-[90vh] md:max-h-[88vh] flex flex-col">
         {/* Header */}
-        <div className="px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
-          <div>
+        <div className="px-3 sm:px-4 py-3 border-b border-slate-200 flex justify-between items-center gap-3">
+          <div className="min-w-0 break-words">
             <div className="text-xs uppercase tracking-wide text-slate-500">{classif}</div>
             <h3 className="font-bold text-lg text-slate-800">{titulo}</h3>
           </div>
-          <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-700 leading-none">×</button>
+          <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-700 leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
         </div>
 
         {/* Resumo + toggle CMC */}
-        <div className="px-4 py-2 border-b border-slate-200 bg-slate-50 text-xs flex items-center justify-between gap-2">
+        <div className="px-3 sm:px-4 py-2 border-b border-slate-200 bg-slate-50 text-xs flex items-center justify-between gap-2 flex-wrap">
           <span className="text-slate-700">{resumoTxt}</span>
           <button
             type="button"
             onClick={() => setShowCmc((v) => !v)}
-            className="px-2 py-0.5 text-[10px] rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+            className="px-2 py-0.5 max-md:min-h-9 max-md:text-xs text-[10px] rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
             title="Mostra/oculta o CMC unitario (custo) de cada movimento"
           >
             {showCmc ? 'Ocultar CMC' : 'Mostrar CMC'}
@@ -1484,7 +1487,7 @@ function VmModal({ ctx, dados, erro, carregando, showCmc, setShowCmc, onClose })
 
         {/* Tabela de vendas */}
         <div className="overflow-auto flex-1">
-          <table className="w-full text-xs">
+          <table className="w-full text-xs max-md:min-w-[640px]">
             <thead className="bg-slate-50 text-slate-600 sticky top-0">
               <tr>
                 <th className="text-left px-3 py-2">Data</th>
@@ -1523,7 +1526,7 @@ function VmModal({ ctx, dados, erro, carregando, showCmc, setShowCmc, onClose })
         </div>
 
         {/* Footer */}
-        <div className="px-4 py-2 border-t border-slate-200 bg-slate-50 text-xs flex justify-between items-center">
+        <div className="px-3 sm:px-4 py-2 border-t border-slate-200 bg-slate-50 text-xs flex justify-between items-center flex-wrap gap-x-3 gap-y-1">
           <span className="text-slate-500">{infoTxt}</span>
           <span className="font-bold text-slate-800">{totalTxt}</span>
         </div>
@@ -1580,6 +1583,13 @@ function GradeStyles() {
       .vm-grid-trim-placeholder{background:rgba(244,244,246,0.45);opacity:0.55;border-color:rgba(15,23,42,0.12)}
       .vm-grid-trim-filler{grid-column:span 1;background:transparent;border:none}
       .vm-grid-trim .vm-grid-label{color:#1e293b}
+      /* Tablet/celular: a grade de 13 colunas nao cabe - rola dentro do card */
+      .dre-b-vm-grade{min-width:0}
+      @media (max-width: 1023px){
+        .dre-b-vm-grade{overflow-x:auto;-webkit-overflow-scrolling:touch}
+        .dre-b-vm-grade .vm-grid-ano-row{min-width:980px}
+        .dre-b-vm-grade .vm-grid-ano-label{position:sticky;left:0;display:inline-block}
+      }
     `}</style>
   )
 }

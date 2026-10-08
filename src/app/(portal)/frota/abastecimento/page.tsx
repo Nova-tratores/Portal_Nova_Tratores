@@ -49,7 +49,7 @@ const MESES_ABREV = ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'se
 
 const thStyle: React.CSSProperties = { background: '#fafafa', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', padding: '9px 10px', textAlign: 'left', borderBottom: '1px solid #eee', fontWeight: 600 };
 const tdStyle: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid #f5f5f5', color: '#444', fontSize: '.82rem' };
-const selStyle: React.CSSProperties = { padding: '8px 10px', border: '1px solid #ddd', borderRadius: 0, fontSize: '.82rem', background: '#fff', color: '#444' };
+const selStyle: React.CSSProperties = { padding: '8px 10px', border: '1px solid #ddd', borderRadius: 0, fontSize: '.82rem', background: '#fff', color: '#444', maxWidth: '100%' };
 const linhaClicavel: React.CSSProperties = { cursor: 'pointer' };
 
 function fmtL(v: number): string {
@@ -392,7 +392,7 @@ export default function AbastecimentoPage() {
   );
 
   return (
-    <div style={{ padding: 20, maxWidth: 1300, margin: '0 auto' }}>
+    <div style={{ padding: 'clamp(12px, 3vw, 20px)', maxWidth: 1300, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
         <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#333', marginBottom: 4 }}>Abastecimento da Frota</h1>
         <a href="/frota/abastecimento/flex" style={{ fontSize: '.78rem', color: '#dc2626', fontWeight: 600, textDecoration: 'none' }}>
@@ -457,7 +457,7 @@ export default function AbastecimentoPage() {
           {dados && (
             <>
               {/* KPIs */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(180px, 100%), 1fr))', gap: 12, marginBottom: 16 }}>
                 <KPI label="Gasto total" valor={fmtRS(dados.totais.valor)} sub="pago (com desconto)" onClick={() => abrirDetalhe('Todos os abastecimentos do período', {})} />
                 <KPI
                   label="Economizado (desconto)"
@@ -507,7 +507,7 @@ export default function AbastecimentoPage() {
               {/* ===================== VISÃO GERAL ===================== */}
               {aba === 'visao' && (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
                     <Card titulo="Gasto por mês (R$) — barra atual, linha = mesmo mês do ano passado">
                       <div style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -567,7 +567,7 @@ export default function AbastecimentoPage() {
                     </Card>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
                     <Card titulo="Preço médio do litro por combustível">
                       <div style={{ width: '100%', height: 280 }}>
                         <ResponsiveContainer width="100%" height="100%">
@@ -697,7 +697,7 @@ export default function AbastecimentoPage() {
                     </Card>
                   )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
                     <Card titulo="Top 10 veículos por gasto">
                       <RankingChart
                         dados={dados.porVeiculo.slice(0, 10).map((v) => ({ chave: v.chave, nome: v.detalhe ? `${v.chave} · ${v.detalhe}` : v.chave, valor: v.valor }))}
@@ -787,7 +787,7 @@ export default function AbastecimentoPage() {
               {/* ===================== MOTORISTAS & POSTOS ===================== */}
               {aba === 'pessoas' && (
                 <>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
                     <Card titulo="Gasto por motorista (top 15)">
                       <RankingChart
                         dados={dados.porMotorista.slice(0, 15).map((m) => ({ chave: m.chave, nome: nomeCurto(m.chave), valor: m.valor }))}
@@ -874,7 +874,7 @@ export default function AbastecimentoPage() {
                     </Card>
                   )}
 
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(360px, 1fr))', gap: 12 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
                     <Card titulo="Intervalo entre abastecimentos × litros (até 7 dias)">
                       <p style={{ color: '#888', fontSize: '.76rem', marginBottom: 8 }}>
                         Pontos no canto superior esquerdo (pouco tempo, muitos litros) merecem verificação.
@@ -962,11 +962,11 @@ export default function AbastecimentoPage() {
       {podeUpload && uploadAberto && (
         <div
           onClick={() => setUploadAberto(false)}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh 16px', overflow: 'auto' }}
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: '5vh clamp(8px, 2vw, 16px)', overflow: 'auto' }}
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            style={{ background: '#fff', borderRadius: 0, width: 'min(1020px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,.2)', position: 'relative', padding: 16 }}
+            style={{ background: '#fff', borderRadius: 0, width: 'min(1020px, 100%)', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 10px 40px rgba(0,0,0,.2)', position: 'relative', padding: 'clamp(10px, 2.5vw, 16px)' }}
           >
             <button
               onClick={() => setUploadAberto(false)}

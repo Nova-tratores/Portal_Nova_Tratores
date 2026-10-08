@@ -742,13 +742,23 @@ export default function MargensPage() {
 
   return (
     <>
+      {/* Responsivo (celular): graficos mais baixos e KPIs que nao estouram */}
+      <style>{`
+        .dre-a-kpis > div { min-width: 0; overflow-wrap: anywhere; }
+        @media (max-width: 768px) {
+          .dre-a-chart-280 { height: 220px !important; }
+          .dre-a-chart-340 { height: 260px !important; }
+          .dre-a-chart-300 { height: 230px !important; }
+          .dre-a-kpis .text-2xl { font-size: 18px !important; }
+        }
+      `}</style>
       {/* Cabecalho + toolbar */}
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1 className="text-2xl font-semibold text-slate-800">Margens de Vendas</h1>
           <p className="text-xs text-slate-500">Margem real por venda historica: Receita − (CMV + Capital empatado ate a venda)</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-600">
+        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
           <label>Periodo:</label>
           <select
             value={mesesSel}
@@ -787,7 +797,7 @@ export default function MargensPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
             <button
               onClick={() => setVisao('familia')}
-              className="group bg-white border-2 border-slate-200 rounded-2xl p-8 min-h-[340px] flex flex-col items-center justify-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all"
+              className="group bg-white border-2 border-slate-200 rounded-2xl p-6 sm:p-8 min-h-[200px] sm:min-h-[340px] flex flex-col items-center justify-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all"
             >
               <div className="text-5xl">🚜</div>
               <div className="text-2xl font-bold tracking-widest text-slate-800 group-hover:text-blue-700">FAMILIA</div>
@@ -798,7 +808,7 @@ export default function MargensPage() {
             </button>
             <button
               onClick={() => setVisao('data')}
-              className="group bg-white border-2 border-slate-200 rounded-2xl p-8 min-h-[340px] flex flex-col items-center justify-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all"
+              className="group bg-white border-2 border-slate-200 rounded-2xl p-6 sm:p-8 min-h-[200px] sm:min-h-[340px] flex flex-col items-center justify-center gap-4 hover:border-blue-500 hover:shadow-lg transition-all"
             >
               <div className="text-5xl">📅</div>
               <div className="text-2xl font-bold tracking-widest text-slate-800 group-hover:text-blue-700">DATA</div>
@@ -834,7 +844,7 @@ export default function MargensPage() {
                 <button
                   key={f.familia}
                   onClick={() => { setFamSel(f.familia); abrirPopupOrdemPadrao() }}
-                  className="bg-white border border-slate-200 rounded-lg p-4 text-left hover:border-blue-400 hover:shadow transition-all"
+                  className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 text-left hover:border-blue-400 hover:shadow transition-all min-w-0"
                 >
                   <div className="text-xs text-slate-500 truncate" title={f.familia}>
                     {ehPeca(f.familia) ? '🔩 ' : '⚙ '}{f.familia}
@@ -888,7 +898,7 @@ export default function MargensPage() {
                   <div className="text-xs uppercase tracking-wide text-slate-500">
                     Margens evoluindo ({margemModoEvo === 'rs' ? 'R$' : '%'})
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <div className="inline-flex rounded border border-slate-300 overflow-hidden" title="Margens em % da receita ou em valor (R$)">
                       <button onClick={() => setMargemModoEvo('pct')} className={'px-2 py-0.5 text-[10px] ' + (margemModoEvo === 'pct' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>%</button>
                       <button onClick={() => setMargemModoEvo('rs')} className={'px-2 py-0.5 text-[10px] border-l border-slate-300 ' + (margemModoEvo === 'rs' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>R$</button>
@@ -898,14 +908,14 @@ export default function MargensPage() {
                     </div>
                   </div>
                 </div>
-                <div style={{ height: '280px', position: 'relative' }}><canvas ref={refChartEvo} /></div>
+                <div className="dre-a-chart-280" style={{ height: '280px', position: 'relative' }}><canvas ref={refChartEvo} /></div>
               </div>
 
-              <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4">
+              <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 mb-4">
                 <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">
                   Margem % mensal por familia{incluirPecas ? '' : ' (so maquinas)'}
                 </div>
-                <div style={{ position: 'relative', height: '340px' }}><canvas ref={refChartData} /></div>
+                <div className="dre-a-chart-340" style={{ position: 'relative', height: '340px' }}><canvas ref={refChartData} /></div>
               </div>
               <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
                 <div className="px-3 py-2 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2">
@@ -923,11 +933,11 @@ export default function MargensPage() {
                     >Custo x Venda (R$)</button>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                   <table className="w-full text-xs">
                     <thead className="bg-slate-50 text-slate-600">
                       <tr>
-                        <th className="text-left px-3 py-2 whitespace-nowrap">Mes</th>
+                        <th className="text-left px-3 py-2 whitespace-nowrap sticky left-0 z-10 bg-slate-50" style={{ boxShadow: 'inset -1px 0 0 #e2e8f0' }}>Mes</th>
                         {dataView.famsArr.map((f) => (
                           <th key={f} className="text-right px-3 py-2 whitespace-nowrap max-w-[140px] truncate" title={f}>{f}</th>
                         ))}
@@ -936,7 +946,7 @@ export default function MargensPage() {
                     <tbody>
                       {dataView.mesesArr.map((m, i) => (
                         <tr key={m} className="border-b border-slate-100 hover:bg-slate-50">
-                          <td className="px-3 py-1.5 font-mono text-slate-700 whitespace-nowrap">{m}</td>
+                          <td className="px-3 py-1.5 font-mono text-slate-700 whitespace-nowrap sticky left-0 z-10 bg-white" style={{ boxShadow: 'inset -1px 0 0 #e2e8f0' }}>{m}</td>
                           {dataView.famsArr.map((f) => {
                             const c2 = dataView.celulas[f + '|' + m]
                             if (!c2) return <td key={f} className="px-3 py-1.5 text-right text-slate-300">-</td>
@@ -995,7 +1005,7 @@ export default function MargensPage() {
           >← Escolher visualizacao</button>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 dre-a-kpis">
         <div className="bg-white rounded-lg border border-slate-200 p-4">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Vendas</div>
           <div className="text-2xl font-bold text-slate-800 mt-1">{t ? String(t.qtd) : '--'}</div>
@@ -1060,6 +1070,7 @@ export default function MargensPage() {
           value={busca}
           onChange={(e) => { setBusca(e.target.value); resetPagina() }}
           className="border border-slate-300 rounded px-2 py-1 w-72"
+          style={{ maxWidth: '100%', boxSizing: 'border-box' }}
         />
         <label className="text-xs text-slate-500 ml-2">Margem:</label>
         <select
@@ -1078,7 +1089,7 @@ export default function MargensPage() {
 
       {/* Tabela */}
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
           <table className="w-full text-xs">
             <thead className="bg-slate-50 text-slate-600 select-none">
               <tr>
@@ -1130,7 +1141,7 @@ export default function MargensPage() {
             </tbody>
           </table>
         </div>
-        <div className="px-3 py-2 border-t border-slate-200 text-xs text-slate-600 flex items-center gap-3">
+        <div className="px-3 py-2 border-t border-slate-200 text-xs text-slate-600 flex items-center gap-3 flex-wrap">
           <button
             onClick={() => paginar(-1)}
             className={'px-2 py-0.5 border border-slate-300 rounded ' + (paginaAtual > 1 ? 'hover:bg-slate-100' : 'opacity-50 cursor-not-allowed')}
@@ -1145,8 +1156,8 @@ export default function MargensPage() {
 
       {/* Grafico de margem mensal (aparece quando ha filtro de familia) */}
       {familia && (
-        <div className="bg-white border border-slate-200 rounded-lg p-4 mt-4">
-          <div className="flex items-baseline justify-between mb-2">
+        <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 mt-4">
+          <div className="flex items-baseline justify-between mb-2 flex-wrap gap-1">
             <div>
               <div className="text-xs text-slate-500 uppercase tracking-wide">
                 Evolucao mensal — <span className="text-slate-800 font-semibold normal-case">{labelFamilia}</span>
@@ -1154,7 +1165,7 @@ export default function MargensPage() {
               <div className="text-[11px] text-slate-500">{arrMensal.length} meses · {lista.length} vendas no filtro</div>
             </div>
           </div>
-          <div style={{ position: 'relative', height: '300px' }}><canvas ref={refChart} /></div>
+          <div className="dre-a-chart-300" style={{ position: 'relative', height: '300px' }}><canvas ref={refChart} /></div>
         </div>
       )}
         </>
@@ -1167,8 +1178,8 @@ export default function MargensPage() {
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => { setMesSel(null); setMesSelFam(null) }} />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[96vw] max-w-[1500px] max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-              <div>
+            <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
+              <div style={{ minWidth: 0 }}>
                 <h2 className="font-semibold text-slate-800">
                   {mesSelFam
                     ? (ehPeca(mesSelFam) ? '🔩 ' : '⚙ ') + mesSelFam + ' — mês ' + mesSel
@@ -1187,10 +1198,10 @@ export default function MargensPage() {
                   <div className="text-xs text-slate-500 mt-0.5">Nenhuma venda no mês.</div>
                 )}
               </div>
-              <button onClick={() => { setMesSel(null); setMesSelFam(null) }} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+              <button onClick={() => { setMesSel(null); setMesSelFam(null) }} className="text-slate-500 hover:text-slate-900 text-2xl leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>&times;</button>
             </div>
             <div className="overflow-y-auto">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 text-slate-600 sticky top-0">
                     <tr>
@@ -1279,8 +1290,8 @@ export default function MargensPage() {
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={() => setFamSel(null)} />
           <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[96vw] max-w-[1500px] max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-              <div>
+            <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
+              <div style={{ minWidth: 0 }}>
                 <h2 className="font-semibold text-slate-800">{ehPeca(famSel) ? '🔩 ' : '⚙ '}{famSel}</h2>
                 <div className="text-xs text-slate-500 mt-0.5">
                   Margem líquida (real) <b className={corMargem(aggFamSel.margem_pct)}>{aggFamSel.margem_pct.toFixed(1)}%</b>
@@ -1291,10 +1302,10 @@ export default function MargensPage() {
                   {' · '}<span className={corMargem(aggFamSel.margem_pct)}>{fmtBRL(aggFamSel.lucro)} lucro</span>
                 </div>
               </div>
-              <button onClick={() => setFamSel(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+              <button onClick={() => setFamSel(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>&times;</button>
             </div>
             <div className="overflow-y-auto">
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 text-slate-600 sticky top-0">
                     <tr>
@@ -1362,13 +1373,13 @@ export default function MargensPage() {
           <>
             {/* z acima do popup de familia (z-40/z-50): o detalhe abre por cima dele */}
             <div className="fixed inset-0 bg-black/40 z-[60]" onClick={() => setDetalhe(null)} />
-            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
-              <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-                <h2 className="font-semibold text-slate-800">Venda · Pedido {it.pedido || '?'}</h2>
-                <button onClick={() => setDetalhe(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+            <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
+              <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
+                <h2 className="font-semibold text-slate-800" style={{ minWidth: 0 }}>Venda · Pedido {it.pedido || '?'}</h2>
+                <button onClick={() => setDetalhe(null)} className="text-slate-500 hover:text-slate-900 text-2xl leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>&times;</button>
               </div>
-              <div className="p-5 overflow-y-auto">
-                <div className="grid grid-cols-3 gap-3 mb-4">
+              <div className="p-3 sm:p-5 overflow-y-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                   <div className="bg-emerald-50 border border-emerald-200 rounded p-3">
                     <div className="text-[10px] uppercase text-emerald-800">Receita</div>
                     <div className="text-lg font-bold text-emerald-900 mt-0.5">{fmtBRL(it.receita)}</div>
@@ -1389,8 +1400,8 @@ export default function MargensPage() {
                   <div className="text-xs text-slate-500 mt-1">SKU: <span className="font-mono">{it.sku || '—'}</span> · Cod. Omie: <span className="font-mono">{it.codigo_produto}</span> · Familia: {it.familia}</div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 mb-3">
-                  <div className="border border-slate-200 rounded p-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <div className="border border-slate-200 rounded p-3" style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                     <div className="text-xs text-slate-500 uppercase tracking-wide mb-1">Comercial</div>
                     <div className="text-xs"><b>Pedido/NF:</b> {it.pedido || '-'}</div>
                     <div className="text-xs"><b>Data:</b> {it.data_pedido || '-'}</div>
@@ -1410,7 +1421,7 @@ export default function MargensPage() {
                   <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Decomposicao do custo</div>
                   <div className="flex justify-between py-1 text-sm"><span>Receita</span><span className="font-medium text-emerald-700">{fmtBRL(it.receita)}</span></div>
                   <div className="flex justify-between py-1 text-sm"><span>− CMV (cmc × qty)</span><span className="font-medium text-red-700">−{fmtBRL(it.cmv)}</span></div>
-                  <div className="flex justify-between py-1 text-sm"><span>− Capital empatado ({it.dias_estoque || 0}d × SELIC)</span><span className="font-medium text-amber-700">−{fmtBRL(it.custo_capital)}</span></div>
+                  <div className="flex justify-between gap-2 py-1 text-sm"><span>− Capital empatado ({it.dias_estoque || 0}d × SELIC)</span><span className="font-medium text-amber-700">−{fmtBRL(it.custo_capital)}</span></div>
                   <div className="flex justify-between py-1 text-base border-t border-slate-300 mt-1 pt-2"><span className="font-semibold">= Lucro real</span><span className={'font-bold ' + corMg}>{fmtBRL(it.margem_real)} ({it.margem_pct.toFixed(1)}%)</span></div>
                 </div>
 

@@ -109,8 +109,8 @@ export default function RevisoesMahindraPage() {
   const inp: React.CSSProperties = { padding: '8px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }
 
   return (
-    <div style={{ padding: '18px 22px', maxWidth: 1250, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+    <div style={{ padding: 'clamp(12px, 2vw, 18px) clamp(12px, 2.2vw, 22px)', maxWidth: 1250, margin: '0 auto', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6, flexWrap: 'wrap' }}>
         <Link href="/revisoes" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
           <ArrowLeft size={15} /> Revisões
         </Link>
@@ -158,7 +158,7 @@ export default function RevisoesMahindraPage() {
 
       {/* Tabela */}
       <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'auto' }}>
-        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+        <table style={{ width: '100%', minWidth: 980, borderCollapse: 'collapse', fontSize: 12.5 }}>
           <thead>
             <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
               <th style={{ padding: '8px 10px', width: 80 }}>Revisão</th>

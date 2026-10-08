@@ -102,10 +102,10 @@ function EnviosEmailInner() {
   const nomeDe = (chave: string) => painel?.itens.find((i) => i.def.chave === chave)?.def.nome || chave
 
   return (
-    <div style={{ padding: '24px 28px 60px', maxWidth: 1240, margin: '0 auto', color: 'var(--portal-text, #1e293b)', fontFamily: 'Inter, system-ui, sans-serif' }}>
+    <div style={{ padding: '24px clamp(12px, 3vw, 28px) 60px', maxWidth: 1240, margin: '0 auto', color: 'var(--portal-text, #1e293b)', fontFamily: 'Inter, system-ui, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', gap: 10 }}><MailCheck size={22} style={{ color: '#dc2626' }} /> Envios de e-mail <span style={{ fontSize: 11, fontWeight: 800, background: '#111111', color: '#fefefe', padding: '2px 8px', borderRadius: 999 }}>DEV</span></h1>
+          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}><MailCheck size={22} style={{ color: '#dc2626' }} /> Envios de e-mail <span style={{ fontSize: 11, fontWeight: 800, background: '#111111', color: '#fefefe', padding: '2px 8px', borderRadius: 999 }}>DEV</span></h1>
           <p style={{ margin: '4px 0 0', fontSize: 13.5, color: 'var(--portal-text-secondary, #64748b)' }}>Relatórios que o portal manda por e-mail. A configuração fica no banco (não no Railway): ligado/desligado, destinatários e parâmetros. O horário de cada um é o cron do GitHub Actions.</p>
         </div>
         <button type="button" onClick={carregar} style={btn('var(--portal-text, #1e293b)', 'var(--portal-bg-card, #fff)', 'var(--portal-border, #e5e7eb)')}><RefreshCw size={14} /> Atualizar</button>
@@ -119,7 +119,7 @@ function EnviosEmailInner() {
         </div>
       )}
       {painel && (
-        <div style={{ ...card, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', fontSize: 13.5 }}>
+        <div style={{ ...card, marginBottom: 14, display: 'flex', gap: 10, alignItems: 'center', fontSize: 13.5, overflowWrap: 'anywhere' }}>
           {painel.gmailConfigurado ? <CheckCircle2 size={18} style={{ color: '#047857' }} /> : <XCircle size={18} style={{ color: '#b91c1c' }} />}
           <span>Remetente (Gmail): {painel.gmailConfigurado ? <b>{painel.gmailUser}</b> : <b style={{ color: '#b91c1c' }}>não configurado no servidor (GMAIL_USER / GMAIL_APP_PASSWORD)</b>}</span>
         </div>
@@ -127,16 +127,16 @@ function EnviosEmailInner() {
 
       {!painel && !erro && <div style={{ color: 'var(--portal-text-secondary)', padding: 30, textAlign: 'center' }}>Carregando…</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(480px, 100%), 1fr))', gap: 14 }}>
         {painel?.itens.map((it) => {
           const f = forms[it.def.chave]; if (!f) return null
           const oc = ocupado[it.def.chave] || ''
           const av = aviso[it.def.chave]
           const ultimo = painel.log.find((l) => l.chave === it.def.chave)
           return (
-            <div key={it.def.chave} style={{ ...card, borderLeft: `5px solid ${f.ativo ? '#047857' : '#9ca3af'}`, display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' }}>
-                <div>
+            <div key={it.def.chave} style={{ ...card, borderLeft: `5px solid ${f.ativo ? '#047857' : '#9ca3af'}`, display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, alignItems: 'flex-start' }}>
+                <div style={{ minWidth: 0, overflowWrap: 'anywhere' }}>
                   <div style={{ fontSize: 16, fontWeight: 800 }}>{it.def.nome}</div>
                   <div style={{ fontSize: 13, color: 'var(--portal-text-secondary, #64748b)', marginTop: 3 }}>{it.def.descricao}</div>
                   <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #94a3b8)', marginTop: 5, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -153,7 +153,7 @@ function EnviosEmailInner() {
                 <label style={lbl}>Para (separe por vírgula)</label>
                 <input style={input} value={f.to} onChange={(e) => setForm(it.def.chave, { to: e.target.value })} placeholder="email@empresa.com, outro@empresa.com" />
               </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: 10 }}>
                 <div><label style={lbl}>Cc</label><input style={input} value={f.cc} onChange={(e) => setForm(it.def.chave, { cc: e.target.value })} placeholder="opcional" /></div>
                 <div><label style={lbl}>Cco (bcc)</label><input style={input} value={f.bcc} onChange={(e) => setForm(it.def.chave, { bcc: e.target.value })} placeholder="opcional" /></div>
               </div>
@@ -173,7 +173,7 @@ function EnviosEmailInner() {
                 <button type="button" disabled={!!oc || painel.migrationFaltando} onClick={() => salvar(it)} style={{ ...btn('#fefefe', '#dc2626'), opacity: oc || painel.migrationFaltando ? 0.6 : 1 }}><Save size={14} /> {oc === 'salvando' ? 'Salvando…' : 'Salvar'}</button>
                 <button type="button" disabled={!!oc} onClick={() => disparar(it, false)} title="Envia agora pros destinatários SALVOS (ignora o ligado/desligado)" style={{ ...btn('#fefefe', '#111111'), opacity: oc ? 0.6 : 1 }}><Send size={14} /> {oc === 'enviando' ? 'Enviando…' : 'Enviar agora'}</button>
                 <div style={{ flex: 1 }} />
-                <input style={{ ...input, width: 230 }} value={f.teste} onChange={(e) => setForm(it.def.chave, { teste: e.target.value })} placeholder="e-mail de teste" />
+                <input style={{ ...input, width: 230, maxWidth: '100%', flex: '1 1 180px' }} value={f.teste} onChange={(e) => setForm(it.def.chave, { teste: e.target.value })} placeholder="e-mail de teste" />
                 <button type="button" disabled={!!oc} onClick={() => disparar(it, true)} title="Manda só pro e-mail de teste (não usa os destinatários configurados)" style={{ ...btn('var(--portal-text, #1e293b)', 'var(--portal-bg-card, #fff)', 'var(--portal-border, #e5e7eb)'), opacity: oc ? 0.6 : 1 }}><FlaskConical size={14} /> {oc === 'teste' ? 'Enviando…' : 'Enviar teste'}</button>
               </div>
 

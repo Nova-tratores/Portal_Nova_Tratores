@@ -157,7 +157,7 @@ export default function CatalogoCaracteristicasPage() {
   const todosMarcados = visiveis.length > 0 && visiveis.every((i) => selecionados.has(i.codigo_produto));
 
   return (
-    <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Sistema / Sub-sistema (do catálogo)</h1>
         <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 940 }}>
@@ -197,7 +197,7 @@ export default function CatalogoCaracteristicasPage() {
 
       {mostrarSistemas && (
         <div style={{ marginBottom: 12, border: '1px solid #e2e8f0', borderRadius: 8, background: '#fff', padding: '10px 12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, marginBottom: 8 }}>
             <b style={{ fontSize: '.8rem', color: '#1e293b' }}>Sistemas existentes ({sistemas.length})</b>
             <span style={{ fontSize: '.7rem', color: '#94a3b8' }}>nº = produtos NOVA (com match) que tocam o sistema</span>
             <button onClick={() => { navigator.clipboard?.writeText(sistemas.map((s) => s.nome).join('\n')); setMsg('Lista de sistemas copiada.', 'ok'); }}
@@ -234,7 +234,7 @@ export default function CatalogoCaracteristicasPage() {
           style={{ padding: '7px 10px', background: '#fff', color: '#64748b', border: '1px solid #cbd5e1', borderRadius: 6, fontSize: '.82rem', cursor: 'pointer', opacity: (aplicando || carregando) ? 0.5 : 1 }}>↻ Atualizar</button>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.75rem' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.75rem' }}>
         <span style={{ color: statusColor }}>{status}</span>
         {progresso && <span style={{ marginLeft: 'auto', color: '#b45309' }}>{progresso}</span>}
       </div>

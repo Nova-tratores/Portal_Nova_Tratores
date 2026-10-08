@@ -1,5 +1,6 @@
 'use client'
 import { createPortal } from 'react-dom'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { X, MapPin, User, Calendar, MessageSquare, Flag, Navigation, Camera, ArrowRight } from 'lucide-react'
 
 const tipoCores: Record<string, { bg: string; text: string; label: string }> = {
@@ -10,6 +11,7 @@ const tipoCores: Record<string, { bg: string; text: string; label: string }> = {
 }
 
 export default function ModalVisita({ visita, onClose }: { visita: any; onClose: () => void }) {
+  const isMobile = useIsMobile()
   if (!visita || typeof document === 'undefined') return null
 
   const tc = tipoCores[visita.tipo] || { bg: '#F1F5F9', text: '#475569', label: visita.tipo }
@@ -18,17 +20,17 @@ export default function ModalVisita({ visita, onClose }: { visita: any; onClose:
 
   return createPortal(
     <div onClick={e => { if (e.target === e.currentTarget) onClose() }}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 60000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(6px)', zIndex: 60000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: isMobile ? 12 : 20 }}>
       <div style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 640, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 25px 60px rgba(0,0,0,0.2)' }}>
 
         {/* Header */}
-        <div style={{ padding: '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: 14, background: '#FAFBFC', borderRadius: '20px 20px 0 0' }}>
+        <div style={{ padding: isMobile ? '14px 14px' : '20px 24px', borderBottom: '1px solid #E2E8F0', display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 14, background: '#FAFBFC', borderRadius: '20px 20px 0 0' }}>
           <div style={{ width: 44, height: 44, borderRadius: 12, background: tc.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', color: tc.text }}>
             <MessageSquare size={20} />
           </div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: '#1E293B' }}>Detalhes da Visita</div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: isMobile ? 16 : 18, fontWeight: 700, color: '#1E293B' }}>Detalhes da Visita</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2, flexWrap: 'wrap' }}>
               <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 6, background: tc.bg, color: tc.text }}>{tc.label}</span>
               {visita.retroativa && <span style={{ fontSize: 10, fontWeight: 700, color: '#D97706', background: '#FEF3C7', padding: '2px 8px', borderRadius: 4 }}>Retroativa</span>}
               {visita.acionar_pos_vendas && <span style={{ fontSize: 10, fontWeight: 700, color: '#EA580C', background: '#FFF7ED', padding: '2px 8px', borderRadius: 4 }}>Pós Vendas</span>}
@@ -40,10 +42,10 @@ export default function ModalVisita({ visita, onClose }: { visita: any; onClose:
         </div>
 
         {/* Corpo */}
-        <div style={{ padding: '24px' }}>
+        <div style={{ padding: isMobile ? '16px 14px' : '24px' }}>
 
           {/* Info principal */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr', gap: isMobile ? 12 : 16, marginBottom: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
               <div style={{ width: 36, height: 36, borderRadius: 10, background: '#EFF6FF', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#2563EB', flexShrink: 0 }}>
                 <User size={18} />
@@ -66,13 +68,13 @@ export default function ModalVisita({ visita, onClose }: { visita: any; onClose:
 
           {/* Cliente e propriedade */}
           <div style={{ background: '#F8FAFC', borderRadius: 12, padding: '16px 18px', marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 16 }}>
-              <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+              <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                 <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, marginBottom: 2 }}>CLIENTE</div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#1E293B' }}>{visita.cliente_nome || '-'}</div>
               </div>
               {visita.propriedade_nome && (
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: '1 1 180px', minWidth: 0 }}>
                   <div style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600, marginBottom: 2 }}>PROPRIEDADE</div>
                   <div style={{ fontSize: 16, fontWeight: 700, color: '#1E293B' }}>{visita.propriedade_nome}</div>
                 </div>
@@ -114,12 +116,12 @@ export default function ModalVisita({ visita, onClose }: { visita: any; onClose:
 
           {/* GPS */}
           {(visita.latitude && visita.longitude) ? (
-            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0' }}>
+            <div style={{ marginBottom: 16, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '10px 14px', background: '#F0FDF4', borderRadius: 10, border: '1px solid #BBF7D0' }}>
               <Navigation size={16} color="#047857" />
               <span style={{ fontSize: 13, fontWeight: 600, color: '#047857' }}>GPS: {Number(visita.latitude).toFixed(6)}, {Number(visita.longitude).toFixed(6)}</span>
               {visita.gps_accuracy && <span style={{ fontSize: 11, color: '#94A3B8' }}>({Math.round(visita.gps_accuracy)}m precisão)</span>}
               <button onClick={() => window.open(`https://maps.google.com/?q=${visita.latitude},${visita.longitude}`, '_blank')}
-                style={{ marginLeft: 'auto', padding: '4px 10px', borderRadius: 6, border: 'none', background: '#047857', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
+                style={{ marginLeft: 'auto', padding: isMobile ? '8px 12px' : '4px 10px', borderRadius: 6, border: 'none', background: '#047857', color: '#fff', fontSize: 11, fontWeight: 600, cursor: 'pointer' }}>
                 Abrir Maps
               </button>
             </div>
@@ -162,7 +164,7 @@ export default function ModalVisita({ visita, onClose }: { visita: any; onClose:
           </div>
 
           {/* Metadados */}
-          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #F1F5F9', display: 'flex', gap: 16, fontSize: 11, color: '#CBD5E1' }}>
+          <div style={{ marginTop: 16, paddingTop: 12, borderTop: '1px solid #F1F5F9', display: 'flex', gap: 16, flexWrap: 'wrap', fontSize: 11, color: '#CBD5E1', wordBreak: 'break-all' }}>
             <span>ID: {visita.id}</span>
             <span>Criado: {fmtData(visita.created_at)}</span>
             <span>Sync: {visita.status_sync}</span>

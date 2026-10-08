@@ -63,9 +63,9 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
         <div style={{ position: "relative" }}>
           <i className="fas fa-search" style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "#94a3b8", fontSize: 15 }} />
           <input value={searchTerm} onChange={(e) => onSearchChange(e.target.value)} placeholder="Buscar OS, cliente, técnico…"
-            style={{ width: "100%", padding: "12px 14px 12px 40px", borderRadius: 12, border: "1.5px solid #e2e8f0", fontSize: 16, outline: "none", boxSizing: "border-box", background: "#f8fafc" }} />
+            style={{ width: "100%", padding: "12px 14px 12px 40px", borderRadius: 12, border: "1.5px solid #e2e8f0", fontSize: 16, outline: "none", boxSizing: "border-box", background: "#f8fafc", marginBottom: 0 }} />
           {searchTerm && (
-            <button onClick={() => onSearchChange("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 16 }}><i className="fas fa-times" /></button>
+            <button onClick={() => onSearchChange("")} style={{ position: "absolute", right: 4, width: 36, height: 36, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 16 }}><i className="fas fa-times" /></button>
           )}
         </div>
       </div>
@@ -74,7 +74,7 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
       <div style={{ padding: "10px 14px", background: "#fff", borderBottom: "1px solid #eef2f7", display: "flex", alignItems: "center", gap: 10 }}>
         <span style={{ width: 10, height: 10, borderRadius: "50%", background: fase === "TODAS" ? "#0f172a" : cor(fase), flexShrink: 0 }} />
         <select value={fase} onChange={(e) => setFase(e.target.value)}
-          style={{ flex: 1, padding: "11px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 15, background: "#f8fafc", color: "#0f172a", fontWeight: 600, outline: "none" }}>
+          style={{ flex: 1, padding: "11px 12px", borderRadius: 10, border: "1.5px solid #e2e8f0", fontSize: 15, background: "#f8fafc", color: "#0f172a", fontWeight: 600, outline: "none", minWidth: 0, marginBottom: 0 }}>
           <option value="TODAS">Todas as fases ({orders.length})</option>
           {fasesPresentes.map(([s, n]) => <option key={s} value={s}>{curto(s)} ({n})</option>)}
         </select>
@@ -117,7 +117,7 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
                     <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "7px 0", flexWrap: "wrap" }}>
                       <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: `${c}18`, color: c }}>{curto(o.status)}</span>
                       {atraso > 0 && <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "#fee2e2", color: "#dc2626" }}><i className="fas fa-clock" style={{ marginRight: 4 }} />{atraso}d atraso</span>}
-                      {o.servicoInterno && <span style={{ fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "#eef2ff", color: "#4338ca" }}>INTERNA</span>}
+                      {o.servicoInterno && <span style={{ fontSize: 12, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: "#eef2ff", color: "#4338ca" }}>INTERNA</span>}
                     </div>
                     <div style={{ display: "flex", alignItems: "center", gap: 12, fontSize: 12.5, color: "#64748b", flexWrap: "wrap" }}>
                       <span style={{ fontWeight: 700, color: "#dc2626" }}>{o.id}</span>

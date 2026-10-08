@@ -374,7 +374,7 @@ function RequisicoesPageInner() {
       <ModalTags open={showTagsModal} onClose={() => setShowTagsModal(false)} />
 
       {/* Toasts */}
-      <div className="fixed top-20 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none print:hidden">
+      <div className="fixed top-20 right-6 z-[9999] flex flex-col gap-3 max-w-[min(24rem,calc(100vw-3rem))] w-full pointer-events-none print:hidden">
         {toasts.map((t: any) => (
           <div
             key={t.id}
@@ -718,7 +718,7 @@ function RequisicoesPageInner() {
                         <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', fontWeight: 600 }}>({items.length})</span>
                       </div>
                       <div className="overflow-x-auto rounded-lg border border-zinc-200">
-                        <table className="w-full text-sm">
+                        <table className="w-full min-w-[720px] text-sm">
                           <thead>
                             <tr className="bg-zinc-50 text-left text-xs text-black uppercase tracking-wider">
                               <th className="px-3 py-2 font-semibold">#</th>
@@ -838,7 +838,7 @@ function RequisicoesPageInner() {
 
       {/* Form Modal */}
       {podeCriar && abaAtiva === 'form' && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-4 print:hidden">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-2 md:p-4 print:hidden">
           <div className="w-full max-w-5xl bg-white rounded-2xl border border-zinc-200 overflow-y-auto max-h-[90vh] shadow-xl">
             <FormReq onSave={async (nova: Record<string, unknown>) => {
               nova.criado_por = userName;

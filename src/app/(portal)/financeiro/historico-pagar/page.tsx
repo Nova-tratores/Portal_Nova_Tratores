@@ -185,7 +185,7 @@ export default function HistoricoPagar() {
         {/* controle: busca inteligente + período + chips */}
         <div style={{ display: 'flex', gap: 12, alignItems: 'flex-start', flexWrap: 'wrap', marginBottom: 16 }}>
           <BuscaInteligente valor={busca} onChange={setBusca} achados={filtradas.length} />
-          <div style={{ display: 'flex', gap: 4, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: 3 }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', maxWidth: '100%', gap: 4, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: 3 }}>
             {PRESETS.map((p) => (
               <button
                 key={p.id}
@@ -239,11 +239,11 @@ export default function HistoricoPagar() {
 
         {erro && (
           <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderRadius: 12, marginBottom: 16,
+            display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 10, padding: '14px 16px', borderRadius: 12, marginBottom: 16,
             background: 'rgba(220,38,38,.08)', border: '1px solid rgba(220,38,38,.3)', color: '#b91c1c', fontSize: 13,
           }}>
             <AlertTriangle size={18} />
-            <span style={{ flex: 1 }}>Não deu para carregar as despesas: {erro}</span>
+            <span style={{ flex: '1 1 200px', minWidth: 0 }}>Não deu para carregar as despesas: {erro}</span>
             <button onClick={() => carregar(true)} style={{ border: 'none', background: '#b91c1c', color: '#fff', padding: '7px 14px', borderRadius: 9, fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
               Tentar de novo
             </button>

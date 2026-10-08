@@ -372,12 +372,12 @@ export default function EditModal({ proposal, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/85 backdrop-blur-sm flex justify-center items-center z-[9999]">
       <div className="bg-white w-[95%] max-w-[1100px] h-[95vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden">
-        <div className="px-10 py-5 bg-white border-b border-zinc-200 flex justify-between items-center gap-4">
+        <div className="px-4 md:px-10 py-5 bg-white border-b border-zinc-200 flex flex-wrap justify-between items-center gap-4">
           <div className="flex items-center gap-4">
             <div className="w-1.5 h-7 bg-red-600 rounded" />
             <h2 className="text-xl font-medium text-zinc-900">Edição da proposta <span className="text-red-600">#{formData.id}</span></h2>
           </div>
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
             <button onClick={() => setShowHist(true)} className="flex items-center gap-2 px-4 py-2.5 bg-zinc-100 text-zinc-700 border border-zinc-200 rounded-lg text-sm font-medium cursor-pointer hover:bg-zinc-200 transition-colors">
               <History size={16} /> Histórico
             </button>
@@ -396,7 +396,7 @@ export default function EditModal({ proposal, onClose }) {
           </div>
         </div>
 
-        <div className="px-10 py-8 overflow-y-auto flex-1">
+        <div className="px-4 md:px-10 py-8 overflow-y-auto flex-1">
           <div className="flex flex-col gap-4">
             {/* TERMÔMETRO — % editável (padrão: probabilidade da fase). Mudanças entram no Histórico. */}
             {(() => {
@@ -416,17 +416,17 @@ export default function EditModal({ proposal, onClose }) {
 
             <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">I. DADOS DO CLIENTE</div>
             <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
-              <div className="flex border-b border-zinc-100">
+              <div className="flex flex-wrap border-b border-zinc-100">
                 <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>NOME</label><input value={formData.Cliente || ''} onChange={e => setFormData({ ...formData, Cliente: e.target.value })} className={inputStyle} /></div>
                 <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>CPF / CNPJ</label><input value={formData['Cpf/Cpnj'] || ''} onChange={e => setFormData({ ...formData, 'Cpf/Cpnj': e.target.value })} className={inputStyle} /></div>
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>I.E. / MUN.</label><input value={formData['inscricao_esta/mun'] || ''} onChange={e => setFormData({ ...formData, 'inscricao_esta/mun': e.target.value })} className={inputStyle} /></div>
               </div>
-              <div className="flex border-b border-zinc-100">
+              <div className="flex flex-wrap border-b border-zinc-100">
                 <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>CIDADE</label><input value={formData.Cidade || ''} onChange={e => setFormData({ ...formData, Cidade: e.target.value })} className={inputStyle} /></div>
                 <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>BAIRRO</label><input value={formData.Bairro || ''} onChange={e => setFormData({ ...formData, Bairro: e.target.value })} className={inputStyle} /></div>
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>CEP</label><input value={formData.cep || ''} onChange={e => setFormData({ ...formData, cep: e.target.value })} className={inputStyle} /></div>
               </div>
-              <div className="flex">
+              <div className="flex flex-wrap">
                 <div className="flex-[2] p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>ENDERECO COMPLETO</label><input value={formData.End_Entrega || ''} onChange={e => setFormData({ ...formData, End_Entrega: e.target.value })} className={inputStyle} /></div>
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>VENDEDOR</label>
                   <select value={formData.vendedor_id ?? ''} onChange={e => setFormData({ ...formData, vendedor_id: e.target.value })} className={`${inputStyle} cursor-pointer`}>
@@ -435,7 +435,7 @@ export default function EditModal({ proposal, onClose }) {
                   </select>
                 </div>
               </div>
-              <div className="flex border-t border-zinc-100">
+              <div className="flex flex-wrap border-t border-zinc-100">
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>TAG / GRUPO</label>
                   <select value={formData.tag_id ?? ''} onChange={e => setFormData({ ...formData, tag_id: e.target.value })} className={`${inputStyle} cursor-pointer`}>
                     <option value="">— sem tag —</option>
@@ -449,7 +449,7 @@ export default function EditModal({ proposal, onClose }) {
             {imagePreview && <div className="text-center"><img src={imagePreview} className="w-[100px] h-[80px] object-contain border-2 border-zinc-300 rounded-lg" alt="Preview" /></div>}
 
             <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
-              <div className="flex border-b border-zinc-100">
+              <div className="flex flex-wrap border-b border-zinc-100">
                 <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>MARCA</label><input value={formData.Marca || ''} onChange={e => setFormData({ ...formData, Marca: e.target.value })} className={inputStyle} /></div>
                 <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>MODELO</label><input value={formData.Modelo || ''} onChange={e => setFormData({ ...formData, Modelo: e.target.value })} className={inputStyle} /></div>
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>ANO</label><input value={formData.Ano || ''} onChange={e => setFormData({ ...formData, Ano: e.target.value })} className={inputStyle} /></div>
@@ -477,7 +477,7 @@ export default function EditModal({ proposal, onClose }) {
                     <div className="p-2.5 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>OLEO TRANS.</label><input value={formData.oleo_trasmissao_trator || ''} onChange={e => setFormData({ ...formData, oleo_trasmissao_trator: e.target.value })} className={inputStyle} /></div>
                     <div className="p-2.5 flex flex-col gap-0.5"><label className={labelStyle}>FINAME/NCM</label><input value={formData['Niname/NCM'] || ''} onChange={e => setFormData({ ...formData, 'Niname/NCM': e.target.value })} className={inputStyle} /></div>
                   </div>
-                  <div className="flex border-t border-zinc-100">
+                  <div className="flex flex-wrap border-t border-zinc-100">
                     <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>DIANTEIRA MIN/MAX</label><input value={formData.diant_min_max_trator || ''} onChange={e => setFormData({ ...formData, diant_min_max_trator: e.target.value })} className={inputStyle} /></div>
                     <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>TRASEIRA MIN/MAX</label><input value={formData.tras_min_max_trator || ''} onChange={e => setFormData({ ...formData, tras_min_max_trator: e.target.value })} className={inputStyle} /></div>
                   </div>
@@ -499,13 +499,13 @@ export default function EditModal({ proposal, onClose }) {
                     <div className="p-2.5 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>VAO LIVRE (M)</label><input value={formData.vao_livre_auto || ''} onChange={e => setFormData({ ...formData, vao_livre_auto: e.target.value })} className={inputStyle} /></div>
                     <div className="p-2.5 flex flex-col gap-0.5"><label className={labelStyle}>BITOLA (M)</label><input value={formData.bitola_auto || ''} onChange={e => setFormData({ ...formData, bitola_auto: e.target.value })} className={inputStyle} /></div>
                   </div>
-                  <div className="flex border-t border-zinc-100">
+                  <div className="flex flex-wrap border-t border-zinc-100">
                     <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>TECNOLOGIA</label><input value={formData.tecnologia_auto || ''} onChange={e => setFormData({ ...formData, tecnologia_auto: e.target.value })} className={inputStyle} /></div>
                     <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>TELEMETRIA</label><input value={formData.telemetria_auto || ''} onChange={e => setFormData({ ...formData, telemetria_auto: e.target.value })} className={inputStyle} /></div>
                   </div>
                 </>
               ) : (
-                <div className="flex">
+                <div className="flex flex-wrap">
                   <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>DESCRICAO TECNICA</label><textarea value={formData.Configuracao || formData.Descricao || ''} onChange={e => setFormData({ ...formData, Configuracao: e.target.value })} className="w-full border-none outline-none text-[15px] min-h-[80px] resize-none font-normal text-zinc-900" /></div>
                 </div>
               )}
@@ -513,11 +513,11 @@ export default function EditModal({ proposal, onClose }) {
 
             <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">III. FINANCEIRO</div>
             <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
-              <div className="flex border-b border-zinc-100">
+              <div className="flex flex-wrap border-b border-zinc-100">
                 <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>VALOR TOTAL</label><input value={formData.Valor_Total || ''} onChange={e => setFormData({ ...formData, Valor_Total: e.target.value })} className={`${inputStyle} !text-red-600`} /></div>
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>VALIDADE (DIAS)</label><input value={formData.validade || ''} onChange={e => setFormData({ ...formData, validade: e.target.value })} className={`${inputStyle} !text-amber-700`} /></div>
               </div>
-              <div className="flex">
+              <div className="flex flex-wrap">
                 <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>CONDICOES DE PAGAMENTO</label><input value={formData.Condicoes || ''} onChange={e => setFormData({ ...formData, Condicoes: e.target.value })} className={inputStyle} /></div>
               </div>
             </div>
@@ -561,7 +561,7 @@ export default function EditModal({ proposal, onClose }) {
               <>
                 <div className="text-[14px] font-medium text-red-600 uppercase tracking-wide">V. DESFECHO — MOTIVO DA PERDA</div>
                 <div className="border border-zinc-200 rounded-xl overflow-hidden bg-white">
-                  <div className="flex border-b border-zinc-100">
+                  <div className="flex flex-wrap border-b border-zinc-100">
                     <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>MOTIVO</label>
                       <select value={formData.motivo_perda_id ?? ''} onChange={e => setFormData({ ...formData, motivo_perda_id: e.target.value })} className={`${inputStyle} cursor-pointer`}>
                         <option value="">— selecione —</option>
@@ -571,7 +571,7 @@ export default function EditModal({ proposal, onClose }) {
                     <div className="flex-1 p-3 border-r border-zinc-100 flex flex-col gap-0.5"><label className={labelStyle}>CONCORRENTE</label><input value={formData.concorrente || ''} onChange={e => setFormData({ ...formData, concorrente: e.target.value })} className={inputStyle} /></div>
                     <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>VALOR DELES (R$)</label><input type="number" value={formData.concorrente_valor ?? ''} onChange={e => setFormData({ ...formData, concorrente_valor: e.target.value })} className={inputStyle} /></div>
                   </div>
-                  <div className="flex">
+                  <div className="flex flex-wrap">
                     <div className="flex-1 p-3 flex flex-col gap-0.5"><label className={labelStyle}>OBSERVAÇÕES</label><textarea value={formData.motivo_perda_obs || ''} onChange={e => setFormData({ ...formData, motivo_perda_obs: e.target.value })} className="w-full border-none outline-none text-[15px] min-h-[70px] resize-none font-normal text-zinc-900" placeholder="Mais informações sobre a perda..." /></div>
                   </div>
                 </div>
@@ -580,7 +580,7 @@ export default function EditModal({ proposal, onClose }) {
           </div>
         </div>
 
-        <div className="px-10 py-5 bg-white border-t border-zinc-200">
+        <div className="px-4 md:px-10 py-5 bg-white border-t border-zinc-200">
           <button onClick={handleUpdate} className="w-full py-4 bg-red-600 text-white border-none rounded-xl text-base font-medium cursor-pointer hover:bg-red-700 transition-colors">Salvar alterações</button>
         </div>
       </div>

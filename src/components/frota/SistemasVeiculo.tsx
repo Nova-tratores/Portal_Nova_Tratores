@@ -210,7 +210,7 @@ export default function SistemasVeiculo({ placa, veiculo, onAbrirHistorico }: {
               onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.transform = 'none'; }}>
               <Icone size={24} color={cg ? cg.forte : '#1e40af'} strokeWidth={1.6} />
-              <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2 }}>{s}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2, overflowWrap: 'anywhere', maxWidth: '100%' }}>{s}</span>
               {problema && (
                 <span style={{ position: 'absolute', top: 5, right: 5, minWidth: 17, height: 17, borderRadius: 999, background: cg!.forte, color: '#fff', fontSize: 10.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px', fontVariantNumeric: 'tabular-nums' }}>
                   {pend.length}
@@ -224,7 +224,7 @@ export default function SistemasVeiculo({ placa, veiculo, onAbrirHistorico }: {
             className="sist-blink"
             style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '12px 6px 10px', borderRadius: 0, cursor: 'pointer', background: '#fef2f2', border: `1.5px solid ${sistemaSel === '__sem__' ? '#1e40af' : '#fca5a5'}`, color: '#dc2626' }}>
             <AlertTriangle size={24} strokeWidth={1.6} />
-            <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2 }}>Sem classificação</span>
+            <span style={{ fontSize: 10.5, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase', textAlign: 'center', lineHeight: 1.2, overflowWrap: 'anywhere', maxWidth: '100%' }}>Sem classificação</span>
             <span style={{ position: 'absolute', top: 5, right: 5, minWidth: 17, height: 17, borderRadius: 999, background: '#dc2626', color: '#fff', fontSize: 10.5, fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 4px' }}>
               {semClassif.length}
             </span>

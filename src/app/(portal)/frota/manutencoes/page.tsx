@@ -104,7 +104,7 @@ export default function FrotaManutencoesPage() {
   const grupoModal = modalPlaca ? grupos.find((g) => g.placa === modalPlaca) : null;
 
   return (
-    <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+    <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 6, flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <Wrench size={20} color="#1e40af" /> Manutenções
@@ -113,12 +113,13 @@ export default function FrotaManutencoesPage() {
           {visiveis.length} veículos · {registros} registros · total {fmtRS(totalGeral)}
         </span>
         <div style={{ flex: 1 }} />
-        <div style={{ position: 'relative' }}>
+        <div className="frota-busca-box" style={{ position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Placa, descrição, fornecedor…"
+            className="frota-busca frota-touch"
             style={{ padding: '8px 12px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
           />
         </div>
@@ -137,8 +138,8 @@ export default function FrotaManutencoesPage() {
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
 
-      <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', gap: 0, padding: '10px 16px', background: 'var(--portal-bg-secondary)', fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+      <div style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 0, overflowX: 'auto' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', gap: 0, minWidth: 820, padding: '10px 16px', background: 'var(--portal-bg-secondary)', fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
           <span>Placa</span><span>Veículo</span><span style={{ textAlign: 'right' }}>Manutenções</span><span style={{ textAlign: 'right' }}>Última</span><span style={{ textAlign: 'center' }}>Origens</span><span style={{ textAlign: 'right' }}>Total</span>
         </div>
         {visiveis.map((g) => (
@@ -146,7 +147,7 @@ export default function FrotaManutencoesPage() {
             key={g.placa}
             onClick={() => setModalPlaca(g.placa)}
             title="Clique pra ver o histórico completo deste veículo"
-            style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', padding: '10px 16px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center', cursor: 'pointer', opacity: g.ativo ? 1 : 0.6 }}
+            style={{ display: 'grid', gridTemplateColumns: '110px 1fr 120px 110px 190px 120px', minWidth: 820, padding: '10px 16px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center', cursor: 'pointer', opacity: g.ativo ? 1 : 0.6 }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
           >
@@ -193,7 +194,7 @@ function BadgeStatus({ status }: { status: string | null }) {
 // Modal: o histórico completo do veículo clicado (a antiga tabela, agora só dele)
 function ModalManutencoes({ grupo, onClose }: { grupo: GrupoVeiculo; onClose: () => void }) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(6px, 2vw, 16px)' }}>
       <div
         onClick={(e) => e.stopPropagation()}
         style={{ width: '100%', maxWidth: 860, maxHeight: '85vh', display: 'flex', flexDirection: 'column', background: 'var(--portal-bg-card)', borderRadius: 0, overflow: 'hidden', boxShadow: '0 24px 60px rgba(0,0,0,0.35)' }}
@@ -212,20 +213,20 @@ function ModalManutencoes({ grupo, onClose }: { grupo: GrupoVeiculo; onClose: ()
           <button
             onClick={onClose}
             title="Fechar"
-            style={{ border: 'none', background: 'transparent', color: 'var(--portal-text)', fontSize: 16, cursor: 'pointer', padding: 4, borderRadius: 0 }}
+            style={{ border: 'none', background: 'transparent', color: 'var(--portal-text)', fontSize: 16, cursor: 'pointer', padding: 4, borderRadius: 0, minWidth: 36, minHeight: 36, flexShrink: 0 }}
           >
             ✕
           </button>
         </div>
 
         <div style={{ overflowY: 'auto', padding: '4px 0 8px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', gap: 0, padding: '8px 20px', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', gap: 0, minWidth: 640, padding: '8px 20px', fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
             <span>Data</span><span>Descrição</span><span>Fornecedor</span><span>Origem</span><span style={{ textAlign: 'right' }}>Valor</span>
           </div>
           {grupo.itens.map((m) => {
             const o = ORIGEM[m.origem] || ORIGEM.manual;
             return (
-              <div key={`${m.origem}-${m.id}`} style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', padding: '8px 20px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center' }}>
+              <div key={`${m.origem}-${m.id}`} style={{ display: 'grid', gridTemplateColumns: '92px 1fr 170px 105px 105px', minWidth: 640, padding: '8px 20px', borderTop: '1px solid var(--portal-border)', fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'center' }}>
                 <span style={{ fontVariantNumeric: 'tabular-nums' }}>{fmtData(m.data)}</span>
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: 8 }} title={m.descricao || ''}>
                   {m.origem === 'requisicao' ? (

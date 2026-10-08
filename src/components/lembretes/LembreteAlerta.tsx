@@ -84,18 +84,19 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
     <div style={{
       position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)',
       backdropFilter: 'blur(10px)', zIndex: 99999,
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
       animation: 'fadeIn 0.3s ease-out'
     }}>
       <div style={{
-        background: 'var(--portal-bg-card)', borderRadius: '28px', width: '420px',
+        background: 'var(--portal-bg-card)', borderRadius: '28px', width: '100%', maxWidth: '420px',
+        maxHeight: '90vh', overflowY: 'auto',
         padding: '0', boxShadow: '0 30px 80px rgba(0,0,0,0.2)',
-        overflow: 'hidden', animation: 'scaleIn 0.3s ease-out'
+        animation: 'scaleIn 0.3s ease-out'
       }}>
         {/* Top */}
         <div style={{
           background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
-          padding: '32px 32px 28px', color: '#fff', textAlign: 'center'
+          padding: 'clamp(22px, 6vw, 32px) clamp(18px, 6vw, 32px) clamp(20px, 5vw, 28px)', color: '#fff', textAlign: 'center'
         }}>
           <div style={{
             width: '56px', height: '56px', borderRadius: '16px',
@@ -113,8 +114,8 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
         </div>
 
         {/* Content */}
-        <div style={{ padding: '28px 32px' }}>
-          <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: '0 0 8px' }}>
+        <div style={{ padding: 'clamp(20px, 5vw, 28px) clamp(18px, 6vw, 32px)' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: '0 0 8px', overflowWrap: 'anywhere' }}>
             {alerta.titulo}
           </h3>
           {alerta.descricao && (
@@ -132,13 +133,13 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
               <span style={{ fontSize: '12px', fontWeight: '700', color: 'var(--portal-text-secondary)', letterSpacing: '0.5px', display: 'block', marginBottom: '10px' }}>
                 ADIAR PARA:
               </span>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                 <input
                   type="date"
                   value={novaData}
                   onChange={e => setNovaData(e.target.value)}
                   style={{
-                    flex: 1, padding: '10px 12px', borderRadius: '10px',
+                    flex: '1 1 150px', minWidth: 0, padding: '10px 12px', borderRadius: '10px',
                     border: '1px solid var(--portal-border)', fontSize: '13px', outline: 'none'
                   }}
                 />
@@ -147,7 +148,7 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
                   value={novaHora}
                   onChange={e => setNovaHora(e.target.value)}
                   style={{
-                    width: '120px', padding: '10px 12px', borderRadius: '10px',
+                    width: '120px', flex: '1 1 110px', minWidth: 0, padding: '10px 12px', borderRadius: '10px',
                     border: '1px solid var(--portal-border)', fontSize: '13px', outline: 'none'
                   }}
                 />
@@ -170,11 +171,11 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
           )}
 
           {/* Actions */}
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
             <button
               onClick={concluir}
               style={{
-                flex: 1, padding: '14px', borderRadius: '14px', border: 'none',
+                flex: '1 1 140px', padding: '14px', borderRadius: '14px', border: 'none',
                 background: '#22c55e', color: '#fff', fontSize: '14px',
                 fontWeight: '700', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
@@ -186,7 +187,7 @@ export default function LembreteAlerta({ userId }: { userId: string }) {
             <button
               onClick={() => setShowAdiar(!showAdiar)}
               style={{
-                flex: 1, padding: '14px', borderRadius: '14px',
+                flex: '1 1 140px', padding: '14px', borderRadius: '14px',
                 border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)',
                 color: 'var(--portal-text-secondary)', fontSize: '14px', fontWeight: '700',
                 cursor: 'pointer',

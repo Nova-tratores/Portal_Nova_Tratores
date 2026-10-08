@@ -191,13 +191,13 @@ export default function MapaCar() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
       {/* barra */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '10px 14px', borderBottom: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-card,#fefefe)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center', padding: '10px clamp(10px, 2.5vw, 14px)', borderBottom: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-card,#fefefe)' }}>
         <MapPin size={18} style={{ color: VERDE }} />
-        <select value={ibge} onChange={(e) => setIbge(e.target.value)} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-input,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 13, fontWeight: 700 }}>
+        <select value={ibge} onChange={(e) => setIbge(e.target.value)} style={{ maxWidth: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-input,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 13, fontWeight: 700 }}>
           {!municipios.length && <option value="">carregando municípios…</option>}
           {municipios.map((m) => <option key={m.ibge} value={String(m.ibge)}>{m.nome} ({m.imoveis.toLocaleString('pt-BR')})</option>)}
         </select>
-        <select value={confMin} onChange={(e) => setConfMin(e.target.value as any)} style={{ padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-input,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 12 }}>
+        <select value={confMin} onChange={(e) => setConfMin(e.target.value as any)} style={{ maxWidth: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg-input,#fefefe)', color: 'var(--portal-text,#111111)', fontSize: 12 }}>
           <option value="todas">Qualquer confiança</option><option value="media">Confiança média ou alta</option><option value="alta">Só confiança alta</option>
         </select>
         <label style={chip(soCredito)} onClick={() => setSoCredito((v) => !v)}><input type="checkbox" readOnly checked={soCredito} style={{ margin: 0 }} /> com crédito 36 m</label>
@@ -222,7 +222,7 @@ export default function MapaCar() {
         ))}
         {!!legenda.length && <span style={{ fontSize: 11, color: 'var(--portal-text-muted,#6b7280)', alignSelf: 'center' }}>· opacidade = confiança · borda azul = cliente vinculado · pino azul = visita presencial</span>}
       </div>
-      <div ref={mapRef} style={{ flex: 1, minHeight: 320, background: '#e5e7eb' }} />
+      <div ref={mapRef} style={{ flex: 1, minHeight: 'max(320px, 50vh)', background: '#e5e7eb' }} />
       {ficha && <FichaImovel codCar={ficha} onFechar={() => setFicha(null)} onMudou={carregar} />}
     </div>
   )

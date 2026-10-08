@@ -55,7 +55,7 @@ export default function Modal({
           <button
             onClick={onFechar}
             aria-label="Fechar"
-            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#111111', display: 'flex' }}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#111111', display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 36, minHeight: 36, margin: '-8px -8px -8px 0', flex: 'none' }}
           >
             <X size={20} />
           </button>

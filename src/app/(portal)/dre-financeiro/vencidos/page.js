@@ -481,48 +481,48 @@ export default function VencidosPage() {
         <span className="text-xs text-slate-500">Títulos em aberto (status ATRASADO no Omie)</span>
 
         {/* Toggle de TIPO (replicado da header global da fonte) */}
-        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm ml-2" role="group">
+        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm ml-0 sm:ml-2" role="group">
           <button type="button" onClick={() => setTipo('pagar')}
-            className={'px-3 py-1 transition ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>A Pagar</button>
+            className={'px-3 py-1 max-md:min-h-9 transition ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>A Pagar</button>
           <button type="button" onClick={() => setTipo('receber')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>A Receber</button>
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>A Receber</button>
           <button type="button" onClick={() => setTipo('ambos')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Ambos</button>
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Ambos</button>
         </div>
 
         {/* Sub-abas */}
-        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm ml-2">
+        <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm ml-0 sm:ml-2">
           <button type="button" onClick={() => { setTab('lista'); hideTip() }}
-            className={'px-3 py-1 transition ' + (tab === 'lista' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>Lista</button>
+            className={'px-3 py-1 max-md:min-h-9 transition ' + (tab === 'lista' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>Lista</button>
           <button type="button" onClick={() => { setTab('terceiro'); hideTip() }}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (tab === 'terceiro' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>Por terceiro</button>
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tab === 'terceiro' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>Por terceiro</button>
         </div>
 
         <button type="button" onClick={exportarPDF}
-          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition">
+          className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 max-md:min-h-9 rounded-md text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition">
           ⬇ Baixar PDF
         </button>
         <button type="button" onClick={exportarCSV}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 max-md:min-h-9 rounded-md text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">
           ⬇ Exportar CSV
         </button>
       </div>
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Total vencido</div>
-          <div className="text-3xl font-bold text-red-600 mt-1">{k ? fmtBRL(k.total) : '--'}</div>
+          <div className="text-2xl sm:text-3xl font-bold text-red-600 mt-1">{k ? fmtBRL(k.total) : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Títulos</div>
-          <div className="text-3xl font-bold text-slate-800 mt-1">{k ? k.count : '--'}</div>
+          <div className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{k ? k.count : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Maior atraso</div>
-          <div className="text-3xl font-bold text-slate-800 mt-1">{k ? ((k.maiorAtraso || 0) + ' dias') : '--'}</div>
+          <div className="text-2xl sm:text-3xl font-bold text-slate-800 mt-1">{k ? ((k.maiorAtraso || 0) + ' dias') : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">{tipo === 'ambos' ? 'A Pagar / A Receber' : 'Ticket médio'}</div>
           <div className="mt-1">
             {!k ? '--' : tipo === 'ambos' ? (
@@ -531,14 +531,14 @@ export default function VencidosPage() {
                 <div className="text-lg font-bold text-emerald-700">{fmtBRL(k.totalReceber)} <span className="text-xs font-normal text-slate-500">a receber</span></div>
               </>
             ) : (
-              <div className="text-3xl font-bold text-slate-800">{fmtBRL(ticketMedio)}</div>
+              <div className="text-2xl sm:text-3xl font-bold text-slate-800">{fmtBRL(ticketMedio)}</div>
             )}
           </div>
         </div>
       </div>
 
       {/* Faixas de atraso (clicaveis: filtram a lista) */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
         {dados && (() => {
           const extra = {
             faixa: 'ult180',
@@ -551,9 +551,9 @@ export default function VencidosPage() {
             const ring = ativo ? 'ring-2 ring-offset-1 ring-slate-700' : ''
             return (
               <button key={f.faixa} type="button" onClick={() => clicarFaixa(f.faixa)}
-                className={'text-left p-3 rounded-lg border ' + cls + ' ' + ring + ' hover:shadow transition'}>
+                className={'text-left p-3 rounded-lg border min-w-0 break-words ' + cls + ' ' + ring + ' hover:shadow transition'}>
                 <div className="text-xs font-semibold uppercase tracking-wide">{LABEL_FAIXA[f.faixa]}</div>
-                <div className="text-2xl font-bold mt-1">{fmtBRL(f.total)}</div>
+                <div className="text-xl sm:text-2xl font-bold mt-1">{fmtBRL(f.total)}</div>
                 <div className="text-xs opacity-80">{f.count} título{f.count !== 1 ? 's' : ''}</div>
               </button>
             )
@@ -583,8 +583,8 @@ export default function VencidosPage() {
               return (
                 <div key={g.chave} className="border-b border-slate-100">
                   <button type="button" onClick={() => setExpandidos((s) => ({ ...s, [g.chave]: !s[g.chave] }))}
-                    className="w-full text-left px-4 py-3 hover:bg-slate-50 transition flex items-center gap-3">
-                    <div className="text-slate-400 font-bold w-6 text-right">{i + 1}</div>
+                    className="w-full text-left px-3 sm:px-4 py-3 hover:bg-slate-50 transition flex items-center gap-2 sm:gap-3">
+                    <div className="text-slate-400 font-bold w-6 text-right shrink-0">{i + 1}</div>
                     <div className="flex-1 min-w-0">
                       <div className="font-semibold text-slate-900 truncate text-base">
                         <EmpresaBadge conta={g.conta} />{' '}
@@ -596,13 +596,13 @@ export default function VencidosPage() {
                       </div>
                     </div>
                     <div className="text-right whitespace-nowrap">
-                      <div className="text-lg font-bold text-red-700">{fmtBRL(g.total)}</div>
+                      <div className="text-base sm:text-lg font-bold text-red-700">{fmtBRL(g.total)}</div>
                       <div className="text-xs text-slate-500">{g.count} tít. · até {g.maxAtraso}d</div>
                     </div>
                     <div className="text-slate-400">{aberto ? '▾' : '▸'}</div>
                   </button>
                   {aberto && (
-                    <div className="bg-slate-50/60 px-4 pb-3">
+                    <div className="bg-slate-50/60 px-3 sm:px-4 pb-3 overflow-x-auto">
                       <table className="w-full text-sm">
                         <tbody>
                           {titulosDoTerceiro(g.chave).map((t) => (
@@ -629,7 +629,7 @@ export default function VencidosPage() {
         ) : (
           // ------------------------------- Lista --------------------------------
           <>
-            <div className="flex items-center justify-between px-4 py-2 bg-slate-50 border-b border-slate-200 text-sm">
+            <div className="flex items-center justify-between flex-wrap gap-x-3 gap-y-1 px-3 sm:px-4 py-2 bg-slate-50 border-b border-slate-200 text-sm">
               <div className="text-slate-600"><b>{lista.length}</b> título{lista.length !== 1 ? 's' : ''}
                 {faixaFiltro ? ' · faixa ' + LABEL_FAIXA[faixaFiltro] : ''}</div>
               <div className="text-slate-600">Total: <b className="text-red-700">{fmtBRLfull(totalFiltro)}</b></div>
@@ -695,14 +695,14 @@ export default function VencidosPage() {
 
       {/* Modal de detalhes do titulo */}
       {modalTitulo && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4"
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-3 sm:p-4"
           onClick={(e) => { if (e.target === e.currentTarget) fecharModal() }}>
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b border-slate-200 px-5 py-3 flex items-center justify-between">
+            <div className="sticky top-0 bg-white border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
               <h2 className="font-bold text-slate-800 text-lg">Detalhes do título</h2>
-              <button onClick={fecharModal} className="text-slate-400 hover:text-slate-900 text-2xl leading-none">&times;</button>
+              <button onClick={fecharModal} className="text-slate-400 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">&times;</button>
             </div>
-            <div className="p-5">
+            <div className="p-3 sm:p-5">
               <ModalBody t={modalTitulo} />
               {/* Produtos */}
               <div className="mt-4">
@@ -736,7 +736,7 @@ export default function VencidosPage() {
                           const autor = c.autor_nome || c.autor_email || 'Anonimo'
                           return (
                             <div key={c.id} className="bg-slate-50 rounded-lg p-3">
-                              <div className="flex items-center justify-between gap-2 mb-1">
+                              <div className="flex items-center justify-between gap-2 mb-1 flex-wrap">
                                 <span className="text-xs font-bold text-slate-700">{autor}</span>
                                 <span className="text-[11px] text-slate-400">
                                   {fmtDataHora(c.created_at)}
@@ -753,10 +753,10 @@ export default function VencidosPage() {
                       <textarea value={comentInput} onChange={(e) => setComentInput(e.target.value)}
                         rows={2} maxLength={2000} placeholder="Escreva um comentario..."
                         className="w-full border border-slate-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400" />
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
                         <span className="text-[11px] text-slate-400">Comentando como <b>{meuNome}</b> · <button onClick={trocarNome} className="underline hover:text-slate-600">trocar nome</button></span>
                         <button onClick={enviarComentario} disabled={enviandoComent}
-                          className="bg-slate-800 text-white text-sm font-semibold px-4 py-1.5 rounded-lg hover:bg-slate-700 disabled:opacity-60">
+                          className="bg-slate-800 text-white text-sm font-semibold px-4 py-1.5 max-md:min-h-9 rounded-lg hover:bg-slate-700 disabled:opacity-60">
                           {enviandoComent ? 'Enviando...' : 'Comentar'}
                         </button>
                       </div>
@@ -781,7 +781,7 @@ function ModalBody({ t }) {
     return (
       <div className="flex justify-between gap-4 py-1.5 border-b border-slate-100">
         <span className="text-slate-500">{label}</span>
-        <span className="font-semibold text-slate-800 text-right">{children}</span>
+        <span className="font-semibold text-slate-800 text-right min-w-0 break-words">{children}</span>
       </div>
     )
   }

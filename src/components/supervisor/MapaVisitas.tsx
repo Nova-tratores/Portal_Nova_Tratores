@@ -214,7 +214,7 @@ export default function MapaVisitas({ visitas, tipoCores, fmtData, onVisitaClick
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
       {veiculos.length > 0 && (
-        <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 1000, background: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ position: 'absolute', top: 10, right: 10, maxWidth: 'calc(100% - 70px)', zIndex: 1000, background: 'rgba(255,255,255,0.95)', borderRadius: 10, padding: '8px 12px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#22c55e' }} />
           {veiculos.length} vendedor{veiculos.length > 1 ? 'es' : ''} em campo
         </div>
@@ -225,7 +225,7 @@ export default function MapaVisitas({ visitas, tipoCores, fmtData, onVisitaClick
         </div>
       )}
       {rotaPlaca && (
-        <div style={{ position: 'absolute', bottom: 10, left: 10, zIndex: 1000, background: '#1E293B', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
+        <div style={{ position: 'absolute', bottom: 10, left: 10, maxWidth: 'calc(100% - 20px)', boxSizing: 'border-box', zIndex: 1000, background: '#1E293B', color: '#fff', borderRadius: 10, padding: '8px 14px', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}
           onClick={() => { rotaLayerRef.current?.clearLayers(); setRotaPlaca(null) }}>
           Rota: {rotaPlaca} — clique pra fechar
         </div>

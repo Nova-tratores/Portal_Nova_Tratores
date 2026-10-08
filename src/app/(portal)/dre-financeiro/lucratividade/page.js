@@ -427,7 +427,7 @@ export default function LucratividadePage() {
             <select
               value={familia}
               onChange={(e) => { setFamilia(e.target.value); setCpReq((n) => n + 1) }}
-              className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[170px]"
+              className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[170px] max-md:min-h-9"
             >
               <option value="">Todas</option>
               {cp && <option value="__TODAS_MAQUINAS__">⚙ Todas as maquinas</option>}
@@ -439,7 +439,7 @@ export default function LucratividadePage() {
             <select
               value={diasSel}
               onChange={(e) => { setDiasSel(e.target.value); setCpReq((n) => n + 1) }}
-              className="border border-slate-300 rounded px-2 py-1"
+              className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
             >
               <option value="90">90 dias</option>
               <option value="180">180 dias</option>
@@ -457,15 +457,15 @@ export default function LucratividadePage() {
             />
             <button
               onClick={() => setCpReq((n) => n + 1)}
-              className="ml-2 px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="ml-2 px-3 py-1 max-md:min-h-9 bg-blue-600 text-white rounded hover:bg-blue-700"
             >Aplicar</button>
           </div>
         </div>
 
         {/* Card destaque: CORROSAO SILENCIOSA */}
-        <div className="bg-gradient-to-r from-red-900 to-amber-800 rounded-lg p-5 mb-4 text-white">
+        <div className="bg-gradient-to-r from-red-900 to-amber-800 rounded-lg p-4 sm:p-5 mb-4 text-white">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
-            <div>
+            <div className="min-w-0">
               <div className="text-xs uppercase tracking-widest text-red-100">💸 Corrosao patrimonial silenciosa</div>
               <div className="text-3xl font-bold mt-1">{cp ? fmtBRL(cp.custo_capital_total || 0) : '--'}</div>
               <div className="text-xs text-red-100 mt-1">
@@ -488,24 +488,24 @@ export default function LucratividadePage() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Valor parado</div>
             <div className="text-2xl font-bold text-red-700 mt-1">{p ? fmtBRL(p.valor) : '--'}</div>
             <div className="text-xs text-slate-500">{cp ? 'sem giro ha ' + cp.parametros.dias_minimos + '+ dias' : '--'}</div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Custo de oportunidade</div>
             <div className="text-2xl font-bold text-amber-700 mt-1">{p ? fmtBRL(p.custo_oportunidade_mes) : '--'}</div>
             <div className="text-xs text-slate-500">
               {cp ? 'ano: ' + fmtBRL(p.custo_oportunidade_ano) + ' (' + cp.parametros.taxa_mensal_pct + '%/mes)' : 'por mes'}
             </div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Produtos parados</div>
             <div className="text-2xl font-bold text-slate-800 mt-1">{p ? String(p.qtd) : '--'}</div>
             <div className="text-xs text-slate-500">{cp ? 'de ' + cp.qtd_produtos + ' produtos' : 'de total'}</div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide">% do estoque total</div>
             <div className="text-2xl font-bold text-orange-700 mt-1">{p ? p.pct_do_total + '%' : '--'}</div>
             <div className="text-xs text-slate-500">parado</div>
@@ -513,13 +513,13 @@ export default function LucratividadePage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Distribuicao por dias sem giro</div>
             <div style={{ position: 'relative', height: '240px' }}><canvas ref={refBuckets} /></div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Top produtos parados (por valor)</div>
-            <div className="overflow-y-auto" style={{ maxHeight: '240px' }}>
+            <div className="overflow-auto" style={{ maxHeight: '240px' }}>
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 text-slate-600 sticky top-0">
                   <tr>
@@ -557,12 +557,12 @@ export default function LucratividadePage() {
       <section>
         <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <h2 className="text-lg font-semibold text-slate-800">Margem Bruta Operacional</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-600">
+          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
             <label>Periodo:</label>
             <select
               value={mesesMargem}
               onChange={(e) => setMesesMargem(e.target.value)}
-              className="border border-slate-300 rounded px-2 py-1"
+              className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
             >
               <option value="3">3 meses</option>
               <option value="6">6 meses</option>
@@ -581,7 +581,7 @@ export default function LucratividadePage() {
             <select
               value={granMargem}
               onChange={(e) => setGranMargem(e.target.value)}
-              className="border border-slate-300 rounded px-2 py-1"
+              className="border border-slate-300 rounded px-2 py-1 max-md:min-h-9"
             >
               <option value="mes">Mes</option>
               <option value="semestre">Semestre</option>
@@ -594,19 +594,19 @@ export default function LucratividadePage() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Receita total</div>
             <div className="text-2xl font-bold text-emerald-700 mt-1">{tot ? fmtBRL(tot.receita) : '--'}</div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide">CMV (custo)</div>
             <div className="text-2xl font-bold text-red-700 mt-1">{tot ? fmtBRL(tot.cmv) : '--'}</div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Lucro bruto</div>
             <div className="text-2xl font-bold text-blue-700 mt-1">{tot ? fmtBRL(tot.lucro) : '--'}</div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Margem %</div>
             <div className={tot ? 'text-2xl font-bold mt-1 ' + corMargem(tot.margem_pct) : 'text-2xl font-bold mt-1'}>
               {tot ? tot.margem_pct + '%' : '--'}
@@ -615,13 +615,13 @@ export default function LucratividadePage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="bg-white rounded-lg border border-slate-200 p-4 md:col-span-2">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 md:col-span-2 min-w-0">
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Margem mensal (receita vs CMV + linha %)</div>
             <div style={{ position: 'relative', height: '300px' }}><canvas ref={refMargem} /></div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Margem por familia</div>
-            <div className="overflow-y-auto" style={{ maxHeight: '300px' }}>
+            <div className="overflow-auto" style={{ maxHeight: '300px' }}>
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 text-slate-600 sticky top-0">
                   <tr>
@@ -666,12 +666,12 @@ export default function LucratividadePage() {
               <button
                 type="button"
                 onClick={() => setSimModo('futuro')}
-                className={simModo === 'futuro' ? 'px-3 py-1 transition bg-slate-800 text-white' : 'px-3 py-1 transition bg-white text-slate-700 hover:bg-slate-100'}
+                className={simModo === 'futuro' ? 'px-3 py-1 max-md:min-h-9 transition bg-slate-800 text-white' : 'px-3 py-1 max-md:min-h-9 transition bg-white text-slate-700 hover:bg-slate-100'}
               >Futuro (a partir de hoje)</button>
               <button
                 type="button"
                 onClick={() => setSimModo('retroativo')}
-                className={(simModo === 'retroativo' ? 'px-3 py-1 transition bg-slate-800 text-white' : 'px-3 py-1 transition bg-white text-slate-700 hover:bg-slate-100') + ' border-l border-slate-300'}
+                className={(simModo === 'retroativo' ? 'px-3 py-1 max-md:min-h-9 transition bg-slate-800 text-white' : 'px-3 py-1 max-md:min-h-9 transition bg-white text-slate-700 hover:bg-slate-100') + ' border-l border-slate-300'}
               >Retroativo (data passada)</button>
             </div>
             <span className="text-slate-500 italic ml-2">
@@ -733,7 +733,7 @@ export default function LucratividadePage() {
 
             {/* Resultado */}
             <div>
-              <div className="grid grid-cols-3 gap-2 mb-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3 [&>div]:min-w-0 [&>div]:break-words">
                 <div className="bg-emerald-50 border border-emerald-200 rounded p-3">
                   <div className="text-[10px] uppercase text-emerald-800 tracking-wide">Caixa recuperado</div>
                   <div className="text-lg font-bold text-emerald-900 mt-0.5">{sim ? fmtBRL(sim.caixaRecuperado) : '--'}</div>
@@ -749,7 +749,7 @@ export default function LucratividadePage() {
                   <div className="text-[10px] text-amber-700">{sim ? sim.evitadaSub : 'no horizonte'}</div>
                 </div>
               </div>
-              <div className="bg-gradient-to-r from-slate-900 to-blue-900 rounded p-4 text-white">
+              <div className="bg-gradient-to-r from-slate-900 to-blue-900 rounded p-4 text-white break-words">
                 <div className="text-xs uppercase tracking-widest text-slate-300">{sim ? sim.liquidoTitulo : 'Resultado liquido'}</div>
                 <div className={'text-3xl font-bold mt-1 ' + (sim ? (sim.liquido >= 0 ? 'text-emerald-300' : 'text-red-300') : '')}>
                   {sim ? (sim.liquido >= 0 ? '+' : '') + fmtBRL(sim.liquido) : '--'}

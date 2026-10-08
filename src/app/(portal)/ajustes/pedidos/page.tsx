@@ -248,7 +248,7 @@ export default function PedidosPage() {
   const corStatusEnc = (s?: string) => s === 'aplicado' ? { background: '#d1fae5', color: '#065f46' } : s === 'parcial' ? { background: '#fef3c7', color: '#92400e' } : s === 'erro' ? { background: '#fee2e2', color: '#991b1b' } : { background: '#f1f5f9', color: '#334155' };
 
   return (
-    <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Pedidos de venda abertos</h1>
@@ -372,7 +372,7 @@ export default function PedidosPage() {
                 </tbody>
               </table>
             ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
                     <th style={thStyle}>Pedido</th>
@@ -410,7 +410,7 @@ export default function PedidosPage() {
                     })
                   )}
                 </tbody>
-              </table>
+              </table></div>
             )}
           </div>
         </div>
@@ -418,7 +418,7 @@ export default function PedidosPage() {
 
       {/* Modal de encerramento */}
       {pedidoSel && (
-        <div onClick={fecharModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div className="est-overlay" onClick={fecharModal} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 760, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
             <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Encerrar pedido #{pedidoSel.numero || pedidoSel.idPedido} informalmente</h2>
@@ -432,7 +432,7 @@ export default function PedidosPage() {
                 A acao vai (1) <b>BAIXAR DO ESTOQUE</b> a quantidade total de cada item do pedido como SAI; (2) acrescentar a razao na observacao do pedido; (3) <b>CANCELAR</b> o pedido no Omie. Irreversivel pelo app.
               </div>
               <h3 style={{ fontWeight: 600, color: '#334155', marginBottom: 4, fontSize: '.82rem' }}>Itens a baixar</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6, marginBottom: 12 }}>
+              <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6, marginBottom: 12 }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px' }}>Codigo</th>
                   <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px' }}>Descricao</th>
@@ -453,7 +453,7 @@ export default function PedidosPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
               <label style={{ display: 'block', fontSize: '.7rem', color: '#64748b', marginBottom: 2 }}>Razao do encerramento <span style={{ color: '#dc2626' }}>*</span></label>
               <textarea value={razao} onChange={(e) => setRazao(e.target.value)} rows={3} placeholder="Ex.: consumo interno; brinde; quebra; substituido por outro pedido; cliente desistiu apos retirar amostra..." style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
               <div style={{ fontSize: '.7rem', color: '#94a3b8', marginTop: 4 }}>A razao vai p/ a observacao do pedido (visivel no Omie) e na observacao do ajuste de estoque de cada item.</div>
@@ -469,14 +469,14 @@ export default function PedidosPage() {
 
       {/* Popup de detalhes (read-only) */}
       {detalheSel && (
-        <div onClick={() => setDetalheSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+        <div className="est-overlay" onClick={() => setDetalheSel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 760, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
             <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Pedido #{detalheSel.numero || detalheSel.idPedido}</h2>
               <button onClick={() => setDetalheSel(null)} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
             </div>
             <div style={{ padding: 18, overflowY: 'auto', fontSize: '.82rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', marginBottom: 12, fontSize: '.76rem', color: '#475569' }}>
+              <div className="est-stack-xs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 18px', marginBottom: 12, fontSize: '.76rem', color: '#475569' }}>
                 <div>Cliente: <b>{detalheSel.nomeCliente || ('#' + (detalheSel.codigoCliente || '?'))}</b></div>
                 <div>Etapa: <b>{detalheSel.etapaNome || detalheSel.etapa || '?'}</b></div>
                 <div>Criado por: <b><CelulaUsuario nome={detalheSel.criadoPorNome} login={detalheSel.criadoPorLogin} /></b></div>
@@ -487,7 +487,7 @@ export default function PedidosPage() {
                 <div>Valor total: <b>{fmtBRL(detalheSel.valorTotal)}</b></div>
               </div>
               <h3 style={{ fontWeight: 600, color: '#334155', marginBottom: 4, fontSize: '.82rem' }}>Itens ({(detalheSel.itens || []).length})</h3>
-              <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6 }}>
+              <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid #e2e8f0', borderRadius: 6 }}>
                 <thead><tr>
                   <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px' }}>Codigo</th>
                   <th style={{ ...thStyle, fontSize: '.62rem', padding: '4px 8px' }}>Descricao</th>
@@ -508,7 +508,7 @@ export default function PedidosPage() {
                     </tr>
                   ))}
                 </tbody>
-              </table>
+              </table></div>
             </div>
             <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
               <button onClick={() => setDetalheSel(null)} style={{ padding: '6px 14px', fontSize: '.82rem', background: '#e2e8f0', color: '#334155', border: 'none', borderRadius: 6, cursor: 'pointer', marginLeft: 'auto' }}>Fechar</button>

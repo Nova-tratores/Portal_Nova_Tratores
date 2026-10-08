@@ -349,21 +349,21 @@ export default function CurvaSaldoPage() {
     <>
       {/* Toolbar */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <h1 className="text-2xl font-semibold text-slate-800">Curva de Saldo Projetado</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800">Curva de Saldo Projetado</h1>
 
-        <span className="text-xs text-slate-500 ml-4">Saldo inicial:</span>
+        <span className="text-xs text-slate-500 ml-0 sm:ml-4">Saldo inicial:</span>
         <input
           type="number" step="100" value={inicialInput}
           onChange={(e) => setInicialInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') aplicar() }}
-          className="border border-slate-300 rounded px-2 py-1 text-sm w-32"
+          className="border border-slate-300 rounded px-2 py-1 text-sm w-32 max-md:min-h-9"
         />
 
-        <span className="text-xs text-slate-500 ml-2">Janela:</span>
+        <span className="text-xs text-slate-500 ml-0 sm:ml-2">Janela:</span>
         <select
           value={diasInput}
           onChange={(e) => setDiasInput(parseInt(e.target.value, 10))}
-          className="border border-slate-300 rounded px-2 py-1 text-sm"
+          className="border border-slate-300 rounded px-2 py-1 text-sm max-md:min-h-9"
         >
           <option value={30}>30 dias</option>
           <option value={60}>60 dias</option>
@@ -373,29 +373,29 @@ export default function CurvaSaldoPage() {
         </select>
 
         <button onClick={aplicar}
-          className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Aplicar</button>
+          className="px-3 py-1 max-md:min-h-9 bg-blue-600 text-white rounded text-sm hover:bg-blue-700">Aplicar</button>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Saldo final</div>
           <div className={corFinal}>{d ? fmtBRL(d.saldoFinal) : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Saldo minimo</div>
           <div className={corMin}>{d ? fmtBRL(d.saldoMin) : '--'}</div>
           <div className="text-xs text-slate-500 mt-0.5">{d ? (dataMin ? 'em ' + fmtBRdata(dataMin) : '') : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Total entradas</div>
           <div className="text-2xl font-bold text-emerald-700 mt-1">{d ? fmtBRL(d.totalEntradas) : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Total saidas</div>
           <div className="text-2xl font-bold text-red-700 mt-1">{d ? fmtBRL(d.totalSaidas) : '--'}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Dias negativos</div>
           <div className="text-2xl font-bold text-red-600 mt-1">{d ? String(d.diasNegativos.length) : '--'}</div>
         </div>
@@ -412,7 +412,7 @@ export default function CurvaSaldoPage() {
       )}
 
       {/* Grafico */}
-      <div className="bg-white border border-slate-200 rounded-lg p-4 mb-6">
+      <div className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 mb-6 min-w-0">
         <canvas ref={chartRef} height="120" />
         <div className="text-xs text-slate-500 mt-2">Clique numa barra ou ponto para ver os titulos do dia.</div>
       </div>
@@ -462,15 +462,15 @@ export default function CurvaSaldoPage() {
       {modalAberto && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharModal} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-              <h2 className="font-semibold text-slate-800">{modalTitulo}</h2>
-              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">×</button>
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-24px)] max-w-3xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+            <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
+              <h2 className="font-semibold text-slate-800 min-w-0 break-words">{modalTitulo}</h2>
+              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
             </div>
             {/* Resumo */}
-            <div className="px-5 py-3 border-b border-slate-100 bg-slate-50">
+            <div className="px-3 sm:px-5 py-3 border-b border-slate-100 bg-slate-50">
               {modalResumo && (
-                <div className="grid grid-cols-3 gap-2 text-center text-sm">
+                <div className="grid grid-cols-3 gap-2 text-center text-sm [&>div]:min-w-0 [&>div]:break-words">
                   <div>
                     <div className="text-xs text-emerald-700">Entradas</div>
                     <div className="font-bold text-emerald-800">{fmtBRL(modalResumo.entradas)}</div>
@@ -487,7 +487,7 @@ export default function CurvaSaldoPage() {
               )}
             </div>
             {/* Corpo */}
-            <div className="p-5 overflow-y-auto">
+            <div className="p-3 sm:p-5 overflow-y-auto">
               <ModalCorpo corpo={modalCorpo} />
             </div>
           </div>
@@ -526,7 +526,7 @@ function ModalCorpo({ corpo }) {
           return (
             <div key={i} className={'border ' + corBorda + ' rounded-lg p-3'}>
               <div className="flex items-start justify-between gap-2 mb-1">
-                <div className="font-medium text-slate-800 text-sm">
+                <div className="font-medium text-slate-800 text-sm min-w-0 break-words">
                   {ehEntrada ? (
                     <span className="inline-block px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 mr-2">+ Entrada</span>
                   ) : (

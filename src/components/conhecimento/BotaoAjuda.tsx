@@ -107,7 +107,7 @@ export default function BotaoAjuda({ estilo }: { estilo?: React.CSSProperties })
                       </span>
                     </button>
                     {on && (
-                      <div style={{ padding: "4px 18px 16px 42px" }}>
+                      <div style={{ padding: "4px 18px 16px clamp(18px, 6vw, 42px)" }}>
                         {a.revisao_pendente_desde && (
                           <div style={{ fontSize: 11, color: "#92400e", background: "#fef3c7", borderRadius: 8, padding: "4px 8px", marginBottom: 10, display: "inline-block" }}>
                             ⚠️ A tela mudou em {a.revisao_pendente_desde.slice(0, 10).split("-").reverse().join("/")}. Este texto pode estar desatualizado.
@@ -145,7 +145,7 @@ export default function BotaoAjuda({ estilo }: { estilo?: React.CSSProperties })
               })}
             </div>
 
-            <footer style={{ padding: "10px 18px", borderTop: "1px solid var(--portal-border)", display: "flex", gap: 12, fontSize: 12 }}>
+            <footer style={{ padding: "10px 18px", borderTop: "1px solid var(--portal-border)", display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12 }}>
               <Link href="/conhecimento" onClick={fechar} style={{ color: "#0369a1", fontWeight: 700, textDecoration: "none" }}>Buscar na base de conhecimento</Link>
               {podeEditar && idExpandido && (
                 <Link href={`/conhecimento/editar/${idExpandido}`} onClick={fechar} style={{ color: "#475569", fontWeight: 700, textDecoration: "none", marginLeft: "auto" }}>✎ Editar este artigo</Link>

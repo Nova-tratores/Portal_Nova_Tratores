@@ -722,12 +722,27 @@ export default function FluxoPage() {
 
   return (
     <>
+      {/* Responsivo (celular): Sankey rola na horizontal dentro do card,
+          treemap mais baixo, KPIs e modais que cabem na tela */}
+      <style>{`
+        .dre-a-kpis > div { min-width: 0; overflow-wrap: anywhere; }
+        .dre-a-sankey-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+        .dre-a-modal-body { overflow-wrap: anywhere; }
+        .dre-a-modal-body .grid > div { min-width: 0; }
+        @media (max-width: 768px) {
+          .dre-a-sankey { min-width: 720px; }
+          .dre-a-treemap { height: 400px !important; }
+          .dre-a-kpis .text-2xl { font-size: 18px !important; }
+          .dre-a-modal-body { padding: 12px !important; }
+          .dre-a-cmp-grupo { min-width: 140px !important; }
+        }
+      `}</style>
       {/* Toolbar de periodo */}
       <div className="flex items-baseline justify-between mb-2 flex-wrap gap-2">
         <h1 className="text-2xl font-semibold text-slate-800">
           Fluxo{(p.titulo) ? ' · ' + p.titulo : ''}
         </h1>
-        <div className="flex items-center gap-1 text-xs">
+        <div className="flex items-center gap-1 text-xs flex-wrap">
           {/* Toggle de TIPO (replicado da header global da fonte) */}
           <span className="text-slate-500 mr-1">Modo:</span>
           <div className="inline-flex rounded border border-slate-300 overflow-hidden mr-2">
@@ -788,7 +803,7 @@ export default function FluxoPage() {
 
         {/* Sub-controles de personalizado */}
         {periodo === 'custom' && (
-          <span className="inline-flex items-center gap-1">
+          <span className="inline-flex items-center gap-1 flex-wrap">
             <label className="text-slate-500">De:</label>
             <input type="month" value={customDe || (hoje.getFullYear() + '-01')} onChange={(e) => setCustomDe(e.target.value)}
               className="border border-slate-300 rounded px-2 py-1 bg-white" />
@@ -800,9 +815,9 @@ export default function FluxoPage() {
 
         {/* Sub-controle: anos a comparar (checkboxes inline) */}
         {periodo === 'comparar' && (
-          <span className="inline-flex items-center gap-2">
+          <span className="inline-flex items-center gap-2 flex-wrap">
             <label className="text-slate-500">Anos:</label>
-            <span className="inline-flex items-center gap-2">
+            <span className="inline-flex items-center gap-2 flex-wrap">
               {ANOS_DISPONIVEIS.slice().sort().map((y) => (
                 <label key={y} className="inline-flex items-center gap-1 cursor-pointer">
                   <input type="checkbox" checked={anosComparar.indexOf(y) >= 0} onChange={() => toggleAnoComparar(y)} /> {y}
@@ -818,7 +833,7 @@ export default function FluxoPage() {
 
       {/* KPIs SANKEY */}
       {!ehComparar && modo === 'sankey' && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 dre-a-kpis">
           <div className="bg-white rounded-lg border border-slate-200 p-4">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Entradas</div>
             <div className="text-2xl font-bold text-emerald-700 mt-1">{kpiSankey.entradas}</div>
@@ -840,7 +855,7 @@ export default function FluxoPage() {
 
       {/* KPIs TREEMAP */}
       {!ehComparar && modo === 'treemap' && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 dre-a-kpis">
           <div className="bg-white rounded-lg border border-slate-200 p-4">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Total no mes</div>
             <div className="text-2xl font-bold text-slate-800 mt-1">{kpiTreemap.total}</div>
@@ -865,7 +880,9 @@ export default function FluxoPage() {
       {!ehComparar && modo === 'sankey' && (
         <div className="bg-white border border-slate-200 rounded-lg p-3 mb-3">
           {carregandoSankey && <div className="text-slate-500 text-sm py-4">Carregando...</div>}
-          <div ref={sankeyRef} style={{ width: '100%', height: 1000 }} />
+          <div className="dre-a-sankey-scroll">
+            <div ref={sankeyRef} className="dre-a-sankey" style={{ width: '100%', height: 1000 }} />
+          </div>
           <div className="text-xs text-slate-500 mt-2">Passe o mouse num no para destacar o caminho. Da esquerda p/ direita: Grupo &rarr; Categoria &rarr; Top Terceiros.</div>
         </div>
       )}
@@ -906,7 +923,7 @@ export default function FluxoPage() {
             {treemapSemDados ? (
               <div className="text-slate-500 text-center py-12">Nenhum dado neste periodo. Sincronize ou troque o mes.</div>
             ) : (
-              <div style={{ position: 'relative', height: 560 }}>
+              <div className="dre-a-treemap" style={{ position: 'relative', height: 560 }}>
                 <canvas ref={treemapRef} />
               </div>
             )}
@@ -919,12 +936,12 @@ export default function FluxoPage() {
       {ehComparar && (
         <div>
           <div className="text-xs text-slate-500 mb-2">{comparativoInfo}</div>
-          <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
+          <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
             {cmp && (
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 text-slate-600 sticky top-0">
                   <tr>
-                    <th className="text-left px-3 py-2 min-w-[200px]">Grupo</th>
+                    <th className="text-left px-3 py-2 min-w-[200px] sticky left-0 z-10 bg-slate-50 dre-a-cmp-grupo" style={{ boxShadow: 'inset -1px 0 0 #e2e8f0' }}>Grupo</th>
                     {cmp.anosOrd.map((y, i) => (
                       <th key={y} className="text-right px-3 py-2 min-w-[160px]" style={{ borderBottom: '3px solid ' + corAno(i) }}>{y}</th>
                     ))}
@@ -943,7 +960,7 @@ export default function FluxoPage() {
                     const diff = primeiro > 0 ? ((ultimo - primeiro) / primeiro) * 100 : null
                     return (
                       <tr key={li} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 sticky left-0 z-10 bg-white dre-a-cmp-grupo" style={{ boxShadow: 'inset -1px 0 0 #e2e8f0' }}>
                           <span className="inline-flex items-center gap-2">
                             <span className="inline-block w-3 h-3 rounded-sm flex-shrink-0" style={{ background: corG }} />
                             <span className="font-semibold text-slate-800">{displayGrupo(l.grupo)}</span>
@@ -975,7 +992,7 @@ export default function FluxoPage() {
                   })}
                   {/* Footer: totais por ano */}
                   <tr className="border-t-2 border-slate-300 bg-slate-100 font-bold">
-                    <td className="px-3 py-2">TOTAL ({Object.keys(cmp.mapa).length} grupos)</td>
+                    <td className="px-3 py-2 sticky left-0 z-10 bg-slate-100 dre-a-cmp-grupo" style={{ boxShadow: 'inset -1px 0 0 #e2e8f0' }}>TOTAL ({Object.keys(cmp.mapa).length} grupos)</td>
                     {cmp.anosOrd.map((y, i) => (
                       <td key={y} className="px-3 py-2 text-right" style={{ color: corAno(i) }}>{fmtBRL(cmp.totaisAno[y])}</td>
                     ))}
@@ -997,15 +1014,15 @@ export default function FluxoPage() {
       {modalAberto && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharModal} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-              <div>
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+            <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
+              <div style={{ minWidth: 0 }}>
                 <h2 className="font-semibold text-slate-800">{modalTitulo}</h2>
                 <div className="text-xs text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: modalSubtitulo }} />
               </div>
-              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">×</button>
+              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>×</button>
             </div>
-            <div className="p-5 overflow-y-auto">
+            <div className="p-5 overflow-y-auto dre-a-modal-body">
               <ModalCorpo corpo={modalCorpo} onTerceiro={abrirDrillMaquinas} />
             </div>
           </div>
@@ -1016,15 +1033,15 @@ export default function FluxoPage() {
       {drillMaq && (
         <>
           <div className="fixed inset-0 bg-black/40 z-[60]" onClick={fecharDrillMaq} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between gap-2">
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] max-w-xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-[70] flex flex-col">
+            <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
               <div className="min-w-0">
                 <h2 className="font-semibold text-slate-800 truncate">{drillMaq.terceiro}</h2>
                 <div className="text-xs text-slate-500 mt-0.5">Maquinas / produtos que compoem o valor</div>
               </div>
-              <button onClick={fecharDrillMaq} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0">×</button>
+              <button onClick={fecharDrillMaq} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0" style={{ minWidth: 36, minHeight: 36 }}>×</button>
             </div>
-            <div className="p-5 overflow-y-auto">
+            <div className="p-5 overflow-y-auto dre-a-modal-body">
               <DrillMaquinas d={drillMaq} />
             </div>
           </div>
@@ -1122,7 +1139,7 @@ function ModalCorpo({ corpo, onTerceiro }) {
               title="Ver maquinas/produtos que compoem este valor"
               className="w-full text-left border border-slate-200 rounded-lg p-3 hover:border-slate-400 hover:bg-slate-50 transition-colors cursor-pointer">
               <div className="flex items-start justify-between gap-2 mb-1">
-                <div className="font-medium text-slate-800 text-sm flex items-center gap-2">
+                <div className="font-medium text-slate-800 text-sm flex items-center gap-2" style={{ minWidth: 0 }}>
                   <span className="text-xs text-slate-400 font-mono">{i + 1}.</span><span>{t.nome}</span>
                 </div>
                 <div className="text-right text-xs text-slate-500">{pct.toFixed(1)}%</div>

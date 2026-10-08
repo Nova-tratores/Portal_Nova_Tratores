@@ -102,14 +102,14 @@ export default function LogsFinanceiro() {
   if (loadingPerm) return (
     <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
-      <div style={{ padding: '60px', textAlign: 'center', color: '#6b7280' }}>Carregando...</div>
+      <div style={{ padding: 'clamp(28px, 6vw, 60px) 16px', textAlign: 'center', color: '#6b7280' }}>Carregando...</div>
     </div>
   )
 
   if (!isAdmin) return (
     <div style={{ minHeight: 'calc(100vh - 64px)', fontFamily: 'Inter, sans-serif' }}>
       <FinanceiroNav />
-      <div style={{ padding: '80px 40px', textAlign: 'center' }}>
+      <div style={{ padding: 'clamp(40px, 8vw, 80px) clamp(16px, 4vw, 40px)', textAlign: 'center' }}>
         <Activity size={48} color="#e5e5e5" style={{ margin: '0 auto 16px' }} />
         <p style={{ color: '#a3a3a3', fontSize: '16px', fontWeight: '500' }}>Acesso restrito a administradores</p>
       </div>
@@ -122,9 +122,9 @@ export default function LogsFinanceiro() {
 
       <div style={{ padding: 'clamp(12px, 4vw, 24px) clamp(12px, 4vw, 32px)' }}>
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
           <div>
-            <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', margin: 0 }}>Logs do Financeiro</h2>
+            <h2 style={{ fontSize: 'clamp(20px, 5vw, 24px)', fontWeight: '700', color: '#1e293b', margin: 0 }}>Logs do Financeiro</h2>
             <p style={{ color: '#94a3b8', fontSize: '13px', marginTop: '4px' }}>Historico de ações dos usuarios no modulo financeiro</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0', fontSize: '13px', color: '#64748b', fontWeight: '600' }}>
@@ -134,8 +134,8 @@ export default function LogsFinanceiro() {
         </div>
 
         {/* Filtros */}
-        <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', marginBottom: '20px', padding: '16px 24px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
+        <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', marginBottom: '20px', padding: 'clamp(12px, 3vw, 16px) clamp(12px, 3vw, 24px)', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ position: 'relative', flex: '1 1 200px', minWidth: 0 }}>
             <Search size={15} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
             <input
               type="text"
@@ -149,7 +149,7 @@ export default function LogsFinanceiro() {
           <select
             value={filtroUsuario}
             onChange={(e) => setFiltroUsuario(e.target.value)}
-            style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+            style={{ padding: '10px 14px', maxWidth: '100%', minWidth: 0, flex: '0 1 auto', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
           >
             <option value="">Todos os usuarios</option>
             {usuarios.map(u => (
@@ -160,7 +160,7 @@ export default function LogsFinanceiro() {
           <select
             value={filtroAcao}
             onChange={(e) => setFiltroAcao(e.target.value)}
-            style={{ padding: '10px 14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
+            style={{ padding: '10px 14px', maxWidth: '100%', minWidth: 0, flex: '0 1 auto', borderRadius: '10px', background: '#f8fafc', border: '1px solid #e2e8f0', color: '#1e293b', fontSize: '13px', outline: 'none', cursor: 'pointer', fontFamily: 'Inter, sans-serif' }}
           >
             <option value="">Todas as ações</option>
             <option value="criar">Criou</option>
@@ -174,13 +174,13 @@ export default function LogsFinanceiro() {
         {/* Lista de logs */}
         <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
           {loading && (
-            <div style={{ padding: '48px', textAlign: 'center' }}>
+            <div style={{ padding: 'clamp(24px, 5vw, 48px) 16px', textAlign: 'center' }}>
               <p style={{ color: '#94a3b8', fontSize: '14px' }}>Carregando logs...</p>
             </div>
           )}
 
           {!loading && logs.length === 0 && (
-            <div style={{ padding: '60px', textAlign: 'center' }}>
+            <div style={{ padding: 'clamp(28px, 6vw, 60px) 16px', textAlign: 'center' }}>
               <Activity size={36} color="#e2e8f0" style={{ margin: '0 auto 12px' }} />
               <p style={{ color: '#94a3b8', fontSize: '15px', fontWeight: '500' }}>Nenhum log encontrado</p>
               <p style={{ color: '#cbd5e1', fontSize: '12px', marginTop: '4px' }}>As ações dos usuarios aparecerão aqui</p>
@@ -209,8 +209,8 @@ export default function LogsFinanceiro() {
               <div
                 key={entry.id}
                 style={{
-                  display: 'flex', alignItems: 'center', gap: '16px',
-                  padding: '16px 24px',
+                  display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 'clamp(10px, 2vw, 16px)',
+                  padding: 'clamp(12px, 3vw, 16px) clamp(12px, 3vw, 24px)',
                   borderBottom: i < logs.length - 1 ? '1px solid #f1f5f9' : 'none',
                   transition: 'background 0.15s',
                 }}
@@ -223,7 +223,7 @@ export default function LogsFinanceiro() {
                 </div>
 
                 {/* Info principal */}
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ flex: '1 1 200px', minWidth: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>
                       {entry.user_nome || 'Usuario'}
@@ -255,7 +255,7 @@ export default function LogsFinanceiro() {
                 </div>
 
                 {/* Hora */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0, marginLeft: 'auto' }}>
                   <Clock size={13} color="#cbd5e1" />
                   <span style={{ fontSize: '12px', color: '#94a3b8', fontWeight: '500', whiteSpace: 'nowrap' }}>
                     {formatDate(entry.created_at)}
@@ -268,7 +268,7 @@ export default function LogsFinanceiro() {
 
         {/* Paginação */}
         {totalPages > 1 && (
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '24px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '24px' }}>
             <button
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page === 0}

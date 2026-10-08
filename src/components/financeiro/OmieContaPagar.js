@@ -226,7 +226,7 @@ export function CamposOmieContaPagar({ value, onChange, tema = 'form', autoOrige
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: isModal ? '18px' : '14px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isModal ? '18px' : '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: isModal ? '18px' : '14px' }}>
         <div>
           <label style={labelStyle}><Building2 size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Empresa</label>
           <select
@@ -246,7 +246,7 @@ export function CamposOmieContaPagar({ value, onChange, tema = 'form', autoOrige
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isModal ? '18px' : '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: isModal ? '18px' : '14px' }}>
         <div>
           <label style={labelStyle}><Tag size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />Categoria (despesa)</label>
           <select style={selStyle} value={value.codigoCategoria || ''} onChange={e => onChange({ ...value, codigoCategoria: e.target.value })} disabled={carregando}>
@@ -273,7 +273,7 @@ export function CamposOmieContaPagar({ value, onChange, tema = 'form', autoOrige
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isModal ? '18px' : '14px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: isModal ? '18px' : '14px' }}>
         <div>
           <label style={labelStyle}>
             <Users size={13} style={{ verticalAlign: '-2px', marginRight: '6px' }} />
@@ -618,7 +618,7 @@ export function EnviarParaOmieBox({ finanPagar, onSynced, autoOrigem = {} }) {
   }
 
   return (
-    <div style={{ marginTop: '20px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '15px', padding: '30px' }}>
+    <div style={{ marginTop: '20px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '15px', padding: 'clamp(16px, 3vw, 30px)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px' }}>
         <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#dbeafe', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Send size={18} color="#2563eb" /></div>
         <div>

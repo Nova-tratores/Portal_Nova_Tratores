@@ -36,8 +36,8 @@ export default function AlertasPage() {
   if (!pLoading && userProfile && !pode('consulta-estoque', 'alertas')) return <SemPermissao />
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+    <div className="est-page" style={{ padding: '24px 32px', maxWidth: 1200, margin: '0 auto' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--portal-text, #1a1a1a)', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <AlertTriangle size={22} color="#dc2626" /> Alertas de Estoque
@@ -61,7 +61,7 @@ export default function AlertasPage() {
           {/* Sem Estoque */}
           <div style={{ marginBottom: 28, borderRadius: 14, overflow: 'hidden', border: '1px solid #FECACA' }}>
             <div style={{
-              padding: '16px 22px', background: '#FEF2F2', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '16px 22px', background: '#FEF2F2', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', alignItems: 'center',
               borderBottom: '1px solid #FECACA',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -80,7 +80,7 @@ export default function AlertasPage() {
               <div style={{ background: 'var(--portal-bg-card, #fff)' }}>
                 {semEstoque.map((p, i) => (
                   <div key={p.codigo_produto} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', alignItems: 'center',
                     padding: '12px 22px',
                     borderBottom: i < semEstoque.length - 1 ? '1px solid var(--portal-border, #f0f0f0)' : 'none',
                     borderLeft: '3px solid #DC2626',
@@ -109,7 +109,7 @@ export default function AlertasPage() {
           {/* Estoque Baixo */}
           <div style={{ borderRadius: 14, overflow: 'hidden', border: '1px solid #FDE68A' }}>
             <div style={{
-              padding: '16px 22px', background: '#FFFBEB', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              padding: '16px 22px', background: '#FFFBEB', display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', alignItems: 'center',
               borderBottom: '1px solid #FDE68A',
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -128,7 +128,7 @@ export default function AlertasPage() {
               <div style={{ background: 'var(--portal-bg-card, #fff)' }}>
                 {baixoEstoque.map((p, i) => (
                   <div key={p.codigo_produto} style={{
-                    display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                    display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'space-between', alignItems: 'center',
                     padding: '12px 22px',
                     borderBottom: i < baixoEstoque.length - 1 ? '1px solid var(--portal-border, #f0f0f0)' : 'none',
                     borderLeft: '3px solid #D97706',

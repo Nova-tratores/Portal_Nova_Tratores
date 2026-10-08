@@ -146,7 +146,7 @@ export default function FactoryKanban({ onCardClick }) {
     <div className="w-full">
       {/* FILTROS */}
       <div className="bg-white border border-zinc-200 rounded-xl p-4 mb-4">
-        <div className="grid grid-cols-[1fr_1fr_auto_auto] gap-3 items-center">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1fr_1fr_auto_auto] gap-3 items-center">
           <div className="relative">
             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-red-600 pointer-events-none" />
             <input type="text" placeholder="Buscar por cliente, modelo ou ID..." value={busca} onChange={e => setBusca(e.target.value)} className={`${filterInputStyle} pl-9`} />
@@ -182,8 +182,8 @@ export default function FactoryKanban({ onCardClick }) {
       </div>
 
       {/* TABELA */}
-      <div className="bg-white border border-zinc-200 rounded-xl overflow-hidden">
-        <table className="w-full border-collapse">
+      <div className="bg-white border border-zinc-200 rounded-xl overflow-x-auto">
+        <table className="w-full min-w-[1000px] border-collapse">
           <thead>
             <tr className="border-b border-zinc-200">
               <th className="text-left px-5 py-3.5 text-xs font-bold text-zinc-400 uppercase tracking-widest">ID</th>

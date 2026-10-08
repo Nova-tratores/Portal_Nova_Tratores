@@ -51,7 +51,7 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
   const Card = ({ s }: { s: AppCard }) => {
     const fav = favoritos.includes(s.id);
     return (
-      <div style={{ position: "relative" }}>
+      <div style={{ position: "relative", minWidth: 0 }}>
         <button onClick={() => onOpen(s)} style={{
           width: "100%", display: "flex", flexDirection: "column", gap: 9,
           padding: 14, borderRadius: 18, border: "1px solid #eceef2", background: "#fff", cursor: "pointer", textAlign: "left",
@@ -60,8 +60,8 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
           <span style={{ width: 44, height: 44, borderRadius: 13, background: s.gradient, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
             {s.icon}
           </span>
-          <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", lineHeight: 1.2 }}>{s.name}</span>
-          <span style={{ fontSize: 9.5, fontWeight: 800, color: s.color, textTransform: "uppercase", letterSpacing: 0.6 }}>{s.tag}</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: "#0f172a", lineHeight: 1.2, overflowWrap: "anywhere" }}>{s.name}</span>
+          <span style={{ fontSize: 11, fontWeight: 800, color: s.color, textTransform: "uppercase", letterSpacing: 0.6 }}>{s.tag}</span>
         </button>
         <button onClick={(e) => { e.stopPropagation(); onToggleFav(s.id); }} title={fav ? "Desfavoritar" : "Favoritar"}
           style={{ position: "absolute", top: 10, right: 10, width: 30, height: 30, borderRadius: 9, border: "none", background: fav ? "#fff7ed" : "#f8fafc", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -75,8 +75,8 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
     <div style={{ minHeight: "calc(100vh - 64px)", background: "#f4f6f9" }}>
       {/* Cabeçalho grafite */}
       <div style={{ background: "linear-gradient(150deg,#1b2230,#2c3648)", color: "#fff", padding: "20px 18px 22px", borderRadius: "0 0 26px 26px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <div style={{ width: 42, height: 42, borderRadius: 14, background: "rgba(255,255,255,0.14)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15 }}>{iniciais}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+          <div style={{ width: 42, flexShrink: 0, height: 42, borderRadius: 14, background: "rgba(255,255,255,0.14)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 15 }}>{iniciais}</div>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 12, opacity: 0.7 }}>{saudacao},</div>
             <div style={{ fontSize: 17, fontWeight: 800, lineHeight: 1.1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{userNome || "Portal Nova Tratores"}</div>
@@ -87,7 +87,7 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
           <input value={searchTerm} onChange={(e) => onSearch(e.target.value)} placeholder="Buscar sistema…"
             style={{ width: "100%", padding: "12px 40px 12px 38px", borderRadius: 14, border: "none", background: "#fff", fontSize: 16, outline: "none", boxSizing: "border-box", color: "#0f172a" }} />
           {searchTerm && (
-            <button onClick={() => onSearch("")} style={{ position: "absolute", right: 10, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>
+            <button onClick={() => onSearch("")} style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>
           )}
         </div>
       </div>
@@ -97,7 +97,7 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
           filtrados.length === 0 ? (
             <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>Nenhum sistema para &quot;{searchTerm}&quot;.</div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(150px, 100%), 1fr))", gap: 11 }}>
               {filtrados.map((s) => <Card key={s.id} s={s} />)}
             </div>
           )
@@ -112,7 +112,7 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
                   {favs.map((s) => (
                     <button key={s.id} onClick={() => onOpen(s)} style={{ flex: "0 0 auto", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, width: 72, background: "none", border: "none", cursor: "pointer", padding: 0 }}>
                       <span style={{ width: 56, height: 56, borderRadius: 18, background: s.gradient, color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: `0 6px 14px ${s.color}44` }}>{s.icon}</span>
-                      <span style={{ fontSize: 11, fontWeight: 600, color: "#334155", textAlign: "center", lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 72 }}>{s.name}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, color: "#334155", textAlign: "center", lineHeight: 1.15, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 72 }}>{s.name}</span>
                     </button>
                   ))}
                 </div>
@@ -128,7 +128,7 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
                     <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase", color: "#475569" }}>{label}</span>
                     <span style={{ fontSize: 11, color: "#94a3b8" }}>{doGrupo.length}</span>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 11 }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(150px, 100%), 1fr))", gap: 11 }}>
                     {doGrupo.map((s) => <Card key={s.id} s={s} />)}
                   </div>
                 </div>

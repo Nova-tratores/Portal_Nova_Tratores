@@ -125,9 +125,24 @@ export default function RentabilidadePage() {
 
   return (
     <div>
+      {/* Responsivo (celular): paddings menores, KPIs e graficos que cabem */}
+      <style>{`
+        .dre-a-kpis > div { min-width: 0; overflow-wrap: anywhere; }
+        .dre-a-modal-body { overflow-wrap: anywhere; }
+        @media (max-width: 768px) {
+          .dre-a-rent-wrap { padding: 10px !important; }
+          .dre-a-kpis .text-2xl { font-size: 18px !important; }
+          .dre-a-grande .text-3xl { font-size: 22px !important; }
+          .dre-a-grande .text-2xl { font-size: 18px !important; }
+          .dre-a-chart-300 { height: 230px !important; }
+          .dre-a-modal-body { padding: 12px !important; }
+          .dre-a-modal-body .grid-cols-3,
+          .dre-a-modal-body .grid-cols-2 { grid-template-columns: minmax(0, 1fr) !important; }
+        }
+      `}</style>
       {/* Cabecalho + abas (port fiel do shell de rentabilidade.ejs) */}
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1 className="text-2xl font-semibold text-slate-800">Rentabilidade</h1>
           <p className="text-xs text-slate-500">Margem real por venda + custo de capital parado em estoque</p>
         </div>
@@ -151,7 +166,7 @@ export default function RentabilidadePage() {
 
       {/* Conteudo embarcado: no original era um <iframe>; aqui renderizamos o
           conteudo das views diretamente, conforme a aba ativa. */}
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden p-4" style={{ minHeight: '70vh' }}>
+      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden p-4 dre-a-rent-wrap" style={{ minHeight: '70vh' }}>
         {tab === 'margens'
           ? <PainelMargens conta={conta} chartReady={chartReady} />
           : <PainelCapital conta={conta} chartReady={chartReady} />}
@@ -498,11 +513,11 @@ function PainelMargens({ conta, chartReady }) {
     <div>
       {/* Cabecalho do painel + controles de periodo/SELIC */}
       <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
-        <div>
+        <div style={{ minWidth: 0 }}>
           <h1 className="text-2xl font-semibold text-slate-800">Margens de Vendas</h1>
           <p className="text-xs text-slate-500">Margem real por venda historica: Receita − (CMV + Capital empatado ate a venda)</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-slate-600">
+        <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
           <label>Periodo:</label>
           <select value={meses} onChange={(e) => setMeses(e.target.value)} className="border border-slate-300 rounded px-2 py-1">
             <option value="1">1 mes</option>
@@ -530,7 +545,7 @@ function PainelMargens({ conta, chartReady }) {
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4 dre-a-kpis">
         <div className="bg-white rounded-lg border border-slate-200 p-4">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Vendas</div>
           <div className="text-2xl font-bold text-slate-800 mt-1">{kpiQtd}</div>
@@ -581,6 +596,7 @@ function PainelMargens({ conta, chartReady }) {
           value={fBusca}
           onChange={(e) => { setFBusca(e.target.value); setPagina(1) }}
           className="border border-slate-300 rounded px-2 py-1 w-72"
+          style={{ maxWidth: '100%', boxSizing: 'border-box' }}
         />
         <label className="text-xs text-slate-500 ml-2">Margem:</label>
         <select value={fMargem} onChange={(e) => { setFMargem(e.target.value); setPagina(1) }} className="border border-slate-300 rounded px-2 py-1 bg-white">
@@ -595,7 +611,7 @@ function PainelMargens({ conta, chartReady }) {
 
       {/* Tabela */}
       <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
           <table className="w-full text-xs">
             <thead className="bg-slate-50 text-slate-600 select-none">
               <tr>
@@ -616,7 +632,7 @@ function PainelMargens({ conta, chartReady }) {
             <tbody onClick={onTbodyClick} dangerouslySetInnerHTML={{ __html: tbodyHtml }} />
           </table>
         </div>
-        <div className="px-3 py-2 border-t border-slate-200 text-xs text-slate-600 flex items-center gap-3">
+        <div className="px-3 py-2 border-t border-slate-200 text-xs text-slate-600 flex items-center gap-3 flex-wrap">
           <button
             onClick={() => paginarMg(-1)}
             className={'px-2 py-0.5 border border-slate-300 rounded ' + (paginaAtual > 1 ? 'hover:bg-slate-100' : 'opacity-50 cursor-not-allowed')}
@@ -631,23 +647,23 @@ function PainelMargens({ conta, chartReady }) {
 
       {/* Grafico de margem mensal (aparece quando ha filtro de familia) */}
       <div ref={graficoBoxRef} className={'bg-white border border-slate-200 rounded-lg p-4 mt-4 ' + (graficoVisivel ? '' : 'hidden')}>
-        <div className="flex items-baseline justify-between mb-2">
-          <div>
+        <div className="flex items-baseline justify-between mb-2 flex-wrap gap-1">
+          <div style={{ minWidth: 0 }}>
             <div className="text-xs text-slate-500 uppercase tracking-wide">Evolucao mensal — <span className="text-slate-800 font-semibold normal-case">{graficoFam}</span></div>
             <div className="text-[11px] text-slate-500">{graficoInfo}</div>
           </div>
         </div>
-        <div style={{ position: 'relative', height: '300px' }}><canvas ref={chartCanvasRef} /></div>
+        <div className="dre-a-chart-300" style={{ position: 'relative', height: '300px' }}><canvas ref={chartCanvasRef} /></div>
       </div>
 
       {/* Modal detalhe da venda */}
       {modalAberto && <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharDetalheVenda} />}
-      <div className={'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex-col ' + (modalAberto ? 'flex' : 'hidden')}>
-        <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-800">{modalTitulo}</h2>
-          <button onClick={fecharDetalheVenda} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">&times;</button>
+      <div className={'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[94vw] max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex-col ' + (modalAberto ? 'flex' : 'hidden')}>
+        <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-3">
+          <h2 className="font-semibold text-slate-800" style={{ minWidth: 0 }}>{modalTitulo}</h2>
+          <button onClick={fecharDetalheVenda} className="text-slate-500 hover:text-slate-900 text-2xl leading-none" style={{ minWidth: 36, minHeight: 36, flexShrink: 0 }}>&times;</button>
         </div>
-        <div className="p-5 overflow-y-auto" dangerouslySetInnerHTML={{ __html: modalHtml }} />
+        <div className="p-5 overflow-y-auto dre-a-modal-body" dangerouslySetInnerHTML={{ __html: modalHtml }} />
       </div>
     </div>
   )
@@ -1008,7 +1024,7 @@ function PainelCapital({ conta, chartReady }) {
           <h2 className="text-lg font-semibold text-slate-800">Capital Parado em Estoque</h2>
           <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
             <label>Familia:</label>
-            <select value={cpFamilia} onChange={(e) => setCpFamilia(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[170px]">
+            <select value={cpFamilia} onChange={(e) => setCpFamilia(e.target.value)} className="border border-slate-300 rounded px-2 py-1 bg-white min-w-[170px]" style={{ maxWidth: '100%' }}>
               <option value="">Todas</option>
               <option value="__TODAS_MAQUINAS__">⚙ Todas as maquinas</option>
               <option value="__SO_PECAS__">🔩 So pecas</option>
@@ -1036,9 +1052,9 @@ function PainelCapital({ conta, chartReady }) {
         </div>
 
         {/* Card destaque: CORROSAO SILENCIOSA */}
-        <div className="bg-gradient-to-r from-red-900 to-amber-800 rounded-lg p-5 mb-4 text-white">
+        <div className="bg-gradient-to-r from-red-900 to-amber-800 rounded-lg p-3 sm:p-5 mb-4 text-white dre-a-grande">
           <div className="flex items-baseline justify-between gap-4 flex-wrap">
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div className="text-xs uppercase tracking-widest text-red-100">💸 Corrosao patrimonial silenciosa</div>
               <div className="text-3xl font-bold mt-1">{corrosaoTotal}</div>
               <div className="text-xs text-red-100 mt-1">{corrosaoSub}</div>
@@ -1055,7 +1071,7 @@ function PainelCapital({ conta, chartReady }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 dre-a-kpis">
           <div className="bg-white rounded-lg border border-slate-200 p-4">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Valor parado</div>
             <div className="text-2xl font-bold text-red-700 mt-1">{cpValor}</div>
@@ -1083,9 +1099,9 @@ function PainelCapital({ conta, chartReady }) {
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Distribuicao por dias sem giro</div>
             <div style={{ position: 'relative', height: '240px' }}><canvas ref={bucketsRef} /></div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4" style={{ minWidth: 0 }}>
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Top produtos parados (por valor)</div>
-            <div className="overflow-y-auto" style={{ maxHeight: '240px' }}>
+            <div className="overflow-y-auto" style={{ maxHeight: '240px', overflowX: 'auto' }}>
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 text-slate-600 sticky top-0">
                   <tr>
@@ -1107,7 +1123,7 @@ function PainelCapital({ conta, chartReady }) {
       <section>
         <div className="flex items-baseline justify-between mb-3 flex-wrap gap-2">
           <h2 className="text-lg font-semibold text-slate-800">Margem Bruta Operacional</h2>
-          <div className="flex items-center gap-2 text-xs text-slate-600">
+          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
             <label>Periodo:</label>
             <select value={mesesMargem} onChange={(e) => setMesesMargem(e.target.value)} className="border border-slate-300 rounded px-2 py-1">
               <option value="3">3 meses</option>
@@ -1133,7 +1149,7 @@ function PainelCapital({ conta, chartReady }) {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 dre-a-kpis">
           <div className="bg-white rounded-lg border border-slate-200 p-4">
             <div className="text-xs text-slate-500 uppercase tracking-wide">Receita total</div>
             <div className="text-2xl font-bold text-emerald-700 mt-1">{mgReceita}</div>
@@ -1153,13 +1169,13 @@ function PainelCapital({ conta, chartReady }) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="bg-white rounded-lg border border-slate-200 p-4 md:col-span-2">
+          <div className="bg-white rounded-lg border border-slate-200 p-4 md:col-span-2" style={{ minWidth: 0 }}>
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Margem mensal (receita vs CMV + linha %)</div>
-            <div style={{ position: 'relative', height: '300px' }}><canvas ref={margemRef} /></div>
+            <div className="dre-a-chart-300" style={{ position: 'relative', height: '300px' }}><canvas ref={margemRef} /></div>
           </div>
-          <div className="bg-white rounded-lg border border-slate-200 p-4">
+          <div className="bg-white rounded-lg border border-slate-200 p-4" style={{ minWidth: 0 }}>
             <div className="text-xs text-slate-500 uppercase tracking-wide mb-2">Margem por familia</div>
-            <div className="overflow-y-auto" style={{ maxHeight: '300px' }}>
+            <div className="overflow-y-auto" style={{ maxHeight: '300px', overflowX: 'auto' }}>
               <table className="w-full text-xs">
                 <thead className="bg-slate-50 text-slate-600 sticky top-0">
                   <tr>
@@ -1211,7 +1227,7 @@ function PainelCapital({ conta, chartReady }) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Controles */}
-            <div>
+            <div style={{ minWidth: 0 }}>
               <div className="mb-4">
                 <label className="text-xs text-slate-600 flex justify-between"><span>% do estoque parado a liquidar</span><b className="text-blue-700">{simPctLiq}%</b></label>
                 <input type="range" min="0" max="100" step="5" value={simPctLiq} onChange={(e) => { setSimPctLiq(Number(e.target.value)); setSimPresetAtivo(null) }} className="w-full mt-1" />
@@ -1236,8 +1252,8 @@ function PainelCapital({ conta, chartReady }) {
             </div>
 
             {/* Resultado */}
-            <div>
-              <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="dre-a-grande" style={{ minWidth: 0 }}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-3">
                 <div className="bg-emerald-50 border border-emerald-200 rounded p-3">
                   <div className="text-[10px] uppercase text-emerald-800 tracking-wide">Caixa recuperado</div>
                   <div className="text-lg font-bold text-emerald-900 mt-0.5">{simOut.caixa}</div>

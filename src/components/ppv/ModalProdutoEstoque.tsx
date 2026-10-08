@@ -6,6 +6,7 @@
 import { useState, useEffect } from "react";
 import type { BuscarResult } from "@/lib/estoque/types";
 import { useAuth } from "@/hooks/useAuth";
+import { useIsMobile } from "@/hooks/useIsMobile";
 
 interface Props {
   open: boolean;
@@ -28,6 +29,7 @@ function fmtRS(v: number | string | undefined) {
 
 export default function ModalProdutoEstoque({ open, codigo, descricao, onClose }: Props) {
   const { userProfile } = useAuth();
+  const mobile = useIsMobile();
   const [resultados, setResultados] = useState<{ conta: string; dados: BuscarResult | null }[]>([]);
   const [carregando, setCarregando] = useState(false);
   const [caracts, setCaracts] = useState<CaractItem[]>([]);
@@ -102,19 +104,19 @@ export default function ModalProdutoEstoque({ open, codigo, descricao, onClose }
 
   return (
     <div onClick={(ev) => { if (ev.target === ev.currentTarget) onClose(); }}
-      style={{ position: "fixed", inset: 0, zIndex: 3000, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      style={{ position: "fixed", inset: 0, zIndex: 3000, background: "rgba(15,23,42,0.55)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: mobile ? 8 : 20 }}>
       <div style={{ width: 700, maxWidth: "96vw", maxHeight: "88vh", overflow: "auto", background: "#fff", borderRadius: 16, boxShadow: "0 20px 60px rgba(0,0,0,0.3)" }}>
         {/* Cabeçalho */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: "18px 22px", borderBottom: "1px solid #F1F5F9" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, padding: mobile ? "14px 14px" : "18px 22px", borderBottom: "1px solid #F1F5F9" }}>
           <div style={{ minWidth: 0 }}>
             <div style={{ fontSize: 13, color: "#94A3B8", textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600 }}>Produto</div>
-            <div style={{ fontSize: 24, fontWeight: 700, color: "#0F172A" }}>{codigo}</div>
+            <div style={{ fontSize: 24, fontWeight: 700, color: "#0F172A", overflowWrap: "anywhere" }}>{codigo}</div>
             {(descricao || p?.descricao) && <div style={{ fontSize: 15, color: "#64748B", marginTop: 3 }}>{p?.descricao || descricao}</div>}
           </div>
           <button type="button" onClick={onClose} style={{ background: "transparent", border: "none", fontSize: 24, lineHeight: 1, color: "#94A3B8", cursor: "pointer", flexShrink: 0 }}>&times;</button>
         </div>
 
-        <div style={{ padding: 22 }}>
+        <div style={{ padding: mobile ? 14 : 22 }}>
           {carregando && <div style={{ textAlign: "center", padding: 30, color: "#94A3B8", fontSize: 16 }}><i className="fas fa-spinner fa-spin" /> Carregando dados do produto...</div>}
           {nenhum && <div style={{ padding: 16, borderRadius: 10, background: "#FEF2F2", border: "1px solid #FECACA", color: "#DC2626", fontSize: 15 }}>Produto não encontrado no cadastro da NOVA nem da CASTRO.</div>}
 
@@ -122,7 +124,7 @@ export default function ModalProdutoEstoque({ open, codigo, descricao, onClose }
             <>
               {/* Produto (dados comuns) */}
               <div style={{ fontSize: 16, fontWeight: 700, color: "#DC2626", marginBottom: 12 }}>Produto</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 18 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 10, marginBottom: 18 }}>
                 {campo("Família", p?.familia || "—")}
                 {campo("Marca", p?.marca || "N/D")}
               </div>
@@ -136,7 +138,7 @@ export default function ModalProdutoEstoque({ open, codigo, descricao, onClose }
                   return (
                     <div key={conta}>
                       <div style={{ fontSize: 13.5, fontWeight: 700, color: "#475569", marginBottom: 8 }}>{conta}</div>
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+                      <div style={{ display: "grid", gridTemplateColumns: mobile ? "repeat(2, minmax(0, 1fr))" : "1fr 1fr 1fr", gap: 10 }}>
                         {campo("Valor Venda", fmtRS(dados!.produto.valor_venda), "verde")}
                         {campo("CMC", fmtRS(e.cmc), "verde")}
                         {campo("Saldo", String(e.saldo ?? "—"), saldoNeg ? "vermelho" : undefined)}
@@ -206,7 +208,7 @@ export default function ModalProdutoEstoque({ open, codigo, descricao, onClose }
         </div>
 
         {/* Rodapé */}
-        <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, padding: "16px 22px", borderTop: "1px solid #F1F5F9" }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", flexWrap: "wrap", gap: 10, padding: mobile ? "12px 14px" : "16px 22px", borderTop: "1px solid #F1F5F9" }}>
           <button type="button" onClick={onClose} style={{ padding: "12px 22px", borderRadius: 10, border: "1px solid #E2E8F0", background: "#fff", color: "#475569", fontSize: 15.5, fontWeight: 500, cursor: "pointer" }}>Fechar</button>
           <a href={`/estoque?codigo=${encodeURIComponent(codigo || "")}`} target="_blank" rel="noopener noreferrer"
             style={{ padding: "12px 22px", borderRadius: 10, border: "none", background: "#DC2626", color: "#fff", fontSize: 15.5, fontWeight: 600, cursor: "pointer", textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 8 }}>

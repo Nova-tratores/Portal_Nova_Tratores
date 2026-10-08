@@ -182,10 +182,16 @@ function AtividadesPageInner() {
   }
 
   return (
-    <div style={{ padding: '32px 40px' }}>
+    <div className="ativ-root" style={{ padding: '32px 40px' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .ativ-root { padding: 16px 12px !important; }
+          .ativ-root h2 { font-size: 22px !important; }
+        }
+      `}</style>
       {/* Header */}
       <div style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
           <div>
             <h2 style={{ fontSize: '28px', fontWeight: '800', color: '#1a1a1a', marginBottom: '6px' }}>
               Atividades
@@ -207,7 +213,7 @@ function AtividadesPageInner() {
       </div>
 
       {/* Abas */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '20px' }}>
         {([['atividades', 'Atividades', <Activity key="a" size={14} />], ['uso', 'Uso do portal', <BarChart3 key="u" size={14} />]] as const).map(([k, label, icon]) => (
           <button key={k} onClick={() => setAba(k)} style={{
             display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', borderRadius: '10px', fontFamily: 'Inter', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
@@ -225,9 +231,9 @@ function AtividadesPageInner() {
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)', marginBottom: '24px', overflow: 'hidden'
       }}>
         <div style={{
-          padding: '16px 24px', display: 'flex', alignItems: 'center', gap: '12px'
+          padding: '16px clamp(12px, 3vw, 24px)', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px'
         }}>
-          <div style={{ position: 'relative', flex: 1 }}>
+          <div style={{ position: 'relative', flex: '1 1 220px', minWidth: 0 }}>
             <Search size={14} style={{
               position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3'
             }} />
@@ -251,7 +257,7 @@ function AtividadesPageInner() {
               padding: '8px 14px', borderRadius: '10px',
               background: '#fafafa', border: '1px solid #e5e5e5',
               color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter',
-              outline: 'none', cursor: 'pointer'
+              outline: 'none', cursor: 'pointer', maxWidth: '100%'
             }}
           >
             {SISTEMAS.map(s => (
@@ -281,10 +287,10 @@ function AtividadesPageInner() {
 
         {showFiltros && (
           <div style={{
-            padding: '0 24px 16px', display: 'flex', gap: '12px',
+            padding: '0 clamp(12px, 3vw, 24px) 16px', display: 'flex', flexWrap: 'wrap', gap: '12px',
             borderTop: '1px solid #f5f5f5', paddingTop: '16px'
           }}>
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
               <label style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
                 USUÁRIO
               </label>
@@ -304,7 +310,7 @@ function AtividadesPageInner() {
               </select>
             </div>
 
-            <div style={{ flex: 1 }}>
+            <div style={{ flex: '1 1 200px', minWidth: 0 }}>
               <label style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
                 CARD / ENTIDADE
               </label>
@@ -325,7 +331,7 @@ function AtividadesPageInner() {
               <label style={{ fontSize: '11px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '1px', display: 'block', marginBottom: '6px' }}>
                 PERÍODO
               </label>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', alignItems: 'center' }}>
                 <input type="date" value={filtroDe} max={filtroAte || undefined} onChange={(e) => setFiltroDe(e.target.value)}
                   style={{ padding: '8px 10px', borderRadius: '10px', background: '#fafafa', border: '1px solid #e5e5e5', color: '#1a1a1a', fontSize: '13px', fontFamily: 'Inter', outline: 'none' }} />
                 <span style={{ fontSize: '12px', color: '#a3a3a3' }}>até</span>
@@ -343,8 +349,10 @@ function AtividadesPageInner() {
       {/* Tabela de logs */}
       <div style={{
         background: '#ffffff', borderRadius: '16px', border: '1px solid #f0f0f0',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflow: 'hidden'
+        boxShadow: '0 1px 3px rgba(0,0,0,0.04)', overflowX: 'auto', WebkitOverflowScrolling: 'touch'
       }}>
+        {/* Largura mínima: no celular/tablet a tabela rola na horizontal DENTRO da caixa */}
+        <div style={{ minWidth: 860 }}>
         {/* Header da tabela */}
         <div style={{
           display: 'grid',
@@ -481,12 +489,13 @@ function AtividadesPageInner() {
             </div>
           )
         })}
+        </div>
       </div>
 
       {/* Paginação */}
       {totalPages > 1 && (
         <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap',
           gap: '12px', marginTop: '24px'
         }}>
           <button

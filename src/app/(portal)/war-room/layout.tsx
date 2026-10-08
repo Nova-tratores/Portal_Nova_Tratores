@@ -23,11 +23,11 @@ export default function WarRoomLayout({ children }: { children: React.ReactNode 
 
   return (
     <div style={{ minHeight: 'calc(100vh - 64px)', background: 'var(--portal-bg)' }}>
-      <nav style={{ display: 'flex', gap: 4, padding: '0 16px', borderBottom: '1px solid var(--portal-border,#eee)', background: 'var(--portal-surface,#fff)' }}>
+      <nav style={{ display: 'flex', gap: 4, padding: '0 clamp(8px, 2.5vw, 16px)', overflowX: 'auto', borderBottom: '1px solid var(--portal-border,#eee)', background: 'var(--portal-surface,#fff)' }}>
         {abas.map((a) => (
           <Link key={a.href} href={a.href} style={{
             display: 'flex', alignItems: 'center', gap: 6, padding: '12px 14px',
-            fontSize: 14, fontWeight: 600, textDecoration: 'none',
+            fontSize: 14, fontWeight: 600, textDecoration: 'none', whiteSpace: 'nowrap', flexShrink: 0,
             color: a.ativo ? '#b91c1c' : 'var(--portal-text-muted,#888)',
             borderBottom: a.ativo ? '2px solid #b91c1c' : '2px solid transparent',
           }}>

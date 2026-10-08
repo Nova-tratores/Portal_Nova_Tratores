@@ -129,11 +129,13 @@ function EditorPage() {
   const estado = novo ? "novo" : a?.status === "arquivado" ? "arquivado" : a?.status === "rascunho" ? "rascunho" : a?.rascunho ? "edicao" : "publicado";
 
   return (
-    <div style={{ paddingTop: 20, maxWidth: 1280, margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
+    <div style={{ padding: "20px 12px 0", maxWidth: "calc(1280px + 24px)", margin: "0 auto", fontFamily: "Inter, sans-serif" }}>
+      {/* Celular/tablet: as colunas do editor (formulário × prévia e as linhas de campos) empilham */}
+      <style>{`@media (max-width: 900px) { .kbe-grid { grid-template-columns: minmax(0, 1fr) !important; } }`}</style>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 12, fontSize: 12 }}>
         <Link href="/conhecimento" style={{ color: "#0369a1", fontWeight: 700, textDecoration: "none" }}>← Base de conhecimento</Link>
         {a && a.status === "publicado" && <Link href={`/conhecimento/${a.slug}`} style={{ color: "var(--portal-text-secondary)", textDecoration: "none" }}>ver como leitor</Link>}
-        <span style={{ marginLeft: "auto", display: "flex", gap: 6, alignItems: "center" }}>
+        <span style={{ marginLeft: "auto", display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center" }}>
           {estado === "novo" && <Selo cor="#475569" bg="#f1f5f9">novo artigo</Selo>}
           {estado === "rascunho" && <Selo cor="#92400e" bg="#fef3c7">rascunho · nunca publicado</Selo>}
           {estado === "edicao" && <Selo cor="#1e40af" bg="#dbeafe">edição pendente · leitor vê a v{a?.versao}</Selo>}
@@ -151,11 +153,11 @@ function EditorPage() {
         <RevisaoPendente desde={a.revisao_pendente_desde} motivo={a.revisao_motivo} podePublicar={podePublicar} ocupado={!!ocupado} aoConfirmar={emDia} />
       )}
 
-      <div style={{ display: "grid", gridTemplateColumns: previa ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
+      <div className="kbe-grid" style={{ display: "grid", gridTemplateColumns: previa ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", gap: 16, alignItems: "start" }}>
         {/* ---------- formulário ---------- */}
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           <section style={caixa}>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: 10 }}>
+            <div className="kbe-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 2fr) minmax(0, 1fr)", gap: 10 }}>
               <Campo rotulo="Título">
                 <input style={campo} value={titulo} onChange={(e) => marcar(setTitulo)(e.target.value)} placeholder="O que a pessoa vai conseguir fazer ou entender" />
               </Campo>
@@ -170,7 +172,7 @@ function EditorPage() {
             <Campo rotulo="Resumo (uma frase; aparece na busca e na lista do botão ?)">
               <input style={campo} value={resumo} onChange={(e) => marcar(setResumo)(e.target.value)} placeholder="Opcional" />
             </Campo>
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 90px", gap: 10 }}>
+            <div className="kbe-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 90px", gap: 10 }}>
               <Campo rotulo="Telas onde aparece (separe por vírgula)">
                 <input style={campo} value={telas} onChange={(e) => marcar(setTelas)(e.target.value)} placeholder="/pos, /pos/dashboard" />
               </Campo>

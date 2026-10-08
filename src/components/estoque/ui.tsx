@@ -20,14 +20,14 @@ export function Card({ titulo, children }: { titulo: string; children: ReactNode
 }
 
 export function InfoGrid({ children }: { children: ReactNode }) {
-  return <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 8 }}>{children}</div>;
+  return <div className="est-cols2-xs" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8 }}>{children}</div>;
 }
 
 export function InfoItem({ label, valor, tom }: { label: string; valor: ReactNode; tom?: 'h' | 'r' }) {
   const cor = tom === 'h' ? '#16a34a' : tom === 'r' ? '#dc2626' : '#333';
   const v = valor === undefined || valor === null || valor === 'N/D' ? 'N/D' : valor;
   return (
-    <div style={{ background: '#fafafa', padding: 10, borderRadius: 8, border: '1px solid #f0f0f0' }}>
+    <div style={{ background: '#fafafa', padding: 10, borderRadius: 8, border: '1px solid #f0f0f0', minWidth: 0, overflowWrap: 'anywhere' }}>
       <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 2, fontWeight: 600 }}>
         {label}
       </label>

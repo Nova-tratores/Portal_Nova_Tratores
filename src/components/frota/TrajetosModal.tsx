@@ -252,8 +252,17 @@ export default function TrajetosModal({ placa, onClose }: Props) {
 
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(1000px, 96vw)', height: 'min(640px, 88vh)', background: 'var(--portal-bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 950, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(6px, 2vw, 16px)' }}>
+      {/* celular: lista de dias em cima (altura limitada) e mapa embaixo */}
+      <style>{`
+        @media (max-width: 768px) {
+          .frota-traj-modal { height: 92vh !important; width: 100% !important; }
+          .frota-traj-corpo { flex-direction: column !important; }
+          .frota-traj-lista { width: 100% !important; max-height: 34%; border-right: none !important; border-bottom: 1px solid var(--portal-border); }
+          .frota-traj-mapa { min-height: 240px; }
+        }
+      `}</style>
+      <div className="frota-traj-modal" onClick={(e) => e.stopPropagation()} style={{ width: 'min(1000px, 96vw)', height: 'min(640px, 88vh)', background: 'var(--portal-bg)', borderRadius: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 70px rgba(0,0,0,0.4)' }}>
         {/* Header + resumo dos dias escolhidos */}
         <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <Route size={17} color="#1e40af" />
@@ -275,12 +284,12 @@ export default function TrajetosModal({ placa, onClose }: Props) {
               </button>
             ))}
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={18} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)', minWidth: 36, minHeight: 36 }}><X size={18} /></button>
         </div>
 
-        <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+        <div className="frota-traj-corpo" style={{ flex: 1, display: 'flex', minHeight: 0 }}>
           {/* Lista de dias (multi-seleção) */}
-          <div style={{ width: 250, borderRight: '1px solid var(--portal-border)', overflowY: 'auto', flexShrink: 0 }}>
+          <div className="frota-traj-lista" style={{ width: 250, borderRight: '1px solid var(--portal-border)', overflowY: 'auto', flexShrink: 0 }}>
             {carregandoDias && <div style={{ padding: 14, fontSize: 13, color: 'var(--portal-text)' }}>Carregando dias…</div>}
             {!carregandoDias && dias.length === 0 && (
               <div style={{ padding: 14, fontSize: 13, color: 'var(--portal-text)' }}>
@@ -313,7 +322,7 @@ export default function TrajetosModal({ placa, onClose }: Props) {
           </div>
 
           {/* Mapa */}
-          <div style={{ flex: 1, position: 'relative' }}>
+          <div className="frota-traj-mapa" style={{ flex: 1, position: 'relative' }}>
             <div ref={mapRef} style={{ width: '100%', height: '100%' }} />
             {sel.length === 0 && (
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--portal-bg) 75%, transparent)', zIndex: 500, fontSize: 13, color: 'var(--portal-text)', fontWeight: 600 }}>

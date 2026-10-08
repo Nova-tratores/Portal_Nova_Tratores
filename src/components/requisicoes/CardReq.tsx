@@ -632,9 +632,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
     <div className="font-montserrat">
       {/* MODAL COTAÇÃO */}
       {modalCotacaoAberto && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-2 md:p-4">
           <div className="bg-white w-full max-w-5xl max-h-[92vh] overflow-y-auto rounded-2xl shadow-xl border border-zinc-200">
-            <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-6 py-4 border-b border-zinc-200 flex justify-between items-center z-10">
+            <div className="sticky top-0 bg-white/95 backdrop-blur-sm px-4 md:px-6 py-4 border-b border-zinc-200 flex justify-between items-center z-10">
               <div className="flex items-center gap-3">
                 <div className="w-9 h-9 rounded-lg bg-orange-600 text-white flex items-center justify-center"><ClipboardList size={18}/></div>
                 <div>
@@ -645,19 +645,19 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               <button onClick={() => setModalCotacaoAberto(false)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-zinc-50 text-black hover:bg-orange-500 hover:text-white transition-all"><X size={16}/></button>
             </div>
 
-            <div className="p-6 space-y-4">
+            <div className="p-3 md:p-6 space-y-4">
               <AvisoRascunho em={rascunhoCotacao.recuperadoEm} onFechar={rascunhoCotacao.esconderAviso}
                 onDescartar={() => { rascunhoCotacao.limpar(); if (cotacaoSalvaRef.current) setCotacaoData(JSON.parse(cotacaoSalvaRef.current)); }} />
               {[...Array(fornecedoresVisiveis)].map((_, i) => {
                 const idx = i + 1;
                 return (
-                  <div key={idx} className="bg-zinc-50 border border-zinc-200 rounded-xl p-5">
+                  <div key={idx} className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 md:p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <div className="w-6 h-6 rounded-full bg-orange-600 text-white flex items-center justify-center text-[10px] font-bold">{idx}</div>
                       <span className="text-xs font-semibold text-black">Fornecedor {idx}</span>
                       <button onClick={() => removerCotacao(idx)} className="ml-auto p-1.5 rounded-lg bg-zinc-50 text-black hover:bg-orange-500/20 hover:text-orange-400 transition-all"><X size={12}/></button>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                       <div>
                         <label className={labelBase}><Store size={11}/> Empresa</label>
                         <input value={cotacaoData[`fornecedor${idx}`] || ''} onChange={e => setCotacaoData({...cotacaoData, [`fornecedor${idx}`]: e.target.value.toUpperCase()})} className={inputBase} />
@@ -900,7 +900,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               )}
 
               {/* ── DADOS ── */}
-              <div className="grid grid-cols-[1fr_180px] gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_180px] gap-4">
                 <div>
                   <label className={labelBase}><Tag size={11}/> Título</label>
                   <input spellCheck lang="pt-BR" value={localData.titulo || ""} onChange={e => setField('titulo', e.target.value)} onBlur={e => persist('titulo', e.target.value.toUpperCase())} className={inputBase} />
@@ -911,7 +911,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <label className={labelBase}><Layers size={11}/> Tipo</label>
                   <select value={localData.tipo || ""} onChange={e => persist('tipo', e.target.value)} className={selectBase}>
@@ -985,7 +985,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {localData.setor === "Trator-Cliente" && (
                 <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4 space-y-3">
                   <span className={`${sectionTitle} text-amber-600`}><Truck size={12}/> Cliente / Trator</span>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div ref={cliDropdownRef} className="relative">
                       <label className={labelBase}><User size={11}/> Cliente</label>
                       <div
@@ -1109,7 +1109,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                       )}
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div ref={projDropdownRef} className="relative">
                       <label className={labelBase}><Cpu size={11}/> Projeto / Chassis</label>
                       <div
@@ -1204,7 +1204,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {['Veicular Abastecimento', 'Veicular Manutenção'].includes(localData.tipo) && (
                 <div className="border border-orange-200 bg-orange-50/50 rounded-xl p-4">
                   <span className={`${sectionTitle} text-orange-600`}><Car size={12}/> Veículo</span>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className={labelBase}><Car size={11}/> Placa</label>
                       <select value={String(localData.veiculo || '')} onChange={e => persist('veiculo', e.target.value)} className={selectBase}>
@@ -1223,7 +1223,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {['Veicular Abastecimento', 'Trator Abastecimento', 'Quadri Abastecimento'].includes(localData.tipo) && (
                 <div className="border border-amber-200 bg-amber-50/50 rounded-xl p-4">
                   <span className={`${sectionTitle} text-amber-600`}><Gauge size={12}/> Abastecimento</span>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <label className={labelBase}><Gauge size={11}/> Litros</label>
                       <input inputMode="decimal" value={localData.litros_combustivel || ''} onChange={e => setField('litros_combustivel', e.target.value)} onBlur={e => { const v = formatarLitros(e.target.value); setField('litros_combustivel', v); persist('litros_combustivel', v); }} className={inputBase} placeholder="Ex: 150,00" />
@@ -1251,7 +1251,7 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
               {/* ── FINANCEIRO ── */}
               <div>
                 <span className={`${sectionTitle} text-black`}><CreditCard size={12}/> Financeiro</span>
-                <div className="grid grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <div ref={fornDropdownRef} className="relative">
                     <label className={labelBase}><Store size={11}/> Fornecedor</label>
                     <input

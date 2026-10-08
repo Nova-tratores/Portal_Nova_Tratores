@@ -12,6 +12,7 @@ import {
 import PermissoesModulos from '@/components/admin/PermissoesModulos'
 import ContasSemCadastro from '@/components/admin/ContasSemCadastro'
 import TrocarEmailModal from '@/components/admin/TrocarEmailModal'
+import AvisosTratorilson from '@/components/admin/AvisosTratorilson'
 
 const MODULOS = [
   // Ajustes: módulo único que expande nas páginas (ações vêm de
@@ -473,7 +474,13 @@ export default function AdminPage() {
   if (!isAdmin) return null
 
   return (
-    <div style={{ padding: '32px 40px', fontFamily: 'Inter, sans-serif', background: 'var(--portal-bg)', minHeight: '100%' }}>
+    <div className="adm-root" style={{ padding: '32px 40px', fontFamily: 'Inter, sans-serif', background: 'var(--portal-bg)', minHeight: '100%' }}>
+      <style>{`
+        @media (max-width: 768px) {
+          .adm-root { padding: 16px 12px !important; }
+          .adm-root h2 { font-size: 22px !important; }
+        }
+      `}</style>
       {avisoOrfas && (
         <div onClick={() => setAvisoOrfas(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
           <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, maxWidth: 460, width: '100%', padding: 22, boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
@@ -496,7 +503,7 @@ export default function AdminPage() {
       <div style={{ marginBottom: '40px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
           <div style={{
-            width: '48px', height: '48px', borderRadius: '14px',
+            width: '48px', height: '48px', borderRadius: '14px', flexShrink: 0,
             background: 'linear-gradient(135deg, #dc2626, #b91c1c)',
             display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}>
@@ -514,7 +521,7 @@ export default function AdminPage() {
       </div>
 
       {/* Stats */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '32px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '16px', marginBottom: '32px' }}>
         {[
           { label: 'TOTAL USUÁRIOS', value: usuarios.length, icon: <Users size={20} /> },
           { label: 'ADMINISTRADORES', value: Object.values(permissoes).filter(p => p.is_admin).length, icon: <Shield size={20} /> },
@@ -543,8 +550,8 @@ export default function AdminPage() {
       </div>
 
       {/* Search + Novo Usuário */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
-        <div style={{ position: 'relative', width: '360px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ position: 'relative', width: '360px', maxWidth: '100%' }}>
           <Search size={16} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3' }} />
           <input
             type="text"
@@ -588,7 +595,7 @@ export default function AdminPage() {
           <div style={{
             background: 'var(--portal-bg-card)', borderRadius: '24px', width: '560px', maxWidth: '100%',
             maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', boxSizing: 'border-box',
-            padding: '32px 32px 0', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
+            padding: 'clamp(18px, 5vw, 32px) clamp(18px, 5vw, 32px) 0', boxShadow: '0 25px 60px rgba(0,0,0,0.15)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -739,10 +746,12 @@ export default function AdminPage() {
 
       {/* Users Table */}
       <div style={{
-        borderRadius: '20px', overflow: 'hidden',
+        borderRadius: '20px', overflowX: 'auto', WebkitOverflowScrolling: 'touch',
         background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
         boxShadow: '0 1px 3px rgba(0,0,0,0.04)'
       }}>
+        {/* Largura mínima das colunas: em tela estreita a tabela rola DENTRO da caixa */}
+        <div style={{ minWidth: 968 }}>
         {/* Table Header */}
         <div style={{
           display: 'grid', gridTemplateColumns: 'minmax(240px,1fr) 120px 150px 200px 80px 130px',
@@ -986,6 +995,7 @@ export default function AdminPage() {
             Nenhum usuário encontrado
           </div>
         )}
+        </div>
       </div>
 
       {/* ===== Seção: Usuários Inativos ===== */}
@@ -1004,7 +1014,7 @@ export default function AdminPage() {
             {inativosFiltrados.map(user => {
               const isSaving = saving === user.id
               return (
-                <div key={user.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 20px', borderBottom: '1px solid #f5f5f5', opacity: isSaving ? 0.6 : 0.85 }}>
+                <div key={user.id} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 12, padding: '12px clamp(12px, 3vw, 20px)', borderBottom: '1px solid #f5f5f5', opacity: isSaving ? 0.6 : 0.85 }}>
                   <div style={{ width: 34, height: 34, borderRadius: 9, overflow: 'hidden', background: '#e5e5e5', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, filter: 'grayscale(1)' }}>
                     {user.avatar_url ? <img src={user.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <UserIcon size={16} color="#fff" />}
                   </div>
@@ -1012,7 +1022,7 @@ export default function AdminPage() {
                     <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text-secondary)', margin: 0 }}>
                       {user.nome} <span style={{ fontSize: 10, fontWeight: 700, color: '#a3a3a3', background: 'var(--portal-bg-secondary)', padding: '1px 7px', borderRadius: 5, marginLeft: 6 }}>INATIVO</span>
                     </p>
-                    <p style={{ fontSize: 11, color: '#a3a3a3', margin: 0 }}>{user.funcao}{user.email ? ` · ${user.email}` : ''}</p>
+                    <p style={{ fontSize: 11, color: '#a3a3a3', margin: 0, overflowWrap: 'anywhere' }}>{user.funcao}{user.email ? ` · ${user.email}` : ''}</p>
                   </div>
                   <button
                     onClick={() => toggleAtivo(user.id, true)}
@@ -1031,6 +1041,9 @@ export default function AdminPage() {
           </div>
         </div>
       )}
+
+      {/* ===== Avisos do Tratorilson (Devs sempre + escolhidos aqui) ===== */}
+      <AvisosTratorilson />
 
       {/* ===== Logins sem cadastro (Auth sem financeiro_usu) ===== */}
       <ContasSemCadastro versao={versaoContas} onCadastrar={(email) => { setNovoEmail(email); setCriarErro(''); setShowNovoUsuario(true) }} onTrocarEmail={(c) => setTrocarEmailDe({ id: c.id, email: c.email })} />
@@ -1069,17 +1082,17 @@ export default function AdminPage() {
             }}
           >
             <div style={{
-              width: '680px', height: '100vh', background: 'var(--portal-bg-card)',
+              width: '680px', maxWidth: '100vw', height: '100%', background: 'var(--portal-bg-card)',
               boxShadow: '-8px 0 30px rgba(0,0,0,0.15)', overflow: 'hidden',
               display: 'flex', flexDirection: 'column',
               animation: 'slideInRight 0.25s ease-out'
             }}>
               {/* Header */}
               <div style={{
-                padding: '24px 28px', borderBottom: '1px solid var(--portal-border)',
-                background: 'var(--portal-bg-secondary)', flexShrink: 0
+                padding: 'clamp(16px, 4vw, 24px) clamp(14px, 4vw, 28px)', borderBottom: '1px solid var(--portal-border)',
+                background: 'var(--portal-bg-secondary)', flexShrink: 0, maxHeight: '55vh', overflowY: 'auto'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px 16px' }}>
                   <button
                     onClick={() => setSelectedUser(null)}
                     style={{
@@ -1102,11 +1115,11 @@ export default function AdminPage() {
                       <UserIcon size={22} color="#fff" />
                     )}
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: 0 }}>
+                  <div style={{ flex: '1 1 160px', minWidth: 0 }}>
+                    <h3 style={{ fontSize: '18px', fontWeight: '700', color: 'var(--portal-text)', margin: 0, overflowWrap: 'anywhere' }}>
                       {selectedUser.nome}
                     </h3>
-                    <p style={{ fontSize: '12px', color: '#a3a3a3', margin: 0 }}>
+                    <p style={{ fontSize: '12px', color: '#a3a3a3', margin: 0, overflowWrap: 'anywhere' }}>
                       {selectedUser.funcao || 'Sem função'} {selectedUser.email ? `· ${selectedUser.email}` : ''}
                     </p>
                   </div>
@@ -1120,9 +1133,9 @@ export default function AdminPage() {
                 </div>
 
                 {/* Resumo rápido */}
-                <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', marginTop: '16px' }}>
                   <div style={{
-                    padding: '10px 16px', borderRadius: '10px',
+                    padding: '10px 16px', borderRadius: '10px', minWidth: 120,
                     background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', flex: 1
                   }}>
                     <p style={{ fontSize: '10px', color: '#a3a3a3', fontWeight: '600', letterSpacing: '0.5px' }}>TOTAL AÇÕES</p>
@@ -1147,7 +1160,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* Resetar Senha */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginTop: '16px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginTop: '16px' }}>
                   <button
                     onClick={() => resetarSenha(selectedUser.email)}
                     disabled={resetandoSenha}
@@ -1174,7 +1187,7 @@ export default function AdminPage() {
               </div>
 
               {/* Conteúdo scrollável */}
-              <div style={{ flex: 1, overflow: 'auto', padding: '20px 28px' }}>
+              <div style={{ flex: 1, overflow: 'auto', padding: '20px clamp(14px, 4vw, 28px)' }}>
                 {loadingLogs ? (
                   <div style={{ padding: '60px 0', textAlign: 'center' }}>
                     <p style={{ color: '#a3a3a3', fontSize: '13px', letterSpacing: '2px' }}>CARREGANDO...</p>

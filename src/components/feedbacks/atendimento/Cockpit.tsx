@@ -71,9 +71,9 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
   return (
     <>
     {bloqueado && <BannerBloqueio mostrarTudo={mostrarTudo} onAlternar={() => setMostrarTudo((v) => !v)} />}
-    <div style={{ display: "grid", gridTemplateColumns: "300px minmax(0, 1fr) 380px", gap: 14, alignItems: "start" }}>
+    <div className={styles.cockpitGrid} style={{ display: "grid", gridTemplateColumns: "300px minmax(0, 1fr) 380px", gap: 14, alignItems: "start" }}>
       {/* ───────── ESQUERDA: quem é ───────── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className={styles.cockpitEsq} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
         {bloqueado && <FaixaBloqueio texto="NÃO CONTATAR" />}
         <section className={styles.card} style={{ ["--fb-accent" as string]: bloqueado ? VERMELHO : COR_ATENDIMENTO }}>
           {carregando && !ctx ? (
@@ -114,7 +114,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
               {(id?.email_interno || (id && id.telefones.length === 0)) && <Aviso cor="#92400e" bg="#fef3c7">{id?.telefones.length === 0 ? "Sem telefone no cadastro." : "E-mail do cadastro é da loja."} Confirme com o cliente e use “Corrigir cadastro”.</Aviso>}
               {id?.observacoes && <p style={{ margin: "10px 0 0", fontSize: 12, fontStyle: "italic", opacity: 0.8 }}>“{id.observacoes}”</p>}
               </div>
-              <div style={{ display: "flex", gap: 6, marginTop: 12 }}>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 12 }}>
                 {ctx?.codigo_omie && onCorrigirCadastro && <button type="button" onClick={onCorrigirCadastro} style={{ ...btn(COR_ATENDIMENTO, false), flex: 1 }} title="Telefone e e-mail — grava no Omie">✎ Corrigir cadastro</button>}
                 <button type="button" onClick={onEditarPerfil} style={{ ...btn("#475569", false), flex: 1 }}>✎ Funcionários e fazendas</button>
               </div>
@@ -131,7 +131,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
       </div>
 
       {/* ───────── CENTRO: contexto ───────── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className={styles.cockpitMeio} style={{ display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
         {bloqueado && <FaixaBloqueio />}
         {!ocultar && roteiro && roteiro.length > 0 && (
           <Card cinza={cinza} titulo="Roteiro" emoji="🗣️" cor="#d97706" contagem={null} carregando={carregando && !ctx}>
@@ -200,6 +200,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
             <Vazio>Nenhuma máquina encontrada (controle de revisões, projetos Omie, OS/PPV, CRM ou pasta).</Vazio>
           ) : (
             <>
+              <div style={{ overflowX: "auto", maxWidth: "100%" }}>
               <table style={tabela}>
                 <thead>
                   <tr><th style={{ textAlign: "left" }}>Máquina</th><th style={{ textAlign: "left" }}>Chassi</th><th style={{ textAlign: "left" }}>Entrega</th><th style={{ textAlign: "left" }}>Última revisão</th><th style={{ textAlign: "left" }}>Próxima revisão</th><th /></tr>
@@ -208,12 +209,13 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
                   {ctx.maquinas.map((m, i) => <LinhaMaquina key={`${m.chassi || m.modelo}-${i}`} m={m} onAbrir={onAbrirMaquina} />)}
                 </tbody>
               </table>
+              </div>
               <div style={{ fontSize: 10, opacity: 0.55, marginTop: 6 }}>Clique na máquina para ver o histórico completo (entrega, revisões, OS, peças, garantias, atendimentos).</div>
             </>
           )}
         </Card>
 
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div className={styles.cockpitDuo} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
           <Card cinza={cinza} titulo="Últimos serviços" emoji="🔧" cor={COR_SERVICOS} contagem={ctx?.servicos?.length} carregando={carregando && !ctx} erro={ctx?.erros.historico ?? ctx?.erros.os_portal}>
             {!ctx?.servicos?.length ? (
               <Vazio>Nenhuma ordem de serviço encontrada.</Vazio>
@@ -311,7 +313,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
           {!ctx?.pasta?.funcionarios.length && !ctx?.pasta?.fazendas.length ? (
             <Vazio>Nada anotado ainda. Use “Funcionários e fazendas” à esquerda para registrar quem é quem.</Vazio>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className={styles.cockpitDuo} style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
               <div>
                 <div style={subtitulo}>👥 Funcionários</div>
                 {ctx.pasta.funcionarios.length === 0 ? <Vazio>—</Vazio> : ctx.pasta.funcionarios.map((f, i) => (
@@ -373,7 +375,7 @@ export default function Cockpit({ ctx, carregando, onRecarregar, onRegistrar, on
       </div>
 
       {/* ───────── DIREITA: a ligação (fixa) ───────── */}
-      <div style={{ position: "sticky", top: 96, display: "flex", flexDirection: "column", gap: 12 }}>
+      <div className={styles.cockpitDir} style={{ position: "sticky", top: 96, display: "flex", flexDirection: "column", gap: 12, minWidth: 0 }}>
         {painelDireito}
         {ctx && Object.keys(ctx.erros).length > 0 && (
           <Aviso cor="#92400e" bg="#fef3c7">

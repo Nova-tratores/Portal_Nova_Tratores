@@ -44,7 +44,7 @@ export default function ProjetoPage() {
   const nfs: any[] = notas_fiscais || []
 
   return (
-    <div style={{ padding: '28px 36px', maxWidth: '1200px', margin: '0 auto' }}>
+    <div className="cli-page" style={{ padding: '28px 36px', maxWidth: '1200px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ fontSize: '20px', color: text, margin: '0 0 4px' }}>Projeto: {projeto}</h2>
@@ -57,7 +57,7 @@ export default function ProjetoPage() {
       </div>
 
       {/* Resumo */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '8px', marginBottom: '24px' }}>
+      <div className="cli-kpi5" style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '8px', marginBottom: '24px' }}>
         {[
           { label: 'Ordens de Servico', value: String(resumo.total_os) },
           { label: 'Ordens Faturadas', value: String(resumo.os_faturadas) },
@@ -76,8 +76,8 @@ export default function ProjetoPage() {
       {nfs.length > 0 && (
         <div style={{ marginBottom: '24px' }}>
           <p style={{ fontSize: '12px', color: gray, marginBottom: '8px' }}>Notas Fiscais ({nfs.length})</p>
-          <div style={{ borderRadius: '6px', border: `1px solid ${border}`, overflow: 'hidden' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '70px 1fr 100px 1fr 100px 100px 80px', padding: '6px 12px', background: bg2, fontSize: '10px', color: lightGray }}>
+          <div className="cli-xs" style={{ borderRadius: '6px', border: `1px solid ${border}`, overflow: 'hidden' }}>
+            <div className="cli-mw600" style={{ display: 'grid', gridTemplateColumns: '70px 1fr 100px 1fr 100px 100px 80px', padding: '6px 12px', background: bg2, fontSize: '10px', color: lightGray }}>
               <span>Tipo</span>
               <span>Origem</span>
               <span>Numero</span>
@@ -87,7 +87,7 @@ export default function ProjetoPage() {
               <span></span>
             </div>
             {nfs.map((nf: any, i: number) => (
-              <div key={i} style={{ display: 'grid', gridTemplateColumns: '70px 1fr 100px 1fr 100px 100px 80px', padding: '8px 12px', borderTop: `1px solid ${border}`, fontSize: '12px', color: text, alignItems: 'center' }}>
+              <div key={i} className="cli-mw600" style={{ display: 'grid', gridTemplateColumns: '70px 1fr 100px 1fr 100px 100px 80px', padding: '8px 12px', borderTop: `1px solid ${border}`, fontSize: '12px', color: text, alignItems: 'center' }}>
                 <span style={{ fontSize: '11px', color: gray }}>{nf.tipo}</span>
                 <span>{nf.origem}</span>
                 <span style={{ fontFamily: 'monospace', fontSize: '11px' }}>{nf.numero || '-'}</span>
@@ -171,7 +171,7 @@ export default function ProjetoPage() {
                           </a>
                         )}
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px' }}>
+                      <div className="cli-cols2" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: '6px' }}>
                         {[
                           { l: 'Data de Inclusao', v: formatDate(os.data_inclusao) },
                           { l: 'Data de Faturamento', v: formatDate(os.data_faturamento) },
@@ -247,12 +247,12 @@ export default function ProjetoPage() {
                       {itens.length > 0 && (
                         <div>
                           <p style={{ fontSize: '10px', color: lightGray, marginBottom: '6px' }}>Itens ({itens.length})</p>
-                          <div style={{ borderRadius: '6px', border: `1px solid ${border}`, overflow: 'hidden' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 50px 90px 90px', padding: '5px 10px', background: bg2, fontSize: '10px', color: lightGray }}>
+                          <div className="cli-xs" style={{ borderRadius: '6px', border: `1px solid ${border}`, overflow: 'hidden' }}>
+                            <div className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '80px 1fr 50px 90px 90px', padding: '5px 10px', background: bg2, fontSize: '10px', color: lightGray }}>
                               <span>Codigo</span><span>Descricao</span><span style={{ textAlign: 'center' }}>Quantidade</span><span style={{ textAlign: 'right' }}>Valor Unitario</span><span style={{ textAlign: 'right' }}>Valor Total</span>
                             </div>
                             {itens.map((item: any, idx: number) => (
-                              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 50px 90px 90px', padding: '5px 10px', borderTop: `1px solid ${border}`, fontSize: '11px', color: text }}>
+                              <div key={idx} className="cli-mw480" style={{ display: 'grid', gridTemplateColumns: '80px 1fr 50px 90px 90px', padding: '5px 10px', borderTop: `1px solid ${border}`, fontSize: '11px', color: text }}>
                                 <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>{item.codigo || '-'}</span>
                                 <span>{item.descricao}</span>
                                 <span style={{ textAlign: 'center' }}>{item.quantidade}</span>

@@ -70,7 +70,7 @@ export default function ChequesAtrasados({ podeVarrer, onIrParaChassi }: { podeV
 
   return (
     <section className={`mb-8 rounded-lg border ${total ? "border-red-300 bg-red-50" : "border-zinc-200 bg-white"}`}>
-      <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
         <button type="button" onClick={() => setAberto((v) => !v)} className="flex items-center gap-2 text-left">
           <span className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold ${total ? "bg-red-600 text-white" : "bg-emerald-500 text-white"}`}>
             {total ? "!" : "✓"}
@@ -100,7 +100,7 @@ export default function ChequesAtrasados({ podeVarrer, onIrParaChassi }: { podeV
       {erro && <p className="px-4 pb-3 text-sm text-red-600">{erro}</p>}
       {aberto && total > 0 && (
         <div className="border-t border-red-200 overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="text-left text-xs uppercase tracking-wide text-zinc-500">
                 <th className="px-4 py-2">OS</th>

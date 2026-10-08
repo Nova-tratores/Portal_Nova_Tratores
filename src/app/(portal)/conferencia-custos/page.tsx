@@ -2,6 +2,7 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import SemPermissao from '@/components/SemPermissao'
 import { Search, Download, Loader2, CheckCircle2 } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
@@ -43,6 +44,7 @@ export default function ConferenciaCustosPage() {
   const { userProfile } = useAuth()
   const { isAdmin, loading: permLoading } = usePermissoes(userProfile?.id)
 
+  const isMobile = useIsMobile()
   const [conta, setConta] = useState('todas')
   const [maquinas, setMaquinas] = useState<Maquina[]>([])
   const [loading, setLoading] = useState(true)
@@ -155,9 +157,9 @@ export default function ConferenciaCustosPage() {
   if (!isAdmin) return <SemPermissao />
 
   return (
-    <div style={{ padding: '24px 32px', maxWidth: 1500, margin: '0 auto' }}>
+    <div style={{ padding: isMobile ? '14px 8px' : '24px 32px', maxWidth: 1500, margin: '0 auto' }}>
       <div style={{ marginBottom: 4 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0 }}>Conferência de custo das máquinas</h1>
+        <h1 style={{ fontSize: isMobile ? 19 : 22, fontWeight: 800, margin: 0 }}>Conferência de custo das máquinas</h1>
         <p style={{ fontSize: 13, color: 'var(--portal-text-secondary,#737373)', margin: '4px 0 0' }}>
           Máquinas no pátio e em demonstração/consignação, com o custo atual do portal. Ligue para
           cada fornecedor e registre o custo pago, acumulado e o custo atual na fábrica — salva automaticamente.
@@ -166,7 +168,7 @@ export default function ConferenciaCustosPage() {
 
       {/* Barra de filtros */}
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', margin: '18px 0 12px' }}>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {CONTAS.map(c => (
             <button key={c.v} onClick={() => setConta(c.v)} style={{
               padding: '7px 14px', fontSize: 13, fontWeight: conta === c.v ? 700 : 500, cursor: 'pointer',
@@ -176,12 +178,12 @@ export default function ConferenciaCustosPage() {
             }}>{c.label}</button>
           ))}
         </div>
-        <div style={{ position: 'relative', flex: 1, minWidth: 220, maxWidth: 360 }}>
+        <div style={{ position: 'relative', flex: 1, minWidth: isMobile ? '100%' : 220, maxWidth: 360 }}>
           <Search size={15} style={{ position: 'absolute', left: 10, top: 9, color: '#999' }} />
           <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Buscar código, descrição, família, fornecedor…"
-            style={{ width: '100%', padding: '8px 10px 8px 32px', fontSize: 13, borderRadius: 8, border: '1px solid var(--portal-border,#e5e5e5)' }} />
+            style={{ width: '100%', boxSizing: 'border-box', padding: '8px 10px 8px 32px', fontSize: 13, borderRadius: 8, border: '1px solid var(--portal-border,#e5e5e5)' }} />
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           {([['todas', 'Todas'], ['estoque', 'No pátio'], ['demonstracao', 'Demonstração']] as const).map(([v, label]) => (
             <button key={v} onClick={() => setOrigemF(v)} style={{
               padding: '7px 12px', fontSize: 12.5, fontWeight: origemF === v ? 700 : 500, cursor: 'pointer',
@@ -202,7 +204,7 @@ export default function ConferenciaCustosPage() {
       </div>
 
       {/* Resumo */}
-      <div style={{ display: 'flex', gap: 24, fontSize: 13, margin: '0 0 12px', color: 'var(--portal-text-secondary,#737373)' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', columnGap: isMobile ? 14 : 24, rowGap: 6, fontSize: 13, margin: '0 0 12px', color: 'var(--portal-text-secondary,#737373)' }}>
         <span><b style={{ color: 'var(--portal-text,#171717)' }}>{totais.total}</b> máquinas</span>
         <span>Custo portal (total): <b style={{ color: 'var(--portal-text,#171717)' }}>{fmt(totais.custoPortal)}</b></span>
         <span>Custo pago informado: <b style={{ color: 'var(--portal-text,#171717)' }}>{fmt(totais.custoPago)}</b></span>
@@ -215,7 +217,7 @@ export default function ConferenciaCustosPage() {
           <Loader2 size={18} className="animate-spin" /> Carregando estoque de máquinas…
         </div>
       ) : (
-        <div style={{ overflowX: 'auto', border: '1px solid var(--portal-border,#e5e5e5)', borderRadius: 10 }}>
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', border: '1px solid var(--portal-border,#e5e5e5)', borderRadius: 10 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
             <thead>
               <tr style={{ background: 'var(--portal-bg,#fafafa)', textAlign: 'left' }}>
@@ -240,7 +242,7 @@ export default function ConferenciaCustosPage() {
                   <tr key={key} style={{ borderTop: '1px solid var(--portal-border,#f0f0f0)', background: m.contatado ? 'rgba(34,197,94,0.05)' : 'transparent' }}>
                     <Td mono>{m.codigo}</Td>
                     <Td>
-                      <span style={{ display: 'block', maxWidth: 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={m.descricao}>{m.descricao}</span>
+                      <span style={{ display: 'block', maxWidth: isMobile ? 170 : 260, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={m.descricao}>{m.descricao}</span>
                       {m.estoque > 1 && <span style={{ fontSize: 11, color: '#dc2626' }}>{m.estoque} un.</span>}
                     </Td>
                     <Td>{m.familia_nome}</Td>

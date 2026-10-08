@@ -492,7 +492,7 @@ export default function DashboardPage() {
   );
 
   return (
-    <div style={{ margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.7rem', fontWeight: 700 }}>Dashboard de Vendas</h1>
@@ -700,7 +700,7 @@ export default function DashboardPage() {
                 agora só aparecem via atalho/popup nos cards Total Peças e Serviços. */}
             {catPopup && (
               <div onClick={() => setCatPopup(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-                <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1100, width: '96%', maxHeight: '88vh', overflowY: 'auto' }}>
+                <div className="est-modal" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1100, width: '96%', maxHeight: '88vh', overflowY: 'auto' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                     <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Peças por categoria</h2>
                     <button onClick={() => setCatPopup(false)} style={linkBtn}>fechar</button>
@@ -718,7 +718,7 @@ export default function DashboardPage() {
             )}
             {servDecompPopup && cServ && (
               <div onClick={() => setServDecompPopup(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50, padding: 16 }}>
-                <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 560, width: '96%', maxHeight: '88vh', overflowY: 'auto' }}>
+                <div className="est-modal" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 560, width: '96%', maxHeight: '88vh', overflowY: 'auto' }}>
                   <div style={{ textAlign: 'right', marginBottom: 4 }}><button onClick={() => setServDecompPopup(false)} style={linkBtn}>fechar</button></div>
                   <ServicosDecomp c={cServ} onDetalhe={abrirOSServicos} />
                 </div>
@@ -857,7 +857,7 @@ export default function DashboardPage() {
       {/* Popup Serviços */}
       {osAberto && (
         <div onClick={() => setOsAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1240, width: '94%', maxHeight: '85vh', overflowY: 'auto' }}>
+          <div className="est-modal" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 1240, width: '94%', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, gap: 12, flexWrap: 'wrap' }}>
               <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
                 Serviços — {osView === 'servicos' ? `itens (${servItens?.length ?? 0})` : `Ordens de Serviço (${osServicos?.length ?? 0})`}
@@ -865,7 +865,7 @@ export default function DashboardPage() {
                   <span style={{ color: '#888', fontWeight: 600, marginLeft: 8 }}>· Total {fmtRS(osServicos.reduce((s, o) => s + (o.valor || 0), 0))}</span>
                 )}
               </h2>
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
                 <div style={{ display: 'flex', gap: 4 }}>
                   {([['servicos', 'Serviços'], ['os', 'Por OS']] as Array<['servicos' | 'os', string]>).map(([v, rotulo]) => (
                     <button key={v} onClick={() => setOsView(v)}
@@ -953,7 +953,7 @@ export default function DashboardPage() {
                 {osServicos.length > LIMITE_LINHAS && (
                   <div style={{ color: '#999', fontSize: '.9rem', marginBottom: 6 }}>Mostrando as {LIMITE_LINHAS} primeiras de {osServicos.length.toLocaleString('pt-BR')} OS (o total acima considera todas).</div>
                 )}
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
                   <thead><tr>
                     {shOS('OS', 'numero_os')}
                     {shOS('Data', 'data')}
@@ -976,7 +976,7 @@ export default function DashboardPage() {
                       </tr>
                     ))}
                   </tbody>
-                </table>
+                </table></div>
                 </>
               )
             )}
@@ -987,12 +987,12 @@ export default function DashboardPage() {
       {/* Popup composição do pedido */}
       {pedidoItens && (
         <div onClick={() => setPedidoItens(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 760, width: '90%', maxHeight: '80vh', overflowY: 'auto' }}>
+          <div className="est-modal" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 760, width: '90%', maxHeight: '80vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 12 }}>
               <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>Pedido {pedidoItens.numero}</h2>
               <button onClick={() => setPedidoItens(null)} style={linkBtn}>fechar</button>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead><tr>{['Código', 'Descrição', 'Qtd', 'V. Unit', 'V. Total', 'CMC'].map((h) => <th key={h} style={thStyle}>{h}</th>)}</tr></thead>
               <tbody>
                 {pedidoItens.itens.map((v, i) => (
@@ -1006,7 +1006,7 @@ export default function DashboardPage() {
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           </div>
         </div>
       )}
@@ -1014,7 +1014,7 @@ export default function DashboardPage() {
       {/* Popup itens do "Comprei" (peças por NF) — cabeçalho ordenável */}
       {comprasAberto && (
         <div onClick={() => setComprasAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 960, width: '92%', maxHeight: '85vh', overflowY: 'auto' }}>
+          <div className="est-modal" onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, maxWidth: 960, width: '92%', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, gap: 12, flexWrap: 'wrap' }}>
               <h2 style={{ color: '#111827', fontSize: '1.05rem', fontWeight: 700, margin: 0 }}>
                 Comprei — itens ({comprasItens?.length ?? 0})

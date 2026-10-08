@@ -155,14 +155,14 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'clamp(6px, 2vw, 16px)' }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{ background: '#fff', borderRadius: 12, width: 'min(1150px, 100%)', maxHeight: '86vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.2)' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 18px', borderBottom: '1px solid #eee' }}>
-          <div style={{ flex: 1 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '14px clamp(12px, 3vw, 18px)', borderBottom: '1px solid #eee' }}>
+          <div style={{ flex: '1 1 200px', minWidth: 0 }}>
             <div style={{ fontWeight: 700, color: '#333', fontSize: '.95rem' }}>{titulo}</div>
             <div style={{ color: '#888', fontSize: '.76rem', marginTop: 2 }}>
               {linhas.length} abastecimento(s) · {somas.litros.toLocaleString('pt-BR', { maximumFractionDigits: 0 })} L · <strong style={{ color: '#dc2626' }}>{fmtRS(somas.valor)}</strong>
@@ -171,13 +171,13 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
           </div>
           {botao('PDF', 'pdf')}
           {botao('CSV', 'csv')}
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 4 }}>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', padding: 4, minWidth: 36, minHeight: 36 }}>
             <X size={20} />
           </button>
         </div>
 
         {/* alternância Tabela × Treemap + dimensão da composição */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px 18px 0', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', padding: '10px clamp(12px, 3vw, 18px) 0', flexWrap: 'wrap' }}>
           {(['tabela', 'treemap'] as const).map((v) => (
             <button
               key={v}
@@ -203,12 +203,12 @@ export default function DetalheModal({ titulo, params, onClose }: DetalheParams 
           )}
         </div>
 
-        <div style={{ overflow: 'auto', padding: '6px 18px 12px' }}>
+        <div style={{ overflow: 'auto', padding: '6px clamp(12px, 3vw, 18px) 12px' }}>
           {erro && <div style={{ color: '#b91c1c', fontSize: '.82rem', padding: '12px 0' }}>{erro}</div>}
           {visao === 'tabela' ? (
             <TabelaOrdenavel colunas={COLUNAS_POPUP} linhas={linhas} chaveLinha={(l) => l.id} carregando={carregando} />
           ) : (
-            <div style={{ width: '100%', height: 420 }}>
+            <div style={{ width: '100%', height: 'clamp(260px, 50vw, 420px)' }}>
               {dadosTreemap.length === 0 && !carregando ? (
                 <p style={{ color: '#888', fontSize: '.8rem' }}>Sem dados para compor o treemap.</p>
               ) : (

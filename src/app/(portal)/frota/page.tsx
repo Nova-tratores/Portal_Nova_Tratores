@@ -178,7 +178,7 @@ export default function FrotaHome() {
   const motComPendencia = (motoristas || []).filter((m) => (m.pendencias || []).length > 0);
 
   return (
-    <div style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+    <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
 
       {/* KPIs — saúde da frota (os clicáveis levam pra tela do assunto) */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 24 }}>
@@ -235,7 +235,7 @@ export default function FrotaHome() {
         )}
         <div style={{ flex: 1 }} />
         {/* Onde cada carro mora: Ativos = frota de verdade; Vendidos/Arquivados = histórico */}
-        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden', overflowX: 'auto', maxWidth: '100%' }}>
           {([
             ['ativos', `Ativos (${soCarros.filter((v) => v.ativo).length})`],
             ['vendidos', `Vendidos (${soCarros.filter((v) => v.status === 'vendido').length})`],
@@ -245,8 +245,10 @@ export default function FrotaHome() {
             <button
               key={k}
               onClick={() => setSegmento(k)}
+              className="frota-touch"
               style={{
                 padding: '7px 12px', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                whiteSpace: 'nowrap', flexShrink: 0,
                 background: segmento === k ? '#1e40af' : 'var(--portal-bg-input)',
                 color: segmento === k ? '#fff' : 'var(--portal-text-secondary)',
               }}
@@ -255,19 +257,21 @@ export default function FrotaHome() {
             </button>
           ))}
         </div>
-        <div style={{ position: 'relative' }}>
+        <div className="frota-busca-box" style={{ position: 'relative' }}>
           <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Placa, modelo, responsável…"
+            className="frota-busca frota-touch"
             style={{ padding: '8px 12px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
           />
         </div>
         {pode('frota', 'veiculos:editar') && (
           <button
             onClick={() => setNovoAberto(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 0, border: 'none', background: '#1e40af', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+            className="frota-touch"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 0, border: 'none', background: '#1e40af', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
           >
             <Plus size={15} /> Novo veículo
           </button>
@@ -276,7 +280,7 @@ export default function FrotaHome() {
 
       {novoAberto && (
         <div onClick={() => setNovoAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(440px, 92vw)', background: 'var(--portal-bg)', borderRadius: 0, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(440px, 92vw)', maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box', background: 'var(--portal-bg)', borderRadius: 0, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <strong style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>Novo veículo</strong>
               <button onClick={() => setNovoAberto(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={18} /></button>
@@ -284,7 +288,7 @@ export default function FrotaHome() {
             <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>
               O Frota é o único lugar de cadastro: o veículo já nasce disponível nas Requisições. Depois complete a Ficha (documentos, projeto Omie, FIPE…).
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
               {([['placa', 'Placa *', 'ABC-1D23'], ['marca', 'Marca', 'VW'], ['modelo', 'Modelo', 'Saveiro'], ['ano', 'Ano', '2025']] as [keyof typeof novo, string, string][]).map(([campo, rotulo, ph]) => (
                 <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
                   {rotulo}
@@ -292,7 +296,7 @@ export default function FrotaHome() {
                     value={novo[campo]}
                     onChange={(e) => setNovo((f) => ({ ...f, [campo]: e.target.value }))}
                     placeholder={ph}
-                    style={{ padding: '8px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
+                    style={{ width: '100%', boxSizing: 'border-box', minWidth: 0, padding: '8px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
                   />
                 </label>
               ))}
@@ -319,7 +323,7 @@ export default function FrotaHome() {
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))', gap: 16 }}>
         {filtrados.map((v) => (
           <button
             key={v.id}
@@ -332,7 +336,7 @@ export default function FrotaHome() {
               border: '1px solid var(--portal-border)',
               borderLeft: '4px solid #1e40af',
               borderRadius: 0, padding: 16, display: 'flex', gap: 14, alignItems: 'center',
-              opacity: v.ativo ? 1 : 0.55,
+              opacity: v.ativo ? 1 : 0.55, minWidth: 0,
             }}
           >
             {v.imagem_url ? (
@@ -387,7 +391,7 @@ export default function FrotaHome() {
                   </div>
                 );
               })()}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text)' }}>
                   <UserIcon size={12} /> {v.responsavel_nome || 'sem responsável'}
                 </span>
@@ -430,7 +434,7 @@ export default function FrotaHome() {
               CNHs em dia ✓ — ninguém com pendência.
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 10 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))', gap: 10 }}>
               {motComPendencia.slice(0, 8).map((m) => (
                 <Link
                   key={m.rh_id || m.id}

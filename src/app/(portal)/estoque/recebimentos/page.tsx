@@ -355,7 +355,7 @@ export default function RecebimentosPage() {
   if (!permLoading && userProfile && !pode('estoque', 'recebimentos') && !pode('ajustes', 'recebimentos')) return <SemPermissao />;
 
   return (
-    <div style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1300, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap', marginBottom: 14 }}>
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Recebimentos de NF-e pendentes</h1>
@@ -363,7 +363,7 @@ export default function RecebimentosPage() {
             Conta <b>{conta ? conta.toUpperCase() : '—'}</b> · NFs de fornecedor que ainda nao foram processadas. As com sinal de garantia/conserto aparecem destacadas, com o impacto no CMC. Voce pode <b>dar entrada</b> (= processar no Omie: gera estoque e contas a pagar) por aqui.
           </p>
         </div>
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+        <div className="est-touch est-ml0" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
           <div>
             <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Emissao de</label>
             <input type="date" value={de} onChange={(e) => setDe(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar(false)} style={{ border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
@@ -531,7 +531,7 @@ function CabecalhoReceb({ sort, filtros, onSort, onFiltro }: {
   onFiltro: (key: SortKey, valor: string) => void;
 }) {
   return (
-    <div style={{ position: 'sticky', top: 0, zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 12, overflow: 'hidden', minWidth: MINW_RECEB + 2 * ROW_PAD_X }}>
+    <div className="rec-head" style={{ position: 'sticky', top: 0, zIndex: 20, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, marginBottom: 12, overflow: 'hidden', minWidth: MINW_RECEB + 2 * ROW_PAD_X }}>
       <div style={{ display: 'grid', gridTemplateColumns: GRID_RECEB, padding: `8px ${ROW_PAD_X}px 6px` }}>
         {COLS_RECEB.map((c) => {
           const ativo = sort?.key === c.key;
@@ -701,25 +701,25 @@ function CardReceb({ r, conta, resultado, usuarios, mostrarProdutos, onAbrir, on
   const ellip: React.CSSProperties = { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block' };
   const sinalLabel = !temSinal ? '' : (r.sinal === 'natureza' ? 'natureza' : 'CFOP');
   return (
-    <div style={{ background: '#fff', border: `1px solid ${borda}`, borderRadius: 8, overflow: 'hidden', opacity: concluido ? 0.65 : 1, minWidth: MINW_RECEB + 2 * ROW_PAD_X }}>
+    <div className="rec-card" style={{ background: '#fff', border: `1px solid ${borda}`, borderRadius: 8, overflow: 'hidden', opacity: concluido ? 0.65 : 1, minWidth: MINW_RECEB + 2 * ROW_PAD_X }}>
       <div style={{ background: headerBg, borderBottom: `1px solid ${borda}` }}>
         {/* linha ALINHADA com o cabeçalho (mesmo grid) */}
-        <div style={{ display: 'grid', gridTemplateColumns: GRID_RECEB, alignItems: 'center', padding: `8px ${ROW_PAD_X}px`, gap: '2px 0' }}>
+        <div className="rec-grid" style={{ display: 'grid', gridTemplateColumns: GRID_RECEB, alignItems: 'center', padding: `8px ${ROW_PAD_X}px`, gap: '2px 0' }}>
           <div style={cell}><span style={{ fontWeight: 600, color: '#1e293b', fontSize: '.8rem' }}>NF {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''}</span></div>
-          <div style={cell} title={r.fornecedorNome || ''}><span style={{ ...ellip, fontSize: '.8rem', color: '#475569' }}>{r.fornecedorNome || ''}</span></div>
-          <div style={cell} title={r.naturezaOperacao || ''}>
+          <div className="rec-wide" style={cell} title={r.fornecedorNome || ''}><span style={{ ...ellip, fontSize: '.8rem', color: '#475569' }}>{r.fornecedorNome || ''}</span></div>
+          <div className="rec-wide" data-l="Natureza" style={cell} title={r.naturezaOperacao || ''}>
             {r.naturezaOperacao ? <span style={{ ...ellip, fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#e2e8f0', color: '#475569' }}>{r.naturezaOperacao}</span> : <span style={{ color: '#cbd5e1' }}>—</span>}
           </div>
-          <div style={cell}>
+          <div data-l="Tipo" style={cell}>
             {r.tipo ? <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fff', border: `1px solid ${TIPO_COR[r.tipo] || '#cbd5e1'}`, color: TIPO_COR[r.tipo] || '#475569', fontWeight: 600, whiteSpace: 'nowrap' }}>{TIPO_LABEL[r.tipo] || r.tipo}</span> : null}
           </div>
-          <div style={{ ...cell, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>{r.dataEmissao || ''}</div>
-          <div style={{ ...cell, fontSize: '.78rem', color: '#334155', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtBRL(r.valorNFe)}</div>
-          <div style={{ ...cell, fontSize: '.75rem', color: '#64748b', textAlign: 'right' }}>{r.itens ? r.itens.length : 0}</div>
-          <div style={cell}>
+          <div data-l="Emissão" style={{ ...cell, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>{r.dataEmissao || ''}</div>
+          <div data-l="Total" style={{ ...cell, fontSize: '.78rem', color: '#334155', textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtBRL(r.valorNFe)}</div>
+          <div data-l="Itens" style={{ ...cell, fontSize: '.75rem', color: '#64748b', textAlign: 'right' }}>{r.itens ? r.itens.length : 0}</div>
+          <div data-l="Sinal" style={cell}>
             {temSinal ? <span style={{ fontSize: '.68rem', padding: '2px 7px', borderRadius: 6, background: r.sinal === 'natureza' ? '#fef3c7' : '#dbeafe', color: r.sinal === 'natureza' ? '#92400e' : '#1e40af', whiteSpace: 'nowrap' }} title={r.sinal === 'natureza' ? 'sinal: natureza da operação' : 'sinal: CFOP de garantia'}>{sinalLabel}</span> : <span style={{ color: '#cbd5e1' }}>—</span>}
           </div>
-          <div style={cell} title={r.responsavelAutomatico ? 'Responsável padrão (pelo tipo). Troque para transferir.' : 'Responsável (transferível)'}>
+          <div className="rec-wide" data-l="Responsável" style={cell} title={r.responsavelAutomatico ? 'Responsável padrão (pelo tipo). Troque para transferir.' : 'Responsável (transferível)'}>
             <select
               value={r.responsavelUserId || ''}
               onChange={(e) => onResponsavelChange(e.target.value || null)}
@@ -739,7 +739,7 @@ function CardReceb({ r, conta, resultado, usuarios, mostrarProdutos, onAbrir, on
             <span style={{ fontSize: '.7rem', padding: '2px 8px', borderRadius: 6, background: '#fde68a', color: '#92400e' }}>vai criar produto novo</span>
           ) : null}
           {r.responsavelAutomatico && r.responsavelUserId && <span style={{ fontSize: '.6rem', color: '#94a3b8' }}>resp. automático</span>}
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span className="est-wrap" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
             <NotaFiscalAcoes chave={r.chaveNFe} idReceb={r.idReceb} conta={conta} />
             {resultado ? (
               <span style={{ fontSize: '.72rem', color: resultado.tipo === 'ok' ? '#047857' : '#dc2626' }}>{resultado.texto}</span>
@@ -872,11 +872,11 @@ function BuscaProduto({ conta, termoInicial, valor, onSelecionar, disabled }: {
         onFocus={() => { if (sugestoes.length) setAberto(true); }}
         onBlur={() => setTimeout(() => setAberto(false), 150)}
         placeholder="SKU ou descricao do produto..."
-        style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 6px', width: 260, fontSize: '.72rem' }}
+        style={{ border: '1px solid #cbd5e1', borderRadius: 4, padding: '3px 6px', width: 260, maxWidth: '100%', fontSize: '.72rem' }}
       />
       {buscando && <span style={{ fontSize: '.62rem', color: '#94a3b8', marginLeft: 4 }}>buscando…</span>}
       {aberto && sugestoes.length > 0 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 60, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,.12)', maxHeight: 220, overflowY: 'auto', width: 340 }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 60, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, boxShadow: '0 6px 18px rgba(0,0,0,.12)', maxHeight: 220, overflowY: 'auto', width: 340, maxWidth: 'calc(100vw - 24px)' }}>
           {sugestoes.map((p) => (
             <div key={p.codigoProduto} onMouseDown={() => { onSelecionar(p); setAberto(false); setDigitou(false); }}
               style={{ padding: '5px 8px', fontSize: '.7rem', cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}
@@ -889,7 +889,7 @@ function BuscaProduto({ conta, termoInicial, valor, onSelecionar, disabled }: {
         </div>
       )}
       {aberto && !buscando && sugestoes.length === 0 && termo.trim().length >= 2 && (
-        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 60, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', fontSize: '.68rem', color: '#94a3b8', width: 340 }}>
+        <div style={{ position: 'absolute', top: '100%', left: 0, zIndex: 60, background: '#fff', border: '1px solid #cbd5e1', borderRadius: 6, padding: '5px 8px', fontSize: '.68rem', color: '#94a3b8', width: 340, maxWidth: 'calc(100vw - 24px)' }}>
           nenhum produto encontrado (a base local sincroniza por cron — produto criado hoje pode nao aparecer)
         </div>
       )}
@@ -1332,7 +1332,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
   };
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 920, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Dar entrada na NF {r.numeroNFe || '?'}{r.serieNFe ? `/${r.serieNFe}` : ''} - {r.fornecedorNome || ''}</h2>
@@ -1554,7 +1554,7 @@ function ModalEntrada({ r, conta, criadoPor, userId, userNome, onClose, onConclu
             </div>
           </>)}
         </div>
-        <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ borderTop: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
           <span style={{ fontSize: '.72rem', color: '#64748b', marginRight: 'auto' }}>{statusModal}</span>
           {fase === 'entrada' ? (
             <>

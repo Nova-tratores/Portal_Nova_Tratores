@@ -42,7 +42,7 @@ export default function ConfigComprasPage() {
   if (!permLoading && userProfile && !pode('estoque', 'config-compras') && !pode('estoque', 'sugestao-compra')) return <SemPermissao />;
 
   return (
-    <div style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1200, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
@@ -64,7 +64,7 @@ export default function ConfigComprasPage() {
 
       {msg && <div style={{ padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: '.82rem', background: msg.tipo === 'ok' ? '#dcfce7' : '#fee2e2', color: msg.tipo === 'ok' ? '#166534' : '#991b1b' }}>{msg.texto}</div>}
 
-      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #eee', marginBottom: 16 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, borderBottom: '1px solid #eee', marginBottom: 16 }}>
         <button style={tabBtn(aba === 'fornecedores')} onClick={() => setAba('fornecedores')}>Fornecedores</button>
         <button style={tabBtn(aba === 'itens')} onClick={() => setAba('itens')}>Itens</button>
         <button style={tabBtn(aba === 'mais-vendidos')} onClick={() => setAba('mais-vendidos')}>Mais Vendidos</button>
@@ -104,11 +104,11 @@ function AbaFornecedores({ conta, podeEditar, setMsg }: { conta: string; podeEdi
   return (
     <div style={card}>
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
-        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar fornecedor…" style={{ ...inp, width: 240 }} />
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar fornecedor…" style={{ ...inp, width: 240, maxWidth: '100%' }} />
         <label style={{ fontSize: '.8rem', color: '#666', display: 'flex', gap: 6, alignItems: 'center' }}><input type="checkbox" checked={soConfig} onChange={(e) => setSoConfig(e.target.checked)} /> só configurados</label>
         <span style={{ fontSize: '.75rem', color: '#aaa' }}>{carregando ? 'carregando…' : `${filtradas.length} de ${lista.length}`}</span>
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr>{['Fornecedor', 'Lead', 'Regularidade', 'Ciclo', 'NS A/B/C', 'Pedido mín.', 'Ativo', ''].map((h, i) => <th key={i} style={th}>{h}</th>)}</tr></thead>
         <tbody>
           {filtradas.length === 0 ? <tr><td colSpan={8} style={{ ...td, textAlign: 'center', color: '#bbb', padding: 20 }}>Nada encontrado</td></tr>
@@ -127,7 +127,7 @@ function AbaFornecedores({ conta, podeEditar, setMsg }: { conta: string; podeEdi
                   </tr>
             ))}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }
@@ -188,11 +188,11 @@ function AbaItens({ conta, podeEditar, setMsg }: { conta: string; podeEditar: bo
   return (
     <div style={card}>
       <div style={{ display: 'flex', gap: 10, marginBottom: 12, flexWrap: 'wrap' }}>
-        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar()} placeholder="Buscar por SKU ou descrição…" style={{ ...inp, width: 300 }} />
+        <input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && buscar()} placeholder="Buscar por SKU ou descrição…" style={{ ...inp, width: 300, maxWidth: '100%' }} />
         <button onClick={buscar} style={btn()}>Buscar</button>
         {buscando && <span style={{ fontSize: '.75rem', color: '#aaa', alignSelf: 'center' }}>buscando…</span>}
       </div>
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div className="est-scroll"><table style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead><tr>{['SKU', 'Descrição', 'Tipo', 'Estoque', 'Lead efetivo', 'Fornecedor pref.', 'Múltiplo', 'Flags', ''].map((h, i) => <th key={i} style={th}>{h}</th>)}</tr></thead>
         <tbody>
           {lista.length === 0 ? <tr><td colSpan={9} style={{ ...td, textAlign: 'center', color: '#bbb', padding: 20 }}>Busque um item</td></tr>
@@ -212,7 +212,7 @@ function AbaItens({ conta, podeEditar, setMsg }: { conta: string; podeEditar: bo
                   </tr>
             ))}
         </tbody>
-      </table>
+      </table></div>
     </div>
   );
 }
@@ -334,7 +334,7 @@ function AbaMaisVendidos({ conta, setMsg }: { conta: string; setMsg: (m: { texto
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>★ nas 3 listas</span>
       </div>
       {!carregando && lista.length === 0 && <div style={{ color: '#bbb', fontSize: '.82rem', padding: 10 }}>Sem dados. Gere o snapshot noturno (o job popula qtd/faturamento 12m).</div>}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 6 }}>
+      <div className="cc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: 6 }}>
         {lista.map((p) => {
           const a = ALERTA_COR[p.alerta || 'nao_comprar'] || ALERTA_COR.nao_comprar;
           const on = sel.has(p.sku);
@@ -368,8 +368,8 @@ function AbaMaisVendidos({ conta, setMsg }: { conta: string; setMsg: (m: { texto
       )}
 
       {detalhe && (
-        <div onClick={() => setDetalhe(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(420px,94vw)' }}>
+        <div onClick={() => setDetalhe(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'center', padding: 12 }}>
+          <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 12, padding: 20, width: 'min(420px,94vw)', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '1rem' }}>{detalhe.sku}</div>
             <div style={{ color: '#555', fontSize: '.85rem', margin: '4px 0 10px' }}>{detalhe.descricao}</div>
             {[['Tipo', detalhe.tipo || '—'], ['Curva', detalhe.curva || '—'], ['Alerta', (ALERTA_COR[detalhe.alerta || 'nao_comprar'] || ALERTA_COR.nao_comprar).label], ['Estoque atual', n2(detalhe.estoque_atual)], ['Mínimo', Math.round(n2(detalhe.minimo_efetivo))], ['Vendido 12m', `${Math.round(n2(detalhe.qtd_12m))} un`], ['Faturamento 12m', brl2(n2(detalhe.faturamento_12m))], ['Consumo/dia', n2(detalhe.cmd).toFixed(2)]].map(([k, v]) => (

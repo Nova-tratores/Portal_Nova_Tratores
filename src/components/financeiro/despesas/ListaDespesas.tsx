@@ -43,8 +43,8 @@ export default function ListaDespesas({
             <button
               onClick={() => onAlternarMes(mes.mes)}
               style={{
-                width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                gap: 12, padding: '14px 18px', border: 'none', background: 'none',
+                width: '100%', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between',
+                gap: '6px 12px', padding: '14px clamp(12px, 3vw, 18px)', border: 'none', background: 'none',
                 cursor: 'pointer', textAlign: 'left', font: 'inherit',
               }}
             >
@@ -63,7 +63,7 @@ export default function ListaDespesas({
                   </span>
                 )}
               </span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0, marginLeft: 'auto' }}>
                 <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
                   {mes.qtd} despesa{mes.qtd === 1 ? '' : 's'}
                 </span>
@@ -74,7 +74,7 @@ export default function ListaDespesas({
             </button>
 
             {aberto && (
-              <div style={{ padding: '0 18px 14px' }}>
+              <div style={{ padding: '0 clamp(10px, 3vw, 18px) 14px' }}>
                 {mes.semanas.map((s) => (
                   <div key={`${mes.mes}-${s.segunda}`}>
                     {/* divisor de semana: régua, não controle */}

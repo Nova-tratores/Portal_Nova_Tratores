@@ -33,7 +33,7 @@ export default function GestaoVendasLayout({ children }: { children: React.React
   return (
     <GvProvider>
       <GvNav />
-      <div className="p-4">{children}</div>
+      <div className="p-2 sm:p-4 min-w-0">{children}</div>
     </GvProvider>
   )
 }

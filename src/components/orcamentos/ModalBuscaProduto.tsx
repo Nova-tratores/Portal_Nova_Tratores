@@ -78,8 +78,8 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
         borderRadius: 12, background: '#FFFAF5', boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
       }}>
         <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '20px 32px', borderBottom: '1px solid rgba(251,146,60,0.3)',
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8,
+          padding: '20px clamp(14px, 4vw, 32px)', borderBottom: '1px solid rgba(251,146,60,0.3)',
         }}>
           <h2 style={{ fontSize: 18, fontWeight: 700, color: '#1e293b', margin: 0 }}>Buscar Produto</h2>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -94,7 +94,7 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
             <CatalogoNovo onSelecionarPeca={(p) => { setVerCatalogo(false); setTermo(p.code); buscar(p.code) }} />
           </div>
         ) : (
-        <div style={{ flex: 1, overflow: 'auto', padding: '20px 32px' }}>
+        <div style={{ flex: 1, overflow: 'auto', padding: '20px clamp(14px, 4vw, 32px)' }}>
           <div style={{ position: 'relative', marginBottom: 12 }}>
             <input
               ref={inputRef}
@@ -111,7 +111,7 @@ export default function ModalBuscaProdutoOrc({ open, onClose, onSelect }: Props)
             />
           </div>
           <div style={{ maxHeight: 320, overflow: 'auto', borderRadius: 8, border: '1px solid rgba(251,146,60,0.3)' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <table style={{ width: '100%', minWidth: 540, borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'rgba(255,237,213,0.4)' }}>
                   <th style={modalThStyle}>CÓDIGO</th>

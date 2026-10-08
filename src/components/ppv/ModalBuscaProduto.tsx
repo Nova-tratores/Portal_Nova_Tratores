@@ -188,8 +188,8 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
 
   return (
     <div className="fixed inset-0 z-[1000] flex items-center justify-center bg-red-900/60 backdrop-blur-sm" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className={`flex flex-col rounded-lg bg-[#FFFAF5] shadow-2xl ${verCatalogo ? "h-[88vh] w-[1060px] max-w-[96vw]" : "h-[550px] w-[800px]"}`}>
-        <div className="flex items-center justify-between rounded-t-lg border-b border-orange-200/60 bg-[#FFFAF5] px-10 py-5">
+      <div className={`flex flex-col rounded-lg bg-[#FFFAF5] shadow-2xl ${verCatalogo ? "h-[88vh] w-[1060px] max-w-[96vw]" : "h-[550px] max-h-[92vh] w-[800px] max-w-[96vw]"}`}>
+        <div className="flex items-center justify-between rounded-t-lg border-b border-orange-200/60 bg-[#FFFAF5] px-4 py-3 md:px-10 md:py-5">
           <h2 className="text-xl font-bold text-slate-800">{mode === "edit" ? "Editar Produto Manual" : mode === "modal" ? "Novo Item" : "Pesquisar Produto"}</h2>
           <button onClick={onClose} className="border-none bg-transparent text-2xl text-slate-400 transition-colors hover:text-red-500">&times;</button>
         </div>
@@ -210,7 +210,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
             </div>
           </div>
         ) : (
-        <div className="flex-1 overflow-y-auto bg-[#FFFAF5] px-10 py-7">
+        <div className="flex-1 overflow-y-auto bg-[#FFFAF5] px-3 py-4 md:px-10 md:py-7">
           {/* Busca + atalhos com legenda (Catálogo × Kit) do lado */}
           <div className="mb-3 flex items-stretch gap-2.5">
             <div className="relative flex-1">
@@ -234,14 +234,14 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
             </div>
             {mode !== "edit" && (
               <button onClick={() => setVerCatalogo(true)} title="Buscar a peça pela figura do catálogo"
-                className="flex w-[86px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-orange-300 bg-white text-orange-600 transition-colors hover:bg-orange-50">
+                className="flex w-[64px] shrink-0 flex-col md:w-[86px] items-center justify-center gap-1 rounded-lg border border-orange-300 bg-white text-orange-600 transition-colors hover:bg-orange-50">
                 <i className="fas fa-images text-lg" />
                 <span className="text-[11px] font-bold">Catálogo</span>
               </button>
             )}
             {mode === "modal" && onAbrirKit && (
               <button onClick={onAbrirKit} title="Importar kit de revisão (modelo + horas)"
-                className="flex w-[86px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-orange-300 bg-white text-orange-600 transition-colors hover:bg-orange-50">
+                className="flex w-[64px] shrink-0 flex-col md:w-[86px] items-center justify-center gap-1 rounded-lg border border-orange-300 bg-white text-orange-600 transition-colors hover:bg-orange-50">
                 <i className="fas fa-cubes text-lg" />
                 <span className="text-[11px] font-bold">Kit</span>
               </button>
@@ -257,7 +257,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
                   <button key={p.codigo} type="button"
                     onClick={() => handleClick({ codigo: p.codigo, descricao: p.descricao, preco: p.preco, origem: "completos" } as ProdutoBusca)}
                     className={`flex w-full items-center gap-3 border-b border-slate-100 px-4 py-2.5 text-left transition-colors last:border-b-0 ${addedFlash === p.codigo ? "bg-emerald-50" : "bg-white hover:bg-orange-50"}`}>
-                    <span className="w-[130px] shrink-0 truncate text-[13px] font-bold text-slate-800">{p.codigo}</span>
+                    <span className="w-[90px] shrink-0 truncate text-[13px] font-bold text-slate-800 md:w-[130px]">{p.codigo}</span>
                     <span className="min-w-0 flex-1 truncate text-[13px] text-slate-600" title={p.descricao}>{p.descricao}</span>
                     <span className="shrink-0 text-[13px] font-semibold text-slate-700">R$ {p.preco.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</span>
                     <span className="shrink-0 rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-bold text-orange-600" title="Quantas vezes já foi usado em pedidos">{p.usos}×</span>
@@ -275,8 +275,8 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
           )}
 
           {!(termo.trim().length < 2 && !buscando && maisUsados.length > 0) && (
-          <div className="overflow-hidden rounded-lg border border-orange-200/60" style={{ maxHeight: 330, overflowY: "auto" }}>
-            <table className="w-full border-collapse">
+          <div className="overflow-x-auto rounded-lg border border-orange-200/60" style={{ maxHeight: 330, overflowY: "auto" }}>
+            <table className="w-full min-w-[560px] border-collapse">
               <thead>
                 <tr className="sticky top-0 z-10 bg-orange-50/50">
                   <th className="border-b border-orange-200/60 px-4 py-3 text-left text-[11px] font-bold uppercase text-slate-400">CODIGO <span className="ml-1 normal-case font-medium text-red-400">· clique p/ ver</span></th>

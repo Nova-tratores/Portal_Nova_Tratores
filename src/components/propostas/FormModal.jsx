@@ -260,10 +260,10 @@ export default function FormModal({ onClose, initialData }) {
   )
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[3000] p-4">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-[3000] p-2 md:p-4">
       <div className="bg-white w-full max-w-[1000px] h-[92vh] rounded-2xl flex flex-col border border-zinc-200 shadow-2xl overflow-hidden">
         {/* HEADER */}
-        <div className="px-7 py-4 bg-white border-b border-zinc-200 flex justify-between items-center gap-4">
+        <div className="px-4 md:px-7 py-4 bg-white border-b border-zinc-200 flex justify-between items-center gap-4">
           <div>
             <h2 className="text-[17px] font-extrabold text-zinc-900 tracking-tight">Nova proposta comercial</h2>
             <p className="text-[12.5px] text-zinc-500 mt-0.5">Preencha os dados do cliente e do produto</p>
@@ -273,7 +273,7 @@ export default function FormModal({ onClose, initialData }) {
           </button>
         </div>
 
-        <div className="px-7 py-5 overflow-y-auto flex-1">
+        <div className="px-4 md:px-7 py-5 overflow-y-auto flex-1">
           <form onSubmit={handleSalvar} className="flex flex-col">
             {/* BUSCA */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

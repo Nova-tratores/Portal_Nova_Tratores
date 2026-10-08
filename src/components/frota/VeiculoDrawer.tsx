@@ -64,7 +64,7 @@ function Linha({ rotulo, valor }: { rotulo: string; valor: React.ReactNode }) {
   return (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: 14, borderBottom: '1px solid rgba(0,0,0,0.5)', paddingBottom: 4 }}>
       <span style={{ color: 'var(--portal-text)' }}>{rotulo}</span>
-      <span style={{ color: 'var(--portal-text)', fontWeight: 600, textAlign: 'right' }}>{valor ?? '—'}</span>
+      <span style={{ color: 'var(--portal-text)', fontWeight: 600, textAlign: 'right', minWidth: 0, overflowWrap: 'anywhere' }}>{valor ?? '—'}</span>
     </div>
   );
 }
@@ -563,7 +563,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
     <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', zIndex: 900, display: 'flex', alignItems: isMobile ? 'stretch' : 'center', justifyContent: 'center', padding: isMobile ? 0 : 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(1120px, 100%)', height: isMobile ? '100%' : 'auto', maxHeight: isMobile ? '100%' : '94vh', background: 'var(--portal-bg)', display: 'flex', flexDirection: 'column', borderRadius: 0, overflow: 'hidden', border: '1px solid var(--portal-border)', boxShadow: '0 25px 60px rgba(0,0,0,0.35)' }}>
         {/* Header */}
-        <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ padding: isMobile ? '10px 12px' : '14px 18px', borderBottom: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12 }}>
           <label
             title={podeEditar && det?.veiculo.id_placa != null ? 'Trocar a foto do veículo' : undefined}
             style={{ position: 'relative', cursor: podeEditar && det?.veiculo.id_placa != null ? 'pointer' : 'default', flexShrink: 0 }}
@@ -600,11 +600,11 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
               {[v?.marca, v?.modelo || v?.descricao, v?.ano].filter(Boolean).join(' · ') || '—'}
             </div>
           </div>
-          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={20} /></button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)', minWidth: 36, minHeight: 36, flexShrink: 0 }}><X size={20} /></button>
         </div>
 
         {/* Corpo */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ flex: 1, overflowY: 'auto', minWidth: 0, padding: isMobile ? 10 : 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
           {erro && <div style={{ color: '#b91c1c', fontSize: 13 }}>{erro}</div>}
           {!det && !erro && <div style={{ color: 'var(--portal-text)', fontSize: 13, display: 'flex', gap: 8, alignItems: 'center' }}><Loader2 size={14} className="spin" /> Carregando…</div>}
 
@@ -622,7 +622,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
               />
 
               {/* ── ABAS da Ficha (estilo Chrome) ── */}
-              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '8px 4px 0', background: 'var(--portal-bg-secondary)' }}>
+              <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, padding: '8px 4px 0', background: 'var(--portal-bg-secondary)', overflowX: 'auto', flexShrink: 0 }}>
                 {([
                   ['geral', 'Visão geral'],
                   ['hist', `Histórico de pendências${resumoHist ? ` (${resumoHist.total})` : ''}`],
@@ -630,7 +630,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                 ] as ['geral' | 'hist' | 'timeline', string][]).map(([chave, rotulo]) => (
                   <button key={chave} onClick={() => { setAbaFicha(chave); setFiltroSistemaHist(null); }}
                     style={{
-                      display: 'flex', alignItems: 'center', gap: 7, padding: '10px 18px', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 7, padding: isMobile ? '10px 12px' : '10px 18px', cursor: 'pointer', flexShrink: 0,
                       fontSize: 13, fontWeight: abaFicha === chave ? 700 : 500, color: 'var(--portal-text)', border: 'none',
                       background: abaFicha === chave ? 'var(--portal-bg-card)' : 'transparent',
                       borderRadius: '10px 10px 0 0',
@@ -646,7 +646,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                   </button>
                 ))}
                 <a href={`/frota/pendencias?placa=${encodeURIComponent(placa)}`}
-                  style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 12, fontWeight: 600, color: '#2563eb', textDecoration: 'none', paddingRight: 8 }}>
+                  style={{ marginLeft: 'auto', alignSelf: 'center', fontSize: 12, fontWeight: 600, color: '#2563eb', textDecoration: 'none', paddingRight: 8, whiteSpace: 'nowrap', flexShrink: 0 }}>
                   gerenciar →
                 </a>
               </div>
@@ -904,7 +904,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
 
               {/* Responsável */}
               <Secao titulo="Responsável" icone={<UserIcon size={14} />}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
                     {(() => {
                       // foto do técnico: 1º RH (/api/frota/motoristas), 2º avatar do PERFIL no portal
@@ -942,7 +942,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                     </div>
                   </div>
                   {podeResponsavel && !trocando && (
-                    <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                    <div style={{ display: 'flex', gap: 6, flexShrink: 0, flexWrap: 'wrap' }}>
                       <button onClick={abrirTroca} style={{ padding: '5px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 12.5, fontWeight: 600, cursor: 'pointer' }}>
                         Trocar responsável
                       </button>
@@ -993,7 +993,7 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                       <History size={11} /> HISTÓRICO
                     </div>
                     {det.responsaveis.slice(0, 6).map((r) => (
-                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--portal-text)' }}>
+                      <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', fontSize: 12, color: 'var(--portal-text)' }}>
                         <span>{r.motorista_nome || '—'}</span>
                         <span>{fmtData(r.inicio)} → {r.fim ? fmtData(r.fim) : 'atual'}</span>
                       </div>

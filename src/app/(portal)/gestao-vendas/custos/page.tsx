@@ -35,7 +35,7 @@ export default function GvCustosPage() {
   if (conta === 'TODAS') {
     return (
       <div className="space-y-4">
-        <h1 className="text-2xl font-bold text-gray-900">Custos Mensais</h1>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Custos Mensais</h1>
         <div className="rounded-md border border-yellow-300 bg-yellow-50 px-4 py-3 text-sm text-yellow-800">
           Os custos mensais são registrados por loja. Selecione <strong>Nova Tratores</strong> ou{' '}
           <strong>Castro Peças</strong> no seletor do topo para ver e editar.
@@ -80,7 +80,7 @@ export default function GvCustosPage() {
     <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Custos Mensais</h1>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Custos Mensais</h1>
           <p className="text-sm text-gray-500">
             {nomeEmpresaGV(conta)} — {formatCompetencia(mes, ano)}. Edite e saia do campo para
             salvar. Células em amarelo estão zeradas.
@@ -90,7 +90,7 @@ export default function GvCustosPage() {
           type="button"
           onClick={() => void copiar()}
           disabled={copiando || loading}
-          className="rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+          className="min-h-9 sm:min-h-0 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
         >
           {copiando ? 'Copiando…' : 'Copiar do mês anterior'}
         </button>
@@ -107,9 +107,9 @@ export default function GvCustosPage() {
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
-              <thead className="bg-gray-50 text-left text-[10px] uppercase text-gray-500">
+              <thead className="bg-gray-50 text-left text-xs sm:text-[10px] uppercase text-gray-500">
                 <tr>
-                  <th className="min-w-[160px] px-3 py-2 font-medium">Vendedor</th>
+                  <th className="sticky left-0 z-10 bg-gray-50 min-w-[120px] sm:min-w-[160px] px-3 py-2 font-medium">Vendedor</th>
                   {CAMPOS_CUSTO.map((c) => (
                     <th key={c} className="px-2 py-2 text-right font-medium">
                       {ROTULOS[c]}
@@ -130,7 +130,7 @@ export default function GvCustosPage() {
               </tbody>
               <tfoot>
                 <tr className="border-t-2 border-gray-300 bg-gray-50 font-medium">
-                  <td className="px-3 py-2">Total ({linhas.length} vendedores)</td>
+                  <td className="sticky left-0 z-10 bg-gray-50 px-3 py-2">Total ({linhas.length} vendedores)</td>
                   {totaisPorCampo.map((t, i) => (
                     <td key={CAMPOS_CUSTO[i]} className="px-2 py-2 text-right tabular-nums">
                       {formatBRL(t)}
@@ -192,7 +192,7 @@ function LinhaCusto({
 
   return (
     <tr className={`border-t border-gray-100 ${saving ? 'opacity-60' : ''}`}>
-      <td className="px-3 py-1 font-medium">
+      <td className="sticky left-0 z-10 bg-white px-3 py-1 font-medium">
         {nome}
         {erro && (
           <span className="ml-2 text-[10px] text-red-600" title={erro}>
@@ -211,7 +211,7 @@ function LinhaCusto({
               value={valores[c]}
               onChange={(e) => setValores((v) => ({ ...v, [c]: e.target.value }))}
               onBlur={(e) => void blur(c, e.target.value)}
-              className={`h-7 w-24 rounded-md border border-gray-300 px-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-red-500 ${
+              className={`h-9 sm:h-7 w-24 rounded-md border border-gray-300 px-1 text-right text-xs focus:outline-none focus:ring-1 focus:ring-red-500 ${
                 zerado ? 'bg-yellow-50' : 'bg-white'
               }`}
             />

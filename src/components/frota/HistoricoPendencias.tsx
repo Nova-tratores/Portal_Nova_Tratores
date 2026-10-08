@@ -313,7 +313,7 @@ export default function HistoricoPendencias({ placa, aba, onResumo, filtroSistem
               <div key={ev.chave} style={{ border: '1px solid var(--portal-border)', borderLeft: `4px solid ${cor}` }}>
                 <button onClick={() => setEventoAberto(abertoEv ? null : ev.chave)}
                   style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '9px 12px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', width: 150, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', width: 'min(150px, 38%)', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
                     {fmtDataBonita(ev.data)}
                   </span>
                   <Icone size={15} color={cor} style={{ flexShrink: 0 }} />

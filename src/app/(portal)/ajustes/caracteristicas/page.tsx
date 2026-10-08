@@ -1015,7 +1015,7 @@ export default function CaracteristicasPage() {
   const statusColor = statusTipo === 'erro' ? '#dc2626' : statusTipo === 'ok' ? '#047857' : '#64748b';
 
   return (
-    <div style={{ maxWidth: 1500, margin: '0 auto', padding: '20px 24px' }}>
+    <div className="est-page" style={{ maxWidth: 1500, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ marginBottom: 14 }}>
         <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Caracteristicas por produto</h1>
         <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 900 }}>
@@ -1027,7 +1027,7 @@ export default function CaracteristicasPage() {
         <Link href="/ajustes" style={{ color: '#dc2626', textDecoration: 'none', fontWeight: 600 }}>← Ajustes</Link>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
+      <div className="est-touch" style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={{ flex: 1, minWidth: 220 }}>
           <label style={{ display: 'block', fontSize: '.65rem', color: '#64748b', marginBottom: 2 }}>Filtrar (codigo, descricao ou empresa)</label>
           <input value={filtro} onChange={(e) => setFiltro(e.target.value)} placeholder="ex: POLIA, RP-0060, CASTRO..." style={{ width: '100%', border: '1px solid #cbd5e1', borderRadius: 6, padding: '6px 8px', fontSize: '.82rem' }} />
@@ -1111,7 +1111,7 @@ export default function CaracteristicasPage() {
         Arraste o <b>⠿</b> no cabecalho para reordenar colunas, ou use o botao <b>Colunas</b> para escolher quais mostrar (tudo salvo neste navegador). Clique no titulo para ordenar; <b>Shift+clique</b> adiciona um 2o criterio (desempate).
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.75rem' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8, fontSize: '.75rem' }}>
         <span style={{ color: statusColor }}>{rodando && status ? `⏳ ${status}` : status}</span>
         <span style={{ marginLeft: 'auto', color: '#64748b' }}>
           Ultima sincronizacao: <b>{fmtDataHora(dados.ultimaSync)}</b>
@@ -1322,7 +1322,7 @@ function ModalSugestoes({ d, onClose, onAplicado }: { d: SugestoesPayload; onClo
   }, [linhas, colTipo, onAplicado]);
 
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+    <div className="est-overlay" onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.4)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 820, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Sugerir &quot;{colTipo}&quot;</h2>

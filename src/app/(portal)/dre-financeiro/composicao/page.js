@@ -608,13 +608,13 @@ export default function ComposicaoPage() {
           ['custom', 'Personalizado'],
         ].map(([k, lbl]) => (
           <button key={k} type="button" onClick={() => setPreset(k)} aria-pressed={preset === k}
-            className={'text-sm px-3 py-1 rounded-full border transition cursor-pointer '
+            className={'text-sm px-3 py-1 max-md:min-h-9 rounded-full border transition cursor-pointer '
               + (preset === k ? 'bg-slate-800 border-slate-800 text-white' : 'bg-white border-slate-300 text-slate-700 hover:bg-slate-100')}>
             {lbl}
           </button>
         ))}
         {preset === 'custom' && (
-          <span className="inline-flex items-center gap-1 text-sm ml-1">
+          <span className="inline-flex items-center gap-1 text-sm ml-1 flex-wrap">
             <input type="date" value={deCustom} onChange={(e) => setDeCustom(e.target.value)}
               className="border border-slate-300 rounded px-2 py-1" />
             <span className="text-slate-400">até</span>
@@ -627,22 +627,22 @@ export default function ComposicaoPage() {
       {/* Toolbar de mes (setas so no modo mensal) */}
       <div className="flex items-center gap-3 mb-4 flex-wrap">
         {preset === 'mes' && (
-          <button onClick={mesAnterior} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100">&larr;</button>
+          <button onClick={mesAnterior} className="px-3 py-1 max-md:min-h-9 border border-slate-300 rounded bg-white hover:bg-slate-100">&larr;</button>
         )}
-        <h1 className="text-2xl font-semibold text-slate-800 min-w-[180px] text-center">{periodoLabel}</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold text-slate-800 min-w-[150px] sm:min-w-[180px] text-center">{periodoLabel}</h1>
         {preset === 'mes' && (<>
-          <button onClick={mesProximo} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100">&rarr;</button>
-          <button onClick={irHoje} className="px-3 py-1 border border-slate-300 rounded bg-white hover:bg-slate-100 text-sm">Hoje</button>
+          <button onClick={mesProximo} className="px-3 py-1 max-md:min-h-9 border border-slate-300 rounded bg-white hover:bg-slate-100">&rarr;</button>
+          <button onClick={irHoje} className="px-3 py-1 max-md:min-h-9 border border-slate-300 rounded bg-white hover:bg-slate-100 text-sm">Hoje</button>
         </>)}
         <span className="text-xs text-slate-500 ml-2">Modo:</span>
         {/* Toggle de TIPO (replicado da header global da fonte) */}
         <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm">
           <button type="button" onClick={() => escolherTipo('pagar')}
-            className={'px-3 py-1 transition ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>A Pagar</button>
+            className={'px-3 py-1 max-md:min-h-9 transition ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>A Pagar</button>
           <button type="button" onClick={() => escolherTipo('receber')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>A Receber</button>
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>A Receber</button>
           <button type="button" onClick={() => escolherTipo('ambos')}
-            className={'px-3 py-1 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Ambos</button>
+            className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Ambos</button>
         </div>
         <span className="text-xs font-semibold text-slate-700">{labelTipo}</span>
       </div>
@@ -690,7 +690,7 @@ export default function ComposicaoPage() {
                 <button key={n.chave} type="button" onClick={() => escolherNatureza(n.chave)}
                   title={DESCRICAO_NATUREZA[n.chave] + (ativo ? '\n\n(clique de novo para remover o filtro)' : '\n\n(clique para ver só isto)')}
                   aria-pressed={ativo}
-                  className={'relative cursor-pointer text-left rounded-lg border p-3 transition '
+                  className={'relative cursor-pointer text-left rounded-lg border p-3 transition min-w-0 '
                     + (ativo ? 'bg-slate-50 ring-2' : 'bg-white hover:bg-slate-50 hover:shadow-sm hover:-translate-y-px')}
                   style={{ borderColor: n.cor, ...(ativo ? { boxShadow: '0 0 0 2px ' + n.cor } : null) }}>
                   <div className="flex items-center gap-1.5">
@@ -718,7 +718,7 @@ export default function ComposicaoPage() {
 
       {/* KPIs */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0 break-words">
           <div className="text-xs text-slate-500 uppercase tracking-wide">
             Total do período{natureza ? ' · ' + (NATUREZAS.find((n) => n.chave === natureza) || {}).rotulo : ''}
             {grupoSel ? ' · ' + grupoSel.slice(grupoSel.indexOf('|') + 1) : ''}
@@ -734,7 +734,7 @@ export default function ComposicaoPage() {
           <div className="text-xs text-slate-500 uppercase tracking-wide">Categorias</div>
           <div className="text-2xl font-bold text-slate-800 mt-1">{kpiCategorias}</div>
         </div>
-        <div className="bg-white rounded-lg border border-slate-200 p-4">
+        <div className="bg-white rounded-lg border border-slate-200 p-4 min-w-0">
           <div className="text-xs text-slate-500 uppercase tracking-wide">Top categoria</div>
           <div className="text-base font-bold text-slate-800 mt-1 truncate">{kpiTopNome}</div>
           <div className="text-xs text-slate-500">{kpiTopValor}</div>
@@ -754,13 +754,13 @@ export default function ComposicaoPage() {
           <div className="ml-auto inline-flex rounded-md border border-slate-300 overflow-hidden">
             <button type="button" onClick={() => { escolherTipo('ambos'); setGrupoSel(null) }}
               title="Mostrar entradas e saidas"
-              className={'px-2.5 py-1 transition ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Todos</button>
+              className={'px-2.5 py-1 max-md:min-h-9 transition ' + (tipo === 'ambos' ? 'bg-slate-800 text-white' : inativoToggle)}>Todos</button>
             <button type="button" onClick={() => escolherTipo('pagar')}
               title="So o que sai (contas a pagar)"
-              className={'px-2.5 py-1 transition border-l border-slate-300 ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>Saídas</button>
+              className={'px-2.5 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'pagar' ? 'bg-red-600 text-white' : inativoToggle)}>Saídas</button>
             <button type="button" onClick={() => escolherTipo('receber')}
               title="So o que entra (contas a receber)"
-              className={'px-2.5 py-1 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>Entradas</button>
+              className={'px-2.5 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (tipo === 'receber' ? 'bg-emerald-600 text-white' : inativoToggle)}>Entradas</button>
           </div>
           {grupoSel && (
             <button type="button" onClick={() => setGrupoSel(null)}
@@ -818,7 +818,7 @@ export default function ComposicaoPage() {
               : 'Nenhum dado neste período. Sincronize ou troque o período.'}
           </div>
         ) : (
-          <div style={{ position: 'relative', height: 560 }}>
+          <div className="relative h-[420px] md:h-[560px]">
             <canvas ref={treemapRef} />
           </div>
         )}
@@ -829,27 +829,27 @@ export default function ComposicaoPage() {
       {modalAberto && (
         <>
           <div className="fixed inset-0 bg-black/40 z-40" onClick={fecharModal} />
-          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-2xl max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
-            <div className="border-b border-slate-200 px-5 py-3 flex items-center justify-between">
-              <div>
+          <div className="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-24px)] max-w-2xl max-h-[90vh] md:max-h-[85vh] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+            <div className="border-b border-slate-200 px-3 sm:px-5 py-3 flex items-center justify-between gap-2">
+              <div className="min-w-0 break-words">
                 <h2 className="font-semibold text-slate-800">{modalTitulo}</h2>
                 <div className="text-xs text-slate-500 mt-0.5" dangerouslySetInnerHTML={{ __html: modalSubtitulo }} />
               </div>
-              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none">×</button>
+              <button onClick={fecharModal} className="text-slate-500 hover:text-slate-900 text-2xl leading-none shrink-0 max-md:min-w-9 max-md:min-h-9">×</button>
             </div>
 
             {/* Abas Cliente x Modelo — só em categorias de receita (venda). A aba
                 Modelo cruza com vendas por período+cliente e NÃO reconcilia com o
                 valor financeiro; o aviso fica dentro da própria aba. */}
             {modalCtx?.podeModelo && !drill && (
-              <div className="px-5 pt-3 flex items-center gap-2 flex-wrap">
+              <div className="px-3 sm:px-5 pt-3 flex items-center gap-2 flex-wrap">
                 <div className="inline-flex rounded-md border border-slate-300 overflow-hidden text-sm">
                   <button type="button" onClick={() => trocarVista('cliente')}
-                    className={'px-3 py-1 transition ' + (vistaPopup === 'cliente' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>
+                    className={'px-3 py-1 max-md:min-h-9 transition ' + (vistaPopup === 'cliente' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>
                     Por Cliente
                   </button>
                   <button type="button" onClick={() => trocarVista('modelo')}
-                    className={'px-3 py-1 transition border-l border-slate-300 ' + (vistaPopup === 'modelo' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>
+                    className={'px-3 py-1 max-md:min-h-9 transition border-l border-slate-300 ' + (vistaPopup === 'modelo' ? 'bg-slate-800 text-white' : 'bg-white text-slate-700 hover:bg-slate-100')}>
                     Por Modelo
                   </button>
                 </div>
@@ -859,7 +859,7 @@ export default function ComposicaoPage() {
               </div>
             )}
 
-            <div className="p-5 overflow-y-auto">
+            <div className="p-3 sm:p-5 overflow-y-auto">
               {drill ? (
                 <DrillView drill={drill} onVoltar={voltarDrill} />
               ) : vistaPopup === 'modelo' && modalCtx?.podeModelo ? (
@@ -902,7 +902,7 @@ function ModalCorpo({ corpo, onTerceiro }) {
             <button key={i} type="button" onClick={() => onTerceiro && onTerceiro(t.nome)}
               title="Ver os títulos que compõem este valor" className="w-full text-left border border-slate-200 rounded-lg p-3 hover:border-slate-400 hover:bg-slate-50 transition cursor-pointer">
               <div className="flex items-start justify-between gap-2 mb-1">
-                <div className="font-medium text-slate-800 text-sm flex items-center gap-2">
+                <div className="font-medium text-slate-800 text-sm flex items-center gap-2 min-w-0 break-words">
                   <span className="text-xs text-slate-400 font-mono">{i + 1}.</span>
                   <span>{t.nome}</span>
                 </div>
@@ -945,7 +945,7 @@ function DrillView({ drill, onVoltar }) {
           className="text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1">
           <span className="text-lg leading-none">←</span> voltar
         </button>
-        <div className="text-right">
+        <div className="text-right min-w-0">
           <div className="text-sm font-semibold text-slate-800 truncate max-w-[22rem]">{titulo}</div>
           <div className="text-xs text-slate-500">{fmtBRL(drill.total)}</div>
         </div>
@@ -1058,7 +1058,7 @@ function ModeloView({ state, onRecarregar, onModelo }) {
                 title="Ver as vendas deste modelo"
                 className="w-full text-left border border-slate-200 rounded-lg p-3 hover:border-slate-400 hover:bg-slate-50 transition cursor-pointer">
                 <div className="flex items-start justify-between gap-2 mb-1">
-                  <div className="font-medium text-slate-800 text-sm flex items-center gap-2">
+                  <div className="font-medium text-slate-800 text-sm flex items-center gap-2 min-w-0 break-words">
                     <span className="text-xs text-slate-400 font-mono">{i + 1}.</span>
                     <span>{m.modelo}</span>
                     <span className="text-[11px] text-slate-400">{m.qtd} un.</span>

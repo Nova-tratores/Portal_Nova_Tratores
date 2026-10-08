@@ -208,7 +208,7 @@ export default function MarketingPage() {
             : 'Nenhuma ação cadastrada ainda. Comece pela feira que está devendo relatório.'}
         </Vazio>
       ) : (
-        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))' }}>
+        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fill, minmax(min(330px, 100%), 1fr))' }}>
           {acoes.map((a) => {
             const r = resumos[a.id];
             const dias = diasAte(r?.prazoMaisProximo);

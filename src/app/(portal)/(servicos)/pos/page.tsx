@@ -362,7 +362,7 @@ function PosPageInner() {
             onTecnicoFiltro={setTecnicoFiltro}
           />
           {/* Alternar Cards ⇄ Relação ⇄ Dashboard */}
-          <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, padding: "10px 16px 0" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6, padding: "10px 16px 0" }}>
             {([["cards", "fa-table-cells-large", "Cards", "Quadro por fase"], ["relacao", "fa-table-list", "Relação", "Tabela com filtros por coluna, ordenação, PDF e CSV"], ["dashboard", "fa-chart-simple", "Dashboard", "Valor e quantidade por data, técnico, tipo, fase e cliente"]] as const).map(([v, icone, rotulo, dica]) => (
               <button key={v} type="button" onClick={() => trocarViewMode(v)} title={dica}
                 style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 8, border: "1px solid var(--portal-border, #e5e7eb)", background: viewMode === v ? "#0369A1" : "#fefefe", color: viewMode === v ? "#fefefe" : "#111111", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>

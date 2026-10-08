@@ -397,15 +397,15 @@ export default function Kanban() {
    <FinanceiroNav />
 
    <main style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 64px - 56px)', overflow: 'hidden' }}>
-    <header style={{ padding: '20px 32px 16px' }}>
+    <header className="fin-k-header" style={{ padding: '20px 32px 16px' }}>
 
-     <div style={{ display:'flex', gap:'20px', flexWrap:'wrap', justifyContent: 'flex-start' }}>
-        <div style={{ position: 'relative', flex: '1 1 450px', maxWidth: '700px' }}>
+     <div className="fin-k-toolbar" style={{ display:'flex', gap:'20px', flexWrap:'wrap', justifyContent: 'flex-start' }}>
+        <div className="fin-k-search" style={{ position: 'relative', flex: '1 1 450px', maxWidth: '700px', minWidth: 0 }}>
             <Search size={22} style={iconFilterStyle} />
             <input type="text" placeholder="Buscar por cliente, nº da nota, vencimento, condição ou ID..." value={filtroBusca} onChange={e => setFiltroBusca(e.target.value)} style={{...inputFilterStyle, fontSize:'20px', padding:'20px 56px 20px 56px'}} />
             {filtroBusca && <X size={18} onClick={() => setFiltroBusca('')} style={{position:'absolute', right: '18px', top: '50%', transform:'translateY(-50%)', cursor:'pointer', color:'#dc2626'}}/>}
         </div>
-        <label title="Incluir os cards do setor de Peças (Balcão) junto dos de Oficina" style={{
+        <label className="fin-k-toggle" title="Incluir os cards do setor de Peças (Balcão) junto dos de Oficina" style={{
           display: 'flex', alignItems: 'center', gap: '9px', cursor: 'pointer', userSelect: 'none', flexShrink: 0,
           background: verPecas ? '#fff7ed' : 'var(--portal-bg-card)',
           color: verPecas ? '#c2410c' : 'var(--portal-text-secondary)',
@@ -419,18 +419,18 @@ export default function Kanban() {
     </header>
 
     {filtroBusca.trim() && (
-      <div style={{ padding: '0 50px', marginBottom: '4px', fontSize: '14px', color: 'var(--portal-text-muted)' }}>{chamadosFiltrados.length} resultado{chamadosFiltrados.length !== 1 ? 's' : ''}</div>
+      <div className="fin-k-count" style={{ padding: '0 50px', marginBottom: '4px', fontSize: '14px', color: 'var(--portal-text-muted)' }}>{chamadosFiltrados.length} resultado{chamadosFiltrados.length !== 1 ? 's' : ''}</div>
     )}
     {/* Uma rolagem só: o board inteiro desce junto (as colunas não rolam individualmente) */}
     {(
-    <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: '0', overflowX: 'auto', overflowY: 'auto', padding: '0 clamp(10px, 4vw, 50px) 40px', boxSizing: 'border-box' }}>
+    <div className="fin-k-board" style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: '0', overflowX: 'auto', overflowY: 'auto', padding: '0 clamp(10px, 4vw, 50px) 40px', boxSizing: 'border-box', minWidth: 0 }}>
      {colunas.map(col => {
       const cardsCol = chamadosFiltrados.filter(c => {
         if (col.id === 'gerar_boleto') return c.status === 'gerar_boleto' || c.status === 'validar_pix';
         return c.status === col.id;
       });
       return (
-      <div key={col.id} style={{ width: '400px', flex: '0 0 400px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 16px' }}>
+      <div key={col.id} className="fin-k-col" style={{ width: '400px', flex: '0 0 400px', display: 'flex', flexDirection: 'column', borderRight: '1px solid var(--portal-border)', padding: '0 16px' }}>
        <h3 className="fin-col-title" style={{ background: col.id === 'vencido' ? '#fecaca' : col.id === 'sem_boleto' ? '#fde68a' : '#c5e29f', color: '#111111', padding: '16px', borderRadius: '12px', marginBottom: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', fontWeight:'700', fontSize:'15px', letterSpacing:'1px', border: 'none', flexShrink: 0 }}>{col.titulo}<span style={{ background: 'rgba(255,255,255,.75)', borderRadius: '999px', padding: '2px 10px', fontSize: '13px', fontWeight: '600', fontVariantNumeric: 'tabular-nums' }}>{cardsCol.length}</span>
        {col.id === 'gerar_boleto' && (
          <button onClick={() => setAgruparOpen(true)} title="Juntar cards do mesmo cliente num só (boleto único pra todas as NFs)"
@@ -551,10 +551,10 @@ export default function Kanban() {
 
    {/* --- MODAL DETALHES --- */}
    {tarefaSelecionada && (
-    <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-     <div style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '30px', overflow:'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.15)', border: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column' }}>
+    <div onClick={(e) => { if (e.target === e.currentTarget) setTarefaSelecionada(null); }} style={{ position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(10px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} className="fin-k-overlay">
+     <div className="fin-k-modal" style={{ background: 'var(--portal-bg-card)', width: '1100px', maxWidth: '98%', maxHeight: '95vh', borderRadius: '30px', overflow:'hidden', boxShadow: '0 25px 60px rgba(0,0,0,0.15)', border: '1px solid var(--portal-border)', display: 'flex', flexDirection: 'column' }}>
 
-      <div style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
+      <div className="fin-k-modal-top" style={{ position: 'sticky', top: 0, zIndex: 10, background: 'var(--portal-bg-card)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 24px', borderBottom: '1px solid var(--portal-border)', flexShrink: 0 }}>
         <button onClick={() => setTarefaSelecionada(null)} className="btn-back"><ArrowLeft size={18}/> VOLTAR AO PAINEL</button>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           {isAdmin && (
@@ -563,9 +563,10 @@ export default function Kanban() {
           <button onClick={() => setTarefaSelecionada(null)} style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '10px', cursor:'pointer', padding:'8px 12px', display: 'flex', alignItems: 'center', gap: '6px', color: '#dc2626', fontSize: '13px', fontWeight: '600', transition: '0.2s' }} title="Fechar"><X size={18}/> Fechar</button>
         </div>
       </div>
-      <div style={{ flex: 1, padding: '30px 50px 50px', overflowY: 'auto' }}>
+      <div className="fin-k-modal-body" style={{ flex: 1, padding: '30px 50px 50px', overflowY: 'auto', minWidth: 0 }}>
         {podeEditar ? (
           <input
+            className="fin-k-title"
             style={{fontSize:'32px', fontWeight:'500', margin:'25px 0', letterSpacing:'-1px', color:'var(--portal-text)', lineHeight:'1', border:'none', borderBottom:'2px dashed var(--portal-border)', background:'transparent', width:'100%', outline:'none', padding:'2px 0'}}
             defaultValue={tarefaSelecionada.nom_cliente || ''}
             placeholder="Nome do cliente"
@@ -573,10 +574,10 @@ export default function Kanban() {
             title="Editar nome (somente admin)"
           />
         ) : (
-          <h2 style={{fontSize:'32px', fontWeight:'500', margin:'25px 0', letterSpacing:'-1px', color:'var(--portal-text)', lineHeight: '1'}}>{tarefaSelecionada.nom_cliente?.toUpperCase()}</h2>
+          <h2 className="fin-k-title" style={{fontSize:'32px', fontWeight:'500', margin:'25px 0', letterSpacing:'-1px', color:'var(--portal-text)', lineHeight: '1'}}>{tarefaSelecionada.nom_cliente?.toUpperCase()}</h2>
         )}
 
-        <div style={{display:'flex', gap:'30px', marginBottom:'45px'}}>
+        <div className="fin-k-fields" style={{display:'flex', gap:'30px', marginBottom:'45px'}}>
           <div style={fieldBoxModal}>
             <label style={labelModalStyle}>Condição</label>
             {podeEditar ? (
@@ -631,9 +632,9 @@ export default function Kanban() {
 
         {/* PARCELAMENTO EM CASCATA (ESCONDIDO PARA BOLETO 30 DIAS) */}
         {!isBoleto30 && isParcelamentoOuBoleto30 && (
-          <div style={{ display:'flex', flexDirection:'column', gap:'20px', background:'#fef2f2', padding:'40px', borderRadius:'24px', border:'1px solid var(--portal-border)', marginBottom: '45px' }}>
+          <div className="fin-k-box-lg" style={{ display:'flex', flexDirection:'column', gap:'20px', background:'#fef2f2', padding:'40px', borderRadius:'24px', border:'1px solid var(--portal-border)', marginBottom: '45px' }}>
              <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', borderBottom:'1px solid var(--portal-border)', paddingBottom:'20px', marginBottom:'10px' }}>
-                <div style={{ display:'flex', gap:'40px' }}>
+                <div className="fin-k-parc-head" style={{ display:'flex', gap:'40px' }}>
                   <div>
                     <label style={labelModalStyle}>Quantidade</label>
                     <select
@@ -652,7 +653,7 @@ export default function Kanban() {
              </div>
 
              <div style={{ display:'flex', flexDirection:'column', gap: '15px' }}>
-                <div style={cascadeRowStyle}>
+                <div className="fin-k-cascade" style={cascadeRowStyle}>
                   <span style={cascadeLabelStyle}>1ª PARCELA</span>
                   <input type="date" disabled={!podeEditar} style={{ ...inputCascadeStyle, cursor: podeEditar ? 'text' : 'not-allowed' }} defaultValue={tarefaSelecionada.vencimento_boleto} onBlur={e => handleUpdateField(tarefaSelecionada.id, 'vencimento_boleto', e.target.value)} />
                   <span style={cascadeValueStyle}>{formatarMoeda(valorIndividual)}</span>
@@ -665,7 +666,7 @@ export default function Kanban() {
                   // Remove duplicata da parcela 1 se presente (registros antigos)
                   if (rawDates.length > 0 && rawDates[0] === tarefaSelecionada.vencimento_boleto) rawDates.shift();
                   return (
-                    <div key={pNum} style={cascadeRowStyle}>
+                    <div key={pNum} className="fin-k-cascade" style={cascadeRowStyle}>
                       <span style={cascadeLabelStyle}>{pNum}ª PARCELA</span>
                       <input
                         type="date"
@@ -689,7 +690,7 @@ export default function Kanban() {
         )}
 
         {/* === INFORMAÇÕES + DOCUMENTOS EM GRID COMPACTO === */}
-        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>
+        <div className="fin-k-grid2" style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'20px' }}>
 
           {/* NF + ANEXOS */}
           <div style={{ background:'#f0fdf4', border:'1px solid #bbf7d0', borderRadius:'22px', padding:'24px', display:'flex', flexDirection:'column', gap:'14px' }}>
@@ -786,7 +787,7 @@ export default function Kanban() {
           <PreferenciaEnvioBoleto card={tarefaSelecionada} />
           <EmailsDoCard chamadoId={tarefaSelecionada?.id} />
           {tarefaSelecionada.status === 'enviar_cliente' && (
-            <div style={{background:'#f0fdf4', padding:'30px 35px', borderRadius:'20px', border:'1px solid #bbf7d0'}}>
+            <div className="fin-k-box-lg" style={{background:'#f0fdf4', padding:'30px 35px', borderRadius:'20px', border:'1px solid #bbf7d0'}}>
               <label style={{...labelModalStyle, color:'#16a34a', fontSize: '16px'}}>AÇÃO REQUERIDA</label>
               <p style={{color: 'var(--portal-text-secondary)', marginBottom: '20px', fontSize: '14px'}}>Confirme após enviar os documentos ao cliente.</p>
               <button onClick={() => handleConfirmarEnvioPV(tarefaSelecionada)} style={{background:'#22c55e', color:'#fff', padding:'16px 35px', border:'none', borderRadius:'14px', cursor:'pointer', fontSize: '16px', fontWeight:'700', display:'flex', alignItems:'center', gap:'12px', transition:'0.3s'}}>
@@ -816,7 +817,7 @@ export default function Kanban() {
                   ? Object.entries(l.detalhes).map(([k, v]) => `${k}: ${typeof v === 'object' ? JSON.stringify(v) : v}`).join(' · ')
                   : '';
                 return (
-                  <div key={i} style={{ display:'flex', gap:'12px', alignItems:'flex-start', padding:'12px 14px', background:'var(--portal-bg-card)', borderRadius:'10px', border:'1px solid var(--portal-border)' }}>
+                  <div key={i} className="fin-k-logrow" style={{ display:'flex', gap:'12px', alignItems:'flex-start', padding:'12px 14px', background:'var(--portal-bg-card)', borderRadius:'10px', border:'1px solid var(--portal-border)' }}>
                     <div style={{ width:'8px', height:'8px', borderRadius:'50%', background:'#dc2626', marginTop:'6px', flexShrink:0 }} />
                     <div style={{ flex:1, minWidth:0 }}>
                       <div style={{ fontSize:'13.5px', fontWeight:'600', color:'var(--portal-text)' }}>{l.nome} <span style={{ fontWeight:'400', color:'var(--portal-text-secondary)' }}>— {l.acao}</span></div>
@@ -833,13 +834,13 @@ export default function Kanban() {
         <div style={{marginTop:'30px', display:'flex', flexDirection:'column', gap:'20px'}}>
 
           {(tarefaSelecionada.status === 'aguardando_vencimento' || (exigeComprovantePago(tarefaSelecionada.forma_pagamento) && tarefaSelecionada.status !== 'pago' && tarefaSelecionada.status !== 'concluido')) && (
-            <div style={{background:'#eff6ff', padding:'40px', borderRadius:'24px', border:'1px solid #bfdbfe'}}>
+            <div className="fin-k-box-lg" style={{background:'#eff6ff', padding:'40px', borderRadius:'24px', border:'1px solid #bfdbfe'}}>
                 <label style={{...labelModalStyle, color:'#3b82f6', fontSize: '16px'}}>COMPROVANTE DE PAGAMENTO</label>
                 <p style={{color: 'var(--portal-text-secondary)', marginBottom: '25px', fontSize: '14px'}}>
                   Anexe o comprovante quando o cliente efetuar o pagamento. Uma tarefa será criada automaticamente para o Financeiro confirmar.
                 </p>
                 {tarefaSelecionada.comprovante_pagamento && (
-                  <div style={{marginBottom:'20px', display:'flex', alignItems:'center', gap:'10px', color:'#16a34a', fontSize:'13px', fontWeight:'700', background:'#f0fdf4', padding:'12px 20px', borderRadius:'12px', border:'1px solid #bbf7d0'}}>
+                  <div className="fin-k-wrap" style={{marginBottom:'20px', display:'flex', alignItems:'center', gap:'10px', color:'#16a34a', fontSize:'13px', fontWeight:'700', background:'#f0fdf4', padding:'12px 20px', borderRadius:'12px', border:'1px solid #bbf7d0'}}>
                     <CheckCircle size={16}/> COMPROVANTE JÁ ANEXADO — tarefa enviada ao Financeiro
                     <button onClick={() => window.open(tarefaSelecionada.comprovante_pagamento, '_blank')} style={{marginLeft:'auto', background:'var(--portal-bg-secondary)', color:'var(--portal-text)', border:'1px solid var(--portal-border)', padding:'6px 16px', borderRadius:'8px', cursor:'pointer', fontSize:'12px'}}>VER</button>
                   </div>
@@ -884,6 +885,7 @@ export default function Kanban() {
      audit={(a) => auditLog({ sistema: 'financeiro', entidade: 'Chamado_NF', ...a })}
    />
 
+   <style>{FIN_K_CSS}</style>
    <style jsx global>{`
     .kanban-card { background: var(--portal-bg-card); border: 1px solid var(--portal-border); border-radius: 20px; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; margin-bottom: 5px; flex-shrink: 0; }
     .kanban-card:hover { transform: translateY(-6px); box-shadow: 0 12px 30px rgba(0,0,0,0.08); border-color: var(--portal-border); }
@@ -909,7 +911,7 @@ export default function Kanban() {
 function AttachmentTag({ label, fileUrl, onUpload, disabled = false }) {
     const fileInputRef = useRef(null);
     return (
-        <div style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '12px', overflow: 'hidden', minWidth:'260px' }}>
+        <div className="fin-k-attach" style={{ display: 'flex', alignItems: 'center', background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: '12px', overflow: 'hidden', minWidth:'260px' }}>
             <span style={{ padding: '12px 18px', fontSize: '12px', color: fileUrl ? '#16a34a' : 'var(--portal-text-secondary)', borderRight: '1px solid var(--portal-border)', flex: 1, whiteSpace: 'nowrap' }}>{label}</span>
             <div style={{ display: 'flex' }}>
                 {fileUrl && (
@@ -945,3 +947,54 @@ const pModalStyle = { fontSize:'32px', color:'var(--portal-text)', margin:'0' };
 const fieldBoxModal = { border: '1px solid var(--portal-border)', padding: '20px 24px', borderRadius: '16px', background: 'var(--portal-bg-card)', boxShadow: '0 1px 3px rgba(16,24,40,.05)', flex: 1 };
 const fieldBoxInner = { padding: '10px' };
 const miniActionBtn = { background: 'transparent', border: 'none', padding: '12px 15px', color: '#374151', cursor: 'pointer', transition: '0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' };
+
+const FIN_K_CSS = `
+@media (max-width: 1024px) {
+  .fin-k-board { scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+  .fin-k-col { scroll-snap-align: start; }
+  .fin-k-cascade { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; gap: 12px !important; }
+  .fin-k-cascade > :last-child { grid-column: 1 / -1; }
+  .fin-k-cascade input { width: 100%; box-sizing: border-box; min-width: 0; }
+  .fin-k-attach { min-width: 0 !important; }
+  .fin-k-actions { flex-wrap: wrap; }
+  .fin-k-modal-body { padding: 24px 28px 36px !important; }
+  .fin-k-fields { flex-wrap: wrap; }
+  .fin-k-fields > * { flex: 1 1 220px !important; min-width: 0; }
+  .fin-k-actions > * { min-width: 220px; }
+}
+@media (max-width: 768px) {
+  .fin-k-header { padding: 12px 12px 10px !important; }
+  .fin-k-toolbar { gap: 10px !important; }
+  .fin-k-search { flex: 1 1 100% !important; min-width: 0; max-width: 100% !important; }
+  .fin-k-search input { font-size: 16px !important; padding: 12px 40px 12px 40px !important; }
+  .fin-k-toggle { min-height: 44px; font-size: 14px !important; padding: 0 16px !important; }
+  .fin-k-count { padding: 0 12px !important; }
+  .fin-k-results { padding: 0 12px 20px !important; }
+  .fin-k-board { scroll-snap-type: x mandatory; padding: 0 12px 24px !important; gap: 10px !important; }
+  .fin-k-col { flex: 0 0 85% !important; width: 85% !important; min-width: 0; max-width: 400px; padding: 0 8px !important; box-sizing: border-box; }
+  .fin-k-overlay { padding: 12px; box-sizing: border-box; }
+  .fin-k-modal { width: 100% !important; max-width: 100% !important; max-height: 92vh !important; border-radius: 18px !important; }
+  .fin-k-modal-top { padding: 10px 12px !important; flex-wrap: wrap; gap: 8px; }
+  .fin-k-modal-top .btn-back { padding: 10px 14px; font-size: 12px; }
+  .fin-k-modal-top > div { flex-wrap: wrap; }
+  .fin-k-modal-body { padding: 14px 14px 24px !important; }
+  .fin-k-title { font-size: 22px !important; margin: 10px 0 18px !important; letter-spacing: -0.5px !important; }
+  .fin-k-fields { flex-wrap: wrap; gap: 12px !important; margin-bottom: 24px !important; }
+  .fin-k-fields > * { flex: 1 1 100% !important; min-width: 0; padding: 14px 16px !important; }
+  .fin-k-fields input, .fin-k-fields select { font-size: 20px !important; }
+  .fin-k-grid2 { grid-template-columns: minmax(0, 1fr) !important; gap: 14px !important; }
+  .fin-k-grid2 > * { min-width: 0; padding: 16px !important; }
+  .fin-k-box-lg { padding: 18px 14px !important; }
+  .fin-k-parc-head { flex-wrap: wrap; gap: 14px !important; }
+  .fin-k-parc-head > * { flex: 1 1 200px; min-width: 0; }
+  .fin-k-parc-head select, .fin-k-parc-head > * > div { font-size: 18px !important; }
+  .fin-k-cascade { padding: 12px !important; }
+  .fin-k-logrow { flex-wrap: wrap; }
+  .fin-k-logrow > :last-child { width: 100%; padding-left: 20px; white-space: normal !important; }
+  .fin-k-wrap { flex-wrap: wrap; }
+  .fin-k-wrap > * { min-width: 0; }
+  .fin-k-actions { flex-direction: column; gap: 12px !important; margin-top: 28px !important; }
+  .fin-k-actions > * { min-width: 0; flex: 0 0 auto !important; }
+  .fin-k-actions button { padding: 14px !important; letter-spacing: 1px !important; font-size: 13px !important; gap: 10px !important; }
+}
+`;

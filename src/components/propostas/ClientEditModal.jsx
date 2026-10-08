@@ -43,12 +43,12 @@ export default function ClientEditModal({ onClose }) {
   return (
     <div className="fixed inset-0 bg-black/85 flex justify-center items-center z-[9999]">
       <div className="bg-zinc-50 w-full max-w-[850px] max-h-[92vh] flex flex-col rounded-2xl border border-zinc-200 shadow-2xl overflow-hidden">
-        <div className="px-8 py-5 border-b border-zinc-200 flex justify-between items-center bg-white">
+        <div className="px-4 md:px-8 py-5 border-b border-zinc-200 flex justify-between items-center bg-white">
           <h2 className="text-lg font-black text-zinc-900">{selectedClient ? 'EDITANDO: ' + selectedClient.nome : 'GERENCIAR CLIENTES'}</h2>
           <button onClick={onClose} className="text-red-600 font-bold bg-transparent border-none cursor-pointer">FECHAR [X]</button>
         </div>
 
-        <div className="p-6 overflow-y-auto">
+        <div className="p-4 md:p-6 overflow-y-auto">
           {!selectedClient ? (
             <div className="p-2.5">
               <label className="text-[11px] font-extrabold text-zinc-600">PESQUISAR CLIENTE</label>
@@ -66,7 +66,7 @@ export default function ClientEditModal({ onClose }) {
             </div>
           ) : (
             <form onSubmit={handleUpdate} className="p-2.5">
-              <div className="grid grid-cols-[repeat(auto-fit,minmax(200px,1fr))] gap-5">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(min(200px,100%),1fr))] gap-5">
                 <div className="flex flex-col gap-2"><label className="text-[11px] font-extrabold text-zinc-600">NOME / RAZAO SOCIAL</label><input value={selectedClient.nome || ''} className={inputStyle} onChange={e => setSelectedClient({ ...selectedClient, nome: e.target.value })} /></div>
                 <div className="flex flex-col gap-2"><label className="text-[11px] font-extrabold text-zinc-600">CPF / CNPJ</label><input value={selectedClient.cppf_cnpj || ''} className={inputStyle} onChange={e => setSelectedClient({ ...selectedClient, cppf_cnpj: e.target.value })} /></div>
                 <div className="flex flex-col gap-2"><label className="text-[11px] font-extrabold text-zinc-600">INSCRICAO ESTADUAL / MUN.</label><input value={selectedClient.inscricao || ''} className={inputStyle} onChange={e => setSelectedClient({ ...selectedClient, inscricao: e.target.value })} /></div>

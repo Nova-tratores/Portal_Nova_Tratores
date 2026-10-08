@@ -3,6 +3,7 @@ import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
+import EstResponsiveStyles from '@/components/estoque/ResponsiveStyles'
 import { LayoutDashboard, ShoppingBag, MapPin, AlertTriangle, Percent, FileInput, Send } from 'lucide-react'
 
 const tabs = [
@@ -30,7 +31,8 @@ export default function VisualEstoqueLayout({ children }: { children: React.Reac
 
   return (
     <div style={{ minHeight: 'calc(100vh - 84px)' }}>
-      <div style={{
+      <EstResponsiveStyles />
+      <div className="vest-tabs" style={{
         display: 'flex', gap: 6, padding: '16px 32px 0',
         borderBottom: '1px solid var(--portal-border, #e5e5e5)',
         background: 'var(--portal-bg, #fafafa)',

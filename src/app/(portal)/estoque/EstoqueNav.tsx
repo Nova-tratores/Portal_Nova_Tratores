@@ -33,6 +33,7 @@ export default function EstoqueNav() {
 
   return (
     <nav
+      className="est-nav"
       style={{
         background: '#fff',
         borderBottom: '1px solid #e2e8f0',
@@ -47,8 +48,9 @@ export default function EstoqueNav() {
       }}
     >
       {/* Landing do módulo (busca de produto) */}
-      <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '6px 0' }}>
+      <div className="est-nav-row" style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, padding: '6px 0' }}>
         <span
+          className="est-nav-tag"
           style={{
             display: 'inline-flex', alignItems: 'center', gap: 5,
             fontSize: '.68rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '.5px',
@@ -68,6 +70,7 @@ export default function EstoqueNav() {
       {blocos.map(({ g, itens }) => (
         <div
           key={g.key}
+          className="est-nav-row"
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -79,6 +82,7 @@ export default function EstoqueNav() {
         >
           {/* divisor gráfico do grupo */}
           <span
+            className="est-nav-tag"
             style={{
               display: 'inline-flex',
               alignItems: 'center',
