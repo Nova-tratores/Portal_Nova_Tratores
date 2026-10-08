@@ -20,6 +20,7 @@ const DESTINOS: { key: string; label: string; Icon: any }[] = [
   { key: 'Pós Vendas', label: 'Pós-Vendas', Icon: Building2 },
   { key: 'Comercial', label: 'Comercial', Icon: Building2 },
   { key: 'Financeiro', label: 'Financeiro', Icon: Building2 },
+  { key: 'T.I.', label: 'T.I.', Icon: Building2 },
   { key: 'tecnicos', label: 'Técnicos', Icon: Wrench },
 ]
 const destinoLabel = (k: string | null | undefined) => DESTINOS.find(d => d.key === k)?.label || 'Todos'
