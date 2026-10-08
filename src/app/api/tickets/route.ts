@@ -14,7 +14,7 @@ import type { Autenticado } from '@/lib/auth/server'
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
 import { colunaDoTicket } from '@/lib/tickets/quadros'
 import { planejarTicket, ErroTrabalho, etapasDosTickets, hojeSP } from '@/lib/trabalho/cronograma-server'
-import { dataMinima } from '@/lib/trabalho/agenda'
+import { dataMinima, erroFimDeSemana } from '@/lib/trabalho/agenda'
 import { contagemPassos } from '@/lib/trabalho/tarefas-server'
 
 export const runtime = 'nodejs'
@@ -187,6 +187,9 @@ export async function POST(req: NextRequest) {
   if (prazo && prazo < dataMinima(hojeSP(), urgente)) {
     return NextResponse.json({ error: urgente ? 'O prazo não pode ser no passado.' : 'Deixe pelo menos 1 dia de prazo. Se for para hoje, marque "Muito urgente".' }, { status: 400 })
   }
+  // Ticket não fica no fim de semana (só o "muito urgente" para hoje passa).
+  const erroFds = erroFimDeSemana({ prazo, inicio: body.inicio }, urgente ? hojeSP() : null)
+  if (erroFds) return NextResponse.json({ error: erroFds }, { status: 400 })
   const inicioTrabalho = /^\d{4}-\d{2}-\d{2}$/.test(String(body.inicio || '')) && (!prazo || String(body.inicio) <= prazo) ? String(body.inicio) : null
 
   // O responsável precisa ser um usuário ativo do portal.

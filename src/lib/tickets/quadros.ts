@@ -124,6 +124,19 @@ export function ordemValida(colunas: QuadroColuna[], ids: unknown): string[] | n
   return novos.every((i) => atuais.has(i)) ? novos : null
 }
 
+/**
+ * Coluna que combina com a fase: Aberto → primeira, Resolvido/Fechado →
+ * última, o resto → a do meio (a 2ª). Mantém a coluna (legado "A fazer ·
+ * Fazendo · Feito") em dia com o status, que é quem manda no quadro.
+ */
+export function colunaDoStatus(status: string, colunas: QuadroColuna[]): string | null {
+  const ord = ordenarColunas(colunas)
+  if (ord.length === 0) return null
+  if (status === 'aberto' || status === 'cancelado') return ord[0].id
+  if (status === 'resolvido' || status === 'fechado') return ord[ord.length - 1].id
+  return ord[Math.min(1, ord.length - 1)].id
+}
+
 /** Coluna onde um ticket aparece: a dele, se ainda existe; senão a primeira. */
 export function colunaDoTicket(colunaId: string | null | undefined, colunas: QuadroColuna[]): string | null {
   if (colunaId && colunas.some((c) => c.id === colunaId)) return colunaId

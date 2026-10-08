@@ -41,6 +41,7 @@ export default function QuadrosPage() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [aviso, setAviso] = useState('')
+  const [erroCentral, setErroCentral] = useState('')
   const [arquivados, setArquivados] = useState(false)
   const [novo, setNovo] = useState(false)
   const [organizando, setOrganizando] = useState<TicketParaOrganizar | null>(null)
@@ -51,16 +52,19 @@ export default function QuadrosPage() {
     try {
       const h = await authHeaders()
       const [rq, rc] = await Promise.all([
-        fetch(`/api/tickets/quadros${arquivados ? '?arquivados=1' : ''}`, { headers: h }),
-        fetch('/api/trabalho/central', { headers: h }),
+        fetch(`/api/tickets/quadros${arquivados ? '?arquivados=1' : ''}`, { headers: h, cache: 'no-store' }),
+        fetch('/api/trabalho/central', { headers: h, cache: 'no-store' }),
       ])
       const jq = await rq.json()
-      const jc = await rc.json()
+      const jc = await rc.json().catch(() => ({}))
       if (!rq.ok) { setErro(jq.error || 'Falha ao carregar'); return }
       setQuadros(jq.quadros || [])
       setUsuarios(jq.usuarios || {})
       setAviso(jq.migracaoFaltando ? jq.error : '')
-      if (rc.ok) setCentral(jc)
+      // Central falhou: mantém o que já estava na tela e avisa (antes "Pra
+      // organizar" e "Pedidos que fiz" sumiam calados).
+      if (rc.ok) { setCentral(jc); setErroCentral('') }
+      else setErroCentral(jc.error || 'Não deu para carregar "Pra organizar" e "Pedidos que fiz".')
     } catch {
       setErro('Falha de conexão')
     } finally {
@@ -151,6 +155,12 @@ export default function QuadrosPage() {
     <div style={{ padding: isMobile ? '14px 12px' : 20, maxWidth: 1200, margin: '0 auto' }}>
       {aviso && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{aviso}</div>}
       {erro && <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(220,38,38,.08)', color: '#dc2626', fontSize: 13, fontWeight: 600, marginTop: 12 }}>{erro}</div>}
+      {erroCentral && !erro && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: '12px 14px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600, marginTop: 12 }}>
+          <span style={{ flex: 1, minWidth: 200 }}>{erroCentral}{central ? ' Mostrando o que já estava carregado.' : ''}</span>
+          <button onClick={() => carregar()} style={{ padding: '5px 12px', borderRadius: 8, border: '1px solid currentColor', background: 'transparent', color: 'inherit', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Tentar de novo</button>
+        </div>
+      )}
 
       {carregando ? (
         <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando...</div>

@@ -56,7 +56,7 @@ export async function criarPasso(ticketId: string, autorId: string, d: { titulo:
   return ok(await supabaseAdmin.from(TBL).insert({
     titulo, descricao: '', prioridade: 0, criado_por: autorId,
     atribuido_a: d.atribuido_a || autorId,
-    prazo: d.prazo ? new Date(d.prazo + 'T12:00:00').toISOString() : null,
+    prazo: d.prazo ? new Date(d.prazo + 'T12:00:00-03:00').toISOString() : null,
     ticket_id: ticketId, papel_no_ticket: 'passo',
   }).select('id, titulo, prazo, concluida, atribuido_a, criado_por, created_at').single()) as PassoTicket
 }
@@ -90,7 +90,7 @@ export async function editarPasso(ticketId: string, passoId: number, d: { titulo
     patch.titulo = titulo
   }
   if (d.atribuido_a !== undefined && d.atribuido_a) patch.atribuido_a = d.atribuido_a
-  if (d.prazo !== undefined) patch.prazo = d.prazo ? new Date(d.prazo + 'T12:00:00').toISOString() : null
+  if (d.prazo !== undefined) patch.prazo = d.prazo ? new Date(d.prazo + 'T12:00:00-03:00').toISOString() : null
   const depois = ok(await supabaseAdmin.from(TBL).update(patch).eq('id', passoId).eq('ticket_id', ticketId)
     .select('id, titulo, prazo, concluida, atribuido_a, criado_por, created_at').single()) as PassoTicket
   return { antes, depois }

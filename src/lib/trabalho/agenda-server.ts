@@ -21,11 +21,30 @@ export async function ocupacaoDe(userId: string): Promise<Ocupacao[]> {
       for (const t of tarefas || []) if (t.inicio_calc && t.fim_calc) out.push({ ini: t.inicio_calc, fim: t.fim_calc, nome: t.nome, ticketId: t.ticket_id || null })
     }
   } catch { /* cronograma indisponível: só tickets */ }
-  const { data: tks } = await supabaseAdmin.from('tickets').select('id, titulo, prazo, status')
-    .eq('responsavel_id', userId).not('prazo', 'is', null).not('status', 'in', `(${STATUS_FINAIS.join(',')})`)
+  // Ticket ocupa do 1º dia de trabalho (payload.inicio) até o prazo. Resolvido
+  // já foi feito; recusado não é mais da pessoa.
+  const { data: tks } = await supabaseAdmin.from('tickets').select('id, titulo, prazo, status, payload, aceite')
+    .eq('responsavel_id', userId).not('prazo', 'is', null).not('status', 'in', `(${[...STATUS_FINAIS, 'resolvido'].join(',')})`)
   const comEtapa = new Set(out.map((o) => o.ticketId).filter(Boolean))
-  for (const t of tks || []) if (!comEtapa.has(t.id)) out.push({ ini: t.prazo, fim: t.prazo, nome: t.titulo, ticketId: t.id })
+  for (const t of tks || []) {
+    if (comEtapa.has(t.id) || t.aceite === 'recusado') continue
+    const ini = typeof t.payload?.inicio === 'string' && t.payload.inicio <= t.prazo ? t.payload.inicio : t.prazo
+    out.push({ ini, fim: t.prazo, nome: t.titulo, ticketId: t.id })
+  }
+  // Tarefas com prazo atribuídas à pessoa (soltas ou passos de ticket).
+  const { data: tarefas } = await supabaseAdmin.from('portal_tarefas').select('titulo, prazo, ticket_id')
+    .eq('atribuido_a', userId).eq('concluida', false).not('prazo', 'is', null)
+  for (const x of tarefas || []) {
+    const d = diaSP(x.prazo)
+    out.push({ ini: d, fim: d, nome: `Tarefa: ${x.titulo}`, ticketId: x.ticket_id || null })
+  }
   return out
+}
+
+/** Dia (AAAA-MM-DD) de um timestamptz no fuso de São Paulo. */
+export function diaSP(ts: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(ts)) return ts
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(ts))
 }
 
 /** Sugestões a partir da data mínima (amanhã; hoje só se for muito urgente). */
@@ -46,7 +65,7 @@ export async function pendentesDeAceite(userId: string) {
   try {
     const { data, error } = await supabaseAdmin.from('tickets')
       .select('id, numero, titulo, prazo, solicitante_id, quadro_id, visibilidade, created_at')
-      .eq('responsavel_id', userId).eq('aceite', 'pendente').not('status', 'in', `(${STATUS_FINAIS.join(',')})`)
+      .eq('responsavel_id', userId).eq('aceite', 'pendente').not('status', 'in', `(${[...STATUS_FINAIS, 'resolvido'].join(',')})`)
       .order('created_at')
     if (error) return []
     return data || []
@@ -88,9 +107,9 @@ export async function itensDoDia(userId: string): Promise<ItemDia[]> {
     }
   }
   const { data: tarefas } = await supabaseAdmin.from('portal_tarefas').select('titulo, prazo, ticket_id')
-    .eq('atribuido_a', userId).eq('concluida', false).not('prazo', 'is', null).lte('prazo', hoje + 'T23:59:59')
+    .eq('atribuido_a', userId).eq('concluida', false).not('prazo', 'is', null).lte('prazo', hoje + 'T23:59:59-03:00')
   for (const x of tarefas || []) {
-    const d = String(x.prazo).slice(0, 10)
+    const d = diaSP(String(x.prazo))
     const quando = d < hoje ? `atrasada desde ${br(d)}` : 'vence hoje'
     if (!x.ticket_id) {
       itens.push({ tipo: 'tarefa', texto: x.titulo, detalhe: quando, atrasado: d < hoje })

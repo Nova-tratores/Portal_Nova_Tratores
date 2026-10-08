@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import TransformarTarefa from '@/components/trabalho/TransformarTarefa'
 import TicketModal from '@/components/tickets/TicketModal'
+import { casaBusca } from '@/lib/texto'
 
 interface PortalUser {
   id: string
@@ -57,11 +58,21 @@ function formatDate(d: string | null) {
   return new Date(d).toLocaleDateString('pt-BR')
 }
 
+// Hoje no fuso da loja (AAAA-MM-DD).
+const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+
+// Prazo é um DIA: lê só o AAAA-MM-DD (prazo antigo gravado 00:00 UTC aparecia
+// um dia antes ao passar por new Date()).
+function formatPrazo(d: string | null) {
+  if (!d) return ''
+  const [a, m, dia] = d.slice(0, 10).split('-')
+  return `${dia}/${m}/${a}`
+}
+
 function formatDateRelative(d: string | null) {
   if (!d) return 'Sem prazo'
-  const date = new Date(d)
-  const now = new Date()
-  const diff = Math.ceil((date.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+  const dia = (s: string) => new Date(s.slice(0, 10) + 'T12:00:00').getTime()
+  const diff = Math.round((dia(d) - dia(hojeSP())) / (1000 * 60 * 60 * 24))
   if (diff < 0) return `${Math.abs(diff)} dia(s) atrás`
   if (diff === 0) return 'Hoje'
   if (diff === 1) return 'Amanhã'
@@ -83,9 +94,11 @@ function TarefasPageInner() {
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
   const [avisoTrabalho, setAvisoTrabalho] = useState('')
 
-  const carregarTudo = useCallback(async () => {
+  // silencioso: recarga ao voltar para a aba / depois de uma ação — não pisca o
+  // spinner nem tira a lista da tela.
+  const carregarTudo = useCallback(async (silencioso = false) => {
     if (!userProfile?.id) return
-    setLoading(true)
+    if (!silencioso) setLoading(true)
     try {
       const [tarefasRes, usersRes] = await Promise.all([
         fetch(`/api/tarefas?filter=todas&userId=${userProfile.id}`),
@@ -95,17 +108,22 @@ function TarefasPageInner() {
         tarefasRes.json(),
         usersRes.json(),
       ])
-      setAllTarefas(Array.isArray(tarefas) ? tarefas : [])
+      // Falha na recarga não apaga a lista que já está na tela.
+      if (tarefasRes.ok && Array.isArray(tarefas)) setAllTarefas(tarefas)
+      else if (!silencioso) setAllTarefas([])
+      if (!tarefasRes.ok) setAvisoTrabalho((tarefas && tarefas.error) || 'Não deu para carregar as pendências.')
       if (Array.isArray(usersData)) setUsers(usersData)
     } catch (err) {
       console.error('Erro ao carregar tarefas:', err)
+      if (!silencioso) setAvisoTrabalho('Falha de conexão ao carregar as pendências.')
     } finally {
-      setLoading(false)
+      if (!silencioso) setLoading(false)
     }
   }, [userProfile?.id])
 
   useEffect(() => { carregarTudo() }, [carregarTudo])
-  useRefreshOnFocus(carregarTudo)
+  const recarregarSilencioso = useCallback(() => { carregarTudo(true) }, [carregarTudo])
+  useRefreshOnFocus(recarregarSilencioso)
 
   // Filtragem 100% client-side
   const tarefasFiltradas = useMemo(() => {
@@ -129,53 +147,67 @@ function TarefasPageInner() {
     }
 
     if (search) {
-      const s = search.toLowerCase()
-      filtered = filtered.filter(t =>
-        t.titulo.toLowerCase().includes(s) ||
-        t.descricao?.toLowerCase().includes(s) ||
-        t.atribuido?.nome?.toLowerCase().includes(s) ||
-        t.criador?.nome?.toLowerCase().includes(s)
-      )
+      // sem diferença de maiúscula/acento
+      filtered = filtered.filter(t => casaBusca(search, t.titulo, t.descricao, t.atribuido?.nome, t.criador?.nome))
     }
 
     return filtered
   }, [allTarefas, userProfile?.id, tab, showConcluidas, search])
 
   // Marcar concluída com update otimista
+  // Marcar concluída com update otimista; recusou/falhou = desfaz e avisa.
   const marcarConcluida = async (id: number, done: boolean) => {
     if (!podeConcluir) return
+    const antes = allTarefas.find(t => t.id === id)
     setAllTarefas(prev => prev.map(t => {
       if (t.id !== id) return t
       const now = new Date()
       const computed_status = done ? 'concluida' as const
-        : (t.prazo && new Date(t.prazo) < now) ? 'atrasada' as const : 'pendente' as const
+        : (t.prazo && t.prazo.slice(0, 10) < hojeSP()) ? 'atrasada' as const : 'pendente' as const
       return { ...t, concluida: done, computed_status, concluida_em: done ? now.toISOString() : null }
     }))
 
     try {
-      await fetch(`/api/tarefas/${id}`, {
+      const res = await fetch(`/api/tarefas/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ done }),
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error || 'Não deu para marcar a tarefa.')
+      }
     } catch (err) {
       console.error(err)
-      carregarTudo()
+      if (antes) setAllTarefas(prev => prev.map(t => (t.id === id ? antes : t)))
+      setAvisoTrabalho(err instanceof TypeError ? 'Falha de conexão — a tarefa não foi marcada.' : err instanceof Error ? err.message : 'Não deu para marcar a tarefa.')
+      carregarTudo(true)
     }
   }
 
-  // nº de tarefas órfãs (abertas de usuário inativo ou sem responsável) — badge da aba
+  // nº de tarefas órfãs (abertas de usuário inativo ou sem responsável) — badge
+  // da aba. Mesma regra da lista: só tarefa SOLTA (sem ticket_id).
   const totalOrfas = useMemo(
-    () => allTarefas.filter(t => !t.concluida && (t.atribuido_a == null || t.atribuido?.ativo === false)).length,
+    () => allTarefas.filter(t => !t.ticket_id && !t.concluida && (t.atribuido_a == null || t.atribuido?.ativo === false)).length,
     [allTarefas],
   )
   // reatribui UMA tarefa (usa o PATCH que já aceita atribuido_a)
   const reatribuir = async (id: number, para: string) => {
     if (!para) return
+    const antes = allTarefas.find(t => t.id === id)
     setAllTarefas(prev => prev.map(t => (t.id === id ? { ...t, atribuido_a: para, atribuido: users.find(u => u.id === para) || t.atribuido } : t)))
     try {
-      await fetch(`/api/tarefas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ atribuido_a: para }) })
-    } catch (err) { console.error(err); carregarTudo() }
+      const res = await fetch(`/api/tarefas/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ atribuido_a: para }) })
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}))
+        throw new Error(json.error || 'Não deu para reatribuir a tarefa.')
+      }
+    } catch (err) {
+      console.error(err)
+      if (antes) setAllTarefas(prev => prev.map(t => (t.id === id ? antes : t)))
+      setAvisoTrabalho(err instanceof TypeError ? 'Falha de conexão — a tarefa não foi reatribuída.' : err instanceof Error ? err.message : 'Não deu para reatribuir a tarefa.')
+      carregarTudo(true)
+    }
   }
 
   return (
@@ -325,7 +357,7 @@ function TarefasPageInner() {
               {tarefaAberta.prazo && (
                 <div style={{ background:'#fafafa', borderRadius:'10px', padding:'14px' }}>
                   <label style={{ display:'block', fontSize:'11px', fontWeight:'600', color:'#a3a3a3', marginBottom:'6px', textTransform:'uppercase', letterSpacing:'0.5px' }}>Prazo</label>
-                  <span style={{ fontSize:'14px', color: tarefaAberta.computed_status === 'atrasada' ? '#ef4444' : '#1a1a1a', display:'flex', alignItems:'center', gap:'6px' }}><Calendar size={14} />{formatDate(tarefaAberta.prazo)} ({formatDateRelative(tarefaAberta.prazo)})</span>
+                  <span style={{ fontSize:'14px', color: tarefaAberta.computed_status === 'atrasada' ? '#ef4444' : '#1a1a1a', display:'flex', alignItems:'center', gap:'6px' }}><Calendar size={14} />{formatPrazo(tarefaAberta.prazo)} ({formatDateRelative(tarefaAberta.prazo)})</span>
                 </div>
               )}
               <div style={{ background:'#fafafa', borderRadius:'10px', padding:'14px' }}>
@@ -359,7 +391,7 @@ function TarefasPageInner() {
         </div>
       )}
 
-      {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={carregarTudo} />}
+      {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={recarregarSilencioso} />}
       {avisoTrabalho && (
         <div role="status" onClick={() => setAvisoTrabalho('')} style={{ position:'fixed', left:16, bottom:16, zIndex:1200, background:'#1a1a1a', color:'#fff', padding:'10px 14px', borderRadius:10, fontSize:13, fontWeight:600, cursor:'pointer' }}>{avisoTrabalho}</div>
       )}
@@ -477,7 +509,7 @@ function TarefaCard({ tarefa, onToggleDone, showAssignee, onClick }: {
               display: 'inline-flex', alignItems: 'center', gap: '4px'
             }}>
               <Calendar size={12} />
-              {formatDate(tarefa.prazo)} ({formatDateRelative(tarefa.prazo)})
+              {formatPrazo(tarefa.prazo)} ({formatDateRelative(tarefa.prazo)})
             </span>
           )}
 

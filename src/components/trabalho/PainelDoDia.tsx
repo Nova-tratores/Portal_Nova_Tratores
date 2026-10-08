@@ -12,6 +12,7 @@ import { authHeaders } from '@/lib/auth/client'
 import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
 import EscolhaBloco, { type EscolhaBlocoValor } from './EscolhaBloco'
+import SeletorDataAgenda from './SeletorDataAgenda'
 
 interface Pendente { id: string; numero: number; titulo: string; prazo: string | null; solicitante_nome: string; quadro_id?: string | null; quadro_nome: string | null; visibilidade?: 'privado' | 'publico' }
 interface Item { tipo: 'andamento' | 'comeca' | 'ticket' | 'tarefa'; texto: string; detalhe?: string; ticketId?: string | null; atrasado?: boolean }
@@ -19,6 +20,7 @@ interface Hoje { ativo: boolean; hora: string; pendentes: Pendente[]; itens: Ite
 
 const VERMELHO = 'linear-gradient(135deg,#dc2626,#7f1d1d)'
 const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
+const hojeIso = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 const ICONE: Record<Item['tipo'], React.ReactNode> = {
   andamento: <Wrench size={16} />, comeca: <Play size={16} />, ticket: <TicketIcon size={16} />, tarefa: <SquareCheck size={16} />,
 }
@@ -77,6 +79,8 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
       if (!res.ok) { setErro(json.error || 'Falha'); return }
       setModo(null); setMotivo(''); setNovaData(''); setOrganizacao(null)
       await carregar()
+    } catch {
+      setErro('Falha de conexão — tente de novo.')
     } finally { setSalvando(false) }
   }
   const sugerirData = async () => {
@@ -106,7 +110,8 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   return (
     <>
       {/* 1) Confirmação de ticket recebido */}
-      {pend && (
+      {/* Com um ticket aberto por aqui, o aviso some (senão ficaria por cima dele) e volta ao fechar */}
+      {pend && !ticketAberto && (
         <div style={fundo} role="dialog" aria-modal="true" aria-labelledby="aceite-t">
           <div style={caixa}>
             <div style={topo}>
@@ -125,10 +130,10 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
                 </div>
               )}
               {modo === 'data' && (
-                <label style={{ display: 'block', marginTop: 12, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Consigo fazer até
-                  <input type="date" value={novaData} onChange={(e) => setNovaData(e.target.value)} style={{ display: 'block', width: '100%', marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }} />
-                  <span style={{ fontWeight: 400 }}>Sugestão: seu primeiro dia livre.</span>
-                </label>
+                <div style={{ marginTop: 12 }}>
+                  <SeletorDataAgenda diasUteis rotulo="Consigo fazer até" value={novaData} onChange={setNovaData} min={hojeIso()} textoVazio="Escolha a data" ignorar={pend.titulo} />
+                  <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>Sugestão: seu primeiro dia livre.</span>
+                </div>
               )}
               {modo === 'recusar' && (
                 <label style={{ display: 'block', marginTop: 12, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Por que não consegue? (vai para quem pediu)
@@ -161,7 +166,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
       )}
 
       {/* 2) Seu dia (7:30) */}
-      {mostrarDia && (
+      {mostrarDia && !ticketAberto && (
         <div style={fundo} role="dialog" aria-modal="true" aria-labelledby="dia-t">
           <div style={caixa}>
             <div style={topo}>

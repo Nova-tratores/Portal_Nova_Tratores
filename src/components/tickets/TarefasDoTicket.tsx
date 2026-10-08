@@ -2,16 +2,18 @@
 // Tarefas (passos) dentro do ticket — Central de Trabalho.
 // Caixa verde no topo do ticket: progresso, lista com responsável e prazo,
 // marcar feita, remover (com confirmação na própria linha) e adicionar.
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { SquareCheck, Trash2, User as UserIcon, Plus, Loader2, Pencil, Check } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import UserSelect from './UserSelect'
+import SeletorDataAgenda from '@/components/trabalho/SeletorDataAgenda'
 
 interface Passo { id: number; titulo: string; prazo: string | null; concluida: boolean; atribuido_a: string | null }
 
 const VERDE = '#16a34a'
 const hojeISO = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-const fmt = (iso: string) => new Date(iso).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+// Prazo é um DIA: lê o AAAA-MM-DD direto (new Date() em UTC mostrava 1 dia antes).
+const fmt = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
 
 export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, onMudou }: {
   ticketId: string; responsavelId: string; encerrado: boolean; onMudou?: () => void
@@ -30,7 +32,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
   const [editando, setEditando] = useState<{ id: number; titulo: string; resp: string; prazo: string } | null>(null)
   const [salvandoEdicao, setSalvandoEdicao] = useState(false)
   const salvarEdicao = async () => {
-    if (!editando || !editando.titulo.trim()) return
+    if (!editando || !editando.titulo.trim() || salvandoEdicao) return
     setSalvandoEdicao(true)
     try {
       const ok = await chamar('PATCH', { tarefa_id: editando.id, editar: true, titulo: editando.titulo, atribuido_a: editando.resp || null, prazo: editando.prazo || null })
@@ -50,21 +52,29 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
 
   const chamar = async (metodo: string, corpo?: Record<string, unknown>, query = '') => {
     setErro('')
-    const res = await fetch(`/api/tickets/${ticketId}/tarefas${query}`, {
-      method: metodo, headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-      body: corpo ? JSON.stringify(corpo) : undefined,
-    })
-    const json = await res.json().catch(() => ({}))
-    if (!res.ok) { setErro(json.error || 'Falha'); return false }
+    try {
+      const res = await fetch(`/api/tickets/${ticketId}/tarefas${query}`, {
+        method: metodo, headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: corpo ? JSON.stringify(corpo) : undefined,
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok) { setErro(json.error || 'Falha'); return false }
+    } catch {
+      setErro('Falha de conexão')
+      return false
+    }
     await carregar(); onMudou?.()
     return true
   }
 
+  // Trava por ref: Enter repetido antes do re-render criava tarefa duplicada.
+  const enviando = useRef(false)
   const adicionar = async () => {
-    if (!titulo.trim()) return
+    if (!titulo.trim() || salvando || enviando.current) return
+    enviando.current = true
     setSalvando(true)
     try { if (await chamar('POST', { titulo, atribuido_a: resp || null, prazo: prazo || null })) { setTitulo(''); setPrazo('') } }
-    finally { setSalvando(false) }
+    finally { enviando.current = false; setSalvando(false) }
   }
 
   const lista = passos || []
@@ -102,8 +112,8 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
                 style={campo} />
               <UserSelect value={editando.resp} autoFocus={false} placeholder="Quem faz"
                 onChange={(id, u) => { setEditando({ ...editando, resp: id }); if (u) setNomeResp((n) => ({ ...n, [id]: u.nome })) }} />
-              <input type="date" value={editando.prazo} aria-label="Prazo da tarefa"
-                onChange={(e) => setEditando({ ...editando, prazo: e.target.value })} style={campo} />
+              <SeletorDataAgenda value={editando.prazo} userId={editando.resp || null} permitirVazio textoVazio="Sem prazo"
+                onChange={(v) => setEditando({ ...editando, prazo: v })} />
               <span style={{ display: 'flex', gap: 6 }}>
                 <button onClick={salvarEdicao} disabled={salvandoEdicao || !editando.titulo.trim()}
                   style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: 'none', background: VERDE, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: salvandoEdicao || !editando.titulo.trim() ? .6 : 1 }}>
@@ -152,8 +162,7 @@ export default function TarefasDoTicket({ ticketId, responsavelId, encerrado, on
             style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontSize: 13, minWidth: 0 }} />
           <UserSelect value={resp} autoFocus={false} placeholder="Responsável"
             onChange={(id, u) => { setResp(id); if (u) setNomeResp((n) => ({ ...n, [id]: u.nome })) }} />
-          <input type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} aria-label="Prazo da tarefa"
-            style={{ padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text,#111)', fontSize: 13 }} />
+          <SeletorDataAgenda value={prazo} onChange={setPrazo} userId={resp || null} permitirVazio textoVazio="Prazo" />
           <button onClick={adicionar} disabled={salvando || !titulo.trim()}
             style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '8px 12px', borderRadius: 8, border: 'none', background: VERDE, color: '#fff', fontWeight: 700, fontSize: 13, cursor: 'pointer', opacity: salvando || !titulo.trim() ? .6 : 1 }}>
             <Plus size={14} /> Adicionar

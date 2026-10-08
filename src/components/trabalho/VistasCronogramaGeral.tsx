@@ -102,7 +102,8 @@ function Gantt({ tickets, hoje, corDe, progresso, onAbrir, onMudarDatas }: Props
     const t = comPrazo.find((x) => x.id === id)
     if (!t) return
     const p = noPlano(t, hoje)
-    const ni = iso(inicio), nf = iso(fim)
+    // Ticket não fica no fim de semana: arrastou para sáb/dom → dia útil seguinte.
+    const ni = diaUtil(iso(inicio)), nf = diaUtil(iso(fim))
     // Contínuo: só o início muda (continua sem prazo até alguém concluir).
     if (p.continuo) { const d = diaUtil(ni); if (d !== p.inicio) onMudarDatas(id, d, null); return }
     if (ni !== p.inicio || nf !== p.fim) onMudarDatas(id, ni, nf)
@@ -179,20 +180,24 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
     return m
   }, [tickets, hoje, mes])
   // Soltar num dia: o bloco todo anda junto (mantém a duração). Contínuo:
-  // muda só o dia em que começa.
+  // muda só o dia em que começa. Dia que já passou não aceita (replanejar
+  // para trás não faz sentido).
   const soltar = (alvo: string) => {
     const t = tickets.find((x) => x.id === arr)
     const de = arrDe
     setArr(null); setArrDe(null); setSobre(null)
-    if (!t) return
+    if (!t || alvo < hoje) return
     const p = noPlano(t, hoje)
     if (p.continuo) { const ini = diaUtil(alvo); if (ini !== p.inicio) onMudarDatas(t.id, ini, null); return }
     if (!de) return
     const delta = difDias(de, alvo)
     if (!delta) return
-    const dur = p.atrasado ? 0 : difDias(p.inicio, p.fim)
-    const ni = p.atrasado ? alvo : somaDias(p.inicio, delta)
-    onMudarDatas(t.id, ni, somaDias(ni, dur))
+    // Atrasado: o card está em "hoje", mas a duração é a ORIGINAL (início →
+    // prazo) — antes virava 1 dia só. Ele passa a começar no dia escolhido.
+    const dur = Math.max(0, difDias(p.inicio, p.atrasado ? t.prazo! : p.fim))
+    // Ticket não fica no fim de semana: início e prazo vão para o dia útil seguinte.
+    const ni = diaUtil(p.atrasado ? alvo : somaDias(p.inicio, delta))
+    onMudarDatas(t.id, ni, diaUtil(somaDias(ni, dur)))
   }
   const nav: React.CSSProperties = { display: 'flex', alignItems: 'center', padding: 6, borderRadius: 8, border: '1px solid var(--portal-border,#ddd)', background: 'transparent', cursor: 'pointer', color: 'var(--portal-text,#111)' }
   return (
@@ -218,8 +223,8 @@ function Calendario({ tickets, hoje, corDe, onAbrir, onMudarDatas }: Props) {
           const itens = porDia.get(k) || []
           return (
             <div key={k}
-              onDragOver={(e) => { if (!arr) return; e.preventDefault(); if (sobre !== k) setSobre(k) }}
-              onDrop={(e) => { e.preventDefault(); soltar(k) }}
+              onDragOver={(e) => { if (!arr || k < hoje || fimDeSemana) return; e.preventDefault(); if (sobre !== k) setSobre(k) }}
+              onDrop={(e) => { e.preventDefault(); if (!fimDeSemana) soltar(k) }}
               style={{ minHeight: 96, padding: 5, borderRight: '1px solid var(--portal-border,#f1f1f1)', borderBottom: '1px solid var(--portal-border,#f1f1f1)', background: sobre === k ? 'rgba(220,38,38,.07)' : fimDeSemana ? COR_FOLGA : undefined }}>
               <div style={{ fontSize: 11.5, fontWeight: k === hoje ? 800 : 600, color: k === hoje ? '#dc2626' : 'var(--portal-text,#111)', marginBottom: 3 }}><span style={{ display: 'inline-block', minWidth: 30, marginRight: 5, padding: '0 5px', borderRadius: 4, fontSize: 10.5, fontWeight: 800, textTransform: 'uppercase', textAlign: 'center', color: '#fff', background: k === hoje ? '#dc2626' : fimDeSemana ? '#94a3b8' : '#f87171' }}>{SEMANA_SEG[(d.getDay() + 6) % 7]}</span>{d.getDate()}{k === hoje && ' · hoje'}</div>
               {(aberto === k ? itens : itens.slice(0, 4)).map((t) => {

@@ -5,7 +5,7 @@
 // clique abre a janela do ticket. Quem criou mexe nos integrantes e no nome/cor.
 export const dynamic = 'force-dynamic'
 
-import { use, useCallback, useEffect, useMemo, useState } from 'react'
+import { use, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Users, Settings, Search, RefreshCw } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
@@ -19,6 +19,7 @@ import PainelIntegrantes from '@/components/tickets/quadros/PainelIntegrantes'
 import FormQuadro from '@/components/tickets/quadros/FormQuadro'
 import TicketModal from '@/components/tickets/TicketModal'
 import { definirBlocoAtual } from '@/lib/trabalho/bloco-atual'
+import { casaBusca } from '@/lib/texto'
 
 interface Dados {
   quadro: Quadro
@@ -52,18 +53,33 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
   // Filtro de quem faz / quem pediu.
   const [quem, setQuem] = useState<'tudo' | 'faco' | 'pedi'>('tudo')
 
+  // Cada recarga ganha um número: resposta que chega depois de uma mais nova
+  // (foco + ação + janela do ticket ao mesmo tempo) é descartada — senão uma
+  // leitura velha devolvia o cartão para a coluna de antes.
+  const seq = useRef(0)
+  const temDados = useRef(false)
   const carregar = useCallback(async (silencioso = false) => {
+    const n = ++seq.current
     if (!silencioso) setCarregando(true)
     try {
-      const res = await fetch(`/api/tickets/quadros/${id}${encerrados ? '?encerrados=1' : ''}`, { headers: await authHeaders() })
+      const res = await fetch(`/api/tickets/quadros/${id}${encerrados ? '?encerrados=1' : ''}`, { headers: await authHeaders(), cache: 'no-store' })
       const json = await res.json()
-      if (!res.ok) { setErro(json.error || 'Falha ao carregar'); return }
+      if (n !== seq.current) return
+      if (!res.ok) {
+        // Recarga silenciosa que falha não derruba o quadro que já está na tela.
+        if (silencioso && temDados.current) setErroAcao(json.error || 'Falha ao atualizar o quadro')
+        else setErro(json.error || 'Falha ao carregar')
+        return
+      }
+      temDados.current = true
       setDados(json)
       setErro('')
     } catch {
-      setErro('Falha de conexão')
+      if (n !== seq.current) return
+      if (silencioso && temDados.current) setErroAcao('Falha de conexão ao atualizar o quadro')
+      else setErro('Falha de conexão')
     } finally {
-      setCarregando(false)
+      if (n === seq.current) setCarregando(false)
     }
   }, [id, encerrados])
 
@@ -83,18 +99,23 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
   }, [id, blocoNome])
 
   const ticketsFiltrados = useMemo(() => {
-    const q = busca.trim().toLowerCase()
     const eu = userProfile?.id
     return (dados?.tickets || []).filter((t) => {
       if (quem === 'faco' && t.responsavel_id !== eu) return false
       if (quem === 'pedi' && t.solicitante_id !== eu) return false
-      return !q || t.titulo.toLowerCase().includes(q) || String(t.numero).includes(q)
-        || (dados!.usuarios[t.responsavel_id]?.nome || '').toLowerCase().includes(q)
+      // sem diferença de maiúscula/acento; "#54" ou "54" acha pelo número
+      return casaBusca(busca, t.titulo, `#${t.numero}`, dados!.usuarios[t.responsavel_id]?.nome)
     })
   }, [dados, busca, quem, userProfile?.id])
 
-  // Arrastar troca a situação (mesma rota dos botões do ticket).
+  // Arrastar (ou "Mover para…") troca a situação pela mesma rota dos botões do
+  // ticket. Otimista: o cartão pula de coluna na hora; se o servidor recusar,
+  // volta para onde estava e mostra o motivo (ex.: 409 "alguém mudou agora").
   const mudarStatus = async (ticketId: string, para: TicketStatus) => {
+    const antes = dados?.tickets.find((t) => t.id === ticketId)?.status
+    seq.current++ // descarta recarga que já estava a caminho (traria o status velho)
+    setDados((d) => d && { ...d, tickets: d.tickets.map((t) => (t.id === ticketId ? { ...t, status: para } : t)) })
+    setErroAcao('')
     try {
       const res = await fetch(`/api/tickets/${ticketId}/acoes`, {
         method: 'POST',
@@ -103,12 +124,16 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Falha ao mudar a situação')
-      setErroAcao('')
     } catch (e) {
-      setErroAcao(e instanceof Error ? e.message : 'Falha ao mudar a situação')
+      if (antes) setDados((d) => d && { ...d, tickets: d.tickets.map((t) => (t.id === ticketId && t.status === para ? { ...t, status: antes } : t)) })
+      setErroAcao(e instanceof TypeError ? 'Falha de conexão — a situação não mudou' : e instanceof Error ? e.message : 'Falha ao mudar a situação')
     }
     carregar(true)
   }
+  const recarregarSilencioso = useCallback(() => { carregar(true) }, [carregar])
+  // Fechar a janela também recarrega: se a ação no ticket respondeu erro depois
+  // de gravar (onMudou não vem), o quadro não fica com a situação velha.
+  const fecharTicket = useCallback(() => { setAbertoId(null); carregar(true) }, [carregar])
 
   // Ações do bloco (integrantes). true = deu certo.
   const acaoQuadro = async (payload: Record<string, unknown>): Promise<boolean> => {
@@ -194,7 +219,7 @@ export default function QuadroPage({ params }: { params: Promise<{ id: string }>
         meuId={userProfile?.id} isAdmin={isAdmin} atualId={null} onMarcarAtual={() => {}}
         onMudarStatus={mudarStatus} onAbrir={setAbertoId} />
 
-      {abertoId && <TicketModal id={abertoId} onFechar={() => setAbertoId(null)} onMudou={() => carregar(true)} />}
+      {abertoId && <TicketModal id={abertoId} onFechar={fecharTicket} onMudou={recarregarSilencioso} />}
 
       {integrantes && (
         <PainelIntegrantes membros={membros} criadoPor={quadro.criado_por} usuarios={usuarios}

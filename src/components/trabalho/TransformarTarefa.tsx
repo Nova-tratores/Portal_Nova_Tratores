@@ -1,6 +1,7 @@
 'use client'
 // Tarefa solta que cresceu (Central de Trabalho):
-//  * Transformar → vira ticket (no quadro escolhido) e, se quiser, etapa no
+//  * Transformar → vira ticket (no bloco escolhido — obrigatório: ticket sem
+//    bloco não anda) e, se quiser, etapa no
 //    cronograma do quadro — os dois ficam ligados.
 //  * Incluir num ticket → vira passo de um ticket que já existe.
 import { useEffect, useState } from 'react'
@@ -67,7 +68,7 @@ export default function TransformarTarefa({ tarefa, onFeito, onAbrirTicket }: Pr
       if (!res.ok) { setErro(json.error || 'Falha'); return }
       if (corpo.acao === 'incluir') onFeito('Tarefa incluída no ticket.', json.ticket_id)
       else onFeito(`Virou o ticket #${json.ticket?.numero}${json.noCronograma ? ' e entrou no cronograma' : ''}.${json.avisoCronograma ? ' ' + json.avisoCronograma : ''}`, json.ticket?.id)
-    } finally { setSalvando(false) }
+    } catch { setErro('Falha de conexão — tente de novo.') } finally { setSalvando(false) }
   }
 
   return (
@@ -79,19 +80,19 @@ export default function TransformarTarefa({ tarefa, onFeito, onAbrirTicket }: Pr
       {modo === 'transformar' && (
         <div style={{ marginTop: 10, padding: 12, borderRadius: 10, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fafafa)', display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13.5 }}>
           <b>Transformar em ticket</b>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>Quadro
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>Bloco
             <select value={quadroId} onChange={(e) => setQuadroId(e.target.value)} style={campo}>
-              <option value="">Sem quadro (ticket comum)</option>
+              <option value="" disabled>Escolha o bloco…</option>
               {quadros.map((q) => <option key={q.id} value={q.id}>{q.nome}</option>)}
             </select>
           </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 8, opacity: quadroId ? 1 : .5 }}>
             <input type="checkbox" checked={comCrono && !!quadroId} disabled={!quadroId} onChange={(e) => setComCrono(e.target.checked)} />
-            Também pôr no cronograma do quadro, com
+            Também pôr no cronograma do bloco, com
             <input type="number" min={1} max={365} value={duracao} disabled={!quadroId} onChange={(e) => setDuracao(Number(e.target.value) || 1)} style={{ ...campo, width: 64 }} /> dias
           </label>
           <small style={{ color: 'var(--portal-text-muted,#888)' }}>O responsável é quem recebeu a tarefa; ele confirma o ticket. O ticket e a etapa ficam ligados.</small>
-          <div><button style={botao('#dc2626')} disabled={salvando} onClick={() => enviar({ acao: 'transformar', quadro_id: quadroId || null, cronograma: comCrono && !!quadroId, duracao })}>{salvando ? <Loader2 size={15} className="spin" /> : <ArrowRightLeft size={15} />} Transformar</button></div>
+          <div><button style={{ ...botao('#dc2626'), opacity: salvando || !quadroId ? .6 : 1 }} disabled={salvando || !quadroId} title={!quadroId ? 'Escolha um bloco' : undefined} onClick={() => { if (!quadroId) { setErro('Escolha um bloco.'); return } enviar({ acao: 'transformar', quadro_id: quadroId, cronograma: comCrono && !!quadroId, duracao }) }}>{salvando ? <Loader2 size={15} className="spin" /> : <ArrowRightLeft size={15} />} Transformar</button></div>
         </div>
       )}
       {modo === 'incluir' && (

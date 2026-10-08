@@ -6,7 +6,7 @@ import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { filtrarDestinatarios, type PrefsDestinatario } from '@/lib/notif/prefs'
 import type { Autenticado } from '@/lib/auth/server'
 import type { Ticket, TicketParticipante, TicketStatus, EventoTipo } from './constantes'
-import { STATUS_FINAIS, TRANSICOES_RESPONSAVEL, TRANSICOES_SOLICITANTE } from './constantes'
+import { STATUS_FINAIS, statusDisponiveis } from './constantes'
 import {
   COLS_REQ_RESUMO, normalizarCotacoes, resumoRequisicao,
   type RequisicaoResumo, type TicketVinculo, type TicketVinculoEnriquecido,
@@ -150,15 +150,12 @@ export function validarTransicao(
   para: TicketStatus,
   auth: Autenticado,
 ): string | null {
-  if (STATUS_FINAIS.includes(t.status)) return 'Ticket já encerrado.'
   if (para === t.status) return 'O ticket já está neste status.'
+  // Mesma regra dos botões da tela (statusDisponiveis) — os dois nunca discordam.
   const souResponsavel = t.responsavel_id === auth.userId
   const souSolicitante = t.solicitante_id === auth.userId
-  const doResp = (TRANSICOES_RESPONSAVEL[t.status] || []).includes(para)
-  const doSol = (TRANSICOES_SOLICITANTE[t.status] || []).includes(para)
-  if (auth.isAdmin && (doResp || doSol)) return null
-  if (souResponsavel && doResp) return null
-  if (souSolicitante && doSol) return null
+  if (statusDisponiveis(t.status, souResponsavel, souSolicitante, auth.isAdmin).includes(para)) return null
+  if (STATUS_FINAIS.includes(t.status)) return 'Ticket já encerrado — só um admin reabre.'
   if (para === 'fechado') return 'Só o solicitante confirma o fechamento (após resolvido).'
   if (para === 'cancelado') return 'Só o solicitante pode cancelar o ticket.'
   return 'Você não pode fazer esta mudança de status.'
@@ -229,5 +226,6 @@ export function camposDoStatus(para: TicketStatus): Partial<Ticket> {
   if (para === 'resolvido') return { status: para, resolvido_em: agora }
   if (para === 'fechado') return { status: para, fechado_em: agora }
   if (para === 'cancelado') return { status: para, fechado_em: agora }
-  return { status: para, resolvido_em: null }
+  // voltou para uma fase ativa (inclusive reaberto por admin): limpa as datas de fim
+  return { status: para, resolvido_em: null, fechado_em: null }
 }

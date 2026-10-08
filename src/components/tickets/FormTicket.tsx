@@ -2,13 +2,14 @@
 // Modal de criação de ticket (v1 — tipo genérico).
 // A descrição de origem ("quem pediu e por quê") é imutável depois de criada.
 // Aceita um print da tela (clique direito) — vira evento 'anexo' na timeline.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, Ticket as TicketIcon, Lock, Globe, Paperclip, LayoutGrid } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { supabase } from '@/lib/supabase'
 import { CATEGORIAS_SUGERIDAS, type TicketVisibilidade } from '@/lib/tickets/constantes'
 import UserSelect from './UserSelect'
 import { dataMinima, diaUtil, fimDeSemana } from '@/lib/trabalho/agenda'
+import SeletorDataAgenda from '@/components/trabalho/SeletorDataAgenda'
 
 interface Props {
   onFechar: () => void
@@ -26,6 +27,13 @@ const br = (iso: string) => iso.slice(8, 10) + "/" + iso.slice(5, 7)
 const hojeLocal = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
 const DIAS_SEMANA = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb']
 const rotuloSugestao = (iso: string) => `${DIAS_SEMANA[new Date(iso + 'T12:00:00').getDay()]} ${br(iso)}`
+const amanhaDe = (iso: string) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10) }
+// Último dia de trabalho: conta `dias` dias ÚTEIS a partir do início (pula sáb/dom).
+const somarDiasUteis = (inicio: string, dias: number) => {
+  let d = diaUtil(inicio)
+  for (let i = 1; i < dias; i++) d = diaUtil(amanhaDe(d))
+  return d
+}
 
 const campoStyle: React.CSSProperties = {
   width: '100%', padding: '9px 12px', borderRadius: 8, fontSize: 14,
@@ -54,7 +62,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
   // Prazo indeterminado: sem prazo, aparece todo dia no Cronograma até alguém concluir.
   const [indeterminado, setIndeterminado] = useState(false)
   const minimo = dataMinima(hojeLocal(), urgente)
-  const [agenda, setAgenda] = useState<{ sugestao: string; sugestoes: string[]; conflitos: { nome: string; ini: string; fim: string }[] } | null>(null)
+  const [agenda, setAgenda] = useState<{ sugestao: string; sugestoes: string[]; conflitos: { nome: string; ini: string; fim: string }[]; falhou?: boolean } | null>(null)
 
   useEffect(() => {
     if (!responsavelId) { setAgenda(null); return }
@@ -65,11 +73,13 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
         if (tocouInicio && inicio) q.set('inicio', inicio)
         if (urgente) q.set('urgente', '1')
         const res = await fetch('/api/trabalho/agenda?' + q.toString(), { headers: await authHeaders() })
-        const json = await res.json()
-        if (!vivo || !res.ok) return
+        const json = await res.json().catch(() => ({}))
+        if (!vivo) return
+        // sem agenda: segue manual (não fica "Olhando a agenda..." para sempre)
+        if (!res.ok || !json.sugestao) { setAgenda({ sugestao: '', sugestoes: [], conflitos: [], falhou: true }); return }
         setAgenda({ sugestao: json.sugestao, sugestoes: json.sugestoes || [json.sugestao], conflitos: json.conflitos || [] })
         if (!tocouInicio) setInicio(json.sugestao)
-      } catch { /* sem agenda: segue manual */ }
+      } catch { if (vivo) setAgenda({ sugestao: '', sugestoes: [], conflitos: [], falhou: true }) }
     }, 250)
     return () => { vivo = false; clearTimeout(tmr) }
   }, [responsavelId, duracao, inicio, tocouInicio, urgente])
@@ -80,11 +90,10 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
     setTocouInicio(false); setTocouPrazo(false)
   }
 
-  // prazo acompanha início + dias, até a pessoa mexer nele
+  // prazo acompanha início + dias ÚTEIS, até a pessoa mexer nele
   useEffect(() => {
     if (tocouPrazo || !inicio) return
-    const d = new Date(inicio + 'T12:00:00'); d.setDate(d.getDate() + duracao - 1)
-    setPrazo(d.toISOString().slice(0, 10))
+    setPrazo(somarDiasUteis(inicio, duracao))
   }, [inicio, duracao, tocouPrazo])
   const [terceiro, setTerceiro] = useState('')
   // Dentro de um bloco o padrão é compartilhar com o bloco; fora, privado.
@@ -92,6 +101,13 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
   const [print, setPrint] = useState<File | null>(printInicial ?? null)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  // fundo escuro: só fecha se o clique começou E terminou nele (arrastar seleção não fecha)
+  const downNoFundo = useRef(false)
+  const fecharPeloFundo = () => {
+    const escreveu = titulo.trim() !== (tituloInicial || '').trim() || descricao.trim() !== (descricaoInicial || '').trim() || !!categoria.trim() || !!terceiro.trim()
+    if (escreveu && !confirm('Descartar o que você escreveu?')) return
+    onFechar()
+  }
 
   const printUrl = useMemo(() => (print ? URL.createObjectURL(print) : null), [print])
   useEffect(() => () => { if (printUrl) URL.revokeObjectURL(printUrl) }, [printUrl])
@@ -101,6 +117,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
     if (!responsavelId) { setErro('Escolha para quem é o pedido'); return }
     if (!titulo.trim()) { setErro('Informe o título'); return }
     if (!descricao.trim()) { setErro('Descreva o pedido — esse texto fica registrado como origem do ticket'); return }
+    if (!indeterminado && prazo && inicio && prazo < inicio) { setErro(`O prazo (${br(prazo)}) não pode ser antes do dia em que começa (${br(inicio)}).`); return }
     if (!indeterminado && prazo && prazo < minimo) { setErro('Deixe pelo menos 1 dia de prazo. Se precisa ser hoje, marque "Muito urgente".'); return }
     setSalvando(true)
     try {
@@ -149,7 +166,8 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
     <div style={{
       position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
-    }} onClick={onFechar}>
+    }} onMouseDown={(e) => { downNoFundo.current = e.target === e.currentTarget }}
+      onClick={(e) => { if (e.target === e.currentTarget && downNoFundo.current) fecharPeloFundo() }}>
       <style>{`@media (max-width: 480px){.ct-ft-caixa{padding:16px !important}.ct-ft-quando{grid-template-columns:1fr 1fr !important}.ct-ft-quando > div:first-child{grid-column:1 / -1}}`}</style>
       <div className="ct-ft-caixa"
         onClick={(e) => e.stopPropagation()}
@@ -182,6 +200,7 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
                 <label style={rotuloStyle}>{urgente ? 'Para hoje (fura a fila)' : 'Dias livres na agenda dessa pessoa'}</label>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {!agenda && <span style={{ fontSize: 13, color: 'var(--portal-text-muted, #888)' }}>Olhando a agenda...</span>}
+                  {agenda?.falhou && <span style={{ fontSize: 13, color: '#b45309' }}>Não deu para ver a agenda — escolha a data</span>}
                   {agenda?.sugestoes.map((d) => {
                     const ativo = inicio === d
                     return (
@@ -200,16 +219,18 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
               <div className={indeterminado ? undefined : 'ct-ft-quando'} style={{ display: 'grid', gridTemplateColumns: indeterminado ? '1fr' : '1fr 90px 1fr', gap: 10 }}>
                 <div>
                   <label style={rotuloStyle}>Começa em</label>
-                  <input type="date" value={inicio} min={minimo} onChange={(e) => { setInicio(e.target.value); setTocouInicio(true) }} style={campoStyle} />
+                  <SeletorDataAgenda diasUteis value={inicio} min={minimo} userId={responsavelId} textoVazio="Escolha"
+                    onChange={(v) => { setInicio(v); setTocouInicio(true) }} />
                 </div>
                 {!indeterminado && <>
                 <div>
                   <label style={rotuloStyle}>Dias</label>
                   <input type="number" min={1} max={120} value={duracao} onChange={(e) => setDuracao(Math.max(1, Number(e.target.value) || 1))} style={campoStyle} />
                 </div>
-                <div>
+                <div className="ct-ft-prazo">
                   <label style={rotuloStyle}>Prazo</label>
-                  <input type="date" value={prazo} min={minimo} onChange={(e) => { setPrazo(e.target.value); setTocouPrazo(true) }} style={campoStyle} />
+                  <SeletorDataAgenda diasUteis alinhar="direita" value={prazo} min={inicio && inicio > minimo ? inicio : minimo} userId={responsavelId} textoVazio="Escolha"
+                    onChange={(v) => { setPrazo(v); setTocouPrazo(true) }} />
                 </div>
                 </>}
               </div>
@@ -217,6 +238,11 @@ export default function FormTicket({ onFechar, onCriado, printInicial, quadro, t
                 <input type="checkbox" checked={indeterminado} onChange={(e) => setIndeterminado(e.target.checked)} style={{ marginTop: 2 }} />
                 <span><strong>Prazo indeterminado</strong> — trabalho contínuo: aparece todo dia útil (seg a sex) no Cronograma até alguém concluir.</span>
               </label>
+              {!indeterminado && prazo && inicio && prazo < inicio && (
+                <div style={{ fontSize: 12.5, fontWeight: 600, color: '#dc2626' }}>
+                  O prazo ({br(prazo)}) está antes do dia em que começa ({br(inicio)}).
+                </div>
+              )}
               {indeterminado && inicio && fimDeSemana(inicio) && (
                 <div style={{ fontSize: 12.5, color: '#0369a1' }}>
                   {rotuloSugestao(inicio)} é fim de semana — começa na {rotuloSugestao(diaUtil(inicio))}.

@@ -118,12 +118,20 @@ export const AUTO_FECHAR_DIAS = 7
 // Transições de status (seção 3 do conceito) — compartilhadas entre a UI
 // (botões disponíveis) e o server (validação real).
 // ---------------------------------------------------------------------
+// Quem faz anda e VOLTA livremente entre as fases ativas (inclusive para
+// "Aberto" e para trás depois de "Resolvido", antes de quem pediu fechar).
 export const TRANSICOES_RESPONSAVEL: Partial<Record<TicketStatus, TicketStatus[]>> = {
   aberto: ['em_andamento', 'aguardando_terceiro', 'aguardando_interno', 'resolvido'],
-  em_andamento: ['aguardando_terceiro', 'aguardando_interno', 'resolvido'],
-  aguardando_terceiro: ['em_andamento', 'aguardando_interno', 'resolvido'],
-  aguardando_interno: ['em_andamento', 'aguardando_terceiro', 'resolvido'],
-  resolvido: ['em_andamento'], // voltar atrás antes do solicitante fechar
+  em_andamento: ['aberto', 'aguardando_terceiro', 'aguardando_interno', 'resolvido'],
+  aguardando_terceiro: ['aberto', 'em_andamento', 'aguardando_interno', 'resolvido'],
+  aguardando_interno: ['aberto', 'em_andamento', 'aguardando_terceiro', 'resolvido'],
+  resolvido: ['aberto', 'em_andamento', 'aguardando_terceiro', 'aguardando_interno'],
+}
+
+// Admin reabre ticket encerrado (fechado/cancelado por engano).
+export const TRANSICOES_ADMIN: Partial<Record<TicketStatus, TicketStatus[]>> = {
+  fechado: ['em_andamento'],
+  cancelado: ['aberto'],
 }
 
 export const TRANSICOES_SOLICITANTE: Partial<Record<TicketStatus, TicketStatus[]>> = {
@@ -144,6 +152,7 @@ export function statusDisponiveis(
   const set = new Set<TicketStatus>()
   if (souResponsavel || isAdmin) for (const s of TRANSICOES_RESPONSAVEL[atual] || []) set.add(s)
   if (souSolicitante || isAdmin) for (const s of TRANSICOES_SOLICITANTE[atual] || []) set.add(s)
+  if (isAdmin) for (const s of TRANSICOES_ADMIN[atual] || []) set.add(s)
   set.delete(atual)
   return [...set]
 }

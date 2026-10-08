@@ -17,7 +17,7 @@ import { colunaDoTicket } from '@/lib/tickets/quadros'
 import { migrationFaltou } from '@/lib/marketing/erros'
 import { carregarTarefa } from '@/lib/trabalho/tarefas-server'
 import { planejarTicket, ErroTrabalho } from '@/lib/trabalho/cronograma-server'
-import type { Ticket } from '@/lib/tickets/constantes'
+import { STATUS_FINAIS, type Ticket } from '@/lib/tickets/constantes'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -41,6 +41,11 @@ export async function POST(req: NextRequest) {
     if (acao === 'incluir') {
       const c = await carregarTicket(String(body.ticket_id || ''))
       if (!c || !(await podeVerTicket(c.ticket, c.participantes, auth))) return erro('Ticket não encontrado', 404)
+      if (STATUS_FINAIS.includes(c.ticket.status)) return erro('Ticket encerrado — não aceita tarefas novas.')
+      // Mesma regra de /api/tickets/:id/tarefas: envolvido, admin ou quem trabalha no bloco.
+      const envolvido = auth.isAdmin || envolvidos(c.ticket, c.participantes).includes(auth.userId)
+      const doBloco = !envolvido && c.ticket.quadro_id ? await carregarQuadro(c.ticket.quadro_id) : null
+      if (!envolvido && !(doBloco && papeis(doBloco, auth).trabalhar)) return erro('Só quem participa do ticket inclui tarefas nele.', 403)
       const { error } = await supabaseAdmin.from('portal_tarefas').update({ ticket_id: c.ticket.id, papel_no_ticket: 'passo', updated_at: new Date().toISOString() }).eq('id', tarefa.id)
       if (error) throw Object.assign(new Error(error.message), { code: error.code })
       await registrarEvento(c.ticket.id, auth.userId, 'edicao', { campo: 'tarefa', acao: 'criada', titulo: tarefa.titulo })

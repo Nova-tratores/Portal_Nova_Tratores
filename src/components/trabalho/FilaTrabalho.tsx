@@ -44,13 +44,15 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
   const [sobre, setSobre] = useState<string | null>(null)
   const [salvando, setSalvando] = useState(false)
 
-  const carregar = useCallback(async () => {
-    setErro('')
+  // manterErro: recarga depois de uma edição recusada — o aviso do servidor
+  // fica na tela (antes o setErro('') do começo apagava na hora).
+  const carregar = useCallback(async (manterErro = false) => {
     try {
       const res = await fetch('/api/trabalho/fila' + (user ? `?user=${user}` : ''), { headers: await authHeaders(), cache: 'no-store' })
       const json = await res.json()
       if (!res.ok) { setErro(json.error || 'Falha ao carregar a fila'); return }
       setDados(json); setOrdem(null)
+      if (!manterErro) setErro('')
     } catch { setErro('Falha de conexão') }
   }, [user])
   useEffect(() => { carregar() }, [carregar, versao])
@@ -110,19 +112,20 @@ export default function FilaTrabalho({ onAbrir, versao, userInicial }: { onAbrir
       const json = await res.json().catch(() => ({}))
       if (!res.ok) { setErro(json.error || 'Não deu para salvar a ordem'); return }
       await carregar()
-    } finally { setSalvando(false) }
+    } catch { setErro('Falha de conexão — a ordem não foi salva') } finally { setSalvando(false) }
   }
   const editar = async (id: string, campo: 'dias' | 'horas_dia', valor: number) => {
     setErro('')
+    let falhou = false
     try {
       const res = await fetch(`/api/tickets/${id}/acoes`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ acao: 'editar', [campo]: valor }),
       })
       const json = await res.json().catch(() => ({}))
-      if (!res.ok) setErro(json.error === 'Nada para alterar' ? '' : json.error || 'Não deu para mudar')
-    } catch { setErro('Falha de conexão') }
-    carregar()
+      if (!res.ok && json.error !== 'Nada para alterar') { setErro(json.error || 'Não deu para mudar'); falhou = true }
+    } catch { setErro('Falha de conexão'); falhou = true }
+    carregar(falhou)
   }
 
   if (!dados) return erro ? <Aviso texto={erro} /> : <div style={{ padding: 40, textAlign: 'center', color: muted }}>Carregando a fila...</div>

@@ -2,7 +2,7 @@
 // CENTRAL DE TRABALHO — Cronograma GERAL: tudo que eu posso ver (tickets em
 // aberto), em Gantt · Calendário · Kanban (VistasCronogramaGeral). Os antigos
 // "projetos" saíram: quem organiza agora são os blocos.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { GanttChartSquare, RefreshCw, CalendarDays, Columns3, ListOrdered } from 'lucide-react'
 import FilaTrabalho from '@/components/trabalho/FilaTrabalho'
 import { authHeaders } from '@/lib/auth/client'
@@ -62,18 +62,26 @@ export default function CronogramaGeralPage() {
   }, [])
   const trocarVista = (v: Vista) => { setVista(v); try { localStorage.setItem('cronograma-geral-vista', v) } catch { /* sem storage */ } }
 
-  const carregar = useCallback(async () => {
-    setErro('')
+  // manterErro: recarga depois de uma ação recusada — o aviso do servidor
+  // continua na tela (antes o setErro('') do começo apagava na hora).
+  // seq: resposta velha (foco + ação ao mesmo tempo) não sobrescreve a nova.
+  const seq = useRef(0)
+  const carregar = useCallback(async (manterErro = false) => {
+    const n = ++seq.current
     try {
       const res = await fetch('/api/trabalho/cronograma-geral', { headers: await authHeaders(), cache: 'no-store' })
       const json = await res.json()
+      if (n !== seq.current) return
       if (!res.ok) { setErro(json.error || 'Falha ao carregar'); return }
       setDados(json)
-    } catch { setErro('Falha de conexão') }
+      if (!manterErro) setErro('')
+    } catch { if (n === seq.current) setErro('Falha de conexão') }
   }, [])
   useEffect(() => { carregar() }, [carregar])
+  const dadosRef = useRef<Dados | null>(null)
+  useEffect(() => { dadosRef.current = dados }, [dados])
   useEffect(() => {
-    const f = () => carregar()
+    const f = () => carregar(true)
     window.addEventListener('central-trabalho-mudou', f)
     window.addEventListener('focus', f)
     return () => { window.removeEventListener('central-trabalho-mudou', f); window.removeEventListener('focus', f) }
@@ -90,7 +98,10 @@ export default function CronogramaGeralPage() {
   // mesma rota dos botões do ticket (evento na timeline + notificação). O
   // servidor decide quem pode; recusou = volta como estava + aviso.
   const acaoTicket = useCallback(async (id: string, corpo: Record<string, unknown>, patch: (t: Ticket) => Partial<Ticket>) => {
+    const antes = dadosRef.current?.tickets.find((t) => t.id === id)
+    seq.current++ // recarga já a caminho traria o estado velho
     setDados((d) => d && { ...d, tickets: d.tickets.map((t) => (t.id === id ? { ...t, ...patch(t) } : t)) })
+    let ok = false
     try {
       const res = await fetch(`/api/tickets/${id}/acoes`, {
         method: 'POST',
@@ -99,11 +110,14 @@ export default function CronogramaGeralPage() {
       })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(json.error || 'Não deu para mudar')
-      setErro('')
+      ok = true
     } catch (e) {
-      setErro(e instanceof Error ? e.message : 'Não deu para mudar')
+      // Volta como estava e deixa o motivo do servidor à vista.
+      if (antes) { const a = antes; setDados((d) => d && { ...d, tickets: d.tickets.map((t) => (t.id === id ? a : t)) }) }
+      setErro(e instanceof TypeError ? 'Falha de conexão — nada mudou' : e instanceof Error ? e.message : 'Não deu para mudar')
     }
-    carregar()
+    if (ok) setErro('')
+    carregar(!ok)
   }, [carregar])
   const mudarDatas = useCallback((id: string, inicio: string, prazo: string | null) =>
     acaoTicket(id, { acao: 'editar', prazo, inicio }, (t) => ({ prazo, payload: { ...(t.payload || {}), inicio } })), [acaoTicket])
@@ -135,7 +149,7 @@ export default function CronogramaGeralPage() {
             </button>
           ))}
         </div>
-        <button onClick={carregar} title="Atualizar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: isMobile ? 36 : undefined, minHeight: isMobile ? 36 : undefined, padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
+        <button onClick={() => carregar()} title="Atualizar" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: isMobile ? 36 : undefined, minHeight: isMobile ? 36 : undefined, padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>
           <RefreshCw size={14} />
         </button>
       </div>
@@ -174,7 +188,7 @@ export default function CronogramaGeralPage() {
         )
       )}
 
-      {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => setTicketAberto(null)} onMudou={() => { carregar(); setVersao((v) => v + 1) }} />}
+      {ticketAberto && <TicketModal id={ticketAberto} onFechar={() => { setTicketAberto(null); carregar(true) }} onMudou={() => { carregar(); setVersao((v) => v + 1) }} />}
     </div>
   )
 }

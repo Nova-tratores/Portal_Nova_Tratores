@@ -3,6 +3,22 @@ import { supabase } from '@/lib/supabase'
 
 const TBL = 'portal_tarefas'
 
+// Prazo é um DIA. Só a data ('AAAA-MM-DD') vira meio-dia de Brasília — o
+// new Date('AAAA-MM-DD') era 00:00 UTC = dia ANTERIOR em -03:00.
+function prazoParaGravar(prazo: unknown): string | null {
+  if (!prazo) return null
+  const s = String(prazo)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s + 'T12:00:00-03:00'
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
+
+// Hoje em America/Sao_Paulo (AAAA-MM-DD).
+const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+// Dia do prazo: os 10 primeiros caracteres (prazo antigo gravado 00:00 UTC
+// guarda o dia escolhido ali; o novo, 12:00 -03:00 = 15:00 UTC, também).
+const diaDoPrazo = (prazo: string) => prazo.slice(0, 10)
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl
@@ -28,12 +44,13 @@ export async function GET(req: NextRequest) {
       tasks = tasks.filter(t => t.criado_por === userId)
     }
 
-    // Enriquecer com status calculado
-    const now = new Date()
+    // Enriquecer com status calculado — atrasada = o DIA do prazo já passou
+    // (pelo calendário de Brasília), não a hora.
+    const hoje = hojeSP()
     const enriched = tasks.map(t => {
       let computed_status = 'pendente'
       if (t.concluida) computed_status = 'concluida'
-      else if (t.prazo && new Date(t.prazo) < now) computed_status = 'atrasada'
+      else if (t.prazo && diaDoPrazo(String(t.prazo)) < hoje) computed_status = 'atrasada'
       return { ...t, computed_status }
     })
 
@@ -73,7 +90,7 @@ export async function POST(req: NextRequest) {
       criado_por,
       atribuido_a: atribuido_a || null,
     }
-    if (prazo) insert.prazo = new Date(prazo).toISOString()
+    if (prazo) insert.prazo = prazoParaGravar(prazo)
 
     const { data, error } = await supabase.from(TBL).insert(insert).select().single()
     if (error) throw new Error(error.message)

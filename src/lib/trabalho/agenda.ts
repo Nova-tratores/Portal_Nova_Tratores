@@ -51,3 +51,30 @@ export function diaUtil(iso: string): string {
 export function dataMinima(hoje: string, urgente: boolean): string {
   return urgente ? hoje : soma(hoje, 1)
 }
+
+/**
+ * Calendário: o que a pessoa já tem em cada dia de [de, ate] (inclusive).
+ * Só dias com algo marcado aparecem. Serve para PINTAR o dia — não bloqueia.
+ */
+export function diasOcupados(ocup: Ocupacao[], de: string, ate: string): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const o of ocup) {
+    let d = o.ini < de ? de : o.ini
+    const fim = o.fim > ate ? ate : o.fim
+    for (let i = 0; d <= fim && i < 400; i++, d = soma(d, 1)) (out[d] ??= []).push(o.nome)
+  }
+  return out
+}
+
+/**
+ * Ticket não fica no fim de semana: início e prazo só em dia útil.
+ * `liberado` = um dia que passa mesmo sendo fim de semana (o "muito urgente"
+ * para hoje). Devolve a mensagem de erro ou null.
+ */
+export function erroFimDeSemana(datas: { prazo?: unknown; inicio?: unknown }, liberado?: string | null): string | null {
+  for (const [campo, v] of [['prazo', datas.prazo], ['início', datas.inicio]] as const) {
+    const d = typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null
+    if (d && d !== liberado && fimDeSemana(d)) return `O ${campo} cai num ${new Date(d + 'T12:00:00Z').getUTCDay() === 6 ? 'sábado' : 'domingo'} — ticket só em dia útil.`
+  }
+  return null
+}

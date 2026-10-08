@@ -19,8 +19,9 @@ import {
 import { STATUS_FINAIS, STATUS_INFO, type Ticket, type TicketParticipante, type TicketStatus } from '@/lib/tickets/constantes'
 import { labelRequisicao } from '@/lib/tickets/vinculos'
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
-import { colunaDoTicket } from '@/lib/tickets/quadros'
-import { sincronizarEtapaDoTicket, moverEtapaDoTicket } from '@/lib/trabalho/cronograma-server'
+import { colunaDoTicket, colunaDoStatus } from '@/lib/tickets/quadros'
+import { sincronizarEtapaDoTicket, moverEtapaDoTicket, hojeSP } from '@/lib/trabalho/cronograma-server'
+import { erroFimDeSemana } from '@/lib/trabalho/agenda'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -33,6 +34,20 @@ function ehEnvolvido(t: Ticket, participantes: TicketParticipante[], auth: Auten
   return t.solicitante_id === auth.userId
     || t.responsavel_id === auth.userId
     || ehParticipanteAtivo(participantes, auth.userId)
+}
+
+// "Prazo: 08/10 → 13/10 · Título: A → B" — vai na notificação de edição.
+const ROTULO_CAMPO: Record<string, string> = {
+  titulo: 'Título', categoria: 'Categoria', terceiro_envolvido: 'Terceiro', prazo: 'Prazo',
+  inicio: 'Início', dias: 'Dias de trabalho', horas_dia: 'Horas/dia',
+}
+function resumoMudancas(m: Record<string, { de: unknown; para: unknown }>): string {
+  const fmt = (v: unknown) => {
+    if (v === null || v === undefined || v === '') return '—'
+    const s = String(v)
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s.split('-').reverse().join('/') : s
+  }
+  return Object.entries(m).map(([k, v]) => `${ROTULO_CAMPO[k] || k}: ${fmt(v.de)} → ${fmt(v.para)}`).join(' · ').slice(0, 300)
 }
 
 async function nomeDe(userId: string): Promise<string> {
@@ -173,6 +188,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Quem pediu é avisado. sql/central-trabalho.sql (tickets.aceite).
   if (acao === 'aceite') {
     if (!souResponsavel) return erro('Só quem recebeu o ticket confirma.', 403)
+    if (encerrado) return erro('Ticket encerrado.')
     const decisao = String(body.decisao || '')
     const agora = new Date().toISOString()
     const autor = await nomeDe(auth.userId)
@@ -182,6 +198,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (decisao === 'nova_data') {
         novaData = /^\d{4}-\d{2}-\d{2}$/.test(String(body.data || '')) ? String(body.data) : null
         if (!novaData) return erro('Escolha a nova data')
+        if (novaData < hojeSP()) return erro('A nova data não pode ser no passado.')
+        const erroFds = erroFimDeSemana({ prazo: novaData })
+        if (erroFds) return erro(erroFds)
         patch.prazo = novaData
       }
       // Quem recebeu já escolhe o bloco e se fica privado (antes de gravar o
@@ -216,14 +235,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (ticket.tipo === 'compras') return erro('Solicitação de Compras segue o trilho de aprovação — use as ações da SC.')
     const para = String(body.para || '') as TicketStatus
     if (!STATUS_INFO[para]) return erro('Status inválido')
-    // Todo ticket precisa estar num bloco antes de andar (cancelar pode sempre).
-    if (!ticket.quadro_id && para !== 'cancelado') return erro('Ponha este ticket num bloco antes de trabalhar nele.')
     const invalida = validarTransicao(ticket, para, auth)
     if (invalida) return erro(invalida, 403)
+    // Quem FAZ precisa do ticket num bloco para trabalhar nele. Quem pediu
+    // confirma/contesta/cancela sempre (ticket antigo sem bloco não trava).
+    const andamento = !['cancelado', 'fechado'].includes(para) && !(souSolicitante && ticket.status === 'resolvido')
+    if (!ticket.quadro_id && andamento) return erro('Ponha este ticket num bloco antes de trabalhar nele.')
     const motivo = String(body.motivo || '').trim()
 
-    const { error } = await supabaseAdmin.from('tickets').update(camposDoStatus(para)).eq('id', id)
+    // Coluna do bloco acompanha a fase (resolvido → "Feito", voltou → volta).
+    const patchStatus: Record<string, unknown> = { ...camposDoStatus(para) }
+    if (ticket.quadro_id) {
+      const q = await carregarQuadro(ticket.quadro_id)
+      const col = q ? colunaDoStatus(para, q.colunas) : null
+      if (col) patchStatus.quadro_coluna_id = col
+    }
+    // Condicional no status lido: duas pessoas mudando ao mesmo tempo não
+    // gravam por cima uma da outra.
+    const { data: gravou, error } = await supabaseAdmin.from('tickets').update(patchStatus)
+      .eq('id', id).eq('status', ticket.status).select('id')
     if (error) return erro(error.message, 500)
+    if (!gravou?.length) return erro('Alguém mudou este ticket agora — recarregue e tente de novo.', 409)
+    // Quem faz mexeu na fase = já aceitou (some o "Confirmar · Outra data").
+    if (souResponsavel && para !== 'cancelado' && (ticket as Ticket & { aceite?: string }).aceite !== 'ok') {
+      await supabaseAdmin.from('tickets').update({ aceite: 'ok', aceite_em: new Date().toISOString() }).eq('id', id)
+    }
     // Encerrou: sai da fila pessoal de todo mundo.
     if (STATUS_FINAIS.includes(para)) {
       await supabaseAdmin.from('tickets_plano').delete().eq('ticket_id', id)
@@ -330,8 +366,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         mudancas[campo] = { de: ticket[campo], para: valor }
       }
     }
+    const dataOk = (v: unknown) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ''))
     if ('prazo' in body) {
       const novoPrazo = body.prazo ? String(body.prazo) : null
+      if (novoPrazo && !dataOk(novoPrazo)) return erro('Prazo inválido')
       if (novoPrazo !== ticket.prazo) {
         patch.prazo = novoPrazo
         mudancas.prazo = { de: ticket.prazo, para: novoPrazo }
@@ -357,9 +395,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
     if (['inicio', 'dias', 'horas_dia'].some((k) => k in mudancas)) patch.payload = novoPayload
     if (Object.keys(patch).length === 0) return erro('Nada para alterar')
+    const prazoFinal = 'prazo' in patch ? (patch.prazo as string | null) : ticket.prazo
+    const inicioFinal = (novoPayload.inicio ?? null) as string | null
+    // Só as datas que MUDARAM (ticket antigo num sábado não trava os outros campos).
+    const erroFds = erroFimDeSemana({ prazo: mudancas.prazo?.para, inicio: mudancas.inicio?.para })
+    if (erroFds) return erro(erroFds)
+    if (prazoFinal && inicioFinal && inicioFinal > prazoFinal) return erro('O início não pode ser depois do prazo.')
     const { error } = await supabaseAdmin.from('tickets').update(patch).eq('id', id)
     if (error) return erro(error.message, 500)
     await registrarEvento(id, auth.userId, 'edicao', { mudancas })
+    // Etapa do cronograma ligada segue o prazo novo.
+    if (mudancas.prazo && prazoFinal) await moverEtapaDoTicket(id, prazoFinal)
+    // Todos os envolvidos ficam sabendo o que mudou.
+    const autor = await nomeDe(auth.userId)
+    await notificarTicket(ticket, todos, auth.userId,
+      `${autor} alterou o ticket #${ticket.numero}`, resumoMudancas(mudancas) || ticket.titulo)
     return NextResponse.json({ ok: true })
   }
 
@@ -448,10 +498,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const atual = colunaDoTicket(ticket.quadro_coluna_id, c.colunas)
     // Ordem dos cartões na coluna de destino (arrastar para cima/baixo).
     const ordem = Array.isArray(body.ordem) ? (body.ordem as unknown[]).map(String).filter((x) => /^[0-9a-f-]{36}$/i.test(x)).slice(0, 500) : []
-    if (ordem.length) {
-      await Promise.all(ordem.map((tid, i) =>
+    // Reordenar o quadro inteiro é só de quem trabalha nele.
+    if (ordem.length && papeis(c, auth).trabalhar) {
+      const res = await Promise.all(ordem.map((tid, i) =>
         supabaseAdmin.from('tickets').update({ quadro_posicao: i }).eq('id', tid).eq('quadro_id', ticket.quadro_id!)))
-        .catch(() => { /* migration pendente: sem ordem */ })
+      const falha = res.find((r) => r.error && r.error.code !== '42703') // 42703 = migration pendente: sem ordem
+      if (falha?.error) return erro(falha.error.message, 500)
     }
     if (atual === colunaId) return NextResponse.json({ ok: true })
     const { error } = await supabaseAdmin.from('tickets').update({ quadro_coluna_id: colunaId }).eq('id', id)

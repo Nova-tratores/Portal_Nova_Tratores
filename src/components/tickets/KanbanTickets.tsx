@@ -3,6 +3,8 @@
 // troca o status — só nas colunas que o papel do usuário permite
 // (statusDisponiveis, a mesma regra dos botões da página do ticket); o servidor
 // continua validando (validarTransicao). DnD HTML5 nativo, molde do PPV.
+// No celular (sem arrastar) cada card tem o seletor "Mover para…". Ticket sem
+// bloco não anda: só cancelar (e quem pediu confirma/contesta o resolvido).
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Clock, CalendarDays, User as UserIcon, Zap, ShoppingCart } from 'lucide-react'
@@ -44,10 +46,18 @@ export default function KanbanTickets({
   const porStatus: Partial<Record<TicketStatus, Ticket[]>> = {}
   for (const t of tickets) (porStatus[t.status] ||= []).push(t)
 
+  // Para onde o card pode ir (statusDisponiveis). Sem bloco o ticket não anda
+  // (mesma regra do servidor): só cancelar — e quem pediu ainda confirma ou
+  // contesta o resolvido.
+  const destinosDe = (t: Ticket): TicketStatus[] => {
+    const souSolicitante = t.solicitante_id === meuId
+    const todos = statusDisponiveis(t.status, t.responsavel_id === meuId, souSolicitante, isAdmin)
+    if (t.quadro_id) return todos
+    return todos.filter((s) => s === 'cancelado' || s === 'fechado' || (souSolicitante && t.status === 'resolvido'))
+  }
+
   const iniciarArrasto = (t: Ticket, e: React.DragEvent) => {
-    const permitidos = new Set(statusDisponiveis(
-      t.status, t.responsavel_id === meuId, t.solicitante_id === meuId, isAdmin,
-    ))
+    const permitidos = new Set(destinosDe(t))
     setArrastando({ id: t.id, permitidos })
     e.dataTransfer.setData(MIME_ID, t.id)
     e.dataTransfer.setData('text/plain', t.id) // Firefox exige
@@ -56,15 +66,20 @@ export default function KanbanTickets({
 
   const encerrarArrasto = () => { setArrastando(null); setColunaOver(null) }
 
+  // Troca de status — usada pelo arrastar e pelo "Mover para…" do celular.
+  const mover = async (id: string, para: TicketStatus) => {
+    const t = tickets.find((x) => x.id === id)
+    if (!t || t.status === para || !destinosDe(t).includes(para)) return
+    if (para === 'cancelado' && !window.confirm('Cancelar este ticket? Essa ação encerra a demanda.')) return
+    setSalvando(id)
+    try { await onMudarStatus(id, para) } finally { setSalvando(null) }
+  }
+
   const soltar = async (para: TicketStatus) => {
     const atual = arrastando
     encerrarArrasto()
     if (!atual || !atual.permitidos.has(para)) return
-    const t = tickets.find((x) => x.id === atual.id)
-    if (!t || t.status === para) return
-    if (para === 'cancelado' && !window.confirm('Cancelar este ticket? Essa ação encerra a demanda.')) return
-    setSalvando(atual.id)
-    try { await onMudarStatus(atual.id, para) } finally { setSalvando(null) }
+    await mover(atual.id, para)
   }
 
   return (
@@ -121,6 +136,7 @@ export default function KanbanTickets({
                 const ehAtual = visao === 'fila' && t.id === atualId
                 const ehSC = t.tipo === 'compras' // status da SC vem do sc_etapa — não arrasta
                 const arrastavel = !ehSC && !final && salvando !== t.id
+                const destinos = ehSC ? [] : destinosDe(t)
                 return (
                   <div key={t.id} role="button" tabIndex={0}
                     draggable={arrastavel}
@@ -172,6 +188,17 @@ export default function KanbanTickets({
                         </span>
                       )}
                     </div>
+                    {/* Celular não arrasta: "Mover para…" faz o mesmo que soltar na coluna */}
+                    {!ehSC && destinos.length > 0 && (
+                      <select value="" disabled={salvando === t.id} aria-label={`Mover o ticket #${t.numero} para…`}
+                        onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}
+                        onChange={(e) => { const v = e.target.value as TicketStatus; e.target.value = ''; if (v) mover(t.id, v) }}
+                        style={{ alignSelf: 'flex-start', maxWidth: '100%', padding: '3px 6px', borderRadius: 7, fontSize: 11.5, fontWeight: 600, cursor: 'pointer',
+                          border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', color: 'var(--portal-text-secondary,#555)' }}>
+                        <option value="">{salvando === t.id ? 'Mudando…' : 'Mover para…'}</option>
+                        {destinos.map((s) => <option key={s} value={s}>{STATUS_INFO[s].label}</option>)}
+                      </select>
+                    )}
                     {visao === 'fila' && !final && (
                       <button className="kt-zap" onClick={(e) => { e.stopPropagation(); onMarcarAtual(t.id) }}
                         title={ehAtual ? 'Deixar de destacar este ticket' : 'Estou mexendo neste agora'}

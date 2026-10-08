@@ -3,6 +3,16 @@ import { supabase } from '@/lib/supabase'
 
 const TBL = 'portal_tarefas'
 
+// Prazo é um DIA. Só a data ('AAAA-MM-DD') vira meio-dia de Brasília — o
+// new Date('AAAA-MM-DD') era 00:00 UTC = dia ANTERIOR em -03:00.
+function prazoParaGravar(prazo: unknown): string | null {
+  if (!prazo) return null
+  const s = String(prazo)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s + 'T12:00:00-03:00'
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -20,7 +30,7 @@ export async function PATCH(
     if (body.titulo !== undefined) update.titulo = body.titulo
     if (body.descricao !== undefined) update.descricao = body.descricao
     if (body.prioridade !== undefined) update.prioridade = body.prioridade
-    if (body.prazo !== undefined) update.prazo = body.prazo ? new Date(body.prazo).toISOString() : null
+    if (body.prazo !== undefined) update.prazo = prazoParaGravar(body.prazo)
     if (body.atribuido_a !== undefined) update.atribuido_a = body.atribuido_a || null
 
     const { data, error } = await supabase

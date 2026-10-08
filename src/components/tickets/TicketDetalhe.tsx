@@ -35,6 +35,8 @@ import TarefasDoTicket from '@/components/tickets/TarefasDoTicket'
 import type { TicketVinculoEnriquecido } from '@/lib/tickets/vinculos'
 import { SC_ETAPA_INFO, SC_CONFIANCA_INFO, margemPrevista, type PayloadSC, type ScEtapa } from '@/lib/tickets/compras'
 import PainelCompras from '@/components/tickets/compras/PainelCompras'
+import SeletorDataAgenda from '@/components/trabalho/SeletorDataAgenda'
+import { fimDeSemana } from '@/lib/trabalho/agenda'
 
 const fmtData = (d: string) => new Date(d + "T12:00:00").toLocaleDateString("pt-BR")
 const fmtQuando = (d: string) => new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
@@ -61,6 +63,7 @@ const EVENTO_ICONE: Record<string, React.ReactNode> = {
 const TIPOS_CONVERSA = new Set(['comentario', 'anexo', 'pedido_atualizacao'])
 
 const ROTULO_STATUS_ACAO: Partial<Record<TicketStatus, { rotulo: string; icone: React.ReactNode; destaque?: boolean }>> = {
+  aberto: { rotulo: 'Voltar para aberto', icone: <RotateCcw size={15} /> },
   em_andamento: { rotulo: 'Em andamento', icone: <RotateCcw size={15} /> },
   aguardando_terceiro: { rotulo: 'Aguardando terceiro', icone: <Clock size={15} /> },
   aguardando_interno: { rotulo: 'Aguardando interno', icone: <Clock size={15} /> },
@@ -125,6 +128,10 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   const [editPrazo, setEditPrazo] = useState('')
   const [editCategoria, setEditCategoria] = useState('')
   const [editTerceiro, setEditTerceiro] = useState('')
+  const [editTitulo, setEditTitulo] = useState('')
+  const [editInicio, setEditInicio] = useState('')
+  const [editDias, setEditDias] = useState('')
+  const [editHoras, setEditHoras] = useState('')
   const [modalQuadro, setModalQuadro] = useState(false)
   const [opcoesQuadro, setOpcoesQuadro] = useState<{ id: string; nome: string; cor: string }[] | null>(null)
   const [planejando, setPlanejando] = useState(false)
@@ -165,7 +172,12 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
     try {
       const res = await fetch(`/api/tickets/${id}`, { headers: await authHeaders() })
       const json = await res.json()
-      if (!res.ok) { setErro(json.error || 'Falha ao carregar'); return }
+      if (!res.ok) {
+        // Recarga por trás que falha não derruba a tela já carregada (nem o comentário digitado).
+        if (silencioso && cache.get(id)) setErroAcao(json.error || 'Não deu para atualizar agora — tente de novo.')
+        else setErro(json.error || 'Falha ao carregar')
+        return
+      }
       const novo: Dados = {
         ticket: json.ticket, eventos: json.eventos || [], participantes: json.participantes || [],
         usuarios: json.usuarios || {}, vinculos: json.vinculos || [], quadro: json.quadro || null,
@@ -338,11 +350,20 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   const podeMexerPessoas = !encerrado && (souResponsavel || souSolicitante || souParticipante || isAdmin)
   // Quem pediu para outra pessoa vê a agenda (Fila) dela: quando o pedido sai.
   const verAgenda = !ehSC && !encerrado && souSolicitante && !souResponsavel
-  // Sem bloco o ticket não anda (só dá para cancelar).
-  const statusBotoes = ehSC || !quadro ? [] : proximosStatus.filter((s) => s !== 'cancelado' && ROTULO_STATUS_ACAO[s])
+  // Sem bloco o ticket não anda (mesma regra do servidor): quem pediu ainda
+  // confirma/contesta o resolvido e todos podem cancelar.
+  const semBlocoPode = (s: TicketStatus) => s === 'fechado' || (souSolicitante && ticket.status === 'resolvido')
+  const statusBotoes = ehSC ? [] : proximosStatus.filter((s) => s !== 'cancelado' && ROTULO_STATUS_ACAO[s] && (!!quadro || semBlocoPode(s)))
     .sort((a, b) => Number(!!ROTULO_STATUS_ACAO[b]?.destaque) - Number(!!ROTULO_STATUS_ACAO[a]?.destaque))
   const podeCancelar = !ehSC && proximosStatus.includes('cancelado')
   const continuo = !ticket.prazo
+  // Planejamento guardado no payload (Fila/Cronograma): 1º dia, dias e horas/dia.
+  const plano = (ticket.payload || {}) as { inicio?: string | null; dias?: number; horas_dia?: number }
+  const rotuloCampo: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }
+  const campoEdit: React.CSSProperties = {
+    display: 'block', width: '100%', boxSizing: 'border-box', marginTop: 3, padding: '7px 10px', borderRadius: 8, fontSize: 13,
+    border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)',
+  }
 
   const cartao: React.CSSProperties = {
     background: 'var(--portal-surface,#fff)', border: '1px solid var(--portal-border,#e5e7eb)',
@@ -457,9 +478,12 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--portal-border,#f0f0f0)' }}>
             {statusBotoes.map((s) => {
               const cfg = ROTULO_STATUS_ACAO[s]!
+              const voltando = ticket.status === 'resolvido' || encerrado
               const rotulo = s === 'em_andamento' && ticket.status === 'resolvido' && souSolicitante && !souResponsavel
                 ? 'Contestar (reabrir)'
-                : s === 'em_andamento' ? (ticket.status === 'aberto' ? 'Começar' : 'Voltar para em andamento') : cfg.rotulo
+                : s === 'em_andamento' ? (encerrado ? 'Reabrir' : ticket.status === 'aberto' ? 'Começar' : 'Voltar para em andamento')
+                : s === 'aberto' && encerrado ? 'Reabrir'
+                : voltando && s.startsWith('aguardando') ? `Voltar: ${cfg.rotulo.toLowerCase()}` : cfg.rotulo
               return (
                 <button key={s} disabled={agindo} style={botaoAcao(cfg.destaque)} onClick={() => mudarStatus(s)}>
                   {cfg.icone} {rotulo}
@@ -700,8 +724,11 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               <span style={tituloCartao}>Detalhes</span>
               {podeEditar && !editando && (
                 <button onClick={() => {
-                  setEditPrazo(ticket.prazo || ''); setEditCategoria(ticket.categoria); setEditTerceiro(ticket.terceiro_envolvido); setEditando(true)
-                }} style={botaoMini} title="Editar prazo, categoria e terceiro">
+                  setEditPrazo(ticket.prazo || ''); setEditCategoria(ticket.categoria); setEditTerceiro(ticket.terceiro_envolvido)
+                  setEditTitulo(ticket.titulo); setEditInicio(plano.inicio || '')
+                  setEditDias(plano.dias ? String(plano.dias) : ''); setEditHoras(plano.horas_dia ? String(plano.horas_dia) : '')
+                  setEditando(true)
+                }} style={botaoMini} title="Editar título, datas, tempo de trabalho, categoria e terceiro">
                   <PenLine size={12} /> Editar
                 </button>
               )}
@@ -716,6 +743,17 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
                       </span>
                     : 'Sem prazo — contínuo'}
                 </span>
+                {plano.inicio && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <CalendarDays size={13} style={{ opacity: .6 }} /> Começa {fmtData(plano.inicio)}
+                  </span>
+                )}
+                {(plano.dias || plano.horas_dia) && (
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+                    <Clock size={13} style={{ opacity: .6 }} />
+                    {[plano.dias && `${plano.dias} dia${plano.dias > 1 ? 's' : ''} de trabalho`, plano.horas_dia && `${String(plano.horas_dia).replace('.', ',')} h/dia`].filter(Boolean).join(' · ')}
+                  </span>
+                )}
                 <span style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
                   <Tag size={13} style={{ opacity: .6 }} /> {ticket.categoria || 'Sem categoria'}
                 </span>
@@ -725,17 +763,42 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-muted,#888)' }}>Prazo (vazio = contínuo)
-                  <input type="date" value={editPrazo} onChange={(e) => setEditPrazo(e.target.value)}
-                    style={{ display: 'block', width: '100%', marginTop: 3, padding: '7px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }} />
+                <label style={rotuloCampo}>Título
+                  <input value={editTitulo} onChange={(e) => setEditTitulo(e.target.value)} style={campoEdit} />
                 </label>
-                <input value={editCategoria} onChange={(e) => setEditCategoria(e.target.value)} placeholder="Categoria"
-                  style={{ padding: '7px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }} />
-                <input value={editTerceiro} onChange={(e) => setEditTerceiro(e.target.value)} placeholder="Terceiro envolvido"
-                  style={{ padding: '7px 10px', borderRadius: 8, fontSize: 13, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)' }} />
+                <SeletorDataAgenda diasUteis rotulo="Começa em (opcional)" value={editInicio} onChange={setEditInicio}
+                  userId={ticket.responsavel_id} permitirVazio textoVazio="Sem data de início" ignorar={ticket.titulo} />
+                <SeletorDataAgenda diasUteis rotulo="Prazo (vazio = contínuo)" value={editPrazo} onChange={setEditPrazo}
+                  userId={ticket.responsavel_id} min={editInicio || undefined} permitirVazio textoVazio="Contínuo (sem prazo)" ignorar={ticket.titulo} />
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <label style={{ ...rotuloCampo, flex: 1 }}>Dias de trabalho
+                    <input type="number" min={1} max={120} value={editDias} onChange={(e) => setEditDias(e.target.value)} placeholder="—" style={campoEdit} />
+                  </label>
+                  <label style={{ ...rotuloCampo, flex: 1 }}>Horas por dia
+                    <input type="number" min={0.5} max={12} step={0.5} value={editHoras} onChange={(e) => setEditHoras(e.target.value)} placeholder="—" style={campoEdit} />
+                  </label>
+                </div>
+                <label style={rotuloCampo}>Categoria
+                  <input value={editCategoria} onChange={(e) => setEditCategoria(e.target.value)} style={campoEdit} />
+                </label>
+                <label style={rotuloCampo}>Terceiro envolvido
+                  <input value={editTerceiro} onChange={(e) => setEditTerceiro(e.target.value)} style={campoEdit} />
+                </label>
+                {editInicio && editPrazo && editInicio > editPrazo && (
+                  <div style={{ fontSize: 12, color: '#dc2626', fontWeight: 600 }}>O início está depois do prazo.</div>
+                )}
+                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted,#999)' }}>Quem participa do ticket é avisado do que mudar.</div>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button disabled={agindo}
-                    onClick={() => acao({ acao: 'editar', prazo: editPrazo || null, categoria: editCategoria, terceiro_envolvido: editTerceiro }, () => setEditando(false))}
+                  <button disabled={agindo || !editTitulo.trim() || (!!editInicio && !!editPrazo && editInicio > editPrazo) || (editPrazo !== (ticket.prazo || '') && !!editPrazo && fimDeSemana(editPrazo)) || (editInicio !== (plano.inicio || '') && !!editInicio && fimDeSemana(editInicio))}
+                    onClick={() => {
+                      const corpo: Record<string, unknown> = {
+                        acao: 'editar', titulo: editTitulo, prazo: editPrazo || null, categoria: editCategoria,
+                        terceiro_envolvido: editTerceiro, inicio: editInicio || null,
+                      }
+                      if (editDias) corpo.dias = Number(editDias)
+                      if (editHoras) corpo.horas_dia = Number(editHoras.replace(',', '.'))
+                      acao(corpo, () => setEditando(false))
+                    }}
                     style={{ flex: 1, padding: '7px 0', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
                     Salvar
                   </button>
@@ -839,7 +902,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
 
       {/* Modal transferência (ADR-003: direta, sem aceite, com evento visível) */}
       {modalTransferir && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        <div data-janela-interna style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={() => setModalTransferir(false)}>
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 420, background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>
@@ -867,7 +930,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
       )}
       {/* Escolher quadro (sql/tickets-quadros.sql) */}
       {modalQuadro && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        <div data-janela-interna style={{ position: 'fixed', inset: 0, zIndex: 1100, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
           onClick={() => setModalQuadro(false)}>
           <div onClick={(e) => e.stopPropagation()}
             style={{ width: '100%', maxWidth: 420, maxHeight: '80vh', overflowY: 'auto', background: 'var(--portal-surface,#fff)', borderRadius: 14, padding: 22, boxShadow: '0 20px 60px rgba(0,0,0,.3)' }}>

@@ -13,7 +13,7 @@ import {
 import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
 import { migrationFaltou } from '@/lib/marketing/erros'
 import { passosDoTicket, criarPasso, marcarPasso, removerPasso, editarPasso } from '@/lib/trabalho/tarefas-server'
-import type { Ticket, TicketParticipante } from '@/lib/tickets/constantes'
+import { STATUS_FINAIS, type Ticket, type TicketParticipante } from '@/lib/tickets/constantes'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -22,6 +22,7 @@ const erro = (msg: string, status = 400) => NextResponse.json({ error: msg }, { 
 const MSG_MIGRATION = 'As tarefas dentro do ticket ainda não foram ativadas no banco (rode sql/central-trabalho.sql).'
 
 async function podeMexer(t: Ticket, parts: TicketParticipante[], auth: Autenticado) {
+  if (STATUS_FINAIS.includes(t.status)) return false // ticket encerrado: tarefas só leitura
   if (auth.isAdmin || t.solicitante_id === auth.userId || t.responsavel_id === auth.userId || ehParticipanteAtivo(parts, auth.userId)) return true
   if (t.quadro_id) { const c = await carregarQuadro(t.quadro_id); return !!c && papeis(c, auth).trabalhar }
   return false

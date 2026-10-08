@@ -5,12 +5,14 @@
 // Ordem: PARA QUEM → o que é → EM QUAL TICKET. Para outra pessoa só aparecem
 // os tickets que vocês têm em comum; se nenhum é do assunto, dá para pedir que
 // ela abra um ticket novo (/api/trabalho/pedir-ticket → notificação).
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { X, SquareCheck, Search, Plus, Send } from 'lucide-react'
 import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import type { Ticket } from '@/lib/tickets/constantes'
 import UserSelect from '@/components/tickets/UserSelect'
+import SeletorDataAgenda from './SeletorDataAgenda'
+import { casaBusca } from '@/lib/texto'
 
 const VERDE = '#16a34a'
 const br = (iso: string) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
@@ -36,6 +38,12 @@ export default function FormTarefa({ onFechar, onCriada, onNovoTicket, ticketIni
   const [prazo, setPrazo] = useState('')
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
+  // fundo escuro: só fecha se o clique começou E terminou nele (arrastar seleção não fecha)
+  const downNoFundo = useRef(false)
+  const fecharPeloFundo = () => {
+    if (titulo.trim() && !confirm('Descartar o que você escreveu?')) return
+    onFechar()
+  }
 
   useEffect(() => { if (userProfile?.id && !resp) setResp(userProfile.id) }, [userProfile?.id, resp])
   useEffect(() => {
@@ -59,8 +67,7 @@ export default function FormTarefa({ onFechar, onCriada, onNovoTicket, ticketIni
   // Para outra pessoa: só os tickets em que vocês dois estão.
   const emComum = useMemo(() => (tickets || []).filter((t) => !paraOutro || (envolvidos[t.id] || []).includes(resp)), [tickets, envolvidos, resp, paraOutro])
   const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase()
-    return emComum.filter((t) => !q || t.titulo.toLowerCase().includes(q) || String(t.numero).includes(q.replace('#', '')))
+    return emComum.filter((t) => casaBusca(busca, t.titulo, `#${t.numero}`))
   }, [emComum, busca])
   // Trocou a pessoa: o ticket escolhido pode não ser mais "em comum".
   const ticketValido = !ticketId || emComum.some((t) => t.id === ticketId)
@@ -100,7 +107,8 @@ export default function FormTarefa({ onFechar, onCriada, onNovoTicket, ticketIni
   const rotulo: React.CSSProperties = { display: 'block', fontSize: 12, fontWeight: 700, marginBottom: 6, color: 'var(--portal-text-secondary,#555)', textTransform: 'uppercase', letterSpacing: .4 }
 
   return (
-    <div onClick={(e) => { if (e.target === e.currentTarget) onFechar() }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+    <div onMouseDown={(e) => { downNoFundo.current = e.target === e.currentTarget }}
+      onClick={(e) => { if (e.target === e.currentTarget && downNoFundo.current) fecharPeloFundo() }} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
       <div role="dialog" aria-modal="true" aria-labelledby="ft-t" style={{ width: '100%', maxWidth: 560, maxHeight: '92vh', display: 'flex', flexDirection: 'column', background: 'var(--portal-surface,#fff)', borderRadius: 14, boxShadow: '0 24px 70px rgba(0,0,0,.3)' }}>
         <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--portal-border,#eee)' }}>
           <h2 id="ft-t" style={{ margin: 0, fontSize: 17, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--portal-text,#111)' }}><SquareCheck size={18} color={VERDE} /> Nova tarefa</h2>
@@ -182,9 +190,10 @@ export default function FormTarefa({ onFechar, onCriada, onNovoTicket, ticketIni
             )}
           </div>
 
-          <div style={{ maxWidth: 200, width: '100%' }}>
-            <label style={rotulo} htmlFor="ft-prazo">Prazo</label>
-            <input id="ft-prazo" type="date" value={prazo} onChange={(e) => setPrazo(e.target.value)} style={campo} />
+          <div style={{ maxWidth: 240, width: '100%' }}>
+            <span style={rotulo}>Prazo</span>
+            {/* agenda de quem vai fazer a tarefa */}
+            <SeletorDataAgenda value={prazo} onChange={setPrazo} userId={resp || eu} permitirVazio textoVazio="Sem prazo" />
           </div>
           {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
         </div>
