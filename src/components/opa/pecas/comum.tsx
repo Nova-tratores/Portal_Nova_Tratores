@@ -5,7 +5,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, ChevronRight, LayoutList, Package } from 'lucide-react'
+import { AlertCircle, ChevronRight, LayoutList, Package, Plus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -13,6 +13,10 @@ import { contagens, listarLookups, type Contagens } from '@/lib/opa-pecas/db'
 import { mensagemErro, urlsMiniaturas } from '@/lib/opa-pecas/fotos'
 import { codigoDefinitivo } from '@/lib/opa-pecas/regras'
 import { BotaoLerCodigo } from './LeitorCodigo'
+import dynamic from 'next/dynamic'
+
+// carregado à parte: ele usa a janela/impressão, que importam este arquivo
+const ImprimirTodas = dynamic(() => import('./ImprimirTodas'), { ssr: false })
 import { COR_STATUS, ROTULO_QUALIDADE, ROTULO_STATUS, type Local, type Lookup, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 
 export const LARANJA = '#ea580c'
@@ -125,6 +129,11 @@ function EtapasPecas({ podeGerir, c }: { podeGerir: boolean; c: Contagens | null
         border: '1.5px solid ' + (todas ? '#111827' : 'var(--portal-border)'), background: todas ? '#111827' : 'var(--portal-bg-card)',
         color: todas ? '#fff' : 'var(--portal-text-secondary)', fontSize: 13.5, fontWeight: 800,
       }}><LayoutList size={16} /> Todas as peças</Link>
+      <Link href="/opa/pecas/novo" style={{
+        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, textDecoration: 'none',
+        background: LARANJA, color: '#fff', fontSize: 13.5, fontWeight: 800, border: '1.5px solid ' + LARANJA,
+      }}><Plus size={16} /> Novo item</Link>
+      {podeGerir && <ImprimirTodas />}
       <BotaoLerCodigo />
     </nav>
   )

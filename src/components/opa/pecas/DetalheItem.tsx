@@ -5,16 +5,16 @@
 // Quem não é do setor de peças vê tudo só para leitura.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArrowRight, Camera, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { AlertTriangle, Camera, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
 import {
   adicionarFotos, atualizarItem, buscarItem, definirAplicacoes, excluirItem, listarHistorico,
   nomesUsuarios, type CamposEditaveis,
 } from '@/lib/opa-pecas/db'
 import { comprimir, enviarFoto, mensagemErro, urlsAssinadas } from '@/lib/opa-pecas/fotos'
-import { codigoDefinitivo, nomeDoItem, camposFaltando, ehFinal, etapaDoItem, fmtDataHora, fmtPreco, lerPreco, precoParaCampo, textoLocal } from '@/lib/opa-pecas/regras'
-import { ROTULO_QUALIDADE, ROTULO_STATUS, type Aplicacao, type Historico, type Item, type Etapa, type Qualidade, type Status, INFO_DECISAO } from '@/lib/opa-pecas/tipos'
+import { codigoDefinitivo, nomeDoItem, camposFaltando, ehFinal, fmtDataHora, fmtPreco, lerPreco, precoParaCampo, textoLocal } from '@/lib/opa-pecas/regras'
+import { ROTULO_QUALIDADE, ROTULO_STATUS, type Aplicacao, type Historico, type Item, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 import { CampoPreco, EditorAplicacoes, SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
-import Link from 'next/link'
+import FasesPeca from './FasesPeca'
 import Impressao from './Impressao'
 import { CodigoPeca, Aviso, botao, INP, LARANJA, ROTULO, SECAO, SeloQualidade, SeloStatus, TITULO_SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
 
@@ -61,8 +61,6 @@ function diferencas(i: Item, f: Form): { dados: CamposEditaveis; erro?: string }
 
 const COLUNA: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }
 
-const ROTULO_ETAPA: Record<Etapa, string> = { captacao: 'Captação', separacao: 'Separação', verificacao: 'Verificação', destino: 'Destino' }
-
 export default function DetalheItem({ item: inicial, base, onMudou }: {
   item: Item
   base: Base
@@ -89,7 +87,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
   useEffect(() => {
     let vivo = true
     urlsAssinadas(item.fotos.map((f) => f.storage_path)).then((r) => { if (vivo) setUrls(r) }).catch(() => null)
-    nomesUsuarios([item.criado_por, item.atualizado_por, item.encerrado_por]).then((r) => { if (vivo) setUsuarios(r) })
+    nomesUsuarios([item.criado_por, item.atualizado_por, item.encerrado_por, item.decidido_por, item.verificado_por]).then((r) => { if (vivo) setUsuarios(r) })
     return () => { vivo = false }
   }, [item])
 
@@ -154,7 +152,6 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
   const campo = (k: keyof Form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const etapa = etapaDoItem(item)
   const faltando = camposFaltando(item)
 
   return (
@@ -213,33 +210,11 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
         <Aviso tipo="info"><AlertTriangle size={14} style={{ verticalAlign: -2 }} /> Cadastro incompleto — falta: {faltando.join(', ')}.</Aviso>
       )}
 
-      {/* Desfecho do item encerrado */}
-      {final && (
-        <div style={{ padding: 12, borderRadius: 12, background: 'var(--portal-bg-secondary)', fontSize: 14, color: 'var(--portal-text)' }}>
-          <b>Destino: {ROTULO_STATUS[item.status]}</b>
-          {(item.desfecho || item.motivo_descarte) && <> — {item.desfecho || item.motivo_descarte}</>}
-          {item.encerrado_em && (
-            <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 2 }}>
-              Encerrado por {(item.encerrado_por && usuarios[item.encerrado_por]) || '…'} em {fmtDataHora(item.encerrado_em)}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Em que etapa a peça está */}
-      {etapa && (
-        <section style={{ ...SECAO, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-          <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
-            Etapa atual: <b>{ROTULO_ETAPA[etapa]}</b>
-            {item.decisao && <> · plano: <b>{INFO_DECISAO[item.decisao].rotulo}</b></>}
-          </span>
-          {gerir && (
-            <Link href={`/opa/pecas/${etapa}?item=${item.id}`} style={{ ...botao('#EA580C'), textDecoration: 'none', marginLeft: 'auto' }}>
-              <ArrowRight size={15} /> Abrir na {ROTULO_ETAPA[etapa].toLowerCase()}
-            </Link>
-          )}
-        </section>
-      )}
+      {/* Fases: cada uma mostra o que foi registrado nela, na ordem */}
+      <section style={SECAO}>
+        <h2 style={TITULO_SECAO}>Fases da peça</h2>
+        <FasesPeca item={item} base={base} usuarios={usuarios} linkEtapa />
+      </section>
 
       {/* Dados */}
       <section style={SECAO}>

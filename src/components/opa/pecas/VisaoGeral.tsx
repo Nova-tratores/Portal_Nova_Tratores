@@ -11,7 +11,7 @@ import { listarItens, mudarStatusLote, nomesUsuarios, salvarMarca, salvarTipo, t
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
 import { gerarPdfCatalogo } from '@/lib/opa-pecas/pdf'
 import { calcularTotais, camposFaltando, codigoDefinitivo, nomeDoItem, ehFinal, exigeMotivo, FILTROS_VAZIOS, filtrarItens, fmtData, fmtPreco, resumoFiltros, textoAplicacoes, textoLocal, transicaoValida, type Filtros } from '@/lib/opa-pecas/regras'
-import { COR_STATUS, QUALIDADES, ROTULO_QUALIDADE, ROTULO_STATUS, STATUS, type Item, type Lookup, type Status } from '@/lib/opa-pecas/tipos'
+import { COR_STATUS, QUALIDADES, ROTULO_QUALIDADE, ROTULO_STATUS, STATUS, type Item, type Lookup, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 import { CodigoPeca, SeloEtiqueta, Aviso, botao, INP, LARANJA, Miniatura, SeloQualidade, SeloStatus, useMiniaturas, type Base } from './comum'
 import { CampoPreco } from './Campos'
 import DetalheItem from './DetalheItem'
@@ -74,7 +74,6 @@ export default function VisaoGeral({ base }: { base: Base }) {
   const alternar = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const todosMarcados = filtrados.length > 0 && filtrados.every((i) => sel.has(i.id))
   const alternarTodos = () => setSel(todosMarcados ? new Set() : new Set(filtrados.map((i) => i.id)))
-  const toggleLista = <T,>(lista: T[], v: T) => (lista.includes(v) ? lista.filter((x) => x !== v) : [...lista, v])
 
   const aplicarLote = async () => {
     if (!lote.para || selecionados.length === 0) return
@@ -117,12 +116,6 @@ export default function VisaoGeral({ base }: { base: Base }) {
   // em lote só se encerra (separação e verificação têm etapa própria)
   const destinosLote = STATUS.filter((s) => ehFinal(s) && selecionados.some((i) => transicaoValida(i.status, s)))
 
-  const chip = (ativo: boolean, cor = LARANJA): React.CSSProperties => ({
-    padding: '6px 11px', borderRadius: 16, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
-    border: `1.5px solid ${ativo ? cor : 'var(--portal-border)'}`, background: ativo ? cor : 'var(--portal-bg-card)',
-    color: ativo ? '#fff' : 'var(--portal-text-secondary)',
-  })
-
   return (
     <div>
       {/* Totais */}
@@ -130,14 +123,14 @@ export default function VisaoGeral({ base }: { base: Base }) {
         ? { display: 'grid', gridAutoFlow: 'column', gridAutoColumns: '132px', gap: 8, overflowX: 'auto', margin: '0 -12px 14px', padding: '0 12px 4px' }
         : { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
         {STATUS.map((s) => (
-          <button key={s} onClick={() => setF((x) => ({ ...x, status: toggleLista(x.status, s) }))} style={{
-            textAlign: 'left', padding: 12, borderRadius: 12, cursor: 'pointer', fontFamily: 'inherit',
+          <div key={s} style={{
+            textAlign: 'left', padding: 12, borderRadius: 12,
             background: 'var(--portal-bg-card)', border: `1.5px solid ${f.status.includes(s) ? COR_STATUS[s].fg : 'var(--portal-border)'}`,
           }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: COR_STATUS[s].fg }}>{ROTULO_STATUS[s]}</div>
             <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--portal-text)' }}>{totais.porStatus[s].itens}</div>
             <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{totais.porStatus[s].unidades} unidade{totais.porStatus[s].unidades === 1 ? '' : 's'}</div>
-          </button>
+          </div>
         ))}
         <div style={{ padding: 12, borderRadius: 12, background: '#ECFDF5', border: '1.5px solid #A7F3D0' }}>
           <div style={{ fontSize: 12, fontWeight: 700, color: '#065F46' }}>Valor sugerido</div>
@@ -155,6 +148,14 @@ export default function VisaoGeral({ base }: { base: Base }) {
       {(!isMobile || verFiltros) && <div style={{ padding: 14, borderRadius: 12, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <input value={f.texto} onChange={(e) => setF((x) => ({ ...x, texto: e.target.value }))} placeholder="Buscar código ou descrição" style={{ ...INP, fontSize: 14, flex: 2, minWidth: 200 }} />
+          <select value={f.status.length === 1 ? f.status[0] : ''} onChange={(e) => setF((x) => ({ ...x, status: e.target.value ? [e.target.value as Status] : [] }))} style={{ ...INP, fontSize: 14, flex: 1, minWidth: 150 }}>
+            <option value="">Status: todos</option>
+            {STATUS.map((s) => <option key={s} value={s}>{ROTULO_STATUS[s]}</option>)}
+          </select>
+          <select value={f.qualidade.length === 1 ? f.qualidade[0] : ''} onChange={(e) => setF((x) => ({ ...x, qualidade: e.target.value ? [e.target.value as Qualidade] : [] }))} style={{ ...INP, fontSize: 14, flex: 1, minWidth: 140 }}>
+            <option value="">Qualidade: todas</option>
+            {QUALIDADES.map((q) => <option key={q} value={q}>{ROTULO_QUALIDADE[q]}</option>)}
+          </select>
           <select value={f.tipo} onChange={(e) => setF((x) => ({ ...x, tipo: e.target.value }))} style={{ ...INP, fontSize: 14, flex: 1, minWidth: 150 }}>
             <option value="">Tipo de máquina: todos</option>
             {base.tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
@@ -185,8 +186,6 @@ export default function VisaoGeral({ base }: { base: Base }) {
           </label>
         </div>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-          <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', marginRight: 2 }}>Qualidade:</span>
-          {QUALIDADES.map((q) => <button key={q} onClick={() => setF((x) => ({ ...x, qualidade: toggleLista(x.qualidade, q) }))} style={chip(f.qualidade.includes(q), '#52525B')}>{ROTULO_QUALIDADE[q]}</button>)}
           <div style={{ flex: 1 }} />
           {temFiltro && <button onClick={() => setF(FILTROS_VAZIOS)} style={botao('#52525B', { contorno: true })}><X size={14} /> Limpar filtros</button>}
         </div>
@@ -217,7 +216,7 @@ export default function VisaoGeral({ base }: { base: Base }) {
           </select>
           {lote.para && ['descartado', 'guardado', 'usado', 'outro_destino'].includes(lote.para) && (
             <input value={lote.motivo} onChange={(e) => setLote((l) => ({ ...l, motivo: e.target.value }))}
-              placeholder={exigeMotivo(lote.para) ? 'O que aconteceu (obrigatório)' : 'Detalhe (opcional)'} style={{ ...INP, fontSize: 14, width: 260 }} />
+              placeholder={exigeMotivo(lote.para) ? 'O que aconteceu (obrigatório)' : 'Detalhe (opcional)'} style={{ ...INP, fontSize: 14, width: 260, maxWidth: '100%' }} />
           )}
           <button onClick={aplicarLote} disabled={!lote.para || ocupado === 'lote'} style={botao(LARANJA, { desab: !lote.para || ocupado === 'lote' })}>
             {ocupado === 'lote' && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />} Aplicar

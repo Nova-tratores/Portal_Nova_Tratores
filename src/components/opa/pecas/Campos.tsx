@@ -3,7 +3,7 @@
 // Box Técnico) e aplicações (tipo de máquina + marca, várias).
 
 import { useEffect, useState } from 'react'
-import { Check, MapPin, Minus, Plus, UserRound, X } from 'lucide-react'
+import { MapPin, Minus, Plus, UserRound, X } from 'lucide-react'
 import { listarTecnicos } from '@/lib/opa-pecas/db'
 import { agruparLocais, mascaraMoeda, textoAplicacao } from '@/lib/opa-pecas/regras'
 import { INFO_QUALIDADE, ROTULO_QUALIDADE, type Aplicacao, type Local, type Lookup, type Qualidade } from '@/lib/opa-pecas/tipos'
@@ -36,27 +36,19 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled }: {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-      {grupos.map((g) => (
-        <div key={g.titulo} style={linha}>
-          <span style={titulo}><MapPin size={13} style={{ opacity: 0.5 }} /> {g.titulo}</span>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {g.itens.map(({ local: l, rotulo }) => {
-              const ativo = l.id === local
-              return (
-                <button key={l.id} type="button" disabled={disabled} aria-pressed={ativo}
-                  onClick={() => onChange(ativo ? '' : l.id, l.exige_tecnico ? tecnico : '')} style={{
-                    padding: '9px 14px', borderRadius: 8, fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
-                    cursor: disabled ? 'default' : 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6,
-                    border: '1.5px solid ' + (ativo ? LARANJA : 'var(--portal-border)'),
-                    background: ativo ? LARANJA : 'var(--portal-bg-card)', color: ativo ? '#fff' : 'var(--portal-text)',
-                  }}>
-                  {ativo && <Check size={14} />} {rotulo}
-                </button>
-              )
-            })}
-          </div>
-        </div>
-      ))}
+      <div style={linha}>
+        <span style={titulo}><MapPin size={13} style={{ opacity: 0.5 }} /> Local</span>
+        <select value={local} disabled={disabled}
+          onChange={(e) => { const l = locais.find((x) => x.id === e.target.value); onChange(e.target.value, l?.exige_tecnico ? tecnico : '') }}
+          style={{ ...INP, borderColor: local ? LARANJA : 'var(--portal-border)' }}>
+          <option value="">Sem local</option>
+          {grupos.map((g) => (
+            <optgroup key={g.titulo} label={g.titulo}>
+              {g.itens.map(({ local: l, rotulo }) => <option key={l.id} value={l.id}>{rotulo}</option>)}
+            </optgroup>
+          ))}
+        </select>
+      </div>
       {precisaTecnico && (
         <div style={linha}>
           <span style={{ ...titulo, color: tecnico ? 'var(--portal-text-secondary)' : '#B45309' }}><UserRound size={13} /> Técnico</span>

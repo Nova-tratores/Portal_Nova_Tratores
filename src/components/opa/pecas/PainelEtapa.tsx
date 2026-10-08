@@ -7,17 +7,14 @@
 // e depois chama a RPC da etapa.
 
 import { useEffect, useMemo, useState } from 'react'
-import {
-  Archive, ArrowLeft, Check, CircleHelp, Loader2, MapPin, ShieldCheck, Tag, Trash2, UserRound, Wrench,
-} from 'lucide-react'
+import { ArrowLeft, Check, Loader2, MapPin, MoveRight, UserRound } from 'lucide-react'
 import {
   atualizarItem, definirAplicacoes, finalizar, mudarStatus, nomesAtivos, nomesUsuarios, separar, verificar,
   type CamposEditaveis,
 } from '@/lib/opa-pecas/db'
 import { mensagemErro, urlsAssinadas } from '@/lib/opa-pecas/fotos'
 import {
-  fmtDataHora, fmtPreco, lerPreco, pendenciasDestino, pendenciasSeparacao, pendenciasVerificacao, precoParaCampo,
-  textoAplicacoes, textoLocal,
+  fmtDataHora, lerPreco, pendenciasDestino, pendenciasSeparacao, pendenciasVerificacao, precoParaCampo, textoLocal,
 } from '@/lib/opa-pecas/regras'
 import {
   DECISOES, INFO_DECISAO, INFO_QUALIDADE, ROTULO_QUALIDADE, SETORES_VERIFICACAO,
@@ -26,13 +23,14 @@ import {
 import { CampoPreco, EditorAplicacoes, SeletorLocal, SeletorQualidade } from './Campos'
 import { CodigoPeca, Aviso, avisarMudanca, botao, INP, ROTULO, SECAO, TITULO_SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
 import { Visualizador } from './DetalheItem'
+import FasesPeca, { ChipDecisao, ICONE_DECISAO } from './FasesPeca'
 
 export type EtapaTrabalho = 'separacao' | 'verificacao' | 'destino'
 
-const ICONE_DECISAO: Record<Decisao, React.ReactNode> = {
-  vender: <Tag size={18} />, guardar: <Archive size={18} />, usar: <Wrench size={18} />,
-  descartar: <Trash2 size={18} />, outro: <CircleHelp size={18} />,
-}
+export { ChipDecisao }
+
+/** Destinos em que a peça sai da empresa: não pergunta onde ela ficou. */
+const SAI_DA_EMPRESA: Decisao[] = ['vender', 'descartar']
 
 interface Form {
   descricao: string
@@ -64,6 +62,8 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
   const [obs, setObs] = useState('')
   const [setor, setSetor] = useState('')
   const [com, setCom] = useState('')
+  // destino: a peça ficou onde estava ou foi para outro lugar?
+  const [ficou, setFicou] = useState<'mesmo' | 'outro' | null>(null)
   const [usuarios, setUsuarios] = useState<Record<string, string>>({})
   const [nomes, setNomes] = useState<string[]>([])
   const [urls, setUrls] = useState<Record<string, string>>({})
@@ -89,9 +89,18 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
     aplicacoes: form.aplicacoes, decisao,
   }), [item, form, preco, decisao])
 
+  const perguntaLocal = etapa === 'destino' && !!decisao && !SAI_DA_EMPRESA.includes(decisao)
+  const localAntes = textoLocal(item, base.nomesLocais)
+  const localNovo = textoLocal({ local_id: form.local || null, local_tecnico: form.tecnico || null }, base.nomesLocais)
+  const faltasLocal = !perguntaLocal ? []
+    : !ficou ? ['onde a peça ficou']
+      : ficou === 'outro' && !form.local ? ['o novo lugar']
+        : ficou === 'outro' && localNovo === localAntes ? ['um lugar diferente do atual']
+          : []
+
   const faltas = etapa === 'separacao' ? pendenciasSeparacao(decisao, obs)
     : etapa === 'verificacao' ? pendenciasVerificacao(previa, setor)
-      : pendenciasDestino(decisao, obs)
+      : [...pendenciasDestino(decisao, obs), ...faltasLocal]
 
   const gravarCampos = async () => {
     const d: CamposEditaveis = {}
@@ -122,7 +131,18 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
     if (faltas.length) { setErro(`Falta: ${faltas.join(', ')}.`); return }
     if (etapa === 'separacao') return executar(async () => { await gravarCampos(); await separar(item.id, decisao!, obs) })
     if (etapa === 'verificacao') return executar(async () => { await gravarCampos(); await verificar(item.id, setor, com, obs) })
-    return executar(() => finalizar(item.id, decisao!, obs))
+    return executar(async () => {
+      let texto = obs.trim()
+      if (perguntaLocal) {
+        // a troca de local fica no histórico da peça; o desfecho registra a resposta
+        if (ficou === 'outro') await atualizarItem(item.id, { local_id: form.local || null, local_tecnico: form.tecnico || null })
+        const onde = ficou === 'outro'
+          ? `Foi para ${localNovo}${localAntes ? ` (estava em ${localAntes})` : ''}`
+          : `Continuou no mesmo lugar${localAntes ? ` (${localAntes})` : ''}`
+        texto = texto ? `${texto} · ${onde}` : onde
+      }
+      await finalizar(item.id, decisao!, texto)
+    })
   }
 
   const voltar = () => executar(() => mudarStatus(item.id, etapa === 'verificacao' ? 'aguardando_identificacao' : 'identificado'))
@@ -163,25 +183,11 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
         </div>
       </section>
 
-      {/* Resumo do que já foi decidido/verificado */}
-      {etapa !== 'separacao' && item.decisao && (
-        <section style={{ ...SECAO, gap: 6 }}>
-          <Linha rotulo="Separação">
-            <ChipDecisao decisao={item.decisao} />
-            {item.decisao_obs && <span style={{ color: 'var(--portal-text-secondary)' }}> — {item.decisao_obs}</span>}
-            <span style={{ color: 'var(--portal-text-muted)', fontSize: 12 }}> · {usuarios[item.decidido_por || ''] || '…'}, {fmtDataHora(item.decidido_em)}</span>
-          </Linha>
-          {etapa === 'destino' && (
-            <>
-              <Linha rotulo="Verificação">
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><ShieldCheck size={14} color="#047857" /> {item.verificado_setor || '—'}{item.verificado_com && ` (${item.verificado_com})`}</span>
-                <span style={{ color: 'var(--portal-text-muted)', fontSize: 12 }}> · {usuarios[item.verificado_por || ''] || '…'}, {fmtDataHora(item.verificado_em)}</span>
-              </Linha>
-              <Linha rotulo="Valor">{fmtPreco(item.preco_sugerido)}{item.preco_sugerido != null && item.quantidade > 1 && <span style={{ color: 'var(--portal-text-muted)' }}> · total {fmtPreco(item.preco_sugerido * item.quantidade)}</span>}</Linha>
-              <Linha rotulo="Aplicação">{textoAplicacoes(item, { tipos: base.nomesTipos, marcas: base.nomesMarcas }) || '—'}</Linha>
-              {item.descricao && <Linha rotulo="Descrição">{item.descricao}</Linha>}
-            </>
-          )}
+      {/* O que as fases anteriores já registraram */}
+      {etapa !== 'separacao' && (
+        <section style={SECAO}>
+          <h2 style={TITULO_SECAO}>O que já foi feito</h2>
+          <FasesPeca item={item} base={base} usuarios={usuarios} ate={etapa} />
         </section>
       )}
 
@@ -207,6 +213,25 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
                 dica={d === item.decisao ? 'Planejado na separação' : 'Mudou o plano'} onClick={() => { setDecisao(d); setErro(null) }} />
             ))}
           </div>
+        </section>
+      )}
+
+      {/* Destino: a peça ficou onde estava ou mudou de lugar? */}
+      {perguntaLocal && (
+        <section style={SECAO}>
+          <h2 style={TITULO_SECAO}>Onde a peça ficou?</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 220 : 160}px, 1fr))`, gap: 8 }}>
+            <OpcaoLocal ativo={ficou === 'mesmo'} onClick={() => { setFicou('mesmo'); setForm((f) => ({ ...f, local: item.local_id || '', tecnico: item.local_tecnico || '' })); setErro(null) }}
+              icone={<MapPin size={18} />} titulo="Continuou no mesmo lugar" dica={localAntes || 'Sem local registrado'} />
+            <OpcaoLocal ativo={ficou === 'outro'} onClick={() => { setFicou('outro'); setErro(null) }}
+              icone={<MoveRight size={18} />} titulo="Foi para outro lugar" dica={localAntes ? `Sai de: ${localAntes}` : 'Escolha o novo lugar'} />
+          </div>
+          {ficou === 'outro' && (
+            <div>
+              <label style={ROTULO}>Novo lugar</label>
+              <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
+            </div>
+          )}
         </section>
       )}
 
@@ -324,12 +349,20 @@ function corConcluir(etapa: EtapaTrabalho, d: Decisao | null): string {
   return etapa === 'verificacao' ? '#047857' : '#EA580C'
 }
 
-export function ChipDecisao({ decisao }: { decisao: Decisao }) {
-  const info = INFO_DECISAO[decisao]
+function OpcaoLocal({ ativo, onClick, icone, titulo, dica }: { ativo: boolean; onClick: () => void; icone: React.ReactNode; titulo: string; dica: string }) {
+  const cor = '#0F766E'
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12.5, fontWeight: 800, color: info.cor }}>
-      {ICONE_DECISAO[decisao]} {info.rotulo}
-    </span>
+    <button type="button" role="radio" aria-checked={ativo} onClick={onClick} style={{
+      textAlign: 'left', padding: '12px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
+      display: 'flex', gap: 10, alignItems: 'flex-start',
+      border: '1.5px solid ' + (ativo ? cor : 'var(--portal-border)'), background: ativo ? cor : 'var(--portal-bg-card)',
+    }}>
+      <span style={{ color: ativo ? '#fff' : cor, marginTop: 1 }}>{icone}</span>
+      <span>
+        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 800, color: ativo ? '#fff' : 'var(--portal-text)' }}>{titulo}</span>
+        <span style={{ display: 'block', fontSize: 12, color: ativo ? 'rgba(255,255,255,.85)' : 'var(--portal-text-muted)', marginTop: 2 }}>{dica}</span>
+      </span>
+    </button>
   )
 }
 
@@ -350,11 +383,3 @@ function CartaoDecisao({ decisao, ativo, onClick, rotulo, dica }: { decisao: Dec
   )
 }
 
-function Linha({ rotulo, children }: { rotulo: string; children: React.ReactNode }) {
-  return (
-    <div style={{ display: 'grid', gridTemplateColumns: '96px minmax(0, 1fr)', gap: 8, fontSize: 13.5, color: 'var(--portal-text)', alignItems: 'baseline' }}>
-      <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)' }}>{rotulo}</span>
-      <span>{children}</span>
-    </div>
-  )
-}
