@@ -894,9 +894,10 @@ export default function PPVDrawer({
               .ppv-x-drawer { height: 100dvh !important; max-height: 100dvh !important; }
               .ppv-x-drawer > .ppv-drawer { max-height: 100dvh !important; }
             }
-            .ppv-x-drawer .ppv-tabela-itens { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+            /* flex-shrink 0: com overflow != visible, filho de coluna com altura limitada encolhe até sumir */
+            .ppv-x-drawer .ppv-tabela-itens { overflow-x: auto !important; flex-shrink: 0; -webkit-overflow-scrolling: touch; }
             .ppv-x-drawer .ppv-tabela-itens .ppv-item-linha { min-width: 1070px; }
-            .ppv-x-drawer .ppv-x-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .ppv-x-drawer .ppv-x-scroll { overflow-x: auto; flex-shrink: 0; -webkit-overflow-scrolling: touch; }
             @media (max-width: 1199px) {
               .ppv-x-drawer .ppv-x-head { flex-direction: column; }
               .ppv-x-drawer .ppv-x-head > .os-omie-totais { min-width: 0; }

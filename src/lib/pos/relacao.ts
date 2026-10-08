@@ -11,6 +11,7 @@ import {
   agregarPor, type Agregado,
 } from "@/lib/ppv/relacao";
 import { rotuloNfse, valorNfse, situacaoNota } from "./nota";
+import { paraBusca } from "@/lib/texto";
 
 export { OPCOES_PERIODO, passaPeriodo, rotuloPeriodo, ehTokenPeriodo, fmtBRL, fmtDataCurta, dataMs, chaveMes, rotuloMes, topComOutros, type Agregado } from "@/lib/ppv/relacao";
 
@@ -147,7 +148,7 @@ export interface OrdemOS { key: ColOSKey; dir: "asc" | "desc" }
 const norm = (s: string) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();
 
 export function filtrarOS(lista: KanbanCard[], f: FiltrosOS): KanbanCard[] {
-  const q = (f.busca || "").trim().toLowerCase();
+  const q = paraBusca(f.busca).trim();   // sem maiúscula nem acento
   const cols = f.filtrosCol || {};
   const hoje = f.hoje || new Date();
   const tec = norm(f.tecnico || "");
@@ -158,7 +159,7 @@ export function filtrarOS(lista: KanbanCard[], f: FiltrosOS): KanbanCard[] {
     if (!passaCobranca(o, f.cobranca)) return false;
     if (q) {
       const campos = [o.id, o.cliente, o.tecnico, o.ordemOmie, o.ppvId, o.servSolicitado, o.projeto, o.tipoServico, rotuloFaseOS(o.status), fmtBRL(valorOS(o)), String(o.valor ?? "")];
-      if (!campos.some((v) => String(v || "").toLowerCase().includes(q))) return false;
+      if (!campos.some((v) => paraBusca(v).includes(q))) return false;
     }
     for (const [k, v] of Object.entries(cols)) {
       const raw = String(v || "").trim();
@@ -178,7 +179,7 @@ export function filtrarOS(lista: KanbanCard[], f: FiltrosOS): KanbanCard[] {
       let alvo = colTextoOS(o, key).toLowerCase();
       if (key === "valor") alvo += ` ${String(o.valor ?? "").toLowerCase()}`;
       if (key === "id") alvo += ` ${String(o.id || "").toLowerCase()}`;
-      if (!alvo.includes(q2)) return false;
+      if (!paraBusca(alvo).includes(paraBusca(q2))) return false;
     }
     return true;
   });

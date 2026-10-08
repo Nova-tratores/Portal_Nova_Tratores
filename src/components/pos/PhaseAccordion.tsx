@@ -1,4 +1,5 @@
 "use client";
+import { casaBusca } from '@/lib/texto';
 
 import { useState, useMemo, memo, useCallback, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -747,21 +748,16 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
     });
   }, []);
 
-  // Pre-compute lowercase search term once
-  const searchLower = useMemo(() => searchTerm.toLowerCase(), [searchTerm]);
-
+  // Busca sem maiúscula/acento: 'os-0777' acha 'OS-0777', 'jose' acha 'José'.
   const filtered = useMemo(() => {
     return escopoOrders.filter(
       (o) =>
-        (!searchLower ||
-          o.cliente.toLowerCase().includes(searchLower) ||
-          o.id.includes(searchLower) ||
-          (o.ordemOmie || '').toLowerCase().includes(searchLower) || // nº que a OS virou no Omie
-          o.servSolicitado.toLowerCase().includes(searchLower)) &&
+        // ordemOmie = nº que a OS virou no Omie
+        casaBusca(searchTerm, o.cliente, o.id, o.ordemOmie, o.servSolicitado) &&
         (!activePhase || o.status === activePhase) &&
         (!tecnicoFiltro || normName(o.tecnico || "") === normName(tecnicoFiltro))
     );
-  }, [escopoOrders, searchLower, activePhase, tecnicoFiltro]);
+  }, [escopoOrders, searchTerm, activePhase, tecnicoFiltro]);
 
 
   // Group by phase for "Todas" view
@@ -823,7 +819,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
         ) : (
           /* Grouped view */
           grouped && (() => {
-            let entradas = Object.entries(grouped).filter(([phase]) => (searchLower ? true : !ocultas.has(phase)));
+            let entradas = Object.entries(grouped).filter(([phase]) => (searchTerm.trim() ? true : !ocultas.has(phase)));
             // Cobrando Cliente na frente de tudo (opção do pino no cabeçalho)
             if (cobrandoTopo) {
               const i = entradas.findIndex(([p]) => p === FASE_COBRANDO);

@@ -1,4 +1,5 @@
 "use client";
+import { casaBusca } from '@/lib/texto';
 // Versão MOBILE do PPV (Opção A): lista de pedidos em cartões grandes, busca,
 // fase em dropdown e botão flutuante de Novo Lançamento. Desktop não usa isto.
 import { Fragment, useMemo, useState } from "react";
@@ -47,7 +48,7 @@ export default function PPVMobile({ orders, searchTerm, onSearchChange, onCardCl
       .filter((o) => {
         if (fase !== "TODAS" && o.status !== fase) return false;
         if (!q) return true;
-        return `${o.id} ${o.cliente} ${o.tecnico}`.toLowerCase().includes(q);
+        return casaBusca(q, o.id, o.cliente, o.tecnico);
       })
       // Mesma ordem do PC: agrupadas por fase (Concluída/Cancelada por último),
       // sem misturar cancelada com aberta. Sort estável mantém a ordem dentro da fase.

@@ -1,4 +1,5 @@
 "use client";
+import { casaBusca } from '@/lib/texto';
 
 import { useState, useMemo, memo, useRef, useEffect } from "react";
 import { createPortal } from "react-dom";
@@ -309,13 +310,10 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onStatusCha
   };
 
   const filtered = useMemo(() => {
-    const term = searchTerm.toLowerCase();
+    // Busca sem maiúscula/acento
     return orders.filter(
       (o) =>
-        (!term ||
-          (o.cliente || "").toLowerCase().includes(term) ||
-          (o.id || "").toLowerCase().includes(term) ||
-          (o.tecnico || "").toLowerCase().includes(term)) &&
+        casaBusca(searchTerm, o.cliente, o.id, o.tecnico) &&
         (!activePhase || normalizarStatus(o.status) === activePhase)
     );
   }, [orders, searchTerm, activePhase]);

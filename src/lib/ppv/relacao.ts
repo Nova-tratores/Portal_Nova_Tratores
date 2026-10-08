@@ -8,6 +8,7 @@
 import type { KanbanItem } from "./types";
 import { normalizarStatus } from "./utils";
 import { STATUS_COLORS, STATUS_OPTIONS, rotuloStatus } from "./constants";
+import { paraBusca } from "@/lib/texto";
 
 // Colunas da relação (k = chave do sort/filtro por coluna; label = cabeçalho da tela, PDF e CSV).
 export const COLS_RELACAO = [
@@ -189,7 +190,7 @@ export interface FiltrosRelacao {
 export interface OrdemRelacao { key: ColRelacaoKey; dir: "asc" | "desc" }
 
 export function filtrarRelacao(lista: KanbanItem[], f: FiltrosRelacao): KanbanItem[] {
-  const q = (f.busca || "").trim().toLowerCase();
+  const q = paraBusca(f.busca).trim();   // sem maiúscula nem acento
   const cols = f.filtrosCol || {};
   const hoje = f.hoje || new Date();
   return lista.filter((o) => {
@@ -200,7 +201,7 @@ export function filtrarRelacao(lista: KanbanItem[], f: FiltrosRelacao): KanbanIt
         o.id, numeroPedido(o), o.cliente, o.tecnico, o.pedidoOmie, o.osId, o.nfNumero, o.observacao,
         rotuloStatus(statusNorm(o)), fmtBRL(valorNum(o)), String(o.valor ?? ""), o.criadoPor,
       ];
-      if (!campos.some((v) => String(v || "").toLowerCase().includes(q))) return false;
+      if (!campos.some((v) => paraBusca(v).includes(q))) return false;
     }
     for (const [k, v] of Object.entries(cols)) {
       const raw = String(v || "").trim();
@@ -223,7 +224,7 @@ export function filtrarRelacao(lista: KanbanItem[], f: FiltrosRelacao): KanbanIt
       let alvo = colTextoRelacao(o, key).toLowerCase();
       if (key === "valor") alvo += ` ${String(o.valor ?? "").toLowerCase()}`;   // "1500" acha "1.500,00"
       if (key === "id") alvo += ` ${String(o.id || "").toLowerCase()}`;        // "ppv-02" também acha
-      if (!alvo.includes(q2)) return false;
+      if (!paraBusca(alvo).includes(paraBusca(q2))) return false;
     }
     return true;
   });

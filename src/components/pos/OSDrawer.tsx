@@ -1107,9 +1107,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       <div className="drawer-overlay active fs pos-osd">
         {/* Responsivo (tablet/celular): abas roláveis, cabeçalho empilha, trilho de ações vira barra embaixo até 900px */}
         <style>{`
-          .pos-osd .os-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
+          /* Abas: NUNCA encolhem (a coluna tem altura limitada; com overflow
+             diferente de visible o min-height vira 0 e a faixa sumia). No PC
+             ficam como sempre; a rolagem de lado só entra abaixo de 1024px. */
+          .pos-osd .os-tabs { flex-shrink: 0; }
           .pos-osd .os-tab { flex-shrink: 0; white-space: nowrap; }
           @media (max-width: 1023px) {
+            .pos-osd .os-tabs { overflow-x: auto; overflow-y: hidden; padding-bottom: 2px; -webkit-overflow-scrolling: touch; scrollbar-width: thin; }
             .pos-osd .pos-osd-grid5 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
             .pos-osd .pos-osd-checks { flex-wrap: wrap; height: auto !important; min-height: 34px; row-gap: 6px !important; }
             .pos-osd .os-summary .os-omie-totais { flex: 1 1 100%; }

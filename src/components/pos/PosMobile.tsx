@@ -1,4 +1,5 @@
 "use client";
+import { casaBusca } from '@/lib/texto';
 // Versão MOBILE do POS (Opção A): tela pensada pro celular — busca, chips de
 // fase que rolam na horizontal, e a lista de OS em CARTÕES grandes (nada de
 // kanban de colunas). Reaproveita os mesmos dados e o mesmo drawer de detalhe.
@@ -45,7 +46,7 @@ export default function PosMobile({ orders, searchTerm, onSearchChange, onCardCl
       .filter((o) => {
         if (fase !== "TODAS" && o.status !== fase) return false;
         if (!q) return true;
-        return `${o.id} ${o.cliente} ${o.tecnico} ${o.servSolicitado} ${o.ordemOmie || ''}`.toLowerCase().includes(q);
+        return casaBusca(q, o.id, o.cliente, o.tecnico, o.servSolicitado, o.ordemOmie);
       })
       // Mesma ordem do PC: agrupadas por fase (Concluída/Cancelada por último),
       // nunca misturando cancelada com aberta. Sort estável mantém a ordem dentro da fase.

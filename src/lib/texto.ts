@@ -15,3 +15,16 @@ export function normalizarNomePessoa(nome: string | null | undefined): string | 
     .map((p, i) => (i > 0 && PREPOSICOES.has(p) ? p : p.charAt(0).toUpperCase() + p.slice(1)))
     .join(' ');
 }
+
+// Busca sem diferença de maiúscula/minúscula NEM de acento: "jose" acha
+// "José", "os-0777" acha "OS-0777", "orcamento" acha "Orçamento".
+export function paraBusca(s: unknown): string {
+  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+// true se algum dos textos contém a busca (vazia = casa tudo).
+export function casaBusca(busca: string, ...textos: unknown[]): boolean {
+  const q = paraBusca(busca).trim();
+  if (!q) return true;
+  return textos.some((t) => paraBusca(t).includes(q));
+}

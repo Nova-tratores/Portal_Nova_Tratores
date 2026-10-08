@@ -24,6 +24,7 @@ import StatusBadge from '@/components/tickets/StatusBadge'
 import FormTicket from '@/components/tickets/FormTicket'
 import KanbanTickets from '@/components/tickets/KanbanTickets'
 import TicketModal from '@/components/tickets/TicketModal'
+import { casaBusca } from '@/lib/texto'
 
 type Visao = 'fila' | 'pedidos' | 'acompanhando' | 'gerencial'
 const VISOES_VALIDAS = new Set<Visao>(['fila', 'pedidos', 'acompanhando', 'gerencial'])
@@ -195,15 +196,10 @@ function TicketsPageInner() {
   const filtrados = useMemo(() => {
     let lista = porPessoa
     if (filtroStatus) lista = lista.filter((t) => t.status === filtroStatus)
-    const q = busca.trim().toLowerCase()
-    if (q) {
-      lista = lista.filter((t) =>
-        t.titulo.toLowerCase().includes(q)
-        || t.categoria.toLowerCase().includes(q)
-        || t.terceiro_envolvido.toLowerCase().includes(q)
-        || String(t.numero).includes(q)
-        || (usuarios[t.responsavel_id]?.nome || '').toLowerCase().includes(q)
-        || (usuarios[t.solicitante_id]?.nome || '').toLowerCase().includes(q))
+    // Busca sem diferença de maiúscula/acento; "#54" ou "54" acha pelo número.
+    if (busca.trim()) {
+      lista = lista.filter((t) => casaBusca(busca, t.titulo, t.categoria, t.terceiro_envolvido, `#${t.numero}`,
+        usuarios[t.responsavel_id]?.nome, usuarios[t.solicitante_id]?.nome))
     }
     if (visao === 'gerencial') {
       // Gerencial: o mais parado primeiro (pergunta 8 — atrasado/esquecido)

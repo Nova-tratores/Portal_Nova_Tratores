@@ -6,6 +6,7 @@ import DashboardMobile from '@/components/dashboard/DashboardMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { supabase } from '@/lib/supabase'
 import { useAuditLog } from '@/hooks/useAuditLog'
+import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
 import {
   Settings, ClipboardList, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
@@ -301,12 +302,27 @@ export default function DashboardPage() {
     return () => clearInterval(t)
   }, [allowedSystems.length])
 
-  const searchLower = searchTerm.toLowerCase()
-  const filteredSystems = useMemo(() => allowedSystems.filter(s =>
-    s.name.toLowerCase().includes(searchLower) ||
-    s.description.toLowerCase().includes(searchLower) ||
-    s.tag.toLowerCase().includes(searchLower)
-  ), [allowedSystems, searchLower])
+  // Busca: casa pelo NOME (e etiqueta) do módulo, do mais exato para o menos —
+  // a descrição só entra se nada casar pelo nome, senão "etiquetas" trazia o
+  // card do PPV no lugar da tela de Etiquetas. As telas vêm à parte (abaixo).
+  const buscaNorm = normalizar(searchTerm)
+  const filteredSystems = useMemo(() => {
+    if (!buscaNorm) return allowedSystems
+    const nota = (s: typeof allowedSystems[number]) => Math.min(relevancia(s.name, buscaNorm) ?? Infinity, relevancia(s.tag, buscaNorm) ?? Infinity)
+    const peloNome = allowedSystems.filter(s => nota(s) !== Infinity).sort((a, b) => nota(a) - nota(b))
+    if (peloNome.length) return peloNome
+    return allowedSystems.filter(s => normalizar(s.description).includes(buscaNorm))
+  }, [allowedSystems, buscaNorm])
+
+  // Telas (sub-páginas e abas) que a pessoa pode abrir e que casam com a busca.
+  const telasPermitidas = useMemo(() => TELAS.filter(t =>
+    !t.modulo || (t.acao ? pode(t.modulo, t.acao) : temAcesso(t.modulo))
+  ), [temAcesso, pode])
+  const telasEncontradas = useMemo(() => buscarTelas(telasPermitidas, searchTerm), [telasPermitidas, searchTerm])
+  const abrirTela = (tela: Tela) => {
+    auditLog({ sistema: tela.sistema || 'dashboard', acao: 'acesso', entidade_label: tela.nome })
+    router.push(tela.href)
+  }
 
   const toggleFavorito = (id: string) => {
     setFavoritos(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id])
@@ -468,6 +484,8 @@ export default function DashboardPage() {
         onOpen={(s) => openSystem(s as unknown as typeof allowedSystems[number])}
         searchTerm={searchTerm}
         onSearch={setSearchTerm}
+        telas={telasEncontradas}
+        onAbrirTela={abrirTela}
         userNome={userProfile?.nome}
       />
     )
@@ -644,6 +662,11 @@ export default function DashboardPage() {
             placeholder="Buscar..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && telasEncontradas[0]) abrirTela(telasEncontradas[0])
+              if (e.key === 'Escape') setSearchTerm('')
+            }}
+            aria-label="Buscar tela ou sistema"
             style={{
               width: '100%', padding: '8px 14px 8px 36px', borderRadius: '10px',
               background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
@@ -652,6 +675,42 @@ export default function DashboardPage() {
           />
         </div>
       </div>
+
+      {/* ══ Telas encontradas pela busca: leva direto à tela, não ao módulo ══ */}
+      {buscaNorm && (
+        <div style={{ marginBottom: 16, padding: '14px 16px', borderRadius: 14, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 10, flexWrap: 'wrap' }}>
+            <Search size={13} color="#dc2626" />
+            <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-secondary)', letterSpacing: 1, textTransform: 'uppercase' }}>Telas</span>
+            <span style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', opacity: .75 }}>
+              {telasEncontradas.length ? '— Enter abre a primeira' : '— nenhuma tela com esse nome'}
+            </span>
+          </div>
+          {telasEncontradas.length > 0 && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(260px, 100%), 1fr))', gap: 8 }}>
+              {telasEncontradas.map((tela, i) => {
+                const sis = systems.find(s => s.id === tela.sistema)
+                const cor = sis?.color || '#64748b'
+                return (
+                  <button key={tela.href + tela.nome} onClick={() => abrirTela(tela)}
+                    style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, cursor: 'pointer', textAlign: 'left', minWidth: 0,
+                      border: i === 0 ? `1.5px solid ${cor}` : '1px solid var(--portal-border)', background: i === 0 ? `${cor}10` : 'transparent', fontFamily: 'inherit' }}
+                    onMouseEnter={e => { e.currentTarget.style.background = `${cor}14` }}
+                    onMouseLeave={e => { e.currentTarget.style.background = i === 0 ? `${cor}10` : 'transparent' }}>
+                    <span style={{ width: 30, height: 30, borderRadius: 8, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', background: sis?.gradient || cor }}>
+                      {sis?.icon ? <span style={{ display: 'flex', transform: 'scale(.6)' }}>{sis.icon}</span> : <Search size={14} />}
+                    </span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tela.nome}</span>
+                      <span style={{ display: 'block', fontSize: 11.5, color: 'var(--portal-text-secondary)' }}>{tela.area}</span>
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* System Cards */}
       {allowedSystems.length === 0 && !loadingPerm && (

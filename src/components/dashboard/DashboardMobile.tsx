@@ -3,6 +3,7 @@
 // cabeçalho grafite com saudação + avatar + busca, favoritos em atalhos redondos
 // (rolagem horizontal) e apps em cartões suaves por categoria. O desktop não usa isto.
 import { useMemo } from "react";
+import { normalizar, relevancia, type Tela } from "@/lib/dashboard/telas";
 
 export interface AppCard {
   id: string; name: string; icon: React.ReactNode; color: string; gradient: string; tag: string; group: string;
@@ -16,6 +17,9 @@ interface Props {
   searchTerm: string;
   onSearch: (v: string) => void;
   userNome?: string;
+  /** Telas (sub-páginas) que casam com a busca, já filtradas por permissão. */
+  telas?: Tela[];
+  onAbrirTela?: (t: Tela) => void;
 }
 
 const GRUPOS: { key: string; label: string; cor: string }[] = [
@@ -35,12 +39,16 @@ const IcoStar = ({ fill }: { fill: boolean }) => (
   <svg viewBox="0 0 24 24" width={14} height={14} fill={fill ? "#f59e0b" : "none"} stroke={fill ? "#f59e0b" : "#cbd5e1"} strokeWidth={2} strokeLinejoin="round"><path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 17l-5.5 2.5 1-6.3L3 8.9 9 8z" /></svg>
 );
 
-export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpen, searchTerm, onSearch, userNome }: Props) {
-  const q = searchTerm.trim().toLowerCase();
+export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpen, searchTerm, onSearch, userNome, telas = [], onAbrirTela }: Props) {
+  const q = normalizar(searchTerm);
   const buscando = q.length > 0;
 
   const filtrados = useMemo(
-    () => systems.filter((s) => !q || s.name.toLowerCase().includes(q) || s.tag.toLowerCase().includes(q)),
+    () => {
+      if (!q) return systems;
+      const nota = (s: AppCard) => Math.min(relevancia(s.name, q) ?? Infinity, relevancia(s.tag, q) ?? Infinity);
+      return systems.filter((s) => nota(s) !== Infinity).sort((a, b) => nota(a) - nota(b));
+    },
     [systems, q]
   );
   const favs = useMemo(() => systems.filter((s) => favoritos.includes(s.id)), [systems, favoritos]);
@@ -84,7 +92,9 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
         </div>
         <div style={{ position: "relative", marginTop: 16 }}>
           <span style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", display: "flex" }}><IcoSearch /></span>
-          <input value={searchTerm} onChange={(e) => onSearch(e.target.value)} placeholder="Buscar sistema…"
+          <input value={searchTerm} onChange={(e) => onSearch(e.target.value)} placeholder="Buscar tela ou sistema…"
+            onKeyDown={(e) => { if (e.key === "Enter" && telas[0] && onAbrirTela) onAbrirTela(telas[0]); }}
+            aria-label="Buscar tela ou sistema"
             style={{ width: "100%", padding: "12px 40px 12px 38px", borderRadius: 14, border: "none", background: "#fff", fontSize: 16, outline: "none", boxSizing: "border-box", color: "#0f172a" }} />
           {searchTerm && (
             <button onClick={() => onSearch("")} style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", width: 36, height: 36, border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 18, lineHeight: 1 }}>×</button>
@@ -94,12 +104,39 @@ export default function DashboardMobile({ systems, favoritos, onToggleFav, onOpe
 
       <div style={{ padding: "18px 16px 40px" }}>
         {buscando ? (
-          filtrados.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>Nenhum sistema para &quot;{searchTerm}&quot;.</div>
+          filtrados.length === 0 && telas.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: "#94a3b8" }}>Nada encontrado para &quot;{searchTerm}&quot;.</div>
           ) : (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(150px, 100%), 1fr))", gap: 11 }}>
-              {filtrados.map((s) => <Card key={s.id} s={s} />)}
-            </div>
+            <>
+              {/* Telas primeiro: leva direto ao que foi buscado */}
+              {telas.length > 0 && (
+                <div style={{ marginBottom: 18 }}>
+                  <div style={{ margin: "0 2px 9px", color: "#64748b", fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.5 }}>Telas</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {telas.map((t) => {
+                      const sis = systems.find((s) => s.id === t.sistema);
+                      return (
+                        <button key={t.href + t.nome} onClick={() => onAbrirTela?.(t)}
+                          style={{ display: "flex", alignItems: "center", gap: 12, minHeight: 52, padding: "8px 12px", borderRadius: 14, border: "1px solid #e2e8f0", background: "#fff", cursor: "pointer", textAlign: "left" }}>
+                          <span style={{ width: 36, height: 36, borderRadius: 11, flexShrink: 0, background: sis?.gradient || "#64748b", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            {sis?.icon ? <span style={{ display: "flex", transform: "scale(.7)" }}>{sis.icon}</span> : <IcoSearch c="#fff" />}
+                          </span>
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ display: "block", fontSize: 14.5, fontWeight: 700, color: "#0f172a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.nome}</span>
+                            <span style={{ display: "block", fontSize: 12, color: "#64748b" }}>{t.area}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {filtrados.length > 0 && (
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(min(150px, 100%), 1fr))", gap: 11 }}>
+                  {filtrados.map((s) => <Card key={s.id} s={s} />)}
+                </div>
+              )}
+            </>
           )
         ) : (
           <>

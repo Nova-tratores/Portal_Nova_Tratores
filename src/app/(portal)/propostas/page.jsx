@@ -242,7 +242,7 @@ function PropostaComercialPageInner() {
         .chrome-tabs-base { height: 10px; background: #ffffff; border-radius: 10px 10px 0 0; position: relative; z-index: 2; }
         /* Responsivo: abaixo de 900px as guias rolam na horizontal dentro da faixa */
         @media (max-width: 900px) {
-          .chrome-tabs { overflow-x: auto; overflow-y: hidden; padding: 0 12px; scrollbar-width: none; }
+          .chrome-tabs { overflow-x: auto; overflow-y: hidden; flex-shrink: 0; padding: 0 12px; scrollbar-width: none; }
           .chrome-tabs::-webkit-scrollbar { display: none; }
           .chrome-tab { flex-shrink: 0; padding: 10px 14px 11px; font-size: 13.5px; white-space: nowrap; }
         }

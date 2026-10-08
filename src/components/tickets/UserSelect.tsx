@@ -5,6 +5,7 @@ import { useState, useEffect, useRef } from 'react'
 import { supabase } from '@/lib/supabase'
 import { Search, User as UserIcon } from 'lucide-react'
 import type { UsuarioMin } from '@/lib/tickets/constantes'
+import { casaBusca } from '@/lib/texto'
 
 interface Props {
   value: string
@@ -44,7 +45,7 @@ export default function UserSelect({ value, onChange, excluir = [], placeholder 
   const selecionado = usuarios.find((u) => u.id === value)
   const filtrados = usuarios
     .filter((u) => !excluir.includes(u.id))
-    .filter((u) => u.nome?.toLowerCase().includes(busca.toLowerCase()))
+    .filter((u) => casaBusca(busca, u.nome))
 
   const avatar = (u: UsuarioMin, tam = 22) => u.avatar_url
     // eslint-disable-next-line @next/next/no-img-element

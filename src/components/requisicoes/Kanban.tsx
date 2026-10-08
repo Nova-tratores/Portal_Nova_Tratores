@@ -4,7 +4,7 @@ import CardCapaReq from './CardCapaReq';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsMobile } from '@/hooks/useIsMobile';
-import { normalizarNomePessoa } from '@/lib/texto';
+import { normalizarNomePessoa, paraBusca } from '@/lib/texto';
 import { Search, Calendar, Building2, X, Layout, UserCircle, Layers, SlidersHorizontal, Receipt, FileDown, Info, Plus, FolderOpen, FolderPlus, RotateCcw, Car, Filter, ArrowLeft, Check, Tag, ArrowLeftRight, LayoutGrid, List } from 'lucide-react';
 import CompararReqs from './CompararReqs';
 import dynamic from 'next/dynamic';
@@ -261,7 +261,7 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
   }, [grupoMenu]);
 
   const filtradas = useMemo(() => {
-    const q = filtroBusca.trim().toLowerCase();
+    const q = paraBusca(filtroBusca).trim();
     const idsGrupo = grupoAtivo ? new Set((grupoAtivo.membros || []).map((x: any) => Number(x))) : null;
     // Agrupa os critérios por campo: mesmo campo = OU; campos diferentes = E.
     const porCampo: Record<string, Set<string>> = {};
@@ -283,8 +283,8 @@ export default function Kanban({ requisicoes, onUpdate, onPrint, onCardFechado, 
         r.solicitante || '',
         nomeSolicitante(r.solicitante),
         r.tipo || '',
-      ].join(' ').toLowerCase();
-      return matchData && alvo.includes(q);
+      ].join(' ');
+      return matchData && paraBusca(alvo).includes(q);
     });
   }, [requisicoes, filtroBusca, filtroData, nomeSolicitante, grupoAtivo, filtros, valorCampo]);
 
