@@ -4,7 +4,7 @@
 
 import { supabase } from '@/lib/supabase'
 import { mensagemErro } from './fotos'
-import type { Aplicacao, Decisao, Historico, Item, Local, Lookup, Qualidade, Status } from './tipos'
+import type { Aplicacao, Decisao, Destino, Historico, Item, Local, Lookup, Qualidade, Status } from './tipos'
 
 const SELECT_ITEM = '*, pni_fotos(id, storage_path, ordem), pni_aplicacoes(id, tipo_maquina_id, marca_id)'
 
@@ -59,16 +59,18 @@ export async function listarHistorico(itemId: string): Promise<Historico[]> {
   return (data || []) as Historico[]
 }
 
-export async function listarLookups(): Promise<{ tipos: Lookup[]; marcas: Lookup[]; locais: Local[] }> {
-  const [t, m, l] = await Promise.all([
+export async function listarLookups(): Promise<{ tipos: Lookup[]; marcas: Lookup[]; locais: Local[]; destinos: Destino[] }> {
+  const [t, m, l, d] = await Promise.all([
     supabase.from('maquina_tipos').select('id, nome, ativo, ordem').order('ordem').order('nome'),
     supabase.from('maquina_marcas').select('id, nome, ativo, ordem').order('ordem').order('nome'),
     supabase.from('pni_locais').select('id, nome, exige_tecnico, ordem, ativo').order('ordem'),
+    // destinos criados pelo usuário (sql/pni-11) — sem a migration a lista fica vazia
+    supabase.from('pni_destinos').select('id, nome, ativo, ordem').eq('ativo', true).order('ordem').order('nome'),
   ])
   if (t.error) throw new Error(migracaoFaltando(t.error) ? MSG_MIGRACAO : mensagemErro(t.error))
   if (m.error) throw new Error(mensagemErro(m.error))
   if (l.error) throw new Error(migracaoFaltando(l.error) ? MSG_MIGRACAO_LOCAL : mensagemErro(l.error))
-  return { tipos: (t.data || []) as Lookup[], marcas: (m.data || []) as Lookup[], locais: (l.data || []) as Local[] }
+  return { tipos: (t.data || []) as Lookup[], marcas: (m.data || []) as Lookup[], locais: (l.data || []) as Local[], destinos: (d.error ? [] : d.data || []) as Destino[] }
 }
 
 export const MSG_MIGRACAO_LOCAL = 'Falta rodar sql/pni-06-captura-completa.sql no SQL Editor (localização).'
@@ -163,6 +165,11 @@ export function adicionarFotos(id: string, fotos: string[]) {
   return rpc<number>('pni_adicionar_fotos', { p_id: id, p_fotos: fotos })
 }
 
+/** Troca UMA foto (mesma posição). Devolve o caminho anterior para apagar do storage. */
+export function substituirFoto(fotoId: string, path: string) {
+  return rpc<{ id: string; storage_path: string; anterior: string }>('pni_substituir_foto', { p_foto_id: fotoId, p_path: path })
+}
+
 export function marcarEtiqueta(ids: string[]) {
   return rpc<number>('pni_marcar_etiqueta', { p_ids: ids })
 }
@@ -177,26 +184,32 @@ export function salvarMarca(id: string | null, nome: string, ativo = true) {
 
 // ── Etapas ──────────────────────────────────────────────────────────
 
-/** Etapa 2: decide o que fazer com a peça. Descartar/outro encerram na hora. */
-export function separar(id: string, decisao: Decisao, obs?: string) {
-  return rpc<{ id: string; codigo: string; status: Status; decisao: Decisao }>('pni_separar', { p_id: id, p_decisao: decisao, p_obs: obs || null })
+/** Etapa 3 (última): decide pra onde a peça vai e CONCLUI. "outro" = destino criado (destinoId). */
+export function separar(id: string, decisao: Decisao, obs?: string, destinoId?: string | null) {
+  return rpc<{ id: string; codigo: string; status: Status; decisao: Decisao }>('pni_separar', { p_id: id, p_decisao: decisao, p_obs: obs || null, p_destino_id: destinoId || null })
 }
 
-/** Etapa 3: valor e aplicação conferidos com o setor responsável. */
+/** Cria (ou reativa) um destino novo na separação. */
+export function criarDestino(nome: string) {
+  return rpc<{ id: string; nome: string }>('pni_criar_destino', { p_nome: nome })
+}
+
+/** Etapa 2: valor e aplicação conferidos com o setor responsável. */
 export function verificar(id: string, setor: string, com?: string, obs?: string) {
   return rpc<{ id: string; codigo: string; status: Status }>('pni_verificar', { p_id: id, p_setor: setor, p_com: com || null, p_obs: obs || null })
 }
 
-/** Etapa 4: confirma o destino (o planejado ou outro) e finaliza a peça. */
+/** Peça à venda: marca como vendida (ou muda o desfecho). */
 export function finalizar(id: string, destino?: Decisao, obs?: string) {
   return rpc<{ id: string; codigo: string; status: Status }>('pni_finalizar', { p_id: id, p_destino: destino || null, p_obs: obs || null })
 }
 
 export interface Contagens {
   opasAbertos: number
-  separacao: number
   verificacao: number
-  destino: number
+  separacao: number
+  /** à venda (concluídas que ainda podem virar "vendida") */
+  aVenda: number
   emAberto: number
 }
 
@@ -207,13 +220,13 @@ async function contar(q: PromiseLike<{ count: number | null }>): Promise<number>
 /** Números das abas do Opa (consultas leves, só contagem). */
 export async function contagens(): Promise<Contagens> {
   const pni = () => supabase.from('pni_itens').select('id', { count: 'exact', head: true })
-  const [opasAbertos, separacao, verificacao, destino] = await Promise.all([
+  const [opasAbertos, verificacao, separacao, aVenda] = await Promise.all([
     contar(supabase.from('portal_opas').select('id', { count: 'exact', head: true }).eq('status', 'aberto')),
     contar(pni().eq('status', 'aguardando_identificacao')),
-    contar(pni().eq('status', 'identificado')),
-    contar(pni().in('status', ['precificado', 'a_venda'])),
+    contar(pni().in('status', ['identificado', 'precificado'])),
+    contar(pni().eq('status', 'a_venda')),
   ])
-  return { opasAbertos, separacao, verificacao, destino, emAberto: separacao + verificacao + destino }
+  return { opasAbertos, verificacao, separacao, aVenda, emAberto: verificacao + separacao }
 }
 
 let cacheNomesAtivos: string[] | null = null

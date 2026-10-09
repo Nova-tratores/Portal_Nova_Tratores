@@ -1,20 +1,19 @@
 'use client'
-// Captura de peça não identificada no CELULAR — meta: menos de 30 s por item.
-// Fotos (mín. 2) → onde está → quantidade → qualidade → "se souber" →
-// Salvar (gera PNI-xxxxxx) → próximo item. Cada foto é comprimida e enviada
-// assim que é tirada, então o "Salvar" só grava o item.
-// Campo em branco não impede salvar: o item fica com aviso de cadastro
-// incompleto. A etiqueta não sai aqui: é gerada junto com as outras na etapa
-// Destino (mesma folha, economia de papel).
+// Captação (etapa 1, sql/pni-11) no CELULAR — meta: menos de 30 s por item.
+// Fotos (mín. 2) → onde achou → quantidade → qualidade → descrição → código
+// existente (opcional) → Salvar → próximo item. Onde achou, quantidade,
+// descrição e qualidade são obrigatórios; valor e aplicação ficam para a
+// Verificação. Cada foto é comprimida e enviada assim que é tirada, então o
+// "Salvar" só grava o item. O código definitivo e o QR saem na conclusão.
 
 import Link from 'next/link'
 import { useRef, useState } from 'react'
-import { AlertTriangle, Camera, Check, FlaskConical, ImagePlus, Loader2, MapPin, RotateCcw, Save, X } from 'lucide-react'
+import { Camera, Check, FlaskConical, ImagePlus, Loader2, MapPin, RotateCcw, Save, X } from 'lucide-react'
 import { criarItem } from '@/lib/opa-pecas/db'
 import { comprimir, enviarFoto, mensagemErro } from '@/lib/opa-pecas/fotos'
-import { camposFaltando, lerPreco, nomeDoItem, textoLocal } from '@/lib/opa-pecas/regras'
-import type { Aplicacao, Qualidade } from '@/lib/opa-pecas/tipos'
-import { CampoPreco, EditorAplicacoes, SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
+import { nomeDoItem, textoLocal } from '@/lib/opa-pecas/regras'
+import type { Qualidade } from '@/lib/opa-pecas/tipos'
+import { SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
 import { Aviso, botao, INP, LARANJA, ROTULO, SECAO, TITULO_SECAO, useTelaLarga, type Base } from './comum'
 
 const MIN_FOTOS = 2
@@ -56,12 +55,10 @@ interface Form {
   tecnico: string
   descricao: string
   codigoFab: string
-  aplicacoes: Aplicacao[]
-  preco: string
 }
 
 const FORM_VAZIO: Form = {
-  quantidade: 1, qualidade: 'nao_avaliada', local: '', tecnico: '', descricao: '', codigoFab: '', aplicacoes: [], preco: '',
+  quantidade: 1, qualidade: 'nao_avaliada', local: '', tecnico: '', descricao: '', codigoFab: '',
 }
 
 export default function Captura({ userId, base }: { userId: string; base: Base }) {
@@ -72,7 +69,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
   const [form, setForm] = useState<Form>(FORM_VAZIO)
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
-  const [salvo, setSalvo] = useState<{ id: string; codigo: string; local: string; faltando: string[] } | null>(null)
+  const [salvo, setSalvo] = useState<{ id: string; codigo: string; local: string } | null>(null)
 
   const muda = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }))
   const atualizarFoto = (id: string, patch: Partial<FotoLocal>) =>
@@ -119,14 +116,14 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
   const comErro = fotos.filter((f) => f.estado === 'erro')
   const localEscolhido = base.locais.find((l) => l.id === form.local)
   const faltaTecnico = !!localEscolhido?.exige_tecnico && !form.tecnico
-  const preco = lerPreco(form.preco)
-  const precoInvalido = preco != null && Number.isNaN(preco)
-  const podeSalvar = prontas.length >= MIN_FOTOS && !enviando && !salvando && !faltaTecnico && !precoInvalido
+  // obrigatórios da captação (o banco confere de novo em pni_criar_item)
+  const faltando = [
+    !form.local && 'onde achou',
+    form.qualidade === 'nao_avaliada' && 'qualidade',
+    !form.descricao.trim() && 'descrição',
+  ].filter(Boolean) as string[]
+  const podeSalvar = prontas.length >= MIN_FOTOS && !enviando && !salvando && !faltaTecnico && faltando.length === 0
   const tecnico = localEscolhido?.exige_tecnico ? form.tecnico : null
-  const faltando = camposFaltando({
-    status: 'aguardando_identificacao', local_id: form.local || null, descricao: form.descricao,
-    aplicacoes: form.aplicacoes, preco_sugerido: preco, qualidade: form.qualidade, nao_identificavel: false,
-  })
 
   const salvar = async () => {
     if (!podeSalvar) return
@@ -136,10 +133,10 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
       const r = await criarItem({
         fotos: prontas.map((f) => f.path!), quantidade: form.quantidade, qualidade: form.qualidade,
         descricao: form.descricao.trim() || undefined, local: form.local, localTecnico: tecnico || undefined,
-        codigoFabricante: form.codigoFab.trim() || undefined, preco, aplicacoes: form.aplicacoes,
+        codigoFabricante: form.codigoFab.trim() || undefined,
       })
       setSalvo({
-        id: r.id, codigo: r.codigo, faltando,
+        id: r.id, codigo: r.codigo,
         local: textoLocal({ local_id: form.local || null, local_tecnico: tecnico }, base.nomesLocais),
       })
     } catch (e) {
@@ -166,14 +163,11 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
           <div style={{ fontSize: 13, color: '#047857', marginTop: 2 }}>{nomeDoItem(salvo.codigo)[0].toUpperCase() + nomeDoItem(salvo.codigo).slice(1)}</div>
           {salvo.local && <div style={{ fontSize: 13.5, color: '#047857', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}><MapPin size={14} /> {salvo.local}</div>}
         </div>
-        {salvo.faltando.length > 0 && (
-          <Aviso tipo="info">Cadastro incompleto — falta: {salvo.faltando.join(', ')}. Pode completar depois no item.</Aviso>
-        )}
         <button type="button" onClick={proximoItem} style={{ ...botao(LARANJA, { grande: true }), width: '100%', padding: 18 }}>
           <Camera size={22} /> Próximo item
         </button>
         <p style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', textAlign: 'center', margin: 0 }}>
-          A peça segue para a <b>Separação</b>. O código e a etiqueta são gerados juntos na etapa <b>Destino</b>.{' '}
+          A peça segue para a <b>Verificação</b> (valor e aplicação). O código e o QR saem quando ela for concluída.{' '}
           <Link href={`/opa/pecas/${encodeURIComponent(salvo.codigo)}`} style={{ color: 'var(--portal-text-secondary)' }}>Abrir peça</Link>
         </p>
       </div>
@@ -229,7 +223,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
       </section>
 
       <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Onde a peça está?</h2>
+        <h2 style={TITULO_SECAO}>Onde achou a peça? <span style={{ color: '#DC2626' }}>*</span></h2>
         <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
       </section>
 
@@ -243,29 +237,17 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
           <SeletorQuantidade valor={form.quantidade} onChange={(n) => muda('quantidade', n)} />
         </div>
         <div>
-          <label style={ROTULO}>Estado da peça</label>
+          <label style={ROTULO}>Qualidade <span style={{ color: '#DC2626' }}>*</span></label>
           <SeletorQualidade valor={form.qualidade} onChange={(q) => muda('qualidade', q)} />
         </div>
-      </section>
-
-      <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Se souber <span style={{ textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>(opcional)</span></h2>
         <div>
-          <label style={ROTULO}>Descrição</label>
+          <label style={ROTULO}>Descrição <span style={{ color: '#DC2626' }}>*</span></label>
           <textarea value={form.descricao} onChange={(e) => muda('descricao', e.target.value.slice(0, 500))} rows={2}
-            placeholder="Ex.: parece engrenagem de câmbio" style={{ ...INP, resize: 'vertical', lineHeight: 1.5 }} />
+            placeholder="Ex.: engrenagem de câmbio" style={{ ...INP, resize: 'vertical', lineHeight: 1.5 }} />
         </div>
         <div>
-          <label style={ROTULO}>Código já existente da peça</label>
+          <label style={ROTULO}>Código existente da peça <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)' }}>(se tiver)</span></label>
           <input value={form.codigoFab} onChange={(e) => muda('codigoFab', e.target.value.slice(0, 80))} placeholder="Part number gravado ou etiqueta antiga" style={INP} />
-        </div>
-        <div>
-          <label style={ROTULO}>Aplicação</label>
-          <EditorAplicacoes tipos={base.tipos} marcas={base.marcas} valor={form.aplicacoes} onChange={(v) => muda('aplicacoes', v)} />
-        </div>
-        <div>
-          <label style={ROTULO}>Preço sugerido (R$)</label>
-          <CampoPreco valor={form.preco} onChange={(v) => muda('preco', v)} />
         </div>
       </section>
 
@@ -276,17 +258,13 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
       )}
 
       <div style={larga ? {} : { position: 'sticky', bottom: 0, padding: '8px 0 12px', background: 'var(--portal-bg, transparent)', zIndex: 2 }}>
-        {prontas.length >= MIN_FOTOS && faltando.length > 0 && !faltaTecnico && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#B45309', fontWeight: 600, marginBottom: 6 }}>
-            <AlertTriangle size={14} /> Vai salvar incompleto — falta: {faltando.join(', ')}
-          </div>
-        )}
         <button type="button" onClick={salvar} disabled={!podeSalvar} style={{ ...botao(LARANJA, { grande: true, desab: !podeSalvar }), width: '100%', padding: 17, fontSize: 17 }}>
           {salvando ? <><Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> Salvando…</>
             : enviando ? <><Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> Enviando fotos…</>
               : prontas.length < MIN_FOTOS ? <><Camera size={20} /> Faltam {MIN_FOTOS - prontas.length} foto{MIN_FOTOS - prontas.length > 1 ? 's' : ''}</>
                 : faltaTecnico ? <>Escolha o técnico do Box</>
-                  : <><Save size={20} /> Salvar e gerar código</>}
+                  : faltando.length ? <>Falta: {faltando.join(', ')}</>
+                    : <><Save size={20} /> Salvar peça</>}
         </button>
       </div>
       </div>

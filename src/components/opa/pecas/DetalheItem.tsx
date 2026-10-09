@@ -5,13 +5,15 @@
 // Quem não é do setor de peças vê tudo só para leitura.
 
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Camera, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { AlertTriangle, Camera, ChevronLeft, ChevronRight, History, Loader2, MapPin, Printer, RefreshCw, RotateCcw, Save, Trash2, X, ZoomIn, ZoomOut } from 'lucide-react'
+import QRCode from 'qrcode'
 import {
-  adicionarFotos, atualizarItem, buscarItem, definirAplicacoes, excluirItem, listarHistorico,
-  nomesUsuarios, type CamposEditaveis,
+  adicionarFotos, atualizarItem, buscarItem, definirAplicacoes, excluirItem, finalizar, listarHistorico,
+  mudarStatus, nomesUsuarios, substituirFoto, type CamposEditaveis,
 } from '@/lib/opa-pecas/db'
-import { comprimir, enviarFoto, mensagemErro, urlsAssinadas } from '@/lib/opa-pecas/fotos'
-import { codigoDefinitivo, nomeDoItem, camposFaltando, ehFinal, fmtDataHora, fmtPreco, lerPreco, precoParaCampo, textoLocal } from '@/lib/opa-pecas/regras'
+import { urlPublica } from '@/lib/opa-pecas/etiqueta'
+import { apagarFoto, comprimir, enviarFoto, mensagemErro, urlsAssinadas } from '@/lib/opa-pecas/fotos'
+import { codigoDefinitivo, nomeDoItem, camposFaltando, fmtDataHora, fmtPreco, lerPreco, precoParaCampo, textoLocal } from '@/lib/opa-pecas/regras'
 import { ROTULO_QUALIDADE, ROTULO_STATUS, type Aplicacao, type Historico, type Item, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 import { CampoPreco, EditorAplicacoes, SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
 import FasesPeca from './FasesPeca'
@@ -60,6 +62,8 @@ function diferencas(i: Item, f: Form): { dados: CamposEditaveis; erro?: string }
 }
 
 const COLUNA: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 14, minWidth: 0 }
+/** Subtítulo dos grupos dentro de "Dados da peça". */
+const SUBTITULO: React.CSSProperties = { fontSize: 11, fontWeight: 800, letterSpacing: 0.5, textTransform: 'uppercase', color: '#9A3412', marginTop: 4, paddingBottom: 6, borderBottom: '1px solid var(--portal-border)' }
 
 export default function DetalheItem({ item: inicial, base, onMudou }: {
   item: Item
@@ -74,14 +78,22 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [visor, setVisor] = useState<number | null>(null)
   const [imprimindo, setImprimindo] = useState(false)
+  const [venda, setVenda] = useState('') // "para quem e por quanto" ao marcar vendida
   const [historico, setHistorico] = useState<Historico[] | null>(null)
   const [usuarios, setUsuarios] = useState<Record<string, string>>({})
   const fotoRef = useRef<HTMLInputElement>(null)
+  const trocaRef = useRef<HTMLInputElement>(null)
+  const [fotoTrocando, setFotoTrocando] = useState<string | null>(null) // id da foto que vai ser substituída
   const larga = useTelaLarga()
 
   const gerir = base.podeGerir
-  const final = ehFinal(item.status)
-  const editavel = gerir && !final
+  // o banco (pni_atualizar_item) só trava vendida/descartada: nelas mudam só localização e observações
+  const travada = item.status === 'vendido' || item.status === 'descartado'
+  const editavel = gerir && !travada
+  const podeFotos = (gerir || item.criado_por === base.userId) && !travada
+  // perguntas liberam por fase: valor e aplicação só a partir da Verificação; o destino só na Separação
+  const verificada = item.status !== 'aguardando_identificacao'
+  const editaValor = editavel && verificada
   const minis = useMiniaturas(item.fotos.map((f) => f.storage_path))
 
   useEffect(() => {
@@ -135,6 +147,19 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
     }, 'Fotos adicionadas.')
   }
 
+  // troca a foto escolhida (mesma posição) e apaga a antiga do storage
+  const trocarFoto = async (lista: FileList | null) => {
+    const arquivo = lista?.[0]
+    const fotoId = fotoTrocando
+    setFotoTrocando(null)
+    if (!arquivo || !fotoId || !base.userId) return
+    await executar('foto:' + fotoId, async () => {
+      const path = await enviarFoto(base.userId!, await comprimir(arquivo))
+      const r = await substituirFoto(fotoId, path)
+      apagarFoto(r.anterior).catch(() => null)
+    }, 'Foto trocada.')
+  }
+
   const excluir = async () => {
     if (!confirm(`Excluir ${nomeDoItem(item.codigo)}? Ele sai das listas (o histórico fica guardado).`)) return
     setOcupado('excluir'); setErro(null)
@@ -155,39 +180,97 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
   const faltando = camposFaltando(item)
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Cabeçalho */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-        <CodigoPeca codigo={item.codigo} tamanho={22} />
-        <SeloStatus status={item.status} />
-        <SeloQualidade qualidade={item.qualidade} />
-        {item.local_id && <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#FFF7ED', color: '#9A3412', display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={12} /> {textoLocal(item, base.nomesLocais)}</span>}
-        {item.nao_identificavel && <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: '#F3F4F6', color: '#4B5563' }}>Não identificável</span>}
-      </div>
-      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: -10 }}>
-        Criado por {usuarios[item.criado_por] || '…'} em {fmtDataHora(item.criado_em)}
-        {item.atualizado_por && item.atualizado_em !== item.criado_em && <> · alterado por {usuarios[item.atualizado_por] || '…'} em {fmtDataHora(item.atualizado_em)}</>}
-        {!codigoDefinitivo(item.codigo) ? <> · código e etiqueta saem no Destino</>
-          : item.etiqueta_impressa_em ? <> · etiqueta gerada em {fmtDataHora(item.etiqueta_impressa_em)}</> : <> · <b style={{ color: '#B45309' }}>etiqueta pendente</b></>}
-      </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      {/* Cabeçalho: quem é a peça + em que ponto do fluxo ela está */}
+      <section style={{ ...SECAO, gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: 240, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              <CodigoPeca codigo={item.codigo} tamanho={20} />
+              <SeloStatus status={item.status} />
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 700, lineHeight: 1.3, color: item.descricao ? 'var(--portal-text)' : 'var(--portal-text-muted)' }}>{item.descricao || 'Sem descrição'}</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
+              <span style={{ fontWeight: 700 }}>{item.quantidade} {item.quantidade === 1 ? 'peça' : 'peças'}</span>
+              <span style={{ color: 'var(--portal-text-muted)' }}>·</span>
+              <SeloQualidade qualidade={item.qualidade} />
+              {item.local_id && <><span style={{ color: 'var(--portal-text-muted)' }}>·</span>
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, color: '#9A3412' }}><MapPin size={12} /> {textoLocal(item, base.nomesLocais)}</span></>}
+              {item.nao_identificavel && <><span style={{ color: 'var(--portal-text-muted)' }}>·</span><span style={{ fontWeight: 700, color: '#4B5563' }}>não identificável</span></>}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
+              Captada por {usuarios[item.criado_por] || '…'} em {fmtDataHora(item.criado_em)}
+              {item.atualizado_por && item.atualizado_em !== item.criado_em && <> · alterada por {usuarios[item.atualizado_por] || '…'} em {fmtDataHora(item.atualizado_em)}</>}
+            </div>
+          </div>
+
+          {/* Concluída: código definitivo + QR (a etiqueta sai se quiser) */}
+          {codigoDefinitivo(item.codigo) && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)' }}>
+              <QrDaPeca token={item.token_publico} tamanho={92} />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>Código e QR</span>
+                <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>{item.codigo}</span>
+                <button type="button" onClick={() => setImprimindo(true)} style={{ ...botao('#111827'), padding: '7px 12px', fontSize: 12.5 }}>
+                  <Printer size={14} /> {item.etiqueta_impressa_em ? 'Reimprimir etiqueta' : 'Imprimir etiqueta'}
+                </button>
+                {item.etiqueta_impressa_em && <span style={{ fontSize: 11, color: '#047857', fontWeight: 600 }}>impressa em {fmtDataHora(item.etiqueta_impressa_em)}</span>}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Em que fase está + o que fazer agora */}
+        <FasesPeca item={item} base={base} usuarios={usuarios} linkEtapa compacto />
+      </section>
 
       {erro && <Aviso>{erro}</Aviso>}
       {ok && !erro && <Aviso tipo="ok">{ok}</Aviso>}
 
-      {/* 2 colunas no PC (fotos + localização | status + dados), 1 no celular */}
-      <div style={larga ? { display: 'grid', gridTemplateColumns: 'minmax(0, 5fr) minmax(0, 7fr)', gap: 16, alignItems: 'start' } : COLUNA}>
+      {/* À venda: quando vender, marca aqui */}
+      {gerir && item.status === 'a_venda' && (
+        <section style={SECAO}>
+          <h2 style={TITULO_SECAO}>Peça à venda</h2>
+          <input value={venda} onChange={(e) => setVenda(e.target.value.slice(0, 500))} placeholder="Para quem foi vendida e por quanto (opcional)" style={INP} />
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" disabled={!!ocupado}
+              onClick={() => executar('vendida', () => finalizar(item.id, 'vender', venda.trim() || undefined), 'Peça marcada como vendida.')}
+              style={botao('#047857', { desab: !!ocupado })}>
+              {ocupado === 'vendida' ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : null} Marcar como vendida
+            </button>
+            <button type="button" disabled={!!ocupado}
+              onClick={() => { if (confirm('Voltar a peça para a Separação? A decisão "vender" é desfeita.')) executar('voltar', () => mudarStatus(item.id, 'identificado'), 'Peça voltou para a separação.') }}
+              style={botao('#52525B', { contorno: true, desab: !!ocupado })}>
+              <RotateCcw size={14} /> Voltar para separação
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* 2 colunas no PC (fotos + localização | dados), 1 no celular */}
+      <div style={larga ? { display: 'grid', gridTemplateColumns: 'minmax(0, 5fr) minmax(0, 7fr)', gap: 14, alignItems: 'start' } : COLUNA}>
       <div style={COLUNA}>
       <section style={SECAO}>
       <h2 style={TITULO_SECAO}>Fotos ({item.fotos.length})</h2>
       <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 96 : 84}px, 1fr))`, gap: 8 }}>
         {item.fotos.map((f, i) => (
-          <button key={f.id} type="button" onClick={() => setVisor(i)} style={{ aspectRatio: '1', width: '100%', padding: 0, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', cursor: 'zoom-in' }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            {(minis[f.storage_path] || urls[f.storage_path]) && <img src={minis[f.storage_path] || urls[f.storage_path]} alt={`Foto ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />}
-          </button>
+          <div key={f.id} style={{ position: 'relative', aspectRatio: '1', width: '100%' }}>
+            <button type="button" onClick={() => setVisor(i)} aria-label={`Ampliar foto ${i + 1}`} style={{ width: '100%', height: '100%', padding: 0, borderRadius: 10, overflow: 'hidden', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', cursor: 'zoom-in', display: 'block' }}>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              {(minis[f.storage_path] || urls[f.storage_path]) && <img src={minis[f.storage_path] || urls[f.storage_path]} alt={`Foto ${i + 1}`} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block', opacity: ocupado === 'foto:' + f.id ? 0.5 : 1 }} />}
+            </button>
+            {podeFotos && (
+              <button type="button" disabled={!!ocupado} title="Trocar esta foto"
+                onClick={() => { setFotoTrocando(f.id); trocaRef.current?.click() }}
+                style={{ position: 'absolute', left: 4, right: 4, bottom: 4, height: 24, borderRadius: 6, border: 'none', background: 'rgba(0,0,0,.62)', color: '#fefefe', fontSize: 11, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontFamily: 'inherit' }}>
+                {ocupado === 'foto:' + f.id ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <RefreshCw size={12} />} Trocar
+              </button>
+            )}
+          </div>
         ))}
-        {(gerir || item.criado_por === base.userId) && !final && (
+        {podeFotos && (
           <>
+            <input ref={trocaRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { trocarFoto(e.target.files); e.target.value = '' }} />
             <input ref={fotoRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }} onChange={(e) => { enviarNovasFotos(e.target.files); e.target.value = '' }} />
             <button type="button" onClick={() => fotoRef.current?.click()} disabled={!!ocupado} style={{ aspectRatio: '1', width: '100%', borderRadius: 10, border: `2px dashed ${LARANJA}`, background: '#FFF7ED', color: '#9A3412', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4, fontFamily: 'inherit' }}>
               {ocupado === 'fotos' ? <Loader2 size={22} style={{ animation: 'spin 1s linear infinite' }} /> : <Camera size={22} />} Mais foto
@@ -198,28 +281,22 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
       </section>
 
       <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Localização</h2>
+        <h2 style={TITULO_SECAO}>Onde a peça está</h2>
         <SeletorLocal compacto locais={base.locais} local={form.local} tecnico={form.tecnico} disabled={!gerir}
           onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
       </section>
       </div>
 
       <div style={COLUNA}>
-      {/* Cadastro incompleto */}
-      {faltando.length > 0 && (
-        <Aviso tipo="info"><AlertTriangle size={14} style={{ verticalAlign: -2 }} /> Cadastro incompleto — falta: {faltando.join(', ')}.</Aviso>
-      )}
-
-      {/* Fases: cada uma mostra o que foi registrado nela, na ordem */}
-      <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Fases da peça</h2>
-        <FasesPeca item={item} base={base} usuarios={usuarios} linkEtapa />
-      </section>
-
-      {/* Dados */}
       <section style={SECAO}>
       <h2 style={TITULO_SECAO}>Dados da peça</h2>
-      <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 14 }}>
+      {gerir && travada && <Aviso tipo="info">Peça {ROTULO_STATUS[item.status].toLowerCase()}: só a localização e as observações ainda podem mudar.</Aviso>}
+      {!travada && faltando.length > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#B45309', fontWeight: 600 }}><AlertTriangle size={13} /> Falta preencher: {faltando.join(', ')}.</div>
+      )}
+
+      <div style={SUBTITULO}>Identificação</div>
+      <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 12 }}>
         <div style={{ gridColumn: '1 / -1' }}>
           <label style={ROTULO}>Descrição</label>
           <textarea value={form.descricao} onChange={campo('descricao')} disabled={!editavel} rows={2} placeholder="O que é a peça" style={{ ...INP, resize: 'vertical' }} />
@@ -229,27 +306,37 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
           <input value={form.codigo_fabricante} onChange={campo('codigo_fabricante')} disabled={!editavel} placeholder="Part number" style={INP} />
         </div>
         <div>
-          <label style={ROTULO}>Preço sugerido</label>
-          <CampoPreco valor={form.preco} onChange={(v) => setForm((f) => ({ ...f, preco: v }))} disabled={!editavel} />
-          {item.preco_sugerido != null && item.quantidade > 1 && <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 4 }}>Total: {fmtPreco(item.preco_sugerido * item.quantidade)}</div>}
-        </div>
-        <div style={{ gridColumn: '1 / -1' }}>
           <label style={ROTULO}>Quantidade</label>
           <SeletorQuantidade valor={parseInt(form.quantidade, 10) || 1} disabled={!editavel} onChange={(n) => setForm((f) => ({ ...f, quantidade: String(n) }))} />
         </div>
         <div style={{ gridColumn: '1 / -1' }}>
-          <label style={ROTULO}>Estado da peça</label>
+          <label style={ROTULO}>Qualidade</label>
           <SeletorQualidade valor={form.qualidade} disabled={!editavel} onChange={(q) => setForm((f) => ({ ...f, qualidade: q }))} />
         </div>
-        <label style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: 'var(--portal-text)', cursor: editavel ? 'pointer' : 'default' }}>
+        <label style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, color: 'var(--portal-text)', cursor: editavel ? 'pointer' : 'default' }}>
           <input type="checkbox" checked={form.nao_identificavel} disabled={!editavel} onChange={(e) => setForm((f) => ({ ...f, nao_identificavel: e.target.checked }))} style={{ width: 18, height: 18 }} />
-          Não identificável <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>(segue o fluxo sem descrição/aplicação — normalmente para descarte)</span>
+          Não identificável <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>(segue sem descrição/aplicação — normalmente para descarte)</span>
         </label>
+      </div>
+
+      <div style={SUBTITULO}>
+        Valor e aplicação
+        {editavel && !verificada && <span style={{ fontWeight: 600, textTransform: 'none', letterSpacing: 0, color: '#B45309' }}> · libera na Verificação</span>}
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 12, opacity: editavel && !verificada ? 0.6 : 1 }}>
+        <div>
+          <label style={ROTULO}>Preço sugerido</label>
+          <CampoPreco valor={form.preco} onChange={(v) => setForm((f) => ({ ...f, preco: v }))} disabled={!editaValor} />
+          {item.preco_sugerido != null && item.quantidade > 1 && <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 4 }}>Total: {fmtPreco(item.preco_sugerido * item.quantidade)}</div>}
+        </div>
         <div style={{ gridColumn: '1 / -1' }}>
-          <label style={ROTULO}>Observações</label>
-          <textarea value={form.observacoes} onChange={campo('observacoes')} disabled={!gerir} rows={2} style={{ ...INP, resize: 'vertical' }} />
+          <label style={ROTULO}>Aplicação</label>
+          <EditorAplicacoes tipos={base.tipos} marcas={base.marcas} valor={item.aplicacoes} disabled={!editaValor} ocupado={!!ocupado} onChange={salvarAplicacoes} />
         </div>
       </div>
+
+      <div style={SUBTITULO}>Observações</div>
+      <textarea value={form.observacoes} onChange={campo('observacoes')} disabled={!gerir} rows={2} placeholder="Anotações livres sobre a peça" style={{ ...INP, resize: 'vertical' }} />
       </section>
 
       {gerir && sujo && (
@@ -261,18 +348,16 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
         </div>
       )}
 
-      {/* Aplicações */}
-      <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Aplicação</h2>
-        <EditorAplicacoes tipos={base.tipos} marcas={base.marcas} valor={item.aplicacoes} disabled={!editavel}
-          ocupado={!!ocupado} onChange={salvarAplicacoes} />
-      </section>
+      {/* O registro de cada fase, recolhido (quem fez, quando, com quem conferiu) */}
+      <details style={{ ...SECAO, gap: 10, padding: '12px 16px' }}>
+        <summary style={{ ...TITULO_SECAO, cursor: 'pointer', listStyle: 'none', display: 'flex', alignItems: 'center', gap: 6 }}><History size={13} /> O que cada fase registrou</summary>
+        <div style={{ marginTop: 10 }}><FasesPeca item={item} base={base} usuarios={usuarios} /></div>
+      </details>
       </div>
       </div>
 
       {/* Rodapé */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingTop: 12, borderTop: '1px solid var(--portal-border)' }}>
-        {codigoDefinitivo(item.codigo) && <button type="button" onClick={() => setImprimindo(true)} style={botao('#111827')}><Printer size={15} /> {item.etiqueta_impressa_em ? 'Reimprimir etiqueta' : 'Gerar etiqueta'}</button>}
         <button onClick={() => (historico ? setHistorico(null) : abrirHistorico())} style={botao('#52525B', { contorno: true })}><History size={15} /> Histórico</button>
         <div style={{ flex: 1 }} />
         {gerir && <button onClick={excluir} disabled={!!ocupado} style={botao('#DC2626', { contorno: true, desab: !!ocupado })}><Trash2 size={14} /> Excluir</button>}
@@ -296,6 +381,23 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
           onFechar={() => setImprimindo(false)} onImpresso={() => recarregar()} />
       )}
       {visor != null && <Visualizador fotos={item.fotos.map((f) => urls[f.storage_path]).filter(Boolean)} inicio={visor} onFechar={() => setVisor(null)} />}
+    </div>
+  )
+}
+
+/** QR da peça na tela (mesmo link público da etiqueta). */
+function QrDaPeca({ token, tamanho = 132 }: { token: string; tamanho?: number }) {
+  const [src, setSrc] = useState('')
+  useEffect(() => {
+    let vivo = true
+    QRCode.toDataURL(urlPublica(window.location.origin, token), { margin: 1, width: 240, errorCorrectionLevel: 'M' })
+      .then((u) => { if (vivo) setSrc(u) }).catch(() => null)
+    return () => { vivo = false }
+  }, [token])
+  return (
+    <div style={{ width: tamanho, height: tamanho, flexShrink: 0, borderRadius: 10, border: '1px solid var(--portal-border)', background: '#fefefe', padding: 6, boxSizing: 'border-box' }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {src && <img src={src} alt="QR da peça" style={{ width: '100%', height: '100%', display: 'block' }} />}
     </div>
   )
 }

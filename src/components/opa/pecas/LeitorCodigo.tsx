@@ -19,13 +19,15 @@ export function normalizarCodigo(texto: string): string | null {
   return bruto.length > 0 && bruto.length <= 40 ? bruto : null
 }
 
-export function BotaoLerCodigo() {
+/** `estilo` sobrescreve o visual (ex.: dentro da faixa colorida do Opa). */
+export function BotaoLerCodigo({ estilo }: { estilo?: React.CSSProperties } = {}) {
   const [aberto, setAberto] = useState(false)
   return (
     <>
       <button type="button" onClick={() => setAberto(true)} title="Ler o QR da etiqueta" style={{
         flexShrink: 0, display: 'flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
         border: '1.5px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13.5, fontWeight: 800,
+        ...estilo,
       }}><ScanBarcode size={16} /> Ler código</button>
       {aberto && <LeitorCodigo onFechar={() => setAberto(false)} />}
     </>

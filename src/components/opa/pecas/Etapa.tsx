@@ -1,46 +1,59 @@
 'use client'
-// Tela das etapas 2–4 (separação, verificação, destino): lista das peças da
-// etapa, da mais antiga para a mais nova. No PC a peça escolhida abre ao lado
-// da lista; no celular abre em tela cheia. Ao concluir, a próxima da fila já
-// fica aberta.
+// Tela das etapas depois da captação (fluxo novo, sql/pni-11):
+//   verificação → separação (última decisão) → concluídas
+// Lista da etapa à esquerda e a peça escolhida ao lado (no celular, em tela
+// cheia). Em verificação/separação, a mais antiga primeiro e, ao concluir, a
+// próxima da fila já fica aberta. Em Concluídas, a mais recente primeiro e a
+// ficha completa (código, QR, etiqueta); dá pra marcar várias e imprimir as
+// etiquetas juntas na mesma folha A4 (economia de papel). Não existe
+// "etiqueta pendente": imprime quem quiser, quando quiser.
 
 import { useCallback, useEffect, useState } from 'react'
-import { Clock, Inbox, Loader2, MapPin, Printer, RotateCcw } from 'lucide-react'
+import { CheckSquare, Clock, Inbox, Loader2, MapPin, Printer, RotateCcw, Square } from 'lucide-react'
 import { listarItens } from '@/lib/opa-pecas/db'
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
-import { fmtDataHora, nomeDoItem, ordenarFila, textoLocal } from '@/lib/opa-pecas/regras'
+import { codigoDefinitivo, fmtDataHora, nomeDoItem, ordenarFila, textoLocal } from '@/lib/opa-pecas/regras'
 import type { Item, Status } from '@/lib/opa-pecas/tipos'
-import { Aviso, botao, CodigoPeca, SeloEtiqueta, LARANJA, Miniatura, SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
+import { Aviso, botao, CodigoPeca, SeloEtiqueta, SeloStatus, LARANJA, Miniatura, SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
 import { Janela } from './Moldura'
 import Impressao, { type ItemParaEtiqueta } from './Impressao'
-import PainelEtapa, { ChipDecisao, type EtapaTrabalho } from './PainelEtapa'
+import PainelEtapa, { ChipDecisao } from './PainelEtapa'
+import DetalheItem from './DetalheItem'
 
-const STATUS_DA_ETAPA: Record<EtapaTrabalho, Status[]> = {
-  separacao: ['aguardando_identificacao'],
-  verificacao: ['identificado'],
-  destino: ['precificado', 'a_venda'],
+export type EtapaLista = 'verificacao' | 'separacao' | 'concluida'
+
+const STATUS_DA_ETAPA: Record<EtapaLista, Status[]> = {
+  verificacao: ['aguardando_identificacao'],
+  separacao: ['identificado', 'precificado'],
+  concluida: ['a_venda', 'vendido', 'guardado', 'usado', 'descartado', 'outro_destino'],
 }
 
-const VAZIO: Record<EtapaTrabalho, string> = {
-  separacao: 'Nenhuma peça esperando separação.',
+const VAZIO: Record<EtapaLista, string> = {
   verificacao: 'Nenhuma peça esperando verificação.',
-  destino: 'Nenhuma peça esperando destino.',
+  separacao: 'Nenhuma peça esperando separação.',
+  concluida: 'Nenhuma peça concluída ainda.',
 }
 
-const TITULO: Record<EtapaTrabalho, string> = {
-  separacao: 'Separação', verificacao: 'Verificação', destino: 'Destino',
+const TITULO: Record<EtapaLista, string> = {
+  verificacao: 'Verificação', separacao: 'Separação', concluida: 'Concluídas',
 }
 
-export default function Etapa({ etapa, base }: { etapa: EtapaTrabalho; base: Base }) {
+/** Concluídas: a mais recente primeiro. */
+const recentes = (l: Item[]) => [...l].sort((a, b) => String(b.encerrado_em || b.atualizado_em).localeCompare(String(a.encerrado_em || a.atualizado_em)))
+
+export default function Etapa({ etapa, base }: { etapa: EtapaLista; base: Base }) {
   const larga = useTelaLarga()
   const [itens, setItens] = useState<Item[] | null>(null)
   const [erro, setErro] = useState<string | null>(null)
   const [abertoId, setAbertoId] = useState<string | null>(null)
   const [imprimindo, setImprimindo] = useState<ItemParaEtiqueta[] | null>(null)
+  const [sel, setSel] = useState<Set<string>>(new Set())
+  const concluidas = etapa === 'concluida'
 
   const carregar = useCallback(async (manterId?: string | null) => {
     try {
-      const lista = ordenarFila(await listarItens({ status: STATUS_DA_ETAPA[etapa] }))
+      const brutos = await listarItens({ status: STATUS_DA_ETAPA[etapa] })
+      const lista = etapa === 'concluida' ? recentes(brutos) : ordenarFila(brutos)
       setItens(lista)
       setErro(null)
       // mantém a peça aberta se ainda estiver na etapa; senão, abre a próxima (no PC)
@@ -68,54 +81,62 @@ export default function Etapa({ etapa, base }: { etapa: EtapaTrabalho; base: Bas
 
   const paraEtiqueta = (l: Item[]): ItemParaEtiqueta[] =>
     l.map((i) => ({ id: i.id, jaGerada: !!i.etiqueta_impressa_em, token: i.token_publico, codigo: i.codigo, descricao: i.descricao, quantidade: i.quantidade, local: textoLocal(i, base.nomesLocais) }))
-  const semEtiqueta = lista.filter((i) => !i.etiqueta_impressa_em)
-  const geradas = lista.filter((i) => i.etiqueta_impressa_em)
+  const comCodigo = lista.filter((i) => codigoDefinitivo(i.codigo))
+  const marcadas = comCodigo.filter((i) => sel.has(i.id))
+  const alternar = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
-  // Destino: as etiquetas saem aqui, todas juntas na mesma folha
-  const barraEtiquetas = etapa === 'destino' && (
+  // Concluídas: marca as peças e imprime as etiquetas juntas (folha A4, 30 por folha)
+  const barraEtiquetas = concluidas && comCodigo.length > 0 && (
     <div style={{ ...SECAO, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
       <Printer size={18} style={{ color: 'var(--portal-text-muted)' }} />
       <span style={{ fontSize: 13.5, color: 'var(--portal-text)', flex: 1, minWidth: 200 }}>
-        <b>Etiquetas</b> — {semEtiqueta.length ? `${semEtiqueta.length} pendente${semEtiqueta.length > 1 ? 's' : ''}` : 'todas geradas'}{geradas.length > 0 && semEtiqueta.length > 0 && ` · ${geradas.length} já gerada${geradas.length > 1 ? 's' : ''}`}
+        <b>Etiquetas</b> — marque as peças e imprima juntas na mesma folha A4 (30 por folha)
       </span>
-      {semEtiqueta.length > 0 && (
-        <button type="button" onClick={() => setImprimindo(paraEtiqueta(semEtiqueta))} style={botao('#111827')}>
-          <Printer size={15} /> Gerar {semEtiqueta.length} etiqueta{semEtiqueta.length > 1 ? 's' : ''}
-        </button>
-      )}
-      {geradas.length > 0 && (
-        <button type="button" onClick={() => { if (confirm(`Reimprimir ${geradas.length} etiqueta${geradas.length > 1 ? 's' : ''} que já foram geradas?`)) setImprimindo(paraEtiqueta(geradas)) }}
-          style={botao('#52525B', { contorno: true })}>Reimprimir geradas ({geradas.length})</button>
-      )}
+      <button type="button" onClick={() => setSel(marcadas.length === comCodigo.length ? new Set() : new Set(comCodigo.map((i) => i.id)))}
+        style={botao('#52525B', { contorno: true })}>
+        {marcadas.length === comCodigo.length ? <Square size={15} /> : <CheckSquare size={15} />} {marcadas.length === comCodigo.length ? 'Desmarcar todas' : 'Marcar todas'}
+      </button>
+      <button type="button" disabled={!marcadas.length} onClick={() => setImprimindo(paraEtiqueta(marcadas))} style={botao('#111827', { desab: !marcadas.length })}>
+        <Printer size={15} /> Imprimir {marcadas.length || ''} etiqueta{marcadas.length === 1 ? '' : 's'}
+      </button>
     </div>
   )
-  const janelaImpressao = imprimindo && <Impressao itens={imprimindo} onFechar={() => setImprimindo(null)} onImpresso={() => carregar()} />
+  const janelaImpressao = imprimindo && <Impressao itens={imprimindo} onFechar={() => setImprimindo(null)} onImpresso={() => { setSel(new Set()); carregar() }} />
 
   const listaEl = (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {lista.map((i) => {
         const ativo = aberto?.id === i.id
+        const marcavel = concluidas && codigoDefinitivo(i.codigo)
         return (
-          <button key={i.id} type="button" onClick={() => setAbertoId(i.id)} aria-current={ativo ? 'true' : undefined} style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', width: '100%',
-            background: ativo ? '#FFF7ED' : 'var(--portal-bg-card)', border: '1.5px solid ' + (ativo ? LARANJA : 'var(--portal-border)'),
-          }}>
-            <Miniatura url={i.fotos[0] ? minis[i.fotos[0].storage_path] : undefined} tamanho={56} />
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <CodigoPeca codigo={i.codigo} />
-                {i.decisao && etapa !== 'separacao' && <ChipDecisao decisao={i.decisao} />}
-                {etapa === 'destino' && <SeloEtiqueta em={i.etiqueta_impressa_em} />}
+          <div key={i.id} style={{ display: 'flex', alignItems: 'stretch', gap: 6 }}>
+            {marcavel && (
+              <button type="button" onClick={() => alternar(i.id)} aria-label={sel.has(i.id) ? 'Desmarcar' : 'Marcar para imprimir'} aria-pressed={sel.has(i.id)}
+                style={{ width: 34, flexShrink: 0, borderRadius: 10, border: '1.5px solid ' + (sel.has(i.id) ? '#111827' : 'var(--portal-border)'), background: sel.has(i.id) ? '#111827' : 'var(--portal-bg-card)', color: sel.has(i.id) ? '#fff' : 'var(--portal-text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {sel.has(i.id) ? <CheckSquare size={16} /> : <Square size={16} />}
+              </button>
+            )}
+            <button type="button" onClick={() => setAbertoId(i.id)} aria-current={ativo ? 'true' : undefined} style={{
+              display: 'flex', alignItems: 'center', gap: 10, padding: 8, borderRadius: 10, textAlign: 'left', cursor: 'pointer', fontFamily: 'inherit', flex: 1, minWidth: 0,
+              background: ativo ? '#FFF7ED' : 'var(--portal-bg-card)', border: '1.5px solid ' + (ativo ? LARANJA : 'var(--portal-border)'),
+            }}>
+              <Miniatura url={i.fotos[0] ? minis[i.fotos[0].storage_path] : undefined} tamanho={56} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <CodigoPeca codigo={i.codigo} />
+                  {concluidas ? <SeloStatus status={i.status} /> : i.decisao && etapa !== 'verificacao' && <ChipDecisao decisao={i.decisao} />}
+                  {concluidas && <SeloEtiqueta em={i.etiqueta_impressa_em} />}
+                </div>
+                <div style={{ fontSize: 12.5, color: i.descricao ? 'var(--portal-text-secondary)' : 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
+                  {i.descricao || 'Sem descrição'} · {i.quantidade} {i.quantidade === 1 ? 'peça' : 'peças'}
+                </div>
+                <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
+                  <Clock size={11} /> {fmtDataHora(concluidas ? (i.encerrado_em || i.atualizado_em) : i.criado_em)}
+                  {i.local_id && <><span>·</span><MapPin size={11} /> {textoLocal(i, base.nomesLocais)}</>}
+                </div>
               </div>
-              <div style={{ fontSize: 12.5, color: i.descricao ? 'var(--portal-text-secondary)' : 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
-                {i.descricao || 'Sem descrição'} · {i.quantidade} {i.quantidade === 1 ? 'peça' : 'peças'}
-              </div>
-              <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: 4, marginTop: 2, flexWrap: 'wrap' }}>
-                <Clock size={11} /> {fmtDataHora(i.criado_em)}
-                {i.local_id && <><span>·</span><MapPin size={11} /> {textoLocal(i, base.nomesLocais)}</>}
-              </div>
-            </div>
-          </button>
+            </button>
+          </div>
         )
       })}
     </div>
@@ -131,6 +152,10 @@ export default function Etapa({ etapa, base }: { etapa: EtapaTrabalho; base: Bas
     )
   }
 
+  const painel = (i: Item) => concluidas
+    ? <DetalheItem key={i.id} item={i} base={base} onMudou={() => carregar()} />
+    : <PainelEtapa key={i.id + etapa} etapa={etapa} item={i} base={base} onConcluido={concluido} onAtualizado={() => carregar()} />
+
   if (larga) {
     return (
       <>
@@ -138,11 +163,11 @@ export default function Etapa({ etapa, base }: { etapa: EtapaTrabalho; base: Bas
       <div style={{ display: 'grid', gridTemplateColumns: 'minmax(280px, 360px) minmax(0, 1fr)', gap: 16, alignItems: 'start' }}>
         <div style={{ position: 'sticky', top: 12, maxHeight: 'calc(100vh - 140px)', overflowY: 'auto', paddingRight: 2 }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted)', letterSpacing: 0.6, textTransform: 'uppercase', margin: '2px 0 8px' }}>
-            {lista.length} na {TITULO[etapa].toLowerCase()} · mais antigas primeiro
+            {lista.length} {concluidas ? 'concluída' + (lista.length === 1 ? '' : 's') + ' · mais recentes primeiro' : `na ${TITULO[etapa].toLowerCase()} · mais antigas primeiro`}
           </div>
           {listaEl}
         </div>
-        {aberto && <PainelEtapa key={aberto.id + etapa} etapa={etapa} item={aberto} base={base} onConcluido={concluido} />}
+        {aberto && painel(aberto)}
       </div>
       {janelaImpressao}
       </>
@@ -155,7 +180,7 @@ export default function Etapa({ etapa, base }: { etapa: EtapaTrabalho; base: Bas
       {listaEl}
       {aberto && (
         <Janela titulo={`${TITULO[etapa]} · ${nomeDoItem(aberto.codigo)}`} onFechar={() => setAbertoId(null)}>
-          <PainelEtapa key={aberto.id + etapa} etapa={etapa} item={aberto} base={base} onConcluido={concluido} />
+          {painel(aberto)}
         </Janela>
       )}
       {janelaImpressao}

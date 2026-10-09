@@ -1,7 +1,7 @@
 'use client'
-// Atalho da barra de etapas: imprimir as etiquetas de TODAS as peças de uma
-// vez (só as que já têm código definitivo — do Destino em diante). Escolhe
-// entre só as pendentes ou todas, e cai na mesma janela de impressão em lote.
+// Atalho do menu Etapas: imprimir as etiquetas de todas as peças concluídas
+// (com código definitivo) de uma vez, na mesma folha A4. Para escolher quais,
+// a tela Concluídas deixa marcar peça por peça. Não existe "pendente".
 
 import { useEffect, useState } from 'react'
 import { Loader2, Printer } from 'lucide-react'
@@ -13,8 +13,10 @@ import { Aviso, botao, useBase } from './comum'
 import Impressao, { type ItemParaEtiqueta } from './Impressao'
 import { Janela } from './Moldura'
 
-export default function ImprimirTodas() {
+/** Com `onFechar` é controlado de fora (ex.: item do menu "Etapas") e não desenha o botão. */
+export default function ImprimirTodas({ aberto: abertoFora, onFechar }: { aberto?: boolean; onFechar?: () => void } = {}) {
   const [aberto, setAberto] = useState(false)
+  if (onFechar) return abertoFora ? <Escolha onFechar={onFechar} /> : null
   return (
     <>
       <button type="button" onClick={() => setAberto(true)} title="Imprimir as etiquetas de todas as peças de uma vez" style={{
@@ -45,7 +47,6 @@ function Escolha({ onFechar }: { onFechar: () => void }) {
 
   if (imprimindo) return <Impressao itens={imprimindo} onFechar={onFechar} />
 
-  const pendentes = (itens || []).filter((i) => !i.etiqueta_impressa_em)
   const todas = itens || []
   const carregando = !itens || base.carregando
 
@@ -56,15 +57,12 @@ function Escolha({ onFechar }: { onFechar: () => void }) {
       {!erro && !carregando && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ fontSize: 13.5, color: 'var(--portal-text-secondary)', margin: 0, lineHeight: 1.5 }}>
-            Etiqueta só existe para peça com código (do Destino em diante): <b>{todas.length}</b> peça{todas.length === 1 ? '' : 's'}.
+            Etiqueta existe para peça concluída (com código): <b>{todas.length}</b> peça{todas.length === 1 ? '' : 's'}. Elas saem juntas na folha A4 (30 por folha).
+            Para escolher quais, use <b>Concluídas</b> e marque as peças.
           </p>
-          <button type="button" onClick={() => setImprimindo(para(pendentes))} disabled={!pendentes.length}
-            style={{ ...botao('#111827', { grande: true, desab: !pendentes.length }), width: '100%' }}>
-            <Printer size={18} /> Só as pendentes ({pendentes.length})
-          </button>
-          <button type="button" onClick={() => { if (confirm(`Imprimir as ${todas.length} etiquetas, inclusive as que já foram geradas?`)) setImprimindo(para(todas)) }} disabled={!todas.length}
-            style={{ ...botao('#52525B', { contorno: true, desab: !todas.length }), width: '100%', justifyContent: 'center' }}>
-            Todas as peças ({todas.length})
+          <button type="button" onClick={() => setImprimindo(para(todas))} disabled={!todas.length}
+            style={{ ...botao('#111827', { grande: true, desab: !todas.length }), width: '100%' }}>
+            <Printer size={18} /> Imprimir as {todas.length} etiqueta{todas.length === 1 ? '' : 's'}
           </button>
         </div>
       )}

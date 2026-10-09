@@ -1,15 +1,15 @@
 // Regras PURAS das Peças Não Identificadas. As de status espelham o banco
-// (pni_transicao_valida / pni__conferir_requisitos — sql/pni-04 e pni-07b):
+// (pni_transicao_valida / pni__conferir_requisitos — sql/pni-11-fluxo-novo):
 // o banco é quem manda; aqui é só para a tela mostrar os botões certos e
 // avisar antes de chamar a RPC. Mudou lá → muda aqui e nos testes.
 
 import {
-  ROTULO_QUALIDADE, ROTULO_STATUS, STATUS, STATUS_FINAIS, STATUS_FLUXO,
+  ROTULO_QUALIDADE, ROTULO_STATUS, STATUS, STATUS_FINAIS,
   INFO_DECISAO, type Aplicacao, type Decisao, type Etapa, type Item, type Local, type Nomes, type Qualidade, type Status, type StatusFinal,
 } from './tipos'
 
 const VENDA: Status[] = ['a_venda', 'vendido']
-const COM_PRECO: Status[] = ['precificado', 'a_venda', 'vendido']
+const COM_PRECO: Status[] = ['a_venda', 'vendido']
 
 export function ehFinal(s: Status): s is StatusFinal {
   return (STATUS_FINAIS as readonly Status[]).includes(s)
@@ -20,14 +20,13 @@ export function exigeMotivo(s: Status): boolean {
   return s === 'descartado' || s === 'outro_destino'
 }
 
+/** Fluxo novo: verificação ↔ separação → concluída; à venda → vendida (ou outro desfecho / volta). */
 export function transicaoValida(de: Status, para: Status): boolean {
   if (de === para || ehFinal(de)) return false
-  if ((de === 'a_venda' || de === 'precificado') && para === 'identificado') return true
-  if (para === 'vendido') return de === 'a_venda' || de === 'precificado'
-  if (ehFinal(para)) return true
-  const i = STATUS_FLUXO.indexOf(de as (typeof STATUS_FLUXO)[number])
-  const j = STATUS_FLUXO.indexOf(para as (typeof STATUS_FLUXO)[number])
-  return Math.abs(i - j) === 1
+  if (de === 'aguardando_identificacao') return para === 'identificado'
+  if (de === 'identificado' || de === 'precificado') return para === 'aguardando_identificacao' || para === 'a_venda' || (ehFinal(para) && para !== 'vendido')
+  if (de === 'a_venda') return para === 'identificado' || ehFinal(para)
+  return false
 }
 
 export interface AcaoStatus {
@@ -40,17 +39,16 @@ export interface AcaoStatus {
 export function acoesDoStatus(s: Status): AcaoStatus[] {
   if (s !== 'a_venda') return []
   return [
-    { para: 'vendido', rotulo: 'Vendido', tipo: 'avancar' },
-    { para: 'identificado', rotulo: 'Voltar para verificação', tipo: 'voltar' },
+    { para: 'vendido', rotulo: 'Vendida', tipo: 'avancar' },
+    { para: 'identificado', rotulo: 'Voltar para separação', tipo: 'voltar' },
   ]
 }
 
 /** Etapa em que a peça está (null = encerrada). */
 export function etapaDoItem(i: Pick<Item, 'status'>): Etapa | null {
-  if (i.status === 'aguardando_identificacao') return 'separacao'
-  if (i.status === 'identificado') return 'verificacao'
-  if (i.status === 'precificado' || i.status === 'a_venda') return 'destino'
-  return null
+  if (i.status === 'aguardando_identificacao') return 'verificacao'
+  if (i.status === 'identificado' || i.status === 'precificado') return 'separacao'
+  return 'concluida' // à venda e encerradas
 }
 
 /** O que falta para finalizar no destino (espelho de pni_finalizar). */
@@ -59,9 +57,10 @@ export function pendenciasDestino(decisao: Decisao | null, obs: string): string[
   return INFO_DECISAO[decisao].obsObrigatoria && !obs.trim() ? [INFO_DECISAO[decisao].destino.toLowerCase()] : []
 }
 
-/** O que falta para separar com esta decisão (espelho de pni_separar). */
-export function pendenciasSeparacao(decisao: Decisao | null, obs: string): string[] {
-  if (!decisao) return ['escolher o que fazer com a peça']
+/** O que falta para separar com esta decisão (espelho de pni_separar). "outro" = destino criado. */
+export function pendenciasSeparacao(decisao: Decisao | null, obs: string, destinoId?: string | null): string[] {
+  if (!decisao) return ['escolher pra onde a peça vai']
+  if (decisao === 'outro' && !destinoId && !obs.trim()) return ['escolher o destino']
   const info = INFO_DECISAO[decisao]
   return info.obsObrigatoria && !obs.trim() ? [info.obs.toLowerCase()] : []
 }
@@ -75,7 +74,7 @@ export function pendenciasVerificacao(
     if (!(item.descricao || '').trim()) f.push('descrição')
     if (item.aplicacoes.length === 0) f.push('aplicação')
   }
-  if ((item.decisao === 'vender' || item.decisao === 'guardar') && item.preco_sugerido == null) f.push('valor')
+  if (!item.nao_identificavel && item.preco_sugerido == null) f.push('valor')
   if (!setor.trim()) f.push('setor consultado')
   return f
 }
@@ -105,14 +104,16 @@ export function pendenciasPara(item: Pick<Item, 'descricao' | 'nao_identificavel
  * tela mostra o aviso até alguém completar. Item encerrado não tem aviso.
  */
 export function camposFaltando(item: Pick<Item, 'status' | 'local_id' | 'descricao' | 'aplicacoes' | 'preco_sugerido' | 'qualidade' | 'nao_identificavel'>): string[] {
-  if (ehFinal(item.status)) return []
+  if (ehFinal(item.status) || item.status === 'a_venda') return []
+  // aplicação e preço são da Verificação: antes dela não contam como falta
+  const verificada = item.status !== 'aguardando_identificacao'
   const f: string[] = []
   if (!item.local_id) f.push('localização')
   if (!item.nao_identificavel) {
     if (!(item.descricao || '').trim()) f.push('descrição')
-    if (item.aplicacoes.length === 0) f.push('aplicação')
+    if (verificada && item.aplicacoes.length === 0) f.push('aplicação')
   }
-  if (item.preco_sugerido == null && !item.nao_identificavel) f.push('preço')
+  if (verificada && item.preco_sugerido == null && !item.nao_identificavel) f.push('preço')
   if (item.qualidade === 'nao_avaliada') f.push('qualidade')
   return f
 }
@@ -193,15 +194,6 @@ export function textoAplicacoes(item: Pick<Item, 'aplicacoes' | 'nao_identificav
 
 // ── Localização ─────────────────────────────────────────────────────
 
-export function textoLocal(item: Pick<Item, 'local_id' | 'local_tecnico'>, locais: Record<string, string> = {}): string {
-  if (!item.local_id) return ''
-  const nome = locais[item.local_id] || item.local_id
-  return item.local_tecnico ? `${nome} (${item.local_tecnico})` : nome
-}
-
-/** Locais agrupados por área para a tela ("Pós-Vendas: Térreo | 2º andar"). Local desconhecido vai para "Outros". */
-export interface GrupoLocal { titulo: string; itens: { local: Local; rotulo: string }[] }
-
 const AREA_DO_LOCAL: Record<string, { area: string; rotulo: string }> = {
   pos_vendas: { area: 'Pós-Vendas', rotulo: 'Térreo' },
   pos_vendas_2andar: { area: 'Pós-Vendas', rotulo: '2º andar' },
@@ -212,6 +204,23 @@ const AREA_DO_LOCAL: Record<string, { area: string; rotulo: string }> = {
   box_tecnico: { area: 'Oficina', rotulo: 'Box Técnico' },
   barracao_2: { area: 'Barracão 2', rotulo: 'Barracão 2' },
 }
+
+/** Nome do local COM o setor ("Pós-Vendas · Térreo"): há "Térreo" em mais de um setor. */
+export function nomeLocalCompleto(id: string, nome?: string): string {
+  const info = AREA_DO_LOCAL[id]
+  if (!info) return nome || id
+  return info.area === info.rotulo ? info.rotulo : `${info.area} · ${info.rotulo}`
+}
+
+export function textoLocal(item: Pick<Item, 'local_id' | 'local_tecnico'>, locais: Record<string, string> = {}): string {
+  if (!item.local_id) return ''
+  const nome = nomeLocalCompleto(item.local_id, locais[item.local_id])
+  return item.local_tecnico ? `${nome} (${item.local_tecnico})` : nome
+}
+
+/** Locais agrupados por área para a tela ("Pós-Vendas: Térreo | 2º andar"). Local desconhecido vai para "Outros". */
+export interface GrupoLocal { titulo: string; itens: { local: Local; rotulo: string }[] }
+
 
 export function agruparLocais(locais: Local[]): GrupoLocal[] {
   const grupos: GrupoLocal[] = []
@@ -275,7 +284,7 @@ export function filtrarItens(itens: Item[], f: Filtros): Item[] {
       if (f.dataDe && d < f.dataDe) return false
       if (f.dataAte && d > f.dataAte) return false
     }
-    if (f.soEtiquetaPendente && i.etiqueta_impressa_em) return false
+    // (soEtiquetaPendente: não existe mais etiqueta pendente — filtro ignorado)
     if (f.soIncompletos && camposFaltando(i).length === 0) return false
     if (texto) {
       const alvo = semAcento([i.codigo, i.codigo_fabricante || '', i.descricao || '', i.local_tecnico || ''].join(' '))
@@ -298,7 +307,6 @@ export function resumoFiltros(f: Filtros, nomes: Pick<Nomes, 'tipos' | 'marcas' 
   if (f.dataDe) r.push(`Desde ${f.dataDe.split('-').reverse().join('/')}`)
   if (f.dataAte) r.push(`Até ${f.dataAte.split('-').reverse().join('/')}`)
   if (f.texto.trim()) r.push(`Busca: "${f.texto.trim()}"`)
-  if (f.soEtiquetaPendente) r.push('Só etiqueta pendente')
   if (f.soIncompletos) r.push('Só cadastro incompleto')
   return r
 }

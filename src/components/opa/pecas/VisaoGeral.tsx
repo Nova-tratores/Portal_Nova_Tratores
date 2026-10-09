@@ -1,17 +1,17 @@
 'use client'
-// Visão do portal (desktop) das Peças Não Identificadas: totais por status,
+// Visão do portal (desktop) das Peças Não Identificadas: lista direto ao abrir,
 // filtros, tabela com seleção múltipla (status e etiquetas em lote) e
 // exportação CSV/PDF da MESMA lista filtrada da tela.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, Download, FileText, Loader2, MapPin, Printer, RotateCcw, Settings2, SlidersHorizontal, X } from 'lucide-react'
+import { AlertTriangle, Download, FileText, Loader2, MapPin, Package, Printer, RotateCcw, Settings2, SlidersHorizontal, X } from 'lucide-react'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { gerarCsv, baixarCsv } from '@/lib/opa-pecas/csv'
 import { listarItens, mudarStatusLote, nomesUsuarios, salvarMarca, salvarTipo, type ResultadoLote } from '@/lib/opa-pecas/db'
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
 import { gerarPdfCatalogo } from '@/lib/opa-pecas/pdf'
 import { calcularTotais, camposFaltando, codigoDefinitivo, nomeDoItem, ehFinal, exigeMotivo, FILTROS_VAZIOS, filtrarItens, fmtData, fmtPreco, resumoFiltros, textoAplicacoes, textoLocal, transicaoValida, type Filtros } from '@/lib/opa-pecas/regras'
-import { COR_STATUS, QUALIDADES, ROTULO_QUALIDADE, ROTULO_STATUS, STATUS, type Item, type Lookup, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
+import { QUALIDADES, ROTULO_QUALIDADE, ROTULO_STATUS, STATUS, type Item, type Lookup, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 import { CodigoPeca, SeloEtiqueta, Aviso, botao, INP, LARANJA, Miniatura, SeloQualidade, SeloStatus, useMiniaturas, type Base } from './comum'
 import { CampoPreco } from './Campos'
 import DetalheItem from './DetalheItem'
@@ -95,8 +95,7 @@ export default function VisaoGeral({ base }: { base: Base }) {
     const comCodigo = lista.filter((i) => codigoDefinitivo(i.codigo))
     if (comCodigo.length) setImprimindo(comCodigo.map((i) => ({ id: i.id, jaGerada: !!i.etiqueta_impressa_em, token: i.token_publico, codigo: i.codigo, descricao: i.descricao, quantidade: i.quantidade, local: textoLocal(i, base.nomesLocais) })))
   }
-  // etiqueta só existe para peça com código definitivo (do Destino em diante)
-  const pendentesEtiqueta = filtrados.filter((i) => codigoDefinitivo(i.codigo) && !i.etiqueta_impressa_em)
+  // etiqueta só existe para peça com código definitivo (concluída); imprime as marcadas
   const selComCodigo = selecionados.filter((i) => codigoDefinitivo(i.codigo))
 
   const exportarCsv = () => baixarCsv(`pecas-nao-identificadas-${new Date().toISOString().slice(0, 10)}.csv`, gerarCsv(filtrados, nomes))
@@ -118,36 +117,16 @@ export default function VisaoGeral({ base }: { base: Base }) {
 
   return (
     <div>
-      {/* Totais */}
-      <div style={isMobile
-        ? { display: 'grid', gridAutoFlow: 'column', gridAutoColumns: '132px', gap: 8, overflowX: 'auto', margin: '0 -12px 14px', padding: '0 12px 4px' }
-        : { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: 10, marginBottom: 16 }}>
-        {STATUS.map((s) => (
-          <div key={s} style={{
-            textAlign: 'left', padding: 12, borderRadius: 12,
-            background: 'var(--portal-bg-card)', border: `1.5px solid ${f.status.includes(s) ? COR_STATUS[s].fg : 'var(--portal-border)'}`,
-          }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: COR_STATUS[s].fg }}>{ROTULO_STATUS[s]}</div>
-            <div style={{ fontSize: 22, fontWeight: 900, color: 'var(--portal-text)' }}>{totais.porStatus[s].itens}</div>
-            <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{totais.porStatus[s].unidades} unidade{totais.porStatus[s].unidades === 1 ? '' : 's'}</div>
-          </div>
-        ))}
-        <div style={{ padding: 12, borderRadius: 12, background: '#ECFDF5', border: '1.5px solid #A7F3D0' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#065F46' }}>Valor sugerido</div>
-          <div style={{ fontSize: 20, fontWeight: 900, color: '#065F46' }}>{fmtPreco(totais.valorSugerido)}</div>
-          <div style={{ fontSize: 11.5, color: '#047857' }}>precificados + à venda</div>
-        </div>
-      </div>
-
-      {/* Filtros */}
-      {isMobile && (
-        <button onClick={() => setVerFiltros((v) => !v)} style={{ ...botao(temFiltro ? LARANJA : '#52525B', { contorno: true }), width: '100%', marginBottom: 10 }}>
+      {/* Busca rápida + filtros (escondidos até pedir) — a lista aparece direto ao abrir */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+        <input value={f.texto} onChange={(e) => setF((x) => ({ ...x, texto: e.target.value }))} placeholder="Buscar código ou descrição" style={{ ...INP, fontSize: 14, flex: 1, minWidth: 220 }} />
+        <button onClick={() => setVerFiltros((v) => !v)} style={{ ...botao(temFiltro ? LARANJA : '#52525B', { contorno: true }), whiteSpace: 'nowrap' }}>
           <SlidersHorizontal size={15} /> {verFiltros ? 'Esconder filtros' : 'Filtros'}{temFiltro ? ` (${filtrosTxt.length} ativo${filtrosTxt.length > 1 ? 's' : ''})` : ''}
         </button>
-      )}
-      {(!isMobile || verFiltros) && <div style={{ padding: 14, borderRadius: 12, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {temFiltro && !verFiltros && <button onClick={() => setF(FILTROS_VAZIOS)} style={botao('#52525B', { contorno: true })}><X size={14} /> Limpar</button>}
+      </div>
+      {verFiltros && <div style={{ padding: 14, borderRadius: 12, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', marginBottom: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <input value={f.texto} onChange={(e) => setF((x) => ({ ...x, texto: e.target.value }))} placeholder="Buscar código ou descrição" style={{ ...INP, fontSize: 14, flex: 2, minWidth: 200 }} />
           <select value={f.status.length === 1 ? f.status[0] : ''} onChange={(e) => setF((x) => ({ ...x, status: e.target.value ? [e.target.value as Status] : [] }))} style={{ ...INP, fontSize: 14, flex: 1, minWidth: 150 }}>
             <option value="">Status: todos</option>
             {STATUS.map((s) => <option key={s} value={s}>{ROTULO_STATUS[s]}</option>)}
@@ -178,9 +157,6 @@ export default function VisaoGeral({ base }: { base: Base }) {
           <input type="date" value={f.dataDe} onChange={(e) => setF((x) => ({ ...x, dataDe: e.target.value }))} style={{ ...INP, fontSize: 14, width: 150 }} />
           <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)' }}>até</span>
           <input type="date" value={f.dataAte} onChange={(e) => setF((x) => ({ ...x, dataAte: e.target.value }))} style={{ ...INP, fontSize: 14, width: 150 }} />
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--portal-text-secondary)', marginLeft: 6, cursor: 'pointer' }}>
-            <input type="checkbox" checked={f.soEtiquetaPendente} onChange={(e) => setF((x) => ({ ...x, soEtiquetaPendente: e.target.checked }))} /> Só etiqueta pendente
-          </label>
           <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
             <input type="checkbox" checked={f.soIncompletos} onChange={(e) => setF((x) => ({ ...x, soIncompletos: e.target.checked }))} /> Só cadastro incompleto
           </label>
@@ -191,37 +167,46 @@ export default function VisaoGeral({ base }: { base: Base }) {
         </div>
       </div>}
 
-      {/* Barra de ações */}
+      {/* Barra: contagem à esquerda, ações discretas à direita */}
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 12 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>
-          {filtrados.length} ite{filtrados.length === 1 ? 'm' : 'ns'} · {totais.unidades} un.{selecionados.length > 0 && <> · <span style={{ color: LARANJA }}>{selecionados.length} selecionado{selecionados.length > 1 ? 's' : ''}</span></>}
+        <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>
+          <b style={{ color: 'var(--portal-text)' }}>{filtrados.length}</b> {filtrados.length === 1 ? 'peça' : 'peças'} · {totais.unidades} un.
+          {selecionados.length > 0 && <> · <b style={{ color: LARANJA }}>{selecionados.length} marcada{selecionados.length > 1 ? 's' : ''}</b></>}
         </span>
         <div style={{ flex: 1 }} />
-        <button onClick={exportarCsv} disabled={!filtrados.length} style={botao('#065F46', { contorno: true, desab: !filtrados.length })}><Download size={14} /> CSV</button>
-        <button onClick={exportarPdf} disabled={!filtrados.length || ocupado === 'pdf'} style={botao('#991B1B', { contorno: true, desab: !filtrados.length || ocupado === 'pdf' })}>
-          {ocupado === 'pdf' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} />} PDF catálogo
+        <button onClick={() => imprimirLote(selComCodigo)} disabled={!selComCodigo.length}
+          title={selecionados.length ? 'Etiquetas das peças marcadas que já têm código (concluídas), juntas na mesma folha' : 'Marque as peças na lista para imprimir as etiquetas'}
+          style={{ ...ACAO, ...(selComCodigo.length ? { background: '#111827', color: '#fefefe', borderColor: '#111827' } : { opacity: 0.45, cursor: 'not-allowed' }) }}>
+          <Printer size={14} /> Etiquetas{selComCodigo.length ? ` (${selComCodigo.length})` : ''}
         </button>
-        <button onClick={() => imprimirLote(selecionados.length ? selComCodigo : pendentesEtiqueta)} disabled={selecionados.length ? !selComCodigo.length : !pendentesEtiqueta.length}
-          title={selecionados.length ? 'Etiquetas dos selecionados que já têm código (do Destino em diante)' : 'Etiquetas pendentes da lista'}
-          style={botao('#111827', { desab: selecionados.length ? !selComCodigo.length : !pendentesEtiqueta.length })}><Printer size={14} /> {selecionados.length ? `Etiquetas (${selComCodigo.length})` : `Etiquetas pendentes (${pendentesEtiqueta.length})`}</button>
-        {base.podeGerir && <button onClick={() => setCadastros(true)} style={botao('#52525B', { contorno: true })}><Settings2 size={14} /> Tipos e marcas</button>}
+        <div style={{ display: 'inline-flex', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', overflow: 'hidden' }}>
+          <button onClick={exportarCsv} disabled={!filtrados.length} title="Exportar a lista filtrada em CSV" style={{ ...ACAO_GRUPO, opacity: filtrados.length ? 1 : 0.45 }}><Download size={14} /> CSV</button>
+          <span style={{ width: 1, background: 'var(--portal-border)', margin: '7px 0' }} />
+          <button onClick={exportarPdf} disabled={!filtrados.length || ocupado === 'pdf'} title="Catálogo em PDF da lista filtrada" style={{ ...ACAO_GRUPO, opacity: filtrados.length ? 1 : 0.45 }}>
+            {ocupado === 'pdf' ? <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <FileText size={14} />} PDF
+          </button>
+          {base.podeGerir && (<>
+            <span style={{ width: 1, background: 'var(--portal-border)', margin: '7px 0' }} />
+            <button onClick={() => setCadastros(true)} title="Tipos de máquina e marcas" style={ACAO_GRUPO}><Settings2 size={14} /> Tipos e marcas</button>
+          </>)}
+        </div>
       </div>
 
       {base.podeGerir && selecionados.length > 0 && (
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: 12, borderRadius: 12, background: '#FFF7ED', border: '1px solid #FED7AA', marginBottom: 12 }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: '#9A3412' }}>Mudar status dos {selecionados.length} selecionados para</span>
-          <select value={lote.para} onChange={(e) => setLote((l) => ({ ...l, para: e.target.value as Status | '' }))} style={{ ...INP, fontSize: 14, width: 'auto' }}>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', padding: '10px 14px', borderRadius: 12, background: '#FFF7ED', border: '1px solid #FED7AA', marginBottom: 12 }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: '#9A3412' }}>Encerrar as {selecionados.length} marcadas como</span>
+          <select value={lote.para} onChange={(e) => setLote((l) => ({ ...l, para: e.target.value as Status | '' }))} style={{ ...INP, fontSize: 13.5, padding: '8px 10px', width: 'auto' }}>
             <option value="">escolha…</option>
             {destinosLote.map((s) => <option key={s} value={s}>{ROTULO_STATUS[s]}</option>)}
           </select>
           {lote.para && ['descartado', 'guardado', 'usado', 'outro_destino'].includes(lote.para) && (
             <input value={lote.motivo} onChange={(e) => setLote((l) => ({ ...l, motivo: e.target.value }))}
-              placeholder={exigeMotivo(lote.para) ? 'O que aconteceu (obrigatório)' : 'Detalhe (opcional)'} style={{ ...INP, fontSize: 14, width: 260, maxWidth: '100%' }} />
+              placeholder={exigeMotivo(lote.para) ? 'O que aconteceu (obrigatório)' : 'Detalhe (opcional)'} style={{ ...INP, fontSize: 13.5, padding: '8px 10px', width: 260, maxWidth: '100%' }} />
           )}
           <button onClick={aplicarLote} disabled={!lote.para || ocupado === 'lote'} style={botao(LARANJA, { desab: !lote.para || ocupado === 'lote' })}>
             {ocupado === 'lote' && <Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} />} Aplicar
           </button>
-          <button onClick={() => setSel(new Set())} style={botao('#52525B', { contorno: true })}>Limpar seleção</button>
+          <button onClick={() => setSel(new Set())} style={botao('#52525B', { contorno: true })}>Desmarcar</button>
         </div>
       )}
 
@@ -234,75 +219,89 @@ export default function VisaoGeral({ base }: { base: Base }) {
         </Aviso>
       )}
 
-      {/* Tabela */}
+      {/* Lista */}
       {!itens && !erro && <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)' }}><Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /></div>}
-      {itens && isMobile && (
+      {itens && filtrados.length === 0 && (
+        <div style={{ padding: '44px 20px', textAlign: 'center', color: 'var(--portal-text-muted)', borderRadius: 14, border: '1px dashed var(--portal-border)', background: 'var(--portal-bg-card)' }}>
+          <Package size={28} style={{ opacity: 0.5, marginBottom: 8 }} />
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--portal-text-secondary)' }}>{itens.length ? 'Nenhuma peça com esses filtros.' : 'Nenhuma peça cadastrada ainda.'}</div>
+          {!itens.length && <div style={{ fontSize: 12.5, marginTop: 4 }}>Use “Novo produto” para captar a primeira.</div>}
+        </div>
+      )}
+      {itens && filtrados.length > 0 && isMobile && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {filtrados.length === 0 && <div style={{ padding: 30, textAlign: 'center', color: 'var(--portal-text-muted)', borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)' }}>{itens.length ? 'Nenhum item com esses filtros.' : 'Nenhum item cadastrado ainda. Toque em “Novo item”.'}</div>}
           {filtrados.map((i) => (
-            <div key={i.id} onClick={() => setAberto(i)} style={{ display: 'flex', gap: 10, padding: 10, borderRadius: 12, cursor: 'pointer', background: sel.has(i.id) ? '#FFF7ED' : 'var(--portal-bg-card)', border: `1px solid ${sel.has(i.id) ? '#FED7AA' : 'var(--portal-border)'}` }}>
-              <Miniatura url={i.fotos[0] ? minis[i.fotos[0].storage_path] : undefined} tamanho={68} />
+            <div key={i.id} onClick={() => setAberto(i)} style={{ display: 'flex', gap: 12, padding: 12, borderRadius: 14, cursor: 'pointer', background: sel.has(i.id) ? '#FFF7ED' : 'var(--portal-bg-card)', border: `1px solid ${sel.has(i.id) ? '#FED7AA' : 'var(--portal-border)'}`, boxShadow: '0 1px 2px rgba(16,24,40,0.04)' }}>
+              <Miniatura url={i.fotos[0] ? minis[i.fotos[0].storage_path] : undefined} tamanho={64} />
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <CodigoPeca codigo={i.codigo} tamanho={14.5} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <CodigoPeca codigo={i.codigo} tamanho={14} />
                   <SeloStatus status={i.status} />
                 </div>
-                <div style={{ fontSize: 13, color: i.descricao ? 'var(--portal-text-secondary)' : 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 3 }}>{i.descricao || 'Sem descrição'}</div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginTop: 4, fontSize: 12, color: 'var(--portal-text-muted)' }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: i.descricao ? 'var(--portal-text)' : 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 4 }}>{i.descricao || 'Sem descrição'}</div>
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginTop: 5, fontSize: 12, color: 'var(--portal-text-muted)' }}>
                   <span style={{ fontWeight: 700, color: 'var(--portal-text-secondary)' }}>{i.quantidade} un.</span>
-                  {i.preco_sugerido != null && <span style={{ fontWeight: 700, color: '#065F46' }}>{fmtPreco(i.preco_sugerido)}</span>}
+                  {i.preco_sugerido != null && <span style={{ fontWeight: 700, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{fmtPreco(i.preco_sugerido)}</span>}
+                  <SeloQualidade qualidade={i.qualidade} />
                   {i.local_id && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><MapPin size={11} /> {textoLocal(i, base.nomesLocais)}</span>}
-                  {codigoDefinitivo(i.codigo) && <SeloEtiqueta em={i.etiqueta_impressa_em} />}
+                  <SeloEtiqueta em={i.etiqueta_impressa_em} />
+                  <ChipIncompleto item={i} />
                 </div>
-                <AvisoIncompleto item={i} />
               </div>
               <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', alignItems: 'center' }}>
-                <input type="checkbox" checked={sel.has(i.id)} onChange={() => alternar(i.id)} aria-label={`Selecionar ${nomeDoItem(i.codigo)}`} style={{ width: 22, height: 22 }} />
+                <input type="checkbox" checked={sel.has(i.id)} onChange={() => alternar(i.id)} aria-label={`Marcar ${nomeDoItem(i.codigo)}`} style={{ width: 20, height: 20, accentColor: LARANJA }} />
               </div>
             </div>
           ))}
         </div>
       )}
-      {itens && !isMobile && (
-        <div style={{ overflowX: 'auto', borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)' }}>
+      {itens && filtrados.length > 0 && !isMobile && (
+        <div style={{ overflowX: 'auto', borderRadius: 14, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', boxShadow: '0 1px 3px rgba(16,24,40,0.05)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, color: 'var(--portal-text)' }}>
             <thead>
-              <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
-                <th style={{ padding: 10, width: 32 }}><input type="checkbox" checked={todosMarcados} onChange={alternarTodos} aria-label="Selecionar todos" /></th>
-                <th style={{ padding: 10 }}>Foto</th>
-                <th style={{ padding: 10 }}>Código</th>
-                <th style={{ padding: 10 }}>Descrição</th>
-                <th style={{ padding: 10 }}>Aplicação</th>
-                <th style={{ padding: 10 }}>Qualidade</th>
-                <th style={{ padding: 10, textAlign: 'right' }}>Qtd</th>
-                <th style={{ padding: 10, textAlign: 'right' }}>Preço</th>
-                <th style={{ padding: 10 }}>Local</th>
-                <th style={{ padding: 10 }}>Status</th>
-                <th style={{ padding: 10 }}>Cadastro</th>
+              <tr style={{ background: 'var(--portal-bg-secondary)' }}>
+                <th style={{ ...TH, width: 36, paddingLeft: 14 }}><input type="checkbox" checked={todosMarcados} onChange={alternarTodos} aria-label="Marcar todas" style={{ accentColor: LARANJA }} /></th>
+                <th style={{ ...TH, width: 56 }}></th>
+                <th style={TH}>Peça</th>
+                <th style={TH}>Aplicação</th>
+                <th style={TH}>Qualidade</th>
+                <th style={{ ...TH, textAlign: 'right' }}>Qtd</th>
+                <th style={{ ...TH, textAlign: 'right' }}>Preço</th>
+                <th style={TH}>Local</th>
+                <th style={TH}>Situação</th>
+                <th style={{ ...TH, paddingRight: 14 }}>Captada</th>
               </tr>
             </thead>
             <tbody>
-              {filtrados.length === 0 && <tr><td colSpan={11} style={{ padding: 30, textAlign: 'center', color: 'var(--portal-text-muted)' }}>{itens.length ? 'Nenhum item com esses filtros.' : 'Nenhum item cadastrado ainda. Use “Novo item” no celular.'}</td></tr>}
               {filtrados.map((i) => (
-                <tr key={i.id} onClick={() => setAberto(i)} style={{ borderTop: '1px solid var(--portal-border)', cursor: 'pointer', background: sel.has(i.id) ? '#FFF7ED' : undefined }}>
-                  <td style={{ padding: 10 }} onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={sel.has(i.id)} onChange={() => alternar(i.id)} aria-label={`Selecionar ${nomeDoItem(i.codigo)}`} /></td>
-                  <td style={{ padding: '6px 10px' }}><Miniatura url={i.fotos[0] ? minis[i.fotos[0].storage_path] : undefined} tamanho={44} /></td>
-                  <td style={{ padding: 10, whiteSpace: 'nowrap' }}>
-                    <CodigoPeca codigo={i.codigo} />
-                    {codigoDefinitivo(i.codigo) && <div style={{ marginTop: 3 }}><SeloEtiqueta em={i.etiqueta_impressa_em} /></div>}
+                <tr key={i.id} onClick={() => setAberto(i)} className="pni-linha" style={{ cursor: 'pointer', background: sel.has(i.id) ? '#FFF7ED' : undefined }}>
+                  <td style={{ ...TD, paddingLeft: 14 }} onClick={(e) => e.stopPropagation()}><input type="checkbox" checked={sel.has(i.id)} onChange={() => alternar(i.id)} aria-label={`Marcar ${nomeDoItem(i.codigo)}`} style={{ accentColor: LARANJA }} /></td>
+                  <td style={{ ...TD, padding: '8px 6px' }}><Miniatura url={i.fotos[0] ? minis[i.fotos[0].storage_path] : undefined} tamanho={46} /></td>
+                  <td style={{ ...TD, maxWidth: 300 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: i.descricao ? 'var(--portal-text)' : 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.descricao || 'Sem descrição'}</div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginTop: 3 }}>
+                      <CodigoPeca codigo={i.codigo} tamanho={12} />
+                      {i.codigo_fabricante && <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>fab. {i.codigo_fabricante}</span>}
+                      <SeloEtiqueta em={i.etiqueta_impressa_em} />
+                      <ChipIncompleto item={i} />
+                    </div>
                   </td>
-                  <td style={{ padding: 10, maxWidth: 260 }}>{i.descricao || <span style={{ color: 'var(--portal-text-muted)' }}>Sem descrição</span>}{i.codigo_fabricante && <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>Fab.: {i.codigo_fabricante}</div>}<AvisoIncompleto item={i} /></td>
-                  <td style={{ padding: 10, maxWidth: 220, fontSize: 12 }}>{textoAplicacoes(i, nomes) || '—'}</td>
-                  <td style={{ padding: 10 }}><SeloQualidade qualidade={i.qualidade} /></td>
-                  <td style={{ padding: 10, textAlign: 'right', fontWeight: 700 }}>{i.quantidade}</td>
-                  <td style={{ padding: 10, textAlign: 'right', whiteSpace: 'nowrap' }}>{fmtPreco(i.preco_sugerido)}</td>
-                  <td style={{ padding: 10, fontSize: 12, maxWidth: 160 }}>{textoLocal(i, base.nomesLocais) || '—'}</td>
-                  <td style={{ padding: 10 }}><SeloStatus status={i.status} /></td>
-                  <td style={{ padding: 10, fontSize: 12, whiteSpace: 'nowrap', color: 'var(--portal-text-secondary)' }}>{fmtData(i.criado_em)}<div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>{usuarios[i.criado_por] || ''}</div></td>
+                  <td style={{ ...TD, maxWidth: 200, fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{textoAplicacoes(i, nomes) || <span style={{ color: 'var(--portal-text-muted)' }}>—</span>}</td>
+                  <td style={TD}><SeloQualidade qualidade={i.qualidade} /></td>
+                  <td style={{ ...TD, textAlign: 'right', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{i.quantidade}</td>
+                  <td style={{ ...TD, textAlign: 'right', whiteSpace: 'nowrap', fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: i.preco_sugerido != null ? 'var(--portal-text)' : 'var(--portal-text-muted)' }}>{fmtPreco(i.preco_sugerido)}</td>
+                  <td style={{ ...TD, fontSize: 12.5, maxWidth: 170, color: 'var(--portal-text-secondary)' }}>
+                    {textoLocal(i, base.nomesLocais)
+                      ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={12} style={{ flexShrink: 0, color: 'var(--portal-text-muted)' }} /> {textoLocal(i, base.nomesLocais)}</span>
+                      : <span style={{ color: 'var(--portal-text-muted)' }}>—</span>}
+                  </td>
+                  <td style={TD}><SeloStatus status={i.status} /></td>
+                  <td style={{ ...TD, paddingRight: 14, fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--portal-text-secondary)' }}>{fmtData(i.criado_em)}<div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>{usuarios[i.criado_por] || ''}</div></td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <style>{`.pni-linha { border-top: 1px solid var(--portal-border); transition: background 0.12s } .pni-linha:hover { background: var(--portal-bg-hover, var(--portal-bg-secondary)) }`}</style>
         </div>
       )}
 
@@ -317,15 +316,21 @@ export default function VisaoGeral({ base }: { base: Base }) {
   )
 }
 
-function AvisoIncompleto({ item }: { item: Item }) {
+/** Cadastro incompleto: chip discreto; o que falta aparece ao passar o mouse. */
+function ChipIncompleto({ item }: { item: Item }) {
   const falta = camposFaltando(item)
   if (!falta.length) return null
   return (
-    <div title={`Falta: ${falta.join(', ')}`} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 700, color: '#B45309', marginTop: 3 }}>
-      <AlertTriangle size={12} /> Falta: {falta.join(', ')}
-    </div>
+    <span title={`Falta: ${falta.join(', ')}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, padding: '1px 7px', borderRadius: 999, background: '#FFFBEB', color: '#B45309', border: '1px solid #FDE68A', whiteSpace: 'nowrap' }}>
+      <AlertTriangle size={11} /> incompleto
+    </span>
   )
 }
+
+const TH: React.CSSProperties = { padding: '10px 10px', fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: 'var(--portal-text-muted)', textAlign: 'left', whiteSpace: 'nowrap' }
+const TD: React.CSSProperties = { padding: '11px 10px', verticalAlign: 'middle' }
+const ACAO: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, height: 36, padding: '0 13px', borderRadius: 10, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', whiteSpace: 'nowrap' }
+const ACAO_GRUPO: React.CSSProperties = { ...ACAO, height: 34, border: 'none', borderRadius: 0, background: 'transparent' }
 
 /** Tipos de máquina e marcas — o setor de peças inclui, renomeia e desativa. */
 function Cadastros({ base, onFechar }: { base: Base; onFechar: () => void }) {

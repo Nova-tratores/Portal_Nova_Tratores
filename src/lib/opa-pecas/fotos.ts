@@ -58,6 +58,12 @@ export async function comprimir(file: Blob): Promise<{ grande: Blob; mini: Blob 
 }
 
 /** Sobe as duas versões e devolve o caminho da grande (o que vai para a RPC). */
+/** Apaga uma foto (e a miniatura) do storage — usado ao trocar. Falha silenciosa. */
+export async function apagarFoto(path: string): Promise<void> {
+  if (!path) return
+  await supabase.storage.from(BUCKET).remove([path, caminhoMini(path)]).catch(() => null)
+}
+
 export async function enviarFoto(userId: string, fotos: { grande: Blob; mini: Blob }): Promise<string> {
   const path = `${userId}/${crypto.randomUUID()}.jpg`
   const opts = { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' }

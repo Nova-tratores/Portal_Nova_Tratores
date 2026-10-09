@@ -1,7 +1,7 @@
 // Peças Não Identificadas (aba do Opa) — tipos e rótulos.
 // Banco: sql/pni-01..04 (tabelas pni_*, maquina_tipos, maquina_marcas).
 
-/** Fluxo de venda (anda uma etapa por vez) */
+/** Fluxo (sql/pni-11): aguardando verificação → aguardando separação → (à venda). `precificado` não é mais usado. */
 export const STATUS_FLUXO = ['aguardando_identificacao', 'identificado', 'precificado', 'a_venda'] as const
 /** Destinos finais: toda peça termina num deles */
 export const STATUS_FINAIS = ['vendido', 'descartado', 'guardado', 'usado', 'outro_destino'] as const
@@ -13,9 +13,9 @@ export const QUALIDADES = ['nao_avaliada', 'nova', 'usada_boa', 'usada_com_avari
 export type Qualidade = (typeof QUALIDADES)[number]
 
 export const ROTULO_STATUS: Record<Status, string> = {
-  aguardando_identificacao: 'Aguardando separação',
-  identificado: 'Aguardando verificação',
-  precificado: 'Aguardando destino',
+  aguardando_identificacao: 'Aguardando verificação',
+  identificado: 'Aguardando separação',
+  precificado: 'Aguardando separação',
   a_venda: 'À venda',
   vendido: 'Vendido',
   descartado: 'Descartado',
@@ -53,10 +53,10 @@ export const INFO_QUALIDADE: Record<Qualidade, { dica: string; cor: string; fund
   nao_avaliada: { dica: 'Ninguém olhou ainda', cor: '#52525B', fundo: '#F4F4F5' },
 }
 
-/** Etapas de trabalho das peças (sql/pni-08-etapas.sql). */
-export type Etapa = 'captacao' | 'separacao' | 'verificacao' | 'destino'
+/** Etapas de trabalho das peças (sql/pni-11-fluxo-novo.sql): a separação é a última decisão. */
+export type Etapa = 'captacao' | 'verificacao' | 'separacao' | 'concluida'
 
-/** Decisões da separação. Descartar e outro encerram na hora; as demais vão para verificação. */
+/** Decisões da separação — todas CONCLUEM a peça (vender → à venda; outro = destino criado pelo usuário). */
 export const DECISOES = ['vender', 'guardar', 'usar', 'descartar', 'outro'] as const
 export type Decisao = (typeof DECISOES)[number]
 
@@ -77,21 +77,29 @@ export const INFO_DECISAO: Record<Decisao, {
   obsObrigatoria: boolean
   encerra: boolean
 }> = {
-  vender: { rotulo: 'Vender', dica: 'Vai para venda após verificar valor e aplicação', cor: '#047857',
-    campos: ['descricao', 'codigo_fabricante', 'qualidade', 'aplicacao', 'preco'], obs: '', obsObrigatoria: false, encerra: false,
+  vender: { rotulo: 'Vender', dica: 'Fica à venda; quando vender, marque na ficha', cor: '#047857',
+    campos: [], obs: '', obsObrigatoria: false, encerra: true,
     final: 'vendido', destino: 'Para quem foi vendida e por quanto' },
-  guardar: { rotulo: 'Guardar no estoque', dica: 'Entra no estoque após a verificação', cor: '#0F766E',
-    campos: ['descricao', 'codigo_fabricante', 'aplicacao', 'preco', 'local'], obs: '', obsObrigatoria: false, encerra: false,
+  guardar: { rotulo: 'Guardar no estoque', dica: 'Entra no estoque', cor: '#0F766E',
+    campos: ['local'], obs: 'Observação (ex.: código no estoque)', obsObrigatoria: false, encerra: true,
     final: 'guardado', destino: 'Onde foi guardada (ex.: código no estoque, prateleira)' },
   usar: { rotulo: 'Usar na oficina', dica: 'Vai ser usada num serviço ou OS', cor: '#4338CA',
-    campos: ['descricao', 'aplicacao'], obs: 'Em que vai ser usada (ex.: OS 1234)', obsObrigatoria: false, encerra: false,
+    campos: [], obs: 'Em que vai ser usada (ex.: OS 1234)', obsObrigatoria: false, encerra: true,
     final: 'usado', destino: 'Em que foi usada (OS, máquina)' },
-  descartar: { rotulo: 'Descartar', dica: 'Sucata, sem uso — encerra a peça', cor: '#B91C1C',
+  descartar: { rotulo: 'Descartar', dica: 'Sucata, sem uso', cor: '#B91C1C',
     campos: [], obs: 'Motivo do descarte', obsObrigatoria: true, encerra: true,
     final: 'descartado', destino: 'Motivo do descarte' },
-  outro: { rotulo: 'Outro', dica: 'Outra coisa aconteceu — encerra a peça', cor: '#52525B',
-    campos: [], obs: 'O que aconteceu com a peça', obsObrigatoria: true, encerra: true,
+  outro: { rotulo: 'Outro destino', dica: 'Um destino criado por vocês', cor: '#52525B',
+    campos: [], obs: 'Observação', obsObrigatoria: false, encerra: true,
     final: 'outro_destino', destino: 'O que aconteceu com a peça' },
+}
+
+/** Destino criado pelo usuário na separação (pni_destinos) — vira "outro_destino" com o nome dele. */
+export interface Destino {
+  id: string
+  nome: string
+  ativo: boolean
+  ordem: number
 }
 
 /** Setores com quem o valor e a aplicação são conferidos. */
@@ -134,6 +142,8 @@ export interface Item {
   /** etapa 2 — o que foi decidido na separação */
   decisao: Decisao | null
   decisao_obs: string | null
+  /** destino criado pelo usuário (decisão "outro") */
+  destino_id?: string | null
   decidido_em: string | null
   decidido_por: string | null
   /** etapa 3 — verificação de valor e aplicação com o setor responsável */

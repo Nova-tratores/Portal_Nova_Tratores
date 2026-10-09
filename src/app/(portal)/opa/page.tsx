@@ -155,7 +155,7 @@ export default function OpaPage() {
 
   return (
     <div style={{ padding: isMobile ? '12px 12px 24px' : '16px 20px 28px', width: '100%', boxSizing: 'border-box' }}>
-      <OpaBarra acao={<BotaoPrincipal cor={VERMELHO} onClick={() => setNovo(true)}><Plus size={16} /> Novo Opa</BotaoPrincipal>} />
+      <OpaBarra acao={<BotaoPrincipal cor={VERMELHO} claro onClick={() => setNovo(true)}><Plus size={16} strokeWidth={2.5} /> Novo Opa</BotaoPrincipal>} />
 
       <div role="tablist" style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
         {([['abertos', 'Abertos', abertos.length], ['concluidos', 'Concluídos', concluidos.length]] as const).map(([k, rotulo, n]) => (

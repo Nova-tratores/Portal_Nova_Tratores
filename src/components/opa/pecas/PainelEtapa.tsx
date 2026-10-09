@@ -1,36 +1,36 @@
 'use client'
-// Painel de trabalho de UMA peça nas etapas 2–4:
-//   separação   → decidir o que fazer; libera os campos que a decisão pede
+// Painel de trabalho de UMA peça nas etapas (fluxo novo, sql/pni-11):
 //   verificação → conferir valor e aplicação com o setor responsável
-//   destino     → confirmar o que aconteceu de fato e finalizar
+//   separação   → ÚLTIMA decisão: pra onde a peça vai — conclui a peça
+//                 (vender → à venda; guardar/usar/descartar; ou um destino
+//                 criado pelo usuário, que dá pra criar aqui mesmo)
 // Grava os campos alterados (pni_atualizar_item / pni_definir_aplicacoes)
 // e depois chama a RPC da etapa.
 
 import { useEffect, useMemo, useState } from 'react'
-import { ArrowLeft, Check, Loader2, MapPin, MoveRight, UserRound } from 'lucide-react'
+import { ArrowLeft, Check, CircleHelp, Loader2, MapPin, Pencil, Plus, UserRound } from 'lucide-react'
 import {
-  atualizarItem, definirAplicacoes, finalizar, mudarStatus, nomesAtivos, nomesUsuarios, separar, verificar,
+  atualizarItem, criarDestino, definirAplicacoes, mudarStatus, nomesAtivos, nomesUsuarios, separar, verificar,
   type CamposEditaveis,
 } from '@/lib/opa-pecas/db'
 import { mensagemErro, urlsAssinadas } from '@/lib/opa-pecas/fotos'
-import {
-  fmtDataHora, lerPreco, pendenciasDestino, pendenciasSeparacao, pendenciasVerificacao, precoParaCampo, textoLocal,
-} from '@/lib/opa-pecas/regras'
+import { fmtDataHora, lerPreco, pendenciasSeparacao, pendenciasVerificacao, precoParaCampo, textoLocal } from '@/lib/opa-pecas/regras'
 import {
   DECISOES, INFO_DECISAO, INFO_QUALIDADE, ROTULO_QUALIDADE, SETORES_VERIFICACAO,
-  type Aplicacao, type CampoDecisao, type Decisao, type Item, type Qualidade,
+  type Aplicacao, type Decisao, type Item, type Qualidade,
 } from '@/lib/opa-pecas/tipos'
-import { CampoPreco, EditorAplicacoes, SeletorLocal, SeletorQualidade } from './Campos'
+import { CampoPreco, EditorAplicacoes, SeletorLocal } from './Campos'
 import { CodigoPeca, Aviso, avisarMudanca, botao, INP, ROTULO, SECAO, TITULO_SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
-import { Visualizador } from './DetalheItem'
+import DetalheItem, { Visualizador } from './DetalheItem'
+import { Janela } from './Moldura'
 import FasesPeca, { ChipDecisao, ICONE_DECISAO } from './FasesPeca'
 
-export type EtapaTrabalho = 'separacao' | 'verificacao' | 'destino'
+export type EtapaTrabalho = 'verificacao' | 'separacao'
 
 export { ChipDecisao }
 
-/** Destinos em que a peça sai da empresa: não pergunta onde ela ficou. */
-const SAI_DA_EMPRESA: Decisao[] = ['vender', 'descartar']
+/** Decisões prontas na separação ("outro" vira a lista de destinos criados). */
+const DECISOES_PRONTAS = DECISOES.filter((d) => d !== 'outro')
 
 interface Form {
   descricao: string
@@ -50,26 +50,30 @@ const formDe = (i: Item): Form => ({
 const mesmaAplicacao = (a: Aplicacao[], b: Aplicacao[]) =>
   a.length === b.length && a.every((x) => b.some((y) => y.tipo_maquina_id === x.tipo_maquina_id && y.marca_id === x.marca_id))
 
-export default function PainelEtapa({ etapa, item, base, onConcluido }: {
+export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualizado }: {
   etapa: EtapaTrabalho
   item: Item
   base: Base
   onConcluido: () => void
+  /** a peça mudou pela ficha (editar cadastro): recarregar sem sair da etapa */
+  onAtualizado?: () => void
 }) {
   const larga = useTelaLarga()
   const [form, setForm] = useState<Form>(() => formDe(item))
-  const [decisao, setDecisao] = useState<Decisao | null>(etapa === 'separacao' ? null : item.decisao)
+  const [decisao, setDecisao] = useState<Decisao | null>(null)
+  const [destinoId, setDestinoId] = useState<string | null>(null)
+  const [novoDestino, setNovoDestino] = useState('')
+  const [criandoDestino, setCriandoDestino] = useState(false)
   const [obs, setObs] = useState('')
   const [setor, setSetor] = useState('')
   const [com, setCom] = useState('')
-  // destino: a peça ficou onde estava ou foi para outro lugar?
-  const [ficou, setFicou] = useState<'mesmo' | 'outro' | null>(null)
   const [usuarios, setUsuarios] = useState<Record<string, string>>({})
   const [nomes, setNomes] = useState<string[]>([])
   const [urls, setUrls] = useState<Record<string, string>>({})
   const [visor, setVisor] = useState<number | null>(null)
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
+  const [editando, setEditando] = useState(false)
   const minis = useMiniaturas(item.fotos.map((f) => f.storage_path))
 
   useEffect(() => {
@@ -89,18 +93,9 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
     aplicacoes: form.aplicacoes, decisao,
   }), [item, form, preco, decisao])
 
-  const perguntaLocal = etapa === 'destino' && !!decisao && !SAI_DA_EMPRESA.includes(decisao)
-  const localAntes = textoLocal(item, base.nomesLocais)
-  const localNovo = textoLocal({ local_id: form.local || null, local_tecnico: form.tecnico || null }, base.nomesLocais)
-  const faltasLocal = !perguntaLocal ? []
-    : !ficou ? ['onde a peça ficou']
-      : ficou === 'outro' && !form.local ? ['o novo lugar']
-        : ficou === 'outro' && localNovo === localAntes ? ['um lugar diferente do atual']
-          : []
-
-  const faltas = etapa === 'separacao' ? pendenciasSeparacao(decisao, obs)
-    : etapa === 'verificacao' ? pendenciasVerificacao(previa, setor)
-      : [...pendenciasDestino(decisao, obs), ...faltasLocal]
+  const destinoEscolhido = base.destinos.find((d) => d.id === destinoId)
+  const faltaLocal = etapa === 'separacao' && decisao === 'guardar' && !form.local ? ['onde vai ser guardada'] : []
+  const faltas = etapa === 'separacao' ? [...pendenciasSeparacao(decisao, obs, destinoId), ...faltaLocal] : pendenciasVerificacao(previa, setor)
 
   const gravarCampos = async () => {
     const d: CamposEditaveis = {}
@@ -129,35 +124,36 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
 
   const concluir = () => {
     if (faltas.length) { setErro(`Falta: ${faltas.join(', ')}.`); return }
-    if (etapa === 'separacao') return executar(async () => { await gravarCampos(); await separar(item.id, decisao!, obs) })
     if (etapa === 'verificacao') return executar(async () => { await gravarCampos(); await verificar(item.id, setor, com, obs) })
-    return executar(async () => {
-      let texto = obs.trim()
-      if (perguntaLocal) {
-        // a troca de local fica no histórico da peça; o desfecho registra a resposta
-        if (ficou === 'outro') await atualizarItem(item.id, { local_id: form.local || null, local_tecnico: form.tecnico || null })
-        const onde = ficou === 'outro'
-          ? `Foi para ${localNovo}${localAntes ? ` (estava em ${localAntes})` : ''}`
-          : `Continuou no mesmo lugar${localAntes ? ` (${localAntes})` : ''}`
-        texto = texto ? `${texto} · ${onde}` : onde
-      }
-      await finalizar(item.id, decisao!, texto)
-    })
+    return executar(async () => { await gravarCampos(); await separar(item.id, decisao!, obs, decisao === 'outro' ? destinoId : null) })
   }
 
-  const voltar = () => executar(() => mudarStatus(item.id, etapa === 'verificacao' ? 'aguardando_identificacao' : 'identificado'))
+  // separação → volta para a verificação (a verificação é a 1ª etapa depois da captação)
+  const voltar = () => executar(() => mudarStatus(item.id, 'aguardando_identificacao'))
 
-  const campos: CampoDecisao[] = etapa === 'separacao'
-    ? (decisao ? INFO_DECISAO[decisao].campos : [])
-    : etapa === 'verificacao'
-      ? (['descricao', 'codigo_fabricante', 'aplicacao', 'preco', ...(decisao === 'guardar' ? ['local' as const] : [])])
-      : []
-  const precoObrigatorio = etapa === 'verificacao' && (decisao === 'vender' || decisao === 'guardar')
+  const escolherPronta = (d: Decisao) => { setDecisao(d); setDestinoId(null); setErro(null) }
+  const escolherDestino = (id: string) => { setDecisao('outro'); setDestinoId(id); setErro(null) }
 
-  const rotuloConcluir = etapa === 'separacao'
-    ? (decisao && INFO_DECISAO[decisao].encerra ? `Encerrar: ${INFO_DECISAO[decisao].rotulo}` : 'Confirmar separação')
-    : etapa === 'verificacao' ? 'Confirmar verificação'
-      : decisao ? `Finalizar: ${ROTULO_FINAL[decisao]}` : 'Finalizar'
+  const criarNovoDestino = async () => {
+    const nome = novoDestino.trim()
+    if (!nome) return
+    setCriandoDestino(true)
+    setErro(null)
+    try {
+      const d = await criarDestino(nome)
+      base.recarregarLookups()
+      setNovoDestino('')
+      escolherDestino(d.id)
+    } catch (e) {
+      setErro(mensagemErro(e))
+    } finally {
+      setCriandoDestino(false)
+    }
+  }
+
+  const rotuloConcluir = etapa === 'verificacao' ? 'Confirmar verificação'
+    : decisao === 'outro' ? `Concluir: ${destinoEscolhido?.nome || 'outro destino'}`
+      : decisao ? `Concluir: ${INFO_DECISAO[decisao].rotulo}` : 'Concluir a peça'
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -168,7 +164,12 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
           <span style={{ fontSize: 12, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: INFO_QUALIDADE[item.qualidade].fundo, color: INFO_QUALIDADE[item.qualidade].cor }}>{ROTULO_QUALIDADE[item.qualidade]}</span>
           <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>{item.quantidade} {item.quantidade === 1 ? 'peça' : 'peças'}</span>
           {item.local_id && <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: 4 }}><MapPin size={13} /> {textoLocal(item, base.nomesLocais)}</span>}
+          <button type="button" onClick={() => setEditando(true)} title="Alterar qualquer informação da peça (descrição, quantidade, qualidade, fotos, local…)"
+            style={{ ...botao('#52525B', { contorno: true }), marginLeft: 'auto', padding: '6px 11px', fontSize: 12.5 }}>
+            <Pencil size={13} /> Editar cadastro
+          </button>
         </div>
+        {item.descricao && <div style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: 600 }}>{item.descricao}</div>}
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 92 : 76}px, 1fr))`, gap: 6 }}>
           {item.fotos.map((f, i) => (
             <button key={f.id} type="button" onClick={() => setVisor(i)} aria-label={`Ampliar foto ${i + 1}`} style={{ aspectRatio: '1', padding: 0, borderRadius: 8, overflow: 'hidden', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)', cursor: 'zoom-in' }}>
@@ -179,108 +180,43 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
         </div>
         <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
           Captada por {usuarios[item.criado_por] || '…'} em {fmtDataHora(item.criado_em)}
-          {item.descricao && etapa === 'separacao' && <> · “{item.descricao}”</>}
+          {item.codigo_fabricante && <> · código existente {item.codigo_fabricante}</>}
         </div>
       </section>
 
-      {/* O que as fases anteriores já registraram */}
-      {etapa !== 'separacao' && (
-        <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>O que já foi feito</h2>
-          <FasesPeca item={item} base={base} usuarios={usuarios} ate={etapa} />
-        </section>
-      )}
-
-      {/* Separação: o que fazer */}
+      {/* Separação: o que as fases anteriores registraram */}
       {etapa === 'separacao' && (
         <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>O que fazer com a peça?</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 170 : 150}px, 1fr))`, gap: 8 }}>
-            {DECISOES.map((d) => (
-              <CartaoDecisao key={d} decisao={d} ativo={decisao === d} onClick={() => { setDecisao(d); setErro(null) }} />
-            ))}
-          </div>
+          <h2 style={TITULO_SECAO}>O que já foi feito</h2>
+          <FasesPeca item={item} base={base} usuarios={usuarios} ate="separacao" />
         </section>
       )}
 
-      {/* Destino: confirmar o planejado ou mudar */}
-      {etapa === 'destino' && (
+      {/* Verificação: valor e aplicação */}
+      {etapa === 'verificacao' && (
         <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>O que aconteceu com a peça?</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 170 : 150}px, 1fr))`, gap: 8 }}>
-            {DECISOES.map((d) => (
-              <CartaoDecisao key={d} decisao={d} ativo={decisao === d} rotulo={ROTULO_FINAL[d]}
-                dica={d === item.decisao ? 'Planejado na separação' : 'Mudou o plano'} onClick={() => { setDecisao(d); setErro(null) }} />
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Destino: a peça ficou onde estava ou mudou de lugar? */}
-      {perguntaLocal && (
-        <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>Onde a peça ficou?</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 220 : 160}px, 1fr))`, gap: 8 }}>
-            <OpcaoLocal ativo={ficou === 'mesmo'} onClick={() => { setFicou('mesmo'); setForm((f) => ({ ...f, local: item.local_id || '', tecnico: item.local_tecnico || '' })); setErro(null) }}
-              icone={<MapPin size={18} />} titulo="Continuou no mesmo lugar" dica={localAntes || 'Sem local registrado'} />
-            <OpcaoLocal ativo={ficou === 'outro'} onClick={() => { setFicou('outro'); setErro(null) }}
-              icone={<MoveRight size={18} />} titulo="Foi para outro lugar" dica={localAntes ? `Sai de: ${localAntes}` : 'Escolha o novo lugar'} />
-          </div>
-          {ficou === 'outro' && (
-            <div>
-              <label style={ROTULO}>Novo lugar</label>
-              <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Campos liberados pela etapa/decisão */}
-      {campos.length > 0 && (
-        <section style={SECAO}>
-          <h2 style={TITULO_SECAO}>{etapa === 'verificacao' ? 'Confira com o setor responsável' : 'Complete as informações'}</h2>
+          <h2 style={TITULO_SECAO}>Confira com o setor responsável</h2>
           <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 14 }}>
-            {campos.includes('descricao') && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={ROTULO}>Descrição</label>
-                <textarea value={form.descricao} onChange={(e) => muda('descricao', e.target.value.slice(0, 500))} rows={2} placeholder="O que é a peça" style={{ ...INP, resize: 'vertical' }} />
-              </div>
-            )}
-            {campos.includes('codigo_fabricante') && (
-              <div>
-                <label style={ROTULO}>Código já existente</label>
-                <input value={form.codigo_fabricante} onChange={(e) => muda('codigo_fabricante', e.target.value.slice(0, 80))} placeholder="Part number" style={INP} />
-              </div>
-            )}
-            {campos.includes('preco') && (
-              <div>
-                <label style={ROTULO}>{etapa === 'verificacao' ? 'Valor confirmado' : 'Preço sugerido'}{precoObrigatorio && <span style={{ color: '#DC2626' }}> *</span>}</label>
-                <CampoPreco valor={form.preco} onChange={(v) => muda('preco', v)} />
-              </div>
-            )}
-            {campos.includes('qualidade') && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={ROTULO}>Estado da peça</label>
-                <SeletorQualidade valor={form.qualidade} onChange={(q) => muda('qualidade', q)} />
-              </div>
-            )}
-            {campos.includes('aplicacao') && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={ROTULO}>Aplicação{etapa === 'verificacao' && <span style={{ color: '#DC2626' }}> *</span>}</label>
-                <EditorAplicacoes tipos={base.tipos} marcas={base.marcas} valor={form.aplicacoes} onChange={(v) => muda('aplicacoes', v)} />
-              </div>
-            )}
-            {campos.includes('local') && (
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={ROTULO}>Onde vai ser guardada</label>
-                <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
-              </div>
-            )}
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={ROTULO}>Descrição</label>
+              <textarea value={form.descricao} onChange={(e) => muda('descricao', e.target.value.slice(0, 500))} rows={2} placeholder="O que é a peça" style={{ ...INP, resize: 'vertical' }} />
+            </div>
+            <div>
+              <label style={ROTULO}>Valor confirmado{!item.nao_identificavel && <span style={{ color: '#DC2626' }}> *</span>}</label>
+              <CampoPreco valor={form.preco} onChange={(v) => muda('preco', v)} />
+            </div>
+            <div>
+              <label style={ROTULO}>Código já existente</label>
+              <input value={form.codigo_fabricante} onChange={(e) => muda('codigo_fabricante', e.target.value.slice(0, 80))} placeholder="Part number" style={INP} />
+            </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={ROTULO}>Aplicação{!item.nao_identificavel && <span style={{ color: '#DC2626' }}> *</span>}</label>
+              <EditorAplicacoes tipos={base.tipos} marcas={base.marcas} valor={form.aplicacoes} onChange={(v) => muda('aplicacoes', v)} />
+            </div>
           </div>
         </section>
       )}
 
-      {/* Verificação: com quem */}
       {etapa === 'verificacao' && (
         <section style={SECAO}>
           <h2 style={TITULO_SECAO}>Verificado com</h2>
@@ -308,12 +244,55 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
         </section>
       )}
 
-      {/* Observação da separação / do destino */}
-      {etapa !== 'verificacao' && decisao && (etapa === 'destino' || INFO_DECISAO[decisao].obs) && (
+      {/* Separação: pra onde a peça vai (conclui) */}
+      {etapa === 'separacao' && (
+        <section style={SECAO}>
+          <h2 style={TITULO_SECAO}>Pra onde a peça vai?</h2>
+          <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 170 : 150}px, 1fr))`, gap: 8 }}>
+            {DECISOES_PRONTAS.map((d) => (
+              <CartaoDecisao key={d} decisao={d} ativo={decisao === d} onClick={() => escolherPronta(d)} />
+            ))}
+          </div>
+
+          <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted)', textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4 }}>Outros destinos</div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {base.destinos.map((d) => {
+              const on = decisao === 'outro' && destinoId === d.id
+              return (
+                <button key={d.id} type="button" role="radio" aria-checked={on} onClick={() => escolherDestino(d.id)} style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 14, fontWeight: 700,
+                  fontFamily: 'inherit', cursor: 'pointer', border: '1.5px solid ' + (on ? '#52525B' : 'var(--portal-border)'),
+                  background: on ? '#52525B' : 'var(--portal-bg-card)', color: on ? '#fff' : 'var(--portal-text)',
+                }}>{on ? <Check size={14} /> : <CircleHelp size={14} />} {d.nome}</button>
+              )
+            })}
+            {base.destinos.length === 0 && <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', alignSelf: 'center' }}>Nenhum ainda — crie ao lado.</span>}
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            <input value={novoDestino} onChange={(e) => setNovoDestino(e.target.value.slice(0, 60))} placeholder="Novo destino (ex.: Devolver ao fornecedor)"
+              onKeyDown={(e) => { if (e.key === 'Enter') criarNovoDestino() }} style={{ ...INP, flex: 1, minWidth: 220 }} />
+            <button type="button" onClick={criarNovoDestino} disabled={!novoDestino.trim() || criandoDestino}
+              style={botao('#52525B', { contorno: true, desab: !novoDestino.trim() || criandoDestino })}>
+              {criandoDestino ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />} Criar destino
+            </button>
+          </div>
+        </section>
+      )}
+
+      {/* Separação: guardar → onde */}
+      {etapa === 'separacao' && decisao === 'guardar' && (
+        <section style={SECAO}>
+          <label style={{ ...ROTULO, marginBottom: 0 }}>Onde vai ser guardada<span style={{ color: '#DC2626' }}> *</span></label>
+          <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
+        </section>
+      )}
+
+      {/* Separação: observação da decisão */}
+      {etapa === 'separacao' && decisao && (decisao === 'outro' || INFO_DECISAO[decisao].obs) && (
         <section style={SECAO}>
           <label style={{ ...ROTULO, marginBottom: 0 }}>
-            {etapa === 'destino' ? INFO_DECISAO[decisao].destino : INFO_DECISAO[decisao].obs}
-            {(INFO_DECISAO[decisao].obsObrigatoria) && <span style={{ color: '#DC2626' }}> *</span>}
+            {INFO_DECISAO[decisao].obs || 'Observação'}
+            {INFO_DECISAO[decisao].obsObrigatoria && <span style={{ color: '#DC2626' }}> *</span>}
           </label>
           <textarea value={obs} onChange={(e) => setObs(e.target.value.slice(0, 500))} rows={2} style={{ ...INP, resize: 'vertical' }} />
         </section>
@@ -322,26 +301,37 @@ export default function PainelEtapa({ etapa, item, base, onConcluido }: {
       {erro && <Aviso>{erro}</Aviso>}
 
       {/* Ações */}
-      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', position: larga ? 'static' : 'sticky', bottom: 0, padding: larga ? 0 : '10px 0', background: larga ? 'transparent' : 'var(--portal-bg-card)', zIndex: 2 }}>
+      <div style={{ display: 'flex', flexDirection: larga ? 'row' : 'column', gap: 8, flexWrap: 'wrap', alignItems: larga ? 'center' : 'stretch', position: larga ? 'static' : 'sticky', bottom: 0, padding: larga ? 0 : '10px 0', background: larga ? 'transparent' : 'var(--portal-bg-card)', zIndex: 2 }}>
         <button type="button" onClick={concluir} disabled={ocupado || faltas.length > 0}
-          style={{ ...botao(corConcluir(etapa, decisao), { grande: true, desab: ocupado || faltas.length > 0 }), flex: larga ? '0 0 auto' : 1 }}>
+          style={{ ...botao(corConcluir(etapa, decisao), { grande: true, desab: ocupado || faltas.length > 0 }), flex: '0 0 auto' }}>
           {ocupado ? <Loader2 size={18} style={{ animation: 'spin 1s linear infinite' }} /> : <Check size={18} />} {rotuloConcluir}
         </button>
-        {etapa !== 'separacao' && (
-          <button type="button" onClick={voltar} disabled={ocupado} style={botao('#52525B', { contorno: true, desab: ocupado })}>
-            <ArrowLeft size={15} /> Voltar para {etapa === 'verificacao' ? 'separação' : 'verificação'}
-          </button>
+        {/* no celular ficam numa linha abaixo do botão principal (ele nunca quebra em duas linhas) */}
+        {(etapa === 'separacao' || faltas.length > 0) && (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            {etapa === 'separacao' && (
+              <button type="button" onClick={voltar} disabled={ocupado} style={botao('#52525B', { contorno: true, desab: ocupado })}>
+                <ArrowLeft size={15} /> Voltar para verificação
+              </button>
+            )}
+            {faltas.length > 0 && <span style={{ fontSize: 12.5, color: '#B45309', fontWeight: 600 }}>Falta: {faltas.join(', ')}</span>}
+          </div>
         )}
-        {faltas.length > 0 && <span style={{ fontSize: 12.5, color: '#B45309', fontWeight: 600 }}>Falta: {faltas.join(', ')}</span>}
       </div>
+      {etapa === 'separacao' && (
+        <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: -6 }}>
+          Ao concluir, a peça ganha o <b>código definitivo e o QR</b> e vai para <b>Concluídas</b>.
+        </div>
+      )}
 
       {visor != null && <Visualizador fotos={item.fotos.map((f) => urls[f.storage_path]).filter(Boolean)} inicio={visor} onFechar={() => setVisor(null)} />}
+      {editando && (
+        <Janela titulo={`Editar cadastro · ${item.codigo}`} onFechar={() => setEditando(false)} largura={1080}>
+          <DetalheItem key={item.id} item={item} base={base} onMudou={(novo) => { onAtualizado?.(); if (!novo) setEditando(false) }} />
+        </Janela>
+      )}
     </div>
   )
-}
-
-const ROTULO_FINAL: Record<Decisao, string> = {
-  vender: 'Vendida', guardar: 'Guardada', usar: 'Usada', descartar: 'Descartada', outro: 'Outro',
 }
 
 function corConcluir(etapa: EtapaTrabalho, d: Decisao | null): string {
@@ -349,24 +339,7 @@ function corConcluir(etapa: EtapaTrabalho, d: Decisao | null): string {
   return etapa === 'verificacao' ? '#047857' : '#EA580C'
 }
 
-function OpcaoLocal({ ativo, onClick, icone, titulo, dica }: { ativo: boolean; onClick: () => void; icone: React.ReactNode; titulo: string; dica: string }) {
-  const cor = '#0F766E'
-  return (
-    <button type="button" role="radio" aria-checked={ativo} onClick={onClick} style={{
-      textAlign: 'left', padding: '12px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
-      display: 'flex', gap: 10, alignItems: 'flex-start',
-      border: '1.5px solid ' + (ativo ? cor : 'var(--portal-border)'), background: ativo ? cor : 'var(--portal-bg-card)',
-    }}>
-      <span style={{ color: ativo ? '#fff' : cor, marginTop: 1 }}>{icone}</span>
-      <span>
-        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 800, color: ativo ? '#fff' : 'var(--portal-text)' }}>{titulo}</span>
-        <span style={{ display: 'block', fontSize: 12, color: ativo ? 'rgba(255,255,255,.85)' : 'var(--portal-text-muted)', marginTop: 2 }}>{dica}</span>
-      </span>
-    </button>
-  )
-}
-
-function CartaoDecisao({ decisao, ativo, onClick, rotulo, dica }: { decisao: Decisao; ativo: boolean; onClick: () => void; rotulo?: string; dica?: string }) {
+function CartaoDecisao({ decisao, ativo, onClick }: { decisao: Decisao; ativo: boolean; onClick: () => void }) {
   const info = INFO_DECISAO[decisao]
   return (
     <button type="button" role="radio" aria-checked={ativo} onClick={onClick} style={{
@@ -376,10 +349,9 @@ function CartaoDecisao({ decisao, ativo, onClick, rotulo, dica }: { decisao: Dec
     }}>
       <span style={{ color: ativo ? '#fff' : info.cor, marginTop: 1 }}>{ICONE_DECISAO[decisao]}</span>
       <span>
-        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 800, color: ativo ? '#fff' : 'var(--portal-text)' }}>{rotulo || info.rotulo}</span>
-        <span style={{ display: 'block', fontSize: 12, color: ativo ? 'rgba(255,255,255,.85)' : 'var(--portal-text-muted)', marginTop: 2 }}>{dica || info.dica}</span>
+        <span style={{ display: 'block', fontSize: 14.5, fontWeight: 800, color: ativo ? '#fff' : 'var(--portal-text)' }}>{info.rotulo}</span>
+        <span style={{ display: 'block', fontSize: 12, color: ativo ? 'rgba(255,255,255,.85)' : 'var(--portal-text-muted)', marginTop: 2 }}>{info.dica}</span>
       </span>
     </button>
   )
 }
-

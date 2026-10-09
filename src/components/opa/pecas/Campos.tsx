@@ -44,7 +44,7 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled }: {
           <option value="">Sem local</option>
           {grupos.map((g) => (
             <optgroup key={g.titulo} label={g.titulo}>
-              {g.itens.map(({ local: l, rotulo }) => <option key={l.id} value={l.id}>{rotulo}</option>)}
+              {g.itens.map(({ local: l, rotulo }) => <option key={l.id} value={l.id}>{g.titulo === rotulo ? rotulo : `${g.titulo} · ${rotulo}`}</option>)}
             </optgroup>
           ))}
         </select>

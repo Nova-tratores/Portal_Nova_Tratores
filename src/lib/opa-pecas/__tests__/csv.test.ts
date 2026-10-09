@@ -44,7 +44,7 @@ describe('CSV para Excel pt-BR', () => {
   it('escapa ; aspas e quebra de linha, e usa vírgula decimal', () => {
     expect(csv).toContain('"Disco de grade; recortado ""18 pol"""')
     expect(csv).toContain('"linha 1\nlinha 2"')
-    expect(csv).toContain(';1234,50;4938,00;Box Técnico (Gabriel Moraes);')
+    expect(csv).toContain(';1234,50;4938,00;Oficina · Box Técnico (Gabriel Moraes);')
     expect(csv).toContain('Grade aradora Baldan; Grade aradora (qualquer marca)')
   })
 

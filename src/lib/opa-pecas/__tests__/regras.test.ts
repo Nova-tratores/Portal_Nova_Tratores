@@ -21,14 +21,15 @@ function item(p: Partial<Item> = {}): Item {
 }
 
 describe('transições de status (espelho de pni_transicao_valida)', () => {
+  const FINAIS_SEM_VENDA: Status[] = ['descartado', 'guardado', 'usado', 'outro_destino']
   const validas: [Status, Status][] = [
-    ['aguardando_identificacao', 'identificado'], ['identificado', 'precificado'],
-    ['precificado', 'a_venda'], ['a_venda', 'vendido'],
-    ['identificado', 'aguardando_identificacao'], ['precificado', 'identificado'], ['a_venda', 'precificado'],
-    ['a_venda', 'identificado'], ['precificado', 'vendido'],   // destino: volta p/ verificação ou vende
-    // destinos finais (menos vendido) saem de qualquer status em aberto
-    ...(['aguardando_identificacao', 'identificado', 'precificado', 'a_venda'] as Status[]).flatMap((de) =>
-      (['descartado', 'guardado', 'usado', 'outro_destino'] as Status[]).map((para) => [de, para] as [Status, Status])),
+    // verificação → separação
+    ['aguardando_identificacao', 'identificado'],
+    // separação (identificado; precificado = legado) → volta p/ verificação, à venda ou conclui
+    ...(['identificado', 'precificado'] as Status[]).flatMap((de) =>
+      (['aguardando_identificacao', 'a_venda', ...FINAIS_SEM_VENDA] as Status[]).map((para) => [de, para] as [Status, Status])),
+    // à venda → vendida, outro desfecho, ou volta p/ separação
+    ...(['vendido', 'identificado', ...FINAIS_SEM_VENDA] as Status[]).map((para) => ['a_venda', para] as [Status, Status]),
   ]
   it('aceita exatamente as transições previstas', () => {
     for (const de of STATUS) for (const para of STATUS) {
@@ -36,9 +37,11 @@ describe('transições de status (espelho de pni_transicao_valida)', () => {
       expect(transicaoValida(de, para), `${de} → ${para}`).toBe(esperado)
     }
   })
-  it('rejeita pular etapas e sair de status final', () => {
+  it('rejeita pular etapas, encerrar antes da separação e sair de status final', () => {
     expect(transicaoValida('aguardando_identificacao', 'precificado')).toBe(false)
     expect(transicaoValida('aguardando_identificacao', 'a_venda')).toBe(false)
+    expect(transicaoValida('aguardando_identificacao', 'descartado')).toBe(false)   // o que acontecia antes do pni-11
+    expect(transicaoValida('aguardando_identificacao', 'outro_destino')).toBe(false)
     expect(transicaoValida('vendido', 'a_venda')).toBe(false)
     expect(transicaoValida('descartado', 'aguardando_identificacao')).toBe(false)
     expect(transicaoValida('guardado', 'usado')).toBe(false)
@@ -49,7 +52,7 @@ describe('transições de status (espelho de pni_transicao_valida)', () => {
     expect(acoesDoStatus('aguardando_identificacao')).toEqual([])
     expect(acoesDoStatus('a_venda').map((a) => a.para)).toEqual(['vendido', 'identificado'])
     expect(transicaoValida('precificado', 'guardado')).toBe(true)
-    for (const d of DESTINOS) expect(transicaoValida('aguardando_identificacao', d.status)).toBe(true)
+    for (const d of DESTINOS) expect(transicaoValida('identificado', d.status)).toBe(true)
     expect(acoesDoStatus('vendido')).toEqual([])
   })
 })
@@ -68,7 +71,8 @@ describe('requisitos por status', () => {
     expect(pendenciasPara(item(), 'guardado')).toEqual([])
   })
   it('cadastro incompleto: avisa o que falta, some quando encerra', () => {
-    expect(camposFaltando(item())).toEqual(['localização', 'descrição', 'aplicação', 'preço', 'qualidade'])
+    expect(camposFaltando(item())).toEqual(['localização', 'descrição', 'qualidade'])   // antes da verificação: sem aplicação/preço
+    expect(camposFaltando(item({ status: 'identificado' }))).toEqual(['localização', 'descrição', 'aplicação', 'preço', 'qualidade'])
     expect(camposFaltando(item({ nao_identificavel: true, local_id: 'pecas', qualidade: 'sucata' }))).toEqual([])
     expect(camposFaltando(item({ status: 'guardado' }))).toEqual([])
   })
@@ -105,14 +109,15 @@ describe('filtros e totais', () => {
     expect(filtrarItens(itens, { ...FILTROS_VAZIOS, tipo: 'grade', marca: 'mahindra' }).map((i) => i.id)).toEqual(['2'])
     expect(filtrarItens(itens, { ...FILTROS_VAZIOS, tipo: 'trator' }).map((i) => i.id)).toEqual(['1'])
   })
-  it('status, qualidade, preço, data (horário de Brasília) e etiqueta pendente', () => {
+  it('status, qualidade, preço e data (horário de Brasília); "etiqueta pendente" não filtra mais', () => {
     expect(filtrarItens(itens, { ...FILTROS_VAZIOS, status: ['a_venda', 'precificado'] })).toHaveLength(2)
     expect(filtrarItens(itens, { ...FILTROS_VAZIOS, qualidade: ['sucata'] }).map((i) => i.id)).toEqual(['2'])
     expect(filtrarItens(itens, { ...FILTROS_VAZIOS, precoMin: '50', precoMax: '500' }).map((i) => i.id)).toEqual(['1'])
     // 2026-09-01T02:00Z = 31/08 às 23h em Brasília
     expect(filtrarItens(itens, { ...FILTROS_VAZIOS, dataAte: '2026-08-31' }).map((i) => i.id)).toEqual(['2'])
-    expect(filtrarItens(itens, { ...FILTROS_VAZIOS, soEtiquetaPendente: true }).map((i) => i.id)).toEqual(['1', '2', '4'])
-    expect(filtrarItens(itens, { ...FILTROS_VAZIOS, soIncompletos: true }).map((i) => i.id)).toEqual(['1', '2', '3'])
+    expect(filtrarItens(itens, { ...FILTROS_VAZIOS, soEtiquetaPendente: true }).map((i) => i.id)).toEqual(['1', '2', '3', '4'])
+    // '1' está à venda (concluída): não conta como incompleta
+    expect(filtrarItens(itens, { ...FILTROS_VAZIOS, soIncompletos: true }).map((i) => i.id)).toEqual(['2', '3'])
   })
   it('totais: itens/unidades por status e valor só de precificados e à venda', () => {
     const t = calcularTotais(itens)
@@ -164,26 +169,29 @@ describe('locais agrupados por área', () => {
   })
 })
 
-describe('etapas: separação e verificação', () => {
+describe('etapas: verificação → separação → concluída (pni-11)', () => {
   it('em que etapa a peça está', () => {
-    expect(etapaDoItem(item())).toBe('separacao')
-    expect(etapaDoItem(item({ status: 'identificado' }))).toBe('verificacao')
-    expect(etapaDoItem(item({ status: 'precificado' }))).toBe('destino')
-    expect(etapaDoItem(item({ status: 'a_venda' }))).toBe('destino')
-    expect(etapaDoItem(item({ status: 'guardado' }))).toBeNull()
+    expect(etapaDoItem(item())).toBe('verificacao')
+    expect(etapaDoItem(item({ status: 'identificado' }))).toBe('separacao')
+    expect(etapaDoItem(item({ status: 'precificado' }))).toBe('separacao')   // legado = aguardando separação
+    expect(etapaDoItem(item({ status: 'a_venda' }))).toBe('concluida')
+    expect(etapaDoItem(item({ status: 'guardado' }))).toBe('concluida')
   })
-  it('separação: decisão obrigatória; descartar e outro pedem o motivo', () => {
-    expect(pendenciasSeparacao(null, '')).toEqual(['escolher o que fazer com a peça'])
+  it('separação: destino obrigatório; descartar pede o motivo; "outro" pede um destino criado (ou texto)', () => {
+    expect(pendenciasSeparacao(null, '')).toEqual(['escolher pra onde a peça vai'])
     expect(pendenciasSeparacao('vender', '')).toEqual([])
     expect(pendenciasSeparacao('descartar', ' ')).toEqual(['motivo do descarte'])
+    expect(pendenciasSeparacao('outro', '')).toEqual(['escolher o destino'])
+    expect(pendenciasSeparacao('outro', '', 'dest-1')).toEqual([])
     expect(pendenciasSeparacao('outro', 'doada')).toEqual([])
   })
-  it('verificação: valor e aplicação conferidos com um setor', () => {
-    const base = item({ status: 'identificado', decisao: 'vender' })
+  it('verificação: descrição, aplicação e valor conferidos com um setor (não identificável dispensa)', () => {
+    const base = item()
     expect(pendenciasVerificacao(base, '')).toEqual(['descrição', 'aplicação', 'valor', 'setor consultado'])
     const ok = { ...base, descricao: 'eixo', aplicacoes: [{ tipo_maquina_id: 't', marca_id: null }], preco_sugerido: 50 }
     expect(pendenciasVerificacao(ok, 'Peças')).toEqual([])
-    expect(pendenciasVerificacao({ ...ok, decisao: 'usar', preco_sugerido: null }, 'Oficina')).toEqual([])
+    expect(pendenciasVerificacao({ ...ok, preco_sugerido: null }, 'Oficina')).toEqual(['valor'])
+    expect(pendenciasVerificacao({ ...base, nao_identificavel: true }, 'Oficina')).toEqual([])
   })
   it('destino: finaliza pelo plano; descartar e outro pedem o motivo', () => {
     expect(pendenciasDestino('guardar', '')).toEqual([])
@@ -192,7 +200,7 @@ describe('etapas: separação e verificação', () => {
   })
 })
 
-describe('código definitivo só no Destino', () => {
+describe('código definitivo só na conclusão', () => {
   it('CAP- é provisório; PNI- e códigos antigos são definitivos', () => {
     expect(codigoDefinitivo('CAP-000045')).toBe(false)
     expect(codigoDefinitivo('PNI-000123')).toBe(true)
