@@ -13,7 +13,8 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import { chartColors } from '@/lib/estoque/chartColors';
 import { authHeaders } from '@/lib/auth/client';
-import HistoricoGrade, { type SerieGrade, type MesHistorico, type Medida } from '@/components/estoque/HistoricoGrade';
+import HistoricoGrade, { type SerieGrade, type MesHistorico, type SemanaHistorico, type Medida } from '@/components/estoque/HistoricoGrade';
+import { agruparDias } from '@/lib/estoque/historico-semanas';
 
 // As rotas do dashboard exigem login (token da sessão no header).
 const getDash = async (url: string) => fetch(url, { headers: await authHeaders() });
@@ -108,8 +109,44 @@ function mesesParaGrade(meses: HistMes[], servico: boolean, tipo?: TipoServ): Me
     return { mes: m.mes, ano: m.ano, valor: m.valor, custo: m.custo, pedidos: m.qtdePedidos, itens: m.qtdeItens ?? null, os: null };
   });
 }
-interface HistResp { catKey: string; nome: string; meses: HistMes[]; diasUteisMes?: { ano: number; mes: number; decorridos: number; total: number }; erro?: string }
-type HistComparar = 'nenhum' | 'empresas' | 'metricas' | 'categorias' | 'tipos';
+interface HistSemana { inicio: string; valor: number; custo: number; qtdePedidos: number; qtdeItens: number; servItens?: HistMes['servItens'] }
+interface HistResp { catKey: string; nome: string; meses: HistMes[]; semanas?: HistSemana[] | null; diasUteisMes?: { ano: number; mes: number; decorridos: number; total: number }; erro?: string }
+interface HorasResp { dias: Array<{ data: string; tecnico: string; trabalhadas: number; faturadas: number }>; tecnicos: string[]; inicioRelatorios: string | null; semPortal: boolean; erro?: string }
+
+/** Semanas no formato da grade (mesma regra de mesesParaGrade; serviços sempre pelos itens das OS). */
+function semanasParaGrade(semanas: HistSemana[] | null | undefined, servico: boolean, tipo?: TipoServ): SemanaHistorico[] | null {
+  if (!semanas) return null;
+  return semanas.map((w) => {
+    if (servico) {
+      const p = w.servItens ? (tipo ? w.servItens.porTipo[tipo] : w.servItens) : null;
+      return { inicio: w.inicio, valor: p?.valor ?? 0, custo: 0, pedidos: null, itens: p?.itens ?? null, os: p?.os ?? null };
+    }
+    return { inicio: w.inicio, valor: w.valor, custo: w.custo, pedidos: w.qtdePedidos, itens: w.qtdeItens, os: null };
+  });
+}
+
+/** Uma série da grade a partir de uma resposta do histórico (meses + semanas). */
+function serieDoHistorico(nome: string, cor: string, h: HistResp, servico: boolean, metrica: SerieGrade['metrica'], tipo?: TipoServ): SerieGrade {
+  return { nome, cor, metrica, servico, meses: mesesParaGrade(h.meses, servico, tipo), semanas: semanasParaGrade(h.semanas, servico, tipo) };
+}
+
+/** Horas trabalhadas × faturadas (por técnico ou todos) como duas séries da grade. */
+function seriesDeHoras(h: HorasResp, tecnico: string): SerieGrade[] {
+  const dias = h.dias.filter((d) => !tecnico || d.tecnico === tecnico);
+  const porMes = agruparDias(dias, ['trabalhadas', 'faturadas'], 'mes');
+  const porSemana = agruparDias(dias, ['trabalhadas', 'faturadas'], 'semana');
+  const vazio = { valor: 0, custo: 0, pedidos: null, itens: null, os: null };
+  const serie = (campo: 'trabalhadas' | 'faturadas', nome: string, cor: string): SerieGrade => ({
+    nome, cor, metrica: 'venda', servico: true,
+    meses: porMes.map((x) => ({ ...vazio, ano: Number(x.chave.slice(0, 4)), mes: Number(x.chave.slice(5, 7)), horas: x[campo] })),
+    semanas: porSemana.map((x) => ({ ...vazio, inicio: x.chave, horas: x[campo] })),
+  });
+  return [
+    serie('trabalhadas', 'Trabalhadas (data do técnico)', '#2563eb'),
+    serie('faturadas', 'Faturadas (HR na NFS-e)', '#16a34a'),
+  ];
+}
+type HistComparar = 'nenhum' | 'empresas' | 'metricas' | 'categorias' | 'tipos' | 'horas';
 const CORES_SERIE = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
 interface VendaRow {
   numero_pedido?: string; data_pedido?: string; descricao?: string; codigo_produto?: string;
@@ -202,6 +239,9 @@ export default function DashboardPage() {
   const [histComparar, setHistComparar] = useState<HistComparar>('nenhum');
   const [histSeriesExtra, setHistSeriesExtra] = useState<SerieGrade[] | null>(null);
   const [histCompErro, setHistCompErro] = useState('');
+  // Comparar "Horas: trabalhadas × faturadas" (só no card Serviços).
+  const [horas, setHoras] = useState<HorasResp | null>(null);
+  const [horasTecnico, setHorasTecnico] = useState('');
   const trocarHistView = useCallback((v: 'grade' | 'grafico') => {
     setHistView(v);
     try { localStorage.setItem('estoque-hist-view', v); } catch { /* sem storage */ }
@@ -303,6 +343,7 @@ export default function DashboardPage() {
     setHistComparar('nenhum');
     setHistSeriesExtra(null);
     setHistCompErro('');
+    setHoras(null);
     // O bloco fica no fim da página: leva a pessoa até ele (o clique vem do card, lá em cima).
     setTimeout(() => document.getElementById('historico-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
@@ -317,6 +358,17 @@ export default function DashboardPage() {
     setHistComparar(modo);
     setHistSeriesExtra(null);
     setHistCompErro('');
+    if (modo === 'horas') {
+      try {
+        const r = await getDash(`/api/estoque/dashboard/horas?_=1${contaParam}`);
+        const d = (await r.json()) as HorasResp;
+        if (d.erro) throw new Error(d.erro);
+        setHoras(d);
+      } catch (e) {
+        setHistCompErro((e as Error).message);
+      }
+      return;
+    }
     if (!histCard || modo === 'nenhum' || modo === 'metricas' || modo === 'tipos') return;
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
     const buscar = async (catKey: string, contaQ: string): Promise<HistResp> => {
@@ -331,8 +383,8 @@ export default function DashboardPage() {
       if (modo === 'empresas') {
         const [nova, castro] = await Promise.all([buscar(histCard, '&conta=NOVA'), buscar(histCard, '&conta=CASTRO')]);
         series = [
-          { nome: 'NOVA', cor: '#c62828', meses: mesesParaGrade(nova.meses, servico), metrica, servico },
-          { nome: 'CASTRO', cor: '#1976d2', meses: mesesParaGrade(castro.meses, servico), metrica, servico },
+          serieDoHistorico('NOVA', '#c62828', nova, servico, metrica),
+          serieDoHistorico('CASTRO', '#1976d2', castro, servico, metrica),
         ];
       } else {
         const top = (dados?.categorias || [])
@@ -340,7 +392,7 @@ export default function DashboardPage() {
           .sort((a, b) => b.valorAtual - a.valorAtual)
           .slice(0, CORES_SERIE.length);
         const hs = await Promise.all(top.map((c) => buscar(c.key, contaParam)));
-        series = hs.map((h, i) => ({ nome: fixLabel(top[i].nome), cor: CORES_SERIE[i], meses: mesesParaGrade(h.meses, false), metrica, servico: false }));
+        series = hs.map((h, i) => serieDoHistorico(fixLabel(top[i].nome), CORES_SERIE[i], h, false, metrica));
       }
       setHistSeriesExtra(series);
     } catch (e) {
@@ -851,6 +903,7 @@ export default function DashboardPage() {
                     {histCard !== 'servico' && histCard !== 'totalGeral' && <option value="metricas">Comparar: Venda × Custo × Margem</option>}
                     {histCard === 'totalPecas' && <option value="categorias">Comparar: categorias (6 maiores)</option>}
                     {histCard === 'servico' && hist?.meses.some((m) => m.servItens) && <option value="tipos">Comparar: HR × KM × Sem código × Outros</option>}
+                    {histCard === 'servico' && <option value="horas">Comparar: Horas trabalhadas × faturadas</option>}
                   </select>
                 )}
                 {temQtd && histView === 'grafico' && (
@@ -872,18 +925,40 @@ export default function DashboardPage() {
           })()}
           {!hist ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div> : histView === 'grade' ? (
             histCompErro ? <div style={{ color: '#dc2626', fontSize: '.9rem' }}>Não foi possível comparar: {histCompErro}</div>
-            : (histComparar === 'empresas' || histComparar === 'categorias') && !histSeriesExtra ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando a comparação…</div>
-            : <HistoricoGrade
+            : ((histComparar === 'empresas' || histComparar === 'categorias') && !histSeriesExtra) || (histComparar === 'horas' && !horas)
+              ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando a comparação…</div>
+            : <>
+            {histComparar === 'horas' && horas && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 10, fontSize: '.84rem', color: '#374151' }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                  Técnico
+                  <select value={horasTecnico} onChange={(e) => setHorasTecnico(e.target.value)} style={{ border: '1px solid #d1d5db', borderRadius: 8, padding: '4px 8px', fontSize: '.85rem', background: '#fff', color: '#374151' }}>
+                    <option value="">Todos</option>
+                    {horas.tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </label>
+                <span style={{ color: '#6b7280' }}>
+                  {horas.semPortal
+                    ? 'Esta conta não tem OS no portal: aparecem só as horas faturadas.'
+                    : `Trabalhadas = relatório do app do técnico, pela data em que fez o serviço (desde ${horas.inicioRelatorios ? horas.inicioRelatorios.split('-').reverse().join('/') : '—'}); em OS com 2 técnicos as horas ficam com quem fez o relatório. Faturadas = horas HR das OS com NFS-e, pela data do faturamento.`}
+                </span>
+              </div>
+            )}
+            <HistoricoGrade
+              key={histComparar === 'horas' ? 'horas' : 'normal'}
               series={
-                histComparar === 'metricas'
-                  ? (['venda', 'custo', 'margem'] as const).map((m, i) => ({ nome: m === 'venda' ? 'Venda' : m === 'custo' ? 'Custo (CMC)' : 'Margem', cor: ['#111827', '#9ca3af', '#16a34a'][i], meses: mesesParaGrade(hist.meses, false), metrica: m, servico: false }))
+                histComparar === 'horas' && horas
+                  ? seriesDeHoras(horas, horasTecnico)
+                  : histComparar === 'metricas'
+                  ? (['venda', 'custo', 'margem'] as const).map((m, i) => serieDoHistorico(m === 'venda' ? 'Venda' : m === 'custo' ? 'Custo (CMC)' : 'Margem', ['#111827', '#9ca3af', '#16a34a'][i], hist, false, m))
                   : histComparar === 'tipos'
-                    ? TIPOS_SERVICO_GRADE.map((t) => ({ nome: t.nome, cor: t.cor, meses: mesesParaGrade(hist.meses, true, t.tipo), metrica, servico: true }))
+                    ? TIPOS_SERVICO_GRADE.map((t) => serieDoHistorico(t.nome, t.cor, hist, true, metrica, t.tipo))
                     : histSeriesExtra && histComparar !== 'nenhum'
                       ? histSeriesExtra
-                      : [{ nome: hist.nome, cor: '', meses: mesesParaGrade(hist.meses, histCard === 'servico'), metrica, servico: histCard === 'servico' }]
+                      : [serieDoHistorico(hist.nome, '', hist, histCard === 'servico', metrica)]
               }
               medidas={((): Medida[] => {
+                if (histComparar === 'horas') return ['horas'];
                 if (histCard === 'totalGeral' || histComparar === 'metricas') return ['valor'];
                 if (histCard === 'servico') return hist.meses.some((m) => m.servItens) ? ['valor', 'os', 'itens'] : ['valor', 'os'];
                 return ['valor', 'pedidos', 'itens'];
@@ -892,6 +967,7 @@ export default function DashboardPage() {
               baseMin={BASE_MIN_PECAS}
               onMes={(a, m) => { setAno(a); setMes(m); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             />
+            </>
           ) : (() => {
             const temSplit = hist.meses.some((m) => m.valorNota != null);
             const custoTodoZero = hist.meses.every((m) => !m.custo);

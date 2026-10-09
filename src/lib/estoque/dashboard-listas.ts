@@ -12,6 +12,7 @@ import {
   ehPecaVenda,
   CATEGORIAS_AGRUPADAS,
   type ItemVenda,
+  type FixedCats,
 } from './categorias';
 import { classificarGrupo, comprasPecasMes, type CompraPecaItem } from './cruzamento-familia';
 import { preCarregarCMCPorMes } from './vendas-sync';
@@ -52,6 +53,18 @@ export interface HistoricoResult {
   meses: HistoricoMesPonto[];
   /** Mês corrente (horário de Brasília): dias úteis FECHADOS (antes de hoje) e do mês, com feriados — base da projeção. */
   diasUteisMes: { ano: number; mes: number; decorridos: number; total: number };
+  /** Vista "Semanas" (segunda a domingo, desde 2024). null = RPCs semanais ainda não aplicadas (sql/dashboard-semanas.sql). */
+  semanas: HistoricoSemanaPonto[] | null;
+}
+
+export interface HistoricoSemanaPonto {
+  /** Segunda-feira da semana, 'YYYY-MM-DD'. */
+  inicio: string;
+  valor: number;
+  custo: number;
+  qtdePedidos: number;
+  qtdeItens: number;
+  servItens?: ServicosMes | null;
 }
 
 export type TipoServicoGrade = 'HR' | 'KM' | 'SEM_CODIGO' | 'OUTRO';
@@ -143,25 +156,18 @@ async function lerItensCrus(anos: number[], conta: ContaFiltro): Promise<HistIte
  * das OS (RPC servicos_resumo_mensal_json, sql/servicos-codigo-resumo.sql).
  * OS contadas sem repetir (uma OS com HR e KM é 1 OS no total). null = sem a RPC.
  */
-async function lerServicosPorTipo(conta: ContaFiltro): Promise<Map<string, ServicosMes> | null> {
-  type Linha = { conta_omie: string; ano: number; mes: number; tipo: TipoServicoGrade; valor: number | string; itens: number; os: number[] | null };
-  const linhas = await comCacheResumo('serv|' + (conta ?? 'todas'), async () => {
-    const { data, error } = await supabase.rpc('servicos_resumo_mensal_json', { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null });
-    if (error) {
-      if (error.code === 'PGRST202' || error.code === '42883' || error.message.includes('servicos_resumo_mensal_json')) return null;
-      throw new Error('servicos_resumo_mensal_json: ' + error.message);
-    }
-    return (data || []) as Linha[];
-  });
-  if (!linhas) return null;
+type LinhaServico = { conta_omie: string; ano?: number; mes?: number; semana?: string; tipo: TipoServicoGrade; valor: number | string; itens: number; os: number[] | null };
+
+/** Soma as linhas da RPC de serviços por período (chave), contando OS sem repetir. */
+function agregarServicos(linhas: LinhaServico[], chave: (l: LinhaServico) => string): Map<string, ServicosMes> {
   const vazio = (): ServicosParte => ({ valor: 0, os: 0, itens: 0 });
-  const porMes = new Map<string, ServicosMes & { _os: Set<string> }>();
+  const porPeriodo = new Map<string, ServicosMes & { _os: Set<string> }>();
   for (const l of linhas) {
-    const k = l.ano + '-' + l.mes;
-    let m = porMes.get(k);
+    const k = chave(l);
+    let m = porPeriodo.get(k);
     if (!m) {
       m = { ...vazio(), porTipo: { HR: vazio(), KM: vazio(), SEM_CODIGO: vazio(), OUTRO: vazio() }, _os: new Set() };
-      porMes.set(k, m);
+      porPeriodo.set(k, m);
     }
     const t = m.porTipo[l.tipo] ?? m.porTipo.OUTRO;
     const os = l.os || [];
@@ -170,8 +176,108 @@ async function lerServicosPorTipo(conta: ContaFiltro): Promise<Map<string, Servi
     for (const n of os) m._os.add(l.conta_omie + ':' + n);
   }
   const out = new Map<string, ServicosMes>();
-  for (const [k, m] of porMes) out.set(k, { valor: m.valor, itens: m.itens, os: m._os.size, porTipo: m.porTipo });
+  for (const [k, m] of porPeriodo) out.set(k, { valor: m.valor, itens: m.itens, os: m._os.size, porTipo: m.porTipo });
   return out;
+}
+
+/** Chama uma RPC jsonb do resumo; null quando a função ainda não existe no banco. */
+async function rpcResumo<T>(fn: string, params: Record<string, unknown>): Promise<T[] | null> {
+  const { data, error } = await supabase.rpc(fn, params);
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883' || error.message.includes(fn)) return null;
+    throw new Error(fn + ': ' + error.message);
+  }
+  return (data || []) as T[];
+}
+
+/**
+ * Serviços COM NFS-e por mês e tipo (HR / KM / Sem código / Outros), dos itens
+ * das OS (RPC servicos_resumo_mensal_json, sql/servicos-codigo-resumo.sql).
+ * OS contadas sem repetir (uma OS com HR e KM é 1 OS no total). null = sem a RPC.
+ */
+async function lerServicosPorTipo(conta: ContaFiltro): Promise<Map<string, ServicosMes> | null> {
+  const linhas = await comCacheResumo('serv|' + (conta ?? 'todas'), () =>
+    rpcResumo<LinhaServico>('servicos_resumo_mensal_json', { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null }));
+  return linhas ? agregarServicos(linhas, (l) => l.ano + '-' + l.mes) : null;
+}
+
+// Semanas: desde 2024 (a de 2025/2026 tem base do ano anterior).
+const SEMANAS_DESDE = '2024-01-01';
+
+async function lerServicosSemanal(conta: ContaFiltro): Promise<Map<string, ServicosMes> | null> {
+  const linhas = await comCacheResumo('serv-sem|' + (conta ?? 'todas'), () =>
+    rpcResumo<LinhaServico>('servicos_resumo_semanal_json', { p_desde: SEMANAS_DESDE, p_conta: conta ?? null }));
+  return linhas ? agregarServicos(linhas, (l) => String(l.semana)) : null;
+}
+
+/** Vendas por semana × família × tipo × categoria (RPC vendas_resumo_semanal_json), no formato de HistItem. */
+async function lerResumoSemanal(conta: ContaFiltro): Promise<Array<HistItem & { semana: string }> | null> {
+  const { codigos } = await getIgnorarFiltro(conta);
+  type Linha = { semana: string; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; linhas: number; pedidos: string[] | null };
+  const linhas = await comCacheResumo('sem|' + (conta ?? 'todas') + '|' + codigos.join(','), () =>
+    rpcResumo<Linha>('vendas_resumo_semanal_json', { p_desde: SEMANAS_DESDE, p_conta: conta ?? null, p_ignorar: codigos.map(String) }));
+  if (!linhas) return null;
+  return linhas.map((l) => ({
+    semana: l.semana, mes: 0, ano: 0, familia: l.familia, tipo: l.tipo, codigo_categoria: l.codigo_categoria,
+    valor_total: num(l.valor), quantidade: 1, cmc_unitario: num(l.custo), pedidos: l.pedidos || [], linhas: num(l.linhas),
+  }));
+}
+
+/** Valor/custo/pedidos/itens de UM card (ou Total Peças) num conjunto de linhas de um período. */
+function somarCard(itens: HistItem[], catKey: string, filtroCategoria: string | null, fixed: FixedCats) {
+  const agg = agregarCardsPecas(itens, filtroCategoria, fixed);
+  const total = catKey === 'totalPecas' || catKey === 'totalGeral' || catKey === 'servico';
+  const b = total ? null : agg.porKey[catKey];
+  const codigosFiltro = expandirCategoriaFiltro(filtroCategoria);
+  const pedidos = new Set<string>();
+  let linhas = 0;
+  for (const it of itens) {
+    if (codigosFiltro && !codigosFiltro.includes(it.codigo_categoria || '')) continue;
+    const card = classificarCardPeca(it, fixed);
+    if (!card || (!total && card.key !== catKey)) continue;
+    it.pedidos.forEach((n) => pedidos.add(n));
+    linhas += it.linhas;
+  }
+  return {
+    valor: total ? agg.totalPecas : b?.valor || 0,
+    custo: total ? agg.totalCusto : b?.custo || 0,
+    pedidos: pedidos.size,
+    itens: linhas,
+  };
+}
+
+/**
+ * Pontos semanais do card. Peças pelo dia de faturamento; Serviços (e a parte de
+ * serviços do Total Geral) pelos ITENS das OS com NFS-e — os_mensal não tem dia.
+ * null quando falta alguma RPC semanal.
+ */
+async function montarSemanasHistorico(catKey: string, filtroCategoria: string | null, conta: ContaFiltro, fixed: FixedCats): Promise<HistoricoSemanaPonto[] | null> {
+  const querPecas = catKey !== 'servico';
+  const querServ = catKey === 'servico' || catKey === 'totalGeral';
+  const [pecas, serv] = await Promise.all([
+    querPecas ? lerResumoSemanal(conta) : Promise.resolve(null),
+    querServ ? lerServicosSemanal(conta) : Promise.resolve(null),
+  ]);
+  if ((querPecas && !pecas) || (querServ && !serv)) return null;
+  const porSemana = new Map<string, HistItem[]>();
+  for (const it of pecas || []) {
+    const lista = porSemana.get(it.semana);
+    if (lista) lista.push(it); else porSemana.set(it.semana, [it]);
+  }
+  const chaves = [...new Set([...porSemana.keys(), ...(serv ? serv.keys() : [])])].sort();
+  return chaves.map((inicio) => {
+    const p = querPecas ? somarCard(porSemana.get(inicio) || [], catKey, filtroCategoria, fixed) : { valor: 0, custo: 0, pedidos: 0, itens: 0 };
+    const s = serv?.get(inicio) ?? null;
+    const ponto: HistoricoSemanaPonto = {
+      inicio,
+      valor: p.valor + (querServ ? s?.valor ?? 0 : 0),
+      custo: p.custo,
+      qtdePedidos: p.pedidos,
+      qtdeItens: p.itens,
+    };
+    if (catKey === 'servico') ponto.servItens = s ?? { valor: 0, os: 0, itens: 0, porTipo: { HR: { valor: 0, os: 0, itens: 0 }, KM: { valor: 0, os: 0, itens: 0 }, SEM_CODIGO: { valor: 0, os: 0, itens: 0 }, OUTRO: { valor: 0, os: 0, itens: 0 } } };
+    return ponto;
+  });
 }
 
 /** Histórico mês a mês (desde Jan/2022 — a tela mostra desde 2023) de um card específico (por chave). */
@@ -191,6 +297,11 @@ export async function montarHistorico(
   }
 
   const anos = [...new Set(meses.map((m) => m.ano))];
+  // Semanas em paralelo (RPCs próprias, também no cache); erro nelas não derruba os meses.
+  const semanasP = montarSemanasHistorico(catKey, filtroCategoria, conta, fixed).catch((e) => {
+    console.log('[historico] semanas: ' + (e as Error).message);
+    return null;
+  });
   const todosItens: HistItem[] = (await lerResumoMensal(conta)) ?? (await lerItensCrus(anos, conta));
 
   type OSMensalRow = { mes: number; ano: number; valor_total: number; valor_nota: number | null; valor_interno: number | null; qtde_os: number | null; qtde_os_nota: number | null; qtde_os_interno: number | null };
@@ -227,32 +338,16 @@ export async function montarHistorico(
   const SERV_VAZIO = (): ServicosMes => ({ valor: 0, os: 0, itens: 0, porTipo: { HR: { valor: 0, os: 0, itens: 0 }, KM: { valor: 0, os: 0, itens: 0 }, SEM_CODIGO: { valor: 0, os: 0, itens: 0 }, OUTRO: { valor: 0, os: 0, itens: 0 } } });
   const resultados: HistoricoMesPonto[] = meses.map((m) => {
     const itensMes = todosItens.filter((it) => it.mes === m.mes && it.ano === m.ano);
-    const agg = agregarCardsPecas(itensMes, filtroCategoria, fixed);
+    // Peças do card (Total Peças/Total Geral = todas). Pedidos = só os que têm item
+    // DESTE card (no app antigo era o mês inteiro, com máquinas).
+    const p = somarCard(itensMes, catKey, filtroCategoria, fixed);
     const osMes = todosOS.find((o) => o.mes === m.mes && o.ano === m.ano);
     const totalOS = osMes ? num(osMes.valor_total) : 0;
-    let valor: number, custo: number;
-    if (catKey === 'totalPecas') { valor = agg.totalPecas; custo = agg.totalCusto; }
-    // Serviços: só COM NFS-e (fallback total de OS enquanto o split não veio) —
-    // mesma régua do card no dashboard.
-    else if (catKey === 'servico') { valor = osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS; custo = 0; }
-    // Total Geral = peças + serviços COM NOTA (fallback: total de OS quando o split falta)
-    else if (catKey === 'totalGeral') { valor = agg.totalPecas + (osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS); custo = agg.totalCusto; }
-    else { const b = agg.porKey[catKey]; valor = b?.valor || 0; custo = b?.custo || 0; }
-    // Pedidos que têm item DESTE card (no app antigo era o mês inteiro, com máquinas).
-    const codigosFiltro = expandirCategoriaFiltro(filtroCategoria);
-    const pedidosMes = new Set<string>();
-    let itensCard = 0;
-    for (const it of itensMes) {
-      if (codigosFiltro && !codigosFiltro.includes(it.codigo_categoria || '')) continue;
-      const card = classificarCardPeca(it, fixed);
-      if (!card) continue;
-      if (catKey === 'totalPecas' || catKey === 'totalGeral' || card.key === catKey) {
-        it.pedidos.forEach((n) => pedidosMes.add(n));
-        itensCard += it.linhas;
-      }
-    }
-    const pedidosUnicos = pedidosMes.size;
-    const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: pedidosUnicos, qtdeItens: itensCard };
+    // Serviços: só COM NFS-e (fallback total de OS enquanto o split não veio) — mesma régua do card.
+    const servNota = osMes && osMes.valor_nota != null ? num(osMes.valor_nota) : totalOS;
+    const valor = catKey === 'servico' ? servNota : catKey === 'totalGeral' ? p.valor + servNota : p.valor;
+    const custo = catKey === 'servico' ? 0 : p.custo;
+    const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: p.pedidos, qtdeItens: p.itens };
     if (catKey === 'servico') {
       ponto.servItens = servPorTipo ? (servPorTipo.get(m.ano + '-' + m.mes) ?? SERV_VAZIO()) : null;
       ponto.valorNota = osMes ? (osMes.valor_nota == null ? null : num(osMes.valor_nota)) : null;
@@ -278,7 +373,7 @@ export async function montarHistorico(
     decorridos: diasUteis(hojeSP.ano, hojeSP.mes, feriados, hojeSP.dia - 1),
     total: diasUteis(hojeSP.ano, hojeSP.mes, feriados),
   };
-  return { catKey, nome: nomeCard, meses: resultados, diasUteisMes };
+  return { catKey, nome: nomeCard, meses: resultados, diasUteisMes, semanas: await semanasP };
 }
 
 // ====================== /api/dashboard/categorias-vendas ======================

@@ -17,6 +17,7 @@ import { registrarLog as registrarLogPPV, atualizarValorTotal } from "@/lib/ppv/
 import { aplicarMudancaFase } from "@/lib/pos/fase";
 import { criarOSNoOmie } from "@/lib/pos/omie";
 import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
+import { parseHoras } from "@/lib/pos/horas-tecnico";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -58,21 +59,7 @@ function extrairCampo(texto: unknown, label: string): string {
 
 const primeiraPalavra = (s: string) => String(s || "").trim().toLowerCase().split(/\s+/)[0] || "";
 
-// Total de horas do relatório vem formatado ("2h40m", "2h", "40m", "2:40") ou já
-// como número. Converte pra horas decimais (ex.: "2h40m" → 2.67), que é o que a
-// OS usa em Qtd_HR (Qtd_HR × valor_hora).
-function parseHoras(v: unknown): number {
-  const s = String(v ?? "").trim();
-  if (!s) return 0;
-  const hm = s.match(/(\d+)\s*h(?:\s*(\d+)\s*m?)?/i);
-  if (hm) return Math.round((Number(hm[1]) + Number(hm[2] || 0) / 60) * 100) / 100;
-  const so_m = s.match(/^(\d+)\s*m(?:in)?$/i);
-  if (so_m) return Math.round((Number(so_m[1]) / 60) * 100) / 100;
-  const hhmm = s.match(/^(\d{1,2}):(\d{2})$/);
-  if (hhmm) return Math.round((Number(hhmm[1]) + Number(hhmm[2]) / 60) * 100) / 100;
-  const n = parseFloat(s.replace(",", "."));
-  return isFinite(n) ? n : 0;
-}
+// parseHoras ("2h40m" → 2.67, o que a OS usa em Qtd_HR) mora em lib/pos/horas-tecnico.ts.
 const parseNum = (v: unknown) => parseFloat(String(v ?? "").replace(/[^\d.,-]/g, "").replace(",", ".")) || 0;
 
 // IA: reescreve o serviço realizado (apresentável + parágrafo de testes) e cruza a solicitação.

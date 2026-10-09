@@ -16,6 +16,7 @@
 
 import { useMemo, useState } from 'react';
 import { montarGrade, PROJECAO_MIN_DIAS, type Comparacao, type Delta, type Grade, type Metrica, type PontoMes } from '@/lib/estoque/historico-grade';
+import { montarSemanas, type LinhaSemana, type PontoSemana } from '@/lib/estoque/historico-semanas';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 // Cores fixas por ano (as do painel antigo); anos fora da lista caem no cinza.
@@ -25,7 +26,8 @@ const CHAVE_COMP = 'estoque-hist-comparacao';
 const CHAVE_VISTA = 'estoque-hist-vista';
 const CHAVE_QTD = 'estoque-hist-qtd';
 
-type Vista = 'meses' | 'trimestres';
+type Vista = 'meses' | 'trimestres' | 'semanas';
+const SEMANAS_POR_PAGINA = 26;
 
 function fmtK(v: number): string {
   const abs = Math.abs(v);
@@ -37,9 +39,10 @@ const fmtRS = (v: number) => 'R$ ' + v.toLocaleString('pt-BR', { minimumFraction
 const fmtInt = (v: number) => Math.round(v).toLocaleString('pt-BR');
 
 /** O que a grade soma: dinheiro ou contagens. */
-export type Medida = 'valor' | 'pedidos' | 'itens' | 'os';
-const ROTULO_MEDIDA: Record<Medida, string> = { valor: 'Valor (R$)', pedidos: 'Pedidos de venda', itens: 'Itens', os: 'OS' };
-const UNID_MEDIDA: Record<Medida, string> = { valor: '', pedidos: 'pedidos', itens: 'itens', os: 'OS' };
+export type Medida = 'valor' | 'pedidos' | 'itens' | 'os' | 'horas';
+const ROTULO_MEDIDA: Record<Medida, string> = { valor: 'Valor (R$)', pedidos: 'Pedidos de venda', itens: 'Itens', os: 'OS', horas: 'Horas' };
+const UNID_MEDIDA: Record<Medida, string> = { valor: '', pedidos: 'pedidos', itens: 'itens', os: 'OS', horas: 'h' };
+const fmtHoras = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: v >= 100 ? 0 : 1 }) + ' h';
 // Base mínima de um Δ "significativo" nas contagens (no valor vem da página).
 const BASE_MIN_QTD = 5;
 const fmtPct = (d: Delta) => (d.pct >= 0 ? '+' : '') + d.pct.toLocaleString('pt-BR', { maximumFractionDigits: Math.abs(d.pct) >= 100 ? 0 : 1 }) + '%';
@@ -55,12 +58,16 @@ function DeltaTxt({ d, titulo, rotulo, tamanho = '.78rem' }: { d: Delta | null; 
 }
 
 /** Um mês já normalizado pela página. Contagem null = não se sabe (o mês fica sem dado nessa medida). */
-export interface MesHistorico { mes: number; ano: number; valor: number; custo: number; pedidos: number | null; itens: number | null; os: number | null }
+export interface MesHistorico { mes: number; ano: number; valor: number; custo: number; pedidos: number | null; itens: number | null; os: number | null; horas?: number | null }
+/** Uma semana (segunda-feira em `inicio`, 'YYYY-MM-DD'), com as mesmas medidas do mês. */
+export interface SemanaHistorico { inicio: string; valor: number; custo: number; pedidos: number | null; itens: number | null; os: number | null; horas?: number | null }
 
 export interface SerieGrade {
   nome: string;
   cor: string;
   meses: MesHistorico[];
+  /** Vista Semanas — sem ela (RPC semanal ausente) a vista não aparece. */
+  semanas?: SemanaHistorico[] | null;
   metrica: Metrica;
   /** Card Serviços: ticket por OS com nota. */
   servico: boolean;
@@ -89,11 +96,17 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
   const [medidaSel, setMedida] = useState<Medida>(medidas[0]);
   const medida: Medida = medidas.includes(medidaSel) ? medidaSel : medidas[0];
   const ehValor = medida === 'valor';
-  const fmtV = (v: number) => (ehValor ? 'R$ ' + fmtK(v) : fmtInt(v));
-  const fmtVLongo = (v: number) => (ehValor ? fmtRS(v) : fmtInt(v) + ' ' + UNID_MEDIDA[medida]);
+  const fmtV = (v: number) => (ehValor ? 'R$ ' + fmtK(v) : medida === 'horas' ? fmtHoras(v) : fmtInt(v));
+  const fmtVLongo = (v: number) => (ehValor ? fmtRS(v) : medida === 'horas' ? fmtHoras(v) : fmtInt(v) + ' ' + UNID_MEDIDA[medida]);
   // Só monta depois do fetch (nunca no SSR), então dá para ler o storage aqui.
   const [comparacao, setComparacao] = useState<Comparacao>(() => (lerStorage(CHAVE_COMP) === 'mom' ? 'mom' : 'yoy'));
-  const [vista, setVista] = useState<Vista>(() => (lerStorage(CHAVE_VISTA) === 'trimestres' ? 'trimestres' : 'meses'));
+  const [vistaSel, setVista] = useState<Vista>(() => {
+    const v = lerStorage(CHAVE_VISTA);
+    return v === 'trimestres' || v === 'semanas' ? v : 'meses';
+  });
+  const [qtdSemanas, setQtdSemanas] = useState(SEMANAS_POR_PAGINA);
+  const temSemanas = series.length > 0 && series.every((s) => s.semanas);
+  const vista: Vista = vistaSel === 'semanas' && !temSemanas ? 'meses' : vistaSel;
   const [mostrarQtd, setMostrarQtd] = useState<boolean>(() => lerStorage(CHAVE_QTD) === '1');
   const trocarComp = (c: Comparacao) => { setComparacao(c); gravarStorage(CHAVE_COMP, c); };
   const trocarVista = (v: Vista) => { setVista(v); gravarStorage(CHAVE_VISTA, v); };
@@ -107,12 +120,25 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
       // Ticket médio: por OS (serviços) ou por pedido (peças).
       const qtde = s.servico ? m.os : m.pedidos;
       if (medida === 'valor') { pontos.push({ ano: m.ano, mes: m.mes, valor: m.valor, custo: m.custo, qtde }); continue; }
-      const n = m[medida];
+      const n = m[medida] ?? null;
       if (n != null) pontos.push({ ano: m.ano, mes: m.mes, valor: n, custo: 0, qtde: null });
     }
     const metrica: Metrica = medida !== 'valor' || s.servico ? 'venda' : s.metrica;
     return montarGrade(pontos, { metrica, comparacao, hoje, anoInicial: ANO_INICIAL, baseMin: medida === 'valor' ? baseMin : BASE_MIN_QTD, diasUteisMes: du });
   }), [series, comparacao, hoje, baseMin, du, medida]);
+
+  // Semanas de cada série (mais recente primeiro), na medida escolhida.
+  const semanasSerie: LinhaSemana[][] = useMemo(() => series.map((s) => {
+    const pontos: PontoSemana[] = [];
+    for (const w of s.semanas || []) {
+      if (medida === 'valor') { pontos.push({ inicio: w.inicio, valor: w.valor, custo: w.custo }); continue; }
+      const n = w[medida] ?? null;
+      if (n != null) pontos.push({ inicio: w.inicio, valor: n, custo: 0 });
+    }
+    const metrica: Metrica = medida !== 'valor' || s.servico ? 'venda' : s.metrica;
+    return montarSemanas(pontos, { metrica, hoje, baseMin: medida === 'valor' ? baseMin / 4 : BASE_MIN_QTD });
+  }), [series, medida, hoje, baseMin]);
+  const inicioSemanas = [...new Set(semanasSerie.flatMap((ls) => ls.map((l) => l.inicio)))].sort().reverse();
 
   const multi = series.length > 1;
   // Anos presentes em qualquer série (a mais longa manda).
@@ -136,8 +162,10 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
     oQue ? `${oQue}.` : '',
     vista === 'meses'
       ? `Δ ${rotuloComp}. O mês corrente é parcial: mostra o valor e a projeção, sem Δ.`
-      : 'Cada trimestre traz dois Δ: vs trimestre anterior e vs mesmo trimestre do ano anterior. Trimestre incompleto fica sem Δ.',
-    'O total do ano corrente compara só os meses fechados com os mesmos meses do ano anterior.',
+      : vista === 'trimestres'
+        ? 'Cada trimestre traz dois Δ: vs trimestre anterior e vs mesmo trimestre do ano anterior. Trimestre incompleto fica sem Δ.'
+        : 'Semana de segunda a domingo, pela data do faturamento. Δ vs semana anterior e vs a mesma semana (nº da semana) do ano anterior. A semana corrente é parcial, sem Δ.',
+    vista === 'semanas' ? '' : 'O total do ano corrente compara só os meses fechados com os mesmos meses do ano anterior.',
     du ? `Projeção do mês: ritmo de ${du.decorridos} de ${du.total} dias úteis (com feriados)${du.decorridos < PROJECAO_MIN_DIAS ? `; aparece a partir de ${PROJECAO_MIN_DIAS}` : ''}.` : '',
     onMes && vista === 'meses' ? 'Clique num mês para abrir o dashboard dele.' : '',
     multi ? 'Com várias séries, o Δ de cada uma aparece ao passar o mouse.' : '',
@@ -147,7 +175,7 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 12 }}>
         <div style={caixa}>
-          {([['meses', 'Meses'], ['trimestres', 'Trimestres']] as const).map(([k, rot]) => (
+          {([['meses', 'Meses'], ['trimestres', 'Trimestres'], ...(temSemanas ? [['semanas', 'Semanas']] : [])] as Array<[Vista, string]>).map(([k, rot]) => (
             <button key={k} onClick={() => trocarVista(k)} style={{ ...seg(vista === k), background: vista === k ? '#111827' : '#fff' }}>{rot}</button>
           ))}
         </div>
@@ -180,11 +208,69 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
           </div>
         )}
         <span title={explicacao} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#6b7280', cursor: 'help' }}>
-          {vista === 'meses' ? `Δ ${rotuloComp}` : 'Δ vs trimestre anterior · vs ano anterior'}
+          {vista === 'meses' ? `Δ ${rotuloComp}` : vista === 'trimestres' ? 'Δ vs trimestre anterior · vs ano anterior' : 'Δ vs semana anterior · vs ano anterior'}
           <span style={{ width: 18, height: 18, borderRadius: '50%', border: '1px solid #d1d5db', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '.72rem', fontWeight: 700 }}>?</span>
         </span>
       </div>
 
+      {vista === 'semanas' ? (
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: multi ? 160 + series.length * 170 : 520 }}>
+            <thead>
+              <tr>
+                <th style={{ ...th, textAlign: 'left' }}>Semana</th>
+                {series.map((s, i) => (
+                  <th key={i} style={{ ...th, textAlign: 'right' }}>
+                    {multi ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: s.cor, display: 'inline-block' }} />{s.nome}</span> : ROTULO_MEDIDA[medida]}
+                  </th>
+                ))}
+                {!multi && <th style={{ ...th, textAlign: 'right' }}>vs semana anterior</th>}
+                {!multi && <th style={{ ...th, textAlign: 'right' }}>vs mesma semana do ano anterior</th>}
+              </tr>
+            </thead>
+            <tbody>
+              {inicioSemanas.slice(0, qtdSemanas).map((inicio) => {
+                const linhasSem = semanasSerie.map((ls) => ls.find((l) => l.inicio === inicio) ?? null);
+                const ref = linhasSem.find((l) => l != null)!;
+                return (
+                  <tr key={inicio}>
+                    <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                      <div style={{ fontWeight: 700, color: '#111827', fontSize: '.86rem' }}>{ref.rotulo}<span style={{ color: '#9ca3af', fontWeight: 500 }}>/{inicio.slice(2, 4)}</span></div>
+                      <div style={{ fontSize: '.72rem', color: '#9ca3af' }}>semana {ref.semanaIso}{ref.parcial ? ' · em andamento' : ''}</div>
+                    </td>
+                    {linhasSem.map((l, i) => (
+                      <td key={i} style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}
+                        title={l ? `${multi ? series[i].nome + ' · ' : ''}${l.rotulo}: ${fmtVLongo(l.valor)}${l.deltaAnt ? ` · ${fmtPct(l.deltaAnt)} vs semana anterior` : ''}${l.deltaAno ? ` · ${fmtPct(l.deltaAno)} vs semana ${l.semanaIso}/${l.anoIso - 1}` : ''}` : undefined}>
+                        {!l ? <span style={{ color: '#d1d5db' }}>—</span> : (
+                          <>
+                            <div style={{ ...valorStyle(!multi), opacity: l.parcial ? 0.75 : 1 }}>{fmtV(l.valor)}</div>
+                            {multi && !l.parcial && (
+                              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                                <DeltaTxt d={l.deltaAnt} titulo="vs semana anterior" rotulo="sem." tamanho=".72rem" />
+                                <DeltaTxt d={l.deltaAno} titulo="vs mesma semana do ano anterior" rotulo="ano" tamanho=".72rem" />
+                              </div>
+                            )}
+                            {l.parcial && <div style={{ fontSize: '.72rem', color: '#9ca3af', fontStyle: 'italic' }}>parcial</div>}
+                          </>
+                        )}
+                      </td>
+                    ))}
+                    {!multi && <td style={{ ...td, textAlign: 'right' }}>{ref.parcial ? <span style={{ color: '#d1d5db' }}>—</span> : <DeltaTxt d={ref.deltaAnt} titulo="vs semana anterior" />}</td>}
+                    {!multi && <td style={{ ...td, textAlign: 'right' }}>{ref.parcial ? <span style={{ color: '#d1d5db' }}>—</span> : <DeltaTxt d={ref.deltaAno} titulo={`vs semana ${ref.semanaIso}/${ref.anoIso - 1}`} />}</td>}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          {inicioSemanas.length > qtdSemanas && (
+            <div style={{ textAlign: 'center', padding: '10px 0' }}>
+              <button onClick={() => setQtdSemanas((n) => n + SEMANAS_POR_PAGINA)} style={{ border: '1px solid #d1d5db', background: '#fff', borderRadius: 8, padding: '6px 14px', fontSize: '.85rem', fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                Ver mais {Math.min(SEMANAS_POR_PAGINA, inicioSemanas.length - qtdSemanas)} semanas
+              </button>
+            </div>
+          )}
+        </div>
+      ) : (
       <div style={{ overflowX: 'auto' }}>
         <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: vista === 'meses' ? 900 : 560 }}>
           <thead>
@@ -274,6 +360,7 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
           </tbody>
         </table>
       </div>
+      )}
     </div>
   );
 }
