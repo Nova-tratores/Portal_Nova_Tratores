@@ -25,8 +25,6 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   'painel-mecanicos': 'Serviços', sat: 'Serviços', mapa: 'Serviços', 'fotos-tecnicos': 'Serviços',
   // Peças
   ppv: 'Peças', orcamentos: 'Peças', requisicoes: 'Peças',
-  // Peças não identificadas (dentro do Opa): capturar é de todos; o módulo dá identificar/precificar/status
-  'opa-pecas': 'Peças',
   // Financeiro
   financeiro: 'Financeiro', dre: 'Financeiro',
   // Comercial
@@ -38,7 +36,9 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   'consulta-estoque': 'Estoque', estoque: 'Estoque',
   frota: 'Frota', pendencias: 'Frota',
   // Outros
-  opa: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
+  // Opa Peças fica colado no Opa (antes estava em "Peças" e ninguém achava): cadastrar é de todos;
+  // este módulo dá editar qualquer informação, verificar, separar e excluir.
+  opa: 'Outros', 'opa-pecas': 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
   tickets: 'Outros', 'war-room': 'Financeiro',
   // Base de conhecimento: LER é de todo mundo logado (sem módulo); as ações aqui são de quem escreve/aprova.
   conhecimento: 'Outros',

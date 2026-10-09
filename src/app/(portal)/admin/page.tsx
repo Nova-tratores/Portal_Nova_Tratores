@@ -51,7 +51,7 @@ const MODULOS = [
   { id: 'opa', label: 'Opa (Ocorrências)', color: '#dc2626' },
   // Peças não identificadas (aba do Opa): fotografar/cadastrar é de todos; este módulo
   // é o "setor de peças" — identificar, precificar, mudar status, exportar, cadastros.
-  { id: 'opa-pecas', label: 'Peças S/Estoque — Opa (setor de peças)', color: '#ea580c' },
+  { id: 'opa-pecas', label: 'Opa Peças — editar peças S/Estoque', color: '#ea580c' },
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#3b82f6' },
   { id: 'painel-omie', label: 'Painel Omie (relatorios)', color: '#1f5c46' },
