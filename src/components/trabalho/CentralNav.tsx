@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Ticket as TicketIcon, GanttChartSquare, SquareCheck, X, ListTodo,
-  ArrowRight, Users, Lock, Calendar, BarChart3,
+  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -21,7 +21,7 @@ import FormTarefa from './FormTarefa'
 export default function CentralNav() {
   const pathname = usePathname() || ''
   const { userProfile } = useAuth()
-  const { isAdmin } = usePermissoes(userProfile?.id)
+  const { isAdmin, isDev } = usePermissoes(userProfile?.id)
   const [ajuda, setAjuda] = useState(false)
   const [novoTicket, setNovoTicket] = useState(false)
   const [preenchido, setPreenchido] = useState<{ titulo: string; descricao: string } | null>(null)
@@ -69,6 +69,8 @@ export default function CentralNav() {
     { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={16} />, ativo: emQuadros },
     { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={16} />, ativo: pathname.startsWith('/cronograma') },
     ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão gerencial', icone: <BarChart3 size={16} />, ativo: naGerencial }] : []),
+    // Bloco de notas dos devs (captar → agrupar → planejar vira ticket). Só Dev.
+    ...(isDev ? [{ href: '/ideias', label: 'Ideias', icone: <Lightbulb size={16} />, ativo: pathname.startsWith('/ideias') }] : []),
     ...(pendencias > 0 || pathname.startsWith('/tarefas')
       ? [{ href: '/tarefas', label: 'Pendências', icone: <ListTodo size={16} />, ativo: pathname.startsWith('/tarefas'), n: pendencias }]
       : []),

@@ -22,7 +22,7 @@ import {
   LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags,
   ListPlus, CircleCheckBig, MessageSquarePlus, BadgeCheck
 } from 'lucide-react'
-import { MailCheck as IconEnviosEmail, BookOpen } from 'lucide-react'
+import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -1474,6 +1474,21 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
               <span style={{ flex: 1 }}>Envios de e-mail</span>
               <span style={{ fontSize: '9px', fontWeight: 800, background: '#111111', color: '#fefefe', padding: '1px 6px', borderRadius: '999px' }}>DEV</span>
               {pathname === '/dev/envios-email' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
+            </Link>
+          )}
+
+          {/* Dev: ideias (bloco de notas: captar → agrupar → planejar vira ticket) */}
+          {isDev && (
+            <Link href="/ideias" onClick={() => setSidebarOpen(false)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 12px', borderRadius: '10px', border: 'none', background: pathname === '/ideias' ? 'var(--portal-bg-hover)' : 'transparent', color: pathname === '/ideias' ? '#dc2626' : 'var(--portal-text-secondary)', cursor: 'pointer', fontSize: '13px', fontWeight: pathname === '/ideias' ? '600' : '500', fontFamily: 'Inter', transition: 'all 0.2s', textAlign: 'left' as const, marginBottom: '2px', textDecoration: 'none' }}
+              onMouseEnter={(e) => { if (pathname !== '/ideias') { e.currentTarget.style.background = 'var(--portal-bg-hover)'; e.currentTarget.style.color = '#dc2626' } }}
+              onMouseLeave={(e) => { if (pathname !== '/ideias') { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--portal-text-secondary)' } }}>
+              <div style={{ width: '30px', height: '30px', borderRadius: '8px', background: pathname === '/ideias' ? 'linear-gradient(135deg, #dc2626, #b91c1c)' : 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.2s' }}>
+                <IconIdeias size={14} style={{ color: pathname === '/ideias' ? '#fff' : 'var(--portal-text-muted)' }} />
+              </div>
+              <span style={{ flex: 1 }}>Ideias</span>
+              <span style={{ fontSize: '9px', fontWeight: 800, background: '#111111', color: '#fefefe', padding: '1px 6px', borderRadius: '999px' }}>DEV</span>
+              {pathname === '/ideias' && <ChevronRight size={14} style={{ color: '#dc2626' }} />}
             </Link>
           )}
 
