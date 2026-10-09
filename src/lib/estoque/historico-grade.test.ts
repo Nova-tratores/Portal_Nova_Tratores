@@ -64,6 +64,11 @@ describe('montarGrade', () => {
     const a26 = montarGrade(serie(), base).anos[0];
     expect(a26.trimestres[0]).toMatchObject({ valor: 3000 * 6, completo: true });
     expect(a26.trimestres[0].delta?.pct).toBeCloseTo(50);
+    // Os dois Δ do trimestre vêm sempre, independente da comparação escolhida.
+    expect(a26.trimestres[0].deltaAno?.pct).toBeCloseTo(50);
+    const t4_25 = 2000 * (10 + 11 + 12);
+    expect(a26.trimestres[0].deltaAnt?.pct).toBeCloseTo(((3000 * 6 - t4_25) / t4_25) * 100);
+    expect(a26.trimestres[1].deltaAnt?.pct).toBeCloseTo(((3000 * 15 - 3000 * 6) / (3000 * 6)) * 100);
     expect(a26.trimestres[3]).toMatchObject({ valor: 30000, completo: false, delta: null }); // só out parcial
   });
 

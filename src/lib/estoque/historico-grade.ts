@@ -46,7 +46,12 @@ export interface CelulaTrimestre {
   tri: number; // 1..4
   valor: number | null;
   completo: boolean;
+  /** Δ conforme `comparacao` (igual aos meses). */
   delta: Delta | null;
+  /** Δ vs trimestre anterior — sempre calculado (vista "Trimestres" mostra os dois). */
+  deltaAnt: Delta | null;
+  /** Δ vs mesmo trimestre do ano anterior — sempre calculado. */
+  deltaAno: Delta | null;
 }
 
 export interface LinhaAno {
@@ -176,12 +181,14 @@ export function montarGrade(
     const trimestres: CelulaTrimestre[] = [];
     for (let tri = 1; tri <= 4; tri++) {
       const atual = somaTri(ano, tri);
-      let d: Delta | null = null;
+      let deltaAnt: Delta | null = null, deltaAno: Delta | null = null;
       if (atual.completo) {
-        const base = comparacao === 'yoy' ? somaTri(ano - 1, tri) : tri === 1 ? somaTri(ano - 1, 4) : somaTri(ano, tri - 1);
-        if (base.completo) d = delta(atual.valor, base.valor, baseMin * 3);
+        const bAnt = tri === 1 ? somaTri(ano - 1, 4) : somaTri(ano, tri - 1);
+        const bAno = somaTri(ano - 1, tri);
+        if (bAnt.completo) deltaAnt = delta(atual.valor, bAnt.valor, baseMin * 3);
+        if (bAno.completo) deltaAno = delta(atual.valor, bAno.valor, baseMin * 3);
       }
-      trimestres.push({ tri, valor: atual.valor, completo: atual.completo, delta: d });
+      trimestres.push({ tri, valor: atual.valor, completo: atual.completo, delta: comparacao === 'yoy' ? deltaAno : deltaAnt, deltaAnt, deltaAno });
     }
     const temDado = meses.some((m) => m.valor != null);
     if (!temDado && ano !== anoHoje) continue;

@@ -274,6 +274,8 @@ export default function DashboardPage() {
     setHistComparar('nenhum');
     setHistSeriesExtra(null);
     setHistCompErro('');
+    // O bloco fica no fim da página: leva a pessoa até ele (o clique vem do card, lá em cima).
+    setTimeout(() => document.getElementById('historico-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
     const r = await getDash(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
     const d = (await r.json()) as HistResp;
@@ -790,7 +792,7 @@ export default function DashboardPage() {
 
       {/* Histórico */}
       {histCard != null && (
-        <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, margin: '18px 0' }}>
+        <div id="historico-card" style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: 18, margin: '18px 0 48px', scrollMarginTop: 96 }}>
           {(() => {
             const temQtd = histCard === 'servico' && !!hist && hist.meses.some((m) => m.qtdeOS != null);
             return (
