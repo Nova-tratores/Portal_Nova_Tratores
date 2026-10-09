@@ -62,30 +62,39 @@ const HIST_DESDE_ANO = 2022;
  * `vendas_resumo_mensal`, sql/vendas-resumo-mensal.sql), no formato de
  * ItemVenda para reaproveitar a classificação dos cards: valor_total = soma,
  * quantidade = 1 e cmc_unitario = custo somado (o card faz cmc × qtd).
- * Exclui os clientes ignorados, como os cards. null = RPC ainda não existe.
+ * Exclui os clientes ignorados, como os cards. null = nenhuma das RPCs existe.
  */
 async function lerResumoMensal(conta: ContaFiltro): Promise<HistItem[] | null> {
   const { codigos } = await getIgnorarFiltro(conta);
-  const out: HistItem[] = [];
-  for (let offset = 0; ; offset += 1000) {
-    const { data, error } = await supabase
-      .rpc('vendas_resumo_mensal', { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null, p_ignorar: codigos.map(String) })
-      .order('conta_omie').order('ano').order('mes').order('familia').order('tipo').order('codigo_categoria')
-      .range(offset, offset + 999);
-    if (error) {
-      if (error.code === 'PGRST202' || error.code === '42883' || /vendas_resumo_mensal/.test(error.message)) return null;
-      throw new Error('vendas_resumo_mensal: ' + error.message);
+  const params = { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null, p_ignorar: codigos.map(String) };
+  type Linha = { ano: number; mes: number; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; pedidos: string[] | null };
+  const faltando = (e: { code?: string; message: string }, fn: string) => e.code === 'PGRST202' || e.code === '42883' || e.message.includes(fn);
+
+  // 1 ida só (jsonb, sql/vendas-resumo-mensal-json.sql); sem ela, a RPC em
+  // tabela paginada de 1000 (o banco refaz a soma a cada página).
+  let linhas: Linha[] = [];
+  const j = await supabase.rpc('vendas_resumo_mensal_json', params);
+  if (!j.error) {
+    linhas = (j.data || []) as Linha[];
+  } else {
+    if (!faltando(j.error, 'vendas_resumo_mensal_json')) throw new Error('vendas_resumo_mensal_json: ' + j.error.message);
+    for (let offset = 0; ; offset += 1000) {
+      const { data, error } = await supabase
+        .rpc('vendas_resumo_mensal', params)
+        .order('conta_omie').order('ano').order('mes').order('familia').order('tipo').order('codigo_categoria')
+        .range(offset, offset + 999);
+      if (error) {
+        if (faltando(error, 'vendas_resumo_mensal')) return null;
+        throw new Error('vendas_resumo_mensal: ' + error.message);
+      }
+      linhas.push(...((data || []) as Linha[]));
+      if (!data || data.length < 1000) break;
     }
-    const linhas = (data || []) as Array<{ ano: number; mes: number; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; pedidos: string[] | null }>;
-    for (const l of linhas) {
-      out.push({
-        ano: l.ano, mes: l.mes, familia: l.familia, tipo: l.tipo, codigo_categoria: l.codigo_categoria,
-        valor_total: num(l.valor), quantidade: 1, cmc_unitario: num(l.custo), pedidos: l.pedidos || [],
-      });
-    }
-    if (linhas.length < 1000) break;
   }
-  return out;
+  return linhas.map((l) => ({
+    ano: l.ano, mes: l.mes, familia: l.familia, tipo: l.tipo, codigo_categoria: l.codigo_categoria,
+    valor_total: num(l.valor), quantidade: 1, cmc_unitario: num(l.custo), pedidos: l.pedidos || [],
+  }));
 }
 
 /** Caminho antigo (sem a RPC): itens crus de vendas_itens, paginados. */
