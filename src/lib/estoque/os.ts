@@ -583,6 +583,8 @@ export interface ServicoOSRow {
   cliente: string;
   descricao: string;
   tipo: TipoServico;
+  /** nCodServico da Omie (0 = item sem serviço cadastrado ou OS sem itens). null = linha antiga, antes de gravar o código. */
+  codigo_servico?: number | null;
   categoria: string; // código Omie (cCodCategItem / cCodCateg da OS)
   categoria_desc: string;
   qtde: number;
@@ -651,6 +653,7 @@ function montarServicosItensOmie(
         ...base,
         descricao: 'Serviços prestados (sem detalhe)',
         tipo: 'OUTRO',
+        codigo_servico: 0,
         categoria: catOS,
         categoria_desc: categorias[catOS] || '',
         qtde: 1,
@@ -668,6 +671,7 @@ function montarServicosItensOmie(
         ...base,
         descricao,
         tipo: classificarTipoServico(num(it.nCodServico), descricao),
+        codigo_servico: num(it.nCodServico),
         categoria: cat,
         categoria_desc: categorias[cat] || '',
         qtde,
@@ -720,9 +724,14 @@ export async function sincronizarServicosItens(mes: number, ano: number, conta: 
       valor_unit: r.valor_unit,
       valor_total: r.valor_total,
       contrato: r.contrato,
+      codigo_servico: r.codigo_servico ?? null,
       atualizado_em: new Date().toISOString(),
     }));
-    const { error } = await supabase.from('os_servicos_itens').insert(lote);
+    let { error } = await supabase.from('os_servicos_itens').insert(lote);
+    // Sem a migration sql/servicos-codigo-resumo.sql: grava sem o código.
+    if (error && /codigo_servico/.test(error.message)) {
+      ({ error } = await supabase.from('os_servicos_itens').insert(lote.map(({ codigo_servico: _c, ...r }) => { void _c; return r; })));
+    }
     if (error) {
       console.log('os_servicos_itens insert [' + conta + '] ' + mes + '/' + ano + ' falhou: ' + error.message);
       return;

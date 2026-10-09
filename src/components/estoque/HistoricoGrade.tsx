@@ -7,6 +7,8 @@
 //   Vista TRIMESTRES: 4 colunas, cada célula = valor + Δ vs trimestre anterior
 //     + Δ vs mesmo trimestre do ano anterior (os dois, sempre).
 // Quantidades (pedidos/OS) e ticket só com "Mostrar quantidades" ou no hover.
+// MEDIDA: Valor (R$) ou contagens — Pedidos de venda / Itens (linhas) nos cards
+// de peças, OS / Itens em Serviços. Em contagem a grade soma números, sem R$.
 // Com várias SÉRIES (Comparar: empresas, Venda×Custo×Margem, categorias) cada
 // célula empilha uma linha por série, na cor dela.
 // Regras (parcial, trimestre incompleto, ano corrente, projeção) em
@@ -32,6 +34,14 @@ function fmtK(v: number): string {
   return v.toLocaleString('pt-BR', { maximumFractionDigits: 0 });
 }
 const fmtRS = (v: number) => 'R$ ' + v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const fmtInt = (v: number) => Math.round(v).toLocaleString('pt-BR');
+
+/** O que a grade soma: dinheiro ou contagens. */
+export type Medida = 'valor' | 'pedidos' | 'itens' | 'os';
+const ROTULO_MEDIDA: Record<Medida, string> = { valor: 'Valor (R$)', pedidos: 'Pedidos de venda', itens: 'Itens', os: 'OS' };
+const UNID_MEDIDA: Record<Medida, string> = { valor: '', pedidos: 'pedidos', itens: 'itens', os: 'OS' };
+// Base mínima de um Δ "significativo" nas contagens (no valor vem da página).
+const BASE_MIN_QTD = 5;
 const fmtPct = (d: Delta) => (d.pct >= 0 ? '+' : '') + d.pct.toLocaleString('pt-BR', { maximumFractionDigits: Math.abs(d.pct) >= 100 ? 0 : 1 }) + '%';
 
 function DeltaTxt({ d, titulo, rotulo, tamanho = '.78rem' }: { d: Delta | null; titulo: string; rotulo?: string; tamanho?: string }) {
@@ -44,7 +54,8 @@ function DeltaTxt({ d, titulo, rotulo, tamanho = '.78rem' }: { d: Delta | null; 
   );
 }
 
-export interface MesHistorico { mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; qtdeNota?: number | null }
+/** Um mês já normalizado pela página. Contagem null = não se sabe (o mês fica sem dado nessa medida). */
+export interface MesHistorico { mes: number; ano: number; valor: number; custo: number; pedidos: number | null; itens: number | null; os: number | null }
 
 export interface SerieGrade {
   nome: string;
@@ -57,6 +68,8 @@ export interface SerieGrade {
 
 export interface HistoricoGradeProps {
   series: SerieGrade[];
+  /** Medidas oferecidas (a 1ª é o padrão). Só "valor" → o seletor some. */
+  medidas?: Medida[];
   baseMin: number;
   /** Dias úteis do mês corrente (com feriados), vindos do servidor — habilita a projeção. */
   diasUteisMes?: { ano: number; mes: number; decorridos: number; total: number } | null;
@@ -72,7 +85,12 @@ function gravarStorage(chave: string, valor: string) {
   try { localStorage.setItem(chave, valor); } catch { /* sem storage */ }
 }
 
-export default function HistoricoGrade({ series, baseMin, diasUteisMes, onMes }: HistoricoGradeProps) {
+export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, diasUteisMes, onMes }: HistoricoGradeProps) {
+  const [medidaSel, setMedida] = useState<Medida>(medidas[0]);
+  const medida: Medida = medidas.includes(medidaSel) ? medidaSel : medidas[0];
+  const ehValor = medida === 'valor';
+  const fmtV = (v: number) => (ehValor ? 'R$ ' + fmtK(v) : fmtInt(v));
+  const fmtVLongo = (v: number) => (ehValor ? fmtRS(v) : fmtInt(v) + ' ' + UNID_MEDIDA[medida]);
   // Só monta depois do fetch (nunca no SSR), então dá para ler o storage aqui.
   const [comparacao, setComparacao] = useState<Comparacao>(() => (lerStorage(CHAVE_COMP) === 'mom' ? 'mom' : 'yoy'));
   const [vista, setVista] = useState<Vista>(() => (lerStorage(CHAVE_VISTA) === 'trimestres' ? 'trimestres' : 'meses'));
@@ -84,12 +102,17 @@ export default function HistoricoGrade({ series, baseMin, diasUteisMes, onMes }:
   const hoje = useMemo(() => new Date(), []);
   const du = diasUteisMes && diasUteisMes.ano === hoje.getFullYear() && diasUteisMes.mes === hoje.getMonth() + 1 ? diasUteisMes : null;
   const grades: Grade[] = useMemo(() => series.map((s) => {
-    const pontos: PontoMes[] = s.meses.map((m) => ({
-      ano: m.ano, mes: m.mes, valor: m.valor, custo: m.custo,
-      qtde: s.servico ? (m.qtdeNota ?? null) : m.qtdePedidos,
-    }));
-    return montarGrade(pontos, { metrica: s.servico ? 'venda' : s.metrica, comparacao, hoje, anoInicial: ANO_INICIAL, baseMin, diasUteisMes: du });
-  }), [series, comparacao, hoje, baseMin, du]);
+    const pontos: PontoMes[] = [];
+    for (const m of s.meses) {
+      // Ticket médio: por OS (serviços) ou por pedido (peças).
+      const qtde = s.servico ? m.os : m.pedidos;
+      if (medida === 'valor') { pontos.push({ ano: m.ano, mes: m.mes, valor: m.valor, custo: m.custo, qtde }); continue; }
+      const n = m[medida];
+      if (n != null) pontos.push({ ano: m.ano, mes: m.mes, valor: n, custo: 0, qtde: null });
+    }
+    const metrica: Metrica = medida !== 'valor' || s.servico ? 'venda' : s.metrica;
+    return montarGrade(pontos, { metrica, comparacao, hoje, anoInicial: ANO_INICIAL, baseMin: medida === 'valor' ? baseMin : BASE_MIN_QTD, diasUteisMes: du });
+  }), [series, comparacao, hoje, baseMin, du, medida]);
 
   const multi = series.length > 1;
   // Anos presentes em qualquer série (a mais longa manda).
@@ -98,7 +121,10 @@ export default function HistoricoGrade({ series, baseMin, diasUteisMes, onMes }:
 
   const rotuloComp = comparacao === 'yoy' ? 'vs mesmo mês do ano anterior' : 'vs mês anterior';
   const unidade = series[0]?.servico ? 'OS' : 'ped.';
-  const oQue = multi ? '' : series[0]?.servico ? 'Serviços com NFS-e' : ROTULO_METRICA[series[0]?.metrica ?? 'venda'];
+  const oQue = !ehValor
+    ? ROTULO_MEDIDA[medida] + (medida === 'itens' ? ' (linhas de item)' : '')
+    : multi ? '' : series[0]?.servico ? 'Serviços com NFS-e' : ROTULO_METRICA[series[0]?.metrica ?? 'venda'];
+  const qtdTxt = (q: number | null) => (ehValor && q != null ? ` · ${q} ${unidade}` : '');
 
   const th: React.CSSProperties = { fontSize: '.78rem', color: '#6b7280', fontWeight: 600, padding: '6px 6px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' };
   const td: React.CSSProperties = { padding: '8px 6px', verticalAlign: 'top', borderBottom: '1px solid #f0f0f0' };
@@ -132,7 +158,14 @@ export default function HistoricoGrade({ series, baseMin, diasUteisMes, onMes }:
             ))}
           </div>
         )}
-        {!multi && (
+        {medidas.length > 1 && (
+          <div style={caixa}>
+            {medidas.map((m) => (
+              <button key={m} onClick={() => setMedida(m)} style={{ ...seg(medida === m), background: medida === m ? '#111827' : '#fff' }}>{ROTULO_MEDIDA[m]}</button>
+            ))}
+          </div>
+        )}
+        {!multi && ehValor && (
           <label style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.84rem', color: '#374151', cursor: 'pointer' }}>
             <input type="checkbox" checked={mostrarQtd} onChange={(e) => trocarQtd(e.target.checked)} /> Mostrar quantidades
           </label>
@@ -185,18 +218,18 @@ export default function HistoricoGrade({ series, baseMin, diasUteisMes, onMes }:
                         {linhas.map((l, i) => {
                           const c = l?.meses[c0.mes - 1];
                           if (!c || c.valor == null) return <div key={i} style={{ color: '#d1d5db', fontSize: '.8rem' }}>—</div>;
-                          const tituloCel = `${multi ? series[i].nome + ' · ' : ''}${MESES[c.mes - 1]}/${ano}: ${fmtRS(c.valor)}${c.qtde != null ? ` · ${c.qtde} ${unidade}` : ''}${c.parcial ? ' (mês em andamento)' : ''}${c.projetado != null ? ` · projeção ${fmtRS(c.projetado)}` : ''}${c.delta ? ` · Δ ${fmtPct(c.delta)} ${rotuloComp}` : ''}`;
+                          const tituloCel = `${multi ? series[i].nome + ' · ' : ''}${MESES[c.mes - 1]}/${ano}: ${fmtVLongo(c.valor)}${qtdTxt(c.qtde)}${c.parcial ? ' (mês em andamento)' : ''}${c.projetado != null ? ` · projeção ${fmtVLongo(c.projetado)}` : ''}${c.delta ? ` · Δ ${fmtPct(c.delta)} ${rotuloComp}` : ''}`;
                           return (
                             <div key={i} title={tituloCel} style={{ marginBottom: multi ? 4 : 0, opacity: c.parcial ? 0.85 : 1 }}>
-                              <div style={valorStyle(!multi)}>{pontoSerie(i)}{fmtK(c.valor)}</div>
+                              <div style={valorStyle(!multi)}>{pontoSerie(i)}{fmtV(c.valor)}</div>
                               {c.parcial ? (
                                 <div style={{ fontSize: '.72rem', color: '#9ca3af', whiteSpace: 'nowrap' }}>
-                                  {c.projetado != null ? <span title="Projeção pelo ritmo dos dias úteis já fechados">proj. <b style={{ color: '#6b7280' }}>{fmtK(c.projetado)}</b></span> : <i>parcial</i>}
+                                  {c.projetado != null ? <span title="Projeção pelo ritmo dos dias úteis já fechados">proj. <b style={{ color: '#6b7280' }}>{fmtV(c.projetado)}</b></span> : <i>parcial</i>}
                                 </div>
                               ) : !multi ? (
                                 <div style={{ minHeight: '1.1em' }}><DeltaTxt d={c.delta} titulo={rotuloComp} /></div>
                               ) : null}
-                              {!multi && mostrarQtd && c.qtde != null && <div style={{ fontSize: '.7rem', color: '#9ca3af', whiteSpace: 'nowrap' }}>{c.qtde} {unidade}</div>}
+                              {!multi && ehValor && mostrarQtd && c.qtde != null && <div style={{ fontSize: '.7rem', color: '#9ca3af', whiteSpace: 'nowrap' }}>{c.qtde} {unidade}</div>}
                             </div>
                           );
                         })}
@@ -209,10 +242,10 @@ export default function HistoricoGrade({ series, baseMin, diasUteisMes, onMes }:
                       {linhas.map((l, i) => {
                         const t = l?.trimestres[tri - 1];
                         if (!t || t.valor == null) return <div key={i} style={{ color: '#d1d5db', fontSize: '.8rem' }}>—</div>;
-                        const tituloCel = `${multi ? series[i].nome + ' · ' : ''}T${tri}/${ano}: ${fmtRS(t.valor)}${t.completo ? '' : ' (em andamento)'}${t.deltaAnt ? ` · ${fmtPct(t.deltaAnt)} vs trimestre anterior` : ''}${t.deltaAno ? ` · ${fmtPct(t.deltaAno)} vs T${tri}/${ano - 1}` : ''}`;
+                        const tituloCel = `${multi ? series[i].nome + ' · ' : ''}T${tri}/${ano}: ${fmtVLongo(t.valor)}${t.completo ? '' : ' (em andamento)'}${t.deltaAnt ? ` · ${fmtPct(t.deltaAnt)} vs trimestre anterior` : ''}${t.deltaAno ? ` · ${fmtPct(t.deltaAno)} vs T${tri}/${ano - 1}` : ''}`;
                         return (
                           <div key={i} title={tituloCel} style={{ marginBottom: multi ? 4 : 0 }}>
-                            <div style={valorStyle(!multi)}>{pontoSerie(i)}{fmtK(t.valor)}{!t.completo && <span style={{ fontSize: '.7rem', color: '#9ca3af', fontWeight: 500, fontStyle: 'italic' }}> em andamento</span>}</div>
+                            <div style={valorStyle(!multi)}>{pontoSerie(i)}{fmtV(t.valor)}{!t.completo && <span style={{ fontSize: '.7rem', color: '#9ca3af', fontWeight: 500, fontStyle: 'italic' }}> em andamento</span>}</div>
                             {t.completo && !multi && (
                               <div style={{ display: 'flex', flexDirection: 'column', gap: 1, marginTop: 2 }}>
                                 <DeltaTxt d={t.deltaAnt} titulo={`vs ${tri === 1 ? `T4/${ano - 1}` : `T${tri - 1}/${ano}`}`} rotulo="trim. ant." />
@@ -228,9 +261,9 @@ export default function HistoricoGrade({ series, baseMin, diasUteisMes, onMes }:
                   <td style={{ ...td, padding: '8px 8px', textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
                     {linhas.map((l, i) => l && (
                       <div key={i} style={{ marginBottom: multi ? 6 : 0 }}>
-                        <div style={{ fontSize: multi ? '.9rem' : '1rem', fontWeight: 800, color: multi ? series[i].cor : '#111827' }}>{fmtK(l.total)}</div>
+                        <div style={{ fontSize: multi ? '.9rem' : '1rem', fontWeight: 800, color: multi ? series[i].cor : '#111827' }}>{fmtV(l.total)}</div>
                         <div><DeltaTxt d={l.delta} titulo={ultimoFechado ? `jan–${ultimoFechado} vs jan–${ultimoFechado} do ano anterior` : 'vs ano anterior'} /></div>
-                        {!multi && mostrarQtd && l.ticket != null && <div style={{ fontSize: '.72rem', color: '#6b7280' }} title={`${l.qtde} ${unidade}`}>{l.qtde} {unidade} · ticket {fmtK(l.ticket)}</div>}
+                        {!multi && ehValor && mostrarQtd && l.ticket != null && <div style={{ fontSize: '.72rem', color: '#6b7280' }} title={`${l.qtde} ${unidade}`}>{l.qtde} {unidade} · ticket R$ {fmtK(l.ticket)}</div>}
                       </div>
                     ))}
                     {ultimoFechado && linhas.some((l) => l?.delta) && <div style={{ fontSize: '.7rem', color: '#9ca3af' }}>Δ jan–{ultimoFechado}</div>}

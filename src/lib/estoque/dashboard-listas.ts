@@ -33,6 +33,10 @@ interface HistoricoMesPonto {
   valor: number;
   custo: number;
   qtdePedidos: number;
+  /** Linhas de item (produto) do card no mês. */
+  qtdeItens: number;
+  /** Só no card Serviços: COM NFS-e a partir dos ITENS das OS, por tipo de serviço. null = sem a RPC. */
+  servItens?: ServicosMes | null;
   /** Só no card Serviços: split OS com NFS-e × internas (null quando os_mensal ainda não tem o split). */
   valorNota?: number | null;
   valorInterno?: number | null;
@@ -50,11 +54,17 @@ export interface HistoricoResult {
   diasUteisMes: { ano: number; mes: number; decorridos: number; total: number };
 }
 
+export type TipoServicoGrade = 'HR' | 'KM' | 'SEM_CODIGO' | 'OUTRO';
+export interface ServicosParte { valor: number; os: number; itens: number }
+export interface ServicosMes extends ServicosParte { porTipo: Record<TipoServicoGrade, ServicosParte> }
+
 interface HistItem extends ItemVenda {
   mes: number;
   ano: number;
   /** Pedidos distintos da linha (1 na leitura crua; vários na linha agrupada da RPC). */
   pedidos: string[];
+  /** Linhas de item que a linha representa (1 na leitura crua). */
+  linhas: number;
 }
 
 // 1º ano lido: o histórico mostra desde 2023, mas 2022 entra como base do Δ.
@@ -75,7 +85,7 @@ async function lerResumoMensal(conta: ContaFiltro): Promise<HistItem[] | null> {
 
 async function consultarResumoMensal(conta: ContaFiltro, codigos: string[]): Promise<HistItem[] | null> {
   const params = { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null, p_ignorar: codigos.map(String) };
-  type Linha = { ano: number; mes: number; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; pedidos: string[] | null };
+  type Linha = { ano: number; mes: number; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; linhas: number; pedidos: string[] | null };
   const faltando = (e: { code?: string; message: string }, fn: string) => e.code === 'PGRST202' || e.code === '42883' || e.message.includes(fn);
 
   // 1 ida só (jsonb, sql/vendas-resumo-mensal-json.sql); sem ela, a RPC em
@@ -101,7 +111,7 @@ async function consultarResumoMensal(conta: ContaFiltro, codigos: string[]): Pro
   }
   return linhas.map((l) => ({
     ano: l.ano, mes: l.mes, familia: l.familia, tipo: l.tipo, codigo_categoria: l.codigo_categoria,
-    valor_total: num(l.valor), quantidade: 1, cmc_unitario: num(l.custo), pedidos: l.pedidos || [],
+    valor_total: num(l.valor), quantidade: 1, cmc_unitario: num(l.custo), pedidos: l.pedidos || [], linhas: num(l.linhas),
   }));
 }
 
@@ -121,10 +131,46 @@ async function lerItensCrus(anos: number[], conta: ContaFiltro): Promise<HistIte
       if (codigos.length > 0) q = q.not('codigo_cliente', 'in', '(' + codigos.join(',') + ')');
       const { data } = await q.order('id').range(offset, offset + 999);
       const linhas = (data || []) as Array<ItemVenda & { mes: number; ano: number; numero_pedido: string | null }>;
-      for (const l of linhas) out.push({ ...l, pedidos: l.numero_pedido ? [l.numero_pedido] : [] });
+      for (const l of linhas) out.push({ ...l, pedidos: l.numero_pedido ? [l.numero_pedido] : [], linhas: 1 });
       if (linhas.length < 1000) break;
     }
   }
+  return out;
+}
+
+/**
+ * Serviços COM NFS-e por mês e tipo (HR / KM / Sem código / Outros), dos itens
+ * das OS (RPC servicos_resumo_mensal_json, sql/servicos-codigo-resumo.sql).
+ * OS contadas sem repetir (uma OS com HR e KM é 1 OS no total). null = sem a RPC.
+ */
+async function lerServicosPorTipo(conta: ContaFiltro): Promise<Map<string, ServicosMes> | null> {
+  type Linha = { conta_omie: string; ano: number; mes: number; tipo: TipoServicoGrade; valor: number | string; itens: number; os: number[] | null };
+  const linhas = await comCacheResumo('serv|' + (conta ?? 'todas'), async () => {
+    const { data, error } = await supabase.rpc('servicos_resumo_mensal_json', { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null });
+    if (error) {
+      if (error.code === 'PGRST202' || error.code === '42883' || error.message.includes('servicos_resumo_mensal_json')) return null;
+      throw new Error('servicos_resumo_mensal_json: ' + error.message);
+    }
+    return (data || []) as Linha[];
+  });
+  if (!linhas) return null;
+  const vazio = (): ServicosParte => ({ valor: 0, os: 0, itens: 0 });
+  const porMes = new Map<string, ServicosMes & { _os: Set<string> }>();
+  for (const l of linhas) {
+    const k = l.ano + '-' + l.mes;
+    let m = porMes.get(k);
+    if (!m) {
+      m = { ...vazio(), porTipo: { HR: vazio(), KM: vazio(), SEM_CODIGO: vazio(), OUTRO: vazio() }, _os: new Set() };
+      porMes.set(k, m);
+    }
+    const t = m.porTipo[l.tipo] ?? m.porTipo.OUTRO;
+    const os = l.os || [];
+    t.valor += num(l.valor); t.itens += num(l.itens); t.os += os.length;
+    m.valor += num(l.valor); m.itens += num(l.itens);
+    for (const n of os) m._os.add(l.conta_omie + ':' + n);
+  }
+  const out = new Map<string, ServicosMes>();
+  for (const [k, m] of porMes) out.set(k, { valor: m.valor, itens: m.itens, os: m._os.size, porTipo: m.porTipo });
   return out;
 }
 
@@ -177,6 +223,8 @@ export async function montarHistorico(
   // Rótulo do card (para tipo dinâmico, sobre todo o período carregado).
   const aggAll = agregarCardsPecas(todosItens, filtroCategoria, fixed);
 
+  const servPorTipo = catKey === 'servico' ? await lerServicosPorTipo(conta) : null;
+  const SERV_VAZIO = (): ServicosMes => ({ valor: 0, os: 0, itens: 0, porTipo: { HR: { valor: 0, os: 0, itens: 0 }, KM: { valor: 0, os: 0, itens: 0 }, SEM_CODIGO: { valor: 0, os: 0, itens: 0 }, OUTRO: { valor: 0, os: 0, itens: 0 } } });
   const resultados: HistoricoMesPonto[] = meses.map((m) => {
     const itensMes = todosItens.filter((it) => it.mes === m.mes && it.ano === m.ano);
     const agg = agregarCardsPecas(itensMes, filtroCategoria, fixed);
@@ -193,15 +241,20 @@ export async function montarHistorico(
     // Pedidos que têm item DESTE card (no app antigo era o mês inteiro, com máquinas).
     const codigosFiltro = expandirCategoriaFiltro(filtroCategoria);
     const pedidosMes = new Set<string>();
+    let itensCard = 0;
     for (const it of itensMes) {
       if (codigosFiltro && !codigosFiltro.includes(it.codigo_categoria || '')) continue;
       const card = classificarCardPeca(it, fixed);
       if (!card) continue;
-      if (catKey === 'totalPecas' || catKey === 'totalGeral' || card.key === catKey) it.pedidos.forEach((n) => pedidosMes.add(n));
+      if (catKey === 'totalPecas' || catKey === 'totalGeral' || card.key === catKey) {
+        it.pedidos.forEach((n) => pedidosMes.add(n));
+        itensCard += it.linhas;
+      }
     }
     const pedidosUnicos = pedidosMes.size;
-    const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: pedidosUnicos };
+    const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: pedidosUnicos, qtdeItens: itensCard };
     if (catKey === 'servico') {
+      ponto.servItens = servPorTipo ? (servPorTipo.get(m.ano + '-' + m.mes) ?? SERV_VAZIO()) : null;
       ponto.valorNota = osMes ? (osMes.valor_nota == null ? null : num(osMes.valor_nota)) : null;
       ponto.valorInterno = osMes ? (osMes.valor_interno == null ? null : num(osMes.valor_interno)) : null;
       ponto.qtdeOS = osMes ? (osMes.qtde_os == null ? null : num(osMes.qtde_os)) : null;
