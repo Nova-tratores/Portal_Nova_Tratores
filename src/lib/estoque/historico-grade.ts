@@ -36,6 +36,8 @@ export interface CelulaMes {
   valor: number | null; // null = sem dado / futuro
   qtde: number | null;
   parcial: boolean;
+  /** Só no mês corrente: valor ÷ (dias úteis decorridos ÷ dias úteis do mês). */
+  projetado: number | null;
   futuro: boolean;
   delta: Delta | null;
 }
@@ -66,6 +68,32 @@ export interface Grade {
 
 const chave = (ano: number, mes: number) => ano * 100 + mes;
 
+/** Mínimo de dias úteis FECHADOS no mês para projetar (antes disso o ritmo engana). */
+export const PROJECAO_MIN_DIAS = 5;
+
+const isoDia = (ano: number, mes: number, dia: number) => `${ano}-${String(mes).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+
+/**
+ * Dias úteis (seg–sex, fora `feriados` em ISO) do dia 1 até `ateDia`
+ * (inclusive; sem ele, o mês inteiro).
+ */
+export function diasUteis(ano: number, mes: number, feriados: Set<string>, ateDia?: number): number {
+  const ultimo = new Date(ano, mes, 0).getDate();
+  const limite = Math.min(ateDia ?? ultimo, ultimo);
+  let n = 0;
+  for (let d = 1; d <= limite; d++) {
+    const dow = new Date(ano, mes - 1, d).getDay();
+    if (dow !== 0 && dow !== 6 && !feriados.has(isoDia(ano, mes, d))) n++;
+  }
+  return n;
+}
+
+/** Projeção linear pelo ritmo dos dias úteis fechados; null antes de PROJECAO_MIN_DIAS. */
+export function projetarMes(valor: number, decorridos: number, total: number): number | null {
+  if (decorridos < PROJECAO_MIN_DIAS || total <= 0 || decorridos > total) return null;
+  return valor * (total / decorridos);
+}
+
 export function valorDaMetrica(p: Pick<PontoMes, 'valor' | 'custo'>, m: Metrica): number {
   return m === 'venda' ? p.valor : m === 'custo' ? p.custo : p.valor - p.custo;
 }
@@ -78,9 +106,13 @@ export function delta(atual: number | null, base: number | null, baseMin: number
 
 export function montarGrade(
   pontos: PontoMes[],
-  opts: { metrica: Metrica; comparacao: Comparacao; hoje: Date; anoInicial: number; baseMin: number },
+  opts: {
+    metrica: Metrica; comparacao: Comparacao; hoje: Date; anoInicial: number; baseMin: number;
+    /** Dias úteis do mês corrente (com feriados) — habilita a projeção. */
+    diasUteisMes?: { decorridos: number; total: number } | null;
+  },
 ): Grade {
-  const { metrica, comparacao, hoje, anoInicial, baseMin } = opts;
+  const { metrica, comparacao, hoje, anoInicial, baseMin, diasUteisMes } = opts;
   const anoHoje = hoje.getFullYear();
   const mesHoje = hoje.getMonth() + 1;
   const kHoje = chave(anoHoje, mesHoje);
@@ -138,7 +170,8 @@ export function montarGrade(
           : mes === 1 ? vFechado(ano - 1, 12) : vFechado(ano, mes - 1);
         d = delta(valor, base, baseMin);
       }
-      meses.push({ mes, valor, qtde: !futuro && p ? p.qtde : null, parcial, futuro, delta: d });
+      const projetado = parcial && valor != null && diasUteisMes ? projetarMes(valor, diasUteisMes.decorridos, diasUteisMes.total) : null;
+      meses.push({ mes, valor, qtde: !futuro && p ? p.qtde : null, parcial, projetado, futuro, delta: d });
     }
     const trimestres: CelulaTrimestre[] = [];
     for (let tri = 1; tri <= 4; tri++) {

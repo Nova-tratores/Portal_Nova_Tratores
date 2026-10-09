@@ -15,6 +15,7 @@ import { fmtD, sleep, ehMesAtual } from './utils';
 import { getIgnorarFiltro } from './ignorar-clientes';
 import { CONTA_DEFAULT, type Conta, type ContaFiltro } from './conta';
 import type { ItemVenda } from './categorias';
+import { invalidarResumoVendas } from './resumo-cache';
 import { planejarGravacao, dataReferencia, lerDataBR, mesReferencia, chaveMes, type MesAnoRef } from './vendas-referencia';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
@@ -447,6 +448,7 @@ export async function gravarPedidos(
   }
   await apagarPedidos(numeros, conta);
   await inserirLinhas(rows);
+  invalidarResumoVendas();
   return { gravados: rows.length, foraDoEscopo: plano.foraDoEscopo, apagados: numeros.length };
 }
 

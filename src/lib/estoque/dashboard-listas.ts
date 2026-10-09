@@ -16,7 +16,10 @@ import {
 import { classificarGrupo, comprasPecasMes, type CompraPecaItem } from './cruzamento-familia';
 import { preCarregarCMCPorMes } from './vendas-sync';
 import { getIgnorarFiltro } from './ignorar-clientes';
-import { ehMesAtual, diasUteisDoMes, diasUteisAteHoje, MESES_CURTO } from './utils';
+import { comCacheResumo } from './resumo-cache';
+import { diasUteis } from './historico-grade';
+import { localSP, feriadosNacionais, feriadosExtras } from '@/lib/assistente/horario';
+import { MESES_CURTO } from './utils';
 import { CONTA_DEFAULT, type ContaFiltro } from './conta';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
@@ -43,8 +46,8 @@ export interface HistoricoResult {
   catKey: string;
   nome: string;
   meses: HistoricoMesPonto[];
-  proporcao: number;
-  diasUteisTranscorridos: number;
+  /** Mês corrente (horário de Brasília): dias úteis FECHADOS (antes de hoje) e do mês, com feriados — base da projeção. */
+  diasUteisMes: { ano: number; mes: number; decorridos: number; total: number };
 }
 
 interface HistItem extends ItemVenda {
@@ -66,6 +69,11 @@ const HIST_DESDE_ANO = 2022;
  */
 async function lerResumoMensal(conta: ContaFiltro): Promise<HistItem[] | null> {
   const { codigos } = await getIgnorarFiltro(conta);
+  // 5 min em memória (resumo-cache.ts); o sync limpa ao gravar.
+  return comCacheResumo('hist|' + (conta ?? 'todas') + '|' + codigos.join(','), () => consultarResumoMensal(conta, codigos));
+}
+
+async function consultarResumoMensal(conta: ContaFiltro, codigos: string[]): Promise<HistItem[] | null> {
   const params = { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null, p_ignorar: codigos.map(String) };
   type Linha = { ano: number; mes: number; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; pedidos: string[] | null };
   const faltando = (e: { code?: string; message: string }, fn: string) => e.code === 'PGRST202' || e.code === '42883' || e.message.includes(fn);
@@ -209,11 +217,15 @@ export async function montarHistorico(
   else if (catKey === 'totalGeral') nomeCard = 'Total Geral Servicos + Pecas';
   else nomeCard = aggAll.porKey[catKey]?.nome || catKey;
 
-  const ehMesCorrente = ehMesAtual(now.getMonth() + 1, now.getFullYear());
-  const totalDU = ehMesCorrente ? diasUteisDoMes(now.getFullYear(), now.getMonth() + 1) : 0;
-  const transcorridoDU = ehMesCorrente ? diasUteisAteHoje(now.getFullYear(), now.getMonth() + 1) : 0;
-  const proporcao = ehMesCorrente && totalDU > 0 ? transcorridoDU / totalDU : 1;
-  return { catKey, nome: nomeCard, meses: resultados, proporcao, diasUteisTranscorridos: transcorridoDU };
+  const hojeSP = localSP(new Date());
+  const feriados = new Set([...feriadosNacionais(hojeSP.ano), ...feriadosExtras()]);
+  const diasUteisMes = {
+    ano: hojeSP.ano,
+    mes: hojeSP.mes,
+    decorridos: diasUteis(hojeSP.ano, hojeSP.mes, feriados, hojeSP.dia - 1),
+    total: diasUteis(hojeSP.ano, hojeSP.mes, feriados),
+  };
+  return { catKey, nome: nomeCard, meses: resultados, diasUteisMes };
 }
 
 // ====================== /api/dashboard/categorias-vendas ======================

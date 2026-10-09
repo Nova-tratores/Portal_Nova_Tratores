@@ -13,7 +13,7 @@ import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import { chartColors } from '@/lib/estoque/chartColors';
 import { authHeaders } from '@/lib/auth/client';
-import HistoricoGrade from '@/components/estoque/HistoricoGrade';
+import HistoricoGrade, { type SerieGrade } from '@/components/estoque/HistoricoGrade';
 
 // As rotas do dashboard exigem login (token da sessão no header).
 const getDash = async (url: string) => fetch(url, { headers: await authHeaders() });
@@ -79,7 +79,9 @@ interface TendPonto { label: string; mes: number; ano: number; pecas: number; se
 interface CompPonto { label: string; mes: number; ano: number; pecas: number; pecasBalcao: number; pecasOficina: number; servicos: number }
 interface Comparativos { a1: CompPonto[]; a2: CompPonto[] }
 interface HistMes { label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; valorNota?: number | null; valorInterno?: number | null; qtdeOS?: number | null; qtdeNota?: number | null; qtdeInterno?: number | null }
-interface HistResp { catKey: string; nome: string; meses: HistMes[]; erro?: string }
+interface HistResp { catKey: string; nome: string; meses: HistMes[]; diasUteisMes?: { ano: number; mes: number; decorridos: number; total: number }; erro?: string }
+type HistComparar = 'nenhum' | 'empresas' | 'metricas' | 'categorias';
+const CORES_SERIE = ['#2563eb', '#dc2626', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
 interface VendaRow {
   numero_pedido?: string; data_pedido?: string; descricao?: string; codigo_produto?: string;
   quantidade?: number; valor_unitario?: number; valor_total?: number; cmc_unitario?: number;
@@ -167,6 +169,10 @@ export default function DashboardPage() {
   const [histView, setHistView] = useState<'grade' | 'grafico'>(() => {
     try { return typeof window !== 'undefined' && localStorage.getItem('estoque-hist-view') === 'grafico' ? 'grafico' : 'grade'; } catch { return 'grade'; }
   });
+  // Comparar (só na Grade): séries extras buscadas sob demanda.
+  const [histComparar, setHistComparar] = useState<HistComparar>('nenhum');
+  const [histSeriesExtra, setHistSeriesExtra] = useState<SerieGrade[] | null>(null);
+  const [histCompErro, setHistCompErro] = useState('');
   const trocarHistView = useCallback((v: 'grade' | 'grafico') => {
     setHistView(v);
     try { localStorage.setItem('estoque-hist-view', v); } catch { /* sem storage */ }
@@ -265,11 +271,51 @@ export default function DashboardPage() {
     setHistCard(catKey);
     setHist(null);
     setHistMetric('valor');
+    setHistComparar('nenhum');
+    setHistSeriesExtra(null);
+    setHistCompErro('');
     const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
     const r = await getDash(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaParam}`);
     const d = (await r.json()) as HistResp;
     if (!d.erro) setHist(d);
   }, [categoria, contaParam]);
+
+  // Busca as séries do Comparar. Empresas = o mesmo card em NOVA e CASTRO;
+  // categorias = os 6 maiores cards de peça do período (cada um com o histórico dele).
+  const trocarComparar = useCallback(async (modo: HistComparar) => {
+    setHistComparar(modo);
+    setHistSeriesExtra(null);
+    setHistCompErro('');
+    if (!histCard || modo === 'nenhum' || modo === 'metricas') return;
+    const catParam = categoria ? `&categoria=${encodeURIComponent(categoria)}` : '';
+    const buscar = async (catKey: string, contaQ: string): Promise<HistResp> => {
+      const r = await getDash(`/api/estoque/dashboard/historico?catKey=${encodeURIComponent(catKey)}${catParam}${contaQ}`);
+      const d = (await r.json()) as HistResp;
+      if (d.erro) throw new Error(d.erro);
+      return d;
+    };
+    const servico = histCard === 'servico';
+    try {
+      let series: SerieGrade[];
+      if (modo === 'empresas') {
+        const [nova, castro] = await Promise.all([buscar(histCard, '&conta=NOVA'), buscar(histCard, '&conta=CASTRO')]);
+        series = [
+          { nome: 'NOVA', cor: '#c62828', meses: nova.meses, metrica, servico },
+          { nome: 'CASTRO', cor: '#1976d2', meses: castro.meses, metrica, servico },
+        ];
+      } else {
+        const top = (dados?.categorias || [])
+          .filter((c) => c.cardType === 'produto' && c.valorAtual > 0)
+          .sort((a, b) => b.valorAtual - a.valorAtual)
+          .slice(0, CORES_SERIE.length);
+        const hs = await Promise.all(top.map((c) => buscar(c.key, contaParam)));
+        series = hs.map((h, i) => ({ nome: fixLabel(top[i].nome), cor: CORES_SERIE[i], meses: h.meses, metrica, servico: false }));
+      }
+      setHistSeriesExtra(series);
+    } catch (e) {
+      setHistCompErro((e as Error).message);
+    }
+  }, [histCard, categoria, contaParam, metrica, dados]);
 
   const abrirVendas = useCallback(async (catKey: string, nome: string) => {
     setVendas(null);
@@ -762,6 +808,19 @@ export default function DashboardPage() {
                     >{op === 'grade' ? 'Grade' : 'Gráfico'}</button>
                   ))}
                 </div>
+                {histView === 'grade' && (
+                  <select
+                    value={histComparar}
+                    onChange={(e) => trocarComparar(e.target.value as HistComparar)}
+                    title="Sobrepor séries na mesma grade"
+                    style={{ border: '1px solid #d1d5db', borderRadius: 8, padding: '5px 8px', fontSize: '.85rem', fontWeight: 600, color: '#374151', background: '#fff' }}
+                  >
+                    <option value="nenhum">Comparar: nada</option>
+                    <option value="empresas">Comparar: NOVA × CASTRO</option>
+                    {histCard !== 'servico' && histCard !== 'totalGeral' && <option value="metricas">Comparar: Venda × Custo × Margem</option>}
+                    {histCard === 'totalPecas' && <option value="categorias">Comparar: categorias (6 maiores)</option>}
+                  </select>
+                )}
                 {temQtd && histView === 'grafico' && (
                   <div style={{ display: 'inline-flex', border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden' }}>
                     {(['valor', 'qtd'] as const).map((op) => (
@@ -780,10 +839,17 @@ export default function DashboardPage() {
             );
           })()}
           {!hist ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando…</div> : histView === 'grade' ? (
-            <HistoricoGrade
-              meses={hist.meses}
-              servico={histCard === 'servico'}
-              metrica={metrica}
+            histCompErro ? <div style={{ color: '#dc2626', fontSize: '.9rem' }}>Não foi possível comparar: {histCompErro}</div>
+            : (histComparar === 'empresas' || histComparar === 'categorias') && !histSeriesExtra ? <div style={{ color: '#888', fontSize: '.9rem' }}>Carregando a comparação…</div>
+            : <HistoricoGrade
+              series={
+                histComparar === 'metricas'
+                  ? (['venda', 'custo', 'margem'] as const).map((m, i) => ({ nome: m === 'venda' ? 'Venda' : m === 'custo' ? 'Custo (CMC)' : 'Margem', cor: ['#111827', '#9ca3af', '#16a34a'][i], meses: hist.meses, metrica: m, servico: false }))
+                  : histSeriesExtra && histComparar !== 'nenhum'
+                    ? histSeriesExtra
+                    : [{ nome: hist.nome, cor: '', meses: hist.meses, metrica, servico: histCard === 'servico' }]
+              }
+              diasUteisMes={hist.diasUteisMes}
               baseMin={BASE_MIN_PECAS}
               onMes={(a, m) => { setAno(a); setMes(m); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             />

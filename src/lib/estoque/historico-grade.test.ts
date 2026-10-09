@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { montarGrade, delta, valorDaMetrica, type PontoMes } from './historico-grade';
+import { montarGrade, delta, valorDaMetrica, diasUteis, projetarMes, type PontoMes } from './historico-grade';
 
 // Série de jan/2024 a out/2026 com valor = 1000 × mês (custo = metade).
 function serie(ateAno = 2026, ateMes = 10): PontoMes[] {
@@ -116,5 +116,26 @@ describe('montarGrade', () => {
     expect(a25.trimestres[0].delta).toBeNull();
     expect(a25.trimestres[3].delta).toBeNull(); // T4/2024 só tem nov+dez
     expect(a25.meses[11].delta?.pct).toBeCloseTo(60); // dez tem base
+  });
+});
+
+describe('dias úteis e projeção', () => {
+  const feriados = new Set(['2026-10-12']); // N. Sra. Aparecida (segunda)
+  it('conta seg–sex fora dos feriados', () => {
+    expect(diasUteis(2026, 10, new Set())).toBe(22);
+    expect(diasUteis(2026, 10, feriados)).toBe(21);
+    expect(diasUteis(2026, 10, feriados, 7)).toBe(5); // 1–2 e 5–7
+    expect(diasUteis(2026, 10, feriados, 13)).toBe(8); // pula o 12
+  });
+  it('projeta pelo ritmo; antes de 5 dias úteis não projeta', () => {
+    expect(projetarMes(50000, 5, 20)).toBe(200000);
+    expect(projetarMes(50000, 4, 20)).toBeNull();
+    expect(projetarMes(50000, 0, 0)).toBeNull();
+  });
+  it('a grade projeta só o mês corrente', () => {
+    const g = montarGrade(serie(), { ...base, diasUteisMes: { decorridos: 5, total: 21 } });
+    expect(g.anos[0].meses[9].projetado).toBeCloseTo(30000 * 21 / 5);
+    expect(g.anos[0].meses[8].projetado).toBeNull();
+    expect(montarGrade(serie(), base).anos[0].meses[9].projetado).toBeNull();
   });
 });
