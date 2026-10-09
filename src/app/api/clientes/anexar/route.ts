@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { resolverNfseDaOS } from "@/lib/clientes/nfse-omie";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -128,7 +129,6 @@ export async function POST(req: NextRequest) {
     if (!empresa || !OMIE_ACCOUNTS[empresa]) return NextResponse.json({ error: "Empresa inválida." }, { status: 400 });
     const num = String(numero || "").trim();
     if (!num) return NextResponse.json({ error: "Informe o número." }, { status: 400 });
-    const empKey = empresa.replace(/ /g, "_");
     const numInt = Number(num.replace(/\D/g, ""));
 
     // ========================= OS =========================
@@ -169,7 +169,10 @@ export async function POST(req: NextRequest) {
               let danfe = nfse.danfe || nfse.cUrlNfse || "";
               // NFS-e Nacional: com a chave, monta a URL que já exibe a nota (em vez do formulário vazio).
               if (chave && /nfse\.gov\.br/i.test(danfe) && !/chave=/i.test(danfe)) danfe = `https://www.nfse.gov.br/consultapublica/?tpc=1&chave=${chave}`;
-              if (danfe) linkNF = (await downloadAndStore(danfe, `${empKey}/os_${cab.cNumOS}/nfse_${numNF || cab.cNumOS}.pdf`)) || danfe;
+              // link_nf só recebe PDF guardado no portal: a consulta do gov.br não é PDF —
+              // sem PDF ainda, a OS fica na fila e os syncs buscam o cPdfNFSe depois
+              const r = await resolverNfseDaOS(supabase, contaOmie(empresa), { empresa, num_os: String(cab.cNumOS), cod_os: Number(cab.nCodOS) }, { numero: numNF, url: danfe });
+              if (r.link_nf) linkNF = r.link_nf;
             }
           }
         } catch { /* sem NF ainda */ }

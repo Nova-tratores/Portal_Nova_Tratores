@@ -30,6 +30,9 @@ export async function GET(req: NextRequest) {
   const cod = req.nextUrl.searchParams.get("cod");
   const empresa = req.nextUrl.searchParams.get("empresa") || "Nova Tratores";
   const forcarRefeita = req.nextUrl.searchParams.get("refeita") === "1";
+  // embed=1 → visualizador do portal: entrega o PDF pela mesma origem em vez de
+  // redirecionar pra Omie (o navegador bloqueia o fetch que redireciona pra outro site)
+  const embed = req.nextUrl.searchParams.get("embed") === "1";
 
   if (!tipo || !cod) {
     return NextResponse.json({ error: "?tipo=os&cod=COD_OS&empresa=X ou ?tipo=pv&cod=COD_PEDIDO&empresa=X" }, { status: 400 });
@@ -38,7 +41,17 @@ export async function GET(req: NextRequest) {
   // 1º: o documento OFICIAL do Omie (mesmo layout que sai de dentro do Omie)
   if (!forcarRefeita && (tipo === "os" || tipo === "pv")) {
     const oficial = await pdfOficialOmie(tipo, Number(cod), empresa);
-    if (oficial) return NextResponse.redirect(oficial, 302);
+    if (oficial && embed) {
+      try {
+        const r = await fetch(oficial, { cache: "no-store" });
+        const buf = Buffer.from(await r.arrayBuffer());
+        if (r.ok && buf.subarray(0, 5).toString("latin1") === "%PDF-") {
+          return new NextResponse(new Uint8Array(buf), {
+            headers: { "Content-Type": "application/pdf", "Content-Disposition": `inline; filename="${tipo.toUpperCase()}-${cod}.pdf"` },
+          });
+        }
+      } catch { /* cai na versão refeita */ }
+    } else if (oficial) return NextResponse.redirect(oficial, 302);
   }
 
   // 2º (fallback): a versão reconstruída no portal

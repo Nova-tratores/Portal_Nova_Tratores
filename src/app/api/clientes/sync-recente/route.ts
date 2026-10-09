@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -210,7 +211,7 @@ export async function GET(req: Request) {
       const { data: osSemNF } = await supabase.from("portal_nt_clientes_os")
         .select("num_os, cod_os").eq("empresa", acc.name)
         .eq("faturada", true).eq("cancelada", false)
-        .or("link_nf.is.null,link_nf.eq.")
+        .or(OR_OS_SEM_PDF_NFSE) // sem nota ou só com a consulta do gov.br/prefeitura
         .order("updated_at", { ascending: false }).limit(80);
 
       for (const os of osSemNF || []) {
@@ -224,13 +225,13 @@ export async function GET(req: Request) {
             const num = nfse.nNfse || "";
             const url = nfse.danfe || nfse.cUrlNfse || "";
             if (num || url) {
-              let finalUrl = url;
-              if (url) finalUrl = await downloadNF(url, `${empKey}/os_${os.num_os}/nfse_${num || os.num_os}.pdf`);
+              // link_nf só recebe PDF guardado no portal (a consulta do gov.br não é PDF)
+              const r = await resolverNfseDaOS(supabase, acc, { empresa: acc.name, num_os: os.num_os, cod_os: os.cod_os }, { numero: num, url });
               const upd: Record<string, string> = {};
-              if (num) upd.num_nf = num;
-              if (finalUrl) upd.link_nf = finalUrl;
-              await supabase.from("portal_nt_clientes_os").update(upd).eq("num_os", os.num_os).eq("empresa", acc.name);
-              nfs++;
+              if (r.num_nf) upd.num_nf = r.num_nf;
+              if (r.link_nf) upd.link_nf = r.link_nf;
+              if (Object.keys(upd).length) await supabase.from("portal_nt_clientes_os").update(upd).eq("num_os", os.num_os).eq("empresa", acc.name);
+              if (r.link_nf) nfs++;
             }
           }
           await new Promise(r => setTimeout(r, 300));

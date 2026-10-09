@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -290,7 +291,6 @@ async function syncOS(
 // ================ SYNC NFS-e (notas da OS via StatusOS) ================
 async function syncNFSe(acc: OmieAccount) {
   let count = 0;
-  const BUCKET = "clientes-docs";
 
   // Buscar OS faturadas sem link_nf
   const { data: osFaturadas } = await supabase
@@ -299,7 +299,8 @@ async function syncNFSe(acc: OmieAccount) {
     .eq("empresa", acc.name)
     .eq("faturada", true)
     .eq("cancelada", false)
-    .or("link_nf.is.null,link_nf.eq.")
+    // sem nota OU só com o link de consulta (gov.br / prefeitura) — tenta o PDF
+    .or(OR_OS_SEM_PDF_NFSE)
     .limit(500);
 
   for (const os of osFaturadas || []) {
@@ -308,44 +309,21 @@ async function syncNFSe(acc: OmieAccount) {
       const nfseList: any[] = r?.ListaRpsNfse || [];
 
       if (nfseList.length > 0) {
-        const nfse = nfseList[0];
+        const nfse = nfseList.find(n => n?.danfe || n?.cUrlNfse) || nfseList[nfseList.length - 1];
         const numNFSe = nfse.nNfse || "";
         const danfeUrl = nfse.danfe || nfse.cUrlNfse || "";
 
         if (numNFSe || danfeUrl) {
-          let finalUrl = danfeUrl;
-
-          // Tentar baixar e salvar no Supabase Storage
-          if (danfeUrl) {
-            try {
-              const pdfRes = await fetch(danfeUrl);
-              if (pdfRes.ok) {
-                const buffer = Buffer.from(await pdfRes.arrayBuffer());
-                // Só guarda PDF de verdade (a NFS-e Nacional devolve página HTML do portal)
-                const ehPdf = buffer.slice(0, 5).toString("latin1").startsWith("%PDF") || String(pdfRes.headers.get("content-type") || "").toLowerCase().includes("application/pdf");
-                if (buffer.length > 100 && ehPdf) {
-                  const contentType = pdfRes.headers.get("content-type") || "application/pdf";
-                  const path = `${acc.name.replace(/ /g, "_")}/os_${os.num_os}/nfse_${numNFSe || os.num_os}.pdf`;
-                  const { error: upErr } = await supabase.storage
-                    .from(BUCKET).upload(path, buffer, { contentType, upsert: true });
-                  if (!upErr) {
-                    const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
-                    finalUrl = pub.publicUrl;
-                  }
-                }
-              }
-            } catch {
-              // Se falhar download, manter a URL original do Omie
-            }
-          }
-
+          // link_nf só recebe PDF guardado no portal (a consulta do gov.br não é PDF)
+          const upd = await resolverNfseDaOS(supabase, acc, { empresa: acc.name, num_os: os.num_os, cod_os: os.cod_os }, { numero: numNFSe, url: danfeUrl });
           const updates: Record<string, string> = {};
-          if (numNFSe) updates.num_nf = numNFSe;
-          if (finalUrl) updates.link_nf = finalUrl;
-
-          await supabase.from("portal_nt_clientes_os").update(updates)
-            .eq("num_os", os.num_os).eq("empresa", acc.name);
-          count++;
+          if (upd.num_nf) updates.num_nf = upd.num_nf;
+          if (upd.link_nf) updates.link_nf = upd.link_nf;
+          if (Object.keys(updates).length) {
+            await supabase.from("portal_nt_clientes_os").update(updates)
+              .eq("num_os", os.num_os).eq("empresa", acc.name);
+          }
+          if (upd.link_nf) count++;
         }
       }
 

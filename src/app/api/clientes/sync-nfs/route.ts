@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -55,11 +56,11 @@ export async function POST(req: NextRequest) {
       let osComNF = 0, pvComNF = 0;
       const empKey = acc.name.replace(/ /g, "_");
 
-      // OS faturadas sem link_nf
+      // OS faturadas sem o PDF da nota no portal (sem link ou só a consulta do gov.br/prefeitura)
       const { data: osSemNF } = await supabase.from("portal_nt_clientes_os")
         .select("num_os, cod_os")
         .eq("empresa", acc.name).eq("faturada", true).eq("cancelada", false)
-        .or("link_nf.is.null,link_nf.eq.")
+        .or(OR_OS_SEM_PDF_NFSE)
         .limit(limite);
 
       const osTotal = osSemNF?.length || 0;
@@ -102,7 +103,8 @@ export async function POST(req: NextRequest) {
             if (daLista.idNf) {
               try {
                 const doc: any = await omieCall("/servicos/osdocs/", "ObterNFSe", { nIdNf: daLista.idNf }, acc);
-                danfeUrl = String(doc?.cPdfNFSe || doc?.cUrlNFSe || "");
+                // só o PDF: o cUrlNFSe da NFS-e nacional é a consulta do gov.br (captcha)
+                danfeUrl = String(doc?.cPdfNFSe || "");
               } catch { /* segue só com o número */ }
             }
           }
@@ -119,16 +121,14 @@ export async function POST(req: NextRequest) {
           }
 
           if (numNFSe || danfeUrl) {
-            let finalUrl = danfeUrl;
-            if (danfeUrl) {
-              const stored = await downloadAndStore(danfeUrl, `${empKey}/os_${os.num_os}/nfse_${numNFSe || os.num_os}.pdf`);
-              if (stored) finalUrl = stored;
-            }
+            // link_nf só recebe PDF guardado no portal; sem PDF grava só o número
+            // e a OS continua na fila pro próximo sync
+            const r = await resolverNfseDaOS(supabase, acc, { empresa: acc.name, num_os: os.num_os, cod_os: os.cod_os }, { numero: numNFSe, url: danfeUrl });
             const updates: Record<string, string> = {};
-            if (numNFSe) updates.num_nf = numNFSe;
-            if (finalUrl) updates.link_nf = finalUrl;
-            await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", os.num_os).eq("empresa", acc.name);
-            osComNF++;
+            if (r.num_nf) updates.num_nf = r.num_nf;
+            if (r.link_nf) updates.link_nf = r.link_nf;
+            if (Object.keys(updates).length) await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", os.num_os).eq("empresa", acc.name);
+            if (r.link_nf) osComNF++;
           }
           await new Promise(r => setTimeout(r, 250));
         } catch { /* ignore */ }

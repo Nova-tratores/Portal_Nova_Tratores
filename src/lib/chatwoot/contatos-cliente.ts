@@ -32,6 +32,11 @@ const CACHE_MS = 5 * 60 * 1000;
 const cache = new Map<string, { em: number; dados: SecaoWhatsapp }>();
 let avisouSemConfig = false;
 
+/** Depois de vincular/desvincular um contato: a próxima leitura vai ao NovaZap. */
+export function limparCacheWhatsapp(): void {
+  cache.clear();
+}
+
 export async function buscarWhatsappDoCliente(codigosOmie: string[]): Promise<SecaoWhatsapp> {
   const codigos = [...new Set(codigosOmie.map((c) => String(c ?? "").trim()).filter(Boolean))];
   if (!chatwootConfigurado()) {

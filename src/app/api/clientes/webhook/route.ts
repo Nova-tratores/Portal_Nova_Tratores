@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { resolverNfseDaOS } from "@/lib/clientes/nfse-omie";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -93,11 +94,12 @@ async function buscarNfseDaOS(numOS: string, codOS: number, acc: Acc) {
       if (idNf) {
         try {
           const doc: any = await omieCall("/servicos/osdocs/", "ObterNFSe", { nIdNf: idNf }, acc);
-          danfeUrl = String(doc?.cPdfNFSe || doc?.cUrlNFSe || "");
+          // só o PDF: o cUrlNFSe da NFS-e nacional é a consulta do gov.br (captcha)
+          danfeUrl = String(doc?.cPdfNFSe || "");
         } catch { /* segue só com o número */ }
       }
 
-      // Fallback: caminho antigo via StatusOS
+      // Fallback: caminho antigo via StatusOS (o link dele só vale se for PDF)
       if (!numNFSe && !danfeUrl) {
         const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: codOS }, acc);
         const lista: any[] = st?.ListaRpsNfse || [];
@@ -109,14 +111,14 @@ async function buscarNfseDaOS(numOS: string, codOS: number, acc: Acc) {
       }
 
       if (numNFSe || danfeUrl) {
-        let finalUrl = danfeUrl;
-        if (danfeUrl) {
-          finalUrl = await downloadNF(danfeUrl, `${acc.name.replace(/ /g, "_")}/os_${numOS}/nfse_${numNFSe || numOS}.pdf`);
-        }
+        // link_nf só recebe PDF guardado no portal; sem PDF grava só o número e
+        // tenta de novo (aqui e nos syncs, que pegam OS sem PDF no portal)
+        const upd = await resolverNfseDaOS(supabase, acc, { empresa: acc.name, num_os: numOS, cod_os: codOS }, { numero: numNFSe, url: danfeUrl });
         const updates: Record<string, string> = {};
-        if (numNFSe) updates.num_nf = numNFSe;
-        if (finalUrl) updates.link_nf = finalUrl;
-        await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", numOS).eq("empresa", acc.name);
+        if (upd.num_nf) updates.num_nf = upd.num_nf;
+        if (upd.link_nf) updates.link_nf = upd.link_nf;
+        if (Object.keys(updates).length) await supabase.from("portal_nt_clientes_os").update(updates).eq("num_os", numOS).eq("empresa", acc.name);
+        const finalUrl = upd.link_nf;
         if (finalUrl) {
           console.log(`[webhook] NFS-e ${numNFSe} da OS ${numOS} vinculada com PDF`);
           return; // conseguiu o PDF — encerra as tentativas

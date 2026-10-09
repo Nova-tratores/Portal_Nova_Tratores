@@ -15,6 +15,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   // mostra a folha de assinatura. É a página pública/ao-vivo da OS (relê o banco
   // a cada abertura, então o mesmo QR sempre reflete o estado atual).
   const viewMode = req.nextUrl.searchParams.get("view") === "1";
+  // embed=1 → mostrada dentro do visualizador do portal: sem abrir a impressão sozinha
+  const embed = req.nextUrl.searchParams.get("embed") === "1";
   const autoPrint = req.nextUrl.searchParams.get("auto") === "1" && !viewMode;
   // pecas=0 → NÃO lista as peças no PDF da OS (o usuário escolhe na hora de imprimir).
   const comPecas = req.nextUrl.searchParams.get("pecas") !== "0";
@@ -365,7 +367,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   .sign-digital { font-size: 6.5pt; color: #555; line-height: 1.4; margin-top: 8px; text-align: center; }
   @media print { body { -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; } }
 </style>
-${viewMode ? "" : "<script>window.onload = function() { window.print(); }</script>"}
+${viewMode || embed ? "" : "<script>window.onload = function() { window.print(); }</script>"}
 </head><body>
 
   <div class="header">

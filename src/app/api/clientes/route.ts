@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { numeroNfDoLink, numeroNfse, contaOmieDaEmpresa, chaveOS } from "@/lib/clientes/numero-nf";
+import { numeroNfDoPdf } from "@/lib/clientes/numero-nf-pdf";
 
 // A pasta do cliente precisa SEMPRE ler dados frescos do banco — sem o cache de
 // fetch/rota do Next (que deixava o detalhe mostrando dado velho, ex. vendedor).
@@ -166,6 +168,25 @@ export async function GET(req: NextRequest) {
         }
       }
 
+      // Nº da NFS-e das OS faturadas: o sync quase nunca grava `num_nf`, mas o
+      // cache do dashboard de vendas (os_nfse) tem. Erro aqui não derruba a pasta.
+      const nfsePorOS = new Map<string, string>();
+      const osSemNf = (ordens || []).filter((o: any) => !o.num_nf && o.faturada).map((o: any) => chaveOS(o.num_os)).filter(Boolean);
+      if (osSemNf.length) {
+        try {
+          const { data: nfses } = await supabase
+            .from("os_nfse")
+            .select("num_os, nfse_num")
+            .eq("conta_omie", contaOmieDaEmpresa(empresa))
+            .eq("tem_nota", true)
+            .in("num_os", [...new Set(osSemNf)]);
+          for (const n of nfses || []) {
+            const num = numeroNfse(n.nfse_num);
+            if (num) nfsePorOS.set(chaveOS(n.num_os), num);
+          }
+        } catch { /* sem o cache, a tela mostra o que tiver */ }
+      }
+
       const fin = (c: any) => c ? {
         id: c.id || null,
         boleto: c.anexo_boleto || null,
@@ -188,6 +209,7 @@ export async function GET(req: NextRequest) {
         const idOrdem = posPorOS.get(String(o.num_os)) || null;
         return {
           ...o,
+          num_nf: o.num_nf || nfsePorOS.get(chaveOS(o.num_os)) || "",
           financeiro: fin(cardPorOS.get(`${o.num_os}|${o.empresa}`)),
           // documento REAL do POS quando existe; senão a remontagem do Omie
           pos_id: idOrdem,
@@ -204,6 +226,8 @@ export async function GET(req: NextRequest) {
         const cardPV = (viaOS && cardPorOS.get(`${viaOS.num_os}|${viaOS.os_empresa}`)) || cardPorPV.get(chavePV) || null;
         return {
           ...p,
+          // número vazio no sync, mas o link do DANFE carrega o número
+          numero_nf: p.numero_nf || numeroNfDoLink(p.link_nf) || "",
           financeiro: fin(cardPV),
           // documento REAL do PPV quando existe; senão a remontagem do Omie
           ppv_id: idPedido,
@@ -211,6 +235,21 @@ export async function GET(req: NextRequest) {
           ppv_real: !!idPedido,
         };
       });
+
+      // Nota de peça anexada à mão (o arquivo não traz o nº e o Omie pode não ter a
+      // nota): lê o nº do próprio PDF e GRAVA no PV — só na 1ª vez, poucos casos.
+      const semNumero = pvsEnr.filter((p: any) => !p.numero_nf && (p.link_nf || p.financeiro?.nf_peca)).slice(0, 6);
+      if (semNumero.length) {
+        await Promise.all(semNumero.map(async (p: any) => {
+          const n = await numeroNfDoPdf(p.link_nf || p.financeiro.nf_peca);
+          if (!n) return;
+          p.numero_nf = n;
+          if (p.link_nf) {
+            await supabase.from("portal_nt_clientes_pv").update({ numero_nf: n })
+              .eq("num_pedido", p.num_pedido).eq("empresa", p.empresa).eq("numero_nf", "");
+          }
+        }));
+      }
 
       return NextResponse.json({
         cliente,
@@ -256,6 +295,34 @@ export async function GET(req: NextRequest) {
       ranking.set(key, entry);
     }
 
+    // Documentos por cliente p/ a busca por nº de OS / PV / NF levar direto ao
+    // serviço: ["o", nº OS, nº NFS-e] e ["p", nº PV, nº NF-e] (NF sem zeros à
+    // esquerda). O nº da nota quase nunca está em num_nf/numero_nf — vem do
+    // cache de NFS-e (os_nfse) e do nome do PDF da DANFE.
+    const docsPorCliente = new Map<string, string[][]>();
+    try {
+      const semZeros = (n: unknown) => String(n ?? "").trim().replace(/^0+(?=\d)/, "");
+      const [osDocs, nfses, pvDocs] = await Promise.all([
+        fetchAll<{ cod_cli: number; empresa: string; num_os: string; num_nf: string | null; cancelada: boolean }>(
+          "portal_nt_clientes_os", "cod_cli, empresa, num_os, num_nf, cancelada"),
+        fetchAll<{ conta_omie: string; num_os: string; nfse_num: string }>(
+          "os_nfse", "conta_omie, num_os, nfse_num", (q: any) => q.eq("tem_nota", true)),
+        fetchAll<{ cod_cli: number; empresa: string; num_pedido: string; numero_nf: string | null; link_nf: string | null; cancelado: boolean }>(
+          "portal_nt_clientes_pv", "cod_cli, empresa, num_pedido, numero_nf, link_nf, cancelado"),
+      ]);
+      const nfsePorOS = new Map(nfses.map(n => [`${n.conta_omie}|${semZeros(n.num_os)}`, semZeros(n.nfse_num)]));
+      const add = (key: string, d: string[]) => { const l = docsPorCliente.get(key) || []; l.push(d); docsPorCliente.set(key, l); };
+      for (const o of osDocs) {
+        if (o.cancelada || !o.num_os) continue;
+        const nf = semZeros(o.num_nf) || nfsePorOS.get(`${contaOmieDaEmpresa(o.empresa)}|${semZeros(o.num_os)}`) || "";
+        add(`${o.cod_cli}|${o.empresa}`, ["o", String(o.num_os).trim(), nf]);
+      }
+      for (const p of pvDocs) {
+        if (p.cancelado || !p.num_pedido) continue;
+        add(`${p.cod_cli}|${p.empresa}`, ["p", String(p.num_pedido).trim(), semZeros(p.numero_nf || numeroNfDoLink(p.link_nf) || "")]);
+      }
+    } catch (e) { console.warn("[clientes] docs p/ busca:", e instanceof Error ? e.message : e); }
+
     // Buscar projetos vinculados a clientes (da tabela projetos_omie)
     const allProjetos = await fetchAll<{
       nome: string; empresa: string; cod_cli_ultimo: number | null; cliente_nome_ultimo: string | null;
@@ -293,6 +360,7 @@ export async function GET(req: NextRequest) {
         ultimo_faturamento: rank?.ultimo_faturamento || null,
         projetos,
         refs: [...(buscaExtra.get(key) || [])],
+        docs: docsPorCliente.get(key) || [],
       };
     });
 

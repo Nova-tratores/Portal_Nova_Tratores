@@ -6,14 +6,18 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
+import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento'
+import ContatosChatwoot from '@/components/clientes/ContatosChatwoot'
 import SemPermissao from '@/components/SemPermissao'
-import { Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send, Phone, Copy, Check, Replace } from 'lucide-react'
+import { BellOff, Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send, Phone, Copy, Check } from 'lucide-react'
 
 interface Cliente {
   cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string
   cnpj_cpf: string; cidade: string; estado: string; telefone: string; email: string
   endereco?: string; bairro?: string
   total_os: number; total_valor: number; os_ativas: number; projetos: string[]; refs?: string[]
+  /** ["o", nº OS, nº NFS-e] | ["p", nº PV, nº NF-e] — busca por número leva direto ao serviço */
+  docs?: string[][]
 }
 interface OrdemServico {
   num_os: string; cod_os: number; empresa: string; cod_cli: number; cliente_nome: string
@@ -45,6 +49,8 @@ interface PedidoVenda {
   nf_status?: string | null; nf_motivo?: string | null   // NF rejeitada/denegada na SEFAZ
 }
 
+// Nº de nota pra mostrar: sem os zeros à esquerda do Omie (0000000000065 → 65)
+function fmtNF(n: string | null | undefined) { return String(n || '').trim().replace(/^0+(?=\d)/, '') }
 function formatCurrency(v: number) { return v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) }
 function formatDate(d: string | null) {
   if (!d) return '-'
@@ -134,6 +140,8 @@ function ClientesPageInner() {
   const [loadingDetalhe, setLoadingDetalhe] = useState(false)
   const [expandedOS, setExpandedOS] = useState<string | null>(null)
   const [modalOS, setModalOS] = useState<OrdemServico | null>(null)
+  const [docAberto, setDocAberto] = useState<DocumentoVisualizavel | null>(null)
+  const fecharDoc = useCallback(() => setDocAberto(null), [])
   const [anexNfOS, setAnexNfOS] = useState(false)
   const [gerarCardFin, setGerarCardFin] = useState(true) // checkbox: gerar card no financeiro ao anexar NF de serviço
   const [forcandoCard, setForcandoCard] = useState(false) // escapes manuais (trocar PV / forçar card)
@@ -155,7 +163,8 @@ function ClientesPageInner() {
   const [feedbacksCliente, setFeedbacksCliente] = useState<any[]>([])
   const [tagsOmieCliente, setTagsOmieCliente] = useState<string[]>([])
   const router = useRouter()
-  const [osColuna, setOsColuna] = useState<'todas' | 'ativas' | 'faturadas' | 'canceladas'>('todas')
+  // Aba da pasta: separa OS + PVs avulsos em faturados / cancelados / abertos
+  const [osColuna, setOsColuna] = useState<'abertos' | 'faturados' | 'cancelados'>('faturados')
   const [osFiltroTipo, setOsFiltroTipo] = useState<string>('')
   const [osBuscaNF, setOsBuscaNF] = useState('')
 
@@ -441,13 +450,12 @@ function ClientesPageInner() {
         .eq('empresa', cliente.empresa)
         .maybeSingle()
         .then(({ data: cad }) => aplicar({ tags: parseOmieTags(cad?.tags) })),
-      // Lembretes de revisão (por CNPJ)
-      cliente.cnpj_cpf
-        ? fetch(`/api/pos/lembretes?cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}`)
-            .then((res) => res.json())
-            .then((data) => { if (Array.isArray(data)) aplicar({ lembretes: data }) })
-            .catch(() => {})
-        : Promise.resolve(),
+      // Lembretes do POS: pelo CNPJ OU por qualquer código do cliente (Nova/Castro) —
+      // há lembrete gravado só com a chave OMIE:<cod>, sem CNPJ
+      fetch(`/api/clientes/info-pasta?cod=${encodeURIComponent(String(cliente.cod_cli))}&empresa=${encodeURIComponent(cliente.empresa)}${cliente.cnpj_cpf ? `&cnpj=${encodeURIComponent(cliente.cnpj_cpf.replace(/\D/g, ''))}` : ''}`)
+        .then((res) => res.json())
+        .then((data) => { if (Array.isArray(data?.lembretes)) aplicar({ lembretes: data.lembretes }) })
+        .catch(() => {}),
     ])
   }, [])
 
@@ -477,6 +485,36 @@ function ClientesPageInner() {
     }
     if (cliente.cnpj_cpf) carregarEtiquetasCliente(cliente.cnpj_cpf)
     await buscarDetalhe(cliente)
+  }
+
+  // Busca por nº (OS / PV / NF) → abre a pasta JÁ na janela do serviço. Tenta com
+  // o que está em cache (abre na hora); senão espera a pasta carregar.
+  const abrirServico = async (cliente: Cliente, tipo: 'o' | 'p', num: string) => {
+    const chave = chaveCliente(cliente)
+    const so = (v: unknown) => String(v ?? '').replace(/\D/g, '').replace(/^0+(?=\d)/, '')
+    const aba = (cancelada: boolean, fechada: boolean) => cancelada ? 'cancelados' : fechada ? 'faturados' : 'abertos'
+    const tentar = () => {
+      const c = cacheDetalhe.get(chave)
+      if (!c) return false
+      const ordensC = c.ordens as OrdemServico[]
+      const os = tipo === 'o'
+        ? ordensC.find(o => so(o.num_os) === so(num))
+        : ordensC.find(o => !o.cancelada && so(o.num_pedido_cli) === so(num))
+      if (os) { setOsColuna(aba(os.cancelada, os.faturada || !!os.servico_interno)); setModalOS(os); return true }
+      if (tipo === 'p') {
+        const pv = (c.pedidos as PedidoVenda[]).find(p => so(p.num_pedido) === so(num))
+        if (pv) {
+          setOsColuna(aba(pv.cancelado, pv.faturado))
+          setDocAberto({ titulo: `Pedido de Venda ${pv.num_pedido}`, nome: `PV-${pv.num_pedido}`, url: pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}` })
+          return true
+        }
+      }
+      return false
+    }
+    const carregando = abrirDetalhe(cliente)
+    if (tentar()) return
+    await carregando
+    if (chaveAbertaRef.current === chave) tentar()
   }
 
   // Pasta VIVA: revalida a cada 30s enquanto aberta e ao voltar pra aba
@@ -669,15 +707,21 @@ function ClientesPageInner() {
     } catch { alert('Erro de conexão.') }
     setSubSalvando(false)
   }
+  // Busca só com números (ex.: "5250", "0000064") = nº de OS, PV ou nota fiscal
+  const buscaNumero = /^\s*\d+\s*$/.test(search) ? search.trim().replace(/^0+(?=\d)/, '') : ''
+  const docsQueBatem = (c: Cliente) => buscaNumero
+    ? (c.docs || []).filter(d => d[1].replace(/^0+(?=\d)/, '') === buscaNumero || d[2] === buscaNumero)
+    : []
   const filtradosRaw = clientes.filter(c => {
-    const matchSearch = !search || [c.razao_social, c.nome_fantasia, c.cnpj_cpf, c.cidade, ...(c.projetos || []), ...(c.refs || [])].some(f => (f || '').toLowerCase().includes(search.toLowerCase()))
+    const matchSearch = !search || docsQueBatem(c).length > 0 || [c.razao_social, c.nome_fantasia, c.cnpj_cpf, c.cidade, ...(c.projetos || []), ...(c.refs || [])].some(f => (f || '').toLowerCase().includes(search.toLowerCase()))
     return matchSearch && (!empresaFilter || c.empresa === empresaFilter)
   })
   // Deduplica por CNPJ/CPF (não pode aparecer o mesmo cliente 2x). Mantém o registro mais completo.
   const filtered = (() => {
     const porDoc = new Map<string, Cliente>()
     const semDoc: Cliente[] = []
-    const peso = (c: Cliente) => (Number(c.total_valor || 0) * 1000) + Number(c.total_os || 0)
+    // na busca por número, fica o cadastro (Nova/Castro) onde o documento está
+    const peso = (c: Cliente) => (docsQueBatem(c).length ? 1e15 : 0) + (Number(c.total_valor || 0) * 1000) + Number(c.total_os || 0)
     for (const c of filtradosRaw) {
       const doc = (c.cnpj_cpf || '').replace(/\D/g, '')
       if (!doc) { semDoc.push(c); continue }
@@ -733,12 +777,31 @@ function ClientesPageInner() {
     const totalFaturadas = ordens.filter(o => o.faturada).length
     const totalCanceladas = ordens.filter(o => o.cancelada).length
     const totalAtivas = ordens.filter(o => !o.faturada && !o.cancelada).length
-    const totalValorOS = ordens.reduce((s, o) => s + (o.valor_total || 0), 0)
-    const totalValorPV = pedidos.reduce((s, p) => s + (p.valor_total || 0), 0)
     const pvsSemOS = pedidos.filter(pv => !ordens.some(os => {
       const p = parseRef(os.num_pedido_cli, os.empresa)
       return p.tipo === 'pv' && p.num === pv.num_pedido && (!p.empresa || p.empresa === pv.empresa)
     }))
+    // Situação de cada documento p/ as abas. OS fechada como serviço interno não
+    // gera fatura, mas está encerrada — vai junto com as faturadas.
+    const situacaoOS = (o: OrdemServico) => o.cancelada ? 'cancelados' : (o.faturada || o.servico_interno) ? 'faturados' : 'abertos'
+    const situacaoPV = (p: PedidoVenda) => p.cancelado ? 'cancelados' : p.faturado ? 'faturados' : 'abertos'
+    const pvsSemOSAba = pvsSemOS.filter(pv => situacaoPV(pv) === osColuna)
+    // PV ligado a mais de uma OS não cancelada: com o MESMO valor = provável OS
+    // duplicada no Omie; com valor diferente = PV dividido entre serviços (só informa)
+    const osPorPV = new Map<string, OrdemServico[]>()
+    for (const o of ordens) {
+      if (o.cancelada) continue
+      const r = parseRef(o.num_pedido_cli, o.empresa)
+      if (r.tipo !== 'pv' || !r.num) continue
+      const k = `${r.empresa || o.empresa}|${r.num}`
+      osPorPV.set(k, [...(osPorPV.get(k) || []), o])
+    }
+    const outrasOSdoPV = (o: OrdemServico) => {
+      const r = parseRef(o.num_pedido_cli, o.empresa)
+      if (o.cancelada || r.tipo !== 'pv' || !r.num) return []
+      return (osPorPV.get(`${r.empresa || o.empresa}|${r.num}`) || []).filter(x => x.num_os !== o.num_os)
+    }
+    const contaAba = (aba: string) => ordens.filter(o => situacaoOS(o) === aba).length + pvsSemOS.filter(p => situacaoPV(p) === aba).length
 
     return (
       <div style={{ padding: 'clamp(12px, 4vw, 20px) clamp(12px, 4vw, 32px) 48px', width: '100%', boxSizing: 'border-box' }}>
@@ -750,7 +813,11 @@ function ClientesPageInner() {
 
         <div className="cli-detail-grid" style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '320px minmax(0, 1fr)', gap: isMobile ? 14 : 24, alignItems: 'start' }}>
           {/* ===================== SIDEBAR ===================== */}
-          <aside style={{ position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Fixa ao rolar a página, mas com altura da tela e rolagem própria —
+              sem o limite, o que passava da janela ficava inalcançável */}
+          <aside className="cli-aside" style={isMobile
+            ? { display: 'flex', flexDirection: 'column', gap: 16 }
+            : { position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', overscrollBehavior: 'contain', paddingRight: 4, scrollbarWidth: 'thin' }}>
             {/* Card do cliente */}
             <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, border: '1px solid #E5E7EB', overflow: 'hidden', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
               <div style={{ padding: '20px', background: 'linear-gradient(135deg, #991b1b 0%, #dc2626 100%)', color: '#fff' }}>
@@ -782,6 +849,9 @@ function ClientesPageInner() {
                 ))}
               </div>
             </div>
+
+            {/* Contatos do WhatsApp (NovaZap) vinculados ao CNPJ */}
+            <ContatosChatwoot key={`${cli.cod_cli}-${cli.empresa}`} cod={cli.cod_cli} cnpj={cli.cnpj_cpf || ''} empresa={cli.empresa} nomeCliente={cli.nome_fantasia || cli.razao_social} />
 
             {/* Etiquetas (compacto) */}
             <div style={{ background: 'var(--portal-bg-card)', borderRadius: 16, border: '1px solid #E5E7EB', padding: '14px 16px', boxShadow: '0 1px 3px rgba(16,24,40,0.06)' }}>
@@ -932,13 +1002,19 @@ function ClientesPageInner() {
           {/* ===================== COLUNA PRINCIPAL ===================== */}
           <main style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}>
 
-        {/* LEMBRETES DO CLIENTE */}
-        {lembretesCliente.length > 0 && (
+        {/* LEMBRETES DO CLIENTE (POS) — sempre visível: sem lembrete também é informação */}
+        {selectedCliente && (
           <div style={{ marginBottom: 20 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Bell size={16} color="#E65100" /> Lembretes ({lembretesCliente.filter((l: any) => !l.concluido).length} ativos)
+              <Bell size={16} color="#E65100" /> Lembretes do POS ({lembretesCliente.filter((l: any) => !l.concluido).length} ativos)
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {!loadingDetalhe && lembretesCliente.filter((l: any) => !l.concluido).length === 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 12, background: 'var(--portal-bg-secondary)', border: '1px dashed var(--portal-border)', fontSize: 13, color: 'var(--portal-text-secondary)' }}>
+                  <BellOff size={16} color="#94A3B8" style={{ flexShrink: 0 }} />
+                  Nenhum lembrete ativo para este cliente no POS.
+                </div>
+              )}
               {lembretesCliente.filter((l: any) => !l.concluido).map((l: any) => (
                 <div key={l.id} style={{
                   padding: '14px 18px', borderRadius: 12,
@@ -1014,9 +1090,7 @@ function ClientesPageInner() {
               const maquinas = [...new Set(ordens.map(os => extractModelo(os)).filter(Boolean))]
 
               const ordensFiltradas = ordens.filter(os => {
-                if (osColuna === 'ativas' && (os.faturada || os.cancelada)) return false
-                if (osColuna === 'faturadas' && !os.faturada) return false
-                if (osColuna === 'canceladas' && !os.cancelada) return false
+                if (situacaoOS(os) !== osColuna) return false
                 if (osFiltroTipo === 'revisao' && classifyOS(os) !== 'revisao') return false
                 if (osFiltroTipo === 'manutencao' && classifyOS(os) !== 'manutencao') return false
                 if (osFiltroTipo === 'garantia' && classifyOS(os) !== 'garantia') return false
@@ -1032,26 +1106,98 @@ function ClientesPageInner() {
               }).sort((a, b) => (b.data_previsao || '').localeCompare(a.data_previsao || '') || (parseInt(b.num_os) || 0) - (parseInt(a.num_os) || 0))
 
               return (<>
-            <div style={{ display: 'flex', gap: 6, marginBottom: 16, flexWrap: 'wrap', alignItems: 'center' }}>
-              {[
-                { l: 'OS', v: String(ordens.length), c: '#2563EB' },
-                { l: 'Ativas', v: String(totalAtivas), c: '#EA580C' },
-                { l: 'Faturadas', v: String(totalFaturadas), c: '#059669' },
-                { l: 'Canceladas', v: String(totalCanceladas), c: '#DC2626' },
-                { l: 'Valor OS', v: formatCurrency(totalValorOS), c: '#7C3AED' },
-                { l: 'Valor PV', v: formatCurrency(totalValorPV), c: '#DC2626' },
-              ].map((c, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 8, background: 'var(--portal-bg-secondary)', border: '1px solid #E5E7EB' }}>
-                  <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', fontWeight: 600 }}>{c.l}</span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: c.c }}>{c.v}</span>
+            {/* Resumo do cliente — painéis no estilo dos cards de OS */}
+            {(() => {
+              // valores sem os cancelados (OS/PV cancelado não é dinheiro do cliente)
+              const valorServ = ordens.filter(o => !o.cancelada).reduce((s, o) => s + (o.valor_total || 0), 0)
+              const valorPecas = pedidos.filter(p => !p.cancelado).reduce((s, p) => s + (p.valor_total || 0), 0)
+              const pvsValidos = pedidos.filter(p => !p.cancelado).length
+              const totalOS = ordens.length || 1
+              const segs = [
+                { n: totalFaturadas, cor: '#10B981', rot: 'faturadas' },
+                { n: totalAtivas, cor: '#F59E0B', rot: 'em aberto' },
+                { n: totalCanceladas, cor: '#EF4444', rot: 'canceladas' },
+              ]
+              const LBLK: React.CSSProperties = { fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: '#94A3B8' }
+              const TILE: React.CSSProperties = { position: 'relative', border: '1px solid #E5E7EB', borderRadius: 14, background: 'var(--portal-bg-card)', padding: '14px 16px', boxShadow: '0 1px 2px rgba(16,24,40,0.05)', overflow: 'hidden', minWidth: 0 }
+              const icone = (el: React.ReactNode, cor: string, fundo: string) => (
+                <span style={{ position: 'absolute', top: 14, right: 14, width: 32, height: 32, borderRadius: 9, background: fundo, color: cor, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{el}</span>
+              )
+              const VAL: React.CSSProperties = { fontSize: 22, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', marginTop: 6, lineHeight: 1.1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(210px, 100%), 1fr))', gap: 12, marginBottom: 20 }}>
+                  {/* Ordens de serviço + distribuição */}
+                  <div style={TILE}>
+                    {icone(<Wrench size={16} />, '#2563EB', '#EFF6FF')}
+                    <div style={LBLK}>Ordens de serviço</div>
+                    <div style={VAL}>{ordens.length}</div>
+                    <div style={{ display: 'flex', height: 6, borderRadius: 6, overflow: 'hidden', background: 'var(--portal-bg-secondary)', marginTop: 10 }}>
+                      {segs.filter(s => s.n > 0).map(s => <div key={s.rot} title={`${s.n} ${s.rot}`} style={{ width: `${(s.n / totalOS) * 100}%`, background: s.cor }} />)}
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 10px', marginTop: 8 }}>
+                      {segs.map(s => (
+                        <span key={s.rot} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: '#64748B' }}>
+                          <span style={{ width: 7, height: 7, borderRadius: '50%', background: s.cor }} /><b style={{ color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{s.n}</b> {s.rot}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Serviços */}
+                  <div style={TILE}>
+                    {icone(<ClipboardList size={16} />, '#2563EB', '#EFF6FF')}
+                    <div style={LBLK}>Serviços</div>
+                    <div style={{ ...VAL, color: '#1D4ED8' }}>{formatCurrency(valorServ)}</div>
+                    <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 8 }}>Mão de obra e deslocamento das OS</div>
+                  </div>
+
+                  {/* Peças */}
+                  <div style={TILE}>
+                    {icone(<Package size={16} />, '#EA580C', '#FFF7ED')}
+                    <div style={LBLK}>Peças</div>
+                    <div style={{ ...VAL, color: '#C2410C' }}>{formatCurrency(valorPecas)}</div>
+                    <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 8 }}>{pvsValidos} {pvsValidos === 1 ? 'pedido de venda' : 'pedidos de venda'}</div>
+                  </div>
+
+                  {/* Total */}
+                  <div style={{ ...TILE, background: 'linear-gradient(135deg, #b91c1c 0%, #dc2626 100%)', border: 'none' }}>
+                    <div style={{ ...LBLK, color: '#FECACA' }}>Total com o cliente</div>
+                    <div style={{ ...VAL, color: '#fefefe', fontSize: 24 }}>{formatCurrency(valorServ + valorPecas)}</div>
+                    <div style={{ fontSize: 11.5, color: '#FECACA', marginTop: 8 }}>Serviços + peças, sem os cancelados</div>
+                  </div>
                 </div>
-              ))}
-            </div>
+              )
+            })()}
 
             {ordens.length === 0 && pedidos.length === 0 ? (
               <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>Nenhuma ordem de servico encontrada</div>
             ) : (
               <div>
+                {/* ABAS: Faturados / Cancelados / Abertos (OS + PVs avulsos) */}
+                <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: '1px solid #E5E7EB', overflowX: 'auto' }}>
+                  {([
+                    { id: 'faturados', label: 'Faturados', cor: '#059669' },
+                    { id: 'cancelados', label: 'Cancelados', cor: '#94A3B8' },
+                    { id: 'abertos', label: 'Abertos', cor: '#EA580C' },
+                  ] as const).map(tab => {
+                    const ativo = osColuna === tab.id
+                    const n = contaAba(tab.id)
+                    return (
+                      <button key={tab.id} onClick={() => setOsColuna(tab.id)}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 8, whiteSpace: 'nowrap',
+                          padding: '10px 18px', marginBottom: -1,
+                          border: 'none', borderBottom: `3px solid ${ativo ? tab.cor : 'transparent'}`, background: 'none', cursor: 'pointer',
+                          fontSize: 14, fontWeight: ativo ? 700 : 600,
+                          color: ativo ? 'var(--portal-text)' : 'var(--portal-text-muted)', transition: 'all 0.15s',
+                        }}>
+                        {tab.label}
+                        <span style={{ fontSize: 11.5, fontWeight: 700, padding: '1px 8px', borderRadius: 10, background: ativo ? tab.cor : 'var(--portal-bg-secondary)', color: ativo ? '#fff' : 'var(--portal-text-muted)' }}>{n}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
                 {/* TITULO + FILTROS */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1061,26 +1207,6 @@ function ClientesPageInner() {
                     style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                     <Plus size={14} /> Anexar OS
                   </button>
-                </div>
-
-                {/* Abas de coluna */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 10 }}>
-                  {([
-                    { id: 'todas', label: 'Todas', count: ordens.length },
-                    { id: 'ativas', label: 'Ativas', count: totalAtivas },
-                    { id: 'faturadas', label: 'Faturadas', count: totalFaturadas },
-                    { id: 'canceladas', label: 'Canceladas', count: totalCanceladas },
-                  ] as const).map(tab => (
-                    <button key={tab.id} onClick={() => setOsColuna(tab.id)}
-                      style={{
-                        padding: '6px 14px', borderRadius: 8, border: 'none', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                        background: osColuna === tab.id ? '#dc2626' : '#F3F4F6',
-                        color: osColuna === tab.id ? '#fff' : 'var(--portal-text-secondary)',
-                        transition: 'all 0.15s',
-                      }}>
-                      {tab.label} <span style={{ opacity: 0.7, marginLeft: 4 }}>{tab.count}</span>
-                    </button>
-                  ))}
                 </div>
 
                 {/* Filtros */}
@@ -1130,7 +1256,7 @@ function ClientesPageInner() {
 
                 {/* OS COMO CARDS */}
                 {ordensFiltradas.length === 0 ? (
-                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 13 }}>Nenhuma OS com esses filtros</div>
+                  <div style={{ padding: 40, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 13 }}>{osFiltroTipo || osBuscaNF ? 'Nenhuma OS com esses filtros' : `Nenhuma OS ${osColuna === 'abertos' ? 'aberta' : osColuna === 'faturados' ? 'faturada' : 'cancelada'}`}</div>
                 ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 12, marginBottom: 28 }}>
                   {ordensFiltradas.map((os, oi) => {
@@ -1145,66 +1271,141 @@ function ClientesPageInner() {
                     // Peças vêm do(s) pedido(s) de venda vinculado(s) à OS
                     const pvsLig = (ref.tipo === 'pv' || ref.tipo === 'remessa') ? findAllPVs(os.num_pedido_cli, os.empresa) : []
                     const pecas = pvsLig.flatMap((pv: any) => pv.itens || [])
-                    const pecasTotal = pecas.reduce((s: number, p: any) => s + (Number(p.valor_total) || 0), 0)
-                    const maoObra = Math.max(0, (os.valor_total || 0) - pecasTotal)
-                    const lbl: React.CSSProperties = { display: 'block', fontSize: 9.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#94A3B8' }
-                    const totNum: React.CSSProperties = { fontSize: 14, fontWeight: 600, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }
+                    // O valor da OS no Omie é só o serviço — as peças vêm do(s) PV(s) vinculado(s).
+                    // Mesma conta da janela da OS: total do PV (cai na soma dos itens se faltar).
+                    const pecasTotal = pvsLig.reduce((s: number, pv: any) => s + (Number(pv.valor_total) || (pv.itens || []).reduce((t: number, i: any) => t + (Number(i.valor_total) || 0), 0)), 0)
+                    const maoObra = os.valor_total || 0
+                    const totalGeral = maoObra + pecasTotal
+                    const outrasOS = outrasOSdoPV(os)
+                    const duplicadas = outrasOS.filter(x => (x.valor_total || 0) === (os.valor_total || 0)).map(x => x.num_os)
+                    const compartilhadas = outrasOS.filter(x => (x.valor_total || 0) !== (os.valor_total || 0)).map(x => x.num_os)
+                    const PECAS_VISIVEIS = 4
+                    const tecnico = (os.vendedor || '').replace(/^T[ée]cnico:\s*/i, '').trim()
+                    const modelo = extractModelo(os)
+                    const chassi = extractChassis(os)
+                    const st = os.cancelada ? { cor: '#B91C1C', fundo: '#FEF2F2', borda: '#FECACA' }
+                      : ehInterno ? { cor: '#6D28D9', fundo: '#F5F3FF', borda: '#DDD6FE' }
+                      : os.faturada ? { cor: '#047857', fundo: '#ECFDF5', borda: '#A7F3D0' }
+                      : { cor: '#B45309', fundo: '#FFFBEB', borda: '#FDE68A' }
+                    // notas: número + se o PDF já está na pasta
+                    const nfServNum = fmtNF(os.num_nf || os.financeiro?.num_nf_servico)
+                    const nfServOk = !!(os.link_nf || os.financeiro?.nf_servico)
+                    const nfsPeca = pvsLig.map((pv: any) => ({ num: fmtNF(pv.numero_nf), ok: !!pv.link_nf })).filter((n: { num: string }) => n.num)
+                    const CHIP: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '3px 9px', borderRadius: 7, whiteSpace: 'nowrap', border: '1px solid #E5E7EB', background: 'var(--portal-bg-secondary)', color: '#475569' }
+                    const chipNF = (rotulo: string, num: string, ok: boolean, k: string) => (
+                      <span key={k} title={ok ? 'PDF da nota na pasta' : 'Nota sem PDF na pasta'}
+                        style={{ ...CHIP, background: ok ? '#ECFDF5' : '#FFFBEB', borderColor: ok ? '#A7F3D0' : '#FDE68A', color: ok ? '#047857' : '#B45309' }}>
+                        {ok ? <Check size={12} strokeWidth={3} /> : <Clock size={12} strokeWidth={2.5} />} {rotulo} {num}
+                      </span>
+                    )
+                    const lbl: React.CSSProperties = { display: 'block', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: '#94A3B8' }
+                    const totNum: React.CSSProperties = { fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }
 
                     return (
                       <div key={os.num_os} className="cli-card" onClick={() => setModalOS(os)}
-                        style={{ position: 'relative', padding: '14px 18px 14px 22px', border: '1px solid #E5E7EB', borderRadius: 12, background: 'var(--portal-bg-card)', cursor: 'pointer', transition: 'all 0.15s', boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden', animationDelay: `${Math.min(oi * 30, 300)}ms` }}
-                        onMouseEnter={ev => { ev.currentTarget.style.borderColor = '#CBD5E1'; ev.currentTarget.style.boxShadow = '0 6px 16px rgba(16,24,40,0.09)' }}
-                        onMouseLeave={ev => { ev.currentTarget.style.borderColor = 'var(--portal-border)'; ev.currentTarget.style.boxShadow = '0 1px 2px rgba(16,24,40,0.04)' }}>
+                        style={{ position: 'relative', border: '1px solid #E5E7EB', borderRadius: 14, background: 'var(--portal-bg-card)', cursor: 'pointer', transition: 'all 0.15s', boxShadow: '0 1px 2px rgba(16,24,40,0.05)', overflow: 'hidden', animationDelay: `${Math.min(oi * 30, 300)}ms` }}
+                        onMouseEnter={ev => { ev.currentTarget.style.borderColor = '#CBD5E1'; ev.currentTarget.style.boxShadow = '0 8px 20px rgba(16,24,40,0.10)'; ev.currentTarget.style.transform = 'translateY(-1px)' }}
+                        onMouseLeave={ev => { ev.currentTarget.style.borderColor = 'var(--portal-border)'; ev.currentTarget.style.boxShadow = '0 1px 2px rgba(16,24,40,0.05)'; ev.currentTarget.style.transform = 'none' }}>
                         <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: acc }} />
 
-                        {/* Cabeçalho: OS + PV + status · data */}
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', borderBottom: '1px solid #F1F5F9', paddingBottom: 10, marginBottom: 10 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: 15.5, fontWeight: 600, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>OS {os.num_os}</span>
-                            {numRef && <span style={{ fontSize: 12, fontWeight: 600, color: '#EA580C', background: '#FFF7ED', border: '1px solid #FED7AA', padding: '1px 8px', borderRadius: 6, whiteSpace: 'nowrap' }}>PV {numRef}</span>}
-                            {remRef && <span style={{ fontSize: 11, fontWeight: 600, padding: '1px 7px', borderRadius: 5, background: '#FFF7ED', color: '#EA580C', border: '1px solid #FED7AA', whiteSpace: 'nowrap' }}>{ref.label}</span>}
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: acc, textTransform: 'uppercase', letterSpacing: 0.3 }}>
-                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: acc, flexShrink: 0 }} />{statusLabel}
+                        <div style={{ padding: '15px 18px 14px 22px' }}>
+                          {/* Cabeçalho: ícone · OS · técnico/data | status */}
+                          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
+                              <span style={{ width: 40, height: 40, borderRadius: 11, background: st.fundo, color: st.cor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <Wrench size={19} />
+                              </span>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--portal-text)', lineHeight: 1.15, fontVariantNumeric: 'tabular-nums' }}>OS {os.num_os}</div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: '#64748B', marginTop: 3, flexWrap: 'wrap' }}>
+                                  {tecnico && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><User size={12} /> {tecnico}</span>}
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><Calendar size={12} /> {formatDate(os.data_previsao)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: st.cor, background: st.fundo, border: `1px solid ${st.borda}`, padding: '4px 11px', borderRadius: 999, whiteSpace: 'nowrap' }}>
+                              <span style={{ width: 6, height: 6, borderRadius: '50%', background: st.cor }} />{statusLabel}
                             </span>
-                            {os.vendedor && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: '#64748B', whiteSpace: 'nowrap' }}><User size={11} /> {os.vendedor}</span>}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexShrink: 0 }}>
+
+                          {/* Etiquetas: PV · máquina · notas · avisos */}
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 12 }}>
+                            {numRef && <span style={{ ...CHIP, background: '#FFF7ED', borderColor: '#FED7AA', color: '#C2410C' }}><Package size={12} /> PV {numRef}</span>}
+                            {remRef && <span style={{ ...CHIP, background: '#FFF7ED', borderColor: '#FED7AA', color: '#C2410C' }}><Package size={12} /> {ref.label}</span>}
+                            {(modelo || chassi) && (
+                              <span style={CHIP} title="Máquina do serviço"><Tag size={12} /> {[modelo, chassi && `chassi ${chassi}`].filter(Boolean).join(' · ')}</span>
+                            )}
+                            {nfServNum && chipNF('NFS-e', nfServNum, nfServOk, 'nfs')}
+                            {nfsPeca.map((n: { num: string; ok: boolean }, i: number) => chipNF('NF-e', n.num, n.ok, `nfe-${i}`))}
                             {os.pdf_anexo && (
-                              <a href={os.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={ev => ev.stopPropagation()} title="PDF anexado"
-                                style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 600, color: '#2563EB', textDecoration: 'none' }}>
-                                <FileText size={12} /> PDF
+                              <a href={os.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={ev => ev.stopPropagation()} title="PDF anexado à OS"
+                                style={{ ...CHIP, background: '#EFF6FF', borderColor: '#BFDBFE', color: '#1D4ED8', textDecoration: 'none' }}>
+                                <FileText size={12} /> PDF anexado
                               </a>
                             )}
-                            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--portal-text)' }}>{formatDate(os.data_previsao)}</span>
+                            {duplicadas.length > 0 && (
+                              <span title={`A OS ${duplicadas.join(', ')} tem o mesmo PV ${numRef} e o mesmo valor desta. Confira no Omie se não é OS duplicada — as peças aparecem nas duas.`}
+                                style={{ ...CHIP, fontWeight: 700, background: '#FEF2F2', borderColor: '#FECACA', color: '#B91C1C' }}>
+                                <AlertTriangle size={12} /> Possível OS duplicada ({duplicadas.join(', ')})
+                              </span>
+                            )}
+                            {compartilhadas.length > 0 && (
+                              <span title={`O PV ${numRef} também está ligado à OS ${compartilhadas.join(', ')} (valor diferente). As peças do PV aparecem nas duas.`} style={CHIP}>
+                                PV também na OS {compartilhadas.join(', ')}
+                              </span>
+                            )}
                           </div>
+
+                          {/* Serviço */}
+                          <div style={{ marginTop: 14 }}>
+                            <span style={lbl}>Serviço</span>
+                            <div style={{ fontSize: 13.5, color: '#334155', lineHeight: 1.55, marginTop: 4, display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                              {solicitacao || os.descricao || 'Sem descrição'}
+                            </div>
+                          </div>
+
+                          {/* Peças do PV vinculado (as primeiras; o resto na janela da OS) */}
+                          {pecas.length > 0 && (
+                            <div style={{ marginTop: 14, border: '1px solid #F1F5F9', borderRadius: 10, overflow: 'hidden' }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '7px 12px', background: 'var(--portal-bg-secondary)' }}>
+                                <span style={{ ...lbl, color: '#C2410C' }}>Peças · {pecas.length} {pecas.length === 1 ? 'item' : 'itens'}</span>
+                                {numRef && <span style={{ fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>PV {numRef}</span>}
+                              </div>
+                              {pecas.slice(0, PECAS_VISIVEIS).map((p: any, pi: number) => (
+                                <div key={pi} style={{ display: 'grid', gridTemplateColumns: 'minmax(70px, 120px) minmax(0, 1fr) auto auto', gap: 10, alignItems: 'baseline', fontSize: 12.5, color: '#475569', padding: '6px 12px', borderTop: '1px solid #F1F5F9' }}>
+                                  <span style={{ fontFamily: 'ui-monospace, monospace', fontSize: 11, color: '#C2410C', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.codigo || '-'}</span>
+                                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descricao || p.desc || '-'}</span>
+                                  <span style={{ color: '#94A3B8', fontVariantNumeric: 'tabular-nums' }}>{p.quantidade}×</span>
+                                  <span style={{ fontWeight: 600, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', minWidth: 78, textAlign: 'right' }}>{formatCurrency(p.valor_total || 0)}</span>
+                                </div>
+                              ))}
+                              {pecas.length > PECAS_VISIVEIS && (
+                                <div style={{ padding: '6px 12px', borderTop: '1px solid #F1F5F9', fontSize: 12, fontWeight: 600, color: '#64748B' }}>
+                                  + {pecas.length - PECAS_VISIVEIS} {pecas.length - PECAS_VISIVEIS === 1 ? 'peça' : 'peças'} · abra a OS para ver todas
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
 
-                        {/* Serviço */}
-                        <div style={lbl}>Serviço</div>
-                        <div style={{ fontSize: 13.5, color: '#475569', lineHeight: 1.5, marginTop: 3 }}>{solicitacao || os.descricao || 'Sem descrição'}</div>
-
-                        {/* Peças do PV vinculado */}
-                        {pecas.length > 0 && (
-                          <div style={{ border: '1px solid #FED7AA', background: '#FFFBF5', borderRadius: 10, padding: '9px 12px', marginTop: 12 }}>
-                            <div style={{ fontSize: 10.5, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5, color: '#EA580C', marginBottom: 6 }}>Peças do PV {numRef} ({pecas.length})</div>
-                            {pecas.map((p: any, pi: number) => (
-                              <div key={pi} style={{ display: 'grid', gridTemplateColumns: '96px minmax(0, 1fr) auto auto', gap: 10, alignItems: 'baseline', fontSize: 12.5, color: '#475569', padding: '2px 0' }}>
-                                <span style={{ fontFamily: 'monospace', fontSize: 11, color: '#EA580C', fontWeight: 600 }}>{p.codigo || '-'}</span>
-                                <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.descricao || p.desc || '-'}</span>
-                                <span style={{ color: '#94A3B8', fontVariantNumeric: 'tabular-nums' }}>{p.quantidade}×</span>
-                                <span style={{ fontWeight: 600, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(p.valor_total || 0)}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-
-                        {/* Totais (Serviço × Peças × Total) */}
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 22, marginTop: 12, paddingTop: 10, borderTop: '1px solid #F1F5F9' }}>
-                          {pecas.length > 0 && (<>
-                            <div style={{ textAlign: 'right' }}><span style={lbl}>Serviço</span><b style={totNum}>{formatCurrency(maoObra)}</b></div>
-                            <div style={{ textAlign: 'right' }}><span style={lbl}>Peças</span><b style={totNum}>{formatCurrency(pecasTotal)}</b></div>
+                        {/* Rodapé: Serviço + Peças = Total */}
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 18, flexWrap: 'wrap', padding: '11px 18px 11px 22px', borderTop: '1px solid #F1F5F9', background: 'var(--portal-bg-secondary)' }}>
+                          {pecasTotal > 0 && (<>
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={{ ...lbl, color: '#2563EB' }}>Serviço</span>
+                              <b style={{ ...totNum, color: '#1D4ED8' }}>{formatCurrency(maoObra)}</b>
+                            </div>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: '#CBD5E1' }}>+</span>
+                            <div style={{ textAlign: 'right' }}>
+                              <span style={{ ...lbl, color: '#EA580C' }}>Peças</span>
+                              <b style={{ ...totNum, color: '#C2410C' }}>{formatCurrency(pecasTotal)}</b>
+                            </div>
+                            <span style={{ fontSize: 15, fontWeight: 700, color: '#CBD5E1' }}>=</span>
                           </>)}
-                          <div style={{ textAlign: 'right' }}><span style={lbl}>Total</span><b style={{ fontSize: 16, fontWeight: 600, color: '#DC2626', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(os.valor_total || 0)}</b></div>
+                          <div style={{ textAlign: 'right', padding: '6px 16px', borderRadius: 10, background: '#dc2626', minWidth: 130 }}>
+                            <span style={{ ...lbl, color: '#FECACA' }}>Total</span>
+                            <b style={{ fontSize: 18, fontWeight: 800, color: '#fefefe', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalGeral)}</b>
+                          </div>
                         </div>
                       </div>
                     )
@@ -1216,16 +1417,20 @@ function ClientesPageInner() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Package size={18} color="#EA580C" /> Pedidos de Venda avulsos ({pvsSemOS.length})
+                      <Package size={18} color="#EA580C" /> Pedidos de Venda avulsos ({pvsSemOSAba.length})
                     </div>
                     <button onClick={() => abrirAnexar('pv')}
                       style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: '1px solid #FED7AA', background: '#FFF7ED', color: '#EA580C', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                       <Plus size={14} /> Anexar PV
                     </button>
                   </div>
-                  {pvsSemOS.length > 0 && (
+                  {pvsSemOSAba.length === 0 ? (
+                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 13 }}>Nenhum pedido {osColuna === 'abertos' ? 'aberto' : osColuna === 'faturados' ? 'faturado' : 'cancelado'}</div>
+                  ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
-                      {pvsSemOS.map((pv, pi) => (
+                      {pvsSemOSAba.map((pv, pi) => {
+                        const pvCor = pv.cancelado ? '#94A3B8' : pv.faturado ? '#10B981' : '#EA580C'
+                        return (
                         <div key={pv.num_pedido} className="cli-card"
                           style={{
                             position: 'relative', display: 'flex', flexDirection: 'column', gap: 8,
@@ -1233,19 +1438,19 @@ function ClientesPageInner() {
                             background: 'var(--portal-bg-card)', boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden',
                             animationDelay: `${Math.min(pi * 30, 300)}ms`,
                           }}>
-                          <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: '#EA580C' }} />
+                          <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: pvCor }} />
 
                           <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
                             <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
                               <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>PV {pv.num_pedido}</span>
-                              {pv.numero_nf && <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>NF {pv.numero_nf}</span>}
+                              {pv.numero_nf && <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>NF {fmtNF(pv.numero_nf)}</span>}
                             </div>
                             <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', flexShrink: 0 }}>{formatCurrency(pv.valor_total || 0)}</span>
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: '#EA580C', textTransform: 'uppercase', letterSpacing: 0.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#EA580C', flexShrink: 0 }} />{pv.etapa}
+                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: pvCor, textTransform: 'uppercase', letterSpacing: 0.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: pvCor, flexShrink: 0 }} />{pv.etapa}
                             </span>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
                               <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{formatDate(pv.data_previsao)}</span>
@@ -1278,7 +1483,8 @@ function ClientesPageInner() {
                             </div>
                           </div>
                         </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   )}
                 </div>
@@ -1425,13 +1631,17 @@ function ClientesPageInner() {
               <div className="cli-modal" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: '92%', maxWidth: 860, maxHeight: '90vh', overflow: 'auto', boxShadow: '0 24px 64px rgba(0,0,0,0.25)' }}
                 onClick={e => e.stopPropagation()}>
 
-                {/* Header — estilo documento (formal) */}
-                <div style={{ padding: '22px 28px 18px', borderBottom: '2px solid #0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
-                  <button onClick={() => setModalOS(null)}
-                    style={{ position: 'absolute', top: 14, right: 14, background: 'var(--portal-bg-secondary)', border: '1px solid #E5E7EB', borderRadius: 8, padding: '6px 8px', cursor: 'pointer', display: 'flex', alignItems: 'center', color: '#64748B' }}>
+                {/* Fechar — preso no topo da janela mesmo rolando o conteúdo */}
+                <div style={{ position: 'sticky', top: 0, height: 0, zIndex: 5 }}>
+                  <button onClick={() => setModalOS(null)} title="Fechar"
+                    style={{ position: 'absolute', top: 10, right: 10, width: 32, height: 32, background: 'var(--portal-bg-card)', border: '1px solid #E5E7EB', borderRadius: '50%', padding: 0, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748B', boxShadow: '0 2px 8px rgba(16,24,40,0.15)' }}>
                     <X size={16} />
                   </button>
-                  <div style={{ minWidth: 0, paddingRight: 48 }}>
+                </div>
+
+                {/* Header — estilo documento (formal) */}
+                <div style={{ padding: '22px 64px 18px 28px', borderBottom: '2px solid #0F172A', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, position: 'relative' }}>
+                  <div style={{ minWidth: 0 }}>
                     <div style={{ fontSize: 17, fontWeight: 600, color: 'var(--portal-text)' }}>{cli.nome_fantasia || cli.razao_social}</div>
                     <div style={{ fontSize: 11.5, color: '#64748B', marginTop: 2 }}>{formatCNPJ(cli.cnpj_cpf)}{(os.cidade || cli.cidade) ? ` · ${os.cidade || cli.cidade}` : ''}</div>
                     <div style={{ display: 'flex', gap: 7, marginTop: 10, flexWrap: 'wrap' }}>
@@ -1457,8 +1667,8 @@ function ClientesPageInner() {
                     const vServico = os.valor_total || 0
                     const vPecas = pvs.reduce((s: number, p: PedidoVenda) => s + (p.valor_total || 0), 0)
                     const vTotal = vServico + vPecas
-                    const numNfServ = os.num_nf || os.financeiro?.num_nf_servico || '—'
-                    const numNfPeca = os.financeiro?.num_nf_peca || pvs.map((p: PedidoVenda) => p.numero_nf).filter(Boolean).join(', ') || '—'
+                    const numNfServ = fmtNF(os.num_nf || os.financeiro?.num_nf_servico) || '—'
+                    const numNfPeca = fmtNF(os.financeiro?.num_nf_peca) || pvs.map((p: PedidoVenda) => fmtNF(p.numero_nf)).filter(Boolean).join(', ') || '—'
                     const celulas = [
                       { l: 'Valor total', v: formatCurrency(vTotal), c: '#DC2626', sub: vPecas > 0 ? `Serviço ${formatCurrency(vServico)} · Peças ${formatCurrency(vPecas)}` : null },
                       { l: 'Faturamento', v: formatDate(os.data_faturamento), c: os.faturada ? '#16A34A' : '#94A3B8', sub: null },
@@ -1557,34 +1767,149 @@ function ClientesPageInner() {
                     const CARD: React.CSSProperties = { border: '1px solid #E5E7EB', borderRadius: 12, padding: '13px 16px', background: 'var(--portal-bg-card)' }
                     const ROW = { display: 'flex', gap: 8, flexWrap: 'wrap' as const, alignItems: 'center' }
                     const BASE = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '9px 15px', borderRadius: 9, fontSize: 13, fontWeight: 600, textDecoration: 'none', cursor: 'pointer' }
-                    const GHOST = { ...BASE, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: '#334155' }
-                    const DARK = { ...BASE, border: 'none', background: '#dc2626', color: '#fff' }
-                    const WARN = { ...BASE, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#B45309', fontWeight: 700 }
                     const GREEN = { ...BASE, border: 'none', background: '#059669', color: '#fff' }
-                    const MUTED = { fontSize: 13, color: 'var(--portal-text-muted)', fontStyle: 'italic' as const }
                     const nfServ = os.link_nf || os.financeiro?.nf_servico
-                    const numNfServ = os.num_nf || os.financeiro?.num_nf_servico
+                    const numNfServ = fmtNF(os.num_nf || os.financeiro?.num_nf_servico)
+                    // Pra VER: PDF já no storage abre direto; senão a rota busca o PDF da NFS-e
+                    // no Omie, guarda na pasta e grava na OS (o link salvo costuma ser a
+                    // consulta do nfse.gov.br ou da prefeitura, que não abrem aqui).
+                    const nfServNoPortal = !!os.link_nf && /supabase\.co\/storage\/.+\.pdf/i.test(os.link_nf)
+                    const nfServVer = nfServNoPortal ? os.link_nf : `/api/clientes/nota-servico?empresa=${encodeURIComponent(os.empresa)}&cod_os=${os.cod_os}${numNfServ ? `&num_nf=${encodeURIComponent(numNfServ)}` : ''}`
+                    const temNotaServ = !!nfServ || (!!numNfServ && os.faturada && !os.cancelada && !os.servico_interno)
                     const boletos = (os.financeiro?.boleto || '').split(',').map(s => s.trim()).filter(Boolean)
                     return (
                       <div style={{ marginTop: 22, paddingTop: 20, borderTop: '2px solid #0F172A', display: 'flex', flexDirection: 'column', gap: 10 }}>
                         <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2 }}>Documentos e financeiro</div>
 
-                        {/* DOCUMENTOS */}
-                        <div style={CARD}>
-                          <div style={LBL}>Documentos</div>
-                          <div style={ROW}>
-                            <a href={os.pos_pdf || `/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`}
-                              target="_blank" rel="noopener noreferrer" title="Abrir a Ordem de Serviço" style={GHOST}>
-                              <Printer size={15} /> {os.pos_real ? 'Abrir OS (POS)' : 'Imprimir OS'}
-                            </a>
-                            {pvs.map(pv => (
-                              <a key={pv.num_pedido} href={pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
-                                target="_blank" rel="noopener noreferrer" title={`Abrir o pedido de peças ${pv.num_pedido}`} style={GHOST}>
-                                <Printer size={15} /> {pv.ppv_real ? 'Abrir PPV' : 'Imprimir PV'} {pv.num_pedido}
-                              </a>
-                            ))}
-                          </div>
-                        </div>
+                        {/* DOCUMENTOS E NOTAS — lista no mesmo estilo do status das notas */}
+                        {(() => {
+                          const BTN_VER: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, border: 'none', background: '#dc2626', color: '#fefefe', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }
+                          const BTN_TROCAR: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', borderRadius: 8, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: '#334155', fontSize: 12.5, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }
+                          const BTN_ANEXAR: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, border: '1px solid #F59E0B', background: '#FFFBEB', color: '#B45309', fontSize: 12.5, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer', whiteSpace: 'nowrap' }
+                          const LISTA: React.CSSProperties = { border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }
+                          const linha = (o: {
+                            chave: string; icone: React.ReactNode; cor: string; fundo: string; titulo: string; detalhe: React.ReactNode
+                            detalheCor?: string; acoes?: React.ReactNode; extra?: React.ReactNode; primeira?: boolean
+                          }) => (
+                            <div key={o.chave} style={{ padding: '11px 14px', borderTop: o.primeira ? 'none' : '1px solid #F1F5F9', background: 'var(--portal-bg-card)' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                <span style={{ width: 34, height: 34, borderRadius: 10, background: o.fundo, color: o.cor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{o.icone}</span>
+                                <div style={{ flex: 1, minWidth: 160 }}>
+                                  <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--portal-text)' }}>{o.titulo}</div>
+                                  <div style={{ fontSize: 12, color: o.detalheCor || 'var(--portal-text-muted)', marginTop: 1, lineHeight: 1.4 }}>{o.detalhe}</div>
+                                </div>
+                                {o.acoes && <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>{o.acoes}</div>}
+                              </div>
+                              {o.extra && <div style={{ marginLeft: 46, marginTop: 8 }}>{o.extra}</div>}
+                            </div>
+                          )
+                          const trocar = (onPick: (f: File) => void) => (
+                            <label title="Enviar outro PDF no lugar desta nota" style={BTN_TROCAR}>
+                              {anexNfOS ? <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} /> : <Upload size={14} />} {anexNfOS ? 'Enviando...' : 'Trocar PDF'}
+                              <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                                onChange={e => { const f = e.target.files?.[0]; if (f) onPick(f) }} />
+                            </label>
+                          )
+                          const verBtn = (titulo: string, nome: string, url: string) => (
+                            <button onClick={() => setDocAberto({ titulo, nome, url })} title="Ver, imprimir ou baixar" style={BTN_VER}>
+                              <FileText size={14} /> Ver
+                            </button>
+                          )
+                          const urlOS = os.pos_pdf || `/api/clientes/print?tipo=os&cod=${os.cod_os}&empresa=${encodeURIComponent(os.empresa)}`
+                          const tituloNfServ = `NF de Serviço${numNfServ ? ` nº ${numNfServ}` : ''}`
+                          return (<>
+                            {/* DOCUMENTOS */}
+                            <div style={CARD}>
+                              <div style={LBL}>Documentos</div>
+                              <div style={LISTA}>
+                                {linha({
+                                  chave: 'os', primeira: true, icone: <Wrench size={16} />, cor: '#2563EB', fundo: '#EFF6FF',
+                                  titulo: `Ordem de Serviço ${os.num_os}`,
+                                  detalhe: os.pos_real ? 'Documento do POS (portal)' : 'PDF oficial do Omie',
+                                  acoes: verBtn(`Ordem de Serviço ${os.num_os}`, `OS-${os.num_os}`, urlOS),
+                                })}
+                                {pvs.map(pv => linha({
+                                  chave: `pv-${pv.num_pedido}`, icone: <Package size={16} />, cor: '#EA580C', fundo: '#FFF7ED',
+                                  titulo: `Pedido de Venda ${pv.num_pedido}`,
+                                  detalhe: `${(pv.itens || []).length} ${(pv.itens || []).length === 1 ? 'item' : 'itens'} · ${formatCurrency(pv.valor_total || 0)}${pv.ppv_real ? ' · PPV do portal' : ''}`,
+                                  acoes: verBtn(`Pedido de Venda ${pv.num_pedido}`, `PV-${pv.num_pedido}`, pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`),
+                                }))}
+                              </div>
+                            </div>
+
+                            {/* NOTAS FISCAIS */}
+                            <div style={CARD}>
+                              <div style={LBL}>Notas fiscais</div>
+                              <div style={LISTA}>
+                                {/* Serviço */}
+                                {temNotaServ ? linha({
+                                  chave: 'nf-serv', primeira: true, icone: <Check size={16} strokeWidth={3} />, cor: '#059669', fundo: '#ECFDF5',
+                                  titulo: tituloNfServ,
+                                  detalhe: nfServNoPortal ? 'PDF guardado na pasta' : 'O PDF é buscado no Omie ao abrir',
+                                  acoes: <>
+                                    {verBtn(`${tituloNfServ} · OS ${os.num_os}`, `NF-servico-${numNfServ || os.num_os}`, nfServVer)}
+                                    {os.link_nf && trocar(f => anexarNFservicoNaOS(os, f, { gerarCard: false, substituir: true }))}
+                                  </>,
+                                }) : os.faturada && !os.cancelada ? linha({
+                                  chave: 'nf-serv', primeira: true, icone: <Clock size={15} strokeWidth={2.5} />, cor: '#D97706', fundo: '#FFFBEB',
+                                  titulo: 'NF de Serviço', detalhe: 'Não veio do Omie — anexe o PDF da NFS-e', detalheCor: '#92400E',
+                                  acoes: (
+                                    <label title="Enviar o PDF da NFS-e" style={BTN_ANEXAR}>
+                                      <Upload size={14} /> {anexNfOS ? 'Enviando...' : 'Anexar'}
+                                      <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                                        onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: gerarCardFin }) }} />
+                                    </label>
+                                  ),
+                                  extra: os.financeiro ? (
+                                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#047857', fontWeight: 600 }}>
+                                      <CheckCircle size={13} /> Já enviado ao financeiro{os.financeiro.id ? ` (#${os.financeiro.id})` : ''}
+                                    </span>
+                                  ) : (
+                                    <label title="Se marcado, ao anexar a nota já cria o card no financeiro" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--portal-text-secondary)', cursor: 'pointer', userSelect: 'none' }}>
+                                      <input type="checkbox" checked={gerarCardFin} onChange={e => setGerarCardFin(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#B45309' }} />
+                                      Ao anexar, enviar para o Financeiro
+                                    </label>
+                                  ),
+                                }) : linha({
+                                  chave: 'nf-serv', primeira: true, icone: <FileText size={15} />, cor: '#94A3B8', fundo: 'var(--portal-bg-secondary)',
+                                  titulo: 'NF de Serviço', detalhe: 'Sai quando a OS for faturada',
+                                })}
+
+                                {/* Peça — uma por PV */}
+                                {pvs.map(pv => {
+                                  const nfPeca = pv.link_nf || os.financeiro?.nf_peca
+                                  const n = fmtNF(pv.numero_nf || os.financeiro?.num_nf_peca)
+                                  const tituloPeca = `NF de Peça${n ? ` nº ${n}` : ''}`
+                                  if (nfPeca) return linha({
+                                    chave: `nf-pv-${pv.num_pedido}`, icone: <Check size={16} strokeWidth={3} />, cor: '#059669', fundo: '#ECFDF5',
+                                    titulo: tituloPeca, detalhe: `Pedido de Venda ${pv.num_pedido}`,
+                                    acoes: <>
+                                      {verBtn(`${tituloPeca} · PV ${pv.num_pedido}`, `NF-peca-${n || pv.num_pedido}`, nfPeca)}
+                                      {pv.link_nf && trocar(f => anexarNFpecaNoPV(pv, f, { gerarCard: false, substituir: true }))}
+                                    </>,
+                                  })
+                                  const recusada = !!pv.nf_motivo
+                                  return linha({
+                                    chave: `nf-pv-${pv.num_pedido}`,
+                                    icone: recusada ? <X size={16} strokeWidth={3} /> : <Clock size={15} strokeWidth={2.5} />,
+                                    cor: recusada ? '#DC2626' : '#D97706', fundo: recusada ? '#FEF2F2' : '#FFFBEB',
+                                    titulo: `NF de Peça · PV ${pv.num_pedido}`,
+                                    detalhe: recusada ? `Não autorizada na SEFAZ${pv.nf_status ? ` (status ${pv.nf_status})` : ''}: ${pv.nf_motivo}` : 'Não veio do Omie — anexe o PDF da nota',
+                                    detalheCor: recusada ? '#B91C1C' : '#92400E',
+                                    acoes: (
+                                      <label title={`Enviar o PDF da NF de peça do PV ${pv.num_pedido}. Ao anexar, o card do financeiro é acionado.`}
+                                        style={recusada ? { ...BTN_ANEXAR, border: 'none', background: '#B91C1C', color: '#fefefe' } : BTN_ANEXAR}>
+                                        <Upload size={14} /> {anexNfOS ? 'Enviando...' : 'Anexar'}
+                                        <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
+                                          onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: true }) }} />
+                                      </label>
+                                    ),
+                                  })
+                                })}
+                              </div>
+                            </div>
+                          </>)
+                        })()}
 
                         {/* REGISTROS / CORREÇÕES */}
                         {(() => {
@@ -1592,113 +1917,39 @@ function ClientesPageInner() {
                           return (
                             <div style={CARD}>
                               <div style={LBL}>Registros e correções</div>
-                              <div style={ROW}>
-                                <button onClick={() => setSubNF({ osNum: os.num_os, empresa: os.empresa, nf_tipo: 'servico', num_antigo: numNfServ || '', num_novo: '' })}
-                                  title="A nota foi cancelada e emitida outra? Registre aqui o nº antigo → nº novo (fica no histórico)."
-                                  style={GHOST}>
-                                  <RefreshCw size={15} /> Registrar troca de nº da nota
-                                </button>
-                                <button onClick={() => trocarPVdaOS(os, pvDaOS)} disabled={forcandoCard}
-                                  title="O Omie vinculou o pedido errado (ou nenhum)? Aponte aqui o nº do Pedido de Venda certo — o sistema vai buscar a NF de peça nele. Vazio = volta ao automático."
-                                  style={{ ...GHOST, cursor: forcandoCard ? 'wait' : 'pointer' }}>
-                                  <Hash size={15} /> {forcandoCard ? 'Buscando...' : 'Trocar o nº do pedido de venda'}
-                                  {pvDaOS && (
-                                    <span style={{ marginLeft: 4, fontSize: 12, fontWeight: 700, color: os.pv_manual ? '#B45309' : 'var(--portal-text-muted)' }}>
-                                      ({pvDaOS}{os.pv_manual ? ' · manual' : ''})
-                                    </span>
-                                  )}
-                                </button>
+                              <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
+                                {[
+                                  {
+                                    chave: 'troca-nf', icone: <RefreshCw size={15} />, cor: '#7C3AED', fundo: '#F5F3FF',
+                                    titulo: 'Troca de nº da nota',
+                                    detalhe: 'A nota foi cancelada e emitida outra? Registre nº antigo → novo (fica no histórico).',
+                                    botao: 'Registrar', ocupado: false,
+                                    acao: () => setSubNF({ osNum: os.num_os, empresa: os.empresa, nf_tipo: 'servico', num_antigo: numNfServ || '', num_novo: '' }),
+                                  },
+                                  {
+                                    chave: 'troca-pv', icone: <Hash size={15} />, cor: '#0369A1', fundo: '#F0F9FF',
+                                    titulo: `Pedido de venda da OS${pvDaOS ? `: ${pvDaOS}` : ''}${os.pv_manual ? ' (manual)' : ''}`,
+                                    detalhe: 'O Omie ligou o pedido errado (ou nenhum)? Aponte o PV certo — a NF de peça é buscada nele.',
+                                    botao: forcandoCard ? 'Buscando...' : 'Trocar', ocupado: forcandoCard,
+                                    acao: () => trocarPVdaOS(os, pvDaOS),
+                                  },
+                                ].map((l, i) => (
+                                  <div key={l.chave} style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '11px 14px', borderTop: i ? '1px solid #F1F5F9' : 'none', background: 'var(--portal-bg-card)' }}>
+                                    <span style={{ width: 34, height: 34, borderRadius: 10, background: l.fundo, color: l.cor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{l.icone}</span>
+                                    <div style={{ flex: 1, minWidth: 160 }}>
+                                      <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--portal-text)' }}>{l.titulo}</div>
+                                      <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1, lineHeight: 1.4 }}>{l.detalhe}</div>
+                                    </div>
+                                    <button onClick={l.acao} disabled={l.ocupado}
+                                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 13px', borderRadius: 8, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: '#334155', fontSize: 12.5, fontWeight: 700, cursor: l.ocupado ? 'wait' : 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                      {l.botao}
+                                    </button>
+                                  </div>
+                                ))}
                               </div>
                             </div>
                           )
                         })()}
-
-                        {/* NOTA FISCAL DE SERVIÇO */}
-                        <div style={CARD}>
-                          <div style={LBL}>Nota Fiscal de Serviço{numNfServ ? ` — nº ${numNfServ}` : ''}</div>
-                          <div style={ROW}>
-                            {nfServ ? (
-                              <>
-                                <a href={nfServ} target="_blank" rel="noopener noreferrer" title="Baixar o PDF da nota" style={DARK}>
-                                  <Download size={15} /> Baixar a nota{numNfServ ? ` ${numNfServ}` : ''}
-                                </a>
-                                {os.link_nf && (
-                                  <label title="Trocar o PDF anexado (envia outro arquivo no lugar da nota)" style={{ ...GHOST, padding: '9px 11px', cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                                    <Replace size={15} />{anexNfOS ? ' ...' : ''}
-                                    <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
-                                      onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: false, substituir: true }) }} />
-                                  </label>
-                                )}
-                              </>
-                            ) : os.faturada && !os.cancelada ? (
-                              <div style={{ display: 'inline-flex', flexDirection: 'column', gap: 6 }}>
-                                <label title="Enviar o PDF da NFS-e (o Omie não fornece essa nota em PDF)" style={{ ...WARN, cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                                  <Upload size={15} /> {anexNfOS ? 'Enviando...' : 'Anexar a nota'}
-                                  <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
-                                    onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFservicoNaOS(os, f, { gerarCard: gerarCardFin }) }} />
-                                </label>
-                                {os.financeiro ? (
-                                  <span title={`Card #${os.financeiro.id || ''} já criado no financeiro`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#047857', fontWeight: 600, paddingLeft: 2 }}>
-                                    <input type="checkbox" checked disabled style={{ cursor: 'default', accentColor: '#047857' }} />
-                                    Já enviado ao financeiro{os.financeiro.id ? ` (#${os.financeiro.id})` : ''}
-                                  </span>
-                                ) : (
-                                  <label title="Se marcado, ao anexar a nota já cria o card no financeiro" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--portal-text-secondary)', cursor: 'pointer', userSelect: 'none', paddingLeft: 2 }}>
-                                    <input type="checkbox" checked={gerarCardFin} onChange={e => setGerarCardFin(e.target.checked)} style={{ cursor: 'pointer', accentColor: '#B45309' }} />
-                                    Enviar para o Financeiro
-                                  </label>
-                                )}
-                              </div>
-                            ) : (
-                              <span style={MUTED}>Ainda sem nota (a OS não foi faturada).</span>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* NOTA FISCAL DE PEÇA (por PV) */}
-                        {pvs.length > 0 && (
-                          <div style={CARD}>
-                            <div style={LBL}>Nota Fiscal de Peça</div>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                              {pvs.map(pv => {
-                                const nfPeca = pv.link_nf || os.financeiro?.nf_peca
-                                return (
-                                  <div key={pv.num_pedido} style={ROW}>
-                                    {nfPeca ? (
-                                      <>
-                                        <a href={nfPeca} target="_blank" rel="noopener noreferrer" title={`Baixar a NF de peça do PV ${pv.num_pedido}`} style={DARK}>
-                                          <Download size={15} /> Baixar a nota {pv.numero_nf || os.financeiro?.num_nf_peca || `do PV ${pv.num_pedido}`}
-                                        </a>
-                                        {pv.link_nf && (
-                                          <label title="Trocar o PDF anexado (envia outro arquivo no lugar da nota)" style={{ ...GHOST, padding: '9px 11px', cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                                            <Replace size={15} />{anexNfOS ? ' ...' : ''}
-                                            <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
-                                              onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: false, substituir: true }) }} />
-                                          </label>
-                                        )}
-                                      </>
-                                    ) : (
-                                      <>
-                                        {pv.nf_motivo && (
-                                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 13px', borderRadius: 9, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 13, fontWeight: 600, maxWidth: 560, lineHeight: 1.35 }}>
-                                            <AlertTriangle size={15} style={{ flexShrink: 0 }} />
-                                            <span>A nota do PV {pv.num_pedido} <b>não foi autorizada</b>{pv.nf_status ? ` (status ${pv.nf_status})` : ''}: {pv.nf_motivo}</span>
-                                          </span>
-                                        )}
-                                        <label title={`Enviar o PDF da NF de peça do PV ${pv.num_pedido}. Ao anexar, o card do financeiro é acionado.`}
-                                          style={{ ...(pv.nf_motivo ? { ...BASE, border: 'none', background: '#B91C1C', color: '#fff', fontWeight: 700 } : WARN), cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                                          <Upload size={15} /> {anexNfOS ? 'Enviando...' : `Anexar a nota do PV ${pv.num_pedido}`}
-                                          <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
-                                            onChange={e => { const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: true }) }} />
-                                        </label>
-                                      </>
-                                    )}
-                                  </div>
-                                )
-                              })}
-                            </div>
-                          </div>
-                        )}
 
                         {/* FINANCEIRO */}
                         {boletos.length > 0 && (
@@ -1706,9 +1957,10 @@ function ClientesPageInner() {
                             <div style={LBL}>Financeiro</div>
                             <div style={ROW}>
                               {boletos.map((b: string, bi: number) => (
-                                <a key={bi} href={b} target="_blank" rel="noopener noreferrer" title="Baixar o boleto" style={GREEN}>
-                                  <Download size={15} /> Boleto{boletos.length > 1 ? ` ${bi + 1}` : ''}
-                                </a>
+                                <button key={bi} onClick={() => setDocAberto({ titulo: `Boleto${boletos.length > 1 ? ` ${bi + 1}` : ''} · OS ${os.num_os}`, nome: `Boleto-OS-${os.num_os}${boletos.length > 1 ? `-${bi + 1}` : ''}`, url: b })}
+                                  title="Ver o boleto (imprimir ou baixar)" style={GREEN}>
+                                  <FileText size={15} /> Boleto{boletos.length > 1 ? ` ${bi + 1}` : ''}
+                                </button>
                               ))}
                             </div>
                           </div>
@@ -1728,24 +1980,56 @@ function ClientesPageInner() {
                               ? `• A NF de Peça do PV ${p.num_pedido} foi RECUSADA${p.nf_status ? ` (status ${p.nf_status})` : ''}: ${p.nf_motivo}`
                               : `• A NF de Peça do PV ${p.num_pedido} não está na pasta.`)
                           }
-                          const Item = ({ ok, txt }: { ok: boolean; txt: string }) => (
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 600, color: ok ? '#047857' : '#B91C1C' }}>
-                              <span style={{ width: 18, height: 18, borderRadius: 5, border: `2px solid ${ok ? '#047857' : '#FCA5A5'}`, background: ok ? '#047857' : '#fff', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                {ok && <CheckCircle size={12} color="#fff" />}
-                              </span>
-                              {txt}
-                            </span>
-                          )
+                          // Uma linha por nota exigida: serviço + uma de peça por PV vinculado
+                          const linhas = [
+                            { chave: 'serv', titulo: 'NF de Serviço', numero: numNfServ || '', ok: temServ, recusada: false, motivo: '' },
+                            ...pvs.map(p => ({
+                              chave: `pv-${p.num_pedido}`, titulo: `NF de Peça · PV ${p.num_pedido}`,
+                              numero: fmtNF(p.numero_nf || os.financeiro?.num_nf_peca),
+                              ok: !!(p.link_nf || os.financeiro?.nf_peca),
+                              recusada: !!p.nf_motivo && !p.link_nf, motivo: p.nf_motivo || '',
+                            })),
+                          ]
+                          const prontas = linhas.filter(l => l.ok).length
+                          const corBarra = prontas === linhas.length ? '#059669' : prontas > 0 ? '#F59E0B' : '#E5E7EB'
                           return (
                             <div style={CARD}>
-                              <div style={LBL}>Status para o financeiro</div>
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: 7, padding: '12px 14px', borderRadius: 10, background: jaNoFinanceiro ? '#ECFDF5' : completo ? '#F0FDF4' : '#FFFBEB', border: `1px solid ${jaNoFinanceiro ? '#A7F3D0' : completo ? '#BBF7D0' : '#FDE68A'}` }}>
-                                <Item ok={temServ} txt={temServ ? 'NF de Serviço anexada' : 'NF de Serviço FALTANDO — anexe acima'} />
-                                {pvs.length > 0 && (
-                                  <Item ok={temPeca} txt={temPeca
-                                    ? `NF de Peça anexada${pvs.length > 1 ? ` (${pvs.length} pedidos)` : ` (PV ${pvs[0].num_pedido})`}`
-                                    : `NF de Peça FALTANDO (PV ${pvs.filter(p => !p.link_nf).map(p => p.num_pedido).join(', ')}) — anexe acima`} />
-                                )}
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                                <div style={{ ...LBL, marginBottom: 0 }}>Notas para o financeiro</div>
+                                <span style={{ fontSize: 12, fontWeight: 700, color: prontas === linhas.length ? '#047857' : '#92400E', fontVariantNumeric: 'tabular-nums' }}>
+                                  {prontas} de {linhas.length} {linhas.length === 1 ? 'nota pronta' : 'notas prontas'}
+                                </span>
+                              </div>
+                              <div style={{ height: 4, borderRadius: 4, background: 'var(--portal-bg-secondary)', overflow: 'hidden', marginBottom: 12 }}>
+                                <div style={{ width: `${linhas.length ? (prontas / linhas.length) * 100 : 0}%`, height: '100%', background: corBarra, transition: 'width 0.3s' }} />
+                              </div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                                <div style={{ border: '1px solid #E5E7EB', borderRadius: 10, overflow: 'hidden' }}>
+                                  {linhas.map((l, i) => {
+                                    const cor = l.ok ? '#059669' : l.recusada ? '#DC2626' : '#D97706'
+                                    const fundo = l.ok ? '#ECFDF5' : l.recusada ? '#FEF2F2' : '#FFFBEB'
+                                    const selo = l.ok ? 'Anexada' : l.recusada ? 'Recusada' : 'Faltando'
+                                    return (
+                                      <div key={l.chave} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', borderTop: i ? '1px solid #F1F5F9' : 'none', background: 'var(--portal-bg-card)' }}>
+                                        <span style={{ width: 30, height: 30, borderRadius: '50%', background: fundo, color: cor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                          {l.ok ? <Check size={16} strokeWidth={3} /> : l.recusada ? <X size={16} strokeWidth={3} /> : <Clock size={15} strokeWidth={2.5} />}
+                                        </span>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                          <div style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--portal-text)' }}>{l.titulo}</div>
+                                          <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                                            title={l.recusada ? l.motivo : undefined}>
+                                            {l.ok ? (l.numero ? `nº ${l.numero}` : 'PDF na pasta')
+                                              : l.recusada ? `Não autorizada na SEFAZ: ${l.motivo}`
+                                              : 'Anexe o PDF no bloco acima'}
+                                          </div>
+                                        </div>
+                                        <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.3, textTransform: 'uppercase', color: cor, background: fundo, border: `1px solid ${cor}33`, padding: '3px 10px', borderRadius: 999, flexShrink: 0 }}>
+                                          {selo}
+                                        </span>
+                                      </div>
+                                    )
+                                  })}
+                                </div>
 
                                 {/* CARD JÁ EXISTE NO FINANCEIRO — mostrar detalhes */}
                                 {jaNoFinanceiro && (
@@ -1769,10 +2053,10 @@ function ClientesPageInner() {
                                         <div><span style={{ fontWeight: 600 }}>Categoria:</span> {os.financeiro.categoria}</div>
                                       )}
                                       {os.financeiro?.num_nf_servico && (
-                                        <div><span style={{ fontWeight: 600 }}>NF Serv.:</span> {os.financeiro.num_nf_servico}</div>
+                                        <div><span style={{ fontWeight: 600 }}>NF Serv.:</span> {fmtNF(os.financeiro.num_nf_servico)}</div>
                                       )}
                                       {os.financeiro?.num_nf_peca && (
-                                        <div><span style={{ fontWeight: 600 }}>NF Peça:</span> {os.financeiro.num_nf_peca}</div>
+                                        <div><span style={{ fontWeight: 600 }}>NF Peça:</span> {fmtNF(os.financeiro.num_nf_peca)}</div>
                                       )}
                                       {os.financeiro?.criado_em && (
                                         <div><span style={{ fontWeight: 600 }}>Criado:</span> {new Date(os.financeiro.criado_em).toLocaleDateString('pt-BR')}</div>
@@ -1831,6 +2115,8 @@ function ClientesPageInner() {
           )
         })()}
         </>)}
+
+        <VisualizadorDocumento key={docAberto?.url || ""} doc={docAberto} onClose={fecharDoc} />
 
         {/* MODAL PROJETO */}
         {modalProjeto && (
@@ -2760,69 +3046,142 @@ function ClientesPageInner() {
   }
 
   // ============ LISTA DE CLIENTES ============
-  return (
-    <div className="cli-page" style={{ padding: '16px 32px 32px', width: '100%', boxSizing: 'border-box' }}>
-      {/* Abas: Clientes × Por Máquina (estilo aba de navegador) */}
-      <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', marginBottom: 16 }}>
-        {([{ id: 'clientes', label: 'Clientes', icon: <Users size={16} /> }, { id: 'maquinas', label: 'Por Máquina', icon: <Wrench size={16} /> }] as const).map(t => {
-          const on = aba === t.id
+  const BTN_SEC: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 7, padding: '0 15px', height: 42, borderRadius: 11, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 1px 2px rgba(16,24,40,0.05)' }
+  const corEmpresa = (emp: string) => /castro/i.test(emp)
+    ? { bg: '#EFF6FF', fg: '#1D4ED8', bd: '#BFDBFE' }
+    : { bg: '#FEF2F2', fg: '#B91C1C', bd: '#FECACA' }
+  const iniciaisCli = (c: Cliente) => (c.nome_fantasia || c.razao_social || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()
+  // Faixa "achado por nº": o serviço/pedido que bateu com a busca, com atalho
+  const faixaAchados = (cli: Cliente) => {
+    const docs = docsQueBatem(cli)
+    if (!docs.length) return null
+    return (
+      <div onClick={e => e.stopPropagation()} style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 9 }}>
+        {docs.slice(0, 4).map((d, i) => {
+          const ehOS = d[0] === 'o'
           return (
-            <button key={t.id} onClick={() => trocarAba(t.id)}
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 22px 12px', border: '1px solid var(--portal-border)', borderBottom: on ? '1px solid var(--portal-bg-card)' : '1px solid var(--portal-border)', borderRadius: '12px 12px 0 0', cursor: 'pointer', fontSize: 14, fontWeight: 700, background: on ? 'var(--portal-bg-card)' : 'var(--portal-bg-secondary)', color: on ? '#dc2626' : 'var(--portal-text-secondary)', position: 'relative', top: 1 }}>
-              {t.icon} {t.label}
+            <button key={i} onClick={() => abrirServico(cli, ehOS ? 'o' : 'p', d[1])}
+              title={ehOS ? 'Abrir a pasta já na janela desta OS' : 'Abrir a pasta já neste pedido'}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 6px 5px 10px', borderRadius: 9, border: `1px solid ${ehOS ? '#BFDBFE' : '#FED7AA'}`, background: ehOS ? '#EFF6FF' : '#FFF7ED', cursor: 'pointer', fontSize: 12, fontWeight: 600, color: ehOS ? '#1D4ED8' : '#C2410C' }}>
+              {ehOS ? <Wrench size={13} /> : <Package size={13} />}
+              {ehOS ? 'OS' : 'PV'} {d[1]}{d[2] ? ` · ${ehOS ? 'NFS-e' : 'NF-e'} ${d[2]}` : ''}
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 8px', borderRadius: 6, background: ehOS ? '#2563EB' : '#EA580C', color: '#fefefe', fontSize: 11, fontWeight: 700 }}>
+                Abrir <ChevronRight size={11} />
+              </span>
             </button>
           )
         })}
-        <div style={{ flex: 1, borderBottom: '1px solid var(--portal-border)', alignSelf: 'stretch' }} />
+        {docs.length > 4 && <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', alignSelf: 'center' }}>+{docs.length - 4}</span>}
       </div>
-      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
+    )
+  }
+
+  return (
+    <div className="cli-page" style={{ padding: 'clamp(12px, 3vw, 20px) clamp(12px, 4vw, 32px) 32px', width: '100%', boxSizing: 'border-box' }}>
+      {/* Linha 1: abas (esquerda) + ações (direita) */}
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
+        @keyframes slideIn { from { opacity: 0; transform: scale(0.96) translateY(10px) } to { opacity: 1; transform: scale(1) translateY(0) } }
+        @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
+        .cli-card { animation: fadeUp 0.35s ease-out both }
+        .cli-modal { animation: slideIn 0.25s ease-out }
+        .cli-overlay { animation: fadeIn 0.2s ease-out }
+        .cli-tb-seg { transition: background 0.15s, color 0.15s }
+        .cli-tb-seg:hover:not(:disabled) { background: var(--portal-bg-hover); color: var(--portal-text) }
+        .cli-tb-prim { transition: transform 0.15s, box-shadow 0.15s, filter 0.15s }
+        .cli-tb-prim:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(220,38,38,0.32); filter: brightness(1.05) }
+        .cli-tab { transition: all 0.15s }
+        .cli-tab:hover { color: var(--portal-text) }
+      `}</style>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 14 }}>
+        <div style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 13, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
+          {([{ id: 'clientes', label: 'Clientes', icon: <Users size={15} /> }, { id: 'maquinas', label: 'Por Máquina', icon: <Wrench size={15} /> }] as const).map(t => {
+            const on = aba === t.id
+            return (
+              <button key={t.id} className="cli-tab" onClick={() => trocarAba(t.id)}
+                style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 18px', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 700, background: on ? 'var(--portal-bg-card)' : 'transparent', color: on ? '#dc2626' : 'var(--portal-text-secondary)', boxShadow: on ? '0 1px 3px rgba(16,24,40,0.12)' : 'none' }}>
+                {t.icon} {t.label}
+              </button>
+            )
+          })}
+        </div>
+
+        {aba === 'clientes' && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {/* Grupo de ações secundárias */}
+            <div style={{ display: 'inline-flex', alignItems: 'stretch', height: 42, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', boxShadow: '0 1px 2px rgba(16,24,40,0.05)', overflow: 'hidden' }}>
+              <button className="cli-tb-seg" onClick={() => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) }} {...gateBtn(podeCriarProjeto)}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 15px', border: 'none', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', ...estiloSemPermissao(podeCriarProjeto) }}>
+                <span style={{ width: 24, height: 24, borderRadius: 7, background: '#FFFBEB', color: '#B45309', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FolderOpen size={13} /></span>
+                Novo projeto
+              </button>
+              <span style={{ width: 1, background: 'var(--portal-border)', margin: '8px 0' }} />
+              <button className="cli-tb-seg" onClick={() => router.push('/clientes/relatorios')} title="Relatórios semanais (faturados sem NF)"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 15px', border: 'none', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                <span style={{ width: 24, height: 24, borderRadius: 7, background: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText size={13} /></span>
+                Relatórios
+              </button>
+              <span style={{ width: 1, background: 'var(--portal-border)', margin: '8px 0' }} />
+              <button className="cli-tb-seg" onClick={syncBackground} disabled={syncing} title={syncing ? 'Sincronizando com o Omie...' : 'Sincronizar com o Omie'}
+                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 44, border: 'none', background: 'transparent', color: syncing ? '#16A34A' : 'var(--portal-text-secondary)', cursor: syncing ? 'not-allowed' : 'pointer' }}>
+                <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
+              </button>
+            </div>
+
+            {/* Ação principal */}
+            <button className="cli-tb-prim" onClick={() => { setCriarErro(''); setFormCli({ ...FORM_CLI_VAZIO }); setShowCriarCliente(true) }} {...gateBtn(podeCriarCliente)}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 9, height: 42, padding: '0 18px 0 8px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 45%, #b91c1c 100%)', color: '#fefefe', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(220,38,38,0.25)', ...estiloSemPermissao(podeCriarCliente) }}>
+              <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={16} strokeWidth={2.75} /></span>
+              Novo cliente
+            </button>
+          </div>
+        )}
+      </div>
 
       {aba === 'clientes' && (<>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 18, flexWrap: 'wrap' }}>
+      {/* Linha 2: busca + empresa */}
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
         <div style={{ position: 'relative', flex: 1, minWidth: 260 }}>
-          <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-secondary)' }} />
-          <input type="text" placeholder="Buscar por nome, CNPJ, cidade, projeto, NF ou nº da OS..."
+          <Search size={17} style={{ position: 'absolute', left: 15, top: '50%', transform: 'translateY(-50%)', color: search ? '#dc2626' : 'var(--portal-text-muted)' }} />
+          <input type="text" placeholder="Buscar por nome, CNPJ, cidade, projeto, nº da OS, PV ou nota fiscal..."
             value={search} onChange={ev => setSearch(ev.target.value)}
-            style={{ width: '100%', padding: '12px 14px 12px 40px', borderRadius: 12, border: '1px solid var(--portal-border)', color: 'var(--portal-text)', fontSize: 14, outline: 'none', background: 'var(--portal-bg-card)', boxSizing: 'border-box' }} />
+            style={{ width: '100%', height: 46, padding: '0 40px 0 44px', borderRadius: 12, border: `1px solid ${search ? '#FCA5A5' : 'var(--portal-border)'}`, color: 'var(--portal-text)', fontSize: 14, outline: 'none', background: 'var(--portal-bg-card)', boxSizing: 'border-box', boxShadow: search ? '0 0 0 3px rgba(220,38,38,0.08)' : '0 1px 2px rgba(16,24,40,0.05)', transition: 'all 0.15s' }} />
+          {search && (
+            <button onClick={() => setSearch('')} title="Limpar busca"
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', width: 26, height: 26, borderRadius: 7, border: 'none', background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+              <X size={14} />
+            </button>
+          )}
         </div>
         {empresas.length > 1 && (
           <select value={empresaFilter} onChange={ev => setEmpresaFilter(ev.target.value)}
-            style={{ padding: '12px 16px', borderRadius: 12, border: '1px solid var(--portal-border)', color: 'var(--portal-text)', fontSize: 13, cursor: 'pointer', outline: 'none', background: 'var(--portal-bg-card)' }}>
-            <option value="">Todas empresas</option>
+            style={{ ...BTN_SEC, height: 46, padding: '0 14px', outline: 'none', borderColor: empresaFilter ? '#FCA5A5' : 'var(--portal-border)' }}>
+            <option value="">Todas as empresas</option>
             {empresas.map(emp => <option key={emp} value={emp}>{emp}</option>)}
           </select>
         )}
+      </div>
+
+      {/* Resumo da lista / estado do sync */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14, minHeight: 22 }}>
+        {!loading && (
+          <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>
+            <b style={{ color: 'var(--portal-text)' }}>{filtered.length.toLocaleString('pt-BR')}</b> {filtered.length === 1 ? 'cliente' : 'clientes'}
+            {search ? ' encontrados' : ''}
+          </span>
+        )}
+        {buscaNumero && (
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '3px 10px', borderRadius: 999, background: '#EFF6FF', color: '#1D4ED8' }}>
+            <Hash size={11} /> Procurando o nº {buscaNumero} em OS, PV e notas fiscais
+          </span>
+        )}
         {syncStatus && (
-          <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)', display: 'flex', alignItems: 'center', gap: 6, padding: '9px 14px', background: 'var(--portal-bg-secondary)', borderRadius: 10, border: '1px solid var(--portal-border)' }}>
-            {syncing && <RefreshCw size={14} style={{ animation: 'spin 1s linear infinite' }} />}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--portal-text-secondary)', padding: '3px 10px', borderRadius: 999, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)' }}>
+            {syncing && <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} />}
             {syncStatus}
           </span>
         )}
-        <button onClick={() => { setCriarErro(''); setFormCli({ ...FORM_CLI_VAZIO }); setShowCriarCliente(true) }} {...gateBtn(podeCriarCliente)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...estiloSemPermissao(podeCriarCliente) }}>
-          <Plus size={15} /> Criar Cliente
-        </button>
-        <button onClick={() => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) }} {...gateBtn(podeCriarProjeto)}
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', ...estiloSemPermissao(podeCriarProjeto) }}>
-          <FolderOpen size={15} /> Criar Projeto
-        </button>
-        <button onClick={() => router.push('/clientes/relatorios')} title="Relatórios semanais (faturados sem NF)"
-          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '0 16px', height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
-          <FileText size={15} /> Relatórios
-        </button>
-        <button onClick={syncBackground} disabled={syncing} title="Sincronizar"
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', cursor: syncing ? 'not-allowed' : 'pointer' }}>
-          <RefreshCw size={16} style={syncing ? { animation: 'spin 1s linear infinite' } : {}} />
-        </button>
-        <style>{`
-          @keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }
-          @keyframes fadeUp { from { opacity: 0; transform: translateY(12px) } to { opacity: 1; transform: translateY(0) } }
-          @keyframes slideIn { from { opacity: 0; transform: scale(0.96) translateY(10px) } to { opacity: 1; transform: scale(1) translateY(0) } }
-          @keyframes fadeIn { from { opacity: 0 } to { opacity: 1 } }
-          .cli-card { animation: fadeUp 0.35s ease-out both }
-          .cli-modal { animation: slideIn 0.25s ease-out }
-          .cli-overlay { animation: fadeIn 0.2s ease-out }
-        `}</style>
       </div>
 
       {loading ? (
@@ -2831,94 +3190,126 @@ function ClientesPageInner() {
           <div>Carregando clientes...</div>
         </div>
       ) : filtered.length === 0 ? (
-        <div style={{ padding: 80, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>
-          {clientes.length === 0 ? 'Nenhum cliente. Sincronizacao em andamento...' : 'Nenhum cliente encontrado'}
+        <div style={{ padding: '64px 20px', textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 14, border: '1px dashed var(--portal-border)', borderRadius: 14 }}>
+          <Search size={26} style={{ marginBottom: 10, opacity: 0.5 }} />
+          <div style={{ fontWeight: 600, color: 'var(--portal-text-secondary)' }}>{clientes.length === 0 ? 'Nenhum cliente. Sincronização em andamento...' : 'Nenhum cliente encontrado'}</div>
+          {clientes.length > 0 && <div style={{ marginTop: 4, fontSize: 12.5 }}>Tente o nome, o CNPJ ou o número da OS / nota.</div>}
         </div>
       ) : (
-        <div style={{ border: isMobile ? 'none' : '1px solid var(--portal-border)', borderRadius: 14, overflow: 'hidden', background: isMobile ? 'transparent' : 'var(--portal-bg-card)', boxShadow: isMobile ? 'none' : '0 1px 3px var(--portal-shadow)', display: isMobile ? 'flex' : 'block', flexDirection: 'column', gap: isMobile ? 10 : 0 }}>
+        <div style={{ border: isMobile ? 'none' : '1px solid var(--portal-border)', borderRadius: 16, overflow: 'hidden', background: isMobile ? 'transparent' : 'var(--portal-bg-card)', boxShadow: isMobile ? 'none' : '0 1px 3px rgba(16,24,40,0.06)', display: isMobile ? 'flex' : 'block', flexDirection: 'column', gap: isMobile ? 10 : 0 }}>
           {/* Cabeçalho da tabela — só no desktop */}
           {!isMobile && (
           <div style={{
-            display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px', columnGap: 16,
-            padding: '12px 20px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
-            fontSize: 11, color: 'var(--portal-text-secondary)', textTransform: 'uppercase', fontWeight: 600, letterSpacing: 0.5, alignItems: 'center'
+            display: 'grid', gridTemplateColumns: '44px minmax(0, 1fr) 170px 150px 70px 130px 120px 20px', columnGap: 16,
+            padding: '11px 20px', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)',
+            fontSize: 10.5, color: 'var(--portal-text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: 0.6, alignItems: 'center'
           }}>
             <span></span><span>Cliente</span><span>CNPJ / CPF</span><span>Cidade</span>
-            <span style={{ textAlign: 'center' }}>OS</span><span style={{ textAlign: 'right' }}>Valor Total</span><span>Empresa</span><span></span>
+            <span style={{ textAlign: 'center' }}>OS</span><span style={{ textAlign: 'right' }}>Valor total</span><span>Empresa</span><span></span>
           </div>
           )}
 
-          {filtered.slice(0, 200).map((cli, idx) => (
-            isMobile ? (
+          {filtered.slice(0, 200).map(cli => {
+            const emp = corEmpresa(cli.empresa)
+            const etqs = etiquetasMapa[cli.cnpj_cpf?.replace(/\D/g, '')] || []
+            return isMobile ? (
               // MOBILE: cartão (a grade de 8 colunas não cabe no celular)
               <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)} onMouseEnter={() => prefetchDetalhe(cli)}
-                style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 12, padding: 14, cursor: 'pointer', boxShadow: '0 1px 2px var(--portal-shadow)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: 15, color: 'var(--portal-text)', fontWeight: 700, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' }}>{cli.nome_fantasia || cli.razao_social}</span>
-                  {(etiquetasMapa[cli.cnpj_cpf?.replace(/\D/g, '')] || []).map(e => (
-                    <span key={e.id} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: e.cor, color: '#fff', lineHeight: '16px' }}>{e.nome}</span>
-                  ))}
+                style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderRadius: 14, padding: 14, cursor: 'pointer', boxShadow: '0 1px 2px rgba(16,24,40,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ width: 38, height: 38, borderRadius: 11, background: emp.bg, color: emp.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, flexShrink: 0 }}>{iniciaisCli(cli)}</span>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 14.5, color: 'var(--portal-text)', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{cli.nome_fantasia || cli.razao_social}</div>
+                    <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1 }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'}</div>
+                  </div>
+                  <ChevronRight size={16} color="var(--portal-text-muted)" />
                 </div>
-                <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginTop: 4, fontFamily: 'monospace' }}>{formatCNPJ(cli.cnpj_cpf)}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginTop: 2 }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'} · {cli.empresa}</div>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 8 }}>
-                  <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}><b style={{ color: 'var(--portal-text)' }}>{cli.total_os}</b> OS</span>
-                  <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)' }}>{cli.total_valor > 0 ? formatCurrency(cli.total_valor) : '-'}</span>
+                {/* Dados básicos: endereço, telefone e e-mail (copiáveis) */}
+                {(cli.endereco || cli.telefone || cli.email) && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginTop: 9, fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+                    {cli.endereco && (
+                      <span style={{ display: 'flex', alignItems: 'flex-start', gap: 5, color: 'var(--portal-text-muted)' }}>
+                        <MapPin size={12} style={{ flexShrink: 0, marginTop: 2 }} /> {cli.endereco}{cli.bairro ? `, ${cli.bairro}` : ''}
+                      </span>
+                    )}
+                    {cli.telefone && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 500 }}>
+                        <Phone size={12} style={{ flexShrink: 0 }} /> {cli.telefone}
+                        <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button>
+                      </span>
+                    )}
+                    {cli.email && (
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontWeight: 500, minWidth: 0 }}>
+                        <Mail size={12} style={{ flexShrink: 0 }} /> <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>{cli.email}</span>
+                        <button onClick={e => copiarContato(e, cli.email)} title="Copiar email" style={{ ...btnCopiar, color: copiadoContato === cli.email ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.email ? <Check size={12} /> : <Copy size={12} />}</button>
+                      </span>
+                    )}
+                  </div>
+                )}
+                {etqs.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 8 }}>
+                    {etqs.map(e => <span key={e.id} style={{ padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: e.cor, color: '#fff' }}>{e.nome}</span>)}
+                  </div>
+                )}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 10, paddingTop: 10, borderTop: '1px solid #F1F5F9' }}>
+                  <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', fontFamily: 'ui-monospace, monospace' }}>{formatCNPJ(cli.cnpj_cpf)}</span>
+                  <span style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--portal-text)' }}>{cli.total_valor > 0 ? formatCurrency(cli.total_valor) : '-'}</span>
                 </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: 'var(--portal-bg-secondary)', color: 'var(--portal-text-secondary)' }}>{cli.total_os} OS</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: emp.bg, color: emp.fg }}>{cli.empresa}</span>
+                </div>
+                {faixaAchados(cli)}
               </div>
             ) : (
             <div key={`${cli.cod_cli}-${cli.empresa}`} onClick={() => abrirDetalhe(cli)}
-              style={{
-                display: 'grid', gridTemplateColumns: '44px 1fr 160px 140px 70px 120px 110px 24px', columnGap: 16,
-                padding: '14px 20px', borderBottom: '1px solid var(--portal-border)', alignItems: 'center', cursor: 'pointer',
-                fontSize: 14, color: 'var(--portal-text)', transition: 'background 0.15s'
-              }}
+              style={{ padding: '14px 20px', borderBottom: '1px solid var(--portal-border)', cursor: 'pointer', transition: 'background 0.15s' }}
               onMouseEnter={ev => { ev.currentTarget.style.background = 'var(--portal-bg-hover)'; prefetchDetalhe(cli) }}
               onMouseLeave={ev => { ev.currentTarget.style.background = 'transparent' }}>
-              {/* Espaço para a foto do cliente (placeholder com iniciais até anexar) */}
-              <div title="Foto do cliente" style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)', overflow: 'hidden', flexShrink: 0 }}>
-                {(cli.nome_fantasia || cli.razao_social || '?').trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase()}
-              </div>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ fontSize: 14, color: 'var(--portal-text)', fontWeight: 600 }}>{cli.nome_fantasia || cli.razao_social}</span>
-                  {(etiquetasMapa[cli.cnpj_cpf?.replace(/\D/g, '')] || []).map(e => (
-                    <span key={e.id} style={{
-                      display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700,
-                      background: e.cor, color: '#fff', lineHeight: '16px', letterSpacing: 0.3
-                    }}>{e.nome}</span>
-                  ))}
+              <div style={{ display: 'grid', gridTemplateColumns: '44px minmax(0, 1fr) 170px 150px 70px 130px 120px 20px', columnGap: 16, alignItems: 'center', fontSize: 14, color: 'var(--portal-text)' }}>
+                <span title={cli.empresa} style={{ width: 40, height: 40, borderRadius: 12, background: emp.bg, color: emp.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 }}>
+                  {iniciaisCli(cli)}
+                </span>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 14.5, color: 'var(--portal-text)', fontWeight: 700 }}>{cli.nome_fantasia || cli.razao_social}</span>
+                    {etqs.map(e => (
+                      <span key={e.id} style={{ display: 'inline-block', padding: '2px 8px', borderRadius: 10, fontSize: 10, fontWeight: 700, background: e.cor, color: '#fff', lineHeight: '16px', letterSpacing: 0.3 }}>{e.nome}</span>
+                    ))}
+                  </div>
+                  {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
+                    <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1 }}>{cli.razao_social}</div>
+                  )}
+                  {cli.endereco && (
+                    <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <MapPin size={11} style={{ flexShrink: 0 }} /> {cli.endereco}{cli.bairro ? `, ${cli.bairro}` : ''}
+                    </div>
+                  )}
+                  {(cli.telefone || cli.email) && (
+                    <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', fontWeight: 500, marginTop: 3, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                      {cli.telefone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Phone size={11} /> {cli.telefone}
+                        <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button></span>}
+                      {cli.email && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Mail size={11} /> {cli.email}
+                        <button onClick={e => copiarContato(e, cli.email)} title="Copiar email" style={{ ...btnCopiar, color: copiadoContato === cli.email ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.email ? <Check size={12} /> : <Copy size={12} />}</button></span>}
+                    </div>
+                  )}
                 </div>
-                {cli.nome_fantasia && cli.razao_social && cli.nome_fantasia !== cli.razao_social && (
-                  <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1 }}>{cli.razao_social}</div>
-                )}
-                {cli.endereco && (
-                  <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <MapPin size={11} style={{ flexShrink: 0 }} /> {cli.endereco}{cli.bairro ? `, ${cli.bairro}` : ''}
-                  </div>
-                )}
-                {(cli.telefone || cli.email) && (
-                  <div style={{ fontSize: 11.5, color: 'var(--portal-text)', fontWeight: 500, marginTop: 2, display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                    {cli.telefone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Phone size={11} /> {cli.telefone}
-                      <button onClick={e => copiarContato(e, cli.telefone)} title="Copiar telefone" style={{ ...btnCopiar, color: copiadoContato === cli.telefone ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.telefone ? <Check size={12} /> : <Copy size={12} />}</button></span>}
-                    {cli.email && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Mail size={11} /> {cli.email}
-                      <button onClick={e => copiarContato(e, cli.email)} title="Copiar email" style={{ ...btnCopiar, color: copiadoContato === cli.email ? '#16a34a' : 'var(--portal-text-muted)' }}>{copiadoContato === cli.email ? <Check size={12} /> : <Copy size={12} />}</button></span>}
-                  </div>
-                )}
+                <span style={{ justifySelf: 'start', fontSize: 11.5, color: 'var(--portal-text-secondary)', fontFamily: 'ui-monospace, monospace', padding: '3px 8px', borderRadius: 7, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', whiteSpace: 'nowrap' }}>{formatCNPJ(cli.cnpj_cpf) || '—'}</span>
+                <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', lineHeight: 1.35 }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'}</span>
+                <span style={{ justifySelf: 'center', minWidth: 34, textAlign: 'center', fontWeight: 700, fontSize: 13, color: 'var(--portal-text)', padding: '3px 9px', borderRadius: 999, background: 'var(--portal-bg-secondary)', fontVariantNumeric: 'tabular-nums' }}>{cli.total_os}</span>
+                <span style={{ textAlign: 'right', fontSize: 14.5, fontWeight: 700, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{cli.total_valor > 0 ? formatCurrency(cli.total_valor) : '-'}</span>
+                <span style={{ justifySelf: 'start', fontSize: 11.5, fontWeight: 700, padding: '3px 9px', borderRadius: 7, background: emp.bg, color: emp.fg, border: `1px solid ${emp.bd}`, whiteSpace: 'nowrap' }}>{cli.empresa}</span>
+                <ChevronRight size={16} color="var(--portal-text-muted)" />
               </div>
-              <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', fontFamily: 'monospace' }}>{formatCNPJ(cli.cnpj_cpf)}</span>
-              <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)' }}>{cli.cidade ? `${cli.cidade}/${cli.estado}` : '-'}</span>
-              <span style={{ textAlign: 'center', fontWeight: 700, fontSize: 14, color: 'var(--portal-text)' }}>{cli.total_os}</span>
-              <span style={{ textAlign: 'right', fontSize: 14, fontWeight: 600, color: 'var(--portal-text)' }}>{cli.total_valor > 0 ? formatCurrency(cli.total_valor) : '-'}</span>
-              <span style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>{cli.empresa}</span>
-              <ChevronRight size={16} color="var(--portal-text-muted)" />
+              {/* serviço/pedido que bateu com a busca por número */}
+              <div style={{ marginLeft: 60 }}>{faixaAchados(cli)}</div>
             </div>
             )
-          ))}
+          })}
 
           {filtered.length > 200 && (
             <div style={{ padding: 14, textAlign: 'center', fontSize: 13, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)' }}>
-              Mostrando 200 de {filtered.length} clientes. Use a busca para filtrar.
+              Mostrando 200 de {filtered.length.toLocaleString('pt-BR')} clientes. Use a busca para filtrar.
             </div>
           )}
         </div>
