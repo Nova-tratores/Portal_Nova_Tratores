@@ -23,12 +23,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
 import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
+import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
+import ModalNovaMaquina from "@/components/clientes/ModalNovaMaquina";
 
 interface OSDrawerProps {
   visible: boolean;
   mode: "create" | "edit";
   osId: string | null;
   clientes: ClienteOption[];
+  /** atalho "Novo cliente": a página insere o criado na lista na hora */
+  onClienteCriado?: (c: ClienteOption) => void;
   tecnicos: string[];
   userName?: string;
   onClose: () => void;
@@ -80,7 +84,7 @@ function horaAtualBR() {
   return `${String(br.getHours()).padStart(2, '0')}:${String(br.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm, podeEditar = true, podeOmie = true, podeConcluir = true, podeCancelar = true }: OSDrawerProps) {
+export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriado, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm, podeEditar = true, podeOmie = true, podeConcluir = true, podeCancelar = true }: OSDrawerProps) {
   const VH = propValorHora ?? VALOR_HORA;
   const VK = propValorKm ?? VALOR_KM;
   // Ocorrência rápida por OS (categoria OS pré-selecionada, técnico da OS)
@@ -216,6 +220,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
   // Incrementado após importar um orçamento → força recarregar os dados da OS
   const [reloadKey, setReloadKey] = useState(0);
   const [showProjModal, setShowProjModal] = useState(false);
+  // atalhos de cadastro (criam no Omie e já usam na OS)
+  const [showNovoCliente, setShowNovoCliente] = useState(false);
+  const [showNovaMaquina, setShowNovaMaquina] = useState(false);
   const [showRevModal, setShowRevModal] = useState(false);
   const [showLogs, setShowLogs] = useState(false);
   const [printMenu, setPrintMenu] = useState(false);
@@ -676,6 +683,20 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
     }
     fetchLembretes(chave);
   }, [fetchLembretes]);
+
+  // Equipamento escolhido (busca ou "Nova máquina"): grava o projeto e completa
+  // Modelo/Chassis da descrição sem apagar o que já foi escrito.
+  const aplicarEquipamento = (nome: string, modelo: string, chassis: string) => {
+    setProjeto(nome);
+    if (!servSolicitado || servSolicitado.trim() === "" || servSolicitado === TEXT_TEMPLATE) {
+      setServSolicitado(`Modelo: ${modelo}\nChassis: ${chassis}\nHorimetro: \n\nSolicitação do cliente: \nServiço Realizado: `);
+    } else {
+      const lines = servSolicitado.split("\n");
+      if (lines[0]?.trim() === "Modelo:") lines[0] = "Modelo: " + modelo;
+      if (lines[1]?.trim() === "Chassis:") lines[1] = "Chassis: " + chassis;
+      setServSolicitado(lines.join("\n"));
+    }
+  };
 
   const syncDiscount = useCallback((type: "P" | "V", value: number) => {
     if (type === "P") {
@@ -1470,10 +1491,25 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       <i className="fas fa-search" style={S_SEARCH_ICON} />
                       <input type="text" placeholder="Buscar por nome, razão social ou CNPJ/CPF..." value={clienteFilter} onChange={(e) => setClienteFilter(e.target.value)} style={S_SEARCH_INPUT} />
                     </div>
+                    {podeEditar && (
+                      <button type="button" onClick={() => setShowNovoCliente(true)}
+                        title="Cadastrar cliente novo no Omie e já usar nesta OS"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 7, marginTop: 8, padding: "6px 12px", borderRadius: 7, border: "1px dashed #DC2626", background: "#FEF2F2", color: "#B91C1C", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                        <i className="fas fa-user-plus" /> Cliente novo? Cadastrar
+                      </button>
+                    )}
                     {clienteFilter && (
                       <div className="client-search-results">
                         {filteredClientes.length === 0 ? (
-                          <div style={S_EMPTY_RESULT}>Nenhum cliente encontrado</div>
+                          <div style={S_EMPTY_RESULT}>
+                            Nenhum cliente encontrado
+                            {podeEditar && (
+                              <button type="button" onClick={() => setShowNovoCliente(true)}
+                                style={{ display: "block", margin: "8px auto 0", padding: "6px 12px", borderRadius: 7, border: "none", background: "#DC2626", color: "#fefefe", fontSize: 12.5, fontWeight: 700, cursor: "pointer" }}>
+                                <i className="fas fa-user-plus" /> Cadastrar &quot;{clienteFilter}&quot;
+                              </button>
+                            )}
+                          </div>
                         ) : filteredClientes.map((c) => (
                           <div key={c.chave} className="client-search-item" onClick={() => { selectCliente(c.chave); setClienteFilter(""); if (mode === "edit") setMostrarTrocaCliente(false); }}>
                             <i className="fas fa-user-circle" style={S_SEARCH_ICON} />
@@ -1889,7 +1925,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                       </div>
                       <div style={S_FLEX2}>
                         <label>Projeto / Equipamento</label>
-                        <input type="text" value={projeto} readOnly placeholder="Clique para pesquisar..." onClick={() => setShowProjModal(true)} style={S_POINTER_BOLD} />
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <input type="text" value={projeto} readOnly placeholder="Clique para pesquisar..." onClick={() => setShowProjModal(true)} style={{ ...S_POINTER_BOLD, flex: 1 }} />
+                          <button type="button" onClick={() => setShowNovaMaquina(true)} title="Cadastrar máquina nova no Omie"
+                            style={{ flexShrink: 0, padding: "0 12px", borderRadius: 6, border: "1px dashed #059669", background: "#ECFDF5", color: "#047857", fontSize: 12.5, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" }}>
+                            <i className="fas fa-plus" /> Nova
+                          </button>
+                        </div>
                       </div>
                     </div>
                     {tipoServico === "Revisão" && (
@@ -1945,6 +1987,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
                           <button type="button" onClick={() => podeEditar && setShowProjModal(true)} title="Pesquisar equipamento" style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 3, border: "1px solid var(--border)", background: "#fff", color: "#64748b", cursor: "pointer", fontSize: 11 }}>
                             <i className="fas fa-search" />
                           </button>
+                          {podeEditar && (
+                            <button type="button" onClick={() => setShowNovaMaquina(true)} title="Cadastrar máquina nova no Omie" style={{ flexShrink: 0, width: 30, height: 30, borderRadius: 3, border: "1px dashed #059669", background: "#ECFDF5", color: "#047857", cursor: "pointer", fontSize: 11 }}>
+                              <i className="fas fa-plus" />
+                            </button>
+                          )}
                         </div>
                       </div>
                       <div style={{ width: 135 }}>
@@ -2418,21 +2465,37 @@ export default function OSDrawer({ visible, mode, osId, clientes, tecnicos, user
       <SearchModal title="Pesquisar Equipamento / Chassis" placeholder="Digite chassis, modelo ou número..." apiUrl="/api/pos/buscas/projetos" paramName="termo" visible={showProjModal} onClose={() => setShowProjModal(false)}
         onSelect={(item) => {
           const nome = item.nome || "";
-          setProjeto(nome);
           const partes = nome.trim().split(/\s+/);
-          const modelo = partes[0] || "";
-          const chassis = partes.slice(1).join(" ") || "";
-          if (!servSolicitado || servSolicitado.trim() === "" || servSolicitado === TEXT_TEMPLATE) {
-            setServSolicitado(`Modelo: ${modelo}\nChassis: ${chassis}\nHorimetro: \n\nSolicitação do cliente: \nServiço Realizado: `);
-          } else {
-            const lines = servSolicitado.split("\n");
-            if (lines[0]?.trim() === "Modelo:") lines[0] = "Modelo: " + modelo;
-            if (lines[1]?.trim() === "Chassis:") lines[1] = "Chassis: " + chassis;
-            setServSolicitado(lines.join("\n"));
-          }
+          aplicarEquipamento(nome, partes[0] || "", partes.slice(1).join(" ") || "");
         }}
         renderItem={(item) => item.nome || ""}
+        realtimeTabela="portal_nt_projetos_PRINCIPAL"
+        rodape={podeEditar ? (
+          <button type="button" onClick={() => { setShowProjModal(false); setShowNovaMaquina(true); }}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", height: 40, borderRadius: 8, border: "1px dashed #059669", background: "#ECFDF5", color: "#047857", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
+            <i className="fas fa-plus" /> Não achou? Cadastrar máquina nova
+          </button>
+        ) : undefined}
       />
+
+      {/* Atalhos de cadastro (criam no Omie; aparecem ao vivo pra todos) */}
+      <ModalNovoCliente aberto={showNovoCliente} onFechar={() => setShowNovoCliente(false)} zIndex={95000}
+        onCriado={(c) => {
+          setShowNovoCliente(false);
+          onClienteCriado?.(c.cliente);
+          selectCliente(c.cliente.chave);
+          setClienteFilter("");
+          if (mode === "edit") setMostrarTrocaCliente(false);
+          if (c.aviso) alert(c.aviso);
+          else if (c.ja_existia) alert(`Esse CNPJ/CPF já estava cadastrado no Omie — usei o cadastro existente (cód. ${c.cod_cli}).`);
+        }} />
+      <ModalNovaMaquina aberto={showNovaMaquina} onFechar={() => setShowNovaMaquina(false)} zIndex={95000}
+        onCriada={(m) => {
+          setShowNovaMaquina(false);
+          aplicarEquipamento(m.nome, m.modelo, m.chassi);
+          if (m.aviso) alert(m.aviso);
+          else if (m.ja_existia) alert(`A máquina "${m.nome}" já existia — usei a cadastrada.`);
+        }} />
 
       <SearchModal title="Pesquisar Revisão Pronta" placeholder="Digite termos da revisão..." apiUrl="/api/pos/buscas/revisoes" paramName="termo" visible={showRevModal} onClose={() => setShowRevModal(false)}
         onSelect={(item) => setRevisao(item.descricao || "")}

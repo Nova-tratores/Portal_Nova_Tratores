@@ -1,9 +1,13 @@
 'use client'
-// Aba "Relatórios" do módulo Clientes: lista as fotos semanais de OS/PV faturados
-// sem NF (uma por sexta). Cada semana abre um documento imprimível (Salvar PDF).
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { FileText, ArrowLeft, ChevronRight, AlertTriangle, Calendar } from 'lucide-react'
+// Relatórios do módulo Clientes, em duas abas:
+//  - Faturamento semanal: OS + pedidos de peças da semana, por técnico, com km
+//    (components/clientes/RelatorioFaturamentoSemanal.tsx);
+//  - Sem nota fiscal: as fotos semanais de OS/PV faturados sem NF (uma por sexta),
+//    cada uma abre um documento imprimível (Salvar PDF).
+import { Suspense, useEffect, useState } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { FileText, ArrowLeft, ChevronRight, AlertTriangle, Calendar, BarChart3 } from 'lucide-react'
+import RelatorioFaturamentoSemanal from '@/components/clientes/RelatorioFaturamentoSemanal'
 
 interface Semana { semana: string; gerado_em: string; total_cards: number; total_valor: number }
 
@@ -13,8 +17,18 @@ const fmtData = (iso: string) => {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso
 }
 
+type Aba = 'faturamento' | 'sem-nf'
+
+// useSearchParams exige <Suspense> no build do Next
 export default function RelatoriosClientesPage() {
+  return <Suspense fallback={null}><RelatoriosConteudo /></Suspense>
+}
+
+function RelatoriosConteudo() {
   const router = useRouter()
+  const params = useSearchParams()
+  const aba: Aba = params.get('aba') === 'sem-nf' ? 'sem-nf' : 'faturamento'
+  const trocarAba = (a: Aba) => router.replace(a === 'faturamento' ? '/clientes/relatorios' : '/clientes/relatorios?aba=sem-nf')
   const [lista, setLista] = useState<Semana[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -27,7 +41,7 @@ export default function RelatoriosClientesPage() {
   }, [])
 
   return (
-    <div style={{ padding: '16px 12px', maxWidth: 820, margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
+    <div style={{ padding: '16px 12px', maxWidth: aba === 'faturamento' ? 1200 : 820, margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
       <button onClick={() => router.push('/clientes')}
         style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 10, border: '1px solid #e5e7eb', background: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#64748b', marginBottom: 18 }}>
         <ArrowLeft size={16} /> Voltar para Clientes
@@ -39,11 +53,31 @@ export default function RelatoriosClientesPage() {
         </div>
         <div>
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#0f172a', margin: 0 }}>Relatórios semanais</h1>
-          <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>OS/PV faturados sem nota fiscal — uma foto por semana</p>
+          <p style={{ fontSize: 13, color: '#64748b', margin: 0 }}>{aba === 'faturamento' ? 'OS e pedidos de peças faturados na semana, por técnico' : 'OS/PV faturados sem nota fiscal — uma foto por semana'}</p>
         </div>
       </div>
 
-      <div style={{ marginTop: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {/* Abas */}
+      <div style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 13, background: '#F1F5F9', border: '1px solid #E5E7EB', margin: '16px 0 18px' }}>
+        {([
+          { id: 'faturamento', label: 'Faturamento semanal', icon: <BarChart3 size={15} /> },
+          { id: 'sem-nf', label: 'Sem nota fiscal', icon: <AlertTriangle size={15} /> },
+        ] as const).map(t => {
+          const on = aba === t.id
+          return (
+            <button key={t.id} onClick={() => trocarAba(t.id)}
+              style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '8px 16px', border: 'none', borderRadius: 10, cursor: 'pointer', fontSize: 13.5, fontWeight: 700, background: on ? '#fff' : 'transparent', color: on ? '#6D28D9' : '#64748b', boxShadow: on ? '0 1px 3px rgba(16,24,40,0.12)' : 'none' }}>
+              {t.icon} {t.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {aba === 'faturamento' && <RelatorioFaturamentoSemanal />}
+
+      {aba === 'sem-nf' && (
+
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         {loading ? (
           <div style={{ padding: 40, textAlign: 'center', color: '#94a3b8' }}>Carregando…</div>
         ) : lista.length === 0 ? (
@@ -72,6 +106,7 @@ export default function RelatoriosClientesPage() {
           ))
         )}
       </div>
+      )}
     </div>
   )
 }

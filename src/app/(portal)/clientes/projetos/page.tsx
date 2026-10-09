@@ -1,5 +1,6 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
+import { authHeaders } from '@/lib/auth/client'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
@@ -135,7 +136,7 @@ function ProjetosPageInner() {
     try {
       const res = await fetch('/api/clientes/projetos/criar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ nome: criarNome.trim().toUpperCase(), empresa: criarEmpresa }),
       })
       const d = await res.json()

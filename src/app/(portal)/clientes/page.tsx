@@ -8,8 +8,11 @@ import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento'
 import ContatosChatwoot from '@/components/clientes/ContatosChatwoot'
+import ModalNovoCliente from '@/components/clientes/ModalNovoCliente'
+import ModalPedidoVenda from '@/components/clientes/ModalPedidoVenda'
+import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
-import { BellOff, Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, Printer, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send, Phone, Copy, Check } from 'lucide-react'
+import { BellOff, Tractor, Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send, Phone, Copy, Check } from 'lucide-react'
 
 interface Cliente {
   cod_cli: number; empresa: string; razao_social: string; nome_fantasia: string
@@ -164,18 +167,20 @@ function ClientesPageInner() {
   const [tagsOmieCliente, setTagsOmieCliente] = useState<string[]>([])
   const router = useRouter()
   // Aba da pasta: separa OS + PVs avulsos em faturados / cancelados / abertos
-  const [osColuna, setOsColuna] = useState<'abertos' | 'faturados' | 'cancelados'>('faturados')
+  const [osColuna, setOsColuna] = useState<'abertos' | 'faturados' | 'cancelados' | 'balcao'>('faturados')
+  // aba Balcão: pedidos de peças sem OS ligada, com filtro por situação + janela do pedido
+  const [balcaoFiltro, setBalcaoFiltro] = useState<'todos' | 'faturados' | 'abertos' | 'cancelados'>('todos')
+  const [modalPV, setModalPV] = useState<PedidoVenda | null>(null)
   const [osFiltroTipo, setOsFiltroTipo] = useState<string>('')
   const [osBuscaNF, setOsBuscaNF] = useState('')
 
   // Criar cliente / projeto (no Omie + local)
   const EMPRESAS_OMIE = ['Nova Tratores', 'Castro Peças']
-  const FORM_CLI_VAZIO = { empresa: 'Nova Tratores', cnpj_cpf: '', razao_social: '', nome_fantasia: '', email: '', telefone: '', endereco: '', numero: '', bairro: '', cidade: '', estado: '', cep: '' }
   const [showCriarCliente, setShowCriarCliente] = useState(false)
   const [showCriarProjeto, setShowCriarProjeto] = useState(false)
+  const [menuNovo, setMenuNovo] = useState(false) // menu do botão "Novo" (cliente ou projeto)
   const [criando, setCriando] = useState(false)
   const [criarErro, setCriarErro] = useState('')
-  const [formCli, setFormCli] = useState({ ...FORM_CLI_VAZIO })
   const [projNome, setProjNome] = useState('')
   const [projEmpresa, setProjEmpresa] = useState('Nova Tratores')
 
@@ -191,37 +196,12 @@ function ClientesPageInner() {
   const [anexando, setAnexando] = useState(false)
   const [anexErro, setAnexErro] = useState('')
 
-  const criarCliente = async () => {
-    if (!podeCriarCliente) { setCriarErro('Você não tem permissão para criar cliente'); return }
-    if (!formCli.razao_social.trim() || !formCli.cnpj_cpf.trim()) { setCriarErro('Razão Social e CNPJ/CPF são obrigatórios'); return }
-    setCriando(true); setCriarErro('')
-    try {
-      const dadosForm = { ...formCli }
-      const res = await fetch('/api/clientes/criar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(dadosForm) })
-      const data = await res.json()
-      if (!res.ok || data.error) { setCriarErro(data.error || 'Erro ao criar cliente'); setCriando(false); return }
-      setShowCriarCliente(false); setFormCli({ ...FORM_CLI_VAZIO })
-      await carregarLista()
-      // Abre a pasta do cliente recém-criado/vinculado (senão ele fica no fim da lista, ordenada por nº de OS)
-      const novo: Cliente = {
-        cod_cli: data.cod_cli, empresa: data.empresa || dadosForm.empresa,
-        razao_social: dadosForm.razao_social.trim(), nome_fantasia: dadosForm.nome_fantasia?.trim() || dadosForm.razao_social.trim(),
-        cnpj_cpf: dadosForm.cnpj_cpf.trim(), cidade: dadosForm.cidade || '', estado: dadosForm.estado || '',
-        telefone: dadosForm.telefone || '', email: dadosForm.email || '',
-        total_os: 0, total_valor: 0, os_ativas: 0, projetos: [],
-      }
-      alert(data.aviso || `Cliente "${novo.razao_social}" pronto (cód. ${novo.cod_cli}). Abrindo a pasta dele.`)
-      if (data.cod_cli) await abrirDetalhe(novo)
-    } catch { setCriarErro('Erro de conexão com o servidor') }
-    setCriando(false)
-  }
-
   const criarProjeto = async () => {
     if (!podeCriarProjeto) { setCriarErro('Você não tem permissão para criar projeto'); return }
     if (!projNome.trim()) { setCriarErro('Nome do projeto é obrigatório'); return }
     setCriando(true); setCriarErro('')
     try {
-      const res = await fetch('/api/clientes/projetos/criar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nome: projNome, empresa: projEmpresa }) })
+      const res = await fetch('/api/clientes/projetos/criar', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ nome: projNome, empresa: projEmpresa }) })
       const data = await res.json()
       if (!res.ok || data.error) { setCriarErro(data.error || 'Erro ao criar projeto'); setCriando(false); return }
       setShowCriarProjeto(false); setProjNome('')
@@ -504,8 +484,8 @@ function ClientesPageInner() {
       if (tipo === 'p') {
         const pv = (c.pedidos as PedidoVenda[]).find(p => so(p.num_pedido) === so(num))
         if (pv) {
-          setOsColuna(aba(pv.cancelado, pv.faturado))
-          setDocAberto({ titulo: `Pedido de Venda ${pv.num_pedido}`, nome: `PV-${pv.num_pedido}`, url: pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}` })
+          // pedido sem OS = peça de balcão: abre a aba Balcão já na janela do pedido
+          setOsColuna('balcao'); setBalcaoFiltro('todos'); setModalPV(pv)
           return true
         }
       }
@@ -785,7 +765,9 @@ function ClientesPageInner() {
     // gera fatura, mas está encerrada — vai junto com as faturadas.
     const situacaoOS = (o: OrdemServico) => o.cancelada ? 'cancelados' : (o.faturada || o.servico_interno) ? 'faturados' : 'abertos'
     const situacaoPV = (p: PedidoVenda) => p.cancelado ? 'cancelados' : p.faturado ? 'faturados' : 'abertos'
-    const pvsSemOSAba = pvsSemOS.filter(pv => situacaoPV(pv) === osColuna)
+    const pvsBalcao = pvsSemOS
+      .filter(pv => balcaoFiltro === 'todos' || situacaoPV(pv) === balcaoFiltro)
+      .sort((a, b) => String(b.data_previsao || b.data_inclusao || '').localeCompare(String(a.data_previsao || a.data_inclusao || '')))
     // PV ligado a mais de uma OS não cancelada: com o MESMO valor = provável OS
     // duplicada no Omie; com valor diferente = PV dividido entre serviços (só informa)
     const osPorPV = new Map<string, OrdemServico[]>()
@@ -801,7 +783,7 @@ function ClientesPageInner() {
       if (o.cancelada || r.tipo !== 'pv' || !r.num) return []
       return (osPorPV.get(`${r.empresa || o.empresa}|${r.num}`) || []).filter(x => x.num_os !== o.num_os)
     }
-    const contaAba = (aba: string) => ordens.filter(o => situacaoOS(o) === aba).length + pvsSemOS.filter(p => situacaoPV(p) === aba).length
+    const contaAba = (aba: string) => aba === 'balcao' ? pvsSemOS.length : ordens.filter(o => situacaoOS(o) === aba).length
 
     return (
       <div style={{ padding: 'clamp(12px, 4vw, 20px) clamp(12px, 4vw, 32px) 48px', width: '100%', boxSizing: 'border-box' }}>
@@ -815,6 +797,7 @@ function ClientesPageInner() {
           {/* ===================== SIDEBAR ===================== */}
           {/* Fixa ao rolar a página, mas com altura da tela e rolagem própria —
               sem o limite, o que passava da janela ficava inalcançável */}
+          <style>{`.cli-aside > * { flex-shrink: 0 }`}</style>
           <aside className="cli-aside" style={isMobile
             ? { display: 'flex', flexDirection: 'column', gap: 16 }
             : { position: 'sticky', top: 16, display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 'calc(100vh - 32px)', overflowY: 'auto', overscrollBehavior: 'contain', paddingRight: 4, scrollbarWidth: 'thin' }}>
@@ -1005,14 +988,16 @@ function ClientesPageInner() {
         {/* LEMBRETES DO CLIENTE (POS) — sempre visível: sem lembrete também é informação */}
         {selectedCliente && (
           <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Bell size={16} color="#E65100" /> Lembretes do POS ({lembretesCliente.filter((l: any) => !l.concluido).length} ativos)
-            </div>
+            {lembretesCliente.some((l: any) => !l.concluido) && (
+              <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Bell size={16} color="#E65100" /> Lembretes do POS ({lembretesCliente.filter((l: any) => !l.concluido).length})
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {!loadingDetalhe && lembretesCliente.filter((l: any) => !l.concluido).length === 0 && (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', borderRadius: 12, background: 'var(--portal-bg-secondary)', border: '1px dashed var(--portal-border)', fontSize: 13, color: 'var(--portal-text-secondary)' }}>
-                  <BellOff size={16} color="#94A3B8" style={{ flexShrink: 0 }} />
-                  Nenhum lembrete ativo para este cliente no POS.
+              {!loadingDetalhe && !lembretesCliente.some((l: any) => !l.concluido) && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', borderRadius: 10, background: 'var(--portal-bg-secondary)', fontSize: 13, color: 'var(--portal-text-secondary)' }}>
+                  <BellOff size={15} color="#94A3B8" style={{ flexShrink: 0 }} />
+                  Sem lembretes do POS para este cliente.
                 </div>
               )}
               {lembretesCliente.filter((l: any) => !l.concluido).map((l: any) => (
@@ -1173,12 +1158,13 @@ function ClientesPageInner() {
               <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>Nenhuma ordem de servico encontrada</div>
             ) : (
               <div>
-                {/* ABAS: Faturados / Cancelados / Abertos (OS + PVs avulsos) */}
+                {/* ABAS: Faturados / Cancelados / Abertos (OS) + Balcão (pedidos de peças sem OS) */}
                 <div style={{ display: 'flex', gap: 2, marginBottom: 16, borderBottom: '1px solid #E5E7EB', overflowX: 'auto' }}>
                   {([
                     { id: 'faturados', label: 'Faturados', cor: '#059669' },
                     { id: 'cancelados', label: 'Cancelados', cor: '#94A3B8' },
                     { id: 'abertos', label: 'Abertos', cor: '#EA580C' },
+                    { id: 'balcao', label: 'Balcão', cor: '#C2410C' },
                   ] as const).map(tab => {
                     const ativo = osColuna === tab.id
                     const n = contaAba(tab.id)
@@ -1198,6 +1184,7 @@ function ClientesPageInner() {
                   })}
                 </div>
 
+                {osColuna !== 'balcao' && (<>
                 {/* TITULO + FILTROS */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1413,81 +1400,88 @@ function ClientesPageInner() {
                 </div>
                 )}
 
-                {/* PVs sem OS */}
+                </>)}
+
+                {/* BALCÃO: pedidos de peças sem OS ligada */}
+                {osColuna === 'balcao' && (
                 <div>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, gap: 10 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10, flexWrap: 'wrap' }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Package size={18} color="#EA580C" /> Pedidos de Venda avulsos ({pvsSemOSAba.length})
+                      <Package size={18} color="#C2410C" /> Peças de balcão ({pvsBalcao.length})
+                      <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--portal-text-muted)' }}>pedidos sem OS ligada</span>
                     </div>
                     <button onClick={() => abrirAnexar('pv')}
                       style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 14px', borderRadius: 8, border: '1px solid #FED7AA', background: '#FFF7ED', color: '#EA580C', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
                       <Plus size={14} /> Anexar PV
                     </button>
                   </div>
-                  {pvsSemOSAba.length === 0 ? (
-                    <div style={{ padding: 24, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 13 }}>Nenhum pedido {osColuna === 'abertos' ? 'aberto' : osColuna === 'faturados' ? 'faturado' : 'cancelado'}</div>
+                  {/* filtro por situação */}
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }}>
+                    {([
+                      { id: 'todos', label: 'Todos', n: pvsSemOS.length },
+                      { id: 'faturados', label: 'Faturados', n: pvsSemOS.filter(pv => situacaoPV(pv) === 'faturados').length },
+                      { id: 'abertos', label: 'Em aberto', n: pvsSemOS.filter(pv => situacaoPV(pv) === 'abertos').length },
+                      { id: 'cancelados', label: 'Cancelados', n: pvsSemOS.filter(pv => situacaoPV(pv) === 'cancelados').length },
+                    ] as const).map(f => {
+                      const on = balcaoFiltro === f.id
+                      return (
+                        <button key={f.id} onClick={() => setBalcaoFiltro(f.id)}
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 999, border: `1px solid ${on ? '#C2410C' : '#E5E7EB'}`, background: on ? '#FFF7ED' : 'var(--portal-bg-card)', color: on ? '#C2410C' : 'var(--portal-text-secondary)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                          {f.label} <span style={{ opacity: 0.7 }}>{f.n}</span>
+                        </button>
+                      )
+                    })}
+                  </div>
+                  {pvsBalcao.length === 0 ? (
+                    <div style={{ padding: 32, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 13, border: '1px dashed var(--portal-border)', borderRadius: 12 }}>Nenhum pedido de balcão{balcaoFiltro !== 'todos' ? ' com esse filtro' : ''}.</div>
                   ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(360px, 100%), 1fr))', gap: 12 }}>
-                      {pvsSemOSAba.map((pv, pi) => {
-                        const pvCor = pv.cancelado ? '#94A3B8' : pv.faturado ? '#10B981' : '#EA580C'
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))', gap: 12 }}>
+                      {pvsBalcao.map((pv, pi) => {
+                        const st = pv.cancelado ? { rot: 'Cancelado', cor: '#B91C1C', fundo: '#FEF2F2', borda: '#FECACA' }
+                          : pv.faturado ? { rot: 'Faturado', cor: '#047857', fundo: '#ECFDF5', borda: '#A7F3D0' }
+                          : { rot: pv.etapa || 'Em aberto', cor: '#B45309', fundo: '#FFFBEB', borda: '#FDE68A' }
+                        const nf = fmtNF(pv.numero_nf || pv.financeiro?.num_nf_peca)
+                        const temNF = !!(pv.link_nf || pv.financeiro?.nf_peca)
+                        const qtdItens = (pv.itens || []).length
                         return (
-                        <div key={pv.num_pedido} className="cli-card"
-                          style={{
-                            position: 'relative', display: 'flex', flexDirection: 'column', gap: 8,
-                            padding: '13px 16px 13px 20px', border: '1px solid #E5E7EB', borderRadius: 12,
-                            background: 'var(--portal-bg-card)', boxShadow: '0 1px 2px rgba(16,24,40,0.04)', overflow: 'hidden',
-                            animationDelay: `${Math.min(pi * 30, 300)}ms`,
-                          }}>
-                          <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: pvCor }} />
-
-                          <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
-                            <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, minWidth: 0 }}>
-                              <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>PV {pv.num_pedido}</span>
-                              {pv.numero_nf && <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 600, whiteSpace: 'nowrap' }}>NF {fmtNF(pv.numero_nf)}</span>}
-                            </div>
-                            <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', flexShrink: 0 }}>{formatCurrency(pv.valor_total || 0)}</span>
-                          </div>
-
-                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
-                            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700, color: pvCor, textTransform: 'uppercase', letterSpacing: 0.3, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              <span style={{ width: 7, height: 7, borderRadius: '50%', background: pvCor, flexShrink: 0 }} />{pv.etapa}
-                            </span>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-                              <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>{formatDate(pv.data_previsao)}</span>
-                              <a href={pv.pv_pdf || `/api/clientes/print?tipo=pv&cod=${pv.cod_pedido}&empresa=${encodeURIComponent(pv.empresa)}`}
-                                target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title={pv.ppv_real ? 'Abrir PPV original' : 'Imprimir PV'}
-                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', textDecoration: 'none', color: '#475569' }}>
-                                <Printer size={15} />
-                              </a>
-                              {pv.link_nf && (
-                                <a href={pv.link_nf} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="Baixar NF"
-                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: 'none', background: '#dc2626', textDecoration: 'none', color: '#fff' }}>
-                                  <Download size={15} />
-                                </a>
-                              )}
-                              {/* NF rejeitada na SEFAZ → avisa e deixa anexar na mão */}
-                              {!pv.link_nf && pv.nf_motivo && (
-                                <label onClick={e => e.stopPropagation()} title={`NF não saiu${pv.nf_status ? ` (status ${pv.nf_status})` : ''}: ${pv.nf_motivo}\n\nClique para anexar a nota manualmente.`}
-                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5, height: 30, padding: '0 10px', borderRadius: 7, border: '1px solid #FECACA', background: '#FEF2F2', color: '#B91C1C', fontSize: 12, fontWeight: 700, cursor: anexNfOS ? 'wait' : 'pointer' }}>
-                                  <AlertTriangle size={14} /> {anexNfOS ? '...' : 'NF rejeitada — anexar'}
-                                  <input type="file" accept="application/pdf" style={{ display: 'none' }} disabled={anexNfOS}
-                                    onChange={e => { e.stopPropagation(); const f = e.target.files?.[0]; if (f) anexarNFpecaNoPV(pv, f, { gerarCard: true }) }} />
-                                </label>
-                              )}
-                              {pv.pdf_anexo && (
-                                <a href={pv.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} title="PDF anexado"
-                                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 7, border: '1px solid #FED7AA', background: '#FFF7ED', textDecoration: 'none', color: '#EA580C' }}>
-                                  <FileText size={15} />
-                                </a>
+                          <div key={`${pv.empresa}-${pv.num_pedido}`} className="cli-card" onClick={() => setModalPV(pv)}
+                            style={{ position: 'relative', border: '1px solid #E5E7EB', borderRadius: 14, background: 'var(--portal-bg-card)', cursor: 'pointer', overflow: 'hidden', boxShadow: '0 1px 2px rgba(16,24,40,0.05)', transition: 'all 0.15s', animationDelay: `${Math.min(pi * 30, 300)}ms` }}
+                            onMouseEnter={ev => { ev.currentTarget.style.boxShadow = '0 8px 20px rgba(16,24,40,0.10)'; ev.currentTarget.style.transform = 'translateY(-1px)' }}
+                            onMouseLeave={ev => { ev.currentTarget.style.boxShadow = '0 1px 2px rgba(16,24,40,0.05)'; ev.currentTarget.style.transform = 'none' }}>
+                            <span style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: st.cor }} />
+                            <div style={{ padding: '14px 16px 12px 20px' }}>
+                              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                                  <span style={{ width: 36, height: 36, borderRadius: 10, background: '#FFF7ED', color: '#C2410C', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><Package size={17} /></span>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontSize: 15.5, fontWeight: 800, color: 'var(--portal-text)', whiteSpace: 'nowrap' }}>
+                                      PV {pv.num_pedido}{/castro/i.test(pv.empresa) && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 700, color: '#1D4ED8' }}>CASTRO</span>}
+                                    </div>
+                                    <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', marginTop: 1 }}>{formatDate(pv.data_previsao || pv.data_inclusao)} · {qtdItens} {qtdItens === 1 ? 'item' : 'itens'}</div>
+                                  </div>
+                                </div>
+                                <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.4, color: st.cor, background: st.fundo, border: `1px solid ${st.borda}`, padding: '3px 9px', borderRadius: 999, whiteSpace: 'nowrap' }}>{st.rot}</span>
+                              </div>
+                              {(pv.itens || []).length > 0 && (
+                                <div style={{ fontSize: 12.5, color: '#475569', marginTop: 10, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', lineHeight: 1.45 }}>
+                                  {(pv.itens || []).slice(0, 3).map((it: { descricao?: string; desc?: string }) => it.descricao || it.desc).filter(Boolean).join(' · ')}{qtdItens > 3 ? ` · +${qtdItens - 3}` : ''}
+                                </div>
                               )}
                             </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '9px 16px 9px 20px', borderTop: '1px solid #F1F5F9', background: 'var(--portal-bg-secondary)' }}>
+                              {pv.cancelado ? <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>sem nota</span>
+                                : temNF ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 700, color: '#047857' }}><Check size={12} strokeWidth={3} /> NF-e {nf || 'anexada'}</span>
+                                : pv.nf_motivo ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 700, color: '#B91C1C' }}><X size={12} strokeWidth={3} /> NF recusada</span>
+                                : <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 11.5, fontWeight: 700, color: '#B45309' }}><Clock size={12} /> {pv.faturado ? 'sem NF na pasta' : 'aguardando faturar'}</span>}
+                              <span style={{ fontSize: 16, fontWeight: 800, color: '#C2410C', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(pv.valor_total || 0)}</span>
+                            </div>
                           </div>
-                        </div>
                         )
                       })}
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
           </>
@@ -2116,6 +2110,11 @@ function ClientesPageInner() {
         })()}
         </>)}
 
+        {modalPV && (
+          <ModalPedidoVenda pv={pedidos.find(p => p.num_pedido === modalPV.num_pedido && p.empresa === modalPV.empresa) || modalPV} clienteNome={selectedCliente?.nome_fantasia || selectedCliente?.razao_social || ''}
+            onFechar={() => setModalPV(null)} onVerDocumento={d => setDocAberto(d)} anexando={anexNfOS}
+            onAnexarNF={(f, substituir) => anexarNFpecaNoPV(modalPV, f, { gerarCard: !substituir, substituir })} />
+        )}
         <VisualizadorDocumento key={docAberto?.url || ""} doc={docAberto} onClose={fecharDoc} />
 
         {/* MODAL PROJETO */}
@@ -3111,12 +3110,6 @@ function ClientesPageInner() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             {/* Grupo de ações secundárias */}
             <div style={{ display: 'inline-flex', alignItems: 'stretch', height: 42, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', boxShadow: '0 1px 2px rgba(16,24,40,0.05)', overflow: 'hidden' }}>
-              <button className="cli-tb-seg" onClick={() => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) }} {...gateBtn(podeCriarProjeto)}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 15px', border: 'none', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', ...estiloSemPermissao(podeCriarProjeto) }}>
-                <span style={{ width: 24, height: 24, borderRadius: 7, background: '#FFFBEB', color: '#B45309', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FolderOpen size={13} /></span>
-                Novo projeto
-              </button>
-              <span style={{ width: 1, background: 'var(--portal-border)', margin: '8px 0' }} />
               <button className="cli-tb-seg" onClick={() => router.push('/clientes/relatorios')} title="Relatórios semanais (faturados sem NF)"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '0 15px', border: 'none', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>
                 <span style={{ width: 24, height: 24, borderRadius: 7, background: '#EFF6FF', color: '#2563EB', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><FileText size={13} /></span>
@@ -3129,12 +3122,38 @@ function ClientesPageInner() {
               </button>
             </div>
 
-            {/* Ação principal */}
-            <button className="cli-tb-prim" onClick={() => { setCriarErro(''); setFormCli({ ...FORM_CLI_VAZIO }); setShowCriarCliente(true) }} {...gateBtn(podeCriarCliente)}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 9, height: 42, padding: '0 18px 0 8px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 45%, #b91c1c 100%)', color: '#fefefe', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(220,38,38,0.25)', ...estiloSemPermissao(podeCriarCliente) }}>
-              <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={16} strokeWidth={2.75} /></span>
-              Novo cliente
-            </button>
+            {/* Ação principal: um botão "Novo" e o usuário escolhe o que criar */}
+            <div style={{ position: 'relative' }}>
+              <button className="cli-tb-prim" onClick={() => setMenuNovo(m => !m)} {...gateBtn(podeCriarCliente || podeCriarProjeto)}
+                aria-haspopup="menu" aria-expanded={menuNovo}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 9, height: 42, padding: '0 14px 0 8px', borderRadius: 12, border: 'none', background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 45%, #b91c1c 100%)', color: '#fefefe', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 2px 8px rgba(220,38,38,0.25)', ...estiloSemPermissao(podeCriarCliente || podeCriarProjeto) }}>
+                <span style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(255,255,255,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={16} strokeWidth={2.75} /></span>
+                Novo
+                <ChevronDown size={15} style={{ marginLeft: 2, transition: 'transform 0.15s', transform: menuNovo ? 'rotate(180deg)' : 'none' }} />
+              </button>
+              {menuNovo && (<>
+                {/* clique fora fecha */}
+                <div onClick={() => setMenuNovo(false)} style={{ position: 'fixed', inset: 0, zIndex: 50 }} />
+                <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 8px)', right: 0, zIndex: 51, width: 290, padding: 6, borderRadius: 14, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', boxShadow: '0 16px 40px rgba(16,24,40,0.16)' }}>
+                  {[
+                    { id: 'cliente', titulo: 'Cliente', sub: 'Pessoa ou empresa — cria no Omie', icone: <User size={18} />, cor: '#DC2626', fundo: '#FEF2F2', pode: podeCriarCliente,
+                      acao: () => setShowCriarCliente(true) },
+                    { id: 'projeto', titulo: 'Projeto / máquina', sub: 'Trator, implemento ou equipamento', icone: <Tractor size={18} />, cor: '#047857', fundo: '#ECFDF5', pode: podeCriarProjeto,
+                      acao: () => { setCriarErro(''); setProjNome(''); setShowCriarProjeto(true) } },
+                  ].map(o => (
+                    <button key={o.id} role="menuitem" className="cli-tb-seg" disabled={!o.pode} title={o.pode ? undefined : 'Sem permissão'}
+                      onClick={() => { setMenuNovo(false); o.acao() }}
+                      style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', padding: '10px 10px', borderRadius: 10, border: 'none', background: 'transparent', textAlign: 'left', cursor: o.pode ? 'pointer' : 'not-allowed', opacity: o.pode ? 1 : 0.45 }}>
+                      <span style={{ width: 38, height: 38, borderRadius: 11, background: o.fundo, color: o.cor, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{o.icone}</span>
+                      <span style={{ minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 700, color: 'var(--portal-text)' }}>{o.titulo}</span>
+                        <span style={{ display: 'block', fontSize: 11.5, color: 'var(--portal-text-muted)', marginTop: 1 }}>{o.sub}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </>)}
+            </div>
           </div>
         )}
       </div>
@@ -3398,67 +3417,23 @@ function ClientesPageInner() {
       </>)}
 
       {/* ===== Modal Criar Cliente ===== */}
-      {showCriarCliente && (
-        <div onClick={e => { if (e.target === e.currentTarget && !criando) setShowCriarCliente(false) }}
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div className="cli-mpad" style={{ background: 'var(--portal-bg-card)', borderRadius: 16, width: 580, maxWidth: '95vw', maxHeight: '92vh', overflow: 'auto', padding: 28 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <h2 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Criar Cliente</h2>
-              <button onClick={() => setShowCriarCliente(false)} style={{ background: 'var(--portal-bg-secondary)', border: 'none', borderRadius: 8, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}><X size={16} color="#6B7280" /></button>
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--portal-text-secondary)', margin: '0 0 18px' }}>Cria também no Omie (IncluirCliente) e aparece na lista.</p>
-
-            <div style={{ marginBottom: 12 }}>
-              <label style={lblModal}>EMPRESA *</label>
-              <select value={formCli.empresa} onChange={e => setFormCli(p => ({ ...p, empresa: e.target.value }))} style={{ ...inpModal, cursor: 'pointer' }}>
-                {EMPRESAS_OMIE.map(e => <option key={e} value={e}>{e}</option>)}
-              </select>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-              <div>
-                <label style={lblModal}>CNPJ / CPF *</label>
-                <input value={formCli.cnpj_cpf} onChange={e => setFormCli(p => ({ ...p, cnpj_cpf: e.target.value }))} placeholder="Só números ou com máscara" style={inpModal} />
-              </div>
-              <div>
-                <label style={lblModal}>NOME FANTASIA</label>
-                <input value={formCli.nome_fantasia} onChange={e => setFormCli(p => ({ ...p, nome_fantasia: e.target.value }))} placeholder="(opcional)" style={inpModal} />
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 12 }}>
-              <label style={lblModal}>RAZÃO SOCIAL *</label>
-              <input value={formCli.razao_social} onChange={e => setFormCli(p => ({ ...p, razao_social: e.target.value }))} placeholder="Nome / razão social" style={inpModal} />
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-              <div><label style={lblModal}>EMAIL</label><input value={formCli.email} onChange={e => setFormCli(p => ({ ...p, email: e.target.value }))} style={inpModal} /></div>
-              <div><label style={lblModal}>TELEFONE</label><input value={formCli.telefone} onChange={e => setFormCli(p => ({ ...p, telefone: e.target.value }))} placeholder="DDD + número" style={inpModal} /></div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12, marginBottom: 12 }}>
-              <div><label style={lblModal}>ENDEREÇO</label><input value={formCli.endereco} onChange={e => setFormCli(p => ({ ...p, endereco: e.target.value }))} style={inpModal} /></div>
-              <div><label style={lblModal}>NÚMERO</label><input value={formCli.numero} onChange={e => setFormCli(p => ({ ...p, numero: e.target.value }))} style={inpModal} /></div>
-            </div>
-
-            <div className="cli-g2-xs" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 70px 110px', gap: 12, marginBottom: 18 }}>
-              <div><label style={lblModal}>BAIRRO</label><input value={formCli.bairro} onChange={e => setFormCli(p => ({ ...p, bairro: e.target.value }))} style={inpModal} /></div>
-              <div><label style={lblModal}>CIDADE</label><input value={formCli.cidade} onChange={e => setFormCli(p => ({ ...p, cidade: e.target.value }))} style={inpModal} /></div>
-              <div><label style={lblModal}>UF</label><input value={formCli.estado} maxLength={2} onChange={e => setFormCli(p => ({ ...p, estado: e.target.value.toUpperCase() }))} style={inpModal} /></div>
-              <div><label style={lblModal}>CEP</label><input value={formCli.cep} onChange={e => setFormCli(p => ({ ...p, cep: e.target.value }))} style={inpModal} /></div>
-            </div>
-
-            {criarErro && <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#DC2626', borderRadius: 8, padding: '10px 14px', fontSize: 13, marginBottom: 14 }}>{criarErro}</div>}
-
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-              <button onClick={() => setShowCriarCliente(false)} disabled={criando} style={{ padding: '11px 22px', borderRadius: 10, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={criarCliente} disabled={criando} style={{ padding: '11px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: criando ? 'not-allowed' : 'pointer', opacity: criando ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Plus size={15} /> {criando ? 'Criando...' : 'Criar Cliente'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Novo cliente: mesmo formulário do POS (valida pelas regras do Omie) */}
+      <ModalNovoCliente aberto={showCriarCliente} onFechar={() => setShowCriarCliente(false)} zIndex={10000}
+        onCriado={async (c) => {
+          setShowCriarCliente(false)
+          await carregarLista()
+          const f = c.form
+          const novo: Cliente = {
+            cod_cli: c.cod_cli, empresa: c.empresa,
+            razao_social: f.razao_social.trim(), nome_fantasia: f.nome_fantasia?.trim() || f.razao_social.trim(),
+            cnpj_cpf: c.cliente.cnpj, cidade: f.cidade || '', estado: f.estado || '',
+            telefone: f.telefone || '', email: f.email || '',
+            total_os: 0, total_valor: 0, os_ativas: 0, projetos: [],
+          }
+          if (c.aviso) alert(c.aviso)
+          else if (c.ja_existia) alert(`Esse CNPJ/CPF já estava cadastrado no Omie — abrindo o cadastro existente (cód. ${c.cod_cli}).`)
+          await abrirDetalhe(novo)
+        }} />
 
       {/* ===== Modal Criar Projeto ===== */}
       {showCriarProjeto && (
@@ -3487,7 +3462,7 @@ function ClientesPageInner() {
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <button onClick={() => setShowCriarProjeto(false)} disabled={criando} style={{ padding: '11px 22px', borderRadius: 10, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card)', color: 'var(--portal-text-secondary)', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
               <button onClick={criarProjeto} disabled={criando || !projNome.trim()} style={{ padding: '11px 24px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #2563EB, #1D4ED8)', color: '#fff', fontSize: 13, fontWeight: 700, cursor: (criando || !projNome.trim()) ? 'not-allowed' : 'pointer', opacity: (criando || !projNome.trim()) ? 0.6 : 1, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <FolderOpen size={15} /> {criando ? 'Criando...' : 'Criar Projeto'}
+                <Tractor size={15} /> {criando ? 'Criando...' : 'Criar Projeto'}
               </button>
             </div>
           </div>

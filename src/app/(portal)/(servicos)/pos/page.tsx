@@ -163,6 +163,32 @@ function PosPageInner() {
     return () => clearInterval(interval);
   }, [fetchOrders]);
 
+  // Clientes AO VIVO: cliente criado por qualquer pessoa (atalho do POS, pasta
+  // Clientes ou sync do Omie) entra na lista sem recarregar. Precisa da tabela na
+  // publicação do Realtime (sql/realtime-clientes-projetos.sql); sem ela só não
+  // chega o evento — quem cria pelo atalho já recebe o cliente na hora.
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const recarregar = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => fetchClientes(), 1500); // agrupa rajadas do sync
+    };
+    const canal = supabase
+      .channel("pos-clientes-" + Date.now())
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "portal_nt_clientes_PRINCIPAL" }, recarregar)
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "portal_nt_clientes_PRINCIPAL" }, recarregar)
+      .subscribe();
+    return () => { if (timer) clearTimeout(timer); supabase.removeChannel(canal); };
+  }, [fetchClientes]);
+
+  // Atalho "Novo cliente" da OS: entra na lista na hora (sem esperar o realtime)
+  const handleClienteCriado = useCallback((c: ClienteOption) => {
+    setClientes((prev) => {
+      const resto = prev.filter((x) => x.chave !== c.chave);
+      return [...resto, c].sort((a, b) => a.display.localeCompare(b.display));
+    });
+  }, []);
+
   // Refresh ao voltar para a aba
   useRefreshOnFocus(fetchOrders);
 
@@ -396,6 +422,7 @@ function PosPageInner() {
           mode={drawerMode}
           osId={selectedOsId}
           clientes={clientes}
+          onClienteCriado={handleClienteCriado}
           tecnicos={tecnicos}
           userName={userProfile?.nome || ""}
           onClose={handleDrawerClose}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { supabase } from "@/lib/supabase";
 
 interface SearchModalProps {
   title: string;
@@ -11,15 +12,30 @@ interface SearchModalProps {
   onClose: () => void;
   onSelect: (item: { nome?: string; id?: string; descricao?: string }) => void;
   renderItem: (item: Record<string, string>) => string;
+  /** refaz a busca quando entra registro novo nesta tabela (Supabase Realtime) */
+  realtimeTabela?: string;
+  /** conteúdo fixo embaixo dos resultados (ex.: "cadastrar novo") */
+  rodape?: ReactNode;
 }
 
-export default function SearchModal({ title, placeholder, apiUrl, paramName, visible, onClose, onSelect, renderItem }: SearchModalProps) {
+export default function SearchModal({ title, placeholder, apiUrl, paramName, visible, onClose, onSelect, renderItem, realtimeTabela, rodape }: SearchModalProps) {
   const [termo, setTermo] = useState("");
   const [results, setResults] = useState<Record<string, string>[]>([]);
   const [loading, setLoading] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
   const abortRef = useRef<AbortController | null>(null);
+  const [versao, setVersao] = useState(0);
+
+  // Ao vivo: registro novo na tabela (outra pessoa cadastrou) refaz a busca aberta
+  useEffect(() => {
+    if (!visible || !realtimeTabela) return;
+    const canal = supabase
+      .channel(`busca-${realtimeTabela}-${Date.now()}`)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: realtimeTabela }, () => setVersao((v) => v + 1))
+      .subscribe();
+    return () => { supabase.removeChannel(canal); };
+  }, [visible, realtimeTabela]);
 
   // Auto-focus on open
   useEffect(() => {
@@ -48,7 +64,7 @@ export default function SearchModal({ title, placeholder, apiUrl, paramName, vis
       if (!ac.signal.aborted) setLoading(false);
     }, 300);
     return () => { clearTimeout(timerRef.current); abortRef.current?.abort(); };
-  }, [termo, visible, apiUrl, paramName]);
+  }, [termo, visible, apiUrl, paramName, versao]);
 
   if (!visible) return null;
 
@@ -93,6 +109,7 @@ export default function SearchModal({ title, placeholder, apiUrl, paramName, vis
               ))
             )}
           </div>
+          {rodape && <div style={{ marginTop: 12 }}>{rodape}</div>}
         </div>
       </div>
     </div>
