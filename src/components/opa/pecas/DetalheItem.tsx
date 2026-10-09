@@ -87,13 +87,12 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
   const larga = useTelaLarga()
 
   const gerir = base.podeGerir
-  // o banco (pni_atualizar_item) só trava vendida/descartada: nelas mudam só localização e observações
+  // quem tem o módulo (setor de peças) altera QUALQUER informação, em qualquer fase (sql/pni-12);
+  // as telas de etapa é que perguntam por fase. Sem o módulo: só quem cadastrou mexe nas fotos.
   const travada = item.status === 'vendido' || item.status === 'descartado'
-  const editavel = gerir && !travada
-  const podeFotos = (gerir || item.criado_por === base.userId) && !travada
-  // perguntas liberam por fase: valor e aplicação só a partir da Verificação; o destino só na Separação
-  const verificada = item.status !== 'aguardando_identificacao'
-  const editaValor = editavel && verificada
+  const editavel = gerir
+  const podeFotos = gerir || (item.criado_por === base.userId && !travada)
+  const editaValor = editavel
   const minis = useMiniaturas(item.fotos.map((f) => f.storage_path))
 
   useEffect(() => {
@@ -290,7 +289,6 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
       <div style={COLUNA}>
       <section style={SECAO}>
       <h2 style={TITULO_SECAO}>Dados da peça</h2>
-      {gerir && travada && <Aviso tipo="info">Peça {ROTULO_STATUS[item.status].toLowerCase()}: só a localização e as observações ainda podem mudar.</Aviso>}
       {!travada && faltando.length > 0 && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: '#B45309', fontWeight: 600 }}><AlertTriangle size={13} /> Falta preencher: {faltando.join(', ')}.</div>
       )}
@@ -321,9 +319,8 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
 
       <div style={SUBTITULO}>
         Valor e aplicação
-        {editavel && !verificada && <span style={{ fontWeight: 600, textTransform: 'none', letterSpacing: 0, color: '#B45309' }}> · libera na Verificação</span>}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 12, opacity: editavel && !verificada ? 0.6 : 1 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 12 }}>
         <div>
           <label style={ROTULO}>Preço sugerido</label>
           <CampoPreco valor={form.preco} onChange={(v) => setForm((f) => ({ ...f, preco: v }))} disabled={!editaValor} />
