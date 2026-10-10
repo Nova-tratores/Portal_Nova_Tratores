@@ -6,7 +6,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
 import { createClient } from "@supabase/supabase-js";
 import { chatwootConfigurado, urlConversa } from "@/lib/chatwoot/config";
-import { souNotificadoTratorilson } from "@/lib/assistente/notificados";
+import { souNotificadoTratorilson, recebeAlertaCentral } from "@/lib/assistente/notificados";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +40,10 @@ export async function GET(req: NextRequest) {
       .order("criado_em", { ascending: false }).limit(60);
     // alerta central "precisa de atendimento": só Devs + escolhidos no Admin
     const souNotificado = await souNotificadoTratorilson(auth);
+    // modal "precisa de atendimento" só pra quem é do pós-vendas (o resto: sino)
+    const alertaCentral = await recebeAlertaCentral(auth);
     return NextResponse.json(
-      { solicitacoes: lista, novas, perguntasFechadas: pergFechadas || [], souNotificado },
+      { solicitacoes: lista, novas, perguntasFechadas: pergFechadas || [], souNotificado, alertaCentral },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch {

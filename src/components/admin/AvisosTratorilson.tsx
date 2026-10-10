@@ -60,7 +60,7 @@ export default function AvisosTratorilson() {
         <span style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,.12)', padding: '2px 10px', borderRadius: 10 }}>{escolhidos.length}</span>
       </div>
       <p style={{ fontSize: 12, color: '#a3a3a3', margin: '0 0 12px' }}>
-        Perguntas que ele faz à equipe, clientes que precisam de atendimento e, com o robô desligado no NovaZap, o aviso de mensagem nova. Os Devs recebem sempre; marque quem mais deve receber.
+        Perguntas que ele faz à equipe, clientes que precisam de atendimento e, com o robô desligado no NovaZap, o aviso de mensagem nova. Os Devs recebem sempre; marque quem mais deve receber. Quem é do pós-vendas (categoria Pós Vendas ou módulo Pós-Vendas) vê o aviso em janela no meio da tela; os demais recebem no sino.
       </p>
       {erro && <div style={{ marginBottom: 10, color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
       <div style={{ borderRadius: 16, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', padding: 14 }}>

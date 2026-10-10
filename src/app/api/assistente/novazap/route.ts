@@ -13,6 +13,7 @@ import { pareceRecusa, perguntaDaRecusa } from "@/lib/assistente/recusa";
 import { dentroDoHorario, mensagemForaDoHorario } from "@/lib/assistente/horario";
 import { chamarIA, getIA } from "@/lib/assistente/ia";
 import { logTratorilson } from "@/lib/assistente/log";
+import { notificarTratorilson } from "@/lib/assistente/notificados";
 import { geocodificar, rotaDaOficina } from "@/lib/pos/ors";
 
 export const dynamic = "force-dynamic";
@@ -694,6 +695,11 @@ export async function POST(req: NextRequest) {
           tipo: "humano",
           resumo: `Não entendi a FOTO/VÍDEO que o cliente mandou — preciso que alguém do pós-vendas olhe a conversa. Contexto: "${ultimaPergunta.slice(0, 350)}"`,
         });
+        // quem está na lista e não é do pós-vendas não vê o modal: avisa no sino
+        await notificarTratorilson({
+          titulo: `Cliente precisando de atendimento — ${nome || telefone || "WhatsApp"}`,
+          descricao: "Foto/vídeo que o Tratorilson não entendeu. Alguém do pós-vendas precisa olhar a conversa.",
+        });
       }
       await logTratorilson({
         userName: nome || telefone || "cliente WhatsApp",
@@ -723,6 +729,11 @@ export async function POST(req: NextRequest) {
             contato_telefone: telefone || null,
             pergunta: perguntaTxt,
             contexto: ultimaPergunta.slice(0, 500) || null,
+          });
+          await notificarTratorilson({
+            titulo: `O Tratorilson não sabe responder — ${nome || telefone || "WhatsApp"}`,
+            descricao: perguntaTxt,
+            icone: "🤖",
           });
         }
         await logTratorilson({
@@ -754,6 +765,11 @@ export async function POST(req: NextRequest) {
           pergunta: perguntaDaRecusa(ultimaPergunta),
           contexto: `Resposta que a IA ia dar (bloqueada): "${recusada.slice(0, 400)}"`,
         });
+        await notificarTratorilson({
+          titulo: `O Tratorilson não sabe responder — ${nome || telefone || "WhatsApp"}`,
+          descricao: perguntaDaRecusa(ultimaPergunta),
+          icone: "🤖",
+        });
       }
       await logTratorilson({
         userName: nome || telefone || "cliente WhatsApp",
@@ -781,6 +797,10 @@ export async function POST(req: NextRequest) {
           cliente_cnpj: vinculo.cnpj || null,
           tipo: "humano",
           resumo: `Precisa de atendimento humano. Pergunta: "${ultimaPergunta.slice(0, 400)}"`,
+        });
+        await notificarTratorilson({
+          titulo: `Cliente precisando de atendimento — ${nome || telefone || "WhatsApp"}`,
+          descricao: ultimaPergunta.slice(0, 200),
         });
       }
       await logTratorilson({

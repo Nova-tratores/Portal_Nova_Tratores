@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
 import { gravarRegra } from "@/lib/assistente/memoria";
 import { retornarAoCliente } from "@/lib/assistente/retorno-cliente";
-import { souNotificadoTratorilson } from "@/lib/assistente/notificados";
+import { souNotificadoTratorilson, recebeAlertaCentral } from "@/lib/assistente/notificados";
 import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
@@ -23,14 +23,16 @@ export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   try {
-    const [{ data: perguntas, error }, souNotificado] = await Promise.all([
+    const [{ data: perguntas, error }, souNotificado, alertaCentral] = await Promise.all([
       sb().from("tratorilson_perguntas").select("*").order("criado_em", { ascending: false }).limit(40),
       souNotificadoTratorilson(auth),
+      // modal só pra quem é do pós-vendas; o resto da lista recebe no sino
+      recebeAlertaCentral(auth),
     ]);
     if (error) throw error;
     const abertas = (perguntas || []).filter((p) => p.status === "aberta").length;
     return NextResponse.json(
-      { perguntas: perguntas || [], abertas, souNotificado },
+      { perguntas: perguntas || [], abertas, souNotificado, alertaCentral },
       { headers: { "Cache-Control": "no-store" } }
     );
   } catch {

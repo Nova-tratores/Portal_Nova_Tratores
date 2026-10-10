@@ -5,7 +5,8 @@
 // do portal (pós-vendas) e o painel do zap mostram esses cards.
 // Não escreve NADA no Chatwoot — só lê.
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { baseApiConta, chatwootConfigurado, CHATWOOT_API_TOKEN } from '@/lib/chatwoot/config'
+import { baseApiConta, chatwootConfigurado, CHATWOOT_API_TOKEN, urlConversa } from '@/lib/chatwoot/config'
+import { notificarTratorilson } from '@/lib/assistente/notificados'
 import { analisarConversa, contatoIgnorado, resumoAviso, type MsgChatwoot, type Remetente } from './vigia-conversas-regras'
 
 interface ConversaCw {
@@ -90,6 +91,12 @@ export async function vigiarConversas(opts: { gravar?: boolean } = {}): Promise<
         origem: 'vigia',
         ultima_msg_em: ultimaIso,
         memoria: 'pendente',
+      })
+      // quem está na lista e não é do pós-vendas não vê o modal: avisa no sino
+      await notificarTratorilson({
+        titulo: `Cliente precisando de atendimento — ${contato}`,
+        descricao: resumo,
+        link: urlConversa(c.id),
       })
     }
   }

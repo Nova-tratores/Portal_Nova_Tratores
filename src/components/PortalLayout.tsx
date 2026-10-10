@@ -235,9 +235,10 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const [zapPanelOpen, setZapPanelOpen] = useState(false)
   const [zapAba, setZapAba] = useState<'atendimento' | 'solicitacoes' | 'dispensadas' | undefined>(undefined)
   const [solNovas, setSolNovas] = useState(0)
-  // Os ALERTAS CENTRAIS do Tratorilson (abaixo) só aparecem pra quem recebe os
-  // avisos dele: Devs + usuários escolhidos na página de Administração.
-  // O servidor decide (souNotificado); o painel/badge do zap segue do pós-vendas.
+  // Os ALERTAS CENTRAIS do Tratorilson (abaixo) abrem em JANELA só pra quem
+  // está na lista de avisos (Devs + escolhidos no Admin) E é do pós-vendas —
+  // o servidor decide (alertaCentral). Os demais da lista recebem no sino
+  // (notificarTratorilson). O painel/badge do zap segue do pós-vendas.
   const [souNotificadoBot, setSouNotificadoBot] = useState(false)
   // Alerta CENTRAL: o Tratorilson pediu ajuda (não entendeu foto/vídeo ou o assunto)
   const [alertaHumano, setAlertaHumano] = useState<any[] | null>(null)
@@ -251,7 +252,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         const d = await r.json()
         if (!vivo) return
         setSolNovas(d.novas || 0)
-        if (!d.souNotificado) { setAlertaHumano(null); return }
+        if (!d.alertaCentral) { setAlertaHumano(null); return }
         // solicitações tipo 'humano' ainda não vistas → alerta no meio da tela
         const lista = Array.isArray(d.solicitacoes) ? d.solicitacoes : []
         const humanas = lista.filter((s: any) => s.tipo === 'humano' && (s.fase || 'nova') !== 'concluida')
@@ -282,7 +283,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
         const d = await r.json()
         if (!vivo) return
         setSouNotificadoBot(!!d.souNotificado)
-        if (!d.souNotificado) { setPerguntasBot(null); return }
+        if (!d.alertaCentral) { setPerguntasBot(null); return }
         const abertas = (Array.isArray(d.perguntas) ? d.perguntas : []).filter((p: any) => p.status === 'aberta')
         let vistos: number[] = []
         try { vistos = JSON.parse(localStorage.getItem('bot-pergunta-vistos') || '[]') } catch { /* vazio */ }
