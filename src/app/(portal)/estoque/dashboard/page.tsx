@@ -110,7 +110,7 @@ function mesesParaGrade(meses: HistMes[], servico: boolean, tipo?: TipoServ): Me
   });
 }
 interface HistSemana { inicio: string; valor: number; custo: number; qtdePedidos: number; qtdeItens: number; servItens?: HistMes['servItens'] }
-interface HistResp { catKey: string; nome: string; meses: HistMes[]; semanas?: HistSemana[] | null; diasUteisMes?: { ano: number; mes: number; decorridos: number; total: number }; erro?: string }
+interface HistResp { catKey: string; nome: string; meses: HistMes[]; semanas?: HistSemana[] | null; diasUteisMes?: { ano: number; mes: number; decorridos: number; total: number }; feriadosExtras?: string[]; erro?: string }
 interface HorasResp { dias: Array<{ data: string; tecnico: string; trabalhadas: number; faturadas: number }>; tecnicos: string[]; inicioRelatorios: string | null; semPortal: boolean; erro?: string }
 
 /** Semanas no formato da grade (mesma regra de mesesParaGrade; serviços sempre pelos itens das OS). */
@@ -964,6 +964,7 @@ export default function DashboardPage() {
                 return ['valor', 'pedidos', 'itens'];
               })()}
               diasUteisMes={hist.diasUteisMes}
+              feriadosExtras={hist.feriadosExtras}
               baseMin={BASE_MIN_PECAS}
               onMes={(a, m) => { setAno(a); setMes(m); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
             />
@@ -985,20 +986,14 @@ export default function DashboardPage() {
                     )}
                     <Tooltip formatter={(v: number) => (modoQtd ? `${v} OS` : fmtRS(v))} />
                     <Legend wrapperStyle={{ fontSize: 14 }} />
-                    {modoQtd ? (
-                      <>
-                        <Line type="monotone" dataKey="qtdeOS" name="Total OS" stroke="#111827" strokeWidth={2} dot={false} />
-                        <Line type="monotone" dataKey="qtdeNota" name="Com nota" stroke="#2563eb" strokeWidth={1.5} dot={false} />
-                        <Line type="monotone" dataKey="qtdeInterno" name="Interno" stroke="#f59e0b" strokeWidth={1.5} dot={false} />
-                      </>
-                    ) : (
-                      <>
-                        <Line type="monotone" dataKey="valor" name="Venda" stroke="#111827" strokeWidth={2} dot={false} />
-                        {!custoTodoZero && <Line type="monotone" dataKey="custo" name="Custo" stroke="#888" strokeWidth={1.5} dot={false} />}
-                        {temSplit && <Line type="monotone" dataKey="valorNota" name="Com nota" stroke="#2563eb" strokeWidth={1.5} dot={false} />}
-                        {temSplit && <Line type="monotone" dataKey="valorInterno" name="Interno" stroke="#f59e0b" strokeWidth={1.5} dot={false} />}
-                      </>
-                    )}
+                    {/* recharts 2 não enxerga <Line> dentro de fragmento (<>…</>) — cada linha com a própria condição. */}
+                    {modoQtd && <Line type="monotone" dataKey="qtdeOS" name="Total OS" stroke="#111827" strokeWidth={2} dot={false} />}
+                    {modoQtd && <Line type="monotone" dataKey="qtdeNota" name="Com nota" stroke="#2563eb" strokeWidth={1.5} dot={false} />}
+                    {modoQtd && <Line type="monotone" dataKey="qtdeInterno" name="Interno" stroke="#f59e0b" strokeWidth={1.5} dot={false} />}
+                    {!modoQtd && <Line type="monotone" dataKey="valor" name="Venda" stroke="#111827" strokeWidth={2} dot={false} />}
+                    {!modoQtd && !custoTodoZero && <Line type="monotone" dataKey="custo" name="Custo" stroke="#888" strokeWidth={1.5} dot={false} />}
+                    {!modoQtd && temSplit && <Line type="monotone" dataKey="valorNota" name="Com nota" stroke="#2563eb" strokeWidth={1.5} dot={false} />}
+                    {!modoQtd && temSplit && <Line type="monotone" dataKey="valorInterno" name="Interno" stroke="#f59e0b" strokeWidth={1.5} dot={false} />}
                   </LineChart>
                 </ResponsiveContainer>
               </div>

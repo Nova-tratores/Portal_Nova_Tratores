@@ -6,6 +6,11 @@
 // depois dela, semana sem venda vale 0).
 //   Δ sem. ant. = vs a semana imediatamente anterior;
 //   Δ ano ant.  = vs a MESMA semana ISO (nº 1..53) do ano ISO anterior;
+//   Δ mês ant.  = vs a semana EQUIVALENTE do mês anterior: a semana pertence ao
+//                 mês da sua quinta-feira (mesma régua da semana ISO) e é a
+//                 1ª, 2ª… daquele mês; compara com a de mesma posição no mês
+//                 anterior (5ª semana sem par → sem Δ);
+//   dias úteis  = seg–sex fora dos feriados informados.
 //   semana corrente é parcial → sem Δ; base pequena marcada (a tela pinta de cinza).
 // Datas em texto 'YYYY-MM-DD', sempre lidas no fuso local (sem UTC).
 
@@ -25,10 +30,16 @@ export interface LinhaSemana {
   rotulo: string;
   anoIso: number;
   semanaIso: number;
+  /** Posição no mês (mês da quinta-feira): 1ª, 2ª… */
+  posMes: { ano: number; mes: number; pos: number };
+  /** Dias úteis da semana (seg–sex fora dos feriados). */
+  diasUteis: number;
   valor: number;
   parcial: boolean;
   deltaAnt: Delta | null;
   deltaAno: Delta | null;
+  /** vs semana equivalente (mesma posição) do mês anterior. */
+  deltaMes: Delta | null;
 }
 
 const pad = (n: number) => String(n).padStart(2, '0');
@@ -54,11 +65,39 @@ export function semanaIso(inicio: string): { ano: number; semana: number } {
   return { ano, semana: 1 + Math.round((quinta.getTime() - primeiraQuinta.getTime()) / (7 * 864e5)) };
 }
 
+/** Mês (da quinta-feira) e posição da semana nele: 1ª, 2ª, … 5ª. */
+export function posicaoNoMes(inicio: string): { ano: number; mes: number; pos: number } {
+  const quinta = somarDias(lerIso(inicioSemana(inicio)), 3);
+  return { ano: quinta.getFullYear(), mes: quinta.getMonth() + 1, pos: Math.floor((quinta.getDate() - 1) / 7) + 1 };
+}
+
+/** Início da semana de mesma posição no mês anterior; null quando o mês anterior não tem essa posição. */
+export function semanaEquivalenteMesAnterior(inicio: string): string | null {
+  const p = posicaoNoMes(inicio);
+  const ano = p.mes === 1 ? p.ano - 1 : p.ano;
+  const mes = p.mes === 1 ? 12 : p.mes - 1;
+  // A quinta-feira da posição `pos` no mês anterior: 1ª quinta + (pos-1) semanas.
+  const dia1 = new Date(ano, mes - 1, 1);
+  const primeiraQuinta = somarDias(dia1, (4 - dia1.getDay() + 7) % 7);
+  const quinta = somarDias(primeiraQuinta, (p.pos - 1) * 7);
+  if (quinta.getMonth() !== mes - 1) return null;
+  return isoData(somarDias(quinta, -3));
+}
+
+/** Dias úteis (seg–sex) da semana, descontando os feriados ('YYYY-MM-DD'). */
+export function diasUteisSemana(inicio: string, feriados: Set<string>): number {
+  const ini = lerIso(inicioSemana(inicio));
+  let n = 0;
+  for (let i = 0; i < 5; i++) if (!feriados.has(isoData(somarDias(ini, i)))) n++;
+  return n;
+}
+
 export function montarSemanas(
   pontos: PontoSemana[],
-  opts: { metrica: Metrica; hoje: Date; baseMin: number },
+  opts: { metrica: Metrica; hoje: Date; baseMin: number; feriados?: Set<string> },
 ): LinhaSemana[] {
   const { metrica, hoje, baseMin } = opts;
+  const feriados = opts.feriados ?? new Set<string>();
   const atual = inicioSemana(hoje);
   const porInicio = new Map<string, number>();
   for (const p of pontos) {
@@ -85,16 +124,20 @@ export function montarSemanas(
     const valor = valorDe(inicio) ?? 0;
     const anterior = isoData(somarDias(ini, -7));
     const mesmaAnoAnt = porSemanaIso.get((w.ano - 1) + '-' + w.semana) ?? null;
+    const equivMes = semanaEquivalenteMesAnterior(inicio);
     return {
       inicio,
       fim: isoData(fim),
       rotulo: `${fmt(ini)}–${fmt(fim)}`,
       anoIso: w.ano,
       semanaIso: w.semana,
+      posMes: posicaoNoMes(inicio),
+      diasUteis: diasUteisSemana(inicio, feriados),
       valor,
       parcial,
       deltaAnt: parcial ? null : delta(valor, valorDe(anterior), baseMin),
       deltaAno: parcial || !mesmaAnoAnt ? null : delta(valor, valorDe(mesmaAnoAnt), baseMin),
+      deltaMes: parcial || !equivMes ? null : delta(valor, valorDe(equivMes), baseMin),
     };
   });
 }
@@ -120,10 +163,11 @@ export function agruparDias<K extends string>(
 // as mesmas semanas ISO (nº) do ano anterior; se alguma não existir na série, o
 // resultado sai marcado como incompleto e sem Δ.
 
-export type PresetSemanas = 'ultima_anterior' | 'ultima_ano' | 'ult4_ant4' | 'ult4_ano' | 'ult13_ano' | 'escolher';
+export type PresetSemanas = 'ultima_anterior' | 'ultima_mes' | 'ultima_ano' | 'ult4_ant4' | 'ult4_ano' | 'ult13_ano' | 'escolher';
 
 export const PRESETS_SEMANAS: Array<{ id: PresetSemanas; rotulo: string }> = [
   { id: 'ultima_anterior', rotulo: 'Última semana × anterior' },
+  { id: 'ultima_mes', rotulo: 'Última semana × equivalente do mês anterior' },
   { id: 'ultima_ano', rotulo: 'Última semana × mesma do ano passado' },
   { id: 'ult4_ant4', rotulo: 'Últimas 4 × 4 anteriores' },
   { id: 'ult4_ano', rotulo: 'Últimas 4 × mesmas 4 do ano passado' },
@@ -179,6 +223,10 @@ export function periodosDaComparacao(
   const n = preset === 'ult13_ano' ? 13 : preset === 'ult4_ant4' || preset === 'ult4_ano' ? 4 : 1;
   const a = fechadas.slice(0, n);
   if (a.length < n) return null;
+  if (preset === 'ultima_mes') {
+    const b = semanaEquivalenteMesAnterior(a[0]);
+    return b ? { a: per(a), b: per([b]) } : null;
+  }
   if (preset === 'ultima_anterior' || preset === 'ult4_ant4') {
     const b = fechadas.slice(n, 2 * n);
     return b.length < n ? null : { a: per(a), b: per(b) };

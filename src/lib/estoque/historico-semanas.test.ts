@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { inicioSemana, semanaIso, montarSemanas, agruparDias, periodosDaComparacao, somarSemanas } from './historico-semanas';
+import { inicioSemana, semanaIso, montarSemanas, agruparDias, periodosDaComparacao, somarSemanas, posicaoNoMes, semanaEquivalenteMesAnterior, diasUteisSemana } from './historico-semanas';
 
 describe('inicioSemana / semanaIso', () => {
   it('segunda-feira da semana (domingo pertence à semana que começou na segunda anterior)', () => {
@@ -88,5 +88,36 @@ describe('comparações prontas entre semanas', () => {
   it('somarSemanas conta o que falta', () => {
     const linhas = montarSemanas([{ inicio: '2026-09-21', valor: 100, custo: 0 }, { inicio: '2026-09-28', valor: 50, custo: 0 }], { metrica: 'venda', hoje: new Date(2026, 9, 9), baseMin: 1 });
     expect(somarSemanas(linhas, ['2026-09-28', '2026-09-21', '2026-09-14'])).toEqual({ valor: 150, faltando: 1 });
+  });
+});
+
+describe('semana equivalente do mês anterior e dias úteis', () => {
+  it('posição no mês pela quinta-feira', () => {
+    expect(posicaoNoMes('2026-10-05')).toEqual({ ano: 2026, mes: 10, pos: 2 }); // quinta 08/10
+    expect(posicaoNoMes('2026-09-28')).toEqual({ ano: 2026, mes: 10, pos: 1 }); // quinta 01/10 → 1ª de outubro
+    expect(posicaoNoMes('2026-09-21')).toEqual({ ano: 2026, mes: 9, pos: 4 });
+  });
+  it('equivalente: mesma posição no mês anterior; 5ª sem par → null', () => {
+    expect(semanaEquivalenteMesAnterior('2026-10-05')).toBe('2026-09-07'); // 2ª de out → 2ª de set (quinta 10/09)
+    expect(semanaEquivalenteMesAnterior('2026-09-28')).toBe('2026-08-31'); // 1ª de out → 1ª de set (quinta 03/09)
+    expect(semanaEquivalenteMesAnterior('2026-01-05')).toBe('2025-12-08'); // 2ª de jan (01/01 é quinta) → 2ª de dez
+    expect(semanaEquivalenteMesAnterior('2026-07-27')).toBeNull(); // 5ª de julho (quinta 30/07); junho só tem 4 quintas
+  });
+  it('dias úteis: 07/09/2026 (Independência) → 4', () => {
+    expect(diasUteisSemana('2026-09-07', new Set(['2026-09-07']))).toBe(4);
+    expect(diasUteisSemana('2026-09-14', new Set(['2026-09-07']))).toBe(5);
+  });
+  it('montarSemanas traz Δ do mês e dias úteis', () => {
+    const r = montarSemanas([
+      { inicio: '2026-09-07', valor: 1000, custo: 0 },
+      { inicio: '2026-10-05', valor: 1500, custo: 0 },
+    ], { metrica: 'venda', hoje: new Date(2026, 9, 14), baseMin: 1, feriados: new Set(['2026-09-07', '2026-10-12']) });
+    const s41 = r.find((l) => l.inicio === '2026-10-05')!;
+    expect(s41.deltaMes?.pct).toBeCloseTo(50);
+    expect(r.find((l) => l.inicio === '2026-09-07')!.diasUteis).toBe(4);
+    expect(r.find((l) => l.inicio === '2026-10-12')!.diasUteis).toBe(4);
+  });
+  it('preset última × equivalente do mês anterior', () => {
+    expect(periodosDaComparacao('ultima_mes', ['2026-09-28', '2026-09-21'])?.b.inicios).toEqual(['2026-08-31']);
   });
 });

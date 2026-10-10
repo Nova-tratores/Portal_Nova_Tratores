@@ -20,6 +20,7 @@ import {
   montarSemanas, inicioSemana, periodosDaComparacao, somarSemanas, rotuloPeriodo, PRESETS_SEMANAS,
   type LinhaSemana, type PontoSemana, type PresetSemanas,
 } from '@/lib/estoque/historico-semanas';
+import { feriadosNacionais } from '@/lib/assistente/horario';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 // Cores fixas por ano (as do painel antigo); anos fora da lista caem no cinza.
@@ -84,6 +85,8 @@ export interface HistoricoGradeProps {
   baseMin: number;
   /** Dias úteis do mês corrente (com feriados), vindos do servidor — habilita a projeção. */
   diasUteisMes?: { ano: number; mes: number; decorridos: number; total: number } | null;
+  /** Feriados extras (municipais) vindos do servidor; os nacionais são calculados aqui. */
+  feriadosExtras?: string[];
   onMes?: (ano: number, mes: number) => void;
 }
 
@@ -96,7 +99,7 @@ function gravarStorage(chave: string, valor: string) {
   try { localStorage.setItem(chave, valor); } catch { /* sem storage */ }
 }
 
-export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, diasUteisMes, onMes }: HistoricoGradeProps) {
+export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, diasUteisMes, feriadosExtras, onMes }: HistoricoGradeProps) {
   const [medidaSel, setMedida] = useState<Medida>(medidas[0]);
   const medida: Medida = medidas.includes(medidaSel) ? medidaSel : medidas[0];
   const ehValor = medida === 'valor';
@@ -137,6 +140,14 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
     return montarGrade(pontos, { metrica, comparacao, hoje, anoInicial: ANO_INICIAL, baseMin: medida === 'valor' ? baseMin : BASE_MIN_QTD, diasUteisMes: du });
   }), [series, comparacao, hoje, baseMin, du, medida]);
 
+  // Feriados (nacionais de todos os anos com semanas + extras) para os dias úteis.
+  const feriados = useMemo(() => {
+    const anosSem = new Set(series.flatMap((s) => (s.semanas || []).map((w) => Number(w.inicio.slice(0, 4)))));
+    anosSem.add(hoje.getFullYear());
+    const set = new Set<string>(feriadosExtras || []);
+    for (const a of anosSem) for (const f of feriadosNacionais(a)) set.add(f);
+    return set;
+  }, [series, feriadosExtras, hoje]);
   // Semanas de cada série (mais recente primeiro), na medida escolhida.
   const semanasSerie: LinhaSemana[][] = useMemo(() => series.map((s) => {
     const pontos: PontoSemana[] = [];
@@ -146,8 +157,8 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
       if (n != null) pontos.push({ inicio: w.inicio, valor: n, custo: 0 });
     }
     const metrica: Metrica = medida !== 'valor' || s.servico ? 'venda' : s.metrica;
-    return montarSemanas(pontos, { metrica, hoje, baseMin: medida === 'valor' ? baseMin / 4 : BASE_MIN_QTD });
-  }), [series, medida, hoje, baseMin]);
+    return montarSemanas(pontos, { metrica, hoje, baseMin: medida === 'valor' ? baseMin / 4 : BASE_MIN_QTD, feriados });
+  }), [series, medida, hoje, baseMin, feriados]);
   const inicioSemanas = [...new Set(semanasSerie.flatMap((ls) => ls.map((l) => l.inicio)))].sort().reverse();
   // Comparação pronta: só semanas fechadas (a corrente é parcial).
   const semanaAtual = inicioSemana(hoje);
@@ -189,7 +200,7 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
       ? `Δ ${rotuloComp}. O mês corrente é parcial: mostra o valor e a projeção, sem Δ.`
       : vista === 'trimestres'
         ? 'Cada trimestre traz dois Δ: vs trimestre anterior e vs mesmo trimestre do ano anterior. Trimestre incompleto fica sem Δ.'
-        : 'Semana de segunda a domingo, pela data do faturamento. Δ vs semana anterior e vs a mesma semana (nº da semana) do ano anterior. A semana corrente é parcial, sem Δ.',
+        : 'Semana de segunda a domingo, pela data do faturamento; (4d) = dias úteis da semana (seg–sex fora dos feriados). Δ vs semana anterior, vs a semana equivalente do mês anterior (a semana é do mês da sua quinta-feira: 2ª de outubro × 2ª de setembro) e vs a mesma semana (nº) do ano anterior. A semana corrente é parcial, sem Δ.',
     vista === 'semanas' ? '' : 'O total do ano corrente compara só os meses fechados com os mesmos meses do ano anterior.',
     du ? `Projeção do mês: ritmo de ${du.decorridos} de ${du.total} dias úteis (com feriados)${du.decorridos < PROJECAO_MIN_DIAS ? `; aparece a partir de ${PROJECAO_MIN_DIAS}` : ''}.` : '',
     onMes && vista === 'meses' ? 'Clique num mês para abrir o dashboard dele.' : '',
@@ -233,7 +244,7 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
           </div>
         )}
         <span title={explicacao} style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '.8rem', color: '#6b7280', cursor: 'help' }}>
-          {vista === 'meses' ? `Δ ${rotuloComp}` : vista === 'trimestres' ? 'Δ vs trimestre anterior · vs ano anterior' : 'Δ vs semana anterior · vs ano anterior'}
+          {vista === 'meses' ? `Δ ${rotuloComp}` : vista === 'trimestres' ? 'Δ vs trimestre anterior · vs ano anterior' : 'Δ vs semana anterior · mês anterior · ano anterior'}
           <span style={{ width: 18, height: 18, borderRadius: '50%', border: '1px solid #d1d5db', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: '.72rem', fontWeight: 700 }}>?</span>
         </span>
       </div>
@@ -310,6 +321,7 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
                   </th>
                 ))}
                 {!multi && <th style={{ ...th, textAlign: 'right' }}>vs semana anterior</th>}
+                {!multi && <th style={{ ...th, textAlign: 'right' }}>vs semana equivalente do mês anterior</th>}
                 {!multi && <th style={{ ...th, textAlign: 'right' }}>vs mesma semana do ano anterior</th>}
               </tr>
             </thead>
@@ -321,17 +333,21 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
                   <tr key={inicio}>
                     <td style={{ ...td, whiteSpace: 'nowrap' }}>
                       <div style={{ fontWeight: 700, color: '#111827', fontSize: '.86rem' }}>{ref.rotulo}<span style={{ color: '#9ca3af', fontWeight: 500 }}>/{inicio.slice(2, 4)}</span></div>
-                      <div style={{ fontSize: '.72rem', color: '#9ca3af' }}>semana {ref.semanaIso}{ref.parcial ? ' · em andamento' : ''}</div>
+                      <div style={{ fontSize: '.72rem', color: '#9ca3af' }}>
+                        semana {ref.semanaIso} <span title={`${ref.diasUteis} dias úteis (seg–sex fora dos feriados) · ${ref.posMes.pos}ª semana de ${MESES[ref.posMes.mes - 1].toLowerCase()}`} style={{ color: ref.diasUteis < 5 ? '#b45309' : '#9ca3af', fontWeight: ref.diasUteis < 5 ? 700 : 400 }}>({ref.diasUteis}d)</span>
+                        {ref.parcial ? ' · em andamento' : ''}
+                      </div>
                     </td>
                     {linhasSem.map((l, i) => (
                       <td key={i} style={{ ...td, textAlign: 'right', whiteSpace: 'nowrap' }}
-                        title={l ? `${multi ? series[i].nome + ' · ' : ''}${l.rotulo}: ${fmtVLongo(l.valor)}${l.deltaAnt ? ` · ${fmtPct(l.deltaAnt)} vs semana anterior` : ''}${l.deltaAno ? ` · ${fmtPct(l.deltaAno)} vs semana ${l.semanaIso}/${l.anoIso - 1}` : ''}` : undefined}>
+                        title={l ? `${multi ? series[i].nome + ' · ' : ''}${l.rotulo}: ${fmtVLongo(l.valor)}${l.deltaAnt ? ` · ${fmtPct(l.deltaAnt)} vs semana anterior` : ''}${l.deltaMes ? ` · ${fmtPct(l.deltaMes)} vs semana equivalente do mês anterior` : ''}${l.deltaAno ? ` · ${fmtPct(l.deltaAno)} vs semana ${l.semanaIso}/${l.anoIso - 1}` : ''}` : undefined}>
                         {!l ? <span style={{ color: '#d1d5db' }}>—</span> : (
                           <>
                             <div style={{ ...valorStyle(!multi), opacity: l.parcial ? 0.75 : 1 }}>{fmtV(l.valor)}</div>
                             {multi && !l.parcial && (
                               <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                                 <DeltaTxt d={l.deltaAnt} titulo="vs semana anterior" rotulo="sem." tamanho=".72rem" />
+                                <DeltaTxt d={l.deltaMes} titulo="vs semana equivalente do mês anterior" rotulo="mês" tamanho=".72rem" />
                                 <DeltaTxt d={l.deltaAno} titulo="vs mesma semana do ano anterior" rotulo="ano" tamanho=".72rem" />
                               </div>
                             )}
@@ -341,6 +357,7 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
                       </td>
                     ))}
                     {!multi && <td style={{ ...td, textAlign: 'right' }}>{ref.parcial ? <span style={{ color: '#d1d5db' }}>—</span> : <DeltaTxt d={ref.deltaAnt} titulo="vs semana anterior" />}</td>}
+                    {!multi && <td style={{ ...td, textAlign: 'right' }}>{ref.parcial ? <span style={{ color: '#d1d5db' }}>—</span> : <DeltaTxt d={ref.deltaMes} titulo={`vs ${ref.posMes.pos}ª semana do mês anterior`} />}</td>}
                     {!multi && <td style={{ ...td, textAlign: 'right' }}>{ref.parcial ? <span style={{ color: '#d1d5db' }}>—</span> : <DeltaTxt d={ref.deltaAno} titulo={`vs semana ${ref.semanaIso}/${ref.anoIso - 1}`} />}</td>}
                   </tr>
                 );

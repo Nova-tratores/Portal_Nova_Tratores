@@ -55,6 +55,8 @@ export interface HistoricoResult {
   diasUteisMes: { ano: number; mes: number; decorridos: number; total: number };
   /** Vista "Semanas" (segunda a domingo, desde 2024). null = RPCs semanais ainda não aplicadas (sql/dashboard-semanas.sql). */
   semanas: HistoricoSemanaPonto[] | null;
+  /** Feriados extras (municipais, env FERIADOS_EXTRAS) 'YYYY-MM-DD' — os nacionais a tela calcula. */
+  feriadosExtras: string[];
 }
 
 export interface HistoricoSemanaPonto {
@@ -373,7 +375,7 @@ export async function montarHistorico(
     decorridos: diasUteis(hojeSP.ano, hojeSP.mes, feriados, hojeSP.dia - 1),
     total: diasUteis(hojeSP.ano, hojeSP.mes, feriados),
   };
-  return { catKey, nome: nomeCard, meses: resultados, diasUteisMes, semanas: await semanasP };
+  return { catKey, nome: nomeCard, meses: resultados, diasUteisMes, semanas: await semanasP, feriadosExtras: [...feriadosExtras()] };
 }
 
 // ====================== /api/dashboard/categorias-vendas ======================
