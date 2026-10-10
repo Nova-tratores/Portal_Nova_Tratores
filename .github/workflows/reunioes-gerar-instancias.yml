@@ -1,0 +1,17 @@
+# Reuniões — diário 05:50 BRT: próxima instância das séries recorrentes (14 dias) + rodízio do secretário.
+name: Reunioes - Gerar instancias
+
+on:
+  schedule:
+    - cron: '50 8 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  instancias:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota do cron
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/reunioes/cron/gerar-instancias"

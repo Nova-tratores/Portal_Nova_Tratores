@@ -40,6 +40,37 @@ export const FONTE_COR: Record<FonteCron, { bg: string; fg: string; border: stri
 export const AGENDAMENTOS: Agendamento[] = [
   // ───────────────────────── GitHub Actions (ativos) ─────────────────────────
   {
+    nome: 'Reuniões — corte da pauta',
+    modulo: 'Central de Trabalho',
+    fonte: 'github',
+    cron: '0 * * * *',
+    frequencia: 'De hora em hora',
+    alvo: 'POST /api/reunioes/cron/corte-pauta',
+    arquivo: '.github/workflows/reunioes-corte-pauta.yml',
+    obs: 'Só grava a etapa e notifica; o corte em si é calculado na leitura (etapaEfetiva), porque o GitHub atrasa.',
+  },
+  {
+    nome: 'Reuniões — lembrete de ata (24 h)',
+    modulo: 'Central de Trabalho',
+    fonte: 'github',
+    cron: '30 * * * *',
+    frequencia: 'De hora em hora',
+    alvo: 'POST /api/reunioes/cron/lembrete-ata',
+    arquivo: '.github/workflows/reunioes-lembrete-ata.yml',
+    obs: 'Uma vez por reunião (evento-marcador lembrete_ata).',
+  },
+  {
+    nome: 'Reuniões — gerar instâncias das séries',
+    modulo: 'Central de Trabalho',
+    fonte: 'github',
+    cron: '50 8 * * *',
+    frequencia: 'Diário',
+    horarioBRT: '05:50',
+    alvo: 'POST /api/reunioes/cron/gerar-instancias',
+    arquivo: '.github/workflows/reunioes-gerar-instancias.yml',
+    obs: 'Garante 14 dias à frente; gira o secretário (rodízio).',
+  },
+  {
     nome: 'Sync incremental (mês atual)',
     modulo: 'Estoque',
     fonte: 'github',

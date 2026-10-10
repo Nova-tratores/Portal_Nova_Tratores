@@ -1,0 +1,17 @@
+# Reuniões — de hora em hora: reunião em andamento/rascunho há 24h+ → avisa secretário e condutor (R11), uma vez.
+name: Reunioes - Lembrete de ata
+
+on:
+  schedule:
+    - cron: '30 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  lembrete:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota do cron
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/reunioes/cron/lembrete-ata"

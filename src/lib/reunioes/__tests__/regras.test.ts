@@ -155,6 +155,10 @@ describe('séries', () => {
     expect(proximaDataDaSerie({ recorrencia: 'semanal', dia_semana: 1 }, '2026-10-13')).toBe('2026-10-19')
     expect(proximaDataDaSerie({ recorrencia: 'semanal', dia_semana: 2 }, '2026-10-13')).toBe('2026-10-20')
     expect(proximaDataDaSerie({ recorrencia: 'nenhuma', dia_semana: 1 }, '2026-10-13')).toBeNull()
+    // com a última instância, quinzenal/mensal andam no passo real
+    expect(proximaDataDaSerie({ recorrencia: 'quinzenal', dia_semana: 1 }, '2026-10-13', '2026-10-12')).toBe('2026-10-26')
+    expect(proximaDataDaSerie({ recorrencia: 'mensal', dia_semana: 1 }, '2026-10-13', '2026-10-12')).toBe('2026-11-09')
+    expect(proximaDataDaSerie({ recorrencia: 'quinzenal', dia_semana: 1 }, '2026-11-20', '2026-10-12')).toBe('2026-11-23') // pula as já passadas
     expect(inicioISO('2026-10-19', '10:00')).toBe('2026-10-19T10:00:00-03:00')
     expect(addDias('2026-10-31', 1)).toBe('2026-11-01')
   })

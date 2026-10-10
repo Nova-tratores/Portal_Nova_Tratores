@@ -1,0 +1,17 @@
+# Reuniões — de hora em hora (o corte também é calculado na leitura — o cron só grava e notifica).
+name: Reunioes - Corte da pauta
+
+on:
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  corte:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota do cron
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/reunioes/cron/corte-pauta"

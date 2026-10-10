@@ -263,6 +263,52 @@ usam essa função.
 
 ---
 
+## Reuniões (pauta + ata) — ADR-008: Reunião como tipo de ticket
+
+**Contexto.** As reuniões da empresa precisavam de pauta (itens como pergunta), bloco de
+pendências no início, registro de decisão com motivo, ações com dono e prazo, e uma ata
+que não mude depois de publicada. Já existia um motor com timeline imutável, participantes,
+visibilidade por RLS, aceite, blocos, cronograma e notificações: o de tickets.
+
+**Decisão.** Reunião **é um ticket** (`tipo='reuniao'`), com etapa própria em
+`tickets.reuniao_etapa` (agendada → pauta_fechada → em_andamento → ata_rascunho →
+ata_publicada; cancelada) e o `status` genérico só como projeção (`ETAPA_INFO`), exatamente
+como a SC. Pauta, presenças e ata vivem em tabelas satélites (`reunioes_itens`,
+`reunioes_presencas`, `reunioes_ata`) lidas por `tickets_pode_ver(reuniao_id)`; a série
+(`reunioes_series`) tem helper própria. **Cada ação decidida é um ticket comum**
+(`tipo='generico'`, `origem_reuniao_id`, `origem_reuniao_item_id`) e passa pelo aceite normal —
+a lista de ações é a fonte da verdade; a ata só registra onde a ação nasceu. Migration:
+`sql/reunioes.sql`. Regras puras em `src/lib/reunioes/regras.ts`.
+
+**Regras que valem (R1–R13).** Pendências primeiro (só atrasadas/vencendo; concluídas = contagem);
+cada atrasada recebe UMA saída (novo prazo · reatribuir · escalar · cancelar), com corte em
+2 reprogramações (`prazo_reprogramacoes`, incrementado também pelo `editar` do ticket); item de
+pauta é pergunta (decidir/informar/discutir, quem traz, tempo); corte da pauta
+`corte_antecedencia_horas` antes (calculado na leitura — `etapaEfetiva` — porque o cron do GitHub
+atrasa); `decidir` só fecha com decisão + **motivo** (constraint no banco); `informar`/`discutir`
+não exigem ação; ação nasce com responsável + prazo e solicitante = condutor; condutor ≠
+secretário (aviso) com rodízio na série; ata imutável (adendo = evento `ata_adendo`); lembrete
+de ata em 24 h; reunião privada = ações privadas; parking lot vira sugestão da próxima reunião.
+
+**Alternativas descartadas.** (a) Tabela própria de reuniões fora da engine — duplicaria
+timeline, participantes, visibilidade, notificações e aceite, e as ações ficariam fora dos
+blocos/cronograma. (b) "Aprovação por silêncio" das ações/ata — substituída pelo aceite
+explícito que já existe (confirmar · outra data · recusar); nada é dado como aceito sem a
+pessoa dizer.
+
+**Consequências.** Mais um `tipo` que as visões precisam tratar: `status`/`transferir`
+genéricos recusam reunião; `central` (Pra organizar) e `fila` não listam reunião; cronograma
+geral e visão gerencial listam (com filtro "Origem: reunião"); o auto-fechar leva a reunião de
+`resolvido` (ata publicada) a `fechado` em 7 dias — desejado, encerra o prazo de adendos
+simples. `reatribuirAcao` duplica o núcleo do `transferir` (não dá para chamar a rota de dentro
+do servidor) — mudar a regra de transferência exige mexer nos dois. Eventos novos no CHECK de
+`tickets_eventos.tipo`: `reuniao_etapa`, `item_resultado`, `acao_criada`, `pendencia_tratada`,
+`ata_publicada`, `ata_adendo`. Crons: corte da pauta, lembrete de ata e geração de instâncias
+(`.github/workflows/reunioes-*.yml`). Rotas em `/api/reunioes/*`; telas em `/reunioes`
+(lista/séries) e `/reunioes/[id]` (modos pauta · condução · ata).
+
+---
+
 ## Estado atual (deploy)
 
 - **v1 deployado na `main`** (commit 97b9cfe, 10/07/2026); migration `sql/create-tickets.sql`

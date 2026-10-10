@@ -123,6 +123,51 @@ try:
     st, t = rest(f"tickets?select=status&id=eq.{acao['id']}"); check('ação cancelada', t and t[0]['status'] == 'cancelado')
     st, ev = rest(f"tickets_eventos?select=tipo&ticket_id=eq.{acao['id']}&tipo=eq.pendencia_tratada"); check('eventos pendencia_tratada na ação (3: novo prazo, escalar, cancelar; o 3º prazo recusado não gera)', st == 200 and len(ev) == 3, len(ev) if st == 200 else ev)
 
+    print('\n[Fase 5 — constraint, reunião privada (RLS com 2º usuário), aceite no painel]')
+    # constraint R7 no banco: decidido sem motivo é recusado mesmo pelo service role
+    st, cr = rest('reunioes_itens', 'POST', {'reuniao_id': r2['id'], 'pergunta': 'x', 'tipo': 'decidir', 'trazido_por': ME, 'resultado': 'decidido', 'decisao_texto': 'sim'})
+    check('CHECK reunioes_itens_decidido_completo recusa decidido sem motivo', st == 400 and '23514' in str(cr), (st, str(cr)[:80]))
+    # 2º usuário (Mecânico Teste): token real por magic link
+    st, u2 = rest("financeiro_usu?select=id,email&nome=ilike.*teste*&limit=1")
+    tok2 = None
+    if u2 and u2[0].get('email'):
+        def _post(path, body, key):
+            rq = urllib.request.Request(URL + path, data=json.dumps(body).encode(), headers={'apikey': key, 'Authorization': 'Bearer ' + key, 'Content-Type': 'application/json'})
+            return json.load(urllib.request.urlopen(rq, timeout=30))
+        try:
+            g = _post('/auth/v1/admin/generate_link', {'type': 'magiclink', 'email': u2[0]['email']}, SRV)
+            th = g.get('hashed_token') or g.get('properties', {}).get('hashed_token')
+            tok2 = _post('/auth/v1/verify', {'type': 'magiclink', 'token_hash': th}, ANON)['access_token']
+        except Exception as e: print('  (sem token do 2º usuário:', e, ')')
+    check('token do 2º usuário obtido', bool(tok2))
+    # reunião PRIVADA avulsa (só eu); item; ação privada
+    st, j = api('/api/reunioes', 'POST', {'dia': dia2.isoformat(), 'hora': '15:00', 'titulo': 'TESTE-REUNIAO privada', 'visibilidade': 'privado'}); rp = j['reuniao']; criados['tickets'].append(rp['id'])
+    check('reunião privada criada', st == 200 and rp['visibilidade'] == 'privado', j)
+    st, j = api(f'/api/reunioes/{rp["id"]}/itens', 'POST', {'acao': 'incluir', 'pergunta': 'Assunto sensível?', 'tipo': 'discutir'}); check('item na privada', st == 200)
+    st, j = api(f'/api/reunioes/{rp["id"]}/acoes', 'POST', {'acao': 'criar_acao', 'titulo': 'TESTE-ACAO privada', 'responsavel_id': ME, 'prazo': d1}); check('R12 ação da privada nasce privada', st == 200 and j['ticket']['visibilidade'] == 'privado', j); acp = j['ticket']; criados['tickets'].append(acp['id'])
+    if tok2:
+        def rls(q):
+            rq = urllib.request.Request(URL + '/rest/v1/' + q, headers={'apikey': ANON, 'Authorization': 'Bearer ' + tok2}); return json.load(urllib.request.urlopen(rq, timeout=30))
+        check('R12 2º usuário NÃO lê o ticket da reunião privada', rls(f"tickets?select=id&id=eq.{rp['id']}") == [])
+        check('R12 2º usuário NÃO lê os itens', rls(f"reunioes_itens?select=id&reuniao_id=eq.{rp['id']}") == [])
+        check('R12 2º usuário NÃO lê presenças', rls(f"reunioes_presencas?select=usuario_id&reuniao_id=eq.{rp['id']}") == [])
+        check('R12 2º usuário NÃO lê a ação privada', rls(f"tickets?select=id&id=eq.{acp['id']}") == [])
+        check('2º usuário LÊ os itens da reunião pública onde participa', len(rls(f"reunioes_itens?select=id&reuniao_id=eq.{r2['id']}")) >= 1)
+        # aceite pendente aparece no painel do dia do responsável (precisa do módulo da Central — concedido só durante o teste)
+        st, j = api(f'/api/reunioes/{r2["id"]}/acoes', 'POST', {'acao': 'criar_acao', 'titulo': 'TESTE-ACAO para o mecanico', 'responsavel_id': u2[0]['id'], 'prazo': d2}); acm = j['ticket']; criados['tickets'].append(acm['id'])
+        check('ação para o 2º usuário nasce aceite=pendente', acm['aceite'] == 'pendente', acm)
+        st, perm = rest(f"portal_permissoes?select=modulos_permitidos&user_id=eq.{u2[0]['id']}")
+        mods_antes = perm[0]['modulos_permitidos'] if perm else None
+        if perm is not None and perm:
+            rest(f"portal_permissoes?user_id=eq.{u2[0]['id']}", 'PATCH', {'modulos_permitidos': list(set((mods_antes or []) + ['tickets']))})
+            try:
+                st, hj = api('/api/trabalho/hoje', token=tok2)
+                check('R8 ação pendente aparece no PainelDoDia do responsável', st == 200 and any(p['id'] == acm['id'] for p in hj.get('pendentes', [])), (st, [p.get('id') for p in hj.get('pendentes', [])] if st == 200 else hj))
+            finally:
+                rest(f"portal_permissoes?user_id=eq.{u2[0]['id']}", 'PATCH', {'modulos_permitidos': mods_antes})
+        else:
+            print('  (2º usuário sem linha em portal_permissoes — teste do painel pulado)')
+
     print('\n[RLS pelo navegador]')
     st, a = rest(f"reunioes_itens?select=id&reuniao_id=eq.{r1['id']}", key=ANON); check('anon não lê itens ([] ou 401)', st == 401 or (st == 200 and a == []), (st, a))
     rq = urllib.request.Request(URL + f"/rest/v1/reunioes_itens?select=id&reuniao_id=eq.{r1['id']}", headers={'apikey': ANON, 'Authorization': 'Bearer ' + TOK})

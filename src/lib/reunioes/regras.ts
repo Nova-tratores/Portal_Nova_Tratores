@@ -388,17 +388,25 @@ export function addDias(iso: string, n: number): string {
   return d.toISOString().slice(0, 10)
 }
 
-/** Próxima data (YYYY-MM-DD, no fuso de SP via `hojeSP`) da série depois de `apos`. */
-export function proximaDataDaSerie(serie: Pick<Serie, 'recorrencia' | 'dia_semana'>, apos: string): string | null {
+/**
+ * Próxima data (YYYY-MM-DD) da série estritamente depois de `apos`.
+ * Com `ultima` (dia da última instância), quinzenal/mensal andam no passo
+ * real (14/28 dias) a partir dela; sem `ultima`, é o próximo dia_semana.
+ */
+export function proximaDataDaSerie(serie: Pick<Serie, 'recorrencia' | 'dia_semana'>, apos: string, ultima?: string | null): string | null {
   if (serie.recorrencia === 'nenhuma' || serie.dia_semana == null) return null
   const passo = serie.recorrencia === 'semanal' ? 7 : serie.recorrencia === 'quinzenal' ? 14 : 28
+  if (ultima && new Date(ultima + 'T12:00:00Z').getUTCDay() === serie.dia_semana) {
+    let d = addDias(ultima, passo)
+    while (d <= apos) d = addDias(d, passo)
+    return d
+  }
   // Próximo dia_semana estritamente depois de `apos`.
   let d = addDias(apos, 1)
   for (let i = 0; i < 7; i++) {
     if (new Date(d + 'T12:00:00Z').getUTCDay() === serie.dia_semana) return d
     d = addDias(d, 1)
   }
-  void passo
   return null
 }
 
