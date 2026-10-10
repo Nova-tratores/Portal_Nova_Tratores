@@ -229,6 +229,9 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   const souParticipante = participantesAtivos.some((p) => p.user_id === uid)
   const encerrado = !!ticket && STATUS_FINAIS.includes(ticket.status)
   const ehSC = !!ticket && ticket.tipo === 'compras'
+  // POP: execução não precisa de bloco; revisão anda só por Aprovar/Reprovar (módulo de POPs).
+  const ehExecPop = !!ticket && ticket.tipo === 'pop'
+  const ehRevisaoPop = !!ticket && ticket.tipo === 'pop_revisao'
   const scPayload = (ticket?.payload || {}) as PayloadSC
   const scMargem = ehSC ? margemPrevista(scPayload.valor_unitario ?? scPayload.preco_alvo, scPayload.preco_venda_previsto) : null
   const scInfo = ehSC && ticket?.sc_etapa ? SC_ETAPA_INFO[ticket.sc_etapa as ScEtapa] : null
@@ -353,7 +356,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
   // Sem bloco o ticket não anda (mesma regra do servidor): quem pediu ainda
   // confirma/contesta o resolvido e todos podem cancelar.
   const semBlocoPode = (s: TicketStatus) => s === 'fechado' || (souSolicitante && ticket.status === 'resolvido')
-  const statusBotoes = ehSC ? [] : proximosStatus.filter((s) => s !== 'cancelado' && ROTULO_STATUS_ACAO[s] && (!!quadro || semBlocoPode(s)))
+  const statusBotoes = ehSC || ehRevisaoPop ? [] : proximosStatus.filter((s) => s !== 'cancelado' && ROTULO_STATUS_ACAO[s] && (!!quadro || semBlocoPode(s) || ehExecPop))
     .sort((a, b) => Number(!!ROTULO_STATUS_ACAO[b]?.destaque) - Number(!!ROTULO_STATUS_ACAO[a]?.destaque))
   const podeCancelar = !ehSC && proximosStatus.includes('cancelado')
   const continuo = !ticket.prazo
@@ -413,6 +416,13 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
               📋 Nascida na reunião{(ticket.payload as { reuniao_titulo?: string })?.reuniao_titulo ? `: ${(ticket.payload as { reuniao_titulo?: string }).reuniao_titulo}` : ''}
             </a>
           )}
+          {(ticket.tipo === 'pop' || ticket.tipo === 'pop_revisao') && (
+            <a href={ticket.tipo === 'pop' ? `/pops/executar/${ticket.id}` : `/pops/${String((ticket.payload as { pop_id?: string }).pop_id || '')}?versao=${String((ticket.payload as { versao_id?: string }).versao_id || '')}`}
+              title={ticket.tipo === 'pop' ? 'Abrir a execução passo a passo' : 'Abrir a versão para aprovar'}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', color: '#0f766e', background: 'rgba(15,118,110,.1)', border: '1px solid rgba(15,118,110,.3)' }}>
+              📋 {ticket.tipo === 'pop' ? 'Abrir execução do POP' : 'Revisão de POP — abrir'}
+            </a>
+          )}
           {quadro && (
             <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o bloco"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', color: 'var(--portal-text,#111)', background: quadro.cor + '1f', border: `1px solid ${quadro.cor}55` }}>
@@ -464,7 +474,7 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
         )}
 
         {/* Todo ticket precisa estar num bloco antes de andar */}
-        {!ehSC && !quadro && !encerrado && (
+        {!ehSC && !ehExecPop && !ehRevisaoPop && !quadro && !encerrado && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12, padding: '10px 12px', borderRadius: 10, background: 'rgba(217,119,6,.1)', color: '#b45309', fontSize: 13, fontWeight: 600 }}>
             <LayoutGrid size={15} />
             <span style={{ flex: 1, minWidth: 200 }}>
@@ -1060,6 +1070,17 @@ function LinhaEvento({ e, uid, nome, usuarios }: {
     }
   }
   else if (e.tipo === 'pc_emitido') texto = <>emitiu o Pedido de Compra <strong>{String(e.payload.pedido_omie_numero || '')}</strong>{e.payload.condicoes ? <> — {String(e.payload.condicoes)}</> : null}</>
+  else if (e.tipo === 'pop_resposta') {
+    const v = (e.payload.valor || {}) as Record<string, unknown>
+    const mostra = typeof v.sim === 'boolean' ? (v.sim ? 'Sim' : 'Não')
+      : v.numero !== undefined ? String(v.numero) : v.opcao ? String(v.opcao) : v.texto ? String(v.texto).slice(0, 80)
+      : v.nome ? `assinado por ${String(v.nome)}` : Number(e.payload.fotos) ? `${String(e.payload.fotos)} foto(s)` : ''
+    texto = <>{e.payload.refeito ? 'refez' : 'respondeu'} o passo {String(e.payload.ordem || '')} <strong>{String(e.payload.titulo || '')}</strong>{mostra ? <>: {mostra}</> : null}</>
+  }
+  else if (e.tipo === 'pop_alerta') texto = <span style={{ color: '#b45309' }}>⚠ valor fora da faixa no passo {String(e.payload.ordem || '')} <strong>{String(e.payload.titulo || '')}</strong>: {String(e.payload.numero)}{e.payload.unidade ? ` ${String(e.payload.unidade)}` : ''} (faixa {String(e.payload.min ?? '—')} a {String(e.payload.max ?? '—')})</span>
+  else if (e.tipo === 'pop_revisao_submetida') texto = <>enviou a <strong>v{String(e.payload.numero || '')}</strong> para aprovação: {String(e.payload.changelog || '')}</>
+  else if (e.tipo === 'pop_revisao_aprovada') texto = <>aprovou e publicou a <strong>v{String(e.payload.numero || '')}</strong>{e.payload.parecer ? <> — {String(e.payload.parecer)}</> : null}</>
+  else if (e.tipo === 'pop_revisao_reprovada') texto = <>devolveu a <strong>v{String(e.payload.numero || '')}</strong> para ajustes: {String(e.payload.parecer || '')}</>
   else if (e.tipo === 'anexo') {
     const urlAnexo = typeof e.payload.url === 'string' ? e.payload.url : ''
     const ehImagem = /\.(png|jpe?g|gif|webp)(\?|$)/i.test(urlAnexo)

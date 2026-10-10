@@ -182,6 +182,11 @@ try:
     check('execução aponta a v1 e lista 4 pendentes', st == 200 and j['execucao']['versao_id'] == V1 and len(j['pendentes']) == 4, (st, j and j.get('pendentes')))
     st, j = api(f'/api/pops/execucoes/{EX}', 'GET', None, TC)
     check('comum NÃO vê execução privada alheia (404)', st == 404, (st, j))
+    st, j = api('/api/pops/execucoes', 'GET', None, TD)
+    mx = next((x for x in (j or {}).get('execucoes', []) if x['id'] == EX), None)
+    check('minhas execuções lista a nova com 0 de 5 respondidos e a referência', st == 200 and mx and mx['total'] == 5 and mx['respondidos'] == 0 and mx['ref_externa'] == 'OS-TESTE-1', mx)
+    st, j = api('/api/pops/execucoes', 'GET', None, TC)
+    check('minhas execuções do comum não traz a execução alheia', st == 200 and not any(x['id'] == EX for x in j['execucoes']), st)
     st, j = api(f'/api/pops/execucoes/{EX}', 'POST', {'acao': 'responder', 'passo_id': P1[2]['id'], 'valor': {'sim': True}}, TC)
     check('comum não responde (404)', st == 404, (st, j))
     st, j = api(f'/api/pops/execucoes/{EX}', 'POST', {'acao': 'responder', 'passo_id': P1[2]['id'], 'valor': {'sim': True}}, TD)
@@ -380,7 +385,7 @@ finally:
     # Avisos que o teste disparou (o DEV é uma pessoa real): apaga os do período do teste.
     import re, urllib.parse
     st, ns = rest("portal_notificacoes?select=id,titulo,descricao&tipo=eq.tickets&created_at=gte." + urllib.parse.quote(INICIO) + "&limit=1000")
-    lixo = [n['id'] for n in (ns or []) if re.search(r'TST-|TESTE', f"{n['titulo']} {n.get('descricao') or ''}")]
+    lixo = [n['id'] for n in (ns or []) if re.search(r'TST-|TESTE-API', f"{n['titulo']} {n.get('descricao') or ''}")]
     if lixo: rest(f"portal_notificacoes?id=in.({','.join(map(str, lixo))})", 'DELETE')
     print(f'  avisos de teste apagados: {len(lixo)}')
     rest(f"pops_areas?id=eq.{AREA}", 'PATCH', {'ativo': False})

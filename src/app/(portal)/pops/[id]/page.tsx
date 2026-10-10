@@ -6,12 +6,13 @@ export const dynamic = 'force-dynamic'
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { AlertTriangle, Archive, BadgeCheck, Copy, History, Library, Pencil, Trash2 } from 'lucide-react'
+import { AlertTriangle, Archive, BadgeCheck, Copy, History, Library, Pencil, PlayCircle, Trash2 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import type { ConfigPasso, EstadoVersao, TipoPasso } from '@/lib/pops/regras'
 import { VersaoConteudo } from '@/components/pops/PassoPreview'
 import HistoricoVersoes, { type VersaoResumo } from '@/components/pops/HistoricoVersoes'
 import ModalDuplicar from '@/components/pops/ModalDuplicar'
+import ModalExecutar from '@/components/pops/ModalExecutar'
 import PainelRevisao from '@/components/pops/PainelRevisao'
 import {
   COR_POPS, EstadoChip, botao, botaoClaro, br, cartao, chamar, chip, pagina, primeiroNome, vazio, type UsuarioMapa,
@@ -43,6 +44,7 @@ function Detalhe() {
   const [erro, setErro] = useState('')
   const [aba, setAba] = useState<'conteudo' | 'historico'>('conteudo')
   const [duplicar, setDuplicar] = useState(false)
+  const [executar, setExecutar] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [aviso, setAviso] = useState('')
   const versaoPedida = sp.get('versao') || ''
@@ -109,6 +111,9 @@ function Detalhe() {
 
         {/* Ações */}
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {papeis.executar && publicada && pop.template_tipo !== 'sistema' && (
+            <button onClick={() => setExecutar(true)} style={botao('#059669')}><PlayCircle size={15} /> Executar</button>
+          )}
           {papeis.editar && edicao?.estado === 'rascunho' && (
             <Link href={`/pops/${id}/editar?versao=${edicao.id}`} style={{ ...botao(COR_POPS), textDecoration: 'none' }}><Pencil size={14} /> Editar rascunho v{edicao.numero}</Link>
           )}
@@ -194,6 +199,7 @@ function Detalhe() {
         <HistoricoVersoes popId={id} versoes={d.versoes} usuarios={d.usuarios} />
       )}
 
+      {executar && <ModalExecutar popId={id} codigo={pop.codigo} meuId={meuId} onFechar={() => setExecutar(false)} />}
       {duplicar && <ModalDuplicar popId={id} codigo={pop.codigo} titulo={pop.titulo} onFechar={() => setDuplicar(false)} />}
     </div>
   )

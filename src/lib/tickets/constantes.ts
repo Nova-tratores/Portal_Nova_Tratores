@@ -40,6 +40,12 @@ export type EventoTipo =
   | 'pendencia_tratada'
   | 'ata_publicada'
   | 'ata_adendo'
+  // POPs (tipos 'pop' e 'pop_revisao') — sql/pops-01-schema.sql
+  | 'pop_resposta'
+  | 'pop_alerta'
+  | 'pop_revisao_submetida'
+  | 'pop_revisao_aprovada'
+  | 'pop_revisao_reprovada'
 
 export interface Ticket {
   id: string

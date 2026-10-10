@@ -4,6 +4,7 @@
 // resumo do serviço, quadro pra assinar com o dedo, nome, e captura GPS +
 // modelo do aparelho como prova. Usada em /assinar/<token>.
 import { useCallback, useEffect, useRef, useState } from "react";
+import CanvasAssinatura, { type CanvasAssinaturaRef } from "./CanvasAssinatura";
 
 interface Resumo {
   osId: string; numero: string; cliente: string; tipoServico: string; servico: string; data: string; tecnico: string;
@@ -21,9 +22,7 @@ export default function AssinarOS({ token }: { token: string }) {
   const [temTraco, setTemTraco] = useState(false);
   const [geo, setGeo] = useState<Geo | null>(null);
   const [geoStatus, setGeoStatus] = useState<"pedindo" | "ok" | "negada" | "erro">("pedindo");
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const desenhando = useRef(false);
-  const ultimo = useRef<{ x: number; y: number } | null>(null);
+  const quadro = useRef<CanvasAssinaturaRef | null>(null);
 
   useEffect(() => {
     fetch(`/api/assinar/${encodeURIComponent(token)}`)
@@ -59,38 +58,15 @@ export default function AssinarOS({ token }: { token: string }) {
     return { modelo, plataforma, versao, ua: ua.slice(0, 300), tela: `${window.screen?.width || 0}x${window.screen?.height || 0}` };
   }, []);
 
-  const prepararCanvas = useCallback(() => {
-    const c = canvasRef.current; if (!c) return;
-    const dpr = Math.min(window.devicePixelRatio || 1, 3);
-    const w = c.clientWidth, h = c.clientHeight;
-    if (c.width !== Math.round(w * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
-    const ctx = c.getContext("2d"); if (!ctx) return;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 2.6; ctx.strokeStyle = "#1c2a7a";
-  }, []);
-  useEffect(() => { prepararCanvas(); window.addEventListener("resize", prepararCanvas); return () => window.removeEventListener("resize", prepararCanvas); }, [prepararCanvas, resumo]);
-
-  const pos = (e: React.PointerEvent<HTMLCanvasElement>) => { const r = e.currentTarget.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
-  const inicio = (e: React.PointerEvent<HTMLCanvasElement>) => { e.preventDefault(); e.currentTarget.setPointerCapture(e.pointerId); desenhando.current = true; ultimo.current = pos(e); };
-  const mover = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!desenhando.current || !ultimo.current) return;
-    e.preventDefault();
-    const ctx = e.currentTarget.getContext("2d"); if (!ctx) return;
-    const p = pos(e);
-    ctx.beginPath(); ctx.moveTo(ultimo.current.x, ultimo.current.y); ctx.lineTo(p.x, p.y); ctx.stroke();
-    ultimo.current = p; if (!temTraco) setTemTraco(true);
-  };
-  const fim = () => { desenhando.current = false; ultimo.current = null; };
-  const limpar = () => { const c = canvasRef.current; const ctx = c?.getContext("2d"); if (c && ctx) { ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, c.width, c.height); ctx.restore(); } setTemTraco(false); };
+  const limpar = () => quadro.current?.limpar();
 
   const confirmar = async () => {
-    const c = canvasRef.current; if (!c || !temTraco) return;
+    const png = quadro.current?.png(); if (!png || !temTraco) return;
     if (!nome.trim()) { setErro("Escreva seu nome."); return; }
     setEnviando(true); setErro("");
     try {
       const g = geo || (await pedirLocalizacao());
       if (!g && !confirm("Não conseguimos pegar a localização do aparelho. Deseja assinar mesmo assim?")) { setEnviando(false); return; }
-      const png = c.toDataURL("image/png");
       const r = await fetch(`/api/assinar/${encodeURIComponent(token)}/confirmar`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ png, nome: nome.trim(), geo: g, dispositivo: await dispositivo() }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || "não foi possível salvar");
@@ -151,15 +127,7 @@ export default function AssinarOS({ token }: { token: string }) {
         <div style={S.lbl}>Seu nome</div>
         <input value={nome} onChange={(e) => setNome(e.target.value)} style={{ width: "100%", padding: 10, fontSize: 15, border: "1px solid #d1d5db", borderRadius: 8, marginTop: 4, boxSizing: "border-box" }} />
         <div style={{ ...S.lbl, marginTop: 14 }}>Assine com o dedo no quadro</div>
-        <div style={{ position: "relative", marginTop: 4 }}>
-          <canvas
-            ref={canvasRef}
-            onPointerDown={inicio} onPointerMove={mover} onPointerUp={fim} onPointerCancel={fim} onPointerLeave={fim}
-            style={{ width: "100%", height: 220, border: "2px dashed #9ca3af", borderRadius: 10, background: "#fff", touchAction: "none", display: "block" }}
-          />
-          {!temTraco && <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "#9ca3af", pointerEvents: "none", fontSize: 14 }}>assine aqui</div>}
-          <div style={{ position: "absolute", left: 16, right: 16, bottom: 44, borderTop: "1px solid #e5e7eb", pointerEvents: "none" }} />
-        </div>
+        <CanvasAssinatura ref={quadro} temTraco={temTraco} onTraco={setTemTraco} />
         <div style={{ marginTop: 10, fontSize: 12, display: "flex", alignItems: "center", gap: 8, color: geoStatus === "ok" ? "#047857" : geoStatus === "pedindo" ? "#6b7280" : "#b45309" }}>
           <span>{geoStatus === "ok" ? "📍" : geoStatus === "pedindo" ? "⏳" : "⚠️"}</span>
           <span>

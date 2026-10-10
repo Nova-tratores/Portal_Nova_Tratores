@@ -4,7 +4,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, Library, Stamp, Users } from 'lucide-react'
+import { ClipboardList, Library, PlayCircle, Stamp, Users } from 'lucide-react'
 import { chamar, COR_POPS } from './comum'
 
 export default function PopsNav() {
@@ -24,10 +24,14 @@ export default function PopsNav() {
 
   const guias = [
     { href: '/pops', label: 'POPs', icone: <ClipboardList size={15} />, ativa: path === '/pops' || (/^\/pops\/[0-9a-f-]{36}/.test(path)) },
+    { href: '/pops/minhas', label: 'Minhas execuções', icone: <PlayCircle size={15} />, ativa: path.startsWith('/pops/minhas') },
     { href: '/pops/modelos', label: 'Modelos', icone: <Library size={15} />, ativa: path.startsWith('/pops/modelos') },
     { href: '/pops/aprovar', label: 'Para aprovar', icone: <Stamp size={15} />, ativa: path.startsWith('/pops/aprovar'), n: pendentes },
     ...(admin ? [{ href: '/pops/areas', label: 'Áreas e papéis', icone: <Users size={15} />, ativa: path.startsWith('/pops/areas') }] : []),
   ]
+
+  // Na execução (celular) a tela é toda do passo a passo.
+  if (path.startsWith('/pops/executar')) return null
 
   return (
     <div style={{ background: `linear-gradient(135deg, #14b8a6, ${COR_POPS})`, padding: '10px 16px 0' }}>
