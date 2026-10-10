@@ -1,0 +1,201 @@
+{
+  "_leia": "Modelos do SISTEMA (biblioteca de POPs). Conteúdo GENÉRICO: onde o dado depende de manual do fabricante ou de regra fiscal/interna, está marcado [VALIDAR: …] — não inventar valores. Carregados por scripts/pops-seed-modelos.py; validados por src/lib/pops/__tests__/modelos-sistema.test.ts. Cada modelo cabe numa folha OPL (até 12 passos).",
+  "modelos": [
+    {
+      "area": "OFI",
+      "titulo": "Entrega técnica de máquina ao cliente",
+      "objetivo": "Entregar a máquina pronta para uso, com o cliente orientado e o registro da entrega assinado.",
+      "escopo": "Toda máquina nova (e seminova, quando aplicável) entregue pela loja, na loja ou na propriedade do cliente.",
+      "materiais": "Manual do operador, termo de entrega/garantia, chave reserva, nota fiscal da máquina. [VALIDAR: documentos exigidos pelo fabricante na entrega técnica]",
+      "passos": [
+        { "tipo": "instrucao", "titulo": "Separe o manual do operador, o termo de garantia, a chave reserva e a nota fiscal da máquina" },
+        { "tipo": "check", "titulo": "Inspeção de pré-entrega (PDI) concluída e registrada?", "ajuda": "[VALIDAR: formulário de PDI do fabricante para o modelo]" },
+        { "tipo": "check", "titulo": "Número de série / chassi confere com a nota fiscal?" },
+        { "tipo": "numero", "titulo": "Horímetro na entrega", "config": { "unidade": "h" } },
+        { "tipo": "foto", "titulo": "Fotos da máquina: frente, laterais, traseira e painel", "config": { "min_fotos": 4, "max_fotos": 8 } },
+        { "tipo": "check", "titulo": "Níveis conferidos (óleo do motor, transmissão/hidráulico, arrefecimento)?", "ajuda": "[VALIDAR: pontos de verificação e especificações do manual do modelo]" },
+        { "tipo": "check", "titulo": "Cliente orientado sobre comandos, segurança e operação básica?" },
+        { "tipo": "check", "titulo": "Cliente orientado sobre o plano de revisões e as condições de garantia?", "ajuda": "[VALIDAR: intervalos de revisão e regras de garantia do fabricante]" },
+        { "tipo": "selecao", "titulo": "Local da entrega", "config": { "opcoes": ["Na loja", "Na propriedade do cliente"] } },
+        { "tipo": "texto", "titulo": "Dúvidas ou observações do cliente", "obrigatorio": false },
+        { "tipo": "assinatura", "titulo": "Cliente confirma o recebimento e a orientação", "config": { "quem": "cliente" } },
+        { "tipo": "assinatura", "titulo": "Técnico responsável pela entrega", "config": { "quem": "executor" } }
+      ]
+    },
+    {
+      "area": "OFI",
+      "titulo": "Abertura de OS e inspeção de recebimento da máquina",
+      "objetivo": "Registrar o estado da máquina na chegada e o relato do cliente antes de qualquer serviço.",
+      "escopo": "Toda máquina que entra na oficina ou é atendida no campo com abertura de OS.",
+      "materiais": "Celular com câmera, OS aberta no sistema.",
+      "passos": [
+        { "tipo": "check", "titulo": "Cliente identificado e OS aberta no sistema?" },
+        { "tipo": "texto", "titulo": "Relato do cliente: o que acontece e desde quando", "ajuda": "Escreva com as palavras do cliente." },
+        { "tipo": "numero", "titulo": "Horímetro na chegada", "config": { "unidade": "h" } },
+        { "tipo": "foto", "titulo": "Fotos dos quatro lados da máquina", "config": { "min_fotos": 4, "max_fotos": 8 } },
+        { "tipo": "foto", "titulo": "Fotos de avarias ou pontos de atenção", "obrigatorio": false, "config": { "min_fotos": 1, "max_fotos": 6 } },
+        { "tipo": "selecao", "titulo": "Vazamentos visíveis", "config": { "opcoes": ["Nenhum", "Óleo", "Combustível", "Líquido de arrefecimento", "Outro"] } },
+        { "tipo": "selecao", "titulo": "Nível de combustível na chegada", "config": { "opcoes": ["Cheio", "3/4", "Meio", "1/4", "Reserva"] } },
+        { "tipo": "check", "titulo": "Implementos, ferramentas e objetos deixados com a máquina registrados?" },
+        { "tipo": "texto", "titulo": "Itens deixados com a máquina", "obrigatorio": false },
+        { "tipo": "assinatura", "titulo": "Cliente confirma o estado registrado", "config": { "quem": "cliente" } },
+        { "tipo": "assinatura", "titulo": "Quem recebeu a máquina", "config": { "quem": "executor" } }
+      ]
+    },
+    {
+      "area": "OFI",
+      "titulo": "Revisão periódica (estrutura genérica)",
+      "objetivo": "Executar a revisão das horas indicadas exatamente conforme o plano do fabricante, com registro.",
+      "escopo": "Revisões programadas por horímetro. Antes de usar, duplique e ajuste ao modelo e à revisão.",
+      "materiais": "Kit de revisão do modelo, ferramentas, torquímetro. [VALIDAR: kit e especificações do plano de revisão do modelo]",
+      "passos": [
+        { "tipo": "instrucao", "titulo": "Confira no plano do fabricante quais itens entram nesta revisão", "ajuda": "[VALIDAR: plano de revisão do modelo para as horas desta revisão]" },
+        { "tipo": "numero", "titulo": "Horímetro no início da revisão", "config": { "unidade": "h" } },
+        { "tipo": "check", "titulo": "Óleo do motor trocado?", "ajuda": "[VALIDAR: especificação e volume do óleo do motor]" },
+        { "tipo": "check", "titulo": "Filtro de óleo do motor trocado?" },
+        { "tipo": "check", "titulo": "Filtros de combustível trocados (se previstos nesta revisão)?", "ajuda": "[VALIDAR: se o plano prevê nesta revisão]" },
+        { "tipo": "check", "titulo": "Filtro de ar inspecionado ou trocado?", "ajuda": "[VALIDAR: inspeção ou troca nesta revisão]" },
+        { "tipo": "check", "titulo": "Óleo da transmissão/hidráulico verificado ou trocado?", "ajuda": "[VALIDAR: especificação, volume e se a troca entra nesta revisão]" },
+        { "tipo": "check", "titulo": "Pontos de lubrificação engraxados?", "ajuda": "[VALIDAR: pontos e graxa indicados no manual]" },
+        { "tipo": "numero", "titulo": "Torque aplicado nas porcas das rodas", "config": { "unidade": "N·m" }, "ajuda": "[VALIDAR: torque do manual do modelo — configure a faixa ao duplicar]" },
+        { "tipo": "check", "titulo": "Folgas e regulagens do plano conferidas?", "ajuda": "[VALIDAR: itens de regulagem desta revisão]" },
+        { "tipo": "foto", "titulo": "Foto do painel com o horímetro ao final", "config": { "min_fotos": 1, "max_fotos": 2 } },
+        { "tipo": "assinatura", "titulo": "Técnico que executou a revisão", "config": { "quem": "executor" } }
+      ]
+    },
+    {
+      "area": "PEC",
+      "titulo": "Recebimento de mercadoria e conferência com a NF-e",
+      "objetivo": "Receber só o que foi pedido, na quantidade e no estado certos, e registrar qualquer divergência na hora.",
+      "escopo": "Toda mercadoria de fornecedor que chega à loja (peças e materiais).",
+      "materiais": "NF-e (DANFE ou XML), pedido de compra, estilete, etiquetas.",
+      "passos": [
+        { "tipo": "check", "titulo": "A NF-e corresponde a um pedido de compra?" },
+        { "tipo": "check", "titulo": "Quantidade de volumes confere com a NF-e / transportadora?" },
+        { "tipo": "foto", "titulo": "Foto dos volumes na chegada", "config": { "min_fotos": 1, "max_fotos": 4 } },
+        { "tipo": "check", "titulo": "Embalagens sem avaria?", "ajuda": "Havendo avaria, registre no comprovante da transportadora antes de assinar." },
+        { "tipo": "check", "titulo": "Itens e quantidades conferidos item a item com a NF-e?" },
+        { "tipo": "check", "titulo": "Códigos dos itens conferem com o cadastro?" },
+        { "tipo": "selecao", "titulo": "Divergência encontrada", "config": { "opcoes": ["Nenhuma", "Falta", "Sobra", "Item trocado", "Avaria"] } },
+        { "tipo": "texto", "titulo": "Descreva a divergência (item, quantidade)", "obrigatorio": false },
+        { "tipo": "check", "titulo": "Entrada lançada no sistema?", "ajuda": "[VALIDAR: quem lança a entrada e em que momento — regra interna]" },
+        { "tipo": "check", "titulo": "Peças encaminhadas para alocação e etiquetagem?" },
+        { "tipo": "assinatura", "titulo": "Quem conferiu o recebimento", "config": { "quem": "executor" } }
+      ]
+    },
+    {
+      "area": "PEC",
+      "titulo": "Inventário rotativo",
+      "objetivo": "Contar uma parte do estoque por dia e corrigir divergências com rastro.",
+      "escopo": "Endereços do estoque definidos para o dia.",
+      "materiais": "Lista de endereços do dia, coletor ou celular.",
+      "passos": [
+        { "tipo": "instrucao", "titulo": "Use a lista de endereços do dia e não movimente peças desses endereços durante a contagem" },
+        { "tipo": "texto", "titulo": "Endereços / prateleiras contados" },
+        { "tipo": "numero", "titulo": "Itens contados", "config": { "unidade": "itens", "min": 0 } },
+        { "tipo": "numero", "titulo": "Itens com divergência", "config": { "unidade": "itens", "min": 0, "max": 0 }, "ajuda": "Qualquer divergência avisa quem pediu." },
+        { "tipo": "check", "titulo": "Divergências recontadas por outra pessoa?" },
+        { "tipo": "foto", "titulo": "Fotos que comprovam as divergências", "obrigatorio": false, "config": { "min_fotos": 1, "max_fotos": 6 } },
+        { "tipo": "check", "titulo": "Ajustes de estoque enviados para aprovação?", "ajuda": "[VALIDAR: quem aprova ajuste de estoque e até que valor]" },
+        { "tipo": "assinatura", "titulo": "Quem fez a contagem", "config": { "quem": "executor" } }
+      ]
+    },
+    {
+      "area": "FIS",
+      "titulo": "Emissão de NF-e de venda — conferência antes de transmitir",
+      "objetivo": "Evitar rejeição, cancelamento e carta de correção conferindo a nota antes de transmitir.",
+      "escopo": "Toda NF-e de venda emitida pela loja.",
+      "materiais": "Pedido de venda, cadastro do cliente, sistema emissor.",
+      "passos": [
+        { "tipo": "check", "titulo": "Dados do cliente conferidos (CPF/CNPJ, inscrição estadual, endereço)?" },
+        { "tipo": "check", "titulo": "Natureza da operação e CFOP conferidos?", "ajuda": "[VALIDAR: CFOP correto para cada tipo de operação — regra do escritório contábil]" },
+        { "tipo": "check", "titulo": "Tributação conferida (CST/CSOSN, alíquotas, benefícios)?", "ajuda": "[VALIDAR: regras de tributação vigentes para os produtos e o destino]" },
+        { "tipo": "check", "titulo": "Produtos, quantidades e valores batem com o pedido?" },
+        { "tipo": "check", "titulo": "Condição de pagamento e parcelas conferidas?" },
+        { "tipo": "check", "titulo": "Frete e transportadora conferidos?" },
+        { "tipo": "check", "titulo": "Informações complementares preenchidas?", "ajuda": "[VALIDAR: o que é obrigatório nas informações complementares (ex.: chassi da máquina)]" },
+        { "tipo": "selecao", "titulo": "Resultado da transmissão", "config": { "opcoes": ["Autorizada", "Rejeitada"] } },
+        { "tipo": "texto", "titulo": "Motivo da rejeição e o que foi corrigido", "obrigatorio": false },
+        { "tipo": "check", "titulo": "DANFE e XML enviados ao cliente?" },
+        { "tipo": "assinatura", "titulo": "Quem conferiu e emitiu", "config": { "quem": "executor" } }
+      ]
+    },
+    {
+      "area": "FIN",
+      "titulo": "Fechamento de caixa diário",
+      "objetivo": "Fechar o caixa do dia com o saldo conferido e qualquer diferença justificada.",
+      "escopo": "Caixa da loja, ao fim de cada dia de expediente.",
+      "materiais": "Relatório de caixa do sistema, comprovantes de cartão e PIX, envelope de depósito.",
+      "passos": [
+        { "tipo": "numero", "titulo": "Saldo inicial do caixa", "config": { "unidade": "R$", "min": 0 } },
+        { "tipo": "numero", "titulo": "Total de entradas em dinheiro", "config": { "unidade": "R$", "min": 0 } },
+        { "tipo": "numero", "titulo": "Total de saídas e sangrias", "config": { "unidade": "R$", "min": 0 } },
+        { "tipo": "numero", "titulo": "Saldo contado em dinheiro", "config": { "unidade": "R$", "min": 0 } },
+        { "tipo": "numero", "titulo": "Diferença (contado − esperado)", "config": { "unidade": "R$", "min": 0, "max": 0 }, "ajuda": "Qualquer diferença avisa quem pediu." },
+        { "tipo": "check", "titulo": "Comprovantes de cartão e PIX conferidos com o sistema?" },
+        { "tipo": "foto", "titulo": "Foto do relatório de caixa e dos comprovantes", "config": { "min_fotos": 1, "max_fotos": 4 } },
+        { "tipo": "texto", "titulo": "Justificativa da diferença", "obrigatorio": false },
+        { "tipo": "check", "titulo": "Dinheiro guardado no cofre ou depositado?", "ajuda": "[VALIDAR: regra interna de guarda e depósito]" },
+        { "tipo": "assinatura", "titulo": "Quem fechou o caixa", "config": { "quem": "executor" } }
+      ]
+    },
+    {
+      "area": "RH",
+      "titulo": "Admissão de colaborador — checklist documental",
+      "objetivo": "Não deixar faltar documento nem etapa obrigatória na admissão.",
+      "escopo": "Toda contratação, antes do primeiro dia de trabalho.",
+      "materiais": "Lista de documentos, contrato, ficha de registro.",
+      "passos": [
+        { "tipo": "texto", "titulo": "Nome do colaborador e cargo" },
+        { "tipo": "check", "titulo": "Documentos pessoais recebidos?", "ajuda": "[VALIDAR: lista exigida pela contabilidade / eSocial]" },
+        { "tipo": "check", "titulo": "Comprovante de residência recebido?" },
+        { "tipo": "check", "titulo": "Exame admissional (ASO) com resultado apto?" },
+        { "tipo": "check", "titulo": "Dados bancários para pagamento recebidos?" },
+        { "tipo": "check", "titulo": "Dependentes informados (se houver)?" },
+        { "tipo": "check", "titulo": "Contrato de trabalho assinado?" },
+        { "tipo": "check", "titulo": "Registro enviado à contabilidade / eSocial?", "ajuda": "[VALIDAR: prazo legal do envio]" },
+        { "tipo": "check", "titulo": "Acessos, uniforme e EPIs providenciados?" },
+        { "tipo": "check", "titulo": "Integração e treinamento de segurança agendados?" },
+        { "tipo": "assinatura", "titulo": "Responsável pela admissão", "config": { "quem": "executor" } }
+      ]
+    },
+    {
+      "area": "ADM",
+      "titulo": "Abertura e fechamento da loja",
+      "objetivo": "Abrir e fechar a loja sempre do mesmo jeito, sem esquecer segurança e equipamentos.",
+      "escopo": "Início e fim do expediente da loja.",
+      "materiais": "Chaves, senha do alarme.",
+      "passos": [
+        { "tipo": "selecao", "titulo": "Turno", "config": { "opcoes": ["Abertura", "Fechamento"] } },
+        { "tipo": "check", "titulo": "Alarme desativado (abertura) ou ativado (fechamento)?" },
+        { "tipo": "check", "titulo": "Portas, portões e janelas conferidos?" },
+        { "tipo": "check", "titulo": "Luzes, ar-condicionado e equipamentos conforme o turno?" },
+        { "tipo": "check", "titulo": "Máquinas e veículos do pátio conferidos ou recolhidos?" },
+        { "tipo": "check", "titulo": "Caixa e cofre conferidos?" },
+        { "tipo": "foto", "titulo": "Foto do pátio", "obrigatorio": false, "config": { "min_fotos": 1, "max_fotos": 3 } },
+        { "tipo": "texto", "titulo": "Ocorrências", "obrigatorio": false },
+        { "tipo": "assinatura", "titulo": "Quem abriu / fechou", "config": { "quem": "executor" } }
+      ]
+    },
+    {
+      "area": "FRO",
+      "titulo": "Checklist de saída de veículo da frota",
+      "objetivo": "Sair com o veículo em condições e registrar o estado no momento da saída.",
+      "escopo": "Toda saída de veículo da frota. Informe a placa na referência da execução.",
+      "materiais": "Chave, documento do veículo, cartão de abastecimento.",
+      "passos": [
+        { "tipo": "numero", "titulo": "Hodômetro de saída", "config": { "unidade": "km", "min": 0 } },
+        { "tipo": "selecao", "titulo": "Nível de combustível", "config": { "opcoes": ["Cheio", "3/4", "Meio", "1/4", "Reserva"] } },
+        { "tipo": "check", "titulo": "Pneus sem corte e calibrados?", "ajuda": "[VALIDAR: pressão indicada pelo fabricante do veículo]" },
+        { "tipo": "check", "titulo": "Faróis, lanternas e setas funcionando?" },
+        { "tipo": "check", "titulo": "Documento do veículo (CRLV) disponível?" },
+        { "tipo": "check", "titulo": "Triângulo, macaco, chave de roda e estepe no veículo?" },
+        { "tipo": "check", "titulo": "Interior limpo e sem objetos soltos?" },
+        { "tipo": "foto", "titulo": "Foto do painel com o hodômetro", "config": { "min_fotos": 1, "max_fotos": 2 } },
+        { "tipo": "foto", "titulo": "Fotos de avarias existentes", "obrigatorio": false, "config": { "min_fotos": 1, "max_fotos": 6 } },
+        { "tipo": "texto", "titulo": "Observações", "obrigatorio": false },
+        { "tipo": "assinatura", "titulo": "Motorista confirma a saída", "config": { "quem": "executor" } }
+      ]
+    }
+  ]
+}
