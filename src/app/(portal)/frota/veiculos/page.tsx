@@ -109,6 +109,21 @@ export default function FrotaHome() {
     return () => { vivo = false; };
   }, [podeVerMotoristas]);
 
+  // km de cada carro com a fonte (âncora + delta, lib/frota/km.ts) — também chega depois
+  const [kmPorPlaca, setKmPorPlaca] = useState<Record<string, { km: number | null; selo: string; descricao: string }>>({});
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/frota/km', { headers: await authHeaders() });
+        if (!r.ok) return;
+        const d = await r.json();
+        if (vivo) setKmPorPlaca(d.km || {});
+      } catch { /* linha de km é opcional */ }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
   // Localização atual (Rota Exata + geocode) — chega DEPOIS da lista, de
   // propósito: é externa e lenta; os cards aparecem na hora e os rótulos vão
   // pingando quando prontos.
@@ -374,6 +389,13 @@ export default function FrotaHome() {
               <div style={{ fontSize: 14, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {[v.marca, v.modelo || v.descricao, v.ano].filter(Boolean).join(' · ') || '—'}
               </div>
+              {kmPorPlaca[v.placa]?.km != null && (
+                <div title={`De onde vem: ${kmPorPlaca[v.placa].descricao}`}
+                  style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <span style={{ color: ({ verde: '#15803d', ambar: '#b45309', vermelho: '#b91c1c', cinza: '#64748b' } as Record<string, string>)[kmPorPlaca[v.placa].selo] }}>●</span>
+                  {' '}{Math.round(kmPorPlaca[v.placa].km as number).toLocaleString('pt-BR')} km · {kmPorPlaca[v.placa].descricao}
+                </div>
+              )}
               {(() => {
                 const loc = locs[v.placa];
                 if (!loc) return null;

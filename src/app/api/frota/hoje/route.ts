@@ -11,6 +11,7 @@ import { paginar } from '@/lib/db/paginar';
 import { montarHoje, type PendenciaHoje } from '@/lib/frota/hoje';
 import { listarChecklistsMes } from '@/lib/frota/checklists-mes';
 import { buscarAbastecimentosUniao, resumoCombustivel } from '@/lib/abastecimento/uniao';
+import { carregarKm } from '@/lib/frota/km-server';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
     const lerPend = (cols: string) => paginar((a, b) => supabase.from('frota_pendencias')
       .select(cols).eq('status', 'aberta').order('id').range(a, b));
 
-    const [veiculos, responsaveis, pendRes, comps, documentos, paradas, checklists, abast] = await Promise.all([
+    const [veiculos, responsaveis, pendRes, comps, documentos, paradas, checklists, abast, kmFrota, suspeitas] = await Promise.all([
       supabase.from('frota_veiculos').select('id, placa, modelo, marca, descricao, status, ativo, tipo_registro, pendencia_vinculo'),
       supabase.from('frota_responsaveis').select('veiculo_id, motorista_nome').is('fim', null),
       // tolerante: sem a coluna gravidade (migração antiga) lê sem ela
@@ -55,6 +56,11 @@ export async function GET(req: NextRequest) {
         .order('duracao_min', { ascending: false }).limit(100),
       listarChecklistsMes(supabase, mes),
       buscarAbastecimentosUniao(supabase, { deIso: new Date(agora - 60 * DIA).toISOString(), ate: hoje }),
+      // km de cada carro (âncora + delta) — quantos têm km confiável
+      carregarKm(supabase).catch(() => null),
+      // leituras de km que voltaram ou saltaram demais: alguém confere (tabela pode não existir ainda)
+      supabase.from('frota_leituras').select('id, placa, km, lida_em, foto_url, lido_por, motivo')
+        .eq('situacao', 'suspeita').order('lida_em', { ascending: false }).limit(50),
     ]);
     if (veiculos.error) throw new Error(veiculos.error.message);
 
@@ -89,6 +95,21 @@ export async function GET(req: NextRequest) {
         anteriores30: resumoCombustivel(anteriores),
       },
       podeResponsavel: podeFrota(auth, 'veiculos:responsavel'),
+      km: (() => {
+        if (!kmFrota) return null;
+        const ativos = new Set((veiculos.data || []).filter((v) => v.ativo && v.status !== 'vendido' && v.tipo_registro === 'veiculo').map((v) => v.placa));
+        const lista = [...kmFrota.porPlaca.values()].filter((k) => ativos.has(k.placa));
+        return {
+          confiaveis: lista.filter((k) => k.resultado.selo === 'verde').length,
+          total: lista.length,
+          // os mais desatualizados primeiro: são os que precisam de foto do painel
+          pedirFoto: lista.filter((k) => k.resultado.selo === 'vermelho' || k.resultado.selo === 'cinza')
+            .map((k) => ({ placa: k.placa, km: k.resultado.km, descricao: k.resultado.descricao, idadeDias: k.resultado.idadeDias }))
+            .sort((a, b) => (b.idadeDias ?? 9999) - (a.idadeDias ?? 9999)),
+        };
+      })(),
+      leiturasSuspeitas: suspeitas.error ? [] : suspeitas.data || [],
+      podeConferirKm: podeFrota(auth, 'veiculos:editar'),
     });
   } catch (e) {
     return NextResponse.json({ error: (e as Error).message }, { status: 500 });

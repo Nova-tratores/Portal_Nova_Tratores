@@ -21,6 +21,8 @@ import { useIsMobile } from '@/hooks/useIsMobile';
 import { checklistPreVenda, pendenciasDoVeiculo } from '@/lib/frota/pendencias';
 import { SUBTIPOS_VEICULO, labelSubtipo } from '@/lib/frota/tipos';
 import type { Motorista, VeiculoDetalhe } from '@/lib/frota/tipos';
+import type { ResultadoKm } from '@/lib/frota/km';
+import RegistrarKm from '@/components/frota/RegistrarKm';
 
 interface Props {
   placa: string;
@@ -171,6 +173,17 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
   }, [placa]);
 
   useEffect(() => { carregar(); }, [carregar]);
+
+  // km "âncora + delta" (lib/frota/km.ts): de onde veio e quão recente
+  const [kmInfo, setKmInfo] = useState<ResultadoKm | null>(null);
+  const [registrandoKm, setRegistrandoKm] = useState(false);
+  const carregarKmInfo = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/frota/km?placa=${encodeURIComponent(placa)}`, { headers: await authHeaders() });
+      if (r.ok) setKmInfo(((await r.json()) as { resultado: ResultadoKm }).resultado);
+    } catch { /* sem o km novo, a ficha mostra o hodômetro de antes */ }
+  }, [placa]);
+  useEffect(() => { carregarKmInfo(); }, [carregarKmInfo]);
 
   // Senha do cartão Veloe fica mascarada na ficha — clique pra revelar
   const [verSenhaVeloe, setVerSenhaVeloe] = useState(false);
@@ -733,9 +746,30 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           : '—'}
                       />
                       <Linha
-                        rotulo={`Hodômetro${det.km_odometro_fonte === 'digitado' ? ' (digitado na bomba)' : det.km_odometro_fonte === 'rastreador' ? ' (rastreador)' : ''}`}
-                        valor={det.km_odometro != null ? `${det.km_odometro.toLocaleString('pt-BR')} km` : '—'}
+                        rotulo="Hodômetro"
+                        valor={
+                          <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                            <span>
+                              {kmInfo?.km != null
+                                ? `${Math.round(kmInfo.km).toLocaleString('pt-BR')} km`
+                                : det.km_odometro != null ? `${det.km_odometro.toLocaleString('pt-BR')} km` : '—'}
+                            </span>
+                            {kmInfo && (
+                              <span title="De onde vem o km. Verde = leitura recente; âmbar/vermelho = peça uma foto do painel."
+                                style={{ fontSize: 11.5, fontWeight: 600, color: ({ verde: '#15803d', ambar: '#b45309', vermelho: '#b91c1c', cinza: '#64748b' } as Record<string, string>)[kmInfo.selo] }}>
+                                ● {kmInfo.descricao}
+                              </span>
+                            )}
+                            <button type="button" onClick={() => setRegistrandoKm(true)}
+                              style={{ fontSize: 12, fontWeight: 700, color: '#1e40af', background: 'none', border: '1px solid #1e40af', padding: '3px 8px', cursor: 'pointer' }}>
+                              Registrar km com foto
+                            </button>
+                          </span>
+                        }
                       />
+                      {registrandoKm && (
+                        <RegistrarKm placa={v.placa} onClose={() => setRegistrandoKm(false)} onSalvo={carregarKmInfo} />
+                      )}
                       <Linha rotulo="Tanque" valor={v.capacidade_tanque != null ? `${v.capacidade_tanque} L` : '—'} />
                       <Linha rotulo="Seguradora" valor={v.seguradora} />
                       <Linha rotulo="Apólice" valor={v.numero_apolice} />

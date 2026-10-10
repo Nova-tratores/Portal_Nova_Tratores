@@ -7,7 +7,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  OctagonAlert, AlertTriangle, FileWarning, Fuel, ClipboardCheck, UserX, MapPinned, IdCard, Check, Loader2,
+  OctagonAlert, AlertTriangle, FileWarning, Fuel, ClipboardCheck, UserX, MapPinned, IdCard, Check, Loader2, Gauge,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -32,6 +32,9 @@ interface DadosHoje {
   checklists: { mes: string; resumo: { total: number; pendente: number; suspeito: number }; faltando: { placa: string; placa_key: string; tecnico_nome: string; status: string; descricao: string }[] };
   paradas: { total: number; podeJustificar: boolean; itens: { id: string; placa: string; data: string; inicio: string; duracao_min: number; classe: string; destino_nome: string | null; endereco: string | null }[] };
   combustivel: { ultimos30: { gasto: number; litros: number; abastecimentos: number }; anteriores30: { gasto: number } };
+  km: { confiaveis: number; total: number; pedirFoto: { placa: string; km: number | null; descricao: string; idadeDias: number | null }[] } | null;
+  leiturasSuspeitas: { id: string; placa: string; km: number; lida_em: string; foto_url: string | null; lido_por: string | null; motivo: string | null }[];
+  podeConferirKm: boolean;
 }
 
 const linkFicha = (placa: string) => `/frota/veiculos?placa=${encodeURIComponent(placa)}`;
@@ -94,13 +97,17 @@ export default function FrotaHoje() {
   if (!d.checklists.faltando.length) tudoEmDia.push('checklists do mês feitos');
   if (!d.cadastro.length) tudoEmDia.push('cadastro completo');
   if (!d.paradas.total) tudoEmDia.push('paradas explicadas');
+  if (d.km && !d.km.pedirFoto.length) tudoEmDia.push('km de todos os carros recente');
 
   return (
     <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
       <CabecalhoFrota
         titulo="Hoje"
         resumo="O que precisa de atenção na frota agora. Cada item leva direto para onde se resolve."
-        acoes={<span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>atualizado {new Date(d.geradoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>}
+        acoes={<span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>
+          {d.km ? <>km confiável em {d.km.confiaveis} de {d.km.total} · </> : null}
+          atualizado {new Date(d.geradoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+        </span>}
       />
 
       <KpisFrota>
@@ -183,6 +190,22 @@ export default function FrotaHoje() {
               <Linha key={c.placa} placa={c.placa} modelo={c.modelo} texto={c.problemas.join(' · ')}
                 acao={<Acao href={linkFicha(c.placa)}>Corrigir na Ficha</Acao>} />
             ))}
+          </Bloco>
+        )}
+
+        {d.leiturasSuspeitas.length > 0 && (
+          <LeiturasSuspeitas itens={d.leiturasSuspeitas} podeConferir={d.podeConferirKm} onMudou={carregar} />
+        )}
+
+        {d.km && d.km.pedirFoto.length > 0 && (
+          <Bloco titulo="Carros sem km recente" icone={<Gauge size={16} />} cor="#0369a1" n={d.km.pedirFoto.length}
+            ajuda="O km destes carros vem de um número digitado há mais de 15 dias ou não existe. Peça ao responsável uma foto do painel (Pendências da frota → Registrar km); a preventiva por km depende disso.">
+            {d.km.pedirFoto.slice(0, 10).map((k) => (
+              <Linha key={k.placa} placa={k.placa}
+                texto={k.km != null ? `${Math.round(k.km).toLocaleString('pt-BR')} km · ${k.descricao}${k.idadeDias != null ? ` (há ${k.idadeDias} dias)` : ''}` : 'sem nenhuma leitura de km'}
+                acao={<Acao href={linkFicha(k.placa)}>Registrar na Ficha</Acao>} />
+            ))}
+            {d.km.pedirFoto.length > 10 && <Mais href="/frota/veiculos" n={d.km.pedirFoto.length - 10} />}
           </Bloco>
         )}
 
@@ -330,6 +353,59 @@ function ParadasSemExplicacao({ dados, onMudou }: { dados: DadosHoje['paradas'];
         </div>
       ))}
       {dados.itens.length > 25 && <Mais href="/frota/paradas" n={dados.total - 25} />}
+    </Bloco>
+  );
+}
+
+// Leituras de km que voltaram ou saltaram demais: quem edita a Ficha confere pela foto.
+function LeiturasSuspeitas({ itens, podeConferir, onMudou }: { itens: DadosHoje['leiturasSuspeitas']; podeConferir: boolean; onMudou: () => void }) {
+  const [ocupado, setOcupado] = useState<string | null>(null);
+  const [msg, setMsg] = useState('');
+  const decidir = async (id: string, acao: 'aceitar' | 'descartar') => {
+    setOcupado(id); setMsg('');
+    try {
+      const r = await fetch('/api/frota/leituras', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ id, acao }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(j.error || 'Não deu para salvar.'); return; }
+      onMudou();
+    } catch { setMsg('Falha de conexão — tente de novo.'); }
+    finally { setOcupado(null); }
+  };
+  return (
+    <Bloco titulo="Leituras de km para conferir" icone={<Gauge size={16} />} cor="#b45309" n={itens.length}
+      ajuda="Leituras que ficaram menores que a anterior ou saltaram demais. Olhe a foto: aceite se o número estiver certo, descarte se foi erro.">
+      {msg && <div style={{ ...linhaEstilo, color: '#b91c1c', fontSize: 13 }}>{msg}</div>}
+      {itens.map((l) => (
+        <div key={l.id} style={linhaEstilo}>
+          {l.foto_url ? (
+            <a href={l.foto_url} target="_blank" rel="noreferrer" title="Abrir a foto do painel">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={l.foto_url} alt={`Painel do ${l.placa}`} style={{ width: 64, height: 48, objectFit: 'cover', background: 'var(--portal-bg-secondary)' }} />
+            </a>
+          ) : null}
+          <strong style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--portal-text)', flex: '0 1 110px' }}>{formatarPlaca(l.placa)}</strong>
+          <span style={{ fontSize: 13.5, color: 'var(--portal-text)', flex: '1 1 260px', minWidth: 0 }}>
+            <strong>{Math.round(Number(l.km)).toLocaleString('pt-BR')} km</strong> · {fmtData(l.lida_em)}{l.lido_por ? ` · ${l.lido_por}` : ''}
+            {l.motivo && <span style={{ display: 'block', color: '#b45309', fontSize: 12.5 }}>{l.motivo}</span>}
+          </span>
+          {podeConferir && (
+            <span style={{ display: 'flex', gap: 6 }}>
+              <button type="button" disabled={ocupado === l.id} onClick={() => decidir(l.id, 'aceitar')}
+                style={{ padding: '6px 12px', border: 'none', background: '#15803d', color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                {ocupado === l.id ? <Loader2 size={13} className="spin" /> : 'Aceitar'}
+              </button>
+              <button type="button" disabled={ocupado === l.id} onClick={() => decidir(l.id, 'descartar')}
+                style={{ padding: '6px 12px', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>
+                Descartar
+              </button>
+            </span>
+          )}
+        </div>
+      ))}
     </Bloco>
   );
 }

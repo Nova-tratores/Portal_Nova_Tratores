@@ -10,7 +10,7 @@
 //  - data/hora automáticas; km com máscara de quilometragem
 // Grava em frota_pendencias (mesmo motor da aba Frota > Pendências).
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Camera, Car, CheckCircle2, ChevronDown, Loader2, Plus, Search, Wrench, X } from 'lucide-react';
+import { AlertTriangle, Camera, Car, CheckCircle2, ChevronDown, Gauge, Loader2, Plus, Search, WifiOff, Wrench, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import SemPermissao from '@/components/SemPermissao';
@@ -19,6 +19,8 @@ import { supabase } from '@/lib/supabase';
 import FotoThumb from '@/components/frota/FotoThumb';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { formatarHodometro } from '@/lib/requisicoes/campos';
+import RegistrarKm from '@/components/frota/RegistrarKm';
+import { drenarFila, lerFila } from '@/lib/frota/fila-leituras';
 
 interface Veiculo {
   id: string; placa: string | null; marca?: string | null; modelo?: string | null; descricao?: string | null;
@@ -44,6 +46,16 @@ function PendenciasInner() {
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [busca, setBusca] = useState('');
+  // Registrar km com foto (Fase 2 da Frota): o técnico informa o painel; sem
+  // sinal, a leitura fica na fila do celular e sai quando a rede volta
+  const [kmAberto, setKmAberto] = useState(false);
+  const [filaKm, setFilaKm] = useState(0);
+  useEffect(() => {
+    const tentar = () => { drenarFila().finally(() => setFilaKm(lerFila().length)); };
+    tentar();
+    window.addEventListener('online', tentar);
+    return () => window.removeEventListener('online', tentar);
+  }, []);
   const [mostrarResolvidas, setMostrarResolvidas] = useState(false);
 
   // formulário de abertura
@@ -270,7 +282,26 @@ function PendenciasInner() {
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 18px', border: 'none', borderRadius: 0, background: '#1e40af', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
           <Plus size={17} /> Abrir pendência
         </button>
+        <button onClick={() => setKmAberto(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 16px', border: '1px solid #1e40af', borderRadius: 0, background: 'var(--portal-bg-card)', color: '#1e40af', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
+          <Gauge size={17} /> Registrar km
+        </button>
       </div>
+      {filaKm > 0 && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', marginBottom: 12, background: 'rgba(180,83,9,.12)', color: '#b45309', fontSize: 13.5 }}>
+          <WifiOff size={15} /> {filaKm} leitura(s) de km esperando sinal — saem sozinhas quando a internet voltar.
+        </div>
+      )}
+      {kmAberto && (
+        <RegistrarKm
+          placas={veiculos
+            .filter((v) => v.placa && v.tipo_registro === 'veiculo' && v.ativo !== false)
+            .map((v) => ({ v, meu: !!userProfile?.nome && (v.responsavel_nome || '').toLowerCase() === userProfile.nome.toLowerCase() }))
+            .sort((a, b) => Number(b.meu) - Number(a.meu))
+            .map(({ v, meu }) => ({ placa: v.placa as string, rotulo: `${formatarPlaca(v.placa as string)} · ${[v.marca, v.modelo || v.descricao].filter(Boolean).join(' ')}${meu ? ' (seu)' : ''}` }))}
+          onClose={() => { setKmAberto(false); setFilaKm(lerFila().length); }}
+        />
+      )}
 
       <div style={{ position: 'relative', marginBottom: 14 }}>
         <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
