@@ -205,6 +205,24 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Log de mudanças
   const { data: resAtual } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs);
+
+  // OS FATURADA (NFS-e emitida pelo portal ou detectada no Omie): fase, nº do
+  // Omie e o que compõe o valor não mudam mais por aqui (sql/pos-faturamento.sql).
+  const travada = resAtual?.[0];
+  if (travada?.faturado_omie_em) {
+    const num = (v: unknown) => Math.round((parseFloat(String(v ?? 0).replace(",", ".")) || 0) * 100);
+    const mudou =
+      (String(dados.status ?? "") !== String(travada.Status ?? "") && dados.status !== "Concluída") ||
+      String(dados.ordemOmie ?? "") !== String(travada.Ordem_Omie ?? "") ||
+      String(dados.ppv ?? "") !== String(travada.ID_PPV ?? "") ||
+      num(dados.qtdHoras) !== num(travada.Qtd_HR) || num(dados.qtdKm) !== num(travada.Qtd_KM) ||
+      num(dados.descontoValor) !== num(travada.Desconto) ||
+      num(dados.descontoHora) !== num(travada.Desconto_Hora) || num(dados.descontoKm) !== num(travada.Desconto_KM);
+    if (mudou) {
+      return NextResponse.json({ success: false, erro: "Esta OS já foi faturada: só pode ir para Concluída; horas, km, descontos e peças não mudam mais. Recarregue a OS." }, { status: 409 });
+    }
+  }
+
   if (resAtual && resAtual.length > 0) {
     const atual = resAtual[0];
     const stAt = safeGet(atual, "Status") as string;

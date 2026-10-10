@@ -9,6 +9,7 @@
 import { PAGINAS_AJUSTES } from '@/app/(portal)/ajustes/paginas';
 import { PAGINAS_FROTA } from '@/app/(portal)/frota/paginas';
 import { PAGINAS_MARKETING } from '@/app/(portal)/marketing/paginas';
+import { ACOES_EXPLICITAS } from './explicitas';
 
 export interface AcaoPermissao {
   id: string;
@@ -92,6 +93,8 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'editar', label: 'Editar OS' },
     { id: 'mover_fase', label: 'Mover de fase' },
     { id: 'enviar_omie', label: 'Enviar ao Omie' },
+    // explícita: o acesso total ao POS NÃO concede (lib/permissoes/explicitas.ts)
+    { id: 'faturar', label: 'Faturar OS (emite NFS-e) — só marcando aqui' },
     { id: 'concluir', label: 'Concluir OS' },
     { id: 'cancelar', label: 'Cancelar OS' },
   ],
@@ -300,9 +303,11 @@ function limpar(perms: string[], mod: string): string[] {
   return perms.filter((p) => p !== mod && !p.startsWith(mod + ':'));
 }
 
-// Acesso total: módulo puro, sem ações específicas.
+// Acesso total: módulo puro, sem ações específicas — mas as ações EXPLÍCITAS
+// já marcadas ficam (o módulo puro não as concede; ver lib/permissoes/explicitas).
 export function setTotal(perms: string[], mod: string): string[] {
-  return [...limpar(perms, mod), mod];
+  const explicitas = perms.filter((p) => p.startsWith(mod + ':') && ACOES_EXPLICITAS.has(p));
+  return [...limpar(perms, mod), mod, ...explicitas];
 }
 
 // Sem acesso ao módulo.
@@ -314,6 +319,8 @@ export function setOff(perms: string[], mod: string): string[] {
 // (remove o módulo puro). Se ficar sem nenhuma ação, o módulo fica off.
 export function toggleAcao(perms: string[], mod: string, acao: string): string[] {
   const key = `${mod}:${acao}`;
+  // ação explícita liga/desliga sozinha, sem mexer no acesso total
+  if (ACOES_EXPLICITAS.has(key)) return perms.includes(key) ? perms.filter((p) => p !== key) : [...perms, key];
   let arr = perms.filter((p) => p !== mod); // sai do acesso total
   arr = arr.includes(key) ? arr.filter((p) => p !== key) : [...arr, key];
   return arr;

@@ -614,6 +614,14 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
         id_omie: resposta.cNumOS || String(resposta.nCodOS),
       })
       .eq("Id_Ordem", idOrdem);
+    // Chaves de verdade da OS no Omie (o cNumOS acima NÃO é chave de consulta e o
+    // cCodIntOS pode ter ganhado sufixo). O faturamento usa estas. Colunas de
+    // sql/pos-faturamento.sql — sem a migration, o update falha calado.
+    await supabase
+      .from(TBL_OS)
+      .update({ omie_ncodos: resposta.nCodOS || null, omie_ccodint: String(payload.Cabecalho.cCodIntOS || idOrdem) })
+      .eq("Id_Ordem", idOrdem)
+      .then(() => {}, () => {});
 
     console.log(`[Omie] ✓ ${idOrdem} → OS nº ${resposta.cNumOS} (ID: ${resposta.nCodOS})`);
 

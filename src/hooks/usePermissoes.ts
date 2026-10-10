@@ -1,5 +1,6 @@
 'use client'
 import { ehModuloCentral, temCentral } from '@/lib/trabalho/modulo'
+import { permite } from '@/lib/permissoes/explicitas'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRefreshOnFocus } from '@/hooks/useRefreshOnFocus'
@@ -114,14 +115,10 @@ export function usePermissoes(userId: string | undefined) {
   }
 
   // Permissão de uma AÇÃO do módulo. Admin → tudo; módulo puro → tudo (acesso
-  // total); 'modulo:acao' → aquela ação. Sem `acao`, equivale a temAcesso.
-  const pode = (modulo: string, acao?: string): boolean => {
-    if (isAdmin) return true
-    const perms = permissoes?.modulos_permitidos ?? []
-    if (perms.includes(modulo)) return true
-    if (!acao) return perms.some((p) => p.startsWith(modulo + ':'))
-    return perms.includes(`${modulo}:${acao}`)
-  }
+  // total) MENOS as ações explícitas (ex.: pos:faturar, ver lib/permissoes/explicitas);
+  // 'modulo:acao' → aquela ação. Sem `acao`, equivale a temAcesso.
+  const pode = (modulo: string, acao?: string): boolean =>
+    permite(permissoes?.modulos_permitidos ?? [], isAdmin, modulo, acao)
 
   return { permissoes, isAdmin, isDev, temAcesso, pode, loading: isEffectivelyLoading }
 }

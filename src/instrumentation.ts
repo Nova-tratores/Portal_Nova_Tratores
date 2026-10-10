@@ -153,6 +153,23 @@ export async function register(): Promise<void> {
     log('alocação de peças recebidas LIGADA (a cada 10 min, seg–sáb 07h–20h BRT)');
   }
 
+  // Faturamento da OS pelo portal (NFS-e): confere no Omie as OS com faturamento
+  // sem resposta clara ou NFS-e ainda aguardando a prefeitura, a cada 10 min.
+  // Só olha as pendentes (índice parcial) — sem pendência, nenhuma chamada ao Omie.
+  // SÓ produção. Desliga com POS_FATURAR_RECONCILIAR=off.
+  if (process.env.NODE_ENV === 'production' && process.env.POS_FATURAR_RECONCILIAR !== 'off') {
+    const { rodarReconciliacaoFaturamento } = await import('./lib/pos/faturamento');
+    const rodarFatOS = async () => {
+      try {
+        const r = await rodarReconciliacaoFaturamento();
+        if (r) log(`pos-faturamento: ${r}`);
+      } catch (e) { log('pos-faturamento falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarFatOS().catch(() => {}); }, 10 * 60 * 1000);
+    setTimeout(() => { rodarFatOS().catch(() => {}); }, 5 * 60 * 1000);
+    log('reconciliação do faturamento de OS LIGADA (a cada 10 min)');
+  }
+
   // Pendências da FROTA: o motor que abre/fecha as pendências automáticas
   // (cadastro, checklist, requisição, OS, Opa) só rodava quando alguém abria a
   // tela — requisição que chegava ao financeiro ficava "aberta" até a próxima

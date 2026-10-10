@@ -197,6 +197,12 @@ async function processarOS(codOS: number, acc: Acc) {
   // antigo (StatusOS.danfe) vinha vazio e deixava a OS sem o PDF.
   if (info.cFaturada === "S") {
     void buscarNfseDaOS(String(cab.cNumOS), Number(codOS), acc);
+    // OS do POS (só existe na conta Nova): registra o faturamento / NFS-e na OS do portal
+    if (acc.name === "Nova Tratores") {
+      void import("@/lib/pos/faturamento")
+        .then(({ reconciliarPorCodOS }) => reconciliarPorCodOS(Number(codOS), String(cab.cNumOS || "")))
+        .catch(() => {});
+    }
   }
 
   // Enriquecer nome do cliente

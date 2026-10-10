@@ -5,6 +5,7 @@ import {
   GRUPOS_ORDEM, grupoDoModulo, acoesDoModulo,
   estadoModulo, acoesMarcadas, setTotal, setOff, toggleAcao,
 } from '@/lib/permissoes/catalogo';
+import { acaoExplicita } from '@/lib/permissoes/explicitas';
 
 interface Props {
   modulos: string[];                              // modulos_permitidos do usuário
@@ -30,10 +31,14 @@ export default function PermissoesModulos({ modulos, catalogo, onChange, disable
 
   // desmarcar uma ação quando o módulo está em "acesso total":
   // converte pra granular com todas as ações MENOS a desmarcada.
+  // Ação explícita (ex.: Faturar OS) liga/desliga sozinha: o acesso total não a concede.
   const handleAcao = (mod: string, acao: string) => {
-    if (estadoModulo(modulos, mod) === 'total') {
-      const outras = acoesDoModulo(mod).map((a) => a.id).filter((x) => x !== acao);
-      onChange([...setOff(modulos, mod), ...outras.map((x) => `${mod}:${x}`)]);
+    if (acaoExplicita(mod, acao)) {
+      onChange(toggleAcao(modulos, mod, acao));
+    } else if (estadoModulo(modulos, mod) === 'total') {
+      const explicitasMarcadas = modulos.filter((p) => p.startsWith(mod + ':') && acaoExplicita(mod, p.slice(mod.length + 1)));
+      const outras = acoesDoModulo(mod).map((a) => a.id).filter((x) => x !== acao && !acaoExplicita(mod, x));
+      onChange([...setOff(modulos, mod), ...outras.map((x) => `${mod}:${x}`), ...explicitasMarcadas]);
     } else {
       onChange(toggleAcao(modulos, mod, acao));
     }
@@ -107,7 +112,7 @@ export default function PermissoesModulos({ modulos, catalogo, onChange, disable
                   </div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {acoes.map((a) => {
-                      const on = estado === 'total' || marcadas.has(a.id);
+                      const on = acaoExplicita(mod.id, a.id) ? marcadas.has(a.id) : (estado === 'total' || marcadas.has(a.id));
                       return (
                         <button
                           key={a.id}

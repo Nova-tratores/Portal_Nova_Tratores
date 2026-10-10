@@ -7,6 +7,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const { id: idOs } = await params;
   const { status: newStatus, userName, previsaoExecucao } = await req.json();
 
+  // OS faturada não muda de fase (a coluna só existe com sql/pos-faturamento.sql)
+  const { data: fat, error: errFat } = await supabase.from(TBL_OS).select("faturado_omie_em, Status").eq("Id_Ordem", idOs).limit(1);
+  if (!errFat && fat?.[0]?.faturado_omie_em && fat[0].Status !== newStatus && newStatus !== "Concluída") {
+    return NextResponse.json({ success: false, erro: "Esta OS já foi faturada: só pode ir para Concluída." }, { status: 409 });
+  }
+
   const r = await aplicarMudancaFase(idOs, newStatus, userName || "Sistema", { notificar: true });
 
   if (!r.success) {

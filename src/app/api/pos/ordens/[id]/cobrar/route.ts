@@ -12,7 +12,7 @@ import { garantirConversaContato, enviarTextoConversa, enviarPdfConversa, buscar
 import { chatwootConfigurado, chatwootVariaveisFaltando } from "@/lib/chatwoot/config";
 import { nomeVendedorPorCodigo } from "@/lib/pos/omie";
 import { garantirAssinatura, linkAssinatura, resumoDaOS } from "@/lib/pos/assinatura-cliente-db";
-import { ehMensagemDeCobranca, mensagemAssinaturaCobranca, perguntaPagamento } from "@/lib/pos/cobranca";
+import { ehMensagemDeCobranca, mensagemAssinaturaCobranca, normalizarPagamento, perguntaPagamento } from "@/lib/pos/cobranca";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -339,6 +339,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 }
 
+// A forma escolhida na cobrança também fica NA OS — é o padrão da janela de
+// faturar (vira as parcelas no Omie). Coluna de sql/pos-faturamento.sql: sem ela, segue.
+async function gravarFormaPagamentoNaOS(id: string, preferencia: string) {
+  const forma = normalizarPagamento(preferencia);
+  if (!forma) return;
+  try { await supabase.from(TBL_OS).update({ forma_pagamento: forma }).eq("Id_Ordem", id).is("faturado_omie_em", null); } catch { /* sem a coluna */ }
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
@@ -352,6 +360,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // chatwoot (ex.: "30 dias") — preenchida na capa do card.
   if (body?.acao === "preferencia") {
     const preferencia = String(body?.preferencia || "").trim().slice(0, 60);
+    await gravarFormaPagamentoNaOS(id, preferencia);
     try {
       await atualizarAtributosContato(contatoId, { preferencia_faturamento: preferencia || null });
       return NextResponse.json({ ok: true });
@@ -434,6 +443,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     // Forma de pagamento escolhida no card: salva no contato e pergunta por último
     const preferencia = String(body?.preferencia || "").trim().slice(0, 60);
     const pergunta = perguntaPagamento(preferencia);
+    await gravarFormaPagamentoNaOS(id, preferencia);
     if (pergunta) {
       try { await atualizarAtributosContato(contatoId, { preferencia_faturamento: preferencia }); } catch { /* segue */ }
       await enviarTextoConversa(conversa, pergunta);

@@ -21,6 +21,7 @@ import OSUnidadesInfo from "@/components/ppv/OSUnidadesInfo";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
+import FaturamentoOSBloco from "./FaturamentoOSBloco";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
 import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
 import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
@@ -2353,6 +2354,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       ? <><i className="fas fa-spinner fa-spin" /> Enviando...</>
                       : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
                   </button>
+                )}
+                {/* Depois de enviada: Faturar (NFS-e) → selo Faturada (some com POS_FATURAR desligado) */}
+                {mode === "edit" && osId && ordemOmie && (
+                  <FaturamentoOSBloco
+                    osId={osId}
+                    ordemOmie={ordemOmie}
+                    onFaturado={async () => {
+                      try {
+                        const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
+                        if (d?.status) setStatus(d.status);
+                      } catch { /* a lista recarrega */ }
+                      setLogRefreshKey((k) => k + 1);
+                      onSaved?.();
+                    }}
+                  />
                 )}
 
                 <button className="os-rail-btn" onClick={abrirQR}>
