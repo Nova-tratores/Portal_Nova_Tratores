@@ -1,52 +1,21 @@
 'use client';
 // Frota > Custos (TCO) — quanto cada veículo CUSTA por km rodado.
 //
-// Fontes (tudo leitura autenticada, direto das views/tabelas):
-//  - vw_frota_custos: combustível + manutenção + multas, cada real conta UMA
-//    vez (a view v2 já resolve o anti-duplo-conto)
-//  - frota_dias: km rodado por dia (km_odometro do rastreador > km haversine)
-//    — veículo sem rastreador mostra os custos mas fica sem R$/km
+// A conta é feita no servidor (GET /api/frota/custos → montarTco em
+// src/lib/frota/custos.ts): vw_frota_custos (requisição só depois do
+// financeiro) + km do rastreador ou do hodômetro digitado.
 // Os "baldes" avulsos (CLI0002 clientes / TRA0001 tratores / 0000000
 // quadriciclos) entram numa linha separada: o cartão pagou de verdade, mas
 // não são carros — não têm km nem entram no ranking.
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { DollarSign, ExternalLink, Fuel, Wrench, ShieldAlert, Gauge, X } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { formatarPlaca, PLACAS_AVULSAS } from '@/lib/frota/placa';
+import { authHeaders } from '@/lib/auth/client';
+import { formatarPlaca } from '@/lib/frota/placa';
+import { custoPorKm, type EntradaCusto, type LinhaTco } from '@/lib/frota/custos';
 
 const fmtRS = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
 const fmtRS2 = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 const fmtData = (s: string) => new Date(`${String(s).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR');
-
-interface LinhaTco {
-  veiculo_id: string;
-  placa: string;
-  modelo: string | null;
-  tem_rastreador: boolean;
-  avulso: boolean;
-  ativo: boolean;
-  status: string | null;
-  categoria: string | null; // departamento (comercial / oficina / outros)
-  km: number;
-  // 'rastreador' = frota_dias; 'digitado' = delta do hodômetro informado nos
-  // abastecimentos do cartão e nas requisições (carros SEM rastreador)
-  km_fonte: 'rastreador' | 'digitado' | null;
-  combustivel: number;
-  manutencao: number;
-  multas: number;
-  outros: number;
-  total: number;
-}
-
-interface EntradaCusto {
-  veiculo_id: string;
-  data: string;
-  tipo: string;
-  valor: number;
-  fonte: string | null;
-  descricao: string | null; // título da requisição / posto do abastecimento / etc.
-  ref_id: string | null; // id na fonte (só requisição por ora) — vira link
-}
 
 const FONTE_LABEL: Record<string, string> = {
   abastecimentos: 'cartão combustível',
@@ -63,29 +32,6 @@ const DEPTO_LABEL: Record<string, string> = {
   outros: 'Outros',
 };
 
-async function buscarTudo(tabela: string, colunas: string, de: string, colunaData = 'data'): Promise<any[]> {
-  // PostgREST devolve no máx. 1000 por request — pagina até secar
-  const out: any[] = [];
-  for (let offset = 0; offset < 20_000; offset += 1000) {
-    const { data, error } = await supabase
-      .from(tabela)
-      .select(colunas)
-      .gte(colunaData, de)
-      .range(offset, offset + 999);
-    if (error) throw new Error(`${tabela}: ${error.message}`);
-    out.push(...(data || []));
-    if (!data || data.length < 1000) break;
-  }
-  return out;
-}
-
-// hodômetro digitado vem em TEXTO nos formatos misturados ("353.602", "436473")
-// — hodômetro é inteiro, então só os dígitos interessam
-function parseHodometro(v: unknown): number | null {
-  const n = Number(String(v ?? '').replace(/\D/g, ''));
-  return Number.isFinite(n) && n > 100 && n < 2_000_000 ? n : null;
-}
-
 export default function FrotaCustosPage() {
   const [meses, setMeses] = useState(12);
   const [linhas, setLinhas] = useState<LinhaTco[]>([]);
@@ -99,96 +45,11 @@ export default function FrotaCustosPage() {
     setCarregando(true);
     setErro('');
     try {
-      const de = new Date();
-      de.setMonth(de.getMonth() - meses);
-      const deIso = de.toISOString().slice(0, 10);
-
-      // descricao chegou na view v3.1, ref_id na v3.2 — se a migração ainda
-      // não rodou, cai pro select anterior em vez de derrubar a tela inteira
-      const buscarCustos = () =>
-        buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte, descricao, ref_id', deIso)
-          .catch(() => buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte, descricao', deIso))
-          .catch(() => buscarTudo('vw_frota_custos', 'veiculo_id, tipo, valor, data, fonte', deIso));
-
-      const [veic, custos, dias, abastHod, reqsHod] = await Promise.all([
-        supabase.from('frota_veiculos').select('id, placa, modelo, descricao, marca, tem_rastreador, tipo_registro, placa_exibicao, ativo, status, supa_placa_id, categoria'),
-        buscarCustos(),
-        buscarTudo('frota_dias', 'veiculo_id, km_total, km_odometro', deIso),
-        // hodômetro DIGITADO nos abastecimentos do cartão (pro km dos sem rastreador)
-        buscarTudo('abastecimentos', 'placa, hodometro', deIso, 'data_transacao'),
-        // idem nas requisições veiculares (Requisicao.veiculo = SupaPlacas.IdPlaca)
-        buscarTudo('Requisicao', 'veiculo, hodometro', deIso),
-      ]);
-      if (veic.error) throw new Error(veic.error.message);
-      setEntradas(custos as EntradaCusto[]);
-
-      const porVeiculo = new Map<string, LinhaTco>();
-      const porPlaca = new Map<string, string>();      // placa -> veiculo_id
-      const porIdPlaca = new Map<string, string>();    // SupaPlacas.IdPlaca -> veiculo_id
-      for (const v of veic.data || []) {
-        porVeiculo.set(v.id, {
-          veiculo_id: v.id,
-          placa: v.placa,
-          modelo: PLACAS_AVULSAS[v.placa] || [v.marca, v.modelo || v.descricao].filter(Boolean).join(' ') || null,
-          tem_rastreador: !!v.tem_rastreador,
-          avulso: v.tipo_registro !== 'veiculo',
-          ativo: !!v.ativo,
-          status: v.status || null,
-          categoria: v.categoria || null,
-          km: 0, km_fonte: null, combustivel: 0, manutencao: 0, multas: 0, outros: 0, total: 0,
-        });
-        porPlaca.set(v.placa, v.id);
-        if (v.supa_placa_id != null) porIdPlaca.set(String(v.supa_placa_id), v.id);
-      }
-
-      // hodômetros digitados por veículo (cartão + requisição) — o delta
-      // máx−mín no período vira o km de quem não tem rastreador
-      const hodometros = new Map<string, number[]>();
-      const anotarHod = (veiculoId: string | undefined, valor: unknown) => {
-        if (!veiculoId) return;
-        const h = parseHodometro(valor);
-        if (h == null) return;
-        const l = hodometros.get(veiculoId) || [];
-        l.push(h);
-        hodometros.set(veiculoId, l);
-      };
-      for (const a of abastHod) anotarHod(porPlaca.get(String(a.placa)), a.hodometro);
-      for (const r of reqsHod) anotarHod(porIdPlaca.get(String(r.veiculo ?? '')), r.hodometro);
-      for (const c of custos) {
-        const l = porVeiculo.get(c.veiculo_id);
-        if (!l) continue;
-        const valor = Number(c.valor) || 0;
-        const tipo = String(c.tipo || '').toLowerCase();
-        if (tipo.includes('combust')) l.combustivel += valor;
-        else if (tipo.includes('manut')) l.manutencao += valor;
-        else if (tipo.includes('multa')) l.multas += valor;
-        else l.outros += valor;
-        l.total += valor;
-      }
-      for (const d of dias) {
-        const l = porVeiculo.get(d.veiculo_id);
-        if (l) {
-          l.km += Number(d.km_odometro ?? d.km_total) || 0;
-          if (l.km > 0) l.km_fonte = 'rastreador';
-        }
-      }
-      // sem rastreador (ou sem dias fechados): km = delta do hodômetro digitado
-      for (const l of porVeiculo.values()) {
-        if (l.km > 0) continue;
-        const hs = hodometros.get(l.veiculo_id) || [];
-        if (hs.length < 2) continue;
-        const delta = Math.max(...hs) - Math.min(...hs);
-        if (delta > 0 && delta < 150_000) {
-          l.km = delta;
-          l.km_fonte = 'digitado';
-        }
-      }
-
-      setLinhas(
-        [...porVeiculo.values()]
-          .filter((l) => l.total > 0 || l.km > 0)
-          .sort((a, b) => b.total - a.total),
-      );
+      const r = await fetch(`/api/frota/custos?meses=${meses}`, { headers: await authHeaders() });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(d.error || `Falha ao carregar (${r.status}).`);
+      setEntradas((d.entradas || []) as EntradaCusto[]);
+      setLinhas((d.linhas || []) as LinhaTco[]);
     } catch (e) { setErro(e instanceof Error ? e.message : String(e)); }
     setCarregando(false);
   }, [meses]);
@@ -268,7 +129,7 @@ export default function FrotaCustosPage() {
             <tbody>
               {departamentos.map((dep) => {
                 const kmDep = soma(dep.ls, 'km');
-                const rkmDep = kmDep >= 50 ? dep.total / kmDep : null;
+                const rkmDep = custoPorKm({ total: dep.total, km: kmDep });
                 return (
                 <Fragment key={dep.key}>
               <tr style={{ borderTop: '2px solid var(--portal-border)', background: 'var(--portal-bg-secondary)' }}>
@@ -285,7 +146,7 @@ export default function FrotaCustosPage() {
                 <td style={{ ...td, fontWeight: 700 }}>{rkmDep != null ? fmtRS2(rkmDep) : '—'}</td>
               </tr>
               {dep.ls.map((l) => {
-                const rkm = l.km >= 50 ? l.total / l.km : null; // km de menos = divisão mentirosa
+                const rkm = custoPorKm(l); // km de menos = divisão mentirosa (travessão)
                 return (
                   <tr
                     key={l.veiculo_id}
@@ -383,7 +244,7 @@ function ModalCustos({ linha, meses, entradas, onClose }: {
   entradas: EntradaCusto[];
   onClose: () => void;
 }) {
-  const rkm = linha.km >= 50 ? linha.total / linha.km : null;
+  const rkm = custoPorKm(linha);
   // agrupa por TIPO, cada grupo com subtotal e lançamentos em ordem cronológica inversa
   const grupos = useMemo(() => {
     const porTipo = new Map<string, EntradaCusto[]>();
