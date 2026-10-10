@@ -1,4 +1,5 @@
-// PATCH /api/frota/paradas — justificar/ignorar uma parada atípica.
+// PATCH /api/frota/paradas — justificar/ignorar uma parada atípica, ou várias
+// de uma vez com { ids: [...] } (ação em lote da aba Hoje e da tela Paradas).
 // Permissão: frota:paradas:justificar. É o payoff operacional: a parada
 // estranha vira um registro explicado (quem justificou e quando).
 import { NextRequest, NextResponse } from 'next/server';
@@ -22,8 +23,11 @@ export async function PATCH(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const id = String(body.id || '');
-  if (!id) return NextResponse.json({ error: 'Informe o id da parada.' }, { status: 400 });
+  const ids: string[] = Array.isArray(body.ids)
+    ? body.ids.map((x: unknown) => String(x || '')).filter(Boolean).slice(0, 500)
+    : body.id ? [String(body.id)] : [];
+  if (!ids.length) return NextResponse.json({ error: 'Informe o id da parada.' }, { status: 400 });
+  const id = ids[0];
 
   const upd: Record<string, unknown> = {};
   if (body.justificativa !== undefined) {
@@ -42,16 +46,18 @@ export async function PATCH(req: NextRequest) {
     .eq('id', id)
     .maybeSingle();
 
-  const { error } = await supabase.from('frota_paradas').update(upd).eq('id', id);
+  const { error } = await supabase.from('frota_paradas').update(upd).in('id', ids);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   await logFrota(auth, {
     acao: 'editar',
     entidade: 'parada',
     entidadeId: id,
-    entidadeLabel: antes ? `Parada ${antes.placa} ${antes.data} (${antes.duracao_min}min)` : `Parada ${id.slice(0, 8)}`,
-    detalhes: upd,
+    entidadeLabel: ids.length > 1
+      ? `${ids.length} paradas (em lote)`
+      : antes ? `Parada ${antes.placa} ${antes.data} (${antes.duracao_min}min)` : `Parada ${id.slice(0, 8)}`,
+    detalhes: ids.length > 1 ? { ...upd, ids } : upd,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, atualizadas: ids.length });
 }

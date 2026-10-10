@@ -1,4 +1,5 @@
 'use client';
+import { CabecalhoFrota } from '@/components/frota/ui';
 // Abastecimento da frota — upload mensal do CSV da operadora de cartão-frota
 // + dashboard analítico em abas (visão geral, veículos, motoristas & postos,
 // auditoria, transações), com drill-down: clicar num gráfico abre o popup com
@@ -235,6 +236,12 @@ export default function AbastecimentoPage() {
   const [ate, setAte] = useState(isoHoje());
   const [filial] = useState(''); // filtro de filial oculto (só há uma filial em uso)
   const [placa, setPlaca] = useState('');
+  // link vindo da Ficha ("abrir a tela completa do Abastecimento") já filtra pela placa
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search).get('placa');
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (p) setPlaca(p);
+  }, []);
   const [departamento, setDepartamento] = useState('');
   const [aba, setAba] = useState<Aba>('visao');
 
@@ -393,13 +400,16 @@ export default function AbastecimentoPage() {
 
   return (
     <div style={{ padding: 'clamp(12px, 3vw, 20px)', maxWidth: 1300, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <h1 style={{ fontSize: '1.3rem', fontWeight: 700, color: '#333', marginBottom: 4 }}>Abastecimento da Frota</h1>
-        <a href="/frota/abastecimento/flex" style={{ fontSize: '.78rem', color: '#dc2626', fontWeight: 600, textDecoration: 'none' }}>
-          Álcool × Gasolina por veículo →
-        </a>
-      </div>
-      <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 16 }}>
+      <CabecalhoFrota
+        titulo="Abastecimento"
+        resumo="Quanto a frota gasta com combustível, por veículo, motorista, posto e departamento."
+        acoes={
+          <a href="/frota/abastecimento/flex" style={{ fontSize: 13, color: '#1e40af', fontWeight: 700, textDecoration: 'none' }}>
+            Álcool × Gasolina por veículo →
+          </a>
+        }
+      />
+      <p style={{ color: 'var(--portal-text-secondary)', fontSize: '.82rem', marginBottom: 16 }}>
         Gastos com combustível por veículo, motorista e posto — relatório mensal da operadora do cartão
         <strong style={{ color: '#666' }}> + requisições de abastecimento</strong> (Veicular, Trator e Quadri — entram
         sozinhas assim que vão pro financeiro). Trator/Quadri aparecem agrupados como{' '}

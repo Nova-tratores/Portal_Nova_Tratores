@@ -213,7 +213,11 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   // adicionar tela lá já cria a permissão aqui). Abaixo delas, as ações que
   // NÃO são telas.
   frota: [
-    ...PAGINAS_FROTA.map((p) => ({ id: p.key.replace('frota:', ''), label: p.label })),
+    // Hoje e Veículos dividem a chave frota:dashboard → uma permissão só
+    ...[...new Map(PAGINAS_FROTA.map((p) => [p.key, p])).values()].map((p) => ({
+      id: p.key.replace('frota:', ''),
+      label: p.key === 'frota:dashboard' ? 'Hoje e Veículos' : p.label,
+    })),
     { id: 'veiculos:editar', label: 'Veículos — editar a ficha' },
     { id: 'veiculos:responsavel', label: 'Veículos — trocar o responsável' },
     { id: 'motoristas:editar', label: 'Motoristas — editar CNH / flag motorista' },

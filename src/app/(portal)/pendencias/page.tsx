@@ -17,6 +17,7 @@ import SemPermissao from '@/components/SemPermissao';
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
 import FotoThumb from '@/components/frota/FotoThumb';
+import { formatarPlaca } from '@/lib/frota/placa';
 import { formatarHodometro } from '@/lib/requisicoes/campos';
 
 interface Veiculo {
@@ -231,7 +232,7 @@ function PendenciasInner() {
         )}
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{p.placa}</span>
+            <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{formatarPlaca(p.placa)}</span>
             <span style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>{nomeVeiculo(p.placa)}</span>
             <span style={{ fontSize: 10.5, fontWeight: 800, color: '#fff', background: resolvida ? '#16a34a' : '#dc2626', padding: '1px 8px', marginLeft: 'auto' }}>
               {resolvida ? 'RESOLVIDA' : 'ABERTA'}
@@ -264,7 +265,7 @@ function PendenciasInner() {
       {/* topo */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 14 }}>
         <Wrench size={20} color="#1e40af" />
-        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0, flex: 1 }}>Pendências da Frota</h1>
+        <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0, flex: 1 }}>Pendências da frota</h1>
         <button onClick={abrirForm}
           style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '12px 18px', border: 'none', borderRadius: 0, background: '#1e40af', color: '#fff', fontSize: 15, fontWeight: 700, cursor: 'pointer' }}>
           <Plus size={17} /> Abrir pendência

@@ -94,6 +94,8 @@ export interface VeiculoLista extends FrotaVeiculo {
   valor_multas_abertas: number;
   docs_vencendo: number; // vencidos ou vencendo em ≤30 dias
   pendencias: string[];  // 1+ = card VERMELHO (lib/frota/pendencias)
+  // pendências ABERTAS registradas, por classe (lib/frota/classes); null = não é veículo
+  classes?: import('@/lib/frota/classes').ResumoClasses | null;
 }
 
 export interface Responsavel {

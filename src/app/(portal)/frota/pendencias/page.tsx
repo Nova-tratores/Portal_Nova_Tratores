@@ -12,11 +12,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle, AlertTriangle, Camera, Car, CheckCircle2, ChevronDown, ChevronRight, ClipboardCheck,
-  FileWarning, History, LayoutGrid, Link2, List, Loader2, Plus, Search, Tag, Wrench, X,
+  History, LayoutGrid, Link2, List, Plus, Search, Tag, Wrench, X,
 } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
 import FotoThumb from '@/components/frota/FotoThumb';
+import { formatarPlaca } from '@/lib/frota/placa';
+import { resumoClasses, ordenarPorClasse, PESO_CLASSE, CLASSE_LABEL, type ClasseProblema } from '@/lib/frota/classes';
+import { CabecalhoFrota, CarregandoFrota, VazioFrota, SeloClasses } from '@/components/frota/ui';
 import { formatarHodometro } from '@/lib/requisicoes/campos';
 import {
   gravidadePadrao, GRAVIDADES, GRAVIDADE_AJUDA, GRAVIDADE_COR, GRAVIDADE_LABEL,
@@ -27,6 +30,7 @@ interface Veiculo {
   id: string; placa: string | null; modelo?: string | null; marca?: string | null;
   descricao?: string | null; tipo_registro?: string; responsavel_nome?: string | null;
   imagem_url?: string | null; pendencias: string[];
+  status?: string | null; // parado/manutencao na Ficha conta como "Parado"
 }
 interface Componente {
   id: string; sistema: string; subsistema: string | null; componente: string | null;
@@ -70,7 +74,9 @@ export default function FrotaPendenciasPage() {
   const [erro, setErro] = useState('');
   const [avisoTabela, setAvisoTabela] = useState('');
   const [busca, setBusca] = useState('');
-  const [filtro, setFiltro] = useState<'todos' | Origem>('todos');
+  const [filtro] = useState<'todos' | Origem>('todos');
+  // Parado · Defeito · Cadastro (lib/frota/classes): filtra os carros pela classe mais urgente presente
+  const [classe, setClasse] = useState<'todas' | ClasseProblema>('todas');
   const [modo, setModo] = useState<'cards' | 'lista'>('cards');
   const [abertoPlaca, setAbertoPlaca] = useState<string | null>(null);
 
@@ -232,13 +238,39 @@ export default function FrotaPendenciasPage() {
     return porPlaca;
   }, [veiculos, registradas]);
 
+  // resumo por classe de cada carro (status da Ficha conta: parado/em manutenção)
+  const classesDe = useCallback((g: Grupo) =>
+    resumoClasses(g.abertas, veiculos.find((x) => x.placa === g.placa)?.status, compPorId),
+  [veiculos, compPorId]);
+
+  const contagemClasse = useMemo(() => {
+    const c = { parado: 0, defeito: 0, cadastro: 0 };
+    for (const g of todosGrupos.values()) {
+      const r = classesDe(g);
+      if (r.parado) c.parado++;
+      if (r.defeitos) c.defeito++;
+      if (r.cadastro) c.cadastro++;
+    }
+    return c;
+  }, [todosGrupos, classesDe]);
+
   const grupos = useMemo<Grupo[]>(() => {
     const q = busca.trim().toLowerCase();
     return [...todosGrupos.values()]
       .filter((g) => (filtro === 'todos' ? g.abertas.length > 0 : g.abertas.some((p) => p.origem === filtro)))
+      .filter((g) => {
+        if (classe === 'todas') return true;
+        const r = classesDe(g);
+        return classe === 'parado' ? r.parado : classe === 'defeito' ? r.defeitos > 0 : r.cadastro > 0;
+      })
       .filter((g) => !q || [g.placa, g.nome, g.responsavel].some((s) => s && s.toLowerCase().includes(q)))
-      .sort((a, b) => b.abertas.length - a.abertas.length);
-  }, [todosGrupos, busca, filtro]);
+      // o carro mais urgente primeiro (parado > defeito > cadastro), depois o que tem mais coisa aberta
+      .sort((a, b) => {
+        const ra = classesDe(a), rb = classesDe(b);
+        const d = (rb.pior ? PESO_CLASSE[rb.pior] : 0) - (ra.pior ? PESO_CLASSE[ra.pior] : 0);
+        return d || b.abertas.length - a.abertas.length;
+      });
+  }, [todosGrupos, busca, filtro, classe, classesDe]);
 
   const aberto = abertoPlaca
     ? todosGrupos.get(abertoPlaca) || {
@@ -441,6 +473,7 @@ export default function FrotaPendenciasPage() {
   const contaOrigem = (g: Grupo, o: Origem) => g.abertas.filter((p) => p.origem === o).length;
   const pills = (g: Grupo) => (
     <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <SeloClasses classes={classesDe(g)} />
       {(['manual', 'requisicao', 'os', 'opa', 'cadastro', 'checklist'] as Origem[]).map((o) => {
         const n = contaOrigem(g, o);
         if (!n) return null;
@@ -491,10 +524,10 @@ export default function FrotaPendenciasPage() {
   return (
     <div style={{ padding: 'clamp(12px, 3vw, 28px)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <FileWarning size={20} color="var(--portal-text)" />
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Pendências por veículo</h1>
-        </div>
+        <CabecalhoFrota
+          titulo="Pendências por veículo"
+          resumo="Tudo que está aberto em cada carro, do mais urgente para o menos: parado, defeito, cadastro."
+        />
         <button onClick={() => { setNgAberta(true); setNgPlaca(''); setNgTitulo(''); setNgKm(''); setNgSistema(''); setNgCompId(''); setNgDesc(''); setNgResp(''); }}
           style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 'auto', padding: '9px 16px', border: 'none', borderRadius: 0, background: '#1e40af', color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: 'pointer' }}>
           <Plus size={15} /> Nova pendência
@@ -515,6 +548,26 @@ export default function FrotaPendenciasPage() {
         </div>
       </div>
 
+      {!carregando && todosGrupos.size > 0 && (
+        <div role="group" aria-label="Filtrar por classe" style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>
+          {([
+            ['todas', `Todas (${todosGrupos.size})`],
+            ['parado', `${CLASSE_LABEL.parado}s (${contagemClasse.parado})`],
+            ['defeito', `Com defeito (${contagemClasse.defeito})`],
+            ['cadastro', `${CLASSE_LABEL.cadastro} (${contagemClasse.cadastro})`],
+          ] as ['todas' | ClasseProblema, string][]).map(([k, rot]) => (
+            <button key={k} type="button" onClick={() => setClasse(k)} aria-pressed={classe === k}
+              style={{
+                padding: '6px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer', borderRadius: 999,
+                border: `1px solid ${classe === k ? '#1e40af' : 'var(--portal-border)'}`,
+                background: classe === k ? '#1e40af' : 'var(--portal-bg-card)',
+                color: classe === k ? '#fff' : 'var(--portal-text)',
+              }}>
+              {rot}
+            </button>
+          ))}
+        </div>
+      )}
       {erro && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', borderRadius: 0, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c', fontSize: 13, marginBottom: 16 }}>
           <AlertTriangle size={16} /> {erro}
@@ -527,13 +580,11 @@ export default function FrotaPendenciasPage() {
       )}
 
       {carregando ? (
-        <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text)', fontSize: 14 }}>
-          <Loader2 size={22} className="spin" style={{ marginBottom: 10 }} /><div>Carregando…</div>
-        </div>
+        <CarregandoFrota linhas={6} />
       ) : grupos.length === 0 ? (
-        <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text)', fontSize: 14 }}>
-          {busca || filtro !== 'todos' ? 'Nada neste filtro.' : 'Nenhuma pendência — frota em dia! 🎉'}
-        </div>
+        busca || filtro !== 'todos' || classe !== 'todas'
+          ? <VazioFrota titulo="Nada neste filtro" texto="Mude a busca ou a classe." />
+          : <VazioFrota titulo="Nenhuma pendência aberta" texto="A frota está em dia. Para registrar um problema, use Nova pendência." />
       ) : modo === 'cards' ? (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(230px, 100%), 1fr))', gap: 14 }}>
           {grupos.map((g) => (
@@ -544,7 +595,7 @@ export default function FrotaPendenciasPage() {
               {fotoBox(g, 120, '0')}
               <div style={{ padding: '10px 12px 12px' }}>
                 <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-                  <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.5, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{g.placa}</span>
+                  <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: 0.5, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{formatarPlaca(g.placa)}</span>
                   <span style={{ fontSize: 12, color: 'var(--portal-text)', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{g.nome}</span>
                 </div>
                 {g.responsavel ? (
@@ -563,7 +614,7 @@ export default function FrotaPendenciasPage() {
               onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--portal-bg-secondary)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}>
               <div className="frota-hide-m" style={{ width: 64, flexShrink: 0 }}>{fotoBox(g, 44, '8px')}</div>
-              <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.5, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', width: 90, flexShrink: 0 }}>{g.placa}</span>
+              <span style={{ fontSize: 14, fontWeight: 800, letterSpacing: 0.5, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums', width: 90, flexShrink: 0 }}>{formatarPlaca(g.placa)}</span>
               <span style={{ fontSize: 13, color: 'var(--portal-text)', flex: '1 1 120px', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                 {g.nome}{g.responsavel ? ` · ${g.responsavel}` : ''}
               </span>
@@ -756,7 +807,7 @@ export default function FrotaPendenciasPage() {
                 )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 10 }}>
-                  {aberto.abertas.map((p) => {
+                  {ordenarPorClasse(aberto.abertas, compPorId).map((p) => {
                     const comp = p.componente_id ? compPorId.get(p.componente_id) : undefined;
                     return (
                       <div key={p.id} style={{ border: p.id === pendDestaque ? '2px solid #f59e0b' : '1px solid var(--portal-border)', background: p.id === pendDestaque ? '#fffbeb' : undefined, borderRadius: 0, padding: '12px 14px' }}>

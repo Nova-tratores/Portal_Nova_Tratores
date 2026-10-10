@@ -83,7 +83,7 @@ const systems: SystemCard[] = [
   { id: 'estoque-movimentacao', name: 'Movimentação de Produto', description: 'Entradas e saídas de estoque de um produto no período (kardex)', icon: <Activity size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/movimentacao-produto', tag: 'MOVIMENTAÇÃO', group: 'estoque', permAcao: 'movimentacao-produto' },
   { id: 'frota', name: 'Frota', description: 'Veículos, abastecimento, multas, manutenções, documentos e rastreamento', icon: <Truck size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/frota', tag: 'VEÍCULOS', group: 'frota' },
   // Atalho pra abrir pendência de veículo (módulo próprio, mobile-first com foto)
-  { id: 'pendencias', name: 'Pendências Frota', description: 'Abrir e acompanhar pendências dos veículos — com foto direto do celular', icon: <Wrench size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/pendencias', tag: 'PENDÊNCIAS', group: 'frota' },
+  { id: 'pendencias', name: 'Pendências da frota', description: 'Abrir e acompanhar pendências dos veículos — com foto direto do celular', icon: <Wrench size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/pendencias', tag: 'PENDÊNCIAS', group: 'frota' },
 
   // Outros (cinza)
   { id: 'conhecimento', name: 'Base de conhecimento', description: 'Como usar cada tela do portal — o mesmo texto do botão "?" do cabeçalho', icon: <BookOpen size={28} />, color: '#0369a1', gradient: 'linear-gradient(135deg, #0ea5e9, #0369a1)', href: '/conhecimento', tag: 'AJUDA', group: 'outros' },

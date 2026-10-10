@@ -105,7 +105,7 @@ const navItems: NavItem[] = [
   // solto dele saiu daqui — quem tem a permissão antiga entra pelo Frota
   // (compat de chaves legadas removida em 16/07).
   { id: 'frota', name: 'Frota', href: '/frota', icon: <Truck size={18} />, tag: 'VEÍCULOS', gradient: '', group: 'frota' },
-  { id: 'pendencias', name: 'Pendências Frota', href: '/pendencias', icon: <Wrench size={18} />, tag: 'PENDÊNCIAS', gradient: '', group: 'frota' },
+  { id: 'pendencias', name: 'Pendências da frota', href: '/pendencias', icon: <Wrench size={18} />, tag: 'PENDÊNCIAS', gradient: '', group: 'frota' },
 
   // Outros (cinza)
   { id: 'opa', name: 'Opa', href: '/opa', icon: <AlertCircle size={18} />, tag: 'OCORRÊNCIAS', gradient: '', group: 'outros' },

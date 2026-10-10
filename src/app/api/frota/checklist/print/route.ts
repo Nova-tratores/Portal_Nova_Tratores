@@ -38,7 +38,8 @@ export async function GET(req: NextRequest) {
   const { data: v } = placaCanon
     ? await supabase.from('frota_veiculos').select('placa_exibicao, modelo, marca').eq('placa', placaCanon).maybeSingle()
     : { data: null } as any;
-  const placaFmt = v?.placa_exibicao || (placaCanon ? formatarPlaca(placaCanon) : (chk.placa || '—'));
+  // placa SEMPRE no formato da placa (o placa_exibicao é o texto cru da Rota Exata)
+  const placaFmt = placaCanon ? formatarPlaca(placaCanon) : (chk.placa || '—');
   const veicDesc = [v?.marca, v?.modelo].filter(Boolean).join(' ') || '';
 
   const score = chk.score_confianca;

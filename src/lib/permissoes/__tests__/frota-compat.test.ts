@@ -49,3 +49,15 @@ describe('podeTelaFrota — o gate por prefixo', () => {
   });
 
 });
+
+describe('paginaDaRota — página ativa na faixa da Frota', () => {
+  it('Hoje só no /frota exato; Veículos e checklist da placa caem na página certa', async () => {
+    const { paginaDaRota } = await import('@/app/(portal)/frota/paginas');
+    expect(paginaDaRota('/frota')?.label).toBe('Hoje');
+    expect(paginaDaRota('/frota/veiculos')?.label).toBe('Veículos');
+    expect(paginaDaRota('/frota/abastecimento/flex')?.label).toBe('Álcool × Gasolina');
+    expect(paginaDaRota('/frota/abastecimento')?.label).toBe('Abastecimento');
+    expect(paginaDaRota('/frota/checklist/GAL7A16')?.label).toBe('Checklists');
+    expect(paginaDaRota('/frota/checklists')?.aba).toBe('manutencao');
+  });
+});

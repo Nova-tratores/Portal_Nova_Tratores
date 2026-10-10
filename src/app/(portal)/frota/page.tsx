@@ -1,105 +1,63 @@
 'use client';
-// Frota > Visão geral — A tela do módulo (decisão do usuário, 15/07): a régua
-// de KPIs de saúde da frota em cima e o grid de VEÍCULOS inteiro embaixo
-// (busca, rótulo de localização, Ficha no clique). A antiga aba "Veículos"
-// virou redirect pra cá.
+// Frota > HOJE — a primeira tela do módulo (10/10/2026, Raio-X da Frota).
+// Responde "o que eu preciso fazer na frota agora?" sem passar por 6 abas:
+// parados, problemas graves, documentos vencendo, checklists que faltam,
+// cadastro a corrigir, paradas atípicas sem explicação e CNH. Cada item leva
+// direto para onde se resolve. Os dados vêm de GET /api/frota/hoje.
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Car, Search, Satellite, ShieldAlert, User as UserIcon, AlertTriangle,
-  FileWarning, MapPin, Truck, Fuel, Droplets, OctagonAlert, Plus, Loader2, X,
-  Users, IdCard,
+  OctagonAlert, AlertTriangle, FileWarning, Fuel, ClipboardCheck, UserX, MapPinned, IdCard, Check, Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { authHeaders } from '@/lib/auth/client';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { podeTelaFrota } from '@/lib/permissoes/frota';
-import VeiculoDrawer from '@/components/frota/VeiculoDrawer';
-import { SUBTIPOS_VEICULO, SUBTIPOS_DESTAQUE, labelSubtipo } from '@/lib/frota/tipos';
-import type { MotoristaRH, VeiculoLista } from '@/lib/frota/tipos';
+import { GRAVIDADE_COR, GRAVIDADE_LABEL, type Gravidade } from '@/lib/frota/gravidade';
+import { variacao } from '@/lib/frota/hoje';
+import type { MotoristaRH } from '@/lib/frota/tipos';
+import { CabecalhoFrota, KpiFrota, KpisFrota, CarregandoFrota, AZUL_FROTA } from '@/components/frota/ui';
 
 const fmtRS = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 });
+const fmtData = (s: string | null | undefined) => (s ? new Date(`${String(s).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR') : '');
 
-interface Localizacao {
-  rotulo: string;
-  cidade: string | null;
-  classe: string;
-  dt: string | null;
-  fonte: 'ao_vivo' | 'cache';
+interface DadosHoje {
+  geradoEm: string;
+  ativos: number;
+  parados: { placa: string; modelo: string; motivos: string[] }[];
+  graves: { id: string; placa: string; modelo: string; titulo: string; gravidade: Gravidade; origem: string | null; aberta_em: string | null; responsavel?: string | null }[];
+  documentos: { placa: string; modelo: string; tipo: string; vigencia_fim: string; vencido: boolean; dias: number }[];
+  cadastro: { placa: string; modelo: string; problemas: string[] }[];
+  checklists: { mes: string; resumo: { total: number; pendente: number; suspeito: number }; faltando: { placa: string; placa_key: string; tecnico_nome: string; status: string; descricao: string }[] };
+  paradas: { total: number; podeJustificar: boolean; itens: { id: string; placa: string; data: string; inicio: string; duracao_min: number; classe: string; destino_nome: string | null; endereco: string | null }[] };
+  combustivel: { ultimos30: { gasto: number; litros: number; abastecimentos: number }; anteriores30: { gasto: number } };
 }
 
-const COR_LOC: Record<string, string> = {
-  loja: '#1e3a8a',
-  cliente: '#1d4ed8', cliente_portal: '#1d4ed8',
-  em_deslocamento: '#7c3aed',
-  fora_geocerca: '#b45309',
-};
+const linkFicha = (placa: string) => `/frota/veiculos?placa=${encodeURIComponent(placa)}`;
+const linkPendencias = (placa: string) => `/frota/pendencias?placa=${encodeURIComponent(placa)}`;
 
-export default function FrotaHome() {
+export default function FrotaHoje() {
   const { userProfile } = useAuth();
-  const { pode, permissoes, isAdmin } = usePermissoes(userProfile?.id);
-  const [veiculos, setVeiculos] = useState<VeiculoLista[]>([]);
-  const [motoristas, setMotoristas] = useState<MotoristaRH[] | null>(null);
-  const [atipicas7d, setAtipicas7d] = useState<number | null>(null);
-  const [locs, setLocs] = useState<Record<string, Localizacao>>({});
-  const [combustivel, setCombustivel] = useState<{ gasto30: number; litros30: number; abast30: number } | null>(null);
-  const [busca, setBusca] = useState('');
-  // Ativos = a frota de verdade; Vendidos/Arquivados = histórico (saíram)
-  const [segmento, setSegmento] = useState<'ativos' | 'vendidos' | 'arquivados' | 'todos'>('ativos');
-  const [placaAberta, setPlacaAberta] = useState<string | null>(null);
+  const { permissoes, isAdmin } = usePermissoes(userProfile?.id);
+  const [d, setD] = useState<DadosHoje | null>(null);
   const [erro, setErro] = useState('');
-
-  // cadastro de veículo novo (o Frota é o ÚNICO lugar de cadastro — Fase 5)
-  const [novoAberto, setNovoAberto] = useState(false);
-  const [novo, setNovo] = useState({ placa: '', marca: '', modelo: '', ano: '', tipo_veiculo: 'carro' });
-  const [criando, setCriando] = useState(false);
-
-  const criarVeiculo = async () => {
-    if (!novo.placa.trim()) { alert('Informe a placa.'); return; }
-    setCriando(true);
-    try {
-      const r = await fetch('/api/frota/veiculos', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ ...novo, ano: novo.ano || undefined }),
-      });
-      const d = await r.json();
-      if (!r.ok) { alert(d.error || 'Falha ao cadastrar.'); return; }
-      setNovoAberto(false);
-      setNovo({ placa: '', marca: '', modelo: '', ano: '', tipo_veiculo: 'carro' });
-      await carregar();
-      setPlacaAberta(d.veiculo.placa); // já abre a Ficha pra completar os dados
-    } catch (e) { alert(String(e)); } finally { setCriando(false); }
-  };
+  const [motoristas, setMotoristas] = useState<MotoristaRH[] | null>(null);
 
   const carregar = useCallback(async () => {
     try {
-      const r = await fetch('/api/frota/veiculos', { headers: await authHeaders() });
-      const d = await r.json();
-      if (!r.ok) { setErro(d.error || 'Falha ao carregar.'); return; }
-      setVeiculos(d.veiculos || []);
-      setAtipicas7d(d.resumo?.atipicas_7d ?? null);
+      const r = await fetch('/api/frota/hoje', { headers: await authHeaders() });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setErro(j.error || `Falha ao carregar (${r.status}).`); return; }
+      setErro('');
+      setD(j as DadosHoje);
     } catch (e) { setErro(String(e)); }
   }, []);
+  // carregar só grava estado DEPOIS do fetch (assíncrono) — a regra não enxerga o await
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { carregar(); }, [carregar]);
 
-  // KPIs de combustível (30d) calculados no servidor pela mesma união da aba
-  // Abastecimento (cartão + requisições no financeiro), só veículos da frota
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch('/api/frota/resumo', { headers: await authHeaders() });
-        if (!r.ok) return;
-        const d = await r.json();
-        const u = d.combustivel?.ultimos30;
-        if (u) setCombustivel({ gasto30: u.gasto, litros30: u.litros, abast30: u.abastecimentos });
-      } catch { /* KPI opcional — sem ele a tela segue */ }
-    })();
-  }, []);
-
-  // Motoristas (RH) — pro KPI de CNH e o bloco-resumo embaixo. Só busca se a
-  // pessoa pode ver a tela; falha → bloco some (é opcional, não derruba a home).
+  // CNH vem do RH (rota própria, só para quem pode ver Motoristas)
   const podeVerMotoristas = podeTelaFrota(permissoes?.modulos_permitidos ?? [], isAdmin, 'motoristas');
   useEffect(() => {
     if (!podeVerMotoristas) return;
@@ -108,394 +66,270 @@ export default function FrotaHome() {
       try {
         const r = await fetch('/api/frota/motoristas/rh', { headers: await authHeaders() });
         if (!r.ok) return;
-        const d = await r.json();
-        if (vivo) setMotoristas(d.motoristas || []);
-      } catch { /* resumo é opcional */ }
+        const j = await r.json();
+        if (vivo) setMotoristas(j.motoristas || []);
+      } catch { /* bloco opcional */ }
     })();
     return () => { vivo = false; };
   }, [podeVerMotoristas]);
 
-  // Localização atual (Rota Exata + geocode) — chega DEPOIS da lista, de
-  // propósito: é externa e lenta; os cards aparecem na hora e os rótulos vão
-  // pingando quando prontos.
-  useEffect(() => {
-    let vivo = true;
-    (async () => {
-      try {
-        const r = await fetch('/api/frota/localizacao', { headers: await authHeaders() });
-        if (!r.ok) return;
-        const d = await r.json();
-        if (vivo) setLocs(d.localizacoes || {});
-      } catch { /* rótulo é opcional */ }
-    })();
-    return () => { vivo = false; };
-  }, []);
+  const cnh = useMemo(() => (motoristas || []).filter((m) => (m.pendencias || []).length > 0), [motoristas]);
 
-  const filtrados = useMemo(() => {
-    const q = busca.trim().toLowerCase();
-    return veiculos
-      .filter((v) => v.tipo_registro === 'veiculo') // os "avulsos" não são carros
-      .filter((v) =>
-        segmento === 'todos' ? true :
-        segmento === 'vendidos' ? v.status === 'vendido' :
-        segmento === 'arquivados' ? v.status === 'arquivado' :
-        v.ativo,
-      )
-      .filter((v) =>
-        !q ||
-        v.placa.toLowerCase().includes(q) ||
-        (v.modelo || '').toLowerCase().includes(q) ||
-        (v.marca || '').toLowerCase().includes(q) ||
-        (v.descricao || '').toLowerCase().includes(q) ||
-        (v.responsavel_nome || '').toLowerCase().includes(q),
-      )
-      // carros SEM FOTO vão pro fim (sort estável preserva o resto da ordem)
-      .sort((a, b) => (a.imagem_url ? 0 : 1) - (b.imagem_url ? 0 : 1));
-  }, [veiculos, busca, segmento]);
+  if (!d) {
+    return (
+      <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+        <CabecalhoFrota titulo="Hoje" resumo="O que precisa de atenção na frota agora." />
+        {erro ? <div style={{ color: '#b91c1c', fontSize: 13 }}>{erro}</div> : <CarregandoFrota kpis={4} linhas={5} />}
+      </div>
+    );
+  }
 
-  const soCarros = veiculos.filter((v) => v.tipo_registro === 'veiculo');
-  const pendencias = soCarros.filter((v) => v.pendencia_vinculo).length;
-  const comPendencia = soCarros.filter((v) => (v.pendencias || []).length > 0).length;
-  const multasN = soCarros.reduce((s, v) => s + (v.multas_abertas || 0), 0);
-  const multasRS = soCarros.reduce((s, v) => s + (v.valor_multas_abertas || 0), 0);
-  const docsN = soCarros.reduce((s, v) => s + (v.docs_vencendo || 0), 0);
-
-  // motoristas (RH): só os ATIVOS contam pro KPI de CNH
-  const motAtivos = (motoristas || []).filter((m) =>
-    m.status_rh != null ? !['demitido', 'inativo'].includes(m.status_rh) : m.ativo_portal,
-  );
-  const cnhVencida = motAtivos.filter((m) => m.situacao_cnh === 'vencida').length;
-  const cnhVencendo = motAtivos.filter((m) => m.situacao_cnh === 'vencendo').length;
-  const motComPendencia = (motoristas || []).filter((m) => (m.pendencias || []).length > 0);
+  const varComb = variacao(d.combustivel.ultimos30.gasto, d.combustivel.anteriores30.gasto);
+  const docsVencidos = d.documentos.filter((x) => x.vencido).length;
+  const criticas = d.graves.filter((g) => g.gravidade === 'critica').length;
+  const tudoEmDia = [];
+  if (!d.parados.length) tudoEmDia.push('nenhum veículo parado');
+  if (!d.graves.length) tudoEmDia.push('nenhum problema grave');
+  if (!d.documentos.length) tudoEmDia.push('documentos em dia');
+  if (!d.checklists.faltando.length) tudoEmDia.push('checklists do mês feitos');
+  if (!d.cadastro.length) tudoEmDia.push('cadastro completo');
+  if (!d.paradas.total) tudoEmDia.push('paradas explicadas');
 
   return (
     <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
+      <CabecalhoFrota
+        titulo="Hoje"
+        resumo="O que precisa de atenção na frota agora. Cada item leva direto para onde se resolve."
+        acoes={<span style={{ fontSize: 12, color: 'var(--portal-text-secondary)' }}>atualizado {new Date(d.geradoEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>}
+      />
 
-      {/* KPIs — saúde da frota (os clicáveis levam pra tela do assunto) */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 24 }}>
-        <Kpi icone={<Fuel size={16} />} rotulo="Gasto combustível (30d)" valor={combustivel ? fmtRS(combustivel.gasto30) : '—'} />
-        <Kpi icone={<Droplets size={16} />} rotulo="Litros (30d)" valor={combustivel ? combustivel.litros30.toLocaleString('pt-BR', { maximumFractionDigits: 0 }) : '—'} />
-        <Kpi icone={<Fuel size={16} />} rotulo="Abastecimentos (30d)" valor={combustivel ? String(combustivel.abast30) : '—'} />
-        <Kpi
-          icone={<ShieldAlert size={16} />}
-          rotulo="Multas em aberto"
-          valor={veiculos.length ? (multasN > 0 ? `${multasN} · ${fmtRS(multasRS)}` : '0') : '—'}
-          cor={multasN > 0 ? '#b91c1c' : undefined}
-          href="/frota/multas"
+      <KpisFrota>
+        <KpiFrota
+          rotulo="Parados" icone={<OctagonAlert size={14} />} valor={d.parados.length}
+          contexto={`de ${d.ativos} veículos ativos`} tom={d.parados.length ? 'ruim' : 'bom'} href="#parados"
         />
-        <Kpi
-          icone={<FileWarning size={16} />}
-          rotulo="Docs vencendo (≤30d)"
-          valor={veiculos.length ? String(docsN) : '—'}
-          cor={docsN > 0 ? '#b45309' : undefined}
+        <KpiFrota
+          rotulo="Problemas graves" icone={<AlertTriangle size={14} />} valor={d.graves.length}
+          contexto={criticas ? `${criticas} crítico${criticas > 1 ? 's' : ''} (não rodar)` : 'nenhum crítico'}
+          tom={criticas ? 'ruim' : d.graves.length ? 'atencao' : 'bom'} href="#graves"
         />
-        {podeVerMotoristas && (
-          <Kpi
-            icone={<IdCard size={16} />}
-            rotulo="CNH vencida · vencendo"
-            valor={motoristas ? `${cnhVencida} · ${cnhVencendo}` : '—'}
-            cor={cnhVencida > 0 ? '#b91c1c' : cnhVencendo > 0 ? '#b45309' : undefined}
-            href="/frota/motoristas"
-          />
-        )}
-        <Kpi
-          icone={<OctagonAlert size={16} />}
-          rotulo="Paradas atípicas (7d)"
-          valor={atipicas7d != null ? String(atipicas7d) : '—'}
-          cor={(atipicas7d || 0) > 0 ? '#b45309' : undefined}
-          href="/frota/paradas"
+        <KpiFrota
+          rotulo="Documentos" icone={<FileWarning size={14} />} valor={d.documentos.length}
+          contexto={docsVencidos ? `${docsVencidos} vencido${docsVencidos > 1 ? 's' : ''} · resto em até 30 dias` : 'vencendo em até 30 dias'}
+          tom={docsVencidos ? 'ruim' : d.documentos.length ? 'atencao' : 'bom'} href="#documentos"
         />
-        <Kpi
-          icone={<AlertTriangle size={16} />}
-          rotulo="Veículos com pendência"
-          valor={veiculos.length ? String(comPendencia) : '—'}
-          cor={comPendencia > 0 ? '#b91c1c' : undefined}
+        <KpiFrota
+          rotulo="Combustível (30 dias)" icone={<Fuel size={14} />} valor={fmtRS(d.combustivel.ultimos30.gasto)}
+          contexto={varComb == null ? `${d.combustivel.ultimos30.abastecimentos} abastecimentos` : `${varComb >= 0 ? '▲' : '▼'} ${Math.abs(varComb).toFixed(0)}% vs 30 dias antes`}
+          href="/frota/abastecimento"
         />
-      </div>
-
-      {/* Grid de veículos */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 18, flexWrap: 'wrap' }}>
-        <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--portal-text)' }}>Veículos</h3>
-        <span style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>
-          {filtrados.length} de {soCarros.length}
-        </span>
-        {pendencias > 0 && (
-          <span title="Veículos que só apareceram no abastecimento — sem cadastro completo" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 700, color: '#b45309', background: '#fef3c7', borderRadius: 999, padding: '3px 10px' }}>
-            <AlertTriangle size={12} /> {pendencias} com pendência de vínculo
-          </span>
-        )}
-        <div style={{ flex: 1 }} />
-        {/* Onde cada carro mora: Ativos = frota de verdade; Vendidos/Arquivados = histórico */}
-        <div style={{ display: 'flex', border: '1px solid var(--portal-border)', borderRadius: 0, overflow: 'hidden', overflowX: 'auto', maxWidth: '100%' }}>
-          {([
-            ['ativos', `Ativos (${soCarros.filter((v) => v.ativo).length})`],
-            ['vendidos', `Vendidos (${soCarros.filter((v) => v.status === 'vendido').length})`],
-            ['arquivados', `Arquivados (${soCarros.filter((v) => v.status === 'arquivado').length})`],
-            ['todos', 'Todos'],
-          ] as ['ativos' | 'vendidos' | 'arquivados' | 'todos', string][]).map(([k, rotulo]) => (
-            <button
-              key={k}
-              onClick={() => setSegmento(k)}
-              className="frota-touch"
-              style={{
-                padding: '7px 12px', border: 'none', fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                whiteSpace: 'nowrap', flexShrink: 0,
-                background: segmento === k ? '#1e40af' : 'var(--portal-bg-input)',
-                color: segmento === k ? '#fff' : 'var(--portal-text-secondary)',
-              }}
-            >
-              {rotulo}
-            </button>
-          ))}
-        </div>
-        <div className="frota-busca-box" style={{ position: 'relative' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text)' }} />
-          <input
-            value={busca}
-            onChange={(e) => setBusca(e.target.value)}
-            placeholder="Placa, modelo, responsável…"
-            className="frota-busca frota-touch"
-            style={{ padding: '8px 12px 8px 30px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13, width: 260 }}
-          />
-        </div>
-        {pode('frota', 'veiculos:editar') && (
-          <button
-            onClick={() => setNovoAberto(true)}
-            className="frota-touch"
-            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 0, border: 'none', background: '#1e40af', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}
-          >
-            <Plus size={15} /> Novo veículo
-          </button>
-        )}
-      </div>
-
-      {novoAberto && (
-        <div onClick={() => setNovoAberto(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 900, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div onClick={(e) => e.stopPropagation()} style={{ width: 'min(440px, 92vw)', maxHeight: '90vh', overflowY: 'auto', boxSizing: 'border-box', background: 'var(--portal-bg)', borderRadius: 0, padding: 20, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 20px 60px rgba(0,0,0,0.35)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <strong style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)' }}>Novo veículo</strong>
-              <button onClick={() => setNovoAberto(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--portal-text)' }}><X size={18} /></button>
-            </div>
-            <div style={{ fontSize: 12, color: 'var(--portal-text)' }}>
-              O Frota é o único lugar de cadastro: o veículo já nasce disponível nas Requisições. Depois complete a Ficha (documentos, projeto Omie, FIPE…).
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) minmax(0, 1fr)', gap: 10 }}>
-              {([['placa', 'Placa *', 'ABC-1D23'], ['marca', 'Marca', 'VW'], ['modelo', 'Modelo', 'Saveiro'], ['ano', 'Ano', '2025']] as [keyof typeof novo, string, string][]).map(([campo, rotulo, ph]) => (
-                <label key={campo} style={{ display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
-                  {rotulo}
-                  <input
-                    value={novo[campo]}
-                    onChange={(e) => setNovo((f) => ({ ...f, [campo]: e.target.value }))}
-                    placeholder={ph}
-                    style={{ width: '100%', boxSizing: 'border-box', minWidth: 0, padding: '8px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
-                  />
-                </label>
-              ))}
-              <label style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 3, fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase' }}>
-                Tipo do veículo
-                <select
-                  value={novo.tipo_veiculo}
-                  onChange={(e) => setNovo((f) => ({ ...f, tipo_veiculo: e.target.value }))}
-                  style={{ padding: '8px 10px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }}
-                >
-                  {SUBTIPOS_VEICULO.map((s) => <option key={s.valor} value={s.valor}>{s.label}</option>)}
-                </select>
-              </label>
-            </div>
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button onClick={() => setNovoAberto(false)} style={{ padding: '8px 14px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text)', fontSize: 13, cursor: 'pointer' }}>Cancelar</button>
-              <button onClick={criarVeiculo} disabled={criando} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 0, border: 'none', background: '#1e40af', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>
-                {criando ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} Cadastrar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      </KpisFrota>
 
       {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 12 }}>{erro}</div>}
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(340px, 100%), 1fr))', gap: 16 }}>
-        {filtrados.map((v) => (
-          <button
-            key={v.id}
-            onClick={() => setPlacaAberta(v.placa)}
-            title={(v.pendencias || []).length > 0 ? `Pendências:\n• ${v.pendencias.join('\n• ')}` : undefined}
-            style={{
-              textAlign: 'left', cursor: 'pointer',
-              // estilo PPV: faixa colorida na lateral + bordas mais quadradas
-              background: 'var(--portal-bg-card)',
-              border: '1px solid var(--portal-border)',
-              borderLeft: '4px solid #1e40af',
-              borderRadius: 0, padding: 16, display: 'flex', gap: 14, alignItems: 'center',
-              opacity: v.ativo ? 1 : 0.55, minWidth: 0,
-            }}
-          >
-            {v.imagem_url ? (
-              <img src={v.imagem_url} alt="" style={{ width: 74, height: 74, borderRadius: 0, objectFit: 'cover', background: 'var(--portal-bg-secondary)', flexShrink: 0 }} />
-            ) : (
-              <div style={{ width: 74, height: 74, borderRadius: 0, background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                <Car size={30} color="var(--portal-text)" />
-              </div>
-            )}
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-                <strong style={{ fontSize: 17, fontWeight: 800, color: 'var(--portal-text)' }}>{formatarPlaca(v.placa)}</strong>
-                {v.tem_rastreador && <Satellite size={13} color="#1e3a8a" aria-label="Rastreado" />}
-                {v.tipo_veiculo && SUBTIPOS_DESTAQUE.has(v.tipo_veiculo.toLowerCase()) && (
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#0369a1', background: '#e0f2fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4, textTransform: 'uppercase' }}>
-                    {labelSubtipo(v.tipo_veiculo)}
-                  </span>
-                )}
-                {v.status === 'vendido' && (
-                  <span title={`Vendido${v.venda_comprador ? ` para ${v.venda_comprador}` : ''}${v.venda_data ? ` em ${new Date(`${v.venda_data}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}`} style={{ fontSize: 10.5, fontWeight: 800, color: '#6d28d9', background: '#ede9fe', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
-                    VENDIDO
-                  </span>
-                )}
-                {v.status === 'arquivado' && (
-                  <span title={`Arquivado${v.arquivado_em ? ` em ${new Date(`${v.arquivado_em}T00:00:00`).toLocaleDateString('pt-BR')}` : ''}${v.arquivado_motivo ? ` — ${v.arquivado_motivo}` : ''}`} style={{ fontSize: 10.5, fontWeight: 800, color: '#475569', background: '#e2e8f0', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
-                    ARQUIVADO
-                  </span>
-                )}
-                {(v.pendencias || []).length > 0 && (
-                  <span style={{ fontSize: 10.5, fontWeight: 800, color: '#b91c1c', background: '#fee2e2', borderRadius: 999, padding: '2px 7px', letterSpacing: 0.4 }}>
-                    {v.pendencias.length} PENDÊNCIA{v.pendencias.length > 1 ? 'S' : ''}
-                  </span>
-                )}
-              </div>
-              <div style={{ fontSize: 14, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {[v.marca, v.modelo || v.descricao, v.ano].filter(Boolean).join(' · ') || '—'}
-              </div>
-              {(() => {
-                const loc = locs[v.placa];
-                if (!loc) return null;
-                const cor = COR_LOC[loc.classe] || 'var(--portal-text-muted)';
-                const quando = loc.dt ? new Date(loc.dt).toLocaleString('pt-BR') : '';
-                return (
-                  <div
-                    title={`${loc.fonte === 'cache' ? 'Última posição conhecida' : 'Posição ao vivo'}${quando ? ` · ${quando}` : ''}`}
-                    style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 3, fontSize: 12.5, fontWeight: 600, color: cor, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
-                  >
-                    <MapPin size={11} style={{ flexShrink: 0 }} />
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {loc.cidade ? `${loc.cidade} — ` : ''}{loc.rotulo}
-                    </span>
-                  </div>
-                );
-              })()}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4, flexWrap: 'wrap' }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text)' }}>
-                  <UserIcon size={12} /> {v.responsavel_nome || 'sem responsável'}
-                </span>
-                {v.multas_abertas > 0 && (
-                  <span title={`${v.multas_abertas} multa(s) em aberto`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, color: '#b91c1c' }}>
-                    <ShieldAlert size={11} /> {v.multas_abertas} · {fmtRS(v.valor_multas_abertas)}
-                  </span>
-                )}
-                {v.docs_vencendo > 0 && (
-                  <span title={`${v.docs_vencendo} documento(s) vencido(s) ou vencendo em 30 dias`} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 700, color: '#b45309' }}>
-                    <FileWarning size={11} /> DOC
-                  </span>
-                )}
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {d.parados.length > 0 && (
+          <Bloco id="parados" titulo="Veículos parados" icone={<OctagonAlert size={16} />} cor="#b91c1c" n={d.parados.length}
+            ajuda="Não deveriam rodar: problema crítico aberto ou marcado como parado/em manutenção na Ficha.">
+            {d.parados.map((p) => (
+              <Linha key={p.placa} placa={p.placa} modelo={p.modelo}
+                texto={p.motivos.join(' · ')}
+                acao={<Acao href={linkPendencias(p.placa)}>Ver pendências</Acao>} />
+            ))}
+          </Bloco>
+        )}
 
-      {/* Motoristas (RH) — resumo compacto; a aba completa é /frota/motoristas */}
-      {podeVerMotoristas && motoristas && (
-        <div style={{ marginTop: 28 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12, flexWrap: 'wrap' }}>
-            <h3 style={{ fontSize: 18, fontWeight: 800, margin: 0, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Users size={17} color="#1e40af" /> Motoristas
-            </h3>
-            <span style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>
-              {motAtivos.length} ativos · {motAtivos.filter((m) => m.e_motorista).length} motoristas
-              {motComPendencia.length > 0 && (
-                <> · <strong style={{ color: '#b91c1c' }}>{motComPendencia.length} com pendência de CNH</strong></>
-              )}
-            </span>
-            <div style={{ flex: 1 }} />
-            <Link href="/frota/motoristas" style={{ fontSize: 12.5, fontWeight: 700, color: '#1e40af', textDecoration: 'none' }}>
-              Ver todos →
-            </Link>
+        {d.graves.length > 0 && (
+          <Bloco id="graves" titulo="Problemas graves abertos" icone={<AlertTriangle size={16} />} cor="#c2410c" n={d.graves.length}
+            ajuda="Pendências de gravidade crítica ou grave, da mais urgente e mais antiga para a mais nova.">
+            {d.graves.slice(0, 30).map((g) => (
+              <Linha key={g.id} placa={g.placa} modelo={g.modelo}
+                selo={<span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.4, padding: '2px 8px', borderRadius: 999, background: GRAVIDADE_COR[g.gravidade].bg, color: GRAVIDADE_COR[g.gravidade].cor }}>{GRAVIDADE_LABEL[g.gravidade].toUpperCase()}</span>}
+                texto={`${g.titulo}${g.aberta_em ? ` · aberta em ${fmtData(g.aberta_em)}` : ''}${g.responsavel ? ` · ${g.responsavel}` : ''}`}
+                acao={<Acao href={`${linkPendencias(g.placa)}&pend=${g.id}`}>Abrir</Acao>} />
+            ))}
+            {d.graves.length > 30 && <Mais href="/frota/pendencias" n={d.graves.length - 30} />}
+          </Bloco>
+        )}
+
+        {d.documentos.length > 0 && (
+          <Bloco id="documentos" titulo="Documentos vencidos ou vencendo" icone={<FileWarning size={16} />} cor="#b45309" n={d.documentos.length}
+            ajuda="Vencidos e os que vencem nos próximos 30 dias. O documento renovado tira o antigo da lista.">
+            {d.documentos.map((x) => (
+              <Linha key={`${x.placa}-${x.tipo}`} placa={x.placa} modelo={x.modelo}
+                texto={`${x.tipo} ${x.vencido ? `venceu em ${fmtData(x.vigencia_fim)}` : `vence em ${fmtData(x.vigencia_fim)} (${x.dias} dia${x.dias === 1 ? '' : 's'})`}`}
+                destaque={x.vencido}
+                acao={<Acao href={linkFicha(x.placa)}>Abrir a Ficha</Acao>} />
+            ))}
+          </Bloco>
+        )}
+
+        {d.checklists.faltando.length > 0 && (
+          <Bloco titulo={`Checklists de ${d.checklists.mes.slice(5, 7)}/${d.checklists.mes.slice(0, 4)} que faltam`} icone={<ClipboardCheck size={16} />} cor={AZUL_FROTA}
+            n={d.checklists.faltando.length}
+            ajuda={`${d.checklists.resumo.pendente} não feito(s) e ${d.checklists.resumo.suspeito} suspeito(s) de ${d.checklists.resumo.total}. Veículo com checklist desligado na Ficha não entra.`}>
+            {d.checklists.faltando.map((c) => (
+              <Linha key={c.placa_key || c.placa} placa={c.placa_key || c.placa} modelo={c.descricao}
+                texto={`${c.status === 'suspeito' ? 'Feito, mas suspeito (score baixo)' : 'Não fez'} · ${c.tecnico_nome}`}
+                acao={c.placa_key ? <Acao href={`/frota/checklist/${c.placa_key}`}>Abrir checklist</Acao> : undefined} />
+            ))}
+          </Bloco>
+        )}
+
+        {d.cadastro.length > 0 && (
+          <Bloco titulo="Cadastro a corrigir" icone={<UserX size={16} />} cor="#4338ca" n={d.cadastro.length}
+            ajuda="Veículos ativos sem responsável ou com o cadastro incompleto. Corrija na Ficha do veículo.">
+            {d.cadastro.map((c) => (
+              <Linha key={c.placa} placa={c.placa} modelo={c.modelo} texto={c.problemas.join(' · ')}
+                acao={<Acao href={linkFicha(c.placa)}>Corrigir na Ficha</Acao>} />
+            ))}
+          </Bloco>
+        )}
+
+        {d.paradas.total > 0 && <ParadasSemExplicacao dados={d.paradas} onMudou={carregar} />}
+
+        {cnh.length > 0 && (
+          <Bloco titulo="Motoristas com CNH a resolver" icone={<IdCard size={16} />} cor="#b91c1c" n={cnh.length}
+            ajuda="CNH vencida, vencendo, sem cadastro ou motorista desligado que ainda responde por veículo.">
+            {cnh.slice(0, 12).map((m) => (
+              <div key={m.rh_id || m.id} style={linhaEstilo}>
+                <strong style={{ fontSize: 13.5, color: 'var(--portal-text)', minWidth: 0, flex: '1 1 200px' }}>{m.nome}</strong>
+                <span style={{ fontSize: 13, color: 'var(--portal-text-secondary)', flex: '2 1 260px', minWidth: 0 }}>{m.pendencias.join(' · ')}</span>
+                <Acao href="/frota/motoristas">Abrir Motoristas</Acao>
+              </div>
+            ))}
+            {cnh.length > 12 && <Mais href="/frota/motoristas" n={cnh.length - 12} />}
+          </Bloco>
+        )}
+
+        {tudoEmDia.length > 0 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', fontSize: 13, color: 'var(--portal-text-secondary)', padding: '10px 0' }}>
+            <Check size={15} color="#15803d" />
+            <span>Em dia: {tudoEmDia.join(' · ')}.</span>
           </div>
-          {motComPendencia.length === 0 ? (
-            <div style={{ fontSize: 12.5, color: 'var(--portal-text)' }}>
-              CNHs em dia ✓ — ninguém com pendência.
-            </div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(240px, 100%), 1fr))', gap: 10 }}>
-              {motComPendencia.slice(0, 8).map((m) => (
-                <Link
-                  key={m.rh_id || m.id}
-                  href="/frota/motoristas"
-                  title={`Pendências:\n• ${m.pendencias.join('\n• ')}`}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none',
-                    background: 'rgba(220, 38, 38, 0.06)', border: '1px solid #ef4444',
-                    borderRadius: 0, padding: '8px 12px',
-                  }}
-                >
-                  {m.foto_url ? (
-                    <img src={m.foto_url} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover', background: 'var(--portal-bg-secondary)', flexShrink: 0 }} />
-                  ) : (
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <UserIcon size={16} color="var(--portal-text-muted)" />
-                    </div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {m.nome}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#b91c1c', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {m.pendencias[0]}
-                    </div>
-                  </div>
-                </Link>
-              ))}
-              {motComPendencia.length > 8 && (
-                <Link href="/frota/motoristas" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12.5, fontWeight: 700, color: '#1e40af', textDecoration: 'none', border: '1px dashed var(--portal-border)', borderRadius: 0, padding: '8px 12px' }}>
-                  + {motComPendencia.length - 8} outros →
-                </Link>
-              )}
-            </div>
-          )}
-        </div>
-      )}
-
-      {placaAberta && (
-        <VeiculoDrawer
-          placa={placaAberta}
-          podeEditar={pode('frota', 'veiculos:editar')}
-          podeResponsavel={pode('frota', 'veiculos:responsavel')}
-          podeDocumentos={pode('frota', 'documentos:editar')}
-          onClose={() => setPlacaAberta(null)}
-          onMudou={carregar}
-        />
-      )}
+        )}
+      </div>
     </div>
   );
 }
 
-function Kpi({ icone, rotulo, valor, cor, href }: { icone: React.ReactNode; rotulo: string; valor: string; cor?: string; href?: string }) {
-  const corpo = (
-    <div
-      style={{
-        background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)',
-        borderRadius: 0, padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 4,
-        height: '100%',
-      }}
-    >
-      {/* ícones e valores sempre no azul do módulo / preto — sem vermelho de alerta */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#1e40af' }}>
-        {icone}
-        <span style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--portal-text)', textTransform: 'uppercase', letterSpacing: 0.4 }}>
-          {rotulo}
-        </span>
+const linhaEstilo: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', padding: '10px 14px',
+  borderTop: '1px solid var(--portal-border)',
+};
+
+function Bloco({ id, titulo, icone, cor, n, ajuda, children }: {
+  id?: string; titulo: string; icone: React.ReactNode; cor: string; n: number; ajuda?: string; children: React.ReactNode;
+}) {
+  return (
+    <section id={id} style={{ background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', borderLeft: `4px solid ${cor}`, scrollMarginTop: 100 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 14px', flexWrap: 'wrap' }}>
+        <span style={{ color: cor, display: 'flex' }}>{icone}</span>
+        <h2 style={{ margin: 0, fontSize: 15.5, fontWeight: 800, color: 'var(--portal-text)' }}>{titulo}</h2>
+        <span style={{ fontSize: 12, fontWeight: 800, color: '#fefefe', background: cor, borderRadius: 999, padding: '1px 9px' }}>{n}</span>
+        {ajuda && <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', flexBasis: '100%' }}>{ajuda}</span>}
       </div>
-      <strong style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)' }}>{valor}</strong>
+      {children}
+    </section>
+  );
+}
+
+function Linha({ placa, modelo, texto, selo, acao, destaque }: {
+  placa: string; modelo?: string; texto: string; selo?: React.ReactNode; acao?: React.ReactNode; destaque?: boolean;
+}) {
+  return (
+    <div style={linhaEstilo}>
+      <Link href={linkFicha(placa)} title="Abrir a Ficha do veículo" style={{ textDecoration: 'none', minWidth: 0, flex: '0 1 220px', display: 'flex', flexDirection: 'column' }}>
+        <strong style={{ fontSize: 14.5, fontWeight: 800, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{formatarPlaca(placa)}</strong>
+        {modelo && <span style={{ fontSize: 12, color: 'var(--portal-text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{modelo}</span>}
+      </Link>
+      {selo}
+      <span style={{ fontSize: 13.5, color: destaque ? '#b91c1c' : 'var(--portal-text)', fontWeight: destaque ? 700 : 400, flex: '1 1 260px', minWidth: 0 }}>{texto}</span>
+      {acao}
     </div>
   );
-  return href ? <Link href={href} style={{ textDecoration: 'none' }} title="Abrir a tela">{corpo}</Link> : corpo;
+}
+
+function Acao({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <Link href={href} style={{ fontSize: 12.5, fontWeight: 700, color: AZUL_FROTA, textDecoration: 'none', padding: '6px 12px', border: `1px solid ${AZUL_FROTA}`, whiteSpace: 'nowrap' }}>
+      {children} →
+    </Link>
+  );
+}
+
+function Mais({ href, n }: { href: string; n: number }) {
+  return (
+    <div style={{ ...linhaEstilo, justifyContent: 'center' }}>
+      <Link href={href} style={{ fontSize: 13, fontWeight: 700, color: AZUL_FROTA, textDecoration: 'none' }}>+ {n} outros →</Link>
+    </div>
+  );
+}
+
+// Paradas atípicas da semana sem explicação: seleciona várias e justifica ou ignora de uma vez.
+function ParadasSemExplicacao({ dados, onMudou }: { dados: DadosHoje['paradas']; onMudou: () => void }) {
+  const [sel, setSel] = useState<Set<string>>(new Set());
+  const [texto, setTexto] = useState('');
+  const [enviando, setEnviando] = useState(false);
+  const [msg, setMsg] = useState('');
+  const todos = dados.itens.map((p) => p.id);
+  const alternar = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+
+  const aplicar = async (corpo: Record<string, unknown>) => {
+    if (!sel.size) return;
+    setEnviando(true); setMsg('');
+    try {
+      const r = await fetch('/api/frota/paradas', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ ids: [...sel], ...corpo }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) { setMsg(j.error || 'Não deu para salvar.'); return; }
+      setMsg(`${j.atualizadas || sel.size} parada(s) atualizada(s).`);
+      setSel(new Set()); setTexto('');
+      onMudou();
+    } catch { setMsg('Falha de conexão — tente de novo.'); }
+    finally { setEnviando(false); }
+  };
+
+  return (
+    <Bloco titulo="Paradas atípicas sem explicação (7 dias)" icone={<MapPinned size={16} />} cor="#7c3aed" n={dados.total}
+      ajuda={`Paradas fora do padrão que ninguém justificou nem ignorou${dados.total > dados.itens.length ? ` — mostrando as ${dados.itens.length} mais longas` : ''}.`}>
+      {dados.podeJustificar && (
+        <div style={{ ...linhaEstilo, background: 'var(--portal-bg-secondary)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: 'var(--portal-text)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={sel.size === todos.length && todos.length > 0}
+              onChange={() => setSel(sel.size === todos.length ? new Set() : new Set(todos))} />
+            {sel.size ? `${sel.size} selecionada(s)` : 'Selecionar todas'}
+          </label>
+          <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Justificativa (ex.: visita a cliente)"
+            aria-label="Justificativa das paradas selecionadas"
+            style={{ flex: '1 1 220px', minWidth: 0, padding: '7px 10px', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 13 }} />
+          <button type="button" disabled={!sel.size || !texto.trim() || enviando} onClick={() => aplicar({ justificativa: texto.trim() })}
+            style={{ padding: '7px 12px', border: 'none', background: AZUL_FROTA, color: '#fff', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: !sel.size || !texto.trim() ? 0.5 : 1 }}>
+            {enviando ? <Loader2 size={13} className="spin" /> : 'Justificar'}
+          </button>
+          <button type="button" disabled={!sel.size || enviando} onClick={() => aplicar({ ignorada: true })}
+            style={{ padding: '7px 12px', border: '1px solid var(--portal-border)', background: 'var(--portal-bg-input)', color: 'var(--portal-text)', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', opacity: sel.size ? 1 : 0.5 }}>
+            Ignorar
+          </button>
+          {msg && <span style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', flexBasis: '100%' }}>{msg}</span>}
+        </div>
+      )}
+      {dados.itens.slice(0, 25).map((p) => (
+        <div key={p.id} style={linhaEstilo}>
+          {dados.podeJustificar && (
+            <input type="checkbox" checked={sel.has(p.id)} onChange={() => alternar(p.id)} aria-label={`Selecionar parada de ${p.placa}`} />
+          )}
+          <strong style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', flex: '0 1 110px' }}>{formatarPlaca(p.placa)}</strong>
+          <span style={{ fontSize: 13, color: 'var(--portal-text)', flex: '1 1 260px', minWidth: 0 }}>
+            {fmtData(p.data)} · {new Date(p.inicio).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} · {Math.round(p.duracao_min)} min
+            {' · '}{p.destino_nome || p.endereco || (p.classe === 'fora_geocerca' ? 'fora de local conhecido' : p.classe)}
+          </span>
+        </div>
+      ))}
+      {dados.itens.length > 25 && <Mais href="/frota/paradas" n={dados.total - 25} />}
+    </Bloco>
+  );
 }

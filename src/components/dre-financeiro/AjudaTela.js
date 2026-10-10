@@ -16,10 +16,13 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 
 const VERDE = '#10B981'
 
-export default function AjudaTela({ pathname, cor = VERDE }) {
+// Outros módulos reaproveitam o mesmo painel passando os próprios textos
+// (`buscar`) e, se a nota do DRE não fizer sentido lá, `nota={null}` (ex.: Frota).
+/** @param {{ pathname: string, cor?: string, buscar?: (pathname: string) => any, nota?: string | null }} props */
+export default function AjudaTela({ pathname, cor = VERDE, buscar = ajudaDaTela, nota = NOTA_CONTA }) {
   const [aberto, setAberto] = useState(false)
   const isMobile = useIsMobile()
-  const ajuda = ajudaDaTela(pathname)
+  const ajuda = buscar(pathname)
 
   // Esc fecha (mesmo padrao dos modais das telas do modulo).
   useEffect(() => {
@@ -148,13 +151,15 @@ export default function AjudaTela({ pathname, cor = VERDE }) {
                 </Secao>
               )}
 
-              <div style={{
-                marginTop: '14px', padding: '9px 11px', borderRadius: '8px',
-                background: '#ecfdf5', border: '1px solid #a7f3d0',
-                fontSize: '12px', color: '#065f46',
-              }}>
-                {NOTA_CONTA}
-              </div>
+              {nota && (
+                <div style={{
+                  marginTop: '14px', padding: '9px 11px', borderRadius: '8px',
+                  background: '#ecfdf5', border: '1px solid #a7f3d0',
+                  fontSize: '12px', color: '#065f46',
+                }}>
+                  {nota}
+                </div>
+              )}
             </div>
           </div>
         </div>

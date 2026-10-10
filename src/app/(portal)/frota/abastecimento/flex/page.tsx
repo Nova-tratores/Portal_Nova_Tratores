@@ -1,4 +1,5 @@
 'use client'
+import { CabecalhoFrota } from '@/components/frota/ui';
 // Álcool × Gasolina — para cada veículo flex da frota, compara o consumo
 // (km/l) e o custo por km em cada combustível e diz qual compensa.
 // Clique no veículo abre TODOS os abastecimentos dele (a "prova" do
@@ -112,23 +113,21 @@ export default function FlexPage() {
   const visiveis = mostrarInativos ? veiculos : veiculos.filter((v) => v.ativo !== false)
 
   return (
-    <div className="mx-auto max-w-6xl p-4">
+    <div className="frota-pg" style={{ padding: '28px 40px' }}>
       <div className="mb-1 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Álcool × Gasolina</h1>
-          <p className="text-sm text-gray-500">
-            Qual combustível compensa em cada veículo flex, pelos números reais da frota.
-          </p>
-        </div>
+        <CabecalhoFrota
+          titulo="Álcool × Gasolina"
+          resumo="Qual combustível compensa em cada veículo flex, pelos números reais da frota."
+        />
         <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex overflow-hidden rounded-lg border border-red-600">
+          <div className="inline-flex overflow-hidden border border-blue-800">
             {PERIODOS.map((p, i) => (
               <button
                 key={p.meses}
                 type="button"
                 onClick={() => setMeses(p.meses)}
-                className={`px-3 py-1 text-xs font-semibold ${i > 0 ? 'border-l border-red-600' : ''} ${
-                  meses === p.meses ? 'bg-red-600 text-white' : 'bg-white text-red-700 hover:bg-red-50'
+                className={`px-3 py-1 text-xs font-semibold ${i > 0 ? 'border-l border-blue-800' : ''} ${
+                  meses === p.meses ? 'bg-blue-800 text-white' : 'bg-white text-blue-800 hover:bg-blue-50'
                 }`}
               >
                 {p.label}

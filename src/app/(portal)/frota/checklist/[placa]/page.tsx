@@ -63,7 +63,9 @@ export default function ChecklistVeiculoPage() {
   useEffect(() => { carregar(); }, [carregar]);
 
   const concluido = checklist && (checklist.status === 'completo' || checklist.status === 'suspeito');
-  const placaFmt = veiculo?.placa_exibicao || formatarPlaca(placa);
+  // placa SEMPRE no formato da placa — o placa_exibicao guarda o texto cru da
+  // Rota Exata ("STRADA - ATJ6211"); o modelo aparece à parte
+  const placaFmt = formatarPlaca(placa);
   const veicDesc = [veiculo?.marca, veiculo?.modelo].filter(Boolean).join(' ');
 
   const escolherFoto = (f: File | null) => {

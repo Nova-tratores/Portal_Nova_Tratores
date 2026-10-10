@@ -19,7 +19,7 @@ const MODULOS = [
   { label: 'Financeiro — Pós-Vendas', href: '/financeiro/home-posvendas' },
   { label: 'Financeiro — Peças', href: '/financeiro/home-pecas' },
   { label: 'Frota', href: '/frota' },
-  { label: 'Pendências Frota', href: '/pendencias' },
+  { label: 'Pendências da frota', href: '/pendencias' },
   { label: 'Clientes', href: '/clientes' },
   { label: 'Consulta Estoque', href: '/estoque' },
   { label: 'Visual Estoque', href: '/visual-estoque' },

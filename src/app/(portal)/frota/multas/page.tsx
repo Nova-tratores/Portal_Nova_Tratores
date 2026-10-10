@@ -172,7 +172,7 @@ function NovaMultaModal({ motoristas, onClose, onCriada }: { motoristas: Motoris
               <option value="">{veiculos == null ? 'Carregando…' : 'Selecione…'}</option>
               {(veiculos || []).map((v) => (
                 <option key={v.id} value={v.id}>
-                  {formatarPlaca(v.placa_exibicao || v.placa)}{v.modelo ? ` · ${v.modelo}` : ''}
+                  {formatarPlaca(v.placa)}{v.modelo ? ` · ${v.modelo}` : ''}
                 </option>
               ))}
             </select>

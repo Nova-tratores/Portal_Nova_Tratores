@@ -4,5 +4,5 @@ import { redirect } from 'next/navigation';
 // descontinuada). Stub de redirect para não quebrar bookmarks. Remover na
 // limpeza (Fase 5).
 export default function VisualEstoqueFrotaRedirect() {
-  redirect('/frota');
+  redirect('/frota/veiculos');
 }

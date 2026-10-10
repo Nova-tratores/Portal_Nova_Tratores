@@ -1,4 +1,5 @@
 'use client';
+import { CabecalhoFrota } from '@/components/frota/ui';
 // Frota > Motoristas — os funcionários do RH (Supabase próprio, SEM salário)
 // mesclados com a frota: CNH (número/categoria/validade), flag "é motorista",
 // veículos sob responsabilidade e multas. Mesmo visual da Visão geral dos
@@ -125,18 +126,11 @@ export default function FrotaMotoristasPage() {
 
   return (
     <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
-      {/* Cabeçalho */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-        <div style={{ width: 48, height: 48, borderRadius: 0, background: 'linear-gradient(135deg, #1E40AF, #1E3A8A)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <Users size={26} color="#fff" />
-        </div>
-        <div>
-          <h2 style={{ fontSize: 28, fontWeight: 800, margin: 0, color: 'var(--portal-text)' }}>Motoristas</h2>
-          <p style={{ margin: 0, fontSize: 13, color: 'var(--portal-text)' }}>
-            Funcionários do RH + habilitação (CNH) e vínculos da frota — o cadastro é editado no RH
-          </p>
-        </div>
-      </div>
+      <CabecalhoFrota
+        titulo="Motoristas"
+        icone={<Users size={20} color="#1e40af" />}
+        resumo="Funcionários do RH com a habilitação (CNH) e os vínculos da frota. O cadastro da pessoa é editado no RH."
+      />
 
       {!rhConfigurado && aviso && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#fef3c7', border: '1px solid #f59e0b', color: '#92400e', borderRadius: 0, padding: '10px 14px', fontSize: 13.5, marginBottom: 16 }}>

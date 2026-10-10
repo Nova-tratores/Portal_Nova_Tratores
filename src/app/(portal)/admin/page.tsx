@@ -58,7 +58,7 @@ const MODULOS = [
   { id: 'ppv', label: 'Peças (PPV)', color: '#ef4444' },
   // Pendências da frota: abrir/acompanhar pendências dos carros sem precisar
   // do módulo Frota inteiro (quem tem Frota também acessa).
-  { id: 'pendencias', label: 'Pendências (Frota)', color: '#1e40af' },
+  { id: 'pendencias', label: 'Pendências da frota', color: '#1e40af' },
   { id: 'cameras', label: 'Vigia das Câmeras', color: '#dc2626' },
   { id: 'pos', label: 'Pós-Vendas (OS)', color: '#dc2626' },
   { id: 'propostas', label: 'Proposta Comercial', color: '#991b1b' },

@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ClipboardCheck, Loader2, AlertTriangle, ChevronRight } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
+import { CabecalhoFrota } from '@/components/frota/ui';
 
 type Status = 'ok' | 'suspeito' | 'em_andamento' | 'pendente';
 interface Item {
@@ -65,15 +66,16 @@ export default function FrotaChecklistsPage() {
   };
 
   return (
-    <div style={{ padding: 'clamp(12px, 4vw, 28px)', maxWidth: 1100, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <ClipboardCheck size={20} color="var(--portal-text)" />
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>Checklists mensais</h1>
-        </div>
-        <input type="month" value={mes} onChange={(e) => setMes(e.target.value)}
-          style={{ marginLeft: 'auto', maxWidth: '100%', padding: '9px 12px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14 }} />
-      </div>
+    <div className="frota-pg" style={{ padding: '28px 40px' }}>
+      <CabecalhoFrota
+        titulo="Checklists mensais"
+        icone={<ClipboardCheck size={20} color="#1e40af" />}
+        resumo="Quem fez o checklist do mês, quem não fez e quem fez com score baixo. Veículo com o checklist desligado na Ficha não entra."
+        acoes={
+          <input type="month" value={mes} onChange={(e) => setMes(e.target.value)} aria-label="Mês do checklist"
+            style={{ maxWidth: '100%', padding: '9px 12px', borderRadius: 0, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14 }} />
+        }
+      />
 
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginBottom: 18 }}>
         {card('total', 'Total', '#334155')}
@@ -115,7 +117,7 @@ export default function FrotaChecklistsPage() {
                   </div>
                   {it.descricao && <div style={{ fontSize: 13, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{it.descricao}</div>}
                 </div>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', fontFamily: 'monospace' }}>{it.placa}</span>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--portal-text)', fontVariantNumeric: 'tabular-nums' }}>{it.placa}</span>
                 <span style={{ textAlign: 'center' }}>
                   <span style={{ fontSize: 12, fontWeight: 700, padding: '3px 10px', borderRadius: 999, background: st.bg, color: st.cor }}>{st.label}</span>
                 </span>

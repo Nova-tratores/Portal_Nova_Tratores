@@ -27,9 +27,7 @@ export function slugDaRota(pathname: string): string {
   const partes = pathname.slice('/frota'.length).split('/').filter(Boolean);
   if (partes.length === 0) return 'dashboard';
 
-  // /frota/veiculos é redirect pra Visão geral (aba fundida em 15/07) — o
-  // bookmark antigo tem que passar pelo gate da tela unificada, não por um
-  // slug que já não existe.
+  // /frota (Hoje) e /frota/veiculos (Veículos) dividem a chave frota:dashboard.
   if (partes[0] === 'veiculos') return 'dashboard';
   // Preencher/ver checklist de um veículo herda a permissão da tela "Checklists".
   if (partes[0] === 'checklist') return 'checklists';

@@ -10,6 +10,8 @@ import { logFrota, podeFrota, temModuloPendencias } from '@/lib/frota/server';
 import { garantirSupaPlaca } from '@/lib/frota/supaplacas';
 import { pendenciasDoVeiculo } from '@/lib/frota/pendencias';
 import { PLACA_RE, resolverPlaca } from '@/lib/frota/placa';
+import { resumoClasses } from '@/lib/frota/classes';
+import { paginar } from '@/lib/db/paginar';
 
 export const runtime = 'nodejs';
 
@@ -39,6 +41,21 @@ export async function GET(req: NextRequest) {
     supabase.from('frota_dias').select('paradas_atipicas').gte('data', de7),
   ]);
   if (veiculos.error) return NextResponse.json({ error: veiculos.error.message }, { status: 500 });
+
+  // pendências ABERTAS por placa → as 3 classes (Parado · Defeito · Cadastro).
+  // Tolerante: sem a coluna gravidade (migração antiga) lê sem ela.
+  const lerPend = (cols: string) => paginar((a, b) => supabase.from('frota_pendencias')
+    .select(cols).eq('status', 'aberta').order('id').range(a, b));
+  let pend = await lerPend('id, placa, origem, gravidade, componente_id');
+  if (pend.error && /gravidade/i.test(pend.error.message)) pend = await lerPend('id, placa, origem, componente_id');
+  const { data: comps } = await supabase.from('frota_componentes').select('id, sistema, subsistema, componente');
+  const compPorId = new Map((comps || []).map((c) => [c.id as string, c]));
+  type PendAberta = { placa: string; origem: string | null; gravidade?: string | null; componente_id: string | null };
+  const pendPorPlaca = new Map<string, PendAberta[]>();
+  for (const p of (pend.data || []) as unknown as PendAberta[]) {
+    const arr = pendPorPlaca.get(p.placa) || [];
+    arr.push(p); pendPorPlaca.set(p.placa, arr);
+  }
 
   const respPorVeiculo = new Map<string, string>();
   for (const r of responsaveis.data || []) {
@@ -79,6 +96,8 @@ export async function GET(req: NextRequest) {
       multas_abertas,
       valor_multas_abertas: multasPorVeiculo.get(v.id)?.total || 0,
       docs_vencendo,
+      // Parado · Defeito · Cadastro (lib/frota/classes) — só veículo de verdade
+      classes: v.tipo_registro === 'veiculo' ? resumoClasses(pendPorPlaca.get(v.placa) || [], v.status, compPorId) : null,
       // a régua do card VERMELHO (mesma função da Ficha — lib/frota/pendencias)
       pendencias: v.tipo_registro === 'veiculo'
         ? pendenciasDoVeiculo({
