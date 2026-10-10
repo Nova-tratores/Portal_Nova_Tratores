@@ -20,6 +20,7 @@ export interface CabecalhoOmie {
   cCodIntOS?: string;
   cEtapa?: string;
   nValorTotal?: number;
+  nValorTotalImpRet?: number; // impostos retidos (ISS/IR/… retidos pelo cliente)
 }
 export interface InfoCadastroOmie { cFaturada?: string; cCancelada?: string; dDtFat?: string }
 
@@ -97,6 +98,13 @@ export function bloqueioFaturar(os: OSParaFaturar, agora: Date = new Date()): st
 /** Diferença acima de 1 centavo entre o valor visto na janela e o do Omie. */
 export function valorMudou(a: number, b: number): boolean {
   return Math.abs(Math.round(a * 100) - Math.round(b * 100)) > 1;
+}
+
+/** Valor que o cliente paga = total − impostos retidos (base das parcelas). */
+export function valorLiquido(cab: CabecalhoOmie | null | undefined): number {
+  const total = Number(cab?.nValorTotal || 0);
+  const ret = Number(cab?.nValorTotalImpRet || 0);
+  return Math.round((total - (ret > 0 ? ret : 0)) * 100) / 100;
 }
 
 // ---------------- NFS-e (StatusOS.ListaRpsNfse) ----------------

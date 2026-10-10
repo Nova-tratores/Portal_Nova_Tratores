@@ -20,12 +20,19 @@ import { hojeSaoPaulo } from '@/lib/pagamento/parcelas';
 import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
 import {
   bloqueioFaturar, conferirIdentidade, estadoNoOmie, situacaoNfse, statusPendente, travaAtiva,
-  chaveNum, motivoPPVFora, valorMudou, TRAVA_MINUTOS,
+  chaveNum, motivoPPVFora, valorMudou, valorLiquido, TRAVA_MINUTOS,
   type OSParaFaturar, type PPVDaOS, type RpsNfse, type StatusFaturamento,
 } from './faturamento-regras';
 import { executarFaturamento, ErroOmie, type OSNoOmie } from './faturamento-fluxo';
 import type { Autenticado } from '@/lib/auth/server';
 import { permite } from '@/lib/permissoes/explicitas';
+import {
+  validarCampos, diferencasDoModelo, valoresAtuais, montarItemAlteracao,
+  type CamposFiscais, type ItemServicoOmie,
+} from './modelo-fiscal';
+import {
+  listarModelos, lerModelo, modeloDoCliente, vincularCliente, ModelosFiscaisFaltando,
+} from './modelos-fiscais-db';
 
 const OMIE_BASE = 'https://app.omie.com.br/api/v1';
 const EMPRESA = 'Nova Tratores';
@@ -48,6 +55,10 @@ export function podeFaturarOS(auth: Autenticado): boolean {
 }
 export function podeFaturarPPV(auth: Autenticado): boolean {
   return permite(auth.modulos, auth.isAdmin, 'ppv', 'faturar');
+}
+/** Criar/editar modelos fiscais e o vínculo com clientes (ação explícita). */
+export function podeGerenciarModelos(auth: Autenticado): boolean {
+  return permite(auth.modulos, auth.isAdmin, 'pos', 'modelos_fiscais');
 }
 
 // ---------------------------------------------------------------- Omie
@@ -152,7 +163,7 @@ function paraRegras(os: LinhaOS, garantia: boolean): OSParaFaturar {
 
 // ---------------------------------------------------------------- OS no Omie
 interface OSConsultada extends OSNoOmie {
-  ServicosPrestados?: Array<{ cDescServ?: string; nQtde?: number; nValUnit?: number }>;
+  ServicosPrestados?: Array<ItemServicoOmie & { nQtde?: number; nValUnit?: number }>;
 }
 
 /** Acha a OS no Omie e confere que é ESTA. Grava omie_ncodos/omie_ccodint se faltarem. */
@@ -263,6 +274,17 @@ export interface SimulacaoFaturamentoOS {
   validacao?: { ok: boolean; msg: string | null };
   ppvs?: Array<PPVDaOS & { motivoFora: string | null }>;
   podeFaturarPecas?: boolean;
+  liquidoOmie?: number;
+  retidoOmie?: number;
+  impostos?: {
+    disponivel: boolean;               // false = migration dos modelos ainda não aplicada
+    modelo: { id: string; nome: string; origem: 'cliente' | 'padrao'; campos: CamposFiscais } | null;
+    modelos: Array<{ id: string; nome: string; padrao: boolean; campos: CamposFiscais }>;
+    atuais: Record<string, string | number | null | 'varia'>;
+    qtdItens: number;
+    podeGerenciar: boolean;
+    documento: string;
+  };
 }
 
 export async function simularFaturamentoOS(id: string, auth: Autenticado): Promise<SimulacaoFaturamentoOS> {
@@ -283,7 +305,25 @@ export async function simularFaturamentoOS(id: string, auth: Autenticado): Promi
   const totalOmie = Number(r.dados.Cabecalho?.nValorTotal || 0);
   const valorPortal = Number(String(os.Valor_Total ?? 0).replace(',', '.')) || 0;
   const ppvs = (await ppvsDaOS(os)).map((p) => ({ ...p, motivoFora: motivoPPVFora(p) }));
+  const itens = r.dados.ServicosPrestados || [];
+  let impostos: SimulacaoFaturamentoOS['impostos'];
+  try {
+    const [{ modelo, origem }, modelos] = await Promise.all([modeloDoCliente(os.Cnpj_Cliente), listarModelos()]);
+    impostos = {
+      disponivel: true,
+      modelo: modelo && origem ? { id: modelo.id, nome: modelo.nome, origem, campos: modelo.campos } : null,
+      modelos: modelos.map((m) => ({ id: m.id, nome: m.nome, padrao: m.padrao, campos: m.campos })),
+      atuais: valoresAtuais(itens), qtdItens: itens.length, podeGerenciar: podeGerenciarModelos(auth),
+      documento: String(os.Cnpj_Cliente || ''),
+    };
+  } catch (e) {
+    if (!(e instanceof ModelosFiscaisFaltando)) throw e;
+    impostos = { disponivel: false, modelo: null, modelos: [], atuais: valoresAtuais(itens), qtdItens: itens.length, podeGerenciar: false, documento: String(os.Cnpj_Cliente || '') };
+  }
   return {
+    liquidoOmie: valorLiquido(r.dados.Cabecalho),
+    retidoOmie: Number(r.dados.Cabecalho?.nValorTotalImpRet || 0),
+    impostos,
     ok: true,
     os: { id: os.Id_Ordem, cliente: String(os.Os_Cliente || ''), numeroOmie: chaveNum(os.Ordem_Omie), status: String(os.Status || '') },
     totalOmie, valorPortal, divergente: valorMudou(totalOmie, valorPortal),
@@ -309,7 +349,10 @@ export interface ResultadoFaturarOS {
 
 export async function faturarOSNoOmie(
   id: string,
-  entrada: { forma: string | null; ppvIds: string[]; totalConfirmado: number },
+  entrada: {
+    forma: string | null; ppvIds: string[]; totalConfirmado: number;
+    impostos?: { modeloId?: string | null; campos?: unknown; salvarParaCliente?: boolean } | null;
+  },
   auth: Autenticado,
 ): Promise<ResultadoFaturarOS> {
   const userName = auth.email || 'Sistema';
@@ -335,6 +378,24 @@ export async function faturarOSNoOmie(
     return { ok: false, status: 403, tipo: 'erro', mensagem: 'Você não tem permissão para faturar pedidos de peças (PPV). Desmarque as peças ou peça a permissão.' };
   }
 
+  // Impostos dos itens (modelo fiscal + ajustes desta OS)
+  const { campos: camposImpostos, erros: errosImpostos } = validarCampos(entrada.impostos?.campos);
+  if (errosImpostos.length) return { ok: false, status: 400, tipo: 'erro', mensagem: `Impostos: ${errosImpostos.join(' ')}` };
+  let registroImpostos: Record<string, unknown> | null = null;
+  if (Object.keys(camposImpostos).length) {
+    const modeloId = entrada.impostos?.modeloId || null;
+    const modelo = modeloId ? await lerModelo(modeloId) : null;
+    if (modeloId && !modelo) return { ok: false, status: 400, tipo: 'erro', mensagem: 'O modelo fiscal escolhido não existe mais. Abra a janela de novo.' };
+    registroImpostos = {
+      modeloId: modelo?.id || null, modeloNome: modelo?.nome || null, campos: camposImpostos,
+      ajustes: diferencasDoModelo(modelo?.campos, camposImpostos), por: userName, em: new Date().toISOString(),
+    };
+  }
+  if (entrada.impostos?.salvarParaCliente) {
+    if (!podeGerenciarModelos(auth)) return { ok: false, status: 403, tipo: 'erro', mensagem: 'Você não tem a permissão "Modelos fiscais" para vincular o modelo ao cliente.' };
+    if (!entrada.impostos.modeloId) return { ok: false, status: 400, tipo: 'erro', mensagem: 'Escolha um modelo para vincular ao cliente.' };
+  }
+
   // TRAVA atômica: só um faturamento por OS por vez (lease de 10 min)
   const agoraIso = new Date().toISOString();
   const limite = new Date(Date.now() - TRAVA_MINUTOS * 60_000).toISOString();
@@ -342,6 +403,8 @@ export async function faturarOSNoOmie(
     .update({
       faturando_desde: agoraIso, faturamento_status: 'faturando', faturamento_erro: null, faturado_por: userName,
       faturamento_pecas: pedidos.map((pid) => ({ id: pid, ok: false, erro: 'não processado' })),
+      // o que será aplicado (só manda a coluna quando há impostos: ela vem da migration dos modelos)
+      ...(registroImpostos ? { faturamento_impostos: registroImpostos } : {}),
     })
     .eq('Id_Ordem', id)
     .is('faturado_omie_em', null)
@@ -352,7 +415,10 @@ export async function faturarOSNoOmie(
   if (!travou?.length) return { ok: false, status: 409, tipo: 'em_andamento', mensagem: 'Já existe um faturamento desta OS em andamento (ou ela acabou de ser faturada). Atualize a tela.' };
 
   const liberar = async (status: StatusFaturamento | null, erro: string | null) => {
-    await gravarOS(id, { faturando_desde: null, faturamento_status: status, faturamento_erro: erro, ...(status === 'erro' ? { faturamento_pecas: null } : {}) }).catch(() => {});
+    await gravarOS(id, {
+      faturando_desde: null, faturamento_status: status, faturamento_erro: erro,
+      ...(status === 'erro' ? { faturamento_pecas: null, ...(registroImpostos ? { faturamento_impostos: null } : {}) } : {}),
+    }).catch(() => {});
   };
 
   let nCodOS: number;
@@ -367,6 +433,11 @@ export async function faturarOSNoOmie(
   let respostaCrua = '';
   const r = await executarFaturamento({
     consultar: () => omie<OSNoOmie>('/servicos/os/', 'ConsultarOS', { nCodOS }),
+    alterarImpostos: async (itens, campos) => {
+      const servicos = itens.map((i) => montarItemAlteracao(i, campos)).filter(Boolean);
+      if (!servicos.length) throw new ErroOmie('A OS não tem itens de serviço para aplicar os impostos.');
+      await omie('/servicos/os/', 'AlterarOS', { Cabecalho: { nCodOS }, ServicosPrestados: servicos }, { escrita: true });
+    },
     alterarParcelas: async (plano) => {
       await omie('/servicos/os/', 'AlterarOS', {
         Cabecalho: { nCodOS, cCodParc: plano.cCodParc, nQtdeParc: plano.nQtdeParc },
@@ -379,7 +450,12 @@ export async function faturarOSNoOmie(
       respostaCrua = JSON.stringify(resp).slice(0, 500);
       return resp;
     },
-  }, { forma, aplicarParcelas: true, hojeISO: hojeSaoPaulo(), totalConfirmado: Number(entrada.totalConfirmado) || 0 });
+  }, { forma, aplicarParcelas: true, hojeISO: hojeSaoPaulo(), totalConfirmado: Number(entrada.totalConfirmado) || 0, impostos: camposImpostos });
+
+  // "usar sempre para este cliente": vale mesmo se o faturamento falhar depois (é uma escolha do cadastro)
+  if (entrada.impostos?.salvarParaCliente && entrada.impostos.modeloId && os.Cnpj_Cliente) {
+    try { await vincularCliente(os.Cnpj_Cliente, entrada.impostos.modeloId, os.Os_Cliente, userName); } catch { /* não derruba o faturamento */ }
+  }
 
   if (r.tipo === 'erro') {
     await liberar('erro', r.mensagem);

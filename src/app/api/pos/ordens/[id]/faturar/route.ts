@@ -38,6 +38,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       forma: typeof body?.forma === "string" ? body.forma : null,
       ppvIds: Array.isArray(body?.ppvIds) ? body.ppvIds.map(String) : [],
       totalConfirmado: Number(body?.totalConfirmado) || 0,
+      impostos: body?.impostos && typeof body.impostos === "object" ? {
+        modeloId: typeof body.impostos.modeloId === "string" ? body.impostos.modeloId : null,
+        campos: body.impostos.campos,
+        salvarParaCliente: body.impostos.salvarParaCliente === true,
+      } : null,
     }, auth);
     return NextResponse.json({ success: r.ok, tipo: r.tipo, mensagem: r.mensagem, nfseNumero: r.nfseNumero ?? null, pecas: r.pecas ?? [] }, { status: r.status });
   } catch (e) { return erroRota(e, "POST"); }

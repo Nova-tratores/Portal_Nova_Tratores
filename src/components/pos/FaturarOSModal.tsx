@@ -6,6 +6,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 import { parcelasDoPagamento } from "@/lib/pagamento/parcelas";
+import { validarCampos, type CamposFiscais } from "@/lib/pos/modelo-fiscal";
+import CamposFiscaisEditor, { paraTela, type ValoresTela } from "./CamposFiscaisEditor";
 
 interface PPVPrevia {
   id: string; pedidoOmie: string; tipo: string; status: string; empresa: string;
@@ -19,6 +21,14 @@ interface Previa {
   formaPagamento?: string | null; opcoesPagamento?: string[]; hoje?: string;
   validacao?: { ok: boolean; msg: string | null };
   ppvs?: PPVPrevia[]; podeFaturarPecas?: boolean;
+  liquidoOmie?: number; retidoOmie?: number;
+  impostos?: {
+    disponivel: boolean;
+    modelo: { id: string; nome: string; origem: "cliente" | "padrao"; campos: CamposFiscais } | null;
+    modelos: Array<{ id: string; nome: string; padrao: boolean; campos: CamposFiscais }>;
+    atuais: Record<string, string | number | null | "varia">;
+    qtdItens: number; podeGerenciar: boolean; documento: string;
+  };
 }
 interface Resultado {
   success?: boolean; tipo?: string; mensagem?: string; error?: string; nfseNumero?: string | null;
@@ -41,6 +51,11 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
   const [conferiValor, setConferiValor] = useState(false);
   const [faturando, setFaturando] = useState(false);
   const [resultado, setResultado] = useState<Resultado | null>(null);
+  // impostos dos serviços: modelo escolhido + valores da tela (modelo + ajustes desta OS)
+  const [modeloId, setModeloId] = useState("");
+  const [valores, setValores] = useState<ValoresTela>({});
+  const [verImpostos, setVerImpostos] = useState(false);
+  const [salvarParaCliente, setSalvarParaCliente] = useState(false);
 
   useEffect(() => {
     // o bloco só monta esta janela quando ela abre: o estado já nasce limpo
@@ -55,6 +70,7 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
         setPrevia(j);
         setForma(j.formaPagamento || null); // sem escolha na cobrança = nada marcado (obriga escolher)
         setPpvsMarcados(new Set((j.ppvs || []).filter((p) => !p.motivoFora && j.podeFaturarPecas).map((p) => p.id)));
+        if (j.impostos?.modelo) { setModeloId(j.impostos.modelo.id); setValores(paraTela(j.impostos.modelo.campos)); }
       } catch {
         if (!cancel) setPrevia({ ok: false, erro: "Falha de conexão ao preparar o faturamento." });
       }
@@ -63,15 +79,34 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
     return () => { cancel = true; };
   }, [open, osId]);
 
+  // parcelas sobre o LÍQUIDO (total − retidos). Se os impostos mudarem as retenções,
+  // a Omie recalcula e o servidor refaz as parcelas sobre o valor novo.
+  const baseParcelas = previa?.liquidoOmie || previa?.totalOmie || 0;
   const plano = useMemo(
-    () => (previa?.ok && forma && previa.totalOmie && previa.hoje ? parcelasDoPagamento(forma, previa.totalOmie, previa.hoje) : null),
-    [previa, forma],
+    () => (previa?.ok && forma && baseParcelas && previa.hoje ? parcelasDoPagamento(forma, baseParcelas, previa.hoje) : null),
+    [previa, forma, baseParcelas],
   );
+  const modeloAtual = previa?.impostos?.modelos.find((m) => m.id === modeloId) || null;
+  const baseModelo = useMemo(() => paraTela(modeloAtual?.campos), [modeloAtual]);
+  const validacaoImpostos = useMemo(() => validarCampos(valores), [valores]);
+  const qtdAjustes = Object.keys({ ...baseModelo, ...valores }).filter((k) => String(baseModelo[k] ?? "").trim() !== String(valores[k] ?? "").trim()).length;
+  const temImpostos = Object.keys(validacaoImpostos.campos).length > 0;
+  const mexeRetencao = Object.keys(validacaoImpostos.campos).some((k) => /^cRetem|^nAliq(ISS|IRRF|PIS|COFINS|CSLL|INSS)$/.test(k));
 
   if (!open) return null;
 
   const pecasJunto = (previa?.ppvs || []).filter((p) => ppvsMarcados.has(p.id));
-  const podeEmitir = !!previa?.ok && !!previa.validacao?.ok && !!plano && (!previa.divergente || conferiValor) && !faturando;
+  // ValidarOS recusando a OS de hoje só trava quando não há impostos a aplicar
+  // (ex.: falta o CST — o modelo corrige e o servidor valida de novo antes de emitir)
+  const podeEmitir = !!previa?.ok && !!plano && (!previa.divergente || conferiValor) && !faturando
+    && validacaoImpostos.erros.length === 0 && (!!previa.validacao?.ok || temImpostos);
+
+  const trocarModelo = (id: string) => {
+    if (qtdAjustes && !confirm("Trocar de modelo descarta os ajustes feitos nesta OS. Continuar?")) return;
+    setModeloId(id);
+    setValores(paraTela(previa?.impostos?.modelos.find((m) => m.id === id)?.campos));
+    setSalvarParaCliente(false);
+  };
 
   const faturar = async () => {
     if (!previa?.ok || !plano) return;
@@ -80,7 +115,10 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
       const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/faturar`, {
         method: "POST",
         headers: { ...(await authHeaders()), "Content-Type": "application/json" },
-        body: JSON.stringify({ forma, ppvIds: [...ppvsMarcados], totalConfirmado: previa.totalOmie }),
+        body: JSON.stringify({
+          forma, ppvIds: [...ppvsMarcados], totalConfirmado: previa.totalOmie,
+          impostos: { modeloId: modeloId || null, campos: validacaoImpostos.campos, salvarParaCliente },
+        }),
       });
       const j: Resultado = await r.json().catch(() => ({}));
       if (!j.tipo && !j.error && !j.mensagem) {
@@ -182,6 +220,47 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
                 </div>
               )}
 
+              {previa.impostos?.disponivel && (
+                <>
+                  {titulo("Impostos dos serviços")}
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", fontSize: 12.5 }}>
+                    <select value={modeloId} onChange={(e) => trocarModelo(e.target.value)}
+                      style={{ padding: "6px 8px", borderRadius: 4, border: "1px solid #cbd5e1", fontSize: 12.5, background: "#fff", color: "#1e293b" }}>
+                      <option value="">Sem modelo (cadastro da Omie)</option>
+                      {previa.impostos.modelos.map((m) => <option key={m.id} value={m.id}>{m.nome}{m.padrao ? " (padrão)" : ""}</option>)}
+                    </select>
+                    <span style={{ color: "#64748b" }}>
+                      {previa.impostos.modelo && modeloId === previa.impostos.modelo.id
+                        ? (previa.impostos.modelo.origem === "cliente" ? "modelo deste cliente" : "modelo padrão")
+                        : modeloId ? "escolhido agora" : ""}
+                      {qtdAjustes > 0 && <strong style={{ color: "#b45309" }}> · {qtdAjustes} ajuste(s) nesta OS</strong>}
+                    </span>
+                    <button type="button" onClick={() => setVerImpostos((v) => !v)}
+                      style={{ marginLeft: "auto", background: "none", border: "none", color: "#0369A1", fontWeight: 700, cursor: "pointer", fontSize: 12.5 }}>
+                      {verImpostos ? "Esconder campos" : `Ver/ajustar campos (${Object.keys(validacaoImpostos.campos).length})`}
+                    </button>
+                  </div>
+                  {verImpostos && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ fontSize: 11.5, color: "#64748b", marginBottom: 6 }}>
+                        Vale para os {previa.impostos.qtdItens} item(ns) de serviço da OS. Campo vazio = fica o que está no cadastro da Omie.
+                      </div>
+                      <CamposFiscaisEditor valores={valores} onChange={setValores} base={modeloId ? baseModelo : null} atuais={previa.impostos.atuais} />
+                    </div>
+                  )}
+                  {validacaoImpostos.erros.length > 0 && <div style={{ ...caixa("verm"), marginTop: 8 }}>{validacaoImpostos.erros.join(" ")}</div>}
+                  {previa.impostos.podeGerenciar && modeloId && !(previa.impostos.modelo?.origem === "cliente" && previa.impostos.modelo.id === modeloId) && (
+                    <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12.5, marginTop: 6, cursor: "pointer" }}>
+                      <input type="checkbox" checked={salvarParaCliente} onChange={(e) => setSalvarParaCliente(e.target.checked)} />
+                      Usar sempre o modelo &quot;{modeloAtual?.nome}&quot; para este cliente
+                    </label>
+                  )}
+                  {previa.impostos.podeGerenciar && (
+                    <a href="/pos/modelos-fiscais" target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6, fontSize: 12, color: "#0369A1" }}>Gerenciar modelos fiscais ↗</a>
+                  )}
+                </>
+              )}
+
               {titulo("Forma de pagamento")}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
                 {(previa.opcoesPagamento || []).map((op) => (
@@ -197,7 +276,11 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
                   {plano.parcelas.map((p) => (
                     <div key={p.nParcela}>{p.nParcela}ª parcela · {p.dDtVenc} · <strong>{brl(p.nValor)}</strong></div>
                   ))}
-                  <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 2 }}>Vencimentos contados a partir de hoje.</div>
+                  <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 2 }}>
+                    Vencimentos contados a partir de hoje.
+                    {(previa.retidoOmie || 0) > 0 && ` Sobre o líquido: ${brl(previa.totalOmie || 0)} − ${brl(previa.retidoOmie || 0)} retidos.`}
+                    {mexeRetencao && " Os impostos escolhidos podem mudar as retenções: a Omie recalcula o líquido e as parcelas saem sobre o valor novo."}
+                  </div>
                 </div>
               )}
 
@@ -222,7 +305,13 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
               )}
 
               {!previa.validacao?.ok && (
-                <div style={{ ...caixa("verm"), marginTop: 12 }}><div style={{ fontWeight: 700, marginBottom: 4 }}>O Omie recusou a validação desta OS</div>{previa.validacao?.msg} — corrija no Omie e abra esta janela de novo.</div>
+                <div style={{ ...caixa(temImpostos ? "ambar" : "verm"), marginTop: 12 }}>
+                  <div style={{ fontWeight: 700, marginBottom: 4 }}>O Omie recusou a validação desta OS como ela está hoje</div>
+                  {previa.validacao?.msg}
+                  {temImpostos
+                    ? " — os impostos acima serão aplicados e a Omie valida de novo antes de emitir; se continuar recusando, nada é emitido."
+                    : " — corrija no Omie (ou aplique um modelo fiscal acima) e abra esta janela de novo."}
+                </div>
               )}
 
               <div style={{ ...caixa("cinza"), marginTop: 14 }}>

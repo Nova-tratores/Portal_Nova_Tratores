@@ -110,6 +110,7 @@ describe('fluxo do faturamento (Omie simulado)', () => {
     let i = 0;
     const d = {
       consultar: vi.fn(async () => consultas[Math.min(i++, consultas.length - 1)]),
+      alterarImpostos: vi.fn(async () => {}),
       alterarParcelas: vi.fn(async () => {}),
       validar: vi.fn(async () => {}),
       faturar: vi.fn(async () => ({ cCodStatus: '0', cDescStatus: 'OS faturada com sucesso' })),
@@ -178,5 +179,33 @@ describe('fluxo do faturamento (Omie simulado)', () => {
     const d = deps({ faturar: vi.fn(async () => ({ cCodStatus: '1', cDescStatus: 'em processamento' })) },
       [aberta(), aberta(300, [{ nValor: 150 }, { nValor: 150 }]), { Cabecalho: { nCodOS: 9, cEtapa: '50', nValorTotal: 300 }, InfoCadastro: {} }]);
     expect((await executarFaturamento(d, entrada)).tipo).toBe('faturada');
+  });
+
+  it('impostos: aplica, confere item a item e só então segue', async () => {
+    const item = (nbs: string, cst: string) => ({ nIdItem: 1, cDescServ: 'Hora', cNbs: nbs, impostos: { cCST: cst } });
+    const antes = { ...aberta(), ServicosPrestados: [item('120015000', '')] };
+    const depois = { ...aberta(), ServicosPrestados: [item('120015000', '000')] };
+    const comParc = { ...depois, Parcelas: [{ nValor: 150 }, { nValor: 150 }] };
+    const d = deps({}, [antes, depois, comParc]);
+    const r = await executarFaturamento(d, { ...entrada, impostos: { cCST: '000' } });
+    expect(r.tipo).toBe('faturada');
+    expect(d.alterarImpostos).toHaveBeenCalledTimes(1);
+    expect(d.faturar).toHaveBeenCalledTimes(1);
+  });
+  it('impostos que não "pegaram" no Omie → aborta antes de parcelas e faturar', async () => {
+    const it1 = { nIdItem: 1, cDescServ: 'Hora', impostos: { cCST: '' } };
+    const d = deps({}, [{ ...aberta(), ServicosPrestados: [it1] }, { ...aberta(), ServicosPrestados: [it1] }]);
+    const r = await executarFaturamento(d, { ...entrada, impostos: { cCST: '000' } });
+    expect(r.tipo).toBe('erro');
+    expect(d.alterarParcelas).not.toHaveBeenCalled();
+    expect(d.faturar).not.toHaveBeenCalled();
+  });
+  it('parcelas saem sobre o LÍQUIDO (total − retidos)', async () => {
+    const comRet = (parc?: OSNoOmie['Parcelas']): OSNoOmie => ({ Cabecalho: { nCodOS: 9, cNumOS: '777', cEtapa: '30', nValorTotal: 300, nValorTotalImpRet: 15 }, InfoCadastro: {}, Parcelas: parc });
+    const d = deps({}, [comRet(), comRet([{ nValor: 142.5 }, { nValor: 142.5 }])]);
+    const r = await executarFaturamento(d, entrada);
+    expect(r.tipo).toBe('faturada');
+    const plano = (d.alterarParcelas as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(plano.parcelas.map((x: { nValor: number }) => x.nValor)).toEqual([142.5, 142.5]);
   });
 });

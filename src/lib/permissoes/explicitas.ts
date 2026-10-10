@@ -6,6 +6,7 @@
 // (navegador), pelas rotas (servidor) e pelo catálogo do Admin.
 export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'pos:faturar', // faturar a OS (emite NFS-e) — decisão do José, 10/10/2026
+  'pos:modelos_fiscais', // criar/editar modelos fiscais da NFS-e e vincular a clientes
 ]);
 
 export function acaoExplicita(modulo: string, acao?: string): boolean {

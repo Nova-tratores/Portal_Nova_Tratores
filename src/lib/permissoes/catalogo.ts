@@ -95,6 +95,7 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'enviar_omie', label: 'Enviar ao Omie' },
     // explícita: o acesso total ao POS NÃO concede (lib/permissoes/explicitas.ts)
     { id: 'faturar', label: 'Faturar OS (emite NFS-e) — só marcando aqui' },
+    { id: 'modelos_fiscais', label: 'Modelos fiscais da NFS-e (impostos dos serviços) — só marcando aqui' },
     { id: 'concluir', label: 'Concluir OS' },
     { id: 'cancelar', label: 'Cancelar OS' },
   ],
