@@ -68,6 +68,7 @@ function TicketsPageInner() {
   const [busca, setBusca] = useState('')
   const [filtroStatus, setFiltroStatus] = useState<TicketStatus | ''>('')
   const [encerrados, setEncerrados] = useState(false)
+  const [soReuniao, setSoReuniao] = useState(false) // Origem: reunião (ações nascidas em reunião)
   const [modalNovo, setModalNovo] = useState(false)
   // Ticket aberto na janela (clique no cartão)
   const [abertoId, setAbertoId] = useState<string | null>(null)
@@ -195,6 +196,7 @@ function TicketsPageInner() {
 
   const filtrados = useMemo(() => {
     let lista = porPessoa
+    if (soReuniao) lista = lista.filter((t) => !!t.origem_reuniao_id)
     if (filtroStatus) lista = lista.filter((t) => t.status === filtroStatus)
     // Busca sem diferença de maiúscula/acento; "#54" ou "54" acha pelo número.
     if (busca.trim()) {
@@ -206,7 +208,7 @@ function TicketsPageInner() {
       lista = [...lista].sort((a, b) => new Date(a.ultima_atividade_em).getTime() - new Date(b.ultima_atividade_em).getTime())
     }
     return lista
-  }, [porPessoa, filtroStatus, busca, visao, usuarios])
+  }, [porPessoa, soReuniao, filtroStatus, busca, visao, usuarios])
 
   // Reordenar uma lista filtrada é ambíguo — grip e ▲▼ só sem filtro ativo
   // (e só na Lista: no kanban o arrasto troca status, não a ordem pessoal).
@@ -386,6 +388,10 @@ function TicketsPageInner() {
         <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text-muted,#888)', cursor: 'pointer', marginLeft: isMobile ? 'auto' : undefined }}>
           <input type="checkbox" checked={encerrados} onChange={(e) => setEncerrados(e.target.checked)} />
           Incluir encerrados
+        </label>
+        <label title="Só ações nascidas em reunião" style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: soReuniao ? '#4f46e5' : 'var(--portal-text-muted,#888)', fontWeight: soReuniao ? 700 : 500, cursor: 'pointer' }}>
+          <input type="checkbox" checked={soReuniao} onChange={(e) => setSoReuniao(e.target.checked)} />
+          Origem: reunião
         </label>
         <button onClick={() => carregar()} title="Atualizar"
           style={{ display: 'flex', alignItems: 'center', padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}>

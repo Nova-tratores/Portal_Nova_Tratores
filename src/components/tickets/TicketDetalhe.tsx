@@ -407,6 +407,12 @@ export default function TicketDetalhe({ id, onFechar, onMudou }: Props) {
           <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)' }}>
             {ehSC ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}><ShoppingCart size={11} /> SC #{ticket.numero}</span> : <>#{ticket.numero}</>}
           </span>
+          {ticket.origem_reuniao_id && (
+            <a href={`/reunioes/${ticket.origem_reuniao_id}`} title="Abrir a reunião onde esta ação nasceu"
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', color: '#4f46e5', background: 'rgba(79,70,229,.1)', border: '1px solid rgba(79,70,229,.3)' }}>
+              📋 Nascida na reunião{(ticket.payload as { reuniao_titulo?: string })?.reuniao_titulo ? `: ${(ticket.payload as { reuniao_titulo?: string }).reuniao_titulo}` : ''}
+            </a>
+          )}
           {quadro && (
             <a href={`/tickets/quadros/${quadro.id}`} title="Abrir o bloco"
               style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 9px', borderRadius: 999, fontSize: 12, fontWeight: 700, textDecoration: 'none', color: 'var(--portal-text,#111)', background: quadro.cor + '1f', border: `1px solid ${quadro.cor}55` }}>

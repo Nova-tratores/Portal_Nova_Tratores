@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Ticket as TicketIcon, GanttChartSquare, SquareCheck, X, ListTodo,
-  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb,
+  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -49,6 +49,7 @@ export default function CentralNav() {
   const [novaTarefa, setNovaTarefa] = useState(false)
   const [ticketAberto, setTicketAberto] = useState<string | null>(null)
   const [pendencias, setPendencias] = useState(0)
+  const [reunioesHoje, setReunioesHoje] = useState(0)
 
   useEffect(() => {
     let vivo = true
@@ -58,6 +59,13 @@ export default function CentralNav() {
         const j = await r.json()
         if (vivo && r.ok) setPendencias(j.pendencias || 0)
       } catch { /* sem contagem: a aba fica escondida */ }
+      // Reuniões de hoje em que participo (chip da aba Reuniões).
+      try {
+        const hoje = new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
+        const r = await fetch('/api/reunioes?visao=minhas', { headers: await authHeaders() })
+        const j = await r.json()
+        if (vivo && r.ok) setReunioesHoje((j.reunioes || []).filter((t: { prazo?: string | null }) => t.prazo === hoje).length)
+      } catch { /* sem contagem */ }
     })()
     return () => { vivo = false }
   }, [pathname])
@@ -68,6 +76,8 @@ export default function CentralNav() {
   const abas = [
     { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={16} />, ativo: emQuadros },
     { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={16} />, ativo: pathname.startsWith('/cronograma') },
+    // Reuniões (pauta + ata sobre a engine de tickets): mesma permissão da Central.
+    { href: '/reunioes', label: 'Reuniões', icone: <CalendarClock size={16} />, ativo: pathname.startsWith('/reunioes'), n: reunioesHoje },
     ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão gerencial', icone: <BarChart3 size={16} />, ativo: naGerencial }] : []),
     // Bloco de notas dos devs (captar → agrupar → planejar vira ticket). Só Dev.
     ...(isDev ? [{ href: '/ideias', label: 'Ideias', icone: <Lightbulb size={16} />, ativo: pathname.startsWith('/ideias') }] : []),

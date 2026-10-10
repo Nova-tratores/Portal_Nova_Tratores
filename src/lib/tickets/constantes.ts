@@ -33,6 +33,13 @@ export type EventoTipo =
   // Vínculos a outras entidades (requisições) — sql/tickets-vinculos.sql
   | 'vinculo_adicionado'
   | 'vinculo_removido'
+  // Reuniões (tipo='reuniao') — sql/reunioes.sql
+  | 'reuniao_etapa'
+  | 'item_resultado'
+  | 'acao_criada'
+  | 'pendencia_tratada'
+  | 'ata_publicada'
+  | 'ata_adendo'
 
 export interface Ticket {
   id: string
@@ -51,6 +58,14 @@ export interface Ticket {
   sc_etapa?: string | null // etapa do trilho da SC (NULL para ticket genérico)
   quadro_id?: string | null        // quadro (sql/tickets-quadros.sql); NULL = fora de quadro
   quadro_coluna_id?: string | null // coluna do quadro
+  aceite?: 'ok' | 'pendente' | 'recusado' | null
+  // Reuniões (sql/reunioes.sql): etapa própria da reunião / origem da ação
+  reuniao_etapa?: string | null
+  reuniao_serie_id?: string | null
+  reuniao_inicio?: string | null
+  origem_reuniao_id?: string | null
+  origem_reuniao_item_id?: string | null
+  prazo_reprogramacoes?: number | null
   resolvido_em: string | null
   fechado_em: string | null
   ultima_atividade_em: string

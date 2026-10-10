@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
   const finais = `(${STATUS_FINAIS.join(',')})`
   const { data, error } = await supabaseAdmin.from('tickets').select('*')
     .or(`responsavel_id.eq.${auth.userId},solicitante_id.eq.${auth.userId}`)
-    .neq('tipo', 'compras')
+    .not('tipo', 'in', '(compras,reuniao)')
     .not('status', 'in', finais)
     .order('prazo', { ascending: true, nullsFirst: false })
     .limit(500)

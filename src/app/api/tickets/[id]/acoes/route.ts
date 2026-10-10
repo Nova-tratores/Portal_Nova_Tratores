@@ -22,6 +22,7 @@ import { carregarQuadro, papeis } from '@/lib/tickets/quadros-server'
 import { colunaDoTicket, colunaDoStatus } from '@/lib/tickets/quadros'
 import { sincronizarEtapaDoTicket, moverEtapaDoTicket, hojeSP } from '@/lib/trabalho/cronograma-server'
 import { erroFimDeSemana } from '@/lib/trabalho/agenda'
+import { contaReprogramacao } from '@/lib/reunioes/regras'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -152,6 +153,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // ----------------------------------------------------------- transferir
   if (acao === 'transferir') {
     if (ticket.tipo === 'compras') return erro('Solicitação de Compras segue o trilho de aprovação — use as ações da SC.')
+    if (ticket.tipo === 'reuniao') return erro('Reunião tem condutor e etapas próprias — use as ações da reunião.')
     if (encerrado) return erro('Ticket encerrado — não pode ser transferido.')
     if (!souResponsavel && !souSolicitante && !auth.isAdmin) {
       return erro('Só o responsável atual ou o solicitante podem transferir.', 403)
@@ -233,6 +235,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // --------------------------------------------------------------- status
   if (acao === 'status') {
     if (ticket.tipo === 'compras') return erro('Solicitação de Compras segue o trilho de aprovação — use as ações da SC.')
+    if (ticket.tipo === 'reuniao') return erro('Reunião tem etapas próprias (pauta → condução → ata) — use as ações da reunião.')
     const para = String(body.para || '') as TicketStatus
     if (!STATUS_INFO[para]) return erro('Status inválido')
     const invalida = validarTransicao(ticket, para, auth)
@@ -373,6 +376,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       if (novoPrazo !== ticket.prazo) {
         patch.prazo = novoPrazo
         mudancas.prazo = { de: ticket.prazo, para: novoPrazo }
+        // Ação nascida em reunião: qualquer troca de prazo conta como
+        // reprogramação (R4 — a 3ª vira item de pauta). sql/reunioes.sql
+        if (contaReprogramacao(ticket, false)) patch.prazo_reprogramacoes = (ticket.prazo_reprogramacoes || 0) + 1
       }
     }
     // Planejamento (moram no payload): 1º dia do trabalho (Cronograma: do

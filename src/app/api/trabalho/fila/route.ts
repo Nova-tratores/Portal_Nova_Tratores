@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
   }
 
   const [tks, plano] = await Promise.all([
-    supabaseAdmin.from('tickets').select('*').eq('responsavel_id', user).neq('tipo', 'compras').not('status', 'in', FORA).limit(300),
+    supabaseAdmin.from('tickets').select('*').eq('responsavel_id', user).not('tipo', 'in', '(compras,reuniao)').not('status', 'in', FORA).limit(300),
     supabaseAdmin.from('tickets_plano').select('ticket_id, posicao').eq('user_id', user),
   ])
   if (tks.error) return erro(tks.error.message, 500)
