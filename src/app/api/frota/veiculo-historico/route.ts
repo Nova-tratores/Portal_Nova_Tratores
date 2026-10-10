@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { temModuloFrota } from '@/lib/frota/server';
+import { paginar } from '@/lib/db/paginar';
 
 export const runtime = 'nodejs';
 
@@ -28,26 +29,30 @@ export async function GET(req: NextRequest) {
 
   const { data: veiculo } = await supabase
     .from('frota_veiculos')
-    .select('id, placa, id_placa')
+    .select('id, placa, supa_placa_id')
     .eq('placa', placa)
     .maybeSingle();
 
   const [reqs, ordens, pend] = await Promise.all([
-    // requisições do carro — SEM os abastecimentos
-    veiculo?.id_placa != null
+    // requisições do carro — SEM os abastecimentos. Requisicao.veiculo guarda o
+    // SupaPlacas.IdPlaca = frota_veiculos.supa_placa_id (o id_placa é da tabela
+    // antiga Placas e fica vazio em parte da frota)
+    veiculo?.supa_placa_id != null
       ? supabase
           .from('Requisicao')
           .select('id, titulo, tipo, status, data, hodometro, valor_despeza')
-          .eq('veiculo', String(veiculo.id_placa))
+          .eq('veiculo', String(veiculo.supa_placa_id))
           .not('tipo', 'in', `("${TIPOS_ABASTECIMENTO.join('","')}")`)
           .order('id', { ascending: false })
       : Promise.resolve({ data: [], error: null } as any),
-    // OSs com Projeto preenchido (o filtro pela placa é feito abaixo, normalizado)
-    supabase
+    // OSs com Projeto preenchido (o filtro pela placa é feito abaixo, normalizado).
+    // Paginado: passa de 1000 linhas e o PostgREST cortaria o resto.
+    paginar((de, ate) => supabase
       .from('Ordem_Servico')
       .select('Id_Ordem, Projeto, Status, Data, Nome_Cliente')
       .not('Projeto', 'is', null)
-      .order('Id_Ordem', { ascending: false }),
+      .order('Id_Ordem', { ascending: false })
+      .range(de, ate)),
     supabase
       .from('frota_pendencias')
       .select('id, origem, titulo, descricao, componente_id, data_ocorrencia, status, aberta_por, aberta_em, resolvida_por, resolvida_em, resolucao, vinculo_tipo, vinculo_ref, km, responsavel')

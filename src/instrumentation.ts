@@ -153,6 +153,23 @@ export async function register(): Promise<void> {
     log('alocação de peças recebidas LIGADA (a cada 10 min, seg–sáb 07h–20h BRT)');
   }
 
+  // Pendências da FROTA: o motor que abre/fecha as pendências automáticas
+  // (cadastro, checklist, requisição, OS, Opa) só rodava quando alguém abria a
+  // tela — requisição que chegava ao financeiro ficava "aberta" até a próxima
+  // visita. Agora roda a cada 15 min. SÓ produção. Desliga com FROTA_PENDENCIAS_SYNC=off.
+  if (process.env.NODE_ENV === 'production' && process.env.FROTA_PENDENCIAS_SYNC !== 'off') {
+    const { rodarPendenciasAgendado } = await import('./lib/frota/pendencias-sync');
+    const rodarPendFrota = async () => {
+      try {
+        const r = await rodarPendenciasAgendado();
+        if (r) log(`frota-pendencias: ${r}`);
+      } catch (e) { log('frota-pendencias falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarPendFrota().catch(() => {}); }, 15 * 60 * 1000);
+    setTimeout(() => { rodarPendFrota().catch(() => {}); }, 4 * 60 * 1000); // 1ª rodada ~4min após o boot
+    log('motor de pendências da frota LIGADO (a cada 15 min)');
+  }
+
   // Central de Trabalho: replanejamento diário dos cronogramas ligados a quadros
   // de tickets (etapa atrasada empurra as seguintes). Uma vez por dia, a partir
   // das 06:00 BRT — antes da tela "Seu dia" das 7:30. SÓ produção.

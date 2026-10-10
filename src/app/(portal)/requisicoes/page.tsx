@@ -184,6 +184,11 @@ function RequisicoesPageInner() {
     const { error } = await supabase.from('Requisicao').update(dados).eq('id', id);
     if (error) { console.error('[Requisições] Erro ao atualizar:', error?.message, error?.code, error?.details, error?.hint); carregarDados(true); return }
     auditLog({ sistema: 'requisicoes', acao: 'editar', entidade: 'requisicao', entidade_id: String(id), detalhes: dados });
+    // Chegou ao financeiro: o motor da frota fecha na hora a pendência do carro
+    // ligada a esta requisição (sem isso, só fechava na rodada de 15 min)
+    if (dados.status === 'financeiro') {
+      fetch('/api/frota/pendencias/sync', { method: 'POST', headers: await authHeaders() }).catch(() => {});
+    }
     // Marca que esse card foi editado (notificação só ao fechar)
     cardsEditadosRef.current.add(id);
   }, [carregarDados, auditLog])

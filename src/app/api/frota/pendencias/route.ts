@@ -17,6 +17,7 @@ import { autenticar } from '@/lib/auth/server';
 import { temModuloPendencias } from '@/lib/frota/server';
 import { sincronizarPendencias } from '@/lib/frota/pendencias-sync';
 import { ehGravidade } from '@/lib/frota/gravidade';
+import { paginar } from '@/lib/db/paginar';
 
 export const runtime = 'nodejs';
 
@@ -77,10 +78,13 @@ export async function GET(req: NextRequest) {
   }
 
   const placa = req.nextUrl.searchParams.get('placa');
-  let q = supabase.from('frota_pendencias').select(SELECT_PEND).order('aberta_em', { ascending: false });
-  if (placa) q = q.eq('placa', placa);
-
-  const { data, error } = await q;
+  // paginado: passa de 1000 linhas e o PostgREST cortaria as mais antigas
+  const { data, error } = await paginar((de, ate) => {
+    let q = supabase.from('frota_pendencias').select(SELECT_PEND)
+      .order('aberta_em', { ascending: false }).order('id').range(de, ate);
+    if (placa) q = q.eq('placa', placa);
+    return q;
+  });
   if (error) return NextResponse.json({ error: erroTabela(error.message) }, { status: 500 });
   return NextResponse.json({ pendencias: data || [] });
 }
