@@ -71,6 +71,17 @@ export const AGENDAMENTOS: Agendamento[] = [
     obs: 'Garante 14 dias à frente; gira o secretário (rodízio).',
   },
   {
+    nome: 'POPs — execuções recorrentes do dia',
+    modulo: 'Central de Trabalho',
+    fonte: 'github',
+    cron: '40 8 * * *',
+    frequencia: 'Diário',
+    horarioBRT: '05:40',
+    alvo: 'POST /api/pops/cron/recorrencias',
+    arquivo: '.github/workflows/pops-recorrencias.yml',
+    obs: 'Idempotente por agendamento + data; diário inclui fim de semana e feriado.',
+  },
+  {
     nome: 'Sync incremental (mês atual)',
     modulo: 'Estoque',
     fonte: 'github',

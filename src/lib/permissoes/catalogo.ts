@@ -43,6 +43,8 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   tickets: 'Outros', 'war-room': 'Financeiro',
   // Base de conhecimento: LER é de todo mundo logado (sem módulo); as ações aqui são de quem escreve/aprova.
   conhecimento: 'Outros',
+  // POPs: ler publicado e dar ciência é de todo logado; o escopo de dono/aprovador é por ÁREA (pops_area_papeis).
+  pops: 'Outros',
 };
 
 export function grupoDoModulo(id: string): string {
@@ -53,6 +55,10 @@ export function grupoDoModulo(id: string): string {
 // Ações granulares por módulo. Módulo sem entrada aqui = só liga/desliga (acesso total).
 // (Fase 1: só Requisições. Os demais entram aqui conforme forem enforçados.)
 export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
+  pops: [
+    { id: 'admin', label: 'Administrar POPs (áreas, papéis, modelos, aprovar qualquer área)' },
+    { id: 'executar', label: 'Executar POPs' },
+  ],
   conhecimento: [
     { id: 'editar', label: 'Escrever e editar artigos (qualquer módulo)' },
     { id: 'publicar', label: 'Publicar, arquivar e aprovar artigos (qualquer módulo)' },

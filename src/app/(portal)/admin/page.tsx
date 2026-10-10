@@ -25,6 +25,8 @@ const MODULOS = [
   // Base de conhecimento: ler é livre; o módulo dá o direito de escrever/aprovar em QUALQUER módulo
   // (o responsável de cada módulo, em kb_responsaveis, aprova o seu sem precisar disto).
   { id: 'conhecimento', label: 'Base de conhecimento (escrever/aprovar)', color: '#0369a1' },
+  // POPs: dono e aprovador são por ÁREA (tela do módulo); aqui só admin do módulo e executar.
+  { id: 'pops', label: 'POPs (procedimentos)', color: '#0f766e' },
   { id: 'back-nova', label: 'Back Nova (externo)', color: '#6b7280' },
   { id: 'clientes', label: 'Clientes', color: '#dc2626' },
   { id: 'consulta-estoque', label: 'Visual Estoque', color: '#7f1d1d' },

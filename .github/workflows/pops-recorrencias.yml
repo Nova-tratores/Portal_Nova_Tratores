@@ -1,0 +1,17 @@
+# POPs — diário 05:40 BRT: gera as execuções recorrentes do dia (idempotente por agendamento + data).
+name: POPs - Execucoes recorrentes
+
+on:
+  schedule:
+    - cron: '40 8 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  recorrencias:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Chamar rota do cron
+        run: |
+          curl -fsS --max-time 300 -X POST \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.PORTAL_URL }}/api/pops/cron/recorrencias"

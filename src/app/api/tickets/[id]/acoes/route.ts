@@ -154,6 +154,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (acao === 'transferir') {
     if (ticket.tipo === 'compras') return erro('Solicitação de Compras segue o trilho de aprovação — use as ações da SC.')
     if (ticket.tipo === 'reuniao') return erro('Reunião tem condutor e etapas próprias — use as ações da reunião.')
+    if (ticket.tipo === 'pop_revisao') return erro('Revisão de POP: o aprovador aprova ou reprova no módulo de POPs.')
     if (encerrado) return erro('Ticket encerrado — não pode ser transferido.')
     if (!souResponsavel && !souSolicitante && !auth.isAdmin) {
       return erro('Só o responsável atual ou o solicitante podem transferir.', 403)
@@ -236,14 +237,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (acao === 'status') {
     if (ticket.tipo === 'compras') return erro('Solicitação de Compras segue o trilho de aprovação — use as ações da SC.')
     if (ticket.tipo === 'reuniao') return erro('Reunião tem etapas próprias (pauta → condução → ata) — use as ações da reunião.')
+    if (ticket.tipo === 'pop_revisao') return erro('Revisão de POP: o aprovador aprova ou reprova no módulo de POPs.')
     const para = String(body.para || '') as TicketStatus
     if (!STATUS_INFO[para]) return erro('Status inválido')
     const invalida = validarTransicao(ticket, para, auth)
     if (invalida) return erro(invalida, 403)
+    // Execução de POP: obrigatórios completos antes de resolver (o trigger do banco também barra).
+    if (ticket.tipo === 'pop' && para === 'resolvido') {
+      const { data: falta, error: errFalta } = await supabaseAdmin.rpc('pops_execucao_pendentes', { p_ticket: id })
+      if (errFalta) return erro(errFalta.message, 500)
+      if (Number(falta) > 0) return erro(`Faltam ${falta} passo(s) obrigatório(s) do POP.`)
+    }
     // Quem FAZ precisa do ticket num bloco para trabalhar nele. Quem pediu
     // confirma/contesta/cancela sempre (ticket antigo sem bloco não trava).
     const andamento = !['cancelado', 'fechado'].includes(para) && !(souSolicitante && ticket.status === 'resolvido')
-    if (!ticket.quadro_id && andamento) return erro('Ponha este ticket num bloco antes de trabalhar nele.')
+    // Execução de POP não pede bloco (nasce confirmada; o lugar dela é o módulo de POPs).
+    if (!ticket.quadro_id && andamento && ticket.tipo !== 'pop') return erro('Ponha este ticket num bloco antes de trabalhar nele.')
     const motivo = String(body.motivo || '').trim()
 
     // Coluna do bloco acompanha a fase (resolvido → "Feito", voltou → volta).

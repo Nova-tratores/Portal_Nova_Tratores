@@ -33,7 +33,9 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   const lista = (data || []) as TicketCentral[]
 
-  const praOrganizar = lista.filter((t) => t.responsavel_id === auth.userId && !t.quadro_id && t.status !== 'resolvido' && t.aceite !== 'recusado')
+  // Execução e revisão de POP não pedem bloco: nascem confirmadas e o lugar delas é o módulo de POPs.
+  const praOrganizar = lista.filter((t) => t.responsavel_id === auth.userId && !t.quadro_id && t.status !== 'resolvido' && t.aceite !== 'recusado'
+    && t.tipo !== 'pop' && t.tipo !== 'pop_revisao')
   const pedidos = lista.filter((t) => t.solicitante_id === auth.userId && t.responsavel_id !== auth.userId)
   const paraTarefa = lista.filter((t) => t.status !== 'resolvido')
 
