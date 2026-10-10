@@ -150,3 +150,16 @@ describe('diffPassos', () => {
     expect(alt && 'campos' in alt && alt.campos).toEqual(['titulo'])
   })
 })
+
+describe('fase 6', () => {
+  it('QR aponta para a página do POP com executar=1 (a página mostra a vigente)', async () => {
+    const { urlExecutarPop } = await import('../regras')
+    expect(urlExecutarPop('https://portal.novatratores.com/', 'abc')).toBe('https://portal.novatratores.com/pops/abc?executar=1')
+  })
+  it('descreve a recorrência', async () => {
+    const { descreverRecorrencia } = await import('../regras')
+    expect(descreverRecorrencia({ recorrencia: 'semanal', dia_semana: 1, dia_mes: null })).toBe('Toda segunda-feira')
+    expect(descreverRecorrencia({ recorrencia: 'semanal', dia_semana: 6, dia_mes: null })).toBe('Todo sábado')
+    expect(descreverRecorrencia({ recorrencia: 'mensal', dia_semana: null, dia_mes: 31 })).toBe('Todo dia 31 (ou o último dia do mês)')
+  })
+})

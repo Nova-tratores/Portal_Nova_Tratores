@@ -6,13 +6,15 @@ export const dynamic = 'force-dynamic'
 import { Suspense, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { AlertTriangle, Archive, BadgeCheck, Copy, History, Library, Pencil, PlayCircle, Trash2 } from 'lucide-react'
+import { AlertTriangle, Archive, BadgeCheck, BookOpenCheck, Copy, History, Library, Pencil, PlayCircle, Printer, Repeat, Trash2, Users } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import type { ConfigPasso, EstadoVersao, TipoPasso } from '@/lib/pops/regras'
 import { VersaoConteudo } from '@/components/pops/PassoPreview'
 import HistoricoVersoes, { type VersaoResumo } from '@/components/pops/HistoricoVersoes'
 import ModalDuplicar from '@/components/pops/ModalDuplicar'
 import ModalExecutar from '@/components/pops/ModalExecutar'
+import PainelCiencia from '@/components/pops/PainelCiencia'
+import PainelAgendamentos, { type Agendamento } from '@/components/pops/PainelAgendamentos'
 import PainelRevisao from '@/components/pops/PainelRevisao'
 import {
   COR_POPS, EstadoChip, botao, botaoClaro, br, cartao, chamar, chip, pagina, primeiroNome, vazio, type UsuarioMapa,
@@ -30,6 +32,7 @@ interface Detalhe {
   passos: { tipo: TipoPasso; titulo: string; ajuda: string; obrigatorio: boolean; config: ConfigPasso; midia_url: string | null }[]
   usuarios: UsuarioMapa
   revisao: { ticket_id: string; responsavel_id: string; versao_id: string } | null
+  agendamentos: Agendamento[]
   modelo_atualizado: boolean
   minha_ciencia: string | null
   papeis: { admin: boolean; editar: boolean; aprovar: boolean; executar: boolean }
@@ -42,9 +45,10 @@ function Detalhe() {
   const { userProfile } = useAuth()
   const [d, setD] = useState<Detalhe | null>(null)
   const [erro, setErro] = useState('')
-  const [aba, setAba] = useState<'conteudo' | 'historico'>('conteudo')
-  const [duplicar, setDuplicar] = useState(false)
   const [executar, setExecutar] = useState(false)
+  const [aba, setAba] = useState<'conteudo' | 'historico' | 'ciencia' | 'recorrencia'>('conteudo')
+  const [lendo, setLendo] = useState(false)
+  const [duplicar, setDuplicar] = useState(false)
   const [ocupado, setOcupado] = useState(false)
   const [aviso, setAviso] = useState('')
   const versaoPedida = sp.get('versao') || ''
@@ -54,6 +58,19 @@ function Detalhe() {
     catch (e) { setErro((e as Error).message) }
   }, [id, versaoPedida])
   useEffect(() => { if (userProfile) carregar() }, [carregar, userProfile])
+  // Veio pelo QR da folha impressa (?executar=1): abre "Executar" para quem pode.
+  const viaQr = sp.get('executar') === '1'
+  const [qrTratado, setQrTratado] = useState(false)
+  if (viaQr && d && !qrTratado) {
+    setQrTratado(true)
+    if (d.papeis.executar && d.versoes.some((v) => v.estado === 'publicado') && d.pop.template_tipo !== 'sistema') setExecutar(true)
+  }
+
+  const darCiencia = async (versaoId: string) => {
+    setLendo(true); setAviso('')
+    try { await chamar('/api/pops/ciencia', { json: { versao_id: versaoId } }); await carregar() }
+    catch (e) { setAviso((e as Error).message) } finally { setLendo(false) }
+  }
 
   const acao = async (corpo: Record<string, unknown>, depois?: (r: Record<string, unknown>) => void, confirmar?: string) => {
     if (confirmar && !confirm(confirmar)) return
@@ -138,6 +155,9 @@ function Detalhe() {
             </button>
           )}
           {publicada && <button onClick={() => setDuplicar(true)} style={botaoClaro()}><Copy size={14} /> Duplicar</button>}
+          {publicada && (
+            <a href={`/pops/${id}/imprimir`} target="_blank" rel="noopener noreferrer" style={{ ...botaoClaro(), textDecoration: 'none' }}><Printer size={14} /> Imprimir (OPL)</a>
+          )}
           {papeis.admin && publicada && pop.template_tipo !== 'sistema' && (
             <button disabled={ocupado} onClick={() => acao({ acao: 'promover_template', template: !pop.eh_template })} style={botaoClaro()}>
               <Library size={14} /> {pop.eh_template ? 'Deixar de ser modelo' : 'Tornar modelo'}
@@ -150,6 +170,9 @@ function Detalhe() {
           )}
         </div>
         {aviso && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{aviso}</div>}
+        {viaQr && !papeis.executar && (
+          <div style={{ fontSize: 13, color: '#b45309', fontWeight: 600 }}>Você abriu pelo QR. Para executar este POP peça a permissão a quem cuida dele; abaixo está o procedimento.</div>
+        )}
       </div>
 
       {decidoRevisao && d.revisao && (() => {
@@ -176,9 +199,17 @@ function Detalhe() {
       <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
         <button onClick={() => setAba('conteudo')} style={aba === 'conteudo' ? botao(COR_POPS) : botaoClaro()}>Conteúdo</button>
         <button onClick={() => setAba('historico')} style={aba === 'historico' ? botao(COR_POPS) : botaoClaro()}><History size={14} /> Histórico ({d.versoes.length})</button>
+        {papeis.editar && publicada && <button onClick={() => setAba('ciencia')} style={aba === 'ciencia' ? botao(COR_POPS) : botaoClaro()}><Users size={14} /> Ciência</button>}
+        {papeis.editar && publicada && pop.template_tipo !== 'sistema' && (
+          <button onClick={() => setAba('recorrencia')} style={aba === 'recorrencia' ? botao(COR_POPS) : botaoClaro()}><Repeat size={14} /> Recorrência ({d.agendamentos.length})</button>
+        )}
       </div>
 
-      {aba === 'conteudo' ? (
+      {aba === 'ciencia' && publicada ? (
+        <PainelCiencia popId={id} versaoId={publicada.id} numero={publicada.numero} />
+      ) : aba === 'recorrencia' ? (
+        <PainelAgendamentos popId={id} agendamentos={d.agendamentos} usuarios={d.usuarios} onMudou={carregar} />
+      ) : aba === 'conteudo' ? (
         <div style={cartao}>
           <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12, flexWrap: 'wrap' }}>
             <EstadoChip estado={versao.estado} numero={versao.numero} />
@@ -194,6 +225,11 @@ function Detalhe() {
             {publicada && versao.id === publicada.id && <>Aprovada por {primeiroNome(nome(publicada.aprovado_por))}. </>}
             {d.minha_ciencia && <>Você deu ciência desta versão em {br(d.minha_ciencia.slice(0, 10))}.</>}
           </div>
+          {versao.estado === 'publicado' && !d.minha_ciencia && (
+            <button disabled={lendo} onClick={() => darCiencia(versao.id)} style={{ ...botao('#0f766e'), marginTop: 12 }}>
+              <BookOpenCheck size={15} /> {lendo ? 'Registrando…' : 'Li e entendi esta versão'}
+            </button>
+          )}
         </div>
       ) : (
         <HistoricoVersoes popId={id} versoes={d.versoes} usuarios={d.usuarios} />

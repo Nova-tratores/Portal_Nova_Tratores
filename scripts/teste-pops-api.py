@@ -342,6 +342,26 @@ try:
     st, t = rest(f"tickets?select=solicitante_id,responsavel_id,prazo,aceite&id=eq.{j[0]['ticket_id']}")
     check('recorrente: solicitante = dono, prazo = dia, aceite ok', t[0]['solicitante_id'] == DEV and t[0]['prazo'] == DIA and t[0]['aceite'] == 'ok', t)
 
+    # ------------------------------------------------------------------ painel: números = contagem direta no banco
+    print('\n[painel por área × count direto no banco]')
+    st, pn = api(f'/api/pops/painel?area={AREA}&dias=366', 'GET', None, TD)
+    check('painel responde', st == 200 and 'totais' in pn, (st, pn))
+    de, ate = pn['periodo']['de'], pn['periodo']['ate']
+    def contar(q):
+        rq = urllib.request.Request(URL + '/rest/v1/' + q, method='HEAD', headers={'apikey': SRV, 'Authorization': 'Bearer ' + SRV, 'Prefer': 'count=exact'})
+        return int(urllib.request.urlopen(rq, timeout=60).headers['Content-Range'].split('/')[1])
+    st, ids = rest(f"pops?select=id&area_id=eq.{AREA}")
+    lista_ids = ','.join(x['id'] for x in ids)
+    base_ex = f"pops_execucoes?pop_id=in.({lista_ids})&data_referencia=gte.{de}&data_referencia=lte.{ate}"
+    t = pn['totais']
+    check('pops_total = count(pops da área, não arquivados, não modelo do sistema)',
+          t['pops_total'] == contar(f"pops?area_id=eq.{AREA}&arquivado=eq.false&or=(template_tipo.is.null,template_tipo.neq.sistema)"), t)
+    check('execucoes = count(pops_execucoes no período)', t['execucoes'] == contar(base_ex), (t['execucoes'], contar(base_ex)))
+    check('recorrentes = count(com agendamento no período)', t['recorrentes'] == contar(base_ex + '&agendamento_id=not.is.null'), t)
+    check('pct_no_prazo coerente com os totais', (pn['pct_no_prazo'] is None) == (t['recorrentes'] == 0), pn['pct_no_prazo'])
+    st, j = api(f'/api/pops/painel?area={AREA}', 'GET', None)
+    check('painel sem sessão → 401', st == 401, st)
+
     # ------------------------------------------------------------------ regressão: genérico e compras
     print('\n[regressão da engine: genérico e compras]')
     st, q = rest('tickets_quadros', 'POST', {'nome': 'TESTE-POPS regressão', 'criado_por': DEV}); QD = q[0]['id']; limpar['quadro'] = QD

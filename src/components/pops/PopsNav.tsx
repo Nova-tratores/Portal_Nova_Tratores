@@ -4,19 +4,22 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ClipboardList, Library, PlayCircle, Stamp, Users } from 'lucide-react'
+import { BarChart3, ClipboardList, Library, PlayCircle, Stamp, Users } from 'lucide-react'
 import { chamar, COR_POPS } from './comum'
 
 export default function PopsNav() {
   const path = usePathname() || ''
   const [pendentes, setPendentes] = useState(0)
   const [admin, setAdmin] = useState(false)
+  const [cuida, setCuida] = useState(false)   // tem o módulo ou papel numa área → vê o painel
 
   useEffect(() => {
     let vivo = true
     const carregar = () => chamar<{ revisoes: unknown[]; admin: boolean }>('/api/pops/revisoes')
       .then((r) => { if (vivo) { setPendentes(r.revisoes.length); setAdmin(r.admin) } })
       .catch(() => {})
+    chamar<{ eu: { admin: boolean; papeis: unknown[] } }>('/api/pops/areas')
+      .then((r) => { if (vivo) setCuida(r.eu.admin || r.eu.papeis.length > 0) }).catch(() => {})
     carregar()
     window.addEventListener('pops-mudou', carregar)
     return () => { vivo = false; window.removeEventListener('pops-mudou', carregar) }
@@ -27,6 +30,7 @@ export default function PopsNav() {
     { href: '/pops/minhas', label: 'Minhas execuções', icone: <PlayCircle size={15} />, ativa: path.startsWith('/pops/minhas') },
     { href: '/pops/modelos', label: 'Modelos', icone: <Library size={15} />, ativa: path.startsWith('/pops/modelos') },
     { href: '/pops/aprovar', label: 'Para aprovar', icone: <Stamp size={15} />, ativa: path.startsWith('/pops/aprovar'), n: pendentes },
+    ...(cuida || admin ? [{ href: '/pops/painel', label: 'Painel', icone: <BarChart3 size={15} />, ativa: path.startsWith('/pops/painel') }] : []),
     ...(admin ? [{ href: '/pops/areas', label: 'Áreas e papéis', icone: <Users size={15} />, ativa: path.startsWith('/pops/areas') }] : []),
   ]
 

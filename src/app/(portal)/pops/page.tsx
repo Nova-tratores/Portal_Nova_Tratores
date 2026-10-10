@@ -22,6 +22,7 @@ export default function PopsLista() {
   const [carregando, setCarregando] = useState(true)
   const [erro, setErro] = useState('')
   const [novo, setNovo] = useState(false)
+  const [paraLer, setParaLer] = useState<{ versao_id: string; numero: number; pop: { id: string; codigo: string; titulo: string } | null }[]>([])
   // filtros
   const [area, setArea] = useState('')
   const [busca, setBusca] = useState('')
@@ -38,6 +39,7 @@ export default function PopsLista() {
         chamar<{ pops: PopLista[]; usuarios: UsuarioMapa }>(`/api/pops${arquivados ? '?arquivados=1' : ''}`),
       ])
       setAreas(a); setPops(l.pops); setUsuarios(l.usuarios)
+      chamar<{ pendentes: typeof paraLer }>('/api/pops/ciencia').then((r) => setParaLer(r.pendentes)).catch(() => {})
     } catch (e) { setErro((e as Error).message) } finally { setCarregando(false) }
   }, [arquivados])
   useEffect(() => { if (userProfile) carregar() }, [carregar, userProfile])
@@ -101,6 +103,16 @@ export default function PopsLista() {
         )}
       </div>
 
+      {paraLer.length > 0 && (
+        <div style={{ ...cartao, marginBottom: 14, borderLeft: '4px solid #0f766e', display: 'grid', gap: 6 }}>
+          <strong>Você precisa ler {paraLer.length === 1 ? 'este procedimento' : `estes ${paraLer.length} procedimentos`} e dar ciência</strong>
+          {paraLer.map((x) => x.pop && (
+            <Link key={x.versao_id} href={`/pops/${x.pop.id}`} style={{ color: COR_POPS, fontWeight: 700, textDecoration: 'none' }}>
+              {x.pop.codigo} v{x.numero} · {x.pop.titulo} →
+            </Link>
+          ))}
+        </div>
+      )}
       {erro && <div style={{ ...cartao, color: '#dc2626', marginBottom: 12 }}>{erro}</div>}
       {carregando && !pops.length ? <div style={vazio}>Carregando…</div>
         : !porArea.length ? (

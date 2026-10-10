@@ -337,3 +337,22 @@ export function diffPassos(antes: PassoComparavel[], depois: PassoComparavel[]):
   for (const a of antes) if (!mapaDepois.has(a.chave)) out.push({ tipo: 'removido', antes: a })
   return out
 }
+
+// ---------------------------------------------------------------------------
+// QR da folha impressa (OPL): abre a versão VIGENTE do POP (o detalhe sempre
+// mostra a publicada) já com "Executar" aberto para quem pode executar.
+// ---------------------------------------------------------------------------
+export function urlExecutarPop(origem: string, popId: string): string {
+  return `${origem.replace(/\/+$/, '')}/pops/${popId}?executar=1`
+}
+
+// Texto curto da recorrência ("Toda segunda", "Todo dia 31 (ou o último)").
+const DIAS = ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado']
+export function descreverRecorrencia(a: Pick<AgendamentoRef, 'recorrencia' | 'dia_semana' | 'dia_mes'>): string {
+  if (a.recorrencia === 'diario') return 'Todo dia (inclusive fim de semana e feriado)'
+  if (a.recorrencia === 'semanal') {
+    const d = a.dia_semana ?? 1
+    return d === 0 || d === 6 ? `Todo ${DIAS[d]}` : `Toda ${DIAS[d]}-feira`
+  }
+  return `Todo dia ${a.dia_mes}${(a.dia_mes ?? 1) > 28 ? ' (ou o último dia do mês)' : ''}`
+}
