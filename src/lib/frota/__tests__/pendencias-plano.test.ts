@@ -117,3 +117,20 @@ describe('refsAbertas', () => {
     expect(r).toEqual({ requisicoes: ['10', '11'], os: ['OS-9'], opas: ['uuid-1'] });
   });
 });
+
+describe('planejarPendencias — preventiva', () => {
+  const prev = (estado: 'vencida' | 'em_breve' | 'em_dia') => ({ placa: 'GAL7A16', plano_id: 'pl1', nome: 'Óleo e filtro', componente_id: null, estado, texto: 'faltam 480 km' });
+  it('vence em breve abre "Preventiva: …"; em dia fecha; não duplica', () => {
+    const abre = planejarPendencias(base({ preventivas: [prev('em_breve')] }));
+    expect(abre.inserir).toEqual([expect.objectContaining({ origem: 'preventiva', origem_ref: 'pl1', titulo: 'Preventiva: Óleo e filtro' })]);
+    const jaAberta = planejarPendencias(base({ preventivas: [prev('vencida')], pendencias: [pend({ id: 'pp', origem: 'preventiva', origem_ref: 'pl1' })] }));
+    expect(jaAberta.inserir).toHaveLength(0);
+    const fecha = planejarPendencias(base({ preventivas: [prev('em_dia')], pendencias: [pend({ id: 'pp', origem: 'preventiva', origem_ref: 'pl1' })] }));
+    expect(fecha.resolver.map((r) => r.id)).toEqual(['pp']);
+  });
+  it('reabre no ciclo seguinte mesmo com uma resolvida antiga; sem a migration (null) não mexe', () => {
+    const antiga = pend({ id: 'old', origem: 'preventiva', origem_ref: 'pl1', status: 'resolvida', resolvida_em: '2026-01-01T00:00:00Z' });
+    expect(planejarPendencias(base({ preventivas: [prev('em_breve')], pendencias: [antiga] })).inserir).toHaveLength(1);
+    expect(planejarPendencias(base({ preventivas: null, pendencias: [pend({ id: 'pp', origem: 'preventiva', origem_ref: 'pl1' })] })).resolver).toHaveLength(0);
+  });
+});

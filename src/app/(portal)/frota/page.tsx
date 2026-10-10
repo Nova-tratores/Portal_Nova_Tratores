@@ -7,7 +7,7 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  OctagonAlert, AlertTriangle, FileWarning, Fuel, ClipboardCheck, UserX, MapPinned, IdCard, Check, Loader2, Gauge,
+  OctagonAlert, AlertTriangle, FileWarning, Fuel, ClipboardCheck, UserX, MapPinned, IdCard, Check, Loader2, Gauge, CalendarClock,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
@@ -35,6 +35,11 @@ interface DadosHoje {
   km: { confiaveis: number; total: number; pedirFoto: { placa: string; km: number | null; descricao: string; idadeDias: number | null }[] } | null;
   leiturasSuspeitas: { id: string; placa: string; km: number; lida_em: string; foto_url: string | null; lido_por: string | null; motivo: string | null }[];
   podeConferirKm: boolean;
+  preventivas: {
+    resumo: { vencida: number; em_breve: number; em_dia: number; sem_historico: number; pctEmDia: number | null };
+    semPlano: number;
+    itens: { placa: string; modelo: string; nome: string; estado: 'vencida' | 'em_breve'; regua: string | null; texto: string }[];
+  } | null;
 }
 
 const linkFicha = (placa: string) => `/frota/veiculos?placa=${encodeURIComponent(placa)}`;
@@ -98,6 +103,7 @@ export default function FrotaHoje() {
   if (!d.cadastro.length) tudoEmDia.push('cadastro completo');
   if (!d.paradas.total) tudoEmDia.push('paradas explicadas');
   if (d.km && !d.km.pedirFoto.length) tudoEmDia.push('km de todos os carros recente');
+  if (d.preventivas && !d.preventivas.itens.length) tudoEmDia.push('preventivas em dia');
 
   return (
     <div className="frota-pg" style={{ padding: '28px 40px', fontFamily: 'Inter, sans-serif' }}>
@@ -156,6 +162,20 @@ export default function FrotaHoje() {
                 acao={<Acao href={`${linkPendencias(g.placa)}&pend=${g.id}`}>Abrir</Acao>} />
             ))}
             {d.graves.length > 30 && <Mais href="/frota/pendencias" n={d.graves.length - 30} />}
+          </Bloco>
+        )}
+
+        {d.preventivas && d.preventivas.itens.length > 0 && (
+          <Bloco id="preventivas" titulo="Preventivas vencidas ou vencendo" icone={<CalendarClock size={16} />} cor="#0f766e" n={d.preventivas.itens.length}
+            ajuda={`${d.preventivas.resumo.pctEmDia != null ? `${d.preventivas.resumo.pctEmDia}% das preventivas em dia. ` : ''}Vence o que chegar primeiro: km, horas de motor ou data, pelo manual de cada modelo.${d.preventivas.semPlano ? ` ${d.preventivas.semPlano} carro(s) ainda sem plano.` : ''}`}>
+            {d.preventivas.itens.slice(0, 20).map((p) => (
+              <Linha key={`${p.placa}-${p.nome}`} placa={p.placa} modelo={p.modelo}
+                selo={<span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.4, padding: '2px 8px', borderRadius: 999, background: p.estado === 'vencida' ? '#fee2e2' : '#fef3c7', color: p.estado === 'vencida' ? '#991b1b' : '#92400e' }}>{p.estado === 'vencida' ? 'VENCIDA' : 'EM BREVE'}</span>}
+                texto={`${p.nome} · ${p.texto}${p.regua ? ` (por ${p.regua === 'data' ? 'data' : p.regua})` : ''}`}
+                destaque={p.estado === 'vencida'}
+                acao={<Acao href="/frota/preventivas">Registrar feito</Acao>} />
+            ))}
+            {d.preventivas.itens.length > 20 && <Mais href="/frota/preventivas" n={d.preventivas.itens.length - 20} />}
           </Bloco>
         )}
 

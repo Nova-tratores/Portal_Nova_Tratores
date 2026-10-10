@@ -54,6 +54,9 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   // Pendências por veículo: régua de cadastro/documentação + checklist,
   // requisição, OS e Opa, num lugar só.
   { key: 'frota:pendencias',         label: 'Pendências',        href: '/frota/pendencias',         grupo: 'Operação', aba: 'manutencao' },
+  // Preventiva por km, horas ou data (Fase 2): plano por modelo, pelo manual de
+  // cada veículo; o que foi feito reinicia a contagem. Planos em /frota/preventivas/planos.
+  { key: 'frota:preventivas',        label: 'Preventivas',       href: '/frota/preventivas',        grupo: 'Operação', aba: 'manutencao' },
   { key: 'frota:manutencoes',        label: 'Manutenções',       href: '/frota/manutencoes',        grupo: 'Operação', aba: 'manutencao' },
   // Checklists mensais dos veículos (feitos no NT Mecânico) — status por técnico/veículo.
   { key: 'frota:checklists',         label: 'Checklists',        href: '/frota/checklists',         grupo: 'Operação', aba: 'manutencao' },

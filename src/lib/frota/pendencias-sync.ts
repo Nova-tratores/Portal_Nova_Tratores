@@ -11,7 +11,7 @@ import { createClient } from '@supabase/supabase-js';
 import { paginar, emLotes } from '@/lib/db/paginar';
 import {
   planejarPendencias, refsAbertas, ultimoChecklistPorPlaca,
-  type PendenciaExistente, type RequisicaoSync, type OsSync, type OpaSync,
+  type PendenciaExistente, type RequisicaoSync, type OsSync, type OpaSync, type PreventivaSync,
 } from '@/lib/frota/pendencias-plano';
 
 const supabase = createClient(
@@ -105,6 +105,19 @@ async function executar(): Promise<ResultadoSync> {
     }
   }
 
+  // preventivas (lib/frota/preventiva): sem a migration ou com erro → bloco pulado
+  let preventivas: PreventivaSync[] | null = null;
+  try {
+    const { calcularPreventivas } = await import('@/lib/frota/preventiva-server');
+    const r = await calcularPreventivas(supabase, { agora });
+    if (r.tabela) {
+      preventivas = r.veiculos.flatMap((v) => v.itens.map((i) => ({
+        placa: v.placa, plano_id: i.plano.id, nome: i.plano.nome, componente_id: i.plano.componente_id ?? null,
+        estado: i.situacao.estado, texto: i.situacao.texto,
+      })));
+    }
+  } catch (e) { erros.push(`preventivas: ${(e as Error).message}`); }
+
   const plano = planejarPendencias({
     agora,
     veiculos: veic.data || [],
@@ -118,6 +131,7 @@ async function executar(): Promise<ResultadoSync> {
     os: osComProjeto.error ? null : [...(osComProjeto.data || []), ...osAntigas.data] as OsSync[],
     opas: listaOpas,
     fotoPorOpa,
+    preventivas,
   });
 
   // ── grava ──

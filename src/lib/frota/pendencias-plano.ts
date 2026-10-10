@@ -17,6 +17,9 @@
 //  - OS DO PÓS:  OS com o PROJETO contendo a placa (ex. "CARGO-AQJ3H59") abre
 //                pendência e FECHA quando a OS conclui ou é cancelada
 //  - OPA:        Opa vinculado a veículo abre e FECHA quando é resolvido
+//  - PREVENTIVA: item do plano (por modelo, pelo manual) que VENCE EM BREVE ou
+//                está VENCIDO abre "Preventiva: <item>"; FECHA quando um serviço
+//                registrado deixa o item em dia. Reabre no próximo ciclo.
 import { pendenciasDetalhadas } from '@/lib/frota/pendencias';
 
 // item do checklist -> caminho na taxonomia (sistema | subsistema | componente)
@@ -98,6 +101,12 @@ export type OpaSync = {
   created_at: string | null; vinculo_ref: string | null; resolvido_por_nome: string | null;
 };
 
+export type PreventivaSync = {
+  placa: string; plano_id: string; nome: string; componente_id: string | null;
+  estado: 'vencida' | 'em_breve' | 'em_dia' | 'sem_leitura' | 'sem_historico';
+  texto: string;
+};
+
 export type DadosSync = {
   agora: number;
   veiculos: VeiculoSync[];
@@ -112,6 +121,8 @@ export type DadosSync = {
   os: OsSync[] | null;
   opas: OpaSync[] | null;
   fotoPorOpa: Map<string, string>;
+  /** situação de cada item de preventiva; null = sem a migration (bloco pulado) */
+  preventivas?: PreventivaSync[] | null;
 };
 
 export type Resolucao = { id: string; resolucao: string; vinculo_tipo?: 'requisicao' | 'os'; vinculo_ref?: string };
@@ -370,6 +381,31 @@ export function planejarPendencias(d: DadosSync): PlanoPendencias {
       }
       if (aberta && resolvido) {
         fechar({ id: aberta.id, resolucao: `Opa resolvido${o.resolvido_por_nome ? ` por ${o.resolvido_por_nome}` : ''}.` });
+      }
+    }
+  }
+
+  // ── PREVENTIVA: vence em breve/vencida abre; em dia (serviço registrado) fecha ──
+  if (d.preventivas) {
+    const atual = new Map(d.preventivas.map((p) => [`${p.placa}|preventiva|${p.plano_id}`, p]));
+    for (const p of d.preventivas) {
+      if (p.estado !== 'em_breve' && p.estado !== 'vencida') continue;
+      const k = `${p.placa}|preventiva|${p.plano_id}`;
+      if (abertaDe(k)) continue; // reabre a cada ciclo: a resolvida antiga não impede
+      abrir(k, {
+        placa: p.placa, origem: 'preventiva', origem_ref: p.plano_id,
+        titulo: `Preventiva: ${p.nome}`,
+        descricao: `${p.estado === 'vencida' ? 'Vencida' : 'Vence em breve'} — ${p.texto}. Registre o serviço feito na aba Preventivas para fechar.`,
+        componente_id: p.componente_id,
+        status: 'aberta', aberta_por: 'Sistema (preventiva)',
+      });
+    }
+    for (const r of d.pendencias) {
+      if (r.origem !== 'preventiva' || r.status !== 'aberta' || !r.origem_ref) continue;
+      const p = atual.get(`${r.placa}|preventiva|${r.origem_ref}`);
+      // item saiu do plano (ou carro mudou de modelo): fecha também
+      if (!p || p.estado === 'em_dia') {
+        fechar({ id: r.id, resolucao: p ? `Serviço registrado — ${p.nome} em dia (${p.texto}).` : 'O item saiu do plano de preventiva deste veículo.' });
       }
     }
   }

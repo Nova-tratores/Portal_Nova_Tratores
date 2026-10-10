@@ -73,6 +73,26 @@ const AJUDA: Record<string, AjudaFrota> = {
       { t: '"Era pra durar mais"', d: 'O mesmo componente deu problema antes da vida útil cadastrada.' },
     ],
   },
+  '/frota/preventivas': {
+    titulo: 'Preventivas',
+    icon: '🗓️',
+    resumo: 'O que vence por km, horas de motor ou data em cada carro.',
+    oQueMostra:
+      'Cada carro segue o plano do modelo dele, com os intervalos do manual do fabricante (cadastrados em Planos por modelo). ' +
+      'Para cada item a tela mostra a situação e o que falta. Quando um item fica perto de vencer, abre sozinho uma pendência ' +
+      '"Preventiva: …" no carro, que fecha quando o serviço é registrado.',
+    comoUsar: [
+      'Clique num item para ver o intervalo do manual, a última vez e a próxima, e para registrar que foi feito (data e km).',
+      'Numa revisão, marque os outros itens feitos junto — todos reiniciam a contagem de uma vez.',
+      'Item "Sem histórico": informe a última vez que foi feito (mesmo que tenha sido antes do portal).',
+    ],
+    termos: [
+      { t: 'Vence o que chegar primeiro', d: 'Se o manual diz 10.000 km ou 6 meses, vale o que acontecer antes.' },
+      { t: 'Vence em breve', d: 'Dentro do aviso do item (padrão: 1.000 km, 25 horas ou 30 dias antes).' },
+      { t: 'Marcos fixos', d: 'O manual fala em 10.000, 20.000, 30.000 km: fazer antes não empurra o próximo marco.' },
+      { t: '?', d: 'O km do carro está velho ou estimado — peça uma foto do painel (Registrar km).' },
+    ],
+  },
   '/frota/checklists': {
     titulo: 'Checklists mensais',
     icon: '✅',

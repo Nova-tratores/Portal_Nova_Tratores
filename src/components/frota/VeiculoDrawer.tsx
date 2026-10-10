@@ -23,6 +23,7 @@ import { SUBTIPOS_VEICULO, labelSubtipo } from '@/lib/frota/tipos';
 import type { Motorista, VeiculoDetalhe } from '@/lib/frota/tipos';
 import type { ResultadoKm } from '@/lib/frota/km';
 import RegistrarKm from '@/components/frota/RegistrarKm';
+import { ESTADO_COR, type EstadoPreventiva } from '@/lib/frota/preventiva';
 
 interface Props {
   placa: string;
@@ -184,6 +185,26 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
     } catch { /* sem o km novo, a ficha mostra o hodômetro de antes */ }
   }, [placa]);
   useEffect(() => { carregarKmInfo(); }, [carregarKmInfo]);
+
+  // preventiva do carro (plano do modelo, pelo manual) — resumo na Ficha
+  const [prevInfo, setPrevInfo] = useState<{ modelo: string | null; itens: { nome: string; estado: EstadoPreventiva; texto: string }[] } | null>(null);
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch(`/api/frota/preventivas?placa=${encodeURIComponent(placa)}`, { headers: await authHeaders() });
+        if (!r.ok) return;
+        const j = await r.json();
+        const v = j.veiculos?.[0];
+        if (!vivo || j.migracaoFaltando || !v) return;
+        setPrevInfo({
+          modelo: v.modelo?.nome || null,
+          itens: (v.itens || []).map((i: { plano: { nome: string }; situacao: { estado: EstadoPreventiva; texto: string } }) => ({ nome: i.plano.nome, estado: i.situacao.estado, texto: i.situacao.texto })),
+        });
+      } catch { /* bloco opcional */ }
+    })();
+    return () => { vivo = false; };
+  }, [placa]);
 
   // Senha do cartão Veloe fica mascarada na ficha — clique pra revelar
   const [verSenhaVeloe, setVerSenhaVeloe] = useState(false);
@@ -767,6 +788,23 @@ export default function VeiculoDrawer({ placa, podeEditar, podeResponsavel, pode
                           </span>
                         }
                       />
+                      {prevInfo && (
+                        <Linha
+                          rotulo="Preventiva"
+                          valor={
+                            <span style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                              {!prevInfo.modelo ? (
+                                <a href="/frota/preventivas/planos" style={{ color: '#b45309', fontSize: 13 }}>sem plano — cadastrar pelo manual</a>
+                              ) : prevInfo.itens.length ? (
+                                prevInfo.itens.map((i) => (
+                                  <span key={i.nome} style={{ fontSize: 12.5, color: ESTADO_COR[i.estado].cor }}>● {i.nome} · {i.texto}</span>
+                                ))
+                              ) : <span style={{ fontSize: 13 }}>plano sem itens</span>}
+                              <a href="/frota/preventivas" style={{ fontSize: 12, fontWeight: 700, color: '#1e40af' }}>abrir Preventivas →</a>
+                            </span>
+                          }
+                        />
+                      )}
                       {registrandoKm && (
                         <RegistrarKm placa={v.placa} onClose={() => setRegistrandoKm(false)} onSalvo={carregarKmInfo} />
                       )}
