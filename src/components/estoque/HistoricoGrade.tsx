@@ -44,9 +44,9 @@ const fmtRS = (v: number) => 'R$ ' + v.toLocaleString('pt-BR', { minimumFraction
 const fmtInt = (v: number) => Math.round(v).toLocaleString('pt-BR');
 
 /** O que a grade soma: dinheiro ou contagens. */
-export type Medida = 'valor' | 'pedidos' | 'itens' | 'os' | 'horas';
-const ROTULO_MEDIDA: Record<Medida, string> = { valor: 'Valor (R$)', pedidos: 'Pedidos de venda', itens: 'Itens', os: 'OS', horas: 'Horas' };
-const UNID_MEDIDA: Record<Medida, string> = { valor: '', pedidos: 'pedidos', itens: 'itens', os: 'OS', horas: 'h' };
+export type Medida = 'valor' | 'unidades' | 'pedidos' | 'itens' | 'os' | 'horas';
+const ROTULO_MEDIDA: Record<Medida, string> = { valor: 'Valor (R$)', unidades: 'Unidades', pedidos: 'Pedidos de venda', itens: 'Itens', os: 'OS', horas: 'Horas' };
+const UNID_MEDIDA: Record<Medida, string> = { valor: '', unidades: 'un.', pedidos: 'pedidos', itens: 'itens', os: 'OS', horas: 'h' };
 const fmtHoras = (v: number) => v.toLocaleString('pt-BR', { maximumFractionDigits: v >= 100 ? 0 : 1 }) + ' h';
 // Base mínima de um Δ "significativo" nas contagens (no valor vem da página).
 const BASE_MIN_QTD = 5;
@@ -63,9 +63,9 @@ function DeltaTxt({ d, titulo, rotulo, tamanho = '.78rem' }: { d: Delta | null; 
 }
 
 /** Um mês já normalizado pela página. Contagem null = não se sabe (o mês fica sem dado nessa medida). */
-export interface MesHistorico { mes: number; ano: number; valor: number; custo: number; pedidos: number | null; itens: number | null; os: number | null; horas?: number | null }
+export interface MesHistorico { mes: number; ano: number; valor: number; custo: number; pedidos: number | null; itens: number | null; os: number | null; horas?: number | null; unidades?: number | null }
 /** Uma semana (segunda-feira em `inicio`, 'YYYY-MM-DD'), com as mesmas medidas do mês. */
-export interface SemanaHistorico { inicio: string; valor: number; custo: number; pedidos: number | null; itens: number | null; os: number | null; horas?: number | null }
+export interface SemanaHistorico { inicio: string; valor: number; custo: number; pedidos: number | null; itens: number | null; os: number | null; horas?: number | null; unidades?: number | null }
 
 export interface SerieGrade {
   nome: string;
@@ -412,7 +412,7 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
                               <div style={valorStyle(!multi)}>{pontoSerie(i)}{fmtV(c.valor)}</div>
                               {c.parcial ? (
                                 <div style={{ fontSize: '.72rem', color: '#9ca3af', whiteSpace: 'nowrap' }}>
-                                  {c.projetado != null ? <span title="Projeção pelo ritmo dos dias úteis já fechados">proj. <b style={{ color: '#6b7280' }}>{fmtV(c.projetado)}</b></span> : <i>parcial</i>}
+                                  {c.projetado != null && c.projetado > 0 ? <span title="Projeção pelo ritmo dos dias úteis já fechados">proj. <b style={{ color: '#6b7280' }}>{fmtV(c.projetado)}</b></span> : <i>parcial</i>}
                                 </div>
                               ) : !multi ? (
                                 <div style={{ minHeight: '1.1em' }}><DeltaTxt d={c.delta} titulo={rotuloComp} /></div>

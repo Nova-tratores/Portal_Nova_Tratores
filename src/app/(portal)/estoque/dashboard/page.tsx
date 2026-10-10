@@ -82,7 +82,7 @@ interface Comparativos { a1: CompPonto[]; a2: CompPonto[] }
 type TipoServ = 'HR' | 'KM' | 'SEM_CODIGO' | 'OUTRO';
 interface ServParte { valor: number; os: number; itens: number }
 interface HistMes {
-  label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; qtdeItens?: number;
+  label: string; mes: number; ano: number; valor: number; custo: number; qtdePedidos: number; qtdeItens?: number; qtdeUnidades?: number | null;
   valorNota?: number | null; valorInterno?: number | null; qtdeOS?: number | null; qtdeNota?: number | null; qtdeInterno?: number | null;
   /** Card Serviços: COM NFS-e a partir dos itens das OS, por tipo de serviço (null = sem a RPC no banco). */
   servItens?: (ServParte & { porTipo: Record<TipoServ, ServParte> }) | null;
@@ -106,11 +106,11 @@ function mesesParaGrade(meses: HistMes[], servico: boolean, tipo?: TipoServ): Me
       return { mes: m.mes, ano: m.ano, valor: p?.valor ?? 0, custo: 0, pedidos: null, itens: p?.itens ?? null, os: p?.os ?? null };
     }
     if (servico) return { mes: m.mes, ano: m.ano, valor: m.valor, custo: 0, pedidos: null, itens: null, os: m.qtdeNota ?? null };
-    return { mes: m.mes, ano: m.ano, valor: m.valor, custo: m.custo, pedidos: m.qtdePedidos, itens: m.qtdeItens ?? null, os: null };
+    return { mes: m.mes, ano: m.ano, valor: m.valor, custo: m.custo, pedidos: m.qtdePedidos, itens: m.qtdeItens ?? null, os: null, unidades: m.qtdeUnidades ?? null };
   });
 }
-interface HistSemana { inicio: string; valor: number; custo: number; qtdePedidos: number; qtdeItens: number; servItens?: HistMes['servItens'] }
-interface HistResp { catKey: string; nome: string; meses: HistMes[]; semanas?: HistSemana[] | null; diasUteisMes?: { ano: number; mes: number; decorridos: number; total: number }; feriadosExtras?: string[]; erro?: string }
+interface HistSemana { inicio: string; valor: number; custo: number; qtdePedidos: number; qtdeItens: number; qtdeUnidades?: number | null; servItens?: HistMes['servItens'] }
+interface HistResp { catKey: string; nome: string; meses: HistMes[]; semanas?: HistSemana[] | null; diasUteisMes?: { ano: number; mes: number; decorridos: number; total: number }; feriadosExtras?: string[]; familiasTop?: string[]; erro?: string }
 interface HorasResp { dias: Array<{ data: string; tecnico: string; trabalhadas: number; faturadas: number }>; tecnicos: string[]; inicioRelatorios: string | null; semPortal: boolean; erro?: string }
 
 /** Semanas no formato da grade (mesma regra de mesesParaGrade; serviços sempre pelos itens das OS). */
@@ -121,7 +121,7 @@ function semanasParaGrade(semanas: HistSemana[] | null | undefined, servico: boo
       const p = w.servItens ? (tipo ? w.servItens.porTipo[tipo] : w.servItens) : null;
       return { inicio: w.inicio, valor: p?.valor ?? 0, custo: 0, pedidos: null, itens: p?.itens ?? null, os: p?.os ?? null };
     }
-    return { inicio: w.inicio, valor: w.valor, custo: w.custo, pedidos: w.qtdePedidos, itens: w.qtdeItens, os: null };
+    return { inicio: w.inicio, valor: w.valor, custo: w.custo, pedidos: w.qtdePedidos, itens: w.qtdeItens, os: null, unidades: w.qtdeUnidades ?? null };
   });
 }
 
@@ -387,10 +387,14 @@ export default function DashboardPage() {
           serieDoHistorico('CASTRO', '#1976d2', castro, servico, metrica),
         ];
       } else {
-        const top = (dados?.categorias || [])
-          .filter((c) => c.cardType === 'produto' && c.valorAtual > 0)
-          .sort((a, b) => b.valorAtual - a.valorAtual)
-          .slice(0, CORES_SERIE.length);
+        // Total Peças → as 6 maiores categorias do período; Máquinas → as 6 famílias
+        // que mais faturaram nos últimos 12 meses (vem do servidor).
+        const top: Array<{ key: string; nome: string }> = histCard === 'maquinas'
+          ? (hist?.familiasTop || []).slice(0, CORES_SERIE.length).map((f) => ({ key: 'maq:' + f, nome: f }))
+          : (dados?.categorias || [])
+            .filter((c) => c.cardType === 'produto' && c.valorAtual > 0)
+            .sort((a, b) => b.valorAtual - a.valorAtual)
+            .slice(0, CORES_SERIE.length);
         const hs = await Promise.all(top.map((c) => buscar(c.key, contaParam)));
         series = hs.map((h, i) => serieDoHistorico(fixLabel(top[i].nome), CORES_SERIE[i], h, false, metrica));
       }
@@ -398,7 +402,7 @@ export default function DashboardPage() {
     } catch (e) {
       setHistCompErro((e as Error).message);
     }
-  }, [histCard, categoria, contaParam, metrica, dados]);
+  }, [histCard, categoria, contaParam, metrica, dados, hist]);
 
   const abrirVendas = useCallback(async (catKey: string, nome: string) => {
     setVendas(null);
@@ -729,6 +733,9 @@ export default function DashboardPage() {
                       subNode={<span style={{ whiteSpace: 'nowrap' }}>{fmtRS(ytd.receita)} · ticket {fmtMil(ticketYtd)}</span>}
                       varM={0} supM varA={0} supA modo="ano" semVar />
                   </div>
+                  <div style={{ margin: '-8px 0 16px' }}>
+                    <button onClick={() => abrirHistorico('maquinas')} style={linkBtn}>histórico de máquinas (meses · trimestres · semanas)</button>
+                  </div>
 
                   {tendencia && tendencia.length > 0 && (
                     <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
@@ -741,7 +748,8 @@ export default function DashboardPage() {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(210px, 1fr))', gap: 12 }}>
                       {ativas.map((c, i) => (
                         <MaquinaCard key={i} c={c} modo={modo} parcial={parcial}
-                          onVendas={() => abrirVendasMaquina(c.nome === 'Outras máquinas' ? '__TODAS__' : c.nome, fixLabel(c.nome))} />
+                          onVendas={() => abrirVendasMaquina(c.nome === 'Outras máquinas' ? '__TODAS__' : c.nome, fixLabel(c.nome))}
+                          onHist={c.nome === 'Outras máquinas' ? undefined : () => abrirHistorico('maq:' + c.nome)} />
                       ))}
                     </div>
                     {zeradas.length > 0 && (
@@ -902,6 +910,7 @@ export default function DashboardPage() {
                     <option value="empresas">Comparar: NOVA × CASTRO</option>
                     {histCard !== 'servico' && histCard !== 'totalGeral' && <option value="metricas">Comparar: Venda × Custo × Margem</option>}
                     {histCard === 'totalPecas' && <option value="categorias">Comparar: categorias (6 maiores)</option>}
+                    {histCard === 'maquinas' && <option value="categorias">Comparar: famílias (6 maiores)</option>}
                     {histCard === 'servico' && hist?.meses.some((m) => m.servItens) && <option value="tipos">Comparar: HR × KM × Sem código × Outros</option>}
                     {histCard === 'servico' && <option value="horas">Comparar: Horas trabalhadas × faturadas</option>}
                   </select>
@@ -961,6 +970,8 @@ export default function DashboardPage() {
                 if (histComparar === 'horas') return ['horas'];
                 if (histCard === 'totalGeral' || histComparar === 'metricas') return ['valor'];
                 if (histCard === 'servico') return hist.meses.some((m) => m.servItens) ? ['valor', 'os', 'itens'] : ['valor', 'os'];
+                // Unidades só quando o banco já soma as quantidades (sql/vendas-resumo-quantidade.sql).
+                if (histCard === 'maquinas' || histCard?.startsWith('maq:')) return hist.meses.some((m) => (m.qtdeUnidades ?? 0) > 0) ? ['valor', 'unidades', 'pedidos'] : ['valor', 'pedidos'];
                 return ['valor', 'pedidos', 'itens'];
               })()}
               diasUteisMes={hist.diasUteisMes}
@@ -1364,7 +1375,7 @@ function PecaCard({ c, modo, metrica, pctMix, parcial, onHist, onVendas }: {
   );
 }
 
-function MaquinaCard({ c, modo, parcial, onVendas }: { c: Categoria; modo?: 'mes' | 'ano'; parcial?: boolean; onVendas: () => void }) {
+function MaquinaCard({ c, modo, parcial, onVendas, onHist }: { c: Categoria; modo?: 'mes' | 'ano'; parcial?: boolean; onVendas: () => void; onHist?: () => void }) {
   const un = c.unidades ?? 0;
   const ticket = un > 0 ? c.valorAtual / un : 0;
   const varM = calcVar(c.valorAtual, c.mesAnteriorValor);
@@ -1378,7 +1389,10 @@ function MaquinaCard({ c, modo, parcial, onVendas }: { c: Categoria; modo?: 'mes
         {modo !== 'ano' && <Delta label="Mês" v={varM} sup={(c.unidadesMesAnt ?? 0) < BASE_MIN_MAQ_UN} parcial={parcial} />}
         <Delta label="Ano" v={varA} sup={(c.unidadesAnoAnt ?? 0) < BASE_MIN_MAQ_UN} parcial={parcial} />
       </div>
-      <div style={{ marginTop: 9 }}><button onClick={onVendas} style={linkBtn}>ver vendas</button></div>
+      <div style={{ marginTop: 9, display: 'flex', gap: 12 }}>
+        {onHist && <button onClick={onHist} style={linkBtn}>histórico</button>}
+        <button onClick={onVendas} style={linkBtn}>ver vendas</button>
+      </div>
     </div>
   );
 }

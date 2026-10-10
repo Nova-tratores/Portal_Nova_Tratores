@@ -36,6 +36,8 @@ interface HistoricoMesPonto {
   qtdePedidos: number;
   /** Linhas de item (produto) do card no mês. */
   qtdeItens: number;
+  /** Só nos cards de máquina: unidades (soma das quantidades). null = RPC sem a coluna. */
+  qtdeUnidades?: number | null;
   /** Só no card Serviços: COM NFS-e a partir dos ITENS das OS, por tipo de serviço. null = sem a RPC. */
   servItens?: ServicosMes | null;
   /** Só no card Serviços: split OS com NFS-e × internas (null quando os_mensal ainda não tem o split). */
@@ -57,6 +59,8 @@ export interface HistoricoResult {
   semanas: HistoricoSemanaPonto[] | null;
   /** Feriados extras (municipais, env FERIADOS_EXTRAS) 'YYYY-MM-DD' — os nacionais a tela calcula. */
   feriadosExtras: string[];
+  /** Só no card 'maquinas': as famílias que mais faturaram nos últimos 12 meses (Comparar famílias). */
+  familiasTop?: string[];
 }
 
 export interface HistoricoSemanaPonto {
@@ -66,6 +70,7 @@ export interface HistoricoSemanaPonto {
   custo: number;
   qtdePedidos: number;
   qtdeItens: number;
+  qtdeUnidades?: number | null;
   servItens?: ServicosMes | null;
 }
 
@@ -80,6 +85,8 @@ interface HistItem extends ItemVenda {
   pedidos: string[];
   /** Linhas de item que a linha representa (1 na leitura crua). */
   linhas: number;
+  /** Soma das quantidades (unidades). null = RPC antiga, sem a coluna (sql/vendas-resumo-quantidade.sql). */
+  qtd: number | null;
 }
 
 // 1º ano lido: o histórico mostra desde 2023, mas 2022 entra como base do Δ.
@@ -100,7 +107,7 @@ async function lerResumoMensal(conta: ContaFiltro): Promise<HistItem[] | null> {
 
 async function consultarResumoMensal(conta: ContaFiltro, codigos: string[]): Promise<HistItem[] | null> {
   const params = { p_desde_ano: HIST_DESDE_ANO, p_conta: conta ?? null, p_ignorar: codigos.map(String) };
-  type Linha = { ano: number; mes: number; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; linhas: number; pedidos: string[] | null };
+  type Linha = { ano: number; mes: number; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; quantidade?: number | string | null; linhas: number; pedidos: string[] | null };
   const faltando = (e: { code?: string; message: string }, fn: string) => e.code === 'PGRST202' || e.code === '42883' || e.message.includes(fn);
 
   // 1 ida só (jsonb, sql/vendas-resumo-mensal-json.sql); sem ela, a RPC em
@@ -127,6 +134,7 @@ async function consultarResumoMensal(conta: ContaFiltro, codigos: string[]): Pro
   return linhas.map((l) => ({
     ano: l.ano, mes: l.mes, familia: l.familia, tipo: l.tipo, codigo_categoria: l.codigo_categoria,
     valor_total: num(l.valor), quantidade: 1, cmc_unitario: num(l.custo), pedidos: l.pedidos || [], linhas: num(l.linhas),
+    qtd: l.quantidade == null ? null : num(l.quantidade),
   }));
 }
 
@@ -146,7 +154,7 @@ async function lerItensCrus(anos: number[], conta: ContaFiltro): Promise<HistIte
       if (codigos.length > 0) q = q.not('codigo_cliente', 'in', '(' + codigos.join(',') + ')');
       const { data } = await q.order('id').range(offset, offset + 999);
       const linhas = (data || []) as Array<ItemVenda & { mes: number; ano: number; numero_pedido: string | null }>;
-      for (const l of linhas) out.push({ ...l, pedidos: l.numero_pedido ? [l.numero_pedido] : [], linhas: 1 });
+      for (const l of linhas) out.push({ ...l, pedidos: l.numero_pedido ? [l.numero_pedido] : [], linhas: 1, qtd: num(l.quantidade) });
       if (linhas.length < 1000) break;
     }
   }
@@ -215,18 +223,46 @@ async function lerServicosSemanal(conta: ContaFiltro): Promise<Map<string, Servi
 /** Vendas por semana × família × tipo × categoria (RPC vendas_resumo_semanal_json), no formato de HistItem. */
 async function lerResumoSemanal(conta: ContaFiltro): Promise<Array<HistItem & { semana: string }> | null> {
   const { codigos } = await getIgnorarFiltro(conta);
-  type Linha = { semana: string; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; linhas: number; pedidos: string[] | null };
+  type Linha = { semana: string; familia: string | null; tipo: string | null; codigo_categoria: string | null; valor: number | string; custo: number | string; quantidade?: number | string | null; linhas: number; pedidos: string[] | null };
   const linhas = await comCacheResumo('sem|' + (conta ?? 'todas') + '|' + codigos.join(','), () =>
     rpcResumo<Linha>('vendas_resumo_semanal_json', { p_desde: SEMANAS_DESDE, p_conta: conta ?? null, p_ignorar: codigos.map(String) }));
   if (!linhas) return null;
   return linhas.map((l) => ({
     semana: l.semana, mes: 0, ano: 0, familia: l.familia, tipo: l.tipo, codigo_categoria: l.codigo_categoria,
     valor_total: num(l.valor), quantidade: 1, cmc_unitario: num(l.custo), pedidos: l.pedidos || [], linhas: num(l.linhas),
+    qtd: l.quantidade == null ? null : num(l.quantidade),
   }));
 }
 
+/** Card de máquina: 'maquinas' (todas) ou 'maq:<família>'. */
+export const ehCardMaquina = (catKey: string) => catKey === 'maquinas' || catKey.startsWith('maq:');
+
+/**
+ * Máquinas num conjunto de linhas: mesma régua do card (classificarGrupo da
+ * família = 'maquina', sem filtro de categoria). Unidades = soma das quantidades.
+ */
+function somarMaquinas(itens: HistItem[], catKey: string) {
+  const familiaAlvo = catKey.startsWith('maq:') ? catKey.slice(4) : null;
+  const pedidos = new Set<string>();
+  let valor = 0, custo = 0, linhas = 0;
+  let unidades: number | null = 0;
+  for (const it of itens) {
+    const familia = (it.familia || '').trim();
+    if (classificarGrupo(familia) !== 'maquina') continue;
+    if (familiaAlvo && familia !== familiaAlvo) continue;
+    valor += num(it.valor_total);
+    const cmc = num(it.cmc_unitario), q = num(it.quantidade);
+    custo += cmc > 0 && q > 0 ? cmc * q : 0;
+    unidades = unidades != null && it.qtd != null ? unidades + it.qtd : null;
+    it.pedidos.forEach((n) => pedidos.add(n));
+    linhas += it.linhas;
+  }
+  return { valor, custo, pedidos: pedidos.size, itens: linhas, unidades };
+}
+
 /** Valor/custo/pedidos/itens de UM card (ou Total Peças) num conjunto de linhas de um período. */
-function somarCard(itens: HistItem[], catKey: string, filtroCategoria: string | null, fixed: FixedCats) {
+function somarCard(itens: HistItem[], catKey: string, filtroCategoria: string | null, fixed: FixedCats): { valor: number; custo: number; pedidos: number; itens: number; unidades?: number | null } {
+  if (ehCardMaquina(catKey)) return somarMaquinas(itens, catKey);
   const agg = agregarCardsPecas(itens, filtroCategoria, fixed);
   const total = catKey === 'totalPecas' || catKey === 'totalGeral' || catKey === 'servico';
   const b = total ? null : agg.porKey[catKey];
@@ -268,7 +304,7 @@ async function montarSemanasHistorico(catKey: string, filtroCategoria: string | 
   }
   const chaves = [...new Set([...porSemana.keys(), ...(serv ? serv.keys() : [])])].sort();
   return chaves.map((inicio) => {
-    const p = querPecas ? somarCard(porSemana.get(inicio) || [], catKey, filtroCategoria, fixed) : { valor: 0, custo: 0, pedidos: 0, itens: 0 };
+    const p: ReturnType<typeof somarCard> = querPecas ? somarCard(porSemana.get(inicio) || [], catKey, filtroCategoria, fixed) : { valor: 0, custo: 0, pedidos: 0, itens: 0 };
     const s = serv?.get(inicio) ?? null;
     const ponto: HistoricoSemanaPonto = {
       inicio,
@@ -277,6 +313,7 @@ async function montarSemanasHistorico(catKey: string, filtroCategoria: string | 
       qtdePedidos: p.pedidos,
       qtdeItens: p.itens,
     };
+    if (ehCardMaquina(catKey)) ponto.qtdeUnidades = 'unidades' in p ? p.unidades ?? null : null;
     if (catKey === 'servico') ponto.servItens = s ?? { valor: 0, os: 0, itens: 0, porTipo: { HR: { valor: 0, os: 0, itens: 0 }, KM: { valor: 0, os: 0, itens: 0 }, SEM_CODIGO: { valor: 0, os: 0, itens: 0 }, OUTRO: { valor: 0, os: 0, itens: 0 } } };
     return ponto;
   });
@@ -350,6 +387,7 @@ export async function montarHistorico(
     const valor = catKey === 'servico' ? servNota : catKey === 'totalGeral' ? p.valor + servNota : p.valor;
     const custo = catKey === 'servico' ? 0 : p.custo;
     const ponto: HistoricoMesPonto = { label: m.label, mes: m.mes, ano: m.ano, valor, custo, qtdePedidos: p.pedidos, qtdeItens: p.itens };
+    if (ehCardMaquina(catKey)) ponto.qtdeUnidades = p.unidades ?? null;
     if (catKey === 'servico') {
       ponto.servItens = servPorTipo ? (servPorTipo.get(m.ano + '-' + m.mes) ?? SERV_VAZIO()) : null;
       ponto.valorNota = osMes ? (osMes.valor_nota == null ? null : num(osMes.valor_nota)) : null;
@@ -365,6 +403,8 @@ export async function montarHistorico(
   if (catKey === 'totalPecas') nomeCard = 'Total Pecas';
   else if (catKey === 'servico') nomeCard = 'Servicos';
   else if (catKey === 'totalGeral') nomeCard = 'Total Geral Servicos + Pecas';
+  else if (catKey === 'maquinas') nomeCard = 'Máquinas';
+  else if (catKey.startsWith('maq:')) nomeCard = catKey.slice(4);
   else nomeCard = aggAll.porKey[catKey]?.nome || catKey;
 
   const hojeSP = localSP(new Date());
@@ -375,7 +415,20 @@ export async function montarHistorico(
     decorridos: diasUteis(hojeSP.ano, hojeSP.mes, feriados, hojeSP.dia - 1),
     total: diasUteis(hojeSP.ano, hojeSP.mes, feriados),
   };
-  return { catKey, nome: nomeCard, meses: resultados, diasUteisMes, semanas: await semanasP, feriadosExtras: [...feriadosExtras()] };
+  // Comparar famílias: as 6 que mais faturaram nos últimos 12 meses (não só no período da tela).
+  let familiasTop: string[] | undefined;
+  if (catKey === 'maquinas') {
+    const doze = new Set(meses.slice(-12).map((m) => m.ano * 100 + m.mes));
+    const porFamilia = new Map<string, number>();
+    for (const it of todosItens) {
+      if (!doze.has(it.ano * 100 + it.mes)) continue;
+      const familia = (it.familia || '').trim();
+      if (classificarGrupo(familia) !== 'maquina') continue;
+      porFamilia.set(familia, (porFamilia.get(familia) ?? 0) + num(it.valor_total));
+    }
+    familiasTop = [...porFamilia.entries()].filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]).slice(0, 6).map(([f]) => f);
+  }
+  return { catKey, nome: nomeCard, meses: resultados, diasUteisMes, semanas: await semanasP, feriadosExtras: [...feriadosExtras()], familiasTop };
 }
 
 // ====================== /api/dashboard/categorias-vendas ======================
