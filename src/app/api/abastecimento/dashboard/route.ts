@@ -12,8 +12,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { autenticar } from '@/lib/auth/server';
 import { podeFrota } from '@/lib/frota/server';
-import { montarDashboard, normalizarDepartamento, type LinhaDash } from '@/lib/abastecimento/agregacoes';
-import { buscarReqsAbastecimento, PLACA_QUADRI, PLACA_TRATOR } from '@/lib/abastecimento/requisicoes';
+import { montarDashboard } from '@/lib/abastecimento/agregacoes';
+import { buscarAbastecimentosUniao } from '@/lib/abastecimento/uniao';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,11 +23,6 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
 );
-
-const COLS =
-  'placa, id_placa, modelo_veiculo, filial_nome, motorista_nome, posto_nome, posto_cidade, combustivel, litros, valor_total, valor_economizado, hodometro, data_transacao, capacidade_tanque, ordem_servico, departamento';
-
-const PAGINA = 1000;
 
 export async function GET(req: NextRequest) {
   // Esta rota usava service role e NENHUMA autenticação — qualquer pessoa na
@@ -56,73 +51,7 @@ export async function GET(req: NextRequest) {
     const deExt = deExtData.toISOString();
     const corteJanela = new Date(`${de}T00:00:00-03:00`).getTime();
 
-    const ext: LinhaDash[] = [];
-    for (let off = 0; ; off += PAGINA) {
-      let q = supabase
-        .from('abastecimentos')
-        .select(COLS)
-        .gte('data_transacao', deExt)
-        .lte('data_transacao', `${ate}T23:59:59-03:00`)
-        .order('data_transacao', { ascending: true })
-        .range(off, off + PAGINA - 1);
-      if (filial) q = q.eq('filial_nome', filial);
-      if (placa) q = q.eq('placa', placa);
-      // departamento: filtro em JS depois de canonizar ("COMERCIAL" do cartão
-      // e "Comercial" da requisição são o mesmo setor — .eq no banco só
-      // acharia uma das grafias)
-
-      const { data, error } = await q;
-      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-      const lote = (data || []) as unknown as LinhaDash[];
-      for (const l of lote) {
-        const dep = normalizarDepartamento(l.departamento);
-        if (departamento && dep !== departamento) continue;
-        ext.push({
-          ...l,
-          departamento: dep,
-          litros: Number(l.litros) || 0,
-          valor_total: l.valor_total == null ? null : Number(l.valor_total),
-          hodometro: l.hodometro == null ? null : Number(l.hodometro),
-          capacidade_tanque: l.capacidade_tanque == null ? null : Number(l.capacidade_tanque),
-        });
-      }
-      if (lote.length < PAGINA) break;
-    }
-
-    // fonte 2: requisições de abastecimento (mesma janela estendida)
-    const reqs = (await buscarReqsAbastecimento(supabase, deExt.slice(0, 10), ate)).filter((r) => {
-      if (filial && r.filial_nome !== filial) return false;
-      if (placa && r.placa !== placa) return false;
-      if (departamento && normalizarDepartamento(r.departamento) !== departamento) return false;
-      return true;
-    });
-    for (const r of reqs) {
-      ext.push({
-        placa: r.placa,
-        id_placa: r.id_placa,
-        // nos rankings/selects, o agregado TRATOR/QUADRI ganha um rótulo fixo
-        // (o chassis por linha continua visível na aba Transações)
-        modelo_veiculo:
-          r.placa === PLACA_TRATOR ? 'Tratores (requisições)'
-          : r.placa === PLACA_QUADRI ? 'Quadriciclos (requisições)'
-          : r.modelo_veiculo,
-        filial_nome: r.filial_nome,
-        motorista_nome: r.motorista_nome,
-        posto_nome: r.posto_nome,
-        posto_cidade: r.posto_cidade,
-        combustivel: r.combustivel,
-        litros: r.litros,
-        valor_total: r.valor_total,
-        hodometro: r.hodometro,
-        data_transacao: r.data_transacao,
-        capacidade_tanque: r.capacidade_tanque,
-        ordem_servico: r.ordem_servico,
-        departamento: normalizarDepartamento(r.departamento),
-        origem: 'requisicao',
-      });
-    }
-    // ordena por tempo real (cartão vem em UTC, requisição em -03:00 — string não serve)
-    ext.sort((a, b) => new Date(a.data_transacao).getTime() - new Date(b.data_transacao).getTime());
+    const ext = await buscarAbastecimentosUniao(supabase, { deIso: deExt, ate, filial, placa, departamento });
 
     const janela = ext.filter((l) => new Date(l.data_transacao).getTime() >= corteJanela);
     return NextResponse.json(montarDashboard(janela, ext, { de, ate }, new Date()));

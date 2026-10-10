@@ -13,8 +13,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissoes } from '@/hooks/usePermissoes';
 import { authHeaders } from '@/lib/auth/client';
-import { supabase } from '@/lib/supabase';
-import { ehAvulsa, formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
+import { formatarPlaca } from '@/lib/frota/placa';
 import { podeTelaFrota } from '@/lib/permissoes/frota';
 import VeiculoDrawer from '@/components/frota/VeiculoDrawer';
 import { SUBTIPOS_VEICULO, SUBTIPOS_DESTAQUE, labelSubtipo } from '@/lib/frota/tipos';
@@ -85,25 +84,17 @@ export default function FrotaHome() {
   }, []);
   useEffect(() => { carregar(); }, [carregar]);
 
-  // KPIs de combustível (30d) direto do `abastecimentos` — placas resolvidas
-  // pra canônica e sem os baldes avulsos (clientes/tratores/quadriciclos)
+  // KPIs de combustível (30d) calculados no servidor pela mesma união da aba
+  // Abastecimento (cartão + requisições no financeiro), só veículos da frota
   useEffect(() => {
     (async () => {
-      const de = new Date();
-      de.setDate(de.getDate() - 30);
-      const { data } = await supabase
-        .from('abastecimentos')
-        .select('placa, litros, valor_total, data_transacao')
-        .gte('data_transacao', de.toISOString());
-      const linhas = (data || []).filter((l) => {
-        const p = resolverPlaca(l.placa);
-        return p && !ehAvulsa(p);
-      });
-      setCombustivel({
-        gasto30: linhas.reduce((s, l) => s + (Number(l.valor_total) || 0), 0),
-        litros30: linhas.reduce((s, l) => s + (Number(l.litros) || 0), 0),
-        abast30: linhas.length,
-      });
+      try {
+        const r = await fetch('/api/frota/resumo', { headers: await authHeaders() });
+        if (!r.ok) return;
+        const d = await r.json();
+        const u = d.combustivel?.ultimos30;
+        if (u) setCombustivel({ gasto30: u.gasto, litros30: u.litros, abast30: u.abastecimentos });
+      } catch { /* KPI opcional — sem ele a tela segue */ }
     })();
   }, []);
 
