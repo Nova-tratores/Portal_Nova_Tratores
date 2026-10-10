@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { inicioSemana, semanaIso, montarSemanas, agruparDias } from './historico-semanas';
+import { inicioSemana, semanaIso, montarSemanas, agruparDias, periodosDaComparacao, somarSemanas } from './historico-semanas';
 
 describe('inicioSemana / semanaIso', () => {
   it('segunda-feira da semana (domingo pertence à semana que começou na segunda anterior)', () => {
@@ -61,5 +61,32 @@ describe('agruparDias', () => {
     ];
     expect(agruparDias(dias, ['h'], 'semana')).toEqual([{ chave: '2026-09-28', h: 5 }, { chave: '2026-10-05', h: 4 }]);
     expect(agruparDias(dias, ['h'], 'mes')).toEqual([{ chave: '2026-09', h: 2 }, { chave: '2026-10', h: 7 }]);
+  });
+});
+
+describe('comparações prontas entre semanas', () => {
+  // semanas fechadas, mais recente primeiro (hoje = 09/10/2026, semana 41 parcial)
+  const fechadas = ['2026-09-28', '2026-09-21', '2026-09-14', '2026-09-07', '2026-08-31', '2026-08-24', '2026-08-17', '2026-08-10'];
+  it('última × anterior e últimas 4 × 4 anteriores', () => {
+    expect(periodosDaComparacao('ultima_anterior', fechadas)).toMatchObject({ a: { inicios: ['2026-09-28'] }, b: { inicios: ['2026-09-21'] } });
+    const r = periodosDaComparacao('ult4_ant4', fechadas)!;
+    expect(r.a.inicios).toEqual(['2026-09-28', '2026-09-21', '2026-09-14', '2026-09-07']);
+    expect(r.b.inicios).toEqual(['2026-08-31', '2026-08-24', '2026-08-17', '2026-08-10']);
+    expect(r.a.rotulo).toBe('07/09–04/10/26 (4 sem.)');
+  });
+  it('mesma semana do ano passado = mesmo nº ISO', () => {
+    const r = periodosDaComparacao('ultima_ano', fechadas)!;
+    expect(r.a.rotulo).toBe('sem. 40 · 28/09–04/10/26');
+    expect(r.b.inicios).toEqual(['2025-09-29']);
+    expect(semanaIso('2025-09-29')).toEqual({ ano: 2025, semana: 40 });
+  });
+  it('sem semanas suficientes → null; escolher precisa das duas', () => {
+    expect(periodosDaComparacao('ult13_ano', fechadas)).toBeNull();
+    expect(periodosDaComparacao('escolher', fechadas)).toBeNull();
+    expect(periodosDaComparacao('escolher', fechadas, { a: '2026-09-28', b: '2025-09-29' })?.b.inicios).toEqual(['2025-09-29']);
+  });
+  it('somarSemanas conta o que falta', () => {
+    const linhas = montarSemanas([{ inicio: '2026-09-21', valor: 100, custo: 0 }, { inicio: '2026-09-28', valor: 50, custo: 0 }], { metrica: 'venda', hoje: new Date(2026, 9, 9), baseMin: 1 });
+    expect(somarSemanas(linhas, ['2026-09-28', '2026-09-21', '2026-09-14'])).toEqual({ valor: 150, faltando: 1 });
   });
 });

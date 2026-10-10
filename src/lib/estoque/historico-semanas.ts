@@ -114,3 +114,86 @@ export function agruparDias<K extends string>(
   }
   return [...mapa.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([chave, v]) => ({ chave, ...v }));
 }
+
+// ====================== Comparações prontas entre semanas ======================
+// Só com semanas FECHADAS (a corrente é parcial e distorceria). "Ano passado" =
+// as mesmas semanas ISO (nº) do ano anterior; se alguma não existir na série, o
+// resultado sai marcado como incompleto e sem Δ.
+
+export type PresetSemanas = 'ultima_anterior' | 'ultima_ano' | 'ult4_ant4' | 'ult4_ano' | 'ult13_ano' | 'escolher';
+
+export const PRESETS_SEMANAS: Array<{ id: PresetSemanas; rotulo: string }> = [
+  { id: 'ultima_anterior', rotulo: 'Última semana × anterior' },
+  { id: 'ultima_ano', rotulo: 'Última semana × mesma do ano passado' },
+  { id: 'ult4_ant4', rotulo: 'Últimas 4 × 4 anteriores' },
+  { id: 'ult4_ano', rotulo: 'Últimas 4 × mesmas 4 do ano passado' },
+  { id: 'ult13_ano', rotulo: 'Últimas 13 (trimestre) × mesmas do ano passado' },
+  { id: 'escolher', rotulo: 'Escolher duas semanas' },
+];
+
+export interface PeriodoSemanas {
+  rotulo: string;
+  /** Inícios (segunda-feira) das semanas do período. */
+  inicios: string[];
+}
+
+/** Rótulo de um período: 1 semana → "sem. 40 · 28/09–04/10/26"; várias → "07/09–04/10/26 (4 sem.)". */
+export function rotuloPeriodo(inicios: string[]): string {
+  if (inicios.length === 0) return '—';
+  const ord = [...inicios].sort();
+  const ini = lerIso(ord[0]);
+  const fim = somarDias(lerIso(ord[ord.length - 1]), 6);
+  const f = (d: Date) => `${pad(d.getDate())}/${pad(d.getMonth() + 1)}`;
+  const faixa = `${f(ini)}–${f(fim)}/${String(fim.getFullYear()).slice(2)}`;
+  return ord.length === 1 ? `sem. ${semanaIso(ord[0]).semana} · ${faixa}` : `${faixa} (${ord.length} sem.)`;
+}
+
+/** As semanas ISO do ano anterior que correspondem a `inicios` (null quando alguma não existe). */
+function mesmasDoAnoPassado(inicios: string[]): string[] | null {
+  const out: string[] = [];
+  for (const i of inicios) {
+    const w = semanaIso(i);
+    // Semana nº w.semana do ano w.ano-1: parte da 1ª segunda-feira ISO daquele ano.
+    const primeira = lerIso(inicioSemana(new Date(w.ano - 1, 0, 4)));
+    const alvo = somarDias(primeira, (w.semana - 1) * 7);
+    if (semanaIso(isoData(alvo)).ano !== w.ano - 1) return null; // semana 53 sem par
+    out.push(isoData(alvo));
+  }
+  return out;
+}
+
+/**
+ * Os dois períodos de uma comparação pronta. `fechadas` = inícios das semanas
+ * FECHADAS, mais recente primeiro. `escolhidas` só no preset "escolher".
+ */
+export function periodosDaComparacao(
+  preset: PresetSemanas,
+  fechadas: string[],
+  escolhidas?: { a: string; b: string },
+): { a: PeriodoSemanas; b: PeriodoSemanas } | null {
+  const per = (inicios: string[]): PeriodoSemanas => ({ rotulo: rotuloPeriodo(inicios), inicios });
+  if (preset === 'escolher') {
+    if (!escolhidas?.a || !escolhidas?.b) return null;
+    return { a: per([escolhidas.a]), b: per([escolhidas.b]) };
+  }
+  const n = preset === 'ult13_ano' ? 13 : preset === 'ult4_ant4' || preset === 'ult4_ano' ? 4 : 1;
+  const a = fechadas.slice(0, n);
+  if (a.length < n) return null;
+  if (preset === 'ultima_anterior' || preset === 'ult4_ant4') {
+    const b = fechadas.slice(n, 2 * n);
+    return b.length < n ? null : { a: per(a), b: per(b) };
+  }
+  const b = mesmasDoAnoPassado(a);
+  return b ? { a: per(a), b: per(b) } : null;
+}
+
+/** Soma uma série semanal nos inícios dados; `faltando` = semanas sem dado (antes do início da série). */
+export function somarSemanas(linhas: LinhaSemana[], inicios: string[]): { valor: number; faltando: number } {
+  const porInicio = new Map(linhas.map((l) => [l.inicio, l.valor]));
+  let valor = 0, faltando = 0;
+  for (const i of inicios) {
+    const v = porInicio.get(i);
+    if (v == null) faltando++; else valor += v;
+  }
+  return { valor, faltando };
+}

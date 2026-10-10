@@ -15,8 +15,11 @@
 // lib/estoque/historico-grade.ts.
 
 import { useMemo, useState } from 'react';
-import { montarGrade, PROJECAO_MIN_DIAS, type Comparacao, type Delta, type Grade, type Metrica, type PontoMes } from '@/lib/estoque/historico-grade';
-import { montarSemanas, type LinhaSemana, type PontoSemana } from '@/lib/estoque/historico-semanas';
+import { montarGrade, delta as calcDelta, PROJECAO_MIN_DIAS, type Comparacao, type Delta, type Grade, type Metrica, type PontoMes } from '@/lib/estoque/historico-grade';
+import {
+  montarSemanas, inicioSemana, periodosDaComparacao, somarSemanas, rotuloPeriodo, PRESETS_SEMANAS,
+  type LinhaSemana, type PontoSemana, type PresetSemanas,
+} from '@/lib/estoque/historico-semanas';
 
 const MESES = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
 // Cores fixas por ano (as do painel antigo); anos fora da lista caem no cinza.
@@ -28,6 +31,7 @@ const CHAVE_QTD = 'estoque-hist-qtd';
 
 type Vista = 'meses' | 'trimestres' | 'semanas';
 const SEMANAS_POR_PAGINA = 26;
+const CHAVE_PRESET_SEM = 'estoque-hist-semanas-comp';
 
 function fmtK(v: number): string {
   const abs = Math.abs(v);
@@ -105,6 +109,12 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
     return v === 'trimestres' || v === 'semanas' ? v : 'meses';
   });
   const [qtdSemanas, setQtdSemanas] = useState(SEMANAS_POR_PAGINA);
+  const [presetSem, setPresetSem] = useState<PresetSemanas>(() => {
+    const v = lerStorage(CHAVE_PRESET_SEM);
+    return PRESETS_SEMANAS.some((p) => p.id === v) ? (v as PresetSemanas) : 'ultima_anterior';
+  });
+  const trocarPresetSem = (p: PresetSemanas) => { setPresetSem(p); gravarStorage(CHAVE_PRESET_SEM, p); };
+  const [semEscolhidas, setSemEscolhidas] = useState<{ a: string; b: string }>({ a: '', b: '' });
   const temSemanas = series.length > 0 && series.every((s) => s.semanas);
   const vista: Vista = vistaSel === 'semanas' && !temSemanas ? 'meses' : vistaSel;
   const [mostrarQtd, setMostrarQtd] = useState<boolean>(() => lerStorage(CHAVE_QTD) === '1');
@@ -139,6 +149,21 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
     return montarSemanas(pontos, { metrica, hoje, baseMin: medida === 'valor' ? baseMin / 4 : BASE_MIN_QTD });
   }), [series, medida, hoje, baseMin]);
   const inicioSemanas = [...new Set(semanasSerie.flatMap((ls) => ls.map((l) => l.inicio)))].sort().reverse();
+  // Comparação pronta: só semanas fechadas (a corrente é parcial).
+  const semanaAtual = inicioSemana(hoje);
+  const fechadas = inicioSemanas.filter((i) => i < semanaAtual);
+  const escolhidasEf = {
+    a: semEscolhidas.a || fechadas[0] || '',
+    b: semEscolhidas.b || fechadas[1] || '',
+  };
+  const periodos = periodosDaComparacao(presetSem, fechadas, escolhidasEf);
+  const resultadoComp = periodos ? semanasSerie.map((ls) => {
+    const a = somarSemanas(ls, periodos.a.inicios);
+    const b = somarSemanas(ls, periodos.b.inicios);
+    const n = periodos.a.inicios.length;
+    const completo = a.faltando === 0 && b.faltando === 0;
+    return { a: a.valor, b: b.valor, completo, d: completo ? calcDelta(a.valor, b.valor, (medida === 'valor' ? baseMin / 4 : BASE_MIN_QTD) * n) : null };
+  }) : null;
 
   const multi = series.length > 1;
   // Anos presentes em qualquer série (a mais longa manda).
@@ -213,6 +238,66 @@ export default function HistoricoGrade({ series, medidas = ['valor'], baseMin, d
         </span>
       </div>
 
+      {vista === 'semanas' && (
+        <div style={{ border: '1px solid #e5e7eb', borderRadius: 10, padding: '10px 12px', marginBottom: 12, background: '#fafafa' }}>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
+            <span style={{ fontSize: '.8rem', fontWeight: 700, color: '#374151', marginRight: 4 }}>Comparar semanas:</span>
+            {PRESETS_SEMANAS.map((p) => (
+              <button key={p.id} onClick={() => trocarPresetSem(p.id)}
+                style={{ border: '1px solid ' + (presetSem === p.id ? '#2563eb' : '#d1d5db'), background: presetSem === p.id ? '#2563eb' : '#fff', color: presetSem === p.id ? '#fff' : '#374151', borderRadius: 999, padding: '4px 11px', fontSize: '.8rem', fontWeight: 600, cursor: 'pointer' }}>
+                {p.rotulo}
+              </button>
+            ))}
+          </div>
+          {presetSem === 'escolher' && (
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', marginTop: 8, fontSize: '.84rem', color: '#374151' }}>
+              {(['a', 'b'] as const).map((k) => (
+                <label key={k} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontWeight: 600 }}>
+                  {k === 'a' ? 'Semana A' : 'comparada com B'}
+                  <select value={escolhidasEf[k]} onChange={(e) => setSemEscolhidas({ ...escolhidasEf, [k]: e.target.value })}
+                    style={{ border: '1px solid #d1d5db', borderRadius: 8, padding: '4px 8px', fontSize: '.84rem', background: '#fff', color: '#374151' }}>
+                    {fechadas.map((i) => <option key={i} value={i}>{rotuloPeriodo([i])}</option>)}
+                  </select>
+                </label>
+              ))}
+            </div>
+          )}
+          {!periodos || !resultadoComp ? (
+            <div style={{ marginTop: 8, fontSize: '.84rem', color: '#9ca3af' }}>Ainda não há semanas fechadas suficientes para esta comparação.</div>
+          ) : (
+            <table style={{ borderCollapse: 'collapse', marginTop: 8, width: '100%', maxWidth: 820 }}>
+              <thead>
+                <tr>
+                  {multi && <th style={{ ...th, textAlign: 'left' }}></th>}
+                  <th style={{ ...th, textAlign: 'right' }}>A · {periodos.a.rotulo}</th>
+                  <th style={{ ...th, textAlign: 'right' }}>B · {periodos.b.rotulo}</th>
+                  <th style={{ ...th, textAlign: 'right' }}>Diferença</th>
+                  <th style={{ ...th, textAlign: 'right' }}>Δ%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {resultadoComp.map((r, i) => (
+                  <tr key={i}>
+                    {multi && (
+                      <td style={{ ...td, whiteSpace: 'nowrap', fontWeight: 600, fontSize: '.84rem', color: '#374151' }}>
+                        <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: series[i].cor, marginRight: 6 }} />{series[i].nome}
+                      </td>
+                    )}
+                    <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: '#111827' }}>{fmtV(r.a)}</td>
+                    <td style={{ ...td, textAlign: 'right', fontWeight: 600, color: '#374151' }}>{fmtV(r.b)}</td>
+                    <td style={{ ...td, textAlign: 'right', fontWeight: 600, color: r.a - r.b >= 0 ? '#15803d' : '#dc2626', whiteSpace: 'nowrap' }}>
+                      {(r.a - r.b >= 0 ? '+' : '−') + fmtV(Math.abs(r.a - r.b))}
+                    </td>
+                    <td style={{ ...td, textAlign: 'right' }}>
+                      {r.completo ? <DeltaTxt d={r.d} titulo="A vs B" tamanho=".9rem" /> : <span style={{ fontSize: '.75rem', color: '#9ca3af' }} title="Alguma semana de B é anterior ao início dos dados">sem base</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
       {vista === 'semanas' ? (
         <div style={{ overflowX: 'auto' }}>
           <table style={{ borderCollapse: 'collapse', width: '100%', minWidth: multi ? 160 + series.length * 170 : 520 }}>
