@@ -148,8 +148,11 @@ export default function BugReporterChat() {
     let timer: ReturnType<typeof setInterval> | null = null
 
     async function setup() {
-      const { data: auth } = await supabase.auth.getUser()
-      const user = auth?.user
+      // getSession (só lê o navegador): quem valida a sessão no servidor é o useAuth.
+      // Com getUser() aqui eram 3 idas ao servidor de login a cada abertura,
+      // disputando o mesmo cadeado do supabase-js com a carga do perfil.
+      const { data: { session } } = await supabase.auth.getSession()
+      const user = session?.user
       if (!user || cancelled) return
 
       const { data: perfil } = await supabase

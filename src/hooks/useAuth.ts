@@ -85,13 +85,27 @@ function ehFalhaDeRede(error: unknown): boolean {
   return e.name === 'AuthRetryableFetchError' || e.status === 0 || /fetch|network|timeout|load failed/i.test(e.message || '')
 }
 
-async function carregarPerfil(): Promise<void> {
+// Erro de getUser() que vale tentar de novo: rede, limite de requisições (429)
+// ou o servidor de login com problema (5xx). Antes 429/500 viravam "sessão
+// expirada" por engano.
+function ehTransitorioAuth(error: unknown): boolean {
+  if (ehFalhaDeRede(error)) return true
+  const status = (error as { status?: number } | null)?.status
+  return status === 429 || (typeof status === 'number' && status >= 500)
+}
+
+type Tentativa =
+  | { tipo: 'ok'; prof: UserProfile }
+  | { tipo: 'login' | 'expirada' | 'sem-perfil' | 'inativo' | 'transitorio' }
+
+// Uma tentativa de carregar o perfil, sem mexer no store — só classifica o resultado.
+async function tentarCarregarPerfil(): Promise<Tentativa> {
   try {
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { session }, error: erroSessao } = await supabase.auth.getSession()
     if (!session) {
-      emitir({ userProfile: null, loading: false })
-      irParaLogin()
-      return
+      // sem sessão por falha de REDE no refresh do token ≠ deslogado: tenta de novo
+      if (erroSessao && ehFalhaDeRede(erroSessao)) return { tipo: 'transitorio' }
+      return { tipo: 'login' }
     }
 
     // getSession() só lê o localStorage e não valida nada: devolve sessão mesmo com
@@ -99,14 +113,8 @@ async function carregarPerfil(): Promise<void> {
     // passo que fecha o buraco do "utilizador fantasma".
     const { data: userData, error: erroUser } = await supabase.auth.getUser()
     if (erroUser || !userData?.user) {
-      // rede caiu e já havia perfil carregado → mantém a tela como está
-      if (erroUser && ehFalhaDeRede(erroUser)) {
-        if (estado.userProfile) { emitir({ loading: false }); return }
-        emitir({ userProfile: null, loading: false, bloqueio: 'erro' })
-        return
-      }
-      emitir({ userProfile: null, loading: false, bloqueio: 'expirada' })
-      return
+      if (erroUser && ehTransitorioAuth(erroUser)) return { tipo: 'transitorio' }
+      return { tipo: 'expirada' }
     }
 
     const { data: prof, error } = await supabase
@@ -114,39 +122,85 @@ async function carregarPerfil(): Promise<void> {
       .select('*')
       .eq('id', userData.user.id)
       .maybeSingle()
-
-    if (error && estado.userProfile && !ehErroDeAuth(error)) { emitir({ loading: false }); return } // oscilação: mantém o perfil
-    if (error) {
-      // Rede/BD a falhar não é sessão morta, mas também não autoriza inventar perfil.
-      emitir({ userProfile: null, loading: false, bloqueio: ehErroDeAuth(error) ? 'expirada' : 'erro' })
-      return
-    }
+    // Rede/BD a falhar não é sessão morta, mas também não autoriza inventar perfil.
+    if (error) return { tipo: ehErroDeAuth(error) ? 'expirada' : 'transitorio' }
     // Login válido sem linha em financeiro_usu: acontece com contas removidas por
     // apagar a linha (em vez de ativo=false) e com contas nunca configuradas. Não
     // redirecionar — login → portal → sem perfil → login… daria bounce infinito.
-    if (!prof) {
-      emitir({ userProfile: null, loading: false, bloqueio: 'sem-perfil' })
+    if (!prof) return { tipo: 'sem-perfil' }
+    if (prof.ativo === false) return { tipo: 'inativo' }
+    return { tipo: 'ok', prof: prof as UserProfile }
+  } catch {
+    return { tipo: 'transitorio' }
+  }
+}
+
+// Esperas entre as tentativas quando a falha é passageira (rede, 429, 5xx).
+// Antes era UMA tentativa só e o portal inteiro trancava em "Não foi possível
+// carregar o seu perfil" (visto em campo, 09/10/2026).
+const ESPERAS_RETENTATIVA_MS = [500, 1000, 2000]
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function carregarPerfil(): Promise<void> {
+  let r = await tentarCarregarPerfil()
+  for (const ms of ESPERAS_RETENTATIVA_MS) {
+    if (r.tipo !== 'transitorio') break
+    await esperar(ms) // o store continua em loading: a tela mostra "carregando", não o bloqueio
+    r = await tentarCarregarPerfil()
+  }
+
+  switch (r.tipo) {
+    case 'ok':
+      emitir({ userProfile: r.prof, loading: false, bloqueio: null })
       return
-    }
-    if (prof.ativo === false) {
+    case 'login':
+      emitir({ userProfile: null, loading: false })
+      irParaLogin()
+      return
+    case 'inativo':
       await supabase.auth.signOut()
       emitir({ userProfile: null, loading: false })
       window.location.replace('/login?inativo=1')
       return
-    }
-    emitir({ userProfile: prof as UserProfile, loading: false, bloqueio: null })
-  } catch {
-    if (estado.userProfile) { emitir({ loading: false }); return } // oscilação de rede: mantém
-    emitir({ userProfile: null, loading: false, bloqueio: 'erro' })
+    case 'expirada':
+    case 'sem-perfil':
+      emitir({ userProfile: null, loading: false, bloqueio: r.tipo })
+      return
+    case 'transitorio':
+      // rede caiu e já havia perfil carregado → mantém a tela como está
+      if (estado.userProfile) { emitir({ loading: false }); return }
+      emitir({ userProfile: null, loading: false, bloqueio: 'erro' })
+      return
   }
 }
 
 let carregamento: Promise<void> | null = null
+let emAndamento = false
 let subscritoAuth = false
+
+// Uma carga por vez: na abertura o supabase-js pode emitir SIGNED_IN/TOKEN_REFRESHED
+// enquanto a primeira carga ainda roda — antes isso disparava uma segunda em paralelo.
+function iniciarCarga(): Promise<void> {
+  if (emAndamento && carregamento) return carregamento
+  emAndamento = true
+  carregamento = carregarPerfil().finally(() => { emAndamento = false })
+  return carregamento
+}
+
+// Travado em "erro" (falha de rede): a rede voltou ou a pessoa voltou pra aba →
+// tenta de novo sozinho, sem precisar do botão.
+function tentarDeNovoSeTravado() {
+  if (estado.bloqueio !== 'erro') return
+  if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+  emitir({ bloqueio: null, loading: true })
+  iniciarCarga()
+}
 
 function garantirSubscricaoAuth() {
   if (subscritoAuth || typeof window === 'undefined') return
   subscritoAuth = true
+  window.addEventListener('online', tentarDeNovoSeTravado)
+  document.addEventListener('visibilitychange', tentarDeNovoSeTravado)
   supabase.auth.onAuthStateChange((evento, session) => {
     // O carregamento inicial é feito por carregarPerfil(); ignorar evita query dupla.
     if (evento === 'INITIAL_SESSION') return
@@ -160,7 +214,7 @@ function garantirSubscricaoAuth() {
     // → não recarrega o perfil (senão toda a página re-renderiza e formulários sofrem).
     if (estado.userProfile && estado.userProfile.id === session.user.id && !estado.bloqueio) return
     emitir({ bloqueio: null })
-    carregamento = carregarPerfil()
+    iniciarCarga()
   })
 }
 
@@ -169,7 +223,7 @@ export async function revalidarSessao(): Promise<void> {
   if (estado.bloqueio) return
   try {
     const { data, error } = await supabase.auth.getUser()
-    if (error && ehFalhaDeRede(error)) return // sem rede não dá pra saber: não derruba
+    if (error && ehTransitorioAuth(error)) return // sem rede/servidor não dá pra saber: não derruba
     if (error || !data?.user) emitir({ userProfile: null, loading: false, bloqueio: 'expirada' })
   } catch {
     // Offline: não derruba a sessão por causa de uma falha de rede.
@@ -184,7 +238,7 @@ export function useAuth() {
 
   useEffect(() => {
     garantirSubscricaoAuth()
-    if (!carregamento) carregamento = carregarPerfil()
+    if (!carregamento) iniciarCarga()
   }, [])
 
   const setUserProfile = useCallback(
