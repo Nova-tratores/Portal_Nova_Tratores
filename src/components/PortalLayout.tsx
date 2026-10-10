@@ -65,6 +65,8 @@ const navItems: NavItem[] = [
   { id: 'tickets', name: 'Central de Trabalho', href: '/tickets/quadros', icon: <Ticket size={18} />, tag: 'TAREFAS · TICKETS · CRONOGRAMA', gradient: '', group: 'geral' },
   // Base de conhecimento: aparece para todo mundo logado (o filtro abaixo libera o id).
   { id: 'conhecimento', name: 'Base de conhecimento', href: '/conhecimento', icon: <BookOpen size={18} />, tag: 'AJUDA', gradient: '', group: 'geral' },
+  // POPs: ler procedimento publicado é de todo logado (criar/aprovar é por área, dentro do módulo).
+  { id: 'pops', name: 'Procedimentos (POP)', href: '/pops', icon: <ClipboardList size={18} />, tag: 'POP', gradient: '', group: 'geral' },
 
   // Serviços (azul claro)
   { id: 'pos', name: 'Pós-Vendas (OS)', href: '/pos', icon: <Settings size={18} />, tag: 'OS', gradient: '', group: 'servicos' },
@@ -612,7 +614,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const totalBell = notifData.naoLidas + chatData.totalNaoLidas
 
   const filteredNavItems = useMemo(() => navItems.filter(item => {
-    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat' || item.id === 'conhecimento') return true
+    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat' || item.id === 'conhecimento' || item.id === 'pops') return true
     if (temAcesso(item.id)) return true
     // Visibilidade quando o usuário tem permissão por sub-página (ex.: 'ajustes:inventario')
     return (permissoes?.modulos_permitidos || []).some(m => m.startsWith(item.id + ':'))

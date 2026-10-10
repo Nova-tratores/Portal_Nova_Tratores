@@ -7,7 +7,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { carregarTicket, envolvidos, notificarTicket, podeVerTicket } from '@/lib/tickets/server'
-import { atorDe, carregarPop, erro, erroBanco, rpc } from '@/lib/pops/server'
+import { atorDe, carregarPop, carregarVersao, erro, erroBanco, rpc } from '@/lib/pops/server'
 import { ehAdminPops, uuidValido } from '@/lib/pops/regras'
 
 export const runtime = 'nodejs'
@@ -33,6 +33,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ tic
     }
     const versaoId = String((c.ticket.payload as Record<string, unknown>).versao_id || '')
     if (!uuidValido(versaoId)) return erro('Revisão sem versão vinculada.', 409)
+    // Ninguém aprova a própria versão — nem o admin (decisão do Gate 2).
+    const v = await carregarVersao(versaoId)
+    if (acao === 'aprovar' && (v?.submetido_por === auth.userId || c.ticket.solicitante_id === auth.userId)) {
+      return erro('Você enviou esta versão — outra pessoa precisa aprovar.', 403)
+    }
     const parecer = String(body.parecer || '').trim().slice(0, 2000)
     if (acao === 'reprovar' && !parecer) return erro('Diga o motivo da reprovação.')
 

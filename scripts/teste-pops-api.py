@@ -14,7 +14,7 @@ Tudo acontece na área TST (inativa fora do teste). Sobras PERMANENTES por regra
 POP publicado não se apaga (fica arquivado em TST) e o ticket de revisão de uma
 versão publicada não se apaga (FK da versão). Tickets de execução, genérico, SC,
 agendamentos e o quadro temporário são apagados no fim.
-Nenhuma notificação vai para pessoa real (só DEV e o usuário de teste).
+Os avisos que o teste dispara (o DEV é uma pessoa real) são apagados no fim.
 """
 import base64, datetime, json, os, sys, urllib.error, urllib.request
 
@@ -85,6 +85,7 @@ st, a = rest("pops_areas?select=id&sigla=eq.TST"); AREA = a[0]['id']
 rest(f"pops_areas?id=eq.{AREA}", 'PATCH', {'ativo': True})
 
 limpar = {'tickets': [], 'agend': [], 'pops': [], 'quadro': None}
+INICIO = datetime.datetime.now(datetime.timezone.utc).isoformat()
 try:
     # ------------------------------------------------------------------ 401 sem sessão
     print('\n[sem sessão → 401 em toda escrita]')
@@ -149,6 +150,8 @@ try:
     check('engine recusa status genérico na revisão de POP (até admin)', st == 400 and 'POP' in str(j), (st, j))
     st, j = api(f'/api/tickets/{REV1}/acoes', 'POST', {'acao': 'transferir', 'para': COMUM}, TD)
     check('engine recusa transferir a revisão de POP', st == 400 and 'POP' in str(j), (st, j))
+    st, j = api(f'/api/pops/revisao/{REV1}', 'POST', {'acao': 'aprovar'}, TD)
+    check('403 quem enviou não aprova a própria versão, nem sendo admin', st == 403, (st, j))
     st, j = api(f'/api/pops/revisao/{REV1}', 'POST', {'acao': 'reprovar'}, TC)
     check('400 reprovar sem motivo', st == 400, (st, j))
     st, j = api(f'/api/pops/revisao/{REV1}', 'POST', {'acao': 'aprovar', 'parecer': 'ok'}, TC)
@@ -374,6 +377,12 @@ finally:
         st, _ = rest(f'pops?id=eq.{p}', 'DELETE')           # nunca publicado sai
         if st >= 400: rest(f'pops?id=eq.{p}', 'PATCH', {'arquivado': True})  # publicado fica arquivado
     rest(f"pops_area_papeis?area_id=eq.{AREA}&user_id=eq.{COMUM}", 'DELETE')
+    # Avisos que o teste disparou (o DEV é uma pessoa real): apaga os do período do teste.
+    import re, urllib.parse
+    st, ns = rest("portal_notificacoes?select=id,titulo,descricao&tipo=eq.tickets&created_at=gte." + urllib.parse.quote(INICIO) + "&limit=1000")
+    lixo = [n['id'] for n in (ns or []) if re.search(r'TST-|TESTE', f"{n['titulo']} {n.get('descricao') or ''}")]
+    if lixo: rest(f"portal_notificacoes?id=in.({','.join(map(str, lixo))})", 'DELETE')
+    print(f'  avisos de teste apagados: {len(lixo)}')
     rest(f"pops_areas?id=eq.{AREA}", 'PATCH', {'ativo': False})
 
 print(f'\n{ok} ok · {len(falhas)} falha(s)')

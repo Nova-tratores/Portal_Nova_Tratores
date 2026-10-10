@@ -49,15 +49,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
             .maybeSingle().then((r) => r.data)
         : Promise.resolve(null),
     ])
+    // Versão em revisão: quem é a "bola" (para mostrar Aprovar/Reprovar a quem decide).
+    const emRevisao = versoes.find((v) => v.estado === 'em_revisao' && v.revisao_ticket_id)
+    const revisao = emRevisao
+      ? await supabaseAdmin.from('tickets').select('id, responsavel_id').eq('id', emRevisao.revisao_ticket_id as string)
+          .maybeSingle().then((r) => r.data && { ticket_id: r.data.id, responsavel_id: r.data.responsavel_id, versao_id: emRevisao.id })
+      : null
     const usuarios = await usuariosMin([
       pop.dono_id, ...versoes.flatMap((v) => [v.submetido_por, v.aprovado_por]), ...aprovadores,
-      ...agendamentos.map((a) => a.responsavel_padrao_id as string),
+      ...agendamentos.map((a) => a.responsavel_padrao_id as string), revisao?.responsavel_id,
     ])
 
     return NextResponse.json({
       pop, area, versoes, versao,
       passos: passos.map((p) => ({ ...p, midia_url: p.midia_path ? midias[p.midia_path as string] || null : null })),
-      aprovadores, agendamentos, usuarios,
+      aprovadores, agendamentos, usuarios, revisao,
       minha_ciencia: ciencia?.ciente_em || null,
       modelo_atualizado: !!(modeloAtual && pop.origem_template_versao && modeloAtual.numero > pop.origem_template_versao),
       papeis: {

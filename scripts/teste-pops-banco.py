@@ -96,7 +96,7 @@ try:
     AREA = a[0]['id']
     st, p = rest(f"pops?select=id&codigo=eq.TST-001")
     if not p:
-        st, p = rest('pops', 'POST', {'area_id': AREA, 'codigo': 'TST-001', 'titulo': 'TESTE-POP banco', 'dono_id': DONO, 'criado_por': DONO})
+        st, p = rest('pops', 'POST', {'area_id': AREA, 'codigo': 'TST-001', 'titulo': 'TESTE-POP banco', 'dono_id': DONO, 'criado_por': DONO, 'arquivado': True})  # fora das listas
     POP = p[0]['id']
     st, vs = rest(f"pops_versoes?select=id,numero,estado&pop_id=eq.{POP}&order=numero.desc")
     # sobra de rodada interrompida
