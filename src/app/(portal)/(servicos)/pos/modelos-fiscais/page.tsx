@@ -10,6 +10,7 @@ import SemPermissao from "@/components/SemPermissao";
 import { authHeaders } from "@/lib/auth/client";
 import { validarCampos, CAMPOS_FISCAIS, mostrarValor, type CamposFiscais } from "@/lib/pos/modelo-fiscal";
 import CamposFiscaisEditor, { paraTela, type ValoresTela } from "@/components/pos/CamposFiscaisEditor";
+import LevantamentoFiscal from "@/components/pos/LevantamentoFiscal";
 
 interface Modelo { id: string; nome: string; descricao: string | null; campos: CamposFiscais; padrao: boolean; atualizadoPor: string | null; atualizadoEm: string }
 interface Vinculo { documento: string; modeloId: string; clienteNome: string | null; atualizadoPor: string | null }
@@ -94,6 +95,26 @@ export default function ModelosFiscaisPage() {
       </div>
       {erro && <div style={{ ...card, borderColor: "#fecaca", color: "#b91c1c" }}>{erro}</div>}
 
+      <LevantamentoFiscal
+        modelos={dados?.modelos || []}
+        onCriarModelo={(campos, nome) => {
+          setEditando({
+            id: null, nome, descricao: "Criado a partir do levantamento das OS faturadas na Omie",
+            padrao: nome === "Padrão" && !dados?.modelos.some((m) => m.padrao), valores: paraTela(campos),
+          });
+          setTimeout(() => document.getElementById("editor-modelo")?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+        }}
+        onVincular={async (clientes, modeloId) => {
+          let falhas = 0;
+          for (const c of clientes) {
+            try { await chamar("/api/pos/modelos-fiscais/vinculos", { method: "POST", json: { documento: c.documento, modeloId, clienteNome: c.nome } }); }
+            catch { falhas++; }
+          }
+          await recarregar();
+          alert(falhas ? `${clientes.length - falhas} vinculado(s); ${falhas} falharam.` : `${clientes.length} cliente(s) vinculado(s).`);
+        }}
+      />
+
       {/* ---------------- modelos ---------------- */}
       <div style={card}>
         <div style={{ display: "flex", alignItems: "center", marginBottom: 10 }}>
@@ -126,7 +147,7 @@ export default function ModelosFiscaisPage() {
 
       {/* ---------------- editor ---------------- */}
       {editando && (
-        <div style={{ ...card, borderColor: "#0369A1" }}>
+        <div id="editor-modelo" style={{ ...card, borderColor: "#0369A1", scrollMarginTop: 90 }}>
           <div style={{ fontWeight: 800, marginBottom: 10 }}>{editando.id ? `Editar "${editando.nome}"` : "Novo modelo"}</div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: 10 }}>
             <input style={{ ...inp, flex: "1 1 220px" }} placeholder="Nome (ex.: Prefeitura)" value={editando.nome} onChange={(e) => setEditando({ ...editando, nome: e.target.value })} />
