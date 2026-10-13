@@ -6,10 +6,11 @@
 // e as demais características do PPV. Sem código → não mostra nada.
 
 import { useEffect, useState } from 'react'
-import { CheckCircle2, Loader2, MapPin, PackageX } from 'lucide-react'
+import { CheckCircle2, Loader2, MapPin, PackageX, RotateCcw } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
+import { mensagemErro } from '@/lib/opa-pecas/fotos'
 import { fmtPreco } from '@/lib/opa-pecas/regras'
-import type { Cadastro } from '@/lib/opa-pecas/relacao'
+import { variantesCodigo, type Cadastro } from '@/lib/opa-pecas/relacao'
 
 /** Cache por código (a mesma peça aparece em várias telas na sessão). */
 const cache = new Map<string, Cadastro[]>()
@@ -26,7 +27,13 @@ export async function buscarCadastro(codigo: string): Promise<Cadastro[]> {
   if (!k) return []
   const emCache = cache.get(k)
   if (emCache) return emCache
-  const r = await fetch(`/api/opa/pecas/produto?codigo=${encodeURIComponent(codigo.trim())}`, { headers: await cabecalhoAuth(), cache: 'no-store' })
+  let r: Response
+  try {
+    r = await fetch(`/api/opa/pecas/produto?codigo=${encodeURIComponent(codigo.trim())}`, { headers: await cabecalhoAuth(), cache: 'no-store' })
+  } catch (e) {
+    // "Failed to fetch" (sem rede ou o servidor reiniciando no deploy) → mensagem em português
+    throw new Error(mensagemErro(e))
+  }
   const j = await r.json().catch(() => ({}))
   if (!r.ok || !j.ok) throw new Error(j.erro || 'Não consegui consultar o cadastro.')
   cache.set(k, j.cadastros || [])
@@ -34,9 +41,11 @@ export async function buscarCadastro(codigo: string): Promise<Cadastro[]> {
 }
 
 /** Estado da consulta de um código (com espera de 450 ms enquanto digita). */
-export function useCadastro(codigo: string | null | undefined): { carregando: boolean; cadastros: Cadastro[] | null; erro: string | null } {
+export function useCadastro(codigo: string | null | undefined): { carregando: boolean; cadastros: Cadastro[] | null; erro: string | null; tentarDeNovo: () => void } {
   const alvo = String(codigo ?? '').trim()
   const [res, setRes] = useState<{ alvo: string; cadastros: Cadastro[] | null; erro: string | null }>({ alvo: '', cadastros: null, erro: null })
+  const [tentativa, setTentativa] = useState(0)
+  const tentarDeNovo = () => { setRes({ alvo: '', cadastros: null, erro: null }); setTentativa((n) => n + 1) }
   useEffect(() => {
     if (!alvo) return
     let vivo = true
@@ -46,24 +55,47 @@ export function useCadastro(codigo: string | null | undefined): { carregando: bo
         .catch((e) => { if (vivo) setRes({ alvo, cadastros: null, erro: e instanceof Error ? e.message : String(e) }) })
     }, cache.has(alvo.toUpperCase()) ? 0 : 450)
     return () => { vivo = false; clearTimeout(t) }
-  }, [alvo])
-  if (!alvo) return { carregando: false, cadastros: null, erro: null }
-  if (res.alvo !== alvo) return { carregando: true, cadastros: null, erro: null }
-  return { carregando: false, cadastros: res.cadastros, erro: res.erro }
+  }, [alvo, tentativa])
+  if (!alvo) return { carregando: false, cadastros: null, erro: null, tentarDeNovo }
+  if (res.alvo !== alvo) return { carregando: true, cadastros: null, erro: null, tentarDeNovo }
+  return { carregando: false, cadastros: res.cadastros, erro: res.erro, tentarDeNovo }
 }
 
 export default function ProdutoCadastro({ codigo, compacto = false }: { codigo: string | null | undefined; compacto?: boolean }) {
-  const { carregando, cadastros, erro } = useCadastro(codigo)
+  const { carregando, cadastros, erro, tentarDeNovo } = useCadastro(codigo)
   if (!String(codigo ?? '').trim()) return null
 
   if (carregando) {
     return <div style={{ ...CAIXA, borderColor: 'var(--portal-border)', color: 'var(--portal-text-muted)' }}><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> Procurando no cadastro…</div>
   }
-  if (erro) return <div style={{ ...CAIXA, borderColor: '#FCA5A5', color: '#B91C1C' }}>{erro}</div>
+  if (erro) {
+    return (
+      <div style={{ ...CAIXA, borderColor: '#FCA5A5', color: '#B91C1C', flexWrap: 'wrap' }}>
+        <span style={{ flex: 1, minWidth: 180 }}>Não consegui consultar o cadastro: {erro}</span>
+        <button type="button" onClick={tentarDeNovo} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 7, border: '1.5px solid #B91C1C', background: 'transparent', color: '#B91C1C', fontWeight: 700, fontSize: 12.5, cursor: 'pointer', fontFamily: 'inherit' }}>
+          <RotateCcw size={13} /> Tentar de novo
+        </button>
+      </div>
+    )
+  }
   if (!cadastros || cadastros.length === 0) {
     return (
-      <div style={{ ...CAIXA, borderColor: '#FCD34D', background: '#FFFBEB', color: '#92400E' }}>
-        <PackageX size={15} /> <span><b>Não é produto cadastrado</b> — o código não existe no cadastro (Omie/PPV) da Nova nem da Castro.</span>
+      <div style={{ ...CAIXA, flexDirection: 'column', alignItems: 'stretch', gap: 6, borderColor: '#FCD34D', background: '#FFFBEB', color: '#92400E' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+          <PackageX size={15} />
+          <b>Código não encontrado no cadastro</b>
+          <span style={{ fontFamily: 'monospace', fontWeight: 800, color: '#78350F' }}>{String(codigo).trim()}</span>
+        </div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+          Procurei nos produtos da <b>Nova</b> e da <b>Castro</b> (Omie e características do PPV)
+          {variantesCodigo(codigo).length > 1 && <> como <b>{variantesCodigo(codigo).join(', ')}</b></>} e não existe nenhum produto com esse código.
+        </div>
+        <div style={{ fontSize: 12.5, lineHeight: 1.5 }}>
+          Pode ser: <b>código digitado errado</b> (confira letras e números) · <b>peça que nunca foi cadastrada</b> no Omie ·
+          o código da <b>embalagem não é o da peça</b> (na verificação, marque &ldquo;embalagem com o código errado&rdquo; e informe o certo) ·
+          produto <b>cadastrado hoje</b> no Omie (o portal atualiza o cadastro toda madrugada, às 3h).
+        </div>
+        <div style={{ fontSize: 12.5, fontWeight: 700 }}>A peça continua normal no Opa; só não dá para ligar ela a um produto do estoque.</div>
       </div>
     )
   }
