@@ -135,6 +135,7 @@ export const TELAS: Tela[] = [
     ['Opa', '/opa'],
     ['Peças S/Estoque (Opa)', '/opa/pecas', ['peça não identificada', 'pni']],
   ]),
+  ...t('Outros', 'opa', 'patrimonio', [['Patrimônio Loja (Opa)', '/opa/patrimonio', ['patrimônio', 'bens da loja', 'ferramentas', 'inventário']]]),
   ...t('Outros', 'avisos', 'avisos', [['Avisos', '/avisos']]),
   ...t('Outros', 'dashboard-agro', 'dashboard-agro', [
     ['Dashboard Agro', '/dashboard-agro'],

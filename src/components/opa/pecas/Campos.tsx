@@ -3,21 +3,35 @@
 // Box Técnico) e aplicações (tipo de máquina + marca, várias).
 
 import { useEffect, useState } from 'react'
-import { MapPin, Minus, Plus, UserRound, X } from 'lucide-react'
-import { listarTecnicos } from '@/lib/opa-pecas/db'
+import { Loader2, MapPin, Minus, Plus, UserRound, X } from 'lucide-react'
+import { criarLocal, listarTecnicos } from '@/lib/opa-pecas/db'
+import { mensagemErro } from '@/lib/opa-pecas/fotos'
 import { agruparLocais, mascaraMoeda, textoAplicacao } from '@/lib/opa-pecas/regras'
 import { INFO_QUALIDADE, ROTULO_QUALIDADE, type Aplicacao, type Local, type Lookup, type Qualidade } from '@/lib/opa-pecas/tipos'
 import { botao, INP, LARANJA } from './comum'
 
-export function SeletorLocal({ locais, local, tecnico, onChange, disabled }: {
+const NOVO_LOCAL = '__novo__'
+
+export function SeletorLocal({ locais, local, tecnico, onChange, disabled, onLocalCriado }: {
   locais: Local[]
   local: string
   tecnico: string
   onChange: (local: string, tecnico: string) => void
   disabled?: boolean
   compacto?: boolean
+  /** criou um local novo (recarregar a lista) — sem ele a opção "Criar local novo" não aparece */
+  onLocalCriado?: () => void
 }) {
   const [tecnicos, setTecnicos] = useState<string[]>([])
+  // criar local novo ali mesmo (sql/pni-14)
+  const [criando, setCriando] = useState(false)
+  const [nomeNovo, setNomeNovo] = useState('')
+  const [boxNovo, setBoxNovo] = useState(false)
+  const [salvandoNovo, setSalvandoNovo] = useState(false)
+  const [erroNovo, setErroNovo] = useState<string | null>(null)
+  // o recém-criado aparece no select antes da lista recarregar
+  const [criados, setCriados] = useState<Local[]>([])
+  locais = [...locais, ...criados.filter((c) => !locais.some((l) => l.id === c.id))]
   const escolhido = locais.find((l) => l.id === local)
   const precisaTecnico = !!escolhido?.exige_tecnico
   const grupos = agruparLocais(locais.filter((l) => l.ativo || l.id === local))
@@ -29,6 +43,25 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled }: {
     return () => { vivo = false }
   }, [precisaTecnico])
 
+  async function salvarNovo() {
+    const nome = nomeNovo.trim()
+    if (!nome || salvandoNovo) return
+    setSalvandoNovo(true)
+    setErroNovo(null)
+    try {
+      const novo = await criarLocal(nome, boxNovo)
+      setCriados((c) => [...c, novo])
+      onChange(novo.id, novo.exige_tecnico ? tecnico : '')
+      onLocalCriado?.()
+      setCriando(false); setNomeNovo(''); setBoxNovo(false)
+    } catch (e) {
+      const m = mensagemErro(e)
+      setErroNovo(/pni_criar_local/.test(m) ? 'Falta rodar o sql/pni-14-criar-local.sql no banco.' : m)
+    } finally {
+      setSalvandoNovo(false)
+    }
+  }
+
   if (locais.length === 0) return <div style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>Carregando locais…</div>
 
   const linha: React.CSSProperties = { display: 'grid', gridTemplateColumns: '104px minmax(0, 1fr)', alignItems: 'center', gap: 8 }
@@ -39,7 +72,10 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled }: {
       <div style={linha}>
         <span style={titulo}><MapPin size={13} style={{ opacity: 0.5 }} /> Local</span>
         <select value={local} disabled={disabled}
-          onChange={(e) => { const l = locais.find((x) => x.id === e.target.value); onChange(e.target.value, l?.exige_tecnico ? tecnico : '') }}
+          onChange={(e) => {
+            if (e.target.value === NOVO_LOCAL) { setCriando(true); setErroNovo(null); return }
+            const l = locais.find((x) => x.id === e.target.value); onChange(e.target.value, l?.exige_tecnico ? tecnico : '')
+          }}
           style={{ ...INP, borderColor: local ? LARANJA : 'var(--portal-border)' }}>
           <option value="">Sem local</option>
           {grupos.map((g) => (
@@ -47,8 +83,27 @@ export function SeletorLocal({ locais, local, tecnico, onChange, disabled }: {
               {g.itens.map(({ local: l, rotulo }) => <option key={l.id} value={l.id}>{g.titulo === rotulo ? rotulo : `${g.titulo} · ${rotulo}`}</option>)}
             </optgroup>
           ))}
+          {onLocalCriado && <option value={NOVO_LOCAL}>+ Criar local novo…</option>}
         </select>
       </div>
+      {criando && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 10, border: '1.5px dashed ' + LARANJA, background: 'var(--portal-bg-secondary)' }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--portal-text)' }}>Local novo</div>
+          <input value={nomeNovo} autoFocus onChange={(e) => setNomeNovo(e.target.value.slice(0, 60))} placeholder="Ex.: Barracão 3, Prateleira da entrada"
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); salvarNovo() } if (e.key === 'Escape') setCriando(false) }} style={INP} />
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: 'var(--portal-text-secondary)', cursor: 'pointer' }}>
+            <input type="checkbox" checked={boxNovo} onChange={(e) => setBoxNovo(e.target.checked)} style={{ width: 16, height: 16, accentColor: LARANJA }} />
+            É um box de técnico (pede o nome do técnico)
+          </label>
+          {erroNovo && <div style={{ fontSize: 12.5, color: '#B91C1C' }}>{erroNovo}</div>}
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button type="button" onClick={salvarNovo} disabled={!nomeNovo.trim() || salvandoNovo} style={botao(LARANJA, { desab: !nomeNovo.trim() || salvandoNovo })}>
+              {salvandoNovo ? <Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />} Criar e usar
+            </button>
+            <button type="button" onClick={() => setCriando(false)} style={botao('#52525B', { contorno: true })}>Cancelar</button>
+          </div>
+        </div>
+      )}
       {precisaTecnico && (
         <div style={linha}>
           <span style={{ ...titulo, color: tecnico ? 'var(--portal-text-secondary)' : '#B45309' }}><UserRound size={13} /> Técnico</span>

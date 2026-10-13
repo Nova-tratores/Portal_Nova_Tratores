@@ -24,6 +24,8 @@ import { CodigoPeca, Aviso, avisarMudanca, botao, INP, ROTULO, SECAO, TITULO_SEC
 import DetalheItem, { Visualizador } from './DetalheItem'
 import { Janela } from './Moldura'
 import FasesPeca, { ChipDecisao, ICONE_DECISAO } from './FasesPeca'
+import ProdutoCadastro, { useCadastro } from './ProdutoCadastro'
+import { codigoDoItem } from '@/lib/opa-pecas/relacao'
 
 export type EtapaTrabalho = 'verificacao' | 'separacao'
 
@@ -35,6 +37,9 @@ const DECISOES_PRONTAS = DECISOES.filter((d) => d !== 'outro')
 interface Form {
   descricao: string
   codigo_fabricante: string
+  /** verificação: a embalagem tem o código errado → o certo */
+  embalagemErrada: boolean
+  codigo_correto: string
   qualidade: Qualidade
   preco: string
   local: string
@@ -44,6 +49,7 @@ interface Form {
 
 const formDe = (i: Item): Form => ({
   descricao: i.descricao || '', codigo_fabricante: i.codigo_fabricante || '', qualidade: i.qualidade,
+  embalagemErrada: !!i.codigo_correto, codigo_correto: i.codigo_correto || '',
   preco: precoParaCampo(i.preco_sugerido), local: i.local_id || '', tecnico: i.local_tecnico || '', aplicacoes: i.aplicacoes,
 })
 
@@ -74,6 +80,14 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
   const [ocupado, setOcupado] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [editando, setEditando] = useState(false)
+  // separação: produto já cadastrado → "guardar junto com os outros" (padrão quando existe)
+  // o banco já tem o sql/pni-13? (select * traz as colunas novas, mesmo nulas)
+  const temPni13 = 'codigo_correto' in item
+  const codigoProduto = codigoDoItem(item)
+  const cadastro = useCadastro(etapa === 'separacao' ? codigoProduto : null)
+  const produtoJunto = temPni13 ? cadastro.cadastros?.[0] || null : null
+  const [juntoEscolha, setJuntoEscolha] = useState<boolean | null>(null)
+  const junto = decisao === 'guardar' && !!produtoJunto && juntoEscolha !== false
   const minis = useMiniaturas(item.fotos.map((f) => f.storage_path))
 
   useEffect(() => {
@@ -94,13 +108,16 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
   }), [item, form, preco, decisao])
 
   const destinoEscolhido = base.destinos.find((d) => d.id === destinoId)
-  const faltaLocal = etapa === 'separacao' && decisao === 'guardar' && !form.local ? ['onde vai ser guardada'] : []
-  const faltas = etapa === 'separacao' ? [...pendenciasSeparacao(decisao, obs, destinoId), ...faltaLocal] : pendenciasVerificacao(previa, setor)
+  const faltaLocal = etapa === 'separacao' && decisao === 'guardar' && !junto && !form.local ? ['onde vai ser guardada'] : []
+  const faltaCorreto = etapa === 'verificacao' && form.embalagemErrada && !form.codigo_correto.trim() ? ['o código correto da peça'] : []
+  const faltas = etapa === 'separacao' ? [...pendenciasSeparacao(decisao, obs, destinoId), ...faltaLocal] : [...pendenciasVerificacao(previa, setor), ...faltaCorreto]
 
   const gravarCampos = async () => {
     const d: CamposEditaveis = {}
     if (form.descricao.trim() !== (item.descricao || '')) d.descricao = form.descricao.trim() || null
     if (form.codigo_fabricante.trim() !== (item.codigo_fabricante || '')) d.codigo_fabricante = form.codigo_fabricante.trim() || null
+    const correto = form.embalagemErrada ? form.codigo_correto.trim() : ''
+    if (correto !== (item.codigo_correto || '')) d.codigo_correto = correto || null
     if (form.qualidade !== item.qualidade) d.qualidade = form.qualidade
     if (previa.preco_sugerido !== item.preco_sugerido) d.preco_sugerido = previa.preco_sugerido
     if (form.local !== (item.local_id || '') || form.tecnico !== (item.local_tecnico || '')) { d.local_id = form.local || null; d.local_tecnico = form.tecnico || null }
@@ -116,7 +133,9 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
       avisarMudanca()
       onConcluido()
     } catch (e) {
-      setErro(mensagemErro(e))
+      const m = mensagemErro(e)
+      // banco sem o sql/pni-13 (código correto / guardar junto)
+      setErro(/codigo_correto|p_junto_codigo|pni_separar/.test(m) ? `${m} — falta rodar o sql/pni-13-codigo-correto-e-junto.sql no banco.` : m)
     } finally {
       setOcupado(false)
     }
@@ -125,7 +144,7 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
   const concluir = () => {
     if (faltas.length) { setErro(`Falta: ${faltas.join(', ')}.`); return }
     if (etapa === 'verificacao') return executar(async () => { await gravarCampos(); await verificar(item.id, setor, com, obs) })
-    return executar(async () => { await gravarCampos(); await separar(item.id, decisao!, obs, decisao === 'outro' ? destinoId : null) })
+    return executar(async () => { await gravarCampos(); await separar(item.id, decisao!, obs, decisao === 'outro' ? destinoId : null, junto ? produtoJunto!.codigo : null) })
   }
 
   // separação → volta para a verificação (a verificação é a 1ª etapa depois da captação)
@@ -189,6 +208,7 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
         <section style={SECAO}>
           <h2 style={TITULO_SECAO}>O que já foi feito</h2>
           <FasesPeca item={item} base={base} usuarios={usuarios} ate="separacao" />
+          {codigoProduto && <ProdutoCadastro codigo={codigoProduto} compacto />}
         </section>
       )}
 
@@ -209,6 +229,26 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
               <label style={ROTULO}>Código já existente</label>
               <input value={form.codigo_fabricante} onChange={(e) => muda('codigo_fabricante', e.target.value.slice(0, 80))} placeholder="Part number" style={INP} />
             </div>
+            {form.codigo_fabricante.trim() && (
+              <div style={{ gridColumn: '1 / -1' }}><ProdutoCadastro codigo={form.codigo_fabricante} /></div>
+            )}
+            {/* embalagem com o código errado → apontar o código certo */}
+            {temPni13 && <div style={{ gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: 8, padding: '10px 12px', borderRadius: 10,
+              border: '1.5px solid ' + (form.embalagemErrada ? '#F59E0B' : 'var(--portal-border)'), background: form.embalagemErrada ? '#FFFBEB' : 'transparent' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700, color: 'var(--portal-text)', cursor: 'pointer' }}>
+                <input type="checkbox" checked={form.embalagemErrada} onChange={(e) => muda('embalagemErrada', e.target.checked)} style={{ width: 18, height: 18, accentColor: '#D97706' }} />
+                A peça está numa embalagem com o código errado
+              </label>
+              {form.embalagemErrada && (
+                <>
+                  <div>
+                    <label style={ROTULO}>Código correto da peça<span style={{ color: '#DC2626' }}> *</span></label>
+                    <input value={form.codigo_correto} onChange={(e) => muda('codigo_correto', e.target.value.slice(0, 80))} placeholder="O código que a peça é de verdade" style={INP} />
+                  </div>
+                  <ProdutoCadastro codigo={form.codigo_correto} />
+                </>
+              )}
+            </div>}
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={ROTULO}>Aplicação{!item.nao_identificavel && <span style={{ color: '#DC2626' }}> *</span>}</label>
               <EditorAplicacoes tipos={base.tipos} marcas={base.marcas} valor={form.aplicacoes} onChange={(v) => muda('aplicacoes', v)} />
@@ -279,11 +319,18 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
         </section>
       )}
 
-      {/* Separação: guardar → onde */}
+      {/* Separação: guardar → junto com os outros (produto cadastrado) ou em outro local */}
       {etapa === 'separacao' && decisao === 'guardar' && (
         <section style={SECAO}>
           <label style={{ ...ROTULO, marginBottom: 0 }}>Onde vai ser guardada<span style={{ color: '#DC2626' }}> *</span></label>
-          <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
+          {produtoJunto && (
+            <div style={{ display: 'grid', gridTemplateColumns: larga ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 8 }}>
+              <OpcaoGuardar ativo={junto} onClick={() => setJuntoEscolha(true)} titulo="Junto com os outros"
+                dica={`Com o produto ${produtoJunto.codigo}${produtoJunto.locacao ? ` · locação ${produtoJunto.locacao}` : ''}`} />
+              <OpcaoGuardar ativo={!junto} onClick={() => setJuntoEscolha(false)} titulo="Em outro lugar" dica="Escolher o local do Opa" />
+            </div>
+          )}
+          {!junto && <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} onLocalCriado={base.recarregarLookups} />}
         </section>
       )}
 
@@ -331,6 +378,18 @@ export default function PainelEtapa({ etapa, item, base, onConcluido, onAtualiza
         </Janela>
       )}
     </div>
+  )
+}
+
+function OpcaoGuardar({ ativo, onClick, titulo, dica }: { ativo: boolean; onClick: () => void; titulo: string; dica: string }) {
+  return (
+    <button type="button" role="radio" aria-checked={ativo} onClick={onClick} style={{
+      textAlign: 'left', padding: '10px 12px', borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
+      border: '1.5px solid ' + (ativo ? '#0F766E' : 'var(--portal-border)'), background: ativo ? '#0F766E' : 'var(--portal-bg-card)',
+    }}>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14.5, fontWeight: 800, color: ativo ? '#fff' : 'var(--portal-text)' }}>{ativo && <Check size={15} />} {titulo}</span>
+      <span style={{ display: 'block', fontSize: 12.5, color: ativo ? 'rgba(255,255,255,.88)' : 'var(--portal-text-muted)', marginTop: 2 }}>{dica}</span>
+    </button>
   )
 }
 

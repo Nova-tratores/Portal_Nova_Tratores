@@ -15,6 +15,7 @@ import { nomeDoItem, textoLocal } from '@/lib/opa-pecas/regras'
 import type { Qualidade } from '@/lib/opa-pecas/tipos'
 import { SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
 import { Aviso, botao, INP, LARANJA, ROTULO, SECAO, TITULO_SECAO, useTelaLarga, type Base } from './comum'
+import ProdutoCadastro from './ProdutoCadastro'
 
 const MIN_FOTOS = 2
 const MAX_FOTOS = 12
@@ -224,7 +225,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
 
       <section style={SECAO}>
         <h2 style={TITULO_SECAO}>Onde achou a peça? <span style={{ color: '#DC2626' }}>*</span></h2>
-        <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
+        <SeletorLocal locais={base.locais} local={form.local} tecnico={form.tecnico} onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} onLocalCriado={base.recarregarLookups} />
       </section>
 
       </div>
@@ -248,6 +249,8 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
         <div>
           <label style={ROTULO}>Código existente da peça <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)' }}>(se tiver)</span></label>
           <input value={form.codigoFab} onChange={(e) => muda('codigoFab', e.target.value.slice(0, 80))} placeholder="Part number gravado ou etiqueta antiga" style={INP} />
+          {/* já mostra se o código é um produto cadastrado e as características dele */}
+          <div style={{ marginTop: 6 }}><ProdutoCadastro codigo={form.codigoFab} /></div>
         </div>
       </section>
 

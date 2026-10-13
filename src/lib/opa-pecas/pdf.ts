@@ -75,7 +75,7 @@ export async function gerarPdfCatalogo(a: { itens: Item[]; nomes: Nomes; filtros
   const corpo = a.itens.map((i) => {
     const linha = [
       '',
-      (codigoDefinitivo(i.codigo) ? i.codigo : 'Sem código') + (i.codigo_fabricante ? `\nFab.: ${i.codigo_fabricante}` : ''),
+      (codigoDefinitivo(i.codigo) ? i.codigo : 'Sem código') + (i.codigo_fabricante ? `\nFab.: ${i.codigo_fabricante}` : '') + (i.codigo_correto ? `\nCorreto: ${i.codigo_correto}` : ''),
       i.descricao || 'Sem descrição',
       textoAplicacoes(i, a.nomes) || '—',
       ROTULO_QUALIDADE[i.qualidade],

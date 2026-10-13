@@ -121,6 +121,10 @@ export interface Item {
   id: string
   codigo: string
   codigo_fabricante: string | null
+  /** verificação: a embalagem tinha o código errado — este é o certo (sql/pni-13) */
+  codigo_correto?: string | null
+  /** separação: guardada junto com os outros deste código (sql/pni-13) */
+  guardado_junto_codigo?: string | null
   descricao: string | null
   quantidade: number
   qualidade: Qualidade

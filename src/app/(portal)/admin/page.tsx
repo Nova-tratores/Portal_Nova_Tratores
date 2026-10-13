@@ -54,6 +54,9 @@ const MODULOS = [
   // Peças não identificadas (aba do Opa): fotografar/cadastrar é de todos; este módulo
   // é o "setor de peças" — identificar, precificar, mudar status, exportar, cadastros.
   { id: 'opa-pecas', label: 'Opa Peças — editar peças S/Estoque', color: '#ea580c' },
+  // Patrimônio Loja (aba do Opa): o que a loja tem. Quem tinha Opa Peças ganhou
+  // no sql/patrimonio-01.sql; daqui libera ou bloqueia por pessoa.
+  { id: 'patrimonio', label: 'Patrimônio Loja (aba do Opa)', color: '#4f46e5' },
   { id: 'orcamentos', label: 'Orçamentos', color: '#ef4444' },
   { id: 'painel-mecanicos', label: 'Painel Mecânicos', color: '#3b82f6' },
   { id: 'painel-omie', label: 'Painel Omie (relatorios)', color: '#1f5c46' },

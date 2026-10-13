@@ -39,7 +39,7 @@ const GRUPO_POR_MODULO: Record<string, string> = {
   // Outros
   // Opa Peças fica colado no Opa (antes estava em "Peças" e ninguém achava): cadastrar é de todos;
   // este módulo dá editar qualquer informação, verificar, separar e excluir.
-  opa: 'Outros', 'opa-pecas': 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
+  opa: 'Outros', 'opa-pecas': 'Outros', patrimonio: 'Outros', avisos: 'Outros', tarefas: 'Outros', 'dashboard-agro': 'Outros', tratorilson: 'Outros',
   tickets: 'Outros', 'war-room': 'Financeiro',
   // Base de conhecimento: LER é de todo mundo logado (sem módulo); as ações aqui são de quem escreve/aprova.
   conhecimento: 'Outros',

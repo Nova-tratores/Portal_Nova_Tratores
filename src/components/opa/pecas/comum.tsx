@@ -5,7 +5,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertCircle, ArrowLeft, ChevronDown, LayoutList, Package, Plus, Printer } from 'lucide-react'
+import { AlertCircle, ArrowLeft, ChevronDown, GitCompare, Landmark, LayoutList, Package, Plus, Printer } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -77,11 +77,19 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
   const pathname = usePathname() || ''
   const isMobile = useIsMobile()
   const emPecas = pathname.startsWith('/opa/pecas')
+  // Patrimônio Loja: aba só para quem tem o módulo 'patrimonio' (Admin/Dev sempre)
+  const emPatrimonio = pathname.startsWith('/opa/patrimonio')
+  const { userProfile } = useAuth()
+  const { pode: podePerm, loading: carregandoPerm } = usePermissoes(userProfile?.id)
+  const vePatrimonio = !carregandoPerm && podePerm('patrimonio')
   const c = useContagens()
   const voltar = useVoltar(pathname)
   const temVoltar = emPecas && pathname !== '/opa/pecas'
+  // celular: com número ímpar de botões, o "Novo produto" ocupa a linha inteira
+  const qtdBotoes = (temVoltar ? 1 : 0) + 1 + (podeGerir ? 1 : 0) + 1 + 1
   const btn = isMobile ? BTN_FAIXA_MOVEL : BTN_FAIXA
-  const faixa = emPecas ? 'linear-gradient(135deg, #fb923c 0%, #ea580c 55%, #c2410c 100%)' : 'linear-gradient(135deg, #f87171 0%, #dc2626 55%, #991b1b 100%)'
+  const faixa = emPatrimonio ? 'linear-gradient(135deg, #818cf8 0%, #4f46e5 55%, #3730a3 100%)'
+    : emPecas ? 'linear-gradient(135deg, #fb923c 0%, #ea580c 55%, #c2410c 100%)' : 'linear-gradient(135deg, #f87171 0%, #dc2626 55%, #991b1b 100%)'
 
   return (
     <div style={{
@@ -90,16 +98,29 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
       background: faixa, boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
     }}>
       <div role="tablist" style={{ display: 'flex', alignItems: 'flex-end', gap: 4, overflowX: 'auto', flexShrink: 0, maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
-        <GuiaChrome href="/opa" ativo={!emPecas} cor="#dc2626" icone={<AlertCircle size={16} />} titulo="Ocorrências"
+        <GuiaChrome href="/opa" ativo={!emPecas && !emPatrimonio} cor="#dc2626" icone={<AlertCircle size={16} />} titulo="Ocorrências"
           conta={c?.opasAbertos ?? null} dica={c ? (c.opasAbertos === 1 ? '1 aberta' : `${c.opasAbertos} abertas`) : ''} mobile={isMobile} />
         <GuiaChrome href="/opa/pecas" ativo={emPecas} cor={LARANJA} icone={<Package size={16} />} titulo="Peças S/Estoque"
           conta={c?.emAberto ?? null} dica={c ? `${c.emAberto} em andamento` : ''} mobile={isMobile} />
+        {(vePatrimonio || emPatrimonio) && (
+          <GuiaChrome href="/opa/patrimonio" ativo={emPatrimonio} cor="#4f46e5" icone={<Landmark size={16} />} titulo="Patrimônio Loja"
+            conta={null} dica="O que a loja tem: ferramentas, informática, móveis, equipamentos" mobile={isMobile} />
+        )}
       </div>
       {/* celular: grade de 2 colunas (os botões ocupam a largura toda, sem sobrar um sozinho na linha) */}
       <div style={isMobile
         ? { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 8, paddingBottom: 10, width: '100%' }
         : { marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-        {emPecas ? (
+        {emPatrimonio ? (
+          <>
+            {pathname !== '/opa/patrimonio' && (
+              <Link href="/opa/patrimonio" style={{ ...btn, padding: '0 12px' }}><ArrowLeft size={16} strokeWidth={2.5} /> Lista</Link>
+            )}
+            <Link href="/opa/patrimonio/novo" style={{ ...btn, background: '#fefefe', color: '#111111', border: '1px solid #fefefe', boxShadow: '0 2px 8px rgba(0,0,0,0.18)', gridColumn: isMobile && pathname === '/opa/patrimonio' ? '1 / -1' : undefined }}>
+              <Plus size={16} strokeWidth={2.5} /> Novo item
+            </Link>
+          </>
+        ) : emPecas ? (
           <>
             {temVoltar && (
               <button type="button" onClick={voltar} title="Voltar para a última página" style={{ ...btn, padding: '0 12px' }}>
@@ -107,8 +128,14 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
               </button>
             )}
             <MenuEtapas podeGerir={podeGerir} c={c} mobile={isMobile} />
+            {podeGerir && (
+              <Link href="/opa/pecas/relacao" title="Códigos existentes × produtos já cadastrados (CSV/PDF)"
+                style={{ ...btn, ...(pathname.startsWith('/opa/pecas/relacao') ? { background: '#fefefe', color: '#111111', border: '1px solid #fefefe' } : {}) }}>
+                <GitCompare size={16} /> Relação
+              </Link>
+            )}
             <BotaoLerCodigo estilo={btn} />
-            <Link href="/opa/pecas/novo" style={{ ...btn, background: '#fefefe', color: '#111111', border: '1px solid #fefefe', boxShadow: '0 2px 8px rgba(0,0,0,0.18)', gridColumn: isMobile && !temVoltar ? '1 / -1' : undefined }}>
+            <Link href="/opa/pecas/novo" style={{ ...btn, background: '#fefefe', color: '#111111', border: '1px solid #fefefe', boxShadow: '0 2px 8px rgba(0,0,0,0.18)', gridColumn: isMobile && qtdBotoes % 2 === 1 ? '1 / -1' : undefined }}>
               <Plus size={16} strokeWidth={2.5} /> Novo produto
             </Link>
           </>

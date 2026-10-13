@@ -89,12 +89,14 @@ export default function FasesPeca({ item, base, usuarios, ate, linkEtapa, compac
       case 'separacao': return (
         <>
           {item.decisao ? <Dado r="Destino">{item.decisao === 'outro' && item.desfecho ? <b>{item.desfecho.split(' — ')[0]}</b> : <ChipDecisao decisao={item.decisao} />}</Dado> : <Dado r="Destino">—</Dado>}
+          {item.guardado_junto_codigo && <Dado r="Guardada">junto com o produto <b>{item.guardado_junto_codigo}</b></Dado>}
           {item.decisao_obs && <Dado r="Obs.">{item.decisao_obs}</Dado>}
           {quem(item.decidido_por, item.decidido_em)}
         </>
       )
       case 'verificacao': return (
         <>
+          {item.codigo_correto && <Dado r="Embalagem errada">código correto <b>{item.codigo_correto}</b></Dado>}
           <Dado r="Com">{item.verificado_setor || '—'}{item.verificado_com && ` (${item.verificado_com})`}</Dado>
           <Dado r="Valor">{fmtPreco(item.preco_sugerido)}{item.preco_sugerido != null && item.quantidade > 1 && ` · total ${fmtPreco(item.preco_sugerido * item.quantidade)}`}</Dado>
           <Dado r="Aplicação">{textoAplicacoes(item, { tipos: base.nomesTipos, marcas: base.nomesMarcas }) || '—'}</Dado>

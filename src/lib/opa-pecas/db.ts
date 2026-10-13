@@ -131,7 +131,7 @@ export function criarItem(a: {
 }
 
 export type CamposEditaveis = Partial<Pick<Item,
-  'descricao' | 'codigo_fabricante' | 'quantidade' | 'qualidade' | 'preco_sugerido' | 'nao_identificavel' | 'observacoes' | 'local_id' | 'local_tecnico'>>
+  'descricao' | 'codigo_fabricante' | 'codigo_correto' | 'quantidade' | 'qualidade' | 'preco_sugerido' | 'nao_identificavel' | 'observacoes' | 'local_id' | 'local_tecnico'>>
 
 export function atualizarItem(id: string, dados: CamposEditaveis) {
   return rpc<Item>('pni_atualizar_item', { p_id: id, p_dados: dados })
@@ -185,8 +185,17 @@ export function salvarMarca(id: string | null, nome: string, ativo = true) {
 // ── Etapas ──────────────────────────────────────────────────────────
 
 /** Etapa 3 (última): decide pra onde a peça vai e CONCLUI. "outro" = destino criado (destinoId). */
-export function separar(id: string, decisao: Decisao, obs?: string, destinoId?: string | null) {
-  return rpc<{ id: string; codigo: string; status: Status; decisao: Decisao }>('pni_separar', { p_id: id, p_decisao: decisao, p_obs: obs || null, p_destino_id: destinoId || null })
+export function separar(id: string, decisao: Decisao, obs?: string, destinoId?: string | null, juntoCodigo?: string | null) {
+  // p_junto_codigo só vai quando usado: sem o sql/pni-13 a função antiga (4 parâmetros) continua atendendo
+  return rpc<{ id: string; codigo: string; status: Status; decisao: Decisao }>('pni_separar', {
+    p_id: id, p_decisao: decisao, p_obs: obs || null, p_destino_id: destinoId || null,
+    ...(juntoCodigo ? { p_junto_codigo: juntoCodigo } : {}),
+  })
+}
+
+/** Cria (ou reativa, se o nome já existe) um LOCAL novo — sql/pni-14. Qualquer pessoa logada. */
+export function criarLocal(nome: string, exigeTecnico = false) {
+  return rpc<Local>('pni_criar_local', { p_nome: nome, p_exige_tecnico: exigeTecnico })
 }
 
 /** Cria (ou reativa) um destino novo na separação. */

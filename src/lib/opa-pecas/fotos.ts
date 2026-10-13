@@ -64,13 +64,14 @@ export async function apagarFoto(path: string): Promise<void> {
   await supabase.storage.from(BUCKET).remove([path, caminhoMini(path)]).catch(() => null)
 }
 
-export async function enviarFoto(userId: string, fotos: { grande: Blob; mini: Blob }): Promise<string> {
+/** bucket: padrão o das peças; o Patrimônio Loja usa 'patrimonio-fotos'. */
+export async function enviarFoto(userId: string, fotos: { grande: Blob; mini: Blob }, bucket = BUCKET): Promise<string> {
   const path = `${userId}/${crypto.randomUUID()}.jpg`
   const opts = { contentType: 'image/jpeg', upsert: false, cacheControl: '31536000' }
-  const { error } = await supabase.storage.from(BUCKET).upload(path, fotos.grande, opts)
+  const { error } = await supabase.storage.from(bucket).upload(path, fotos.grande, opts)
   if (error) throw new Error(mensagemErro(error))
   // miniatura: falhou, segue (a tela usa a grande)
-  await supabase.storage.from(BUCKET).upload(caminhoMini(path), fotos.mini, opts).catch(() => null)
+  await supabase.storage.from(bucket).upload(caminhoMini(path), fotos.mini, opts).catch(() => null)
   return path
 }
 
@@ -80,22 +81,22 @@ const VALIDADE_S = 60 * 60
 const cache = new Map<string, { url: string; expira: number }>()
 
 /** URLs assinadas para os caminhos (com cache de ~50 min). Caminho sem URL fica fora do mapa. */
-export async function urlsAssinadas(paths: string[]): Promise<Record<string, string>> {
+export async function urlsAssinadas(paths: string[], bucket = BUCKET): Promise<Record<string, string>> {
   const agora = Date.now()
   const r: Record<string, string> = {}
   const faltam: string[] = []
   for (const p of new Set(paths)) {
-    const c = cache.get(p)
+    const c = cache.get(`${bucket}|${p}`)
     if (c && c.expira > agora) r[p] = c.url
     else faltam.push(p)
   }
   for (let i = 0; i < faltam.length; i += 100) {
     const lote = faltam.slice(i, i + 100)
-    const { data } = await supabase.storage.from(BUCKET).createSignedUrls(lote, VALIDADE_S)
+    const { data } = await supabase.storage.from(bucket).createSignedUrls(lote, VALIDADE_S)
     for (const d of data || []) {
       if (d.signedUrl && d.path) {
         r[d.path] = d.signedUrl
-        cache.set(d.path, { url: d.signedUrl, expira: agora + (VALIDADE_S - 600) * 1000 })
+        cache.set(`${bucket}|${d.path}`, { url: d.signedUrl, expira: agora + (VALIDADE_S - 600) * 1000 })
       }
     }
   }
@@ -103,10 +104,10 @@ export async function urlsAssinadas(paths: string[]): Promise<Record<string, str
 }
 
 /** Miniaturas (com fallback para a foto grande quando a mini não existe). */
-export async function urlsMiniaturas(paths: string[]): Promise<Record<string, string>> {
-  const minis = await urlsAssinadas(paths.map(caminhoMini))
+export async function urlsMiniaturas(paths: string[], bucket = BUCKET): Promise<Record<string, string>> {
+  const minis = await urlsAssinadas(paths.map(caminhoMini), bucket)
   const semMini = paths.filter((p) => !minis[caminhoMini(p)])
-  const grandes = semMini.length ? await urlsAssinadas(semMini) : {}
+  const grandes = semMini.length ? await urlsAssinadas(semMini, bucket) : {}
   const r: Record<string, string> = {}
   for (const p of paths) {
     const u = minis[caminhoMini(p)] || grandes[p]

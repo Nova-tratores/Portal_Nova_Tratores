@@ -16,6 +16,7 @@ import { apagarFoto, comprimir, enviarFoto, mensagemErro, urlsAssinadas } from '
 import { codigoDefinitivo, nomeDoItem, camposFaltando, fmtDataHora, fmtPreco, lerPreco, precoParaCampo, textoLocal } from '@/lib/opa-pecas/regras'
 import { ROTULO_QUALIDADE, ROTULO_STATUS, type Aplicacao, type Historico, type Item, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 import { CampoPreco, EditorAplicacoes, SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
+import ProdutoCadastro from './ProdutoCadastro'
 import FasesPeca from './FasesPeca'
 import Impressao from './Impressao'
 import { CodigoPeca, Aviso, botao, INP, LARANJA, ROTULO, SECAO, SeloQualidade, SeloStatus, TITULO_SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
@@ -23,6 +24,8 @@ import { CodigoPeca, Aviso, botao, INP, LARANJA, ROTULO, SECAO, SeloQualidade, S
 interface Form {
   descricao: string
   codigo_fabricante: string
+  /** embalagem errada → código certo (vazio = embalagem certa) */
+  codigo_correto: string
   quantidade: string
   qualidade: Qualidade
   preco: string
@@ -34,7 +37,7 @@ interface Form {
 
 function formDe(i: Item): Form {
   return {
-    descricao: i.descricao || '', codigo_fabricante: i.codigo_fabricante || '',
+    descricao: i.descricao || '', codigo_fabricante: i.codigo_fabricante || '', codigo_correto: i.codigo_correto || '',
     quantidade: String(i.quantidade), qualidade: i.qualidade,
     preco: precoParaCampo(i.preco_sugerido),
     nao_identificavel: i.nao_identificavel, observacoes: i.observacoes || '',
@@ -48,6 +51,7 @@ function diferencas(i: Item, f: Form): { dados: CamposEditaveis; erro?: string }
   const t = (s: string) => s.trim()
   if (t(f.descricao) !== (i.descricao || '')) d.descricao = t(f.descricao) || null
   if (t(f.codigo_fabricante) !== (i.codigo_fabricante || '')) d.codigo_fabricante = t(f.codigo_fabricante) || null
+  if (t(f.codigo_correto) !== (i.codigo_correto || '')) d.codigo_correto = t(f.codigo_correto) || null
   if (t(f.observacoes) !== (i.observacoes || '')) d.observacoes = t(f.observacoes) || null
   if (f.qualidade !== i.qualidade) d.qualidade = f.qualidade
   if (f.nao_identificavel !== i.nao_identificavel) d.nao_identificavel = f.nao_identificavel
@@ -281,7 +285,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
 
       <section style={SECAO}>
         <h2 style={TITULO_SECAO}>Onde a peça está</h2>
-        <SeletorLocal compacto locais={base.locais} local={form.local} tecnico={form.tecnico} disabled={!gerir}
+        <SeletorLocal compacto locais={base.locais} local={form.local} tecnico={form.tecnico} disabled={!gerir} onLocalCriado={base.recarregarLookups}
           onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
       </section>
       </div>
@@ -303,6 +307,13 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
           <label style={ROTULO}>Código já existente</label>
           <input value={form.codigo_fabricante} onChange={campo('codigo_fabricante')} disabled={!editavel} placeholder="Part number" style={INP} />
         </div>
+        {'codigo_correto' in item && <div>
+          <label style={ROTULO}>Código correto <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)' }}>(se a embalagem estiver errada)</span></label>
+          <input value={form.codigo_correto} onChange={campo('codigo_correto')} disabled={!editavel} placeholder="Vazio = embalagem certa" style={INP} />
+        </div>}
+        {(form.codigo_correto.trim() || form.codigo_fabricante.trim()) && (
+          <div style={{ gridColumn: '1 / -1' }}><ProdutoCadastro codigo={form.codigo_correto.trim() || form.codigo_fabricante} /></div>
+        )}
         <div>
           <label style={ROTULO}>Quantidade</label>
           <SeletorQuantidade valor={parseInt(form.quantidade, 10) || 1} disabled={!editavel} onChange={(n) => setForm((f) => ({ ...f, quantidade: String(n) }))} />
