@@ -1,7 +1,7 @@
 const { supabaseAdmin } = require('./supabase');
 const { parseBR, parseBRTimestamp, fmtBR } = require('./dates');
+const { omie } = require('../omie/porta');
 
-const OMIE_BASE_URL = 'https://app.omie.com.br/api/v1';
 const PAGE_SIZE = 500;
 const SLEEP_BETWEEN_PAGES = 2000;
 
@@ -80,40 +80,14 @@ function labelConta(conta) {
   return CONTAS_OMIE[conta]?.label || (conta || '').toUpperCase();
 }
 
-async function omieRequest(endpoint, call, params, conta, tentativa = 1) {
+// Desde 13/10/2026 passa pela PORTA ÚNICA da Omie (src/lib/omie/porta.ts): fila e
+// freio compartilhados com o resto do portal, disjuntor de bloqueio (antes este
+// cliente REENVIAVA em "Too many requests"/REDUNDANT até 5x, o que prorroga a trava
+// da Omie). Erro continua vindo como exceção com .faultstring.
+/** @returns {Promise<any>} resposta crua da Omie (os chamadores leem campos livremente) */
+async function omieRequest(endpoint, call, params, conta) {
   const { appKey, appSecret } = getCredentials(conta);
-  let res;
-  try {
-    res = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ call, app_key: appKey, app_secret: appSecret, param: [params] })
-    });
-  } catch (e) {
-    // Falha de rede (DNS, timeout, conexao recusada, etc) - retry com backoff
-    if (tentativa <= 3) {
-      const espera = tentativa * 5000;
-      console.log(`[omie ${conta}] rede falhou (${e.message}) - retry em ${espera/1000}s (tentativa ${tentativa}/3)`);
-      await sleep(espera);
-      return omieRequest(endpoint, call, params, conta, tentativa + 1);
-    }
-    throw e;
-  }
-  const data = await res.json();
-  if (data.faultstring) {
-    const fs = String(data.faultstring);
-    const isRate = fs.includes('Too many requests') || fs.includes('REDUNDANT') || fs.includes('Ja existe uma requisi') || fs.includes('Já existe uma requisi');
-    if (isRate && tentativa <= 5) {
-      const espera = tentativa * 4000;
-      console.log(`[omie ${conta}] rate limit - aguardando ${espera/1000}s (tentativa ${tentativa}/5)`);
-      await sleep(espera);
-      return omieRequest(endpoint, call, params, conta, tentativa + 1);
-    }
-    const e = new Error(`Omie API: ${fs}`);
-    e.faultstring = fs;
-    throw e;
-  }
-  return data;
+  return omie({ appKey, appSecret, rotulo: labelConta(conta) }, endpoint, call, params, { tentativas: 3 });
 }
 
 // =============================================================================
