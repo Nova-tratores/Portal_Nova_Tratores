@@ -22,6 +22,7 @@
 import type { Conta } from './conta';
 import { decodeOmieTexto } from '@/lib/omie/texto';
 import { getCredentials } from './conta';
+import { omie } from '@/lib/omie/porta';
 import { sleep, num } from './utils';
 import { fmtBR, hoje } from './dates';
 
@@ -30,7 +31,6 @@ export { getCredentials, getContasOmie, labelConta } from './conta';
 export { sleep } from './utils';
 export { fmtBR } from './dates';
 
-const OMIE_BASE_URL = 'https://app.omie.com.br/api/v1';
 export const PAGE_SIZE = 500;          // a Omie costuma capar em ~100/pagina mesmo assim
 export const SLEEP_BETWEEN_PAGES = 2000;
 
@@ -49,82 +49,18 @@ function omieError(msg: string, extra?: { faultstring?: string; bloqueio?: boole
   return e;
 }
 
+// Desde 13/10/2026 passa pela PORTA ÚNICA da Omie (src/lib/omie/porta.ts): freio,
+// fila com prioridade, disjuntor de bloqueio, corpo ASCII, erro REST e a regra de
+// gravação sem reenvio moram lá. Mantém o contrato antigo: erro da Omie vira exceção
+// com .faultstring (e .bloqueio/.aguardarSegundos no bloqueio).
 export async function omieRequest(
   endpoint: string,
   call: string,
   params: Record<string, any>,
   conta: Conta,
-  tentativa = 1
 ): Promise<any> {
   const { appKey, appSecret } = getCredentials(conta);
-  let res: Response;
-  try {
-    // Encoding: o Omie NAO aceita "charset=utf-8" no Content-Type (devolve
-    // SOAP/XML se mandar) E tambem strippa caracteres non-ASCII quando o body
-    // vem em UTF-8 cru. Solucao: escapar todos os codepoints >= U+0080 como
-    // \uXXXX no JSON. O body fica 100% ASCII e o Omie decoda de volta certo
-    // (ex.: "peça" -> "peça" na string que ele armazena).
-    const bodyAscii = JSON.stringify({ call, app_key: appKey, app_secret: appSecret, param: [params] })
-      .replace(/[-￿]/g, ch => '\\u' + ch.charCodeAt(0).toString(16).padStart(4, '0'));
-    res = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: bodyAscii
-    });
-  } catch (e) {
-    // Falha de rede (DNS, timeout, conexao recusada, etc) - retry com backoff
-    if (tentativa <= 3) {
-      const espera = tentativa * 5000;
-      console.log(`[omie ${conta}] rede falhou (${(e as OmieError).message}) - retry em ${espera / 1000}s (tentativa ${tentativa}/3)`);
-      await sleep(espera);
-      return omieRequest(endpoint, call, params, conta, tentativa + 1);
-    }
-    throw e;
-  }
-  const data = await res.json();
-  // Omie tem 2 formatos de erro: (1) {faultstring:"ERROR:..."} - SOAP-style,
-  // (2) {status:"error", message:"..."} - REST-style (ex.: "Method not exists").
-  // O segundo era invisivel antes desta normalizacao e gerava falsos positivos
-  // de sucesso (ex.: CancelarPedido inexistente "passava" e o pedido nao era cancelado).
-  const erroREST = data && data.status === 'error' ? String(data.message || 'erro Omie sem mensagem') : null;
-  if (erroREST && !data.faultstring) {
-    throw omieError(`Omie API: ${erroREST}`, { faultstring: erroREST });
-  }
-  if (data && data.faultstring) {
-    const fs = String(data.faultstring);
-    // Bloqueio LONGO da Omie ("API bloqueada por consumo indevido. Tente
-    // novamente em N segundos.") - NAO adianta re-tentar (o bloqueio dura
-    // minutos). Falha rapido p/ nao estourar o timeout do gateway (que
-    // devolveria "upstream error" em vez do JSON).
-    // Cuidado: "bloquead" solto pegava erros de NEGOCIO ("O período contábil
-    // de Abril... foi bloqueado") e abortava lotes inteiros por engano.
-    if (/api bloqueada|consumo indevido/i.test(fs)) {
-      const mSeg = fs.match(/(\d+)\s*segundos?/i);
-      const mMin = fs.match(/(\d+)\s*minutos?/i);
-      const aguardarSegundos = mSeg ? parseInt(mSeg[1], 10) : mMin ? parseInt(mMin[1], 10) * 60 : 60;
-      throw omieError(`Omie API: ${fs}`, { faultstring: fs, bloqueio: true, aguardarSegundos });
-    }
-    // Erros "transitorios" da Omie que valem retry com backoff:
-    //  - "Too many requests" / "REDUNDANT" (rate limit padrao)
-    //  - "Ja existe uma requisicao desse metodo sendo executada" (concorrencia)
-    //  - "Consumo redundante" / "SOAP" ocasionais
-    //  - "SOAP-ERROR: Broken response from Application Server (BG)" (o
-    //    backend da Omie engasgou; passa numa nova tentativa)
-    const isTransiente = /too many requests/i.test(fs)
-      || /soap-error|broken response/i.test(fs)
-      || /redundant/i.test(fs)
-      || /j[aá] existe uma requisi/i.test(fs)
-      || /requisi[cç][aã]o desse m[ée]todo/i.test(fs)
-      || /tente novamente|tentar novamente/i.test(fs);
-    if (isTransiente && tentativa <= 4) {
-      const espera = tentativa * 6000;
-      console.log(`[omie ${conta}] ${call}: transitorio ("${fs.slice(0, 60)}...") - aguardando ${espera / 1000}s (tentativa ${tentativa}/4)`);
-      await sleep(espera);
-      return omieRequest(endpoint, call, params, conta, tentativa + 1);
-    }
-    throw omieError(`Omie API: ${fs}`, { faultstring: fs });
-  }
-  return data;
+  return omie({ appKey, appSecret, rotulo: conta }, endpoint, call, params, { tentativas: 3 });
 }
 
 // True quando o erro da Omie indica "nenhum registro encontrado" (fim da
