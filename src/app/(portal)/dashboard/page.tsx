@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuditLog } from '@/hooks/useAuditLog'
 import { TELAS, buscarTelas, normalizar, relevancia, type Tela } from '@/lib/dashboard/telas'
 import {
-  Settings, ClipboardList, Wrench, FileText,
+  Settings, ClipboardList, ListChecks, Wrench, FileText,
   DollarSign, Activity, Clock, ChevronRight, Search,
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
@@ -87,6 +87,8 @@ const systems: SystemCard[] = [
 
   // Outros (cinza)
   { id: 'conhecimento', name: 'Base de conhecimento', description: 'Como usar cada tela do portal — o mesmo texto do botão "?" do cabeçalho', icon: <BookOpen size={28} />, color: '#0369a1', gradient: 'linear-gradient(135deg, #0ea5e9, #0369a1)', href: '/conhecimento', tag: 'AJUDA', group: 'outros' },
+  // POPs: ler procedimento publicado é de todo logado — fica FORA do systemToModulo (aparece para todos).
+  { id: 'pops', name: 'Procedimentos (POP)', description: 'Procedimentos padrão de cada área — ler, executar passo a passo no celular e imprimir', icon: <ListChecks size={28} />, color: '#0f766e', gradient: 'linear-gradient(135deg, #14b8a6, #0f766e)', href: '/pops', tag: 'POP', group: 'outros' },
   { id: 'opa', name: 'Opa', description: 'Sinalize ocorrências e coisas fora do lugar — todos veem até alguém resolver', icon: <AlertCircle size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/opa', tag: 'OCORRÊNCIAS', group: 'outros' },
   { id: 'avisos', name: 'Avisos', description: 'Comunicados e avisos para toda a equipe, com anexos e notificações', icon: <Megaphone size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)', href: '/avisos', tag: 'COMUNICADOS', group: 'outros' },
   { id: 'tarefas', name: 'Central de Trabalho', description: 'Tarefas, tickets e cronograma num lugar só', icon: <ClipboardCheck size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #7f1d1d)', href: '/tickets/quadros', tag: 'TRABALHO', group: 'outros' },
@@ -128,7 +130,7 @@ const systemToModulo: Record<string, string> = {
   'painel-omie': 'painel-omie',
   'back-nova': 'back-nova',
   'supervisor-vendas': 'supervisor-vendas',
-  // 'conhecimento' fica de FORA de propósito: ler a base é de todo usuário logado
+  // 'conhecimento' e 'pops' ficam de FORA de propósito: ler é de todo usuário logado
   // (card sem módulo aparece para todos — ver aviso acima).
   'gestao-vendas': 'gestao-vendas',
   'vendas-modelo': 'vendas-modelo',
