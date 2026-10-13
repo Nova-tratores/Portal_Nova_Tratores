@@ -59,6 +59,16 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'admin', label: 'Administrar POPs (áreas, papéis, modelos, aprovar qualquer área)' },
     { id: 'executar', label: 'Executar POPs' },
   ],
+  // Painel Omie: app separado (Railway). Cada ação libera UMA aba lá dentro;
+  // quem tem o módulo puro (ou é admin/dev) continua vendo o painel inteiro.
+  'painel-omie': [
+    { id: 'oficina', label: 'Oficina (OS, comissão dos técnicos)' },
+    { id: 'pecas', label: 'Peças (pedidos de venda, entradas)' },
+    { id: 'comercial', label: 'Comercial (vendas de máquinas)' },
+    { id: 'geral', label: 'Relatório geral da empresa' },
+    { id: 'frota', label: 'Frota' },
+    { id: 'config', label: 'Configurações e sincronizações' },
+  ],
   conhecimento: [
     { id: 'editar', label: 'Escrever e editar artigos (qualquer módulo)' },
     { id: 'publicar', label: 'Publicar, arquivar e aprovar artigos (qualquer módulo)' },
