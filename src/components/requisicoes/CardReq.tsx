@@ -616,6 +616,13 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
             </a>
           )
         )}
+        {/* Anexo errado: tirar (pede confirmação; respeita somente-leitura e a trava de valor alto via persist) */}
+        {hasFile && !isUploading && podeEditar && (
+          <button type="button" onClick={() => { if (confirm(`Remover o anexo "${label}"?`)) persist(field, null) }}
+            className="w-7 h-7 flex items-center justify-center rounded bg-zinc-200 text-black hover:bg-zinc-700 hover:text-white transition-all shrink-0" title="Remover anexo">
+            <X size={12} />
+          </button>
+        )}
         {/* Sem botão de câmera: o seletor de arquivo do celular já oferece a câmera,
             e toda imagem anexada passa pelo corte antes de subir (handleFileUpload). */}
         <label className={`w-7 h-7 flex items-center justify-center rounded cursor-pointer transition-all shrink-0 ${
@@ -1334,9 +1341,9 @@ export default function CardReq({ req, onUpdate, onPrint, dadosCompartilhados, a
                 </div>
 
                 {req.enviado_financeiro_data && (
-                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-indigo-50 border border-indigo-200 mt-2">
-                    <Calendar size={13} className="text-indigo-500" />
-                    <span className="text-sm text-indigo-600">Enviado ao financeiro: <strong>{new Date(req.enviado_financeiro_data.length > 10 ? req.enviado_financeiro_data : req.enviado_financeiro_data + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></span>
+                  <div className="flex items-center gap-2 p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 mt-2">
+                    <Check size={13} className="text-emerald-600" />
+                    <span className="text-sm text-emerald-700">Enviado ao financeiro em <strong>{new Date(req.enviado_financeiro_data.length > 10 ? req.enviado_financeiro_data : req.enviado_financeiro_data + 'T12:00:00').toLocaleDateString('pt-BR')}</strong></span>
                   </div>
                 )}
 
