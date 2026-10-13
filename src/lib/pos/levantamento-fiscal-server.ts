@@ -3,8 +3,8 @@
 // processo: some num redeploy, é só rodar de novo. SÓ LEITURA no Omie
 // (ListarOS / ConsultarOS) — nada é gravado lá nem no banco.
 //
-// 1) ListarOS: faturadas (F), tipo NFS-e, faturamento nos últimos 24 meses — a
-//    listagem traz a OS completa; ficam as N mais recentes.
+// 1) ListarOS: faturadas (F), mais recentes primeiro, só as que têm NFS-e (cache
+//    os_nfse) — a listagem traz a OS completa com os impostos dos itens.
 // 2) Se a listagem NÃO trouxer os impostos dos itens, consulta OS por OS
 //    (ConsultarOS, ~3 por segundo).
 import { supabase } from './supabase';
@@ -83,26 +83,31 @@ async function clientesInfo(cods: number[]): Promise<Map<number, ClienteInfo>> {
   return out;
 }
 
-const dataBR = (d: Date) => `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
 
 async function executar(limite: number) {
   const e = estado();
-  // 1) listagem das faturadas com NFS-e
-  const desde = new Date(); desde.setMonth(desde.getMonth() - 24);
+  // 1) OS com NFS-e = marcadas no cache os_nfse. O filtro cTipoFat:'NFS' da Omie NÃO serve
+  //    (testado 13/10/2026: devolve 233 OS e a mais nova de 2025), nem combinado com data.
+  const comNota = new Set<number>();
+  for (let de = 0; ; de += 1000) {
+    const { data } = await supabase.from('os_nfse').select('ncod_os').eq('conta_omie', 'NOVA').eq('tem_nota', true).order('ncod_os').range(de, de + 999);
+    for (const r of data || []) comNota.add(Number(r.ncod_os));
+    if (!data || data.length < 1000) break;
+  }
+  // 2) faturadas, mais recentes primeiro; para ao juntar o limite de OS com NFS-e
   const todas: OSOmie[] = [];
   let pagina = 1; let totalPaginas = 1;
   do {
-    e.progresso = `Lendo a lista de OS faturadas na Omie — página ${pagina} de ${totalPaginas}…`;
+    e.progresso = `Lendo as OS faturadas na Omie — página ${pagina} (${todas.length} de ${limite} com NFS-e)…`;
     const r = await omie<{ total_de_paginas?: number; osCadastro?: OSOmie[] }>('ListarOS', {
       pagina, registros_por_pagina: 50, apenas_importado_api: 'N',
-      filtrar_por_status: 'F', cTipoFat: 'NFS', filtrar_por_data_faturamento_de: dataBR(desde),
-      ordenar_por: 'CODIGO', ordem_decrescente: 'S',
+      filtrar_por_status: 'F', ordenar_por: 'CODIGO', ordem_decrescente: 'S',
     });
-    totalPaginas = Math.min(Number(r.total_de_paginas || 1), 80);
-    todas.push(...(r.osCadastro || []));
+    totalPaginas = Math.min(Number(r.total_de_paginas || 1), 60);
+    todas.push(...(r.osCadastro || []).filter((o) => comNota.has(Number(o?.Cabecalho?.nCodOS))));
     pagina++;
-    if (pagina <= totalPaginas) await espera(800);
-  } while (pagina <= totalPaginas);
+    if (pagina <= totalPaginas && todas.length < limite) await espera(800);
+  } while (pagina <= totalPaginas && todas.length < limite);
 
   let oss = maisRecentes(todas.map(paraLevantada).filter((x): x is OSLevantada => !!x), limite);
   const listagemTemImpostos = oss.some((o) => o.itens.some((i) => i && typeof i.impostos === 'object'));
