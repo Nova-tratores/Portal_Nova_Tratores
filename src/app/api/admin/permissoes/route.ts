@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { autenticar } from '@/lib/auth/server'
+import { ACOES_SO_DEV } from '@/lib/permissoes/explicitas'
 
 // Escrita de permissões (portal_permissoes) — SÓ pelo servidor, com checagem de
 // admin. Antes o painel gravava direto do navegador com a anon key: como não
@@ -43,6 +44,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Apenas um Dev pode conceder ou retirar o papel Dev.' }, { status: 403 })
     }
     patch.is_dev = updates.is_dev === true
+  }
+
+  // Faturar / cancelar faturamento da OS: só um Dev concede ou retira (13/10/2026)
+  if (Array.isArray(patch.modulos_permitidos) && !auth.isDev) {
+    const { data: atual } = await supabase.from('portal_permissoes').select('modulos_permitidos').eq('user_id', userId).maybeSingle()
+    const antes = new Set<string>((atual?.modulos_permitidos as string[] | null) || [])
+    const depois = new Set<string>(patch.modulos_permitidos as string[])
+    const mexeu = [...ACOES_SO_DEV].some((a) => antes.has(a) !== depois.has(a))
+    if (mexeu) return NextResponse.json({ error: 'Só um Dev pode dar ou tirar "Faturar OS" e "Cancelar faturamento".' }, { status: 403 })
   }
 
   if (Object.keys(patch).length === 0) {

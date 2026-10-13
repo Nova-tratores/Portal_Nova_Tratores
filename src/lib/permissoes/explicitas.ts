@@ -6,8 +6,20 @@
 // (navegador), pelas rotas (servidor) e pelo catálogo do Admin.
 export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'pos:faturar', // faturar a OS (emite NFS-e) — decisão do José, 10/10/2026
+  'pos:cancelar_faturamento', // cancelar NFS-e/NF-e pelo portal (13/10/2026)
   'pos:modelos_fiscais', // criar/editar modelos fiscais da NFS-e e vincular a clientes
 ]);
+
+// Ações FISCAIS de Dev (José, 13/10/2026): no começo só os Devs fazem; admin comum
+// NÃO ganha automaticamente, e só um Dev concede a outra pessoa (Admin + rota).
+export const ACOES_SO_DEV: ReadonlySet<string> = new Set([
+  'pos:faturar',
+  'pos:cancelar_faturamento',
+]);
+
+export function acaoSoDev(modulo: string, acao?: string): boolean {
+  return !!acao && ACOES_SO_DEV.has(`${modulo}:${acao}`);
+}
 
 export function acaoExplicita(modulo: string, acao?: string): boolean {
   return !!acao && ACOES_EXPLICITAS.has(`${modulo}:${acao}`);
@@ -15,8 +27,10 @@ export function acaoExplicita(modulo: string, acao?: string): boolean {
 
 /** Mesma regra do pode() do usePermissoes, respeitando as ações explícitas. */
 export function permite(
-  perms: string[], isAdmin: boolean, modulo: string, acao?: string,
+  perms: string[], isAdmin: boolean, modulo: string, acao?: string, isDev = false,
 ): boolean {
+  // fiscal de Dev: Dev sempre; os demais (inclusive admin) só com a ação marcada
+  if (acaoSoDev(modulo, acao)) return isDev || perms.includes(`${modulo}:${acao}`);
   if (isAdmin) return true;
   if (acaoExplicita(modulo, acao)) return perms.includes(`${modulo}:${acao}`);
   if (perms.includes(modulo)) return true;

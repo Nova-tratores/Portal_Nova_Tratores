@@ -22,6 +22,7 @@ import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import FaturamentoOSBloco from "./FaturamentoOSBloco";
+import NotasFiscaisBloco from "./NotasFiscaisBloco";
 import AnexosModal from "@/components/ppv/AnexosModal";
 import TarefasModal from "@/components/ppv/TarefasModal";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
@@ -148,10 +149,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // Só aparece quando o PPV JÁ virou pedido/remessa no Omie; o rótulo mostra
   // o número do Omie (não o id do PPV).
   const [ppvOmieMap, setPpvOmieMap] = useState<Record<string, string>>({});
+  const [ppvOmieCarregando, setPpvOmieCarregando] = useState(false);
   useEffect(() => {
     const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
     if (!visible || ids.length === 0) { setPpvOmieMap({}); return; }
     let ativo = true;
+    setPpvOmieCarregando(true);
     (async () => {
       const mapa: Record<string, string> = {};
       await Promise.all(ids.map(async (pid) => {
@@ -161,7 +164,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           if (j?.pedidoOmie) mapa[pid] = String(j.pedidoOmie);
         } catch { /* sem Omie ainda */ }
       }));
-      if (ativo) setPpvOmieMap(mapa);
+      if (ativo) { setPpvOmieMap(mapa); setPpvOmieCarregando(false); }
     })();
     return () => { ativo = false; };
   }, [ppv, visible, ordemOmie]);
@@ -1638,7 +1641,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         {pedidoVenda && (
                           <div style={{ flex: "1 1 180px", padding: "8px 12px", borderRadius: 10, background: "var(--portal-bg-secondary, #f8fafc)" }}>
                             <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Pedido de venda</div>
-                            <div style={{ fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>nº {pedidoVenda.replace(/^0+/, "") || pedidoVenda}</div>
+                            <div style={{ fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>nº {pedidoVenda.split(",").map((x) => x.trim().replace(/^0+(?=\d)/, "")).filter(Boolean).join(", ") || pedidoVenda}</div>
                           </div>
                         )}
                       </div>
@@ -1821,16 +1824,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   {/* Cancelamento MUDOU DE LUGAR: fica na aba Observações (embaixo
                       do bloco de observações), e o motivo entra pelo MODAL central. */}
 
-                  {/* Estado do envio ao Omie (o botão de ação foi para a coluna à direita) */}
-                  {mode === "edit" && ordemOmie && (
-                    <div className="os-card" style={{ order: 20 }}>
-                      <div className="os-card-title"><i className="fas fa-cloud-upload-alt" /> Enviar para o Omie</div>
-                      <div className="os-omie-badge">
-                        <i className="fas fa-check-circle" /> Enviado para Omie (ID: {ordemOmie})
-                      </div>
-                      {/* PDF da ordem fica só no card "Enviado ao Omie" lá em cima (estava duplicado aqui) */}
-                    </div>
-                  )}
+                  {/* (13/10/2026) o card "Enviado para Omie (ID …)" saiu: repetia o card
+                      "Enviado ao Omie" do topo e o bloco Omie da coluna da direita */}
                   {mode === "edit" && !ordemOmie && servicoInterno && status === "Concluída" && (
                     <div className="os-card" style={{ order: 20 }}>
                       <div className="os-card-title"><i className="fas fa-cloud-upload-alt" /> Concluir ordem interna</div>
@@ -2572,20 +2567,20 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
               <>
                 {/* ── Bloco Omie: PDFs da OS e do pedido de venda + Faturar (OS e pedido vinculado) ── */}
                 {(() => {
-                  const semZeros = (n: string) => n.replace(/^0+/, "") || n;
+                  const semZeros = (n: string) => String(n || "").split(",").map((x) => x.trim().replace(/^0+(?=\d)/, "")).filter(Boolean).join(", ");
                   const pedidosMapa = Object.entries(ppvOmieMap);
-                  // nº do pedido que veio no envio da OS, quando o PPV ainda não está no mapa
-                  const pvSolto = pedidoVenda && !pedidosMapa.some(([, n]) => semZeros(n) === semZeros(pedidoVenda)) ? pedidoVenda : "";
-                  const linhaDoc = (rotulo: string, numero: string, onPdf: (() => void) | null, carregando: boolean, chave: string) => (
-                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)" }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rotulo}</div>
-                        <div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>nº {semZeros(numero)}</div>
-                      </div>
+                  // nºs do pedido que vieram no envio da OS e ainda não estão no mapa (sem repetir)
+                  const noMapa = new Set(pedidosMapa.map(([, n]) => semZeros(n)));
+                  const pvSolto = semZeros(pedidoVenda).split(", ").filter((n) => n && !noMapa.has(n)).join(", ");
+                  // "o que virou o quê": nº do portal → nº no Omie, com o PDF do Omie no fim da linha
+                  const linhaDoc = (portal: string, omie: string, onPdf: (() => void) | null, carregando: boolean, chave: string, primeira: boolean) => (
+                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 2px", borderTop: primeira ? "none" : "1px solid var(--border)" }}>
+                      {void portal}
+                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{omie}</span>
                       {onPdf && (
-                        <button type="button" onClick={onPdf} disabled={carregando} title={`Abrir o PDF oficial no Omie (gerado na hora)`}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 28, padding: "0 8px", borderRadius: 7, border: "1.5px solid #0BB7CD", background: "transparent", color: "#0891A8", fontSize: 11.5, fontWeight: 700, cursor: carregando ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
-                          <i className={`fas ${carregando ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> PDF
+                        <button type="button" onClick={onPdf} disabled={carregando} title="Abrir o PDF oficial no Omie (gerado na hora)"
+                          style={{ background: "none", border: "none", padding: 0, color: "#0891A8", fontSize: 11.5, fontWeight: 800, cursor: carregando ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                          {carregando ? <i className="fas fa-spinner fa-spin" /> : "PDF"}
                         </button>
                       )}
                     </div>
@@ -2599,24 +2594,38 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       </div>
                       {!ordemOmie && (
                         <>
-                          <div style={{ fontSize: 11.5, color: "var(--portal-text-muted)", padding: "0 2px" }}>Esta OS ainda não está no Omie.</div>
-                                    {!ordemOmie && !(servicoInterno && status === "Concluída") && (
-                                      <button
-                                        className="os-rail-btn omie" style={{ justifyContent: "center", background: "#0BB7CD", color: "#fefefe", fontWeight: 800, borderRadius: 9 }}
-                                        onClick={enviarParaOmie}
-                                        disabled={enviandoOmie || !podeOmie}
-                                        title={!podeOmie ? MSG_SEM_PERMISSAO : servicoInterno ? "OS interna: vai normal pro Omie; peças saem como remessa" : undefined}
-                                      >
-                                        {enviandoOmie
-                                          ? <><i className="fas fa-spinner fa-spin" /> Enviando...</>
-                                          : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
-                                      </button>
-                                    )}
+                          {/* Só a fase "Enviar Omie" libera o envio (José, 13/10/2026) */}
+                          {status === "Enviar Omie" ? (
+                            <>
+                              <div style={{ fontSize: 11.5, color: "var(--portal-text-muted)", padding: "0 2px", lineHeight: 1.4 }}>
+                                A OS está pronta para ir ao Omie. Ao enviar, ela vira uma OS no Omie e o pedido de peças vai junto.
+                              </div>
+                              <button type="button" onClick={enviarParaOmie} disabled={enviandoOmie || !podeOmie}
+                                title={!podeOmie ? MSG_SEM_PERMISSAO : servicoInterno ? "OS interna: vai normal pro Omie; peças saem como remessa" : "Criar esta OS no Omie"}
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", minHeight: 40, padding: "0 12px", borderRadius: 10, border: "none",
+                                  background: podeOmie ? "linear-gradient(135deg, #22d3ee, #0BB7CD 55%, #0891A8)" : "#94A3B8", color: "#fefefe", fontSize: 13.5, fontWeight: 800, whiteSpace: "nowrap",
+                                  cursor: enviandoOmie ? "wait" : podeOmie ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: podeOmie ? "0 4px 12px rgba(11,183,205,.35)" : "none" }}>
+                                <i className={`fas ${enviandoOmie ? "fa-spinner fa-spin" : "fa-paper-plane"}`} /> {enviandoOmie ? "Enviando ao Omie..." : "Enviar para o Omie"}
+                              </button>
+                            </>
+                          ) : (
+                            <div style={{ display: "flex", gap: 8, padding: "8px 10px", borderRadius: 9, background: "var(--surface)", border: "1px dashed color-mix(in srgb, #0BB7CD 50%, var(--border))" }}>
+                              <i className="fas fa-lock" style={{ color: "#0891A8", fontSize: 12, marginTop: 2 }} />
+                              <div style={{ fontSize: 11.5, lineHeight: 1.45, color: "var(--portal-text-secondary, #475569)" }}>
+                                <b style={{ color: "var(--portal-text)" }}>Ainda não está no Omie.</b> O envio libera quando a OS chegar na fase <b>Enviar Omie</b>.
+                                <div style={{ marginTop: 3, color: "var(--portal-text-muted)" }}>Fase agora: {status || "—"}</div>
+                              </div>
+                            </div>
+                          )}
                         </>
                       )}
-                      {ordemOmie && linhaDoc("Ordem de serviço", ordemOmie, abrirPdfOmie, baixandoPdfOmie, "os")}
-                      {pedidosMapa.map(([pid, numOmie]) => linhaDoc(`Pedido de venda · ${pid}`, numOmie, () => abrirPdfPecasOmie(pid), baixandoPdfPecas === pid, pid))}
-                      {pvSolto && linhaDoc("Pedido de venda", pvSolto, null, false, "pv-solto")}
+                      {(ordemOmie || pedidosMapa.length > 0 || pvSolto) && (
+                        <div style={{ padding: "2px 10px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
+                          {ordemOmie && linhaDoc(osId || "OS", `OS ${semZeros(ordemOmie)}`, abrirPdfOmie, baixandoPdfOmie, "os", true)}
+                          {pedidosMapa.map(([pid, numOmie]) => linhaDoc(pid, `Pedido ${semZeros(numOmie)}`, () => abrirPdfPecasOmie(pid), baixandoPdfPecas === pid, pid, false))}
+                          {pvSolto && linhaDoc(ppvOmieCarregando ? "peças" : "peças", ppvOmieCarregando ? "conferindo…" : `Pedido ${pvSolto}`, null, false, "pv-solto", false)}
+                        </div>
+                      )}
                       {osId && ordemOmie && (
                         <FaturamentoOSBloco
                           osId={osId}
@@ -2634,6 +2643,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     </div>
                   );
                 })()}
+
+                {osId && ordemOmie && <NotasFiscaisBloco osId={osId} ppvIds={ppvIds} ppvOmieMap={ppvOmieMap} />}
 
                 {/* ── Bloco Portal (logo da Nova): imprimir a OS, relatório técnico, PPVs e requisições ── */}
                 {(() => {
@@ -2719,10 +2730,16 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </button>
                       )}
                     <>
+                      {osId && (
+                        <>
+                          {sub("Ordem de serviço")}
+                          {linha(`os-${osId}`, osId, ordemOmie ? `no Omie: OS ${ordemOmie.replace(/^0+(?=\d)/, "")}` : "ainda não está no Omie", null)}
+                        </>
+                      )}
                       {ppvIds.length > 0 && (
                         <>
                           {sub("Peças (PPV)", () => { setAba("ppv"); setAbaOmie("produtos"); })}
-                          {ppvIds.map((pid) => linha(pid, pid, ppvOmieMap[pid] ? `Omie PV nº ${ppvOmieMap[pid].replace(/^0+/, "")}` : "ainda não está no Omie", botaoImprimir(() => imprimirPPV(pid), `Imprimir o PPV ${pid}`)))}
+                          {ppvIds.map((pid) => linha(pid, pid, ppvOmieMap[pid] ? `no Omie: pedido ${ppvOmieMap[pid].replace(/^0+(?=\d)/, "")}` : ppvOmieCarregando ? "conferindo no Omie…" : "ainda não está no Omie", botaoImprimir(() => imprimirPPV(pid), `Imprimir o PPV ${pid}`)))}
                         </>
                       )}
                       <>

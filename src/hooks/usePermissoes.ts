@@ -118,7 +118,7 @@ export function usePermissoes(userId: string | undefined) {
   // total) MENOS as ações explícitas (ex.: pos:faturar, ver lib/permissoes/explicitas);
   // 'modulo:acao' → aquela ação. Sem `acao`, equivale a temAcesso.
   const pode = (modulo: string, acao?: string): boolean =>
-    permite(permissoes?.modulos_permitidos ?? [], isAdmin, modulo, acao)
+    permite(permissoes?.modulos_permitidos ?? [], isAdmin, modulo, acao, isDev)
 
   return { permissoes, isAdmin, isDev, temAcesso, pode, loading: isEffectivelyLoading }
 }

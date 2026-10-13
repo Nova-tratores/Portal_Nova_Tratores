@@ -5,18 +5,20 @@ import {
   GRUPOS_ORDEM, grupoDoModulo, acoesDoModulo,
   estadoModulo, acoesMarcadas, setTotal, setOff, toggleAcao,
 } from '@/lib/permissoes/catalogo';
-import { acaoExplicita } from '@/lib/permissoes/explicitas';
+import { acaoExplicita, acaoSoDev } from '@/lib/permissoes/explicitas';
 
 interface Props {
   modulos: string[];                              // modulos_permitidos do usuário
   catalogo: { id: string; label: string }[];      // lista de módulos atribuíveis (MODULOS do admin)
   onChange: (novo: string[]) => void;
   disabled?: boolean;
+  /** quem está editando é Dev? (só Dev dá/tira Faturar OS e Cancelar faturamento) */
+  souDev?: boolean;
 }
 
 // Edição das permissões de um usuário: módulos agrupados em pills, com checklist
 // de ações granulares (expansível) nos módulos que têm ações no catálogo.
-export default function PermissoesModulos({ modulos, catalogo, onChange, disabled }: Props) {
+export default function PermissoesModulos({ modulos, catalogo, onChange, disabled, souDev = false }: Props) {
   const [expandido, setExpandido] = useState<Set<string>>(new Set());
   const toggleExp = (id: string) =>
     setExpandido((prev) => {
@@ -113,13 +115,15 @@ export default function PermissoesModulos({ modulos, catalogo, onChange, disable
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                     {acoes.map((a) => {
                       const on = acaoExplicita(mod.id, a.id) ? marcadas.has(a.id) : (estado === 'total' || marcadas.has(a.id));
+                      const travadaDev = acaoSoDev(mod.id, a.id) && !souDev;
                       return (
                         <button
                           key={a.id}
                           type="button"
-                          disabled={disabled}
+                          disabled={disabled || travadaDev}
                           onClick={() => handleAcao(mod.id, a.id)}
-                          style={pill(on)}
+                          title={travadaDev ? 'Só um Dev pode dar ou tirar esta permissão' : undefined}
+                          style={{ ...pill(on), ...(travadaDev ? { opacity: 0.55, cursor: 'not-allowed' } : {}) }}
                         >
                           {on ? <Check size={12} /> : <Plus size={12} />}
                           {a.label}

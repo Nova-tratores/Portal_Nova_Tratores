@@ -52,7 +52,11 @@ export function faturamentoHabilitado(auth: Pick<Autenticado, 'isDev'>): boolean
   return false;
 }
 export function podeFaturarOS(auth: Autenticado): boolean {
-  return permite(auth.modulos, auth.isAdmin, 'pos', 'faturar');
+  return permite(auth.modulos, auth.isAdmin, 'pos', 'faturar', auth.isDev);
+}
+/** Cancelar NFS-e/NF-e pelo portal (só Dev ou quem um Dev marcou). */
+export function podeCancelarFaturamento(auth: Autenticado): boolean {
+  return permite(auth.modulos, auth.isAdmin, 'pos', 'cancelar_faturamento', auth.isDev);
 }
 export function podeFaturarPPV(auth: Autenticado): boolean {
   return permite(auth.modulos, auth.isAdmin, 'ppv', 'faturar');

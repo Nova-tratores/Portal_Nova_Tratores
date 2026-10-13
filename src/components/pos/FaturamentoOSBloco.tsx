@@ -56,17 +56,6 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
     return () => { cancel = true; };
   }, [osId, ordemOmie]);
 
-  const aguardandoNota = !!estado?.faturadoEm && estado.status === "nfse_aguardando";
-  useEffect(() => {
-    if (!aguardandoNota) return;
-    const inicio = Date.now();
-    const t = setInterval(() => {
-      if (Date.now() - inicio > 20 * 60_000) { clearInterval(t); return; }
-      void carregar({ reconciliar: true, forcar: true });
-    }, 30_000);
-    return () => clearInterval(t);
-  }, [aguardandoNota, carregar]);
-
   if (!estado || !estado.habilitado || !estado.enviadaOmie) return null;
 
   const conferir = async () => {
@@ -96,50 +85,29 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
     ? [...estado.pecas.filter((p) => !p.ok), ...pedidosFaltando.filter((p) => !estado.pecas.some((x) => x.id === p.id)).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, ok: false, erro: "ainda não faturado" }))]
     : [];
   const pedidosJaFaturados = (estado.pedidos || []).filter((p) => p.faturado);
-  const barra = (
-    <div style={{ height: 6, borderRadius: 3, background: "rgba(11,183,205,.18)", overflow: "hidden", marginTop: 8 }}>
-      <div className="fat-barra" style={{ height: "100%", width: "40%", borderRadius: 3, background: "#0BB7CD" }} />
-      <style>{`@keyframes fatBarra { 0% { transform: translateX(-100%) } 100% { transform: translateX(250%) } } .fat-barra { animation: fatBarra 1.4s ease-in-out infinite; }`}</style>
-    </div>
-  );
 
   // ---------- já faturada ----------
   if (estado.faturadoEm) {
     const c = COR[rot?.cor || "verde"];
     return (
-      <div style={{ border: `1px solid ${c.bd}`, background: c.bg, borderRadius: 6, padding: "9px 11px", fontSize: 12.5, color: c.tx, margin: "4px 0" }}>
-        <div style={{ fontWeight: 800 }}>
-          <i className="fas fa-file-invoice-dollar" /> Faturada{estado.nfseNumero ? ` · NFS-e nº ${estado.nfseNumero}` : ""}
+      <div style={{ border: `1px solid ${c.bd}`, background: c.bg, borderRadius: 9, padding: "8px 10px", fontSize: 12, color: c.tx, margin: "2px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <i className="fas fa-circle-check" />
+          <span style={{ fontWeight: 800, flex: 1 }}>OS faturada</span>
         </div>
-        <div style={{ marginTop: 2 }}>
-          {new Date(estado.faturadoEm).toLocaleDateString("pt-BR")}{estado.formaPagamento ? ` · ${estado.formaPagamento}` : ""}{estado.faturadoPor ? ` · ${estado.faturadoPor}` : ""}
+        <div style={{ marginTop: 3, fontSize: 11, opacity: .9 }}>
+          {new Date(estado.faturadoEm).toLocaleDateString("pt-BR")}{estado.formaPagamento ? ` · ${estado.formaPagamento}` : ""}
+          {estado.faturadoPor ? ` · ${/direto/i.test(estado.faturadoPor) ? "faturada direto no Omie" : estado.faturadoPor}` : ""}
         </div>
-        {estado.status === "nfse_aguardando" ? (
-          <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 6, background: "#fefefe", border: "1px solid #bae6fd", color: "#075985" }}>
-            <div style={{ fontWeight: 800 }}><i className="fas fa-satellite-dish" /> Aguardando a nota do sistema nacional</div>
-            <div style={{ fontSize: 11.5, marginTop: 2 }}>O portal está buscando a NFS-e. Você recebe uma notificação quando ela sair (ou se for rejeitada).</div>
-            {barra}
-          </div>
-        ) : rot && estado.status !== "nfse_autorizada" && <div style={{ marginTop: 4, fontWeight: 700 }}>{rot.texto}</div>}
-        {estado.erro && estado.status === "nfse_rejeitada" && <div style={{ marginTop: 2 }}>{estado.erro} — corrija e reenvie a nota pelo Omie.</div>}
-        {estado.nfseLink && (
-          <a href={estado.nfseLink} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6, color: c.tx, fontWeight: 700 }}>
-            <i className="fas fa-file-pdf" /> PDF da NFS-e
-          </a>
-        )}
-        {estado.status === "nfse_aguardando" && (
-          <button type="button" style={{ marginTop: 6, background: "none", border: "none", padding: 0, color: c.tx, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }} onClick={conferir} disabled={conferindo}>
-            <i className={`fas ${conferindo ? "fa-spinner fa-spin" : "fa-rotate"}`} /> Conferir agora
-          </button>
-        )}
         {pecasPendentes.length > 0 && (
-          <div style={{ marginTop: 8, padding: "7px 9px", borderRadius: 4, background: COR.ambar.bg, border: `1px solid ${COR.ambar.bd}`, color: COR.ambar.tx }}>
-            <div style={{ fontWeight: 800 }}>Falta faturar o pedido de peças</div>
-            <div style={{ fontSize: 11.5 }}>A OS vai para Concluída quando ele for faturado.</div>
-            {pecasPendentes.map((p) => <div key={p.id}>{p.pedidoOmie ? `PV ${p.pedidoOmie.replace(/^0+/, "")}` : p.id}: {p.erro}</div>)}
+          <div style={{ marginTop: 8, padding: "8px 9px", borderRadius: 8, background: COR.ambar.bg, border: `1px solid ${COR.ambar.bd}`, color: COR.ambar.tx }}>
+            <div style={{ fontWeight: 800, fontSize: 12 }}><i className="fas fa-hourglass-half" /> Falta o pedido de peças</div>
+            <div style={{ fontSize: 10.5, marginTop: 1 }}>A OS vai para Concluída quando ele for faturado.</div>
+            {pecasPendentes.map((p) => <div key={p.id} style={{ fontSize: 11, marginTop: 3 }}><b>Pedido {p.pedidoOmie ? p.pedidoOmie.replace(/^0+(?=\d)/, "") : p.id}</b> · {p.erro}</div>)}
             {estado.podeFaturarPecas && estado.podeFaturar && (
-              <button className="os-rail-btn" style={{ marginTop: 6 }} disabled={refaturando} onClick={() => refaturarPecas(pecasPendentes.map((p) => p.id))}>
-                <i className={`fas ${refaturando ? "fa-spinner fa-spin" : "fa-boxes"}`} /> Faturar o pedido
+              <button type="button" disabled={refaturando} onClick={() => refaturarPecas(pecasPendentes.map((p) => p.id))}
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", minHeight: 34, marginTop: 7, borderRadius: 8, border: "none", background: "#0BB7CD", color: "#fefefe", fontWeight: 800, fontSize: 12.5, cursor: refaturando ? "wait" : "pointer", fontFamily: "inherit" }}>
+                <i className={`fas ${refaturando ? "fa-spinner fa-spin" : "fa-file-invoice-dollar"}`} /> Faturar o pedido
               </button>
             )}
           </div>

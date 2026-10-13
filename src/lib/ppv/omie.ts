@@ -11,6 +11,15 @@ import { contaOmie } from "@/lib/omie/contas";
 import { aplicarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
 
 // A OS vinculada é interna? (usado pra mandar o PPV como Remessa automaticamente)
+/** Nº da OS no OMIE (sem zeros à esquerda) — vai no "Nº do pedido do cliente" do pedido (José, 13/10/2026). */
+async function numeroOSOmieDe(osId: string): Promise<string> {
+  if (!osId) return "";
+  try {
+    const res = await supabaseFetch<Record<string, unknown>[]>(`${TBL_OS}?Id_Ordem=eq.${encodeURIComponent(osId)}&select=Ordem_Omie&limit=1`);
+    return String(res?.[0]?.Ordem_Omie || "").trim().replace(/^0+(?=\d)/, "");
+  } catch { return ""; }
+}
+
 async function osEhInterna(osId: string): Promise<boolean> {
   if (!osId) return false;
   try {
@@ -389,7 +398,7 @@ async function buscarEmpresasProdutos(codigos: string[]): Promise<Record<string,
 // FUNÇÃO PRINCIPAL: Enviar PPV para Omie
 // Agrupa produtos por empresa e cria um pedido por empresa
 // =============================================
-export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: boolean }): Promise<{ sucesso: boolean; numeroPedido?: string; erro?: string }> {
+export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: boolean; numeroOSOmie?: string }): Promise<{ sucesso: boolean; numeroPedido?: string; erro?: string }> {
   // 1. Busca detalhes do PPV
   const detalhes = await buscarPPVPorId(idPPV);
   if (!detalhes) {
@@ -535,6 +544,8 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
 
     const tipoLabel = isRemessa ? "Remessa" : "Pedido de Venda";
     const linksBase = await montarLinksPPV(idPPV, String(detalhes.osId || ""));
+    // "Nº do pedido do cliente" = nº da OS NO OMIE (não o OS-xxxx do portal); sem OS no Omie, fica o do portal
+    const refOS = detalhes.osId ? (String(opcoes?.numeroOSOmie || "").replace(/^0+(?=\d)/, "") || (await numeroOSOmieDe(String(detalhes.osId))) || String(detalhes.osId)) : "";
     const obsVenda = detalhes.dadosNF ? `${detalhes.dadosNF}\n\n${linksBase}` : linksBase;
     const dataPrevisao = isoParaBR(detalhes.previsaoFaturamento);
 
@@ -553,7 +564,7 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
           cCodCateg: detalhes.categoriaPedido || OMIE_COD_CATEG_VENDA,
           cConsFinal: detalhes.consumoFinal ? "S" : "N",
           cNumCtr: detalhes.numContrato || idPPV,
-          ...(detalhes.osId ? { cPedido: String(detalhes.osId) } : {}),
+          ...(refOS ? { cPedido: refOS } : {}),
           ...(detalhes.contato ? { cContato: detalhes.contato } : {}),
           ...(detalhes.dadosNF ? { cDadosAdic: detalhes.dadosNF } : {}),
         },
@@ -611,7 +622,7 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
           codigo_conta_corrente: cc.codigo,
           codVend: nCodVend || undefined,
           numero_contrato: detalhes.numContrato || idPPV,
-          ...(detalhes.osId ? { numero_pedido_cliente: String(detalhes.osId) } : {}),
+          ...(refOS ? { numero_pedido_cliente: refOS } : {}),
           consumidor_final: detalhes.consumoFinal ? "S" : "N",
           ...(detalhes.contato ? { contato: detalhes.contato } : {}),
         },

@@ -670,7 +670,7 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       const erros: string[] = [];
       for (const ppvId of ppvIds) {
         try {
-          const r = await enviarPPVParaOmie(ppvId, { remessa: isInterno });
+          const r = await enviarPPVParaOmie(ppvId, { remessa: isInterno, numeroOSOmie: resposta.cNumOS || "" });
           if (r.sucesso && r.numeroPedido) {
             numeros.push(`${ppvId}:${r.numeroPedido}`);
           } else if (r.erro) {
@@ -682,6 +682,16 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
         }
       }
       if (numeros.length > 0) pedidoVenda = numeros.join(", ");
+      // OS no Omie: "Nº do pedido do cliente" = nº do(s) pedido(s) de venda no Omie (José, 13/10/2026).
+      // A OS nasce antes dos pedidos, então grava depois (best-effort: não derruba o envio).
+      if (numeros.length > 0 && resposta.nCodOS) {
+        const nums = numeros.map((x) => String(x.split(":").pop() || "").trim().replace(/^0+(?=\d)/, "")).filter(Boolean).join(", ");
+        try {
+          await omieCall("/servicos/os/", "AlterarOS", { Cabecalho: { nCodOS: resposta.nCodOS }, InformacoesAdicionais: { cNumPedido: nums.slice(0, 15) } });
+        } catch (e) {
+          console.warn(`[Omie] OS ${resposta.cNumOS}: não gravou o nº do pedido (${nums}) no "pedido do cliente":`, e instanceof Error ? e.message : e);
+        }
+      }
       if (erros.length > 0) pedidoVendaErro = erros.join(" | ");
 
       // Fecha PPVs vinculados (os que não tiveram erro já ficam "Concluída" pela enviarPPVParaOmie;

@@ -712,6 +712,7 @@ export default function AdminPage() {
               <PermissoesModulos
                 modulos={novoModulos}
                 catalogo={MODULOS}
+                souDev={isDev}
                 onChange={setNovoModulos}
               />
             </div>
@@ -986,6 +987,7 @@ export default function AdminPage() {
                 <PermissoesModulos
                   modulos={modulos}
                   catalogo={MODULOS}
+                  souDev={isDev}
                   disabled={saving === user.id}
                   onChange={(novo) => salvar(user.id, { modulos_permitidos: novo })}
                 />
