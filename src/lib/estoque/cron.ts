@@ -131,6 +131,8 @@ export async function cronSyncCompras(mesesAtras = 3): Promise<Record<string, un
       resultado[c.id] = { ok: false, erro: (e as Error).message };
     }
   }
+  // Cache de notas fiscais: entrada nova entra na fila de PDF/XML no mesmo ciclo (best-effort).
+  try { const { indexarNotas } = await import('@/lib/notas/cache-docs'); await indexarNotas(); } catch { /* sem a migration, segue */ }
   return resultado;
 }
 

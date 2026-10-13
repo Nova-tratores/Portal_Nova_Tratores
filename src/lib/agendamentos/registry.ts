@@ -103,6 +103,16 @@ export const AGENDAMENTOS: Agendamento[] = [
     obs: 'Em seguida roda o motor de alocação: abre demanda para peça recebida sem Prateleira/Andar/Caixa e fecha as já alocadas (painel "A alocar" em /ajustes/caracteristicas). Na prática o GitHub dispara 3–4 vezes por dia (~20 min cada)',
   },
   {
+    nome: 'Cache de notas fiscais (PDF + XML)',
+    modulo: 'Estoque',
+    fonte: 'in-process',
+    frequencia: 'A cada 10 min',
+    alvo: 'rodarAgendado() — indexa notas_entrada + portal_nt_notas_saida em notas_fiscais_docs e guarda PDF/XML de até 120 notas no bucket privado notas-fiscais',
+    arquivo: 'src/instrumentation.ts',
+    condicional: 'Só em produção; NOTAS_CACHE=on liga no local, =off desliga',
+    obs: 'Registra em cron_runs como notas-cache-docs. Para sozinho em bloqueio da Omie / Omie fora. Tela: /estoque/notas',
+  },
+  {
     nome: 'Alocação de peças recebidas (rápido)',
     modulo: 'Estoque',
     fonte: 'in-process',

@@ -69,10 +69,13 @@ interface NotaCompleta {
 }
 
 // === Uma janela [deStr, ateStr] de NF-e de entrada (paginado) ===
-async function buscarNFeEntradaMes(deStr: string, ateStr: string, conta: Conta): Promise<{ itens: CompraItemRaw[]; notasCompletas: NotaCompleta[] }> {
+async function buscarNFeEntradaMes(deStr: string, ateStr: string, conta: Conta): Promise<{ itens: CompraItemRaw[]; notasCompletas: NotaCompleta[]; ok: boolean }> {
   const itens: CompraItemRaw[] = [];
   const notasCompletas: NotaCompleta[] = [];
   let pag = 1;
+  // ok=false = a Omie falhou no meio (bloqueio, rede, fault que não é "sem registros"):
+  // o chamador NÃO apaga o mês no banco (antes apagava antes de buscar — Omie fora = mês vazio).
+  let ok = true;
   while (true) {
     try {
       const r = await omieRequest<{ faultstring?: string; total_de_paginas?: number; nfCadastro?: Array<Record<string, unknown>> }>(
@@ -80,7 +83,10 @@ async function buscarNFeEntradaMes(deStr: string, ateStr: string, conta: Conta):
         { pagina: pag, registros_por_pagina: 100, tpNF: '0', tpAmb: '1', dEmiInicial: deStr, dEmiFinal: ateStr },
         { conta },
       );
-      if (r.faultstring) break;
+      if (r.faultstring) {
+        if (!/n[aã]o existem registros|nenhum registro/i.test(String(r.faultstring))) ok = false;
+        break;
+      }
       const notas = r.nfCadastro || [];
       if (notas.length === 0) break;
       notas.forEach((n) => {
@@ -142,18 +148,21 @@ async function buscarNFeEntradaMes(deStr: string, ateStr: string, conta: Conta):
       if (notas.length < 100) break;
       pag++;
       await sleep(3000);
-    } catch {
+    } catch (e) {
+      ok = false;
+      console.error(`[compras-sync ${conta}] ListarNF ${deStr}..${ateStr} falhou: ${(e as Error).message}`);
       break;
     }
   }
-  return { itens, notasCompletas };
+  return { itens, notasCompletas, ok };
 }
 
 type ProgressFn = (mesLabel: string, mesAtual: number, mesTotal: number, itensAteAgora: number) => void;
 
-async function buscarTodasNotasEntrada(deStr: string, ateStr: string, conta: Conta, onProgress?: ProgressFn): Promise<{ itens: CompraItemRaw[]; notasCompletas: NotaCompleta[] }> {
+async function buscarTodasNotasEntrada(deStr: string, ateStr: string, conta: Conta, onProgress?: ProgressFn): Promise<{ itens: CompraItemRaw[]; notasCompletas: NotaCompleta[]; mesesComErro: string[] }> {
   const todosItens: CompraItemRaw[] = [];
   const todasNotas: NotaCompleta[] = [];
+  const mesesComErro: string[] = [];
   const dtDe = parseDataBR(deStr);
   const dtAte = parseDataBR(ateStr);
   const meses: Array<{ ini: string; fim: string; label: string }> = [];
@@ -169,11 +178,12 @@ async function buscarTodasNotasEntrada(deStr: string, ateStr: string, conta: Con
     const m = meses[i];
     if (onProgress) onProgress(m.label, i + 1, meses.length, todosItens.length);
     const resultado = await buscarNFeEntradaMes(m.ini, m.fim, conta);
+    if (!resultado.ok) { mesesComErro.push(m.label); continue; } // mês incompleto: não entra (e não é apagado)
     todosItens.push(...resultado.itens);
     todasNotas.push(...resultado.notasCompletas);
     if (i < meses.length - 1) await sleep(2000);
   }
-  return { itens: todosItens, notasCompletas: todasNotas };
+  return { itens: todosItens, notasCompletas: todasNotas, mesesComErro };
 }
 
 interface TituloRaw {
@@ -229,9 +239,11 @@ function mesesNoIntervalo(de: string, ate: string): Array<{ mes: number; ano: nu
   return out;
 }
 
-/** Apaga só os meses da janela (incremental), preservando o histórico restante. */
-async function limparJanelaCompras(conta: Conta, de: string, ate: string): Promise<void> {
+/** Apaga só os meses da janela (incremental), preservando o histórico restante.
+ *  `pular` = meses `MM/YYYY` que a Omie não devolveu inteiros: ficam como estavam. */
+async function limparJanelaCompras(conta: Conta, de: string, ate: string, pular: string[] = []): Promise<void> {
   for (const { mes, ano } of mesesNoIntervalo(de, ate)) {
+    if (pular.includes(pad2(mes) + '/' + ano)) continue;
     await supabase.from('compras_itens').delete().eq('conta_omie', conta).eq('ano', ano).eq('mes', mes);
     await supabase.from('notas_entrada').delete().eq('conta_omie', conta).eq('ano', ano).eq('mes', mes);
   }
@@ -244,18 +256,25 @@ async function popularComprasConta(conta: Conta, de: string, ate: string, janela
   try {
     s.etapa = 'compras';
     s.mesAtual = 'iniciando...';
-    if (janelaApenas) {
-      await limparJanelaCompras(conta, de, ate);
-    } else {
-      await supabase.from('compras_itens').delete().eq('conta_omie', conta);
-      await supabase.from('notas_entrada').delete().eq('conta_omie', conta);
-    }
 
-    const { itens, notasCompletas } = await buscarTodasNotasEntrada(de, ate, conta, (mesLabel, mesAtual, mesTotal, itensAteAgora) => {
+    // BUSCA PRIMEIRO, apaga depois: se a Omie falhar num mês, aquele mês fica como
+    // estava no banco (antes o delete vinha antes e Omie fora = 3 meses vazios).
+    const { itens, notasCompletas, mesesComErro } = await buscarTodasNotasEntrada(de, ate, conta, (mesLabel, mesAtual, mesTotal, itensAteAgora) => {
       s.mesAtual = 'mes ' + mesLabel + ' (' + mesAtual + '/' + mesTotal + ') - ' + itensAteAgora + ' itens ate agora';
       s.atual = mesAtual;
       s.total = mesTotal;
     });
+    if (mesesComErro.length) {
+      console.error(`[compras-sync ${conta}] meses NÃO regravados (Omie falhou): ${mesesComErro.join(', ')}`);
+      s.erro = 'Omie falhou em: ' + mesesComErro.join(', ') + ' (meses preservados)';
+    }
+    if (janelaApenas) {
+      await limparJanelaCompras(conta, de, ate, mesesComErro);
+    } else {
+      if (mesesComErro.length) throw new Error('rebuild completo abortado: a Omie falhou em ' + mesesComErro.join(', '));
+      await supabase.from('compras_itens').delete().eq('conta_omie', conta);
+      await supabase.from('notas_entrada').delete().eq('conta_omie', conta);
+    }
 
     // Mapeia cProd (código NF-e) → id_omie via Produtos_Completos
     s.mesAtual = 'mapeando codigos de produto...';

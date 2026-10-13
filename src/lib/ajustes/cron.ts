@@ -23,10 +23,13 @@ import { syncNotasTodasContas } from './notas-sync';
 
 /** Sync incremental das notas de saida (NF-e + NFS-e) -> Supabase, todas as contas. */
 export async function cronSyncNotasSaida(): Promise<any> {
-  return syncNotasTodasContas({
+  const r = await syncNotasTodasContas({
     modo: 'incremental',
     onProgress: (m: string) => console.log('[cron sync-notas]', m),
   });
+  // Cache de notas fiscais: nota nova entra na fila de PDF/XML no mesmo ciclo (best-effort).
+  try { const { indexarNotas } = await import('@/lib/notas/cache-docs'); await indexarNotas(); } catch { /* sem a migration, segue */ }
+  return r;
 }
 
 /** Verificação diária: varre as contas e gera alertas (cmc_alertas). */

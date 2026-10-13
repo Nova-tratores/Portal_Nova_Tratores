@@ -80,6 +80,7 @@ const systems: SystemCard[] = [
   { id: 'consulta-omie', name: 'Consulta Estoque', description: 'Estoque Omie, CMC, curva ABC, dashboard de vendas e comissões', icon: <Eye size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque', tag: 'CONSULTA', group: 'estoque' },
   { id: 'estoque-notas-entrada', name: 'Notas de Entrada', description: 'Notas fiscais de entrada, DANFE, descrições e custos de compra', icon: <FileText size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/notas-entrada', tag: 'ENTRADAS', group: 'estoque', permAcao: 'notas-entrada' },
   { id: 'estoque-recebimentos', name: 'Recebimentos', description: 'Conferência de recebimentos de mercadoria e pendências', icon: <Package size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/recebimentos', tag: 'RECEBIMENTO', group: 'estoque', permAcao: 'recebimentos' },
+  { id: 'estoque-notas', name: 'Notas fiscais', description: 'Entradas e saídas guardadas no portal (PDF + XML) — abrem mesmo com a Omie fora', icon: <FileText size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/notas', tag: 'ENTRADAS', group: 'estoque', permAcao: 'notas' },
   { id: 'estoque-movimentacao', name: 'Movimentação de Produto', description: 'Entradas e saídas de estoque de um produto no período (kardex)', icon: <Activity size={28} />, color: '#94A3B8', gradient: 'linear-gradient(135deg, #94A3B8, #64748B)', href: '/estoque/movimentacao-produto', tag: 'MOVIMENTAÇÃO', group: 'estoque', permAcao: 'movimentacao-produto' },
   { id: 'frota', name: 'Frota', description: 'Veículos, abastecimento, multas, manutenções, documentos e rastreamento', icon: <Truck size={28} />, color: '#1E40AF', gradient: 'linear-gradient(135deg, #1D4ED8, #1E3A8A)', href: '/frota', tag: 'VEÍCULOS', group: 'frota' },
   // Atalho pra abrir pendência de veículo (módulo próprio, mobile-first com foto)
@@ -121,6 +122,7 @@ const systemToModulo: Record<string, string> = {
   'consulta-omie': 'estoque',             // card Consulta Estoque (/estoque)
   'estoque-notas-entrada': 'estoque',     // sub-tela; gate por pode('estoque','notas-entrada')
   'estoque-recebimentos': 'estoque',      // sub-tela; gate por pode('estoque','recebimentos')
+  'estoque-notas': 'estoque',             // sub-tela; gate por pode('estoque','notas')
   'estoque-movimentacao': 'estoque',      // sub-tela; gate por pode('estoque','movimentacao-produto')
   'frota': 'frota',                       // ⚠️ card SEM entrada aqui = visível pra TODOS
   'pendencias': 'pendencias',

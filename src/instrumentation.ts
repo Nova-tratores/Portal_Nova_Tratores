@@ -226,5 +226,19 @@ export async function register(): Promise<void> {
     }
   }
 
+  // Cache de NOTAS FISCAIS (PDF + XML no bucket privado): indexa as fontes e
+  // guarda um lote de 120 notas a cada 10 min (≈ 2 chamadas Omie por nota, longe
+  // da cota). Para sozinho em bloqueio/Omie fora. Só produção; NOTAS_CACHE=on liga
+  // no local, =off desliga. Registra em cron_runs como notas-cache-docs.
+  if ((process.env.NODE_ENV === 'production' && process.env.NOTAS_CACHE !== 'off') || process.env.NOTAS_CACHE === 'on') {
+    const { rodarAgendado } = await import('./lib/notas/cache-docs');
+    const rodarNotas = async () => {
+      try { log('notas-cache: ' + await rodarAgendado(120)); } catch (e) { log('notas-cache falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarNotas().catch(() => {}); }, 10 * 60 * 1000);
+    setTimeout(() => { rodarNotas().catch(() => {}); }, 4 * 60 * 1000); // 1ª rodada ~4 min após o boot
+    log('cache de notas fiscais LIGADO (indexa + 120 notas a cada 10 min)');
+  }
+
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { X, Printer, Download, ExternalLink, RefreshCw, AlertTriangle } from 'lucide-react'
+import { authHeaders } from '@/lib/auth/client'
 
 export type DocumentoVisualizavel = {
   titulo: string
@@ -36,11 +37,14 @@ export default function VisualizadorDocumento({ doc, onClose }: { doc: Documento
     let blobUrl = ''
     let cancelado = false
     const alvo = srcDe(doc.url, doc.nome)
-    fetch(alvo)
+    // rota interna leva o token da sessão: cada vez mais rotas /api exigem login
+    // (ex.: /api/estoque/notas/<id>/arquivo); as que não exigem ignoram o header.
+    ;(alvo.startsWith('/') ? authHeaders() : Promise.resolve({} as Record<string, string>))
+      .then(h => fetch(alvo, { headers: h }))
       .then(async r => {
         if (!r.ok) {
           const j = await r.json().catch(() => null)
-          throw new Error(j?.error || `Não foi possível carregar (${r.status})`)
+          throw new Error(j?.error || j?.erro || `Não foi possível carregar (${r.status})`)
         }
         const tipo = r.headers.get('content-type') || ''
         if (tipo.includes('pdf')) {
