@@ -22,10 +22,13 @@ import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import FaturamentoOSBloco from "./FaturamentoOSBloco";
+import AnexosModal from "@/components/ppv/AnexosModal";
+import TarefasModal from "@/components/ppv/TarefasModal";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
 import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
 import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
 import ModalNovaMaquina from "@/components/clientes/ModalNovaMaquina";
+import MaquinasClienteDestaque from "./MaquinasClienteDestaque";
 
 interface OSDrawerProps {
   visible: boolean;
@@ -92,6 +95,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
   const podeOcorrencia = pode("painel-mecanicos", "criar_ocorrencia");
+  const podeCriarOS = pode("pos", "criar");
   const [showOcorrencia, setShowOcorrencia] = useState(false);
   const [clienteChave, setClienteChave] = useState("");
   const [clienteInfo, setClienteInfo] = useState<ClienteDados | null>(null);
@@ -210,6 +214,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [addProdTarget, setAddProdTarget] = useState("");
   const [addProdQtd, setAddProdQtd] = useState(1);
   const [addingProduto, setAddingProduto] = useState(false);
+  // Criação: peças escolhidas antes de a OS existir — entram no PPV que nasce
+  // junto com ela; e "abrir requisição" depois de criar (já ligada à OS)
+  const [pecasPendentes, setPecasPendentes] = useState<{ codigo: string; descricao: string; preco: number; quantidade: number; kit?: string }[]>([]);
+  const [abrirReqDepois, setAbrirReqDepois] = useState(false);
   // Peça da lista: info (mesmo modal do PPV ao clicar no código) e edição
   const [detalheProd, setDetalheProd] = useState<Produto | null>(null);
   const [editandoProd, setEditandoProd] = useState<Produto | null>(null);
@@ -311,6 +319,45 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   }, [qrDataUrl, osId, qrObs, clienteInfo]);
 
   const [logRefreshKey, setLogRefreshKey] = useState(0);
+  // Tarefas e anexos da OS (mesmas janelas/tabelas do PPV, com o id da OS)
+  const [showTarefas, setShowTarefas] = useState(false);
+  const [showAnexos, setShowAnexos] = useState(false);
+  const [tarefasPendentes, setTarefasPendentes] = useState(0);
+  const [anexosCount, setAnexosCount] = useState(0);
+  const [duplicando, setDuplicando] = useState(false);
+  const avisar = useCallback((t: "success" | "error", m: string) => { if (t === "error") alert(m); }, []);
+  const recarregarTarefasCount = useCallback(async () => {
+    if (!osId) { setTarefasPendentes(0); return; }
+    try {
+      const r = await fetch(`/api/ppv/tarefas?id=${encodeURIComponent(osId)}`, { headers: await authHeaders() });
+      const j = await r.json();
+      setTarefasPendentes(r.ok ? (j.pendentes || 0) : 0);
+    } catch { setTarefasPendentes(0); }
+  }, [osId]);
+  const recarregarAnexosCount = useCallback(async () => {
+    if (!osId) { setAnexosCount(0); return; }
+    try {
+      const r = await fetch(`/api/ppv/anexos?id=${encodeURIComponent(osId)}`);
+      const j = await r.json();
+      setAnexosCount(r.ok ? (j.anexos || []).length : 0);
+    } catch { setAnexosCount(0); }
+  }, [osId]);
+  useEffect(() => {
+    if (!visible || !osId) return;
+    void recarregarTarefasCount(); void recarregarAnexosCount();
+    // veio da notificação da tarefa (?tarefas=1) → abre as tarefas
+    try { if (new URLSearchParams(window.location.search).get("tarefas") === "1") setShowTarefas(true); } catch { /* sem URL */ }
+  }, [visible, osId, recarregarTarefasCount, recarregarAnexosCount]);
+  const [garantiaVinculada, setGarantiaVinculada] = useState(false);
+  useEffect(() => {
+    if (!visible || !osId) return;
+    let ativo = true;
+    fetch(`/api/garantias?os=${encodeURIComponent(osId)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (ativo) setGarantiaVinculada(!!(d?.garantias || []).length); })
+      .catch(() => { /* sem garantia */ });
+    return () => { ativo = false; };
+  }, [visible, osId]);
   const [requisicoes, setRequisicoes] = useState<Array<{ id: string; atualizada: boolean; valor: number; material: string; solicitante: string }>>([]);
   const [desvinculandoReq, setDesvinculandoReq] = useState<string | null>(null);
   const [justificativaDesvinc, setJustificativaDesvinc] = useState("");
@@ -448,6 +495,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const subtotalBruto = subtotalHoras + subtotalKm + totalPecas;
 
   const totalRequisicoes = useMemo(() => requisicoes.reduce((s, r) => s + (r.valor || 0), 0), [requisicoes]);
+
+  // Passos da criação (barra de progresso no topo da Nova OS)
+  const solicitacaoPreenchida = useMemo(() => {
+    const linha = servSolicitado.split("\n").find((l) => /^solicita[çc][ãa]o do cliente:/i.test(l.trim()));
+    if (linha) return linha.split(":").slice(1).join(":").trim().length > 0;
+    return !!servSolicitado.trim() && servSolicitado !== TEXT_TEMPLATE;
+  }, [servSolicitado]);
+  const passosCriacao = [
+    { n: 1, rotulo: "Cliente", icone: "fa-user", ok: !!clienteChave, alvo: "osc-cliente" },
+    { n: 2, rotulo: "Máquina", icone: "fa-tractor", ok: !!projeto.trim(), alvo: "osc-cliente" },
+    { n: 3, rotulo: "Técnico", icone: "fa-user-gear", ok: !!tecnico1, alvo: "osc-equipe" },
+    { n: 4, rotulo: "Serviço", icone: "fa-wrench", ok: solicitacaoPreenchida, alvo: "osc-servico" },
+  ];
+  const passosFeitos = passosCriacao.filter((p) => p.ok).length;
+  const irPara = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
   const total = useMemo(() => {
     const sub = (subtotalHoras - descHoraValor) + (subtotalKm - descKmValor) + totalPecas + totalRequisicoes;
@@ -682,8 +744,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     } catch {
       console.error("Erro ao buscar cliente");
     }
-    fetchLembretes(chave);
-  }, [fetchLembretes]);
+    // Cliente juntado (mesmo CNPJ nas duas contas Omie): lembretes de todas as chaves
+    const outras = clientes.find((c) => c.chave === chave)?.outrasChaves || [];
+    fetchLembretes([chave, ...outras].join(","));
+  }, [fetchLembretes, clientes]);
 
   // Equipamento escolhido (busca ou "Nova máquina"): grava o projeto e completa
   // Modelo/Chassis da descrição sem apagar o que já foi escrito.
@@ -692,9 +756,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (!servSolicitado || servSolicitado.trim() === "" || servSolicitado === TEXT_TEMPLATE) {
       setServSolicitado(`Modelo: ${modelo}\nChassis: ${chassis}\nHorimetro: \n\nSolicitação do cliente: \nServiço Realizado: `);
     } else {
+      // Troca de máquina também atualiza (antes só preenchia se estava vazio)
       const lines = servSolicitado.split("\n");
-      if (lines[0]?.trim() === "Modelo:") lines[0] = "Modelo: " + modelo;
-      if (lines[1]?.trim() === "Chassis:") lines[1] = "Chassis: " + chassis;
+      if (/^Modelo:/i.test(lines[0]?.trim() || "")) lines[0] = "Modelo: " + modelo;
+      if (/^Chassis:/i.test(lines[1]?.trim() || "")) lines[1] = "Chassis: " + chassis;
       setServSolicitado(lines.join("\n"));
     }
   };
@@ -784,12 +849,41 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     }
   }, [osId, podeConcluir, userName, onSaved]);
 
+  const duplicarOS = async () => {
+    if (!osId || duplicando) return;
+    if (!confirm(`Duplicar a OS ${osId}?\n\nCria uma OS NOVA em Orçamento com o mesmo cliente, técnicos, tipo de serviço, descrição, horas e km.\nNão copia: envio ao Omie, faturamento, peças (PPV), alimentação, datas de execução e relatório.`)) return;
+    setDuplicando(true);
+    try {
+      const dados = {
+        nomeCliente: clienteInfo?.nome, cpfCliente: clienteInfo?.cpf,
+        enderecoCliente: servicoOficina ? 'Nova Tratores - Av. São Sebastião, 1065 - Vila Campos, Piraju - SP' : clienteInfo?.endereco,
+        cidadeCliente: servicoOficina ? 'Piraju' : (clienteInfo?.cidade || ''), tecnicoResponsavel: tecnico1, tecnico2,
+        tipoServico, revisao, projeto, servicoSolicitado: servSolicitado, observacoes,
+        qtdHoras, qtdKm, ppv: "", status: "Orçamento", ordemOmie: "", motivoCancelamento: "",
+        substitutoTipo: null, substitutoId: null,
+        descontoValor: descValor, descontoHora: descHoraValor, descontoKm: descKmValor,
+        relatorioTecnico: "", diasExecucao: "", previsaoExecucao: "", previsaoFaturamento: "", dataFimServico: "",
+        horaInicioServico: "", servicoNumero: 0, horaInicioExec: "", horaFimExec: "", horaChegada: "",
+        gerarPPV: false, servicoOficina, servicoInterno, alimentacoes: [], userName,
+      };
+      const res = await fetch("/api/pos/ordens", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok || r.erro) { alert(r.erro || "Não foi possível duplicar a OS."); return; }
+      onSaved();
+      if (r.novaOsId && confirm(`OS ${r.novaOsId} criada (cópia da ${osId}). Abrir a nova agora?`)) window.location.href = `/pos?id=${encodeURIComponent(r.novaOsId)}`;
+    } catch { alert("Erro de conexão ao duplicar a OS."); }
+    finally { setDuplicando(false); }
+  };
+
   const salvar = useCallback(async () => {
     if (mode === "edit" && !podeEditar) { alert("Você não tem permissão para editar esta OS."); return; }
     if (status === "Cancelada" && !podeCancelar) { alert("Você não tem permissão para cancelar OS."); return; }
     if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return; }
     if (status === "Cancelada" && !motivoCancel.trim()) { alert("Informe o motivo do cancelamento"); return; }
     if (status === "Cancelada" && temSubstituto && !substitutoId.trim()) { alert("Informe o ID do substituto"); return; }
+    // Aberta AGORA (ainda no clique) pra o navegador não bloquear o pop-up;
+    // recebe o endereço do formulário depois que a OS existir
+    const janelaReq = mode === "create" && abrirReqDepois ? window.open("about:blank", "_blank") : null;
     setSaving(true);
     const dados = {
       id: osId, nomeCliente: clienteInfo?.nome, cpfCliente: clienteInfo?.cpf,
@@ -811,7 +905,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       horaInicioExec,
       horaFimExec,
       horaChegada,
-      gerarPPV: mode === "create" && tipoServico === "Revisão" && gerarPPV,
+      gerarPPV: mode === "create" && ((tipoServico === "Revisão" && gerarPPV) || pecasPendentes.length > 0),
       servicoOficina,
       servicoInterno,
       // item com NOTA anexada mas valor ainda não lançado não pode sumir no save
@@ -824,9 +918,41 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(dados) });
       const result = await res.json();
       if (!res.ok || result.erro) {
+        janelaReq?.close();
         alert(result.erro || "Erro ao salvar a OS.");
         setSaving(false);
         return;
+      }
+      // Peças escolhidas na criação → PPV gerado junto com a OS
+      if (mode === "create" && pecasPendentes.length > 0) {
+        const idPpv = String(result.ppvGerado || "");
+        if (!idPpv) {
+          alert(`A OS ${result.novaOsId || ""} foi criada, mas o PPV não — as ${pecasPendentes.length} peça(s) escolhidas NÃO entraram. Abra a OS e use "Criar PPV de peças".`);
+        } else {
+          const falhas: string[] = [];
+          const soltas = pecasPendentes.filter((p) => !p.kit);
+          const kits = [...new Set(pecasPendentes.filter((p) => p.kit).map((p) => p.kit as string))];
+          for (const p of soltas) {
+            const r = await fetch("/api/ppv/movimentacoes", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: idPpv, tecnico: tecnico1 || "", tipoMovimento: "Saída", codigo: p.codigo, descricao: p.descricao || p.codigo, quantidade: p.quantidade || 1, preco: p.preco || 0, userName }),
+            }).catch(() => null);
+            if (!r?.ok) falhas.push(p.codigo);
+          }
+          for (const kit of kits) {
+            const itens = pecasPendentes.filter((p) => p.kit === kit);
+            const r = await fetch("/api/ppv/movimentacoes", {
+              method: "POST", headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: idPpv, kit, tecnico: tecnico1 || "", userName, itens }),
+            }).catch(() => null);
+            if (!r?.ok) falhas.push(`kit "${kit}"`);
+          }
+          if (falhas.length) alert(`A OS e o ${idPpv} foram criados, mas estas peças não entraram: ${falhas.join(", ")}. Confira no PPV.`);
+        }
+      }
+      if (janelaReq) {
+        if (result.novaOsId) janelaReq.location.href = `/requisicoes?aba=form&os=${encodeURIComponent(result.novaOsId)}`;
+        else janelaReq.close();
       }
       setSaving(false);
       setLogRefreshKey((k) => k + 1);
@@ -851,13 +977,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
-      gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar]);
+      gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar,
+      pecasPendentes, abrirReqDepois]);
 
   // ── Reset form to defaults ──
   const resetForm = useCallback(() => {
     setClienteChave(""); setClienteInfo(null); setStatus("Orçamento");
     setTecnico1(""); setTecnico2(""); setTipoServico("Manutenção");
     setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
+    setPecasPendentes([]); setAbrirReqDepois(false);
     setPpv(""); setQtdHoras(1); setQtdKm(0); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0);
     setOrdemOmie(""); setPedidoVenda(""); setOmieLog(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
     setRelatorioTecnico("");
@@ -991,8 +1119,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
   // Card Alimentação & Dias do Serviço — vive na aba "Requisições & Alimentação"
   // (edit) e solto no painel da OS (create).
-  const cardAlimentacao = (oculto: boolean) => (
-    <div className="os-card" style={{ display: oculto ? "none" : undefined }}>
+  const cardAlimentacao = (oculto: boolean, ordem?: number) => (
+    <div id={mode === "create" ? "osc-almoco" : undefined} className="os-card" style={{ display: oculto ? "none" : undefined, order: ordem }}>
       <div className="os-card-title"><i className="fas fa-utensils" /> Alimentação &amp; Dias do Serviço</div>
       {/* Alimentação do Técnico (várias, sem limite) */}
       <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacoes.length ? '#FFFBEB' : 'var(--portal-bg-secondary)', border: `1px solid ${alimentacoes.length ? '#FCD34D' : 'var(--portal-border)'}`, borderRadius: 8 }}>
@@ -1126,7 +1254,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
   return (
     <>
-      <div className="drawer-overlay active fs pos-osd">
+      <div className={`drawer-overlay active fs pos-osd${mode === "create" ? " criando" : ""}`}>
         {/* Responsivo (tablet/celular): abas roláveis, cabeçalho empilha, trilho de ações vira barra embaixo até 900px */}
         <style>{`
           /* Abas: NUNCA encolhem (a coluna tem altura limitada; com overflow
@@ -1139,6 +1267,67 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
             .pos-osd .pos-osd-grid5 { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)) !important; }
             .pos-osd .pos-osd-checks { flex-wrap: wrap; height: auto !important; min-height: 34px; row-gap: 6px !important; }
             .pos-osd .os-summary .os-omie-totais { flex: 1 1 100%; }
+          }
+          /* ── Nova OS: visual da criação ── */
+          .pos-osd.criando .os-body { background: linear-gradient(180deg, rgba(56,189,248,.07), transparent 260px); }
+          .pos-osd.criando .os-card { border-radius: 16px; box-shadow: 0 2px 10px rgba(15,23,42,.05); transition: box-shadow .2s, border-color .2s; scroll-margin-top: 150px; }
+          .pos-osd.criando .os-card:focus-within { border-color: #38BDF8; box-shadow: 0 0 0 3px rgba(56,189,248,.18), 0 8px 24px rgba(3,105,161,.10); }
+          .pos-osd.criando .os-card-title { font-size: 13.5px; font-weight: 800; color: var(--portal-text); letter-spacing: .4px; }
+          .pos-osd.criando .os-card-title i { color: #0369A1; }
+          .pos-osd.criando input:focus, .pos-osd.criando select:focus, .pos-osd.criando textarea:focus { border-color: #38BDF8 !important; box-shadow: 0 0 0 3px rgba(56,189,248,.18); outline: none; }
+          .pos-osd .osc-num { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800;
+            background: var(--portal-bg-secondary); color: var(--portal-text-secondary); border: 1.5px solid var(--portal-border); flex-shrink: 0; transition: all .2s; }
+          .pos-osd .osc-num.ok { background: #16A34A; border-color: #16A34A; color: #fefefe; }
+          .pos-osd .osc-num.ok i { color: #fefefe !important; font-size: 11px; }
+          .pos-osd .osc-passos { position: sticky; top: -20px; z-index: 5; display: flex; flex-direction: column; gap: 10px; padding: 14px 18px; border-radius: 16px;
+            background: linear-gradient(135deg, #38BDF8, #0369A1); color: #fefefe; box-shadow: 0 10px 28px rgba(3,105,161,.25); }
+          .pos-osd .osc-passos-topo { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+          .pos-osd .osc-passos-titulo { font-size: 16px; font-weight: 800; display: inline-flex; align-items: center; gap: 8px; }
+          .pos-osd .osc-passos-conta { font-size: 12.5px; font-weight: 700; background: rgba(255,255,255,.18); border-radius: 20px; padding: 3px 11px; }
+          .pos-osd .osc-barra { height: 6px; border-radius: 6px; background: rgba(255,255,255,.25); overflow: hidden; }
+          .pos-osd .osc-barra > div { height: 100%; border-radius: 6px; background: #A6FF3B; transition: width .35s ease; }
+          .pos-osd .osc-passos-lista { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+          .pos-osd .osc-passo { display: flex; align-items: center; gap: 8px; padding: 7px 10px; border-radius: 11px; border: 1.5px solid rgba(255,255,255,.35);
+            background: rgba(255,255,255,.10); color: #fefefe; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: background .15s, transform .15s; }
+          .pos-osd .osc-passo:hover { background: rgba(255,255,255,.22); transform: translateY(-1px); }
+          .pos-osd .osc-passo.ok { background: #fefefe; color: #0369A1; border-color: #fefefe; }
+          .pos-osd .osc-passo-bola { width: 26px; height: 26px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; background: rgba(255,255,255,.22); flex-shrink: 0; }
+          .pos-osd .osc-passo.ok .osc-passo-bola { background: #16A34A; color: #fefefe; }
+          /* Fontes da criação: Inter em tudo, rótulos legíveis (sem caixa-alta miúda), campos maiores */
+          .pos-osd.criando .os-drawer, .pos-osd.criando .os-drawer input, .pos-osd.criando .os-drawer select,
+          .pos-osd.criando .os-drawer textarea, .pos-osd.criando .os-drawer button { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+          .pos-osd.criando .os-header-title { font-size: 20px; font-weight: 800; letter-spacing: -.2px; }
+          .pos-osd.criando .os-card-title { font-size: 15.5px; font-weight: 700; text-transform: none; letter-spacing: -.1px; }
+          .pos-osd.criando .os-drawer label { font-size: 13px; font-weight: 600; text-transform: none; letter-spacing: 0; color: var(--portal-text-secondary); }
+          .pos-osd.criando .os-drawer input, .pos-osd.criando .os-drawer select { font-size: 15px; }
+          .pos-osd.criando .os-drawer textarea { font-family: 'Inter', system-ui, sans-serif !important; font-size: 14.5px; line-height: 1.65; }
+          .pos-osd.criando .os-field-hint { font-size: 12.5px; }
+          .pos-osd .osc-extras { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 14px; border-radius: 14px; border: 1.5px dashed rgba(3,105,161,.35); background: var(--surface); }
+          .pos-osd .osc-extras-titulo { font-size: 14px; font-weight: 700; color: var(--portal-text); margin-right: 4px; }
+          .pos-osd .osc-extra { display: inline-flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 20px; border: 1.5px solid var(--portal-border); background: var(--portal-bg-card); color: var(--portal-text); font-size: 13.5px; font-weight: 600; cursor: pointer; transition: all .15s; }
+          .pos-osd .osc-extra:hover { border-color: #38BDF8; transform: translateY(-1px); }
+          .pos-osd .osc-extra.on { border-color: #0369A1; background: rgba(56,189,248,.14); color: #0369A1; }
+          .pos-osd .osc-vazio { font-size: 13.5px; color: var(--portal-text-secondary); line-height: 1.5; }
+          .pos-osd .osc-pecas-lista { display: flex; flex-direction: column; gap: 6px; }
+          .pos-osd .osc-peca { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--portal-border); background: var(--portal-bg-card); }
+          .pos-osd .osc-peca-cod { font-weight: 700; font-size: 13px; color: #0369A1; white-space: nowrap; }
+          .pos-osd .osc-peca-desc { flex: 1; min-width: 0; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+          .pos-osd .osc-peca-desc em { color: var(--portal-text-secondary); font-style: normal; font-size: 12px; }
+          .pos-osd .osc-peca input { width: 64px !important; margin: 0 !important; padding: 4px 6px !important; text-align: center; font-size: 14px !important; }
+          .pos-osd .osc-peca-valor { font-weight: 700; font-size: 13.5px; white-space: nowrap; }
+          .pos-osd .osc-peca button { border: none; background: transparent; color: #DC2626; cursor: pointer; font-size: 14px; padding: 4px; }
+          .pos-osd .osc-pecas-total { text-align: right; font-size: 14px; margin-top: 4px; }
+          .pos-osd .osc-btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 16px; border-radius: 10px; border: none; background: #0369A1; color: #fefefe; font-size: 14px; font-weight: 700; cursor: pointer; transition: transform .15s, box-shadow .15s; }
+          .pos-osd .osc-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 16px rgba(3,105,161,.25); }
+          .pos-osd .osc-btn.contorno { background: transparent; color: #0369A1; border: 1.5px solid #0369A1; }
+          .pos-osd .osc-toggle { display: flex !important; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--portal-border); cursor: pointer; transition: border-color .15s, background .15s; margin: 0 !important; }
+          .pos-osd .osc-toggle.on { border-color: #0369A1; background: rgba(56,189,248,.10); }
+          .pos-osd .osc-toggle input { width: 18px; height: 18px; margin-top: 2px; accent-color: #0369A1; flex-shrink: 0; }
+          .pos-osd .osc-toggle b { display: block; font-size: 14px; color: var(--portal-text); }
+          .pos-osd .osc-toggle small { display: block; font-size: 12.5px; color: var(--portal-text-secondary); margin-top: 3px; font-weight: 400; }
+          @media (max-width: 640px) {
+            .pos-osd .osc-passos { position: static; padding: 12px; }
+            .pos-osd .osc-passos-lista { grid-template-columns: repeat(2, 1fr); }
           }
           @media (max-width: 900px) {
             .pos-osd .os-header { flex-wrap: wrap; gap: 8px; }
@@ -1254,6 +1443,25 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
             ) : (
               <>
                 <div className="os-body">
+
+                  {/* ── Nova OS: passos com progresso (clicar rola até o bloco) ── */}
+                  {mode === "create" && (
+                    <div className="osc-passos" style={{ order: -6 }}>
+                      <div className="osc-passos-topo">
+                        <span className="osc-passos-titulo"><i className="fas fa-clipboard-list" /> Abrindo uma nova ordem</span>
+                        <span className="osc-passos-conta">{passosFeitos === passosCriacao.length ? "Tudo pronto — é só criar" : `${passosFeitos} de ${passosCriacao.length} preenchidos`}</span>
+                      </div>
+                      <div className="osc-barra"><div style={{ width: `${(passosFeitos / passosCriacao.length) * 100}%` }} /></div>
+                      <div className="osc-passos-lista">
+                        {passosCriacao.map((p) => (
+                          <button type="button" key={p.n} className={`osc-passo${p.ok ? " ok" : ""}`} onClick={() => irPara(p.alvo)}>
+                            <span className="osc-passo-bola"><i className={`fas ${p.ok ? "fa-check" : p.icone}`} /></span>
+                            <span className="osc-passo-rotulo">{p.rotulo}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* ── Cabeçalho estilo Omie (clone do PPVDrawer, dados da OS) ── */}
                   {mode === "edit" && clienteInfo && (
@@ -1412,43 +1620,30 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   {/* ── Omie: números enviados + log (edit mode) ── */}
                   {mode === "edit" && (ordemOmie || pedidoVenda || omieLog) && (
                     <div className="os-card" style={{ order: -5.5, borderLeft: "3px solid #0EA5E9" }}>
-                      <div className="os-card-title"><i className="fas fa-paper-plane" style={{ color: "#0EA5E9" }} /> Enviado ao Omie</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: omieLog ? 8 : 0 }}>
+                      <div className="os-card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/marcas/omie.png" alt="Omie" style={{ height: 16, width: "auto" }} /> Enviado ao Omie
+                      </div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: omieLog ? 8 : 0 }}>
                         {ordemOmie && (
-                          <div>
-                            <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Ordem de Serviço (Omie)</div>
-                            <div style={{ fontWeight: 700, fontSize: 15 }}>{ordemOmie}</div>
-                          </div>
-                        )}
-                        {ordemOmie && (
-                          <button
-                            onClick={abrirPdfOmie}
-                            disabled={baixandoPdfOmie}
-                            style={{
-                              display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
-                              padding: "10px 14px", borderRadius: 8, border: "1.5px solid #0EA5E9",
-                              background: "transparent", color: "#0EA5E9", fontWeight: 700, fontSize: 13.5,
-                              cursor: baixandoPdfOmie ? "wait" : "pointer",
-                            }}
-                          >
-                            {baixandoPdfOmie
-                              ? <><i className="fas fa-spinner fa-spin" /> Buscando PDF no Omie...</>
-                              : <><i className="fas fa-file-pdf" /> PDF da ordem (Omie)</>}
-                          </button>
-                        )}
-                        {ordemOmie && (
-                          <div style={{ fontSize: 11.5, color: "#64748b", textAlign: "center", marginTop: -2 }}>
-                            O PDF é gerado NA HORA pelo Omie a cada clique — sempre com as alterações mais recentes.
-                            {omieAlteradaEm ? ` Última alteração no Omie: ${omieAlteradaEm}.` : ""}
+                          <div style={{ flex: "1 1 180px", padding: "8px 12px", borderRadius: 10, background: "var(--portal-bg-secondary, #f8fafc)" }}>
+                            <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Ordem de serviço</div>
+                            <div style={{ fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>nº {ordemOmie.replace(/^0+/, "") || ordemOmie}</div>
                           </div>
                         )}
                         {pedidoVenda && (
-                          <div>
-                            <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Pedido de Venda (PPV)</div>
-                            <div style={{ fontWeight: 700, fontSize: 15 }}>{pedidoVenda}</div>
+                          <div style={{ flex: "1 1 180px", padding: "8px 12px", borderRadius: 10, background: "var(--portal-bg-secondary, #f8fafc)" }}>
+                            <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Pedido de venda</div>
+                            <div style={{ fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>nº {pedidoVenda.replace(/^0+/, "") || pedidoVenda}</div>
                           </div>
                         )}
                       </div>
+                      {ordemOmie && (
+                        <div style={{ fontSize: 12, color: "var(--portal-text-muted, #64748b)", marginTop: 8 }}>
+                          <i className="fas fa-arrow-right" style={{ marginRight: 5 }} />PDFs e <b>Faturar</b> ficam no bloco <b>Omie</b> da coluna da direita (o PDF é gerado na hora pelo Omie).
+                          {omieAlteradaEm ? ` Última alteração no Omie: ${omieAlteradaEm}.` : ""}
+                        </div>
+                      )}
                       {omieLog && (
                         <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, margin: 0, padding: 8, background: "var(--portal-bg-secondary, #f8fafc)", borderRadius: 6, fontFamily: "inherit", lineHeight: 1.5 }}>{omieLog}</pre>
                       )}
@@ -1480,9 +1675,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       ? { position: "fixed", inset: 0, zIndex: 80000, background: "rgba(15,23,42,.55)", backdropFilter: "blur(3px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "7vh 16px", overflowY: "auto" }
                       : { display: "contents" }}
                   >
-                  <div className="os-card" onClick={(e) => e.stopPropagation()} style={mode === "edit" ? { width: "100%", maxWidth: 720, maxHeight: "84vh", overflowY: "auto", margin: 0, boxShadow: "0 24px 60px rgba(0,0,0,.35)" } : { order: -5 }}>
+                  <div id="osc-cliente" className="os-card" onClick={(e) => e.stopPropagation()} style={mode === "edit" ? { width: "100%", maxWidth: 720, maxHeight: "84vh", overflowY: "auto", margin: 0, boxShadow: "0 24px 60px rgba(0,0,0,.35)" } : { order: -5 }}>
                     <div className="os-card-title" style={{ display: "flex", alignItems: "center" }}>
-                      <i className="fas fa-user" /> {mode === "edit" ? "Alterar Cliente" : "Cliente"}
+                      {mode === "create" && <span className={`osc-num${clienteChave && projeto.trim() ? " ok" : ""}`}>{clienteChave && projeto.trim() ? <i className="fas fa-check" /> : 1}</span>}
+                      <i className="fas fa-user" /> {mode === "edit" ? "Alterar Cliente" : "Cliente e máquina"}
                       {mode === "edit" && (
                         <button type="button" onClick={() => setMostrarTrocaCliente(false)} title="Fechar"
                           style={{ marginLeft: "auto", width: 30, height: 30, borderRadius: 4, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-light)", cursor: "pointer", fontSize: 16, lineHeight: 1 }}>×</button>
@@ -1537,6 +1733,17 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--portal-text-secondary)', background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', borderRadius: 6, padding: '2px 9px', letterSpacing: '0.2px' }}>{clienteInfo.cpf}</span>
                           )}
                         </div>
+
+                        {/* Máquinas do CPF/CNPJ em destaque — clicar já põe na OS */}
+                        {mode === "create" && (
+                          <MaquinasClienteDestaque
+                            doc={clienteInfo.cpf}
+                            selecionado={projeto}
+                            onEscolher={(m) => aplicarEquipamento(m.projeto, m.modelo, m.chassis)}
+                            onBuscarOutra={() => setShowProjModal(true)}
+                            onNova={podeEditar ? () => setShowNovaMaquina(true) : undefined}
+                          />
+                        )}
 
                         {/* Endereço + cidade */}
                         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1898,8 +2105,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   )}
 
                   {/* ── Equipe & Atendimento ── */}
-                  <div className="os-card" style={{ order: -3, display: mode === "edit" ? "none" : undefined }}>
-                    <div className="os-card-title"><i className="fas fa-users" /> Equipe &amp; Atendimento</div>
+                  <div id="osc-equipe" className="os-card" style={{ order: mode === "create" ? -4.7 : -3, display: mode === "edit" ? "none" : undefined }}>
+                    <div className="os-card-title">
+                      {mode === "create" && <span className={`osc-num${tecnico1 ? " ok" : ""}`}>{tecnico1 ? <i className="fas fa-check" /> : 2}</span>}
+                      <i className="fas fa-users" /> Equipe &amp; Atendimento
+                    </div>
                     <div className="os-row">
                       <div style={S_FLEX1}>
                         <label>Técnico Responsável</label>
@@ -1965,15 +2175,78 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     )}
                   </div>
 
+                  {/* Criação: faixa de atalhos (almoço · peças · requisição) — leva até o bloco */}
+                  {mode === "create" && (
+                    <div className="osc-extras" style={{ order: -4.45 }}>
+                      <span className="osc-extras-titulo">Já quer lançar?</span>
+                      <button type="button" className={`osc-extra${alimentacoes.length ? " on" : ""}`} onClick={() => irPara("osc-almoco")}>
+                        <i className="fas fa-utensils" /> Almoço{alimentacoes.length ? ` (${alimentacoes.length})` : ""}
+                      </button>
+                      <button type="button" className={`osc-extra${pecasPendentes.length ? " on" : ""}`} onClick={() => irPara("osc-pecas")}>
+                        <i className="fas fa-boxes" /> Peças{pecasPendentes.length ? ` (${pecasPendentes.length})` : ""}
+                      </button>
+                      <button type="button" className={`osc-extra${abrirReqDepois ? " on" : ""}`} onClick={() => irPara("osc-req")}>
+                        <i className="fas fa-shopping-cart" /> Requisição{abrirReqDepois ? " ✓" : ""}
+                      </button>
+                    </div>
+                  )}
+
                   {/* Alimentação: em edição mora na aba Requisições & Alimentação */}
-                  {mode === "create" && cardAlimentacao(false)}
+                  {mode === "create" && cardAlimentacao(false, -4.4)}
+
+                  {/* ── Criação: peças (vão pro PPV que nasce junto com a OS) ── */}
+                  {mode === "create" && (
+                    <div id="osc-pecas" className="os-card" style={{ order: -4.3 }}>
+                      <div className="os-card-title"><i className="fas fa-boxes" /> Peças</div>
+                      {pecasPendentes.length === 0 ? (
+                        <div className="osc-vazio">Nenhuma peça ainda. Ao criar a OS, um PPV é aberto junto e as peças escolhidas aqui entram nele.</div>
+                      ) : (
+                        <div className="osc-pecas-lista">
+                          {pecasPendentes.map((p, i) => (
+                            <div key={`${p.codigo}-${i}`} className="osc-peca">
+                              <span className="osc-peca-cod">{p.codigo}</span>
+                              <span className="osc-peca-desc">{p.descricao}{p.kit ? <em> · {p.kit}</em> : null}</span>
+                              <input type="number" min={1} value={p.quantidade} title="Quantidade"
+                                onChange={(e) => { const q = Math.max(1, parseInt(e.target.value || "1", 10) || 1); setPecasPendentes((prev) => prev.map((x, k) => k === i ? { ...x, quantidade: q } : x)); }} />
+                              <span className="osc-peca-valor">R$ {fmtBR(p.preco * p.quantidade)}</span>
+                              <button type="button" title="Tirar" onClick={() => setPecasPendentes((prev) => prev.filter((_, k) => k !== i))}><i className="fas fa-times" /></button>
+                            </div>
+                          ))}
+                          <div className="osc-pecas-total">Total das peças: <b>R$ {fmtBR(pecasPendentes.reduce((s, p) => s + p.preco * p.quantidade, 0))}</b></div>
+                        </div>
+                      )}
+                      <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+                        <button type="button" className="osc-btn" onClick={() => setShowAddProdModal(true)}><i className="fas fa-plus" /> Adicionar peça</button>
+                        <button type="button" className="osc-btn contorno" onClick={() => setKitOSOpen(true)}><i className="fas fa-box-open" /> Kit de revisão</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* ── Criação: requisição (abre o formulário já ligado à OS nova) ── */}
+                  {mode === "create" && (
+                    <div id="osc-req" className="os-card" style={{ order: -4.2 }}>
+                      <div className="os-card-title"><i className="fas fa-shopping-cart" /> Requisição</div>
+                      <label className={`osc-toggle${abrirReqDepois ? " on" : ""}`}>
+                        <input type="checkbox" checked={abrirReqDepois} onChange={(e) => setAbrirReqDepois(e.target.checked)} />
+                        <span>
+                          <b>Abrir uma requisição para esta OS assim que eu criar</b>
+                          <small>O formulário abre em outra aba já com a OS, o cliente e o chassi preenchidos — é só completar.</small>
+                        </span>
+                      </label>
+                    </div>
+                  )}
 
 
                   {/* ── Descrição (aba Lista de Serviços, no lugar da antiga tabela) ── */}
-                  <div className="os-card os-aba os-aba-servicos" style={{ order: -4.5 }}>
-                    <div className="os-card-title"><i className="fas fa-align-left" /> Descrição do Serviço</div>
-                    {/* Linha discreta: atendimento, projeto, datas e hora */}
+                  <div id="osc-servico" className="os-card os-aba os-aba-servicos" style={{ order: -4.5 }}>
+                    <div className="os-card-title">
+                      {mode === "create" && <span className={`osc-num${solicitacaoPreenchida ? " ok" : ""}`}>{solicitacaoPreenchida ? <i className="fas fa-check" /> : 3}</span>}
+                      <i className="fas fa-align-left" /> Descrição do Serviço
+                    </div>
+                    {/* Linha discreta: atendimento, projeto, datas e hora
+                        (na criação, atendimento e projeto já estão nos blocos de cima) */}
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+                      {mode !== "create" && <>
                       <div style={{ width: 130 }}>
                         <label style={L_DISC}>Atendimento</label>
                         <select value={tipoServico} disabled={!podeEditar} onChange={(e) => setTipoServico(e.target.value)} style={I_DISC}>
@@ -1995,6 +2268,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           )}
                         </div>
                       </div>
+                      </>}
                       <div style={{ width: 135 }}>
                         <label style={L_DISC}>Data Início</label>
                         <input type="date" value={previsaoExecucao} disabled={!podeEditar} onChange={(e) => {
@@ -2329,14 +2603,107 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   )}
                 </div>
 
-                {ppvIds.length > 0 && (
-                  <button className="os-rail-btn" onClick={() => { setAba("ppv"); setAbaOmie("produtos"); }}>
-                    <i className="fas fa-box" /> PPV vinculado ({ppvIds[0]}{ppvIds.length > 1 ? ` +${ppvIds.length - 1}` : ""})
-                  </button>
-                )}
-                <button className="os-rail-btn" onClick={() => { setAba("ppv"); setAbaOmie("requisicoes"); }}>
-                  <i className="fas fa-shopping-cart" /> Requisições &amp; Alimentação{(requisicoes.length + alimentacoes.length) > 0 ? ` (${requisicoes.length + alimentacoes.length})` : ""}
-                </button>
+                {/* ── Bloco Omie: PDFs da OS e do pedido de venda + Faturar (OS e pedido vinculado) ── */}
+                {ordemOmie && (() => {
+                  const semZeros = (n: string) => n.replace(/^0+/, "") || n;
+                  const pedidosMapa = Object.entries(ppvOmieMap);
+                  // nº do pedido que veio no envio da OS, quando o PPV ainda não está no mapa
+                  const pvSolto = pedidoVenda && !pedidosMapa.some(([, n]) => semZeros(n) === semZeros(pedidoVenda)) ? pedidoVenda : "";
+                  const linhaDoc = (rotulo: string, numero: string, onPdf: (() => void) | null, carregando: boolean, chave: string) => (
+                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted)" }}>{rotulo}</div>
+                        <div style={{ fontSize: 15, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>nº {semZeros(numero)}</div>
+                      </div>
+                      {onPdf && (
+                        <button type="button" onClick={onPdf} disabled={carregando} title={`Abrir o PDF oficial no Omie (gerado na hora)`}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 10px", borderRadius: 8, border: "1.5px solid #0BB7CD", background: "transparent", color: "#0891A8", fontSize: 12.5, fontWeight: 700, cursor: carregando ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                          <i className={`fas ${carregando ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> PDF
+                        </button>
+                      )}
+                    </div>
+                  );
+                  return (
+                    <div style={{ margin: "6px 0 8px", padding: 10, borderRadius: 12, border: "1px solid color-mix(in srgb, #0BB7CD 45%, var(--border))", background: "color-mix(in srgb, #0BB7CD 7%, var(--surface))", display: "flex", flexDirection: "column", gap: 7 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 2px 2px" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/marcas/omie.png" alt="Omie" style={{ height: 17, width: "auto", display: "block" }} />
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--portal-text-muted)" }}>documentos e faturamento</span>
+                      </div>
+                      {linhaDoc("Ordem de serviço", ordemOmie, abrirPdfOmie, baixandoPdfOmie, "os")}
+                      {pedidosMapa.map(([pid, numOmie]) => linhaDoc(`Pedido de venda · ${pid}`, numOmie, () => abrirPdfPecasOmie(pid), baixandoPdfPecas === pid, pid))}
+                      {pvSolto && linhaDoc("Pedido de venda", pvSolto, null, false, "pv-solto")}
+                      {osId && (
+                        <FaturamentoOSBloco
+                          osId={osId}
+                          ordemOmie={ordemOmie}
+                          onFaturado={async () => {
+                            try {
+                              const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
+                              if (d?.status) setStatus(d.status);
+                            } catch { /* a lista recarrega */ }
+                            setLogRefreshKey((k) => k + 1);
+                            onSaved?.();
+                          }}
+                        />
+                      )}
+                    </div>
+                  );
+                })()}
+
+                {/* ── Blocos de impressão: PPV e requisições (mesmo desenho do bloco Omie) ── */}
+                {(() => {
+                  const cartao = (cor: string): React.CSSProperties => ({ margin: "4px 0 6px", padding: 10, borderRadius: 12, border: `1px solid color-mix(in srgb, ${cor} 40%, var(--border))`, background: `color-mix(in srgb, ${cor} 6%, var(--surface))`, display: "flex", flexDirection: "column", gap: 6 });
+                  const cabeca = (icone: string, cor: string, titulo: string, onAbrir: () => void) => (
+                    <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "0 2px" }}>
+                      <i className={`fas ${icone}`} style={{ color: cor, fontSize: 13 }} />
+                      <span style={{ flex: 1, fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4 }}>{titulo}</span>
+                      <button type="button" onClick={onAbrir} title="Abrir a aba" style={{ background: "none", border: "none", color: cor, fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>abrir</button>
+                    </div>
+                  );
+                  const botaoImprimir = (onClick: () => void, titulo: string) => (
+                    <button type="button" onClick={onClick} title={titulo}
+                      style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 30, padding: "0 9px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--portal-text)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                      <i className="fas fa-print" style={{ color: "#64748b" }} /> Imprimir
+                    </button>
+                  );
+                  const linha = (chave: string, titulo: string, sub: string | null, acao: React.ReactNode) => (
+                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</div>
+                        {sub && <div style={{ fontSize: 11.5, color: "var(--portal-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+                      </div>
+                      {acao}
+                    </div>
+                  );
+                  const MAX = 4;
+                  const reqsVer = requisicoes.slice(0, MAX);
+                  return (
+                    <>
+                      {ppvIds.length > 0 && (
+                        <div style={cartao("#DC2626")}>
+                          {cabeca("fa-boxes", "#DC2626", "Peças (PPV)", () => { setAba("ppv"); setAbaOmie("produtos"); })}
+                          {ppvIds.map((pid) => linha(pid, pid, ppvOmieMap[pid] ? `Omie PV nº ${ppvOmieMap[pid].replace(/^0+/, "")}` : "ainda não está no Omie", botaoImprimir(() => imprimirPPV(pid), `Imprimir o PPV ${pid}`)))}
+                        </div>
+                      )}
+                      <div style={cartao("#0D9488")}>
+                        {cabeca("fa-shopping-cart", "#0D9488", `Requisições${(requisicoes.length + alimentacoes.length) ? ` (${requisicoes.length + alimentacoes.length})` : ""}`, () => { setAba("ppv"); setAbaOmie("requisicoes"); })}
+                        {reqsVer.map((r) => linha(r.id, `Req. #${r.id}`, [r.material, r.valor > 0 ? `R$ ${r.valor.toFixed(2).replace(".", ",")}` : ""].filter(Boolean).join(" · ") || null,
+                          botaoImprimir(() => window.open(`/requisicoes/imprimir/${r.id}`, "_blank"), `Imprimir a requisição #${r.id}`)))}
+                        {requisicoes.length > MAX && (
+                          <button type="button" onClick={() => { setAba("ppv"); setAbaOmie("requisicoes"); }} style={{ background: "none", border: "none", color: "#0D9488", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: "2px 0" }}>
+                            ver todas ({requisicoes.length})
+                          </button>
+                        )}
+                        {!requisicoes.length && (
+                          <div style={{ fontSize: 12, color: "var(--portal-text-muted)", padding: "2px 2px" }}>
+                            {alimentacoes.length ? `${alimentacoes.length} alimentação(ões) — sem requisição de compra` : "Nenhuma requisição nesta OS."}
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
                 {relatorioTecnico && (
                   <button className="os-rail-btn" onClick={() => window.open(relatorioTecnico, "_blank", "noopener")}
                     title="Abre o relatório preenchido pelo técnico (PDF) numa aba nova — é só mandar imprimir">
@@ -2355,25 +2722,24 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
                   </button>
                 )}
-                {/* Depois de enviada: Faturar (NFS-e) → selo Faturada (some com POS_FATURAR desligado) */}
-                {mode === "edit" && osId && ordemOmie && (
-                  <FaturamentoOSBloco
-                    osId={osId}
-                    ordemOmie={ordemOmie}
-                    onFaturado={async () => {
-                      try {
-                        const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
-                        if (d?.status) setStatus(d.status);
-                      } catch { /* a lista recarrega */ }
-                      setLogRefreshKey((k) => k + 1);
-                      onSaved?.();
-                    }}
-                  />
-                )}
+
+                <button className="os-rail-btn" onClick={() => setShowTarefas(true)} disabled={!osId} title="Tarefas desta OS (atribuir a alguém, lembrete, concluir)" style={{ position: "relative" }}>
+                  <i className="fas fa-tasks" /> Tarefas
+                  {tarefasPendentes > 0 && <span style={{ marginLeft: "auto", minWidth: 20, height: 20, padding: "0 6px", borderRadius: 10, background: "#c2570a", color: "#fefefe", fontSize: 11.5, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }} title={`${tarefasPendentes} tarefa(s) pendente(s)`}>{tarefasPendentes}</span>}
+                </button>
+                <button className="os-rail-btn" onClick={() => setShowAnexos(true)} disabled={!osId} title="Anexar foto/arquivo e comentários nesta OS">
+                  <i className="fas fa-paperclip" /> Anexos
+                  {anexosCount > 0 && <span style={{ marginLeft: "auto", minWidth: 20, height: 20, padding: "0 6px", borderRadius: 10, background: "var(--portal-bg-secondary, #f1f5f9)", color: "var(--portal-text)", fontSize: 11.5, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>{anexosCount}</span>}
+                </button>
+                <button className="os-rail-btn" onClick={duplicarOS} disabled={duplicando || !podeCriarOS} title={!podeCriarOS ? MSG_SEM_PERMISSAO : "Criar uma OS nova igual a esta (cliente, técnicos, serviço, horas e km)"}>
+                  <i className={`fas ${duplicando ? "fa-spinner fa-spin" : "fa-copy"}`} /> {duplicando ? "Duplicando..." : "Duplicar"}
+                </button>
 
                 <button className="os-rail-btn" onClick={abrirQR}>
                   <i className="fas fa-qrcode" /> Gerar QR Code
                 </button>
+                <AnexosModal open={showAnexos} ppvId={osId || null} autor={userName} onClose={() => setShowAnexos(false)} onChanged={recarregarAnexosCount} showToast={avisar} />
+                <TarefasModal open={showTarefas} ppvId={osId || null} userName={userName} onClose={() => setShowTarefas(false)} onChanged={recarregarTarefasCount} showToast={avisar} />
                 {qrOpen && (
                   <>
                     <div onClick={() => setQrOpen(false)} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 6000 }} />
@@ -2406,9 +2772,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   </>
                 )}
 
-                <button className="os-rail-btn" onClick={() => { setAba("os"); setAbaOmie("garantia"); }}>
-                  <i className="fas fa-shield-halved" /> Garantia
-                </button>
+                {(garantiaVinculada || /garantia/i.test(tipoServico)) && (
+                  <button className="os-rail-btn" onClick={() => { setAba("os"); setAbaOmie("garantia"); }}>
+                    <i className="fas fa-shield-halved" /> Garantia
+                  </button>
+                )}
 
                 <button className="os-rail-btn" onClick={() => setShowLogs(!showLogs)}>
                   <i className="fas fa-clock-rotate-left" /> Histórico de Alterações
@@ -2420,17 +2788,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   </button>
                 )}
 
-                {/* ── PDFs oficiais do Omie: a OS e, se houver peças (PPV), o pedido ── */}
-                {mode === "edit" && ordemOmie && (
-                  <button className="os-rail-btn" onClick={abrirPdfOmie} disabled={baixandoPdfOmie} title="PDF oficial da Ordem de Serviço no Omie">
-                    <i className={`fas ${baixandoPdfOmie ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfOmie ? "Buscando..." : `PDF OS ${(ordemOmie.replace(/^0+/, "") || ordemOmie)}`}
-                  </button>
-                )}
-                {mode === "edit" && Object.entries(ppvOmieMap).map(([pid, numOmie]) => (
-                  <button key={pid} className="os-rail-btn" onClick={() => abrirPdfPecasOmie(pid)} disabled={baixandoPdfPecas === pid} title={`PDF oficial do pedido/remessa de peças no Omie (${pid})`}>
-                    <i className={`fas ${baixandoPdfPecas === pid ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {baixandoPdfPecas === pid ? "Buscando..." : `PDF PV ${(numOmie.replace(/^0+/, "") || numOmie)}`}
-                  </button>
-                ))}
 
               </>
             )}
@@ -2527,11 +2884,27 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
             open={showAddProdModal}
             mode="modal"
             onClose={() => setShowAddProdModal(false)}
-            onSelect={(codigo, descricao, preco, _empresa, qtd) => { adicionarProdutoPPV({ codigo, descricao, preco }, qtd); }}
+            onSelect={(codigo, descricao, preco, _empresa, qtd) => {
+              // Criação: a OS ainda não existe — guarda e manda pro PPV ao criar
+              if (mode === "create") {
+                if (!codigo) return;
+                setPecasPendentes((prev) => [...prev, { codigo, descricao: descricao || codigo, preco: Number(preco) || 0, quantidade: qtd && qtd > 0 ? qtd : 1 }]);
+                return;
+              }
+              adicionarProdutoPPV({ codigo, descricao, preco }, qtd);
+            }}
             onAbrirKit={() => { setShowAddProdModal(false); setKitOSOpen(true); }}
           />
         </PPVMiniProvider>
-        <ModalImportarKit open={kitOSOpen} onClose={() => setKitOSOpen(false)} onImportar={(produtos, _horas, rotulo) => { setKitOSOpen(false); importarKitNaOS(produtos, rotulo); }} />
+        <ModalImportarKit open={kitOSOpen} onClose={() => setKitOSOpen(false)} onImportar={(produtos, _horas, rotulo) => {
+          setKitOSOpen(false);
+          if (mode === "create") {
+            const kit = rotulo || "Kit";
+            setPecasPendentes((prev) => [...prev, ...produtos.filter((p) => p.codigo).map((p) => ({ codigo: p.codigo, descricao: p.descricao || p.codigo, preco: Number(p.preco) || 0, quantidade: p.quantidade || 1, kit }))]);
+            return;
+          }
+          importarKitNaOS(produtos, rotulo);
+        }} />
       </div>
 
       {/* Clicar no código da peça = mesmo modal do PPV (dados do produto + impostos) */}

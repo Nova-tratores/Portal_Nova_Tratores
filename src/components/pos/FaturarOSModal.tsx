@@ -2,7 +2,10 @@
 // Janela de faturamento da OS (emite NFS-e no Omie) — molde do FaturarModal do PPV,
 // com o que a OS precisa a mais: forma de pagamento → parcelas, pedidos de peças
 // para faturar junto e a conferência do valor que vai na nota (o do OMIE).
-// Nada é emitido até o "Sim, emitir". A prévia usa o ValidarOS do Omie (não emite).
+// Nada é emitido até o "Sim, faturar". A prévia usa o ValidarOS do Omie (não emite).
+// Passos (José, 13/10/2026): 1) o que faturar — OS + pedido, só a OS ou só o
+// pedido de peças; 2) dados (forma de pagamento, impostos, pedidos); 3) "Tem
+// certeza?". A OS só vai para Concluída quando a OS e os pedidos estão faturados.
 import { useEffect, useMemo, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 import { parcelasDoPagamento } from "@/lib/pagamento/parcelas";
@@ -31,9 +34,11 @@ interface Previa {
   };
 }
 interface Resultado {
-  success?: boolean; tipo?: string; mensagem?: string; error?: string; nfseNumero?: string | null;
+  success?: boolean; tipo?: string; mensagem?: string; error?: string; nfseNumero?: string | null; concluida?: boolean;
   pecas?: Array<{ id: string; pedidoOmie?: string; ok: boolean; erro?: string | null; nf?: string | null }>;
 }
+type Escopo = "ambos" | "os" | "pedido";
+type Etapa = "escolher" | "previa" | "confirmar";
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const FASES_ANTES_DA_EXECUCAO = /^(Orçamento|Execução)/i;
@@ -56,6 +61,8 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
   const [valores, setValores] = useState<ValoresTela>({});
   const [verImpostos, setVerImpostos] = useState(false);
   const [salvarParaCliente, setSalvarParaCliente] = useState(false);
+  const [etapa, setEtapa] = useState<Etapa>("escolher");
+  const [escopo, setEscopo] = useState<Escopo>("os");
 
   useEffect(() => {
     // o bloco só monta esta janela quando ela abre: o estado já nasce limpo
@@ -69,7 +76,9 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
         if (!r.ok && !j.erro) j.erro = (j as unknown as { error?: string }).error || `Erro ${r.status}`;
         setPrevia(j);
         setForma(j.formaPagamento || null); // sem escolha na cobrança = nada marcado (obriga escolher)
-        setPpvsMarcados(new Set((j.ppvs || []).filter((p) => !p.motivoFora && j.podeFaturarPecas).map((p) => p.id)));
+        const elegiveis = (j.ppvs || []).filter((p) => !p.motivoFora && j.podeFaturarPecas).map((p) => p.id);
+        setPpvsMarcados(new Set(elegiveis));
+        if (!elegiveis.length) { setEscopo("os"); setEtapa("previa"); }
         if (j.impostos?.modelo) { setModeloId(j.impostos.modelo.id); setValores(paraTela(j.impostos.modelo.campos)); }
       } catch {
         if (!cancel) setPrevia({ ok: false, erro: "Falha de conexão ao preparar o faturamento." });
@@ -95,11 +104,20 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
 
   if (!open) return null;
 
-  const pecasJunto = (previa?.ppvs || []).filter((p) => ppvsMarcados.has(p.id));
+  const elegiveis = (previa?.ppvs || []).filter((p) => !p.motivoFora && !!previa?.podeFaturarPecas);
+  const pecasJunto = escopo === "os" ? [] : (previa?.ppvs || []).filter((p) => ppvsMarcados.has(p.id));
+  const comOS = escopo !== "pedido";
+  const escolher = (e: Escopo) => {
+    setEscopo(e);
+    setPpvsMarcados(new Set(e === "os" ? [] : elegiveis.map((p) => p.id)));
+    setEtapa("previa");
+  };
   // ValidarOS recusando a OS de hoje só trava quando não há impostos a aplicar
   // (ex.: falta o CST — o modelo corrige e o servidor valida de novo antes de emitir)
-  const podeEmitir = !!previa?.ok && !!plano && (!previa.divergente || conferiValor) && !faturando
-    && validacaoImpostos.erros.length === 0 && (!!previa.validacao?.ok || temImpostos);
+  const podeEmitir = !faturando && !!previa?.ok && (escopo === "pedido"
+    ? pecasJunto.length > 0
+    : !!plano && (!previa.divergente || conferiValor) && validacaoImpostos.erros.length === 0 && (!!previa.validacao?.ok || temImpostos)
+      && (escopo === "os" || pecasJunto.length > 0));
 
   const trocarModelo = (id: string) => {
     if (qtdAjustes && !confirm("Trocar de modelo descarta os ajustes feitos nesta OS. Continuar?")) return;
@@ -109,14 +127,33 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
   };
 
   const faturar = async () => {
-    if (!previa?.ok || !plano) return;
+    if (!previa?.ok) return;
+    if (escopo === "pedido") {
+      setFaturando(true);
+      try {
+        const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/faturar/pecas`, {
+          method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" },
+          body: JSON.stringify({ ppvIds: pecasJunto.map((p) => p.id) }),
+        });
+        const j = await r.json().catch(() => ({}));
+        const pecas = (j.pecas || []).filter((p: { id: string }) => pecasJunto.some((x) => x.id === p.id));
+        setResultado(j.ok ? { tipo: "pedido", pecas, concluida: !!j.concluida } : { tipo: "erro", mensagem: j.mensagem || j.error || "Não foi possível faturar o pedido." });
+        if (j.ok) onFaturado();
+      } catch {
+        setResultado({ tipo: "desconhecido", mensagem: "Sem resposta do servidor. Confira o pedido no PPV antes de tentar de novo." });
+        onFaturado();
+      }
+      setFaturando(false);
+      return;
+    }
+    if (!plano) return;
     setFaturando(true);
     try {
       const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/faturar`, {
         method: "POST",
         headers: { ...(await authHeaders()), "Content-Type": "application/json" },
         body: JSON.stringify({
-          forma, ppvIds: [...ppvsMarcados], totalConfirmado: previa.totalOmie,
+          forma, ppvIds: pecasJunto.map((p) => p.id), totalConfirmado: previa.totalOmie,
           impostos: { modeloId: modeloId || null, campos: validacaoImpostos.campos, salvarParaCliente },
         }),
       });
@@ -149,7 +186,7 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fff", color: "#1e293b", borderRadius: 4, width: "100%", maxWidth: 560, boxShadow: "0 24px 60px rgba(0,0,0,.3)", overflow: "hidden" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 18px", borderBottom: "1px solid #eef0f3" }}>
           <i className="fas fa-file-invoice-dollar" style={{ color: "#0369A1" }} />
-          <div style={{ flex: 1, fontSize: 16, fontWeight: 700 }}>Faturar OS (NFS-e){previa?.os ? ` · Omie nº ${previa.os.numeroOmie}` : ""}</div>
+          <div style={{ flex: 1, fontSize: 16, fontWeight: 700 }}>Faturar no Omie{previa?.os ? ` · OS nº ${previa.os.numeroOmie}` : ""}</div>
           <button onClick={onClose} disabled={faturando} style={{ background: "#f1f5f9", border: "none", borderRadius: 4, width: 30, height: 30, cursor: "pointer", color: "#475569", fontSize: 17 }}>×</button>
         </div>
 
@@ -162,7 +199,13 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
               {resultado.tipo === "faturada" || resultado.tipo === "ja_faturada" ? (
                 <div style={caixa("verde")}>
                   <div style={{ fontWeight: 700, marginBottom: 4 }}><i className="fas fa-check-circle" /> {resultado.tipo === "ja_faturada" ? "A OS já estava faturada no Omie — o portal registrou." : "OS faturada. A nota foi para a prefeitura."}</div>
-                  <div>{resultado.nfseNumero ? `NFS-e nº ${resultado.nfseNumero}.` : "O número e o PDF da NFS-e aparecem aqui assim que a prefeitura devolver (o portal confere sozinho)."} A OS foi para Concluída.</div>
+                  <div>{resultado.nfseNumero ? `NFS-e nº ${resultado.nfseNumero}.` : "Agora é aguardar a nota do sistema nacional: o bloco Omie mostra o andamento e você recebe uma notificação quando ela sair (ou se for rejeitada)."}</div>
+                  <div style={{ marginTop: 4, fontWeight: 700 }}>{resultado.concluida ? "A OS foi para Concluída." : "A OS vai para Concluída quando o pedido de peças também for faturado."}</div>
+                </div>
+              ) : resultado.tipo === "pedido" ? (
+                <div style={caixa(resultado.pecas?.every((p) => p.ok) ? "verde" : "ambar")}>
+                  <div style={{ fontWeight: 700, marginBottom: 4 }}><i className="fas fa-boxes" /> Pedido de peças faturado</div>
+                  <div style={{ fontWeight: 700 }}>{resultado.concluida ? "A OS e os pedidos estão faturados — a OS foi para Concluída." : "A OS vai para Concluída quando a OS também for faturada."}</div>
                 </div>
               ) : resultado.tipo === "desconhecido" ? (
                 <div style={caixa("ambar")}><div style={{ fontWeight: 700, marginBottom: 4 }}><i className="fas fa-hourglass-half" /> Conferindo no Omie</div>{resultado.mensagem}</div>
@@ -190,15 +233,67 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
             </>
           )}
 
-          {/* ---------- prévia ---------- */}
-          {!resultado && previa?.ok && (
+          {/* ---------- passo 1: o que faturar ---------- */}
+          {!resultado && previa?.ok && etapa === "escolher" && (
+            <>
+              <div style={{ fontSize: 14, fontWeight: 700 }}>{previa.os?.cliente}</div>
+              <div style={{ fontSize: 12.5, color: "#64748b", marginBottom: 12 }}>O que você quer faturar agora?</div>
+              {([
+                ["ambos", "fa-layer-group", "Ordem de serviço + pedido de peças", `NFS-e da OS nº ${previa.os?.numeroOmie} e NF-e de ${elegiveis.map((p) => p.pedidoOmie ? `PV ${p.pedidoOmie}` : p.id).join(", ")}. A OS vai para Concluída.`],
+                ["os", "fa-screwdriver-wrench", "Só a ordem de serviço", "Emite só a NFS-e. A OS fica aguardando o pedido de peças ser faturado para ir para Concluída."],
+                ["pedido", "fa-boxes", "Só o pedido de peças", "Emite só a NF-e das peças. A OS fica aguardando o faturamento dela para ir para Concluída."],
+              ] as const).map(([v, icone, rotulo, dica]) => (
+                <button key={v} type="button" onClick={() => escolher(v)}
+                  style={{ display: "flex", alignItems: "flex-start", gap: 12, width: "100%", textAlign: "left", padding: "12px 14px", marginBottom: 8, borderRadius: 8, border: "1.5px solid #cbd5e1", background: "#fff", cursor: "pointer", fontFamily: "inherit" }}>
+                  <span style={{ width: 34, height: 34, borderRadius: 8, background: "#ecfeff", color: "#0891A8", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><i className={`fas ${icone}`} /></span>
+                  <span style={{ flex: 1 }}>
+                    <span style={{ display: "block", fontSize: 14, fontWeight: 800, color: "#0f172a" }}>{rotulo}</span>
+                    <span style={{ display: "block", fontSize: 12.5, color: "#64748b", marginTop: 2 }}>{dica}</span>
+                  </span>
+                  <i className="fas fa-chevron-right" style={{ color: "#94a3b8", marginTop: 10 }} />
+                </button>
+              ))}
+              <button onClick={onClose} style={{ ...btn, width: "100%", background: "#f1f5f9", color: "#334155", marginTop: 4 }}>Cancelar</button>
+            </>
+          )}
+
+          {/* ---------- passo 3: tem certeza? ---------- */}
+          {!resultado && previa?.ok && etapa === "confirmar" && (
+            <>
+              <div style={{ fontSize: 17, fontWeight: 800, marginBottom: 8 }}>Tem certeza?</div>
+              <div style={caixa("cinza")}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>Vai emitir no Omie:</div>
+                {comOS && <div>• <strong>NFS-e</strong> da OS nº {previa.os?.numeroOmie} — {brl(previa.totalOmie || 0)}{forma ? ` · ${forma}` : ""}</div>}
+                {pecasJunto.map((p) => <div key={p.id}>• <strong>NF-e</strong> das peças {p.pedidoOmie ? `PV ${p.pedidoOmie}` : p.id} — {brl(p.valor)}</div>)}
+                <div style={{ marginTop: 8, fontSize: 12.5 }}>São notas fiscais reais: cancelar depois só pelo Omie.</div>
+              </div>
+              <div style={caixa(escopo === "ambos" || (escopo === "os" && !elegiveis.length) ? "verde" : "ambar")}>
+                {escopo === "ambos" || (escopo === "os" && !elegiveis.length)
+                  ? "Depois de faturar, a OS vai para Concluída."
+                  : escopo === "os"
+                    ? "A OS só vai para Concluída quando o pedido de peças também for faturado."
+                    : "A OS só vai para Concluída quando a ordem de serviço também for faturada."}
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={faturar} disabled={faturando}
+                  style={{ ...btn, flex: 1, background: "#0369A1", color: "#fff", cursor: faturando ? "wait" : "pointer" }}>
+                  {faturando ? "Faturando… (não feche)" : "Sim, faturar"}
+                </button>
+                <button onClick={() => setEtapa("previa")} disabled={faturando} style={{ ...btn, background: "#f1f5f9", color: "#334155" }}>Voltar</button>
+              </div>
+            </>
+          )}
+
+          {/* ---------- passo 2: dados ---------- */}
+          {!resultado && previa?.ok && etapa === "previa" && (
             <>
               <div style={{ fontSize: 14, fontWeight: 700 }}>{previa.os?.cliente}</div>
               <div style={{ fontSize: 12.5, color: "#64748b" }}>OS {previa.os?.id} · fase atual: {previa.os?.status}</div>
-              {FASES_ANTES_DA_EXECUCAO.test(previa.os?.status || "") && (
-                <div style={{ ...caixa("ambar"), marginTop: 10 }}>⚠ A OS ainda está em <strong>{previa.os?.status}</strong>. Faturar agora leva a OS para Concluída mesmo sem o serviço finalizado.</div>
+              {comOS && FASES_ANTES_DA_EXECUCAO.test(previa.os?.status || "") && (
+                <div style={{ ...caixa("ambar"), marginTop: 10 }}>⚠ A OS ainda está em <strong>{previa.os?.status}</strong>. Confira se o serviço já foi feito antes de faturar.</div>
               )}
 
+              {comOS && <>
               {titulo("Serviços na nota (Omie)")}
               <div style={{ border: "1px solid #e2e8f0", borderRadius: 4 }}>
                 {(previa.servicos || []).map((s, i) => (
@@ -284,9 +379,11 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
                 </div>
               )}
 
-              {(previa.ppvs || []).length > 0 && (
+              </>}
+
+              {escopo !== "os" && (previa.ppvs || []).length > 0 && (
                 <>
-                  {titulo("Pedidos de peças desta OS")}
+                  {titulo(escopo === "pedido" ? "Pedidos de peças para faturar" : "Pedidos de peças desta OS")}
                   {(previa.ppvs || []).map((p) => {
                     const bloqueado = !!p.motivoFora || !previa.podeFaturarPecas;
                     return (
@@ -294,7 +391,7 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
                         <input type="checkbox" disabled={bloqueado} checked={ppvsMarcados.has(p.id)}
                           onChange={(e) => setPpvsMarcados((prev) => { const n = new Set(prev); if (e.target.checked) n.add(p.id); else n.delete(p.id); return n; })} />
                         <span>
-                          <strong>Faturar também</strong> {p.id}{p.pedidoOmie ? ` · PV ${p.pedidoOmie}` : ""} · {p.empresa || "Nova Tratores"} · {brl(p.valor)}
+                          <strong>{escopo === "pedido" ? "Faturar" : "Faturar também"}</strong> {p.id}{p.pedidoOmie ? ` · PV ${p.pedidoOmie}` : ""} · {p.empresa || "Nova Tratores"} · {brl(p.valor)}
                           {p.motivoFora && <span style={{ color: "#64748b" }}> — {p.motivoFora}</span>}
                           {!p.motivoFora && !previa.podeFaturarPecas && <span style={{ color: "#64748b" }}> — sem permissão de faturar PPV</span>}
                         </span>
@@ -304,7 +401,7 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
                 </>
               )}
 
-              {!previa.validacao?.ok && (
+              {comOS && !previa.validacao?.ok && (
                 <div style={{ ...caixa(temImpostos ? "ambar" : "verm"), marginTop: 12 }}>
                   <div style={{ fontWeight: 700, marginBottom: 4 }}>O Omie recusou a validação desta OS como ela está hoje</div>
                   {previa.validacao?.msg}
@@ -314,17 +411,14 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
                 </div>
               )}
 
-              <div style={{ ...caixa("cinza"), marginTop: 14 }}>
-                Vai emitir: <strong>NFS-e de {brl(previa.totalOmie || 0)}</strong>
-                {pecasJunto.length > 0 && <> + <strong>{pecasJunto.length} NF-e de peças</strong> ({pecasJunto.map((p) => p.pedidoOmie ? `PV ${p.pedidoOmie}` : p.id).join(", ")})</>}
-                . Notas fiscais reais; cancelar depois só pelo Omie.
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={faturar} disabled={!podeEmitir}
-                  style={{ ...btn, flex: 1, background: podeEmitir ? "#0369A1" : "#94a3b8", color: "#fff", cursor: faturando ? "wait" : podeEmitir ? "pointer" : "not-allowed" }}>
-                  {faturando ? "Faturando… (não feche)" : "Sim, emitir"}
+              <div style={{ display: "flex", gap: 8, marginTop: 16 }}>
+                <button onClick={() => setEtapa("confirmar")} disabled={!podeEmitir}
+                  style={{ ...btn, flex: 1, background: podeEmitir ? "#0369A1" : "#94a3b8", color: "#fff", cursor: podeEmitir ? "pointer" : "not-allowed" }}>
+                  Continuar
                 </button>
-                <button onClick={onClose} disabled={faturando} style={{ ...btn, background: "#f1f5f9", color: "#334155" }}>Não</button>
+                {elegiveis.length > 0
+                  ? <button onClick={() => setEtapa("escolher")} style={{ ...btn, background: "#f1f5f9", color: "#334155" }}>Voltar</button>
+                  : <button onClick={onClose} style={{ ...btn, background: "#f1f5f9", color: "#334155" }}>Cancelar</button>}
               </div>
             </>
           )}

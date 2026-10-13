@@ -21,10 +21,13 @@ export async function GET(req: NextRequest) {
   }
 
   if (cliente) {
+    // Aceita várias chaves separadas por vírgula (cliente juntado das duas
+    // contas Omie): lembrete gravado em QUALQUER uma delas aparece
+    const chaves = cliente.split(",").map((c) => c.trim()).filter(Boolean);
     let q = supabase
       .from(TBL_LEMBRETES)
       .select("*")
-      .filter("cliente_chaves", "cs", `{${cliente}}`)
+      .filter("cliente_chaves", chaves.length > 1 ? "ov" : "cs", `{${chaves.map((c) => `"${c.replace(/"/g, "")}"`).join(",")}}`)
       .order("created_at", { ascending: false });
 
     if (!todos) q = q.eq("ativo", true).eq("concluido", false);

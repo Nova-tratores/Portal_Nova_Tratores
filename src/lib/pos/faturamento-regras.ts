@@ -76,6 +76,8 @@ export interface OSParaFaturar {
   status: string;
   servicoInterno: boolean;
   ehGarantia: boolean;
+  /** garantia ainda sem montadora escolhida em /garantias (o contrato no Omie depende dela) */
+  garantiaSemMontadora?: boolean;
   faturadoEm: string | null;
   faturamentoStatus: string | null;
   faturandoDesde: string | null;
@@ -87,7 +89,9 @@ export function bloqueioFaturar(os: OSParaFaturar, agora: Date = new Date()): st
   if (os.faturadoEm) return 'Esta OS já foi faturada.';
   if (/cancel/i.test(os.status)) return 'OS cancelada não é faturada.';
   if (os.servicoInterno) return 'OS interna não emite nota fiscal.';
-  if (os.ehGarantia) return 'OS de garantia é faturada pelo fluxo de garantias, não por aqui.';
+  // Garantia fatura sim (José, 13/10/2026) — mas só com a montadora escolhida:
+  // a OS vai ao Omie com os códigos de garantia e o contrato da montadora.
+  if (os.ehGarantia && os.garantiaSemMontadora) return 'OS de garantia: escolha a montadora em Garantias antes de faturar (a nota sai no contrato dela).';
   if (os.faturamentoStatus === 'desconhecido') {
     return 'O último faturamento não teve resposta clara do Omie. Clique em "Conferir no Omie" antes de tentar de novo.';
   }

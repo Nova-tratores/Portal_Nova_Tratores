@@ -845,7 +845,7 @@ function RequisicoesPageInner() {
       {podeCriar && abaAtiva === 'form' && (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-[100] flex items-center justify-center p-2 md:p-4 print:hidden">
           <div className="w-full max-w-5xl bg-white rounded-2xl border border-zinc-200 overflow-y-auto max-h-[90vh] shadow-xl">
-            <FormReq onSave={async (nova: Record<string, unknown>) => {
+            <FormReq osInicial={searchParams.get('os')} onSave={async (nova: Record<string, unknown>) => {
               nova.criado_por = userName;
               // Grupos escolhidos na criação (não é coluna — remove antes do insert)
               const gruposEscolhidos: number[] = Array.isArray(nova._grupos) ? (nova._grupos as number[]) : [];

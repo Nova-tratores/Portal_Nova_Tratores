@@ -121,7 +121,7 @@ export default function TarefasModal({
         <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 20px", borderBottom: "1px solid #eef0f3" }}>
           <span style={{ width: 34, height: 34, borderRadius: 6, background: "#e8730c", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}><i className="fas fa-list-check" /></span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>Tarefas {ppvId ? `— PPV ${ppvId}` : ""}</div>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#1e293b" }}>Tarefas {ppvId ? `— ${ppvId}` : ""}</div>
             <div style={{ fontSize: 12, color: "#94a3b8" }}>Atribua a um usuário; ele é notificado e marca visto/concluído</div>
           </div>
           <button onClick={onClose} style={{ background: "#f1f5f9", border: "none", borderRadius: 6, width: 32, height: 32, cursor: "pointer", color: "#475569", fontSize: 18 }}>×</button>

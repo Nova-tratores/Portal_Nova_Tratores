@@ -59,6 +59,17 @@ function PosPageInner() {
   }, [viewMode]);
   const ordersNfse = useMemo(() => anexarNfse(orders, mapaNfse), [orders, mapaNfse]);
   const trocarViewMode = (v: "cards" | "relacao" | "dashboard") => { setViewMode(v); try { localStorage.setItem("pos-view-mode", v); } catch { /* sem storage */ } };
+  // Seletor de visão em formato de pílula única (segmentado)
+  const alternarVisao = (
+    <div role="tablist" aria-label="Visão" style={{ display: "inline-flex", padding: 3, gap: 2, borderRadius: 10, background: "var(--portal-bg-secondary, #f1f5f9)", border: "1px solid var(--portal-border, #e5e7eb)", flexShrink: 0 }}>
+      {([["cards", "fa-table-cells-large", "Cards", "Quadro por fase"], ["relacao", "fa-table-list", "Relação", "Tabela com filtros por coluna, ordenação, PDF e CSV"], ["dashboard", "fa-chart-simple", "Dashboard", "Valor e quantidade por data, técnico, tipo, fase e cliente"]] as const).map(([v, icone, rotulo, dica]) => (
+        <button key={v} type="button" role="tab" aria-selected={viewMode === v} onClick={() => trocarViewMode(v)} title={dica}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 30, padding: "0 12px", borderRadius: 7, border: "none", background: viewMode === v ? "#0369A1" : "transparent", color: viewMode === v ? "#fefefe" : "var(--portal-text-secondary, #475569)", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: viewMode === v ? "0 2px 6px rgba(3,105,161,.3)" : "none", transition: "background .15s, color .15s" }}>
+          <i className={`fas ${icone}`} /> {rotulo}
+        </button>
+      ))}
+    </div>
+  );
 
   // Casa cada técnico com o usuário do portal (financeiro_usu) pelo nome →
   // pega a FOTO (avatar_url). Técnico sem conta no portal entra com inicial.
@@ -387,15 +398,11 @@ function PosPageInner() {
             tecnicoFiltro={tecnicoFiltro}
             onTecnicoFiltro={setTecnicoFiltro}
           />
-          {/* Alternar Cards ⇄ Relação ⇄ Dashboard */}
-          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 6, padding: "10px 16px 0" }}>
-            {([["cards", "fa-table-cells-large", "Cards", "Quadro por fase"], ["relacao", "fa-table-list", "Relação", "Tabela com filtros por coluna, ordenação, PDF e CSV"], ["dashboard", "fa-chart-simple", "Dashboard", "Valor e quantidade por data, técnico, tipo, fase e cliente"]] as const).map(([v, icone, rotulo, dica]) => (
-              <button key={v} type="button" onClick={() => trocarViewMode(v)} title={dica}
-                style={{ display: "inline-flex", alignItems: "center", gap: 6, height: 32, padding: "0 12px", borderRadius: 8, border: "1px solid var(--portal-border, #e5e7eb)", background: viewMode === v ? "#0369A1" : "#fefefe", color: viewMode === v ? "#fefefe" : "#111111", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-                <i className={`fas ${icone}`} /> {rotulo}
-              </button>
-            ))}
-          </div>
+          {/* Alternar Cards ⇄ Relação ⇄ Dashboard — no modo Cards vai na MESMA
+              linha das abas (Faturamento/Garantias/Internas), à direita */}
+          {viewMode !== "cards" && (
+            <div style={{ display: "flex", justifyContent: "flex-end", padding: "12px 16px 0" }}>{alternarVisao}</div>
+          )}
           {viewMode === "relacao" ? (
             <RelacaoOS orders={ordersNfse} searchTerm={searchTerm} tecnicoFiltro={tecnicoFiltro} onCardClick={handleCardClick} onPhaseChange={podeMoverFase ? handlePhaseChange : undefined} />
           ) : viewMode === "dashboard" ? (
@@ -411,6 +418,7 @@ function PosPageInner() {
             onEnviarOmie={podeOmie ? handleEnviarOmie : undefined}
             onEnviarOmieTodas={podeOmie ? handleEnviarOmieTodas : undefined}
             enviandoOmie={enviandoOmie}
+            acoesAbas={alternarVisao}
           />
           )}
         </>

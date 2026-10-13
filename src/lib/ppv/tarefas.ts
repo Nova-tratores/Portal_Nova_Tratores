@@ -29,7 +29,7 @@ async function notificarAtribuido(nome: string, idPedido: string, titulo: string
     const userId = usu?.[0]?.id;
     if (!userId) { console.error(`[tarefas] usuário não encontrado p/ notificar: ${nome}`); return; }
     const { error } = await supabase.from("portal_notificacoes").insert({
-      user_id: userId, tipo: "ppv-tarefa", titulo, descricao, link: `/ppv?id=${encodeURIComponent(idPedido)}&tarefas=1`,
+      user_id: userId, tipo: "ppv-tarefa", titulo, descricao, link: `${/^OS-/i.test(idPedido) ? '/pos' : '/ppv'}?id=${encodeURIComponent(idPedido)}&tarefas=1`,
     });
     if (error) console.error(`[tarefas] notificar (${nome}): ${error.message}`);
   } catch (e) { console.error(`[tarefas] notificar (${nome}): ${(e as Error).message}`); }

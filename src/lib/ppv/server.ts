@@ -8,6 +8,11 @@ export function temModuloPPV(auth: Autenticado): boolean {
   return auth.modulos.includes('ppv') || auth.modulos.some((m) => m.startsWith('ppv:'));
 }
 
+/** Tarefas e anexos valem para PPV e OS (mesmas tabelas; o id diz de quem é: PPV-xxxx / OS-xxxx). */
+export function temModuloPPVouPOS(auth: Autenticado): boolean {
+  return temModuloPPV(auth) || auth.modulos.includes('pos') || auth.modulos.some((m) => m.startsWith('pos:'));
+}
+
 // Ação específica do PPV (ex.: 'faturar'). Módulo "puro" concede tudo.
 export function podePPV(auth: Autenticado, acao: string): boolean {
   if (auth.isAdmin) return true;

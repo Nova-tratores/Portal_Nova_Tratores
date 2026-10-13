@@ -15,6 +15,7 @@ import { TBL_OS, TBL_PEDIDOS, TBL_LOGS_PPO } from './constants';
 import { contaOmie } from '@/lib/omie/contas';
 import { aplicarMudancaFase } from './fase';
 import { logAndNotify } from '@/lib/server/audit-notify';
+import { filtrarDestinatarios } from '@/lib/notif/prefs';
 import { resolverNfseDaOS } from '@/lib/clientes/nfse-omie';
 import { hojeSaoPaulo } from '@/lib/pagamento/parcelas';
 import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
@@ -146,17 +147,20 @@ async function logOS(id: string, acao: string, userName: string, status: string)
   });
 }
 
-/** Mesma regra do envio (criarOSNoOmie): Tipo_Servico 'Garantia' OU garantia vinculada. */
-async function ehGarantia(os: LinhaOS): Promise<boolean> {
-  if (String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia') return true;
-  const { data } = await supabase.from('garantias').select('id').eq('id_ordem', os.Id_Ordem).limit(1);
-  return !!data?.length;
+/** Mesma regra do envio (criarOSNoOmie): Tipo_Servico 'Garantia' OU garantia vinculada; e se já tem montadora. */
+type InfoGarantia = { eh: boolean; semMontadora: boolean };
+async function ehGarantia(os: LinhaOS): Promise<InfoGarantia> {
+  const { data } = await supabase.from('garantias').select('montadora_id')
+    .eq('id_ordem', os.Id_Ordem).order('created_at', { ascending: false }).limit(1);
+  const linha = (data?.[0] as { montadora_id?: string | null } | undefined) || null;
+  const eh = String(os.Tipo_Servico || '').toLowerCase().trim() === 'garantia' || !!linha;
+  return { eh, semMontadora: eh && !linha?.montadora_id };
 }
 
-function paraRegras(os: LinhaOS, garantia: boolean): OSParaFaturar {
+function paraRegras(os: LinhaOS, garantia: InfoGarantia): OSParaFaturar {
   return {
     idOrdem: os.Id_Ordem, ordemOmie: String(os.Ordem_Omie || ''), status: String(os.Status || ''),
-    servicoInterno: !!os.Servico_Interno, ehGarantia: garantia, faturadoEm: os.faturado_omie_em,
+    servicoInterno: !!os.Servico_Interno, ehGarantia: garantia.eh, garantiaSemMontadora: garantia.semMontadora, faturadoEm: os.faturado_omie_em,
     faturamentoStatus: os.faturamento_status, faturandoDesde: os.faturando_desde,
   };
 }
@@ -203,6 +207,55 @@ async function ppvsDaOS(os: LinhaOS): Promise<PPVDaOS[]> {
   }));
 }
 
+/**
+ * Pedidos de peças que PRECISAM de nota para a OS ser concluída: estão no Omie,
+ * não são remessa e não estão cancelados. (Pedido que nunca foi ao Omie não trava.)
+ */
+function ehConcluidaOuCancelada(status: string | null | undefined): boolean {
+  return /^conclu|cancel/i.test(String(status || ''));
+}
+
+function pedidoQueConta(p: PPVDaOS): boolean {
+  return !!p.pedidoOmie && !/cancel/i.test(p.status) && !/remessa/i.test(p.tipo);
+}
+
+/**
+ * Regra do José (13/10/2026): a OS só vai para Concluída quando a OS E todos os
+ * pedidos de peças dela estiverem faturados. Quem faturou só um, conclui quando
+ * o outro for faturado (por aqui ou direto no Omie, na próxima conferência).
+ */
+async function concluirSeTudoFaturado(id: string, userName: string, motivo: string): Promise<boolean> {
+  const os = await lerOS(id);
+  if (!os?.faturado_omie_em) return false;
+  if (ehConcluidaOuCancelada(os.Status)) return false;
+  const faltam = (await ppvsDaOS(os)).filter((p) => pedidoQueConta(p) && !p.faturadoEm);
+  if (faltam.length) return false;
+  try {
+    const f = await aplicarMudancaFase(id, 'Concluída', userName, { acaoLog: `Concluída — ${motivo}` });
+    if (f.success) {
+      const { registrarAlimentacaoOS } = await import('./alimentacao-os');
+      await registrarAlimentacaoOS(id).catch(() => {});
+      return true;
+    }
+  } catch (e) { console.error(`[faturar OS] ${id}: concluir falhou`, e); }
+  return false;
+}
+
+/** Notificação no sino para QUEM faturou (achado pelo e-mail gravado em faturado_por). */
+async function notificarQuemFaturou(quem: string | null | undefined, titulo: string, descricao: string, link: string) {
+  const email = String(quem || '').trim();
+  if (!email.includes('@')) return; // "Sistema" / "Omie (faturada direto lá)"
+  try {
+    const { data: u } = await supabase.from('financeiro_usu').select('id').ilike('email', email).limit(1);
+    const userId = (u?.[0] as { id?: string } | undefined)?.id;
+    if (!userId) return;
+    const { data: pref } = await supabase.from('portal_permissoes').select('user_id, categoria, notif_silenciado').eq('user_id', userId).maybeSingle();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (pref && filtrarDestinatarios('pos', [pref as any]).length === 0) return;
+    await supabase.from('portal_notificacoes').insert({ user_id: userId, tipo: 'pos', titulo, descricao, link });
+  } catch { /* notificação não derruba nada */ }
+}
+
 // ---------------------------------------------------------------- estado p/ a tela
 export interface EstadoFaturamentoOS {
   habilitado: boolean;
@@ -218,6 +271,8 @@ export interface EstadoFaturamentoOS {
   nfseNumero: string | null;
   nfseLink: string | null;
   pecas: PecaFaturada[];
+  /** pedidos de peças da OS que contam para concluir (no Omie, não remessa, não cancelados) */
+  pedidos?: Array<{ id: string; pedidoOmie: string; faturado: boolean }>;
   migracaoFaltando?: boolean;
 }
 
@@ -241,6 +296,7 @@ export async function estadoFaturamento(id: string, auth: Autenticado): Promise<
     faturadoEm: os.faturado_omie_em, faturadoPor: os.faturado_por, formaPagamento: os.forma_pagamento,
     nfseNumero: os.nfse_numero, nfseLink: os.nfse_link,
     pecas: Array.isArray(os.faturamento_pecas) ? os.faturamento_pecas : [],
+    pedidos: (await ppvsDaOS(os)).filter(pedidoQueConta).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, faturado: !!p.faturadoEm })),
   };
 }
 
@@ -345,6 +401,8 @@ export interface ResultadoFaturarOS {
   mensagem?: string;
   nfseNumero?: string | null;
   pecas?: PecaFaturada[];
+  /** a OS foi para Concluída (só quando a OS e os pedidos de peças estão faturados) */
+  concluida?: boolean;
 }
 
 export async function faturarOSNoOmie(
@@ -478,7 +536,7 @@ export async function faturarOSNoOmie(
   }
 
   // faturada (ou já estava faturada no Omie desde a abertura da janela)
-  const pecas = await posFaturamento(id, {
+  const { pecas, concluida } = await posFaturamento(id, {
     userName, userId: auth.userId, nCodOS,
     forma: r.tipo === 'faturada' ? forma : null,
     ppvIds: r.tipo === 'faturada' ? pedidos : [],
@@ -488,7 +546,7 @@ export async function faturarOSNoOmie(
       : null,
   });
   const atual = await lerOS(id).catch(() => null);
-  return { ok: true, status: 200, tipo: r.tipo === 'faturada' ? 'faturada' : 'ja_faturada', nfseNumero: atual?.nfse_numero || null, pecas };
+  return { ok: true, status: 200, tipo: r.tipo === 'faturada' ? 'faturada' : 'ja_faturada', nfseNumero: atual?.nfse_numero || null, pecas, concluida };
 }
 
 async function auditar(id: string, userName: string, userId: string, acao: string, detalhes: Record<string, unknown>) {
@@ -510,7 +568,7 @@ async function auditar(id: string, userName: string, userId: string, acao: strin
 async function posFaturamento(id: string, ctx: {
   userName: string; userId: string; nCodOS: number; forma: string | null; ppvIds: string[]; respostaCrua: string; porFora: boolean;
   dataFaturamentoOmie?: string | null; // dd/mm/aaaa do InfoCadastro.dDtFat (faturada direto no Omie)
-}): Promise<PecaFaturada[]> {
+}): Promise<{ pecas: PecaFaturada[]; concluida: boolean }> {
   const os = await lerOS(id);
   const statusAntes = String(os?.Status || '');
   await gravarOS(id, {
@@ -540,21 +598,18 @@ async function posFaturamento(id: string, ctx: {
     await gravarOS(id, { faturamento_pecas: null }).catch(() => {});
   }
 
-  // 2) conclui pelo caminho normal (log, métricas, PPV, notificações) + alimentação → financeiro
+  // 2) conclui pelo caminho normal (log, métricas, PPV, notificações) + alimentação → financeiro,
+  //    MAS só quando a OS e TODOS os pedidos de peças estão faturados (regra 13/10/2026)
+  let concluida = false;
   if (!ctx.porFora) {
-    try {
-      const f = await aplicarMudancaFase(id, 'Concluída', ctx.userName, { acaoLog: 'Concluída — OS faturada (NFS-e)' });
-      if (f.success) {
-        const { registrarAlimentacaoOS } = await import('./alimentacao-os');
-        await registrarAlimentacaoOS(id).catch(() => {});
-      }
-    } catch (e) { console.error(`[faturar OS] ${id}: concluir falhou`, e); }
-    await auditar(id, ctx.userName, ctx.userId, 'faturar', { nCodOS: ctx.nCodOS, forma: ctx.forma, pecas, omie: ctx.respostaCrua });
+    concluida = await concluirSeTudoFaturado(id, ctx.userName, 'OS e pedidos de peças faturados');
+    if (!concluida) await logOS(id, 'OS faturada — vai para Concluída quando o pedido de peças também for faturado.', ctx.userName, statusAntes);
+    await auditar(id, ctx.userName, ctx.userId, 'faturar', { nCodOS: ctx.nCodOS, forma: ctx.forma, pecas, omie: ctx.respostaCrua, concluida });
   }
 
   // 3) NFS-e (uma tentativa rápida; a reconciliação completa depois)
   try { await atualizarNfse(id, ctx.nCodOS); } catch { /* fica pra reconciliação */ }
-  return pecas;
+  return { pecas, concluida };
 }
 
 /** "dd/mm/aaaa" do Omie → meio-dia em São Paulo (ISO); null se inválida. */
@@ -565,6 +620,7 @@ function dataOmieISO(d: string | null | undefined): string | null {
 
 /** Lê a NFS-e no StatusOS, grava situação/nº e o PDF (se já existir) na OS e na pasta do cliente. */
 async function atualizarNfse(id: string, nCodOS: number): Promise<StatusFaturamento> {
+  const antes = await lerOS(id).catch(() => null);
   const st = await omie<{ ListaRpsNfse?: Array<RpsNfse & { danfe?: string; cUrlNfse?: string }> }>('/servicos/os/', 'StatusOS', { nCodOS, lMsg: true });
   const sit = situacaoNfse(st?.ListaRpsNfse);
   const upd: Record<string, unknown> = { faturamento_status: sit.status, faturamento_erro: sit.mensagem };
@@ -585,6 +641,19 @@ async function atualizarNfse(id: string, nCodOS: number): Promise<StatusFaturame
     }
   }
   await gravarOS(id, upd);
+
+  // a nota saiu (ou voltou rejeitada) AGORA → avisa no sino quem faturou
+  const virou = antes?.faturamento_status !== sit.status && (sit.status === 'nfse_autorizada' || sit.status === 'nfse_rejeitada');
+  if (virou && antes?.faturado_omie_em) {
+    const num = chaveNum(antes.Ordem_Omie) || id;
+    if (sit.status === 'nfse_autorizada') {
+      await notificarQuemFaturou(antes.faturado_por, `NFS-e da OS ${num} emitida`,
+        `A nota ${sit.numero ? `nº ${sit.numero} ` : ''}foi autorizada pelo sistema nacional. ${antes.Os_Cliente || ''}`.trim(), `/pos?id=${id}`);
+    } else {
+      await notificarQuemFaturou(antes.faturado_por, `NFS-e da OS ${num} REJEITADA`,
+        `${sit.mensagem || 'O sistema nacional recusou a nota.'} Corrija e reenvie pelo Omie.`, `/pos?id=${id}`);
+    }
+  }
   return sit.status;
 }
 
@@ -600,6 +669,10 @@ export async function reconciliarFaturamentoOS(id: string, opts: { forcar?: bool
   if (!os?.Ordem_Omie) return 'sem Omie';
 
   if (os.faturado_omie_em) {
+    // pedido de peças faturado depois por outro caminho (tela do PPV / direto no Omie): conclui agora
+    if (!ehConcluidaOuCancelada(os.Status) && os.faturado_por !== 'Omie (faturada direto lá)') {
+      await concluirSeTudoFaturado(id, os.faturado_por || 'Sistema', 'pedido de peças faturado depois da OS');
+    }
     if (!statusPendente(os.faturamento_status) && os.faturamento_status !== 'nfse_rejeitada') return 'em dia';
     const nCodOS = Number(os.omie_ncodos || 0) || (await resolverOSNoOmie(os)).nCodOS;
     return `nfse: ${await atualizarNfse(id, nCodOS)}`;
@@ -641,16 +714,25 @@ export async function reconciliarFaturamentoOS(id: string, opts: { forcar?: bool
   return 'aberta';
 }
 
-/** Fatura de novo SÓ as peças que falharam depois que a OS já foi faturada. */
-export async function faturarPecasPendentes(id: string, ppvIds: string[], auth: Autenticado): Promise<{ ok: boolean; mensagem?: string; pecas?: PecaFaturada[] }> {
+/**
+ * Fatura SÓ os pedidos de peças da OS (NF-e) — antes da OS (escolheu "só o
+ * pedido") ou depois (pedido que falhou/ficou para depois). Quando a OS e todos
+ * os pedidos ficam faturados, a OS vai para Concluída.
+ */
+export async function faturarPecasPendentes(id: string, ppvIds: string[], auth: Autenticado): Promise<{ ok: boolean; mensagem?: string; pecas?: PecaFaturada[]; concluida?: boolean }> {
   if (!podeFaturarPPV(auth)) return { ok: false, mensagem: 'Você não tem permissão para faturar pedidos de peças (PPV).' };
   const os = await lerOS(id);
-  if (!os?.faturado_omie_em) return { ok: false, mensagem: 'A OS ainda não foi faturada.' };
+  if (!os) return { ok: false, mensagem: 'OS não encontrada.' };
   const atuais: PecaFaturada[] = Array.isArray(os.faturamento_pecas) ? os.faturamento_pecas : [];
   const { faturarPPVNoOmie } = await import('@/lib/ppv/omie');
   const todos = await ppvsDaOS(os);
   for (const pid of ppvIds) {
-    if (!todos.some((p) => p.id === pid)) continue;
+    const p = todos.find((x) => x.id === pid);
+    if (!p) return { ok: false, mensagem: `O pedido ${pid} não é desta OS.` };
+    const fora = motivoPPVFora(p);
+    if (fora && fora !== 'já faturado') return { ok: false, mensagem: `O pedido ${pid} não pode ser faturado (${fora}).` };
+  }
+  for (const pid of ppvIds) {
     let res: PecaFaturada;
     try {
       const r = await faturarPPVNoOmie(pid);
@@ -660,8 +742,15 @@ export async function faturarPecasPendentes(id: string, ppvIds: string[], auth: 
     if (i >= 0) atuais[i] = res; else atuais.push(res);
   }
   await gravarOS(id, { faturamento_pecas: atuais });
-  await logOS(id, `Peças faturadas de novo: ${ppvIds.join(', ')}`, auth.email || 'Sistema', String(os.Status || ''));
-  return { ok: true, pecas: atuais };
+  const userName = auth.email || 'Sistema';
+  await logOS(id, `Pedido(s) de peças faturado(s) pela OS: ${ppvIds.join(', ')}`, userName, String(os.Status || ''));
+  // resultado de cada pedido no sino de quem faturou (a NF-e de peças sai na hora)
+  for (const r of atuais.filter((x) => ppvIds.includes(x.id))) {
+    await notificarQuemFaturou(userName, r.ok ? `NF-e das peças ${r.pedidoOmie ? `(PV ${r.pedidoOmie}) ` : ''}emitida` : `NF-e das peças ${r.id} NÃO saiu`,
+      r.ok ? `${r.nf ? `NF-e nº ${r.nf}. ` : ''}OS ${id}.` : `${r.erro || 'Falhou no Omie.'} OS ${id}.`, `/pos?id=${id}`);
+  }
+  const concluida = await concluirSeTudoFaturado(id, userName, 'OS e pedidos de peças faturados');
+  return { ok: true, pecas: atuais, concluida };
 }
 
 /** Agendador interno (instrumentation.ts): reconcilia as OS com faturamento pendente. */

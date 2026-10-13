@@ -15,7 +15,7 @@ const EMPRESAS = {
   CASTRO: { nome: "CASTRO MÁQUINAS E PEÇAS AGRÍCOLAS LTDA", endereco: "RUA DOUTOR FARTURA, 140 | FARTURA - SP" }
 };
 
-export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
+export default function FormReq({ onSave, osInicial }: { onSave: (data: any) => void; osInicial?: string | null }) {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [veiculos, setVeiculos] = useState<any[]>([]);
 
@@ -116,6 +116,19 @@ export default function FormReq({ onSave }: { onSave: (data: any) => void }) {
     };
     fetchData();
   }, []);
+
+  // Veio da criação da OS no POS (/requisicoes?aba=form&os=OS-0123): já abre
+  // como Trator-Cliente com a OS, o cliente e o chassis dela. Uma vez só.
+  const osAplicada = useRef(false);
+  useEffect(() => {
+    if (!osInicial || osAplicada.current || ordensAbertas.length === 0) return;
+    const o = ordensAbertas.find(x => String(x.Id_Ordem) === osInicial);
+    if (!o) return;
+    osAplicada.current = true;
+    setFormData(p => ({ ...p, setor: 'Trator-Cliente', ordem_servico: String(o.Id_Ordem), cliente: o.Os_Cliente || p.cliente, cliente_cnpj: o.Cnpj_Cliente || p.cliente_cnpj }));
+    puxarDadosOS(o);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [osInicial, ordensAbertas]);
 
   // Fechar dropdowns ao clicar fora
   useEffect(() => {

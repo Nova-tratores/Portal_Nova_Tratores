@@ -4,7 +4,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { criarTarefa, listarTarefas, contarPendentes } from "@/lib/ppv/tarefas";
 import { autenticar } from "@/lib/auth/server";
-import { temModuloPPV } from "@/lib/ppv/server";
+import { temModuloPPVouPOS } from "@/lib/ppv/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  if (!temModuloPPV(auth)) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+  if (!temModuloPPVouPOS(auth)) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   const id = req.nextUrl.searchParams.get("id");
   if (!id) return NextResponse.json({ error: "id obrigatório" }, { status: 400 });
   try {
@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const auth = await autenticar(req);
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
-  if (!temModuloPPV(auth)) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
+  if (!temModuloPPVouPOS(auth)) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   try {
     const body = await req.json();
     const id: string = body?.id;

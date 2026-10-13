@@ -78,7 +78,9 @@ describe('estado e bloqueios', () => {
     expect(bloqueioFaturar({ ...base, faturadoEm: '2026-10-10' }, agora)).toMatch(/já foi/);
     expect(bloqueioFaturar({ ...base, status: 'Cancelada' }, agora)).toMatch(/cancelada/);
     expect(bloqueioFaturar({ ...base, servicoInterno: true }, agora)).toMatch(/interna/);
-    expect(bloqueioFaturar({ ...base, ehGarantia: true }, agora)).toMatch(/garantia/);
+    expect(bloqueioFaturar({ ...base, ehGarantia: true, garantiaSemMontadora: true }, agora)).toMatch(/montadora/);
+    // garantia com a montadora escolhida fatura normalmente
+    expect(bloqueioFaturar({ ...base, ehGarantia: true, garantiaSemMontadora: false }, agora)).toBeNull();
     expect(bloqueioFaturar({ ...base, faturamentoStatus: 'desconhecido' }, agora)).toMatch(/Conferir/);
     expect(bloqueioFaturar({ ...base, faturandoDesde: '2026-10-10T14:55:00Z' }, agora)).toMatch(/andamento/);
     expect(travaAtiva('2026-10-10T14:49:00Z', agora)).toBe(false);

@@ -161,6 +161,32 @@ export default function PPVDrawer({
   }, [ppvId, baixandoPdfOmie]);
   const [faturadoEm, setFaturadoEm] = useState("");
   const [showFaturar, setShowFaturar] = useState(false);
+  const [osVinc, setOsVinc] = useState<{ ordemOmie: string; status: string; requisicoes: Array<{ id: string; valor: number; material: string }> } | null>(null);
+  useEffect(() => {
+    const id = (modalOSId || "").trim();
+    if (!ppvId || !id) { setOsVinc(null); return; }
+    let ativo = true;
+    fetch(`/api/pos/ordens/${encodeURIComponent(id)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!ativo || !d) return;
+        setOsVinc({
+          ordemOmie: String(d.ordemOmie || ""), status: String(d.status || ""),
+          requisicoes: (d.infoRequisicoes || []).map((r: { id: string; valor?: number; material?: string }) => ({ id: String(r.id), valor: Number(r.valor) || 0, material: String(r.material || "") })),
+        });
+      })
+      .catch(() => { /* sem OS */ });
+    return () => { ativo = false; };
+  }, [ppvId, modalOSId]);
+  const imprimirOSVinc = useCallback(() => {
+    const id = (modalOSId || "").trim();
+    if (!id) return;
+    const w = window.open("", "_blank");
+    if (!w) return;
+    fetch(`/api/pos/ordens/${encodeURIComponent(id)}/print?pecas=1`)
+      .then((r) => r.text()).then((html) => { w.document.write(html); w.document.close(); })
+      .catch(() => w.close());
+  }, [modalOSId]);
   const [cancelarOpen, setCancelarOpen] = useState(false);   // modal que pede o motivo do cancelamento
   const [cancelMotivo, setCancelMotivo] = useState("");
   // Trocar a fase pra "Cancelada" pelo seletor passa pelo MESMO modal do motivo
@@ -350,6 +376,13 @@ export default function PPVDrawer({
     }
     setSefazLoading(false);
   }, [ppvId, showToast]);
+  const nfPedidoPedida = useRef("");
+  useEffect(() => {
+    if (!ppvId || !pedidoOmie || tipoPedido === "Remessa") return;
+    if (nfPedidoPedida.current === ppvId + pedidoOmie) return; // uma vez por pedido aberto
+    nfPedidoPedida.current = ppvId + pedidoOmie;
+    void carregarSefaz(false);
+  }, [ppvId, pedidoOmie, tipoPedido, carregarSefaz]);
 
   // Carrega a NF-e quando a aba SEFAZ é aberta (uma vez; botão "Atualizar" refaz).
   useEffect(() => {
@@ -1346,25 +1379,8 @@ export default function PPVDrawer({
                       {/* Adicionar por QR (rastreio de unidades) */}
                       <button type="button" onClick={() => setScanAddAberto(true)} disabled={!ppvId || !podeItem}
                         title={!podeItem ? MSG_SEM_PERMISSAO : "Escanear o QR da etiqueta pra adicionar a peça e reservar a unidade"}
-                        style={{
-                          padding: "14px 16px", borderRadius: 14, border: "1px solid #BFDBFE",
-                          background: "linear-gradient(135deg, #EFF6FF, #F0F9FF)",
-                          cursor: !ppvId || !podeItem ? "not-allowed" : "pointer", opacity: !ppvId || !podeItem ? 0.55 : 1,
-                          display: "flex", alignItems: "center", gap: 12, textAlign: "left", transition: "all .15s",
-                        }}
-                        onMouseEnter={(e) => { if (ppvId && podeItem) e.currentTarget.style.boxShadow = "0 6px 18px rgba(37,99,235,0.18)"; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.boxShadow = "none"; }}>
-                        <span style={{ width: 42, height: 42, borderRadius: 12, background: "linear-gradient(135deg, #3b82f6, #1d4ed8)", display: "flex", alignItems: "center", justifyContent: "center", color: "#fff", flexShrink: 0, boxShadow: "0 3px 8px rgba(29,78,216,0.32)" }}>
-                          <i className="fas fa-qrcode" style={{ fontSize: 16 }} />
-                        </span>
-                        <span style={{ flex: 1, minWidth: 0 }}>
-                          <span style={{ display: "block", fontSize: 14.5, fontWeight: 600, color: "#1d4ed8" }}>
-                            Adicionar por QR
-                          </span>
-                          <span style={{ display: "block", fontSize: 12, color: "#7ba3e8", marginTop: 1 }}>
-                            Escaneia a etiqueta e reserva a unidade
-                          </span>
-                        </span>
+                        style={{ display: "inline-flex", alignItems: "center", gap: 8, height: 36, padding: "0 16px", borderRadius: 8, border: "1px solid #BFDBFE", background: "#fff", color: !ppvId || !podeItem ? "#93c5fd" : "#1d4ed8", fontSize: 13.5, fontWeight: 600, cursor: !ppvId || !podeItem ? "not-allowed" : "pointer" }}>
+                        <i className="fas fa-qrcode" /> Adicionar por QR
                       </button>
                     </div>
 
@@ -1575,39 +1591,104 @@ export default function PPVDrawer({
                   <i className="fas fa-qrcode" /> Liberação (QR)
                 </button>
               )}
-              {/* Um único botão que MORFA: Enviar (cria no Omie) → Faturar (emite NF-e) → Faturado */}
-              {!pedidoOmie ? (
-                <button className="ppv-rail-btn" onClick={enviarOmie} disabled={enviandoOmie || !podeOmie} title={!podeOmie ? MSG_SEM_PERMISSAO : "Criar o Pedido de Venda no Omie"}>
-                  <i className={`fas ${enviandoOmie ? "fa-spinner fa-spin" : "fa-paper-plane"}`} /> {enviandoOmie ? "Enviando..." : "Enviar Omie"}
-                </button>
-              ) : faturadoEm ? (
-                <div className="ppv-rail-btn" style={{ color: "#047857", cursor: "default", alignItems: "center" }} title={`Pedido já faturado (NF-e) — Omie nº ${pedidoOmie}`}>
-                  <i className="fas fa-check-circle" style={{ color: "#047857" }} />
-                  <span style={railTextCol}><span style={{ fontWeight: 600 }}>Faturado</span><span style={railNumPillVerde}>Omie nº {numOmie}</span></span>
-                </div>
-              ) : tipoPedido === "Remessa" ? (
-                <div className="ppv-rail-btn" style={{ color: "#047857", cursor: "default", alignItems: "center" }} title={`Remessa enviada (Omie nº ${pedidoOmie})`}>
-                  <i className="fas fa-check-circle" style={{ color: "#047857" }} />
-                  <span style={railTextCol}><span style={{ fontWeight: 600 }}>Enviado</span><span style={railNumPillVerde}>Omie nº {numOmie}</span></span>
-                </div>
-              ) : (
-                <button className="ppv-rail-btn" onClick={() => setShowFaturar(true)} disabled={!podeFaturar} title={!podeFaturar ? MSG_SEM_PERMISSAO : `Faturar (emite NF-e) — Omie nº ${pedidoOmie}`} style={{ alignItems: "center" }}>
-                  <i className="fas fa-bolt" />
-                  <span style={railTextCol}><span style={{ fontWeight: 600 }}>Faturar</span><span style={railNumPill}>Omie nº {numOmie}</span></span>
-                </button>
-              )}
               <button className="ppv-rail-btn" onClick={gerarPDF} disabled={gerando}><i className={`fas ${gerando ? "fa-spinner fa-spin" : "fa-print"}`} /> {gerando ? "Gerando..." : "Imprimir"}</button>
-              {pedidoOmie && (
-                <button className="ppv-rail-btn" onClick={abrirPdfOmiePPV} disabled={baixandoPdfOmie} title="PDF do pedido de venda no Omie" style={{ alignItems: "center" }}>
-                  <i className={`fas ${baixandoPdfOmie ? "fa-spinner fa-spin" : "fa-file-pdf"}`} />
-                  <span style={railTextCol}><span style={{ fontWeight: 600 }}>{baixandoPdfOmie ? "Buscando..." : "PDF PV"}</span><span style={railNumPill}>Omie nº {numOmie}</span></span>
-                </button>
-              )}
-              {faturadoEm && (
-                <button className="ppv-rail-btn" onClick={abrirDanfe} disabled={danfeLoading} title="Imprimir a NF-e gerada (DANFE em PDF)">
-                  <i className={`fas ${danfeLoading ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> {danfeLoading ? "Gerando NF..." : "Imprimir NF"}
-                </button>
-              )}
+
+              {/* ── Blocos: Omie (pedido, NF-e, faturar) · OS vinculada · requisições da OS ── */}
+              {(() => {
+                const cartao = (cor: string): CSSProperties => ({ margin: "4px 0 6px", padding: 10, borderRadius: 10, border: `1px solid color-mix(in srgb, ${cor} 40%, #E2E8F0)`, background: `color-mix(in srgb, ${cor} 6%, #fff)`, display: "flex", flexDirection: "column", gap: 6 });
+                const cabeca = (conteudo: React.ReactNode, onAbrir?: () => void) => (
+                  <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "0 2px" }}>
+                    <span style={{ flex: 1, display: "flex", alignItems: "center", gap: 7, fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4 }}>{conteudo}</span>
+                    {onAbrir && <button type="button" onClick={onAbrir} style={{ background: "none", border: "none", color: "#0369A1", fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>abrir</button>}
+                  </div>
+                );
+                const botao = (onClick: () => void, icone: string, rotulo: string, titulo: string, carregando = false, cor = "#475569") => (
+                  <button type="button" onClick={onClick} disabled={carregando} title={titulo}
+                    style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 30, padding: "0 9px", borderRadius: 7, border: `1px solid ${cor === "#475569" ? "#E2E8F0" : cor}`, background: "#fff", color: cor, fontSize: 12, fontWeight: 700, cursor: carregando ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                    <i className={`fas ${carregando ? "fa-spinner fa-spin" : icone}`} /> {rotulo}
+                  </button>
+                );
+                const linha = (chave: string, titulo: string, sub: string | null, acao: React.ReactNode) => (
+                  <div key={chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderRadius: 8, background: "#fff", border: "1px solid #E2E8F0" }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</div>
+                      {sub && <div style={{ fontSize: 11.5, color: "#64748b", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+                    </div>
+                    {acao}
+                  </div>
+                );
+                const osId = (modalOSId || "").trim();
+                const reqs = osVinc?.requisicoes || [];
+                return (
+                  <>
+                    <div style={cartao("#0BB7CD")}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {cabeca(<><img src="/marcas/omie.png" alt="Omie" style={{ height: 16, width: "auto" }} /><span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 600, color: "#64748b" }}>pedido e nota</span></>)}
+                      {!pedidoOmie ? (
+                        <>
+                          <div style={{ fontSize: 12, color: "#64748b", padding: "0 2px" }}>Este pedido ainda não está no Omie.</div>
+                          <button type="button" onClick={enviarOmie} disabled={enviandoOmie || !podeOmie} title={!podeOmie ? MSG_SEM_PERMISSAO : "Criar o Pedido de Venda no Omie"}
+                            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 40, borderRadius: 9, border: "none", background: podeOmie ? "#0BB7CD" : "#94A3B8", color: "#fefefe", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>
+                            <i className={`fas ${enviandoOmie ? "fa-spinner fa-spin" : "fa-paper-plane"}`} /> {enviandoOmie ? "Enviando..." : "Enviar para o Omie"}
+                          </button>
+                        </>
+                      ) : (() => {
+                        // faturado = o portal registrou OU a SEFAZ diz que a NF-e existe (faturado direto no Omie)
+                        const nf = sefaz?.faturado && !sefaz.canceladaEm ? sefaz : null;
+                        const faturado = !!faturadoEm || !!nf;
+                        const remessa = tipoPedido === "Remessa";
+                        const selo = (txt: string, cor: string, bg: string) => <span style={{ alignSelf: "flex-start", fontSize: 11, fontWeight: 800, padding: "2px 8px", borderRadius: 999, color: cor, background: bg }}>{txt}</span>;
+                        const doc = (rotulo: string, numero: string, extra: React.ReactNode, acoes: React.ReactNode, chave: string) => (
+                          <div key={chave} style={{ padding: "8px 10px", borderRadius: 8, background: "#fff", border: "1px solid #E2E8F0", display: "flex", flexDirection: "column", gap: 6 }}>
+                            <div>
+                              <div style={{ fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4, color: "#64748b" }}>{rotulo}</div>
+                              <div style={{ fontSize: 17, fontWeight: 800, fontVariantNumeric: "tabular-nums", lineHeight: 1.2 }}>{numero}</div>
+                            </div>
+                            {extra}
+                            <div style={{ display: "flex", gap: 6 }}>{acoes}</div>
+                          </div>
+                        );
+                        return (
+                          <>
+                            {doc(remessa ? "Remessa" : "Pedido de venda", `nº ${numOmie}`,
+                              faturado ? selo("Faturado", "#047857", "#d1fae5") : remessa ? selo("Remessa enviada", "#047857", "#d1fae5") : selo("Aguardando faturar", "#b45309", "#fef3c7"),
+                              botao(abrirPdfOmiePPV, "fa-file-pdf", "PDF do pedido", "PDF oficial do pedido no Omie (gerado na hora)", baixandoPdfOmie, "#0891A8"), "pv")}
+                            {faturado && doc("Nota fiscal (NF-e)", nf?.numero ? `nº ${String(nf.numero).replace(/^0+/, "")}` : "emitida",
+                              <span style={{ fontSize: 11.5, color: "#64748b" }}>
+                                {[nf?.emitidaEm ? `emitida em ${nf.emitidaEm}` : "", !faturadoEm ? "faturada direto no Omie" : ""].filter(Boolean).join(" · ") || "nota das peças"}
+                              </span>,
+                              botao(abrirDanfe, "fa-print", "Imprimir a nota", "Imprimir a NF-e (DANFE em PDF)", danfeLoading), "nf")}
+                            {!faturado && !remessa && (
+                              <button type="button" onClick={() => setShowFaturar(true)} disabled={!podeFaturar} title={!podeFaturar ? MSG_SEM_PERMISSAO : `Faturar (emite NF-e) — Omie nº ${numOmie}`}
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 40, borderRadius: 9, border: "none", background: podeFaturar ? "#0BB7CD" : "#94A3B8", color: "#fefefe", fontWeight: 800, fontSize: 14, cursor: podeFaturar ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: podeFaturar ? "0 3px 10px rgba(11,183,205,.35)" : "none" }}>
+                                <i className="fas fa-file-invoice-dollar" /> Faturar pedido
+                              </button>
+                            )}
+                          </>
+                        );
+                      })()}
+                    </div>
+
+                    {osId && (
+                      <div style={cartao("#0369A1")}>
+                        {cabeca(<><i className="fas fa-screwdriver-wrench" style={{ color: "#0369A1" }} /> Ordem de serviço</>, () => window.open(`/pos?id=${encodeURIComponent(osId)}`, "_blank"))}
+                        {linha("os", osId, [osVinc?.ordemOmie ? `Omie nº ${osVinc.ordemOmie.replace(/^0+/, "")}` : "", osVinc?.status || ""].filter(Boolean).join(" · ") || null,
+                          botao(imprimirOSVinc, "fa-print", "Imprimir", `Imprimir a OS ${osId}`))}
+                      </div>
+                    )}
+
+                    {osId && (
+                      <div style={cartao("#0D9488")}>
+                        {cabeca(<><i className="fas fa-shopping-cart" style={{ color: "#0D9488" }} /> Requisições{reqs.length ? ` (${reqs.length})` : ""}</>)}
+                        {reqs.slice(0, 4).map((r) => linha(r.id, `Req. #${r.id}`, [r.material, r.valor > 0 ? `R$ ${r.valor.toFixed(2).replace(".", ",")}` : ""].filter(Boolean).join(" · ") || null,
+                          botao(() => window.open(`/requisicoes/imprimir/${r.id}`, "_blank"), "fa-print", "Imprimir", `Imprimir a requisição #${r.id}`)))}
+                        {reqs.length > 4 && <div style={{ fontSize: 12, color: "#64748b" }}>+{reqs.length - 4} na OS (abrir a OS)</div>}
+                        {!reqs.length && <div style={{ fontSize: 12, color: "#64748b", padding: "0 2px" }}>{osVinc ? "Nenhuma requisição na OS." : "Carregando…"}</div>}
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
               <button className="ppv-rail-btn" onClick={duplicarPedido} disabled={duplicando || !details} title="Duplicar este pedido"><i className={`fas ${duplicando ? "fa-spinner fa-spin" : "fa-copy"}`} /> {duplicando ? "Duplicando..." : "Duplicador"}</button>
               <button className="ppv-rail-btn" onClick={() => setShowAnexos(true)} disabled={!ppvId} title="Anexar mídia + comentário" style={{ position: "relative" }}>
                 <i className="fas fa-paperclip" /> Anexos

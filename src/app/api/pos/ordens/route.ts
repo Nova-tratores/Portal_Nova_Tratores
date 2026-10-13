@@ -388,7 +388,7 @@ export async function POST(req: NextRequest) {
   if (resId && resId.length > 0) ultimoNum = parseInt(resId[0].Id_Ordem.split("-")[1], 10);
   const newId = `OS-${String(ultimoNum + 1).padStart(4, "0")}`;
 
-  // Auto-gerar PPV se solicitado (revisão)
+  // Auto-gerar PPV se solicitado (revisão, ou peças escolhidas na abertura)
   let ppvFinal = dados.ppv || "";
   let ppvGerado = "";
   let avisoPPV = "";       // volta pro front se o PPV não pôde ser criado
@@ -406,12 +406,14 @@ export async function POST(req: NextRequest) {
 
     const { error: ppvErr } = await supabase.from(TBL_PEDIDOS).insert({
       id_pedido: novoPPV,
-      Tipo_Pedido: "Pedido",
+      // OS interna: peças saem por remessa (mesma regra do criar-ppv)
+      Tipo_Pedido: dados.servicoInterno ? "Remessa" : "Pedido",
       cliente: dados.nomeCliente || "",
       tecnico: dados.tecnicoResponsavel || "",
       status: "Aguardando",
       valor_total: 0,
-      observacao: `Gerado automaticamente pela OS ${newId} (${dados.revisao || "Revisão"})`,
+      // Também nasce quando peças foram escolhidas já na abertura da OS
+      observacao: `Gerado automaticamente pela OS ${newId} (${dados.revisao || (dados.tipoServico === "Revisão" ? "Revisão" : "peças lançadas na abertura")})`,
       Motivo_Saida_Pedido: "Saida Tecnico (Com OS)",
       email_usuario: dados.userName || "Sistema",
       Id_Os: newId,

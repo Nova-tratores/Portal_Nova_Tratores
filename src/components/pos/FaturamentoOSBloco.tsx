@@ -15,6 +15,7 @@ interface Estado {
   faturadoEm: string | null; faturadoPor: string | null; formaPagamento: string | null;
   nfseNumero: string | null; nfseLink: string | null;
   pecas: Array<{ id: string; pedidoOmie?: string; ok: boolean; erro?: string | null; nf?: string | null }>;
+  pedidos?: Array<{ id: string; pedidoOmie: string; faturado: boolean }>;
 }
 
 const COR = {
@@ -55,6 +56,17 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
     return () => { cancel = true; };
   }, [osId, ordemOmie]);
 
+  const aguardandoNota = !!estado?.faturadoEm && estado.status === "nfse_aguardando";
+  useEffect(() => {
+    if (!aguardandoNota) return;
+    const inicio = Date.now();
+    const t = setInterval(() => {
+      if (Date.now() - inicio > 20 * 60_000) { clearInterval(t); return; }
+      void carregar({ reconciliar: true, forcar: true });
+    }, 30_000);
+    return () => clearInterval(t);
+  }, [aguardandoNota, carregar]);
+
   if (!estado || !estado.habilitado || !estado.enviadaOmie) return null;
 
   const conferir = async () => {
@@ -65,7 +77,7 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
   };
 
   const refaturarPecas = async (ids: string[]) => {
-    if (!confirm(`Faturar de novo ${ids.length === 1 ? "o pedido" : "os pedidos"} ${ids.join(", ")}? Isto emite NF-e real.`)) return;
+    if (!confirm(`Tem certeza? Vai faturar ${ids.length === 1 ? "o pedido de peças" : "os pedidos de peças"} ${ids.join(", ")} no Omie (emite NF-e real).`)) return;
     setRefaturando(true);
     try {
       const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/faturar/pecas`, {
@@ -79,7 +91,17 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
   };
 
   const rot = rotuloStatus(estado.status);
-  const pecasPendentes = estado.faturadoEm ? estado.pecas.filter((p) => !p.ok) : [];
+  const pedidosFaltando = (estado.pedidos || []).filter((p) => !p.faturado);
+  const pecasPendentes = estado.faturadoEm
+    ? [...estado.pecas.filter((p) => !p.ok), ...pedidosFaltando.filter((p) => !estado.pecas.some((x) => x.id === p.id)).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, ok: false, erro: "ainda não faturado" }))]
+    : [];
+  const pedidosJaFaturados = (estado.pedidos || []).filter((p) => p.faturado);
+  const barra = (
+    <div style={{ height: 6, borderRadius: 3, background: "rgba(11,183,205,.18)", overflow: "hidden", marginTop: 8 }}>
+      <div className="fat-barra" style={{ height: "100%", width: "40%", borderRadius: 3, background: "#0BB7CD" }} />
+      <style>{`@keyframes fatBarra { 0% { transform: translateX(-100%) } 100% { transform: translateX(250%) } } .fat-barra { animation: fatBarra 1.4s ease-in-out infinite; }`}</style>
+    </div>
+  );
 
   // ---------- já faturada ----------
   if (estado.faturadoEm) {
@@ -92,7 +114,13 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
         <div style={{ marginTop: 2 }}>
           {new Date(estado.faturadoEm).toLocaleDateString("pt-BR")}{estado.formaPagamento ? ` · ${estado.formaPagamento}` : ""}{estado.faturadoPor ? ` · ${estado.faturadoPor}` : ""}
         </div>
-        {rot && estado.status !== "nfse_autorizada" && <div style={{ marginTop: 4, fontWeight: 700 }}>{rot.texto}</div>}
+        {estado.status === "nfse_aguardando" ? (
+          <div style={{ marginTop: 6, padding: "8px 10px", borderRadius: 6, background: "#fefefe", border: "1px solid #bae6fd", color: "#075985" }}>
+            <div style={{ fontWeight: 800 }}><i className="fas fa-satellite-dish" /> Aguardando a nota do sistema nacional</div>
+            <div style={{ fontSize: 11.5, marginTop: 2 }}>O portal está buscando a NFS-e. Você recebe uma notificação quando ela sair (ou se for rejeitada).</div>
+            {barra}
+          </div>
+        ) : rot && estado.status !== "nfse_autorizada" && <div style={{ marginTop: 4, fontWeight: 700 }}>{rot.texto}</div>}
         {estado.erro && estado.status === "nfse_rejeitada" && <div style={{ marginTop: 2 }}>{estado.erro} — corrija e reenvie a nota pelo Omie.</div>}
         {estado.nfseLink && (
           <a href={estado.nfseLink} target="_blank" rel="noreferrer" style={{ display: "inline-block", marginTop: 6, color: c.tx, fontWeight: 700 }}>
@@ -100,17 +128,18 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
           </a>
         )}
         {estado.status === "nfse_aguardando" && (
-          <button className="os-rail-btn" style={{ marginTop: 6 }} onClick={conferir} disabled={conferindo}>
-            <i className={`fas ${conferindo ? "fa-spinner fa-spin" : "fa-rotate"}`} /> Conferir a nota no Omie
+          <button type="button" style={{ marginTop: 6, background: "none", border: "none", padding: 0, color: c.tx, fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }} onClick={conferir} disabled={conferindo}>
+            <i className={`fas ${conferindo ? "fa-spinner fa-spin" : "fa-rotate"}`} /> Conferir agora
           </button>
         )}
         {pecasPendentes.length > 0 && (
           <div style={{ marginTop: 8, padding: "7px 9px", borderRadius: 4, background: COR.ambar.bg, border: `1px solid ${COR.ambar.bd}`, color: COR.ambar.tx }}>
-            <div style={{ fontWeight: 800 }}>Peças pendentes de faturar</div>
-            {pecasPendentes.map((p) => <div key={p.id}>{p.id}: {p.erro}</div>)}
+            <div style={{ fontWeight: 800 }}>Falta faturar o pedido de peças</div>
+            <div style={{ fontSize: 11.5 }}>A OS vai para Concluída quando ele for faturado.</div>
+            {pecasPendentes.map((p) => <div key={p.id}>{p.pedidoOmie ? `PV ${p.pedidoOmie.replace(/^0+/, "")}` : p.id}: {p.erro}</div>)}
             {estado.podeFaturarPecas && estado.podeFaturar && (
               <button className="os-rail-btn" style={{ marginTop: 6 }} disabled={refaturando} onClick={() => refaturarPecas(pecasPendentes.map((p) => p.id))}>
-                <i className={`fas ${refaturando ? "fa-spinner fa-spin" : "fa-bolt"}`} /> Faturar de novo
+                <i className={`fas ${refaturando ? "fa-spinner fa-spin" : "fa-boxes"}`} /> Faturar o pedido
               </button>
             )}
           </div>
@@ -144,19 +173,30 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
   // ---------- pode faturar ----------
   return (
     <>
+      {pedidosJaFaturados.length > 0 && (
+        <div style={{ border: `1px solid ${COR.verde.bd}`, background: COR.verde.bg, color: COR.verde.tx, borderRadius: 6, padding: "7px 10px", fontSize: 12, margin: "4px 0" }}>
+          <i className="fas fa-check" /> Pedido de peças {pedidosJaFaturados.map((p) => `PV ${p.pedidoOmie.replace(/^0+/, "")}`).join(", ")} já faturado — falta a OS.
+        </div>
+      )}
       {estado.status === "erro" && estado.erro && (
         <div style={{ border: `1px solid ${COR.vermelho.bd}`, background: COR.vermelho.bg, color: COR.vermelho.tx, borderRadius: 6, padding: "7px 10px", fontSize: 12, margin: "4px 0" }}>
           Último faturamento não saiu: {estado.erro}
         </div>
       )}
       <button
-        className="os-rail-btn omie"
+        type="button"
         onClick={() => setAberto(true)}
         disabled={!estado.podeFaturar}
-        title={estado.podeFaturar ? `Faturar a OS ${ordemOmie.replace(/^0+/, "")} no Omie (emite NFS-e)` : "Você não tem a permissão \"Faturar OS\". Peça ao administrador."}
+        title={estado.podeFaturar ? `Faturar a OS ${ordemOmie.replace(/^0+/, "")} no Omie (emite a NFS-e). A janela mostra o pedido de peças vinculado para faturar junto.` : "Você não tem a permissão \"Faturar OS\". Peça ao administrador."}
+        style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", minHeight: 42, padding: "8px 12px", borderRadius: 10, border: "none",
+          background: estado.podeFaturar ? "#0BB7CD" : "#94A3B8", color: "#fefefe", fontWeight: 800, fontSize: 14, cursor: estado.podeFaturar ? "pointer" : "not-allowed", fontFamily: "inherit",
+          boxShadow: estado.podeFaturar ? "0 3px 10px rgba(11,183,205,.35)" : "none" }}
       >
-        <i className="fas fa-file-invoice-dollar" /> Faturar (NFS-e) · Omie nº {ordemOmie.replace(/^0+/, "") || ordemOmie}
+        <i className="fas fa-file-invoice-dollar" /> Faturar
       </button>
+      <div style={{ fontSize: 11, color: "var(--portal-text-muted, #64748b)", textAlign: "center", marginTop: -2 }}>
+        {pedidosFaltando.length ? "a OS, o pedido de peças ou os dois" : "emite a NFS-e da OS"}
+      </div>
       {aberto && <FaturarOSModal
         open
         osId={osId}

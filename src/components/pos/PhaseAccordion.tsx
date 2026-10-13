@@ -1,7 +1,7 @@
 "use client";
 import { casaBusca } from '@/lib/texto';
 
-import { useState, useMemo, memo, useCallback, useEffect, useRef } from "react";
+import { useState, useMemo, memo, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { PHASES } from "@/lib/pos/constants";
@@ -26,9 +26,28 @@ interface PhaseViewProps {
   enviandoOmie?: string | null; // id da OS em envio, ou "__todas__"
   /** Filtro por técnico — controlado pelo header (fila de perfis com foto). */
   tecnicoFiltro?: string;
+  /** Vai à direita da faixa das abas (o seletor Cards/Relação/Dashboard da página). */
+  acoesAbas?: ReactNode;
 }
 
 const FASE_ENVIAR_OMIE = "Enviar Omie";
+
+// ── Abas do quadro (guias estilo Chrome): o TIPO da ordem. Não há fase nova —
+// cada aba mostra as mesmas fases, só com as ordens daquele tipo; o que muda
+// é a COR do card. Garantia = OS com garantia registrada (o escudo do card);
+// interna = "Ordem interna". Garantia vale mais que interna.
+type TipoOS = "cliente" | "garantia" | "interna";
+const TIPOS_OS: { id: TipoOS; rotulo: string; curto: string; dica: string; cor: string; icone: string }[] = [
+  { id: "cliente", rotulo: "Faturamento Cliente", curto: "Cliente", dica: "Serviços cobrados do cliente", cor: "#2563EB", icone: "fa-file-invoice-dollar" },
+  { id: "garantia", rotulo: "Garantias", curto: "Garantias", dica: "OS com garantia registrada (fábrica)", cor: "#DB2777", icone: "fa-shield-halved" },
+  { id: "interna", rotulo: "Internas", curto: "Internas", dica: "Ordens internas da loja", cor: "#64748B", icone: "fa-tools" },
+];
+const COR_TIPO: Record<TipoOS, string> = { cliente: "#2563EB", garantia: "#DB2777", interna: "#64748B" };
+function tipoDaOS(o: KanbanCard, temGarantia: boolean): TipoOS {
+  if (temGarantia) return "garantia";
+  if (o.servicoInterno) return "interna";
+  return "cliente";
+}
 
 // Fases SEM cor própria (pedido 21/08): tudo preto no claro — o #111827 é
 // remapado pra claro no modo escuro pelas regras do globals.
@@ -488,7 +507,7 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
   })();
 
   return (
-    <div className="mini-card" style={{ position: "relative", overflow: "visible" }} onClick={onClick}
+    <div className="mini-card" style={{ position: "relative", overflow: "visible", borderTop: `4px solid ${COR_TIPO[tipoDaOS(o, !!garantiaStatus)]}` }} onClick={onClick}
       onMouseEnter={(e) => onDescEnter?.(e.currentTarget.getBoundingClientRect(), o.servSolicitado || "")}
       onMouseLeave={() => onDescLeave?.()}>
       {/* Título no padrão do PPV: número preto em destaque — cliente */}
@@ -671,17 +690,22 @@ const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 // Fases que aparecem no quadro mas SEM mostrar a contagem no cabeçalho.
 const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
-export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onAgendar, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, tecnicoFiltro = "" }: PhaseViewProps) {
+export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onAgendar, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, tecnicoFiltro = "", acoesAbas }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
   // Tooltip com a Descrição do Serviço completa ao passar o mouse no card
   const [descTip, setDescTip] = useState<{ texto: string; top: number; left: number } | null>(null);
 
-  // Internas e externas ficam JUNTAS no quadro (decisão 21/08): interna vai
-  // normal pro Omie, só muda que as peças saem como remessa. O selo INTERNA
-  // no card continua identificando.
-  const escopoOrders = orders;
+  // Aba do tipo (Faturamento Cliente / Garantias / Internas) — lembrada no navegador
+  const [abaTipo, setAbaTipo] = useState<TipoOS>(() => {
+    if (typeof window === "undefined") return "cliente";
+    try { const v = localStorage.getItem("pos-aba-tipo"); return v === "garantia" || v === "interna" ? v : "cliente"; } catch { return "cliente"; }
+  });
+  const escolherAba = useCallback((t: TipoOS) => {
+    setAbaTipo(t);
+    try { localStorage.setItem("pos-aba-tipo", t); } catch { /* sem storage */ }
+  }, []);
 
   // Carrega quais OS têm garantia (para o ícone de escudo no card)
   useEffect(() => {
@@ -749,15 +773,25 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   }, []);
 
   // Busca sem maiúscula/acento: 'os-0777' acha 'OS-0777', 'jose' acha 'José'.
-  const filtered = useMemo(() => {
-    return escopoOrders.filter(
+  const buscados = useMemo(() => {
+    return orders.filter(
       (o) =>
         // ordemOmie = nº que a OS virou no Omie
         casaBusca(searchTerm, o.cliente, o.id, o.ordemOmie, o.servSolicitado) &&
         (!activePhase || o.status === activePhase) &&
         (!tecnicoFiltro || normName(o.tecnico || "") === normName(tecnicoFiltro))
     );
-  }, [escopoOrders, searchTerm, activePhase, tecnicoFiltro]);
+  }, [orders, searchTerm, activePhase, tecnicoFiltro]);
+  // Contagem por aba: só ordens em aberto (concluída/cancelada não pesam no número)
+  const contaPorTipo = useMemo(() => {
+    const c: Record<TipoOS, number> = { cliente: 0, garantia: 0, interna: 0 };
+    for (const o of buscados) if (!SEM_CONTAGEM.has(o.status)) c[tipoDaOS(o, !!garantiaMap[o.id])]++;
+    return c;
+  }, [buscados, garantiaMap]);
+  const filtered = useMemo(
+    () => buscados.filter((o) => tipoDaOS(o, !!garantiaMap[o.id]) === abaTipo),
+    [buscados, garantiaMap, abaTipo]
+  );
 
 
   // Group by phase for "Todas" view
@@ -791,6 +825,66 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
   return (
     <>
       {/* Filtro por técnico agora vive no HEADER (fila de perfis com foto) */}
+
+      {/* Abas do tipo da ordem — um botão-cartão por tipo, cor = cor dos cards.
+          No celular os três ficam lado a lado (sem rolagem lateral). */}
+      <div className="pos-abas-faixa">
+      <div role="tablist" aria-label="Tipo da ordem" className="pos-abas-tipo">
+        {TIPOS_OS.map((t) => {
+          const ativo = abaTipo === t.id;
+          const n = contaPorTipo[t.id];
+          return (
+            <button key={t.id} type="button" role="tab" aria-selected={ativo} onClick={() => escolherAba(t.id)} title={t.dica}
+              className={`pos-aba-tipo${ativo ? " ativa" : ""}`} style={{ ["--cor-aba" as string]: t.cor }}>
+              <span className="pos-aba-icone"><i className={`fas ${t.icone}`} /></span>
+              <span className="pos-aba-textos">
+                <span className="pos-aba-rotulo"><span className="pos-aba-longo">{t.rotulo}</span><span className="pos-aba-curto">{t.curto}</span></span>
+                <span className="pos-aba-sub">{n > 0 ? `${n} em aberto` : "nada em aberto"}</span>
+              </span>
+              {n > 0 && <span className="pos-aba-conta">{n}</span>}
+            </button>
+          );
+        })}
+      </div>
+      {acoesAbas && <div className="pos-abas-acoes">{acoesAbas}</div>}
+      </div>
+      <style>{`
+        .pos-abas-faixa { display: flex; align-items: center; gap: 12px; padding: 14px 16px 4px; flex-wrap: wrap; }
+        .pos-abas-tipo { display: flex; align-items: stretch; gap: 10px; min-width: 0; }
+        .pos-abas-acoes { margin-left: auto; }
+        .pos-aba-tipo { position: relative; display: inline-flex; align-items: center; gap: 11px; min-height: 54px; padding: 8px 14px 8px 10px; border-radius: 12px;
+          border: 1px solid var(--border); background: var(--surface); color: var(--portal-text); cursor: pointer; white-space: nowrap; flex-shrink: 0;
+          font-family: inherit; text-align: left; transition: border-color .15s, box-shadow .15s, background .15s, transform .15s;
+          box-shadow: 0 1px 2px rgba(16,24,40,.05); }
+        .pos-aba-tipo:hover { border-color: color-mix(in srgb, var(--cor-aba) 45%, var(--border)); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16,24,40,.08); }
+        .pos-aba-tipo:focus-visible { outline: 2px solid var(--cor-aba); outline-offset: 2px; }
+        .pos-aba-icone { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+          background: color-mix(in srgb, var(--cor-aba) 13%, transparent); color: var(--cor-aba); font-size: 15px; transition: background .15s, color .15s; }
+        .pos-aba-textos { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+        .pos-aba-rotulo { font-size: 14px; font-weight: 700; line-height: 1.2; }
+        .pos-aba-curto { display: none; }
+        .pos-aba-sub { font-size: 11.5px; font-weight: 600; color: var(--portal-text-muted, #94a3b8); line-height: 1.2; }
+        .pos-aba-conta { min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center;
+          font-size: 12px; font-weight: 800; background: color-mix(in srgb, var(--cor-aba) 13%, transparent); color: var(--cor-aba); margin-left: 4px; }
+        .pos-aba-tipo.ativa { border-color: var(--cor-aba); background: color-mix(in srgb, var(--cor-aba) 7%, var(--surface));
+          box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-aba) 16%, transparent), 0 4px 14px rgba(16,24,40,.08); }
+        .pos-aba-tipo.ativa .pos-aba-icone { background: var(--cor-aba); color: #fefefe; }
+        .pos-aba-tipo.ativa .pos-aba-rotulo { color: var(--cor-aba); }
+        .pos-aba-tipo.ativa .pos-aba-conta { background: var(--cor-aba); color: #fefefe; }
+        @media (max-width: 640px) {
+          .pos-abas-faixa { padding: 12px 12px 4px; }
+          .pos-abas-acoes { width: 100%; margin-left: 0; order: -1; }
+          .pos-abas-tipo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
+          .pos-aba-tipo { flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 0; padding: 10px 6px 9px; text-align: center; }
+          .pos-aba-textos { align-items: center; }
+          .pos-aba-longo { display: none; }
+          .pos-aba-curto { display: inline; }
+          .pos-aba-rotulo { font-size: 13px; }
+          .pos-aba-sub { display: none; }
+          .pos-aba-icone { width: 30px; height: 30px; font-size: 14px; }
+          .pos-aba-conta { position: absolute; top: 6px; right: 6px; margin: 0; min-width: 20px; height: 20px; font-size: 11px; padding: 0 5px; }
+        }
+      `}</style>
 
       {/* Cards */}
       <main className="cards-wrapper">

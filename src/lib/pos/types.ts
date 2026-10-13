@@ -85,6 +85,8 @@ export interface ClienteOption {
   fantasia?: string;
   cnpj?: string;
   endereco?: string;
+  // Mesmo CPF/CNPJ em outra conta Omie / cadastro manual (juntados numa linha)
+  outrasChaves?: string[];
 }
 
 export interface ClienteDados {

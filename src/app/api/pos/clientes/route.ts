@@ -23,8 +23,9 @@ export async function GET(req: NextRequest) {
   }
 
   const listOmie = (await supabaseFetchAll<Record<string, string>>(TBL_CLIENTES))
-    // Cliente INATIVO no Omie não aparece pra escolher (nem cria OS)
-    .filter((c) => String(c.inativo || "").toUpperCase() !== "S")
+    // Cliente INATIVO no Omie não aparece pra escolher (nem cria OS) — a
+    // coluna é boolean hoje; "S" era o formato antigo
+    .filter((c) => !["S", "TRUE"].includes(String(c.inativo ?? "").toUpperCase()))
     .map((c) => ({
       chave: "OMIE:" + (c.id_omie || c.id_cliente),
       display: (c.nome_fantasia || c.razao_social) + " [CNPJ/CPF: " + (c.cnpj_cpf || "---") + "] (OMIE)",
@@ -42,6 +43,28 @@ export async function GET(req: NextRequest) {
     endereco: [c.Cli_Endereco, c.Cli_Cidade].filter(Boolean).join(", "),
   }));
 
-  const todos = [...listOmie, ...listManual].sort((a, b) => a.display.localeCompare(b.display));
+  const todos = juntarMesmoDocumento([...listOmie, ...listManual]).sort((a, b) => a.display.localeCompare(b.display));
   return NextResponse.json(todos);
+}
+
+type Opcao = { chave: string; display: string; razao: string; fantasia: string; cnpj: string; endereco: string; outrasChaves?: string[] };
+
+// O mesmo cliente existe nas DUAS contas Omie (Nova e Castro — o Omie replica
+// sozinho) e às vezes também como cliente manual: aparecia 2× no seletor.
+// Fica UMA linha por CPF/CNPJ (Omie antes de manual; com endereço antes de
+// sem); as chaves das outras vão em `outrasChaves` pra os lembretes gravados
+// nelas continuarem aparecendo. Documento vazio/zerado não junta.
+function juntarMesmoDocumento(lista: Opcao[]): Opcao[] {
+  const nota = (o: Opcao) => (o.chave.startsWith("OMIE:") ? 2 : 0) + (o.endereco ? 1 : 0);
+  const porDoc = new Map<string, Opcao>();
+  const saida: Opcao[] = [];
+  for (const o of lista) {
+    const doc = o.cnpj.replace(/\D/g, "");
+    if (!doc || /^0+$/.test(doc)) { saida.push(o); continue; }
+    const atual = porDoc.get(doc);
+    if (!atual) { porDoc.set(doc, o); continue; }
+    const [fica, sai] = nota(o) > nota(atual) ? [o, atual] : [atual, o];
+    porDoc.set(doc, { ...fica, outrasChaves: [...(fica.outrasChaves || []), sai.chave, ...(sai.outrasChaves || [])] });
+  }
+  return [...saida, ...porDoc.values()];
 }
