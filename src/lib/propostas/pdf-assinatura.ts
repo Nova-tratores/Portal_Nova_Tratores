@@ -37,6 +37,8 @@ export type PdfDoc = {
   getNumberOfPages(): number
   setPage(n: number): unknown
   internal: { pageSize: { getWidth(): number; getHeight(): number } }
+  /** só usado quando o vendedor tem imagem de assinatura */
+  addImage?(data: string, formato: string, x: number, y: number, w: number, h: number): unknown
 }
 
 export type PropostaAssinatura = {
@@ -55,7 +57,17 @@ export type VendedorAssinatura = {
   carimbo_nome?: string | null
   carimbo_cargo?: string | null
   carimbo_telefone?: string | null
+  /** Imagem de assinatura do vendedor (rubrica + carimbo já desenhados). Com ela,
+   *  o carimbo em texto não é obrigatório. */
+  assinatura_url?: string | null
 }
+
+/** Imagem da assinatura já carregada (dataURL PNG) e o tamanho original em px. */
+export type ImagemAssinatura = { dataUrl: string; largura: number; altura: number }
+
+// Na imagem do Dougras (assinatura antiga do PDF) a linha de assinatura fica a
+// ~45% da altura: o pedaço de cima é a rubrica, o de baixo o carimbo.
+export const LINHA_NA_IMAGEM = 0.45
 
 export type ConfigEmpresa = {
   razao_social?: string | null
@@ -128,7 +140,8 @@ export function validarDadosAssinatura(
     erros.push('Proposta sem vendedor — escolha o vendedor no campo "Vendedor" e salve antes de gerar o PDF.')
   } else {
     const nome = vendedor.nome || `#${vendedor.id ?? '?'}`
-    if (!(vendedor.carimbo_nome || '').trim()) erros.push(`Vendedor ${nome} sem nome de carimbo — ${ONDE}.`)
+    const temImagem = !!(vendedor.assinatura_url || '').trim()
+    if (!temImagem && !(vendedor.carimbo_nome || '').trim()) erros.push(`Vendedor ${nome} sem nome de carimbo — ${ONDE}.`)
   }
   if (!config) {
     erros.push('Dados da empresa (tabela Configuracoes) não carregaram — tente de novo; se persistir, avise o Dev.')
@@ -231,6 +244,17 @@ export type ArgsBloco = {
   config: ConfigEmpresa | null | undefined
   /** y (mm) onde o bloco pode começar (fim do conteúdo anterior). */
   y: number
+  /** Assinatura em imagem do vendedor: substitui a coluna de texto dele. */
+  imagemVendedor?: ImagemAssinatura | null
+  /** true = a data por extenso vai em outro lugar do PDF (a proposta põe na caixa do valor). */
+  semData?: boolean
+}
+
+/** Tamanho (mm) da imagem na coluna do vendedor e quanto fica acima/abaixo da linha. */
+export function medidaImagem(img: ImagemAssinatura): { w: number; h: number; acima: number; abaixo: number } {
+  const w = LARGURA_COLUNA
+  const h = img.largura > 0 ? (w * img.altura) / img.largura : w / 3
+  return { w, h, acima: h * LINHA_NA_IMAGEM, abaixo: h * (1 - LINHA_NA_IMAGEM) }
 }
 
 /**
@@ -248,12 +272,17 @@ export function desenharBlocoAssinatura(doc: PdfDoc, args: ArgsBloco): number {
   const pageH = doc.internal.pageSize.getHeight()
   const limite = pageH - RODAPE_ALTURA       // nenhuma baseline abaixo daqui
 
-  const medida = medirBlocoQueCabe(doc, { proposta: args.proposta, vendedor, config }, args.y + FOLGA_TOPO, limite)
+  const img = args.imagemVendedor && doc.addImage ? args.imagemVendedor : null
+  const mi = img ? medidaImagem(img) : null
+  // A rubrica sobe acima da linha: abre espaço pra não invadir o conteúdo de cima
+  const extraTopo = mi ? Math.max(0, mi.acima - FAIXA_DATA) : 0
+  const medida = medirBlocoQueCabe(doc, { proposta: args.proposta, vendedor, config }, args.y + FOLGA_TOPO + extraTopo, limite)
+  const cabeImagem = !mi || args.y + FOLGA_TOPO + extraTopo + FAIXA_DATA + mi.abaixo <= limite
 
-  let y = args.y + FOLGA_TOPO
-  if (!medida.cabe) {
+  let y = args.y + FOLGA_TOPO + extraTopo
+  if (!medida.cabe || !cabeImagem) {
     doc.addPage()
-    y = MARGEM
+    y = MARGEM + extraTopo
   }
   doc.setFontSize(medida.fonte)
 
@@ -263,12 +292,12 @@ export function desenharBlocoAssinatura(doc: PdfDoc, args: ArgsBloco): number {
 
   // Data por extenso: alinhada à esquerda, na faixa acima das linhas.
   doc.setFont('helvetica', 'normal'); doc.setFontSize(medida.fonte); doc.setTextColor(0)
-  doc.text(dataExtenso(args.proposta.criado_em || args.proposta.created_at), xEsq, yLinha - 2.5)
+  if (!args.semData) doc.text(dataExtenso(args.proposta.criado_em || args.proposta.created_at), xEsq, yLinha - 2.5)
 
   // Linhas (mesma altura nas duas colunas)
   doc.setDrawColor(0); doc.setLineWidth(0.4)
   doc.line(xEsq, yLinha, xEsq + LARGURA_COLUNA, yLinha)
-  doc.line(xDir, yLinha, xDir + LARGURA_COLUNA, yLinha)
+  if (!img) doc.line(xDir, yLinha, xDir + LARGURA_COLUNA, yLinha)   // a imagem já traz a linha
 
   const desenharColuna = (linhas: LinhaTexto[], xCol: number) => {
     const xCentro = xCol + LARGURA_COLUNA / 2
@@ -281,7 +310,13 @@ export function desenharBlocoAssinatura(doc: PdfDoc, args: ArgsBloco): number {
     return yy   // baseline da última linha
   }
   const fimEsq = desenharColuna(medida.esquerda, xEsq)
-  const fimDir = desenharColuna(medida.direita, xDir)
+  let fimDir: number
+  if (img && mi && doc.addImage) {
+    doc.addImage(img.dataUrl, 'PNG', xDir, yLinha - mi.acima, mi.w, mi.h)
+    fimDir = yLinha + mi.abaixo
+  } else {
+    fimDir = desenharColuna(medida.direita, xDir)
+  }
   return Math.max(fimEsq, fimDir)
 }
 

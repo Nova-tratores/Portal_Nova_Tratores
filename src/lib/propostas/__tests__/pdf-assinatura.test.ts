@@ -109,6 +109,9 @@ describe('validarDadosAssinatura', () => {
     expect(e[0]).toMatch(/JOAQUIM FERNANDO LEME sem nome de carimbo/)
     expect(e[0]).toMatch(/Carimbos/)
   })
+  it('vendedor com imagem de assinatura não precisa de carimbo em texto', () => {
+    expect(validarDadosAssinatura({ ...vendedorOk, carimbo_nome: '', assinatura_url: 'https://x/assinatura.png' }, configOk)).toEqual([])
+  })
   it('config ausente ou incompleta', () => {
     expect(validarDadosAssinatura(vendedorOk, null)[0]).toMatch(/Configuracoes/)
     expect(validarDadosAssinatura(vendedorOk, { razao_social: '', cnpj: '' })).toHaveLength(2)

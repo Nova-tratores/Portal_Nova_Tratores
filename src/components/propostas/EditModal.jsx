@@ -7,7 +7,8 @@ import { Copy, Trash2, FileDown, X, History, Search, Link2, Unlink } from 'lucid
 import { useAuditLog } from '@/hooks/useAuditLog'
 import HistoricoProposta from './HistoricoProposta'
 import { STATUS_PERDIDO } from './MotivoPerdaModal'
-import { desenharBlocoAssinatura, desenharRodape, validarDadosAssinatura } from '@/lib/propostas/pdf-assinatura'
+import { dataExtenso, desenharBlocoAssinatura, desenharRodape, validarDadosAssinatura } from '@/lib/propostas/pdf-assinatura'
+import { desenharCampo, desenharBlocoTexto } from '@/lib/propostas/pdf-caber'
 
 // Colunas que só existem na view v_formulario (aging/cores). NÃO podem ir num
 // INSERT/UPDATE da tabela "Formulario" — o PostgREST recusa coluna inexistente.
@@ -103,7 +104,7 @@ export default function EditModal({ proposal, onClose }) {
     let vendedor = null
     if (vid) {
       const { data, error } = await supabase.from('vendedores')
-        .select('id, nome, carimbo_nome, carimbo_cargo, carimbo_telefone').eq('id', vid).maybeSingle()
+        .select('id, nome, carimbo_nome, carimbo_cargo, carimbo_telefone, assinatura_url').eq('id', vid).maybeSingle()
       if (error) throw new Error('Erro ao ler o vendedor: ' + error.message)
       vendedor = data
     }
@@ -112,8 +113,34 @@ export default function EditModal({ proposal, onClose }) {
     if (errCfg) throw new Error('Erro ao ler Configuracoes: ' + errCfg.message)
     const erros = validarDadosAssinatura(vendedor, config)
     if (erros.length) throw new Error(erros.join('\n'))
-    return { vendedor, config }
+    // Vendedor com imagem de assinatura (rubrica + carimbo): ela vai no PDF no
+    // lugar do carimbo em texto. Se a imagem não carregar e houver carimbo, segue
+    // com o texto; sem carimbo, não gera (falha explícita).
+    let imagemVendedor = null
+    if (vendedor?.assinatura_url) {
+      imagemVendedor = await imagemComoDataUrl(vendedor.assinatura_url)
+      if (!imagemVendedor && !(vendedor.carimbo_nome || '').trim()) {
+        throw new Error('Não consegui carregar a imagem de assinatura do vendedor ' + (vendedor.nome || '') + ' — tente de novo.')
+      }
+    }
+    return { vendedor, config, imagemVendedor }
   }
+
+  // Baixa a imagem (storage público do Supabase, com CORS) e devolve PNG em dataURL.
+  const imagemComoDataUrl = (url) => new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      try {
+        const c = document.createElement('canvas')
+        c.width = img.naturalWidth; c.height = img.naturalHeight
+        c.getContext('2d').drawImage(img, 0, 0)
+        resolve({ dataUrl: c.toDataURL('image/png'), largura: img.naturalWidth, altura: img.naturalHeight })
+      } catch { resolve(null) }
+    }
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
 
   const handleTrash = async () => {
     if (confirm("DESEJA REALMENTE MOVER ESTA PROPOSTA PARA A LIXEIRA?")) {
@@ -182,35 +209,22 @@ export default function EditModal({ proposal, onClose }) {
 
     const col2X = pageWidth / 2 + 10
 
-    doc.setFont("helvetica", "bold")
-    doc.text("CLIENTE: ", margin + 5, y + 7)
-    const labelClienteW = doc.getTextWidth("CLIENTE: ")
-    doc.setFont("helvetica", "normal")
+    // Todo campo cabe na grade (pdf-caber): diminui a letra e/ou quebra linha
+    // dentro da coluna — nada atravessa a borda da tabela.
+    const xEsq = margin + 5
+    const largEsq = col2X - xEsq - 4                       // coluna da esquerda
+    const largDir = pageWidth - margin - 3 - col2X          // coluna da direita
+    const nome = desenharCampo(doc, { rotulo: 'CLIENTE:', valor: (formData.Cliente || '').toUpperCase(), x: xEsq, y: y + 7, largura: largEsq, fonte: 8.5, minFonte: 7, maxLinhas: 2 })
+    const offsetNome = nome.yFinal - (y + 7)
+    const simples = { x: xEsq, largura: largEsq, fonte: 8.5, minFonte: 6.5, negritoRotulo: false }
+    desenharCampo(doc, { ...simples, rotulo: 'CPF/CNPJ:', valor: formData['Cpf/Cpnj'] || '', y: y + 13 + offsetNome })
+    desenharCampo(doc, { ...simples, rotulo: 'I.E./MUN.:', valor: formData['inscricao_esta/mun'] || '', y: y + 19 + offsetNome })
+    desenharCampo(doc, { ...simples, rotulo: 'CEP:', valor: formData.cep || '', y: y + 25 + offsetNome })
 
-    const nomeCliente = (formData.Cliente || '').toUpperCase()
-    const larguraDisponivelNome = col2X - (margin + 5) - labelClienteW - 2
-    const splitNome = doc.splitTextToSize(nomeCliente, larguraDisponivelNome)
-
-    doc.text(splitNome[0], margin + 5 + labelClienteW, y + 7)
-
-    let offsetNome = 0
-    if (splitNome.length > 1) {
-      offsetNome = (splitNome.length - 1) * 4
-      for (let i = 1; i < splitNome.length; i++) {
-        doc.text(splitNome[i], margin + 5, y + 7 + (i * 4))
-      }
-    }
-
-    doc.text(`CPF/CNPJ: ${formData['Cpf/Cpnj'] || ''}`, margin + 5, y + 13 + offsetNome)
-    doc.text(`I.E./MUN.: ${formData['inscricao_esta/mun'] || ''}`, margin + 5, y + 19 + offsetNome)
-    doc.text(`CEP: ${formData.cep || ''}`, margin + 5, y + 25 + offsetNome)
-
-    doc.text(`CIDADE: ${formData.Cidade || ''}`, col2X, y + 7)
-    doc.text(`BAIRRO: ${formData.Bairro || ''}`, col2X, y + 13)
-    // Endereço longo QUEBRA em linhas dentro da coluna (antes vazava a margem direita)
-    const larguraEnd = pageWidth - margin - 3 - col2X
-    const linhasEnd = doc.splitTextToSize(`ENDERECO: ${formData.End_Entrega || ''}`, larguraEnd)
-    linhasEnd.slice(0, 2).forEach((l, i) => doc.text(l, col2X, y + 19 + i * 5))
+    const simplesDir = { x: col2X, largura: largDir, fonte: 8.5, minFonte: 6.5, negritoRotulo: false }
+    desenharCampo(doc, { ...simplesDir, rotulo: 'CIDADE:', valor: formData.Cidade || '', y: y + 7 })
+    desenharCampo(doc, { ...simplesDir, rotulo: 'BAIRRO:', valor: formData.Bairro || '', y: y + 13 })
+    desenharCampo(doc, { ...simplesDir, rotulo: 'ENDERECO:', valor: formData.End_Entrega || '', y: y + 19, maxLinhas: 3 })
 
     y += 32
     const imgBoxHeight = temSpecs ? 60 : 95
@@ -228,73 +242,56 @@ export default function EditModal({ proposal, onClose }) {
     const techBoxHeight = temSpecs ? 80 : 45
     doc.rect(margin, y, innerWidth, techBoxHeight)
     doc.setFontSize(8.5); doc.setFont("helvetica", "bold")
-    doc.text(`MARCA: ${formData.Marca || ''}`, margin + 5, y + 7)
-    doc.text(`MODELO: ${formData.Modelo || ''}`, margin + 5, y + 13)
-    doc.text(`ANO: ${formData.Ano || ''}`, margin + 5, y + 19)
-    doc.text(`FINAME/NCM: ${formData['Niname/NCM'] || ''}`, col2X, y + 7)
-    doc.text(`QTD: ${formData.Qtd_Eqp || '1'}`, col2X, y + 13)
+    const cab = { x: xEsq, largura: largEsq, fonte: 8.5, minFonte: 6.5, negritoValor: true }
+    desenharCampo(doc, { ...cab, rotulo: 'MARCA:', valor: formData.Marca || '', y: y + 7 })
+    desenharCampo(doc, { ...cab, rotulo: 'MODELO:', valor: formData.Modelo || '', y: y + 13 })
+    desenharCampo(doc, { ...cab, rotulo: 'ANO:', valor: formData.Ano || '', y: y + 19 })
+    // FINAME/NCM costuma ser longo (resolução + NCM): quebra em até 3 linhas e o QTD desce junto
+    const finame = desenharCampo(doc, { x: col2X, largura: largDir, fonte: 8.5, minFonte: 6.5, negritoValor: true, maxLinhas: 3, rotulo: 'FINAME/NCM:', valor: formData['Niname/NCM'] || '', y: y + 7 })
+    desenharCampo(doc, { x: col2X, largura: largDir, fonte: 8.5, minFonte: 6.5, negritoValor: true, rotulo: 'QTD:', valor: String(formData.Qtd_Eqp || '1'), y: Math.max(y + 13, finame.yFinal + 5) })
 
+    doc.setFontSize(8.5); doc.setFont("helvetica", "bold")
     doc.text(isAuto ? "ESPECIFICACOES DO PULVERIZADOR:" : "CONFIGURACAO TECNICA:", margin + 5, y + 27)
 
+    // Campos técnicos em 2 colunas: cada um quebra em até 2 linhas na largura da
+    // coluna e o seguinte desce o que for preciso.
+    const colTech2 = pageWidth / 2 + 5
+    const largTech1 = colTech2 - xEsq - 3
+    const largTech2 = pageWidth - margin - 3 - colTech2
+    const limiteTech = y + techBoxHeight - 2   // última baseline possível dentro da caixa
+    const coluna = (campos, x, largura) => {
+      let yy = y + 33
+      campos.forEach(([rotulo, valor], i) => {
+        // 2ª linha só se ainda sobrar lugar pros campos que faltam (5 mm cada)
+        const restantes = campos.length - 1 - i
+        const cabe2 = yy + 3.2 + restantes * 5 <= limiteTech
+        const r = desenharCampo(doc, { rotulo: `${rotulo}:`, valor: String(valor || '---'), x, y: yy, largura, fonte: 7.5, minFonte: 6, maxLinhas: cabe2 ? 2 : 1 })
+        yy = r.yFinal + 5
+      })
+    }
+
     if (isTrator) {
-      doc.setFontSize(7.5)
-      const startY = y + 33
-      const colTech2 = pageWidth / 2 + 5
-      const lineHeight = 5
-
-      const renderField = (label, value, posX, posY) => {
-        doc.setFont("helvetica", "bold")
-        doc.text(`${label}:`, posX, posY)
-        const lw = doc.getTextWidth(`${label}: `)
-        doc.setFont("helvetica", "normal")
-        doc.text(`${value || '---'}`, posX + lw, posY)
-      }
-
-      renderField("MOTOR", formData.motor_trator, margin + 5, startY)
-      renderField("BOMBA INJE.", formData.bomb_inje_trator, margin + 5, startY + lineHeight)
-      renderField("BOMBA HIDRA.", formData.bomb_hidra_trator, margin + 5, startY + (lineHeight * 2))
-      renderField("EMBREAGEM", formData.embreagem_trator, margin + 5, startY + (lineHeight * 3))
-      renderField("CAPACIDADE COMB.", formData.capacit_comb_trator, margin + 5, startY + (lineHeight * 4))
-      renderField("DIANT. MIN/MAX", formData.diant_min_max_trator, margin + 5, startY + (lineHeight * 5))
-
-      renderField("CAMBIO", formData.cambio_trator, colTech2, startY)
-      renderField("REVERSOR", formData.reversor_trator, colTech2, startY + lineHeight)
-      renderField("TRANS. DIANT.", formData.transmissao_diant_trator, colTech2, startY + (lineHeight * 2))
-      renderField("TRANS. TRAS.", formData.trasmissao_tras_trator, colTech2, startY + (lineHeight * 3))
-      renderField("OLEO MOTOR", formData.oleo_motor_trator, colTech2, startY + (lineHeight * 4))
-      renderField("OLEO TRANS.", formData.oleo_trasmissao_trator, colTech2, startY + (lineHeight * 5))
-      renderField("TRAS. MIN/MAX", formData.tras_min_max_trator, colTech2, startY + (lineHeight * 6))
+      coluna([
+        ["MOTOR", formData.motor_trator], ["BOMBA INJE.", formData.bomb_inje_trator], ["BOMBA HIDRA.", formData.bomb_hidra_trator],
+        ["EMBREAGEM", formData.embreagem_trator], ["CAPACIDADE COMB.", formData.capacit_comb_trator], ["DIANT. MIN/MAX", formData.diant_min_max_trator],
+      ], xEsq, largTech1)
+      coluna([
+        ["CAMBIO", formData.cambio_trator], ["REVERSOR", formData.reversor_trator], ["TRANS. DIANT.", formData.transmissao_diant_trator],
+        ["TRANS. TRAS.", formData.trasmissao_tras_trator], ["OLEO MOTOR", formData.oleo_motor_trator], ["OLEO TRANS.", formData.oleo_trasmissao_trator],
+        ["TRAS. MIN/MAX", formData.tras_min_max_trator],
+      ], colTech2, largTech2)
     } else if (isAuto) {
-      doc.setFontSize(7.5)
-      const startY = y + 33
-      const colTech2 = pageWidth / 2 + 5
-      const lineHeight = 5
-
-      const renderField = (label, value, posX, posY) => {
-        doc.setFont("helvetica", "bold")
-        doc.text(`${label}:`, posX, posY)
-        const lw = doc.getTextWidth(`${label}: `)
-        doc.setFont("helvetica", "normal")
-        doc.text(`${value || '---'}`, posX + lw, posY)
-      }
-
-      renderField("MOTOR", formData.motor_auto, margin + 5, startY)
-      renderField("TRANSMISSAO", formData.transmissao_auto, margin + 5, startY + lineHeight)
-      renderField("TANQUE PULV. (L)", formData.tanque_pulv_auto, margin + 5, startY + (lineHeight * 2))
-      renderField("TECNOLOGIA", formData.tecnologia_auto, margin + 5, startY + (lineHeight * 3))
-      renderField("TELEMETRIA", formData.telemetria_auto, margin + 5, startY + (lineHeight * 4))
-      renderField("TANQUE COMB. (L)", formData.tanque_comb_auto, margin + 5, startY + (lineHeight * 5))
-
-      renderField("BARRA PULV. (M)", formData.barra_pulv_auto, colTech2, startY)
-      renderField("N. SECOES", formData.num_secoes_auto, colTech2, startY + lineHeight)
-      renderField("ESPAC. BICOS (CM)", formData.espac_bicos_auto, colTech2, startY + (lineHeight * 2))
-      renderField("VAO LIVRE (M)", formData.vao_livre_auto, colTech2, startY + (lineHeight * 3))
-      renderField("BITOLA (M)", formData.bitola_auto, colTech2, startY + (lineHeight * 4))
+      coluna([
+        ["MOTOR", formData.motor_auto], ["TRANSMISSAO", formData.transmissao_auto], ["TANQUE PULV. (L)", formData.tanque_pulv_auto],
+        ["TECNOLOGIA", formData.tecnologia_auto], ["TELEMETRIA", formData.telemetria_auto], ["TANQUE COMB. (L)", formData.tanque_comb_auto],
+      ], xEsq, largTech1)
+      coluna([
+        ["BARRA PULV. (M)", formData.barra_pulv_auto], ["N. SECOES", formData.num_secoes_auto], ["ESPAC. BICOS (CM)", formData.espac_bicos_auto],
+        ["VAO LIVRE (M)", formData.vao_livre_auto], ["BITOLA (M)", formData.bitola_auto],
+      ], colTech2, largTech2)
     } else {
-      doc.setFont("helvetica", "normal")
-      const infoTecnica = formData.Configuracao || formData.Descricao || ''
-      const splitConfig = doc.splitTextToSize(infoTecnica, innerWidth - 10)
-      doc.text(splitConfig, margin + 5, y + 32)
+      // Texto livre: cabe na largura E na altura da caixa (diminui a letra antes de cortar)
+      desenharBlocoTexto(doc, { texto: formData.Configuracao || formData.Descricao || '', x: xEsq, y: y + 32, largura: innerWidth - 10, alturaMax: techBoxHeight - 32 - 3, fonte: 8.5, minFonte: 6 })
     }
 
     y += techBoxHeight
@@ -305,22 +302,22 @@ export default function EditModal({ proposal, onClose }) {
     doc.text("CASO SEJA FINANCIADO TAXA FLAT POR CONTA DO CLIENTE", pageWidth / 2, y + 5.5, { align: "center" })
 
     doc.setFontSize(9); doc.setFont("helvetica", "normal")
-    doc.text(`VALOR TOTAL: R$ ${formData.Valor_Total || '0,00'}`, margin + 5, y + 18)
+    desenharCampo(doc, { rotulo: 'VALOR TOTAL:', valor: `R$ ${formData.Valor_Total || '0,00'}`, x: xEsq, y: y + 18, largura: largEsq, fonte: 9, minFonte: 7, negritoRotulo: false })
+    // Local e data da proposta: dentro da caixa, embaixo do valor (antes ficava solta acima da assinatura)
+    desenharCampo(doc, { valor: dataExtenso(formData.criado_em || formData.created_at), x: xEsq, y: y + 25, largura: largEsq, fonte: 9, minFonte: 7 })
 
     if (formData.Prazo_Entrega && String(formData.Prazo_Entrega).trim() && String(formData.Prazo_Entrega).trim() !== '0') {
       const prazo = String(formData.Prazo_Entrega).trim()
       const soNumero = /^\d+$/.test(prazo) // se for só número, acrescenta "DIAS"
-      doc.text(`PRAZO ENTREGA: ${prazo}${soNumero ? ' DIAS' : ''}`, col2X, y + 18)
+      desenharCampo(doc, { rotulo: 'PRAZO ENTREGA:', valor: `${prazo}${soNumero ? ' DIAS' : ''}`, x: col2X, y: y + 18, largura: largDir, fonte: 9, minFonte: 7, negritoRotulo: false })
     }
 
+    // Condições: rótulo + texto que cabe até o fim da caixa (y + 38)
     const labelCond = "CONDICOES: "
-    doc.setFont("helvetica", "bold")
+    doc.setFontSize(9); doc.setFont("helvetica", "bold")
     doc.text(labelCond, col2X, y + 25)
     const condW = doc.getTextWidth(labelCond)
-    doc.setFont("helvetica", "normal")
-    const valorCond = formData.Condicoes || ''
-    const splitCond = doc.splitTextToSize(valorCond, (pageWidth - margin) - (col2X + condW))
-    doc.text(splitCond, col2X + condW, y + 25)
+    desenharBlocoTexto(doc, { texto: formData.Condicoes || '', x: col2X + condW, y: y + 25, largura: (pageWidth - margin - 3) - (col2X + condW), alturaMax: 11, fonte: 9, minFonte: 6 })
 
     if (formData.validade && formData.validade !== 'Sem validade') {
       doc.setFont("helvetica", "bold"); doc.setFontSize(8); doc.setTextColor(180, 83, 9)
@@ -328,7 +325,7 @@ export default function EditModal({ proposal, onClose }) {
     }
 
     // Bloco de assinatura (comprador × vendedor) logo abaixo da caixa de condições.
-    // Só texto (sem imagem — as linhas ficam pra assinar no papel), quebra por
+    // Texto (linha pra assinar no papel) ou a imagem de assinatura do vendedor, quebra por
     // largura; se não couber antes do rodapé vai pra página nova. Rodapé
     // (IE/endereço/tel + "página N de M") em todas as páginas.
     y += 38
@@ -336,6 +333,8 @@ export default function EditModal({ proposal, onClose }) {
       proposta: formData,
       vendedor: dadosAssinatura.vendedor,
       config: dadosAssinatura.config,
+      imagemVendedor: dadosAssinatura.imagemVendedor,
+      semData: true,
       y,
     })
     desenharRodape(doc, { config: dadosAssinatura.config, propostaId: formData.id })
