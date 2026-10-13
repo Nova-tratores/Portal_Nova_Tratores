@@ -7,6 +7,7 @@
 import { supabaseFetch, getValorInsensivel, formatarDataBR } from "./supabase";
 import { TBL_PEDIDOS, TBL_ITENS, TBL_LOGS, TBL_OS, TBL_CLIENTES, TBL_PRODUTOS } from "./constants";
 import type { PPVDetalhes } from "./types";
+import { filtroBuscaProdutos } from "@/lib/ppv/busca-produtos";
 
 // =============================================
 // BUSCAR DETALHES COMPLETOS DE UM PPV
@@ -261,7 +262,8 @@ export async function buscarDadosCliente(nomeCliente: string): Promise<{ documen
   const resultado = { documento: "", endereco: "", cidade: "", telefone: "", email: "" };
   if (!nomeCliente) return resultado;
 
-  const query = nomeCliente.trim().replace(/ /g, "%");
+  // cada palavra do nome em nome_fantasia OU razao_social (lib/ppv/busca-produtos: sem "%" cru na URL)
+  const filtroNome = filtroBuscaProdutos(nomeCliente, ["nome_fantasia", "razao_social"]);
 
   try {
     // Primeiro tenta match exato por nome_fantasia
@@ -277,7 +279,7 @@ export async function buscarDadosCliente(nomeCliente: string): Promise<{ documen
     // Se ainda não encontrou, tenta busca parcial
     if (!res || res.length === 0) {
       res = await supabaseFetch<Record<string, unknown>[]>(
-        `${TBL_CLIENTES}?or=(nome_fantasia.ilike.*${query}*,razao_social.ilike.*${query}*)&select=*&limit=1`
+        `${TBL_CLIENTES}?${filtroNome}&select=*&limit=1`
       );
     }
     if (res && res.length > 0) {

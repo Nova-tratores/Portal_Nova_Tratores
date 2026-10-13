@@ -30,6 +30,9 @@ import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
 import ModalNovaMaquina from "@/components/clientes/ModalNovaMaquina";
 import MaquinasClienteDestaque from "./MaquinasClienteDestaque";
 
+// Previsão de faturamento vazia = hoje (José, 13/10/2026), no fuso de São Paulo, "aaaa-mm-dd".
+const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+
 interface OSDrawerProps {
   visible: boolean;
   mode: "create" | "edit";
@@ -862,7 +865,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         qtdHoras, qtdKm, ppv: "", status: "Orçamento", ordemOmie: "", motivoCancelamento: "",
         substitutoTipo: null, substitutoId: null,
         descontoValor: descValor, descontoHora: descHoraValor, descontoKm: descKmValor,
-        relatorioTecnico: "", diasExecucao: "", previsaoExecucao: "", previsaoFaturamento: "", dataFimServico: "",
+        relatorioTecnico: "", diasExecucao: "", previsaoExecucao: "", previsaoFaturamento: hojeSP(), dataFimServico: "",
         horaInicioServico: "", servicoNumero: 0, horaInicioExec: "", horaFimExec: "", horaChegada: "",
         gerarPPV: false, servicoOficina, servicoInterno, alimentacoes: [], userName,
       };
@@ -898,7 +901,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       relatorioTecnico,
       diasExecucao: diasExecucao.sort().join(','),
       previsaoExecucao,
-      previsaoFaturamento,
+      previsaoFaturamento: previsaoFaturamento || hojeSP(),
       dataFimServico,
       horaInicioServico,
       servicoNumero,
@@ -954,6 +957,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         if (result.novaOsId) janelaReq.location.href = `/requisicoes?aba=form&os=${encodeURIComponent(result.novaOsId)}`;
         else janelaReq.close();
       }
+      if (!previsaoFaturamento) setPrevisaoFaturamento(hojeSP());
       setSaving(false);
       setLogRefreshKey((k) => k + 1);
       // Avisa quando a ordem muda de externa↔interna (muda só o destino das peças)
@@ -2610,14 +2614,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   // nº do pedido que veio no envio da OS, quando o PPV ainda não está no mapa
                   const pvSolto = pedidoVenda && !pedidosMapa.some(([, n]) => semZeros(n) === semZeros(pedidoVenda)) ? pedidoVenda : "";
                   const linhaDoc = (rotulo: string, numero: string, onPdf: (() => void) | null, carregando: boolean, chave: string) => (
-                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 10px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
+                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 10.5, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted)" }}>{rotulo}</div>
-                        <div style={{ fontSize: 15, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>nº {semZeros(numero)}</div>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{rotulo}</div>
+                        <div style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>nº {semZeros(numero)}</div>
                       </div>
                       {onPdf && (
                         <button type="button" onClick={onPdf} disabled={carregando} title={`Abrir o PDF oficial no Omie (gerado na hora)`}
-                          style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 32, padding: "0 10px", borderRadius: 8, border: "1.5px solid #0BB7CD", background: "transparent", color: "#0891A8", fontSize: 12.5, fontWeight: 700, cursor: carregando ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
+                          style={{ display: "inline-flex", alignItems: "center", gap: 4, height: 28, padding: "0 8px", borderRadius: 7, border: "1.5px solid #0BB7CD", background: "transparent", color: "#0891A8", fontSize: 11.5, fontWeight: 700, cursor: carregando ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
                           <i className={`fas ${carregando ? "fa-spinner fa-spin" : "fa-file-pdf"}`} /> PDF
                         </button>
                       )}
@@ -2657,21 +2661,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   const cabeca = (icone: string, cor: string, titulo: string, onAbrir: () => void) => (
                     <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "0 2px" }}>
                       <i className={`fas ${icone}`} style={{ color: cor, fontSize: 13 }} />
-                      <span style={{ flex: 1, fontSize: 12, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4 }}>{titulo}</span>
+                      <span style={{ flex: 1, fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4 }}>{titulo}</span>
                       <button type="button" onClick={onAbrir} title="Abrir a aba" style={{ background: "none", border: "none", color: cor, fontSize: 11.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>abrir</button>
                     </div>
                   );
                   const botaoImprimir = (onClick: () => void, titulo: string) => (
-                    <button type="button" onClick={onClick} title={titulo}
-                      style={{ display: "inline-flex", alignItems: "center", gap: 5, height: 30, padding: "0 9px", borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface)", color: "var(--portal-text)", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", flexShrink: 0 }}>
-                      <i className="fas fa-print" style={{ color: "#64748b" }} /> Imprimir
+                    <button type="button" onClick={onClick} title={titulo} aria-label={titulo}
+                      style={{ width: 28, height: 28, borderRadius: 7, border: "1px solid var(--border)", background: "var(--surface)", color: "#64748b", cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 12 }}>
+                      <i className="fas fa-print" />
                     </button>
                   );
                   const linha = (chave: string, titulo: string, sub: string | null, acao: React.ReactNode) => (
-                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
+                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 8px", borderRadius: 8, background: "var(--surface)", border: "1px solid var(--border)" }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: 13, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</div>
-                        {sub && <div style={{ fontSize: 11.5, color: "var(--portal-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
+                        <div style={{ fontSize: 12, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{titulo}</div>
+                        {sub && <div style={{ fontSize: 10.5, color: "var(--portal-text-muted)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{sub}</div>}
                       </div>
                       {acao}
                     </div>

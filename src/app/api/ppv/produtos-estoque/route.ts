@@ -2,6 +2,7 @@
 // (tabela `produtos`, só com estoque > 0). Busca por código/descrição. Limitado.
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch } from "@/lib/ppv/supabase";
+import { filtroBuscaProdutos } from "@/lib/ppv/busca-produtos";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -41,8 +42,10 @@ async function mapaReservados(): Promise<Record<string, number>> {
 
 export async function GET(req: NextRequest) {
   const termo = (req.nextUrl.searchParams.get("termo") || "").trim();
-  const q = termo.replace(/ /g, "%");
-  const filtroBusca = q ? `&or=(codigo.ilike.*${q}*,descricao.ilike.*${q}*)` : "";
+  // cada palavra no código OU na descrição; sem acento; parâmetro codificado (lib/ppv/busca-produtos)
+  const filtro = filtroBuscaProdutos(termo);
+  const q = filtro ? termo : "";
+  const filtroBusca = filtro ? `&${filtro}` : "";
   try {
     let rows = await supabaseFetch<Record<string, unknown>[]>(
       `produtos?estoque=gt.0${filtroBusca}&select=codigo,descricao,estoque,valor_unitario,cmc,conta_omie&order=descricao.asc&limit=300`,

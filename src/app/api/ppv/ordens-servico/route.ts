@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch } from "@/lib/ppv/supabase";
 import { TBL_OS } from "@/lib/ppv/constants";
 import type { OSBusca } from "@/lib/ppv/types";
+import { filtroBuscaProdutos } from "@/lib/ppv/busca-produtos";
 
 // Status considerados "abertos" (não finalizados) — tudo que não é
 // Concluída/Cancelada. As fases de fim de fluxo (Relatório Atualizado,
@@ -66,8 +67,8 @@ export async function GET(req: NextRequest) {
       const statusList = STATUS_ABERTOS.map((s) => `"${s}"`).join(",");
       url = `${TBL_OS}?Status=in.(${encodeURIComponent(statusList)})&select=Id_Ordem,Os_Cliente,Status,Serv_Solicitado&order=Id_Ordem.desc&limit=200`;
     } else if (termo.trim()) {
-      const query = termo.trim().replace(/ /g, "%");
-      url = `${TBL_OS}?or=(Id_Ordem.ilike.*${query}*,Os_Cliente.ilike.*${query}*,Serv_Solicitado.ilike.*${query}*)&select=Id_Ordem,Os_Cliente,Status,Serv_Solicitado&limit=30&order=Id_Ordem.desc`;
+      // cada palavra no nº, no cliente OU no serviço (mesma busca dos produtos)
+      url = `${TBL_OS}?${filtroBuscaProdutos(termo, ["Id_Ordem", "Os_Cliente", "Serv_Solicitado"])}&select=Id_Ordem,Os_Cliente,Status,Serv_Solicitado&limit=30&order=Id_Ordem.desc`;
     } else {
       return NextResponse.json([]);
     }

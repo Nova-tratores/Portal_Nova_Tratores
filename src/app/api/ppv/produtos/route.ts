@@ -3,6 +3,7 @@ import { supabaseFetch, getValorInsensivel } from "@/lib/ppv/supabase";
 import { TBL_PRODUTOS, TBL_PRODUTOS_MANUAIS } from "@/lib/ppv/constants";
 import { buscaTermoSchema, produtoManualSchema, editarPrecoSchema } from "@/lib/ppv/schemas";
 import type { ProdutoBusca } from "@/lib/ppv/types";
+import { filtroBuscaProdutos } from "@/lib/ppv/busca-produtos";
 
 // GET - Buscar produtos
 export async function GET(req: NextRequest) {
@@ -10,7 +11,10 @@ export async function GET(req: NextRequest) {
   const parsed = buscaTermoSchema.safeParse({ termo });
   if (!parsed.success) return NextResponse.json([]);
 
-  const query = parsed.data.termo.replace(/ /g, "%");
+  // cada palavra no código OU na descrição, sem acento, parâmetro codificado (lib/ppv/busca-produtos)
+  const filtroOmie = filtroBuscaProdutos(parsed.data.termo, ["Codigo_Produto", "Descricao_Produto"]);
+  const filtroManual = filtroBuscaProdutos(parsed.data.termo, ["Prod_Codigo", "Prod_Descricao"]);
+  if (!filtroOmie) return NextResponse.json([]);
   const resultados: ProdutoBusca[] = [];
   // Códigos que já vieram do Omie (Produtos_Completos) — o Omie tem prioridade:
   // se o mesmo código existir também em Produtos_Manuais, o manual é descartado.
@@ -18,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res1 = await supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PRODUTOS}?or=(Codigo_Produto.ilike.*${query}*,Descricao_Produto.ilike.*${query}*)&select=Codigo_Produto,Descricao_Produto,Preco_Venda,Empresa&limit=40`
+      `${TBL_PRODUTOS}?${filtroOmie}&select=Codigo_Produto,Descricao_Produto,Preco_Venda,Empresa&limit=40`
     );
     res1.forEach((row) => {
       const codigo = String(getValorInsensivel(row, "Codigo_Produto", "codigo") || "").trim();
@@ -37,7 +41,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const res2 = await supabaseFetch<Record<string, unknown>[]>(
-      `${TBL_PRODUTOS_MANUAIS}?or=(Prod_Codigo.ilike.*${query}*,Prod_Descricao.ilike.*${query}*)&select=*&limit=20`
+      `${TBL_PRODUTOS_MANUAIS}?${filtroManual}&select=*&limit=20`
     );
     res2.forEach((row) => {
       const codigo = String(row.Prod_Codigo || "").trim();

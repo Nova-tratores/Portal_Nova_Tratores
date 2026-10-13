@@ -4,6 +4,7 @@
 // =============================================
 
 import { supabaseFetch } from "./supabase";
+import { resolverContaCorrente, resolverDepartamentos, type ContaDestino, type DeptoDestino } from "./conta-corrente";
 import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS, TBL_OS } from "./constants";
 import { buscarPPVPorId, registrarLog } from "./queries";
 import { contaOmie } from "@/lib/omie/contas";
@@ -176,10 +177,58 @@ async function impostoDoProdutoFiscal(conta: string, codigoProduto: number): Pro
 }
 
 function getAccount(empresa: string): OmieAccount {
-  const acc = OMIE_ACCOUNTS.find(
-    (a) => a.name.toLowerCase() === (empresa || "").toLowerCase()
-  );
+  // sem acento: "Castro Pecas" (grafia canônica do portal) também é a Castro
+  const norm = (x: string) => (x || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  const acc = OMIE_ACCOUNTS.find((a) => norm(a.name) === norm(empresa));
   return acc || OMIE_ACCOUNTS[0]; // fallback para Nova Tratores
+}
+
+// Contas correntes de cada empresa no Omie (cache 1 h) e a conta certa do pedido
+// na empresa de destino (lib/ppv/conta-corrente.ts).
+const cacheContasCC = new Map<string, { em: number; contas: ContaDestino[] }>();
+async function contasCorrentesDe(acc: OmieAccount): Promise<ContaDestino[]> {
+  const c = cacheContasCC.get(acc.name);
+  if (c && Date.now() - c.em < 3600_000) return c.contas;
+  const r = await omieCall<{ ListarContasCorrentes?: Array<{ nCodCC: number; descricao: string; inativo?: string }> }>(
+    "/geral/contacorrente/", "ListarContasCorrentes", { pagina: 1, registros_por_pagina: 200, apenas_importado_api: "N" }, acc.key, acc.secret);
+  const contas = (r.ListarContasCorrentes || []).map((x) => ({ nCodCC: Number(x.nCodCC), descricao: String(x.descricao || ""), inativo: x.inativo === "S" }));
+  cacheContasCC.set(acc.name, { em: Date.now(), contas });
+  return contas;
+}
+const cacheDeptos = new Map<string, { em: number; deps: DeptoDestino[] }>();
+async function departamentosDe(acc: OmieAccount): Promise<DeptoDestino[]> {
+  const c = cacheDeptos.get(acc.name);
+  if (c && Date.now() - c.em < 3600_000) return c.deps;
+  const r = await omieCall<{ departamentos?: Array<{ codigo: string | number; descricao: string; inativo?: string }> }>(
+    "/geral/departamentos/", "ListarDepartamentos", { pagina: 1, registros_por_pagina: 200 }, acc.key, acc.secret);
+  const deps = (r.departamentos || []).map((d) => ({ codigo: String(d.codigo), descricao: String(d.descricao || ""), inativo: d.inativo === "S" }));
+  cacheDeptos.set(acc.name, { em: Date.now(), deps });
+  return deps;
+}
+/** Distribuição por departamento convertida para a empresa de destino (a lista do PPV é a da Nova). */
+async function departamentosDoPedido(acc: OmieAccount, deps: Array<{ codigo: string; perc: number }>): Promise<{ deps: Array<{ codigo: string; perc: number }>; aviso: string | null }> {
+  if (!deps.length) return { deps, aviso: null };
+  let destino: DeptoDestino[];
+  try { destino = await departamentosDe(acc); } catch { return { deps, aviso: null }; }
+  let nomes: Record<string, string> = {};
+  try {
+    const rows = await supabaseFetch<Array<{ codigo: string; descricao: string }>>(`departamento?codigo=in.(${deps.map((d) => `"${String(d.codigo).replace(/"/g, "")}"`).join(",")})&select=codigo,descricao`);
+    nomes = Object.fromEntries((rows || []).map((r) => [String(r.codigo), String(r.descricao || "")]));
+  } catch { /* sem nomes: só o código que já existir lá */ }
+  return resolverDepartamentos(deps, nomes, destino);
+}
+async function contaCorrenteDoPedido(acc: OmieAccount, escolhido: string | number | null | undefined): Promise<{ codigo: number | undefined; aviso: string | null }> {
+  const cod = Number(escolhido) || null;
+  if (!cod) return { codigo: acc.codCC || undefined, aviso: null };
+  let contas: ContaDestino[];
+  try { contas = await contasCorrentesDe(acc); } catch { return { codigo: cod, aviso: null }; } // sem lista: manda como está
+  let descricao: string | null = null;
+  try {
+    const rows = await supabaseFetch<Array<{ descricao?: string }>>(`conta_corrente?codigo=eq.${encodeURIComponent(String(cod))}&select=descricao&limit=1`);
+    descricao = rows?.[0]?.descricao || null;
+  } catch { /* sem nome: cai na padrão se não existir lá */ }
+  const r = resolverContaCorrente({ escolhido: cod, descricaoEscolhido: descricao, contasDestino: contas, padrao: acc.codCC || null });
+  return { codigo: r.codigo, aviso: r.trocada ? r.motivo : null };
 }
 
 // --- Lookup de cliente pelo CNPJ (por conta) ---
@@ -539,7 +588,13 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
         return { ide: { codigo_item_integracao: it.codInt }, produto: produtoObj, ...(it.fiscal?.imposto ? { imposto: it.fiscal.imposto } : {}) };
       });
       const parc = montarParcelasOmie(detalhes.numParcelas || "30 dias", detalhes.previsaoFaturamento || "", totalPedido);
-      const dep = detalhes.departamentos || [];
+      // conta corrente da EMPRESA DE DESTINO (a lista do PPV é a da Nova; na Castro troca pela de mesmo nome)
+      const cc = await contaCorrenteDoPedido(acc, detalhes.contaCorrente);
+      if (cc.aviso) console.info(`[PPV→Omie] ${idPPV} (${acc.name}): ${cc.aviso} → ${cc.codigo}`);
+      // departamentos da EMPRESA DE DESTINO (mesma troca por nome da conta corrente)
+      const depR = await departamentosDoPedido(acc, (detalhes.departamentos || []).map((d) => ({ codigo: String(d.codigo), perc: Number(d.perc) || 0 })));
+      if (depR.aviso) console.info(`[PPV→Omie] ${idPPV} (${acc.name}): ${depR.aviso}`);
+      const dep = depR.deps;
       const payload: Record<string, unknown> = {
         cabecalho: {
           codigo_pedido_integracao: `PV-${idPPV}`,
@@ -553,7 +608,7 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
         },
         informacoes_adicionais: {
           codigo_categoria: detalhes.categoriaPedido || OMIE_COD_CATEG_VENDA,
-          codigo_conta_corrente: detalhes.contaCorrente ? Number(detalhes.contaCorrente) : (acc.codCC || undefined),
+          codigo_conta_corrente: cc.codigo,
           codVend: nCodVend || undefined,
           numero_contrato: detalhes.numContrato || idPPV,
           ...(detalhes.osId ? { numero_pedido_cliente: String(detalhes.osId) } : {}),
@@ -1041,10 +1096,16 @@ export async function obterComunicacaoSefaz(idPPV: string, opts: { refresh?: boo
 export async function obterUrlDanfePPV(idPPV: string): Promise<{ url: string } | { erro: string }> {
   const com = await obterComunicacaoSefaz(idPPV);
   if (!com.nCodNF) return { erro: com.erro || "Sem NF-e para gerar o DANFE." };
-  const achado = await resolverContaDoPedido(idPPV, com.empresa || null);
-  if (!achado) return { erro: "Pedido não encontrado no Omie." };
+  // A nota já diz de qual empresa é: não precisa achar o PEDIDO de novo no Omie
+  // (13/10/2026: PPV-0518 da Castro dava "Pedido não encontrado" com a NF-e 9360 emitida).
+  let accNF: OmieAccount | null = com.empresa ? getAccount(com.empresa) : null;
+  if (!accNF) {
+    const achado = await resolverContaDoPedido(idPPV, null);
+    if (!achado) return { erro: "Não consegui descobrir de qual empresa é a nota no Omie." };
+    accNF = achado.acc;
+  }
   try {
-    const r = await omieCall<Record<string, unknown>>("/produtos/notafiscalutil/", "GetUrlDanfe", { nCodNF: com.nCodNF }, achado.acc.key, achado.acc.secret);
+    const r = await omieCall<Record<string, unknown>>("/produtos/notafiscalutil/", "GetUrlDanfe", { nCodNF: com.nCodNF }, accNF.key, accNF.secret);
     const url = (r?.cUrlDanfe || r?.cUrlDANFE || r?.url) as string | undefined;
     if (!url) return { erro: "Omie não retornou a URL do DANFE." };
     return { url: String(url) };
