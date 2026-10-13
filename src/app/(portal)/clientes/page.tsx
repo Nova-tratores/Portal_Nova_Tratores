@@ -146,6 +146,9 @@ function ClientesPageInner() {
   const [docAberto, setDocAberto] = useState<DocumentoVisualizavel | null>(null)
   const fecharDoc = useCallback(() => setDocAberto(null), [])
   const [anexNfOS, setAnexNfOS] = useState(false)
+  // botão "Buscar no Omie" do cartão: qual nota está buscando e o erro de cada uma (chave tipo:empresa:número)
+  const [buscandoNota, setBuscandoNota] = useState<string | null>(null)
+  const [erroNota, setErroNota] = useState<Record<string, { rotulo: string; erro: string; dica: string; tecnico?: string }>>({})
   const [gerarCardFin, setGerarCardFin] = useState(true) // checkbox: gerar card no financeiro ao anexar NF de serviço
   const [forcandoCard, setForcandoCard] = useState(false) // escapes manuais (trocar PV / forçar card)
   const [subNF, setSubNF] = useState<{ osNum: string; empresa: string; nf_tipo: 'servico' | 'peca'; num_antigo: string; num_novo: string } | null>(null)
@@ -558,6 +561,32 @@ function ClientesPageInner() {
       await abrirDetalhe(selectedCliente)
     } catch { setAnexErro('Erro de conexão com o servidor') }
     setAnexando(false)
+  }
+  // Traz AGORA do Omie o PDF da nota que falta na pasta (NFS-e da OS ou NF-e do pedido de peças).
+  // Erro volta em frase clara + o que fazer, e fica visível no próprio cartão até fechar.
+  const buscarNotaNoOmie = async (chave: string, rotulo: string, corpo: { tipo: 'nfse'; empresa: string; cod_os: number } | { tipo: 'nfe'; empresa: string; num_pedido: string }) => {
+    if (buscandoNota) return
+    setBuscandoNota(chave)
+    setErroNota((e) => { const n = { ...e }; delete n[chave]; return n })
+    try {
+      const res = await fetch('/api/clientes/buscar-nota', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify(corpo),
+      })
+      const data = await res.json().catch(() => null)
+      if (res.status === 401 || res.status === 403) {
+        const sessao = res.status === 401
+        setErroNota((e) => ({ ...e, [chave]: { rotulo, erro: sessao ? 'Sua sessão expirou.' : 'Você não tem permissão para buscar notas.', dica: sessao ? 'Saia e entre de novo no portal.' : 'Peça acesso à Pasta Clientes para o administrador.' } }))
+      } else if (!data) {
+        setErroNota((e) => ({ ...e, [chave]: { rotulo, erro: `O servidor respondeu com erro (${res.status}).`, dica: 'Tente de novo em instantes. Se continuar, avise o T.I.' } }))
+      } else if (!data.ok) {
+        setErroNota((e) => ({ ...e, [chave]: { rotulo, erro: data.erro || 'Não foi possível buscar a nota.', dica: data.dica || '', tecnico: data.tecnico } }))
+      } else if (selectedCliente) {
+        await abrirDetalhe(selectedCliente)
+      }
+    } catch {
+      setErroNota((e) => ({ ...e, [chave]: { rotulo, erro: 'Sem conexão com o servidor.', dica: 'Confira a internet e tente de novo.' } }))
+    }
+    setBuscandoNota(null)
   }
   // Anexa a NF de serviço (NFS-e que o Omie não dá em PDF) direto na OS da pasta.
   // Ao salvar, dispara a criação do card no financeiro se o serviço ficar completo.
@@ -1274,17 +1303,48 @@ function ClientesPageInner() {
                       : ehInterno ? { cor: '#6D28D9', fundo: '#F5F3FF', borda: '#DDD6FE' }
                       : os.faturada ? { cor: '#047857', fundo: '#ECFDF5', borda: '#A7F3D0' }
                       : { cor: '#B45309', fundo: '#FFFBEB', borda: '#FDE68A' }
-                    // notas: número + se o PDF já está na pasta
-                    const nfServNum = fmtNF(os.num_nf || os.financeiro?.num_nf_servico)
-                    const nfServOk = !!(os.link_nf || os.financeiro?.nf_servico)
-                    const nfsPeca = pvsLig.map((pv: any) => ({ num: fmtNF(pv.numero_nf), ok: !!pv.link_nf })).filter((n: { num: string }) => n.num)
+                    // notas do serviço: NFS-e (serviço) e NF-e de cada pedido de peças — só as que existem/deveriam existir.
+                    // "anexada" = PDF guardado na pasta; sem PDF → botão "Buscar no Omie".
+                    const pdfNaPasta = (u: string | null | undefined) => !!u && /\/storage\/v1\/object\/public\//.test(u)
+                    type NotaCard = { chave: string; rotulo: string; num: string; link: string | null; rejeitada?: string; corpo: { tipo: 'nfse'; empresa: string; cod_os: number } | { tipo: 'nfe'; empresa: string; num_pedido: string } }
+                    const notasCard: NotaCard[] = []
+                    if (!os.cancelada && !ehInterno && (os.faturada || os.num_nf || os.link_nf)) {
+                      const link = pdfNaPasta(os.link_nf) ? os.link_nf : (os.financeiro?.nf_servico || null)
+                      notasCard.push({ chave: `nfse:${os.empresa}:${os.cod_os}`, rotulo: 'NFS-e', num: fmtNF(os.num_nf || os.financeiro?.num_nf_servico), link, corpo: { tipo: 'nfse', empresa: os.empresa, cod_os: os.cod_os } })
+                    }
+                    for (const pv of pvsLig as PedidoVenda[]) {
+                      if (pv.cancelado || !(pv.faturado || pv.numero_nf || pv.link_nf)) continue
+                      notasCard.push({ chave: `nfe:${pv.empresa}:${pv.num_pedido}`, rotulo: 'NF-e', num: fmtNF(pv.numero_nf), link: pv.link_nf || null,
+                        rejeitada: !pv.link_nf && pv.nf_motivo ? pv.nf_motivo : undefined, corpo: { tipo: 'nfe', empresa: pv.empresa, num_pedido: pv.num_pedido } })
+                    }
                     const CHIP: React.CSSProperties = { display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, fontWeight: 600, padding: '3px 9px', borderRadius: 7, whiteSpace: 'nowrap', border: '1px solid #E5E7EB', background: 'var(--portal-bg-secondary)', color: '#475569' }
-                    const chipNF = (rotulo: string, num: string, ok: boolean, k: string) => (
-                      <span key={k} title={ok ? 'PDF da nota na pasta' : 'Nota sem PDF na pasta'}
-                        style={{ ...CHIP, background: ok ? '#ECFDF5' : '#FFFBEB', borderColor: ok ? '#A7F3D0' : '#FDE68A', color: ok ? '#047857' : '#B45309' }}>
-                        {ok ? <Check size={12} strokeWidth={3} /> : <Clock size={12} strokeWidth={2.5} />} {rotulo} {num}
-                      </span>
-                    )
+                    const chipNota = (n: NotaCard) => {
+                      const nome = `${n.rotulo}${n.num ? ' ' + n.num : ''}`
+                      if (n.link) {
+                        return (
+                          <a key={n.chave} href={n.link} target="_blank" rel="noopener noreferrer" onClick={ev => ev.stopPropagation()} title={`${nome}: PDF anexado na pasta — clique para abrir`}
+                            style={{ ...CHIP, background: '#ECFDF5', borderColor: '#A7F3D0', color: '#047857', textDecoration: 'none' }}>
+                            <FileText size={12} /> {nome} <span style={{ display: 'inline-flex', alignItems: 'center', gap: 2, fontWeight: 700 }}><Check size={12} strokeWidth={3} /> anexada</span>
+                          </a>
+                        )
+                      }
+                      const buscando = buscandoNota === n.chave
+                      const borda = n.rejeitada ? '#FECACA' : '#FDE68A'
+                      return (
+                        <span key={n.chave} style={{ display: 'inline-flex', alignItems: 'stretch', borderRadius: 7, overflow: 'hidden', border: `1px solid ${borda}` }}>
+                          <span title={n.rejeitada ? `${nome}: rejeitada na SEFAZ — ${n.rejeitada}` : `${nome}: o PDF ainda não está na pasta`}
+                            style={{ ...CHIP, border: 'none', borderRadius: 0, background: n.rejeitada ? '#FEF2F2' : '#FFFBEB', color: n.rejeitada ? '#B91C1C' : '#B45309' }}>
+                            {n.rejeitada ? <AlertTriangle size={12} /> : <Clock size={12} strokeWidth={2.5} />} {nome} <b>{n.rejeitada ? 'rejeitada' : 'sem PDF'}</b>
+                          </span>
+                          <button type="button" disabled={!!buscandoNota} onClick={ev => { ev.stopPropagation(); buscarNotaNoOmie(n.chave, nome, n.corpo) }}
+                            title="Buscar o PDF desta nota no Omie agora"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '0 9px', border: 'none', borderLeft: `1px solid ${borda}`, background: '#fefefe', color: '#111111', fontSize: 11.5, fontWeight: 700, cursor: buscandoNota ? 'wait' : 'pointer', fontFamily: 'inherit', opacity: buscandoNota && !buscando ? 0.5 : 1 }}>
+                            {buscando ? <RefreshCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Download size={12} />} {buscando ? 'Buscando…' : 'Buscar no Omie'}
+                          </button>
+                        </span>
+                      )
+                    }
+                    const errosCard = notasCard.flatMap(n => erroNota[n.chave] ? [{ chave: n.chave, ...erroNota[n.chave] }] : [])
                     const lbl: React.CSSProperties = { display: 'block', fontSize: 9.5, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.6, color: '#94A3B8' }
                     const totNum: React.CSSProperties = { fontSize: 15, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }
 
@@ -1322,8 +1382,7 @@ function ClientesPageInner() {
                             {(modelo || chassi) && (
                               <span style={CHIP} title="Máquina do serviço"><Tag size={12} /> {[modelo, chassi && `chassi ${chassi}`].filter(Boolean).join(' · ')}</span>
                             )}
-                            {nfServNum && chipNF('NFS-e', nfServNum, nfServOk, 'nfs')}
-                            {nfsPeca.map((n: { num: string; ok: boolean }, i: number) => chipNF('NF-e', n.num, n.ok, `nfe-${i}`))}
+                            {notasCard.map(chipNota)}
                             {os.pdf_anexo && (
                               <a href={os.pdf_anexo} target="_blank" rel="noopener noreferrer" onClick={ev => ev.stopPropagation()} title="PDF anexado à OS"
                                 style={{ ...CHIP, background: '#EFF6FF', borderColor: '#BFDBFE', color: '#1D4ED8', textDecoration: 'none' }}>
@@ -1342,6 +1401,20 @@ function ClientesPageInner() {
                               </span>
                             )}
                           </div>
+                          {errosCard.map(e => (
+                            <div key={e.chave} role="alert" onClick={ev => ev.stopPropagation()}
+                              style={{ display: 'flex', alignItems: 'flex-start', gap: 10, marginTop: 10, padding: '10px 12px', borderRadius: 10, background: '#FEF2F2', border: '1px solid #FECACA', color: '#7F1D1D', cursor: 'default' }}>
+                              <AlertTriangle size={16} style={{ flexShrink: 0, marginTop: 1, color: '#DC2626' }} />
+                              <div style={{ flex: 1, minWidth: 0, fontSize: 12.5, lineHeight: 1.45 }}>
+                                <div style={{ fontWeight: 800 }}>Não foi possível buscar a {e.rotulo} no Omie</div>
+                                <div style={{ fontWeight: 600 }}>{e.erro}</div>
+                                {e.dica && <div style={{ marginTop: 2 }}><b>O que fazer:</b> {e.dica}</div>}
+                                {e.tecnico && <div style={{ marginTop: 4, fontSize: 11, color: '#991B1B', opacity: 0.8, overflowWrap: 'anywhere' }}>Detalhe técnico: {e.tecnico}</div>}
+                              </div>
+                              <button type="button" aria-label="Fechar aviso" onClick={() => setErroNota((m) => { const n = { ...m }; delete n[e.chave]; return n })}
+                                style={{ border: 'none', background: 'transparent', color: '#991B1B', cursor: 'pointer', padding: 2, display: 'flex' }}><X size={15} /></button>
+                            </div>
+                          ))}
 
                           {/* Serviço */}
                           <div style={{ marginTop: 14 }}>
