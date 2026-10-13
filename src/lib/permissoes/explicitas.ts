@@ -8,6 +8,9 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'pos:faturar', // faturar a OS (emite NFS-e) — decisão do José, 10/10/2026
   'pos:cancelar_faturamento', // cancelar NFS-e/NF-e pelo portal (13/10/2026)
   'pos:modelos_fiscais', // criar/editar modelos fiscais da NFS-e e vincular a clientes
+  // editar os cards dos kanbans do Financeiro (nome, condição, valor, datas) em
+  // qualquer fase — antes só admin; o "acesso total" ao Financeiro NÃO dá (13/10/2026)
+  'financeiro:editar_cards',
 ]);
 
 // Ações FISCAIS de Dev (José, 13/10/2026): no começo só os Devs fazem; admin comum

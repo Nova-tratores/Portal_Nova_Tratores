@@ -169,11 +169,13 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
     { id: 'avaliar_justificativa', label: 'Avaliar justificativa' },
   ],
   // Financeiro: só as ações de CRIAÇÃO são granulares. O gerenciamento do
-  // kanban segue restrito a admin (isAdmin), por decisão do usuário.
+  // kanban segue restrito a admin (isAdmin), por decisão do usuário — exceto
+  // "editar_cards" (13/10/2026): ação EXPLÍCITA (explicitas.ts), só quem for marcado.
   financeiro: [
     { id: 'criar_lancamento', label: 'Criar conta a pagar/receber' },
     { id: 'criar_chamado', label: 'Abrir chamado (NF/RH)' },
     { id: 'rastreio', label: 'Rastreio de notas (busca nota/boleto/requisição)' },
+    { id: 'editar_cards', label: 'Editar cards do kanban a qualquer momento (nome, condição, valor, datas)' },
   ],
   // DRE Financeiro: granular POR TELA (cada ação = uma tela analítica). O id da
   // ação é o slug da rota (/dre-financeiro/<id>). Quem tem 'financeiro' ou é

@@ -51,9 +51,10 @@ const setorBadgeStyle = { display: 'inline-flex', alignItems: 'center', fontSize
 // --- COMPONENTE KANBAN PRINCIPAL ---
 export default function Kanban() {
  const { userProfile } = useAuth()
- const { isAdmin } = usePermissoes(userProfile?.id)
+ const { isAdmin, pode } = usePermissoes(userProfile?.id)
  const { log: auditLog } = useAuditLog()
- const podeEditar = isAdmin // só admin do Pós-Vendas edita nome/condição/valor/data
+ // nome/condição/valor/data: admin OU quem recebeu "Editar cards do kanban" na Administração (qualquer fase)
+  const podeEditar = isAdmin || pode('financeiro', 'editar_cards')
  const [chamados, setChamados] = useState([])
  const [tarefaSelecionada, setTarefaSelecionada] = useState(null)
  const [confirmSemBoleto, setConfirmSemBoleto] = useState(null)
