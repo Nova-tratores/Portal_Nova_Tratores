@@ -2570,45 +2570,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
             {mode === "edit" && (
               <>
-                <div style={{ position: "relative" }}>
-                  <button ref={printBtnRef} className="os-rail-btn" onClick={abrirPrintMenu}>
-                    <i className="fas fa-print" /> {servicoInterno ? "Comprovante" : "Imprimir"}
-                    <i className="fas fa-chevron-down" style={{ fontSize: 9, marginLeft: 4 }} />
-                  </button>
-                  {printMenu && printPos && (
-                    <>
-                      <div onClick={() => setPrintMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 5000 }} />
-                      <div style={{ position: "fixed", top: printPos.top, left: printPos.left, zIndex: 5001, background: "var(--surface)", border: "1px solid var(--portal-border)", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", padding: 6, minWidth: 232, display: "flex", flexDirection: "column", gap: 2 }}>
-                        <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .5, padding: "6px 10px 2px" }}>{servicoInterno ? "Comprovante da OS" : "PDF da OS"}</div>
-                        <button className="os-printmenu-item" onClick={() => imprimirOS(true)} style={printMenuItem}>
-                          <i className="fas fa-list" style={{ width: 16, color: "#0d9488" }} /> Com as peças
-                        </button>
-                        <button className="os-printmenu-item" onClick={() => imprimirOS(false)} style={printMenuItem}>
-                          <i className="fas fa-file-lines" style={{ width: 16, color: "#64748b" }} /> Sem as peças
-                        </button>
-                        {reqsOcultasPrint.size > 0 && (
-                          <div style={{ fontSize: 10.5, color: "#B45309", padding: "2px 10px 4px" }}>
-                            <i className="fas fa-eye-slash" style={{ marginRight: 4 }} />{reqsOcultasPrint.size} requisição(ões) fora da impressão (aba Requisições &amp; Alimentação)
-                          </div>
-                        )}
-                        {ppvIds.length > 0 && (
-                          <>
-                            <div style={{ height: 1, background: "var(--portal-border)", margin: "4px 6px" }} />
-                            <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .5, padding: "2px 10px" }}>PDF do PPV vinculado</div>
-                            {ppvIds.map((pid) => (
-                              <button key={pid} className="os-printmenu-item" onClick={() => imprimirPPV(pid)} style={printMenuItem}>
-                                <i className="fas fa-boxes" style={{ width: 16, color: "#dc2626" }} /> Imprimir PPV {pid}
-                              </button>
-                            ))}
-                          </>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </div>
-
                 {/* ── Bloco Omie: PDFs da OS e do pedido de venda + Faturar (OS e pedido vinculado) ── */}
-                {ordemOmie && (() => {
+                {(() => {
                   const semZeros = (n: string) => n.replace(/^0+/, "") || n;
                   const pedidosMapa = Object.entries(ppvOmieMap);
                   // nº do pedido que veio no envio da OS, quando o PPV ainda não está no mapa
@@ -2634,10 +2597,27 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <img src="/marcas/omie.png" alt="Omie" style={{ height: 17, width: "auto", display: "block" }} />
                         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--portal-text-muted)" }}>documentos e faturamento</span>
                       </div>
-                      {linhaDoc("Ordem de serviço", ordemOmie, abrirPdfOmie, baixandoPdfOmie, "os")}
+                      {!ordemOmie && (
+                        <>
+                          <div style={{ fontSize: 11.5, color: "var(--portal-text-muted)", padding: "0 2px" }}>Esta OS ainda não está no Omie.</div>
+                                    {!ordemOmie && !(servicoInterno && status === "Concluída") && (
+                                      <button
+                                        className="os-rail-btn omie" style={{ justifyContent: "center", background: "#0BB7CD", color: "#fefefe", fontWeight: 800, borderRadius: 9 }}
+                                        onClick={enviarParaOmie}
+                                        disabled={enviandoOmie || !podeOmie}
+                                        title={!podeOmie ? MSG_SEM_PERMISSAO : servicoInterno ? "OS interna: vai normal pro Omie; peças saem como remessa" : undefined}
+                                      >
+                                        {enviandoOmie
+                                          ? <><i className="fas fa-spinner fa-spin" /> Enviando...</>
+                                          : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
+                                      </button>
+                                    )}
+                        </>
+                      )}
+                      {ordemOmie && linhaDoc("Ordem de serviço", ordemOmie, abrirPdfOmie, baixandoPdfOmie, "os")}
                       {pedidosMapa.map(([pid, numOmie]) => linhaDoc(`Pedido de venda · ${pid}`, numOmie, () => abrirPdfPecasOmie(pid), baixandoPdfPecas === pid, pid))}
                       {pvSolto && linhaDoc("Pedido de venda", pvSolto, null, false, "pv-solto")}
-                      {osId && (
+                      {osId && ordemOmie && (
                         <FaturamentoOSBloco
                           osId={osId}
                           ordemOmie={ordemOmie}
@@ -2655,7 +2635,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   );
                 })()}
 
-                {/* ── Blocos de impressão: PPV e requisições (mesmo desenho do bloco Omie) ── */}
+                {/* ── Bloco Portal (logo da Nova): imprimir a OS, relatório técnico, PPVs e requisições ── */}
                 {(() => {
                   const cartao = (cor: string): React.CSSProperties => ({ margin: "4px 0 6px", padding: 10, borderRadius: 12, border: `1px solid color-mix(in srgb, ${cor} 40%, var(--border))`, background: `color-mix(in srgb, ${cor} 6%, var(--surface))`, display: "flex", flexDirection: "column", gap: 6 });
                   const cabeca = (icone: string, cor: string, titulo: string, onAbrir: () => void) => (
@@ -2682,16 +2662,71 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   );
                   const MAX = 4;
                   const reqsVer = requisicoes.slice(0, MAX);
+                  const sub = (titulo: string, onAbrir?: () => void) => (
+                    <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted)", margin: "4px 2px 0", display: "flex", alignItems: "center" }}>
+                      <span style={{ flex: 1 }}>{titulo}</span>
+                      {onAbrir && <button type="button" onClick={onAbrir} style={{ background: "none", border: "none", color: "#0369A1", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0, textTransform: "none", letterSpacing: 0 }}>abrir</button>}
+                    </div>
+                  );
+                  void cabeca;
                   return (
+                    <div style={cartao("#DC2626")}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 2px" }}>
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="/Logo_Nova.png" alt="Nova Tratores" style={{ height: 17, width: "auto", display: "block" }} />
+                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--portal-text-muted)" }}>portal</span>
+                      </div>
+                      <div style={{ position: "relative" }}>
+                        <button ref={printBtnRef} className="os-rail-btn" onClick={abrirPrintMenu}>
+                          <i className="fas fa-print" /> {servicoInterno ? "Comprovante" : "Imprimir"}
+                          <i className="fas fa-chevron-down" style={{ fontSize: 9, marginLeft: 4 }} />
+                        </button>
+                        {printMenu && printPos && (
+                          <>
+                            <div onClick={() => setPrintMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 5000 }} />
+                            <div style={{ position: "fixed", top: printPos.top, left: printPos.left, zIndex: 5001, background: "var(--surface)", border: "1px solid var(--portal-border)", borderRadius: 10, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", padding: 6, minWidth: 232, display: "flex", flexDirection: "column", gap: 2 }}>
+                              <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .5, padding: "6px 10px 2px" }}>{servicoInterno ? "Comprovante da OS" : "PDF da OS"}</div>
+                              <button className="os-printmenu-item" onClick={() => imprimirOS(true)} style={printMenuItem}>
+                                <i className="fas fa-list" style={{ width: 16, color: "#0d9488" }} /> Com as peças
+                              </button>
+                              <button className="os-printmenu-item" onClick={() => imprimirOS(false)} style={printMenuItem}>
+                                <i className="fas fa-file-lines" style={{ width: 16, color: "#64748b" }} /> Sem as peças
+                              </button>
+                              {reqsOcultasPrint.size > 0 && (
+                                <div style={{ fontSize: 10.5, color: "#B45309", padding: "2px 10px 4px" }}>
+                                  <i className="fas fa-eye-slash" style={{ marginRight: 4 }} />{reqsOcultasPrint.size} requisição(ões) fora da impressão (aba Requisições &amp; Alimentação)
+                                </div>
+                              )}
+                              {ppvIds.length > 0 && (
+                                <>
+                                  <div style={{ height: 1, background: "var(--portal-border)", margin: "4px 6px" }} />
+                                  <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .5, padding: "2px 10px" }}>PDF do PPV vinculado</div>
+                                  {ppvIds.map((pid) => (
+                                    <button key={pid} className="os-printmenu-item" onClick={() => imprimirPPV(pid)} style={printMenuItem}>
+                                      <i className="fas fa-boxes" style={{ width: 16, color: "#dc2626" }} /> Imprimir PPV {pid}
+                                    </button>
+                                  ))}
+                                </>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
+                      {relatorioTecnico && (
+                        <button className="os-rail-btn" onClick={() => window.open(relatorioTecnico, "_blank", "noopener")}
+                          title="Abre o relatório preenchido pelo técnico (PDF) numa aba nova — é só mandar imprimir">
+                          <i className="fas fa-file-pdf" /> Imprimir relatório técnico
+                        </button>
+                      )}
                     <>
                       {ppvIds.length > 0 && (
-                        <div style={cartao("#DC2626")}>
-                          {cabeca("fa-boxes", "#DC2626", "Peças (PPV)", () => { setAba("ppv"); setAbaOmie("produtos"); })}
+                        <>
+                          {sub("Peças (PPV)", () => { setAba("ppv"); setAbaOmie("produtos"); })}
                           {ppvIds.map((pid) => linha(pid, pid, ppvOmieMap[pid] ? `Omie PV nº ${ppvOmieMap[pid].replace(/^0+/, "")}` : "ainda não está no Omie", botaoImprimir(() => imprimirPPV(pid), `Imprimir o PPV ${pid}`)))}
-                        </div>
+                        </>
                       )}
-                      <div style={cartao("#0D9488")}>
-                        {cabeca("fa-shopping-cart", "#0D9488", `Requisições${(requisicoes.length + alimentacoes.length) ? ` (${requisicoes.length + alimentacoes.length})` : ""}`, () => { setAba("ppv"); setAbaOmie("requisicoes"); })}
+                      <>
+                        {sub(`Requisições${(requisicoes.length + alimentacoes.length) ? ` (${requisicoes.length + alimentacoes.length})` : ""}`, () => { setAba("ppv"); setAbaOmie("requisicoes"); })}
                         {reqsVer.map((r) => linha(r.id, `Req. #${r.id}`, [r.material, r.valor > 0 ? `R$ ${r.valor.toFixed(2).replace(".", ",")}` : ""].filter(Boolean).join(" · ") || null,
                           botaoImprimir(() => window.open(`/requisicoes/imprimir/${r.id}`, "_blank"), `Imprimir a requisição #${r.id}`)))}
                         {requisicoes.length > MAX && (
@@ -2704,29 +2739,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             {alimentacoes.length ? `${alimentacoes.length} alimentação(ões) — sem requisição de compra` : "Nenhuma requisição nesta OS."}
                           </div>
                         )}
-                      </div>
+                      </>
                     </>
+                    </div>
                   );
                 })()}
-                {relatorioTecnico && (
-                  <button className="os-rail-btn" onClick={() => window.open(relatorioTecnico, "_blank", "noopener")}
-                    title="Abre o relatório preenchido pelo técnico (PDF) numa aba nova — é só mandar imprimir">
-                    <i className="fas fa-file-pdf" /> Imprimir relatório técnico
-                  </button>
-                )}
-                {!ordemOmie && !(servicoInterno && status === "Concluída") && (
-                  <button
-                    className="os-rail-btn omie"
-                    onClick={enviarParaOmie}
-                    disabled={enviandoOmie || !podeOmie}
-                    title={!podeOmie ? MSG_SEM_PERMISSAO : servicoInterno ? "OS interna: vai normal pro Omie; peças saem como remessa" : undefined}
-                  >
-                    {enviandoOmie
-                      ? <><i className="fas fa-spinner fa-spin" /> Enviando...</>
-                      : <><i className="fas fa-cloud-upload-alt" /> Enviar para Omie</>}
-                  </button>
-                )}
-
                 <button className="os-rail-btn" onClick={() => setShowTarefas(true)} disabled={!osId} title="Tarefas desta OS (atribuir a alguém, lembrete, concluir)" style={{ position: "relative" }}>
                   <i className="fas fa-tasks" /> Tarefas
                   {tarefasPendentes > 0 && <span style={{ marginLeft: "auto", minWidth: 20, height: 20, padding: "0 6px", borderRadius: 10, background: "#c2570a", color: "#fefefe", fontSize: 11.5, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }} title={`${tarefasPendentes} tarefa(s) pendente(s)`}>{tarefasPendentes}</span>}

@@ -379,6 +379,17 @@ export default function PPVDrawer({
     }
     setSefazLoading(false);
   }, [ppvId, showToast]);
+  // NF-e faturada mas sem número ainda: relê a SEFAZ a cada 15 s (até 10 min com o pedido aberto)
+  const aguardandoNF = !!faturadoEm && !sefaz?.numero && tipoPedido !== "Remessa";
+  useEffect(() => {
+    if (!aguardandoNF || !ppvId) return;
+    const inicio = Date.now();
+    const t = setInterval(() => {
+      if (Date.now() - inicio > 10 * 60_000) { clearInterval(t); return; }
+      void carregarSefaz(true);
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [aguardandoNF, ppvId, carregarSefaz]);
   const nfPedidoPedida = useRef("");
   useEffect(() => {
     if (!ppvId || !pedidoOmie || tipoPedido === "Remessa") return;
@@ -1604,16 +1615,6 @@ export default function PPVDrawer({
               <button className="ppv-rail-btn primary" onClick={salvar} disabled={salvando || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}>
                 <i className={`fas ${salvando ? "fa-spinner fa-spin" : "fa-save"}`} /> {salvando ? "Salvando..." : "Salvar"}
               </button>
-              <button className="ppv-rail-btn" onClick={() => { setAbaAtiva("Itens da Venda"); onBuscaProduto(); }} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Incluir item (busca, mais usados, catálogo ou kit)"}><i className="fas fa-plus-circle" /> Incluir</button>
-              {/* Rastreio de unidades: tela de liberação por QR (feature pausada, mantida) */}
-              {podeLiberarQR && ppvId && (
-                <button className="ppv-rail-btn" onClick={() => window.open(`/ppv/liberacao/${encodeURIComponent(ppvId)}`, "_blank")}
-                  title="Tela de liberação de peças por QR (escanear e liberar retiradas)">
-                  <i className="fas fa-qrcode" /> Liberação (QR)
-                </button>
-              )}
-              <button className="ppv-rail-btn" onClick={gerarPDF} disabled={gerando}><i className={`fas ${gerando ? "fa-spinner fa-spin" : "fa-print"}`} /> {gerando ? "Gerando..." : "Imprimir"}</button>
-
               {/* ── Blocos: Omie (pedido, NF-e, faturar) · OS vinculada · requisições da OS ── */}
               {(() => {
                 const cartao = (cor: string): CSSProperties => ({ margin: "4px 0 6px", padding: 10, borderRadius: 10, border: `1px solid color-mix(in srgb, ${cor} 40%, #E2E8F0)`, background: `color-mix(in srgb, ${cor} 6%, #fff)`, display: "flex", flexDirection: "column", gap: 6 });
@@ -1680,7 +1681,17 @@ export default function PPVDrawer({
                             {doc(remessa ? "Remessa" : "Pedido de venda", `nº ${numOmie}`,
                               faturado ? selo("Faturado", "#047857", "#d1fae5") : remessa ? selo("Remessa enviada", "#047857", "#d1fae5") : selo("Aguardando faturar", "#b45309", "#fef3c7"),
                               botao(abrirPdfOmiePPV, "fa-file-pdf", "PDF do pedido", "PDF oficial do pedido no Omie (gerado na hora)", baixandoPdfOmie, "#0891A8"), "pv")}
-                            {faturado && doc("Nota fiscal (NF-e)", nf?.numero ? `nº ${String(nf.numero).replace(/^0+/, "")}` : "emitida",
+                            {faturado && !nf?.numero && (
+                              <div style={{ padding: "8px 10px", borderRadius: 8, background: "#fefefe", border: "1px solid #bae6fd", color: "#075985" }}>
+                                <div style={{ fontSize: 12, fontWeight: 800 }}><i className="fas fa-satellite-dish" /> Aguardando a nota da SEFAZ</div>
+                                <div style={{ fontSize: 10.5, marginTop: 2 }}>O portal está buscando a NF-e. Aparece aqui sozinha.</div>
+                                <div style={{ height: 5, borderRadius: 3, background: "rgba(11,183,205,.18)", overflow: "hidden", marginTop: 6 }}>
+                                  <div className="ppv-nf-barra" style={{ height: "100%", width: "40%", borderRadius: 3, background: "#0BB7CD" }} />
+                                </div>
+                                <style>{`@keyframes ppvNfBarra { 0% { transform: translateX(-100%) } 100% { transform: translateX(250%) } } .ppv-nf-barra { animation: ppvNfBarra 1.4s ease-in-out infinite; }`}</style>
+                              </div>
+                            )}
+                            {faturado && nf?.numero && doc("Nota fiscal (NF-e)", `nº ${String(nf.numero).replace(/^0+/, "")}`,
                               <span style={{ fontSize: 11.5, color: "#64748b" }}>
                                 {[nf?.emitidaEm ? `emitida em ${nf.emitidaEm}` : "", !faturadoEm ? "faturada direto no Omie" : ""].filter(Boolean).join(" · ") || "nota das peças"}
                               </span>,
@@ -1696,26 +1707,37 @@ export default function PPVDrawer({
                       })()}
                     </div>
 
-                    {osId && (
-                      <div style={cartao("#0369A1")}>
-                        {cabeca(<><i className="fas fa-screwdriver-wrench" style={{ color: "#0369A1" }} /> Ordem de serviço</>, () => window.open(`/pos?id=${encodeURIComponent(osId)}`, "_blank"))}
-                        {linha("os", osId, [osVinc?.ordemOmie ? `Omie nº ${osVinc.ordemOmie.replace(/^0+/, "")}` : "", osVinc?.status || ""].filter(Boolean).join(" · ") || null,
-                          icone(imprimirOSVinc, "fa-print", `Imprimir a OS ${osId}`))}
-                      </div>
-                    )}
-
-                    {osId && (
-                      <div style={cartao("#0D9488")}>
-                        {cabeca(<><i className="fas fa-shopping-cart" style={{ color: "#0D9488" }} /> Requisições{reqs.length ? ` (${reqs.length})` : ""}</>)}
-                        {reqs.slice(0, 4).map((r) => linha(r.id, `Req. #${r.id}`, [r.material, r.valor > 0 ? `R$ ${r.valor.toFixed(2).replace(".", ",")}` : ""].filter(Boolean).join(" · ") || null,
-                          icone(() => window.open(`/requisicoes/imprimir/${r.id}`, "_blank"), "fa-print", `Imprimir a requisição #${r.id}`)))}
-                        {reqs.length > 4 && <div style={{ fontSize: 12, color: "#64748b" }}>+{reqs.length - 4} na OS (abrir a OS)</div>}
-                        {!reqs.length && <div style={{ fontSize: 12, color: "#64748b", padding: "0 2px" }}>{osVinc ? "Nenhuma requisição na OS." : "Carregando…"}</div>}
-                      </div>
-                    )}
+                    <div style={cartao("#DC2626")}>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {cabeca(<><img src="/Logo_Nova.png" alt="Nova Tratores" style={{ height: 16, width: "auto" }} /><span style={{ textTransform: "none", letterSpacing: 0, fontWeight: 600, color: "#64748b" }}>portal</span></>)}
+                      {ppvId && linha("ppv", ppvId, "pedido de peças (PDF do portal)", icone(gerarPDF, gerando ? "fa-spinner fa-spin" : "fa-print", `Imprimir o ${ppvId}`))}
+                      {osId && (
+                        <>
+                          <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4, color: "#64748b", margin: "4px 2px 0", display: "flex", alignItems: "center" }}>
+                            <span style={{ flex: 1 }}>Ordem de serviço</span>
+                            <button type="button" onClick={() => window.open(`/pos?id=${encodeURIComponent(osId)}`, "_blank")} style={{ background: "none", border: "none", color: "#0369A1", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", padding: 0, textTransform: "none", letterSpacing: 0 }}>abrir</button>
+                          </div>
+                          {linha("os", osId, [osVinc?.ordemOmie ? `Omie nº ${osVinc.ordemOmie.replace(/^0+/, "")}` : "", osVinc?.status || ""].filter(Boolean).join(" · ") || null,
+                            icone(imprimirOSVinc, "fa-print", `Imprimir a OS ${osId}`))}
+                          <div style={{ fontSize: 10, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4, color: "#64748b", margin: "4px 2px 0" }}>Requisições{reqs.length ? ` (${reqs.length})` : ""}</div>
+                          {reqs.slice(0, 4).map((r) => linha(r.id, `Req. #${r.id}`, [r.material, r.valor > 0 ? `R$ ${r.valor.toFixed(2).replace(".", ",")}` : ""].filter(Boolean).join(" · ") || null,
+                            icone(() => window.open(`/requisicoes/imprimir/${r.id}`, "_blank"), "fa-print", `Imprimir a requisição #${r.id}`)))}
+                          {reqs.length > 4 && <div style={{ fontSize: 11, color: "#64748b" }}>+{reqs.length - 4} na OS (abrir a OS)</div>}
+                          {!reqs.length && <div style={{ fontSize: 11, color: "#64748b", padding: "0 2px" }}>{osVinc ? "Nenhuma requisição na OS." : "Carregando…"}</div>}
+                        </>
+                      )}
+                    </div>
                   </>
                 );
               })()}
+              <button className="ppv-rail-btn" onClick={() => { setAbaAtiva("Itens da Venda"); onBuscaProduto(); }} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Incluir item (busca, mais usados, catálogo ou kit)"}><i className="fas fa-plus-circle" /> Incluir</button>
+              {/* Rastreio de unidades: tela de liberação por QR (feature pausada, mantida) */}
+              {podeLiberarQR && ppvId && (
+                <button className="ppv-rail-btn" onClick={() => window.open(`/ppv/liberacao/${encodeURIComponent(ppvId)}`, "_blank")}
+                  title="Tela de liberação de peças por QR (escanear e liberar retiradas)">
+                  <i className="fas fa-qrcode" /> Liberação (QR)
+                </button>
+              )}
               <button className="ppv-rail-btn" onClick={duplicarPedido} disabled={duplicando || !details} title="Duplicar este pedido"><i className={`fas ${duplicando ? "fa-spinner fa-spin" : "fa-copy"}`} /> {duplicando ? "Duplicando..." : "Duplicador"}</button>
               <button className="ppv-rail-btn" onClick={() => setShowAnexos(true)} disabled={!ppvId} title="Anexar mídia + comentário" style={{ position: "relative" }}>
                 <i className="fas fa-paperclip" /> Anexos
