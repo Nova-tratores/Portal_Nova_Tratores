@@ -9,12 +9,13 @@ import { Camera, Check, ImagePlus, Loader2, Save, Tag, X } from 'lucide-react'
 import { comprimir, enviarFoto, mensagemErro } from '@/lib/opa-pecas/fotos'
 import { BUCKET_PATRIMONIO } from '@/lib/patrimonio/fotos-regra'
 import {
-  ESTADOS, FORM_VAZIO, INFO_ESTADO, juntarTags, mudouOnde, ROTULO_SITUACAO, SITUACOES, validarForm,
+  CATEGORIAS_PADRAO, ESTADOS, FORM_VAZIO, INFO_ESTADO, juntarTags, mudouOnde, ROTULO_SITUACAO, SITUACOES, TAGS_SUGERIDAS, validarForm,
   type DadosForm, type ItemPat,
 } from '@/lib/patrimonio/tipos'
 import { SeletorLocal } from '../pecas/Campos'
 import { Aviso, botao, INP, ROTULO, SECAO, TITULO_SECAO, useTelaLarga } from '../pecas/comum'
 import { api, COR_PAT, type BasePat } from './comum'
+import SugestaoPreco from './SugestaoPreco'
 
 const MAX_FOTOS = 8
 
@@ -86,7 +87,8 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
   const grade: React.CSSProperties = { display: 'grid', gridTemplateColumns: larga ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)', gap: 12 }
   const opcional = <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)' }}> (opcional)</span>
   const obrig = <span style={{ color: '#DC2626' }}> *</span>
-  const sugestoesTag = base.tags.filter((t) => !form.tags.includes(t)).slice(0, 12)
+  const sugestoesTag = [...new Set([...TAGS_SUGERIDAS, ...base.tags])].filter((t) => !form.tags.includes(t))
+  const categorias = [...new Set([...CATEGORIAS_PADRAO, ...base.categorias])]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -123,10 +125,22 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
             <label style={ROTULO}>Descrição{obrig}</label>
             <input value={form.descricao} onChange={(e) => muda('descricao', e.target.value.slice(0, 300))} placeholder="Ex.: Parafusadeira a bateria 12V" style={INP} />
           </div>
-          <div>
-            <label style={ROTULO}>Categoria{opcional}</label>
-            <input list="pat-categorias" value={form.categoria} onChange={(e) => muda('categoria', e.target.value.slice(0, 60))} placeholder="Ferramenta, Informática…" style={INP} />
-            <datalist id="pat-categorias">{base.categorias.map((c) => <option key={c} value={c} />)}</datalist>
+          <div style={{ gridColumn: '1 / -1' }}>
+            <label style={ROTULO}>Categoria</label>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {categorias.map((c) => {
+                const on = form.categoria === c
+                return (
+                  <button key={c} type="button" aria-pressed={on} onClick={() => muda('categoria', on ? '' : c)} style={{
+                    padding: '7px 12px', borderRadius: 999, fontSize: 13, fontWeight: 700, fontFamily: 'inherit', cursor: 'pointer',
+                    border: '1.5px solid ' + (on ? COR_PAT : 'var(--portal-border)'), background: on ? COR_PAT : 'var(--portal-bg-card)', color: on ? '#fff' : 'var(--portal-text)',
+                  }}>{c}</button>
+                )
+              })}
+            </div>
+            {!categorias.includes(form.categoria) && form.categoria && <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', marginTop: 6 }}>Categoria: <b>{form.categoria}</b></div>}
+            <input value={categorias.includes(form.categoria) ? '' : form.categoria} onChange={(e) => muda('categoria', e.target.value.slice(0, 60))}
+              placeholder="Não achou? Escreva outra categoria" style={{ ...INP, marginTop: 8 }} />
           </div>
           <div>
             <label style={ROTULO}>Marca{opcional}</label>
@@ -135,10 +149,6 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
           <div>
             <label style={ROTULO}>Modelo{opcional}</label>
             <input value={form.modelo} onChange={(e) => muda('modelo', e.target.value.slice(0, 120))} placeholder="Ex.: GSR 12V-15" style={INP} />
-          </div>
-          <div>
-            <label style={ROTULO}>Nº de série{opcional}</label>
-            <input value={form.numero_serie} onChange={(e) => muda('numero_serie', e.target.value.slice(0, 120))} placeholder="Da plaquinha" style={INP} />
           </div>
         </div>
       </section>
@@ -197,7 +207,8 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
       </section>
 
       <section style={SECAO}>
-        <h2 style={TITULO_SECAO}>Valores e compra</h2>
+        <h2 style={TITULO_SECAO}>Valor</h2>
+        <SugestaoPreco form={form} automatico={!item && !form.valor_atual.trim()} onUsar={(v) => muda('valor_atual', String(v).replace('.', ','))} />
         <div style={grade}>
           <div>
             <label style={ROTULO}>Valor hoje{opcional}</label>
@@ -205,23 +216,7 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
           </div>
           <div>
             <label style={ROTULO}>Valor pago na compra{opcional}</label>
-            <input inputMode="decimal" value={form.valor_compra} onChange={(e) => muda('valor_compra', e.target.value.slice(0, 20))} placeholder="R$" style={INP} />
-          </div>
-          <div>
-            <label style={ROTULO}>Data da compra{opcional}</label>
-            <input type="date" value={form.data_compra} onChange={(e) => muda('data_compra', e.target.value)} style={INP} />
-          </div>
-          <div>
-            <label style={ROTULO}>Garantia até{opcional}</label>
-            <input type="date" value={form.garantia_ate} onChange={(e) => muda('garantia_ate', e.target.value)} style={INP} />
-          </div>
-          <div>
-            <label style={ROTULO}>Fornecedor{opcional}</label>
-            <input value={form.fornecedor} onChange={(e) => muda('fornecedor', e.target.value.slice(0, 160))} placeholder="Onde foi comprado" style={INP} />
-          </div>
-          <div>
-            <label style={ROTULO}>Nota fiscal{opcional}</label>
-            <input value={form.nota_fiscal} onChange={(e) => muda('nota_fiscal', e.target.value.slice(0, 80))} placeholder="Nº da NF" style={INP} />
+            <input inputMode="decimal" value={form.valor_compra} onChange={(e) => muda('valor_compra', e.target.value.slice(0, 20))} placeholder="R$ (se souber)" style={INP} />
           </div>
         </div>
       </section>
@@ -236,7 +231,7 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
             </span>
           ))}
         </div>
-        <input value={novaTag} onChange={(e) => setNovaTag(e.target.value)} placeholder="Escreva uma tag e Enter (ex.: tecnologia, oficina, empréstimo)"
+        <input value={novaTag} onChange={(e) => setNovaTag(e.target.value)} placeholder="Outra tag? Escreva e Enter"
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); muda('tags', juntarTags(form.tags, novaTag)); setNovaTag('') } }}
           onBlur={() => { if (novaTag.trim()) { muda('tags', juntarTags(form.tags, novaTag)); setNovaTag('') } }} style={INP} />
         {sugestoesTag.length > 0 && (

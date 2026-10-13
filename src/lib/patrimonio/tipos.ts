@@ -21,8 +21,16 @@ export const ROTULO_SITUACAO: Record<Situacao, string> = {
 
 /** Sugestões de categoria (dá para digitar outra). */
 export const CATEGORIAS_PADRAO = [
-  'Ferramenta', 'Ferramenta elétrica', 'Equipamento de oficina', 'Informática', 'Celular / tablet', 'Eletrônico',
-  'Móvel', 'Eletrodoméstico', 'Ar-condicionado', 'Segurança', 'Veículo / implemento', 'Outro',
+  'Tecnologia / informática', 'Celular / tablet', 'Eletrônico', 'Móvel de escritório', 'Material de escritório',
+  'Copa e cozinha', 'Eletrodoméstico', 'Climatização', 'Ferramenta manual', 'Ferramenta elétrica',
+  'Equipamento de oficina', 'Limpeza', 'Segurança / EPI', 'Decoração', 'Veículo / implemento', 'Outro',
+]
+
+/** Tags prontas para clicar (de tecnologia a caneca); as já usadas aparecem junto. */
+export const TAGS_SUGERIDAS = [
+  'tecnologia', 'computador', 'notebook', 'monitor', 'impressora', 'celular', 'rede/wi-fi', 'cadeira', 'mesa', 'armário',
+  'escritório', 'oficina', 'copa', 'caneca', 'cafeteira', 'geladeira', 'ar-condicionado', 'ventilador', 'ferramenta',
+  'elétrica', 'bateria', 'limpeza', 'segurança', 'epi', 'recepção', 'showroom', 'empréstimo',
 ]
 
 export interface FotoPat { id: string; storage_path: string; ordem: number }
