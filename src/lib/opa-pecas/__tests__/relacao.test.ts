@@ -26,6 +26,10 @@ describe('relação Opa × cadastro', () => {
     expect(locacaoDe({ '#PRATELEIRA': '23' })).toBe('23 · — · —')
     expect(locacaoDe({ 'Tipo:': 'X' })).toBeNull()
     expect(locacaoDe({ '#PRATELEIRA': '#N/D' })).toBeNull()
+    // como a tela de Localização: #ANDAR2/#CAIXA2 de reserva, caixa/acento não importam, XXX/000 = vazio
+    expect(locacaoDe({ '#Prateleira': '5', '#ANDAR2': 'B', '#CAIXA2': '02' })).toBe('5 · B · 02')
+    expect(locacaoDe({ '#PRATELEIRA': 'XXX', '#ANDAR': '000' })).toBeNull()
+    expect(outrasCaracteristicas({ '#ANDAR2': 'B', 'Sistema': 'Hidráulico' })).toEqual([{ nome: 'Sistema', valor: 'Hidráulico' }])
   })
 
   it('separa as filas e junta as duas empresas', () => {

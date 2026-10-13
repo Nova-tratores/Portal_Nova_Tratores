@@ -82,7 +82,10 @@ export default function ProdutoCadastro({ codigo, compacto = false }: { codigo: 
           {c.descricao && <div style={{ fontWeight: 700, color: '#064E3B' }}>{c.descricao}</div>}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px 14px', fontSize: 12.5 }}>
             {c.tipo && <span><b>Tipo:</b> {c.tipo}</span>}
-            {c.locacao && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><MapPin size={12} /> <b>Locação:</b> {c.locacao}</span>}
+            {/* locação SEMPRE aparece: a maioria das peças ainda não tem prateleira/andar/caixa no cadastro */}
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, ...(c.locacao ? {} : { color: '#B45309' }) }}>
+              <MapPin size={12} /> <b>Locação:</b> {c.locacao || 'não cadastrada'}
+            </span>
             {c.estoque != null && <span><b>Estoque:</b> {String(c.estoque).replace('.', ',')}</span>}
             {c.valor_unitario != null && <span><b>Valor:</b> {fmtPreco(c.valor_unitario)}</span>}
             {c.marca && <span><b>Marca:</b> {c.marca}</span>}

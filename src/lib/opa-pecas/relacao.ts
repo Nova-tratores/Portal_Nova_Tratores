@@ -10,6 +10,7 @@
 // vice-versa) — procura as duas; espaços e caixa não importam.
 
 import { BOM, celulaCsv } from './csv'
+import { norm, posDeCar, segPlaceholder } from '@/lib/ajustes/posicao'
 import { numeroCsv } from './regras'
 import { ROTULO_QUALIDADE, ROTULO_STATUS, type Qualidade, type Status } from './tipos'
 
@@ -113,8 +114,11 @@ function texto(v: unknown): string | null {
 /** "23 · A · 06" a partir das características do PPV; null quando não tem nenhuma das três. */
 export function locacaoDe(car: Record<string, string> | null | undefined): string | null {
   if (!car) return null
-  const partes = ['#PRATELEIRA', '#ANDAR', '#CAIXA'].map((k) => texto(car[k]))
-  return partes.some(Boolean) ? partes.map((p) => p || '—').join(' · ') : null
+  // mesma leitura da tela de Localização: nome sem caixa/acento, #ANDAR2/#CAIXA2
+  // de reserva e "XXX"/"000"/"---" (enchimento) contam como vazio
+  const p = posDeCar(car)
+  const partes = [p.prat, p.andar, p.caixa].map((v) => { const t = texto(v); return t && !segPlaceholder(t) ? t : null })
+  return partes.some(Boolean) ? partes.map((x) => x || '—').join(' · ') : null
 }
 
 /** Tipo da peça nas características ("Tipo:" no PPV). */
@@ -124,13 +128,13 @@ export function tipoDe(car: Record<string, string> | null | undefined): string |
   return chave ? texto(car[chave]) : null
 }
 
-const CHAVES_FIXAS = new Set(['#PRATELEIRA', '#ANDAR', '#CAIXA'])
+const CHAVES_FIXAS = new Set(['#prateleira', '#andar', '#caixa', '#andar2', '#caixa2'])
 
 /** Características além de Tipo e locação ("Aplicação: 6075"…), sem as vazias. */
 export function outrasCaracteristicas(car: Record<string, string> | null | undefined): { nome: string; valor: string }[] {
   if (!car) return []
   return Object.entries(car)
-    .filter(([k]) => !CHAVES_FIXAS.has(k.trim().toUpperCase()) && k.replace(/[:\s]/g, '').toUpperCase() !== 'TIPO')
+    .filter(([k]) => !CHAVES_FIXAS.has(norm(k)) && k.replace(/[:\s]/g, '').toUpperCase() !== 'TIPO')
     .map(([k, v]) => ({ nome: k.replace(/^#/, '').replace(/:\s*$/, '').trim(), valor: texto(v) || '' }))
     .filter((c) => c.nome && c.valor)
 }
