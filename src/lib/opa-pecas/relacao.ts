@@ -56,6 +56,8 @@ export interface Cadastro {
   tipo: string | null
   /** "23 · A · 06" (prateleira · andar · caixa) ou null */
   locacao: string | null
+  /** cada parte da locação (null = não tem) */
+  posicao: { prateleira: string | null; andar: string | null; caixa: string | null }
   estoque: number | null
   valor_unitario: number | null
   marca: string | null
@@ -112,12 +114,18 @@ function texto(v: unknown): string | null {
 }
 
 /** "23 · A · 06" a partir das características do PPV; null quando não tem nenhuma das três. */
-export function locacaoDe(car: Record<string, string> | null | undefined): string | null {
-  if (!car) return null
-  // mesma leitura da tela de Localização: nome sem caixa/acento, #ANDAR2/#CAIXA2
-  // de reserva e "XXX"/"000"/"---" (enchimento) contam como vazio
+/** Prateleira, andar e caixa (null = não tem). Mesma leitura da tela de Localização:
+ *  nome sem caixa/acento, #ANDAR2/#CAIXA2 de reserva e "XXX"/"000"/"---" = vazio. */
+export function posicaoDe(car: Record<string, string> | null | undefined): { prateleira: string | null; andar: string | null; caixa: string | null } {
+  if (!car) return { prateleira: null, andar: null, caixa: null }
   const p = posDeCar(car)
-  const partes = [p.prat, p.andar, p.caixa].map((v) => { const t = texto(v); return t && !segPlaceholder(t) ? t : null })
+  const limpa = (v: string) => { const t = texto(v); return t && !segPlaceholder(t) ? t : null }
+  return { prateleira: limpa(p.prat), andar: limpa(p.andar), caixa: limpa(p.caixa) }
+}
+
+export function locacaoDe(car: Record<string, string> | null | undefined): string | null {
+  const p = posicaoDe(car)
+  const partes = [p.prateleira, p.andar, p.caixa]
   return partes.some(Boolean) ? partes.map((x) => x || '—').join(' · ') : null
 }
 
@@ -178,7 +186,7 @@ export function indexarCadastros(produtos: ProdutoCadastro[], caracteristicas: C
     const k = `${empresa}|${chaveCodigo(codigo)}`
     let c = cad.get(k)
     if (!c) {
-      c = { empresa, codigo, descricao: null, tipo: null, locacao: null, estoque: null, valor_unitario: null, marca: null, familia: null, inativo: false, outras: [] }
+      c = { empresa, codigo, descricao: null, tipo: null, locacao: null, estoque: null, valor_unitario: null, marca: null, familia: null, inativo: false, outras: [], posicao: { prateleira: null, andar: null, caixa: null } }
       cad.set(k, c)
     }
     return c
@@ -197,6 +205,7 @@ export function indexarCadastros(produtos: ProdutoCadastro[], caracteristicas: C
     c.descricao = c.descricao ?? texto(p.descricao)
     c.tipo = tipoDe(p.caracteristicas)
     c.locacao = locacaoDe(p.caracteristicas)
+    c.posicao = posicaoDe(p.caracteristicas)
     c.outras = outrasCaracteristicas(p.caracteristicas)
   }
   return cad

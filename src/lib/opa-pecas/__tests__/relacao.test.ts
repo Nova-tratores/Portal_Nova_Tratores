@@ -51,7 +51,8 @@ describe('relação Opa × cadastro', () => {
     )
     expect(r.existentes.map((l) => l.item.id)).toEqual(['a', 'b'])
     expect(r.existentes[0].cadastros.map((c) => c.empresa)).toEqual(['NOVA', 'CASTRO'])
-    expect(r.existentes[0].cadastros[0]).toMatchObject({ tipo: 'Mangote', locacao: '3 · G · 1', estoque: 2 })
+    expect(r.existentes[0].cadastros[0]).toMatchObject({ tipo: 'Mangote', locacao: '3 · G · 1', estoque: 2, posicao: { prateleira: '3', andar: 'G', caixa: '1' } })
+    expect(r.existentes[1].cadastros[0].posicao).toEqual({ prateleira: null, andar: null, caixa: null })
     expect(r.existentes[1].cadastros[0].codigo).toBe('RP-0734309419')
     expect(r.soOpa.map((l) => [l.item.id, l.motivo])).toEqual([['c', 'nao_encontrado'], ['d', 'sem_codigo']])
 

@@ -180,7 +180,9 @@ function Cartao({ l, local, mobile }: { l: LinhaRelacao; local: string; mobile: 
               <div style={{ fontSize: 13, fontWeight: 600, color: '#064E3B', marginTop: 4, overflowWrap: 'anywhere' }}>{c.descricao || '—'}</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '2px 12px', marginTop: 6, fontSize: 12, color: '#065F46' }}>
                 <span><b>Tipo:</b> {c.tipo || '—'}</span>
-                <span><b>Locação:</b> {c.locacao || '—'}</span>
+                {([['Prateleira', c.posicao?.prateleira], ['Andar', c.posicao?.andar], ['Caixa', c.posicao?.caixa]] as const).map(([r, v]) => (
+                  <span key={r} style={v ? undefined : { color: '#B45309' }}><b>{r}:</b> {v || 'não tem'}</span>
+                ))}
                 <span><b>Estoque:</b> {c.estoque == null ? '—' : String(c.estoque).replace('.', ',')}</span>
                 <span><b>Valor:</b> {c.valor_unitario == null ? '—' : fmtPreco(c.valor_unitario)}</span>
                 {c.marca && <span><b>Marca:</b> {c.marca}</span>}

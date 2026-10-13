@@ -50,6 +50,9 @@ const CHAVE_NAV = 'opa-pecas-navegacao'
 function useVoltar(pathname: string) {
   const router = useRouter()
   useEffect(() => {
+    // só as telas de PEÇAS entram na conta (Patrimônio e Ocorrências não — o
+    // Voltar das peças não pode mandar para outra aba)
+    if (!pathname.startsWith('/opa/pecas')) return
     try {
       const atual = pathname + window.location.search
       const nav = JSON.parse(sessionStorage.getItem(CHAVE_NAV) || '{}') as { anterior?: string; atual?: string }
@@ -59,8 +62,7 @@ function useVoltar(pathname: string) {
   return () => {
     let anterior = ''
     try { anterior = (JSON.parse(sessionStorage.getItem(CHAVE_NAV) || '{}') as { anterior?: string }).anterior || '' } catch { /* idem */ }
-    if (anterior && anterior !== pathname + window.location.search) router.push(anterior)
-    else if (window.history.length > 1) router.back()
+    if (anterior && anterior.startsWith('/opa/pecas') && anterior !== pathname + window.location.search) router.push(anterior)
     else router.push('/opa/pecas')
   }
 }
@@ -97,13 +99,13 @@ export function OpaBarra({ acao, podeGerir = false }: { acao?: React.ReactNode; 
       margin: isMobile ? '-12px -12px 14px' : '-16px -20px 18px', padding: isMobile ? '10px 12px 0' : '12px 24px 0',
       background: faixa, boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
     }}>
-      <div role="tablist" style={{ display: 'flex', alignItems: 'flex-end', gap: 4, overflowX: 'auto', flexShrink: 0, maxWidth: '100%', WebkitOverflowScrolling: 'touch' }}>
+      <div role="tablist" style={{ display: 'flex', alignItems: 'flex-end', gap: isMobile ? 3 : 4, overflowX: 'auto', flexShrink: 0, maxWidth: '100%', width: isMobile ? '100%' : undefined, WebkitOverflowScrolling: 'touch' }}>
         <GuiaChrome href="/opa" ativo={!emPecas && !emPatrimonio} cor="#dc2626" icone={<AlertCircle size={16} />} titulo="Ocorrências"
           conta={c?.opasAbertos ?? null} dica={c ? (c.opasAbertos === 1 ? '1 aberta' : `${c.opasAbertos} abertas`) : ''} mobile={isMobile} />
-        <GuiaChrome href="/opa/pecas" ativo={emPecas} cor={LARANJA} icone={<Package size={16} />} titulo="Peças S/Estoque"
+        <GuiaChrome href="/opa/pecas" ativo={emPecas} cor={LARANJA} icone={<Package size={16} />} titulo="Peças S/Estoque" curto="Peças"
           conta={c?.emAberto ?? null} dica={c ? `${c.emAberto} em andamento` : ''} mobile={isMobile} />
         {(vePatrimonio || emPatrimonio) && (
-          <GuiaChrome href="/opa/patrimonio" ativo={emPatrimonio} cor="#4f46e5" icone={<Landmark size={16} />} titulo="Patrimônio Loja"
+          <GuiaChrome href="/opa/patrimonio" ativo={emPatrimonio} cor="#4f46e5" icone={<Landmark size={16} />} titulo="Patrimônio Loja" curto="Patrimônio"
             conta={null} dica="O que a loja tem: ferramentas, informática, móveis, equipamentos" mobile={isMobile} />
         )}
       </div>
@@ -156,19 +158,19 @@ export const BTN_FAIXA: React.CSSProperties = {
 const BTN_FAIXA_MOVEL: React.CSSProperties = { ...BTN_FAIXA, width: '100%', justifyContent: 'center', boxSizing: 'border-box', padding: '0 10px' }
 
 /** Guia estilo Chrome: cantos de cima arredondados; a ativa é branca e "gruda" no conteúdo. */
-function GuiaChrome({ href, ativo, cor, icone, titulo, conta, dica, mobile }: {
-  href: string; ativo: boolean; cor: string; icone: React.ReactNode; titulo: string; conta: number | null; dica: string; mobile: boolean
+function GuiaChrome({ href, ativo, cor, icone, titulo, curto, conta, dica, mobile }: {
+  href: string; ativo: boolean; cor: string; icone: React.ReactNode; titulo: string; curto?: string; conta: number | null; dica: string; mobile: boolean
 }) {
   return (
     <Link href={href} role="tab" aria-selected={ativo} aria-current={ativo ? 'page' : undefined} title={dica} style={{
-      display: 'flex', alignItems: 'center', gap: 8, padding: mobile ? '10px 14px' : '11px 20px', flexShrink: 0,
+      display: 'flex', alignItems: 'center', gap: mobile ? 5 : 7, padding: mobile ? '9px 9px' : '10px 14px', flexShrink: mobile ? 1 : 0, minWidth: 0,
       borderRadius: '11px 11px 0 0', textDecoration: 'none', whiteSpace: 'nowrap', transition: '0.15s',
-      fontSize: mobile ? 13 : 14, fontWeight: ativo ? 700 : 500, color: '#111111', // preta sempre (o escuro remapeia #111827)
+      fontSize: mobile ? 12.5 : 13.5, fontWeight: ativo ? 700 : 500, color: '#111111', // preta sempre (o escuro remapeia #111827)
       background: ativo ? '#fefefe' : 'rgba(255,255,255,0.30)',
       boxShadow: ativo ? '0 -2px 6px rgba(0,0,0,0.15)' : 'none',
     }}>
       <span style={{ color: ativo ? cor : '#111111', display: 'flex', opacity: ativo ? 1 : 0.75 }}>{icone}</span>
-      {titulo}
+      {mobile && curto ? curto : titulo}
       {conta != null && conta > 0 && (
         <span style={{ fontSize: 11, fontWeight: 800, padding: '1px 7px', borderRadius: 9, background: ativo ? cor : 'rgba(0,0,0,0.14)', color: ativo ? '#fefefe' : '#111111' }}>{conta}</span>
       )}
