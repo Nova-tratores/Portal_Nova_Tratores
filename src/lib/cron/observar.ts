@@ -5,6 +5,7 @@
 // Degrada com elegância: se a tabela/serviço não existir, tudo vira no-op (try/catch)
 // e o cron roda normalmente — então dá pra fazer deploy do código ANTES da migration.
 import { createClient } from '@supabase/supabase-js';
+import { comPrioridade, type Prioridade } from '@/lib/omie/porta';
 
 const URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -24,7 +25,7 @@ export interface CronRunResultado<T> {
 export async function comCronRun<T>(
   job: string,
   fn: () => Promise<T>,
-  opts: { lockMinutos?: number } = {},
+  opts: { lockMinutos?: number; prioridade?: Prioridade } = {},
 ): Promise<CronRunResultado<T>> {
   // Trava opcional: pula se já há execução aberta recente.
   if (sb && opts.lockMinutos && opts.lockMinutos > 0) {
@@ -57,7 +58,9 @@ export async function comCronRun<T>(
   };
 
   try {
-    const resultado = await fn();
+    // Toda chamada à Omie feita dentro do job entra na fila da porta única com esta
+    // prioridade (padrão 'pesado'): quem está na tela passa na frente.
+    const resultado = await comPrioridade(opts.prioridade ?? 'pesado', fn);
     await fechar({ status: 'ok' });
     return { pulado: false, resultado };
   } catch (e) {

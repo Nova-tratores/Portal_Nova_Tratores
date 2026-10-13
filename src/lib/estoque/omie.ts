@@ -1,14 +1,13 @@
 // Cliente Omie multi-conta do módulo Estoque.
-// Portado de omieRequest (server.js:164-211) — detecção de bloqueio
-// ("consumo indevido"/"API bloqueada"), backoff exponencial e cap de espera.
-//
-// IMPORTANTE: NÃO reusar src/lib/pos/omie.ts (single-account, só trata 429).
-// Aqui a conta é passada EXPLICITAMENTE (em vez de getCurrentContaOrDefault()).
+// Desde 13/10/2026 é uma casca sobre a PORTA ÚNICA (src/lib/omie/porta.ts): freio,
+// fila com prioridade, disjuntor de bloqueio e regra de gravação sem reenvio moram lá.
+// Aqui fica só a assinatura antiga (conta NOVA/CASTRO explícita, devolve o JSON mesmo
+// com faultstring de negócio) para não mexer nos ~30 arquivos que usam este cliente.
 
 import { getCredentials, type Conta, CONTA_DEFAULT } from './conta';
-import { sleep } from './utils';
+import { omie, bloqueioRestanteMs, type Prioridade } from '@/lib/omie/porta';
 
-const OMIE_BASE = 'https://app.omie.com.br/api/v1';
+export { OmieBloqueioError } from '@/lib/omie/porta';
 
 // Cap de espera para chamadas de UI: nunca segurar uma request HTTP do usuário
 // por minutos quando a Omie está bloqueada. Loops de background passam um
@@ -16,41 +15,12 @@ const OMIE_BASE = 'https://app.omie.com.br/api/v1';
 const OMIE_MAX_WAIT_MS = 30_000;
 const OMIE_DEFAULT_RETRIES = 1;
 
-// ── Rate limiter GLOBAL (token-bucket simplão) ────────────────────────────────
-// A Omie limita por IP+AppKey+Método: 4 req/s por método, 960/min por IP. Como a
-// chave é compartilhada por TODOS os syncs + ações manuais na mesma instância
-// Railway, um portão global de vazão evita rajadas concorrentes que a Omie pune.
-// ~3 req/s (folga sob o teto de 4/s). Reserva de slot é atômica (JS single-thread).
-const OMIE_MIN_GAP_MS = 300;
-let proximoSlot = 0;
-async function aguardarSlotGlobal(): Promise<void> {
-  const agora = Date.now();
-  const inicio = Math.max(agora, proximoSlot);
-  proximoSlot = inicio + OMIE_MIN_GAP_MS;
-  const espera = inicio - agora;
-  if (espera > 0) await sleep(espera);
-}
-
-// ── Circuit breaker por conta+método ──────────────────────────────────────────
-// Ao receber "API bloqueada por consumo indevido", a Omie penaliza por ~30 min e
-// CADA nova chamada durante o bloqueio PRORROGA a penalidade. Então: NÃO reenviar.
-// Marcamos o método bloqueado até o horário indicado e falhamos rápido as próximas
-// chamadas (sem tocar a Omie) — protege syncs E ações manuais que dividem a chave.
-const bloqueios = new Map<string, number>(); // `${conta}|${call}` → epoch ms até quando bloqueado
-const chaveBloqueio = (conta: Conta, call: string) => `${conta}|${call}`;
-
 /** ms restantes de bloqueio para (conta, método); 0 = livre. */
 export function omieBloqueioRestanteMs(conta: Conta, call: string): number {
-  const ate = bloqueios.get(chaveBloqueio(conta, call)) ?? 0;
-  const rest = ate - Date.now();
-  return rest > 0 ? rest : 0;
-}
-
-export class OmieBloqueioError extends Error {
-  readonly bloqueio = true;
-  constructor(message: string, readonly conta: Conta, readonly call: string, readonly aguardarSegundos: number) {
-    super(message);
-    this.name = 'OmieBloqueioError';
+  try {
+    return bloqueioRestanteMs(getCredentials(conta).appKey, call);
+  } catch {
+    return 0; // conta sem credencial: a chamada vai falhar com a mensagem certa
   }
 }
 
@@ -58,6 +28,7 @@ export interface OmieRequestOpts {
   conta?: Conta;
   retries?: number;
   maxWaitMs?: number;
+  prioridade?: Prioridade;
 }
 
 /** Resposta crua da Omie (pode conter faultstring de erro de negócio). */
@@ -70,60 +41,13 @@ export async function omieRequest<T = OmieResponse>(
   opts: OmieRequestOpts = {},
 ): Promise<T> {
   const conta = opts.conta ?? CONTA_DEFAULT;
-  const retries = opts.retries ?? OMIE_DEFAULT_RETRIES;
-  const maxWait = opts.maxWaitMs ?? OMIE_MAX_WAIT_MS;
   const { appKey, appSecret } = getCredentials(conta);
-  const url = endpoint.startsWith('http') ? endpoint : OMIE_BASE + endpoint;
-  const body = { app_key: appKey, app_secret: appSecret, call, param: [params] };
-
-  // Circuit breaker: se este método/conta está em bloqueio conhecido, falha rápido
-  // sem chamar a Omie (não alimenta o contador de erros que prorroga a penalidade).
-  const restanteMs = omieBloqueioRestanteMs(conta, call);
-  if (restanteMs > 0) {
-    const seg = Math.ceil(restanteMs / 1000);
-    throw new OmieBloqueioError(`Omie bloqueada [${conta}/${call}] — aguardando ~${seg}s (circuit breaker)`, conta, call, seg);
-  }
-
-  let ultimaFault: string | null = null;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    try {
-      if (attempt > 0) await sleep(2000 * attempt);
-      await aguardarSlotGlobal();
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const data = (await res.json()) as OmieResponse;
-      const fs = data.faultstring;
-      if (fs) {
-        ultimaFault = fs;
-        // BLOQUEIO por consumo indevido: ABORTA (não retenta) + arma o circuit breaker.
-        if (fs.includes('consumo indevido') || fs.includes('API bloqueada')) {
-          const mSeg = fs.match(/(\d+)\s*segundos?/i);
-          const mMin = fs.match(/(\d+)\s*minutos?/i);
-          const segundos = mSeg ? parseInt(mSeg[1], 10) : mMin ? parseInt(mMin[1], 10) * 60 : 1800;
-          bloqueios.set(chaveBloqueio(conta, call), Date.now() + (segundos + 15) * 1000);
-          throw new OmieBloqueioError(`Omie API: ${fs}`, conta, call, segundos);
-        }
-        // Transitórios (rate soft / redundante): backoff curto e retenta.
-        if (/too many requests|\blimite\b|redundant/i.test(fs)) {
-          await sleep(Math.min(5000 * (attempt + 1), maxWait));
-          continue;
-        }
-      }
-      // Sucesso (ou erro de negócio): limpa bloqueio residual deste método.
-      if (bloqueios.has(chaveBloqueio(conta, call))) bloqueios.delete(chaveBloqueio(conta, call));
-      return data as T;
-    } catch (e) {
-      if (e instanceof OmieBloqueioError) throw e; // não retenta bloqueio
-      if (attempt === retries) throw e;
-      await sleep(2000 * (attempt + 1));
-    }
-  }
-  throw new Error(
-    `omieRequest ${call} [${conta}] esgotou ${retries} retries (última faultstring: ${ultimaFault ?? 'desconhecida'})`,
-  );
+  return omie<T>({ appKey, appSecret, rotulo: conta }, endpoint, call, params, {
+    tentativas: opts.retries ?? OMIE_DEFAULT_RETRIES,
+    maxEsperaMs: opts.maxWaitMs ?? OMIE_MAX_WAIT_MS,
+    prioridade: opts.prioridade,
+    lancarFault: false,
+  });
 }
 
 // --- Endpoints de produto/estoque usados pelo piloto ---

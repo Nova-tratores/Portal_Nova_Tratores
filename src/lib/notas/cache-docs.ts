@@ -290,7 +290,7 @@ export async function rodarAgendado(limite = 120): Promise<string> {
     const idx = await indexarNotas();
     const lote = await guardarLote({ limite });
     return { idx, lote };
-  }, { lockMinutos: 9 });
+  }, { lockMinutos: 9, prioridade: 'rapido' });
   if (r.pulado) return 'pulado (rodada anterior ainda aberta)';
   if (r.erro) return 'erro: ' + r.erro;
   const { idx, lote } = r.resultado!;

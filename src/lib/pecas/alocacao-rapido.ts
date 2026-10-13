@@ -61,7 +61,7 @@ export async function rodarAlocacaoRapidoAgendado(agora: Date = new Date()): Pro
     // sync falhou nas DUAS contas → marca a rodada como erro (aparece em cron_runs)
     if (erros.length === res.sync.length && erros.length > 0) throw new Error(erros.join(' | '));
     return res;
-  }, { lockMinutos: 8 });
+  }, { lockMinutos: 8, prioridade: 'rapido' });
   if (r.pulado) return 'pulado (rodada anterior ainda aberta)';
   if (r.erro) return 'erro: ' + r.erro;
   const a = r.resultado!.alocacao;
