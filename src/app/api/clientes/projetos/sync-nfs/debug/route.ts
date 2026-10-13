@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { contaOmie } from "@/lib/omie/contas";
-
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
+import { omie } from "@/lib/omie/porta";
 
 const CONTAS = [
   { empresa: "Nova Tratores", ...contaOmie("Nova Tratores") },
@@ -12,32 +11,25 @@ export async function GET() {
   const results: any[] = [];
 
   for (const acc of CONTAS) {
-    const payload = {
-      call: "ListarNF",
-      app_key: acc.key,
-      app_secret: acc.secret,
-      param: [{
-        pagina: 1,
-        registros_por_pagina: 2,
-        tpNF: "0",
-        tpAmb: "1",
-        dEmiInicial: "01/01/2025",
-        dEmiFinal: "31/01/2025",
-      }],
+    const param = {
+      pagina: 1,
+      registros_por_pagina: 2,
+      tpNF: "0",
+      tpAmb: "1",
+      dEmiInicial: "01/01/2025",
+      dEmiFinal: "31/01/2025",
     };
 
     try {
-      const res = await fetch(`${OMIE_BASE}/produtos/nfconsultar/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
+      const data: any = await omie(
+        { appKey: acc.key, appSecret: acc.secret, rotulo: acc.empresa },
+        "/produtos/nfconsultar/", "ListarNF", param, { lancarFault: false },
+      );
 
       const nf0 = data.nfCadastro?.[0];
       results.push({
         empresa: acc.empresa,
-        status: res.status,
+        status: 200, // a porta não expõe o HTTP; erro de transporte cai no catch
         tem_fault: !!data.faultstring,
         faultstring: data.faultstring || null,
         total_paginas: data.total_de_paginas || null,

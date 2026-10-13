@@ -1,12 +1,12 @@
 import { supabaseFetch, getValorInsensivel } from "./supabase";
 import { TBL_PRODUTOS } from "./constants";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
 // As características (#PRATELEIRA, #ANDAR, #CAIXA, Tipo...) só vêm no ConsultarProduto
 // do Omie (1 a 1). Buscamos sob demanda (poucos itens por pedido) e cacheamos na coluna
 // Produtos_Completos.Caracteristicas pra não repetir.
 
-const OMIE_URL = "https://app.omie.com.br/api/v1/geral/produtos/";
 const ACCOUNTS: Record<string, { key: string; secret: string }> = {
   "Nova Tratores": contaOmie("Nova Tratores"),
   "Castro Peças": contaOmie("Castro Peças"),
@@ -32,14 +32,16 @@ function formatar(cars: Caract[]): string {
 }
 
 async function consultarOmie(idOmie: number, empresa: string): Promise<string> {
-  const acc = ACCOUNTS[empresa] || ACCOUNTS["Castro Peças"];
+  const nomeConta = ACCOUNTS[empresa] ? empresa : "Castro Peças";
+  const acc = ACCOUNTS[nomeConta];
   try {
-    const res = await fetch(OMIE_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ call: "ConsultarProduto", app_key: acc.key, app_secret: acc.secret, param: [{ codigo_produto: idOmie }] }),
-    });
-    const d = await res.json();
+    const d = await omie<{ faultstring?: string; caracteristicas?: Caract[] }>(
+      { appKey: acc.key, appSecret: acc.secret, rotulo: nomeConta },
+      "/geral/produtos/",
+      "ConsultarProduto",
+      { codigo_produto: idOmie },
+      { lancarFault: false },
+    );
     if (d?.faultstring) return "";
     return Array.isArray(d?.caracteristicas) ? formatar(d.caracteristicas) : "";
   } catch { return ""; }

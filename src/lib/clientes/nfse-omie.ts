@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { numeroNfse } from "./numero-nf";
+import { contaOmie } from "@/lib/omie/contas";
+import { omie as omiePorta } from "@/lib/omie/porta";
 
 // NFS-e da OS → PDF guardado na pasta do cliente. Usado por TODOS os caminhos
 // que trazem a nota do Omie (webhook do faturamento, syncs, anexar, botão "Ver").
@@ -12,7 +14,6 @@ import { numeroNfse } from "./numero-nf";
 
 export type ContaOmieNfse = { key: string; secret: string };
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 const BUCKET = "clientes-docs";
 
 /** Filtro PostgREST (.or) das OS que ainda não têm o PDF da nota no portal. */
@@ -24,12 +25,10 @@ export function linkNoPortal(url: string | null | undefined): boolean {
   return !!url && /\/storage\/v1\/object\/public\//.test(url);
 }
 
-async function omie(ep: string, call: string, param: Record<string, unknown>, acc: ContaOmieNfse) {
-  const res = await fetch(`${OMIE_BASE}${ep}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  const data = await res.json().catch(() => ({}));
+// Passa pela porta única (fila, freio, repetição em erro transitório).
+async function omie(ep: string, call: string, param: Record<string, unknown>, acc: ContaOmieNfse): Promise<any> {
+  const rotulo = acc.key && acc.key === contaOmie("Castro Peças").key ? "Castro Peças" : "Nova Tratores";
+  const data: any = await omiePorta({ appKey: acc.key, appSecret: acc.secret, rotulo }, ep, call, param, { lancarFault: false });
   if (data?.faultstring) throw new Error(String(data.faultstring));
   return data;
 }

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   omie, comPrioridade, estadoPorta, bloqueioRestanteMs, LIMITES, _reiniciarPorta,
   OmieBloqueioError, OmieChaveRecusadaError, OmieIncertoError, OmieFaultError,
-  ehGravacao, ehChaveRecusada, segundosDoBloqueio, corpoAscii,
+  ehGravacao, ehChaveRecusada, segundosDoBloqueio, segundosParaAguardar, corpoAscii,
 } from '../porta';
 
 const NOVA = { appKey: 'chave-nova', appSecret: 's', rotulo: 'NOVA' };
@@ -47,6 +47,10 @@ describe('classificação', () => {
     expect(segundosDoBloqueio('API bloqueada por consumo indevido. Tente novamente em 1795 segundos.')).toBe(1795);
     expect(segundosDoBloqueio('bloqueada por 30 minutos')).toBe(1800);
     expect(segundosDoBloqueio('consumo indevido')).toBe(1800);
+  });
+  it('lê o "aguarde N segundos" do consumo redundante', () => {
+    expect(segundosParaAguardar('ERROR: Consumo redundante detectado. Aguarde 5 segundos para tentar novamente (REDUNDANT).')).toBe(5);
+    expect(segundosParaAguardar('Too many requests')).toBe(0);
   });
   it('corpo sai 100% ASCII', () => {
     const c = corpoAscii({ d: 'peça' });
@@ -129,10 +133,22 @@ describe('omie()', () => {
     expect(chamadas).toHaveLength(1);
   });
 
-  it('gravação repete quando a Omie recusou antes de processar', async () => {
-    respostas = [{ faultstring: 'ERROR: Consumo redundante detectado. Aguarde 5 segundos (REDUNDANT).' }, { ok: 1 }];
+  it('gravação repete no limite de velocidade (recusado antes de processar)', async () => {
+    respostas = [{ faultstring: 'Too many requests' }, { ok: 1 }];
     const r = await omie(NOVA, '/x/', 'AlterarPedidoVenda', {}, RAPIDO);
     expect(r).toEqual({ ok: 1 });
+    expect(chamadas).toHaveLength(2);
+  });
+
+  it('consumo redundante em gravação NÃO repete: pode ter sido processada', async () => {
+    respostas = [{ faultstring: 'ERROR: Consumo redundante detectado. Aguarde 5 segundos (REDUNDANT).' }, { ok: 1 }];
+    await expect(omie(NOVA, '/x/', 'FaturarOS', {}, RAPIDO)).rejects.toBeInstanceOf(OmieIncertoError);
+    expect(chamadas).toHaveLength(1);
+  });
+
+  it('consumo redundante em leitura repete', async () => {
+    respostas = [{ faultstring: 'ERROR: Consumo redundante detectado. Aguarde 0 segundos (REDUNDANT).' }, { ok: 1 }];
+    await omie(NOVA, '/x/', 'ConsultarOS', {}, RAPIDO);
     expect(chamadas).toHaveLength(2);
   });
 
@@ -140,6 +156,16 @@ describe('omie()', () => {
     respostas = [Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } }), { ok: 1 }];
     await omie(NOVA, '/x/', 'IncluirPedido', {}, RAPIDO);
     expect(chamadas).toHaveLength(2);
+  });
+
+  it('HTTP 429 repete até em gravação (a Omie recusou antes de processar)', async () => {
+    let n = 0;
+    vi.stubGlobal('fetch', vi.fn(async () => (++n === 1
+      ? ({ status: 429, text: async () => 'Too Many Requests' } as unknown as Response)
+      : json({ ok: 1 }))));
+    const r = await omie(NOVA, '/x/', 'IncluirOS', {}, RAPIDO);
+    expect(r).toEqual({ ok: 1 });
+    expect(n).toBe(2);
   });
 
   it('timeout em gravação vira estado desconhecido', async () => {

@@ -1,6 +1,7 @@
 'use server'
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { omie } from '@/lib/omie/porta'
 
 function getSupabase() {
   return createClient(
@@ -24,18 +25,12 @@ export async function POST() {
 
   try {
     while (pagina <= totalPaginas) {
-      const response = await fetch("https://app.omie.com.br/api/v1/geral/clientes/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          call: "ListarClientes",
-          app_key: OMIE_APP_KEY,
-          app_secret: OMIE_APP_SECRET,
-          param: [{ pagina, registros_por_pagina: 100, apenas_importado_api: "N" }]
-        })
-      })
-
-      const json = await response.json()
+      const json = await omie(
+        { appKey: OMIE_APP_KEY, appSecret: OMIE_APP_SECRET, rotulo: 'NOVA' },
+        '/geral/clientes/', 'ListarClientes',
+        { pagina, registros_por_pagina: 100, apenas_importado_api: "N" },
+        { lancarFault: false }
+      )
       if (!json.clientes_cadastro) break
 
       totalPaginas = json.total_de_paginas || 1

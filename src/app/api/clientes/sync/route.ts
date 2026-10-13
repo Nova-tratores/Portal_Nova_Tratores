@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
-
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 
 interface OmieAccount {
   name: string;
@@ -21,18 +20,9 @@ const OMIE_ACCOUNTS: OmieAccount[] = [
   { name: "Castro Pecas", ...contaOmie("Castro Pecas") },
 ];
 
+// Fila, freio e repetição em rate limit ficam com a porta única.
 async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, acc: OmieAccount): Promise<T> {
-  const res = await fetch(`${OMIE_BASE}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  if (res.status === 429) {
-    console.warn(`[clientes-sync ${acc.name}] Rate limit (${call}) — aguardando 60s`);
-    await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param, acc);
-  }
-  const data = await res.json().catch(() => ({}));
+  const data: any = await omie({ appKey: acc.key, appSecret: acc.secret, rotulo: acc.name }, endpoint, call, param, { lancarFault: false });
   if (data?.faultstring) {
     if (data.faultstring.includes("Não existem registros") || data.faultstring.includes("Nao existem registros")) {
       return {} as T;

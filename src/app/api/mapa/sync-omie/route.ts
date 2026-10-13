@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { omie } from "@/lib/omie/porta";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -8,26 +9,15 @@ const supabase = createClient(
 
 const OMIE_APP_KEY = process.env.OMIE_APP_KEY || "";
 const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 
 async function omieListarClientes(pagina: number) {
-  const res = await fetch(`${OMIE_BASE}/geral/clientes/`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      call: "ListarClientes",
-      app_key: OMIE_APP_KEY,
-      app_secret: OMIE_APP_SECRET,
-      param: [{ pagina, registros_por_pagina: 100, apenas_importado_api: "N" }],
-    }),
-  });
-
-  if (res.status === 429) {
-    await new Promise((r) => setTimeout(r, 60000));
-    return omieListarClientes(pagina);
-  }
-
-  return res.json();
+  // Porta única: 429/rede são repetidos por ela (sem espera própria de 60 s).
+  return omie<any>(
+    { appKey: OMIE_APP_KEY, appSecret: OMIE_APP_SECRET, rotulo: "NOVA" },
+    "/geral/clientes/", "ListarClientes",
+    { pagina, registros_por_pagina: 100, apenas_importado_api: "N" },
+    { lancarFault: false },
+  );
 }
 
 // Geocodifica endereco usando Nominatim (OpenStreetMap) - gratis, 1 req/sec

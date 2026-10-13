@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
-const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 
 const NCODSERV_HORA = 1979758762;
 const NCODSERV_KM = 1975974257;
@@ -16,16 +16,8 @@ const OMIE_ACCOUNTS: OmieAccount[] = [
 ];
 
 async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, acc: OmieAccount): Promise<T> {
-  const res = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  if (res.status === 429) {
-    await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param, acc);
-  }
-  const data = await res.json();
+  // Porta única: 429/rede são repetidos por ela (sem espera própria de 60 s).
+  const data: any = await omie({ appKey: acc.key, appSecret: acc.secret, rotulo: acc.name }, endpoint, call, param, { lancarFault: false });
   if (data?.faultstring) throw new Error(`Omie [${acc.name}]: ${data.faultstring}`);
   return data as T;
 }

@@ -1,13 +1,12 @@
 import { NextRequest } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
-
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 
 const CONTAS = [
   { empresa: "Nova Tratores", ...contaOmie("Nova Tratores") },
@@ -16,47 +15,19 @@ const CONTAS = [
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// Retry com backoff exponencial — nunca desiste antes de 3 tentativas
-async function omieCall(endpoint: string, call: string, param: Record<string, unknown>, acc: typeof CONTAS[number], tentativa = 1): Promise<any> {
-  const MAX = 3;
-  const payload = { call, app_key: acc.key, app_secret: acc.secret, param: [param] };
+// Fila, freio e repetição (rate limit, rede, REDUNDANT) ficam com a porta única.
+async function omieCall(endpoint: string, call: string, param: Record<string, unknown>, acc: typeof CONTAS[number]): Promise<any> {
+  const data: any = await omie({ appKey: acc.key, appSecret: acc.secret, rotulo: acc.empresa }, endpoint, call, param, { lancarFault: false });
 
-  try {
-    const res = await fetch(`${OMIE_BASE}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    if (res.status === 429) {
-      const wait = tentativa * 30000; // 30s, 60s, 90s
-      console.warn(`[sync-nfs] Rate limit ${acc.empresa} — tentativa ${tentativa}/${MAX}, aguardando ${wait / 1000}s`);
-      await sleep(wait);
-      if (tentativa < MAX) return omieCall(endpoint, call, param, acc, tentativa + 1);
-      throw new Error(`Rate limit persistente após ${MAX} tentativas`);
+  if (data?.faultstring) {
+    // "Não existem registros" não é erro real — retorna vazio
+    if (String(data.faultstring).includes("existem registros") || String(data.faultstring).includes("não localizad")) {
+      return { nfCadastro: [] };
     }
-
-    const data = await res.json();
-
-    if (data?.faultstring) {
-      // "Não existem registros" não é erro real — retorna vazio
-      if (String(data.faultstring).includes("existem registros") || String(data.faultstring).includes("não localizad")) {
-        return { nfCadastro: [] };
-      }
-      throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
-    }
-
-    return data;
-  } catch (e: unknown) {
-    const msg = e instanceof Error ? e.message : String(e);
-    if (tentativa < MAX) {
-      const wait = tentativa * 5000;
-      console.warn(`[sync-nfs] Erro ${acc.empresa} tentativa ${tentativa}/${MAX}: ${msg} — retry em ${wait / 1000}s`);
-      await sleep(wait);
-      return omieCall(endpoint, call, param, acc, tentativa + 1);
-    }
-    throw e;
+    throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   }
+
+  return data;
 }
 
 function parseData(d: string | undefined | null): string {

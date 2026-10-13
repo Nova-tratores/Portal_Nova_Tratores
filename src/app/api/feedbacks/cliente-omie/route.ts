@@ -3,6 +3,7 @@ import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { createClient } from "@supabase/supabase-js";
 import { TAGS_ESTRUTURAIS } from "@/lib/feedbacks/types";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
 // -----------------------------------------------------------------------------
 // Gravação no cadastro do cliente no Omie (Fase 2 do módulo de feedbacks):
@@ -17,7 +18,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 const OMIE_ACCOUNTS: Record<string, { key: string; secret: string }> = {
   "Nova Tratores": contaOmie("Nova Tratores"),
   "Castro Peças": contaOmie("Castro Peças"),
@@ -33,33 +33,20 @@ function parseTelefone(tel?: string): { ddd: string; num: string } {
   return { ddd: d.slice(0, 2), num: d.slice(2) };
 }
 
-async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, empresa: string, tentativa = 1): Promise<T> {
+async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, empresa: string): Promise<T> {
   const acc = OMIE_ACCOUNTS[empresa];
   if (!acc) throw new Error(`Empresa desconhecida: ${empresa}`);
-  const payload = { call, app_key: acc.key, app_secret: acc.secret, param: [param] };
-
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25000);
-  let response: Response;
+  // Porta única: fila, freio e repetição em leitura ficam com ela (sem retry próprio no 429).
+  let data: { faultstring?: string; faultcode?: string };
   try {
-    response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: ctrl.signal,
-    });
+    data = await omie<{ faultstring?: string; faultcode?: string }>(
+      { appKey: acc.key, appSecret: acc.secret, rotulo: empresa },
+      endpoint, call, param, { timeoutMs: 25000, lancarFault: false },
+    );
   } catch (e) {
     if (e instanceof Error && e.name === "AbortError") throw new Error("O Omie demorou demais para responder (timeout de 25s). Tente novamente.");
     throw e;
-  } finally {
-    clearTimeout(timer);
   }
-
-  if (response.status === 429 && tentativa < 3) {
-    await new Promise((r) => setTimeout(r, tentativa * 8000));
-    return omieCall(endpoint, call, param, empresa, tentativa + 1);
-  }
-  const data = await response.json();
   if (data?.faultstring) throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   return data as T;
 }

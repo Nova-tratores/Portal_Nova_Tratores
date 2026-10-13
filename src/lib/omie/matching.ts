@@ -12,7 +12,7 @@
 //   4. Para placa/chassi, também tenta isolar o "token" alfanumérico mais longo (≥6).
 // =====================================================================
 
-const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
+import { omie } from "@/lib/omie/porta";
 
 export interface OmieAccountLike {
   name: string;
@@ -30,19 +30,14 @@ async function omieCall<T>(
   param: Record<string, unknown>,
   acc: OmieAccountLike,
 ): Promise<T> {
-  const response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-
-  if (response.status === 429) {
-    console.warn(`[Omie matching ${acc.name}] Rate limit (${call}) — aguardando 30s...`);
-    await new Promise((r) => setTimeout(r, 30000));
-    return omieCall(endpoint, call, param, acc);
-  }
-
-  const data = await response.json().catch(() => ({}));
+  // Porta única: fila/freio e repetição em erro transitório (substitui a espera de 30 s no 429).
+  const data = await omie<{ faultstring?: string; faultcode?: string }>(
+    { appKey: acc.key, appSecret: acc.secret, rotulo: acc.name },
+    endpoint,
+    call,
+    param,
+    { lancarFault: false },
+  );
   if (data?.faultstring) {
     throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   }

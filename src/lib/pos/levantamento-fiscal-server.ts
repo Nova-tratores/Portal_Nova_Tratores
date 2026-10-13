@@ -9,6 +9,7 @@
 //    (ConsultarOS, ~3 por segundo).
 import { supabase } from './supabase';
 import { contaOmie } from '@/lib/omie/contas';
+import { omie as omiePorta } from '@/lib/omie/porta';
 import {
   agruparCombinacoes, dataOmieParaISO, maisRecentes,
   type OSLevantada, type ClienteInfo, type ResultadoLevantamento,
@@ -36,21 +37,15 @@ function estado(): EstadoLevantamento {
 }
 export function estadoLevantamento(): EstadoLevantamento { return estado(); }
 
-async function omie<T>(call: string, param: Record<string, unknown>, tentativa = 0): Promise<T> {
+// Porta única: fila/freio e repetição em REDUNDANT/too many requests (antes era um laço
+// próprio de até 3 esperas aqui). Faultstring continua virando Error com o texto cru.
+async function omie<T>(call: string, param: Record<string, unknown>): Promise<T> {
   const acc = contaOmie('Nova Tratores');
-  const r = await fetch(OMIE, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  const j = await r.json().catch(() => ({} as Record<string, unknown>));
+  const j = await omiePorta<Record<string, unknown>>(
+    { appKey: acc.key, appSecret: acc.secret, rotulo: 'Nova Tratores' }, OMIE, call, param, { lancarFault: false },
+  );
   const fault = typeof j?.faultstring === 'string' ? j.faultstring : '';
-  if ((r.status === 429 || /redundant|aguarde\s+\d+\s+segundo/i.test(fault)) && tentativa < 3) {
-    const s = Number(/aguarde\s+(\d+)\s+segundo/i.exec(fault)?.[1] || 15);
-    await espera(Math.min(s + 2, 30) * 1000);
-    return omie<T>(call, param, tentativa + 1);
-  }
   if (fault) throw new Error(fault);
-  if (!r.ok) throw new Error(`Omie HTTP ${r.status}`);
   return j as T;
 }
 

@@ -8,6 +8,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { autenticar } from "@/lib/auth/server";
 import { TBL_OS } from "@/lib/pos/constants";
+import { omie } from "@/lib/omie/porta";
 
 export const runtime = "nodejs";
 
@@ -17,17 +18,11 @@ const supabase = createClient(
   { auth: { persistSession: false } },
 );
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 const OMIE_KEY = process.env.OMIE_APP_KEY || "";
 const OMIE_SECRET = process.env.OMIE_APP_SECRET || "";
 
 async function omieCall<T>(ep: string, call: string, param: Record<string, unknown>): Promise<T> {
-  const res = await fetch(`${OMIE_BASE}${ep}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: OMIE_KEY, app_secret: OMIE_SECRET, param: [param] }),
-  });
-  const data = await res.json().catch(() => ({}));
+  const data: any = await omie({ appKey: OMIE_KEY, appSecret: OMIE_SECRET, rotulo: "NOVA" }, ep, call, param, { lancarFault: false });
   if (data?.faultstring) throw new Error(data.faultstring);
   if (data?.status === "error") throw new Error(data.message || "Erro Omie");
   return data as T;

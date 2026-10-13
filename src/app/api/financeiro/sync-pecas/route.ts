@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
 // Cria automaticamente um Chamado_NF (setor Peças) para cada Pedido de Venda
 // faturado no Omie cuja Categoria seja a de "Revenda de Peças Balcão".
@@ -10,7 +11,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 // temOS: empresa que possui módulo de OS (Nova Tratores). A Castro é loja de
 // peças — não tem OS, então a checagem de "OS vinculada" NÃO pode rodar pra ela
 // (os números de pedido colidem com num_pedido_cli das OS da Nova Tratores).
@@ -56,23 +56,10 @@ async function temOSVinculada(pvNum: string): Promise<boolean> {
   return (data || []).some((o: any) => ((String(o.num_pedido_cli).match(/\d+/g) || []) as string[]).includes(String(pvNum)));
 }
 
-async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc, tentativa = 0): Promise<any> {
-  const res = await fetch(`${OMIE_BASE}${ep}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  if (res.status === 429 && tentativa < 2) { await new Promise(r => setTimeout(r, 60000)); return omieCall(ep, call, param, acc, tentativa + 1); }
-  const data = await res.json().catch(() => ({}));
-  if (data?.faultstring) {
-    const fs = String(data.faultstring);
-    if (/redundante|redundant/i.test(fs) && tentativa < 2) {
-      const m = fs.match(/(\d+)\s*segundo/i);
-      const seg = Math.min((m ? parseInt(m[1], 10) : 30) + 2, 70);
-      await new Promise(r => setTimeout(r, seg * 1000));
-      return omieCall(ep, call, param, acc, tentativa + 1);
-    }
-    throw new Error(fs);
-  }
+async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc): Promise<any> {
+  // Porta única: 429/REDUNDANT/rede são repetidos por ela (sem espera própria de 60 s).
+  const data = await omie<any>({ appKey: acc.key, appSecret: acc.secret, rotulo: acc.name }, ep, call, param, { lancarFault: false });
+  if (data?.faultstring) throw new Error(String(data.faultstring));
   return data;
 }
 

@@ -8,6 +8,7 @@
 // Produtos: AlterarProduto altera apenas os campos enviados; "inativo" é editável.
 
 import { decodeOmieTexto } from '@/lib/omie/texto';
+import { omie } from '@/lib/omie/porta';
 
 const OMIE_SERV_URL = 'https://app.omie.com.br/api/v1/servicos/servico/';
 const OMIE_PROD_URL = 'https://app.omie.com.br/api/v1/geral/produtos/';
@@ -16,18 +17,15 @@ export const PAUSA_MS = 150; // entre chamadas, p/ rate limit do Omie
 
 export const pausa = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Passa pela PORTA ÚNICA da Omie (src/lib/omie/porta.ts): fila, freio, disjuntor e
+// gravação (AlterarProduto/AlterarCadastroServico) sem reenvio às cegas.
 async function omieCall<T>(url: string, call: string, param: object): Promise<T> {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      call,
-      app_key: process.env.OMIE_APP_KEY || process.env.OMIE_APP_KEY_NOVA || '',
-      app_secret: process.env.OMIE_APP_SECRET || process.env.OMIE_APP_SECRET_NOVA || '',
-      param: [param],
-    }),
-  });
-  const json = await res.json();
+  const cred = {
+    appKey: process.env.OMIE_APP_KEY || process.env.OMIE_APP_KEY_NOVA || '',
+    appSecret: process.env.OMIE_APP_SECRET || process.env.OMIE_APP_SECRET_NOVA || '',
+    rotulo: 'NOVA',
+  };
+  const json = await omie<Record<string, unknown>>(cred, url, call, param as Record<string, unknown>, { lancarFault: false });
   if (json.faultstring) throw new Error(String(json.faultstring));
   return json as T;
 }

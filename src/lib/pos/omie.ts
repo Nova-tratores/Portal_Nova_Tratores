@@ -7,9 +7,9 @@ import { normName } from "@/lib/tecnico-utils";
 // --- Credenciais ---
 const OMIE_APP_KEY = process.env.OMIE_APP_KEY || "";
 const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
-const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 // Base do portal, pra montar os links de acesso que vão nas observações do Omie.
 import { PORTAL_BASE } from "@/lib/portal-url";
+import { omie } from "@/lib/omie/porta";
 
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
@@ -114,43 +114,17 @@ interface OmieOSResponse {
 }
 
 // --- Client genérico ---
-async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, tentativa = 0): Promise<T> {
-  const payload = {
-    call,
-    app_key: OMIE_APP_KEY,
-    app_secret: OMIE_APP_SECRET,
-    param: [param],
-  };
-
-  const response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  // Rate limit deve ser verificado ANTES de parsear JSON (pode falhar com 429)
-  if (response.status === 429) {
-    console.warn("Rate limit Omie — aguardando 60s...");
-    await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param, tentativa);
-  }
-
-  const data = await response.json();
-
-  if (data?.faultstring) {
-    const fs = String(data.faultstring);
-    // "Consumo redundante" (anti-flood): a Omie diz quantos segundos esperar.
-    // Aguarda o tempo pedido (+3s de folga) e reenvia, até 4 tentativas.
-    const mRed = /aguarde\s+(\d+)\s+segundo/i.exec(fs);
-    if ((mRed || /redundant/i.test(fs)) && tentativa < 4) {
-      const espera = Math.min((mRed ? parseInt(mRed[1], 10) : 30) + 3, 45);
-      console.warn(`[Omie] Consumo redundante em ${call} — aguardando ${espera}s e reenviando (tentativa ${tentativa + 1})`);
-      await new Promise((r) => setTimeout(r, espera * 1000));
-      return omieCall(endpoint, call, param, tentativa + 1);
-    }
-    throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
-  }
-
+// Passa pela PORTA ÚNICA da Omie (src/lib/omie/porta.ts). Ela faz o que este cliente
+// fazia (esperar no HTTP 429 e no "Consumo redundante — aguarde N segundos") e mais:
+// fila com prioridade, disjuntor de bloqueio e, em gravação (IncluirOS/AlterarOS),
+// nunca reenvia às cegas — sem resposta clara vira OmieIncertoError.
+async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>): Promise<T> {
+  const data = await omie<Record<string, unknown>>(
+    { appKey: OMIE_APP_KEY, appSecret: OMIE_APP_SECRET, rotulo: "Nova Tratores" },
+    endpoint, call, param,
+    { tentativas: 4, maxEsperaMs: 60_000, lancarFault: false },
+  );
+  if (data?.faultstring) throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   return data as T;
 }
 

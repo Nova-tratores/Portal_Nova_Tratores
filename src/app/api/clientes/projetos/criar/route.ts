@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
 import { empresaCanonica } from "@/lib/clientes/novo-cliente";
 
@@ -14,38 +15,22 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 const NOME_MAX = 70; // limite do IncluirProjeto
 
-async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, empresa: string, tentativa = 1): Promise<T> {
+async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, empresa: string): Promise<T> {
   const acc = contaOmie(empresa);
-  const payload = { call, app_key: acc.key, app_secret: acc.secret, param: [param] };
-
-  // Timeout pra não pendurar a requisição se o Omie travar a resposta.
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 25000);
-  let response: Response;
+  // Fila, freio e repetição em erro transitório ficam com a porta única. Gravação
+  // (Incluir*) nunca é repetida: sem resposta clara vira OmieIncertoError.
+  let data: { faultstring?: unknown };
   try {
-    response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: ctrl.signal,
-    });
+    data = await omie<{ faultstring?: unknown }>(
+      { appKey: acc.key, appSecret: acc.secret, rotulo: empresa }, endpoint, call, param,
+      { lancarFault: false, timeoutMs: 25000 },
+    );
   } catch (e: unknown) {
     if ((e as Error)?.name === "AbortError") throw new Error("O Omie demorou demais para responder (timeout de 25s). Tente novamente.");
     throw e;
-  } finally {
-    clearTimeout(timer);
   }
-
-  // Rate limit do Omie: tenta de novo poucas vezes, com espera curta.
-  if (response.status === 429 && tentativa < 3) {
-    await new Promise((r) => setTimeout(r, tentativa * 8000));
-    return omieCall(endpoint, call, param, empresa, tentativa + 1);
-  }
-
-  const data = await response.json();
   if (data?.faultstring) throw new Error(String(data.faultstring));
   return data as T;
 }

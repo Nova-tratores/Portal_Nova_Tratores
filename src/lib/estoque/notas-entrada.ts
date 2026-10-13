@@ -5,6 +5,7 @@
 
 import { supabase, filtroConta } from './supabase';
 import { omieRequest } from './omie';
+import { omie } from '@/lib/omie/porta';
 import { fmtD, fmtCnpjBR, sleep } from './utils';
 import { getIgnorarFiltro } from './ignorar-clientes';
 import { getCredentials, getContasOmie, CONTA_DEFAULT, type Conta, type ContaFiltro } from './conta';
@@ -568,25 +569,18 @@ function cnpjFromChaveNFe(chave: unknown): string | null {
  */
 async function buscarClientePorCnpj(cnpjFmt: string, conta: Conta, timeoutMs = 10000): Promise<Record<string, unknown> | null> {
   const { appKey, appSecret } = getCredentials(conta);
-  const body = {
-    app_key: appKey,
-    app_secret: appSecret,
-    call: 'ListarClientes',
-    param: [{ pagina: 1, registros_por_pagina: 1, apenas_importado_api: 'N', clientesFiltro: { cnpj_cpf: cnpjFmt } }],
-  };
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), timeoutMs);
   try {
-    const res = await fetch('https://app.omie.com.br/api/v1/geral/clientes/', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: ctl.signal,
-    });
-    const json = (await res.json()) as { faultstring?: string; clientes_cadastro?: Array<Record<string, unknown>> };
+    const json = await omie<{ faultstring?: string; clientes_cadastro?: Array<Record<string, unknown>> }>(
+      { appKey, appSecret, rotulo: conta },
+      '/geral/clientes/',
+      'ListarClientes',
+      { pagina: 1, registros_por_pagina: 1, apenas_importado_api: 'N', clientesFiltro: { cnpj_cpf: cnpjFmt } },
+      { timeoutMs, lancarFault: false },
+    );
     if (json.faultstring) return null;
     return json.clientes_cadastro?.[0] ?? null;
   } catch {
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 

@@ -7,8 +7,8 @@
 
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
 import { contaOmie } from '@/lib/omie/contas'
+import { omie } from '@/lib/omie/porta'
 
-const OMIE_URL = 'https://app.omie.com.br/api/v1/geral/clientes/'
 const EMPRESA_POR_CONTA: Record<string, string> = { NOVA: 'Nova Tratores', CASTRO: 'Castro Peças' }
 
 const MAX_CONSULTAS = 25 // teto por request (o resto resolve no próximo load, já em cache)
@@ -63,28 +63,15 @@ export async function resolverClientesViaOmie(pares: ParCliente[]): Promise<Map<
 async function consultarNome(empresa: string, codigo: number): Promise<string | null> {
   const acc = contaOmie(empresa)
   if (!acc.key || !acc.secret) return null
-  const payload = {
-    call: 'ConsultarCliente',
-    app_key: acc.key,
-    app_secret: acc.secret,
-    param: [{ codigo_cliente_omie: codigo }],
-  }
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_CALL_MS)
-  try {
-    const res = await fetch(OMIE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal: ctrl.signal,
-    })
-    const data = (await res.json().catch(() => null)) as
-      | { razao_social?: string; nome_fantasia?: string; faultstring?: string }
-      | null
-    if (!data || data.faultstring) return null
-    const nome = (data.razao_social || data.nome_fantasia || '').trim()
-    return nome || null
-  } finally {
-    clearTimeout(timer)
-  }
+  const data = await omie<{ razao_social?: string; nome_fantasia?: string; faultstring?: string }>(
+    { appKey: acc.key, appSecret: acc.secret, rotulo: empresa },
+    '/geral/clientes/',
+    'ConsultarCliente',
+    { codigo_cliente_omie: codigo },
+    // sem repetição: o /mes não pode segurar a resposta (best-effort, igual a antes)
+    { timeoutMs: TIMEOUT_CALL_MS, tentativas: 0, lancarFault: false },
+  )
+  if (!data || data.faultstring) return null
+  const nome = (data.razao_social || data.nome_fantasia || '').trim()
+  return nome || null
 }

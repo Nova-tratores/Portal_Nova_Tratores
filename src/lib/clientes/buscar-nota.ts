@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie as omiePorta } from "@/lib/omie/porta";
 import { chaveOS, contaOmieDaEmpresa, numeroNfse } from "./numero-nf";
 import { baixarPdf, guardarPdfNfse, linkNoPortal, numeroNfsePeloStatusOS, pdfNfseNoOmie } from "./nfse-omie";
 import { explicarErroOmie, explicarNfeSemDanfe, falha, type FalhaNota } from "./buscar-nota-erros";
@@ -11,7 +12,6 @@ import { explicarErroOmie, explicarNfeSemDanfe, falha, type FalhaNota } from "./
 
 export type ResultadoNota = { ok: true; numero: string | null; link: string; jaEstava?: boolean } | FalhaNota;
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 const BUCKET = "clientes-docs";
 
 /** NFS-e da OS. */
@@ -57,15 +57,12 @@ export async function buscarNfseDaOS(supabase: SupabaseClient, empresa: string, 
   }
 }
 
+// Passa pela porta única (fila, freio, repetição em 429/REDUNDANT). Os erros dela
+// trazem "429"/"too many"/"bloquead…" no texto, que o explicarErroOmie já entende.
 async function omie(call: string, param: Record<string, unknown>, acc: { key: string; secret: string }) {
-  const res = await fetch(`${OMIE_BASE}/produtos/pedido/`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  if (res.status === 429) throw new Error("429 Too Many Requests");
-  const data = await res.json().catch(() => ({}));
+  const rotulo = acc.key && acc.key === contaOmie("Castro Peças").key ? "Castro Peças" : "Nova Tratores";
+  const data: any = await omiePorta({ appKey: acc.key, appSecret: acc.secret, rotulo }, "/produtos/pedido/", call, param, { lancarFault: false });
   if (data?.faultstring) throw new Error(String(data.faultstring));
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return data;
 }
 

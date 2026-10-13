@@ -12,8 +12,7 @@
 
 import { createHash } from "crypto";
 import { contaOmie } from "@/lib/omie/contas";
-
-const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
+import { omie } from "@/lib/omie/porta";
 
 // --- Contas Omie (mesma lista usada em src/lib/ppv/omie.ts e src/lib/pos/sync-omie.ts) ---
 export interface OmieAccount {
@@ -52,20 +51,15 @@ async function omieCall<T>(
   param: Record<string, unknown>,
   acc: OmieAccount,
 ): Promise<T> {
-  const response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-
-  // Rate limit: checar ANTES de parsear JSON (429 pode não retornar JSON válido)
-  if (response.status === 429) {
-    console.warn(`[Omie ${acc.name}] Rate limit (${call}) — aguardando 30s...`);
-    await new Promise((r) => setTimeout(r, 30000));
-    return omieCall(endpoint, call, param, acc);
-  }
-
-  const data = await response.json().catch(() => ({}));
+  // Porta única: fila/freio, repetição só em leitura (gravação nunca repete às cegas —
+  // timeout/resposta quebrada vira OmieIncertoError) e disjuntor de bloqueio.
+  const data = await omie<{ faultstring?: string; faultcode?: string }>(
+    { appKey: acc.key, appSecret: acc.secret, rotulo: acc.name },
+    endpoint,
+    call,
+    param,
+    { lancarFault: false },
+  );
 
   if (data?.faultstring) {
     throw new OmieError(`Omie [${data.faultcode}]: ${data.faultstring}`, String(data.faultcode || ""));
@@ -79,8 +73,8 @@ function isJaCadastrado(err: unknown): boolean {
   return (
     msg.includes("já cadastrad") ||
     msg.includes("ja cadastrad") ||
-    msg.includes("já existe") ||
-    msg.includes("ja existe") ||
+    // "já existe uma requisição desse método" é fila da Omie, não cadastro duplicado.
+    ((msg.includes("já existe") || msg.includes("ja existe")) && !/j[aá] existe uma requisi/.test(msg)) ||
     msg.includes("client-103") || // código de integração duplicado (clientes)
     msg.includes("sentry-103") || // código de integração duplicado (financeiro)
     msg.includes("já está cadastrad")

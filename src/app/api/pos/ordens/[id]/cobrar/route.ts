@@ -11,6 +11,7 @@ import { buscarWhatsappDoCliente } from "@/lib/chatwoot/contatos-cliente";
 import { garantirConversaContato, enviarTextoConversa, enviarPdfConversa, buscarContatosPorTexto, atualizarAtributosContato, listarConversasContato, listarMensagensConversa } from "@/lib/chatwoot/cliente";
 import { chatwootConfigurado, chatwootVariaveisFaltando } from "@/lib/chatwoot/config";
 import { nomeVendedorPorCodigo } from "@/lib/pos/omie";
+import { omie as omiePorta } from "@/lib/omie/porta";
 import { garantirAssinatura, linkAssinatura, resumoDaOS } from "@/lib/pos/assinatura-cliente-db";
 import { ehMensagemDeCobranca, mensagemAssinaturaCobranca, normalizarPagamento, perguntaPagamento } from "@/lib/pos/cobranca";
 
@@ -23,22 +24,13 @@ const supabase = createClient(
   { auth: { persistSession: false } },
 );
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 const OMIE_KEY = process.env.OMIE_APP_KEY || "";
 const OMIE_SECRET = process.env.OMIE_APP_SECRET || "";
 
-async function omie<T>(ep: string, call: string, param: Record<string, unknown>, tentativa = 0): Promise<T> {
-  const res = await fetch(`${OMIE_BASE}${ep}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: OMIE_KEY, app_secret: OMIE_SECRET, param: [param] }),
-  });
-  const data: any = await res.json().catch(() => ({}));
+async function omie<T>(ep: string, call: string, param: Record<string, unknown>): Promise<T> {
+  // Porta única: REDUNDANT/429/rede são repetidos por ela (sem espera própria).
+  const data: any = await omiePorta({ appKey: OMIE_KEY, appSecret: OMIE_SECRET, rotulo: "NOVA" }, ep, call, param, { lancarFault: false });
   const falha = String(data?.faultstring || "");
-  if ((/redundante|Aguarde/i.test(falha) || res.status === 425 || res.status === 429) && tentativa < 2) {
-    await new Promise((r) => setTimeout(r, 6000));
-    return omie(ep, call, param, tentativa + 1);
-  }
   if (falha) throw new Error(falha.slice(0, 180));
   return data as T;
 }

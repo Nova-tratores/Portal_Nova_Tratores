@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
 // Cria automaticamente um Chamado_NF (setor Oficina) para cada Ordem de Serviço
 // faturada (com NFS-e). Cruza com o Pedido de Venda pelo campo "Nº do Pedido do
@@ -11,7 +12,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 interface Acc { name: string; key: string; secret: string }
 const ACCS: Acc[] = [
   { name: "Nova Tratores", ...contaOmie("Nova Tratores") },
@@ -50,24 +50,10 @@ async function notificarCard(origin: string, setor: string, cliente: string, opt
   } catch { /* ignore */ }
 }
 
-async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc, tentativa = 0): Promise<any> {
-  const res = await fetch(`${OMIE_BASE}${ep}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  if (res.status === 429 && tentativa < 2) { await new Promise(r => setTimeout(r, 60000)); return omieCall(ep, call, param, acc, tentativa + 1); }
-  const data = await res.json().catch(() => ({}));
-  if (data?.faultstring) {
-    const fs = String(data.faultstring);
-    // "Consumo redundante" do Omie: espera o tempo sugerido e tenta de novo
-    if (/redundante|redundant/i.test(fs) && tentativa < 2) {
-      const m = fs.match(/(\d+)\s*segundo/i);
-      const seg = Math.min((m ? parseInt(m[1], 10) : 30) + 2, 70);
-      await new Promise(r => setTimeout(r, seg * 1000));
-      return omieCall(ep, call, param, acc, tentativa + 1);
-    }
-    throw new Error(fs);
-  }
+async function omieCall(ep: string, call: string, param: Record<string, unknown>, acc: Acc): Promise<any> {
+  // Porta única: 429/REDUNDANT/rede são repetidos por ela (sem espera própria de 60 s).
+  const data = await omie<any>({ appKey: acc.key, appSecret: acc.secret, rotulo: acc.name }, ep, call, param, { lancarFault: false });
+  if (data?.faultstring) throw new Error(String(data.faultstring));
   return data;
 }
 

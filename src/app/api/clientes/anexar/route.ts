@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS } from "@/lib/clientes/nfse-omie";
 
 const supabase = createClient(
@@ -8,7 +9,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 const BUCKET = "clientes-docs";
 
 const OMIE_ACCOUNTS: Record<string, { key: string; secret: string }> = {
@@ -16,16 +16,11 @@ const OMIE_ACCOUNTS: Record<string, { key: string; secret: string }> = {
   "Castro Peças": contaOmie("Castro Peças"),
 };
 
-async function omieCall(endpoint: string, call: string, param: Record<string, unknown>, empresa: string, t = 1): Promise<any> {
+async function omieCall(endpoint: string, call: string, param: Record<string, unknown>, empresa: string): Promise<any> {
   const acc = OMIE_ACCOUNTS[empresa];
   if (!acc) throw new Error(`Empresa desconhecida: ${empresa}`);
-  const res = await fetch(`${OMIE_BASE}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  if (res.status === 429 && t < 3) { await new Promise(r => setTimeout(r, t * 30000)); return omieCall(endpoint, call, param, empresa, t + 1); }
-  const data = await res.json();
+  // Fila, freio e repetição em erro transitório ficam com a porta única.
+  const data: any = await omie({ appKey: acc.key, appSecret: acc.secret, rotulo: empresa }, endpoint, call, param, { lancarFault: false });
   if (data?.faultstring) throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   return data;
 }

@@ -7,15 +7,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch } from "@/lib/ppv/supabase";
 import { TBL_PEDIDOS } from "@/lib/ppv/constants";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 
-async function omieCall<T>(ep: string, call: string, param: Record<string, unknown>, key: string, secret: string): Promise<T> {
-  const res = await fetch(`${OMIE_BASE}${ep}`, {
-    method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: key, app_secret: secret, param: [param] }),
-  });
-  const data = await res.json().catch(() => ({}));
+async function omieCall<T>(ep: string, call: string, param: Record<string, unknown>, key: string, secret: string, rotulo: string): Promise<T> {
+  const data: any = await omie({ appKey: key, appSecret: secret, rotulo }, ep, call, param, { lancarFault: false });
   if (data?.faultstring) throw new Error(data.faultstring);
   if (data?.status === "error") throw new Error(data.message || "Erro Omie");
   return data as T;
@@ -35,24 +31,25 @@ export async function GET(req: NextRequest) {
   }
 
   const acc = contaOmie(ped.omie_empresa);
+  const rotulo = /castro/i.test(String(ped.omie_empresa || "")) ? "CASTRO" : "NOVA";
   try {
     // Resolve o código interno do pedido no Omie
     type Consulta = { pedido_venda_produto?: { cabecalho?: { codigo_pedido?: number } } };
     let codPedido = 0;
     try {
       const c = await omieCall<Consulta>("/produtos/pedido/", "ConsultarPedido",
-        { codigo_pedido_integracao: `PV-${id}` }, acc.key, acc.secret);
+        { codigo_pedido_integracao: `PV-${id}` }, acc.key, acc.secret, rotulo);
       codPedido = Number(c?.pedido_venda_produto?.cabecalho?.codigo_pedido || 0);
     } catch { /* tenta pelo número */ }
     if (!codPedido) {
       const c = await omieCall<Consulta>("/produtos/pedido/", "ConsultarPedido",
-        { numero_pedido: String(ped.pedido_omie) }, acc.key, acc.secret);
+        { numero_pedido: String(ped.pedido_omie) }, acc.key, acc.secret, rotulo);
       codPedido = Number(c?.pedido_venda_produto?.cabecalho?.codigo_pedido || 0);
     }
     if (!codPedido) return NextResponse.json({ error: "Pedido não localizado no Omie." }, { status: 404 });
 
     const doc = await omieCall<{ cPdfPed?: string; cDesStatus?: string }>(
-      "/produtos/dfedocs/", "ObterPedVenda", { nIdPed: codPedido }, acc.key, acc.secret);
+      "/produtos/dfedocs/", "ObterPedVenda", { nIdPed: codPedido }, acc.key, acc.secret, rotulo);
     const url = String(doc?.cPdfPed || "");
     if (!url) {
       return NextResponse.json({ error: doc?.cDesStatus || "Omie não devolveu o PDF do pedido." }, { status: 502 });

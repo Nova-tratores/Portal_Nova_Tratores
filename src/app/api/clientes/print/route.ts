@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { renderOS, renderPV, e } from "@/lib/omie/os-print";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
 // PDF OFICIAL do Omie (osdocs/dfedocs) — em vez da versão refeita no portal:
 //   os → /servicos/osdocs/  · ObterOS       { nIdOs }  → cPdfOs
@@ -13,11 +14,7 @@ async function pdfOficialOmie(tipo: string, cod: number, empresa: string): Promi
   const call = tipo === "os" ? "ObterOS" : "ObterPedVenda";
   const param = tipo === "os" ? { nIdOs: cod } : { nIdPed: cod };
   try {
-    const res = await fetch(`https://app.omie.com.br/api/v1${ep}`, {
-      method: "POST", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-    });
-    const data = await res.json().catch(() => ({}));
+    const data: any = await omie({ appKey: acc.key, appSecret: acc.secret, rotulo: empresa }, ep, call, param, { lancarFault: false });
     if (data?.faultstring || data?.status === "error") return null;
     const url = String(data?.cPdfOs || data?.cPdfPed || "");
     return url || null;

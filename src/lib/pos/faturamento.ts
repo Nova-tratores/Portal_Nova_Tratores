@@ -13,6 +13,7 @@
 import { supabase } from './supabase';
 import { TBL_OS, TBL_PEDIDOS, TBL_LOGS_PPO } from './constants';
 import { contaOmie } from '@/lib/omie/contas';
+import { omie as omiePorta, OmieBloqueioError } from '@/lib/omie/porta';
 import { aplicarMudancaFase } from './fase';
 import { logAndNotify } from '@/lib/server/audit-notify';
 import { filtrarDestinatarios } from '@/lib/notif/prefs';
@@ -35,7 +36,6 @@ import {
   listarModelos, lerModelo, modeloDoCliente, vincularCliente, ModelosFiscaisFaltando,
 } from './modelos-fiscais-db';
 
-const OMIE_BASE = 'https://app.omie.com.br/api/v1';
 const EMPRESA = 'Nova Tratores';
 const conta = () => contaOmie(EMPRESA);
 
@@ -70,41 +70,41 @@ export function podeGerenciarModelos(auth: Autenticado): boolean {
 type Param = Record<string, unknown>;
 
 /**
- * Chamada ao Omie. `escrita`: SEM reenvio; recusa explícita → ErroOmie;
- * timeout/rede/resposta estranha → Error comum (= "pode ter feito").
- * Leitura: até 2 reenvios em "consumo redundante"/429, com espera curta.
+ * Chamada ao Omie, pela PORTA ÚNICA (src/lib/omie/porta.ts). `escrita`: SEM reenvio;
+ * recusa explícita → ErroOmie; timeout/rede/resposta estranha/"consumo redundante"
+ * → Error comum (= "pode ter feito"). Leitura: até 2 reenvios em "consumo
+ * redundante"/429, esperando o que a Omie pedir (máx. 20 s).
  */
-async function omie<T>(endpoint: string, call: string, param: Param, opts: { escrita?: boolean; timeoutMs?: number } = {}, tentativa = 0): Promise<T> {
+async function omie<T>(endpoint: string, call: string, param: Param, opts: { escrita?: boolean; timeoutMs?: number } = {}): Promise<T> {
   const acc = conta();
   if (!acc.key || !acc.secret) throw new ErroOmie('Credenciais do Omie (conta Nova) não configuradas.');
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? (opts.escrita ? 60_000 : 30_000));
-  let res: Response;
+  let data: Record<string, unknown>;
   try {
-    res = await fetch(`${OMIE_BASE}${endpoint}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: ctrl.signal,
-      body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-    });
-  } finally { clearTimeout(timer); }
-  const texto = await res.text();
-  let data: Record<string, unknown> | null = null;
-  try { data = JSON.parse(texto); } catch { /* corpo não-JSON */ }
-  const fault = data && typeof data.faultstring === 'string' ? String(data.faultstring) : '';
-  const redundante = /redundant|aguarde\s+\d+\s+segundo/i.test(fault);
-
-  if (!opts.escrita && (res.status === 429 || redundante) && tentativa < 2) {
-    const s = Number(/aguarde\s+(\d+)\s+segundo/i.exec(fault)?.[1] || 10);
-    await new Promise((r) => setTimeout(r, Math.min(s + 2, 20) * 1000));
-    return omie<T>(endpoint, call, param, opts, tentativa + 1);
+    data = await omiePorta<Record<string, unknown>>(
+      { appKey: acc.key, appSecret: acc.secret, rotulo: EMPRESA }, endpoint, call, param,
+      {
+        gravacao: !!opts.escrita,
+        tentativas: opts.escrita ? 0 : 2,
+        maxEsperaMs: 20_000,
+        timeoutMs: opts.timeoutMs ?? (opts.escrita ? 60_000 : 30_000),
+        lancarFault: false,
+      },
+    );
+  } catch (e) {
+    // Bloqueio/chave recusada: a porta nem chamou ou a Omie recusou → recusa limpa.
+    if (e instanceof OmieBloqueioError) throw new ErroOmie(`Omie bloqueou a chamada — aguarde alguns minutos. (${e.message})`);
+    // HTTP 429 numa escrita sem reenvio: recusado antes de processar → recusa limpa.
+    if ((e as { recusa429?: boolean })?.recusa429) throw new ErroOmie('Omie bloqueou a chamada (HTTP 429) — aguarde alguns minutos.');
+    throw e; // OmieIncertoError e falhas de rede/timeout = "pode ter feito"
   }
+  const fault = typeof data.faultstring === 'string' ? String(data.faultstring) : '';
   if (fault) {
     // "consumo redundante" numa ESCRITA quer dizer que uma chamada igual acabou
-    // de chegar — pode ter sido processada: não é recusa limpa.
-    if (opts.escrita && redundante) throw new Error(`Omie: ${fault}`);
+    // de chegar — pode ter sido processada: não é recusa limpa. (A porta já trata
+    // assim; a checagem fica por segurança.)
+    if (opts.escrita && /redundant|aguarde\s+\d+\s+segundo/i.test(fault)) throw new Error(`Omie: ${fault}`);
     throw new ErroOmie(fault);
   }
-  if (res.status === 425 || res.status === 429) throw new ErroOmie(`Omie bloqueou a chamada (HTTP ${res.status}) — aguarde alguns minutos.`);
-  if (!res.ok || !data) throw new Error(`Omie respondeu HTTP ${res.status}`);
   return data as T;
 }
 

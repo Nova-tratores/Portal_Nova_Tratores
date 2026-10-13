@@ -24,6 +24,7 @@
 // =============================================================================
 
 import { supabase } from '@/lib/pos/supabase';
+import { omie } from '@/lib/omie/porta';
 import {
   listarCategoriasReceita,
   listarContasCorrentes,
@@ -33,7 +34,6 @@ import {
   type OmieAccount,
 } from '@/lib/financeiro/omie-contapagar';
 
-const OMIE_BASE_URL = 'https://app.omie.com.br/api/v1';
 const EMAIL_RECIBO_GARANTIA = 'posvendas.novatratores@gmail.com';
 
 interface ServicoLinha {
@@ -63,30 +63,14 @@ export interface OmieGarantiaCodigos {
   codDeptGarantia: string | null; // departamento "03. # Garantias"
 }
 
-// Chamada genérica à API Omie
-async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, acc: OmieAccount, tentativa = 0): Promise<T> {
-  const res = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  if (res.status === 429) {
-    await new Promise((r) => setTimeout(r, 30000));
-    return omieCall(endpoint, call, param, acc, tentativa);
-  }
-  const data = await res.json();
-  if (data?.faultstring) {
-    const fs = String(data.faultstring);
-    // Anti-flood da Omie ("Consumo redundante detectado, aguarde Ns"): espera
-    // o tempo pedido e reenvia — mesmo tratamento do omieCall de pos/omie.ts.
-    const mRed = /aguarde\s+(\d+)\s+segundo/i.exec(fs);
-    if ((mRed || /redundant/i.test(fs)) && tentativa < 3) {
-      const espera = Math.min((mRed ? parseInt(mRed[1], 10) : 30) + 3, 65);
-      await new Promise((r) => setTimeout(r, espera * 1000));
-      return omieCall(endpoint, call, param, acc, tentativa + 1);
-    }
-    throw new Error(`Omie [${call}]: ${fs}`);
-  }
+// Chamada genérica à API Omie, pela PORTA ÚNICA (src/lib/omie/porta.ts): espera no
+// 429/consumo redundante, fila, disjuntor; gravação (AlterarOS) nunca reenvia às cegas.
+async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, acc: OmieAccount): Promise<T> {
+  const data = await omie<Record<string, unknown>>(
+    { appKey: acc.key, appSecret: acc.secret, rotulo: acc.name }, endpoint, call, param,
+    { tentativas: 3, maxEsperaMs: 65_000, lancarFault: false },
+  );
+  if (data?.faultstring) throw new Error(`Omie [${call}]: ${String(data.faultstring)}`);
   return data as T;
 }
 

@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 const BUCKET = "clientes-docs";
 
 interface OmieAccount {
@@ -25,18 +25,9 @@ function getAccount(empresa: string): OmieAccount {
   return OMIE_ACCOUNTS.find(a => a.name === empresa) || OMIE_ACCOUNTS[0];
 }
 
+// Fila, freio e repetição em rate limit ficam com a porta única.
 async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, acc: OmieAccount): Promise<T> {
-  const res = await fetch(`${OMIE_BASE}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  if (res.status === 429) {
-    console.warn(`[test-pdf] Rate limit — aguardando 60s`);
-    await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param, acc);
-  }
-  const data = await res.json().catch(() => ({}));
+  const data: any = await omie({ appKey: acc.key, appSecret: acc.secret, rotulo: acc.name }, endpoint, call, param, { lancarFault: false });
   if (data?.faultstring) throw new Error(`Omie: ${data.faultstring}`);
   return data as T;
 }

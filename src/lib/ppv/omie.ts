@@ -9,6 +9,7 @@ import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS, TBL_OS } 
 import { buscarPPVPorId, registrarLog } from "./queries";
 import { contaOmie } from "@/lib/omie/contas";
 import { aplicarUnidadesDoPPV } from "@/lib/pecas/ppv-vinculo";
+import { omie } from "@/lib/omie/porta";
 
 // A OS vinculada é interna? (usado pra mandar o PPV como Remessa automaticamente)
 /** Nº da OS no OMIE (sem zeros à esquerda) — vai no "Nº do pedido do cliente" do pedido (José, 13/10/2026). */
@@ -46,7 +47,6 @@ const OMIE_ACCOUNTS: OmieAccount[] = [
   { name: "Castro Peças", ...contaOmie("Castro Peças"), codCC: 5335855842 },
 ];
 
-const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 // Base do portal, pra montar os links de acesso na observação do pedido no Omie.
 const PORTAL_BASE = (process.env.NEXT_PUBLIC_SITE_URL || "https://portalnovatratores-production.up.railway.app").replace(/\/$/, "");
 
@@ -80,6 +80,11 @@ const OMIE_ETAPA_FATURAR = "50";   // intermediária "Faturar"
 const OMIE_ETAPA_FATURADO = "60";  // final "Faturado" (dispara a emissão)
 
 // --- Client genérico Omie (aceita credenciais) ---
+// Passa pela PORTA ÚNICA da Omie (src/lib/omie/porta.ts): fila com prioridade, freio,
+// disjuntor de bloqueio, espera no HTTP 429/consumo redundante. Em gravação
+// (IncluirPedido, AlterarPedidoVenda, FaturarPedidoVenda, CancelarPedidoVenda…)
+// nunca reenvia às cegas — sem resposta clara vira OmieIncertoError, e o fluxo de
+// faturamento já confere a NF antes de refazer.
 async function omieCall<T>(
   endpoint: string,
   call: string,
@@ -87,31 +92,14 @@ async function omieCall<T>(
   appKey: string,
   appSecret: string
 ): Promise<T> {
-  const payload = {
-    call,
-    app_key: appKey,
-    app_secret: appSecret,
-    param: [param],
-  };
-
-  const response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  const data = await response.json();
-
+  const rotulo = appKey && appKey === process.env.OMIE_APP_KEY_CASTRO ? "Castro Pecas" : "Nova Tratores";
+  const data = await omie<Record<string, unknown>>(
+    { appKey, appSecret, rotulo }, endpoint, call, param,
+    { tentativas: 3, maxEsperaMs: 60_000, lancarFault: false },
+  );
   if (data?.faultstring) {
     throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   }
-
-  if (response.status === 429) {
-    console.warn("[Omie] Rate limit — aguardando 60s...");
-    await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param, appKey, appSecret);
-  }
-
   return data as T;
 }
 

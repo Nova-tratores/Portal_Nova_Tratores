@@ -16,8 +16,8 @@
 //    Omie informar; chave recusada ("chave inválida / aplicativo suspenso") para a
 //    CHAVE inteira por 5 min. Durante a trava, falha na hora sem tocar a Omie.
 //  - Gravação NUNCA repete às cegas: só repete quando a Omie recusou ANTES de processar
-//    (redundante, requisição do mesmo método em andamento, too many requests) ou quando
-//    a conexão nem chegou a abrir. Timeout/resposta quebrada em gravação vira
+//    (too many requests, HTTP 429) ou quando a conexão nem chegou a abrir. "Consumo
+//    redundante" em gravação = uma chamada igual acabou de chegar → estado desconhecido. Timeout/resposta quebrada em gravação vira
 //    `OmieIncertoError` — quem chamou decide (ex.: consultar antes de refazer).
 //  - Corpo 100% ASCII (acentos como \uXXXX): a Omie descarta não-ASCII cru.
 //  - Contadores em memória (`estadoPorta`) para o painel.
@@ -113,10 +113,19 @@ export function ehChaveRecusada(fault: string): boolean {
   return /chave de acesso est[aá] inv[aá]lida ou o aplicativo|aplicativo est[aá] suspenso|app_key.{0,20}inv[aá]lid/i.test(fault);
 }
 
-/** Recusado ANTES de processar — seguro repetir até gravação. */
-export function ehRecusaSemProcessar(fault: string): boolean {
-  return /too many requests/i.test(fault)
-    || /redundant|consumo redundante/i.test(fault)
+/** Limite de velocidade: a Omie recusou ANTES de processar — seguro repetir até gravação. */
+export function ehLimiteVelocidade(fault: string): boolean {
+  return /too many requests/i.test(fault);
+}
+
+/**
+ * Chamada igual repetida ("consumo redundante") ou do mesmo método em andamento.
+ * Em LEITURA, é só esperar e repetir. Em GRAVAÇÃO quer dizer que uma chamada igual
+ * acabou de chegar — pode ter sido processada: não é recusa limpa (regra do
+ * faturamento de OS, docs/pos-faturar-os-plano.md).
+ */
+export function ehConcorrencia(fault: string): boolean {
+  return /redundant|consumo redundante/i.test(fault)
     || /j[aá] existe uma requisi/i.test(fault)
     || /requisi[cç][aã]o desse m[ée]todo/i.test(fault);
 }
@@ -133,6 +142,12 @@ export function segundosDoBloqueio(fault: string): number {
   const mMin = fault.match(/(\d+)\s*minutos?/i);
   if (mMin) return parseInt(mMin[1], 10) * 60;
   return 1800;
+}
+
+/** Segundos que a Omie pede para esperar num "Aguarde N segundos" (consumo redundante); 0 se não disser. */
+export function segundosParaAguardar(fault: string): number {
+  const m = /aguarde\s+(\d+)\s+segundo/i.exec(fault);
+  return m ? parseInt(m[1], 10) : 0;
 }
 
 /** JSON com todo codepoint ≥ U+0080 escapado como \uXXXX (a Omie descarta não-ASCII cru). */
@@ -332,6 +347,8 @@ export async function omie<T = OmieResposta>(
       } finally {
         clearTimeout(timer);
       }
+      // HTTP 429: a Omie recusou ANTES de processar — seguro repetir, até gravação.
+      if (res.status === 429) throw Object.assign(new Error(`Omie recusou por excesso de chamadas (HTTP 429) ${onde}`), { recusa429: true });
       const texto = await res.text();
       try {
         data = JSON.parse(texto) as OmieResposta;
@@ -341,14 +358,15 @@ export async function omie<T = OmieResposta>(
     } catch (e) {
       devolver();
       const ms = Date.now() - t0;
-      // Gravação: só repete se a conexão nem abriu. Qualquer outra falha = estado desconhecido.
-      if (gravacao && !conexaoNaoAbriu(e)) {
+      const recusou = (e as { recusa429?: boolean })?.recusa429 === true;
+      // Gravação: só repete se a conexão nem abriu ou a Omie recusou (429). Qualquer outra falha = estado desconhecido.
+      if (gravacao && !conexaoNaoAbriu(e) && !recusou) {
         contar(cred.rotulo, call, prioridade, 'incerto', ms);
         const oQue = (e as Error)?.name === 'AbortError' ? `sem resposta em ${Math.round(timeoutMs / 1000)}s` : (e as Error)?.message || 'falha de rede';
         throw new OmieIncertoError(`Gravação na Omie sem resposta clara ${onde}: ${oQue}. Pode ter sido feita — confira antes de refazer.`, cred.rotulo, call);
       }
       contar(cred.rotulo, call, prioridade, 'erro', ms);
-      if (tentativa < tentativas) { await dormir(Math.min(3000 * (tentativa + 1), maxEspera)); continue; }
+      if (tentativa < tentativas) { await dormir(Math.min((recusou ? 15000 : 3000) * (tentativa + 1), maxEspera)); continue; }
       throw e;
     }
     devolver();
@@ -381,13 +399,14 @@ export async function omie<T = OmieResposta>(
       e.faultstring = fault;
       throw e;
     }
-    const repetivel = ehRecusaSemProcessar(fault) || (!gravacao && ehEngasgo(fault));
+    const repetivel = ehLimiteVelocidade(fault) || (!gravacao && (ehConcorrencia(fault) || ehEngasgo(fault)));
     if (repetivel && tentativa < tentativas) {
       contar(cred.rotulo, call, prioridade, 'erro', ms);
-      await dormir(Math.min(5000 * (tentativa + 1), maxEspera));
+      // Se a Omie disse quanto esperar ("Aguarde N segundos"), espera isso + 1 s.
+      await dormir(Math.min(Math.max(5000 * (tentativa + 1), (segundosParaAguardar(fault) + 1) * 1000), maxEspera));
       continue;
     }
-    if (gravacao && ehEngasgo(fault)) {
+    if (gravacao && (ehConcorrencia(fault) || ehEngasgo(fault))) {
       contar(cred.rotulo, call, prioridade, 'incerto', ms);
       throw new OmieIncertoError(`Gravação na Omie sem resposta clara ${onde}: ${fault}. Pode ter sido feita — confira antes de refazer.`, cred.rotulo, call);
     }

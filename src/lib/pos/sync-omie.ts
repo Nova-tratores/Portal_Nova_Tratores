@@ -1,10 +1,9 @@
 import { supabase } from "./supabase";
 import { TBL_CLIENTES, TBL_PROJETOS_DB } from "./constants";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
 const TBL_PRODUTOS = "Produtos_Completos";
-
-const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 
 interface OmieAccount {
   name: string;
@@ -19,26 +18,14 @@ const OMIE_ACCOUNTS: OmieAccount[] = [
 
 async function omieCall<T>(endpoint: string, call: string, param: Record<string, unknown>, acc?: OmieAccount): Promise<T> {
   const account = acc || OMIE_ACCOUNTS[0];
-  const payload = {
+  // Porta única: fila/freio e repetição em erro transitório (substitui a espera de 60 s no 429).
+  const data = await omie<{ faultstring?: string; faultcode?: string }>(
+    { appKey: account.key, appSecret: account.secret, rotulo: account.name },
+    endpoint,
     call,
-    app_key: account.key,
-    app_secret: account.secret,
-    param: [param],
-  };
-
-  const response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-
-  if (response.status === 429) {
-    console.warn("Rate limit Omie — aguardando 60s...");
-    await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param, acc);
-  }
-
-  const data = await response.json();
+    param,
+    { lancarFault: false },
+  );
   if (data?.faultstring) {
     throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
   }

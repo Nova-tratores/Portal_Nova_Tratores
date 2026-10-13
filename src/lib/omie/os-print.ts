@@ -6,13 +6,13 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "./contas";
+import { omie } from "./porta";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
 );
 
-const OMIE_BASE = "https://app.omie.com.br/api/v1";
 export interface OmieAccount { name: string; key: string; secret: string; }
 const OMIE_ACCOUNTS: OmieAccount[] = [
   { name: "Nova Tratores", ...contaOmie("Nova Tratores") },
@@ -22,13 +22,11 @@ export function getAccount(empresa: string): OmieAccount {
   return OMIE_ACCOUNTS.find(a => a.name === empresa) || OMIE_ACCOUNTS[0];
 }
 export async function omieCall(endpoint: string, call: string, param: Record<string, unknown>, acc: OmieAccount) {
-  const res = await fetch(`${OMIE_BASE}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ call, app_key: acc.key, app_secret: acc.secret, param: [param] }),
-  });
-  if (res.status === 429) { await new Promise(r => setTimeout(r, 60000)); return omieCall(endpoint, call, param, acc); }
-  const data = await res.json().catch(() => ({}));
+  // Porta única: fila/freio e repetição em erro transitório (substitui a espera de 60 s no 429).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const data = await omie<any>(
+    { appKey: acc.key, appSecret: acc.secret, rotulo: acc.name }, endpoint, call, param, { lancarFault: false },
+  );
   if (data?.faultstring) throw new Error(data.faultstring);
   return data;
 }

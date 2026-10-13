@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { contaOmie } from "@/lib/omie/contas";
+import { omie } from "@/lib/omie/porta";
 
-const OMIE_BASE_URL = "https://app.omie.com.br/api/v1";
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
@@ -36,27 +36,11 @@ async function omieCall<T>(
   param: Record<string, unknown>,
   acc: OmieAccount
 ): Promise<T> {
-  const response = await fetch(`${OMIE_BASE_URL}${endpoint}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      call,
-      app_key: acc.key,
-      app_secret: acc.secret,
-      param: [param],
-    }),
-  });
-
-  const data = await response.json();
+  // Porta única: 429/rede são repetidos por ela (sem espera própria de 60 s).
+  const data: any = await omie({ appKey: acc.key, appSecret: acc.secret, rotulo: acc.name }, endpoint, call, param, { lancarFault: false });
 
   if (data?.faultstring) {
     throw new Error(`Omie [${data.faultcode}]: ${data.faultstring}`);
-  }
-
-  if (response.status === 429) {
-    console.warn("[Sync] Rate limit — aguardando 60s...");
-    await new Promise((r) => setTimeout(r, 60000));
-    return omieCall(endpoint, call, param, acc);
   }
 
   return data as T;
