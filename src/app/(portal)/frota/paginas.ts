@@ -14,14 +14,17 @@
 
 export type GrupoFrota = 'Início' | 'Cadastro' | 'Operação' | 'Custos';
 
-// As 6 ABAS da faixa azul (10/10/2026, Raio-X da Frota): o módulo é organizado
+// As ABAS da faixa azul (10/10/2026, Raio-X da Frota): o módulo é organizado
 // pela PERGUNTA que a pessoa quer responder, não por tabela. Cada aba junta
 // páginas; quando tem mais de uma, a 2ª linha mostra as sub-guias.
-export type AbaFrota = 'hoje' | 'veiculos' | 'manutencao' | 'combustivel' | 'pessoas' | 'custos';
+// Mapa voltou a ser aba própria em 13/10/2026: como sub-guia de Veículos ele
+// "sumia" (só aparecia depois de clicar em Veículos).
+export type AbaFrota = 'hoje' | 'veiculos' | 'mapa' | 'manutencao' | 'combustivel' | 'pessoas' | 'custos';
 
 export const ABAS_FROTA: { id: AbaFrota; label: string }[] = [
   { id: 'hoje',        label: 'Hoje' },
   { id: 'veiculos',    label: 'Veículos' },
+  { id: 'mapa',        label: 'Mapa' },
   { id: 'manutencao',  label: 'Manutenção' },
   { id: 'combustivel', label: 'Combustível' },
   { id: 'pessoas',     label: 'Pessoas' },
@@ -50,7 +53,7 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   // Pátio NÃO tem tela (decisão do usuário, 13/07): o rótulo de localização nos
   // cards de Veículos substituiu o grid arrastável; o valor FIPE é editado na
   // Ficha do Veículo. Documentos também vivem na Ficha (ação frota:documentos:editar).
-  { key: 'frota:mapa',               label: 'Mapa',              href: '/frota/mapa',               grupo: 'Operação', aba: 'veiculos' },
+  { key: 'frota:mapa',               label: 'Mapa',              href: '/frota/mapa',               grupo: 'Operação', aba: 'mapa' },
   // Pendências por veículo: régua de cadastro/documentação + checklist,
   // requisição, OS e Opa, num lugar só.
   { key: 'frota:pendencias',         label: 'Pendências',        href: '/frota/pendencias',         grupo: 'Operação', aba: 'manutencao' },

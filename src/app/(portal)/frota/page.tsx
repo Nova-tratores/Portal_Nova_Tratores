@@ -133,7 +133,8 @@ export default function FrotaHoje() {
         />
         <KpiFrota
           rotulo="Combustível (30 dias)" icone={<Fuel size={14} />} valor={fmtRS(d.combustivel.ultimos30.gasto)}
-          contexto={varComb == null ? `${d.combustivel.ultimos30.abastecimentos} abastecimentos` : `${varComb >= 0 ? '▲' : '▼'} ${Math.abs(varComb).toFixed(0)}% vs 30 dias antes`}
+          contexto={`${d.combustivel.ultimos30.abastecimentos} abastecimentos · ${Math.round(d.combustivel.ultimos30.litros).toLocaleString('pt-BR')} L`
+            + (varComb == null ? '' : ` · ${varComb >= 0 ? '▲' : '▼'} ${Math.abs(varComb).toFixed(0)}% vs 30 dias antes`)}
           href="/frota/abastecimento"
         />
       </KpisFrota>

@@ -55,6 +55,21 @@ const AJUDA: Record<string, AjudaFrota> = {
       { t: 'Satélite', d: 'O veículo tem rastreador (posição e km vêm dele).' },
     ],
   },
+  '/frota/mapa': {
+    titulo: 'Mapa',
+    icon: '🗺️',
+    resumo: 'Onde cada carro está e por onde andou.',
+    oQueMostra:
+      'Os veículos com rastreador no mapa, com a última posição recebida, junto com os locais cadastrados (loja, clientes, ' +
+      'geocercas) e as visitas do CRM. A busca encontra um cliente ou local e leva o mapa até ele.',
+    comoUsar: [
+      'Digite o nome do cliente ou do local na busca para o mapa ir até o ponto.',
+      'Clique num carro para ver a placa, o responsável e o dia de uso; a Ficha completa fica na aba Veículos.',
+    ],
+    termos: [
+      { t: 'Última posição', d: 'O ponto mais recente que o rastreador mandou; carro sem rastreador não aparece.' },
+    ],
+  },
   '/frota/pendencias': {
     titulo: 'Pendências por veículo',
     icon: '🔧',
