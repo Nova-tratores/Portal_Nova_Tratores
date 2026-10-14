@@ -78,25 +78,36 @@ function PosPageInner() {
     let ativo = true;
     (async () => {
       try {
-        const { data: usuarios } = await supabase
-          .from("financeiro_usu").select("nome, avatar_url").eq("ativo", true);
+        // Conta do portal pelo E-MAIL do técnico (depois pelo nome): foto + "inativado"
+        // (conta desativada = vai para o fim da lista, separado — José, 13/10/2026)
+        const [{ data: usuarios }, emails] = await Promise.all([
+          supabase.from("financeiro_usu").select("nome, email, avatar_url, ativo"),
+          fetch("/api/pos/tecnicos?perfil=1").then((r) => (r.ok ? r.json() : [])).catch(() => []) as Promise<{ nome: string; email: string }[]>,
+        ]);
         if (!ativo) return;
-        const porNome = new Map((usuarios || []).map((u) => [normName(u.nome || ""), u.avatar_url || ""]));
+        const lista = usuarios || [];
+        const porEmail = new Map(lista.map((u) => [String(u.email || "").trim().toLowerCase(), u]));
+        const porNome = new Map(lista.map((u) => [normName(u.nome || ""), u]));
+        const emailDe = new Map(emails.map((e) => [normName(e.nome), e.email]));
         setTecnicosPerfil(tecnicos.map((t) => {
           const chave = normName(t);
-          let avatar = porNome.get(chave) || "";
-          if (!avatar) {
+          let u = porEmail.get(emailDe.get(chave) || "") || porNome.get(chave);
+          if (!u) {
             // fallback: usuário cujo nome contém o do técnico (ou vice-versa)
-            for (const [n, a] of porNome) {
-              if (a && (n.includes(chave) || chave.includes(n))) { avatar = a; break; }
-            }
+            for (const [n, x] of porNome) { if (n && (n.includes(chave) || chave.includes(n))) { u = x; break; } }
           }
-          return { nome: t, avatar };
+          return { nome: t, avatar: u?.avatar_url || "", inativo: u ? u.ativo === false : false };
         }));
       } catch { setTecnicosPerfil(tecnicos.map((t) => ({ nome: t, avatar: "" }))); }
     })();
     return () => { ativo = false; };
   }, [tecnicos]);
+  // OS em aberto por técnico (contagem no filtro de técnicos)
+  const abertasPorTecnico = useMemo(() => {
+    const c: Record<string, number> = {};
+    for (const o of orders) if (o.status !== "Concluída" && o.status !== "Cancelada" && o.tecnico) c[normName(o.tecnico)] = (c[normName(o.tecnico)] || 0) + 1;
+    return c;
+  }, [orders]);
   const [loading, setLoading] = useState(true);
   const [valorHora, setValorHora] = useState(193);
   const [valorKm, setValorKm] = useState(2.8);
@@ -312,7 +323,12 @@ function PosPageInner() {
     }
   };
 
+  // Botão Faturar da capa: abre a OS já com a janela de faturar
+  const [abrirFaturar, setAbrirFaturar] = useState(false);
+  const handleFaturarCard = (order: KanbanCard) => { setAbrirFaturar(true); handleCardClick(order); };
+
   const handleDrawerClose = () => {
+    setAbrirFaturar(false);
     setDrawerVisible(false);
     setSelectedOsId(null);
     // Volta a URL pra /pos ao fechar o card.
@@ -395,6 +411,7 @@ function PosPageInner() {
             onConfigSaved={(h, k) => { setValorHora(h); setValorKm(k); }}
             podeCriar={podeCriar}
             tecnicosPerfil={tecnicosPerfil}
+            abertasPorTecnico={abertasPorTecnico}
             tecnicoFiltro={tecnicoFiltro}
             onTecnicoFiltro={setTecnicoFiltro}
           />
@@ -418,6 +435,7 @@ function PosPageInner() {
             onEnviarOmie={podeOmie ? handleEnviarOmie : undefined}
             onEnviarOmieTodas={podeOmie ? handleEnviarOmieTodas : undefined}
             enviandoOmie={enviandoOmie}
+            onFaturar={handleFaturarCard}
             acoesAbas={alternarVisao}
           />
           )}
@@ -441,6 +459,7 @@ function PosPageInner() {
           podeOmie={podeOmie}
           podeConcluir={podeConcluir}
           podeCancelar={podeCancelar}
+          abrirFaturar={abrirFaturar}
         />
       )}
 

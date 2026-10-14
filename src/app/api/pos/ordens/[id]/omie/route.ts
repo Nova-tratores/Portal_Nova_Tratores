@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { criarOSNoOmie } from "@/lib/pos/omie";
+import { faltaParaEnviarOmie } from "@/lib/pos/envio-omie-regras";
 import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
 import { sincronizarStatusPPV } from "@/lib/pos/sync-ppv";
 import { logAndNotify } from "@/lib/server/audit-notify";
@@ -10,6 +11,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id: idOs } = await params;
   let userName = "Sistema";
   try { const body = await req.json(); userName = body.userName || "Sistema"; } catch {}
+
+  // Qualquer fase serve, desde que a descrição SALVA tenha solicitação + serviço realizado
+  const { data: osTexto } = await supabase.from(TBL_OS).select("Serv_Solicitado").eq("Id_Ordem", idOs).maybeSingle();
+  const falta = faltaParaEnviarOmie(osTexto?.Serv_Solicitado as string | null);
+  if (falta.length) {
+    return NextResponse.json({ sucesso: false, erro: `Falta preencher ${falta.join(" e ")} na descrição da OS. Se você já escreveu, clique em Salvar antes de enviar.` });
+  }
 
   const result = await criarOSNoOmie(idOs);
 

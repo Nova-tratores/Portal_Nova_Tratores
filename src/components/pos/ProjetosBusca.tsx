@@ -1,11 +1,12 @@
 "use client";
 
-// Botão "Projetos" do header do POS: busca de tratores com filtros COMBINÁVEIS
-// (modelo + cliente + final do chassis) e, clicando num resultado, um modal com
-// a ficha resumida do projeto (dono, números, últimas OSs/PVs e notas).
+// Botão "Buscar trator" do header do POS: UM campo só (modelo, cliente, CNPJ ou
+// final do chassis, em qualquer ordem) e, sem texto, os projetos usados
+// recentemente nas OS. Clicando num resultado, a ficha resumida do projeto.
 import { useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { authHeaders } from "@/lib/auth/client";
+import { BTN_BARRA } from "./botoes-barra";
 
 interface ProjetoRow {
   chassis: string;
@@ -15,6 +16,8 @@ interface ProjetoRow {
   cliente: string;
   cnpj: string;
   codCli: number | null;
+  ultimaOS?: string;
+  ultimaData?: string;
 }
 
 const din = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -25,10 +28,9 @@ const dataBR = (d: string | null | undefined) => {
 
 export default function ProjetosBusca() {
   const [aberto, setAberto] = useState(false);
-  const [fModelo, setFModelo] = useState("");
-  const [fCliente, setFCliente] = useState("");
-  const [fChassi, setFChassi] = useState("");
+  const [texto, setTexto] = useState("");
   const [resultados, setResultados] = useState<ProjetoRow[] | null>(null);
+  const [saoRecentes, setSaoRecentes] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [erro, setErro] = useState("");
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -38,33 +40,25 @@ export default function ProjetosBusca() {
   const [ficha, setFicha] = useState<any>(null);
   const [fichaCarregando, setFichaCarregando] = useState(false);
 
-  const buscar = async (m: string, c: string, ch: string) => {
-    if (!m.trim() && !c.trim() && !ch.trim()) { setResultados(null); return; }
+  const buscar = async (t: string) => {
     setBuscando(true); setErro("");
     try {
-      const p = new URLSearchParams();
-      if (m.trim()) p.set("modelo", m.trim());
-      if (c.trim()) p.set("cliente", c.trim());
-      if (ch.trim()) p.set("chassi", ch.trim());
-      const r = await fetch(`/api/pos/projetos?${p}`, { headers: await authHeaders(), cache: "no-store" });
+      const r = await fetch(`/api/pos/projetos?q=${encodeURIComponent(t.trim())}`, { headers: await authHeaders(), cache: "no-store" });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
       setResultados(j.projetos || []);
+      setSaoRecentes(!!j.recentes);
     } catch (e) { setErro(e instanceof Error ? e.message : "falha na busca"); }
     setBuscando(false);
   };
 
-  // Busca AO DIGITAR em qualquer um dos 3 campos (combinados por E)
-  const aoDigitar = (campo: "modelo" | "cliente" | "chassi", v: string) => {
-    const m = campo === "modelo" ? v : fModelo;
-    const c = campo === "cliente" ? v : fCliente;
-    const ch = campo === "chassi" ? v : fChassi;
-    if (campo === "modelo") setFModelo(v);
-    if (campo === "cliente") setFCliente(v);
-    if (campo === "chassi") setFChassi(v);
+  const aoDigitar = (v: string) => {
+    setTexto(v);
     if (debounce.current) clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => buscar(m, c, ch), 400);
+    debounce.current = setTimeout(() => buscar(v), 350);
   };
+  // Abriu: já mostra os usados recentemente nas OS
+  const abrir = () => { setAberto(true); setTexto(""); void buscar(""); };
 
   const abrirFicha = async (row: ProjetoRow) => {
     setSel(row); setFicha(null);
@@ -79,16 +73,15 @@ export default function ProjetosBusca() {
   };
 
   const fecharTudo = () => { setAberto(false); setSel(null); setFicha(null); };
-  const inputEstilo = { width: "100%", boxSizing: "border-box" as const, fontSize: 13.5, padding: "9px 12px", border: "1px solid var(--border, #CBD5E1)", borderRadius: 9 };
   const rotulo = { fontSize: 10.5, fontWeight: 700 as const, textTransform: "uppercase" as const, letterSpacing: 0.4, color: "#94A3B8", marginBottom: 3 };
 
   const dono = ficha?.donos?.[0] || null;
 
   return (
     <div style={{ marginRight: "auto" }}>
-      <button onClick={() => setAberto(true)} title="Buscar tratores por modelo, cliente e final do chassis"
-        style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 14px", borderRadius: 10, border: "1.5px solid var(--border, #E4D9C8)", background: "#fff", cursor: "pointer", color: "#111827", fontWeight: 700, fontSize: 13 }}>
-        <i className="fas fa-tractor" style={{ color: "#0369A1" }} /> Projetos
+      <button onClick={abrir} title="Buscar trator por modelo, cliente, CNPJ ou final do chassis"
+        style={BTN_BARRA}>
+        <i className="fas fa-tractor" style={{ color: "#0369A1" }} /> Buscar trator
       </button>
 
       {aberto && typeof document !== "undefined" && createPortal(
@@ -105,35 +98,33 @@ export default function ProjetosBusca() {
               )}
               <i className="fas fa-tractor" style={{ color: "#0369A1" }} />
               <b style={{ fontSize: 14.5, color: "var(--texto, #0f172a)", flex: 1 }}>
-                {sel ? `${sel.modelo || "Trator"} — ${sel.chassis}` : "Buscar projetos (tratores)"}
+                {sel ? `${sel.modelo || "Trator"} — ${sel.chassis}` : "Buscar trator"}
               </b>
               <button onClick={fecharTudo} style={{ border: "none", background: "transparent", color: "#94A3B8", cursor: "pointer", fontSize: 17 }}>×</button>
             </div>
 
             {!sel ? (
               <div style={{ padding: 16, display: "flex", flexDirection: "column", gap: 10, overflowY: "auto" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 8 }}>
-                  <div>
-                    <div style={rotulo}>Modelo</div>
-                    <input value={fModelo} onChange={(e) => aoDigitar("modelo", e.target.value)} placeholder="ex.: 6060" autoFocus style={inputEstilo} />
-                  </div>
-                  <div>
-                    <div style={rotulo}>Cliente</div>
-                    <input value={fCliente} onChange={(e) => aoDigitar("cliente", e.target.value)} placeholder="nome ou CNPJ" style={inputEstilo} />
-                  </div>
-                  <div>
-                    <div style={rotulo}>Final do chassis</div>
-                    <input value={fChassi} onChange={(e) => aoDigitar("chassi", e.target.value)} placeholder="ex.: 0743" style={inputEstilo} />
-                  </div>
+                <div style={{ position: "relative" }}>
+                  <i className="fas fa-search" style={{ position: "absolute", left: 13, top: "50%", transform: "translateY(-50%)", color: "#94A3B8", fontSize: 13 }} />
+                  <input value={texto} onChange={(e) => aoDigitar(e.target.value)} autoFocus
+                    placeholder="Modelo, cliente, CNPJ ou final do chassis — ex.: 6075 pedro 6206"
+                    style={{ width: "100%", boxSizing: "border-box", fontSize: 14, padding: "11px 36px 11px 36px", border: "1.5px solid var(--border, #CBD5E1)", borderRadius: 11, background: "var(--surface, #fefefe)", color: "var(--portal-text, #0f172a)", fontFamily: "inherit" }} />
+                  {texto && (
+                    <button type="button" onClick={() => aoDigitar("")} title="Limpar"
+                      style={{ position: "absolute", right: 8, top: "50%", transform: "translateY(-50%)", border: "none", background: "transparent", color: "#94A3B8", cursor: "pointer", fontSize: 14 }}>×</button>
+                  )}
                 </div>
-                <div style={{ fontSize: 11.5, color: "#94A3B8" }}>
-                  Dá pra combinar os filtros: modelo + cliente, cliente + final do chassis… Vai aparecendo conforme você digita. Clica num trator pra abrir a ficha dele.
+                <div style={{ fontSize: 11.5, color: "#94A3B8", display: "flex", alignItems: "center", gap: 6 }}>
+                  {saoRecentes && !texto
+                    ? <><i className="fas fa-clock-rotate-left" /> Usados recentemente nas ordens de serviço</>
+                    : <>Pode misturar: modelo, nome do cliente, CNPJ e final do chassis, em qualquer ordem.</>}
                 </div>
                 {erro && <div style={{ color: "#B91C1C", fontWeight: 600, fontSize: 12.5 }}>{erro}</div>}
                 {buscando && <div style={{ color: "#0369A1", fontWeight: 600, fontSize: 13 }}><i className="fas fa-spinner fa-spin" /> Buscando…</div>}
                 {resultados && !buscando && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-                    {resultados.length === 0 && <div style={{ color: "#94A3B8", fontSize: 13, textAlign: "center", padding: 10 }}>Nenhum trator encontrado com esses filtros.</div>}
+                    {resultados.length === 0 && <div style={{ color: "#94A3B8", fontSize: 13, textAlign: "center", padding: 10 }}>{texto ? "Nenhum trator encontrado com essa busca." : "Nenhum projeto usado nas OS recentes."}</div>}
                     {resultados.map((r) => (
                       <button key={`${r.chassis}|${r.empresa}`} onClick={() => abrirFicha(r)}
                         style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 10, border: "1px solid var(--border, #E2E8F0)", borderRadius: 10, padding: "9px 12px", background: "transparent", cursor: "pointer" }}>
@@ -143,8 +134,13 @@ export default function ProjetosBusca() {
                             {r.modelo || "Modelo?"} <span style={{ fontWeight: 600, color: "#64748B", fontFamily: "monospace", fontSize: 12.5 }}>{r.chassis}</span>
                           </div>
                           <div style={{ fontSize: 12, color: "#64748B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                            {r.cliente || "sem cliente"}{r.projeto ? ` · projeto ${r.projeto}` : ""}{r.empresa ? ` · ${r.empresa}` : ""}
+                            {r.cliente || "sem cliente"}{r.empresa ? ` · ${r.empresa}` : ""}
                           </div>
+                          {r.ultimaOS && (
+                            <div style={{ fontSize: 11, color: "#0369A1", fontWeight: 700, marginTop: 1 }}>
+                              <i className="fas fa-wrench" style={{ marginRight: 4, fontSize: 10 }} />última OS {r.ultimaOS.replace(/^OS-?/i, "")}{r.ultimaData ? ` · ${dataBR(r.ultimaData)}` : ""}
+                            </div>
+                          )}
                         </div>
                         <i className="fas fa-chevron-right" style={{ color: "#CBD5E1", fontSize: 11 }} />
                       </button>

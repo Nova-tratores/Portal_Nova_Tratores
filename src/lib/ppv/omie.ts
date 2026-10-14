@@ -4,6 +4,7 @@
 // =============================================
 
 import { supabaseFetch } from "./supabase";
+import { diasDoNumParcelas } from "@/lib/ppv/parcelas-condicao";
 import { resolverContaCorrente, resolverDepartamentos, type ContaDestino, type DeptoDestino } from "./conta-corrente";
 import { TBL_PEDIDOS, TBL_ITENS, TBL_CLIENTES, TBL_LOGS, TBL_PRODUTOS, TBL_OS } from "./constants";
 import { buscarPPVPorId, registrarLog } from "./queries";
@@ -117,7 +118,7 @@ function formatarDataOmie(): string {
 }
 
 // "2026-10-15" -> "15/10/2026" (formato do Omie). Vazio -> hoje.
-function isoParaBR(iso?: string): string {
+export function isoParaBR(iso?: string): string {
   const s = String(iso || "").slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return formatarDataOmie();
   return `${s.slice(8, 10)}/${s.slice(5, 7)}/${s.slice(0, 4)}`;
@@ -130,11 +131,8 @@ function baseMaisDiasBR(previsaoISO: string, dias: number): string {
   return `${dd}/${mm}/${base.getFullYear()}`;
 }
 // Parcelamento -> bloco de parcelas do Omie (igual ao que o portal mostra).
-const COND_DIAS_OMIE: Record<string, number[]> = {
-  "À vista (PIX ou Cartão)": [0], "30 dias": [30], "30/60 dias": [30, 60], "30/60/90 dias": [30, 60, 90],
-};
-function montarParcelasOmie(numParcelas: string, previsaoISO: string, total: number): { codigo_parcela: string; qtde_parcelas: number; lista_parcelas?: { parcela: Record<string, unknown>[] } } {
-  const dias = COND_DIAS_OMIE[numParcelas] || [30];
+export function montarParcelasOmie(numParcelas: string, previsaoISO: string, total: number): { codigo_parcela: string; qtde_parcelas: number; lista_parcelas?: { parcela: Record<string, unknown>[] } } {
+  const dias = diasDoNumParcelas(numParcelas);
   const n = dias.length;
   if (n === 1 && dias[0] === 0) return { codigo_parcela: "000", qtde_parcelas: 1 }; // à vista
   const base = Math.floor((total / n) * 100) / 100;
@@ -203,7 +201,7 @@ async function departamentosDe(acc: OmieAccount): Promise<DeptoDestino[]> {
   return deps;
 }
 /** Distribuição por departamento convertida para a empresa de destino (a lista do PPV é a da Nova). */
-async function departamentosDoPedido(acc: OmieAccount, deps: Array<{ codigo: string; perc: number }>): Promise<{ deps: Array<{ codigo: string; perc: number }>; aviso: string | null }> {
+export async function departamentosDoPedido(acc: OmieAccount, deps: Array<{ codigo: string; perc: number }>): Promise<{ deps: Array<{ codigo: string; perc: number }>; aviso: string | null }> {
   if (!deps.length) return { deps, aviso: null };
   let destino: DeptoDestino[];
   try { destino = await departamentosDe(acc); } catch { return { deps, aviso: null }; }
@@ -214,7 +212,7 @@ async function departamentosDoPedido(acc: OmieAccount, deps: Array<{ codigo: str
   } catch { /* sem nomes: só o código que já existir lá */ }
   return resolverDepartamentos(deps, nomes, destino);
 }
-async function contaCorrenteDoPedido(acc: OmieAccount, escolhido: string | number | null | undefined): Promise<{ codigo: number | undefined; aviso: string | null }> {
+export async function contaCorrenteDoPedido(acc: OmieAccount, escolhido: string | number | null | undefined): Promise<{ codigo: number | undefined; aviso: string | null }> {
   const cod = Number(escolhido) || null;
   if (!cod) return { codigo: acc.codCC || undefined, aviso: null };
   let contas: ContaDestino[];
@@ -320,7 +318,7 @@ async function buscarNcodVend(tecnico: string, acc: OmieAccount): Promise<number
 // --- Lookup de produto no Omie (por conta) ---
 const cacheProdutos = new Map<string, number>();
 
-async function buscarCodigoProdutoOmie(codigoInterno: string, acc: OmieAccount): Promise<number> {
+export async function buscarCodigoProdutoOmie(codigoInterno: string, acc: OmieAccount): Promise<number> {
   const cacheKey = `${acc.name}:${codigoInterno}`;
   if (cacheProdutos.has(cacheKey)) return cacheProdutos.get(cacheKey)!;
 
@@ -672,7 +670,7 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
 // AlterarPedidoVenda antes de faturar.
 // =============================================
 
-interface OmieDetItem {
+export interface OmieDetItem {
   ide?: { codigo_item?: number; codigo_item_integracao?: string; simples_nacional?: string };
   produto?: {
     codigo_produto?: number; codigo?: string; descricao?: string; cfop?: string; ncm?: string;
@@ -691,14 +689,15 @@ interface OmiePedidoConsulta {
 
 const codIntPV = (idPPV: string) => `PV-${idPPV}`;
 
-// Consulta o Pedido de Venda no Omie por código de integração. Devolve null se
-// não existir naquela conta (a Omie responde faultstring nesse caso).
-async function consultarPedidoOmie(codInt: string, acc: OmieAccount): Promise<OmiePedidoConsulta | null> {
+// Consulta o Pedido de Venda no Omie por código de integração (ou por outra
+// chave: { numero_pedido } / { codigo_pedido }). Devolve null se não existir
+// naquela conta (a Omie responde faultstring nesse caso).
+async function consultarPedidoOmie(codInt: string | Record<string, unknown>, acc: OmieAccount): Promise<OmiePedidoConsulta | null> {
   try {
     const r = await omieCall<{ pedido_venda_produto?: OmiePedidoConsulta }>(
       "/produtos/pedido/",
       "ConsultarPedido",
-      { codigo_pedido_integracao: codInt },
+      typeof codInt === "string" ? { codigo_pedido_integracao: codInt } : codInt,
       acc.key,
       acc.secret,
     );
@@ -708,25 +707,40 @@ async function consultarPedidoOmie(codInt: string, acc: OmieAccount): Promise<Om
   }
 }
 
+const semZerosNum = (n: unknown) => String(n ?? "").trim().replace(/^0+(?=\d)/, "");
+
 // Descobre em qual conta Omie o pedido do PPV vive. Usa omie_empresa (gravado no
 // envio) e, como fallback pra pedidos antigos, sonda as duas contas.
-async function resolverContaDoPedido(
+// O pedido do PPV é o do NÚMERO gravado em pedidos.pedido_omie: depois de uma
+// SUBSTITUIÇÃO (13/10/2026) o código "PV-<PPV>" continua no pedido cancelado e
+// o novo só é achado pelo número — então o código só vale se o número bater.
+export async function resolverContaDoPedido(
   idPPV: string,
   empresaSalva?: string | null,
 ): Promise<{ acc: OmieAccount; pedido: OmiePedidoConsulta } | null> {
   const codInt = codIntPV(idPPV);
-  if (empresaSalva) {
-    const acc = getAccount(empresaSalva);
+  const cab = await lerCabecalhoPPV(idPPV).catch(() => null);
+  const numero = semZerosNum(cab?.pedido_omie);
+  const contas = empresaSalva
+    ? [getAccount(empresaSalva), ...OMIE_ACCOUNTS.filter((a) => a.name.toLowerCase() !== String(empresaSalva).toLowerCase())]
+    : OMIE_ACCOUNTS;
+  for (const acc of contas) {
     const pedido = await consultarPedidoOmie(codInt, acc);
-    if (pedido) return { acc, pedido };
-  }
-  for (const acc of OMIE_ACCOUNTS) {
-    if (empresaSalva && acc.name.toLowerCase() === String(empresaSalva).toLowerCase()) continue;
-    const pedido = await consultarPedidoOmie(codInt, acc);
-    if (pedido) return { acc, pedido };
+    if (pedido && (!numero || semZerosNum(pedido.cabecalho?.numero_pedido) === numero)) return { acc, pedido };
+    if (numero) {
+      const porNumero = await consultarPedidoOmie({ numero_pedido: numero }, acc);
+      if (porNumero) return { acc, pedido: porNumero };
+    }
   }
   return null;
 }
+
+/** Chamada ao Omie na conta do pedido (usada pela substituição de pedido/OS). */
+export function omieNaConta<T>(acc: OmieAccount, endpoint: string, call: string, param: Record<string, unknown>): Promise<T> {
+  return omieCall<T>(endpoint, call, param, acc.key, acc.secret);
+}
+export { consultarPedidoOmie, getAccount };
+export type { OmieAccount, OmiePedidoConsulta };
 
 // Lê o pedido do PPV no Supabase (id_pedido, pedido_omie, omie_empresa, faturado).
 async function lerCabecalhoPPV(idPPV: string): Promise<Record<string, unknown> | null> {
@@ -812,7 +826,8 @@ export async function faturarPPVNoOmie(
   const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
   if (!achado) return { sucesso: false, erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
   const { acc, pedido } = achado;
-  const codInt = codIntPV(idPPV);
+  const codInt = String(pedido.cabecalho?.codigo_pedido_integracao || "");
+  const chavePedido = pedido.cabecalho?.codigo_pedido ? { codigo_pedido: pedido.cabecalho.codigo_pedido } : { codigo_pedido_integracao: codIntPV(idPPV) };
 
   // Anti-duplicidade: se o pedido já está na etapa de faturamento (50), só é
   // "faturado" DE VERDADE se a NF-e existir. Etapa 50 SEM NF = emissão falhou /
@@ -841,7 +856,7 @@ export async function faturarPPVNoOmie(
       await omieCall(
         "/produtos/pedido/",
         "AlterarPedidoVenda",
-        { cabecalho: { codigo_pedido_integracao: codInt }, informacoes_adicionais: { codigo_categoria: categoria } },
+        { cabecalho: chavePedido, informacoes_adicionais: { codigo_categoria: categoria } },
         acc.key,
         acc.secret,
       );
@@ -925,7 +940,7 @@ export async function cancelarPedidoVendaOmie(
     try {
       const resp = await omieCall<Record<string, unknown>>(
         "/produtos/pedidovendafat/", "CancelarPedidoVenda",
-        { cCodIntPed: codIntPV(idPPV), nCodPed }, acc.key, acc.secret,
+        { cCodIntPed: String(pedido.cabecalho?.codigo_pedido_integracao || ""), nCodPed }, acc.key, acc.secret,
       );
       console.log(`[Omie PPV cancelar] ${idPPV}: CancelarPedidoVenda ->`, JSON.stringify(resp).slice(0, 200));
     } catch (e) {
@@ -1332,7 +1347,8 @@ export async function alterarItemFiscalPPV(
   const achado = await resolverContaDoPedido(idPPV, cab.omie_empresa as string | null);
   if (!achado) return { ok: false, erro: "Pedido não encontrado no Omie (ConsultarPedido)." };
   const { acc, pedido } = achado;
-  const codInt = codIntPV(idPPV);
+  const codInt = String(pedido.cabecalho?.codigo_pedido_integracao || "");
+  const chavePedido = pedido.cabecalho?.codigo_pedido ? { codigo_pedido: pedido.cabecalho.codigo_pedido } : { codigo_pedido_integracao: codIntPV(idPPV) };
 
   const etapa = str(pedido.cabecalho?.etapa);
   if (Number(etapa) >= Number(OMIE_ETAPA_FATURADO)) {
@@ -1379,7 +1395,7 @@ export async function alterarItemFiscalPPV(
     await omieCall(
       "/produtos/pedido/",
       "AlterarPedidoVenda",
-      { cabecalho: { codigo_pedido_integracao: codInt }, det: detNovo },
+      { cabecalho: chavePedido, det: detNovo },
       acc.key,
       acc.secret,
     );

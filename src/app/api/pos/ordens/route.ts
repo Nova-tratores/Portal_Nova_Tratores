@@ -476,6 +476,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: false, erro: `Erro ao criar OS: ${error.message}` }, { status: 500 });
   }
 
+  // PPV gerado junto: já nasce com a categoria/previsão/parcelas da OS
+  if (ppvGerado) {
+    try {
+      const { sincronizarPPVsComOS } = await import("@/lib/ppv/sync-os");
+      await sincronizarPPVsComOS(newId, { soPPV: ppvGerado, usuario: dados.userName || "Sistema" });
+    } catch (e) { console.warn(`[ppv-sync-os] ${newId}: ${e instanceof Error ? e.message : e}`); }
+  }
+
   // Servico_Interno via RPC (bypassa schema cache do PostgREST)
   if (dados.servicoInterno) {
     await supabase.rpc('set_servico_interno', { p_id_ordem: newId, p_valor: true });

@@ -3777,6 +3777,10 @@ body {
 .os-tab-panel[data-aba="alimentacao"] .os-aba:not(.os-aba-alimentacao),
 .os-tab-panel[data-aba="garantia"] .os-aba:not(.os-aba-garantia),
 .os-tab-panel[data-aba="obs"] .os-aba:not(.os-aba-obs),
+.os-tab-panel[data-aba="deptos"] .os-aba,
+.os-tab-panel[data-aba="info"] .os-aba:not(.os-aba-relatorio):not(.os-aba-garantia),
+.os-tab-panel[data-aba="parcelas"] .os-aba,
+.os-tab-panel[data-aba="email"] .os-aba,
 .os-tab-panel[data-aba="produtos"] .os-aba,
 .os-tab-panel[data-aba="requisicoes"] .os-aba {
   display: none !important;

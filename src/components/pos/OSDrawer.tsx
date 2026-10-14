@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Fragment } from "react";
 import { createPortal } from "react-dom";
 import QRCode from "qrcode";
 import { VALOR_HORA, VALOR_KM, TEXT_TEMPLATE, PHASES } from "@/lib/pos/constants";
+import { faltaParaEnviarOmie } from "@/lib/pos/envio-omie-regras";
 import { authHeaders } from "@/lib/auth/client";
 import type { ClienteOption, ClienteDados, Produto, AlimentacaoItem } from "@/lib/pos/types";
 import { MSG_SEM_PERMISSAO } from "@/lib/permissoes/ui";
@@ -22,6 +23,9 @@ import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import { useAuth } from "@/hooks/useAuth";
 import { usePermissoes } from "@/hooks/usePermissoes";
 import FaturamentoOSBloco from "./FaturamentoOSBloco";
+import SubstituirOmieModal from "./SubstituirOmieModal";
+import EditarPPVsModal from "./EditarPPVsModal";
+import NovaRequisicaoOSModal from "./NovaRequisicaoOSModal";
 import NotasFiscaisBloco from "./NotasFiscaisBloco";
 import AnexosModal from "@/components/ppv/AnexosModal";
 import TarefasModal from "@/components/ppv/TarefasModal";
@@ -30,6 +34,8 @@ import AssinaturaClienteBloco from "./AssinaturaClienteBloco";
 import ModalNovoCliente from "@/components/clientes/ModalNovoCliente";
 import ModalNovaMaquina from "@/components/clientes/ModalNovaMaquina";
 import MaquinasClienteDestaque from "./MaquinasClienteDestaque";
+import { GradeServicosOmie, AbaDepartamentos, AbaInfoAdicionais, AbaParcelas, AbaEmail, ClienteOmieModal, SeletorCondicao, SeletorTecnicos, Chave, useListasOmie } from "./OSOmieAbas";
+import { espelhoPadrao, normalizarEspelho, aplicarInterna, totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
 
 // Previsão de faturamento vazia = hoje (José, 13/10/2026), no fuso de São Paulo, "aaaa-mm-dd".
 const hojeSP = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
@@ -51,6 +57,8 @@ interface OSDrawerProps {
   podeOmie?: boolean;
   podeConcluir?: boolean;
   podeCancelar?: boolean;
+  /** veio do botão Faturar da capa: abre a janela de faturar assim que der */
+  abrirFaturar?: boolean;
 }
 
 /* ── Inline style constants (avoid new refs each render) ── */
@@ -92,9 +100,12 @@ function horaAtualBR() {
   return `${String(br.getHours()).padStart(2, '0')}:${String(br.getMinutes()).padStart(2, '0')}`;
 }
 
-export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriado, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm, podeEditar = true, podeOmie = true, podeConcluir = true, podeCancelar = true }: OSDrawerProps) {
-  const VH = propValorHora ?? VALOR_HORA;
-  const VK = propValorKm ?? VALOR_KM;
+export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriado, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm, podeEditar = true, podeOmie = true, podeConcluir = true, podeCancelar = true, abrirFaturar = false }: OSDrawerProps) {
+  // valor da hora/km DESTA OS (editável com dois cliques na linha); sem ele, o da configuração
+  const [unitHr, setUnitHr] = useState<number | null>(null);
+  const [unitKm, setUnitKm] = useState<number | null>(null);
+  const VH = unitHr ?? propValorHora ?? VALOR_HORA;
+  const VK = unitKm ?? propValorKm ?? VALOR_KM;
   // Ocorrência rápida por OS (categoria OS pré-selecionada, técnico da OS)
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
@@ -150,6 +161,22 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // o número do Omie (não o id do PPV).
   const [ppvOmieMap, setPpvOmieMap] = useState<Record<string, string>>({});
   const [ppvOmieCarregando, setPpvOmieCarregando] = useState(false);
+  // Substituir a OS/pedido no Omie (só Dev ou quem um Dev liberou)
+  const [omieRefresh, setOmieRefresh] = useState(0);
+  const [substituindo, setSubstituindo] = useState(false);
+  const [podeSubstituir, setPodeSubstituir] = useState(false);
+  useEffect(() => {
+    if (!visible) return;
+    let ativo = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/pos/ordens/x/substituir", { headers: await authHeaders() });
+        const j = r.ok ? await r.json() : null;
+        if (ativo) setPodeSubstituir(!!j?.pode);
+      } catch { /* sem atalho */ }
+    })();
+    return () => { ativo = false; };
+  }, [visible]);
   useEffect(() => {
     const ids = ppv.split(",").map((s) => s.trim()).filter(Boolean);
     if (!visible || ids.length === 0) { setPpvOmieMap({}); return; }
@@ -167,7 +194,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       if (ativo) { setPpvOmieMap(mapa); setPpvOmieCarregando(false); }
     })();
     return () => { ativo = false; };
-  }, [ppv, visible, ordemOmie]);
+  }, [ppv, visible, ordemOmie, omieRefresh]);
   const [baixandoPdfPecas, setBaixandoPdfPecas] = useState<string | null>(null);
   const abrirPdfPecasOmie = useCallback(async (pid: string) => {
     if (!pid || baixandoPdfPecas) return;
@@ -230,7 +257,14 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [saving, setSaving] = useState(false);
   const [aba, setAba] = useState<"os" | "ppv">("os");
   // Sub-abas no padrão Omie (modelo aprovado 04/09): cada card vive numa aba
-  const [abaOmie, setAbaOmie] = useState<"servicos" | "produtos" | "requisicoes" | "relatorio" | "garantia" | "obs" | "dados">("servicos");
+  const [abaOmie, setAbaOmie] = useState<"servicos" | "produtos" | "requisicoes" | "relatorio" | "garantia" | "obs" | "dados" | "deptos" | "info" | "parcelas" | "email">("servicos");
+  // OS no formato do Omie (José, 13/10/2026): o que o Omie tem e o portal não tinha
+  const [esp, setEspRaw] = useState<OmieEspelho>(() => espelhoPadrao());
+  const setEsp = useCallback((f: (e: OmieEspelho) => OmieEspelho) => setEspRaw((e) => f(e)), []);
+  const [verClienteOmie, setVerClienteOmie] = useState(false);
+  const [editarPPVs, setEditarPPVs] = useState(false);
+  const [novaReqOS, setNovaReqOS] = useState(false);
+  const listasOmie = useListasOmie(visible && mode === "edit", String(ordemOmie || "").replace(/^0+(?=\d)/, ""), clienteInfo?.cpf || "");
   const [loadingData, setLoadingData] = useState(false);
   // Incrementado após importar um orçamento → força recarregar os dados da OS
   const [reloadKey, setReloadKey] = useState(0);
@@ -508,6 +542,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (linha) return linha.split(":").slice(1).join(":").trim().length > 0;
     return !!servSolicitado.trim() && servSolicitado !== TEXT_TEMPLATE;
   }, [servSolicitado]);
+  const faltaOmie = useMemo(() => faltaParaEnviarOmie(servSolicitado), [servSolicitado]);
   const passosCriacao = [
     { n: 1, rotulo: "Cliente", icone: "fa-user", ok: !!clienteChave, alvo: "osc-cliente" },
     { n: 2, rotulo: "Máquina", icone: "fa-tractor", ok: !!projeto.trim(), alvo: "osc-cliente" },
@@ -517,17 +552,21 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const passosFeitos = passosCriacao.filter((p) => p.ok).length;
   const irPara = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
+  // "Não cobrar" hora/km (aba Lista de Serviços) = desconto do valor cheio da linha
+  const descHoraEf = esp.naoCobrar.hr ? subtotalHoras : descHoraValor;
+  const descKmEf = esp.naoCobrar.km ? subtotalKm : descKmValor;
+  const valorExtras = totalExtras(esp);
   const total = useMemo(() => {
-    const sub = (subtotalHoras - descHoraValor) + (subtotalKm - descKmValor) + totalPecas + totalRequisicoes;
+    const sub = (subtotalHoras - descHoraEf) + (subtotalKm - descKmEf) + totalPecas + totalRequisicoes + valorExtras;
     return Math.max(0, sub - descValor);
-  }, [subtotalHoras, subtotalKm, totalPecas, totalRequisicoes, descValor, descHoraValor, descKmValor]);
+  }, [subtotalHoras, subtotalKm, totalPecas, totalRequisicoes, descValor, descHoraEf, descKmEf, valorExtras]);
 
   const bombaAlerta = useMemo(
     () => tipoServico === "Revisão" && !!revisao && BOMBA_HORAS.some((h) => revisao.includes(h)),
     [tipoServico, revisao]
   );
 
-  const totalDescontos = descHoraValor + descKmValor + descValor;
+  const totalDescontos = descHoraEf + descKmEf + descValor;
 
   // Auto-calcular estimativa quando clienteInfo e qtdHoras mudam
   const estimativaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -896,11 +935,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       enderecoCliente: servicoOficina ? 'Nova Tratores - Av. São Sebastião, 1065 - Vila Campos, Piraju - SP' : clienteInfo?.endereco,
       cidadeCliente: servicoOficina ? 'Piraju' : (clienteInfo?.cidade || ''), tecnicoResponsavel: tecnico1, tecnico2,
       tipoServico, revisao, projeto, servicoSolicitado: servSolicitado, observacoes,
-      qtdHoras, qtdKm, ppv, status: mode === "create" ? "Orçamento" : status,
+      qtdHoras, qtdKm, valorHora: VH, valorKm: VK, ppv, status: mode === "create" ? "Orçamento" : status,
       ordemOmie, motivoCancelamento: motivoCancel,
       substitutoTipo: temSubstituto ? substitutoTipo : null,
       substitutoId: temSubstituto ? substitutoId : null,
-      descontoValor: descValor, descontoHora: descHoraValor, descontoKm: descKmValor,
+      descontoValor: descValor, descontoHora: descHoraEf, descontoKm: descKmEf,
+      omieEspelho: esp,
       relatorioTecnico,
       diasExecucao: diasExecucao.sort().join(','),
       previsaoExecucao,
@@ -993,7 +1033,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setTecnico1(""); setTecnico2(""); setTipoServico("Manutenção");
     setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
     setPecasPendentes([]); setAbrirReqDepois(false);
-    setPpv(""); setQtdHoras(1); setQtdKm(0); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0);
+    setPpv(""); setQtdHoras(1); setQtdKm(0); setUnitHr(null); setUnitKm(null); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0); setEspRaw(espelhoPadrao());
     setOrdemOmie(""); setPedidoVenda(""); setOmieLog(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
     setRelatorioTecnico("");
     const agora = new Date()
@@ -1048,7 +1088,10 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           setDescValor(dv);
           setDescHoraValor(dh);
           setDescKmValor(dk);
-          const sub = (d.qtdHoras || 0) * VH + (d.qtdKm || 0) * VK;
+          setEspRaw(normalizarEspelho(d.omieEspelho, espelhoPadrao({ interna: !!d.servicoInterno, garantia: /garantia/i.test(String(d.tipoServico || "")) })));
+          const uH = Number(d.valorHora) > 0 ? Number(d.valorHora) : null, uK = Number(d.valorKm) > 0 ? Number(d.valorKm) : null;
+          setUnitHr(uH); setUnitKm(uK);
+          const sub = (d.qtdHoras || 0) * (uH ?? VH) + (d.qtdKm || 0) * (uK ?? VK);
           setDescPorc(sub > 0 ? parseFloat(((dv / sub) * 100).toFixed(2)) : 0);
           setOrdemOmie(d.ordemOmie || ""); setMotivoCancel(d.motivoCancelamento || "");
           setPendenciaMahindra(Array.isArray(d.pendenciaMahindra?.detalhes) ? d.pendenciaMahindra!.detalhes! : []);
@@ -1058,9 +1101,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           setSubstitutoId(d.substitutoId || "");
           setRelatorioTecnico(d.relatorioTecnico || "");
           setPrevisaoExecucao(d.previsaoExecucao || "");
-          setPrevisaoFaturamento(d.previsaoFaturamento || "");
+          setPrevisaoFaturamento(d.previsaoFaturamento || hojeSP());
           setDataFimServico(d.dataFimServico || "");
-          setHoraInicioServico(d.horaInicioServico || "");
+          setHoraInicioServico(d.horaInicioServico || d.horaInicioExec || ""); // vazia = hora em que a OS foi aberta
           setDiasExecucao(d.diasExecucao ? d.diasExecucao.split(',').filter(Boolean) : []);
           setHoraInicioExec(d.horaInicioExec || horaAtualBR());
           setHoraChegada(d.horaChegada || "");
@@ -1118,7 +1161,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // estilos do cabeçalho Omie — copiados do PPVDrawer pra ficar IGUAL
   const L_OMIE: React.CSSProperties = { textTransform: "none", letterSpacing: 0, fontWeight: 500, color: "#64748b", fontSize: 12.5, display: "block", marginBottom: 5 };
   const R_OMIE: React.CSSProperties = { fontSize: 12, color: "#6b6259", marginBottom: 4 };
-  const B_OMIE: React.CSSProperties = { background: "#eceae4", border: "1px solid #d6d0c4", borderRadius: 4, height: 34, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 10px", fontSize: 14, color: "#4a453d", fontVariantNumeric: "tabular-nums" };
+  const B_OMIE: React.CSSProperties = { background: "var(--surface, #fefefe)", border: "1px solid var(--border)", borderRadius: 8, height: 40, display: "flex", alignItems: "center", justifyContent: "flex-end", padding: "0 12px", fontSize: 14, color: "inherit", fontVariantNumeric: "tabular-nums" };
   // versão discreta (linha compacta dentro do card Descrição do Serviço)
   const L_DISC: React.CSSProperties = { display: "block", fontSize: 11, color: "#94a3b8", fontWeight: 500, marginBottom: 3, textTransform: "none", letterSpacing: 0 };
   const I_DISC: React.CSSProperties = { marginBottom: 0, height: 30, fontSize: 12.5, padding: "0 8px" };
@@ -1128,22 +1171,29 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // (edit) e solto no painel da OS (create).
   const cardAlimentacao = (oculto: boolean, ordem?: number) => (
     <div id={mode === "create" ? "osc-almoco" : undefined} className="os-card" style={{ display: oculto ? "none" : undefined, order: ordem }}>
-      <div className="os-card-title"><i className="fas fa-utensils" /> Alimentação &amp; Dias do Serviço</div>
-      {/* Alimentação do Técnico (várias, sem limite) */}
-      <div style={{ marginTop: 10, padding: '10px 12px', background: alimentacoes.length ? '#FFFBEB' : 'var(--portal-bg-secondary)', border: `1px solid ${alimentacoes.length ? '#FCD34D' : 'var(--portal-border)'}`, borderRadius: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, color: '#1E3A5F' }}>
-            <i className="fas fa-utensils" style={{ color: '#D97706', fontSize: 12 }} />
-            Alimentação do técnico
-            {alimentacoes.length > 0 && (
-              <span style={{ fontSize: 11, color: '#92400E', fontWeight: 700 }}>· {alimentacoes.length} · R$ {alimentacoes.reduce((s, a) => s + (a.valor || 0), 0).toFixed(2)}</span>
-            )}
-          </span>
-          <button type="button" onClick={() => setAlimentacoes(prev => [...prev, { data: new Date().toISOString().slice(0, 10), valor: 0, tecnicos: [tecnico1].filter(Boolean), no_pdf: false }])}
-            style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '5px 10px', borderRadius: 6, border: 'none', background: '#D97706', color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
-            <i className="fas fa-plus" style={{ fontSize: 10 }} /> Adicionar
-          </button>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div className="os-card-title" style={{ margin: 0, padding: 0, border: 'none', flex: 1 }}>
+          <i className="fas fa-utensils" /> Alimentação &amp; Dias do Serviço
+          {alimentacoes.length > 0 && <span style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 800, padding: '2px 10px', borderRadius: 999, background: '#fef3c7', color: '#92400e', textTransform: 'none', letterSpacing: 0 }}>{alimentacoes.length} {alimentacoes.length === 1 ? 'dia' : 'dias'} · R$ {fmtBR(alimentacoes.reduce((s, a) => s + (a.valor || 0), 0))}</span>}
         </div>
+        <button type="button" onClick={() => setAlimentacoes(prev => [...prev, { data: new Date().toISOString().slice(0, 10), valor: 0, tecnicos: [tecnico1].filter(Boolean), no_pdf: false }])}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 34, padding: '0 14px', borderRadius: 9, border: 'none', background: '#D97706', color: '#fefefe', fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', boxShadow: '0 2px 6px rgba(217,119,6,.25)' }}>
+          <i className="fas fa-plus" /> Adicionar dia
+        </button>
+      </div>
+      {/* despesas que a alimentação já gerou (antes apareciam também na lista de Requisições) */}
+      {mode === 'edit' && requisicoes.some((r) => /^\s*alimenta/i.test(r.material || '')) && (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center', marginTop: 10, fontSize: 12, color: 'var(--portal-text-muted)' }}>
+          <i className="fas fa-receipt" /> Despesa gerada:
+          {requisicoes.filter((r) => /^\s*alimenta/i.test(r.material || '')).map((r) => (
+            <a key={r.id} href={`/requisicoes?req=${r.id}`} target="_blank" rel="noreferrer" title={r.material}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 10px', borderRadius: 999, border: '1px solid var(--border)', textDecoration: 'none', color: 'inherit', fontWeight: 700 }}>
+              #{r.id} <span style={{ fontSize: 10.5, padding: '0 6px', borderRadius: 999, background: r.atualizada ? '#dcfce7' : '#fef3c7', color: r.atualizada ? '#15803d' : '#92400e' }}>{r.atualizada ? 'OK' : 'Pendente'}</span>
+            </a>
+          ))}
+        </div>
+      )}
+      <div style={{ marginTop: 10 }}>
 
         {/* input escondido — o botão "anexar nota" de cada linha aponta pra cá */}
         <input
@@ -1158,8 +1208,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           }}
         />
         {alimentacoes.length === 0 && (
-          <div style={{ marginTop: 6, fontSize: 11, color: 'var(--portal-text-muted)', fontStyle: 'italic' }}>
-            Nenhuma alimentação. Clique em &quot;Adicionar&quot;.
+          <div style={{ textAlign: 'center', padding: '18px 12px', border: '1px dashed var(--border)', borderRadius: 12, color: 'var(--portal-text-muted)', fontSize: 13 }}>
+            Nenhuma alimentação lançada. Use <b>Adicionar dia</b>.
           </div>
         )}
 
@@ -1172,33 +1222,30 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
             { k: 'ambos', label: 'Ambos', on: !!tecnico2 },
           ]
           return (
-            <div key={i} style={{ marginTop: 8, padding: 8, background: '#fff', border: '1px solid #FCD34D', borderRadius: 6, display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            <div key={i} style={{ marginTop: 8, padding: '10px 12px', background: 'var(--surface, #fefefe)', border: '1px solid var(--border)', borderLeft: '3px solid #F59E0B', borderRadius: 10, display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
               <div style={{ width: 130 }}>
-                <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0 }}>Data</label>
-                <input type="date" value={a.data} onChange={(e) => upd({ data: e.target.value })} style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
+                <label style={{ fontSize: 11, color: '#64748b', margin: '0 0 4px', display: 'block', textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>Data</label>
+                <input type="date" value={a.data} onChange={(e) => upd({ data: e.target.value })} style={{ height: 34, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, width: '100%', marginBottom: 0 }} />
               </div>
               <div style={{ width: 96 }}>
-                <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0 }}>Valor (R$)</label>
-                <input type="number" min={0} step={0.01} value={a.valor || ''} onChange={(e) => upd({ valor: parseFloat(e.target.value) || 0 })} placeholder="0,00" style={{ padding: '6px 8px', border: '1px solid #D1D5DB', borderRadius: 6, fontSize: 13, width: '100%' }} />
+                <label style={{ fontSize: 11, color: '#64748b', margin: '0 0 4px', display: 'block', textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>Valor (R$)</label>
+                <input type="number" min={0} step={0.01} value={a.valor || ''} onChange={(e) => upd({ valor: parseFloat(e.target.value) || 0 })} placeholder="0,00" style={{ height: 34, padding: '0 8px', border: '1px solid var(--border)', borderRadius: 8, fontSize: 13, width: '100%', textAlign: 'right', marginBottom: 0 }} />
               </div>
               <div>
-                <label style={{ fontSize: 10, color: 'var(--portal-text-secondary)', margin: 0, display: 'block' }}>Técnico(s)</label>
-                <div style={{ display: 'flex', gap: 3 }}>
+                <label style={{ fontSize: 11, color: '#64748b', margin: '0 0 4px', display: 'block', textTransform: 'none', letterSpacing: 0, fontWeight: 600 }}>Técnico(s)</label>
+                <div style={{ display: 'inline-flex', padding: 3, gap: 2, borderRadius: 9, background: 'var(--portal-bg-secondary, #f1f5f9)', border: '1px solid var(--border)' }}>
                   {opts.map(opt => (
                     <button key={opt.k} type="button" disabled={!opt.on}
                       onClick={() => upd({ tecnicos: opt.k === 'ambos' ? [tecnico1, tecnico2].filter(Boolean) : opt.k === 'tec2' ? [tecnico2].filter(Boolean) : [tecnico1].filter(Boolean) })}
-                      style={{ padding: '6px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: opt.on ? 'pointer' : 'not-allowed',
-                        border: sel === opt.k ? '1px solid #D97706' : '1px solid #E5E7EB',
-                        background: sel === opt.k ? '#FEF3C7' : '#fff', color: sel === opt.k ? '#92400E' : '#9CA3AF', opacity: opt.on ? 1 : 0.4 }}>
+                      title={opt.k === 'tec1' ? tecnico1 : opt.k === 'tec2' ? tecnico2 : `${tecnico1} e ${tecnico2}`}
+                      style={{ height: 26, padding: '0 10px', borderRadius: 7, fontSize: 11.5, fontWeight: 700, cursor: opt.on ? 'pointer' : 'not-allowed', fontFamily: 'inherit',
+                        border: 'none', background: sel === opt.k ? '#D97706' : 'transparent', color: sel === opt.k ? '#fefefe' : '#64748b', opacity: opt.on ? 1 : 0.4 }}>
                       {opt.label}
                     </button>
                   ))}
                 </div>
               </div>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 5, cursor: 'pointer', fontSize: 12, color: a.no_pdf ? '#DC2626' : 'var(--portal-text-secondary)', paddingBottom: 6 }}>
-                <input type="checkbox" checked={a.no_pdf} onChange={(e) => upd({ no_pdf: e.target.checked })} style={{ accentColor: '#DC2626', width: 14, height: 14 }} />
-                Mostrar no PDF
-              </label>
+              <div style={{ paddingBottom: 6 }}><Chave ligada={a.no_pdf} onChange={(v) => upd({ no_pdf: v })} rotulo="Mostrar no PDF" /></div>
               {a.data && (() => {
                 const fotoNota = a.foto || fotosAlmocoDia[a.data];
                 if (fotoNota) {
@@ -1223,8 +1270,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   </span>
                 );
               })()}
-              <button type="button" onClick={() => setAlimentacoes(prev => prev.filter((_, idx) => idx !== i))} title="Remover" style={{ marginLeft: 'auto', width: 28, height: 28, borderRadius: 6, border: '1px solid #FECACA', background: '#FEF2F2', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
-                <i className="fas fa-times" style={{ fontSize: 12 }} />
+              <button type="button" onClick={() => setAlimentacoes(prev => prev.filter((_, idx) => idx !== i))} title="Remover este dia" style={{ marginLeft: 'auto', width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface, #fefefe)', color: '#DC2626', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', alignSelf: 'flex-end' }}>
+                <i className="fas fa-trash" style={{ fontSize: 12 }} />
               </button>
             </div>
           )
@@ -1476,41 +1523,54 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "stretch" }}>
                      <div style={{ flex: "1 1 520px", minWidth: 0 }}>
                       {/* Cliente + Previsão de Faturamento */}
-                      <div className="pos-osd-grid2" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
+                      <div className="pos-osd-grid2" style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr", gap: 18, alignItems: "start" }}>
                         <div>
                           <label style={L_OMIE}>Cliente</label>
-                          <div style={{ display: "flex", gap: 8 }}>
-                            <div style={{ width: 40, height: 34, borderRadius: 3, background: "#F5A623", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0 }}>
+                          <div className="osh-cli">
+                            <span className="osh-selo" title={clienteInfo.nome}>
                               {(clienteInfo.nome || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w: string) => w[0]).join("").toUpperCase() || "?"}
+                            </span>
+                            <div className="osh-caixa">
+                              <button type="button" className="osh-nome" onClick={() => setVerClienteOmie(true)} title="Ver as informações do cliente">
+                                <span className="osh-nome-txt">{clienteInfo.nome || "Sem cliente"}</span>
+                                {clienteInfo.cpf && <span className="osh-doc">{clienteInfo.cpf}</span>}
+                              </button>
+                              <button type="button" className="osh-ico" onClick={() => setVerClienteOmie(true)} title="Informações do cliente (cadastro no Omie)"><i className="fas fa-paperclip" /></button>
+                              <MaquinasClienteIcone doc={clienteInfo.cpf} className="osh-ico" botaoStyle={{ width: 42, height: "100%", border: "none", borderLeft: "1px solid var(--border)", borderRadius: 0, fontSize: 13 }} />
+                              {podeEditar && <button type="button" className="osh-ico" onClick={() => setMostrarTrocaCliente((o) => !o)} title="Trocar o cliente"><i className="fas fa-magnifying-glass" /></button>}
                             </div>
-                            <input type="text" value={`${clienteInfo.nome}${clienteInfo.cpf ? "   ·   " + clienteInfo.cpf : ""}`} readOnly onClick={() => podeEditar && setMostrarTrocaCliente((o) => !o)} placeholder="Clique na lupa para trocar o cliente..." style={{ marginBottom: 0, flex: 1, minWidth: 0, cursor: "pointer", fontWeight: 500 }} />
-                            <button type="button" onClick={() => podeEditar && setMostrarTrocaCliente((o) => !o)} title="Trocar cliente" style={{ flexShrink: 0, width: 40, borderRadius: 3, border: "1px solid var(--border)", background: "#fff", color: "#334155", cursor: "pointer" }}>
-                              <i className="fas fa-search" />
-                            </button>
-                            <MaquinasClienteIcone doc={clienteInfo.cpf} />
                           </div>
+                          <style>{`
+                            .osh-cli { display: flex; gap: 10px; align-items: stretch; }
+                            .osh-selo { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; letter-spacing: .5px;
+                              color: #fefefe; background: linear-gradient(135deg, #F7B23B, #E8890C); box-shadow: 0 2px 6px rgba(232,137,12,.3); }
+                            .osh-caixa { flex: 1; min-width: 0; display: flex; align-items: stretch; height: 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface, #fefefe); transition: border-color .15s, box-shadow .15s; }
+                            .osh-caixa > :first-child { border-radius: 10px 0 0 10px; }
+                            .osh-caixa > :last-child, .osh-caixa > :last-child > button { border-radius: 0 10px 10px 0 !important; }
+                            .osh-caixa > div { align-self: stretch !important; }
+                            .osh-caixa:hover { border-color: #0F8B8D; box-shadow: 0 0 0 3px rgba(15,139,141,.08); }
+                            .osh-nome { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; padding: 0 12px; border: none; background: transparent; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+                            .osh-nome-txt { font-size: 13.5px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                            .osh-doc { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
+                            .osh-ico { width: 42px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; border-left: 1px solid var(--border); background: transparent; color: #475569; cursor: pointer; font-size: 13px; transition: background .15s, color .15s; }
+                            .osh-ico:hover { background: color-mix(in srgb, #0F8B8D 10%, transparent) !important; color: #0B6E70 !important; }
+                          `}</style>
                         </div>
                         <div>
                           <label style={L_OMIE}>Previsão de Faturamento</label>
-                          <input type="date" value={previsaoFaturamento} disabled={!podeEditar} onChange={(e) => setPrevisaoFaturamento(e.target.value)} style={{ marginBottom: 0 }} />
+                          <input type="date" value={previsaoFaturamento} disabled={!podeEditar} onChange={(e) => { setPrevisaoFaturamento(e.target.value); setEsp((x) => ({ ...x, parcelas: [] })); }} style={{ marginBottom: 0 }} />
+                        </div>
+                        <div>
+                          <label style={L_OMIE}>Número de Parcelas</label>
+                          <SeletorCondicao esp={esp} setEsp={setEsp} podeEditar={podeEditar} listas={listasOmie.listas} />
                         </div>
                       </div>
 
                       {/* Técnicos · Desconto (estilo PPV) · Alimentação · marcações discretas */}
-                      <div className="pos-osd-grid5" style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr 0.9fr auto 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
+                      <div className="pos-osd-grid5" style={{ display: "grid", gridTemplateColumns: "2fr 0.9fr 1.3fr", gap: 14, marginTop: 12, alignItems: "end" }}>
                         <div>
-                          <label style={L_OMIE}>Técnico</label>
-                          <select value={tecnico1} disabled={!podeEditar} onChange={(e) => setTecnico1(e.target.value)} style={{ marginBottom: 0 }}>
-                            <option value="">Selecione...</option>
-                            {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
-                          </select>
-                        </div>
-                        <div>
-                          <label style={L_OMIE}>Segundo Técnico</label>
-                          <select value={tecnico2} disabled={!podeEditar} onChange={(e) => setTecnico2(e.target.value)} style={{ marginBottom: 0 }}>
-                            <option value="">Nenhum</option>
-                            {tecnicos.map((t) => <option key={t} value={t}>{t}</option>)}
-                          </select>
+                          <label style={L_OMIE}>Técnico(s)</label>
+                          <SeletorTecnicos tecnicos={tecnicos} t1={tecnico1} t2={tecnico2} podeEditar={podeEditar} onChange={(a, b) => { setTecnico1(a); setTecnico2(b); }} />
                         </div>
                         <div>
                           <div style={R_OMIE}>
@@ -1539,20 +1599,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             )}
                           </div>
                         </div>
-                        <button type="button" onClick={() => { setAba("ppv"); setAbaOmie("requisicoes"); }}
-                          title="Ver/adicionar alimentação do técnico (aba Requisições & Alimentação)"
-                          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", borderRadius: 4, border: "1px solid #d6d0c4", background: "#fff", color: "#B45309", fontSize: 12.5, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>
-                          <i className="fas fa-utensils" /> Alimentação{alimentacoes.length > 0 ? ` (${alimentacoes.length})` : ""}
-                        </button>
-                        <div className="pos-osd-checks" style={{ display: "flex", gap: 16, alignItems: "center", height: 34 }}>
-                          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#64748b", fontWeight: 500, cursor: "pointer", textTransform: "none", letterSpacing: 0, margin: 0, whiteSpace: "nowrap" }}>
-                            <input type="checkbox" checked={servicoOficina} onChange={(e) => setServicoOficina(e.target.checked)} disabled={!podeEditar} style={{ marginBottom: 0 }} />
-                            Serviço na oficina
-                          </label>
-                          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, color: "#64748b", fontWeight: 500, cursor: "pointer", textTransform: "none", letterSpacing: 0, margin: 0, whiteSpace: "nowrap" }}>
-                            <input type="checkbox" checked={servicoInterno} onChange={(e) => setServicoInterno(e.target.checked)} disabled={!podeEditar} style={{ marginBottom: 0 }} />
-                            Ordem interna
-                          </label>
+                        <div className="pos-osd-checks" style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "center", minHeight: 40 }}>
+                          <Chave ligada={servicoOficina} desab={!podeEditar} onChange={(v) => setServicoOficina(v)} rotulo="Serviço na oficina" />
+                          <Chave ligada={servicoInterno} desab={!podeEditar} onChange={(v) => { setServicoInterno(v); setEsp((x) => aplicarInterna(x, v)); }} rotulo={servicoInterno ? "Ordem interna — conta INTERNO" : "Ordem interna"} />
                         </div>
                       </div>
                      </div>{/* fim coluna esquerda do cabeçalho */}
@@ -1576,30 +1625,76 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         Lista de Serviços
                       </button>
                       <button type="button" className={`os-tab ${aba === "ppv" && abaOmie === "produtos" ? "active" : ""}`} onClick={() => { setAba("ppv"); setAbaOmie("produtos"); }}>
-                        Lista de Produtos
+                        PPV vinculado
                         {produtos.length > 0 && <span className="os-tab-badge">{produtos.length}</span>}
                       </button>
                       <button type="button" className={`os-tab ${aba === "ppv" && abaOmie === "requisicoes" ? "active" : ""}`} onClick={() => { setAba("ppv"); setAbaOmie("requisicoes"); }}>
                         Requisições &amp; Alimentação
-                        {(requisicoes.length + alimentacoes.length) > 0 && <span className="os-tab-badge">{requisicoes.length + alimentacoes.length}</span>}
+                        {(() => { const n = requisicoes.filter((r) => !/^\s*alimenta/i.test(r.material || "")).length + alimentacoes.length; return n > 0 ? <span className="os-tab-badge">{n}</span> : null; })()}
                       </button>
-                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "relatorio" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("relatorio"); }}>
-                        Relatório Técnico
-                      </button>
-                      <button type="button" className={`os-tab ${aba === "os" && abaOmie === "garantia" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("garantia"); }}>
-                        Garantia
-                      </button>
+                      {([["deptos", "Departamentos"], ["info", "Informações Adicionais"], ["parcelas", "Parcelas"], ["email", "E-mail para o Cliente"]] as const).map(([k, t]) => (
+                        <button key={k} type="button" className={`os-tab ${aba === "os" && abaOmie === k ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie(k); }}>{t}</button>
+                      ))}
+                      {/* Relatório Técnico e Garantia agora ficam dentro de Informações Adicionais (José, 14/10/2026) */}
                       <button type="button" className={`os-tab ${aba === "os" && abaOmie === "obs" ? "active" : ""}`} onClick={() => { setAba("os"); setAbaOmie("obs"); }}>
                         Observações
-                      </button>
-                      <button type="button" className="os-tab" onClick={() => setShowLogs(!showLogs)}>
-                        Histórico
                       </button>
                     </div>
                   )}
 
                   {/* ── Painel: Ordem de Serviço ── */}
                   <div className="os-tab-panel" data-aba={mode === "edit" ? abaOmie : undefined} style={{ display: aba === "os" ? "flex" : "none" }}>
+
+                  {/* abas do formato Omie: os cartões das outras abas somem (regra aqui p/ não depender do CSS global) */}
+                  <style>{`.os-tab-panel[data-aba="servicos"] .os-aba:not(.os-aba-servicos), .os-tab-panel[data-aba="dados"] .os-aba:not(.os-aba-dados), .os-tab-panel[data-aba="relatorio"] .os-aba:not(.os-aba-relatorio), .os-tab-panel[data-aba="alimentacao"] .os-aba:not(.os-aba-alimentacao), .os-tab-panel[data-aba="garantia"] .os-aba:not(.os-aba-garantia), .os-tab-panel[data-aba="obs"] .os-aba:not(.os-aba-obs), .os-tab-panel[data-aba="produtos"] .os-aba, .os-tab-panel[data-aba="requisicoes"] .os-aba, .os-tab-panel[data-aba="deptos"] .os-aba, .os-tab-panel[data-aba="info"] .os-aba:not(.os-aba-relatorio):not(.os-aba-garantia), .os-tab-panel[data-aba="parcelas"] .os-aba, .os-tab-panel[data-aba="email"] .os-aba { display: none !important; }`}</style>
+                  {/* ── Formato Omie (13/10/2026): grade de serviços + abas novas ── */}
+                  {mode === "edit" && abaOmie === "servicos" && (() => {
+                    // dias de execução (sem domingos) entre início e fim — mesma regra do cartão da criação
+                    const diasEntreDatas = (ini: string, fim: string) => {
+                      if (!ini || !fim) return;
+                      const a = new Date(ini + "T12:00:00"), b = new Date(fim + "T12:00:00");
+                      if (a > b) return;
+                      const dias: string[] = [];
+                      for (const cur = new Date(a); cur <= b; cur.setDate(cur.getDate() + 1)) if (cur.getDay() !== 0) dias.push(cur.toISOString().slice(0, 10));
+                      setDiasExecucao(dias);
+                    };
+                    return (
+                      <div className="os-card os-aba os-aba-servicos">
+                        <div className="os-card-title"><i className="fas fa-calendar-check" /> Execução e assinatura</div>
+                        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+                          <div style={{ width: 135 }}>
+                            <label style={L_DISC}>Data Início</label>
+                            <input type="date" value={previsaoExecucao} disabled={!podeEditar} onChange={(e) => { setPrevisaoExecucao(e.target.value); diasEntreDatas(e.target.value, dataFimServico); }} style={I_DISC} />
+                          </div>
+                          <div style={{ width: 135 }}>
+                            <label style={L_DISC}>Data Fim</label>
+                            <input type="date" value={dataFimServico} disabled={!podeEditar} onChange={(e) => { setDataFimServico(e.target.value); diasEntreDatas(previsaoExecucao, e.target.value); }} style={I_DISC} />
+                          </div>
+                          <div style={{ width: 105 }}>
+                            <label style={L_DISC}>Hora Início</label>
+                            <input type="time" value={horaInicioServico} disabled={!podeEditar} onChange={(e) => setHoraInicioServico(e.target.value)} style={I_DISC} />
+                          </div>
+                        </div>
+                        {tipoServico === "Revisão" && osId && <ChequeRevisaoBloco osId={osId} podeEditar={podeEditar} />}
+                        {osId && <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />}
+                      </div>
+                    );
+                  })()}
+                  {mode === "edit" && abaOmie === "servicos" && (
+                    <div className="os-card os-aba os-aba-servicos" style={{ order: -4.6 }}>
+                      <div className="os-card-title"><i className="fas fa-list" /> Lista de Serviços</div>
+                      <GradeServicosOmie listas={listasOmie.listas} osOmie={listasOmie.os} interna={servicoInterno} podeEditar={podeEditar}
+                        servSolicitado={servSolicitado} setServSolicitado={setServSolicitado}
+                        qtdHoras={qtdHoras} setQtdHoras={handleQtdHorasChange} valorHora={VH} setValorHora={(v) => setUnitHr(v > 0 ? v : null)} descHora={descHoraEf}
+                        qtdKm={qtdKm} setQtdKm={setQtdKm} valorKm={VK} setValorKm={(v) => setUnitKm(v > 0 ? v : null)} descKm={descKmEf}
+                        requisicoes={requisicoes} tipoServico={tipoServico} revisao={revisao} projeto={projeto} esp={esp} setEsp={setEsp} />
+                    </div>
+                  )}
+                  {mode === "edit" && abaOmie === "deptos" && <div className="os-card" style={{ order: -4.6 }}><AbaDepartamentos esp={esp} setEsp={setEsp} listas={listasOmie.listas} total={total} podeEditar={podeEditar} /></div>}
+                  {mode === "edit" && abaOmie === "info" && <div className="os-card" style={{ order: -4.6 }}><AbaInfoAdicionais esp={esp} setEsp={setEsp} listas={listasOmie.listas} interna={servicoInterno} projeto={projeto} onTrocarProjeto={podeEditar ? () => setShowProjModal(true) : undefined} onNovaMaquina={podeEditar ? () => setShowNovaMaquina(true) : undefined} numOmie={ordemOmie} ppv={ppv} oficina={servicoOficina} cnpj={clienteInfo?.cpf || ""} pedidoCliente={String(pedidoVenda || "").split(",").map((x) => x.split(":").pop()?.trim().replace(/^0+(?=\d)/, "")).filter(Boolean).join(", ")} podeEditar={podeEditar} /></div>}
+                  {mode === "edit" && abaOmie === "parcelas" && <div className="os-card" style={{ order: -4.6 }}><AbaParcelas esp={esp} setEsp={setEsp} previsao={previsaoFaturamento} total={total} interna={servicoInterno} faturada={!!listasOmie.os && (listasOmie.os.InfoCadastro as { cFaturada?: string } | undefined)?.cFaturada === "S"} podeEditar={podeEditar} /></div>}
+                  {mode === "edit" && abaOmie === "email" && <div className="os-card" style={{ order: -4.6 }}><AbaEmail esp={esp} setEsp={setEsp} interna={servicoInterno} podeEditar={podeEditar} emailCliente={String(listasOmie.cliente?.email || "")} /></div>}
+                  {verClienteOmie && <ClienteOmieModal cliente={listasOmie.cliente} cnpj={clienteInfo?.cpf || ""} fechar={() => setVerClienteOmie(false)} />}
 
                   {mode === "edit" && pendenciaMahindra.length > 0 && (
                     <div className="os-alert os-alert-vermelho" style={{ order: -5.95 }} title="Marcado pelo Vigia de revisões. Some sozinho quando o cheque for enviado na tela de Revisões.">
@@ -1626,11 +1721,32 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
                   {/* ── Omie: números enviados + log (edit mode) ── */}
                   {mode === "edit" && (ordemOmie || pedidoVenda || omieLog) && (
-                    <div className="os-card" style={{ order: -5.5, borderLeft: "3px solid #0EA5E9" }}>
+                    <div className="os-card os-aba os-aba-servicos" style={{ order: -5.5, borderLeft: "3px solid #0EA5E9" }}>
                       <div className="os-card-title" style={{ display: "flex", alignItems: "center", gap: 8 }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src="/marcas/omie.png" alt="Omie" style={{ height: 16, width: "auto" }} /> Enviado ao Omie
+                        {podeSubstituir && ordemOmie && (
+                          <button type="button" onClick={() => setSubstituindo(true)} title="Trocar a OS ou um pedido de venda no Omie (o antigo é cancelado)"
+                            style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, padding: "5px 11px", borderRadius: 8, border: "1px solid var(--border, #e2e8f0)", background: "var(--surface, #fefefe)", color: "#0369A1", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", textTransform: "none", letterSpacing: 0 }}>
+                            <i className="fas fa-right-left" /> Substituir OS ou pedido
+                          </button>
+                        )}
                       </div>
+                      {substituindo && osId && (
+                        <SubstituirOmieModal osId={osId} ordemOmie={ordemOmie}
+                          pedidos={Object.entries(ppvOmieMap).map(([ppvId, numero]) => ({ ppvId, numero }))}
+                          onClose={() => setSubstituindo(false)}
+                          onFeito={async () => {
+                            try {
+                              const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
+                              if (d?.ordemOmie !== undefined) setOrdemOmie(d.ordemOmie || "");
+                              if (d?.pedidoVenda !== undefined) setPedidoVenda(d.pedidoVenda || "");
+                            } catch { /* a lista recarrega */ }
+                            setOmieRefresh((k) => k + 1);
+                            setLogRefreshKey((k) => k + 1);
+                            onSaved?.();
+                          }} />
+                      )}
                       <div style={{ display: "flex", flexWrap: "wrap", gap: 10, marginBottom: omieLog ? 8 : 0 }}>
                         {ordemOmie && (
                           <div style={{ flex: "1 1 180px", padding: "8px 12px", borderRadius: 10, background: "var(--portal-bg-secondary, #f8fafc)" }}>
@@ -1827,7 +1943,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   {/* (13/10/2026) o card "Enviado para Omie (ID …)" saiu: repetia o card
                       "Enviado ao Omie" do topo e o bloco Omie da coluna da direita */}
                   {mode === "edit" && !ordemOmie && servicoInterno && status === "Concluída" && (
-                    <div className="os-card" style={{ order: 20 }}>
+                    <div className="os-card os-aba os-aba-servicos" style={{ order: 20 }}>
                       <div className="os-card-title"><i className="fas fa-cloud-upload-alt" /> Concluir ordem interna</div>
                       <div className="os-omie-badge" style={{ background: '#F3E8FF', color: '#6D28D9', borderColor: '#C4B5FD' }}>
                         <i className="fas fa-check-circle" /> Ordem interna concluída (sem peças)
@@ -1844,7 +1960,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   )}
 
                   {/* ── Unidades rastreadas (QR) retiradas pra esta OS ── */}
-                  {mode === "edit" && osId && <OSUnidadesInfo osId={osId} />}
+                  {mode === "edit" && osId && <div className="os-aba os-aba-servicos" style={{ display: "contents" }}><OSUnidadesInfo osId={osId} /></div>}
 
 
                   {/* ── Situação do preenchimento (app do técnico) ── */}
@@ -2237,15 +2353,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
 
                   {/* ── Descrição (aba Lista de Serviços, no lugar da antiga tabela) ── */}
-                  <div id="osc-servico" className="os-card os-aba os-aba-servicos" style={{ order: -4.5 }}>
+                  <div id="osc-servico" className="os-card os-aba os-aba-servicos" style={{ order: -4.5, display: mode === "edit" ? "none" : undefined }}>
                     <div className="os-card-title">
                       {mode === "create" && <span className={`osc-num${solicitacaoPreenchida ? " ok" : ""}`}>{solicitacaoPreenchida ? <i className="fas fa-check" /> : 3}</span>}
-                      <i className="fas fa-align-left" /> Descrição do Serviço
+                      <i className={mode === "edit" ? "fas fa-calendar-check" : "fas fa-align-left"} /> {mode === "edit" ? "Execução e assinatura" : "Descrição do Serviço"}
                     </div>
                     {/* Linha discreta: atendimento, projeto, datas e hora
                         (na criação, atendimento e projeto já estão nos blocos de cima) */}
                     <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
-                      {mode !== "create" && <>
+                      {false && <>
                       <div style={{ width: 130 }}>
                         <label style={L_DISC}>Atendimento</label>
                         <select value={tipoServico} disabled={!podeEditar} onChange={(e) => setTipoServico(e.target.value)} style={I_DISC}>
@@ -2301,7 +2417,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <input type="time" value={horaInicioServico} disabled={!podeEditar} onChange={(e) => setHoraInicioServico(e.target.value)} style={I_DISC} />
                       </div>
                     </div>
-                    {tipoServico === "Revisão" && (
+                    {tipoServico === "Revisão" && mode === "create" && (
                       <div style={{ width: 320, maxWidth: "100%", marginBottom: 12 }}>
                         <label style={L_DISC}>Plano de Revisão</label>
                         <input type="text" value={revisao} readOnly onClick={() => podeEditar && setShowRevModal(true)} placeholder="Escolher plano..." style={{ ...I_DISC, cursor: "pointer" }} />
@@ -2313,8 +2429,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     {mode === "edit" && osId && (
                       <AssinaturaClienteBloco osId={osId} podeEditar={podeEditar} />
                     )}
-                    <textarea rows={10} value={servSolicitado} onChange={(e) => setServSolicitado(e.target.value)} style={S_MONO_MB0} />
-                    <div style={{ display: "flex", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
+                    {/* na edição o texto e horas/km ficam na Lista de Serviços (formato Omie) */}
+                    {mode === "create" && <textarea rows={10} value={servSolicitado} onChange={(e) => setServSolicitado(e.target.value)} style={S_MONO_MB0} />}
+                    {mode === "create" && <div style={{ display: "flex", gap: 16, marginTop: 12, flexWrap: "wrap" }}>
                       <div style={{ width: 160 }}>
                         <label>Qtd. Horas</label>
                         <input type="number" value={qtdHoras} onChange={(e) => handleQtdHorasChange(parseFloat(e.target.value || "0"))} style={{ marginBottom: 0 }} />
@@ -2325,7 +2442,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <input type="number" value={qtdKm} onChange={(e) => setQtdKm(parseFloat(e.target.value || "0"))} style={{ marginBottom: 0 }} />
                         <div className="os-field-hint">x R$ {Number(VK).toFixed(2)} = R$ {Number(subtotalKm).toFixed(2)}</div>
                       </div>
-                    </div>
+                    </div>}
                   </div>
 
                   {/* ── Observações (campo próprio, aba Observações) ── */}
@@ -2371,8 +2488,20 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   {mode === "edit" && (
                     <div className="os-card" style={{ display: abaOmie === "requisicoes" ? "none" : undefined }}>
                       <div className="os-card-title"><i className="fas fa-boxes" /> Materiais &amp; Requisições</div>
-                      <label>PPV (Separe por vírgula)</label>
-                      <input type="text" value={ppv} onChange={(e) => setPpv(e.target.value)} onBlur={() => loadPPV(ppv)} />
+                      {/* PPVs vinculados: escolher numa janela (José, 14/10/2026) — antes era texto separado por vírgula */}
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 10 }}>
+                        <span style={{ fontSize: 12, fontWeight: 700, color: "var(--portal-text-muted)", textTransform: "uppercase", letterSpacing: .4 }}>PPVs vinculados</span>
+                        {ppvIds.length ? ppvIds.map((pid) => <span key={pid} style={{ fontSize: 12.5, fontWeight: 700, padding: "3px 10px", borderRadius: 999, background: "color-mix(in srgb, #0369A1 10%, transparent)", color: "#0369A1" }}>{pid}</span>) : <span style={{ fontSize: 12.5, color: "var(--portal-text-muted)" }}>nenhum</span>}
+                        {podeEditar && osId && (
+                          <button type="button" onClick={() => setEditarPPVs(true)} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 7, padding: "6px 14px", borderRadius: 9, border: "1px solid #0369A1", background: "transparent", color: "#0369A1", fontWeight: 700, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit" }}>
+                            <i className="fas fa-pen" /> Editar PPVs vinculados
+                          </button>
+                        )}
+                      </div>
+                      {editarPPVs && osId && (
+                        <EditarPPVsModal osId={osId} cliente={clienteInfo?.nome || ""} vinculados={ppvIds} onClose={() => setEditarPPVs(false)}
+                          onSalvo={(nova) => { setPpv(nova); loadPPV(nova); setLogRefreshKey((k) => k + 1); onSaved?.(); }} />
+                      )}
 
                       {/* OS sem PPV: cria um vinculado na hora (qualquer etapa) —
                           garantia recebe as peças DEPOIS do serviço */}
@@ -2445,94 +2574,89 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
                     </div>
                   )}
-                  {/* ── Requisições da OS (aba própria) ── */}
-                  {mode === "edit" && (
+                  {/* ── Requisições da OS (aba própria). As de ALIMENTAÇÃO (automáticas) ficam no cartão
+                      de Alimentação — antes apareciam nos dois (José, 14/10/2026) ── */}
+                  {mode === "edit" && (() => {
+                    const ehAlim = (r: { material: string }) => /^\s*alimenta/i.test(r.material || "");
+                    const reqs = requisicoes.filter((r) => !ehAlim(r));
+                    const totalReqs = reqs.reduce((t, r) => t + (r.valor || 0), 0);
+                    const thR: React.CSSProperties = { padding: "9px 12px", fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "#64748b", textAlign: "left", background: "var(--portal-bg-secondary, #f6f8f9)", borderBottom: "1px solid var(--border)", whiteSpace: "nowrap" };
+                    const tdR: React.CSSProperties = { padding: "10px 12px", fontSize: 13, borderTop: "1px solid var(--border)", verticalAlign: "middle" };
+                    const icoBtn = (cor: string): React.CSSProperties => ({ width: 30, height: 30, borderRadius: 8, border: "1px solid var(--border)", background: "var(--surface, #fefefe)", color: cor, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 12 });
+                    return (
                     <div className="os-card" style={{ display: abaOmie === "requisicoes" ? undefined : "none" }}>
-                      <div className="os-card-title"><i className="fas fa-shopping-cart" /> Requisições da OS</div>
-                      {requisicoes.length > 0 && (
-                        <div style={S_MT12}>
-                          <label>Requisições Vinculadas ({requisicoes.length})</label>
-                          <div style={{ fontSize: 11, color: "var(--portal-text-muted)", marginBottom: 4 }}>
-                            <i className="fas fa-print" style={{ marginRight: 4 }} />Desmarque &quot;Mostrar no PDF&quot; pra tirar a requisição da folha e do total impresso (vale só nesta impressão).
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+                        <div className="os-card-title" style={{ margin: 0, padding: 0, border: "none", flex: 1 }}><i className="fas fa-shopping-cart" /> Requisições da OS {reqs.length > 0 && <span style={{ marginLeft: 6, fontSize: 11, fontWeight: 800, padding: "1px 8px", borderRadius: 999, background: "var(--portal-bg-secondary)", color: "#475569" }}>{reqs.length}</span>}</div>
+                        <button type="button" onClick={() => setNovaReqOS(true)}
+                          style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", borderRadius: 9, border: "none", background: "#0F8B8D", color: "#fefefe", fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 2px 6px rgba(15,139,141,.25)" }}>
+                          <i className="fas fa-plus" /> Nova requisição
+                        </button>
+                      </div>
+                      {reqs.length === 0 ? (
+                        <div style={{ textAlign: "center", padding: "22px 12px", border: "1px dashed var(--border)", borderRadius: 12, color: "var(--portal-text-muted)", fontSize: 13 }}>
+                          <i className="fas fa-cart-plus" style={{ fontSize: 22, opacity: .5, display: "block", marginBottom: 6 }} />
+                          Nenhuma requisição nesta OS. Use <b>Nova requisição</b> — ela já sai preenchida com a OS.
+                        </div>
+                      ) : (
+                        <div style={{ border: "1px solid var(--border)", borderRadius: 12, overflow: "hidden" }}>
+                          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                            <thead><tr>
+                              <th style={thR}>Nº</th><th style={thR}>Situação</th><th style={thR}>Descrição</th><th style={thR}>Solicitante</th>
+                              <th style={{ ...thR, textAlign: "right" }}>Valor</th><th style={{ ...thR, textAlign: "center" }} title="Desligado = fora da folha e do total impresso (só nesta impressão)">No PDF</th><th style={thR} />
+                            </tr></thead>
+                            <tbody>
+                              {reqs.map((r) => (
+                                <Fragment key={r.id}>
+                                  <tr>
+                                    <td style={{ ...tdR, fontWeight: 800 }}><a href={`/requisicoes?req=${r.id}`} target="_blank" rel="noreferrer" style={{ color: "inherit", textDecoration: "none" }}>#{r.id}</a></td>
+                                    <td style={tdR}><span style={{ fontSize: 11, fontWeight: 700, padding: "2px 9px", borderRadius: 999, background: r.atualizada ? "#dcfce7" : "#fef3c7", color: r.atualizada ? "#15803d" : "#92400e" }}>{r.atualizada ? "OK" : "Pendente"}</span></td>
+                                    <td style={{ ...tdR, maxWidth: 360 }}><span style={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={r.material}>{r.material}</span></td>
+                                    <td style={{ ...tdR, color: "var(--portal-text-muted)", whiteSpace: "nowrap" }}>{r.solicitante && r.solicitante !== "N/A" ? r.solicitante : "—"}</td>
+                                    <td style={{ ...tdR, textAlign: "right", fontWeight: 700, whiteSpace: "nowrap" }}>{r.valor > 0 ? `R$ ${fmtBR(r.valor)}` : "—"}</td>
+                                    <td style={{ ...tdR, textAlign: "center" }}><Chave ligada={!reqsOcultasPrint.has(r.id)} onChange={() => toggleReqPrint(r.id)} rotulo="" /></td>
+                                    <td style={{ ...tdR, whiteSpace: "nowrap", textAlign: "right" }}>
+                                      <span style={{ display: "inline-flex", gap: 6 }}>
+                                        <button type="button" onClick={() => window.open(`/requisicoes/imprimir/${r.id}`, "_blank")} title="Imprimir esta requisição" style={icoBtn("#0F8B8D")}><i className="fas fa-print" /></button>
+                                        <button type="button" onClick={() => { setDesvinculandoReq(desvinculandoReq === r.id ? null : r.id); setJustificativaDesvinc(""); }} title="Desvincular da OS" style={icoBtn("#dc2626")}><i className="fas fa-link-slash" /></button>
+                                      </span>
+                                    </td>
+                                  </tr>
+                                  {desvinculandoReq === r.id && (
+                                    <tr><td colSpan={7} style={{ ...tdR, background: "#fff7f7" }}>
+                                      <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                                        <span style={{ fontSize: 12.5, fontWeight: 700, color: "#7f1d1d" }}>Desvincular a #{r.id}:</span>
+                                        <input autoFocus type="text" placeholder="Justificativa (obrigatória)" value={justificativaDesvinc} onChange={(e) => setJustificativaDesvinc(e.target.value)}
+                                          style={{ flex: 1, minWidth: 220, height: 34, padding: "0 10px", fontSize: 13, borderRadius: 8, border: "1px solid #fca5a5", marginBottom: 0 }} />
+                                        <button type="button" disabled={!justificativaDesvinc.trim()}
+                                          onClick={async () => {
+                                            await fetch("/api/pos/requisicoes/desvincular", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ reqId: r.id, justificativa: justificativaDesvinc.trim(), usuario: userName || "Admin" }) });
+                                            setRequisicoes((prev) => prev.filter((x) => x.id !== r.id)); setDesvinculandoReq(null); setJustificativaDesvinc("");
+                                          }}
+                                          style={{ height: 34, padding: "0 14px", borderRadius: 8, border: "none", background: justificativaDesvinc.trim() ? "#dc2626" : "#fca5a5", color: "#fefefe", fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>Desvincular</button>
+                                        <button type="button" onClick={() => { setDesvinculandoReq(null); setJustificativaDesvinc(""); }} style={{ height: 34, padding: "0 12px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontFamily: "inherit" }}>Cancelar</button>
+                                      </div>
+                                    </td></tr>
+                                  )}
+                                </Fragment>
+                              ))}
+                            </tbody>
+                          </table>
+                          <div style={{ display: "flex", justifyContent: "space-between", padding: "9px 12px", fontSize: 12, borderTop: "1px solid var(--border)", background: "var(--portal-bg-secondary, #f6f8f9)", color: "var(--portal-text-muted)" }}>
+                            <span><i className="fas fa-print" /> “No PDF” desligado tira a requisição da folha impressa da OS</span>
+                            <b style={{ color: "var(--portal-text)" }}>Total R$ {fmtBR(totalReqs)}</b>
                           </div>
-                          <div className="os-req-list">
-                            {requisicoes.map((r, i) => (
-                              <div key={i} className="os-req-item" style={{ flexWrap: "wrap", gap: 6 }}>
-                                <span style={S_REQ_BOLD}>#{r.id}</span>
-                                <span className={`os-req-badge ${r.atualizada ? "ok" : ""}`}>{r.atualizada ? "OK" : "Pendente"}</span>
-                                <span style={S_REQ_MATERIAL}>{r.material}</span>
-                                {r.valor > 0 && <span style={{ fontSize: 12, fontWeight: 700, color: "#059669" }}>R$ {r.valor.toFixed(2)}</span>}
-                                {r.solicitante && r.solicitante !== "N/A" && <span style={{ fontSize: 11, color: "var(--portal-text-muted)" }}>({r.solicitante})</span>}
-                                <label title="Desmarcada = fora da folha e do total impresso" style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", fontSize: 12, fontWeight: 600, color: reqsOcultasPrint.has(r.id) ? "var(--portal-text-secondary)" : "#DC2626", margin: 0, textTransform: "none", letterSpacing: 0 }}>
-                                  <input type="checkbox" checked={!reqsOcultasPrint.has(r.id)} onChange={() => toggleReqPrint(r.id)} style={{ accentColor: "#DC2626", width: 14, height: 14, margin: 0 }} />
-                                  Mostrar no PDF
-                                </label>
-                                <button type="button" onClick={() => window.open(`/requisicoes/imprimir/${r.id}`, "_blank")} title="Imprimir esta requisição"
-                                  style={{ fontSize: 10.5, color: "#0d9488", background: "none", border: "none", cursor: "pointer", fontWeight: 700 }}>
-                                  <i className="fas fa-print" style={{ marginRight: 3 }} /> Imprimir
-                                </button>
-                                {/* Desvincular */}
-                                {desvinculandoReq === r.id ? (
-                                  <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6, marginTop: 4 }}>
-                                    <input
-                                      type="text"
-                                      placeholder="Justificativa obrigatória..."
-                                      value={justificativaDesvinc}
-                                      onChange={(e) => setJustificativaDesvinc(e.target.value)}
-                                      style={{ padding: "6px 10px", fontSize: 12, borderRadius: 6, border: "1px solid var(--portal-border)", width: "100%" }}
-                                    />
-                                    <div style={{ display: "flex", gap: 6 }}>
-                                      <button
-                                        onClick={async () => {
-                                          if (!justificativaDesvinc.trim()) { alert("Preencha a justificativa."); return; }
-                                          await fetch("/api/pos/requisicoes/desvincular", {
-                                            method: "POST",
-                                            headers: { "Content-Type": "application/json" },
-                                            body: JSON.stringify({ reqId: r.id, justificativa: justificativaDesvinc.trim(), usuario: userName || "Admin" }),
-                                          });
-                                          setRequisicoes(prev => prev.filter(x => x.id !== r.id));
-                                          setDesvinculandoReq(null);
-                                          setJustificativaDesvinc("");
-                                        }}
-                                        style={{ fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 6, border: "none", background: "#DC2626", color: "#fff", cursor: "pointer" }}
-                                      >
-                                        Confirmar
-                                      </button>
-                                      <button
-                                        onClick={() => { setDesvinculandoReq(null); setJustificativaDesvinc(""); }}
-                                        style={{ fontSize: 11, fontWeight: 700, padding: "5px 12px", borderRadius: 6, border: "1px solid var(--portal-border)", background: "var(--portal-bg-card)", color: "var(--portal-text-secondary)", cursor: "pointer" }}
-                                      >
-                                        Cancelar
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <button
-                                    onClick={() => setDesvinculandoReq(r.id)}
-                                    style={{ fontSize: 10, color: "#DC2626", background: "none", border: "none", cursor: "pointer", fontWeight: 600, marginLeft: "auto" }}
-                                  >
-                                    Desvincular
-                                  </button>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                          {totalRequisicoes > 0 && (
-                            <div style={{ fontSize: 13, fontWeight: 700, color: "#059669", marginTop: 8, textAlign: "right" }}>
-                              Total Requisições: R$ {totalRequisicoes.toFixed(2)}
-                            </div>
-                          )}
                         </div>
                       )}
-                      {requisicoes.length === 0 && (
-                        <div style={{ fontSize: 13.5, color: "var(--text-light)", padding: "4px 0 12px" }}>Nenhuma requisição vinculada a esta OS ainda.</div>
+                      {novaReqOS && osId && (
+                        <NovaRequisicaoOSModal osId={osId} tecnico={tecnico1} userName={userName || ""} onClose={() => setNovaReqOS(false)}
+                          onCriada={async () => {
+                            try { const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json()); setRequisicoes(d.infoRequisicoes || []); } catch { /* a lista recarrega ao reabrir */ }
+                            setLogRefreshKey((k) => k + 1);
+                          }} />
                       )}
-                      <button type="button" onClick={() => window.open("/requisicoes?aba=form", "_blank")}
-                        style={{ width: "100%", padding: "11px", borderRadius: 8, border: "none", background: "#0d9488", color: "#fff", fontSize: 13.5, fontWeight: 700, cursor: "pointer" }}>
-                        <i className="fas fa-plus" style={{ marginRight: 6 }} /> Criar requisição
-                      </button>
                     </div>
-                  )}
+                    );
+                  })()}
                   {/* ── Alimentação & Dias do Serviço — mesma aba das requisições ── */}
                   {mode === "edit" && cardAlimentacao(abaOmie !== "requisicoes")}
 
@@ -2552,7 +2676,25 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           </div>
 
           {/* ── Coluna de ações à direita (estilo Omie) ── */}
-          <div className="os-action-rail">
+          <div className="os-action-rail os-rail-nova">
+            {/* visual da coluna (José, 14/10/2026) — aqui dentro p/ não depender do CSS global */}
+            <style>{`
+              .os-rail-nova { gap: 10px !important; padding: 14px 12px !important; background: var(--portal-bg-secondary, #f6f8f9) !important; }
+              .os-rail-nova .os-rail-btn.primary { height: 46px; border-radius: 12px; font-size: 14.5px; font-weight: 800; letter-spacing: .2px;
+                background: linear-gradient(135deg, #22d3ee, #0BB7CD 50%, #0891A8) !important; box-shadow: 0 6px 16px rgba(8,145,168,.3); margin-bottom: 2px; }
+              .os-rail-nova .os-rail-btn.primary:hover { filter: brightness(1.05); }
+              .os-rail-nova .os-rail-btn.primary i { width: auto; background: none; }
+              .os-rail-acoes { background: var(--surface, #fefefe); border: 1px solid var(--border); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+              .os-rail-acoes-titulo { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: #94a3b8; padding: 6px 8px 4px; }
+              .os-rail-nova .os-rail-acoes .os-rail-btn { gap: 10px; padding: 7px 8px; font-size: 13.5px; font-weight: 600; border-radius: 9px; color: var(--portal-text, #1f2d3d); }
+              .os-rail-nova .os-rail-acoes .os-rail-btn i { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px;
+                background: color-mix(in srgb, #0891A8 11%, transparent); color: #0891A8; }
+              .os-rail-nova .os-rail-acoes .os-rail-btn:hover:not(:disabled) { background: color-mix(in srgb, #0891A8 7%, transparent); }
+              .os-rail-nova .os-rail-perigo { background: var(--surface, #fefefe); border: 1px solid color-mix(in srgb, #C62828 25%, var(--border)); border-radius: 12px; padding: 6px; }
+              .os-rail-nova .os-rail-perigo .os-rail-btn { gap: 10px; padding: 7px 8px; font-size: 13.5px; font-weight: 700; border-radius: 9px; color: #C62828 !important; }
+              .os-rail-nova .os-rail-perigo .os-rail-btn i { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; background: #fee2e2; color: #C62828 !important; }
+              .os-rail-nova .os-rail-perigo .os-rail-btn:hover { background: #fef2f2; }
+            `}</style>
             <button
               className="os-rail-btn primary"
               onClick={salvar}
@@ -2594,8 +2736,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       </div>
                       {!ordemOmie && (
                         <>
-                          {/* Só a fase "Enviar Omie" libera o envio (José, 13/10/2026) */}
-                          {status === "Enviar Omie" ? (
+                          {/* Qualquer fase, desde que solicitação + serviço realizado estejam preenchidos (José, 13/10/2026) */}
+                          {faltaOmie.length === 0 ? (
                             <>
                               <div style={{ fontSize: 11.5, color: "var(--portal-text-muted)", padding: "0 2px", lineHeight: 1.4 }}>
                                 A OS está pronta para ir ao Omie. Ao enviar, ela vira uma OS no Omie e o pedido de peças vai junto.
@@ -2612,8 +2754,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                             <div style={{ display: "flex", gap: 8, padding: "8px 10px", borderRadius: 9, background: "var(--surface)", border: "1px dashed color-mix(in srgb, #0BB7CD 50%, var(--border))" }}>
                               <i className="fas fa-lock" style={{ color: "#0891A8", fontSize: 12, marginTop: 2 }} />
                               <div style={{ fontSize: 11.5, lineHeight: 1.45, color: "var(--portal-text-secondary, #475569)" }}>
-                                <b style={{ color: "var(--portal-text)" }}>Ainda não está no Omie.</b> O envio libera quando a OS chegar na fase <b>Enviar Omie</b>.
-                                <div style={{ marginTop: 3, color: "var(--portal-text-muted)" }}>Fase agora: {status || "—"}</div>
+                                <b style={{ color: "var(--portal-text)" }}>Ainda não está no Omie.</b> O envio libera quando a <b>Solicitação do cliente</b> e o <b>Serviço Realizado</b> estiverem preenchidos na descrição da OS.
+                                <div style={{ marginTop: 3, color: "var(--portal-text-muted)" }}>Falta preencher: {faltaOmie.join(" e ")}</div>
                               </div>
                             </div>
                           )}
@@ -2630,6 +2772,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         <FaturamentoOSBloco
                           osId={osId}
                           ordemOmie={ordemOmie}
+                          abrirAoCarregar={abrirFaturar}
                           onFaturado={async () => {
                             try {
                               const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
@@ -2703,6 +2846,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                               <button className="os-printmenu-item" onClick={() => imprimirOS(false)} style={printMenuItem}>
                                 <i className="fas fa-file-lines" style={{ width: 16, color: "#64748b" }} /> Sem as peças
                               </button>
+                              {/* relatório do técnico entra no MESMO menu (antes era um 2º botão — redundante) */}
+                              {relatorioTecnico && (
+                                <button className="os-printmenu-item" onClick={() => { setPrintMenu(false); window.open(relatorioTecnico, "_blank", "noopener"); }} style={printMenuItem}
+                                  title="Abre o relatório preenchido pelo técnico (PDF) numa aba nova">
+                                  <i className="fas fa-file-pdf" style={{ width: 16, color: "#0369A1" }} /> Relatório técnico
+                                </button>
+                              )}
                               {reqsOcultasPrint.size > 0 && (
                                 <div style={{ fontSize: 10.5, color: "#B45309", padding: "2px 10px 4px" }}>
                                   <i className="fas fa-eye-slash" style={{ marginRight: 4 }} />{reqsOcultasPrint.size} requisição(ões) fora da impressão (aba Requisições &amp; Alimentação)
@@ -2723,12 +2873,6 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           </>
                         )}
                       </div>
-                      {relatorioTecnico && (
-                        <button className="os-rail-btn" onClick={() => window.open(relatorioTecnico, "_blank", "noopener")}
-                          title="Abre o relatório preenchido pelo técnico (PDF) numa aba nova — é só mandar imprimir">
-                          <i className="fas fa-file-pdf" /> Imprimir relatório técnico
-                        </button>
-                      )}
                     <>
                       {osId && (
                         <>
@@ -2761,6 +2905,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     </div>
                   );
                 })()}
+                <div className="os-rail-acoes">
+                <div className="os-rail-acoes-titulo">Ações</div>
                 <button className="os-rail-btn" onClick={() => setShowTarefas(true)} disabled={!osId} title="Tarefas desta OS (atribuir a alguém, lembrete, concluir)" style={{ position: "relative" }}>
                   <i className="fas fa-tasks" /> Tarefas
                   {tarefasPendentes > 0 && <span style={{ marginLeft: "auto", minWidth: 20, height: 20, padding: "0 6px", borderRadius: 10, background: "#c2570a", color: "#fefefe", fontSize: 11.5, fontWeight: 800, display: "inline-flex", alignItems: "center", justifyContent: "center" }} title={`${tarefasPendentes} tarefa(s) pendente(s)`}>{tarefasPendentes}</span>}
@@ -2811,13 +2957,13 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                 )}
 
                 {(garantiaVinculada || /garantia/i.test(tipoServico)) && (
-                  <button className="os-rail-btn" onClick={() => { setAba("os"); setAbaOmie("garantia"); }}>
+                  <button className="os-rail-btn" onClick={() => { setAba("os"); setAbaOmie("info"); }}>
                     <i className="fas fa-shield-halved" /> Garantia
                   </button>
                 )}
 
                 <button className="os-rail-btn" onClick={() => setShowLogs(!showLogs)}>
-                  <i className="fas fa-clock-rotate-left" /> Histórico de Alterações
+                  <i className="fas fa-clock-rotate-left" /> Histórico
                 </button>
 
                 {podeOcorrencia && (
@@ -2825,6 +2971,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     <i className="fas fa-triangle-exclamation" /> Registrar Ocorrência
                   </button>
                 )}
+                </div>
 
 
               </>
@@ -2832,10 +2979,11 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
 
             {mode === "edit" && podeCancelar && status !== "Cancelada" && (
               <>
-                <div className="os-rail-sep" />
-                <button className="os-rail-btn" style={{ color: "#C62828" }} onClick={() => mudarStatus("Cancelada")}>
-                  <i className="fas fa-ban" style={{ color: "#C62828" }} /> Cancelar OS
-                </button>
+                <div className="os-rail-perigo">
+                  <button className="os-rail-btn" onClick={() => mudarStatus("Cancelada")}>
+                    <i className="fas fa-ban" /> Cancelar OS
+                  </button>
+                </div>
               </>
             )}
           </div>

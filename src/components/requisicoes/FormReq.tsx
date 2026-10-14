@@ -15,7 +15,13 @@ const EMPRESAS = {
   CASTRO: { nome: "CASTRO MÁQUINAS E PEÇAS AGRÍCOLAS LTDA", endereco: "RUA DOUTOR FARTURA, 140 | FARTURA - SP" }
 };
 
-export default function FormReq({ onSave, osInicial }: { onSave: (data: any) => void; osInicial?: string | null }) {
+export default function FormReq({ onSave, osInicial, solicitanteInicial, chaveRascunho = RASCUNHO_NOVA_REQ }: {
+  onSave: (data: any) => void; osInicial?: string | null;
+  /** POS: já vem o técnico principal da OS como solicitante (casado pelo nome com o usuário do portal) */
+  solicitanteInicial?: string;
+  /** POS usa um rascunho por OS, pra não misturar com a tela de Requisições */
+  chaveRascunho?: string;
+}) {
   const [usuarios, setUsuarios] = useState<any[]>([]);
   const [veiculos, setVeiculos] = useState<any[]>([]);
 
@@ -71,7 +77,7 @@ export default function FormReq({ onSave, osInicial }: { onSave: (data: any) => 
     setTagsSelecionadas(d?.tagsSelecionadas || []); setGruposSel(d?.gruposSel || []);
     setOsBusca(d?.osBusca || ''); setSolBusca(d?.solBusca || ''); setProjBusca(d?.projBusca || ''); setCliBusca(d?.cliBusca || '');
   };
-  const rascunho = useRascunho<DadosRascunho>(RASCUNHO_NOVA_REQ, dadosRascunho, {
+  const rascunho = useRascunho<DadosRascunho>(chaveRascunho, dadosRascunho, {
     vazio: (d) => {
       const ignorar = new Set(['data', 'empresa', 'endereco_empr', 'status']);
       const mudou = Object.entries(d.formData || {}).some(([k, v]) => !ignorar.has(k) && String(v ?? '') !== String((formInicial.current as Record<string, unknown>)[k] ?? ''));
@@ -121,14 +127,18 @@ export default function FormReq({ onSave, osInicial }: { onSave: (data: any) => 
   // como Trator-Cliente com a OS, o cliente e o chassis dela. Uma vez só.
   const osAplicada = useRef(false);
   useEffect(() => {
-    if (!osInicial || osAplicada.current || ordensAbertas.length === 0) return;
+    if (!osInicial || osAplicada.current || ordensAbertas.length === 0 || usuarios.length === 0) return;
     const o = ordensAbertas.find(x => String(x.Id_Ordem) === osInicial);
     if (!o) return;
     osAplicada.current = true;
-    setFormData(p => ({ ...p, setor: 'Trator-Cliente', ordem_servico: String(o.Id_Ordem), cliente: o.Os_Cliente || p.cliente, cliente_cnpj: o.Cnpj_Cliente || p.cliente_cnpj }));
+    // solicitante = técnico principal (OS) casado com o usuário do portal, sem acento/caixa
+    const sem = (t: string) => String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+    const alvoSol = sem(solicitanteInicial || o.Os_Tecnico || '');
+    const usuSol = alvoSol ? (usuarios.find(u => sem(u.nome) === alvoSol) || usuarios.find(u => sem(u.nome).startsWith(alvoSol) || alvoSol.startsWith(sem(u.nome)))) : null;
+    setFormData(p => ({ ...p, setor: 'Trator-Cliente', ordem_servico: String(o.Id_Ordem), cliente: o.Os_Cliente || p.cliente, cliente_cnpj: o.Cnpj_Cliente || p.cliente_cnpj, solicitante: usuSol?.nome || p.solicitante, data: new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10) }));
     puxarDadosOS(o);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [osInicial, ordensAbertas]);
+  }, [osInicial, ordensAbertas, usuarios]);
 
   // Fechar dropdowns ao clicar fora
   useEffect(() => {

@@ -8,13 +8,20 @@ interface Maquina { modelo: string; chassis: string; empresa: string; ultima_rev
 
 const cache = new Map<string, Maquina[]>();
 
-export default function MaquinasClienteIcone({ doc }: { doc?: string | null }) {
+export default function MaquinasClienteIcone({ doc, className, botaoStyle }: { doc?: string | null; className?: string; botaoStyle?: React.CSSProperties }) {
   const documento = String(doc || "").trim();
   const [aberto, setAberto] = useState(false);
   const [maquinas, setMaquinas] = useState<Maquina[] | null>(null);
   const [carregando, setCarregando] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [copiado, setCopiado] = useState<number | null>(null);
+  // copia o projeto como está no portal: "MODELO CHASSIS"
+  const copiar = async (m: Maquina, i: number) => {
+    const txt = [m.modelo, m.chassis].filter(Boolean).join(" ").trim();
+    try { await navigator.clipboard.writeText(txt); } catch { return; }
+    setCopiado(i); setTimeout(() => setCopiado((x) => (x === i ? null : x)), 1400);
+  };
 
   const carregar = async () => {
     if (!documento || maquinas) return;
@@ -53,7 +60,8 @@ export default function MaquinasClienteIcone({ doc }: { doc?: string | null }) {
         type="button"
         title="Máquinas deste cliente (modelo + chassis)"
         onClick={(e) => { e.stopPropagation(); carregar(); setAberto((o) => !o); }}
-        style={{ width: 34, height: 34, borderRadius: 3, border: "1px solid var(--border, #E2E8F0)", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}
+        className={className}
+        style={{ width: 34, height: 34, borderRadius: 3, border: "1px solid var(--border, #E2E8F0)", background: "transparent", color: "#64748b", cursor: "pointer", fontSize: 14, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, ...botaoStyle }}
       >
         <i className="fas fa-tractor" />
       </button>
@@ -73,6 +81,10 @@ export default function MaquinasClienteIcone({ doc }: { doc?: string | null }) {
                   <span style={{ fontSize: 13, fontWeight: 700, color: "#1e293b", whiteSpace: "nowrap" }}>{m.modelo || "Máquina"}</span>
                   <span style={{ fontSize: 11.5, fontFamily: "monospace", color: "#64748b", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>{m.chassis || "sem chassis"}</span>
                   {m.ultima_revisao?.horas && <span style={{ fontSize: 10.5, fontWeight: 700, color: "#0891B2", whiteSpace: "nowrap" }}>rev. {m.ultima_revisao.horas}h</span>}
+                  <button type="button" title={copiado === i ? "Copiado!" : "Copiar o projeto (modelo + chassis)"} onClick={(e) => { e.stopPropagation(); copiar(m, i); }}
+                    style={{ alignSelf: "center", flexShrink: 0, width: 26, height: 26, borderRadius: 6, border: "1px solid #e2e8f0", background: copiado === i ? "#dcfce7" : "#fff", color: copiado === i ? "#15803d" : "#64748b", cursor: "pointer", fontSize: 11.5, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    <i className={copiado === i ? "fas fa-check" : "far fa-copy"} />
+                  </button>
                 </div>
               ))}
             </div>

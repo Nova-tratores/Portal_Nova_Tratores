@@ -10,6 +10,7 @@ const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
 // Base do portal, pra montar os links de acesso que vão nas observações do Omie.
 import { PORTAL_BASE } from "@/lib/portal-url";
 import { omie } from "@/lib/omie/porta";
+import { dadosAdicionaisAuto } from "@/lib/pos/omie-espelho";
 
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
@@ -350,13 +351,13 @@ function montarServicos(os: Record<string, unknown>): ServicoItem[] {
 }
 
 /** Monta serviços base + serviços "div." para cada requisição vinculada */
-async function montarServicosComReqs(os: Record<string, unknown>, idOrdem: string): Promise<ServicoItem[]> {
+export async function montarServicosComReqs(os: Record<string, unknown>, idOrdem: string): Promise<ServicoItem[]> {
   const servicos = montarServicos(os);
 
   // Busca requisições vinculadas à OS
   const { data: reqs } = await supabase
     .from("Requisicao")
-    .select("id, titulo, valor_cobrado_cliente, valor_despeza")
+    .select("id, titulo, tipo, valor_cobrado_cliente, valor_despeza")
     .eq("ordem_servico", idOrdem)
     .not("status", "in", '("lixeira","cancelada")');
 
@@ -364,6 +365,8 @@ async function montarServicosComReqs(os: Record<string, unknown>, idOrdem: strin
     const nCodDiv = await buscarNcodServDiv();
     if (nCodDiv) {
       for (const r of reqs) {
+        // Alimentação do técnico é despesa interna: NÃO vira serviço na OS do Omie (José, 14/10/2026)
+        if (/alimenta/i.test(String(r.tipo || "")) || /^\s*alimenta/i.test(String(r.titulo || ""))) continue;
         const valorCliente = r.valor_cobrado_cliente ? parseFloat(r.valor_cobrado_cliente) : 0;
         const valorDespeza = r.valor_despeza ? parseFloat(r.valor_despeza) : 0;
         const valor = valorCliente > 0 ? valorCliente : valorDespeza;
@@ -383,14 +386,9 @@ async function montarServicosComReqs(os: Record<string, unknown>, idOrdem: strin
   return servicos;
 }
 
-function montarDadosAdic(os: Record<string, unknown>): string {
-  const partes: string[] = [];
-  if (os.ID_PPV) partes.push(`PPV: ${os.ID_PPV}`);
-  if (os.Projeto) partes.push(`Chassis/Projeto: ${os.Projeto}`);
-  if (os.Id_Req) partes.push(`Req: ${os.Id_Req}`);
-  // Marca no Omie quando o serviço foi feito na oficina (não no cliente)
-  if (os.Servico_Oficina) partes.push("Serviço realizado na oficina Nova Tratores (Piraju-SP)");
-  return partes.join(" | ").substring(0, 500);
+export function montarDadosAdic(os: Record<string, unknown>): string {
+  // mesma regra que a tela da OS mostra (lib/pos/omie-espelho.ts)
+  return dadosAdicionaisAuto({ ppv: os.ID_PPV, projeto: os.Projeto, idReq: os.Id_Req, oficina: os.Servico_Oficina });
 }
 
 // Observações da OS no Omie. Antes guardava o "Plano de Revisão"; agora, no

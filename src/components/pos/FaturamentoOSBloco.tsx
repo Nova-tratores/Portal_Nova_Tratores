@@ -25,9 +25,11 @@ const COR = {
   vermelho: { bg: "#fef2f2", bd: "#fecaca", tx: "#b91c1c" },
 };
 
-export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
+export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirAoCarregar = false }: {
   osId: string;
   ordemOmie: string;
+  /** botão Faturar da capa do card: abre a janela sozinho (uma vez) quando der para faturar */
+  abrirAoCarregar?: boolean;
   onFaturado: () => void;
 }) {
   const [estado, setEstado] = useState<Estado | null>(null);
@@ -51,10 +53,14 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado }: {
     authHeaders()
       .then((h) => fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/faturar?reconciliar=1`, { headers: h }))
       .then((r) => (r.ok ? r.json() : null))
-      .then((j) => { if (!cancel) setEstado(j); })
+      .then((j) => {
+        if (cancel) return;
+        setEstado(j);
+        if (abrirAoCarregar && j?.habilitado && j?.enviadaOmie && j?.podeFaturar && !j?.faturadoEm) setAberto(true);
+      })
       .catch(() => { /* sem bloco */ });
     return () => { cancel = true; };
-  }, [osId, ordemOmie]);
+  }, [osId, ordemOmie, abrirAoCarregar]);
 
   if (!estado || !estado.habilitado || !estado.enviadaOmie) return null;
 

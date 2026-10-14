@@ -8,6 +8,7 @@
 // certeza?". A OS só vai para Concluída quando a OS e os pedidos estão faturados.
 import { useEffect, useMemo, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
+import ConferenciaOmie from "@/components/comum/ConferenciaOmie";
 import { parcelasDoPagamento } from "@/lib/pagamento/parcelas";
 import { validarCampos, type CamposFiscais } from "@/lib/pos/modelo-fiscal";
 import CamposFiscaisEditor, { paraTela, type ValoresTela } from "./CamposFiscaisEditor";
@@ -63,10 +64,12 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
   const [salvarParaCliente, setSalvarParaCliente] = useState(false);
   const [etapa, setEtapa] = useState<Etapa>("escolher");
   const [escopo, setEscopo] = useState<Escopo>("os");
+  // portal × Omie conferidos (e alinhados) antes de qualquer faturamento
+  const [conferido, setConferido] = useState(false);
 
   useEffect(() => {
     // o bloco só monta esta janela quando ela abre: o estado já nasce limpo
-    if (!open) return;
+    if (!open || !conferido) return;
     let cancel = false;
     (async () => {
       try {
@@ -86,7 +89,7 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
       if (!cancel) setCarregando(false);
     })();
     return () => { cancel = true; };
-  }, [open, osId]);
+  }, [open, osId, conferido]);
 
   // parcelas sobre o LÍQUIDO (total − retidos). Se os impostos mudarem as retenções,
   // a Omie recalcula e o servidor refaz as parcelas sobre o valor novo.
@@ -103,6 +106,7 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
   const mexeRetencao = Object.keys(validacaoImpostos.campos).some((k) => /^cRetem|^nAliq(ISS|IRRF|PIS|COFINS|CSLL|INSS)$/.test(k));
 
   if (!open) return null;
+  if (!conferido) return <ConferenciaOmie alvo={{ tipo: "os", osId }} onOk={() => setConferido(true)} onCancelar={onClose} />;
 
   const elegiveis = (previa?.ppvs || []).filter((p) => !p.motivoFora && !!previa?.podeFaturarPecas);
   const pecasJunto = escopo === "os" ? [] : (previa?.ppvs || []).filter((p) => ppvsMarcados.has(p.id));

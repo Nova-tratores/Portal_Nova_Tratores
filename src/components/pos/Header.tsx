@@ -3,8 +3,13 @@
 import { useState, useRef, useEffect } from "react";
 import { gateBtn, estiloSemPermissao } from "@/lib/permissoes/ui";
 import ProjetosBusca from "./ProjetosBusca";
+import { normName } from "@/lib/tecnico-utils";
+import { BTN_BARRA } from "./botoes-barra";
 
-export interface PerfilTecnico { nome: string; avatar: string }
+export interface PerfilTecnico { nome: string; avatar: string; inativo?: boolean }
+
+// "JOSE ANTONIO DE OLIVEIRA" → "Jose Antonio de Oliveira"
+const nomeBonito = (n: string) => n.trim().toLowerCase().replace(/(^|\s)(\S)/g, (_m, a: string, b: string) => a + b.toUpperCase()).replace(/ (De|Da|Do|Dos|Das|E) /g, (m) => m.toLowerCase());
 
 interface HeaderProps {
   searchTerm: string;
@@ -21,9 +26,11 @@ interface HeaderProps {
   tecnicosPerfil?: PerfilTecnico[];
   tecnicoFiltro?: string;
   onTecnicoFiltro?: (nome: string) => void;
+  /** OS em aberto por técnico (chave = normName do nome) */
+  abertasPorTecnico?: Record<string, number>;
 }
 
-export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true, tecnicosPerfil = [], tecnicoFiltro = "", onTecnicoFiltro }: HeaderProps) {
+export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport, onLembretes, tecnicos = [], valorHora, valorKm, onConfigSaved, podeCriar = true, tecnicosPerfil = [], tecnicoFiltro = "", onTecnicoFiltro, abertasPorTecnico = {} }: HeaderProps) {
   const [showFiltroRelatorio, setShowFiltroRelatorio] = useState(false);
   const [filtroTecnico, setFiltroTecnico] = useState("todos");
   const [filtroTipo, setFiltroTipo] = useState("todas");
@@ -43,6 +50,7 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
   }, [menuOpen]);
   // Dropdown do filtro de técnicos (escondido por padrão)
   const [tecOpen, setTecOpen] = useState(false);
+  const [tecBusca, setTecBusca] = useState("");
   const tecRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!tecOpen) return;
@@ -98,77 +106,86 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
 
         {tecnicosPerfil.length > 0 && (() => {
           const sel = tecnicosPerfil.find((t) => t.nome === tecnicoFiltro) || null;
-          const bolinha = (t: PerfilTecnico, tam: number, ativo: boolean) => t.avatar ? (
-            <img src={t.avatar} alt={t.nome} style={{
-              width: tam, height: tam, borderRadius: "50%", objectFit: "cover",
-              border: ativo ? "3px solid #0369A1" : "2px solid var(--border, #E4D9C8)",
-              boxShadow: ativo ? "0 0 0 3px rgba(56,189,248,0.35)" : "none",
-            }} />
-          ) : (
-            <span style={{
-              width: tam, height: tam, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
-              background: "linear-gradient(135deg, #38BDF8, #0369A1)", color: "#111111", fontWeight: 800, fontSize: tam / 2.6,
-              border: ativo ? "3px solid #0369A1" : "2px solid transparent",
-              boxShadow: ativo ? "0 0 0 3px rgba(56,189,248,0.35)" : "none", boxSizing: "border-box",
-            }}>{t.nome.trim().charAt(0).toUpperCase()}</span>
+          const bolinha = (t: PerfilTecnico, tam: number, marcado = false) => (
+            <span style={{ position: "relative", width: tam, height: tam, flexShrink: 0, filter: t.inativo ? "grayscale(1)" : "none", opacity: t.inativo ? 0.6 : 1 }}>
+              {t.avatar ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={t.avatar} alt={t.nome} style={{ width: tam, height: tam, borderRadius: "50%", objectFit: "cover", display: "block",
+                  boxShadow: marcado ? "0 0 0 2px var(--surface, #fefefe), 0 0 0 4px #0369A1" : "0 0 0 1px var(--border, #E4D9C8)" }} />
+              ) : (
+                <span style={{ width: tam, height: tam, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "color-mix(in srgb, #0369A1 14%, var(--surface, #fefefe))", color: "#0369A1", fontWeight: 800, fontSize: tam / 2.5,
+                  boxShadow: marcado ? "0 0 0 2px var(--surface, #fefefe), 0 0 0 4px #0369A1" : "none" }}>{t.nome.trim().charAt(0).toUpperCase()}</span>
+              )}
+            </span>
           );
+          const q = normName(tecBusca);
+          const casa = (t: PerfilTecnico) => !q || normName(t.nome).includes(q);
+          const ordenar = (l: PerfilTecnico[]) => [...l].sort((a, b) => (abertasPorTecnico[normName(b.nome)] || 0) - (abertasPorTecnico[normName(a.nome)] || 0) || a.nome.localeCompare(b.nome, "pt-BR"));
+          const ativos = ordenar(tecnicosPerfil.filter((t) => !t.inativo && casa(t)));
+          const linha = (t: PerfilTecnico) => {
+            const marcado = tecnicoFiltro === t.nome;
+            const n = abertasPorTecnico[normName(t.nome)] || 0;
+            return (
+              <button key={t.nome} type="button"
+                onClick={() => { onTecnicoFiltro?.(marcado ? "" : t.nome); setTecOpen(false); setTecBusca(""); }}
+                title={marcado ? `Filtrando por ${t.nome} — clique pra limpar` : `Ver só as OS de ${t.nome}`}
+                className="pos-tec-linha" data-marcado={marcado ? "1" : undefined}
+                style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", border: "none", borderRadius: 9, cursor: "pointer", padding: "6px 8px", fontFamily: "inherit",
+                  background: marcado ? "color-mix(in srgb, #0369A1 10%, transparent)" : "transparent", color: t.inativo ? "var(--portal-text-muted, #94a3b8)" : "var(--portal-text, #111827)" }}>
+                {bolinha(t, 30, marcado)}
+                <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 13, fontWeight: marcado ? 800 : 600 }}>{nomeBonito(t.nome)}</span>
+                {n > 0 && <span title={`${n} OS em aberto`} style={{ fontSize: 11, fontWeight: 800, padding: "1px 8px", borderRadius: 999, background: "var(--portal-bg-secondary, #eef2f6)", color: "var(--portal-text-secondary, #475569)", fontVariantNumeric: "tabular-nums" }}>{n}</span>}
+                {marcado && <i className="fas fa-check" style={{ color: "#0369A1", fontSize: 12 }} />}
+              </button>
+            );
+          };
           return (
             <div style={{ position: "relative" }} ref={tecRef}>
-              {/* Fechado por padrão: só o botão (mostra o técnico filtrado, se houver) */}
-              <button
-                onClick={() => setTecOpen((o) => !o)}
-                title="Filtrar por técnico"
-                style={{
-                  display: "flex", alignItems: "center", gap: 8, padding: "7px 14px", borderRadius: 10,
-                  border: tecnicoFiltro ? "2px solid #0369A1" : "1.5px solid var(--border, #E4D9C8)",
-                  background: "#fff", cursor: "pointer", color: "#111827", fontWeight: 700, fontSize: 13,
-                }}
-              >
-                {sel ? bolinha(sel, 26, true) : <i className="fas fa-user-cog" style={{ color: "#0369A1" }} />}
-                {sel ? sel.nome.trim().split(/\s+/)[0] : "Técnicos"}
-                <i className="fas fa-chevron-down" style={{ fontSize: 10, transform: tecOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+              <button type="button" onClick={() => setTecOpen((o) => !o)} title="Filtrar por técnico"
+                style={{ ...BTN_BARRA, ...(tecnicoFiltro ? { borderColor: "#0369A1", background: "color-mix(in srgb, #0369A1 8%, var(--surface, #fefefe))" } : {}) }}>
+                {sel ? bolinha(sel, 24) : (
+                  <span style={{ display: "flex" }}>
+                    {tecnicosPerfil.filter((t) => !t.inativo).slice(0, 3).map((t, i) => (
+                      <span key={t.nome} style={{ marginLeft: i ? -8 : 0, borderRadius: "50%", boxShadow: "0 0 0 2px var(--surface, #fefefe)" }}>{bolinha(t, 22)}</span>
+                    ))}
+                  </span>
+                )}
+                {sel ? nomeBonito(sel.nome).split(" ")[0] : "Técnicos"}
+                {sel ? (
+                  <span role="button" title="Limpar filtro" onClick={(e) => { e.stopPropagation(); onTecnicoFiltro?.(""); }}
+                    style={{ marginLeft: 2, width: 18, height: 18, borderRadius: 9, display: "inline-flex", alignItems: "center", justifyContent: "center", background: "#0369A1", color: "#fefefe", fontSize: 10 }}>
+                    <i className="fas fa-times" />
+                  </span>
+                ) : <i className="fas fa-chevron-down" style={{ fontSize: 10, opacity: .6, transform: tecOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />}
               </button>
 
               {tecOpen && (
-                <div style={{
-                  position: "absolute", left: 0, top: "calc(100% + 8px)", zIndex: 1000,
-                  width: 290, maxWidth: "88vw", maxHeight: "60vh", overflowY: "auto",
-                  background: "#fff", borderRadius: 14,
-                  border: "1px solid #E4D9C8", boxShadow: "0 12px 32px rgba(0,0,0,0.18)", padding: 6,
-                }}>
-                  {tecnicoFiltro && (
-                    <button onClick={() => { onTecnicoFiltro?.(""); setTecOpen(false); }}
-                      style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", background: "transparent", border: "none", borderRadius: 9, cursor: "pointer", padding: "8px 10px", color: "#DC2626", fontWeight: 700, fontSize: 13 }}
-                      onMouseEnter={(e) => (e.currentTarget.style.background = "#FEF2F2")}
-                      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}>
-                      <span style={{ width: 32, height: 32, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "#FEE2E2", border: "2px solid #FCA5A5", boxSizing: "border-box", flexShrink: 0 }}>
-                        <i className="fas fa-times" />
-                      </span>
-                      Limpar filtro
-                    </button>
-                  )}
-                  {[...tecnicosPerfil].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")).map((t) => {
-                    const ativo = tecnicoFiltro === t.nome;
-                    return (
-                      <button
-                        key={t.nome}
-                        onClick={() => { onTecnicoFiltro?.(ativo ? "" : t.nome); setTecOpen(false); }}
-                        title={ativo ? `Filtrando por ${t.nome} — clique pra limpar` : `Filtrar OS de ${t.nome}`}
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left",
-                          background: ativo ? "#E0F2FE" : "transparent", border: "none", borderRadius: 9,
-                          cursor: "pointer", padding: "7px 10px",
-                          color: "#111827", fontWeight: ativo ? 800 : 600, fontSize: 13.5,
-                        }}
-                        onMouseEnter={(e) => { if (!ativo) e.currentTarget.style.background = "#F3EDE3"; }}
-                        onMouseLeave={(e) => { if (!ativo) e.currentTarget.style.background = "transparent"; }}
-                      >
-                        {bolinha(t, 32, ativo)}
-                        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.nome}</span>
-                        {ativo && <i className="fas fa-check" style={{ marginLeft: "auto", color: "#0369A1" }} />}
+                <div style={{ position: "absolute", left: 0, top: "calc(100% + 8px)", zIndex: 1000, width: 300, maxWidth: "88vw",
+                  background: "var(--surface, #fefefe)", borderRadius: 14, border: "1px solid var(--border, #E4D9C8)", boxShadow: "0 16px 40px rgba(15,23,42,0.18)", overflow: "hidden" }}>
+                  <div style={{ padding: 8, borderBottom: "1px solid var(--border, #eef2f7)" }}>
+                    <div style={{ position: "relative" }}>
+                      <i className="fas fa-search" style={{ position: "absolute", left: 10, top: "50%", transform: "translateY(-50%)", fontSize: 12, color: "var(--portal-text-muted, #94a3b8)" }} />
+                      <input autoFocus value={tecBusca} onChange={(e) => setTecBusca(e.target.value)} placeholder="Buscar técnico…"
+                        style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px 7px 30px", borderRadius: 8, border: "1px solid var(--border, #E4D9C8)", background: "var(--portal-bg-secondary, #f8fafc)", fontSize: 13, color: "var(--portal-text, #111827)", fontFamily: "inherit" }} />
+                    </div>
+                  </div>
+                  <div style={{ maxHeight: "55vh", overflowY: "auto", padding: 6 }}>
+                    {!q && (
+                      <button type="button" onClick={() => { onTecnicoFiltro?.(""); setTecOpen(false); }}
+                        className="pos-tec-linha"
+                        style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", border: "none", borderRadius: 9, cursor: "pointer", padding: "6px 8px", fontFamily: "inherit",
+                          background: !tecnicoFiltro ? "color-mix(in srgb, #0369A1 10%, transparent)" : "transparent", color: "var(--portal-text, #111827)" }}>
+                        <span style={{ width: 30, height: 30, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--portal-bg-secondary, #eef2f6)", color: "#0369A1", flexShrink: 0 }}><i className="fas fa-users" style={{ fontSize: 12 }} /></span>
+                        <span style={{ flex: 1, fontSize: 13, fontWeight: !tecnicoFiltro ? 800 : 600 }}>Todos os técnicos</span>
+                        {!tecnicoFiltro && <i className="fas fa-check" style={{ color: "#0369A1", fontSize: 12 }} />}
                       </button>
-                    );
-                  })}
+                    )}
+                    {/* só os técnicos ativos (os inativados não aparecem — José, 14/10/2026) */}
+                    {ativos.map(linha)}
+                    {!ativos.length && <div style={{ padding: "14px 8px", textAlign: "center", fontSize: 12.5, color: "var(--portal-text-muted, #94a3b8)" }}>Nenhum técnico com esse nome.</div>}
+                  </div>
+                  <style>{`.pos-tec-linha:not([data-marcado]):hover { background: var(--portal-bg-secondary, #f1f5f9) !important; }`}</style>
                 </div>
               )}
             </div>
@@ -180,44 +197,37 @@ export default function Header({ searchTerm, onSearch, onNewOS, onGenerateReport
 
         <div className="header-actions">
           <button className="btn-top btn-new" onClick={onNewOS} {...gateBtn(podeCriar)}
-            style={{ background: "linear-gradient(135deg, #38BDF8, #0369A1)", color: "#111111", border: "none", ...estiloSemPermissao(podeCriar) }}>
-            <i className="fas fa-plus" /> NOVA ORDEM
+            style={{ ...BTN_BARRA, background: "#0369A1", borderColor: "#0369A1", color: "#fefefe", boxShadow: "0 2px 8px rgba(3,105,161,.3)", ...estiloSemPermissao(podeCriar) }}>
+            <i className="fas fa-plus" /> Nova ordem
           </button>
 
           <div style={{ position: "relative" }} ref={menuRef}>
-            <button className="btn-top btn-report" onClick={() => setMenuOpen((o) => !o)}
-              style={{ background: "linear-gradient(135deg, #38BDF8, #0369A1)", color: "#111111", border: "none" }}>
-              <i className="fas fa-bars" /> MENU
-              <i className="fas fa-chevron-down" style={{ fontSize: 10, marginLeft: 6, transform: menuOpen ? "rotate(180deg)" : "none", transition: "transform 0.15s" }} />
+            <button type="button" onClick={() => setMenuOpen((o) => !o)} title="Lembretes, relatório e configurações"
+              style={{ ...BTN_BARRA, ...(menuOpen ? { borderColor: "#0369A1" } : {}) }}>
+              <i className="fas fa-ellipsis" style={{ color: "#0369A1" }} /> Mais
             </button>
 
             {menuOpen && (() => {
-              const item = (icon: string, label: string, onClick: () => void) => (
-                <button
-                  onClick={() => { onClick(); setMenuOpen(false); }}
-                  style={{
-                    display: "flex", alignItems: "center", gap: 11, padding: "10px 14px", width: "100%",
-                    border: "none", borderRadius: 8, cursor: "pointer", background: "transparent",
-                    color: "#3A3027", fontSize: 13.5, fontWeight: 600, textAlign: "left", transition: "background 0.12s",
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.background = "#F3EDE3")}
-                  onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-                >
-                  <i className={`fas ${icon}`} style={{ width: 16, textAlign: "center", color: "#9A6A3A" }} />
-                  {label}
+              const item = (icon: string, label: string, sub: string, onClick: () => void) => (
+                <button type="button" onClick={() => { onClick(); setMenuOpen(false); }} className="pos-tec-linha"
+                  style={{ display: "flex", alignItems: "center", gap: 11, padding: "8px 10px", width: "100%", border: "none", borderRadius: 9, cursor: "pointer", background: "transparent", textAlign: "left", fontFamily: "inherit" }}>
+                  <span style={{ width: 30, height: 30, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: "color-mix(in srgb, #0369A1 10%, transparent)", color: "#0369A1", flexShrink: 0 }}>
+                    <i className={`fas ${icon}`} style={{ fontSize: 13 }} />
+                  </span>
+                  <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: "var(--portal-text, #111827)" }}>{label}</span>
+                    <span style={{ fontSize: 11, color: "var(--portal-text-muted, #94a3b8)" }}>{sub}</span>
+                  </span>
                 </button>
               );
               return (
-                <div style={{
-                  position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 1000,
-                  minWidth: 230, background: "#fff", borderRadius: 12,
-                  border: "1px solid #E4D9C8", boxShadow: "0 12px 32px rgba(0,0,0,0.16)",
-                  padding: 6, display: "flex", flexDirection: "column", gap: 2,
-                }}>
-                  {item("fa-bell", "Lembretes", () => onLembretes?.())}
-                  {item("fa-file-invoice", "Gerar Relatório", () => setShowFiltroRelatorio(true))}
-                  <div style={{ height: 1, background: "#EFE7DA", margin: "4px 8px" }} />
-                  {item("fa-cog", "Configurações", handleOpenConfig)}
+                <div style={{ position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 1000, minWidth: 250, background: "var(--surface, #fefefe)", borderRadius: 14,
+                  border: "1px solid var(--border, #E4D9C8)", boxShadow: "0 16px 40px rgba(15,23,42,0.18)", padding: 6, display: "flex", flexDirection: "column", gap: 2 }}>
+                  {item("fa-bell", "Lembretes", "Avisos por cliente e máquina", () => onLembretes?.())}
+                  {item("fa-file-invoice", "Gerar relatório", "PDF das OS por técnico e tipo", () => setShowFiltroRelatorio(true))}
+                  <div style={{ height: 1, background: "var(--border, #EFE7DA)", margin: "4px 8px" }} />
+                  {item("fa-cog", "Configurações", "Valor da hora e do km", handleOpenConfig)}
+                  <style>{`.pos-tec-linha:hover { background: var(--portal-bg-secondary, #f1f5f9) !important; }`}</style>
                 </div>
               );
             })()}

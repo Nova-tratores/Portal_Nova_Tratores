@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_ITENS, TBL_PRODUTOS } from "@/lib/ppv/constants";
-import { buscarPPVPorId, atualizarValorTotal, registrarLog } from "@/lib/ppv/queries";
+import { buscarPPVPorId, atualizarValorTotal, registrarLog, saldoItemPPV } from "@/lib/ppv/queries";
 import { movimentacaoSchema, editarPrecoItemSchema } from "@/lib/ppv/schemas";
 import { logAndNotify } from "@/lib/server/audit-notify";
 
@@ -52,6 +52,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.issues.map((i) => i.message).join(", ") }, { status: 400 });
     }
     const dados = parsed.data;
+
+    // devolução não pode deixar o item negativo
+    if (dados.tipoMovimento === "Devolução") {
+      const saldo = await saldoItemPPV(dados.id, dados.codigo);
+      if (Number(dados.quantidade) > saldo) {
+        return NextResponse.json({ error: saldo > 0 ? `Só dá pra devolver até ${saldo} un de ${dados.codigo} (é o que resta no pedido).` : `O item ${dados.codigo} já está todo devolvido neste pedido.` }, { status: 409 });
+      }
+    }
 
     const mov = {
       Id: Math.floor(Math.random() * 9000000000) + 1000000000,
@@ -104,12 +112,21 @@ export async function DELETE(req: NextRequest) {
     if (!saidas || saidas.length === 0) return NextResponse.json({ error: "kit não encontrado" }, { status: 404 });
 
     const dataHora = formatarDataBR(new Date().toISOString(), true);
-    const devolucoes = saidas.map((s) => ({
-      Id: Math.floor(Math.random() * 9000000000) + 1000000000,
-      Id_PPV: id, Data_Hora: dataHora, Tecnico: String(s.Tecnico || ""), TipoMovimento: "Devolução",
-      CodProduto: String(s.CodProduto || ""), Descricao: String(s.Descricao || ""),
-      Qtde: String(s.Qtde || 0), Preco: Number(s.Preco) || 0, Kit: String(kit),
-    }));
+    // cada item volta no máximo o que ainda resta no pedido (pode já ter sido devolvido à mão)
+    const resta: Record<string, number> = {};
+    for (const cod of new Set(saidas.map((s) => String(s.CodProduto || "")))) resta[cod] = await saldoItemPPV(id, cod);
+    const devolucoes = saidas.map((s) => {
+      const cod = String(s.CodProduto || "");
+      const q = Math.min(parseFloat(String(s.Qtde ?? 0).replace(",", ".")) || 0, Math.max(0, resta[cod] || 0));
+      resta[cod] = (resta[cod] || 0) - q;
+      return {
+        Id: Math.floor(Math.random() * 9000000000) + 1000000000,
+        Id_PPV: id, Data_Hora: dataHora, Tecnico: String(s.Tecnico || ""), TipoMovimento: "Devolução",
+        CodProduto: cod, Descricao: String(s.Descricao || ""),
+        Qtde: String(q), Preco: Number(s.Preco) || 0, Kit: String(kit),
+      };
+    }).filter((d) => Number(d.Qtde) > 0);
+    if (devolucoes.length === 0) return NextResponse.json({ error: "Os itens deste kit já foram todos devolvidos." }, { status: 409 });
     try { await supabaseFetch(TBL_ITENS, "POST", devolucoes); }
     catch (e: any) {
       if (/kit/i.test(String(e?.message || ""))) await supabaseFetch(TBL_ITENS, "POST", devolucoes.map(({ Kit, ...r }: any) => r));

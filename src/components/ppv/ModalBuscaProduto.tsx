@@ -37,6 +37,8 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
   // centro) e a confirmação de adicionado também sai no MEIO da tela.
   const [qtdDialog, setQtdDialog] = useState<ProdutoBusca | null>(null);
   const [qtdValor, setQtdValor] = useState("1");
+  // valor unitário editável ao adicionar (José, 14/10/2026) — vem com o preço do produto
+  const [precoValor, setPrecoValor] = useState("");
   const [confirmacao, setConfirmacao] = useState<string | null>(null);
   const qtdInputRef = useRef<HTMLInputElement>(null);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -128,6 +130,7 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
       // No pedido aberto: pergunta a quantidade antes de adicionar.
       setQtdDialog(p);
       setQtdValor("1");
+      setPrecoValor((Number(p.preco) || 0).toFixed(2).replace(".", ","));
       setTimeout(() => { qtdInputRef.current?.focus(); qtdInputRef.current?.select(); }, 100);
       return;
     }
@@ -140,7 +143,9 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
     const qtd = parseInt(qtdValor, 10);
     if (isNaN(qtd) || qtd < 1) { showToast("error", "Quantidade inválida."); return; }
     const p = qtdDialog;
-    onSelect(p.codigo, p.descricao, p.preco, p.empresa, qtd);
+    const preco = parseFloat(String(precoValor).replace(/\./g, "").replace(",", "."));
+    if (isNaN(preco) || preco < 0) { showToast("error", "Valor inválido."); return; }
+    onSelect(p.codigo, p.descricao, preco, p.empresa, qtd);
     setQtdDialog(null);
     setAddedFlash(p.codigo);
     setTimeout(() => setAddedFlash(null), 1400);
@@ -411,17 +416,44 @@ export default function ModalBuscaProduto({ open, mode, onClose, onSelect, onEdi
             <div style={{ fontSize: 13, fontWeight: 800, color: "#EA580C", textTransform: "uppercase", letterSpacing: 0.6, marginBottom: 6 }}>Adicionar ao pedido</div>
             <div style={{ fontSize: 15, fontWeight: 700, color: "var(--portal-text, #111)", marginBottom: 2 }}>{qtdDialog.codigo}</div>
             <div style={{ fontSize: 13, color: "var(--portal-text-secondary, #6b7280)", marginBottom: 14 }}>{qtdDialog.descricao}</div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--portal-text-secondary, #6b7280)", marginBottom: 6 }}>Quantidade</label>
-            <input
-              ref={qtdInputRef}
-              type="number"
-              min={1}
-              inputMode="numeric"
-              value={qtdValor}
-              onChange={(e) => setQtdValor(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") confirmarQtd(); if (e.key === "Escape") setQtdDialog(null); }}
-              style={{ width: "100%", fontSize: 22, fontWeight: 800, textAlign: "center", padding: "10px 12px", borderRadius: 10, border: "2px solid #EA580C", marginBottom: 14, background: "var(--portal-bg-secondary, #f9fafb)", color: "var(--portal-text, #111)", boxSizing: "border-box" }}
-            />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1.4fr", gap: 10 }}>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--portal-text-secondary, #6b7280)", marginBottom: 6 }}>Quantidade</label>
+                <input
+                  ref={qtdInputRef}
+                  type="number"
+                  min={1}
+                  inputMode="numeric"
+                  value={qtdValor}
+                  onChange={(e) => setQtdValor(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") confirmarQtd(); if (e.key === "Escape") setQtdDialog(null); }}
+                  style={{ width: "100%", fontSize: 22, fontWeight: 400, textAlign: "center", padding: "10px 12px", borderRadius: 10, border: "2px solid #EA580C", marginBottom: 0, background: "var(--portal-bg-secondary, #f9fafb)", color: "var(--portal-text, #111)", boxSizing: "border-box" }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "var(--portal-text-secondary, #6b7280)", marginBottom: 6 }}>Valor unitário (R$)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={precoValor}
+                  onChange={(e) => setPrecoValor(e.target.value.replace(/[^\d.,]/g, ""))}
+                  onFocus={(e) => e.target.select()}
+                  onKeyDown={(e) => { if (e.key === "Enter") confirmarQtd(); if (e.key === "Escape") setQtdDialog(null); }}
+                  style={{ width: "100%", fontSize: 22, fontWeight: 400, textAlign: "right", padding: "10px 12px", borderRadius: 10, border: "2px solid #EA580C", marginBottom: 0, background: "var(--portal-bg-secondary, #f9fafb)", color: "var(--portal-text, #111)", boxSizing: "border-box" }}
+                />
+              </div>
+            </div>
+            {(() => {
+              const q = parseInt(qtdValor, 10) || 0;
+              const v = parseFloat(String(precoValor).replace(/\./g, "").replace(",", ".")) || 0;
+              const original = Number(qtdDialog.preco) || 0;
+              return (
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 12.5, color: "var(--portal-text-secondary, #6b7280)", margin: "8px 2px 14px" }}>
+                  <span>{Math.abs(v - original) > 0.004 ? <>preço do cadastro: {original.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</> : "preço do cadastro"}</span>
+                  <b style={{ fontSize: 14, color: "var(--portal-text, #111)" }}>Total {(q * v).toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}</b>
+                </div>
+              );
+            })()}
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setQtdDialog(null)} style={{ flex: 1, padding: "11px 0", borderRadius: 10, border: "1px solid var(--portal-border, #e5e7eb)", background: "transparent", color: "var(--portal-text-secondary, #6b7280)", fontSize: 14, fontWeight: 700, cursor: "pointer" }}>
                 Cancelar

@@ -13,7 +13,7 @@ import { TBL_OS, TBL_PROJETOS_DB, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { getConfigPOS } from "@/lib/pos/config";
 import { supabaseFetch, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_ITENS } from "@/lib/ppv/constants";
-import { registrarLog as registrarLogPPV, atualizarValorTotal } from "@/lib/ppv/queries";
+import { registrarLog as registrarLogPPV, atualizarValorTotal, saldoItemPPV } from "@/lib/ppv/queries";
 import { aplicarMudancaFase } from "@/lib/pos/fase";
 import { criarOSNoOmie } from "@/lib/pos/omie";
 import { registrarAlimentacaoOS } from "@/lib/pos/alimentacao-os";
@@ -248,9 +248,15 @@ export async function aplicarNaOS(p: PropostaAtualizacao, userName?: string): Pr
 
   // Devoluções de peças no PPV vinculado + histórico no PPV e no card do POS.
   let devsRegistradas = 0;
+  const feitas: { codigo: string; quantidade: number; motivo: string }[] = [];
   if (p.ppvId && p.devolucoes.length > 0) {
     const quem = userName || "Tratorilson";
-    for (const d of p.devolucoes) {
+    for (const d0 of p.devolucoes) {
+      // nunca devolve mais do que resta no PPV (alguém pode já ter devolvido à mão)
+      let saldo = 0;
+      try { saldo = await saldoItemPPV(p.ppvId, d0.codigo); } catch { continue; }
+      const d = { ...d0, quantidade: Math.min(d0.quantidade, saldo) };
+      if (!(d.quantidade > 0)) continue;
       let preco = 0;
       try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -267,11 +273,12 @@ export async function aplicarNaOS(p: PropostaAtualizacao, userName?: string): Pr
         await supabaseFetch(TBL_ITENS, "POST", [mov]);
         await registrarLogPPV(p.ppvId, `Devolveu ${d.quantidade} un de ${d.codigo} (${d.motivo}) — via Tratorilson`, quem);
         devsRegistradas++;
+        feitas.push(d);
       } catch { /* segue as demais */ }
     }
     if (devsRegistradas > 0) {
       await atualizarValorTotal(p.ppvId);
-      const resumo = p.devolucoes.map((d) => `${d.quantidade}x ${d.codigo} (${d.motivo})`).join(", ");
+      const resumo = feitas.map((d) => `${d.quantidade}x ${d.codigo} (${d.motivo})`).join(", ");
       const agora = new Date();
       await supabase.from(TBL_LOGS_PPO).insert({
         Id_ppo: p.osId,

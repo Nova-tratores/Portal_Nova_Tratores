@@ -1,0 +1,176 @@
+// OS do portal × OS do Omie, antes de faturar (José, 14/10/2026).
+// conferirOS = só leitura (ConsultarOS). alinharOS = deixa o Omie igual ao portal
+// (AlterarOS: cabeçalho/infos/departamentos/e-mail + itens por nIdItem com
+// cAcaoItem A/I/E) e confere de novo.
+import { supabase } from "@/lib/pos/supabase";
+import { TBL_OS } from "@/lib/pos/constants";
+import { contaOmie } from "@/lib/omie/contas";
+import { omie as omiePorta } from "@/lib/omie/porta";
+import { montarServicosComReqs, montarDadosAdic } from "@/lib/pos/omie";
+import { normalizarEspelho, espelhoPadrao, type OmieEspelho } from "@/lib/pos/omie-espelho";
+import { estadoNoOmie } from "@/lib/pos/faturamento-regras";
+import {
+  compararItens, compararCampo, compararDepartamentos, diferente,
+  type Divergencia, type ItemComparavel, type ResultadoConferencia,
+} from "@/lib/omie/conferencia";
+
+type Rec = Record<string, unknown>;
+const NCOD_SOL = 2209673817, NCOD_HORA = 1979758762, NCOD_KM = 1975974257;
+
+function omie<T>(call: string, param: Rec): Promise<T> {
+  const { key, secret } = contaOmie("Nova Tratores");
+  return omiePorta<T>({ appKey: key, appSecret: secret, rotulo: "Nova Tratores" }, "/servicos/os/", call, param, { prioridade: "pessoa" });
+}
+const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
+
+interface ItemOmieOS { nIdItem?: number; nCodServico?: number; nQtde?: number; nValUnit?: number; cTpDesconto?: string; nValorDesconto?: number; nPercDesconto?: number; cDescServ?: string }
+interface OSOmie {
+  Cabecalho?: { nCodOS?: number; cNumOS?: string; cEtapa?: string; nValorTotal?: number };
+  InfoCadastro?: { cFaturada?: string; cCancelada?: string };
+  InformacoesAdicionais?: { cCodCateg?: string; nCodCC?: number; cNumContrato?: string; cDadosAdicNF?: string };
+  Departamentos?: { cCodDepto?: string; nPerc?: number }[];
+  Email?: { cEnviarPara?: string; cEnvRecibo?: string };
+  ServicosPrestados?: ItemOmieOS[];
+}
+
+const nomeServ: Record<number, string> = { [NCOD_SOL]: "Solicitação de Serviço", [NCOD_HORA]: "Hora Trabalhada", [NCOD_KM]: "KM Deslocamento" };
+const descontoOmie = (s: ItemOmieOS) => n(s.nValorDesconto) > 0 ? n(s.nValorDesconto)
+  : (s.cTpDesconto === "P" ? n(s.nQtde) * n(s.nValUnit) * n(s.nPercDesconto) / 100 : 0);
+
+/** o que a OS do portal manda (mesma montagem do envio + serviços extras do espelho) */
+async function esperadoDaOS(os: Rec, esp: OmieEspelho | null) {
+  const base = await montarServicosComReqs(os, String(os.Id_Ordem));
+  const itens: (ItemComparavel & { nCodServico: number })[] = base.map((s) => ({
+    chave: String(s.nCodServico), nCodServico: s.nCodServico,
+    rotulo: nomeServ[s.nCodServico] || (s.cDescServ ? `"${String(s.cDescServ).slice(0, 40)}"` : `serviço ${s.nCodServico}`),
+    qtde: n(s.nQtde), unit: n(s.nValUnit), desconto: n(s.nValorDesconto),
+    // a solicitação compara o texto; os "div." (requisições) usam o texto para casar
+    descricao: s.nCodServico === NCOD_SOL || (s.cDescServ && !nomeServ[s.nCodServico]) ? String(s.cDescServ || "") : undefined,
+  }));
+  // serviços incluídos à mão na OS (espelho): acha o nCodServico pelo código
+  for (const x of esp?.extras || []) {
+    let nCod = 0;
+    try {
+      const c = await omiePorta<{ intListar?: { nCodServ?: number } }>(
+        (() => { const { key, secret } = contaOmie("Nova Tratores"); return { appKey: key, appSecret: secret, rotulo: "Nova Tratores" }; })(),
+        "/servicos/servico/", "ConsultarCadastroServico", { cCodigo: x.codigo }, { prioridade: "pessoa" });
+      nCod = n(c.intListar?.nCodServ);
+    } catch { /* fica sem conferir */ }
+    if (!nCod) continue;
+    itens.push({ chave: String(nCod), nCodServico: nCod, rotulo: x.nome || x.codigo, qtde: n(x.qtde), unit: n(x.unit), desconto: x.cobrar ? 0 : n(x.qtde) * n(x.unit), descricao: x.descricao || undefined });
+  }
+  return itens;
+}
+
+async function lerOSDoPortal(idOs: string): Promise<Rec | null> {
+  const { data } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOs).limit(1);
+  return (data?.[0] as Rec) || null;
+}
+
+async function consultarOS(os: Rec): Promise<OSOmie> {
+  if (os.omie_ncodos) return omie<OSOmie>("ConsultarOS", { nCodOS: Number(os.omie_ncodos) });
+  return omie<OSOmie>("ConsultarOS", { cNumOS: String(os.Ordem_Omie || "").replace(/^0+/, "") });
+}
+
+function espelhoDe(os: Rec): OmieEspelho | null {
+  return os.Omie_Espelho && typeof os.Omie_Espelho === "object"
+    ? normalizarEspelho(os.Omie_Espelho, espelhoPadrao({ interna: !!os.Servico_Interno }))
+    : null;
+}
+
+export async function conferirOS(idOs: string): Promise<ResultadoConferencia & { _omie?: OSOmie; _esperado?: (ItemComparavel & { nCodServico: number })[] }> {
+  const os = await lerOSDoPortal(idOs);
+  const base = { doc: idOs, tipo: "OS", numeroOmie: "", divergencias: [] as Divergencia[] };
+  if (!os) return { ...base, erro: "OS não encontrada no portal." };
+  const num = String(os.Ordem_Omie || "").replace(/^0+/, "");
+  if (!num) return { ...base, pulado: "ainda não foi enviada ao Omie" };
+  let dados: OSOmie;
+  try { dados = await consultarOS(os); } catch (e) { return { ...base, numeroOmie: num, erro: `Não consegui ler a OS ${num} no Omie: ${e instanceof Error ? e.message : e}` }; }
+  const estado = estadoNoOmie(dados.Cabecalho as never, dados.InfoCadastro as never);
+  if (estado === "faturada" || estado === "faturando") return { ...base, numeroOmie: num, pulado: "já está faturada no Omie" };
+  if (estado === "cancelada") return { ...base, numeroOmie: num, erro: `A OS ${num} está CANCELADA no Omie.` };
+
+  const esp = espelhoDe(os);
+  const esperado = await esperadoDaOS(os, esp);
+  const omieItens: ItemComparavel[] = (dados.ServicosPrestados || []).map((s) => ({
+    chave: String(n(s.nCodServico)), rotulo: nomeServ[n(s.nCodServico)] || (s.cDescServ ? `"${String(s.cDescServ).slice(0, 40)}"` : `serviço ${s.nCodServico}`),
+    qtde: n(s.nQtde), unit: n(s.nValUnit), desconto: descontoOmie(s), descricao: s.cDescServ,
+  }));
+  // o texto só conta onde o portal tem texto (solicitação e "div.")
+  const omieAjust = omieItens.map((o) => esperado.some((p) => p.chave === o.chave && p.descricao !== undefined) ? o : { ...o, descricao: undefined });
+  const div: Divergencia[] = compararItens(idOs, esperado, omieAjust, "Serviço");
+
+  // cabeçalho: só quando a OS já tem o espelho do Omie salvo (OS antigas não têm)
+  const ia = dados.InformacoesAdicionais || {};
+  if (esp) {
+    const add = (d: Divergencia | null) => { if (d) div.push(d); };
+    add(compararCampo(idOs, "categoria", "Categoria", esp.info.categoria, ia.cCodCateg));
+    add(compararCampo(idOs, "conta", "Conta corrente", esp.info.conta ? String(esp.info.conta) : "", ia.nCodCC ? String(ia.nCodCC) : ""));
+    add(compararCampo(idOs, "contrato", "Nº do contrato de venda", esp.info.contrato, ia.cNumContrato));
+    add(compararCampo(idOs, "dadosNF", "Dados adicionais da nota", esp.info.dadosNF || montarDadosAdic(os), ia.cDadosAdicNF, { texto: true }));
+    const omieDep: Record<string, number> = {};
+    for (const d of dados.Departamentos || []) omieDep[String(d.cCodDepto)] = n(d.nPerc);
+    add(compararDepartamentos(idOs, esp.deptos, omieDep, (c) => c));
+    add(compararCampo(idOs, "email", "E-mail do cliente", esp.email.para, dados.Email?.cEnviarPara));
+    add(compararCampo(idOs, "recibo", "Recibo em vez de NFS-e", esp.email.recibo ? "S" : "N", dados.Email?.cEnvRecibo || "N",
+      { exibirPortal: esp.email.recibo ? "sim" : "não", exibirOmie: dados.Email?.cEnvRecibo === "S" ? "sim" : "não", vazioIgnora: false }));
+  }
+  return { ...base, numeroOmie: num, divergencias: div, _omie: dados, _esperado: esperado };
+}
+
+/** Deixa a OS do Omie igual ao portal e confere de novo. */
+export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
+  const conf = await conferirOS(idOs);
+  if (conf.erro || conf.pulado || !conf._omie || !conf.divergencias.length) return limpar(conf);
+  const os = (await lerOSDoPortal(idOs))!;
+  const esp = espelhoDe(os);
+  const dados = conf._omie, esperado = conf._esperado || [];
+  const nCodOS = n(dados.Cabecalho?.nCodOS);
+  const interna = !!os.Servico_Interno;
+
+  // itens: casa igual à comparação (chave + texto quando repete)
+  const omieItens = [...(dados.ServicosPrestados || [])];
+  const usados = new Set<ItemOmieOS>();
+  const servicos: Rec[] = [];
+  for (const p of esperado) {
+    const cands = omieItens.filter((o) => !usados.has(o) && String(n(o.nCodServico)) === p.chave);
+    const o = cands.find((x) => p.descricao !== undefined && String(x.cDescServ || "").replace(/\|/g, "\n").trim() === p.descricao.trim()) || cands[0];
+    const campos: Rec = { nCodServico: p.nCodServico, nQtde: p.qtde, nValUnit: p.unit, cTpDesconto: "V", nValorDesconto: Math.round(p.desconto * 100) / 100 };
+    if (p.descricao !== undefined) campos.cDescServ = p.descricao.slice(0, 500);
+    if (interna) campos.cNaoGerarFinanceiro = "S";
+    if (o) {
+      usados.add(o);
+      const mudou = diferente(n(o.nQtde), p.qtde, 0.0005) || diferente(n(o.nValUnit), p.unit) || diferente(descontoOmie(o), p.desconto)
+        || (p.descricao !== undefined && String(o.cDescServ || "").replace(/\|/g, " ").replace(/\s+/g, " ").trim() !== p.descricao.replace(/\s+/g, " ").trim());
+      if (mudou) servicos.push({ nIdItem: o.nIdItem, cAcaoItem: "A", ...campos });
+    } else servicos.push({ cAcaoItem: "I", ...campos });
+  }
+  for (const o of omieItens) if (!usados.has(o) && o.nIdItem) servicos.push({ nIdItem: o.nIdItem, cAcaoItem: "E" });
+
+  const total = esperado.reduce((s, p) => s + Math.max(0, p.qtde * p.unit - p.desconto), 0);
+  const param: Rec = { Cabecalho: { nCodOS } };
+  if (servicos.length) param.ServicosPrestados = servicos;
+  if (esp) {
+    param.InformacoesAdicionais = {
+      cCodCateg: esp.info.categoria || undefined,
+      nCodCC: esp.info.conta || undefined,
+      cNumContrato: esp.info.contrato || undefined,
+      cDadosAdicNF: (esp.info.dadosNF || montarDadosAdic(os)) || undefined,
+    };
+    const deps = Object.entries(esp.deptos).filter(([, v]) => n(v) > 0);
+    if (deps.length) param.Departamentos = deps.map(([c, v]) => ({ cCodDepto: c, nPerc: n(v), nValor: Math.round(total * n(v)) / 100, nValorFixo: "N" }));
+    param.Email = { cEnviarPara: esp.email.para || undefined, cEnvRecibo: esp.email.recibo ? "S" : "N" };
+  }
+  try { await omie("AlterarOS", param); }
+  catch (e) {
+    const r = await conferirOS(idOs);
+    return { ...limpar(r), erro: `O Omie recusou a atualização: ${e instanceof Error ? e.message : e}` };
+  }
+  return limpar(await conferirOS(idOs));
+}
+
+function limpar(r: ResultadoConferencia & { _omie?: unknown; _esperado?: unknown }): ResultadoConferencia {
+  const { _omie, _esperado, ...resto } = r; void _omie; void _esperado;
+  return resto;
+}
+export const conferirOSPublico = async (id: string) => limpar(await conferirOS(id));

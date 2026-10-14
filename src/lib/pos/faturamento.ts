@@ -58,6 +58,10 @@ export function podeFaturarOS(auth: Autenticado): boolean {
 export function podeCancelarFaturamento(auth: Autenticado): boolean {
   return permite(auth.modulos, auth.isAdmin, 'pos', 'cancelar_faturamento', auth.isDev);
 }
+/** Substituir a OS/pedido do Omie (cancela o antigo): só Dev ou quem um Dev marcou. */
+export function podeSubstituirOmie(auth: Autenticado): boolean {
+  return permite(auth.modulos, auth.isAdmin, 'pos', 'substituir_omie', auth.isDev);
+}
 export function podeFaturarPPV(auth: Autenticado): boolean {
   return permite(auth.modulos, auth.isAdmin, 'ppv', 'faturar');
 }

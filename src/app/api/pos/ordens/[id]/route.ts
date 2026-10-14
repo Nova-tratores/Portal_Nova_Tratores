@@ -9,6 +9,7 @@ import { checarIrregularidade } from "@/lib/pos/checarIrregularidade";
 import { normalizarAlimentacoes, agregadosAlimentacao } from "@/lib/pos/alimentacao-os";
 import { parseValorMisto } from "@/lib/marketing/custos";
 import { valorPecasDosPPVs } from "@/lib/pos/pecas-ppv";
+import { totalExtras, type OmieEspelho } from "@/lib/pos/omie-espelho";
 
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: idOs } = await params;
@@ -114,8 +115,10 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     servicoSolicitado: safeGet(row, "Serv_Solicitado"),
     observacoes: safeGet(row, "Observacoes"),
     qtdHoras: safeGet(row, "Qtd_HR"), qtdKm: safeGet(row, "Qtd_KM"),
+    valorHora: safeGet(row, "Valor_HR"), valorKm: safeGet(row, "Valor_KM"),
     status: safeGet(row, "Status"), ppv: safeGet(row, "ID_PPV"),
     projeto: safeGet(row, "Projeto"), ordemOmie: safeGet(row, "Ordem_Omie"),
+    omieEspelho: safeGet(row, "Omie_Espelho") || null,
     pendenciaMahindra: (safeGet(row, "pendencia_mahindra") as { detalhes?: string[] } | null) || null,
     pedidoVenda,
     omieEnvioLog: safeGet(row, "Omie_Envio_Log") || "",
@@ -216,6 +219,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       String(dados.ordemOmie ?? "") !== String(travada.Ordem_Omie ?? "") ||
       String(dados.ppv ?? "") !== String(travada.ID_PPV ?? "") ||
       num(dados.qtdHoras) !== num(travada.Qtd_HR) || num(dados.qtdKm) !== num(travada.Qtd_KM) ||
+      (dados.valorHora != null && num(dados.valorHora) !== num(travada.Valor_HR)) || (dados.valorKm != null && num(dados.valorKm) !== num(travada.Valor_KM)) ||
       num(dados.descontoValor) !== num(travada.Desconto) ||
       num(dados.descontoHora) !== num(travada.Desconto_Hora) || num(dados.descontoKm) !== num(travada.Desconto_KM);
     if (mudou) {
@@ -281,12 +285,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 
   const configPatch = await getConfigPOS();
-  const vHoras = parseFloat(dados.qtdHoras || 0) * configPatch.valor_hora;
-  const vKm = parseFloat(dados.qtdKm || 0) * configPatch.valor_km;
+  // valor unitário editado na OS (dois cliques na linha hr/KM); sem ele, o da configuração
+  const unitHr = parseFloat(dados.valorHora) > 0 ? parseFloat(dados.valorHora) : configPatch.valor_hora;
+  const unitKm = parseFloat(dados.valorKm) > 0 ? parseFloat(dados.valorKm) : configPatch.valor_km;
+  const vHoras = parseFloat(dados.qtdHoras || 0) * unitHr;
+  const vKm = parseFloat(dados.qtdKm || 0) * unitKm;
   const desc = parseFloat(dados.descontoValor || 0);
   const descHora = parseFloat(dados.descontoHora || 0);
   const descKm = parseFloat(dados.descontoKm || 0);
-  const total = vHoras + vKm + vPecas + vReq - desc - descHora - descKm;
+  const vExtras = dados.omieEspelho ? totalExtras(dados.omieEspelho as OmieEspelho) : 0;
+  const total = vHoras + vKm + vPecas + vReq + vExtras - desc - descHora - descKm;
 
   const baseUpdate: Record<string, unknown> = {
     Os_Cliente: dados.nomeCliente, Cnpj_Cliente: dados.cpfCliente, Endereco_Cliente: dados.enderecoCliente,
@@ -296,6 +304,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     Serv_Solicitado: dados.servicoSolicitado, Serv_Realizado: null,
     Observacoes: dados.observacoes ?? null,
     Qtd_HR: parseFloat(dados.qtdHoras || 0), Qtd_KM: parseFloat(dados.qtdKm || 0),
+    Valor_HR: unitHr, Valor_KM: unitKm,
     Valor_Total: total, Status: dados.status, ID_PPV: dados.ppv,
     ID_Relatorio_Final: dados.relatorioTecnico, Projeto: dados.projeto,
     Ordem_Omie: dados.ordemOmie, Motivo_Cancelamento: dados.motivoCancelamento,
@@ -358,6 +367,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     console.error("Erro Supabase update:", error);
     return NextResponse.json({ success: false, erro: `Erro ao salvar: ${error.message}` }, { status: 500 });
   }
+
+  if (dados.omieEspelho && typeof dados.omieEspelho === "object") {
+    const { error: eEsp } = await supabase.from(TBL_OS).update({ Omie_Espelho: dados.omieEspelho }).eq("Id_Ordem", idOs);
+    if (eEsp) console.warn(`[os-espelho] ${idOs}: não gravou Omie_Espelho (${eEsp.message}) — rode sql/pos-omie-espelho.sql`);
+  }
+
+  // PPVs vinculados: categoria pela OS + mesma previsão e parcelas (José, 14/10/2026)
+  try {
+    const { sincronizarPPVsComOS } = await import("@/lib/ppv/sync-os");
+    await sincronizarPPVsComOS(idOs, { espelho: dados.omieEspelho || null, previsao: dados.previsaoFaturamento || null, usuario: dados.userName || "Sistema" });
+  } catch (e) { console.warn(`[ppv-sync-os] ${idOs}: ${e instanceof Error ? e.message : e}`); }
 
   // Servico_Interno via RPC (bypassa schema cache do PostgREST)
   await supabase.rpc('set_servico_interno', { p_id_ordem: idOs, p_valor: !!dados.servicoInterno });

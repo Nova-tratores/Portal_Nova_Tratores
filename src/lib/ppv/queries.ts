@@ -486,3 +486,17 @@ export function montarDadosParaImpressao(detalhes: PPVDetalhes) {
     totalFinal: fmt(totalFinal),
   };
 }
+
+/** Saldo de um código no PPV (saídas − devoluções). Devolução nunca pode passar disso
+ *  (PPV-0511, 13/10/2026: o Tratorilson devolveu 2 de um item que já estava zerado → −2). */
+export async function saldoItemPPV(idPedido: string, codigo: string): Promise<number> {
+  const movs = await supabaseFetch<{ TipoMovimento?: string; Qtde?: unknown }[]>(
+    `${TBL_ITENS}?Id_PPV=eq.${encodeURIComponent(idPedido)}&CodProduto=eq.${encodeURIComponent(codigo)}&select=TipoMovimento,Qtde`
+  );
+  let saldo = 0;
+  for (const m of movs || []) {
+    const q = parseFloat(String(m.Qtde ?? 0).replace(",", ".")) || 0;
+    saldo += m.TipoMovimento === "Devolução" ? -q : q;
+  }
+  return Math.round(saldo * 1000) / 1000;
+}

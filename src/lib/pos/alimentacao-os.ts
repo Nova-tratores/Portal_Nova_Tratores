@@ -256,7 +256,7 @@ export async function sincronizarAlimentacaoOS(
 
   const { data: autos } = await supabase
     .from("Requisicao")
-    .select("id, data, valor_despeza, foto_nf, status, solicitante, obs")
+    .select("id, titulo, data, valor_despeza, foto_nf, status, solicitante, obs")
     .eq("ordem_servico", idOrdem)
     .eq("origem", "auto_alimentacao_os")
     .not("status", "in", '("lixeira","cancelada")');
@@ -283,6 +283,9 @@ export async function sincronizarAlimentacaoOS(
     }
     const solicitante = item.tecnicos[0] || os.Os_Tecnico || "Sistema";
     if (!jaFinanceiro && existente.solicitante !== solicitante) patch.solicitante = solicitante;
+    // título acompanha o projeto (trator) da OS — trocaram o trator e a linha ia pro Omie com o chassis antigo (OS-0814, 13/10/2026)
+    const tituloNovo = `Alimentação - OS ${os.Id_Ordem}${os.Projeto ? ` (${os.Projeto})` : ""}`;
+    if ((!jaFinanceiro || promover) && existente.titulo !== tituloNovo) patch.titulo = tituloNovo;
     const fotoNf = fotoNfDe(item.foto);
     if (fotoNf && fotoNf !== existente.foto_nf) patch.foto_nf = fotoNf;
     if (promover && !jaFinanceiro) {

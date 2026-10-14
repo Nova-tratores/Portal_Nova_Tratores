@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
     const antes = new Set<string>((atual?.modulos_permitidos as string[] | null) || [])
     const depois = new Set<string>(patch.modulos_permitidos as string[])
     const mexeu = [...ACOES_SO_DEV].some((a) => antes.has(a) !== depois.has(a))
-    if (mexeu) return NextResponse.json({ error: 'Só um Dev pode dar ou tirar "Faturar OS" e "Cancelar faturamento".' }, { status: 403 })
+    if (mexeu) return NextResponse.json({ error: 'Só um Dev pode dar ou tirar "Faturar OS", "Cancelar faturamento" e "Substituir no Omie".' }, { status: 403 })
   }
 
   if (Object.keys(patch).length === 0) {

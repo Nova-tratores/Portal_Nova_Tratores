@@ -22,6 +22,8 @@ import ItemOrcamentoModal from "./ItemOrcamentoModal";
 import AnexosModal from "./AnexosModal";
 import TarefasModal from "./TarefasModal";
 import SelecionarUsuarioModal from "./SelecionarUsuarioModal";
+import { ClienteOmieModal, SeletorUsuario } from "@/components/pos/OSOmieAbas";
+import { diasDoNumParcelas, rotuloNumParcelas, PARCELAS_PPV_PADRAO, categoriaPPVPelaOS } from "@/lib/ppv/parcelas-condicao";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import PPVUnidadesInfo from "./PPVUnidadesInfo";
 import QRScanner, { type ScanResultado } from "@/components/pecas/QRScanner";
@@ -45,12 +47,6 @@ const ABA_SEFAZ = "Comunicação com a SEFAZ";
 // ── Parcelas (igual ao Omie): a "Previsão de Faturamento" é a data-base; o
 // "Número de Parcelas" define os vencimentos (dias) e o rateio; a aba Parcelas é
 // gerada daí — cada parcela: nº, dias, vencimento (= previsão + dias), %, valor.
-const COND_PARCELAS: Record<string, number[]> = {
-  "À vista (PIX ou Cartão)": [0],
-  "30 dias": [30],
-  "30/60 dias": [30, 60],
-  "30/60/90 dias": [30, 60, 90],
-};
 function addDiasISO(previsaoISO: string, dias: number): string {
   const base = previsaoISO ? new Date(previsaoISO + "T00:00:00") : new Date();
   base.setDate(base.getDate() + dias);
@@ -62,7 +58,7 @@ function addDiasISO(previsaoISO: string, dias: number): string {
 // vencimento em ISO (YYYY-MM-DD) pro <input type=date>; a UI edita data e valor.
 interface ParcelaCalc { numero: number; dias: number; vencimento: string; percentual: number; valor: number }
 function calcularParcelas(cond: string, previsaoISO: string, total: number): ParcelaCalc[] {
-  const dias = COND_PARCELAS[cond] || [30];
+  const dias = diasDoNumParcelas(cond);
   const n = dias.length;
   const base = Math.floor((total / n) * 100) / 100; // valor por parcela (arredonda p/ baixo)
   return dias.map((d, i) => {
@@ -130,6 +126,18 @@ export default function PPVDrawer({
   const [clienteTelefone, setClienteTelefone] = useState("");
   const [clienteEmail, setClienteEmail] = useState("");
   const [showCliInfo, setShowCliInfo] = useState(false); // popover de dados do cliente (hover)
+  // clipe ao lado do nome: cadastro do cliente no Omie (mesmo modal da OS)
+  const [cliOmie, setCliOmie] = useState<{ aberto: boolean; dados: Record<string, unknown> | null; doc: string }>({ aberto: false, dados: null, doc: "" });
+  const abrirCliOmie = async () => {
+    const doc = String(clienteDocumento || clienteDoc || "").trim();
+    if (cliOmie.doc === doc && cliOmie.dados) { setCliOmie((c) => ({ ...c, aberto: true })); return; }
+    setCliOmie({ aberto: true, dados: null, doc: "" });
+    try {
+      const r = await fetch(`/api/pos/omie-listas?so=cliente&cnpj=${encodeURIComponent(doc)}`, { headers: await authHeaders() });
+      const j = await r.json().catch(() => ({}));
+      setCliOmie({ aberto: true, dados: j.cliente || null, doc });
+    } catch { setCliOmie({ aberto: true, dados: null, doc }); }
+  };
   const [tipoPedido, setTipoPedido] = useState("Pedido");
   const [projeto, setProjeto] = useState("");
   // Projetos do banco (cronograma) — pra escolher em vez de digitar / usar o da OS
@@ -164,7 +172,7 @@ export default function PPVDrawer({
   }, [ppvId, baixandoPdfOmie]);
   const [faturadoEm, setFaturadoEm] = useState("");
   const [showFaturar, setShowFaturar] = useState(false);
-  const [osVinc, setOsVinc] = useState<{ ordemOmie: string; status: string; requisicoes: Array<{ id: string; valor: number; material: string }> } | null>(null);
+  const [osVinc, setOsVinc] = useState<{ ordemOmie: string; status: string; tipoServico?: string; requisicoes: Array<{ id: string; valor: number; material: string }> } | null>(null);
   useEffect(() => {
     const id = (modalOSId || "").trim();
     if (!ppvId || !id) { setOsVinc(null); return; }
@@ -173,8 +181,10 @@ export default function PPVDrawer({
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!ativo || !d) return;
+        // PPV com OS: categoria segue a OS (revisão → Revenda de Peças Revisão)
+        setInfoCategoria(categoriaPPVPelaOS(String(d.tipoServico || "")));
         setOsVinc({
-          ordemOmie: String(d.ordemOmie || ""), status: String(d.status || ""),
+          ordemOmie: String(d.ordemOmie || ""), status: String(d.status || ""), tipoServico: String(d.tipoServico || ""),
           requisicoes: (d.infoRequisicoes || []).map((r: { id: string; valor?: number; material?: string }) => ({ id: String(r.id), valor: Number(r.valor) || 0, material: String(r.material || "") })),
         });
       })
@@ -1008,9 +1018,8 @@ export default function PPVDrawer({
                         <div className="ppv-g-cliente" style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 18, alignItems: "start" }}>
                           <div>
                             <label style={labelOmie}>Cliente</label>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <div onMouseEnter={() => setShowCliInfo(true)} onMouseLeave={() => setShowCliInfo(false)}
-                                style={{ position: "relative", width: 40, height: 34, borderRadius: 3, background: "#e8730c", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 700, flexShrink: 0, cursor: "help" }}>
+                            <div className="osh-cli">
+                              <span className="osh-selo" title={cliente || ""} onMouseEnter={() => setShowCliInfo(true)} onMouseLeave={() => setShowCliInfo(false)} style={{ position: "relative", cursor: "help" }}>
                                 {(cliente || "?").split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join("").toUpperCase() || "?"}
                                 {showCliInfo && (
                                   <div style={{ position: "absolute", top: "115%", left: 0, zIndex: 50, width: 340, maxWidth: "calc(100vw - 40px)", background: "#fff", border: "1px solid #E2E8F0", borderRadius: 4, boxShadow: "0 12px 30px rgba(0,0,0,0.16)", padding: 12, color: "#334155", cursor: "default" }}>
@@ -1023,13 +1032,32 @@ export default function PPVDrawer({
                                     ))}
                                   </div>
                                 )}
+                              </span>
+                              <div className="osh-caixa">
+                                <button type="button" className="osh-nome" onClick={() => (cliente ? abrirCliOmie() : setBuscaClienteOpen(true))} title={cliente ? "Ver as informações do cliente" : "Escolher o cliente"}>
+                                  <span className="osh-nome-txt" style={{ color: cliente ? undefined : "#94a3b8", fontWeight: cliente ? undefined : 500 }}>{cliente || "Clique na lupa para escolher o cliente…"}</span>
+                                  {(clienteDocumento || clienteDoc) && <span className="osh-doc">{clienteDocumento || clienteDoc}</span>}
+                                </button>
+                                {cliente && <button type="button" className="osh-ico" onClick={abrirCliOmie} title="Informações do cliente (cadastro no Omie)"><i className="fas fa-paperclip" /></button>}
+                                <MaquinasClienteIcone doc={clienteDocumento} className="osh-ico" botaoStyle={{ width: 42, height: "100%", border: "none", borderLeft: "1px solid var(--border)", borderRadius: 0, fontSize: 13 }} />
+                                <button type="button" className="osh-ico" onClick={() => setBuscaClienteOpen(true)} title="Trocar o cliente"><i className="fas fa-magnifying-glass" /></button>
                               </div>
-                              <input type="text" value={cliente || ""} readOnly onClick={() => setBuscaClienteOpen(true)} placeholder="Clique na lupa para escolher o cliente..." style={{ marginBottom: 0, flex: 1, cursor: "pointer", fontWeight: 500 }} />
-                              <button type="button" onClick={() => setBuscaClienteOpen(true)} title="Trocar cliente" style={{ flexShrink: 0, width: 40, borderRadius: 3, border: "1px solid #E2E8F0", background: "#fff", color: "#334155", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>
-                                <i className="fas fa-search" />
-                              </button>
-                              <MaquinasClienteIcone doc={clienteDocumento} />
                             </div>
+                            <style>{`
+                              .osh-cli { display: flex; gap: 10px; align-items: stretch; }
+                              .osh-selo { width: 44px; height: 44px; border-radius: 12px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; letter-spacing: .5px;
+                                color: #fefefe; background: linear-gradient(135deg, #F7B23B, #E8890C); box-shadow: 0 2px 6px rgba(232,137,12,.3); }
+                              .osh-caixa { flex: 1; min-width: 0; display: flex; align-items: stretch; height: 44px; border: 1px solid var(--border, #E2E8F0); border-radius: 10px; background: var(--surface, #fefefe); transition: border-color .15s, box-shadow .15s; }
+                              .osh-caixa:hover { border-color: #0F8B8D; box-shadow: 0 0 0 3px rgba(15,139,141,.08); }
+                              .osh-caixa > :first-child { border-radius: 10px 0 0 10px; }
+                              .osh-caixa > :last-child, .osh-caixa > :last-child > button { border-radius: 0 10px 10px 0 !important; }
+                              .osh-caixa > div { align-self: stretch !important; }
+                              .osh-nome { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; gap: 1px; padding: 0 12px; border: none; background: transparent; cursor: pointer; text-align: left; font: inherit; color: inherit; }
+                              .osh-nome-txt { font-size: 13.5px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+                              .osh-doc { font-size: 11px; color: #64748b; font-variant-numeric: tabular-nums; }
+                              .osh-ico { width: 42px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border: none; border-left: 1px solid var(--border, #E2E8F0); background: transparent; color: #475569; cursor: pointer; font-size: 13px; transition: background .15s, color .15s; }
+                              .osh-ico:hover { background: color-mix(in srgb, #0F8B8D 10%, transparent) !important; color: #0B6E70 !important; }
+                            `}</style>
                           </div>
                           <div>
                             <label style={labelOmie}>Previsão de Faturamento</label>
@@ -1041,10 +1069,7 @@ export default function PPVDrawer({
                         <div className="ppv-g-vendedor" style={{ display: "grid", gridTemplateColumns: "1.4fr 0.9fr 1fr 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
                           <div>
                             <label style={labelOmie}>Vendedor</label>
-                            <div style={{ display: "flex", gap: 8 }}>
-                              <input type="text" value={tecnico || ""} readOnly onClick={() => setShowVendedor(true)} placeholder="Escolher usuário do portal…" style={{ marginBottom: 0, flex: 1, cursor: "pointer" }} />
-                              <button type="button" onClick={() => setShowVendedor(true)} title="Escolher vendedor" style={{ flexShrink: 0, width: 44, borderRadius: 8, border: "1.5px solid #E2E8F0", background: "#fff", color: "#334155", cursor: "pointer" }}><i className="fas fa-search" /></button>
-                            </div>
+                            <SeletorUsuario atual={tecnico || ""} onChange={(nome) => setTecnico(nome)} podeEditar={podeEditar} />
                           </div>
                           <div>
                             <div style={rotOmie}>
@@ -1075,9 +1100,12 @@ export default function PPVDrawer({
                           </div>
                           <div>
                             <label style={labelOmie}>Número de Parcelas</label>
-                            <select value={numParcelas} onChange={(e) => setNumParcelas(e.target.value)} style={{ marginBottom: 0 }}>
-                              {["30 dias", "30/60 dias", "30/60/90 dias", "À vista (PIX ou Cartão)"].map((o) => <option key={o} value={o}>{o}</option>)}
+                            <select value={numParcelas} onChange={(e) => setNumParcelas(e.target.value)} style={{ marginBottom: 0 }}
+                              title={(modalOSId || "").trim() ? `Segue a ${modalOSId}: mude na OS que o pedido acompanha` : undefined}>
+                              {!PARCELAS_PPV_PADRAO.includes(numParcelas) && <option value={numParcelas}>{rotuloNumParcelas(numParcelas)}</option>}
+                              {PARCELAS_PPV_PADRAO.map((o) => <option key={o} value={o}>{o}</option>)}
                             </select>
+                            {(modalOSId || "").trim() && <div style={{ fontSize: 10.5, color: "#64748b", marginTop: 3 }}><i className="fas fa-link" /> segue a {modalOSId}</div>}
                           </div>
                           <div>
                             <label style={labelOmie}>Cenário Fiscal</label>
@@ -1179,7 +1207,8 @@ export default function PPVDrawer({
                     <div className="ppv-g-empilha ppv-info-linha" style={{ gridTemplateColumns: "1.6fr 1.2fr 1.2fr" }}>
                       <div>
                         <label>Categoria</label>
-                        <select value={infoCategoria} onChange={(e) => setInfoCategoria(e.target.value)} style={{ marginBottom: 0 }}>
+                        <select value={infoCategoria} onChange={(e) => setInfoCategoria(e.target.value)} style={{ marginBottom: 0 }} disabled={!!(modalOSId || "").trim()}
+                          title={(modalOSId || "").trim() ? `Automática pela ${modalOSId}${/revis/i.test(osVinc?.tipoServico || "") ? " (revisão)" : ""}` : undefined}>
                           {infoCategoria && !listasPedido.categorias.some((c) => c.codigo === infoCategoria) && <option value={infoCategoria}>{infoCategoria}</option>}
                           {listasPedido.categorias.map((c) => <option key={c.codigo} value={c.codigo}>{c.descricao}</option>)}
                         </select>
@@ -1611,7 +1640,26 @@ export default function PPVDrawer({
 
           {/* ── Coluna de ações (estilo Omie) ── */}
           {!loadingData && (
-            <div className="ppv-action-rail">
+            <div className="ppv-action-rail ppv-rail-nova">
+              {/* visual da coluna igual ao da OS (José, 14/10/2026) */}
+              <style>{`
+                .ppv-rail-nova { gap: 10px !important; padding: 14px 12px !important; width: 232px !important; background: var(--portal-bg-secondary, #f6f8f9) !important; }
+                .ppv-rail-nova .ppv-rail-btn.primary { height: 46px; justify-content: center; border-radius: 12px; font-size: 14.5px; font-weight: 800; letter-spacing: .2px; margin-bottom: 2px;
+                  background: linear-gradient(135deg, #F7B23B, #E8890C 55%, #c2570a) !important; box-shadow: 0 6px 16px rgba(232,115,12,.3); }
+                .ppv-rail-nova .ppv-rail-btn.primary:hover:not(:disabled) { filter: brightness(1.05); }
+                .ppv-rail-nova .ppv-rail-btn.primary i { width: auto; font-size: 15px; }
+                .ppv-rail-acoes, .ppv-rail-perigo { background: var(--surface, #fefefe); border: 1px solid var(--border, #E2E8F0); border-radius: 12px; padding: 6px; display: flex; flex-direction: column; gap: 2px; }
+                .ppv-rail-perigo { border-color: color-mix(in srgb, #C62828 25%, var(--border, #E2E8F0)); }
+                .ppv-rail-acoes-titulo { font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .6px; color: #94a3b8; padding: 6px 8px 4px; }
+                .ppv-rail-nova .ppv-rail-acoes .ppv-rail-btn, .ppv-rail-nova .ppv-rail-perigo .ppv-rail-btn { gap: 10px; padding: 7px 8px; font-size: 13.5px; font-weight: 600; border-radius: 9px; color: var(--portal-text, #1f2d3d); }
+                .ppv-rail-nova .ppv-rail-acoes .ppv-rail-btn i, .ppv-rail-nova .ppv-rail-perigo .ppv-rail-btn i { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; font-size: 13px;
+                  background: color-mix(in srgb, #0891A8 11%, transparent); color: #0891A8; flex-shrink: 0; }
+                .ppv-rail-nova .ppv-rail-acoes .ppv-rail-btn:hover:not(:disabled) { background: color-mix(in srgb, #0891A8 7%, transparent); }
+                .ppv-rail-nova .ppv-rail-acoes .ppv-rail-btn > span[title] { left: 31px !important; top: 6px !important; }
+                .ppv-rail-nova .ppv-rail-perigo .ppv-rail-btn { color: #C62828 !important; font-weight: 700; }
+                .ppv-rail-nova .ppv-rail-perigo .ppv-rail-btn i { background: #fee2e2; color: #C62828 !important; }
+                .ppv-rail-nova .ppv-rail-perigo .ppv-rail-btn:hover:not(:disabled) { background: #fef2f2; }
+              `}</style>
               <button className="ppv-rail-btn primary" onClick={salvar} disabled={salvando || !podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : undefined}>
                 <i className={`fas ${salvando ? "fa-spinner fa-spin" : "fa-save"}`} /> {salvando ? "Salvando..." : "Salvar"}
               </button>
@@ -1730,6 +1778,8 @@ export default function PPVDrawer({
                   </>
                 );
               })()}
+              <div className="ppv-rail-acoes">
+              <div className="ppv-rail-acoes-titulo">Ações</div>
               <button className="ppv-rail-btn" onClick={() => { setAbaAtiva("Itens da Venda"); onBuscaProduto(); }} disabled={!ppvId || !podeItem} title={!podeItem ? MSG_SEM_PERMISSAO : "Incluir item (busca, mais usados, catálogo ou kit)"}><i className="fas fa-plus-circle" /> Incluir</button>
               {/* Rastreio de unidades: tela de liberação por QR (feature pausada, mantida) */}
               {podeLiberarQR && ppvId && (
@@ -1743,13 +1793,15 @@ export default function PPVDrawer({
                 <i className="fas fa-paperclip" /> Anexos
                 {anexosCount > 0 && <span title={`${anexosCount} anexo(s)/comentário(s)`} style={{ position: "absolute", left: 27, top: 8, minWidth: 8, height: 8, borderRadius: 999, background: "#c2570a", border: "1.5px solid #fbfcfe" }} />}
               </button>
-              <button className="ppv-rail-btn" onClick={() => setShowLogs(!showLogs)}><i className="fas fa-history" /> Histórico de Alterações</button>
+              <button className="ppv-rail-btn" onClick={() => setShowLogs(!showLogs)}><i className="fas fa-history" /> Histórico</button>
               <button className="ppv-rail-btn" onClick={() => setShowTarefas(true)} disabled={!ppvId} title="Tarefas do pedido" style={{ position: "relative" }}>
                 <i className="fas fa-tasks" /> Tarefas
                 {tarefasPendentes > 0 && <span title={`${tarefasPendentes} tarefa(s) pendente(s)`} style={{ position: "absolute", left: 27, top: 8, minWidth: 8, height: 8, borderRadius: 999, background: "#c2570a", border: "1.5px solid #fbfcfe" }} />}
               </button>
-              <div className="ppv-rail-sep" />
-              <button className="ppv-rail-btn" onClick={cancelarPedido} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Cancelar o pedido (exige motivo)"} style={{ color: "#c2570a" }}><i className="fas fa-ban" style={{ color: "#c2570a" }} /> Cancelar</button>
+              </div>
+              <div className="ppv-rail-perigo">
+                <button className="ppv-rail-btn" onClick={cancelarPedido} disabled={!podeEditar} title={!podeEditar ? MSG_SEM_PERMISSAO : "Cancelar o pedido (exige motivo)"}><i className="fas fa-ban" /> Cancelar pedido</button>
+              </div>
             </div>
           )}
 
@@ -1805,7 +1857,7 @@ export default function PPVDrawer({
         onIrPara={(item) => setDetalheProd(item)}
       />
       <ModalImportarKit open={kitModalOpen} onClose={() => setKitModalOpen(false)} onImportar={(produtos) => importarKitItens(produtos)} />
-      <FaturarModal
+      {showFaturar && <FaturarModal
         open={showFaturar}
         ppvId={ppvId}
         numeroPedido={pedidoOmie}
@@ -1820,9 +1872,14 @@ export default function PPVDrawer({
           onClose();
         }}
         showToast={showToast}
-      />
+      />}
       <AnexosModal open={showAnexos} ppvId={ppvId} autor={userProfile?.nome || ""} onClose={() => setShowAnexos(false)} onChanged={recarregarAnexosCount} showToast={showToast} />
       <TarefasModal open={showTarefas} ppvId={ppvId} userName={userProfile?.nome || ""} onClose={() => setShowTarefas(false)} onChanged={recarregarTarefasCount} showToast={showToast} />
+      {cliOmie.aberto && (cliOmie.dados || cliOmie.doc
+        ? <ClienteOmieModal cliente={cliOmie.dados} cnpj={cliOmie.doc} fechar={() => setCliOmie((c) => ({ ...c, aberto: false }))} />
+        : <div style={{ position: "fixed", inset: 0, zIndex: 100010, background: "rgba(15,23,42,.35)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setCliOmie((c) => ({ ...c, aberto: false }))}>
+            <div style={{ background: "#fefefe", borderRadius: 10, padding: "16px 22px", fontSize: 13.5, color: "#334155" }}><i className="fas fa-spinner fa-spin" /> Buscando o cliente no Omie…</div>
+          </div>)}
       <SelecionarUsuarioModal open={showVendedor} atual={tecnico} onClose={() => setShowVendedor(false)} onSelect={(nome) => setTecnico(nome)} />
       {/* Busca de cliente do PRÓPRIO drawer — escreve direto no estado daqui */}
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={aplicarCliente} />

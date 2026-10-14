@@ -23,7 +23,8 @@ const ATRIBUTOS_VAZIOS = {
 };
 
 export async function GET(req: NextRequest) {
-  const acesso = await protegerRota(req, [{ modulo: "clientes" }]);
+  // leitura também pelo POS (campo Contato da OS — José, 14/10/2026); vincular continua só na Pasta Clientes
+  const acesso = await protegerRota(req, [{ modulo: "clientes" }, { modulo: "pos" }]);
   if (acesso.resposta) return acesso.resposta;
   const sp = req.nextUrl.searchParams;
 

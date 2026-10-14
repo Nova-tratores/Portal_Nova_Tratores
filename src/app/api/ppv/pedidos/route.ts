@@ -2,6 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabaseFetch, getValorInsensivel, formatarDataBR } from "@/lib/ppv/supabase";
 import { TBL_PEDIDOS, TBL_ITENS, TBL_LOGS, TBL_OS } from "@/lib/ppv/constants";
 
+// PPV com OS: categoria vem do tipo da OS (revisão → Revenda de Peças Revisão)
+async function categoriaDaOS(osId: string): Promise<string | null> {
+  const id = String(osId || "").trim();
+  if (!id || /^nenhuma$/i.test(id)) return null;
+  try {
+    const os = await supabaseFetch<Record<string, unknown>[]>(`${TBL_OS}?Id_Ordem=eq.${encodeURIComponent(id)}&select=Tipo_Servico&limit=1`);
+    if (!os?.length) return null;
+    const { categoriaPPVPelaOS } = await import("@/lib/ppv/parcelas-condicao");
+    return categoriaPPVPelaOS(String(os[0].Tipo_Servico || ""));
+  } catch { return null; }
+}
+
 // Sempre que houver OS vinculada com projeto, o PPV copia o projeto da OS.
 async function projetoDaOS(osId: string): Promise<string> {
   if (!osId) return "";
@@ -137,6 +149,10 @@ export async function POST(req: NextRequest) {
     await supabaseFetch(endpoint, metodo, dadosPPV.idExistente ? novoDoc : [novoDoc]);
     await vincularPPVnaOS(dadosPPV.osId, finalId);
     await registrarLog(finalId, dadosPPV.idExistente ? "Editou cabeçalho" : "Criou lançamento", dadosPPV.userName || "Sistema");
+    if (String(dadosPPV.osId || "").trim()) {
+      const { sincronizarPPVsComOS } = await import("@/lib/ppv/sync-os");
+      await sincronizarPPVsComOS(dadosPPV.osId, { soPPV: finalId, usuario: dadosPPV.userName || "Sistema" }).catch(() => {});
+    }
 
     if (dadosPPV.produtosSelecionados.length > 0) {
       const movimentacoes = dadosPPV.produtosSelecionados.map((p) => ({
@@ -241,6 +257,11 @@ export async function PATCH(req: NextRequest) {
 
     // Buscar estado atual para comparar mudanças
     const estadoAtual = await buscarPPVPorId(dados.id);
+    const osDoPPV = String(dados.osId !== undefined ? dados.osId : (estadoAtual?.osId || "")).trim();
+    const catOS = await categoriaDaOS(osDoPPV);
+    if (catOS) { dados.categoriaPedido = catOS; payload.categoria_pedido = catOS; }
+    // vínculo novo com OS: previsão e parcelas passam a ser as da OS
+    const vinculouAgora = dados.osId !== undefined && !!catOS && osDoPPV !== String(estadoAtual?.osId || "").trim();
     const userName = dados.userName || "Sistema";
 
     await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${dados.id}`, "PATCH", payload);
@@ -248,6 +269,10 @@ export async function PATCH(req: NextRequest) {
     // remove o PPV da lista ID_PPV de todas as OS (antes o `if (dados.osId)`
     // pulava a limpeza e o vínculo ficava preso na OS).
     if (dados.osId !== undefined) await vincularPPVnaOS(dados.osId || "", dados.id);
+    if (vinculouAgora) {
+      const { sincronizarPPVsComOS } = await import("@/lib/ppv/sync-os");
+      await sincronizarPPVsComOS(osDoPPV, { soPPV: dados.id, usuario: dados.userName || "Sistema" }).catch(() => {});
+    }
 
     // PPV → POS: trocou o cliente (nome/CPF-CNPJ) ou o técnico no PPV,
     // a OS vinculada acompanha — mesmo alinhamento que já existe no sentido

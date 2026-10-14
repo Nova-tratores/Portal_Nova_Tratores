@@ -12,6 +12,7 @@ import { STATUS_COR, STATUS_LABEL } from "@/lib/garantias/constants";
 import { authHeaders } from "@/lib/auth/client";
 import { normName } from "@/lib/tecnico-utils";
 import type { GarantiaStatus } from "@/lib/garantias/types";
+import { CapaTitulo, CapaFaseValor, CapaBolinhas, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape, CapaBotao } from "@/components/comum/CapaCard";
 
 interface PhaseViewProps {
   orders: KanbanCard[];
@@ -24,6 +25,8 @@ interface PhaseViewProps {
   onEnviarOmie?: (orderId: string) => void;
   onEnviarOmieTodas?: () => void;
   enviandoOmie?: string | null; // id da OS em envio, ou "__todas__"
+  /** Botão Faturar da capa: abre a OS já na janela de faturar. */
+  onFaturar?: (order: KanbanCard) => void;
   /** Filtro por técnico — controlado pelo header (fila de perfis com foto). */
   tecnicoFiltro?: string;
   /** Vai à direita da faixa das abas (o seletor Cards/Relação/Dashboard da página). */
@@ -113,12 +116,22 @@ function formatDateBR(dateStr: string): string {
 
 const FASE_APROVADO = "Orçamento Aprovado";
 const FASES_RESERVA = new Set(["Orçamento", "Orçamento enviado para o cliente e aguardando", FASE_APROVADO]);
+// Bolinhas da capa: o caminho da OS até o Omie
+const ETAPAS_OS: { r: string; fases: string[] }[] = [
+  { r: "Orçamento", fases: ["Orçamento", "Orçamento enviado para o cliente e aguardando"] },
+  { r: "Aprovado", fases: [FASE_APROVADO] },
+  { r: "Execução", fases: ["Execução", "Execução (Realizando Diagnóstico)", "Execução aguardando peças (em transporte)", "Aguardando ordem Técnico"] },
+  { r: "Executada", fases: ["Relatório Atualizado", "Executada", "Executada aguardando comercial", "Aguardando outros", "Relatório Concluído"] },
+  { r: "Omie", fases: ["Enviar Omie", "Enviado Para Omie", "Preenchido Garantia", "Concluída"] },
+];
+// Da fase Enviar Omie em diante: Enviar → Cobrar → Faturar
+const FASES_OMIE = new Set(["Enviar Omie", "Enviado Para Omie", "Cobrando Cliente", "Preenchido Garantia"]);
 const FASE_COBRANDO = "Cobrando Cliente";
 
 // ── Painel de COBRANÇA do card (fase "Cobrando Cliente"): mostra pra quem vai
 // (contatos do NovaZap vinculados ao CNPJ — escolhe se tiver mais de um), o
 // valor OS+PV somado do Omie e a mensagem-modelo; o botão dispara o Tratorilson.
-function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?: (orderId: string, newPhase: string) => void }) {
+function PainelCobranca({ osId, onPhaseChange, onStatus }: { osId: string; onPhaseChange?: (orderId: string, newPhase: string) => void; onStatus?: (s: { enviada: boolean; respondeu: boolean }) => void }) {
   const [aberto, setAberto] = useState(false);
   const [carregando, setCarregando] = useState(false);
   const [dados, setDados] = useState<any>(null);
@@ -137,10 +150,10 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
     try {
       const r = await fetch(`/api/pos/ordens/${osId}/cobrar?status=1`, { headers: await authHeaders(), cache: "no-store" });
       const j = await r.json();
-      if (r.ok) setStatusEnvio(j);
+      if (r.ok) { setStatusEnvio(j); onStatus?.({ enviada: !!j.enviada, respondeu: !!j.respostas?.length }); }
     } catch { /* capa segue sem status */ }
     setAtualizandoStatus(false);
-  }, [osId]);
+  }, [osId, onStatus]);
   useEffect(() => { carregarStatus(); }, [carregarStatus]);
   const concluir = () => {
     if (!confirmaConcluir) {
@@ -491,11 +504,8 @@ function PainelCobranca({ osId, onPhaseChange }: { osId: string; onPhaseChange?:
   );
 }
 
-const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, onAgendar, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; onAgendar?: (orderId: string, dataISO: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null }) {
+const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChange, onAgendar, garantiaStatus, onDescEnter, onDescLeave, onEnviarOmie, enviandoOmie, onFaturar }: { order: KanbanCard; color: string; onClick: () => void; onPhaseChange?: (orderId: string, newPhase: string) => void; onAgendar?: (orderId: string, dataISO: string) => void; garantiaStatus?: GarantiaStatus; onDescEnter?: (rect: DOMRect, texto: string) => void; onDescLeave?: () => void; onEnviarOmie?: (orderId: string) => void; enviandoOmie?: string | null; onFaturar?: (order: KanbanCard) => void }) {
   const diasFase = diasEntre(o.dataFase);
-  // Checkbox "reservado/agendado": marcar pergunta o dia e move pra Orçamento Aprovado
-  const [pedindoData, setPedindoData] = useState(false);
-  const [dataAgendada, setDataAgendada] = useState(() => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10));
   const temReqInfo = o.reqInfo && o.reqInfo.length > 0;
   const numero = String(o.id || "").replace(/^#?OS-?/i, "");
   // No card só o que vem depois de "Solicitação do cliente:" (o blob todo
@@ -506,17 +516,35 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
     return so || String(o.servSolicitado || "").trim();
   })();
 
+  // Status da cobrança (vem do PainelCobranca) para as bolinhas da fase Cobrando
+  const [cobranca, setCobranca] = useState<{ enviada: boolean; respondeu: boolean } | null>(null);
+  const atual = ETAPAS_OS.findIndex((e) => e.fases.includes(o.status));
+  const cobrando = o.status === FASE_COBRANDO;
+  const garantia = !!garantiaStatus;
+  const noOmie = !!o.ordemOmie;
+  const passos = cobrando
+    ? [
+        { r: "No Omie", ok: true },
+        { r: "Cobrado", ok: !!cobranca?.enviada, atual: !cobranca?.enviada },
+        { r: "Respondeu", ok: !!cobranca?.respondeu, atual: !!cobranca?.enviada && !cobranca?.respondeu },
+        { r: "Faturada", ok: false, atual: !!cobranca?.respondeu },
+      ]
+    : ETAPAS_OS.map((e, i) => ({ r: e.r, ok: atual >= 0 && i < atual, atual: i === atual }));
+  const tooltip = (titulo: string, cor: string, corpo: ReactNode) => (
+    <div className="mc-tooltip">
+      <div className="mc-tooltip-arrow" />
+      <div style={{ fontSize: 9, fontWeight: 700, color: cor, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>{titulo}</div>
+      {corpo}
+    </div>
+  );
+
   return (
-    <div className="mini-card" style={{ position: "relative", overflow: "visible", borderTop: `4px solid ${COR_TIPO[tipoDaOS(o, !!garantiaStatus)]}` }} onClick={onClick}
+    <div className="mini-card" style={{ position: "relative", overflow: "visible", borderTop: `3px solid ${COR_TIPO[tipoDaOS(o, garantia)]}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }} onClick={onClick}
       onMouseEnter={(e) => onDescEnter?.(e.currentTarget.getBoundingClientRect(), o.servSolicitado || "")}
       onMouseLeave={() => onDescLeave?.()}>
-      {/* Título no padrão do PPV: número preto em destaque — cliente */}
-      <div className="mini-card-titulo">
-        <b className="pos-num-preto">{numero}</b>
-        <span style={{ fontWeight: 400, color: "#334155" }}> — {o.cliente || "Sem Cliente"}</span>
-      </div>
+      <CapaTitulo numero={numero} cliente={o.cliente} />
       {(o.servicoInterno || o.projetoCronograma) && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {o.servicoInterno && (
             <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: 0.5, color: "#7C3AED", background: "#F3E8FF", border: "1px solid #DDD6FE", borderRadius: 3, padding: "1px 6px", textTransform: "uppercase" }}>
               <i className="fas fa-tools" style={{ marginRight: 3 }} />Interna
@@ -531,156 +559,71 @@ const MiniCard = memo(function MiniCard({ order: o, color, onClick, onPhaseChang
           )}
         </div>
       )}
-      {onPhaseChange && (
-        <div className="mini-card-phase" onClick={(e) => e.stopPropagation()}>
-          <select
-            value={o.status}
-            onChange={(e) => onPhaseChange(o.id, e.target.value)}
-            className="mini-card-phase-select"
-          >
-            {PHASES.map((p) => (
-              <option key={p} value={p}>{PHASE_SHORT[p] || p}</option>
-            ))}
-          </select>
-        </div>
-      )}
-      {/* Cobrança via Tratorilson — só nos cards da fase "Cobrando Cliente" */}
-      {o.status === FASE_COBRANDO && <PainelCobranca osId={o.id} onPhaseChange={onPhaseChange} />}
+      <CapaFaseValor fase={o.status} rotulo={PHASE_SHORT[o.status] || o.status} fases={PHASES} rotuloDe={(p) => PHASE_SHORT[p] || p}
+        onChange={onPhaseChange ? (f) => onPhaseChange(o.id, f) : undefined} valor={`R$ ${o.valor}`} />
+      <CapaBolinhas passos={passos} />
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <CapaLinha icone="fas fa-user-cog" rotulo="Técnico">{o.tecnico || "?"}</CapaLinha>
+        {o.previsaoExecucao && <CapaLinha icone="fas fa-wrench" rotulo="Execução"><CapaData>{formatDateBR(o.previsaoExecucao)}</CapaData></CapaLinha>}
+        {o.previsaoFaturamento && <CapaLinha icone="fas fa-file-invoice-dollar" rotulo="Faturamento"><CapaData>{formatDateBR(o.previsaoFaturamento)}</CapaData></CapaLinha>}
+        {solicitacao && <CapaTexto>{solicitacao}</CapaTexto>}
+      </div>
       {/* Reserva/agendamento: marcar → pergunta o dia → Orçamento Aprovado + Data Início */}
       {onAgendar && FASES_RESERVA.has(o.status) && (
-        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 7 }}>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: o.status === FASE_APROVADO ? "#15803D" : "#94a3b8", cursor: "pointer", textTransform: "none", letterSpacing: 0, margin: 0, whiteSpace: "nowrap" }}>
-            <input
-              type="checkbox"
-              checked={o.status === FASE_APROVADO}
-              onChange={(e) => {
-                if (e.target.checked) setPedindoData(true);
-                else { setPedindoData(false); onPhaseChange?.(o.id, "Orçamento enviado para o cliente e aguardando"); }
-              }}
-              style={{ accentColor: "#15803D" }}
-            />
-            Reservado
-          </label>
-          {pedindoData && o.status !== FASE_APROVADO && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 7, padding: "6px 8px" }}>
-              <span style={{ fontSize: 11.5, color: "#15803D", fontWeight: 700, whiteSpace: "nowrap" }}>Pra qual dia?</span>
-              <input type="date" value={dataAgendada} onChange={(e) => setDataAgendada(e.target.value)}
-                style={{ flex: 1, minWidth: 0, fontSize: 12, padding: "3px 6px", border: "1px solid #BBF7D0", borderRadius: 5 }} />
-              <button type="button" onClick={() => { if (dataAgendada) { onAgendar(o.id, dataAgendada); setPedindoData(false); } }}
-                style={{ border: "none", background: "#15803D", color: "#fff", borderRadius: 5, padding: "4px 10px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>OK</button>
-              <button type="button" onClick={() => setPedindoData(false)} title="Cancelar"
-                style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 13, padding: 0 }}>×</button>
-            </div>
-          )}
-        </div>
+        <CapaReservar reservado={o.status === FASE_APROVADO} onReservar={(d) => onAgendar(o.id, d)}
+          onDesmarcar={() => onPhaseChange?.(o.id, "Orçamento enviado para o cliente e aguardando")} />
       )}
-      {/* Informações em LISTA (padrão PPV: rótulo à esquerda, valor à direita) */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 9 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
-          <span style={{ color: "#94a3b8" }}><span className="mini-card-tipo-selo" style={{ marginRight: 6 }}>OS</span>Valor</span>
-          <b style={{ color: "#0f172a", whiteSpace: "nowrap", fontSize: 15 }}>R$ {o.valor}</b>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
-          <span style={{ color: "#94a3b8" }}><i className="fas fa-user-cog" style={{ marginRight: 5 }} />Técnico</span>
-          <span style={{ color: "#334155", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.tecnico || "?"}</span>
-        </div>
-        {o.previsaoExecucao && (
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14, alignItems: "center" }}>
-            <span style={{ color: "#94a3b8" }}><i className="fas fa-wrench" style={{ marginRight: 5 }} />Execução</span>
-            <span className="mini-card-date exec">{formatDateBR(o.previsaoExecucao)}</span>
+      {/* Cobrança via Tratorilson — só nos cards da fase "Cobrando Cliente" */}
+      {cobrando && <PainelCobranca osId={o.id} onPhaseChange={onPhaseChange} onStatus={setCobranca} />}
+      {/* Ordem (José, 13/10/2026): 1º só ENVIAR ao Omie → COBRAR → FATURAR (faturar pode pular o cobrar) */}
+      {FASES_OMIE.has(o.status) && (
+        !noOmie ? (
+          // Enviar ao Omie no card: DISCRETO (só contorno) — o grande em degradê saiu (José, 13/10/2026)
+          onEnviarOmie ? (
+            <button type="button" onClick={(e) => { e.stopPropagation(); onEnviarOmie(o.id); }} disabled={!!enviandoOmie}
+              title={`Enviar a ${o.id} ao Omie${o.temPPV ? " (com o PPV vinculado)" : ""}`}
+              style={{ alignSelf: "flex-start", display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px", borderRadius: 7,
+                border: "1px solid color-mix(in srgb, #0BB7CD 55%, var(--border, #e2e8f0))", background: "transparent", color: "#0891A8",
+                fontSize: 11.5, fontWeight: 700, fontFamily: "inherit", cursor: enviandoOmie ? "default" : "pointer",
+                opacity: enviandoOmie && enviandoOmie !== o.id ? 0.5 : 1 }}>
+              <i className={enviandoOmie === o.id ? "fas fa-spinner fa-spin" : "fas fa-paper-plane"} style={{ fontSize: 10.5 }} />
+              {enviandoOmie === o.id ? "Enviando…" : "Enviar ao Omie"}
+            </button>
+          ) : null
+        ) : (
+          <div style={{ display: "flex", gap: 6 }}>
+            {!cobrando && !o.servicoInterno && !garantia && onPhaseChange && (
+              <CapaBotao tipo="cobrar" onClick={() => onPhaseChange(o.id, FASE_COBRANDO)} title="Vai para Cobrando Cliente (manda a cobrança pelo WhatsApp)">
+                <i className="fab fa-whatsapp" /> Cobrar
+              </CapaBotao>
+            )}
+            {onFaturar && (
+              <CapaBotao tipo="faturar" onClick={() => onFaturar(o)} title={cobrando ? "Faturar no Omie" : "Faturar direto (pode pular a cobrança)"}>
+                <i className="fas fa-file-invoice-dollar" /> Faturar
+              </CapaBotao>
+            )}
           </div>
-        )}
-        {o.previsaoFaturamento && (
-          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14, alignItems: "center" }}>
-            <span style={{ color: "#94a3b8" }}><i className="fas fa-file-invoice-dollar" style={{ marginRight: 5 }} />Faturamento</span>
-            <span className="mini-card-date fat">{formatDateBR(o.previsaoFaturamento)}</span>
-          </div>
-        )}
-        {solicitacao && <div className="mini-card-servico" style={{ marginTop: 2, marginBottom: 0 }}>{solicitacao}</div>}
-      </div>
-      {/* Envio ao Omie: só nos cards da fila "Enviar Omie". Manual de propósito
-          (cria ordem/pedido REAL no Omie). */}
-      {onEnviarOmie && o.status === FASE_ENVIAR_OMIE && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onEnviarOmie(o.id); }}
-          disabled={!!enviandoOmie}
-          title={`Enviar a ${o.id} ao Omie${o.temPPV ? " (com o PPV vinculado)" : ""}`}
-          style={{
-            width: "100%", marginTop: 8, display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-            padding: "7px 10px", borderRadius: 7, border: "none",
-            background: enviandoOmie === o.id ? "#94A3B8" : "#0EA5E9", color: "#fff",
-            fontSize: 12, fontWeight: 700, cursor: enviandoOmie ? "default" : "pointer",
-            opacity: enviandoOmie && enviandoOmie !== o.id ? 0.5 : 1,
-          }}>
-          <i className={enviandoOmie === o.id ? "fas fa-spinner fa-spin" : "fas fa-paper-plane"} />
-          {enviandoOmie === o.id ? "Enviando..." : "Enviar ao Omie"}
-        </button>
+        )
       )}
-      {o.diasAtraso > 0 &&!['execu', 'orçamento', 'orcamento', 'aguardando cliente'].some(s => (o.status || '').toLowerCase().includes(s)) && (
-        <div className="mini-card-atraso">
+      {o.diasAtraso > 0 && !['execu', 'orçamento', 'orcamento', 'aguardando cliente'].some(s => (o.status || '').toLowerCase().includes(s)) && (
+        <div className="mini-card-atraso" style={{ margin: 0 }}>
           <i className="fas fa-exclamation-circle" /> {o.diasAtraso}d atrasado — cobrar {o.tecnico}
         </div>
       )}
-      <div className="mini-card-bottom">
-        <span className="mini-card-tecnico"><i className="fas fa-user-cog" /> {o.tecnico}</span>
-        <span className="mini-card-dias">{diasFase}d</span>
-        <span className="mini-card-icons">
-          {o.temPPV && <i className="fas fa-box" style={S_ICON_COLOR} title="PPV vinculado" />}
-
-          {/* Ícone REQ — tooltip no hover */}
-          <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-shopping-cart" title={o.temReq ? "Requisição vinculada" : "Sem requisição"} style={o.temReq ? S_ICON_COLOR : { color: "var(--border)" }} />
-            {temReqInfo && (
-              <div className="mc-tooltip">
-                <div className="mc-tooltip-arrow" />
-                <div style={{ fontSize: 9, fontWeight: 700, color: "#fbbf24", textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>
-                  Requisições ({o.reqInfo!.length})
-                </div>
-                {o.reqInfo!.map((r) => (
-                  <div key={r.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
-                    <span style={{ fontWeight: 700, color: "#fbbf24" }}>#{r.id}</span>
-                    <span style={{ fontWeight: 700, color: "#34d399" }}>
-                      R$ {r.valor.toFixed(2).replace(".", ",")}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </span>
-
-          {/* Ícone REL — tooltip no hover */}
-          <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-file-alt" title={o.temRel ? "Relatório técnico anexado" : "Sem relatório técnico"} style={o.temRel ? S_ICON_COLOR : { color: "var(--border)" }} />
-            {o.temRel && (
-              <div className="mc-tooltip">
-                <div className="mc-tooltip-arrow" />
-                <div style={{ fontSize: 9, fontWeight: 700, color: "#60a5fa", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
-                  Relatório Técnico
-                </div>
-                <div style={{ color: "#e2e8f0", fontSize: 12 }}>
-                  {o.relTecnico ? (
-                    <>Preenchido por <span style={{ fontWeight: 700, color: "#60a5fa" }}>{o.relTecnico}</span></>
-                  ) : "Relatório anexado"}
-                </div>
-              </div>
-            )}
-          </span>
-
-          {/* Ícone GARANTIA — tooltip no hover */}
-          <span className="mc-icon-wrap" onClick={(e) => e.stopPropagation()}>
-            <i className="fas fa-shield-halved" title={garantiaStatus ? `Garantia: ${STATUS_LABEL[garantiaStatus]}` : "Sem garantia"} style={{ color: garantiaStatus ? "#111827" : "var(--border)" }} />
-            {garantiaStatus && (
-              <div className="mc-tooltip">
-                <div className="mc-tooltip-arrow" />
-                <div style={{ fontSize: 9, fontWeight: 700, color: "#38bdf8", textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
-                  Garantia
-                </div>
-                <div style={{ color: "#e2e8f0", fontSize: 12 }}>{STATUS_LABEL[garantiaStatus]}</div>
-              </div>
-            )}
-          </span>
-        </span>
-      </div>
+      <CapaRodape esquerda={`${diasFase}d ${cobrando ? "cobrando" : "na fase"}`} icones={[
+        { icone: "fas fa-box", rotulo: "PPV", on: o.temPPV, titulo: o.ppvId ? `PPV ${o.ppvId}` : "PPV vinculado" },
+        { icone: "fas fa-shopping-cart", rotulo: "Req.", on: o.temReq, titulo: "Requisição vinculada",
+          extra: temReqInfo ? tooltip(`Requisições (${o.reqInfo!.length})`, "#fbbf24", o.reqInfo!.map((r) => (
+            <div key={r.id} style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px solid rgba(255,255,255,0.08)" }}>
+              <span style={{ fontWeight: 700, color: "#fbbf24" }}>#{r.id}</span>
+              <span style={{ fontWeight: 700, color: "#34d399" }}>R$ {r.valor.toFixed(2).replace(".", ",")}</span>
+            </div>
+          ))) : undefined },
+        { icone: "fas fa-file-alt", rotulo: "Relat.", on: o.temRel, titulo: "Relatório técnico",
+          extra: o.temRel ? tooltip("Relatório Técnico", "#60a5fa", <div style={{ color: "#e2e8f0", fontSize: 12 }}>{o.relTecnico ? <>Preenchido por <span style={{ fontWeight: 700, color: "#60a5fa" }}>{o.relTecnico}</span></> : "Relatório anexado"}</div>) : undefined },
+        { icone: "fas fa-shield-halved", rotulo: "Garantia", on: garantia, titulo: garantiaStatus ? `Garantia: ${STATUS_LABEL[garantiaStatus]}` : "Garantia",
+          extra: garantiaStatus ? tooltip("Garantia", "#38bdf8", <div style={{ color: "#e2e8f0", fontSize: 12 }}>{STATUS_LABEL[garantiaStatus]}</div>) : undefined },
+      ]} />
     </div>
   );
 });
@@ -690,7 +633,7 @@ const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 // Fases que aparecem no quadro mas SEM mostrar a contagem no cabeçalho.
 const SEM_CONTAGEM = new Set(["Concluída", "Cancelada"]);
 
-export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onAgendar, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, tecnicoFiltro = "", acoesAbas }: PhaseViewProps) {
+export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChange, onAgendar, onEnviarOmie, onEnviarOmieTodas, enviandoOmie, onFaturar, tecnicoFiltro = "", acoesAbas }: PhaseViewProps) {
   const [activePhase, setActivePhase] = useState<string>("");
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set(COLLAPSED_DEFAULT));
   const [garantiaMap, setGarantiaMap] = useState<Record<string, GarantiaStatus>>({});
@@ -836,12 +779,9 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
           return (
             <button key={t.id} type="button" role="tab" aria-selected={ativo} onClick={() => escolherAba(t.id)} title={t.dica}
               className={`pos-aba-tipo${ativo ? " ativa" : ""}`} style={{ ["--cor-aba" as string]: t.cor }}>
-              <span className="pos-aba-icone"><i className={`fas ${t.icone}`} /></span>
-              <span className="pos-aba-textos">
-                <span className="pos-aba-rotulo"><span className="pos-aba-longo">{t.rotulo}</span><span className="pos-aba-curto">{t.curto}</span></span>
-                <span className="pos-aba-sub">{n > 0 ? `${n} em aberto` : "nada em aberto"}</span>
-              </span>
-              {n > 0 && <span className="pos-aba-conta">{n}</span>}
+              <i className={`fas ${t.icone} pos-aba-icone`} />
+              <span className="pos-aba-rotulo"><span className="pos-aba-longo">{t.rotulo}</span><span className="pos-aba-curto">{t.curto}</span></span>
+              <span className="pos-aba-conta" title={n > 0 ? `${n} em aberto` : "nada em aberto"}>{n}</span>
             </button>
           );
         })}
@@ -849,40 +789,34 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
       {acoesAbas && <div className="pos-abas-acoes">{acoesAbas}</div>}
       </div>
       <style>{`
-        .pos-abas-faixa { display: flex; align-items: center; gap: 12px; padding: 14px 16px 4px; flex-wrap: wrap; }
-        .pos-abas-tipo { display: flex; align-items: stretch; gap: 10px; min-width: 0; }
-        .pos-abas-acoes { margin-left: auto; }
-        .pos-aba-tipo { position: relative; display: inline-flex; align-items: center; gap: 11px; min-height: 54px; padding: 8px 14px 8px 10px; border-radius: 12px;
-          border: 1px solid var(--border); background: var(--surface); color: var(--portal-text); cursor: pointer; white-space: nowrap; flex-shrink: 0;
-          font-family: inherit; text-align: left; transition: border-color .15s, box-shadow .15s, background .15s, transform .15s;
-          box-shadow: 0 1px 2px rgba(16,24,40,.05); }
-        .pos-aba-tipo:hover { border-color: color-mix(in srgb, var(--cor-aba) 45%, var(--border)); transform: translateY(-1px); box-shadow: 0 4px 12px rgba(16,24,40,.08); }
-        .pos-aba-tipo:focus-visible { outline: 2px solid var(--cor-aba); outline-offset: 2px; }
-        .pos-aba-icone { width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0; display: flex; align-items: center; justify-content: center;
-          background: color-mix(in srgb, var(--cor-aba) 13%, transparent); color: var(--cor-aba); font-size: 15px; transition: background .15s, color .15s; }
-        .pos-aba-textos { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-        .pos-aba-rotulo { font-size: 14px; font-weight: 700; line-height: 1.2; }
+        /* Abas em linha com sublinhado (José, 13/10/2026: as de cartão estavam feias) */
+        .pos-abas-faixa { display: flex; align-items: flex-end; gap: 12px; padding: 12px 16px 0; flex-wrap: wrap; border-bottom: 1px solid var(--border); margin: 0 16px; padding-left: 0; padding-right: 0; }
+        .pos-abas-tipo { display: flex; align-items: flex-end; gap: 4px; min-width: 0; }
+        .pos-abas-acoes { margin-left: auto; padding-bottom: 8px; }
+        .pos-aba-tipo { position: relative; display: inline-flex; align-items: center; gap: 8px; height: 42px; padding: 0 14px; border: none; background: transparent;
+          color: var(--portal-text-muted, #64748b); cursor: pointer; white-space: nowrap; flex-shrink: 0; font-family: inherit; border-radius: 9px 9px 0 0;
+          transition: color .15s, background .15s; }
+        .pos-aba-tipo::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: transparent; transition: background .15s; }
+        .pos-aba-tipo:hover { color: var(--portal-text); background: color-mix(in srgb, var(--cor-aba) 6%, transparent); }
+        .pos-aba-tipo:focus-visible { outline: 2px solid var(--cor-aba); outline-offset: -2px; }
+        .pos-aba-icone { font-size: 13px; color: var(--cor-aba); opacity: .75; }
+        .pos-aba-rotulo { font-size: 14px; font-weight: 700; }
         .pos-aba-curto { display: none; }
-        .pos-aba-sub { font-size: 11.5px; font-weight: 600; color: var(--portal-text-muted, #94a3b8); line-height: 1.2; }
-        .pos-aba-conta { min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; display: inline-flex; align-items: center; justify-content: center;
-          font-size: 12px; font-weight: 800; background: color-mix(in srgb, var(--cor-aba) 13%, transparent); color: var(--cor-aba); margin-left: 4px; }
-        .pos-aba-tipo.ativa { border-color: var(--cor-aba); background: color-mix(in srgb, var(--cor-aba) 7%, var(--surface));
-          box-shadow: 0 0 0 3px color-mix(in srgb, var(--cor-aba) 16%, transparent), 0 4px 14px rgba(16,24,40,.08); }
-        .pos-aba-tipo.ativa .pos-aba-icone { background: var(--cor-aba); color: #fefefe; }
-        .pos-aba-tipo.ativa .pos-aba-rotulo { color: var(--cor-aba); }
+        .pos-aba-conta { min-width: 22px; height: 20px; padding: 0 7px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+          font-size: 11.5px; font-weight: 800; background: var(--portal-bg-secondary, #eef2f6); color: var(--portal-text-muted, #64748b); font-variant-numeric: tabular-nums; }
+        .pos-aba-tipo.ativa { color: var(--cor-aba); }
+        .pos-aba-tipo.ativa::after { background: var(--cor-aba); }
+        .pos-aba-tipo.ativa .pos-aba-icone { opacity: 1; }
         .pos-aba-tipo.ativa .pos-aba-conta { background: var(--cor-aba); color: #fefefe; }
         @media (max-width: 640px) {
-          .pos-abas-faixa { padding: 12px 12px 4px; }
-          .pos-abas-acoes { width: 100%; margin-left: 0; order: -1; }
-          .pos-abas-tipo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; width: 100%; }
-          .pos-aba-tipo { flex-direction: column; align-items: center; justify-content: center; gap: 5px; min-height: 0; padding: 10px 6px 9px; text-align: center; }
-          .pos-aba-textos { align-items: center; }
+          .pos-abas-faixa { margin: 0 12px; }
+          .pos-abas-acoes { width: 100%; margin-left: 0; order: -1; padding: 8px 0 0; }
+          .pos-abas-tipo { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; width: 100%; }
+          .pos-aba-tipo { justify-content: center; padding: 0 4px; gap: 6px; }
           .pos-aba-longo { display: none; }
           .pos-aba-curto { display: inline; }
           .pos-aba-rotulo { font-size: 13px; }
-          .pos-aba-sub { display: none; }
-          .pos-aba-icone { width: 30px; height: 30px; font-size: 14px; }
-          .pos-aba-conta { position: absolute; top: 6px; right: 6px; margin: 0; min-width: 20px; height: 20px; font-size: 11px; padding: 0 5px; }
+          .pos-aba-icone { display: none; }
         }
       `}</style>
 
@@ -899,6 +833,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                 onClick={() => handleCardClick(o)}
                 onPhaseChange={onPhaseChange}
                 onAgendar={onAgendar}
+                onFaturar={onFaturar}
                 garantiaStatus={garantiaMap[o.id]}
                 onDescEnter={onDescEnter}
                 onDescLeave={onDescLeave}
@@ -985,6 +920,7 @@ export default function PhaseView({ orders, searchTerm, onCardClick, onPhaseChan
                       onClick={() => handleCardClick(o)}
                       onPhaseChange={onPhaseChange}
                       onAgendar={onAgendar}
+                      onFaturar={onFaturar}
                       garantiaStatus={garantiaMap[o.id]}
                       onDescEnter={onDescEnter}
                       onDescLeave={onDescLeave}

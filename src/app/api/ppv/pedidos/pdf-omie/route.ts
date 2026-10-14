@@ -35,15 +35,16 @@ export async function GET(req: NextRequest) {
   try {
     // Resolve o código interno do pedido no Omie
     type Consulta = { pedido_venda_produto?: { cabecalho?: { codigo_pedido?: number } } };
+    // Pelo NÚMERO primeiro: depois de uma substituição o "PV-<id>" fica no pedido cancelado
     let codPedido = 0;
     try {
       const c = await omieCall<Consulta>("/produtos/pedido/", "ConsultarPedido",
-        { codigo_pedido_integracao: `PV-${id}` }, acc.key, acc.secret, rotulo);
+        { numero_pedido: String(ped.pedido_omie).trim().replace(/^0+(?=\d)/, "") }, acc.key, acc.secret, rotulo);
       codPedido = Number(c?.pedido_venda_produto?.cabecalho?.codigo_pedido || 0);
-    } catch { /* tenta pelo número */ }
+    } catch { /* tenta pelo código de integração */ }
     if (!codPedido) {
       const c = await omieCall<Consulta>("/produtos/pedido/", "ConsultarPedido",
-        { numero_pedido: String(ped.pedido_omie) }, acc.key, acc.secret, rotulo);
+        { codigo_pedido_integracao: `PV-${id}` }, acc.key, acc.secret, rotulo);
       codPedido = Number(c?.pedido_venda_produto?.cabecalho?.codigo_pedido || 0);
     }
     if (!codPedido) return NextResponse.json({ error: "Pedido não localizado no Omie." }, { status: 404 });

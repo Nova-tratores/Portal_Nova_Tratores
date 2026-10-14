@@ -7,6 +7,7 @@
 export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
   'pos:faturar', // faturar a OS (emite NFS-e) — decisão do José, 10/10/2026
   'pos:cancelar_faturamento', // cancelar NFS-e/NF-e pelo portal (13/10/2026)
+  'pos:substituir_omie', // trocar a OS/pedido do Omie (cancela o antigo) (13/10/2026)
   'pos:modelos_fiscais', // criar/editar modelos fiscais da NFS-e e vincular a clientes
   // editar os cards dos kanbans do Financeiro (nome, condição, valor, datas) em
   // qualquer fase — antes só admin; o "acesso total" ao Financeiro NÃO dá (13/10/2026)
@@ -18,6 +19,7 @@ export const ACOES_EXPLICITAS: ReadonlySet<string> = new Set([
 export const ACOES_SO_DEV: ReadonlySet<string> = new Set([
   'pos:faturar',
   'pos:cancelar_faturamento',
+  'pos:substituir_omie',
 ]);
 
 export function acaoSoDev(modulo: string, acao?: string): boolean {

@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import type { KanbanItem } from "@/lib/ppv/types";
 import { normalizarStatus, formatarDataFrontend, formatarMoeda } from "@/lib/ppv/utils";
 import { STATUS_COLORS, STATUS_OPTIONS, rotuloStatus, type StatusKey } from "@/lib/ppv/constants";
+import { CapaTitulo, CapaFaseValor, CapaBolinhas, CapaLinha, CapaData, CapaTexto, CapaReservar, CapaRodape } from "@/components/comum/CapaCard";
 
 // Preview do card no hover (com OS → descrição da OS + produtos; sem OS → produtos + observação)
 interface HoverPreview {
@@ -75,6 +76,15 @@ export const PHASE_SHORT: Record<string, string> = {
 // (fases sem nenhum pedido nem aparecem). Clica no cabeçalho pra abrir/fechar.
 const COLLAPSED_DEFAULT = new Set(["Concluída", "Cancelada"]);
 
+// Bolinhas da capa: o caminho do pedido até faturar
+const ETAPAS_PPV: { r: string; fases: string[] }[] = [
+  { r: "Orçamento", fases: ["Orçamento", "Orçamento enviado para o cliente e aguardando"] },
+  { r: "Aprovado", fases: ["Orçamento Aprovado"] },
+  { r: "Execução", fases: ["Execução", "Execução (Realizando Diagnóstico)", "Execução aguardando peças (em transporte)", "Executada aguardando comercial", "Aguardando outros", "Aguardando ordem Técnico", "Relatório Concluído"] },
+  { r: "Omie", fases: ["Enviado Omie"] },
+  { r: "Faturado", fases: ["Concluída"] },
+];
+
 const MiniCard = memo(function MiniCard({
   order: o,
   onClick,
@@ -90,9 +100,6 @@ const MiniCard = memo(function MiniCard({
   viewMode?: "cards" | "lista";
 }) {
   const statusNorm = normalizarStatus(o.status);
-  // Checkbox "reservado/agendado": marcar pergunta o dia (a OS vinculada acompanha)
-  const [pedindoData, setPedindoData] = useState(false);
-  const [dataAgendada, setDataAgendada] = useState(() => new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10));
   const valorFmt = o.valor ? formatarMoeda(parseFloat(String(o.valor))) : "R$ 0,00";
   const dataFmt = formatarDataFrontend(o.data);
   const isTipoRem = (o.tipo || "").toLowerCase().includes("remessa") || (o.tipo || "").toUpperCase() === "REM";
@@ -197,72 +204,36 @@ const MiniCard = memo(function MiniCard({
     );
   }
 
-  // ── Modo CARDS ──
-  // Título: Nº em NEGRITO + cliente sem negrito; infos em LISTA embaixo (18/08)
+  // ── Modo CARDS ── capa no mesmo modelo do POS (José, 13/10/2026)
   const numero = String(o.id || "").replace(/^(PPV|REM)-?/i, "");
+  const atual = ETAPAS_PPV.findIndex((e) => e.fases.includes(statusNorm));
+  const cancelada = statusNorm === "Cancelada";
+  const passos = ETAPAS_PPV.map((e, i) => ({ r: e.r, ok: atual >= 0 && (i < atual || (statusNorm === "Concluída" && i === atual)), atual: i === atual && statusNorm !== "Concluída" }));
+  const semZeros = (n?: string) => String(n || "").replace(/^0+(?=\d)/, "");
+  const prevFat = o.previsaoFaturamento ? formatarDataFrontend(o.previsaoFaturamento) : "";
   return (
-    <div ref={cardRef} className={`ppv-mini-card ${dragging ? "dragging" : ""}`} draggable onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}>
-      <div className="ppv-mini-card-title" style={{ color: tituloColor }}>
-        <b className="ppv-num-neon">{isTipoRem ? `REM ${numero}` : numero}</b>
-        <span style={{ fontWeight: 400, color: "#334155" }}> — {o.cliente || "Sem Cliente"}</span>
+    <div ref={cardRef} className={`ppv-mini-card ${dragging ? "dragging" : ""}`} draggable onDragStart={dragStart} onDragEnd={dragEnd} onClick={onClick} onMouseEnter={onHoverEnter} onMouseLeave={onHoverLeave}
+      style={{ borderTop: `3px solid ${isTipoRem ? "#e8730c" : "#EA580C"}`, display: "flex", flexDirection: "column", gap: 8, borderRadius: 12, padding: "10px 12px" }}>
+      <CapaTitulo numero={isTipoRem ? `REM ${numero}` : numero} cliente={o.cliente} corNumero={tituloColor} />
+      <CapaFaseValor fase={statusNorm} rotulo={PHASE_SHORT[statusNorm] || rotuloStatus(statusNorm)} fases={PHASES} rotuloDe={(p) => PHASE_SHORT[p] || p}
+        onChange={onStatusChange ? (f) => onStatusChange(o.id, f) : undefined} valor={valorFmt} />
+      {!cancelada && <CapaBolinhas passos={passos} />}
+      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+        <CapaLinha icone="fas fa-user-cog" rotulo="Técnico">{o.tecnico || "?"}</CapaLinha>
+        <CapaLinha icone="far fa-calendar" rotulo="Data">{dataFmt}</CapaLinha>
+        {prevFat && <CapaLinha icone="fas fa-file-invoice-dollar" rotulo="Faturamento"><CapaData>{prevFat}</CapaData></CapaLinha>}
+        {o.observacao && <CapaTexto>{o.observacao}</CapaTexto>}
       </div>
-      {onStatusChange && (
-        <div className="ppv-mini-card-phase" onClick={(e) => e.stopPropagation()}>
-          <select value={statusNorm} onChange={(e) => onStatusChange(o.id, e.target.value)} className="ppv-mini-card-phase-select">
-            {PHASES.map((p) => (<option key={p} value={p}>{PHASE_SHORT[p] || p}</option>))}
-          </select>
-        </div>
-      )}
       {/* Reserva/agendamento: marcar → pergunta o dia → Orçamento Aprovado (OS junto) */}
       {onAgendar && ["Orçamento", "Orçamento enviado para o cliente e aguardando", "Orçamento Aprovado"].includes(statusNorm) && (
-        <div onClick={(e) => e.stopPropagation()} style={{ marginTop: 7 }}>
-          <label style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12.5, fontWeight: 600, color: statusNorm === "Orçamento Aprovado" ? "#15803D" : "#94a3b8", cursor: "pointer", textTransform: "none", letterSpacing: 0, margin: 0, whiteSpace: "nowrap" }}>
-            <input
-              type="checkbox"
-              checked={statusNorm === "Orçamento Aprovado"}
-              onChange={(e) => {
-                if (e.target.checked) setPedindoData(true);
-                else { setPedindoData(false); onStatusChange?.(o.id, "Orçamento enviado para o cliente e aguardando"); }
-              }}
-              style={{ accentColor: "#15803D" }}
-            />
-            Reservado
-          </label>
-          {pedindoData && statusNorm !== "Orçamento Aprovado" && (
-            <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 6, background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 7, padding: "6px 8px" }}>
-              <span style={{ fontSize: 11.5, color: "#15803D", fontWeight: 700, whiteSpace: "nowrap" }}>Pra qual dia?</span>
-              <input type="date" value={dataAgendada} onChange={(e) => setDataAgendada(e.target.value)}
-                style={{ flex: 1, minWidth: 0, fontSize: 12, padding: "3px 6px", border: "1px solid #BBF7D0", borderRadius: 5 }} />
-              <button type="button" onClick={() => { if (dataAgendada) { onAgendar(o.id, dataAgendada); setPedindoData(false); } }}
-                style={{ border: "none", background: "#15803D", color: "#fff", borderRadius: 5, padding: "4px 10px", fontSize: 11.5, fontWeight: 700, cursor: "pointer" }}>OK</button>
-              <button type="button" onClick={() => setPedindoData(false)} title="Cancelar"
-                style={{ border: "none", background: "transparent", color: "#94a3b8", cursor: "pointer", fontSize: 13, padding: 0 }}>×</button>
-            </div>
-          )}
-        </div>
+        <CapaReservar reservado={statusNorm === "Orçamento Aprovado"} onReservar={(d) => onAgendar(o.id, d)}
+          onDesmarcar={() => onStatusChange?.(o.id, "Orçamento enviado para o cliente e aguardando")} />
       )}
-      {/* Informações em LISTA */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 9 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
-          <span style={{ color: "#94a3b8" }}><span className={`ppv-mini-card-tipo ${isTipoRem ? "rem" : ""}`} style={{ marginRight: 6 }}>{isTipoRem ? "REM" : "PPV"}</span>Valor</span>
-          <b style={{ color: "#0f172a", whiteSpace: "nowrap", fontSize: 15 }}>{valorFmt}</b>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
-          <span style={{ color: "#94a3b8" }}><i className="fas fa-user-cog" style={{ marginRight: 5 }} />Técnico</span>
-          <span style={{ color: "#334155", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{o.tecnico || "?"}</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 14 }}>
-          <span style={{ color: "#94a3b8" }}><i className="far fa-calendar" style={{ marginRight: 5 }} />Data</span>
-          <span style={{ color: "#334155", whiteSpace: "nowrap" }}>{dataFmt}</span>
-        </div>
-        {o.observacao && <div className="ppv-mini-card-obs" style={{ marginTop: 2, fontSize: 13 }}>{o.observacao}</div>}
-      </div>
-      {/* Só quem criou — a "última ação" saiu (poluía o card) */}
-      {(o.criadoPor || o.ultimoUsuario) && (
-        <div style={{ marginTop: 9, fontSize: 12.5, color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-          <i className="far fa-user" style={{ marginRight: 4 }} /> Criado por <b style={{ color: "#475569" }}>{o.criadoPor || o.ultimoUsuario}</b>
-        </div>
-      )}
+      <CapaRodape esquerda={(o.criadoPor || o.ultimoUsuario) ? <>por <b style={{ color: "var(--portal-text-secondary, #475569)" }}>{o.criadoPor || o.ultimoUsuario}</b></> : ""} icones={[
+        { icone: "fas fa-wrench", rotulo: "OS", on: !!o.osId, titulo: o.osId ? `OS ${o.osId}` : "OS vinculada" },
+        { icone: "fas fa-cloud", rotulo: "Omie", on: !!o.pedidoOmie, titulo: o.pedidoOmie ? `Pedido ${semZeros(o.pedidoOmie)} no Omie` : "No Omie" },
+        { icone: "fas fa-file-invoice", rotulo: "NF-e", on: !!o.nfNumero, titulo: o.nfNumero ? `NF-e ${semZeros(o.nfNumero)}` : "Nota fiscal" },
+      ]} />
       {previewPortal}
     </div>
   );

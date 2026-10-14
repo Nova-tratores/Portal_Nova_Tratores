@@ -6,6 +6,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/ppv/api";
 import { authHeaders } from "@/lib/auth/client";
+import ConferenciaOmie from "@/components/comum/ConferenciaOmie";
 
 export default function FaturarModal({
   open, ppvId, numeroPedido, userName, onClose, onDone, showToast,
@@ -22,10 +23,11 @@ export default function FaturarModal({
   const [erro, setErro] = useState("");
   // unidades rastreadas escaneadas no pedido mas nunca liberadas — aviso
   const [reservadasPendentes, setReservadasPendentes] = useState(0);
+  // portal × Omie conferidos (e alinhados) antes de faturar
+  const [conferido, setConferido] = useState(false);
 
   useEffect(() => {
     if (!open || !ppvId) return;
-    setReservadasPendentes(0);
     let cancel = false;
     (async () => {
       try {
@@ -38,6 +40,7 @@ export default function FaturarModal({
   }, [open, ppvId]);
 
   if (!open) return null;
+  if (!conferido && ppvId) return <ConferenciaOmie alvo={{ tipo: "ppv", ppvId }} cor="#e8730c" onOk={() => setConferido(true)} onCancelar={onClose} />;
 
   const numero = numeroPedido ? (String(numeroPedido).replace(/^0+/, "") || String(numeroPedido)) : "";
 
