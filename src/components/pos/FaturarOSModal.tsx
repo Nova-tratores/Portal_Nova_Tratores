@@ -239,12 +239,19 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
   return (
     <div onClick={() => !faturando && !aguardando && onClose()} style={{ position: "fixed", inset: 0, zIndex: 68000, background: "rgba(15,23,42,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "4vh 16px", overflowY: "auto" }}>
       <div onClick={(e) => e.stopPropagation()} style={{ background: "#fefefe", color: "#1e293b", borderRadius: 16, width: "100%", maxWidth: 680, boxShadow: "0 30px 70px rgba(0,0,0,.35)", overflow: "hidden" }}>
+        {faturando && <FaturandoTela comOS={comOS} comPecas={pecasJunto.length > 0} />}
         {/* cabeçalho */}
         <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", background: "linear-gradient(135deg, #e0f2fe, #fefefe 70%)", borderBottom: "1px solid #e2e8f0" }}>
           <span style={{ width: 44, height: 44, borderRadius: 12, background: COR, color: "#fefefe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, boxShadow: "0 6px 14px rgba(3,105,161,.3)" }}><i className="fas fa-file-invoice-dollar" /></span>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 17, fontWeight: 800 }}>Faturar no Omie{previa?.os ? ` · OS nº ${previa.os.numeroOmie}` : ""}</div>
             {previa?.os && <div style={{ fontSize: 12.5, color: "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{previa.os.cliente} · {previa.os.id} · fase: {previa.os.status}</div>}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <span style={{ height: 36, padding: "0 10px", borderRadius: 10, background: "#fefefe", border: "1px solid #e2e8f0", display: "flex", alignItems: "center" }}><img src="/marcas/nfse.png" alt="NFS-e" style={{ height: 20, width: "auto" }} /></span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <span style={{ height: 36, padding: "0 10px", borderRadius: 10, background: "#fefefe", border: "1px solid #e2e8f0", display: "flex", alignItems: "center" }}><img src="/marcas/omie.png" alt="Omie" style={{ height: 18, width: "auto" }} /></span>
           </div>
           <button onClick={onClose} disabled={faturando || aguardando} title="Fechar" style={{ background: "#fefefe", border: "1px solid #e2e8f0", borderRadius: 10, width: 36, height: 36, cursor: "pointer", color: "#475569", fontSize: 18 }}>×</button>
         </div>
@@ -552,11 +559,10 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
 function ResumoNotas({ comOS, numeroOS, totalServico, pecas, forma, totalGeral }: {
   comOS: boolean; numeroOS: string; totalServico: number; pecas: PPVPrevia[]; forma: string | null; totalGeral: number;
 }) {
-  const linha = (logo: string, titulo: string, sub: string, valor: number, chave: string) => (
+  const linha = (icone: string, cor: string, titulo: string, sub: string, valor: number, chave: string) => (
     <div key={chave} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", borderTop: "1px solid #f1f5f9" }}>
-      <span style={{ width: 64, height: 40, borderRadius: 10, background: "#fefefe", border: "1px solid #e2e8f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={logo} alt="" style={{ maxWidth: 48, maxHeight: 24 }} />
+      <span style={{ width: 44, height: 44, borderRadius: 12, background: `color-mix(in srgb, ${cor} 12%, #fefefe)`, color: cor, border: `1px solid color-mix(in srgb, ${cor} 25%, #fefefe)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 19 }}>
+        <i className={`fas ${icone}`} />
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: "block", fontSize: 15.5, fontWeight: 700 }}>{titulo}</span>
@@ -567,8 +573,8 @@ function ResumoNotas({ comOS, numeroOS, totalServico, pecas, forma, totalGeral }
   );
   return (
     <div style={{ border: "1px solid #e2e8f0", borderRadius: 12, overflow: "hidden", marginBottom: 12 }}>
-      {comOS && linha("/marcas/nfse.png", "NFS-e · nota de serviço", `OS nº ${numeroOS}${forma ? ` · ${forma}` : ""}`, totalServico, "os")}
-      {pecas.map((p) => linha("/marcas/omie.png", "NF-e · nota de peças (Omie)", `${p.id}${p.pedidoOmie ? ` · pedido ${p.pedidoOmie.replace(/^0+(?=\d)/, "")}` : ""}${forma ? ` · ${forma}` : ""}`, Number(p.valor) || 0, p.id))}
+      {comOS && linha("fa-file-invoice", "#0369A1", "NFS-e · nota de serviço", `OS nº ${numeroOS}${forma ? ` · ${forma}` : ""}`, totalServico, "os")}
+      {pecas.map((p) => linha("fa-file-invoice-dollar", "#e8730c", "NF-e · nota de peças", `${p.id}${p.pedidoOmie ? ` · pedido ${p.pedidoOmie.replace(/^0+(?=\d)/, "")}` : ""}${forma ? ` · ${forma}` : ""}`, Number(p.valor) || 0, p.id))}
       <div style={{ display: "flex", alignItems: "center", padding: "16px", background: "#f0f9ff", borderTop: "2px solid #bae6fd" }}>
         <span style={{ flex: 1, fontSize: 15.5, fontWeight: 800, color: "#0c4a6e" }}>Total a faturar{comOS && pecas.length ? <span style={{ fontWeight: 600, color: "#0369A1" }}> · serviço + peças</span> : null}</span>
         <span style={{ fontSize: 22, fontWeight: 800, color: "#0369A1", fontVariantNumeric: "tabular-nums" }}>{brl(totalGeral)}</span>
@@ -660,6 +666,61 @@ function AguardandoNotas({ osId, comOS, ppvIds, numeroOS, concluida, onFechar }:
       <button onClick={onFechar} style={{ marginTop: 14, width: "100%", padding: "12px 18px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", background: tudo ? "#15803d" : "#334155", color: "#fefefe" }}>
         {tudo ? "Concluir" : "Fechar e continuar em segundo plano"}
       </button>
+    </div>
+  );
+}
+
+/** Enquanto fatura: Omie → NFS-e/NF-e com os passos andando (José, 14/10/2026). */
+function FaturandoTela({ comOS, comPecas }: { comOS: boolean; comPecas: boolean }) {
+  const passos = [
+    ...(comOS ? ["Aplicando os impostos dos serviços", "Gravando as parcelas", "Validando a OS no Omie", "Emitindo a NFS-e"] : []),
+    ...(comPecas ? ["Gravando as parcelas do pedido de peças", "Emitindo a NF-e das peças"] : []),
+  ];
+  const [passo, setPasso] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setPasso((p) => Math.min(p + 1, passos.length - 1)), 6000);
+    return () => clearInterval(t);
+  }, [passos.length]);
+  const pct = Math.min(94, Math.round(((passo + 0.6) / passos.length) * 100));
+  const COR = "#0369A1";
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 68010, background: "rgba(15,23,42,.55)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+      <style>{`
+        @keyframes fatCorre { 0% { left: -40% } 100% { left: 100% } }
+        @keyframes fatGira { to { transform: rotate(360deg) } }
+        .fat-fio { position: relative; width: 110px; height: 4px; border-radius: 4px; background: color-mix(in srgb, ${COR} 18%, transparent); overflow: hidden; }
+        .fat-fio::after { content: ""; position: absolute; top: 0; left: -40%; width: 40%; height: 100%; border-radius: 4px; background: ${COR}; animation: fatCorre 1.1s ease-in-out infinite; }
+        .fat-logo { width: 78px; height: 64px; border-radius: 16px; background: #fefefe; border: 1px solid #e2e8f0; box-shadow: 0 6px 16px rgba(15,23,42,.08); display: flex; align-items: center; justify-content: center; }
+      `}</style>
+      <div style={{ width: 460, maxWidth: "100%", background: "#fefefe", borderRadius: 18, overflow: "hidden", boxShadow: "0 30px 70px rgba(15,23,42,.4)" }}>
+        <div style={{ padding: "26px 28px 20px", background: "linear-gradient(135deg, #e0f2fe, #fefefe 70%)", borderBottom: "1px solid #eef1f4" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14 }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <div className="fat-logo" title="Omie"><img src="/marcas/omie.png" alt="Omie" style={{ maxWidth: 56, maxHeight: 26 }} /></div>
+            <div className="fat-fio" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <div className="fat-logo" title={comOS ? "NFS-e" : "NF-e"}>{comOS ? <img src="/marcas/nfse.png" alt="NFS-e" style={{ maxWidth: 56, maxHeight: 30 }} /> : <b style={{ fontSize: 18, color: "#e8730c" }}>NF-e</b>}</div>
+          </div>
+          <div style={{ marginTop: 18, textAlign: "center", fontSize: 17, fontWeight: 800, color: "#1e293b" }}>Faturando no Omie</div>
+          <div style={{ marginTop: 4, textAlign: "center", fontSize: 12.5, color: "#64748b" }}>Não feche esta janela. Pode levar até 1 ou 2 minutos.</div>
+        </div>
+        <div style={{ padding: "18px 28px 6px", display: "flex", flexDirection: "column", gap: 11 }}>
+          {passos.map((p, i) => (
+            <div key={p} style={{ display: "flex", alignItems: "center", gap: 11, fontSize: 13.5, color: i < passo ? "#334155" : i === passo ? "#1e293b" : "#94a3b8", fontWeight: i === passo ? 700 : 500 }}>
+              <span style={{ width: 24, height: 24, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11,
+                border: i < passo ? "2px solid #22c55e" : i === passo ? `2px solid color-mix(in srgb, ${COR} 25%, transparent)` : "2px solid #e2e8f0",
+                borderTopColor: i === passo ? COR : undefined, background: i < passo ? "#22c55e" : "transparent", color: "#fefefe",
+                animation: i === passo ? "fatGira .8s linear infinite" : undefined }}>
+                {i < passo && <i className="fas fa-check" />}
+              </span>
+              {p}
+            </div>
+          ))}
+        </div>
+        <div style={{ margin: "14px 28px 24px", height: 6, borderRadius: 6, background: "#eef2f6", overflow: "hidden" }}>
+          <div style={{ width: `${pct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${COR}, #22c55e)`, transition: "width .6s ease" }} />
+        </div>
+      </div>
     </div>
   );
 }
