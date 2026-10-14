@@ -329,7 +329,7 @@ Todos os outros só leem (Listar*, Consultar*, Obter*, Status*, GetUrlDanfe).
 | estoque-enriquecer-notas | 04:30 | estoque + ajustes | sem registro |
 | estoque-sync-remessas | 04:15 e 13:15 | estoque + ajustes | sem registro |
 | ajustes-classificar-recebidos | 05:00 e 10:00 | ajustes | sem registro |
-| clientes-sync-omie | 05:30 | rota própria + nfse | sem registro |
+| clientes-sync-omie | 05:30 | rota própria + nfse | cron_runs `clientes-sync-omie` (fire-and-forget desde 14/10) |
 | pos-sync-omie | 05:10 | pos/sync-omie | sem registro |
 | sync-nfs | 05:00, 12:00, 17:00 | rota própria + nfse | sem registro |
 | estoque-sync-estoque | a cada 3 h | estoque | 4 min, máx 13 |

@@ -222,7 +222,7 @@ export const AGENDAMENTOS: Agendamento[] = [
     horarioBRT: '05:30 (diário)',
     alvo: 'POST /api/clientes/sync',
     arquivo: '.github/workflows/clientes-sync-omie.yml',
-    obs: 'Mesmo sync do botão "Sincronizar" da Pasta Clientes; é o único que atualiza projetos (máquinas) com o último cliente',
+    obs: 'Mesmo sync do botão "Sincronizar" da Pasta Clientes; único que atualiza projetos (máquinas) com o último cliente. Fire-and-forget: GitHub só diz que disparou; resultado em cron_runs (job clientes-sync-omie)',
   },
   {
     nome: 'Sync cadastros Omie do POS (clientes PRINCIPAL, projetos)',

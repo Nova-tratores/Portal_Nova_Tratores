@@ -3,6 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
+import { comCronRun } from "@/lib/cron/observar";
+
+const CRON_SECRET = process.env.CRON_SECRET || "";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -644,12 +647,14 @@ async function vincularProjetosAoUltimoCliente(acc: OmieAccount) {
   console.log(`[clientes-sync] Projetos ${acc.name}: ${projetos.length} projetos, ${ultimoCliente.size} com cliente vinculado`);
 }
 
-export async function POST(req: NextRequest) {
+/**
+ * Sync completo (clientes, projetos, OS/PV do ano, NFs) nas duas contas. É o que o
+ * botão "Sincronizar" da Pasta Clientes roda. Leva 10–40 min.
+ */
+async function executarSyncCompleto(anoInicioParam: string | null) {
   // ?anoInicio=2020 para forçar desde um ano específico
   const anoAtual = new Date().getFullYear();
-  const anoInicioParam = req.nextUrl.searchParams.get("anoInicio");
-
-  try {
+  {
     await ensureBucket();
     // Verificar se já tem dados antigos sincronizados
     const { data: oldest } = await supabase
@@ -719,11 +724,42 @@ export async function POST(req: NextRequest) {
       resultado[acc.name] = { clientes: nClientes, os: totalOS, pv: totalPV, nfse: totalNFSe };
     }
 
-    return NextResponse.json({
-      sucesso: true,
+    return {
+      sucesso: true as const,
       periodo: `${anos[0]}–${anos[anos.length - 1]}`,
       resultado,
-    });
+    };
+  }
+}
+
+function veioDoCron(req: NextRequest): boolean {
+  if (!CRON_SECRET) return false;
+  const bearer = req.headers.get("authorization") || "";
+  return req.headers.get("x-cron-secret") === CRON_SECRET || bearer === `Bearer ${CRON_SECRET}`;
+}
+
+// POST — botão "Sincronizar" da Pasta Clientes (espera o fim e devolve o resumo) OU o
+// cron clientes-sync-omie.yml (05:30 BRT). Com o segredo do cron a resposta é
+// IMEDIATA (202) e o sync segue no servidor: o proxy do Railway corta a request em
+// 5 min e o GitHub marcava "failure" (502) todo dia, embora o sync terminasse. O
+// resultado real fica em `cron_runs` (job `clientes-sync-omie`, tela /agendamentos);
+// a trava de 3 h evita rodar em dobro com o botão.
+export async function POST(req: NextRequest) {
+  const anoInicioParam = req.nextUrl.searchParams.get("anoInicio");
+
+  if (veioDoCron(req)) {
+    comCronRun("clientes-sync-omie", () => executarSyncCompleto(anoInicioParam), {
+      lockMinutos: 180,
+      disparadoPor: "github",
+      fechamento: (r) => ({ detalhe: JSON.stringify({ periodo: r.periodo, ...r.resultado }) }),
+    })
+      .then((r) => console.log("[clientes-sync] cron", r.pulado ? "pulado (já rodando)" : r.erro ? "erro: " + r.erro : "concluído", JSON.stringify(r.resultado?.resultado ?? {})))
+      .catch((e) => console.error("[clientes-sync] cron erro", (e as Error).message));
+    return NextResponse.json({ sucesso: true, iniciado: true, timestamp: new Date().toISOString() }, { status: 202 });
+  }
+
+  try {
+    return NextResponse.json(await executarSyncCompleto(anoInicioParam));
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[clientes-sync]", msg);
