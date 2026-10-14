@@ -36,7 +36,7 @@ async function omie(ep: string, call: string, param: Record<string, unknown>, ac
 /** Baixa e confere que é PDF de verdade (assinatura %PDF-). */
 export async function baixarPdf(url: string): Promise<Buffer | null> {
   try {
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(30_000) });
     if (!r.ok) return null;
     const buf = Buffer.from(await r.arrayBuffer());
     return buf.subarray(0, 5).toString("latin1") === "%PDF-" ? buf : null;

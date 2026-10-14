@@ -36,7 +36,8 @@ const BUCKET = "clientes-docs";
 
 async function downloadNF(url: string, path: string): Promise<string> {
   try {
-    const res = await fetch(url);
+    // Limite: URL de nota que não responde segurava a rodada inteira até o Node desistir (300 s).
+    const res = await fetch(url, { signal: AbortSignal.timeout(30_000) });
     if (!res.ok) return url;
     const buf = Buffer.from(await res.arrayBuffer());
     if (buf.length < 100) return url;
@@ -289,10 +290,10 @@ export async function GET(req: Request) {
     // e o financeiro juntos mesmo sem o webhook do Omie (que não alcança o localhost).
     let cardsDisparados = 0;
     for (const cod of osFaturadasCod) {
-      try { await fetch(`${origin}/api/financeiro/sync-os?codOS=${cod}`, { method: "POST" }); cardsDisparados++; } catch {}
+      try { await fetch(`${origin}/api/financeiro/sync-os?codOS=${cod}`, { method: "POST", signal: AbortSignal.timeout(120_000) }); cardsDisparados++; } catch {}
     }
     if (houvePVFaturado) {
-      try { await fetch(`${origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST" }); } catch {}
+      try { await fetch(`${origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST", signal: AbortSignal.timeout(120_000) }); } catch {}
     }
 
     return NextResponse.json({ sucesso: true, resultado, cards_financeiro_disparados: cardsDisparados, timestamp: new Date().toISOString() });
