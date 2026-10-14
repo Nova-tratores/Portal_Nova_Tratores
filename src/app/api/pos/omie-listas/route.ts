@@ -75,7 +75,7 @@ export async function GET(req: NextRequest) {
   if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
   const soCliente = req.nextUrl.searchParams.get("so") === "cliente";
   // só o cliente (botão de clipe do PPV): quem usa o PPV também pode
-  if (!auth.isAdmin && !auth.modulos.includes("pos") && !(soCliente && auth.modulos.includes("ppv"))) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  if (!auth.isAdmin && !auth.modulos.includes("pos") && !auth.modulos.includes("ppv")) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   try {
     const listas = soCliente ? null : await carregarListas();
     const num = String(req.nextUrl.searchParams.get("os") || "").replace(/\D/g, "").replace(/^0+/, "");

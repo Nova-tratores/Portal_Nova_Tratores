@@ -10,8 +10,9 @@ type Alvo = { tipo: "os"; osId: string } | { tipo: "ppv"; ppvId: string };
 interface Resposta { os: ResultadoConferencia | null; ppvs: ResultadoConferencia[]; error?: string }
 type Fase = "conferindo" | "ok" | "divergente" | "atualizando" | "erro";
 
-const PASSOS_OS = ["Lendo a OS no Omie…", "Conferindo serviços, horas e km…", "Conferindo categoria, conta e departamentos…", "Conferindo os pedidos de peças…"];
-const PASSOS_PPV = ["Lendo o pedido no Omie…", "Conferindo peças, quantidades e valores…", "Conferindo categoria, parcelas e departamentos…"];
+const PASSOS_OS = ["Lendo a OS no Omie", "Serviços, horas e km", "Categoria, conta e departamentos", "Pedidos de peças vinculados"];
+const PASSOS_PPV = ["Lendo o pedido no Omie", "Peças, quantidades e valores", "Categoria, parcelas e departamentos"];
+const PASSOS_ATUALIZAR = ["Enviando as correções ao Omie", "Conferindo de novo"];
 
 export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancelar }: {
   alvo: Alvo; cor?: string; onOk: () => void; onCancelar: () => void;
@@ -22,6 +23,8 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
   const [aviso, setAviso] = useState("");
   const [passo, setPasso] = useState(0);
   const [tentativa, setTentativa] = useState(0);
+  // faturar mesmo com diferença: pede confirmação de novo
+  const [confirmarCom, setConfirmarCom] = useState(false);
   const passos = alvo.tipo === "os" ? PASSOS_OS : PASSOS_PPV;
   const url = alvo.tipo === "os" ? `/api/pos/ordens/${encodeURIComponent(alvo.osId)}/conferir-omie` : `/api/ppv/pedidos/conferir-omie?id=${encodeURIComponent(alvo.ppvId)}`;
   const chave = alvo.tipo === "os" ? alvo.osId : alvo.ppvId;
@@ -87,23 +90,58 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
     <div style={{ position: "fixed", inset: 0, zIndex: 100020, background: "rgba(15,23,42,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
       <style>{`@keyframes confGira { to { transform: rotate(360deg) } } @keyframes confPulsa { 0%,100% { opacity: .55 } 50% { opacity: 1 } }`}</style>
       {(fase === "conferindo" || fase === "atualizando" || fase === "ok") ? (
-        <div style={{ background: "var(--surface, #fefefe)", borderRadius: 16, padding: "34px 40px", width: 400, maxWidth: "100%", textAlign: "center", boxShadow: "0 24px 60px rgba(0,0,0,.3)" }}>
-          {fase === "ok" ? (
-            <div style={{ width: 64, height: 64, margin: "0 auto 16px", borderRadius: "50%", background: "#dcfce7", color: "#15803d", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}><i className="fas fa-check" /></div>
-          ) : (
-            <div style={{ width: 64, height: 64, margin: "0 auto 16px", position: "relative" }}>
-              <div style={{ position: "absolute", inset: 0, borderRadius: "50%", border: `5px solid color-mix(in srgb, ${cor} 15%, transparent)`, borderTopColor: cor, animation: "confGira .9s linear infinite" }} />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/marcas/omie.png" alt="" style={{ position: "absolute", inset: 0, margin: "auto", height: 18, width: "auto", top: "50%", transform: "translateY(-50%)" }} />
+        (() => {
+          const lista = fase === "atualizando" ? PASSOS_ATUALIZAR : passos;
+          const atual = fase === "ok" ? lista.length : Math.min(passo, lista.length - 1);
+          const pct = fase === "ok" ? 100 : Math.min(94, Math.round(((atual + 0.6) / lista.length) * 100));
+          return (
+          <div className="conf-card">
+            <style>{`
+              .conf-card { width: 440px; max-width: 100%; background: var(--surface, #fefefe); border-radius: 18px; overflow: hidden; box-shadow: 0 30px 70px rgba(15,23,42,.35); }
+              .conf-topo { position: relative; padding: 26px 28px 22px; background: linear-gradient(135deg, color-mix(in srgb, ${cor} 14%, #fefefe), #fefefe 70%); border-bottom: 1px solid var(--border, #eef1f4); }
+              .conf-ponte { display: flex; align-items: center; justify-content: center; gap: 14px; }
+              .conf-logo { width: 64px; height: 64px; border-radius: 16px; background: #fefefe; border: 1px solid #e2e8f0; box-shadow: 0 6px 16px rgba(15,23,42,.08); display: flex; align-items: center; justify-content: center; }
+              .conf-logo img { max-width: 46px; max-height: 30px; }
+              .conf-fio { position: relative; width: 92px; height: 4px; border-radius: 4px; background: color-mix(in srgb, ${cor} 18%, transparent); overflow: hidden; }
+              .conf-fio::after { content: ""; position: absolute; top: 0; left: -40%; width: 40%; height: 100%; border-radius: 4px; background: ${cor}; animation: confCorre 1.1s ease-in-out infinite; }
+              .conf-fio.ok { background: #22c55e; } .conf-fio.ok::after { display: none; }
+              .conf-titulo { margin-top: 18px; text-align: center; font-size: 17px; font-weight: 800; color: var(--portal-text, #1e293b); }
+              .conf-sub { margin-top: 4px; text-align: center; font-size: 12.5px; color: #64748b; }
+              .conf-passos { padding: 18px 28px 6px; display: flex; flex-direction: column; gap: 11px; }
+              .conf-passo { display: flex; align-items: center; gap: 11px; font-size: 13.5px; color: #94a3b8; transition: color .2s; }
+              .conf-passo .b { width: 24px; height: 24px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 11px; border: 2px solid #e2e8f0; }
+              .conf-passo.feito { color: var(--portal-text, #334155); } .conf-passo.feito .b { background: #22c55e; border-color: #22c55e; color: #fefefe; }
+              .conf-passo.agora { color: var(--portal-text, #1e293b); font-weight: 700; } .conf-passo.agora .b { border-color: color-mix(in srgb, ${cor} 25%, transparent); border-top-color: ${cor}; animation: confGira .8s linear infinite; }
+              .conf-barra { margin: 14px 28px 24px; height: 6px; border-radius: 6px; background: var(--portal-bg-secondary, #eef2f6); overflow: hidden; }
+              .conf-barra > div { height: 100%; border-radius: 6px; background: linear-gradient(90deg, ${cor}, color-mix(in srgb, ${cor} 60%, #22c55e)); transition: width .6s ease; }
+              @keyframes confCorre { 0% { left: -40% } 100% { left: 100% } }
+            `}</style>
+            <div className="conf-topo">
+              <div className="conf-ponte">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <div className="conf-logo" title="Portal"><img src="/Logo_Nova.png" alt="Portal" /></div>
+                <div className={`conf-fio${fase === "ok" ? " ok" : ""}`} />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <div className="conf-logo" title="Omie"><img src="/marcas/omie.png" alt="Omie" /></div>
+              </div>
+              <div className="conf-titulo">
+                {fase === "ok" ? <><i className="fas fa-circle-check" style={{ color: "#22c55e" }} /> Tudo igual ao Omie</> : fase === "atualizando" ? "Atualizando o Omie" : "Conferindo o portal com o Omie"}
+              </div>
+              <div className="conf-sub">
+                {fase === "ok" ? "Pode seguir com o faturamento." : fase === "atualizando" ? "Deixando o Omie igual ao portal." : "Antes de faturar, confiro se está tudo igual nos dois."}
+              </div>
             </div>
-          )}
-          <div style={{ fontSize: 17, fontWeight: 800, color: "var(--portal-text, #1e293b)" }}>
-            {fase === "ok" ? "Tudo igual ao Omie" : fase === "atualizando" ? "Atualizando o Omie…" : "Conferindo com o Omie"}
+            <div className="conf-passos">
+              {lista.map((p, i) => (
+                <div key={p} className={`conf-passo${i < atual ? " feito" : i === atual ? " agora" : ""}`}>
+                  <span className="b">{i < atual && <i className="fas fa-check" />}</span>{p}
+                </div>
+              ))}
+            </div>
+            <div className="conf-barra"><div style={{ width: `${pct}%` }} /></div>
           </div>
-          <div style={{ fontSize: 13, color: "#64748b", marginTop: 6, minHeight: 18, animation: fase === "ok" ? undefined : "confPulsa 1.6s ease-in-out infinite" }}>
-            {fase === "ok" ? "Pode seguir com o faturamento." : fase === "atualizando" ? "Deixando o Omie igual ao portal e conferindo de novo." : passos[passo % passos.length]}
-          </div>
-        </div>
+          );
+        })()
       ) : fase === "erro" ? (
         <div style={{ background: "var(--surface, #fefefe)", borderRadius: 14, padding: 24, width: 460, maxWidth: "100%", boxShadow: "0 24px 60px rgba(0,0,0,.3)" }}>
           <div style={{ fontSize: 16, fontWeight: 800, color: "#991b1b", marginBottom: 8 }}><i className="fas fa-triangle-exclamation" /> Não consegui conferir com o Omie</div>
@@ -147,9 +185,12 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
                     <tbody>
                       {d.divergencias.map((x) => (
                         <tr key={x.campo} style={{ borderTop: "1px solid var(--border, #f1f5f9)" }}>
-                          <td style={{ padding: "7px 12px", fontWeight: 600 }}>{x.rotulo}{!x.ajustavel && <span style={{ marginLeft: 6, fontSize: 10.5, color: "#b91c1c" }}>(corrigir à mão)</span>}</td>
-                          <td style={{ padding: "7px 12px", color: "#15803d", fontWeight: 600 }}>{x.portal}</td>
-                          <td style={{ padding: "7px 12px", color: "#b45309" }}>{x.omie}</td>
+                          <td style={{ padding: "9px 12px", verticalAlign: "top" }}>
+                            <div style={{ fontWeight: 700 }}>{x.rotulo}{!x.ajustavel && <span style={{ marginLeft: 6, fontSize: 10.5, color: "#b91c1c" }}>(corrigir à mão)</span>}</div>
+                            {x.explicacao && <div style={{ fontSize: 11.5, color: "#64748b", marginTop: 3, lineHeight: 1.45 }}>{x.explicacao}</div>}
+                          </td>
+                          <td style={{ padding: "9px 12px", verticalAlign: "top" }}><div style={{ padding: "6px 9px", borderRadius: 7, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", fontWeight: 600, lineHeight: 1.45, wordBreak: "break-word" }}>{x.portal}</div></td>
+                          <td style={{ padding: "9px 12px", verticalAlign: "top" }}><div style={{ padding: "6px 9px", borderRadius: 7, background: "#fffbeb", border: "1px solid #fde68a", color: "#92400e", lineHeight: 1.45, wordBreak: "break-word" }}>{x.omie}</div></td>
                         </tr>
                       ))}
                     </tbody>
@@ -168,8 +209,35 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
                 <i className="fas fa-arrows-rotate" /> Sim, atualizar o Omie igual ao portal
               </button>
             )}
+            {(comDiv.length > 0 || comErro.length > 0) && (
+              <button type="button" onClick={() => setConfirmarCom(true)} title="Faturar sem deixar o Omie igual ao portal"
+                style={{ ...btn, background: "transparent", color: "#b45309", border: "1px solid #fcd34d" }}>
+                Faturar com as diferenças
+              </button>
+            )}
             <button type="button" onClick={onCancelar} style={{ ...btn, background: "var(--portal-bg-secondary, #f1f5f9)", color: "#334155" }}>Cancelar</button>
           </div>
+          {confirmarCom && (
+            <div onClick={() => setConfirmarCom(false)} style={{ position: "fixed", inset: 0, zIndex: 100030, background: "rgba(15,23,42,.45)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
+              <div onClick={(e) => e.stopPropagation()} style={{ background: "var(--surface, #fefefe)", borderRadius: 14, width: 470, maxWidth: "100%", padding: 22, boxShadow: "0 24px 60px rgba(0,0,0,.35)" }}>
+                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                  <span style={{ width: 42, height: 42, borderRadius: 11, flexShrink: 0, background: "#fef3c7", color: "#b45309", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}><i className="fas fa-triangle-exclamation" /></span>
+                  <div>
+                    <div style={{ fontSize: 16, fontWeight: 800, color: "var(--portal-text, #1e293b)" }}>Faturar com as diferenças?</div>
+                    <div style={{ fontSize: 13, color: "#475569", marginTop: 6, lineHeight: 1.55 }}>
+                      A nota vai sair com o que está <b>no Omie</b>, não com o que está no portal.
+                      {comDiv.length > 0 && <> Ficam {comDiv.reduce((t, d) => t + d.divergencias.length, 0)} diferença(s) sem corrigir em {comDiv.map((d) => d.doc).join(", ")}.</>}
+                      {comErro.length > 0 && <> {comErro.map((d) => d.doc).join(", ")} não foi conferido.</>}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 20, justifyContent: "flex-end" }}>
+                  <button type="button" onClick={() => setConfirmarCom(false)} style={{ ...btn, background: "var(--portal-bg-secondary, #f1f5f9)", color: "#334155" }}>Voltar</button>
+                  <button type="button" onClick={() => { setConfirmarCom(false); onOk(); }} style={{ ...btn, background: "#b45309", color: "#fefefe" }}>Sim, faturar assim mesmo</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

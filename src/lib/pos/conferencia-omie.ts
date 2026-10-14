@@ -10,7 +10,7 @@ import { montarServicosComReqs, montarDadosAdic } from "@/lib/pos/omie";
 import { normalizarEspelho, espelhoPadrao, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { estadoNoOmie } from "@/lib/pos/faturamento-regras";
 import {
-  compararItens, compararCampo, compararDepartamentos, diferente,
+  compararItens, compararCampo, compararDepartamentos, diferente, textoNormal,
   type Divergencia, type ItemComparavel, type ResultadoConferencia,
 } from "@/lib/omie/conferencia";
 
@@ -23,7 +23,7 @@ function omie<T>(call: string, param: Rec): Promise<T> {
 }
 const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
 
-interface ItemOmieOS { nIdItem?: number; nCodServico?: number; nQtde?: number; nValUnit?: number; cTpDesconto?: string; nValorDesconto?: number; nPercDesconto?: number; cDescServ?: string }
+interface ItemOmieOS { nIdItem?: number; nSeqItem?: number; nCodServico?: number; nQtde?: number; nValUnit?: number; cTpDesconto?: string; nValorDesconto?: number; nPercDesconto?: number; cDescServ?: string }
 interface OSOmie {
   Cabecalho?: { nCodOS?: number; cNumOS?: string; cEtapa?: string; nValorTotal?: number };
   InfoCadastro?: { cFaturada?: string; cCancelada?: string };
@@ -45,7 +45,8 @@ async function esperadoDaOS(os: Rec, esp: OmieEspelho | null) {
     rotulo: nomeServ[s.nCodServico] || (s.cDescServ ? `"${String(s.cDescServ).slice(0, 40)}"` : `serviço ${s.nCodServico}`),
     qtde: n(s.nQtde), unit: n(s.nValUnit), desconto: n(s.nValorDesconto),
     // a solicitação compara o texto; os "div." (requisições) usam o texto para casar
-    descricao: s.nCodServico === NCOD_SOL || (s.cDescServ && !nomeServ[s.nCodServico]) ? String(s.cDescServ || "") : undefined,
+    descricao: s.nCodServico === NCOD_SOL ? String(os.Serv_Solicitado || s.cDescServ || "")
+      : (s.cDescServ && !nomeServ[s.nCodServico]) ? String(s.cDescServ || "") : undefined,
   }));
   // serviços incluídos à mão na OS (espelho): acha o nCodServico pelo código
   for (const x of esp?.extras || []) {
@@ -132,20 +133,26 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
   const omieItens = [...(dados.ServicosPrestados || [])];
   const usados = new Set<ItemOmieOS>();
   const servicos: Rec[] = [];
+  // texto do item: o Omie só troca o cDescServ numa alteração que leva a SEQUÊNCIA
+  // e só o texto (testado na OS-0729, 14/10/2026) — vai numa chamada separada
+  const textos: Rec[] = [];
+  let proxSeq = omieItens.reduce((m, o) => Math.max(m, n(o.nSeqItem)), 0);
   for (const p of esperado) {
     const cands = omieItens.filter((o) => !usados.has(o) && String(n(o.nCodServico)) === p.chave);
     const o = cands.find((x) => p.descricao !== undefined && String(x.cDescServ || "").replace(/\|/g, "\n").trim() === p.descricao.trim()) || cands[0];
     const campos: Rec = { nCodServico: p.nCodServico, nQtde: p.qtde, nValUnit: p.unit, cTpDesconto: "V", nValorDesconto: Math.round(p.desconto * 100) / 100 };
-    if (p.descricao !== undefined) campos.cDescServ = p.descricao.slice(0, 500);
+    if (p.descricao !== undefined) campos.cDescServ = p.descricao.slice(0, 2000);
     if (interna) campos.cNaoGerarFinanceiro = "S";
     if (o) {
       usados.add(o);
-      const mudou = diferente(n(o.nQtde), p.qtde, 0.0005) || diferente(n(o.nValUnit), p.unit) || diferente(descontoOmie(o), p.desconto)
-        || (p.descricao !== undefined && String(o.cDescServ || "").replace(/\|/g, " ").replace(/\s+/g, " ").trim() !== p.descricao.replace(/\s+/g, " ").trim());
-      if (mudou) servicos.push({ nIdItem: o.nIdItem, cAcaoItem: "A", ...campos });
-    } else servicos.push({ cAcaoItem: "I", ...campos });
+      const textoMudou = p.descricao !== undefined && textoNormal(o.cDescServ) !== textoNormal(p.descricao);
+      const mudou = diferente(n(o.nQtde), p.qtde, 0.0005) || diferente(n(o.nValUnit), p.unit) || diferente(descontoOmie(o), p.desconto);
+      const { cDescServ, ...valores } = campos;
+      if (mudou) servicos.push({ nSeqItem: o.nSeqItem, nIdItem: o.nIdItem, cAcaoItem: "A", ...valores });
+      if (textoMudou) textos.push({ nSeqItem: o.nSeqItem, nIdItem: o.nIdItem, cAcaoItem: "A", cDescServ });
+    } else servicos.push({ nSeqItem: ++proxSeq, cAcaoItem: "I", ...campos });
   }
-  for (const o of omieItens) if (!usados.has(o) && o.nIdItem) servicos.push({ nIdItem: o.nIdItem, cAcaoItem: "E" });
+  for (const o of omieItens) if (!usados.has(o) && o.nIdItem) servicos.push({ nSeqItem: o.nSeqItem, nIdItem: o.nIdItem, cAcaoItem: "E" });
 
   const total = esperado.reduce((s, p) => s + Math.max(0, p.qtde * p.unit - p.desconto), 0);
   const param: Rec = { Cabecalho: { nCodOS } };
@@ -161,7 +168,10 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
     if (deps.length) param.Departamentos = deps.map(([c, v]) => ({ cCodDepto: c, nPerc: n(v), nValor: Math.round(total * n(v)) / 100, nValorFixo: "N" }));
     param.Email = { cEnviarPara: esp.email.para || undefined, cEnvRecibo: esp.email.recibo ? "S" : "N" };
   }
-  try { await omie("AlterarOS", param); }
+  try {
+    await omie("AlterarOS", param);
+    if (textos.length) await omie("AlterarOS", { Cabecalho: { nCodOS }, ServicosPrestados: textos });
+  }
   catch (e) {
     const r = await conferirOS(idOs);
     return { ...limpar(r), erro: `O Omie recusou a atualização: ${e instanceof Error ? e.message : e}` };

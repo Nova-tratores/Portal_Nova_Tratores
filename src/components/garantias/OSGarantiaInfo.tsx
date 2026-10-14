@@ -7,7 +7,7 @@ import { diasEntre } from '@/lib/garantias/format';
 import QRGarantiaModal from './QRGarantiaModal';
 
 // Card read-only de garantia para exibir dentro da OS (Pós-Vendas).
-export default function OSGarantiaInfo({ osId }: { osId: string }) {
+export default function OSGarantiaInfo({ osId, cartao }: { osId: string; /** classe do cartão: desenha o cartão e some sem garantia */ cartao?: string }) {
   const [garantia, setGarantia] = useState<GarantiaResumo | null>(null);
   const [carregou, setCarregou] = useState(false);
   const [qrAberto, setQrAberto] = useState(false);
@@ -33,6 +33,7 @@ export default function OSGarantiaInfo({ osId }: { osId: string }) {
 
   if (!carregou) return null;
 
+  if (!garantia && cartao) return null;
   if (!garantia) {
     return (
       <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #94a3b8)' }}>
@@ -44,7 +45,7 @@ export default function OSGarantiaInfo({ osId }: { osId: string }) {
   const cor = STATUS_COR[garantia.status];
   const naFabrica = garantia.status === 'enviada' || garantia.status === 'info_pendente' || garantia.status === 'ressarcimento_fabrica';
 
-  return (
+  const conteudo = (
     <div
       style={{
         border: '1px solid var(--portal-border, #e5e7eb)',
@@ -97,6 +98,13 @@ export default function OSGarantiaInfo({ osId }: { osId: string }) {
         </button>
       </div>
       {qrAberto && <QRGarantiaModal garantiaId={garantia.id} numero={garantia.numero} cliente={garantia.cliente} localizacao={garantia.localizacao} onClose={() => setQrAberto(false)} />}
+    </div>
+  );
+  if (!cartao) return conteudo;
+  return (
+    <div className={cartao}>
+      <div className="os-card-title"><i className="fas fa-shield-halved" /> Garantia</div>
+      {conteudo}
     </div>
   );
 }

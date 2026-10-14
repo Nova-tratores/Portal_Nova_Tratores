@@ -746,7 +746,7 @@ export function categoriasServico(listas: ListasOmie | null, atual?: string) {
 
 // ── técnicos num campo só (José, 14/10/2026): "A" sozinho e as duplas "A / B".
 // No banco continua técnico 1 e técnico 2 — é só a forma de escolher.
-export function SeletorTecnicos({ tecnicos, t1, t2, onChange, podeEditar }: { tecnicos: string[]; t1: string; t2: string; onChange: (t1: string, t2: string) => void; podeEditar: boolean }) {
+export function SeletorTecnicos({ tecnicos, t1, t2, onChange, podeEditar, unico }: { tecnicos: string[]; t1: string; t2: string; onChange: (t1: string, t2: string) => void; podeEditar: boolean; /** só um técnico (sem pares) */ unico?: boolean }) {
   const [aberto, setAberto] = useState(false);
   const [busca, setBusca] = useState("");
   const ref = useRef<HTMLDivElement>(null);
@@ -773,11 +773,11 @@ export function SeletorTecnicos({ tecnicos, t1, t2, onChange, podeEditar }: { te
     const out: { a: string; b: string }[] = [];
     for (const a of base) {
       out.push({ a, b: "" });
-      if (q) for (const b of ativos) if (b !== a) out.push({ a, b });
+      if (q && !unico) for (const b of ativos) if (b !== a) out.push({ a, b });
     }
-    if (!q) for (const a of ativos) for (const b of ativos) if (b !== a) out.push({ a, b });
+    if (!q && !unico) for (const a of ativos) for (const b of ativos) if (b !== a) out.push({ a, b });
     return out.slice(0, 300);
-  }, [busca, tecnicos, inativos]);
+  }, [busca, tecnicos, inativos, unico]);
   const rotulo = t1 ? (t2 ? `${t1} / ${t2}` : t1) : "Selecione…";
   return (
     <div ref={ref} style={{ position: "relative" }}>

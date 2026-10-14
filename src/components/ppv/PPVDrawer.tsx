@@ -22,8 +22,9 @@ import ItemOrcamentoModal from "./ItemOrcamentoModal";
 import AnexosModal from "./AnexosModal";
 import TarefasModal from "./TarefasModal";
 import SelecionarUsuarioModal from "./SelecionarUsuarioModal";
-import { ClienteOmieModal, SeletorUsuario } from "@/components/pos/OSOmieAbas";
-import { diasDoNumParcelas, rotuloNumParcelas, PARCELAS_PPV_PADRAO, categoriaPPVPelaOS } from "@/lib/ppv/parcelas-condicao";
+import { ClienteOmieModal, SeletorTecnicos, SeletorCondicao, useListasOmie } from "@/components/pos/OSOmieAbas";
+import { normalizarEspelho, espelhoPadrao, type OmieEspelho } from "@/lib/pos/omie-espelho";
+import { diasDoNumParcelas, rotuloNumParcelas, categoriaPPVPelaOS, numParcelasDaOS } from "@/lib/ppv/parcelas-condicao";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
 import PPVUnidadesInfo from "./PPVUnidadesInfo";
 import QRScanner, { type ScanResultado } from "@/components/pecas/QRScanner";
@@ -183,6 +184,9 @@ export default function PPVDrawer({
         if (!ativo || !d) return;
         // PPV com OS: categoria segue a OS (revisão → Revenda de Peças Revisão)
         setInfoCategoria(categoriaPPVPelaOS(String(d.tipoServico || "")));
+        // previsão e número de parcelas: os mesmos da OS (José, 14/10/2026)
+        setPrevisaoFat(String(d.previsaoFaturamento || "").slice(0, 10) || hojeSP());
+        setNumParcelas(numParcelasDaOS(normalizarEspelho(d.omieEspelho, espelhoPadrao({ interna: !!d.servicoInterno }))));
         setOsVinc({
           ordemOmie: String(d.ordemOmie || ""), status: String(d.status || ""), tipoServico: String(d.tipoServico || ""),
           requisicoes: (d.infoRequisicoes || []).map((r: { id: string; valor?: number; material?: string }) => ({ id: String(r.id), valor: Number(r.valor) || 0, material: String(r.material || "") })),
@@ -258,6 +262,7 @@ export default function PPVDrawer({
   const [previsaoFat, setPrevisaoFat] = useState("");       // Previsão de Faturamento (data)
   const [cenarioFiscal, setCenarioFiscal] = useState(""); // Cenário Fiscal (código do Omie)
   const [numParcelas, setNumParcelas] = useState("30 dias");   // Número de Parcelas
+  const listasOmiePPV = useListasOmie(open, "", "");
   const [parcelas, setParcelas] = useState<ParcelaCalc[]>([]);  // Parcelas editáveis (data/valor por parcela)
   const [departamentos, setDepartamentos] = useState<{ codigo: string; estrutura: string; descricao: string }[]>([]);
   const [distDeptos, setDistDeptos] = useState<Record<string, number>>({});  // codigo -> % da distribuição
@@ -330,7 +335,8 @@ export default function PPVDrawer({
       if (d.contaCorrente) setInfoContaCorrente(d.contaCorrente);
       if (d.cenarioFiscal) setCenarioFiscal(d.cenarioFiscal);
       if (d.numParcelas) setNumParcelas(d.numParcelas);
-      setPrevisaoFat(d.previsaoFaturamento ? String(d.previsaoFaturamento).slice(0, 10) : "");
+      // sem OS: a previsão é sempre o dia de hoje ao abrir (José, 14/10/2026); com OS, segue a OS
+      setPrevisaoFat(d.osId ? (d.previsaoFaturamento ? String(d.previsaoFaturamento).slice(0, 10) : hojeSP()) : hojeSP());
       setInfoNumContrato(d.numContrato || "");
       setInfoContato(d.contato || "");
       setInfoDadosNF(d.dadosNF || "");
@@ -1061,7 +1067,9 @@ export default function PPVDrawer({
                           </div>
                           <div>
                             <label style={labelOmie}>Previsão de Faturamento</label>
-                            <input type="date" value={previsaoFat} onChange={(e) => setPrevisaoFat(e.target.value)} style={{ marginBottom: 0 }} />
+                            <input type="date" value={previsaoFat} onChange={(e) => setPrevisaoFat(e.target.value)} style={{ marginBottom: 0 }}
+                              disabled={!!(modalOSId || "").trim()} title={(modalOSId || "").trim() ? `Segue a ${modalOSId}: mude na OS` : undefined} />
+                            {(modalOSId || "").trim() && <div style={{ fontSize: 10.5, color: "#64748b", marginTop: 3 }}><i className="fas fa-link" /> segue a {modalOSId}</div>}
                           </div>
                         </div>
 
@@ -1069,7 +1077,7 @@ export default function PPVDrawer({
                         <div className="ppv-g-vendedor" style={{ display: "grid", gridTemplateColumns: "1.4fr 0.9fr 1fr 1fr", gap: 14, marginTop: 12, alignItems: "end" }}>
                           <div>
                             <label style={labelOmie}>Vendedor</label>
-                            <SeletorUsuario atual={tecnico || ""} onChange={(nome) => setTecnico(nome)} podeEditar={podeEditar} />
+                            <SeletorTecnicos unico tecnicos={Array.from(new Set([tecnico, ...tecnicos].filter(Boolean)))} t1={tecnico || ""} t2="" podeEditar={podeEditar} onChange={(a) => setTecnico(a)} />
                           </div>
                           <div>
                             <div style={rotOmie}>
@@ -1100,11 +1108,14 @@ export default function PPVDrawer({
                           </div>
                           <div>
                             <label style={labelOmie}>Número de Parcelas</label>
-                            <select value={numParcelas} onChange={(e) => setNumParcelas(e.target.value)} style={{ marginBottom: 0 }}
-                              title={(modalOSId || "").trim() ? `Segue a ${modalOSId}: mude na OS que o pedido acompanha` : undefined}>
-                              {!PARCELAS_PPV_PADRAO.includes(numParcelas) && <option value={numParcelas}>{rotuloNumParcelas(numParcelas)}</option>}
-                              {PARCELAS_PPV_PADRAO.map((o) => <option key={o} value={o}>{o}</option>)}
-                            </select>
+                            {(() => {
+                              // o PPV guarda "omie:COD|nome|qtd" (ou as opções antigas); o seletor do POS trabalha com o espelho
+                              const v = String(numParcelas || "");
+                              const [cod, nome, qtd] = v.startsWith("omie:") ? v.slice(5).split("|") : ["", rotuloNumParcelas(v), ""];
+                              const esp = { ...espelhoPadrao(), condicao: cod || v, condicaoNome: nome || rotuloNumParcelas(v), condicaoQtd: Number(qtd) || undefined, parcelas: [] } as OmieEspelho;
+                              const setEsp = (f: (e: OmieEspelho) => OmieEspelho) => { const n = f(esp); setNumParcelas(numParcelasDaOS({ condicao: n.condicao, condicaoNome: n.condicaoNome, condicaoQtd: n.condicaoQtd, parcelas: [] })); };
+                              return <SeletorCondicao esp={esp} setEsp={setEsp} podeEditar={podeEditar && !(modalOSId || "").trim()} listas={listasOmiePPV.listas} />;
+                            })()}
                             {(modalOSId || "").trim() && <div style={{ fontSize: 10.5, color: "#64748b", marginTop: 3 }}><i className="fas fa-link" /> segue a {modalOSId}</div>}
                           </div>
                           <div>

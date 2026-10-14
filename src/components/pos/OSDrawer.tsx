@@ -1697,9 +1697,16 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   {verClienteOmie && <ClienteOmieModal cliente={listasOmie.cliente} cnpj={clienteInfo?.cpf || ""} fechar={() => setVerClienteOmie(false)} />}
 
                   {mode === "edit" && pendenciaMahindra.length > 0 && (
-                    <div className="os-alert os-alert-vermelho" style={{ order: -5.95 }} title="Marcado pelo Vigia de revisões. Some sozinho quando o cheque for enviado na tela de Revisões.">
-                      <i className="fas fa-exclamation-circle" /> <b style={{ marginRight: 6 }}>Pendência Mahindra:</b> {pendenciaMahindra.join(" · ")}
-                      <a href="/revisoes" target="_blank" rel="noreferrer" style={{ marginLeft: 8, textDecoration: "underline" }}>enviar cheque</a>
+                    <div style={{ order: -5.95, display: "flex", alignItems: "center", gap: 14, padding: "12px 16px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", borderLeft: "4px solid #dc2626" }}
+                      title="Marcado pelo Vigia de revisões. Some sozinho quando o cheque for enviado na tela de Revisões.">
+                      <span style={{ width: 38, height: 38, borderRadius: 10, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "#fee2e2", color: "#dc2626", fontSize: 16 }}><i className="fas fa-file-signature" /></span>
+                      <div style={{ flex: 1, minWidth: 0, lineHeight: 1.35 }}>
+                        <div style={{ fontSize: 13.5, fontWeight: 800, color: "#991b1b" }}>Pendência com a Mahindra</div>
+                        <div style={{ fontSize: 12.5, color: "#b91c1c" }}>{pendenciaMahindra.join(" · ")}</div>
+                      </div>
+                      <a href="/revisoes" target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 7, height: 34, padding: "0 14px", borderRadius: 9, background: "#dc2626", color: "#fefefe", fontSize: 13, fontWeight: 700, textDecoration: "none", flexShrink: 0 }}>
+                        <i className="fas fa-paper-plane" /> Enviar cheque
+                      </a>
                     </div>
                   )}
                   {mode === "edit" && bombaAlerta && (
@@ -1952,151 +1959,82 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   )}
 
                   {/* ── Garantia vinculada ── */}
-                  {mode === "edit" && osId && (
-                    <div className="os-card os-aba os-aba-garantia">
-                      <div className="os-card-title"><i className="fas fa-shield-halved" /> Garantia</div>
-                      <OSGarantiaInfo osId={osId} />
-                    </div>
-                  )}
+                  {mode === "edit" && osId && <OSGarantiaInfo osId={osId} cartao="os-card os-aba os-aba-garantia" />}
 
                   {/* ── Unidades rastreadas (QR) retiradas pra esta OS ── */}
                   {mode === "edit" && osId && <div className="os-aba os-aba-servicos" style={{ display: "contents" }}><OSUnidadesInfo osId={osId} /></div>}
 
 
-                  {/* ── Situação do preenchimento (app do técnico) ── */}
-                  {mode === "edit" && (
-                    <div className="os-card os-aba os-aba-relatorio">
-                      <div className="os-card-title"><i className="fas fa-clipboard-check" /> Preenchimento do Técnico</div>
-                      {(() => {
-                        const enviado = String(dadosTecnico?.status || "").toLowerCase() === "enviado";
-                        const dpRaw = String(dadosTecnico?.dataPreenchimento || "");
-                        const dp = /^\d{4}-\d{2}-\d{2}/.test(dpRaw) ? dpRaw.slice(0, 10).split("-").reverse().join("/") : dpRaw;
-                        const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
-                        const prev = previsaoExecucao ? new Date(previsaoExecucao + "T00:00:00") : null;
-                        const diasAtraso = !enviado && prev && prev < hoje ? Math.floor((hoje.getTime() - prev.getTime()) / 86400000) : 0;
-                        if (enviado) return (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 8, background: "#D1FAE5", border: "1.5px solid #6EE7B7", color: "#065F46", fontWeight: 600, fontSize: 13.5 }}>
-                              <i className="fas fa-check-circle" style={{ color: "#059669" }} />
-                              Preenchido pelo técnico{dp ? ` em ${dp}` : ""}
-                            </div>
-                            {dadosTecnico?.justificativaAtraso && (
-                              <div style={{ padding: "10px 14px", borderRadius: 8, background: "#FFFBEB", border: "1.5px solid #FDE68A", color: "#92400E", fontSize: 12.5, lineHeight: 1.6 }}>
-                                <b>Preenchido com atraso — justificativa:</b> {dadosTecnico.justificativaAtraso}
-                              </div>
-                            )}
-                          </div>
-                        );
-                        return (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 8, background: "var(--portal-bg-secondary, #f8fafc)", border: "1.5px solid var(--border)", color: "var(--text-light)", fontWeight: 600, fontSize: 13.5 }}>
-                              <i className="fas fa-hourglass-half" />
-                              O técnico ainda não preencheu o relatório{dadosTecnico ? " (rascunho iniciado)" : ""}.
-                            </div>
-                            {diasAtraso > 0 && (
-                              <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "12px 16px", borderRadius: 8, background: "#FEF2F2", border: "1.5px solid #FECACA", color: "#B91C1C", fontWeight: 700, fontSize: 13.5 }}>
-                                <i className="fas fa-triangle-exclamation" />
-                                Atrasado no app do técnico há {diasAtraso} dia{diasAtraso > 1 ? "s" : ""} (previsão de execução era {previsaoExecucao.split("-").reverse().join("/")})
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-
-                  {/* ── Relatório Técnico ── */}
-                  {mode === "edit" && relatorioTecnico && (
-                    <div className="os-card os-aba os-aba-relatorio">
-                      <div className="os-card-title"><i className="fas fa-file-pdf" /> Relatório Técnico</div>
-                      <a
-                        href={relatorioTecnico}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          display: "flex", alignItems: "center", gap: 10,
-                          padding: "12px 16px", borderRadius: 10,
-                          background: "#D1FAE5", border: "1.5px solid #6EE7B7",
-                          color: "#065F46", fontWeight: 600, fontSize: 13,
-                          textDecoration: "none", cursor: "pointer",
-                        }}
-                      >
-                        <i className="fas fa-check-circle" style={{ color: "#059669" }} />
-                        <span style={{ flex: 1 }}>Relatório enviado pelo técnico</span>
-                        <i className="fas fa-external-link-alt" style={{ fontSize: 11 }} />
-                      </a>
-                    </div>
-                  )}
-
-                  {/* ── Carta de Correção ── */}
-                  {mode === "edit" && dadosTecnico?.cartaCorrecao && (
-                    <div className="os-card os-aba os-aba-relatorio">
-                      <div className="os-card-title"><i className="fas fa-pen-to-square" /> Carta de Correção</div>
-                      <div style={{
-                        background: "#FFFBEB", borderRadius: 10, padding: "14px 16px",
-                        border: "1.5px solid #FDE68A", fontSize: 13, color: "#92400E",
-                        lineHeight: 1.7, whiteSpace: "pre-wrap",
-                      }}>
-                        {dadosTecnico.cartaCorrecao}
+                  {/* ── Relatório do técnico (14/10/2026): situação no app + PDF + correção + dados, num cartão só ── */}
+                  {mode === "edit" && (() => {
+                    const dt = dadosTecnico;
+                    const enviado = String(dt?.status || "").toLowerCase() === "enviado";
+                    const dpRaw = String(dt?.dataPreenchimento || "");
+                    const dp = /^\d{4}-\d{2}-\d{2}/.test(dpRaw) ? dpRaw.slice(0, 10).split("-").reverse().join("/") : dpRaw;
+                    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+                    const prev = previsaoExecucao ? new Date(previsaoExecucao + "T00:00:00") : null;
+                    const diasAtraso = !enviado && prev && prev < hoje ? Math.floor((hoje.getTime() - prev.getTime()) / 86400000) : 0;
+                    const tiles = [
+                      { ic: "fa-barcode", rot: "Chassis", v: dt?.chassis },
+                      { ic: "fa-gauge-high", rot: "Horímetro", v: dt?.horimetro },
+                      { ic: "fa-clock", rot: "Horas do técnico", v: dt?.totalHora },
+                      { ic: "fa-route", rot: "KM do técnico", v: dt?.totalKm ? `${dt.totalKm} km` : "" },
+                    ].filter((t) => t.v);
+                    return (
+                    <div className="os-card os-aba os-aba-relatorio rt-card">
+                      <style>{`
+                        .rt-topo { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+                        .rt-ico { width: 40px; height: 40px; border-radius: 11px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 16px; color: #0B6E70; background: color-mix(in srgb, #0F8B8D 12%, transparent); }
+                        .rt-nome { flex: 1; min-width: 180px; display: flex; flex-direction: column; line-height: 1.25; }
+                        .rt-nome b { font-size: 14.5px; font-weight: 800; color: var(--portal-text, #1f2d3d); }
+                        .rt-nome span { font-size: 12px; color: #64748b; }
+                        .rt-selo { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+                        .rt-selo.ok { background: #dcfce7; color: #15803d; }
+                        .rt-selo.espera { background: var(--portal-bg-secondary, #f1f5f9); color: #64748b; }
+                        .rt-selo.atraso { background: #fee2e2; color: #b91c1c; }
+                        .rt-pdf { display: inline-flex; align-items: center; gap: 7px; height: 34px; padding: 0 14px; border-radius: 9px; font-size: 13px; font-weight: 700; text-decoration: none; color: #b91c1c; border: 1px solid #fecaca; background: #fff5f5; }
+                        .rt-pdf:hover { background: #fee2e2; }
+                        .rt-aviso { margin-top: 12px; padding: 10px 14px; border-radius: 10px; font-size: 12.5px; line-height: 1.55; }
+                        .rt-aviso.vermelho { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+                        .rt-aviso.amarelo { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+                        .rt-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-top: 16px; }
+                        .rt-tile { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--border, #e2e8f0); background: var(--surface, #fefefe); }
+                        .rt-tile i { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; color: #0891A8; background: color-mix(in srgb, #0891A8 10%, transparent); flex-shrink: 0; }
+                        .rt-tile span { display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: #94a3b8; }
+                        .rt-tile b { display: block; font-size: 14px; font-weight: 800; color: var(--portal-text, #1f2d3d); font-variant-numeric: tabular-nums; }
+                        .rt-bloco { margin-top: 12px; padding: 12px 14px; border-radius: 10px; background: var(--portal-bg-secondary, #f6f8f9); }
+                        .rt-bloco > span { display: block; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #64748b; margin-bottom: 4px; }
+                        .rt-bloco > p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--portal-text, #334155); white-space: pre-wrap; }
+                        .rt-sec { margin: 16px 0 8px; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: #64748b; }
+                        .rt-assin { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+                        .rt-assin > div { cursor: zoom-in; border: 1px solid var(--border, #e2e8f0); border-radius: 10px; background: var(--surface, #fefefe); padding: 8px 10px 10px; display: flex; flex-direction: column; align-items: center; }
+                        .rt-assin img { width: 100%; height: 84px; object-fit: contain; border-bottom: 1px dashed var(--border, #cbd5e1); margin-bottom: 6px; }
+                        .rt-assin b { font-size: 12.5px; color: var(--portal-text, #1f2d3d); }
+                        .rt-assin span { font-size: 11px; color: #94a3b8; }
+                      `}</style>
+                      <div className="rt-topo">
+                        <span className="rt-ico"><i className="fas fa-clipboard-check" /></span>
+                        <div className="rt-nome">
+                          <b>Relatório do técnico</b>
+                          <span>{enviado ? `Preenchido no app${dp ? ` em ${dp}` : ""}` : dt ? "Rascunho iniciado no app do técnico" : "O técnico ainda não preencheu no app"}</span>
+                        </div>
+                        <span className={`rt-selo ${enviado ? "ok" : diasAtraso > 0 ? "atraso" : "espera"}`}>
+                          {enviado ? <><i className="fas fa-check" /> Preenchido</> : diasAtraso > 0 ? <><i className="fas fa-triangle-exclamation" /> Atrasado {diasAtraso} dia{diasAtraso > 1 ? "s" : ""}</> : <><i className="fas fa-hourglass-half" /> Aguardando</>}
+                        </span>
+                        {relatorioTecnico && <a className="rt-pdf" href={relatorioTecnico} target="_blank" rel="noopener noreferrer" title="PDF do relatório enviado pelo técnico"><i className="fas fa-file-pdf" /> Abrir PDF</a>}
                       </div>
-                      <div style={{ fontSize: 11, color: "#D97706", marginTop: 8, fontWeight: 600 }}>
-                        <i className="fas fa-triangle-exclamation" style={{ marginRight: 4 }} />
-                        Correção enviada pelo técnico
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Dados do Técnico (fotos, diagnostico, etc) ── */}
-                  {mode === "edit" && dadosTecnico && (
-                    <div className="os-card os-aba os-aba-relatorio">
-                      <div className="os-card-title"><i className="fas fa-user-hard-hat" /> Dados do Técnico</div>
-
-                      {/* Info resumida */}
-                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 }}>
-                        {dadosTecnico.diagnostico && (
-                          <div style={{ gridColumn: "1 / -1", background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Diagnóstico</div>
-                            <div style={{ fontSize: 12, color: "#374151" }}>{dadosTecnico.diagnostico}</div>
-                          </div>
-                        )}
-                        {dadosTecnico.servicoRealizado && (
-                          <div style={{ gridColumn: "1 / -1", background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Serviço Realizado</div>
-                            <div style={{ fontSize: 12, color: "#374151" }}>{dadosTecnico.servicoRealizado}</div>
-                          </div>
-                        )}
-                        {dadosTecnico.chassis && (
-                          <div style={{ background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Chassis</div>
-                            <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.chassis}</div>
-                          </div>
-                        )}
-                        {dadosTecnico.horimetro && (
-                          <div style={{ background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Horímetro</div>
-                            <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.horimetro}</div>
-                          </div>
-                        )}
-                        {dadosTecnico.totalHora && (
-                          <div style={{ background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Horas Técnico</div>
-                            <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.totalHora}</div>
-                          </div>
-                        )}
-                        {dadosTecnico.totalKm && (
-                          <div style={{ background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>KM Técnico</div>
-                            <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{dadosTecnico.totalKm} km</div>
-                          </div>
-                        )}
-                        {dadosTecnico.nomResponsavel && (
-                          <div style={{ gridColumn: "1 / -1", background: "var(--portal-bg-secondary)", borderRadius: 8, padding: "8px 12px" }}>
-                            <div style={{ fontSize: 10, color: "var(--portal-text-muted)", fontWeight: 700, textTransform: "uppercase", marginBottom: 2 }}>Responsável (cliente)</div>
-                            <div style={{ fontSize: 12, color: "#374151" }}>{dadosTecnico.nomResponsavel}</div>
-                          </div>
-                        )}
-                      </div>
-
+                      {diasAtraso > 0 && <div className="rt-aviso vermelho"><i className="fas fa-triangle-exclamation" /> A previsão de execução era {previsaoExecucao.split("-").reverse().join("/")} e o relatório ainda não chegou.</div>}
+                      {dt?.justificativaAtraso && <div className="rt-aviso amarelo"><b>Preenchido com atraso — justificativa:</b> {dt.justificativaAtraso}</div>}
+                      {dt?.cartaCorrecao && <div className="rt-aviso amarelo"><b><i className="fas fa-pen-to-square" /> Carta de correção do técnico:</b><div style={{ whiteSpace: "pre-wrap", marginTop: 4 }}>{dt.cartaCorrecao}</div></div>}
+                      {dt && (<>
+                      {tiles.length > 0 && (
+                        <div className="rt-tiles">
+                          {tiles.map((t) => <div key={t.rot} className="rt-tile"><i className={`fas ${t.ic}`} /><div style={{ minWidth: 0 }}><span>{t.rot}</span><b>{t.v}</b></div></div>)}
+                        </div>
+                      )}
+                      {dt.diagnostico && <div className="rt-bloco"><span>Diagnóstico</span><p>{dt.diagnostico}</p></div>}
+                      {dt.servicoRealizado && <div className="rt-bloco"><span>Serviço realizado</span><p>{dt.servicoRealizado}</p></div>}
+                      <div style={{ height: 12 }} />
                       {/* Peças extras */}
                       {dadosTecnico.pecasExtras?.length > 0 && (
                         <div style={{ marginBottom: 12 }}>
@@ -2177,32 +2115,31 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         });
                       })()}
 
-                      {/* Assinaturas */}
-                      {(dadosTecnico.assinaturas?.cliente || dadosTecnico.assinaturas?.tecnico) && (
-                        <div style={{ marginTop: 8 }}>
-                          <div style={{ fontSize: 11, fontWeight: 700, color: "#1E3A5F", textTransform: "uppercase", marginBottom: 6 }}>
-                            Assinaturas
-                          </div>
-                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                            {dadosTecnico.assinaturas.cliente && (
-                              <div style={{ cursor: "pointer" }} onClick={() => setFotoExpandida(dadosTecnico.assinaturas.cliente)}>
-                                <img src={dadosTecnico.assinaturas.cliente} alt="Assinatura Cliente"
-                                  style={{ width: "100%", height: 60, objectFit: "contain", borderRadius: 8, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-card)" }} />
-                                <div style={{ fontSize: 9, color: "var(--portal-text-secondary)", textAlign: "center", marginTop: 2, fontWeight: 600 }}>Cliente</div>
+                      {(dt.assinaturas?.cliente || dt.assinaturas?.tecnico) && (
+                        <>
+                          <div className="rt-sec">Assinaturas</div>
+                          <div className="rt-assin">
+                            {dt.assinaturas.cliente && (
+                              <div onClick={() => setFotoExpandida(dt.assinaturas.cliente)} title="Ampliar">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={dt.assinaturas.cliente} alt="Assinatura do cliente" />
+                                <b>{dt.nomResponsavel || "Cliente"}</b><span>cliente</span>
                               </div>
                             )}
-                            {dadosTecnico.assinaturas.tecnico && (
-                              <div style={{ cursor: "pointer" }} onClick={() => setFotoExpandida(dadosTecnico.assinaturas.tecnico)}>
-                                <img src={dadosTecnico.assinaturas.tecnico} alt="Assinatura Técnico"
-                                  style={{ width: "100%", height: 60, objectFit: "contain", borderRadius: 8, border: "1.5px solid var(--portal-border)", background: "var(--portal-bg-card)" }} />
-                                <div style={{ fontSize: 9, color: "var(--portal-text-secondary)", textAlign: "center", marginTop: 2, fontWeight: 600 }}>Técnico</div>
+                            {dt.assinaturas.tecnico && (
+                              <div onClick={() => setFotoExpandida(dt.assinaturas.tecnico)} title="Ampliar">
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img src={dt.assinaturas.tecnico} alt="Assinatura do técnico" />
+                                <b>{tecnico1 || "Técnico"}</b><span>técnico</span>
                               </div>
                             )}
                           </div>
-                        </div>
+                        </>
                       )}
+                      </>)}
                     </div>
-                  )}
+                    );
+                  })()}
 
                   {/* ── Modal foto expandida ── */}
                   {fotoExpandida && (
