@@ -42,10 +42,18 @@ export const TAREFAS: Record<string, Tarefa> = {
   'clientes-sync-recente': async () => {
     const { GET } = await import('@/app/api/clientes/sync-recente/route');
     const r = await GET(new Request(`${baseInterna()}/api/clientes/sync-recente`));
-    const d = (await r.json().catch(() => ({}))) as { error?: string; resultado?: Record<string, { os_novas: number; pv_novos: number; nfs: number }> };
+    const d = (await r.json().catch(() => ({}))) as {
+      error?: string;
+      resultado?: Record<string, { os_novas: number; pv_novos: number; nfs: number }>;
+      cards_financeiro_disparados?: number;
+      tempos_ms?: Record<string, number>;
+    };
     if (!r.ok) throw new Error(d.error || `sync-recente respondeu HTTP ${r.status}`);
     const partes = Object.entries(d.resultado || {}).map(([emp, x]) => `${emp.replace(/_/g, ' ')}: ${x.os_novas} OS, ${x.pv_novos} PV, ${x.nfs} NF`);
-    return { resumo: partes.join(' · ') || 'ok' };
+    if (d.cards_financeiro_disparados) partes.push(`${d.cards_financeiro_disparados} card(s) no financeiro`);
+    // Tempo de cada parte da rodada (aparece no Histórico ao abrir a linha).
+    const progresso = Object.fromEntries(Object.entries(d.tempos_ms || {}).map(([k, ms]) => [k, `${(ms / 1000).toFixed(1)} s`]));
+    return { resumo: partes.join(' · ') || 'ok', progresso };
   },
 
   'tratorilson-relatorios': async () => {

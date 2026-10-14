@@ -108,11 +108,17 @@ export async function GET(req: Request) {
     // OS faturadas vistas neste ciclo → geram card no financeiro (cirúrgico, via sync-os?codOS).
     const osFaturadasCod = new Set<number>();
     let houvePVFaturado = false;
+    // Tempo gasto em cada parte da rodada — vai para o histórico do agendador.
+    const tempos: Record<string, number> = {};
+    const medir = (fase: string, t0: number) => { tempos[fase] = (tempos[fase] || 0) + (Date.now() - t0); };
 
     for (const acc of ACCS) {
       let osNovas = 0, pvNovos = 0, nfs = 0;
       const empKey = acc.name.replace(/ /g, "_");
+      let t0 = Date.now();
       const vendMap = await carregarVendedores(acc);
+      medir("vendedores", t0);
+      t0 = Date.now();
 
       // Buscar OS do dia atual (pega criadas e alteradas hoje)
       try {
@@ -124,6 +130,15 @@ export async function GET(req: Request) {
             filtrar_apenas_inclusao: "N",
           }, acc);
           if (pag === 1) totPag = r?.total_de_paginas || 1;
+
+          // O card do financeiro só precisa nascer quando a OS ACABOU de virar faturada:
+          // antes ele era pedido para toda OS faturada hoje, a cada 5 min.
+          const numsOS = (r?.osCadastro || []).map((o: any) => o.Cabecalho?.cNumOS).filter(Boolean);
+          const jaFaturada = new Map<string, boolean>();
+          if (numsOS.length) {
+            const { data: ant } = await supabase.from("portal_nt_clientes_os").select("num_os, faturada").eq("empresa", acc.name).in("num_os", numsOS);
+            for (const a of ant || []) jaFaturada.set(String(a.num_os), !!a.faturada);
+          }
 
           for (const os of r?.osCadastro || []) {
             const cab = os.Cabecalho;
@@ -158,7 +173,7 @@ export async function GET(req: Request) {
             if (vendedorNome) linhaOS.vendedor = vendedorNome;
             await supabase.from("portal_nt_clientes_os").upsert(linhaOS, { onConflict: "num_os,empresa" });
             osNovas++;
-            if (info.cFaturada === "S" && info.cCancelada !== "S") osFaturadasCod.add(cab.nCodOS);
+            if (info.cFaturada === "S" && info.cCancelada !== "S" && !jaFaturada.get(String(cab.cNumOS))) osFaturadasCod.add(cab.nCodOS);
           }
           pag++;
           if (pag <= totPag) await new Promise(r => setTimeout(r, 300));
@@ -167,6 +182,8 @@ export async function GET(req: Request) {
         console.warn(`[sync-recente] OS ${acc.name}:`, e instanceof Error ? e.message : e);
       }
 
+      medir("os_do_dia", t0);
+      t0 = Date.now();
       // Buscar PV do dia atual
       try {
         let pag = 1, totPag = 1;
@@ -176,6 +193,13 @@ export async function GET(req: Request) {
             filtrar_por_data_de: dataHoje, filtrar_por_data_ate: dataHoje,
           }, acc);
           if (pag === 1) totPag = r?.total_de_paginas || 1;
+
+          const numsPV = (r?.pedido_venda_produto || []).map((p: any) => p.cabecalho?.numero_pedido).filter(Boolean);
+          const jaFaturado = new Map<string, boolean>();
+          if (numsPV.length) {
+            const { data: ant } = await supabase.from("portal_nt_clientes_pv").select("num_pedido, faturado").eq("empresa", acc.name).in("num_pedido", numsPV);
+            for (const a of ant || []) jaFaturado.set(String(a.num_pedido), !!a.faturado);
+          }
 
           for (const pv of r?.pedido_venda_produto || []) {
             const cab = pv.cabecalho;
@@ -197,7 +221,7 @@ export async function GET(req: Request) {
               updated_at: new Date().toISOString(),
             }, { onConflict: "num_pedido,empresa" });
             pvNovos++;
-            if (info.faturado === "S" && info.cancelado !== "S") houvePVFaturado = true;
+            if (info.faturado === "S" && info.cancelado !== "S" && !jaFaturado.get(String(cab.numero_pedido))) houvePVFaturado = true;
           }
           pag++;
           if (pag <= totPag) await new Promise(r => setTimeout(r, 300));
@@ -206,6 +230,8 @@ export async function GET(req: Request) {
         console.warn(`[sync-recente] PV ${acc.name}:`, e instanceof Error ? e.message : e);
       }
 
+      medir("pv_do_dia", t0);
+      t0 = Date.now();
       // Buscar NFs para OS/PV faturados sem link_nf.
       // Ordena pelos mais RECENTES: sem isso, a fila (que tem milhares de itens antigos
       // sem nota) devolvia sempre os mesmos e as notas novas nunca eram tentadas.
@@ -243,6 +269,8 @@ export async function GET(req: Request) {
         registrarConsulta(chaveOS(os), achou);
       }
 
+      medir("nfse_os", t0);
+      t0 = Date.now();
       // PV (peças): mesma coisa. Inclui os que a pasta ainda não marcou como faturado mas
       // cuja ETAPA já diz "Faturado" (a flag fica velha quando o sync perde a janela de 1h).
       const { data: pvSemNF } = await supabase.from("portal_nt_clientes_pv")
@@ -297,6 +325,7 @@ export async function GET(req: Request) {
         registrarConsulta(chavePV(pv), achou);
       }
 
+      medir("nfe_pv", t0);
       resultado[acc.name] = { os_novas: osNovas, pv_novos: pvNovos, nfs };
       console.log(`[sync-recente] ${acc.name}: ${osNovas} OS, ${pvNovos} PV, ${nfs} NFs`);
     }
@@ -306,6 +335,7 @@ export async function GET(req: Request) {
     // idempotentes (não duplicam) e respeitam o corte de data. É o que mantém a pasta
     // e o financeiro juntos mesmo sem o webhook do Omie (que não alcança o localhost).
     let cardsDisparados = 0;
+    const tFin = Date.now();
     for (const cod of osFaturadasCod) {
       try { await fetch(`${origin}/api/financeiro/sync-os?codOS=${cod}`, { method: "POST", signal: AbortSignal.timeout(120_000) }); cardsDisparados++; } catch {}
     }
@@ -313,7 +343,8 @@ export async function GET(req: Request) {
       try { await fetch(`${origin}/api/financeiro/sync-pecas?dias=1`, { method: "POST", signal: AbortSignal.timeout(120_000) }); } catch {}
     }
 
-    return NextResponse.json({ sucesso: true, resultado, cards_financeiro_disparados: cardsDisparados, timestamp: new Date().toISOString() });
+    medir("financeiro", tFin);
+    return NextResponse.json({ sucesso: true, resultado, cards_financeiro_disparados: cardsDisparados, tempos_ms: tempos, timestamp: new Date().toISOString() });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
   }
