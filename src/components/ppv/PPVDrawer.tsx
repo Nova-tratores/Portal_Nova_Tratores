@@ -274,7 +274,7 @@ export default function PPVDrawer({
   const [infoNumContrato, setInfoNumContrato] = useState("");
   const [infoContato, setInfoContato] = useState("");
   const [infoDadosNF, setInfoDadosNF] = useState("");
-  const [infoConsumoFinal, setInfoConsumoFinal] = useState(false);
+  const [infoConsumoFinal, setInfoConsumoFinal] = useState(true); // sempre consumo final (José, 14/10/2026)
 
   // Carregar listas para dropdown de substituto
   useEffect(() => {
@@ -340,7 +340,7 @@ export default function PPVDrawer({
       setInfoNumContrato(d.numContrato || "");
       setInfoContato(d.contato || "");
       setInfoDadosNF(d.dadosNF || "");
-      setInfoConsumoFinal(!!d.consumoFinal);
+      setInfoConsumoFinal(true); // sempre consumo final — peças no CST 60
       if (Array.isArray(d.departamentos) && d.departamentos.length > 0) {
         setDistDeptos(Object.fromEntries(d.departamentos.map((x) => [x.codigo, x.perc])));
       }
@@ -1314,7 +1314,7 @@ export default function PPVDrawer({
                       <textarea rows={3} value={infoDadosNF} onChange={(e) => setInfoDadosNF(e.target.value)} placeholder="Texto que vai nos dados adicionais da NF-e..." style={{ marginBottom: 0 }} />
                     </div>
                     <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, marginBottom: 0, fontWeight: 400, textTransform: "none", letterSpacing: 0, cursor: "pointer", color: "#334155" }}>
-                      <input type="checkbox" checked={infoConsumoFinal} onChange={(e) => setInfoConsumoFinal(e.target.checked)} />
+                      <input type="checkbox" checked readOnly disabled title="Sempre ligado: as peças saem no CST 60 (ICMS cobrado anteriormente por ST)" />
                       Nota Fiscal para Consumo Final
                     </label>
                     <style>{`

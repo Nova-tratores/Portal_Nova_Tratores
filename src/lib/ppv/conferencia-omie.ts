@@ -4,7 +4,7 @@
 import { buscarPPVPorId } from "@/lib/ppv/queries";
 import {
   resolverContaDoPedido, omieNaConta, contaCorrenteDoPedido, departamentosDoPedido,
-  buscarCodigoProdutoOmie, montarParcelasOmie, isoParaBR, type OmieAccount, type OmieDetItem,
+  buscarCodigoProdutoOmie, montarParcelasOmie, isoParaBR, garantirCst60, CST_ICMS_PECAS, type OmieAccount, type OmieDetItem,
 } from "@/lib/ppv/omie";
 import {
   compararItens, compararCampo, compararDepartamentos, compararParcelas, diferente,
@@ -17,7 +17,7 @@ const r2 = (v: number) => Math.round(v * 100) / 100;
 
 interface PedidoOmie {
   cabecalho?: { codigo_pedido?: number; numero_pedido?: string; etapa?: string; data_previsao?: string; codigo_parcela?: string; qtde_parcelas?: number };
-  informacoes_adicionais?: { codigo_categoria?: string; codigo_conta_corrente?: number };
+  informacoes_adicionais?: { codigo_categoria?: string; codigo_conta_corrente?: number; consumidor_final?: string };
   lista_parcelas?: { parcela?: { data_vencimento?: string; valor?: number }[] };
   departamentos?: { cCodDepto?: string; nPerc?: number }[];
   det?: (OmieDetItem & { produto?: OmieDetItem["produto"] & { valor_desconto?: number; percentual_desconto?: number; tipo_desconto?: string } })[];
@@ -69,6 +69,14 @@ export async function conferirPPV(idPPV: string): Promise<ResultadoConferencia &
   const add = (x: Divergencia | null) => { if (x) div.push(x); };
   const ia = pedido.informacoes_adicionais || {};
   add(compararCampo(idPPV, "categoria", "Categoria", d.categoriaPedido, ia.codigo_categoria));
+  // sempre consumo final, com as peças no CST 60 (o Omie troca para 51 ao ligar o consumo final)
+  add(compararCampo(idPPV, "consumoFinal", "Nota fiscal para consumo final", "S", ia.consumidor_final || "N",
+    { exibirPortal: "sim", exibirOmie: ia.consumidor_final === "S" ? "sim" : "não", vazioIgnora: false }));
+  for (const it of pedido.det || []) {
+    const cst = String(it.imposto?.icms?.cod_sit_trib_icms ?? "");
+    if (cst !== CST_ICMS_PECAS) div.push({ doc: idPPV, campo: `cst:${it.produto?.codigo}`, rotulo: `Peça ${it.produto?.codigo} — CST do ICMS`, portal: CST_ICMS_PECAS, omie: cst || "—", ajustavel: true,
+      explicacao: `Peça com ICMS já cobrado por substituição tributária sai no CST 60. No Omie está ${cst || "vazio"}; ao atualizar, volta para 60.` });
+  }
   if (d.contaCorrente) {
     const cc = await contaCorrenteDoPedido(acc, d.contaCorrente).catch(() => ({ codigo: undefined }));
     add(compararCampo(idPPV, "conta", "Conta corrente", cc.codigo ? String(cc.codigo) : "", ia.codigo_conta_corrente ? String(ia.codigo_conta_corrente) : ""));
@@ -139,7 +147,13 @@ export async function alinharPPV(idPPV: string): Promise<ResultadoConferencia> {
     const dep = await departamentosDoPedido(acc, d.departamentos.map((x) => ({ codigo: String(x.codigo), perc: n(x.perc) }))).catch(() => ({ deps: [] as { codigo: string; perc: number }[] }));
     if (dep.deps.length) param.departamentos = dep.deps.map((x) => ({ cCodDepto: x.codigo, nPerc: x.perc, nValor: r2(total * x.perc / 100), nValorFixo: "N" }));
   }
-  try { await omieNaConta(acc, "/produtos/pedido/", "AlterarPedidoVenda", param); }
+  info.consumidor_final = "S";
+  param.informacoes_adicionais = info;
+  try {
+    await omieNaConta(acc, "/produtos/pedido/", "AlterarPedidoVenda", param);
+    const cst = await garantirCst60(acc, { codigo_pedido: pedido.cabecalho?.codigo_pedido });
+    if (cst.erro) throw new Error(`CST 60: ${cst.erro}`);
+  }
   catch (e) {
     return { ...limpar(await conferirPPV(idPPV)), erro: `O Omie recusou a atualização: ${e instanceof Error ? e.message : e}` };
   }

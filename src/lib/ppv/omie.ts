@@ -609,7 +609,7 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
           codVend: nCodVend || undefined,
           numero_contrato: detalhes.numContrato || idPPV,
           ...(refOS ? { numero_pedido_cliente: refOS } : {}),
-          consumidor_final: detalhes.consumoFinal ? "S" : "N",
+          consumidor_final: "S", // sempre consumo final (José, 14/10/2026) — e as peças ficam no CST 60 (garantirCst60)
           ...(detalhes.contato ? { contato: detalhes.contato } : {}),
         },
         observacoes: { obs_venda: obsVenda },
@@ -623,6 +623,12 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
         "/produtos/pedido/", "IncluirPedido", payload, acc.key, acc.secret,
       );
       numPedido = (resposta.numero_pedido || String(resposta.codigo_pedido || "")).trim();
+      // consumo final faz o Omie pôr o ICMS no CST 51; o certo para as peças é o 60
+      try {
+        const cst = await garantirCst60(acc, { codigo_pedido_integracao: `PV-${idPPV}` });
+        if (cst.trocados) console.log(`[Omie PPV] ${idPPV}: ${cst.trocados} item(ns) voltaram para o CST 60`);
+        if (cst.erro) console.warn(`[Omie PPV] ${idPPV}: CST 60 — ${cst.erro}`);
+      } catch (e) { console.warn(`[Omie PPV] ${idPPV}: CST 60 falhou:`, e instanceof Error ? e.message : e); }
     }
 
     console.log(`[Omie PPV] ${idPPV} → ${tipoLabel} nº ${numPedido} (${acc.name})`);
@@ -850,6 +856,10 @@ export async function faturarPPVNoOmie(
   }
 
   try {
+    // 0) peças no CST 60 com consumo final (o Omie troca para 51 sozinho)
+    const cst = await garantirCst60(acc, chavePedido);
+    if (cst.erro) return { sucesso: false, empresa: acc.name, erro: `Não consegui deixar as peças no CST 60 antes de faturar: ${cst.erro}` };
+
     // 1) Troca a categoria (regra fiscal) se veio uma diferente da atual.
     const categoria = String(opts.categoria || "").trim();
     if (categoria && categoria !== (pedido.informacoes_adicionais?.codigo_categoria || "")) {
@@ -1273,6 +1283,42 @@ export async function consultarItensFiscaisPPV(idPPV: string): Promise<ConsultaI
 }
 
 // Patch fiscal vindo da tela (nomes amigáveis; só o que mudou).
+/** CST do ICMS que as peças devem ter na NF-e (consumo final, ICMS já cobrado por ST). */
+export const CST_ICMS_PECAS = "60";
+
+/**
+ * Pedido sempre "consumo final" e peças no CST 60 (José, 14/10/2026): ligando o
+ * consumo final o Omie joga o ICMS para 51. Reenvia o det INTEIRO (o Omie apaga
+ * o item que não vier) com o imposto cru de cada item e só o CST trocado.
+ */
+export async function garantirCst60(acc: OmieAccount, chave: Record<string, unknown>): Promise<{ trocados: number; erro?: string }> {
+  const pedido = await consultarPedidoOmie(chave, acc);
+  if (!pedido) return { trocados: 0, erro: "pedido não encontrado no Omie" };
+  const det = pedido.det || [];
+  const errados = det.filter((d) => String(d.imposto?.icms?.cod_sit_trib_icms ?? "") !== CST_ICMS_PECAS);
+  const info = (pedido as { informacoes_adicionais?: { consumidor_final?: string } }).informacoes_adicionais;
+  if (!errados.length && info?.consumidor_final === "S") return { trocados: 0 };
+  const detNovo = det.map((d) => {
+    const produto: Record<string, unknown> = { codigo_produto: d.produto?.codigo_produto, quantidade: d.produto?.quantidade, valor_unitario: d.produto?.valor_unitario };
+    if (d.produto?.cfop) produto.cfop = d.produto.cfop;
+    const p = d.produto as Record<string, unknown> | undefined;
+    if (p?.tipo_desconto) { produto.tipo_desconto = p.tipo_desconto; produto.percentual_desconto = p.percentual_desconto; produto.valor_desconto = p.valor_desconto; }
+    return {
+      ide: { codigo_item_integracao: str(d.ide?.codigo_item_integracao) || undefined, codigo_item: d.ide?.codigo_item },
+      produto,
+      imposto: aplicarPatchNoImpostoCru(d.imposto || {}, { icms: { cst: CST_ICMS_PECAS } }),
+    };
+  });
+  try {
+    await omieCall("/produtos/pedido/", "AlterarPedidoVenda", {
+      cabecalho: pedido.cabecalho?.codigo_pedido ? { codigo_pedido: pedido.cabecalho.codigo_pedido } : chave,
+      informacoes_adicionais: { consumidor_final: "S" },
+      det: detNovo,
+    }, acc.key, acc.secret);
+    return { trocados: errados.length };
+  } catch (e) { return { trocados: 0, erro: e instanceof Error ? e.message : String(e) }; }
+}
+
 export interface PatchFiscalItem {
   cfop?: string;
   icms?: Partial<{ cst: string; origem: string; modalidade: string; aliquota: number; base: number; percRedBase: number }>;
