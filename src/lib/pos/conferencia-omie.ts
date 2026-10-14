@@ -7,10 +7,10 @@ import { TBL_OS } from "@/lib/pos/constants";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie as omiePorta } from "@/lib/omie/porta";
 import { montarServicosComReqs, montarDadosAdic } from "@/lib/pos/omie";
-import { normalizarEspelho, espelhoPadrao, type OmieEspelho } from "@/lib/pos/omie-espelho";
+import { normalizarEspelho, espelhoPadrao, calcularParcelas, diasDoEspelho, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { estadoNoOmie } from "@/lib/pos/faturamento-regras";
 import {
-  compararItens, compararCampo, compararDepartamentos, diferente, textoNormal,
+  compararItens, compararCampo, compararDepartamentos, compararParcelas, diferente, textoNormal,
   type Divergencia, type ItemComparavel, type ResultadoConferencia,
 } from "@/lib/omie/conferencia";
 
@@ -25,9 +25,10 @@ const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", "."));
 
 interface ItemOmieOS { nIdItem?: number; nSeqItem?: number; nCodServico?: number; nQtde?: number; nValUnit?: number; cTpDesconto?: string; nValorDesconto?: number; nPercDesconto?: number; cDescServ?: string }
 interface OSOmie {
-  Cabecalho?: { nCodOS?: number; cNumOS?: string; cEtapa?: string; nValorTotal?: number };
+  Cabecalho?: { nCodOS?: number; cNumOS?: string; cEtapa?: string; nValorTotal?: number; dDtPrevisao?: string; cCodParc?: string; nQtdeParc?: number };
+  Parcelas?: { nParcela?: number; dDtVenc?: string; nDias?: number; nPercentual?: number; nValor?: number }[];
   InfoCadastro?: { cFaturada?: string; cCancelada?: string };
-  InformacoesAdicionais?: { cCodCateg?: string; nCodCC?: number; cNumContrato?: string; cDadosAdicNF?: string };
+  InformacoesAdicionais?: { cCodCateg?: string; nCodCC?: number; cNumContrato?: string; cDadosAdicNF?: string; cNumPedido?: string };
   Departamentos?: { cCodDepto?: string; nPerc?: number }[];
   Email?: { cEnviarPara?: string; cEnvRecibo?: string };
   ServicosPrestados?: ItemOmieOS[];
@@ -61,6 +62,18 @@ async function esperadoDaOS(os: Rec, esp: OmieEspelho | null) {
     itens.push({ chave: String(nCod), nCodServico: nCod, rotulo: x.nome || x.codigo, qtde: n(x.qtde), unit: n(x.unit), desconto: x.cobrar ? 0 : n(x.qtde) * n(x.unit), descricao: x.descricao || undefined });
   }
   return itens;
+}
+
+const hojeISO = () => new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" });
+const isoBR = (iso: string) => { const [a, m, d] = iso.slice(0, 10).split("-"); return `${d}/${m}/${a}`; };
+/** previsão de faturamento da OS no portal (vazia = hoje) */
+const previsaoDaOS = (os: Rec) => String(os.Previsao_Faturamento || "").slice(0, 10) || hojeISO();
+/** nº do(s) pedido(s) de venda no Omie: "PPV-0446:000000000007739" → "7739" */
+const pedidosDaOS = (os: Rec) => String(os.Pedido_Venda || "").split(",").map((x) => String(x.split(":").pop() || "").trim().replace(/^0+(?=\d)/, "")).filter(Boolean).join(", ").slice(0, 15);
+/** parcelas esperadas: as editadas à mão na OS ou as da condição, a partir da previsão */
+function parcelasDaOS(esp: OmieEspelho, previsao: string, total: number) {
+  const l = esp.parcelas.length ? esp.parcelas : calcularParcelas(diasDoEspelho(esp), previsao, total);
+  return l.map((p, i) => ({ nParcela: i + 1, nDias: Math.max(0, Math.round(Number(p.dias) || 0)), dDtVenc: isoBR(String(p.venc)), nValor: Math.round(Number(p.valor) * 100) / 100 }));
 }
 
 async function lerOSDoPortal(idOs: string): Promise<Rec | null> {
@@ -103,6 +116,16 @@ export async function conferirOS(idOs: string): Promise<ResultadoConferencia & {
 
   // cabeçalho: só quando a OS já tem o espelho do Omie salvo (OS antigas não têm)
   const ia = dados.InformacoesAdicionais || {};
+  {
+    const add = (d: Divergencia | null) => { if (d) div.push(d); };
+    add(compararCampo(idOs, "previsao", "Previsão de faturamento", isoBR(previsaoDaOS(os)), dados.Cabecalho?.dDtPrevisao, { vazioIgnora: false }));
+    add(compararCampo(idOs, "pedidoCliente", "Nº do pedido do cliente (pedido de venda das peças)", pedidosDaOS(os), ia.cNumPedido));
+    if (esp) {
+      const total = esperado.reduce((t, p) => t + Math.max(0, p.qtde * p.unit - p.desconto), 0);
+      add(compararParcelas(idOs, parcelasDaOS(esp, previsaoDaOS(os), total).map((p) => ({ venc: p.dDtVenc, valor: p.nValor })),
+        (dados.Parcelas || []).map((p) => ({ venc: String(p.dDtVenc || ""), valor: n(p.nValor) }))));
+    }
+  }
   if (esp) {
     const add = (d: Divergencia | null) => { if (d) div.push(d); };
     add(compararCampo(idOs, "categoria", "Categoria", esp.info.categoria, ia.cCodCateg));
@@ -155,7 +178,15 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
   for (const o of omieItens) if (!usados.has(o) && o.nIdItem) servicos.push({ nSeqItem: o.nSeqItem, nIdItem: o.nIdItem, cAcaoItem: "E" });
 
   const total = esperado.reduce((s, p) => s + Math.max(0, p.qtde * p.unit - p.desconto), 0);
-  const param: Rec = { Cabecalho: { nCodOS } };
+  const cab: Rec = { nCodOS, dDtPrevisao: isoBR(previsaoDaOS(os)) };
+  const param: Rec = { Cabecalho: cab };
+  if (esp) {
+    const parc = parcelasDaOS(esp, previsaoDaOS(os), total);
+    const soma = parc.reduce((t, p) => t + p.nValor, 0) || 1;
+    cab.cCodParc = "999"; cab.nQtdeParc = parc.length;
+    param.Parcelas = parc.map((p) => ({ ...p, nPercentual: Math.round((p.nValor / soma) * 10000) / 100 }));
+  }
+  const pedCli = pedidosDaOS(os);
   if (servicos.length) param.ServicosPrestados = servicos;
   if (esp) {
     param.InformacoesAdicionais = {
@@ -163,11 +194,12 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
       nCodCC: esp.info.conta || undefined,
       cNumContrato: esp.info.contrato || undefined,
       cDadosAdicNF: (esp.info.dadosNF || montarDadosAdic(os)) || undefined,
+      ...(pedCli ? { cNumPedido: pedCli } : {}),
     };
     const deps = Object.entries(esp.deptos).filter(([, v]) => n(v) > 0);
     if (deps.length) param.Departamentos = deps.map(([c, v]) => ({ cCodDepto: c, nPerc: n(v), nValor: Math.round(total * n(v)) / 100, nValorFixo: "N" }));
     param.Email = { cEnviarPara: esp.email.para || undefined, cEnvRecibo: esp.email.recibo ? "S" : "N" };
-  }
+  } else if (pedCli) param.InformacoesAdicionais = { cNumPedido: pedCli };
   try {
     await omie("AlterarOS", param);
     if (textos.length) await omie("AlterarOS", { Cabecalho: { nCodOS }, ServicosPrestados: textos });

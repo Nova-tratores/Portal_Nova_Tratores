@@ -56,7 +56,8 @@ export async function conferirPPV(idPPV: string): Promise<ResultadoConferencia &
   const { acc } = achado;
   const pedido = achado.pedido as unknown as PedidoOmie;
   const num = String(pedido.cabecalho?.numero_pedido || d.pedidoOmie).replace(/^0+/, "");
-  if (n(pedido.cabecalho?.etapa) >= 50) return { ...base, numeroOmie: num, pulado: "já está faturado no Omie" };
+  // 50 = "Faturar" (ainda não emitiu); faturado é 60
+  if (n(pedido.cabecalho?.etapa) >= 60) return { ...base, numeroOmie: num, pulado: "já está faturado no Omie" };
 
   const portal = itensDoPortal(d);
   const pItens: ItemComparavel[] = portal.map((x) => ({ chave: x.codigo.trim().toUpperCase(), rotulo: x.codigo, qtde: x.qtde, unit: x.preco, desconto: x.desconto }));

@@ -518,7 +518,8 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       Cabecalho: {
         cCodIntOS: os.Id_Ordem,
         cEtapa: OMIE_ETAPA_EXECUTADA,
-        dDtPrevisao: formatarDataOmie(os.Data),
+        // previsão de faturamento da OS (vazia = hoje) — antes ia a data de abertura (José, 14/10/2026)
+        dDtPrevisao: formatarDataOmie(String(os.Previsao_Faturamento || "").slice(0, 10) || new Date().toLocaleDateString("sv-SE", { timeZone: "America/Sao_Paulo" })),
         nCodCli,
         nCodVend: nCodVend || undefined,
         nQtdeParc: 1,
