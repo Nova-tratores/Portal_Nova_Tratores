@@ -23,7 +23,7 @@ export const AJUDA_REUNIOES = {
     titulo: 'Séries',
     texto: [
       'Reuniões que se repetem (ex.: "Semanal Oficina"). A série cria as próximas sozinha, com 14 dias de antecedência.',
-      'Uma reunião puxa a outra: ações atrasadas ou vencendo voltam como pendências, e o parking lot e os itens adiados viram sugestão de pauta. O secretário roda entre os participantes.',
+      'Uma reunião puxa a outra: ações atrasadas ou vencendo voltam como pendências, e os itens marcados como "Adiar p/ próxima" ou "Fora do tema" entram sozinhos na pauta da reunião seguinte. O secretário roda entre os participantes.',
       'Só o condutor da série (ou um admin) muda a configuração, na engrenagem do cartão.',
     ],
   },
@@ -39,7 +39,8 @@ export const AJUDA_REUNIOES = {
     titulo: 'Condução',
     texto: [
       'O condutor marca as presenças, trata cada pendência (novo prazo, reatribuir, escalar ou cancelar — depois de 2 reprogramações o novo prazo trava) e registra o resultado de cada item.',
-      'Item de decidir só fecha com a decisão E o motivo. Assunto fora da pauta vai para o parking lot; o que alguém precisa fazer vira "Ação" — um ticket com responsável e prazo.',
+      'Item de decidir só fecha com a decisão E o motivo. "Adiar p/ próxima" = não deu tempo hoje; "Fora do tema" = o assunto fugiu do foco. Nos dois casos o item é reagendado: entra na pauta da próxima reunião da série, e o item mostra para qual reunião foi.',
+      'Surgiu um assunto novo no meio da conversa? Escreva no campo de baixo e clique em "Anotar p/ próxima". O que alguém precisa fazer vira "Ação" — um ticket com responsável e prazo.',
       'No fim: "Encerrar e fechar ata".',
     ],
   },

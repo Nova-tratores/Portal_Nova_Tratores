@@ -4,7 +4,7 @@
 //   Ata (ata_rascunho/ata_publicada). Dados de GET /api/reunioes/[id].
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowLeft, Play, Square, FileCheck2, Copy, Users, Lock, Globe, Repeat, AlertTriangle, ParkingCircle, Plus, Check, UserCheck, Ban, MessageSquarePlus } from 'lucide-react'
+import { ArrowLeft, Play, Square, FileCheck2, Copy, Users, Lock, Globe, Repeat, AlertTriangle, CalendarPlus, Plus, Check, UserCheck, Ban, MessageSquarePlus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import TicketModal from '@/components/tickets/TicketModal'
@@ -189,7 +189,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
       {modo === 'pauta' && (
         <>
           <BlocoPendencias pend={d.pendencias} usuarios={d.usuarios} modoConducao={false} onAbrirTicket={setTicketAberto} />
-          <PautaItens itens={d.itens} usuarios={d.usuarios} modo={cancelada ? 'leitura' : 'pauta'} podeEditar={!cancelada && (participo || conduz)} podeConduzir={conduz}
+          <PautaItens itens={d.itens} usuarios={d.usuarios} destinos={d.destinos} origens={d.origens} proxima={d.proxima} temSerie={!!d.serie} onAbrirReuniao={(rid) => router.push(`/reunioes/${rid}`)} modo={cancelada ? 'leitura' : 'pauta'} podeEditar={!cancelada && (participo || conduz)} podeConduzir={conduz}
             duracaoMin={d.duracao_min} corteFechado={corteFechado}
             onIncluir={onIncluir} onReordenar={(ordem) => itemAcao({ acao: 'reordenar', ordem })} onRemover={(item_id) => itemAcao({ acao: 'remover', item_id })} onAbrirTicket={setTicketAberto} />
           {presencas(false)}
@@ -200,15 +200,15 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
       {modo === 'conducao' && (
         <>
           <BlocoPendencias pend={d.pendencias} usuarios={d.usuarios} modoConducao={conduz} onTratar={onTratar} onAbrirTicket={setTicketAberto} />
-          <PautaItens itens={d.itens} usuarios={d.usuarios} modo="conducao" podeEditar={false} podeConduzir={conduz} duracaoMin={d.duracao_min} corteFechado
+          <PautaItens itens={d.itens} usuarios={d.usuarios} destinos={d.destinos} origens={d.origens} proxima={d.proxima} temSerie={!!d.serie} onAbrirReuniao={(rid) => router.push(`/reunioes/${rid}`)} modo="conducao" podeEditar={false} podeConduzir={conduz} duracaoMin={d.duracao_min} corteFechado
             onResultado={onResultado} onCriarAcao={(item) => setAcaoDe(item)} onAbrirTicket={setTicketAberto} />
           {acoesDaReuniao}
           {presencas(true)}
           {conduz && (
             <div style={{ position: isMobile ? 'fixed' : 'sticky', bottom: isMobile ? 0 : 8, left: 0, right: 0, zIndex: 50, padding: isMobile ? '10px 10px 12px' : 0, background: isMobile ? 'var(--portal-surface,#fff)' : 'transparent', borderTop: isMobile ? '1px solid var(--portal-border,#e5e7eb)' : 'none', boxShadow: isMobile ? '0 -6px 20px rgba(0,0,0,.08)' : 'none' }}>
               <div style={{ display: 'flex', gap: 8, maxWidth: 1100, margin: '0 auto' }}>
-                <input value={parking} onChange={(e) => setParking(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') incluirParking() }} placeholder="Assunto fora da pauta → parking lot" style={{ ...campo, flex: 1 }} />
-                <button onClick={incluirParking} disabled={!parking.trim()} style={{ ...botao('#6b7280', true), opacity: parking.trim() ? 1 : .5 }}><ParkingCircle size={16} /> Parking</button>
+                <input value={parking} onChange={(e) => setParking(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') incluirParking() }} placeholder="Surgiu outro assunto? Anote para a próxima reunião" style={{ ...campo, flex: 1 }} />
+                <button onClick={incluirParking} disabled={!parking.trim()} title="O assunto não é tratado hoje: fica anotado e entra na pauta da próxima reunião da série." style={{ ...botao('#6b7280', true), opacity: parking.trim() ? 1 : .5 }}><CalendarPlus size={16} /> Anotar p/ próxima</button>
                 <button onClick={() => setAcaoDe(null)} style={botao('#dc2626', true)}><Plus size={16} /> Ação</button>
               </div>
             </div>
@@ -241,7 +241,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
               <pre style={{ margin: 0, whiteSpace: 'pre-wrap', fontFamily: 'inherit', fontSize: 13.5, lineHeight: 1.5, padding: 12, borderRadius: 10, background: 'var(--portal-bg,#f9fafb)', color: 'var(--portal-text,#111)' }}>{d.ata.texto_whatsapp}</pre>
             </section>
           )}
-          <PautaItens itens={d.itens} usuarios={d.usuarios} modo={publicada ? 'leitura' : 'conducao'} podeEditar={false} podeConduzir={conduz && !publicada} duracaoMin={d.duracao_min} corteFechado
+          <PautaItens itens={d.itens} usuarios={d.usuarios} destinos={d.destinos} origens={d.origens} proxima={d.proxima} temSerie={!!d.serie} onAbrirReuniao={(rid) => router.push(`/reunioes/${rid}`)} modo={publicada ? 'leitura' : 'conducao'} podeEditar={false} podeConduzir={conduz && !publicada} duracaoMin={d.duracao_min} corteFechado
             onResultado={publicada ? undefined : onResultado} onCriarAcao={publicada ? undefined : (item) => setAcaoDe(item)} onAbrirTicket={setTicketAberto} />
           {acoesDaReuniao}
           {presencas(!publicada)}

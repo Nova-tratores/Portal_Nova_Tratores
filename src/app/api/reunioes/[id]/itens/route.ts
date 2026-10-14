@@ -48,6 +48,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         reuniao_id: id, ordem: (maxRow?.[0]?.ordem ?? -1) + 1, pergunta: v.campos.pergunta, tipo: v.campos.tipo,
         trazido_por: trazidoPor, tempo_min: v.campos.tempo_min, notas: v.campos.notas ?? null, urgente,
         origem: etapa === 'em_andamento' && body.parking === true ? 'parking' : 'manual', criado_por: auth.userId,
+        // "Anotar p/ próxima" na condução: o assunto não é tratado hoje — já nasce como fora do tema
+        // para entrar na pauta da próxima reunião da série (antes ficava sem resultado e não ia).
+        ...(etapa === 'em_andamento' && body.parking === true ? { resultado: 'parking' } : {}),
       }).select('*').single()
       if (error || !item) return erro(error?.message || 'Falha ao incluir', 500)
       await registrarEvento(id, auth.userId, 'edicao', { campo: 'pauta', incluido: item.id, pergunta: v.campos.pergunta, urgente })

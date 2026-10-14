@@ -1,6 +1,6 @@
 // Reuniões — formato que GET /api/reunioes/[id] devolve para as telas.
 import type { Ticket, UsuarioMin } from '@/lib/tickets/constantes'
-import type { ItemPauta, Serie, ReuniaoEtapa, PapelReuniao, Pendencia } from '@/lib/reunioes/regras'
+import type { ItemPauta, Serie, ReuniaoEtapa, PapelReuniao, Pendencia, ReuniaoRef } from '@/lib/reunioes/regras'
 
 export interface PresencaUI { reuniao_id: string; usuario_id: string; papel: PapelReuniao; presente: boolean | null; marcado_em: string | null }
 export interface AtaUI { reuniao_id: string; publicada_em: string; publicada_por: string; snapshot: Record<string, unknown>; texto_whatsapp: string }
@@ -24,4 +24,9 @@ export interface ReuniaoUI {
   aviso: string | null
   tempo_previsto: number
   duracao_min: number
+  /** item daqui → reunião que recebeu a cópia (adiado/fora do tema) */
+  destinos?: Record<string, ReuniaoRef>
+  /** item_origem_id → reunião de onde o item veio */
+  origens?: Record<string, ReuniaoRef>
+  proxima?: ReuniaoRef | null
 }

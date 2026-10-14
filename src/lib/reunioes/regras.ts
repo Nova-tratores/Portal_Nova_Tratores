@@ -199,10 +199,30 @@ export function novaOrdem(idsNaOrdem: string[], existentes: Pick<ItemPauta, 'id'
 export function validarPublicacao(itens: Pick<ItemPauta, 'tipo' | 'pergunta' | 'resultado' | 'decisao_texto' | 'decisao_motivo'>[]): string[] {
   const erros: string[] = []
   for (const i of itens) {
-    if (i.tipo === 'decidir' && !i.resultado) erros.push(`"${i.pergunta}" ainda não tem resultado (decidido, adiado ou parking).`)
+    if (i.tipo === 'decidir' && !i.resultado) erros.push(`"${i.pergunta}" ainda não tem resultado (decidido, adiado ou fora do tema).`)
     if (i.resultado === 'decidido' && (!i.decisao_texto?.trim() || !i.decisao_motivo?.trim())) erros.push(`"${i.pergunta}" está como decidido sem decisão/motivo.`)
   }
   return erros
+}
+
+/** Uma reunião vista de outra (destino/origem de item levado para a frente). */
+export interface ReuniaoRef { reuniao_id: string; numero: number; prazo: string | null }
+
+/**
+ * Para onde vai um item adiado/fora do tema — o texto que a tela mostra embaixo do item.
+ * destino = a reunião que JÁ recebeu a cópia; proxima = a próxima instância da série (ainda sem a cópia).
+ * null = o resultado não leva o item para frente.
+ */
+export function textoReagendamento(
+  resultado: ItemResultado | null,
+  o: { destino?: ReuniaoRef | null; proxima?: ReuniaoRef | null; temSerie: boolean },
+): { texto: string; reuniao_id?: string } | null {
+  if (resultado !== 'adiado' && resultado !== 'parking') return null
+  const quando = (r: ReuniaoRef) => `reunião de ${r.prazo ? `${r.prazo.slice(8, 10)}/${r.prazo.slice(5, 7)}` : 'data a definir'} (nº ${r.numero})`
+  if (o.destino) return { texto: `Reagendado para a ${quando(o.destino)}`, reuniao_id: o.destino.reuniao_id }
+  if (o.proxima) return { texto: `Vai para a pauta da ${quando(o.proxima)} quando a ata for publicada`, reuniao_id: o.proxima.reuniao_id }
+  if (o.temSerie) return { texto: 'Vai para a próxima reunião da série assim que ela for criada' }
+  return { texto: 'Reunião avulsa: não há próxima reunião para levar este item — crie uma reunião ou uma ação' }
 }
 
 /** R13 + adiados: o que a próxima reunião da série recebe como sugestão. */

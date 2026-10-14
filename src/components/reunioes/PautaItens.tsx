@@ -2,21 +2,31 @@
 // Itens da pauta (R5/R6/R7). Modo pauta: lista reordenável + campo de inclusão.
 // Modo condução: item a item com timer e botões de resultado por tipo.
 import { useState } from 'react'
-import { ChevronUp, ChevronDown, Trash2, Clock, Zap, CheckCircle2, PauseCircle, ParkingCircle, Info, MessageSquare, Plus } from 'lucide-react'
-import type { ItemPauta, ItemTipo, ItemResultado } from '@/lib/reunioes/regras'
-import { ITEM_TIPO_INFO, RESULTADOS_POR_TIPO, somaTempo, ordenarItens } from '@/lib/reunioes/regras'
+import { ChevronUp, ChevronDown, Trash2, Clock, Zap, CheckCircle2, PauseCircle, Shuffle, Info, MessageSquare, Plus, CornerDownRight } from 'lucide-react'
+import type { ItemPauta, ItemTipo, ItemResultado, ReuniaoRef } from '@/lib/reunioes/regras'
+import { ITEM_TIPO_INFO, RESULTADOS_POR_TIPO, somaTempo, ordenarItens, textoReagendamento } from '@/lib/reunioes/regras'
 import { cartao, botao, botaoClaro, campo, chip, Timer, primeiroNome } from './comum'
 
-const ROTULO_RESULTADO: Record<ItemResultado, { label: string; cor: string; icone: React.ReactNode }> = {
-  decidido:  { label: 'Decidido',  cor: '#059669', icone: <CheckCircle2 size={15} /> },
-  adiado:    { label: 'Adiar',     cor: '#d97706', icone: <PauseCircle size={15} /> },
-  parking:   { label: 'Parking lot', cor: '#6b7280', icone: <ParkingCircle size={15} /> },
-  informado: { label: 'Informado', cor: '#2563eb', icone: <Info size={15} /> },
-  discutido: { label: 'Discutido', cor: '#7c3aed', icone: <MessageSquare size={15} /> },
+// label = botão na condução; selo = como o item fica marcado; dica = legenda do botão.
+const ROTULO_RESULTADO: Record<ItemResultado, { label: string; selo: string; cor: string; icone: React.ReactNode; dica: string }> = {
+  decidido:  { label: 'Decidido', selo: 'Decidido', cor: '#059669', icone: <CheckCircle2 size={15} />, dica: 'Registra a decisão e o motivo (os dois obrigatórios).' },
+  adiado:    { label: 'Adiar p/ próxima', selo: 'Adiado', cor: '#d97706', icone: <PauseCircle size={15} />, dica: 'Não deu tempo de tratar hoje. O item volta na pauta da próxima reunião da série.' },
+  parking:   { label: 'Fora do tema', selo: 'Fora do tema', cor: '#6b7280', icone: <Shuffle size={15} />, dica: 'O assunto fugiu do foco desta reunião. Fica anotado e entra na pauta da próxima reunião da série.' },
+  informado: { label: 'Informado', selo: 'Informado', cor: '#2563eb', icone: <Info size={15} />, dica: 'O recado foi dado. Fecha o item.' },
+  discutido: { label: 'Discutido', selo: 'Discutido', cor: '#7c3aed', icone: <MessageSquare size={15} />, dica: 'O assunto foi conversado. Fecha o item.' },
 }
-const ROTULO_ORIGEM: Record<string, string> = { pendencia_escalada: 'pendência escalada', parking_anterior: 'parking da anterior', adiado_anterior: 'adiado da anterior', parking: 'parking lot' }
+const ddmm = (iso: string | null | undefined) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '')
+// Selo de origem: de onde o item veio (com a data da reunião anterior, quando se sabe).
+const rotuloOrigem = (origem: string, de?: ReuniaoRef) => {
+  const veio = de ? ` · veio de ${ddmm(de.prazo)}` : ' da reunião anterior'
+  if (origem === 'adiado_anterior') return `adiado${veio}`
+  if (origem === 'parking_anterior') return `fora do tema${veio}`
+  if (origem === 'parking') return 'anotado durante a reunião'
+  if (origem === 'pendencia_escalada') return 'pendência escalada'
+  return origem
+}
 
-export default function PautaItens({ itens, usuarios, modo, podeEditar, podeConduzir, duracaoMin, corteFechado, onIncluir, onReordenar, onRemover, onResultado, onCriarAcao, onAbrirTicket }: {
+export default function PautaItens({ itens, usuarios, modo, podeEditar, podeConduzir, duracaoMin, corteFechado, onIncluir, onReordenar, onRemover, onResultado, onCriarAcao, onAbrirTicket, destinos, origens, proxima, temSerie, onAbrirReuniao }: {
   itens: ItemPauta[]
   usuarios: Record<string, { nome: string }>
   modo: 'pauta' | 'conducao' | 'leitura'
@@ -30,6 +40,11 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
   onResultado?: (id: string, r: { resultado: ItemResultado; decisao_texto?: string; decisao_motivo?: string; notas?: string }) => Promise<void>
   onCriarAcao?: (item: ItemPauta) => void
   onAbrirTicket?: (id: string) => void
+  destinos?: Record<string, ReuniaoRef>
+  origens?: Record<string, ReuniaoRef>
+  proxima?: ReuniaoRef | null
+  temSerie?: boolean
+  onAbrirReuniao?: (id: string) => void
 }) {
   const [pergunta, setPergunta] = useState('')
   const [tipo, setTipo] = useState<ItemTipo>('decidir')
@@ -96,15 +111,34 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                   <span style={chip(t.cor, t.fundo)}>{t.label}</span>
                   {item.urgente && <span style={chip('#dc2626', 'rgba(220,38,38,.1)')}><Zap size={11} /> urgente</span>}
-                  {item.origem !== 'manual' && <span style={chip('#6b7280', 'rgba(107,114,128,.12)')}>{ROTULO_ORIGEM[item.origem] || item.origem}</span>}
+                  {item.origem !== 'manual' && (() => {
+                    const de = item.item_origem_id ? origens?.[item.item_origem_id] : undefined
+                    const txt = rotuloOrigem(item.origem, de)
+                    return de && onAbrirReuniao
+                      ? <button onClick={() => onAbrirReuniao(de.reuniao_id)} title={`Abrir a reunião nº ${de.numero}`} style={{ ...chip('#6b7280', 'rgba(107,114,128,.12)'), border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>{txt}</button>
+                      : <span style={chip('#6b7280', 'rgba(107,114,128,.12)')}>{txt}</span>
+                  })()}
                   <span style={{ fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>{primeiroNome(nome(item.trazido_por))} · {item.tempo_min} min</span>
-                  {r && <span style={chip(r.cor, r.cor + '1f')}>{r.icone} {r.label}</span>}
+                  {r && <span title={r.dica} style={chip(r.cor, r.cor + '1f')}>{r.icone} {r.selo}</span>}
                   {modo === 'conducao' && !r && (
                     <button onClick={() => setAtivo(ativo === item.id ? null : item.id)} style={{ marginLeft: 'auto', ...botaoClaro(), padding: '4px 10px', minHeight: 30, fontSize: 12 }}>{ativo === item.id ? 'em discussão' : 'iniciar'}</button>
                   )}
                   {ativo === item.id && !r && <Timer chave={item.id} limiteMin={item.tempo_min} ativo />}
                 </div>
                 <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--portal-text,#111)', lineHeight: 1.35 }}>{item.pergunta}</div>
+                {(() => {
+                  const re = textoReagendamento(item.resultado, { destino: destinos?.[item.id], proxima, temSerie: !!temSerie })
+                  if (!re) return null
+                  const cor = r?.cor || '#6b7280'
+                  return (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 600, color: cor }}>
+                      <CornerDownRight size={14} />
+                      {re.reuniao_id && onAbrirReuniao
+                        ? <button onClick={() => onAbrirReuniao(re.reuniao_id!)} style={{ border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', color: cor, fontWeight: 600, fontSize: 12.5, textDecoration: 'underline', textAlign: 'left' }}>{re.texto}</button>
+                        : <span>{re.texto}</span>}
+                    </div>
+                  )
+                })()}
                 {item.ticket_referencia_id && onAbrirTicket && <button onClick={() => onAbrirTicket(item.ticket_referencia_id!)} style={{ alignSelf: 'flex-start', border: 'none', background: 'transparent', padding: 0, cursor: 'pointer', fontSize: 12.5, color: '#2563eb', textDecoration: 'underline' }}>abrir a ação referida</button>}
                 {item.decisao_texto && (
                   <div style={{ fontSize: 13, padding: '8px 10px', borderRadius: 8, background: 'rgba(5,150,105,.08)', color: 'var(--portal-text,#111)' }}>
@@ -114,7 +148,7 @@ export default function PautaItens({ itens, usuarios, modo, podeEditar, podeCond
                 {modo === 'conducao' && podeConduzir && !r && !emDecisao && (
                   <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                     {RESULTADOS_POR_TIPO[item.tipo].map((res) => (
-                      <button key={res} onClick={() => registrar(item, res)} style={{ ...botao(ROTULO_RESULTADO[res].cor, true), flex: '1 1 120px' }}>{ROTULO_RESULTADO[res].icone} {ROTULO_RESULTADO[res].label}</button>
+                      <button key={res} onClick={() => registrar(item, res)} title={ROTULO_RESULTADO[res].dica} style={{ ...botao(ROTULO_RESULTADO[res].cor, true), flex: '1 1 120px' }}>{ROTULO_RESULTADO[res].icone} {ROTULO_RESULTADO[res].label}</button>
                     ))}
                   </div>
                 )}

@@ -3,7 +3,7 @@ import {
   ETAPA_INFO, podeMoverEtapa, etapaEfetiva, corteFechado, validarItem, validarResultado, validarPublicacao,
   sugestoesProximaReuniao, classificarPendencias, validarSaida, podeNovoPrazo, contaReprogramacao,
   validarSerie, secretarioDaVez, proximaDataDaSerie, textoWhatsApp, novaOrdem, somaTempo, avisoMesmaPessoa,
-  podeConduzir, addDias, inicioISO,
+  podeConduzir, addDias, inicioISO, textoReagendamento,
   type ItemPauta, type AcaoDeReuniao,
 } from '../regras'
 
@@ -178,5 +178,23 @@ describe('texto WhatsApp', () => {
     expect(linhas).toHaveLength(8)
     expect(linhas[6]).toBe('• e mais 6 no portal')
     expect(linhas[2]).toBe('• Pessoa: Ação 0 — até 20/10')
+  })
+})
+
+describe('textoReagendamento', () => {
+  const ref = { reuniao_id: 'r2', numero: 227, prazo: '2026-10-19' }
+  it('só adiado e fora do tema vão para frente', () => {
+    expect(textoReagendamento('decidido', { temSerie: true, proxima: ref })).toBeNull()
+    expect(textoReagendamento(null, { temSerie: true })).toBeNull()
+  })
+  it('já copiado = reagendado, com link', () => {
+    expect(textoReagendamento('parking', { temSerie: true, destino: ref })).toEqual({ texto: 'Reagendado para a reunião de 19/10 (nº 227)', reuniao_id: 'r2' })
+  })
+  it('próxima existe mas ainda sem cópia = vai ao publicar a ata', () => {
+    expect(textoReagendamento('adiado', { temSerie: true, proxima: ref })?.texto).toBe('Vai para a pauta da reunião de 19/10 (nº 227) quando a ata for publicada')
+  })
+  it('série sem próxima criada / reunião avulsa', () => {
+    expect(textoReagendamento('adiado', { temSerie: true })?.texto).toMatch(/próxima reunião da série/)
+    expect(textoReagendamento('parking', { temSerie: false })?.texto).toMatch(/avulsa/)
   })
 })

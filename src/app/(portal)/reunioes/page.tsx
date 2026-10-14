@@ -114,7 +114,7 @@ function ReunioesInner() {
         <div style={{ padding: 50, textAlign: 'center', color: 'var(--portal-text-muted,#888)' }}>Carregando…</div>
       ) : aba === 'series' ? (
         <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(auto-fill, minmax(300px, 1fr))', gap: 12 }}>
-          {(dados?.series || []).length === 0 && <div style={{ ...cartao, color: 'var(--portal-text-muted,#888)', fontSize: 13 }}>Nenhuma série ainda. Crie uma (&quot;Semanal Oficina&quot;) para as reuniões se encadearem: pendências, parking lot e adiados passam de uma para a outra.</div>}
+          {(dados?.series || []).length === 0 && <div style={{ ...cartao, color: 'var(--portal-text-muted,#888)', fontSize: 13 }}>Nenhuma série ainda. Crie uma (&quot;Semanal Oficina&quot;) para as reuniões se encadearem: pendências e itens adiados ou fora do tema passam de uma para a outra.</div>}
           {(dados?.series || []).map((s) => {
             const podeGerir = isAdmin || s.condutor_id === meuId
             return (
