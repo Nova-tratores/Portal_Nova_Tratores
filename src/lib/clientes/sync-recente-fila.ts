@@ -8,7 +8,10 @@
 
 export const ESPERA_INICIAL_MS = 5 * 60_000;
 export const ESPERA_MAX_MS = 6 * 60 * 60_000;
-export const MAX_POR_RODADA = 20;
+// 5 por empresa e por tipo: as notas de HOJE vêm primeiro (a rodada atualiza as OS/PV do dia,
+// que sobem na ordem por updated_at); o estoque de notas antigas anda aos poucos até a espera
+// de cada uma chegar a 6 h. Com 20, a rodada levava ~1,5 min percorrendo esse estoque.
+export const MAX_POR_RODADA = 5;
 
 /** Espera depois de `tentativas` consultas sem a nota (1 → 5 min, 2 → 10 min…). */
 export function esperaDepois(tentativas: number): number {

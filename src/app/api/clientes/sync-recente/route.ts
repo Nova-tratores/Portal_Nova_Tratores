@@ -242,7 +242,7 @@ export async function GET(req: Request) {
         .order("updated_at", { ascending: false }).limit(300);
 
       // Fila com espera crescente: item que não trouxe a nota só volta a ser consultado
-      // depois de 5, 10, 20… min (até 6 h); no máximo 20 por rodada (lib/clientes/sync-recente-fila).
+      // depois de 5, 10, 20… min (até 6 h); no máximo 5 por rodada (lib/clientes/sync-recente-fila).
       const chaveOS = (o: { cod_os: number }) => `${acc.name}:os:${o.cod_os}`;
       for (const os of escolherDaVez(osSemNF || [], chaveOS)) {
         let achou = false;
