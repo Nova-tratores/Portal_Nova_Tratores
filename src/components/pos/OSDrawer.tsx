@@ -2650,7 +2650,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   const pedidosMapa = Object.entries(ppvOmieMap);
                   // nºs do pedido que vieram no envio da OS e ainda não estão no mapa (sem repetir)
                   const noMapa = new Set(pedidosMapa.map(([, n]) => semZeros(n)));
-                  const pvSolto = semZeros(pedidoVenda).split(", ").filter((n) => n && !noMapa.has(n)).join(", ");
+                  // vem como "PPV-0446:000000000007739" — compara só o nº do Omie (senão aparecia duplicado)
+                  const pvSolto = String(pedidoVenda || "").split(",").map((x) => semZeros(String(x.split(":").pop() || "").trim())).filter((n) => n && !noMapa.has(n)).join(", ");
                   // "o que virou o quê": nº do portal → nº no Omie, com o PDF do Omie no fim da linha
                   const linhaDoc = (portal: string, omie: string, onPdf: (() => void) | null, carregando: boolean, chave: string, primeira: boolean) => (
                     <div key={chave} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 2px", borderTop: primeira ? "none" : "1px solid var(--border)" }}>

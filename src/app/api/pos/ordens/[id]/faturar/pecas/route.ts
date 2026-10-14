@@ -16,7 +16,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const body = await req.json().catch(() => ({}));
     const ids = Array.isArray(body?.ppvIds) ? body.ppvIds.map(String) : [];
     if (!ids.length) return NextResponse.json({ error: "Informe os pedidos." }, { status: 400 });
-    const r = await faturarPecasPendentes(id, ids, auth);
+    const r = await faturarPecasPendentes(id, ids, auth, typeof body?.forma === "string" ? body.forma : null);
     return NextResponse.json(r, { status: r.ok ? 200 : 400 });
   } catch (e) { return erroRota(e, "pecas"); }
 }

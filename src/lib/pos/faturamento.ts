@@ -18,7 +18,7 @@ import { aplicarMudancaFase } from './fase';
 import { logAndNotify } from '@/lib/server/audit-notify';
 import { filtrarDestinatarios } from '@/lib/notif/prefs';
 import { resolverNfseDaOS } from '@/lib/clientes/nfse-omie';
-import { hojeSaoPaulo } from '@/lib/pagamento/parcelas';
+import { hojeSaoPaulo, parcelasDoPagamento } from '@/lib/pagamento/parcelas';
 import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
 import {
   bloqueioFaturar, conferirIdentidade, estadoNoOmie, situacaoNfse, statusPendente, travaAtiva,
@@ -33,7 +33,7 @@ import {
   type CamposFiscais, type ItemServicoOmie,
 } from './modelo-fiscal';
 import {
-  listarModelos, lerModelo, modeloDoCliente, vincularCliente, ModelosFiscaisFaltando,
+  listarModelos, listarVinculos, lerModelo, modeloDoCliente, vincularCliente, ModelosFiscaisFaltando,
 } from './modelos-fiscais-db';
 
 const EMPRESA = 'Nova Tratores';
@@ -88,8 +88,8 @@ async function omie<T>(endpoint: string, call: string, param: Param, opts: { esc
       { appKey: acc.key, appSecret: acc.secret, rotulo: EMPRESA }, endpoint, call, param,
       {
         gravacao: !!opts.escrita,
-        tentativas: opts.escrita ? 0 : 2,
-        maxEsperaMs: 20_000,
+        tentativas: opts.escrita ? 0 : 4, // leitura repetida ("consumo redundante") espera o que a Omie pede
+        maxEsperaMs: 65_000,
         timeoutMs: opts.timeoutMs ?? (opts.escrita ? 60_000 : 30_000),
         lancarFault: false,
       },
@@ -202,6 +202,24 @@ async function resolverOSNoOmie(os: LinhaOS): Promise<{ nCodOS: number; dados: O
 }
 
 // ---------------------------------------------------------------- PPVs da OS
+/** peça do pedido para a prévia: saldo (saídas − devoluções) por código */
+export interface ItemPeca { codigo: string; descricao: string; quantidade: number; valorUnitario: number; total: number }
+async function itensDoPPV(id: string): Promise<ItemPeca[]> {
+  const { data } = await supabase.from('movimentacoes').select('CodProduto, Descricao, Qtde, Preco, TipoMovimento').eq('Id_PPV', id);
+  const m = new Map<string, ItemPeca>();
+  for (const r of (data || []) as Record<string, unknown>[]) {
+    const cod = String(r.CodProduto || '').trim();
+    if (!cod) continue;
+    const q = (parseFloat(String(r.Qtde ?? 0).replace(',', '.')) || 0) * (/devolu/i.test(String(r.TipoMovimento || '')) ? -1 : 1);
+    const x = m.get(cod) || { codigo: cod, descricao: String(r.Descricao || ''), quantidade: 0, valorUnitario: Number(r.Preco) || 0, total: 0 };
+    x.quantidade += q;
+    if (Number(r.Preco) > 0) x.valorUnitario = Number(r.Preco);
+    m.set(cod, x);
+  }
+  return Array.from(m.values()).filter((x) => x.quantidade > 0.0005)
+    .map((x) => ({ ...x, quantidade: Math.round(x.quantidade * 1000) / 1000, total: Math.round(x.quantidade * x.valorUnitario * 100) / 100 }));
+}
+
 async function ppvsDaOS(os: LinhaOS): Promise<PPVDaOS[]> {
   const ids = String(os.ID_PPV || '').split(',').map((s) => s.trim()).filter(Boolean);
   const filtro = `Id_Os.eq.${os.Id_Ordem}${ids.length ? `,id_pedido.in.(${ids.map((x) => `"${x}"`).join(',')})` : ''}`;
@@ -331,19 +349,24 @@ export interface SimulacaoFaturamentoOS {
   totalOmie?: number;
   valorPortal?: number;
   divergente?: boolean;
-  servicos?: Array<{ descricao: string; quantidade: number; valorUnitario: number }>;
+  servicos?: Array<{ descricao: string; detalhe?: string; quantidade: number; valorUnitario: number; desconto: number; total: number }>;
+  /** total dos pedidos de peças da OS (o Valor_Total do portal soma serviço + peças) */
+  pecasPortal?: number;
   formaPagamento?: string | null;
   opcoesPagamento?: readonly string[];
   hoje?: string;
   validacao?: { ok: boolean; msg: string | null };
-  ppvs?: Array<PPVDaOS & { motivoFora: string | null }>;
+  ppvs?: Array<PPVDaOS & { motivoFora: string | null; itens?: ItemPeca[] }>;
   podeFaturarPecas?: boolean;
   liquidoOmie?: number;
   retidoOmie?: number;
   impostos?: {
     disponivel: boolean;               // false = migration dos modelos ainda não aplicada
     modelo: { id: string; nome: string; origem: 'cliente' | 'padrao'; campos: CamposFiscais } | null;
-    modelos: Array<{ id: string; nome: string; padrao: boolean; campos: CamposFiscais }>;
+    /** clientes: quem usa o modelo (ex.: "Piraju", "Iaras") — aparece no nome do modelo */
+    modelos: Array<{ id: string; nome: string; padrao: boolean; campos: CamposFiscais; descricao?: string | null; clientes: string[] }>;
+    /** nome do cliente parece órgão público (prefeitura, câmara, fundo municipal…) */
+    orgaoPublico?: boolean;
     atuais: Record<string, string | number | null | 'varia'>;
     qtdItens: number;
     podeGerenciar: boolean;
@@ -368,15 +391,21 @@ export async function simularFaturamentoOS(id: string, auth: Autenticado): Promi
   }
   const totalOmie = Number(r.dados.Cabecalho?.nValorTotal || 0);
   const valorPortal = Number(String(os.Valor_Total ?? 0).replace(',', '.')) || 0;
-  const ppvs = (await ppvsDaOS(os)).map((p) => ({ ...p, motivoFora: motivoPPVFora(p) }));
+  const ppvs = await Promise.all((await ppvsDaOS(os)).map(async (p) => ({ ...p, motivoFora: motivoPPVFora(p), itens: await itensDoPPV(p.id).catch(() => []) })));
+  // o Valor_Total da OS no portal = serviço + peças dos PPVs: a nota de serviço compara só o serviço
+  const pecasPortal = Math.round(ppvs.filter((p) => !/cancel/i.test(String(p.status || ''))).reduce((t, p) => t + (Number(p.valor) || 0), 0) * 100) / 100;
+  const servicoPortal = Math.max(0, Math.round((valorPortal - pecasPortal) * 100) / 100);
   const itens = r.dados.ServicosPrestados || [];
   let impostos: SimulacaoFaturamentoOS['impostos'];
   try {
-    const [{ modelo, origem }, modelos] = await Promise.all([modeloDoCliente(os.Cnpj_Cliente), listarModelos()]);
+    const [{ modelo, origem }, modelos, vinculos] = await Promise.all([modeloDoCliente(os.Cnpj_Cliente), listarModelos(), listarVinculos().catch(() => [])]);
+    // "MUNICIPIO DE ESPIRITO SANTO DO TURVO" → "Espirito Santo Do Turvo"
+    const curto = (nome: string | null) => String(nome || '').replace(/^(munic[ií]pio de|prefeitura municipal de|prefeitura de|c[aâ]mara municipal de)\s+/i, '').toLowerCase().replace(/(^|\s)\S/g, (x) => x.toUpperCase()).trim();
     impostos = {
       disponivel: true,
       modelo: modelo && origem ? { id: modelo.id, nome: modelo.nome, origem, campos: modelo.campos } : null,
-      modelos: modelos.map((m) => ({ id: m.id, nome: m.nome, padrao: m.padrao, campos: m.campos })),
+      modelos: modelos.map((m) => ({ id: m.id, nome: m.nome, padrao: m.padrao, campos: m.campos, descricao: m.descricao, clientes: vinculos.filter((v) => v.modeloId === m.id).map((v) => curto(v.clienteNome)).filter(Boolean) })),
+      orgaoPublico: /munic[ií]pi|prefeitura|c[aâ]mara municipal|fundo municipal|secretaria municipal|autarquia/i.test(String(os.Os_Cliente || '')),
       atuais: valoresAtuais(itens), qtdItens: itens.length, podeGerenciar: podeGerenciarModelos(auth),
       documento: String(os.Cnpj_Cliente || ''),
     };
@@ -390,8 +419,21 @@ export async function simularFaturamentoOS(id: string, auth: Autenticado): Promi
     impostos,
     ok: true,
     os: { id: os.Id_Ordem, cliente: String(os.Os_Cliente || ''), numeroOmie: chaveNum(os.Ordem_Omie), status: String(os.Status || '') },
-    totalOmie, valorPortal, divergente: valorMudou(totalOmie, valorPortal),
-    servicos: (r.dados.ServicosPrestados || []).map((s) => ({ descricao: String(s.cDescServ || '').split('\n')[0].slice(0, 120), quantidade: Number(s.nQtde || 0), valorUnitario: Number(s.nValUnit || 0) })),
+    totalOmie, valorPortal: servicoPortal, pecasPortal, divergente: valorMudou(totalOmie, servicoPortal),
+    servicos: (r.dados.ServicosPrestados || []).map((s) => {
+      const it = s as Record<string, unknown>;
+      const q = Number(it.nQtde || 0), u = Number(it.nValUnit || 0);
+      const desconto = Number(it.nValorDesconto || 0) > 0 ? Number(it.nValorDesconto) : it.cTpDesconto === 'P' ? q * u * Number(it.nAliqDesconto || it.nPercDesconto || 0) / 100 : 0;
+      const texto = String(it.cDescServ || '');
+      const sol = String(it.cCodigo || '') === 'sol.aber.os' || u <= 0.01;
+      const pedido = texto.match(/Solicita[çc][ãa]o do cliente:\s*([^|\n]*)/i)?.[1]?.trim();
+      return {
+        descricao: sol ? 'Solicitação de serviço' : (texto.split(/\n|\|/)[0].slice(0, 120) || 'Serviço'),
+        detalhe: sol ? (pedido || texto.split(/\n|\|/).filter(Boolean).slice(0, 2).join(' · ')).slice(0, 140) : undefined,
+        quantidade: q, valorUnitario: u, desconto: Math.round(desconto * 100) / 100,
+        total: Math.max(0, Math.round((q * u - desconto) * 100) / 100),
+      };
+    }),
     formaPagamento: normalizarPagamento(os.forma_pagamento),
     opcoesPagamento: OPCOES_PAGAMENTO,
     hoje: hojeSaoPaulo(),
@@ -595,6 +637,8 @@ async function posFaturamento(id: string, ctx: {
     const { faturarPPVNoOmie } = await import('@/lib/ppv/omie');
     for (const pid of ctx.ppvIds) {
       try {
+        const falhaParc = await aplicarFormaNoPedido(pid, ctx.forma);
+        if (falhaParc) { pecas.push({ id: pid, ok: false, erro: `forma de pagamento: ${falhaParc} — o pedido não foi faturado` }); continue; }
         const r = await faturarPPVNoOmie(pid);
         pecas.push({ id: pid, pedidoOmie: r.numeroPedido, ok: !!r.sucesso, erro: r.sucesso ? null : (r.erro || 'falhou'), nf: r.nfNumero || null });
       } catch (e) {
@@ -727,7 +771,28 @@ export async function reconciliarFaturamentoOS(id: string, opts: { forcar?: bool
  * pedido") ou depois (pedido que falhou/ficou para depois). Quando a OS e todos
  * os pedidos ficam faturados, a OS vai para Concluída.
  */
-export async function faturarPecasPendentes(id: string, ppvIds: string[], auth: Autenticado): Promise<{ ok: boolean; mensagem?: string; pecas?: PecaFaturada[]; concluida?: boolean }> {
+/** A forma de pagamento escolhida vale para a OS E para o pedido de peças (José, 14/10/2026):
+ *  grava no pedido do Omie as parcelas da mesma forma, sobre o total do pedido. */
+async function aplicarFormaNoPedido(pid: string, forma: string | null): Promise<string | null> {
+  if (!forma) return null;
+  const { resolverContaDoPedido, omieNaConta } = await import('@/lib/ppv/omie');
+  const achado = await resolverContaDoPedido(pid).catch(() => null);
+  if (!achado) return 'pedido não encontrado no Omie';
+  const ped = achado.pedido as { cabecalho?: { codigo_pedido?: number }; total_pedido?: { valor_total_pedido?: number } };
+  const total = Number(ped.total_pedido?.valor_total_pedido || 0);
+  const plano = parcelasDoPagamento(forma, total, hojeSaoPaulo());
+  if (!plano || !ped.cabecalho?.codigo_pedido) return null;
+  const aVista = plano.parcelas.length === 1 && plano.parcelas[0].nDias === 0;
+  try {
+    await omieNaConta(achado.acc, '/produtos/pedido/', 'AlterarPedidoVenda', {
+      cabecalho: { codigo_pedido: ped.cabecalho.codigo_pedido, codigo_parcela: aVista ? '000' : '999', qtde_parcelas: plano.parcelas.length },
+      ...(aVista ? {} : { lista_parcelas: { parcela: plano.parcelas.map((p) => ({ numero_parcela: p.nParcela, data_vencimento: p.dDtVenc, quantidade_dias: p.nDias, percentual: p.nPercentual, valor: p.nValor })) } }),
+    });
+    return null;
+  } catch (e) { return `não gravou as parcelas (${e instanceof Error ? e.message : e})`; }
+}
+
+export async function faturarPecasPendentes(id: string, ppvIds: string[], auth: Autenticado, forma: string | null = null): Promise<{ ok: boolean; mensagem?: string; pecas?: PecaFaturada[]; concluida?: boolean }> {
   if (!podeFaturarPPV(auth)) return { ok: false, mensagem: 'Você não tem permissão para faturar pedidos de peças (PPV).' };
   const os = await lerOS(id);
   if (!os) return { ok: false, mensagem: 'OS não encontrada.' };
@@ -743,6 +808,8 @@ export async function faturarPecasPendentes(id: string, ppvIds: string[], auth: 
   for (const pid of ppvIds) {
     let res: PecaFaturada;
     try {
+      const falhaParc = await aplicarFormaNoPedido(pid, normalizarPagamento(forma));
+      if (falhaParc) throw new Error(`forma de pagamento: ${falhaParc} — o pedido não foi faturado`);
       const r = await faturarPPVNoOmie(pid);
       res = { id: pid, pedidoOmie: r.numeroPedido, ok: !!r.sucesso || !!r.jaFaturado, erro: r.sucesso || r.jaFaturado ? null : (r.erro || 'falhou'), nf: r.nfNumero || null };
     } catch (e) { res = { id: pid, ok: false, erro: e instanceof Error ? e.message : String(e) }; }
