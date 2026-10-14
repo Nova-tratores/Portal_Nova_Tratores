@@ -47,10 +47,25 @@ export async function register(): Promise<void> {
   const base = `http://127.0.0.1:${process.env.PORT || 3000}`;
   const CINCO_MIN = 5 * 60 * 1000;
 
+  // AGENDADOR (src/lib/agendador, plano docs/omie-fila-agendador-plano.md): com a
+  // tabela `agendamentos` no banco, ele assume os agendamentos internos abaixo
+  // (mesmo ritmo, agora com histórico, "rodar agora" e pausa na tela /agendamentos).
+  // Sem a tabela (migration sql/agendador.sql) ou com AGENDADOR=off, seguem os
+  // setInterval antigos deste arquivo. Só produção.
+  let agendadorLigado = false;
+  if (process.env.NODE_ENV === 'production') {
+    try {
+      const { iniciarAgendador } = await import('./lib/agendador/motor');
+      agendadorLigado = await iniciarAgendador();
+    } catch (e) { log('agendador falhou ao iniciar: ' + (e as Error).message); }
+  }
+
   // Financeiro — CRIAÇÃO de cards (scanner OS + Peças) a cada 5 min.
   // DESLIGADO por padrão (a criação em tempo real é feita pelo WEBHOOK do Omie).
   // Só liga com SYNC_FINANCEIRO_AUTO=on, como backup caso o webhook falhe.
-  if (process.env.SYNC_FINANCEIRO_AUTO === 'on') {
+  if (agendadorLigado) {
+    log('agendamentos internos com o AGENDADOR (tela /agendamentos)');
+  } else if (process.env.SYNC_FINANCEIRO_AUTO === 'on') {
     const rodarSyncFinanceiro = async () => {
       for (const path of ['/api/financeiro/sync-os', '/api/financeiro/sync-pecas?dias=3']) {
         try { await fetch(`${base}${path}`, { method: 'POST' }); } catch (e) { log('sync financeiro falhou: ' + (e as Error).message); }
@@ -70,11 +85,13 @@ export async function register(): Promise<void> {
   // Pasta Cliente: vigia OS/PV/NFs novas (alteradas na última 1h) a cada 5 min.
   // SÓ atualiza as tabelas da pasta (portal_nt_clientes_*) + baixa as NFs — NÃO cria
   // card no financeiro. É o que garante a NF aparecer sozinha na pasta do cliente.
-  const rodarSyncClientes = async () => {
-    try { await fetch(`${base}/api/clientes/sync-recente`); } catch (e) { log('sync-recente clientes falhou: ' + (e as Error).message); }
-  };
-  setInterval(() => { rodarSyncClientes().catch(() => {}); }, CINCO_MIN);
-  setTimeout(() => { rodarSyncClientes().catch(() => {}); }, 90 * 1000); // 1ª rodada ~1min30 após o boot
+  if (!agendadorLigado) {
+    const rodarSyncClientes = async () => {
+      try { await fetch(`${base}/api/clientes/sync-recente`); } catch (e) { log('sync-recente clientes falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarSyncClientes().catch(() => {}); }, CINCO_MIN);
+    setTimeout(() => { rodarSyncClientes().catch(() => {}); }, 90 * 1000); // 1ª rodada ~1min30 após o boot
+  }
 
   // Tratorilson: processa automaticamente as OS que entram em "Relatório Concluído"
   // (preenche pelo relatório + devolve peças no PPV + move de fase). SÓ produção,
@@ -83,7 +100,7 @@ export async function register(): Promise<void> {
   // O ENVIO AO OMIE **NÃO** é automático de propósito: cria ordem/pedido REAL no Omie,
   // então quem dispara é a pessoa, pelos botões da fase "Enviar Omie" no Kanban
   // (um por card, ou "Enviar todas" no cabeçalho da fase).
-  if (process.env.NODE_ENV === 'production') {
+  if (!agendadorLigado && (process.env.NODE_ENV === 'production')) {
     const { processarLoteRelatorios } = await import('./lib/pos/atualizar-relatorio');
     const rodarTratorilson = async () => {
       try {
@@ -101,7 +118,7 @@ export async function register(): Promise<void> {
   // depois da mensagem automática de fora do horário) vira card "Precisa de
   // atendimento" + alerta central pro pós-vendas. Só LÊ o Chatwoot. Só produção.
   // VIGIA_CONVERSAS=off desliga.
-  if (process.env.NODE_ENV === 'production' && process.env.VIGIA_CONVERSAS !== 'off') {
+  if (!agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.VIGIA_CONVERSAS !== 'off')) {
     const { vigiarConversas } = await import('./lib/assistente/vigia-conversas');
     const rodarVigiaZap = async () => {
       try {
@@ -119,7 +136,7 @@ export async function register(): Promise<void> {
   // Lê o heartbeat no Supabase (não depende do GITHUB_TOKEN) e não toca chave
   // Omie — só lê + escreve notificação —, então roda seguro aqui in-process. SÓ
   // produção (não spammar no localhost de dev, que compartilha o mesmo banco).
-  if (process.env.NODE_ENV === 'production') {
+  if (!agendadorLigado && (process.env.NODE_ENV === 'production')) {
     const { checarSaudeCrons } = await import('./lib/agendamentos/heartbeat');
     const rodarVigia = async () => {
       try {
@@ -139,7 +156,7 @@ export async function register(): Promise<void> {
   // recebida levava horas para virar demanda. Leve: ~5 páginas de ListarRecebimentos
   // por conta. Não tem cron equivalente no GitHub (sem duplicidade). SÓ produção.
   // Desliga com ALOCACAO_RAPIDO=off.
-  if (process.env.NODE_ENV === 'production' && process.env.ALOCACAO_RAPIDO !== 'off') {
+  if (!agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.ALOCACAO_RAPIDO !== 'off')) {
     const { rodarAlocacaoRapidoAgendado } = await import('./lib/pecas/alocacao-rapido');
     const rodarAlocacao = async () => {
       try {
@@ -157,7 +174,7 @@ export async function register(): Promise<void> {
   // sem resposta clara ou NFS-e ainda aguardando a prefeitura, a cada 10 min.
   // Só olha as pendentes (índice parcial) — sem pendência, nenhuma chamada ao Omie.
   // SÓ produção. Desliga com POS_FATURAR_RECONCILIAR=off.
-  if (process.env.NODE_ENV === 'production' && process.env.POS_FATURAR_RECONCILIAR !== 'off') {
+  if (!agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.POS_FATURAR_RECONCILIAR !== 'off')) {
     const { rodarReconciliacaoFaturamento } = await import('./lib/pos/faturamento');
     const rodarFatOS = async () => {
       try {
@@ -174,7 +191,7 @@ export async function register(): Promise<void> {
   // (cadastro, checklist, requisição, OS, Opa) só rodava quando alguém abria a
   // tela — requisição que chegava ao financeiro ficava "aberta" até a próxima
   // visita. Agora roda a cada 15 min. SÓ produção. Desliga com FROTA_PENDENCIAS_SYNC=off.
-  if (process.env.NODE_ENV === 'production' && process.env.FROTA_PENDENCIAS_SYNC !== 'off') {
+  if (!agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.FROTA_PENDENCIAS_SYNC !== 'off')) {
     const { rodarPendenciasAgendado } = await import('./lib/frota/pendencias-sync');
     const rodarPendFrota = async () => {
       try {
@@ -190,7 +207,7 @@ export async function register(): Promise<void> {
   // Central de Trabalho: replanejamento diário dos cronogramas ligados a quadros
   // de tickets (etapa atrasada empurra as seguintes). Uma vez por dia, a partir
   // das 06:00 BRT — antes da tela "Seu dia" das 7:30. SÓ produção.
-  if (process.env.NODE_ENV === 'production') {
+  if (!agendadorLigado && (process.env.NODE_ENV === 'production')) {
     const { recalcularProjetosLigados, hojeSP } = await import('./lib/trabalho/cronograma-server');
     let ultimoDia = '';
     const rodarReplanejamento = async () => {
@@ -230,7 +247,7 @@ export async function register(): Promise<void> {
   // guarda um lote de 120 notas a cada 10 min (≈ 2 chamadas Omie por nota, longe
   // da cota). Para sozinho em bloqueio/Omie fora. Só produção; NOTAS_CACHE=on liga
   // no local, =off desliga. Registra em cron_runs como notas-cache-docs.
-  if ((process.env.NODE_ENV === 'production' && process.env.NOTAS_CACHE !== 'off') || process.env.NOTAS_CACHE === 'on') {
+  if (!agendadorLigado && ((process.env.NODE_ENV === 'production' && process.env.NOTAS_CACHE !== 'off') || process.env.NOTAS_CACHE === 'on')) {
     const { rodarAgendado } = await import('./lib/notas/cache-docs');
     const rodarNotas = async () => {
       try { log('notas-cache: ' + await rodarAgendado(120)); } catch (e) { log('notas-cache falhou: ' + (e as Error).message); }
