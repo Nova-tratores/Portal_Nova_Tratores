@@ -99,6 +99,13 @@ export class OmieIncertoError extends Error {
 
 const RE_GRAVACAO = /^(Incluir|Alterar|Excluir|Faturar|Cancelar|Concluir|Reverter|Devolver|Upsert|Associar|Lancar|Trocar|Efetuar|Duplicar|Gerar|Enviar|Estornar|Desfazer)/;
 
+/** Cada módulo escreve a empresa de um jeito (NOVA, "Nova Tratores", "Castro Peças"…): o painel junta em NOVA/CASTRO. */
+export function rotuloCanonico(r: string): string {
+  if (/castro/i.test(r)) return 'CASTRO';
+  if (/nova/i.test(r)) return 'NOVA';
+  return (r || '?').toUpperCase();
+}
+
 export function ehGravacao(call: string): boolean {
   return RE_GRAVACAO.test(call);
 }
@@ -315,7 +322,8 @@ export async function omie<T = OmieResposta>(
 ): Promise<T> {
   if (!cred.appKey || !cred.appSecret) throw new Error(`Credenciais Omie não configuradas (${cred.rotulo})`);
   const chave = idChave(cred.appKey);
-  estado().rotulos.set(chave, cred.rotulo);
+  const rotulo = rotuloCanonico(cred.rotulo);
+  estado().rotulos.set(chave, rotulo);
   const prioridade = opcoes.prioridade ?? prioridadeAtual();
   const gravacao = opcoes.gravacao ?? ehGravacao(call);
   const tentativas = Math.max(0, opcoes.tentativas ?? 2);
@@ -324,15 +332,15 @@ export async function omie<T = OmieResposta>(
   const lancarFault = opcoes.lancarFault ?? true;
   const url = endpoint.startsWith('http') ? endpoint : OMIE_BASE + endpoint;
   const corpo = corpoAscii({ call, app_key: cred.appKey, app_secret: cred.appSecret, param: [param] });
-  const onde = `[${cred.rotulo}/${call}]`;
+  const onde = `[${rotulo}/${call}]`;
 
   for (let tentativa = 0; ; tentativa++) {
     const restante = bloqueioRestanteMs(cred.appKey, call);
     if (restante > 0) {
       const seg = Math.ceil(restante / 1000);
       const motivo = (estado().bloqueios.get(`${chave}|*`)?.ate ?? 0) > Date.now() ? 'chave recusada pela Omie' : 'Omie bloqueada';
-      contar(cred.rotulo, call, prioridade, 'bloqueio', 0);
-      throw new OmieBloqueioError(`${motivo} ${onde} — aguardando ~${seg}s`, cred.rotulo, call, seg);
+      contar(rotulo, call, prioridade, 'bloqueio', 0);
+      throw new OmieBloqueioError(`${motivo} ${onde} — aguardando ~${seg}s`, rotulo, call, seg);
     }
 
     const devolver = await pedirVaga(chave, call, prioridade);
@@ -361,11 +369,11 @@ export async function omie<T = OmieResposta>(
       const recusou = (e as { recusa429?: boolean })?.recusa429 === true;
       // Gravação: só repete se a conexão nem abriu ou a Omie recusou (429). Qualquer outra falha = estado desconhecido.
       if (gravacao && !conexaoNaoAbriu(e) && !recusou) {
-        contar(cred.rotulo, call, prioridade, 'incerto', ms);
+        contar(rotulo, call, prioridade, 'incerto', ms);
         const oQue = (e as Error)?.name === 'AbortError' ? `sem resposta em ${Math.round(timeoutMs / 1000)}s` : (e as Error)?.message || 'falha de rede';
-        throw new OmieIncertoError(`Gravação na Omie sem resposta clara ${onde}: ${oQue}. Pode ter sido feita — confira antes de refazer.`, cred.rotulo, call);
+        throw new OmieIncertoError(`Gravação na Omie sem resposta clara ${onde}: ${oQue}. Pode ter sido feita — confira antes de refazer.`, rotulo, call);
       }
-      contar(cred.rotulo, call, prioridade, 'erro', ms);
+      contar(rotulo, call, prioridade, 'erro', ms);
       if (tentativa < tentativas) { await dormir(Math.min((recusou ? 15000 : 3000) * (tentativa + 1), maxEspera)); continue; }
       throw e;
     }
@@ -380,48 +388,48 @@ export async function omie<T = OmieResposta>(
     if (!fault) {
       const s = estado();
       s.bloqueios.delete(`${chave}|${call}`);
-      contar(cred.rotulo, call, prioridade, 'ok', ms);
+      contar(rotulo, call, prioridade, 'ok', ms);
       return data as T;
     }
 
     if (ehChaveRecusada(fault)) {
       armarBloqueio(chave, '*', LIMITES.pausaChaveRecusadaMs, fault);
-      contar(cred.rotulo, call, prioridade, 'bloqueio', ms);
-      const e = new OmieChaveRecusadaError(`Omie API: ${fault}`, cred.rotulo, call, Math.round(LIMITES.pausaChaveRecusadaMs / 1000));
+      contar(rotulo, call, prioridade, 'bloqueio', ms);
+      const e = new OmieChaveRecusadaError(`Omie API: ${fault}`, rotulo, call, Math.round(LIMITES.pausaChaveRecusadaMs / 1000));
       e.faultstring = fault;
       throw e;
     }
     if (ehBloqueio(fault)) {
       const seg = segundosDoBloqueio(fault);
       armarBloqueio(chave, call, (seg + 15) * 1000, fault);
-      contar(cred.rotulo, call, prioridade, 'bloqueio', ms);
-      const e = new OmieBloqueioError(`Omie API: ${fault}`, cred.rotulo, call, seg);
+      contar(rotulo, call, prioridade, 'bloqueio', ms);
+      const e = new OmieBloqueioError(`Omie API: ${fault}`, rotulo, call, seg);
       e.faultstring = fault;
       throw e;
     }
     const repetivel = ehLimiteVelocidade(fault) || (!gravacao && (ehConcorrencia(fault) || ehEngasgo(fault)));
     if (repetivel && tentativa < tentativas) {
-      contar(cred.rotulo, call, prioridade, 'erro', ms);
+      contar(rotulo, call, prioridade, 'erro', ms);
       // Se a Omie disse quanto esperar ("Aguarde N segundos"), espera isso + 1 s.
       await dormir(Math.min(Math.max(5000 * (tentativa + 1), (segundosParaAguardar(fault) + 1) * 1000), maxEspera));
       continue;
     }
     if (gravacao && (ehConcorrencia(fault) || ehEngasgo(fault))) {
-      contar(cred.rotulo, call, prioridade, 'incerto', ms);
-      throw new OmieIncertoError(`Gravação na Omie sem resposta clara ${onde}: ${fault}. Pode ter sido feita — confira antes de refazer.`, cred.rotulo, call);
+      contar(rotulo, call, prioridade, 'incerto', ms);
+      throw new OmieIncertoError(`Gravação na Omie sem resposta clara ${onde}: ${fault}. Pode ter sido feita — confira antes de refazer.`, rotulo, call);
     }
 
     // Esgotou as repetições de um erro transitório: é falha, nunca "resposta" (senão um
     // sync leria o JSON com erro como fim da lista).
     if (repetivel) {
-      contar(cred.rotulo, call, prioridade, 'erro', ms);
-      throw new OmieFaultError(`Omie API (depois de ${tentativa + 1} tentativas): ${fault}`, fault, cred.rotulo, call);
+      contar(rotulo, call, prioridade, 'erro', ms);
+      throw new OmieFaultError(`Omie API (depois de ${tentativa + 1} tentativas): ${fault}`, fault, rotulo, call);
     }
     // Erro de negócio (cadastro inválido, "não existem registros"…): a Omie respondeu
     // normalmente, então não conta como falha da porta.
-    contar(cred.rotulo, call, prioridade, 'ok', ms);
+    contar(rotulo, call, prioridade, 'ok', ms);
     if (!lancarFault) return data as T;
-    throw new OmieFaultError(`Omie API: ${fault}`, fault, cred.rotulo, call);
+    throw new OmieFaultError(`Omie API: ${fault}`, fault, rotulo, call);
   }
 }
 

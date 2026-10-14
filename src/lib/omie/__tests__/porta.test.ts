@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   omie, comPrioridade, estadoPorta, bloqueioRestanteMs, LIMITES, _reiniciarPorta,
   OmieBloqueioError, OmieChaveRecusadaError, OmieIncertoError, OmieFaultError,
-  ehGravacao, ehChaveRecusada, segundosDoBloqueio, segundosParaAguardar, corpoAscii,
+  ehGravacao, ehChaveRecusada, rotuloCanonico, segundosDoBloqueio, segundosParaAguardar, corpoAscii,
 } from '../porta';
 
 const NOVA = { appKey: 'chave-nova', appSecret: 's', rotulo: 'NOVA' };
@@ -33,6 +33,12 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('classificação', () => {
+  it('junta os nomes da empresa em NOVA/CASTRO', () => {
+    expect(rotuloCanonico('Castro Peças')).toBe('CASTRO');
+    expect(rotuloCanonico('Castro Pecas')).toBe('CASTRO');
+    expect(rotuloCanonico('Nova Tratores')).toBe('NOVA');
+    expect(rotuloCanonico('NOVA')).toBe('NOVA');
+  });
   it('reconhece gravação pelo nome do método', () => {
     expect(ehGravacao('IncluirPedido')).toBe(true);
     expect(ehGravacao('FaturarOS')).toBe(true);
