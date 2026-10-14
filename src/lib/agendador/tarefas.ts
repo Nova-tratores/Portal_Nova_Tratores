@@ -35,17 +35,25 @@ export const TAREFAS: Record<string, Tarefa> = {
     return { resumo };
   },
 
+  // Chama a função da rota DENTRO do processo (não por HTTP): a rodada pode passar de
+  // 5 min, e o fetch do Node desiste em 300 s ("fetch failed") enquanto a rota segue
+  // rodando — a próxima começava por cima. Assim o agendador sabe quando terminou e a
+  // prioridade na fila da Omie vem junto.
   'clientes-sync-recente': async () => {
-    const r = await fetch(`${baseInterna()}/api/clientes/sync-recente`);
-    if (!r.ok) throw new Error(`sync-recente respondeu HTTP ${r.status}`);
-    return { resumo: 'ok' };
+    const { GET } = await import('@/app/api/clientes/sync-recente/route');
+    const r = await GET(new Request(`${baseInterna()}/api/clientes/sync-recente`));
+    const d = (await r.json().catch(() => ({}))) as { error?: string; resultado?: Record<string, { os_novas: number; pv_novos: number; nfs: number }> };
+    if (!r.ok) throw new Error(d.error || `sync-recente respondeu HTTP ${r.status}`);
+    const partes = Object.entries(d.resultado || {}).map(([emp, x]) => `${emp.replace(/_/g, ' ')}: ${x.os_novas} OS, ${x.pv_novos} PV, ${x.nfs} NF`);
+    return { resumo: partes.join(' · ') || 'ok' };
   },
 
   'tratorilson-relatorios': async () => {
     const { processarLoteRelatorios } = await import('@/lib/pos/atualizar-relatorio');
     const r = await processarLoteRelatorios('Tratorilson (auto)');
     if (!r.ok && !r.erros) return { resumo: 'nenhuma OS em Relatório Concluído' };
-    return { resumo: `${r.ok} OS (${r.paraEnviarOmie} p/ Omie, ${r.paraPreenchido} Preenchido Garantia, ${r.erros} erro)` };
+    const falhas = r.resultados.filter((x) => !x.ok).map((x) => `${x.os}: ${x.erro || 'erro'}`);
+    return { resumo: `${r.ok} OS (${r.paraEnviarOmie} p/ Omie, ${r.paraPreenchido} Preenchido Garantia, ${r.erros} erro)${falhas.length ? ` — ${falhas.join(' · ')}` : ''}` };
   },
 
   'pos-faturamento-reconciliar': async () => {
