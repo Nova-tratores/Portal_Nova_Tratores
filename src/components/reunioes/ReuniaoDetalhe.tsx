@@ -16,6 +16,7 @@ import BlocoPendencias from './BlocoPendencias'
 import PautaItens from './PautaItens'
 import FormAcaoReuniao from './FormAcaoReuniao'
 import AjudaAba from './AjudaAba'
+import UserSelect from '@/components/tickets/UserSelect'
 import { cartao, botao, botaoClaro, campo, chip, chamar, EtapaChip, diaDe, horaDe, brCurto, primeiroNome } from './comum'
 
 const ROTULO_ACEITE: Record<string, { label: string; cor: string }> = { ok: { label: 'confirmada', cor: '#059669' }, pendente: { label: 'aguardando confirmação', cor: '#d97706' }, recusado: { label: 'recusada', cor: '#dc2626' } }
@@ -136,6 +137,12 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
           )
         })}
       </div>
+      {conduz && !publicada && !cancelada && (
+        <div style={{ marginTop: 10, maxWidth: 320 }}>
+          <UserSelect value="" placeholder="+ Adicionar pessoa (última hora)" excluir={d.presencas.map((p) => p.usuario_id)} autoFocus={false}
+            onChange={(uid) => { if (uid) acao({ acao: 'adicionar_participante', usuario_id: uid }).catch(() => {}) }} />
+        </div>
+      )}
     </section>
   )
 

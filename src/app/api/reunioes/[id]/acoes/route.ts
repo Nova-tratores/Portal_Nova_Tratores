@@ -2,6 +2,7 @@
 // POST /api/reunioes/:id/acoes { acao, ... }
 //   etapa            { para: ReuniaoEtapa, motivo? }                      condutor | secretário | admin
 //   presenca         { usuario_id, presente: boolean }                   quem conduz, ou a própria pessoa
+//   adicionar_participante { usuario_id }                                quem conduz, até a ata ser publicada (última hora)
 //   item_resultado   { item_id, resultado, decisao_texto?, decisao_motivo?, notas? }   quem conduz, em andamento
 //   criar_acao       { titulo, descricao?, responsavel_id, prazo, item_id?, categoria? }  quem conduz (R8)
 //   tratar_pendencia { ticket_id, saida: novo_prazo|reatribuir|escalar|cancelar, prazo?, para?, motivo? } (R3/R4)
@@ -10,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { temModuloTickets, registrarEvento, carregarTicket, notificarTicket } from '@/lib/tickets/server'
+import { temModuloTickets, registrarEvento, carregarTicket, notificarTicket, garantirParticipante } from '@/lib/tickets/server'
 import type { Ticket } from '@/lib/tickets/constantes'
 import { hojeSP } from '@/lib/trabalho/cronograma-server'
 import { erroFimDeSemana, dataMinima } from '@/lib/trabalho/agenda'
@@ -66,6 +67,29 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         .upsert({ reuniao_id: id, usuario_id: body.usuario_id, presente, marcado_em: new Date().toISOString(), papel: r.presencas.find((p) => p.usuario_id === body.usuario_id)?.papel || 'participante' }, { onConflict: 'reuniao_id,usuario_id' })
       if (error) return erro(error.message, 500)
       await registrarEvento(id, auth.userId, 'edicao', { campo: 'presenca', usuario_id: body.usuario_id, presente })
+      return NextResponse.json({ ok: true })
+    }
+
+    // ------------------------------------------ adicionar_participante
+    // Pessoa de última hora: entra nas presenças E nos participantes do ticket
+    // (senão não enxerga reunião privada) e recebe o aviso.
+    if (acao === 'adicionar_participante') {
+      if (!conduz) return erro('Só quem conduz inclui pessoas na reunião.', 403)
+      if (publicada || etapa === 'cancelada') return erro('Reunião encerrada — não dá mais para incluir pessoas.', 409)
+      const uid = String(body.usuario_id || '')
+      if (!uuidValido(uid)) return erro('usuario_id inválido')
+      if (r.presencas.some((p) => p.usuario_id === uid)) return erro('Essa pessoa já está na reunião.', 409)
+      const { data: u } = await supabaseAdmin.from('financeiro_usu').select('id, nome, ativo').eq('id', uid).maybeSingle()
+      if (!u || u.ativo === false) return erro('Usuário não encontrado ou inativo.', 404)
+      const { error } = await supabaseAdmin.from('reunioes_presencas').insert({ reuniao_id: id, usuario_id: uid, papel: 'participante' })
+      if (error) return erro(error.message, 500)
+      await garantirParticipante(id, uid, auth.userId)
+      await registrarEvento(id, auth.userId, 'participante_adicionado', { user_id: uid, reuniao: true, ultima_hora: true })
+      const inicio = r.ticket.reuniao_inicio ? new Date(r.ticket.reuniao_inicio) : null
+      const quando = inicio
+        ? `${inicio.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: '2-digit' })} às ${inicio.toLocaleTimeString('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit' })}`
+        : ''
+      await notificarTicket(r.ticket, [uid], auth.userId, `Você foi incluído na reunião: ${r.ticket.titulo}`, quando ? `${quando}.` : undefined)
       return NextResponse.json({ ok: true })
     }
 
