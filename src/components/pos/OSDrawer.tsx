@@ -103,6 +103,8 @@ function horaAtualBR() {
 export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriado, tecnicos, userName, onClose, onSaved, valorHora: propValorHora, valorKm: propValorKm, podeEditar = true, podeOmie = true, podeConcluir = true, podeCancelar = true, abrirFaturar = false }: OSDrawerProps) {
   // valor da hora/km DESTA OS (editável com dois cliques na linha); sem ele, o da configuração
   const [unitHr, setUnitHr] = useState<number | null>(null);
+  // faturou agora: o bloco de notas mostra "aguardando" e confere de 15 em 15 s
+  const [notasEsperaDesde, setNotasEsperaDesde] = useState<number | null>(null);
   const [unitKm, setUnitKm] = useState<number | null>(null);
   const VH = unitHr ?? propValorHora ?? VALOR_HORA;
   const VK = unitKm ?? propValorKm ?? VALOR_KM;
@@ -1033,7 +1035,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setTecnico1(""); setTecnico2(""); setTipoServico("Manutenção");
     setProjeto(""); setRevisao(""); setServSolicitado(TEXT_TEMPLATE);
     setPecasPendentes([]); setAbrirReqDepois(false);
-    setPpv(""); setQtdHoras(1); setQtdKm(0); setUnitHr(null); setUnitKm(null); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0); setEspRaw(espelhoPadrao());
+    setPpv(""); setQtdHoras(1); setQtdKm(0); setUnitHr(null); setUnitKm(null); setNotasEsperaDesde(null); setDescPorc(0); setDescValor(0); setDescHoraValor(0); setDescKmValor(0); setEspRaw(espelhoPadrao());
     setOrdemOmie(""); setPedidoVenda(""); setOmieLog(""); setMotivoCancel(""); setTemSubstituto(false); setSubstitutoTipo("POS"); setSubstitutoId("");
     setRelatorioTecnico("");
     const agora = new Date()
@@ -1090,7 +1092,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
           setDescKmValor(dk);
           setEspRaw(normalizarEspelho(d.omieEspelho, espelhoPadrao({ interna: !!d.servicoInterno, garantia: /garantia/i.test(String(d.tipoServico || "")) })));
           const uH = Number(d.valorHora) > 0 ? Number(d.valorHora) : null, uK = Number(d.valorKm) > 0 ? Number(d.valorKm) : null;
-          setUnitHr(uH); setUnitKm(uK);
+          setUnitHr(uH); setUnitKm(uK); setNotasEsperaDesde(null);
           const sub = (d.qtdHoras || 0) * (uH ?? VH) + (d.qtdKm || 0) * (uK ?? VK);
           setDescPorc(sub > 0 ? parseFloat(((dv / sub) * 100).toFixed(2)) : 0);
           setOrdemOmie(d.ordemOmie || ""); setMotivoCancel(d.motivoCancelamento || "");
@@ -2712,6 +2714,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           ordemOmie={ordemOmie}
                           abrirAoCarregar={abrirFaturar}
                           onFaturado={async () => {
+                            // bloco de notas já entra em "aguardando a nota" (José, 14/10/2026)
+                            setNotasEsperaDesde(Date.now());
                             try {
                               const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
                               if (d?.status) setStatus(d.status);
@@ -2725,7 +2729,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   );
                 })()}
 
-                {osId && ordemOmie && <NotasFiscaisBloco osId={osId} ppvIds={ppvIds} ppvOmieMap={ppvOmieMap} />}
+                {osId && ordemOmie && <NotasFiscaisBloco osId={osId} ppvIds={ppvIds} ppvOmieMap={ppvOmieMap} esperandoDesde={notasEsperaDesde} />}
 
                 {/* ── Bloco Portal (logo da Nova): imprimir a OS, relatório técnico, PPVs e requisições ── */}
                 {(() => {

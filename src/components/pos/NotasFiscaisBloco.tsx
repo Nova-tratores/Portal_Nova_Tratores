@@ -9,15 +9,19 @@ import { authHeaders } from "@/lib/auth/client";
 interface EstadoNfse {
   habilitado: boolean; faturadoEm: string | null; status: string | null; erro: string | null;
   nfseNumero: string | null; nfseLink: string | null;
+  /** pedidos de peças faturados pela OS (ok = foi para a SEFAZ) */
+  pecas?: { id: string; ok: boolean }[];
 }
 interface NfPedido { faturado: boolean; numero?: string; emitidaEm?: string; canceladaEm?: string; erro?: string }
 
 const semZeros = (n: string | null | undefined) => String(n || "").replace(/^0+(?=\d)/, "");
 
-export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap }: {
+export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoDesde = null }: {
   osId: string;
   ppvIds: string[];
   ppvOmieMap: Record<string, string>;
+  /** acabou de faturar (timestamp): já mostra "aguardando a nota" e confere de 15 em 15 s */
+  esperandoDesde?: number | null;
 }) {
   const [nfse, setNfse] = useState<EstadoNfse | null>(null);
   const [nfs, setNfs] = useState<Record<string, NfPedido>>({});
@@ -52,6 +56,26 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap }: {
     return () => { vivo = false; };
   }, [carregarNfse, carregarNfs]);
 
+  const esperando = !!esperandoDesde;
+  const pedidosFaturados = useMemo(() => new Set((nfse?.pecas || []).filter((p) => p.ok).map((p) => p.id)), [nfse]);
+  const nfseOk = !!nfse?.nfseNumero || nfse?.status === "nfse_autorizada" || nfse?.status === "nfse_rejeitada";
+  const pedidoAguardando = (pid: string) => esperando && pedidosFaturados.has(pid) && !(nfs[pid]?.faturado && !nfs[pid]?.canceladaEm);
+  const falta = esperando && (!nfseOk || pedidos.some(pedidoAguardando));
+  useEffect(() => {
+    if (!esperandoDesde) return;
+    let vivo = true;
+    Promise.resolve().then(() => { if (vivo) { void carregarNfse(true); void carregarNfs(true); } });
+    return () => { vivo = false; };
+  }, [esperandoDesde, carregarNfse, carregarNfs]);
+  useEffect(() => {
+    if (!falta || !esperandoDesde) return;
+    const t = setInterval(() => {
+      if (Date.now() - esperandoDesde > 20 * 60_000) { clearInterval(t); return; }
+      void carregarNfse(true); void carregarNfs(true);
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [falta, esperandoDesde, carregarNfse, carregarNfs]);
+
   // nota ainda vindo: confere a cada 30 s (até 20 min com a OS aberta)
   const aguardandoNfse = !!nfse?.faturadoEm && nfse.status === "nfse_aguardando";
   useEffect(() => {
@@ -76,7 +100,7 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap }: {
     setAbrindo(null);
   };
 
-  const temOS = !!nfse?.faturadoEm;
+  const temOS = !!nfse?.faturadoEm || (esperando && !!nfse?.habilitado);
   if (!temOS && !pedidos.length) return null;
 
   const chip = (txt: string, cor: string, bg: string) => (
@@ -98,7 +122,7 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap }: {
     </div>
   );
 
-  const st = nfse?.status;
+  const st = esperando && !nfseOk ? "nfse_aguardando" : nfse?.status;
 
   return (
     <div style={{ margin: "4px 0 8px", padding: 10, borderRadius: 12, border: "1px solid color-mix(in srgb, #16a34a 35%, var(--border))", background: "color-mix(in srgb, #16a34a 5%, var(--surface))", display: "flex", flexDirection: "column", gap: 7 }}>
@@ -130,10 +154,19 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap }: {
           const ok = !!nf?.faturado && !nf.canceladaEm;
           return linha(pid,
             ok && nf?.numero ? `NF-e ${semZeros(nf.numero)}` : "NF-e",
-            <>peças · pedido {semZeros(ppvOmieMap[pid])} · {nf === undefined ? "conferindo…" : ok ? (nf.emitidaEm ? `emitida ${String(nf.emitidaEm).slice(0, 10)}` : chip("emitida", "#047857", "#d1fae5")) : nf?.canceladaEm ? chip("cancelada", "#b91c1c", "#fee2e2") : chip("não faturada", "#b45309", "#fef3c7")}</>,
+            <>peças · pedido {semZeros(ppvOmieMap[pid])} · {pedidoAguardando(pid) ? chip("aguardando a SEFAZ", "#075985", "#e0f2fe") : nf === undefined ? "conferindo…" : ok ? (nf.emitidaEm ? `emitida ${String(nf.emitidaEm).slice(0, 10)}` : chip("emitida", "#047857", "#d1fae5")) : nf?.canceladaEm ? chip("cancelada", "#b91c1c", "#fee2e2") : chip("não faturada", "#b45309", "#fef3c7")}</>,
             ok ? linkPdf(`Imprimir a NF-e do pedido ${semZeros(ppvOmieMap[pid])}`, () => abrirDanfe(pid), abrindo === pid) : null,
             !temOS && i === 0);
         })}
+        {pedidos.some(pedidoAguardando) && (
+          <div style={{ padding: "0 2px 8px" }}>
+            <div style={{ height: 5, borderRadius: 3, background: "rgba(232,115,12,.18)", overflow: "hidden" }}>
+              <div className="nf-barra" style={{ height: "100%", width: "40%", borderRadius: 3, background: "#e8730c" }} />
+            </div>
+            <div style={{ fontSize: 10.5, color: "var(--portal-text-muted)", marginTop: 4 }}>Buscando a NF-e na SEFAZ…</div>
+            <style>{`@keyframes nfBarra { 0% { transform: translateX(-100%) } 100% { transform: translateX(250%) } } .nf-barra { animation: nfBarra 1.4s ease-in-out infinite; }`}</style>
+          </div>
+        )}
       </div>
     </div>
   );
