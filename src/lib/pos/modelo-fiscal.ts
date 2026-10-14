@@ -182,6 +182,8 @@ export function montarItemAlteracao(item: ItemServicoOmie, campos: CamposFiscais
   }
   if (!Object.keys(topo).length && !Object.keys(impostos).length) return null;
   return {
+    // sem a sequência o Omie responde "alterada com sucesso" e IGNORA os impostos (OS 5352, 14/10/2026)
+    ...(item.nSeqItem ? { nSeqItem: item.nSeqItem } : {}),
     nIdItem: item.nIdItem,
     cAcaoItem: 'A',
     ...topo,
