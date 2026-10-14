@@ -15,6 +15,7 @@ import type { ReuniaoUI } from './tipos'
 import BlocoPendencias from './BlocoPendencias'
 import PautaItens from './PautaItens'
 import FormAcaoReuniao from './FormAcaoReuniao'
+import AjudaAba from './AjudaAba'
 import { cartao, botao, botaoClaro, campo, chip, chamar, EtapaChip, diaDe, horaDe, brCurto, primeiroNome } from './comum'
 
 const ROTULO_ACEITE: Record<string, { label: string; cor: string }> = { ok: { label: 'confirmada', cor: '#059669' }, pendente: { label: 'aguardando confirmação', cor: '#d97706' }, recusado: { label: 'recusada', cor: '#dc2626' } }
@@ -89,6 +90,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-muted,#999)' }}>Reunião #{r.numero}</span>
         <EtapaChip etapa={etapa} />
+        {!cancelada && <AjudaAba chave={modo} />}
         {d.serie && <span style={chip('#4f46e5', 'rgba(79,70,229,.1)')}><Repeat size={11} /> {d.serie.nome}</span>}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--portal-text-muted,#999)' }}>{r.visibilidade === 'privado' ? <><Lock size={11} /> privada</> : <><Globe size={11} /> pública</>}</span>
         <span style={{ flex: 1 }} />

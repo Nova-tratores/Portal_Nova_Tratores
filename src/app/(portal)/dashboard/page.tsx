@@ -13,7 +13,7 @@ import {
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
-  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus, Tags, BookOpen,
+  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus, Tags, BookOpen, CalendarClock,
 } from 'lucide-react'
 
 interface SystemCard {
@@ -93,6 +93,8 @@ const systems: SystemCard[] = [
   { id: 'opa', name: 'Opa', description: 'Sinalize ocorrências e coisas fora do lugar — todos veem até alguém resolver', icon: <AlertCircle size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #dc2626)', href: '/opa', tag: 'OCORRÊNCIAS', group: 'outros' },
   { id: 'avisos', name: 'Avisos', description: 'Comunicados e avisos para toda a equipe, com anexos e notificações', icon: <Megaphone size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #4B5563)', href: '/avisos', tag: 'COMUNICADOS', group: 'outros' },
   { id: 'tarefas', name: 'Central de Trabalho', description: 'Tarefas, tickets e cronograma num lugar só', icon: <ClipboardCheck size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #7f1d1d)', href: '/tickets/quadros', tag: 'TRABALHO', group: 'outros' },
+  // Reuniões (pauta + ata) moram na Central de Trabalho: mesma permissão dela.
+  { id: 'reunioes', name: 'Reuniões', description: 'Pauta antes, condução na hora e ata com as ações decididas', icon: <CalendarClock size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #991b1b)', href: '/reunioes', tag: 'REUNIÕES', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', description: 'Dashboard de acompanhamento do segmento agrícola', icon: <Wheat size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #22c55e, #15803d)', href: '/dashboard-agro', tag: 'AGRO', group: 'outros' },
   { id: 'back-nova', name: 'Back Nova', description: 'Sistema backend Nova Tratores', icon: <Server size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #6B7280, #374151)', href: 'https://back.novatratores.com', tag: 'BACKEND', group: 'outros', external: true },
   { id: 'configuracoes', name: 'Configurações', description: 'Gestão de usuários, permissões e configurações gerais do portal', icon: <Settings size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #525252, #1a1a1a)', href: '/admin', tag: 'ADMIN', group: 'outros' },
@@ -113,6 +115,7 @@ const systemToModulo: Record<string, string> = {
   'proposta-comercial': 'propostas',
   'orcamentos': 'orcamentos',
   'tarefas': 'tarefas',
+  'reunioes': 'tickets',                  // Central de Trabalho (tickets/tarefas/cronograma liberam)
   'mecanicos': 'mecanicos',
   'clientes': 'clientes',
   'mapa-geral': 'mapa',

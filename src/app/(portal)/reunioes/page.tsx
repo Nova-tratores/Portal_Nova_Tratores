@@ -13,6 +13,7 @@ import { ETAPA_INFO, type ReuniaoEtapa, type Serie } from '@/lib/reunioes/regras
 import type { PresencaRow } from '@/lib/reunioes/server'
 import FormReuniao from '@/components/reunioes/FormReuniao'
 import FormSerie from '@/components/reunioes/FormSerie'
+import AjudaAba from '@/components/reunioes/AjudaAba'
 import { cartao, botao, chamar, EtapaChip, diaDe, horaDe, primeiroNome, chip } from '@/components/reunioes/comum'
 
 type Aba = 'proximas' | 'historico' | 'series'
@@ -87,10 +88,13 @@ function ReunioesInner() {
           {abas.map((a) => {
             const ativo = aba === a.id
             return (
-              <button key={a.id} onClick={() => router.push(`/reunioes?aba=${a.id}`)}
+              <span key={a.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+              <button onClick={() => router.push(`/reunioes?aba=${a.id}`)}
                 style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', border: ativo ? '1.5px solid #dc2626' : '1px solid var(--portal-border,#e5e7eb)', background: ativo ? 'rgba(220,38,38,.07)' : 'var(--portal-surface,#fff)', color: ativo ? '#dc2626' : 'var(--portal-text-secondary,#555)' }}>
                 {a.icone} {a.label}
               </button>
+              <AjudaAba chave={a.id} />
+              </span>
             )
           })}
         </div>

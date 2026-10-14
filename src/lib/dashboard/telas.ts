@@ -131,6 +131,9 @@ export const TELAS: Tela[] = [
     ['Pendências (tarefas)', '/tarefas', ['tarefas']],
     ['Solicitações de Compras', '/tickets/compras', ['sc', 'compra']],
   ]),
+  ...t('Central de Trabalho', 'reunioes', 'tickets', [
+    ['Reuniões', '/reunioes', ['reunião', 'pauta', 'ata']],
+  ]),
   ...t('Outros', 'opa', 'opa', [
     ['Opa', '/opa'],
     ['Peças S/Estoque (Opa)', '/opa/pecas', ['peça não identificada', 'pni']],
