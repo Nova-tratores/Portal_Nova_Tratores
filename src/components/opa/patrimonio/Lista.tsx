@@ -1,22 +1,34 @@
 'use client'
 // Patrimônio Loja — lista: busca, filtros (categoria, local, estado, tag),
-// totais (itens e valor) e um cartão com foto para cada item.
+// totais (itens e valor) e um cartão com foto para cada item — ou, no modo
+// Lista, uma tabela com filtro e ordem A→Z/Z→A no cabeçalho de cada coluna.
 
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { Inbox, Landmark, MapPin, Plus, Search, UserRound } from 'lucide-react'
 import { urlsMiniaturas } from '@/lib/opa-pecas/fotos'
 import { BUCKET_PATRIMONIO } from '@/lib/patrimonio/fotos-regra'
-import { ESTADOS, FILTROS_VAZIOS, filtrarItens, INFO_ESTADO, textoOnde, totais, type FiltrosPat } from '@/lib/patrimonio/tipos'
+import { ESTADOS, FILTROS_VAZIOS, filtrarItens, INFO_ESTADO, ROTULO_SITUACAO, textoOnde, totais, type FiltrosPat, type ItemPat } from '@/lib/patrimonio/tipos'
 import { Aviso, INP, SECAO, useTelaLarga } from '../pecas/comum'
-import { COR_PAT, fmtReal, SeloEstado, type BasePat } from './comum'
+import TabelaFiltravel, { SeletorVisao, useListaFiltrada, useModoVisao, type ColunaTabela } from '../pecas/TabelaFiltravel'
+import { COR_PAT, fmtData, fmtReal, SeloEstado, type BasePat } from './comum'
 
 export default function Lista({ base }: { base: BasePat }) {
   const larga = useTelaLarga()
   const [f, setF] = useState<FiltrosPat>(FILTROS_VAZIOS)
-  const visiveis = useMemo(() => filtrarItens(base.itens, f, base.nomeLocal), [base.itens, f, base.nomeLocal])
-  const t = totais(visiveis)
+  const router = useRouter()
+  const [modoSalvo, setModo] = useModoVisao('opa-patrimonio-visao')
+  const modo = modoSalvo ?? 'cards'
+  const emLista = modo === 'lista'
+  // Lista: só a busca aqui; categoria/local/estado/tag viram filtro no cabeçalho
+  const fBase = useMemo(() => (emLista ? { ...FILTROS_VAZIOS, texto: f.texto } : f), [emLista, f])
+  const preFiltrados = useMemo(() => filtrarItens(base.itens, fBase, base.nomeLocal), [base.itens, fBase, base.nomeLocal])
   const [minis, setMinis] = useState<Record<string, string>>({})
+  const colunas = useColunasPat(base, minis)
+  const tabela = useListaFiltrada('opa-patrimonio-lista', preFiltrados, colunas)
+  const visiveis = emLista ? tabela.visiveis : preFiltrados
+  const t = totais(visiveis)
 
   useEffect(() => {
     const paths = base.itens.map((i) => i.fotos[0]?.storage_path).filter((p): p is string => !!p)
@@ -45,6 +57,13 @@ export default function Lista({ base }: { base: BasePat }) {
           <Search size={16} style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: 'var(--portal-text-muted)' }} />
           <input value={f.texto} onChange={(e) => muda('texto', e.target.value)} placeholder="Buscar: código, descrição, marca, modelo, série, pessoa, tag…" style={{ ...INP, paddingLeft: 34 }} />
         </div>
+        <SeletorVisao modo={modo} onChange={setModo} cor={COR_PAT} />
+        {emLista && tabela.ativos > 0 && (
+          <button type="button" onClick={tabela.limpar} style={{ height: 34, padding: '0 11px', borderRadius: 9, border: `1px solid ${COR_PAT}`, background: 'transparent', color: COR_PAT, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            Limpar filtros das colunas ({tabela.ativos})
+          </button>
+        )}
+        {!emLista && <>
         <select value={f.categoria} onChange={(e) => muda('categoria', e.target.value)} style={sel}>
           <option value="">Todas as categorias</option>
           {[...new Set(base.itens.map((i) => i.categoria).filter(Boolean) as string[])].sort().map((c) => <option key={c} value={c}>{c}</option>)}
@@ -63,10 +82,14 @@ export default function Lista({ base }: { base: BasePat }) {
             {base.tags.map((tg) => <option key={tg} value={tg}>#{tg}</option>)}
           </select>
         )}
+        </>}
       </div>
 
       {base.carregando ? (
         <div style={{ ...SECAO, alignItems: 'center', color: 'var(--portal-text-muted)' }}>Carregando…</div>
+      ) : emLista && base.itens.length > 0 ? (
+        <TabelaFiltravel colunas={colunas} todas={preFiltrados} lista={tabela} chaveLinha={(i) => i.id} cor={COR_PAT}
+          onAbrir={(i) => router.push(`/opa/patrimonio/${i.id}`)} />
       ) : visiveis.length === 0 ? (
         <div style={{ ...SECAO, alignItems: 'center', gap: 10, padding: 28, color: 'var(--portal-text-muted)', textAlign: 'center' }}>
           <Inbox size={28} />
@@ -110,6 +133,46 @@ export default function Lista({ base }: { base: BasePat }) {
       )}
     </div>
   )
+}
+
+const vazio = (s: string | null | undefined) => s || <span style={{ color: 'var(--portal-text-muted)' }}>—</span>
+
+function useColunasPat(base: BasePat, minis: Record<string, string>): ColunaTabela<ItemPat>[] {
+  const { nomeLocal } = base
+  return useMemo(() => [
+    { chave: 'foto', titulo: '', semFiltro: true, semOrdem: true, ordem: () => null,
+      render: (i) => {
+        const foto = i.fotos[0]?.storage_path
+        return (
+          <div style={{ width: 42, height: 42, borderRadius: 8, overflow: 'hidden', background: 'var(--portal-bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--portal-text-muted)' }}>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {foto && minis[foto] ? <img src={minis[foto]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <Landmark size={18} />}
+          </div>
+        )
+      } },
+    { chave: 'codigo', titulo: 'Código', ordem: (i) => i.codigo,
+      render: (i) => <span style={{ fontFamily: 'monospace', fontSize: 12.5, fontWeight: 800, color: COR_PAT, whiteSpace: 'nowrap' }}>{i.codigo}</span> },
+    { chave: 'descricao', titulo: 'Descrição', maxLargura: 280, ordem: (i) => i.descricao,
+      render: (i) => <div style={{ minWidth: 160, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.descricao}</div> },
+    { chave: 'categoria', titulo: 'Categoria', ordem: (i) => i.categoria || '', render: (i) => vazio(i.categoria) },
+    { chave: 'marca', titulo: 'Marca', ordem: (i) => i.marca || '', render: (i) => vazio(i.marca) },
+    { chave: 'modelo', titulo: 'Modelo', ordem: (i) => i.modelo || '', render: (i) => vazio(i.modelo) },
+    { chave: 'serie', titulo: 'Nº série', ordem: (i) => i.numero_serie || '', render: (i) => <span style={{ fontFamily: 'monospace', fontSize: 12.5 }}>{vazio(i.numero_serie)}</span> },
+    { chave: 'estado', titulo: 'Estado', ordem: (i) => INFO_ESTADO[i.estado]?.rotulo || i.estado, render: (i) => <SeloEstado estado={i.estado} /> },
+    { chave: 'situacao', titulo: 'Situação', ordem: (i) => ROTULO_SITUACAO[i.situacao] || i.situacao, render: (i) => <span style={{ whiteSpace: 'nowrap' }}>{ROTULO_SITUACAO[i.situacao] || i.situacao}</span> },
+    { chave: 'local', titulo: 'Onde está', maxLargura: 200, ordem: (i) => textoOnde(i.local_id, i.local_tecnico, nomeLocal),
+      render: (i) => <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, color: 'var(--portal-text-secondary)' }}><MapPin size={12} style={{ flexShrink: 0 }} /> {textoOnde(i.local_id, i.local_tecnico, nomeLocal)}</span> },
+    { chave: 'responsavel', titulo: 'Responsável', ordem: (i) => i.responsavel || '', render: (i) => <span style={{ whiteSpace: 'nowrap' }}>{vazio(i.responsavel)}</span> },
+    { chave: 'valor', titulo: 'Valor', direita: true, ordem: (i) => i.valor_atual ?? i.valor_compra,
+      valores: (i) => ((i.valor_atual ?? i.valor_compra) == null ? [] : [fmtReal(i.valor_atual ?? i.valor_compra)]),
+      render: (i) => <span style={{ whiteSpace: 'nowrap', fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{(i.valor_atual ?? i.valor_compra) != null ? fmtReal(i.valor_atual ?? i.valor_compra) : vazio('')}</span> },
+    { chave: 'tags', titulo: 'Tags', ordem: (i) => i.tags.join(', '), valores: (i) => i.tags.map((tg) => `#${tg}`),
+      render: (i) => (i.tags.length
+        ? <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>{i.tags.slice(0, 3).map((tg) => <span key={tg} style={{ fontSize: 11, fontWeight: 700, color: COR_PAT, background: '#EEF2FF', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>#{tg}</span>)}{i.tags.length > 3 && <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>+{i.tags.length - 3}</span>}</span>
+        : vazio('')) },
+    { chave: 'compra', titulo: 'Compra', ordem: (i) => i.data_compra || '', valores: (i) => (i.data_compra ? [fmtData(i.data_compra)] : []),
+      render: (i) => <span style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--portal-text-secondary)' }}>{i.data_compra ? fmtData(i.data_compra) : vazio('')}</span> },
+  ] as ColunaTabela<ItemPat>[], [nomeLocal, minis])
 }
 
 function Tile({ titulo, valor, dica }: { titulo: string; valor: string; dica?: string }) {

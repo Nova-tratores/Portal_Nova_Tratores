@@ -13,11 +13,14 @@ import {
 } from '@/lib/opa-pecas/db'
 import { urlPublica } from '@/lib/opa-pecas/etiqueta'
 import { apagarFoto, comprimir, enviarFoto, mensagemErro, urlsAssinadas } from '@/lib/opa-pecas/fotos'
-import { codigoDefinitivo, nomeDoItem, camposFaltando, fmtDataHora, fmtPreco, lerPreco, precoParaCampo, textoLocal } from '@/lib/opa-pecas/regras'
+import { codigoDefinitivo, nomeDoItem, camposFaltando, fmtDataHora, fmtPreco, lerPreco, locacaoDoItem, mesmaLocacao, skuDaPeca, precoParaCampo, textoLocal, type Locacao } from '@/lib/opa-pecas/regras'
 import { ROTULO_QUALIDADE, ROTULO_STATUS, type Aplicacao, type Historico, type Item, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 import { CampoPreco, EditorAplicacoes, SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
 import ProdutoCadastro from './ProdutoCadastro'
 import FasesPeca from './FasesPeca'
+import { ChipsEtiquetas } from './ListaPecas'
+import { EditorEtiquetas, esquecerSugestoesEtiquetas, SecaoLocacao } from './LocacaoEtiquetas'
+import { esquecerSku } from './useProdutosSku'
 import Impressao from './Impressao'
 import { CodigoPeca, Aviso, botao, INP, LARANJA, ROTULO, SECAO, SeloQualidade, SeloStatus, TITULO_SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
 
@@ -33,6 +36,8 @@ interface Form {
   observacoes: string
   local: string
   tecnico: string
+  locacao: Locacao
+  etiquetas: string[]
 }
 
 function formDe(i: Item): Form {
@@ -42,6 +47,7 @@ function formDe(i: Item): Form {
     preco: precoParaCampo(i.preco_sugerido),
     nao_identificavel: i.nao_identificavel, observacoes: i.observacoes || '',
     local: i.local_id || '', tecnico: i.local_tecnico || '',
+    locacao: locacaoDoItem(i), etiquetas: i.etiquetas || [],
   }
 }
 
@@ -56,6 +62,13 @@ function diferencas(i: Item, f: Form): { dados: CamposEditaveis; erro?: string }
   if (f.qualidade !== i.qualidade) d.qualidade = f.qualidade
   if (f.nao_identificavel !== i.nao_identificavel) d.nao_identificavel = f.nao_identificavel
   if (f.local !== (i.local_id || '') || f.tecnico !== (i.local_tecnico || '')) { d.local_id = f.local || null; d.local_tecnico = f.tecnico || null }
+  // locação e etiquetas só vão quando mudam (banco sem o pni-13 recusa esses campos)
+  if (!mesmaLocacao(f.locacao, locacaoDoItem(i))) {
+    d.locacao_prateleira = f.locacao.prateleira.trim() || null
+    d.locacao_andar = f.locacao.andar.trim() || null
+    d.locacao_caixa = f.locacao.caixa.trim() || null
+  }
+  if (f.etiquetas.join('\u0000') !== (i.etiquetas || []).join('\u0000')) d.etiquetas = f.etiquetas
   const q = parseInt(f.quantidade, 10)
   if (!Number.isFinite(q) || q < 1) return { dados: d, erro: 'Quantidade inválida.' }
   if (q !== i.quantidade) d.quantidade = q
@@ -134,6 +147,8 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
   const salvarForm = async () => {
     if (erroForm) { setErro(erroForm); return false }
     if (!sujo) return true
+    if ((mudancas.codigo_fabricante !== undefined || mudancas.codigo_correto !== undefined) && skuDaPeca(item)) esquecerSku(skuDaPeca(item)!)
+    if (mudancas.etiquetas) esquecerSugestoesEtiquetas()
     return executar('salvar', () => atualizarItem(item.id, mudancas), 'Alterações salvas.')
   }
 
@@ -201,6 +216,7 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
                 <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 600, color: '#9A3412' }}><MapPin size={12} /> {textoLocal(item, base.nomesLocais)}</span></>}
               {item.nao_identificavel && <><span style={{ color: 'var(--portal-text-muted)' }}>·</span><span style={{ fontWeight: 700, color: '#4B5563' }}>não identificável</span></>}
             </div>
+            {!!item.etiquetas?.length && <ChipsEtiquetas etiquetas={item.etiquetas} max={8} />}
             <div style={{ fontSize: 12, color: 'var(--portal-text-muted)' }}>
               Captada por {usuarios[item.criado_por] || '…'} em {fmtDataHora(item.criado_em)}
               {item.atualizado_por && item.atualizado_em !== item.criado_em && <> · alterada por {usuarios[item.atualizado_por] || '…'} em {fmtDataHora(item.atualizado_em)}</>}
@@ -288,6 +304,12 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
         <SeletorLocal compacto locais={base.locais} local={form.local} tecnico={form.tecnico} disabled={!gerir} onLocalCriado={base.recarregarLookups}
           onChange={(l, t) => setForm((f) => ({ ...f, local: l, tecnico: t }))} />
       </section>
+
+      <section style={SECAO}>
+        <h2 style={TITULO_SECAO}>Locação no estoque</h2>
+        <SecaoLocacao sku={skuDaPeca(item)} valor={form.locacao} disabled={!gerir}
+          onChange={(l) => setForm((f) => ({ ...f, locacao: l }))} />
+      </section>
       </div>
 
       <div style={COLUNA}>
@@ -345,6 +367,9 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
 
       <div style={SUBTITULO}>Observações</div>
       <textarea value={form.observacoes} onChange={campo('observacoes')} disabled={!gerir} rows={2} placeholder="Anotações livres sobre a peça" style={{ ...INP, resize: 'vertical' }} />
+
+      <div style={SUBTITULO}>Etiquetas <span style={{ fontWeight: 600, textTransform: 'none', letterSpacing: 0, color: 'var(--portal-text-muted)' }}>(opcional — marcadores livres para achar e agrupar)</span></div>
+      <EditorEtiquetas valor={form.etiquetas} disabled={!gerir} onChange={(v) => setForm((f) => ({ ...f, etiquetas: v }))} />
       </section>
 
       {gerir && sujo && (

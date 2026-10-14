@@ -160,6 +160,12 @@ export interface Item {
   criado_em: string
   atualizado_por: string | null
   atualizado_em: string
+  /** locação no estoque para onde a peça foi destinada (sql/pni-13; ausente sem a migration) */
+  locacao_prateleira?: string | null
+  locacao_andar?: string | null
+  locacao_caixa?: string | null
+  /** marcadores livres e opcionais (sql/pni-13) — não é a etiqueta impressa */
+  etiquetas?: string[] | null
   fotos: Foto[]
   aplicacoes: Aplicacao[]
 }
@@ -196,4 +202,14 @@ export interface Nomes {
   usuarios: Record<string, string>
   /** id do local → nome */
   locais?: Record<string, string>
+}
+
+/** Produto do catálogo (Omie) com o mesmo SKU do "código existente" da peça — /api/opa/pecas/estoque. */
+export interface ProdutoSku {
+  sku: string
+  conta: string
+  descricao: string | null
+  tipo: string | null
+  /** locação no estoque (#PRATELEIRA/#ANDAR/#CAIXA); null = sem locação cadastrada */
+  locacao: { prateleira: string; andar: string; caixa: string } | null
 }

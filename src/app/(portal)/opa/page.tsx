@@ -5,7 +5,7 @@
 // pendência do carro pelo motor da frota (sql/opa-vinculo-veiculo.sql).
 // A aba "Peças" do mesmo módulo fica em /opa/pecas.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Car, Check, CheckCircle2, ChevronDown, ChevronUp, Clock, Eye, Film, Image as ImageIcon,
   Paperclip, Plus, Send, Trash2, User, X,
@@ -17,6 +17,8 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { supabase } from '@/lib/supabase'
 import { authHeaders } from '@/lib/auth/client'
 import { BotaoPrincipal, OpaBarra } from '@/components/opa/pecas/comum'
+import { Janela } from '@/components/opa/pecas/Moldura'
+import TabelaFiltravel, { SeletorVisao, useListaFiltrada, useModoVisao, type ColunaTabela } from '@/components/opa/pecas/TabelaFiltravel'
 
 const VERMELHO = '#dc2626'
 
@@ -153,11 +155,20 @@ export default function OpaPage() {
   const concluidos = opas.filter((o) => o.status === 'resolvido')
   const lista = aba === 'abertos' ? abertos : concluidos
 
+  // Cards (como sempre foi) × Lista (tabela com filtro e A→Z/Z→A no cabeçalho)
+  const [modoSalvo, setModo] = useModoVisao('opa-ocorrencias-visao')
+  const modo = modoSalvo ?? 'cards'
+  const [janela, setJanela] = useState<string | null>(null)
+  const colunas = useColunasOpa(isAdmin)
+  const tabela = useListaFiltrada('opa-ocorrencias-lista', lista, colunas)
+  const opaJanela = janela ? opas.find((o) => o.id === janela) || null : null
+  const abrirNaJanela = (opa: Opa) => { setJanela(opa.id); registrarView(opa) }
+
   return (
     <div style={{ padding: isMobile ? '12px 12px 24px' : '16px 20px 28px', width: '100%', boxSizing: 'border-box' }}>
       <OpaBarra acao={<BotaoPrincipal cor={VERMELHO} claro onClick={() => setNovo(true)}><Plus size={16} strokeWidth={2.5} /> Novo Opa</BotaoPrincipal>} />
 
-      <div role="tablist" style={{ display: 'flex', gap: 4, marginBottom: 12 }}>
+      <div role="tablist" style={{ display: 'flex', gap: 4, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
         {([['abertos', 'Abertos', abertos.length], ['concluidos', 'Concluídos', concluidos.length]] as const).map(([k, rotulo, n]) => (
           <button key={k} role="tab" aria-selected={aba === k} type="button" onClick={() => setAba(k)} style={{
             display: 'flex', alignItems: 'center', gap: 7, padding: '7px 14px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
@@ -167,12 +178,21 @@ export default function OpaPage() {
             {rotulo} <span style={{ fontSize: 11.5, fontWeight: 800, opacity: 0.8 }}>{n}</span>
           </button>
         ))}
+        <div style={{ flex: 1 }} />
+        {modo === 'lista' && tabela.ativos > 0 && (
+          <button type="button" onClick={tabela.limpar} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, height: 32, padding: '0 11px', borderRadius: 8, border: `1px solid ${VERMELHO}`, background: 'transparent', color: VERMELHO, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            <X size={13} /> Limpar filtros das colunas ({tabela.ativos})
+          </button>
+        )}
+        <SeletorVisao modo={modo} onChange={setModo} cor={VERMELHO} />
       </div>
 
       {carregando && opas.length === 0 ? (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 60, color: 'var(--portal-text-muted)', gap: 10 }}>
           <Clock size={16} style={{ animation: 'spin 1s linear infinite' }} /> Carregando…
         </div>
+      ) : modo === 'lista' && lista.length > 0 ? (
+        <TabelaFiltravel colunas={colunas} todas={lista} lista={tabela} chaveLinha={(o) => o.id} onAbrir={abrirNaJanela} cor={VERMELHO} />
       ) : lista.length === 0 ? (
         <div style={{ padding: 40, textAlign: 'center', borderRadius: 12, background: 'var(--portal-bg-card)', border: '1px solid var(--portal-border)', color: 'var(--portal-text-muted)', fontWeight: 600 }}>
           {aba === 'abertos' ? <><CheckCircle2 size={28} color="#10B981" style={{ display: 'block', margin: '0 auto 8px' }} />Nenhum Opa aberto — tudo em ordem!</> : 'Nenhum Opa concluído ainda'}
@@ -187,12 +207,64 @@ export default function OpaPage() {
         </div>
       )}
 
+      {opaJanela && (
+        <Janela titulo={opaJanela.titulo} onFechar={() => setJanela(null)} largura={760}>
+          <CartaoOpa opa={opaJanela} aberto onAlternar={() => setJanela(null)}
+            isAdmin={isAdmin} usuarioId={userProfile?.id} usuarioNome={userProfile?.nome} usuarios={usuarios}
+            onMudou={carregar} auditLog={auditLog} />
+        </Janela>
+      )}
+
       {novo && userProfile && (
         <NovoOpa usuarioId={userProfile.id} usuarioNome={userProfile.nome || 'Usuário'} onFechar={() => setNovo(false)}
           onCriado={(id, titulo) => { auditLog({ sistema: 'opa', acao: 'criar', entidade: 'opa', entidade_id: id, entidade_label: `Opa: ${titulo}` }); setNovo(false); carregar() }} />
       )}
     </div>
   )
+}
+
+// ── Colunas do modo Lista ──────────────────────────────────────────
+
+const fmtDia = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString('pt-BR') : '')
+const vazio = (s: string | null | undefined) => s || <span style={{ color: 'var(--portal-text-muted)' }}>—</span>
+
+function useColunasOpa(isAdmin: boolean): ColunaTabela<Opa>[] {
+  return useMemo(() => {
+    const cols: (ColunaTabela<Opa> | false)[] = [
+      { chave: 'titulo', titulo: 'Ocorrência', maxLargura: 340, ordem: (o) => o.titulo,
+        render: (o) => (
+          <div style={{ minWidth: 180 }}>
+            <div style={{ fontWeight: 700, fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.titulo}</div>
+            {o.descricao && <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.descricao}</div>}
+          </div>
+        ) },
+      { chave: 'status', titulo: 'Situação', ordem: (o) => (o.status === 'aberto' ? 'Aberto' : 'Resolvido'),
+        render: (o) => (
+          <span style={{ fontSize: 11.5, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap', background: o.status === 'aberto' ? '#FEF2F2' : '#ECFDF5', color: o.status === 'aberto' ? '#991B1B' : '#047857' }}>
+            {o.status === 'aberto' ? 'Aberto' : 'Resolvido'}
+          </span>
+        ) },
+      { chave: 'sobre', titulo: 'Sobre', ordem: (o) => (o.vinculo_tipo === 'veiculo' && o.vinculo_ref ? o.vinculo_ref : 'Geral'),
+        render: (o) => (o.vinculo_tipo === 'veiculo' && o.vinculo_ref
+          ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontWeight: 700, color: '#1E40AF', whiteSpace: 'nowrap' }}><Car size={12} /> {o.vinculo_ref}</span>
+          : <span style={{ color: 'var(--portal-text-muted)' }}>Geral</span>) },
+      { chave: 'origem', titulo: 'Origem', ordem: (o) => (o.origem === 'mecanico' ? 'Mecânico' : 'Portal'),
+        render: (o) => <span style={{ fontSize: 12.5 }}>{o.origem === 'mecanico' ? 'Mecânico' : 'Portal'}</span> },
+      isAdmin && { chave: 'criador', titulo: 'Aberto por', ordem: (o) => o.criado_por_nome || '', render: (o) => <span style={{ whiteSpace: 'nowrap' }}>{vazio(o.criado_por_nome)}</span> },
+      { chave: 'data', titulo: 'Aberto em', ordem: (o) => o.created_at, valores: (o) => [fmtDia(o.created_at)],
+        render: (o) => <span style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--portal-text-secondary)' }}>{fmtData(o.created_at)}</span> },
+      { chave: 'responsavel', titulo: 'Responsável', ordem: (o) => o.responsavel || '', render: (o) => <span style={{ whiteSpace: 'nowrap', fontWeight: o.responsavel ? 600 : 400 }}>{vazio(o.responsavel)}</span> },
+      { chave: 'resolvido_por', titulo: 'Resolvido por', ordem: (o) => o.resolvido_por_nome || '',
+        render: (o) => <span style={{ whiteSpace: 'nowrap' }}>{vazio(o.resolvido_por_nome ? `${o.resolvido_por_nome}${o.resolvido_por_tipo === 'tecnico' ? ' (técnico)' : ''}` : '')}</span> },
+      { chave: 'resolvido_em', titulo: 'Resolvido em', ordem: (o) => o.resolvido_at || '', valores: (o) => [fmtDia(o.resolvido_at)],
+        render: (o) => <span style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--portal-text-secondary)' }}>{o.resolvido_at ? fmtData(o.resolvido_at) : vazio('')}</span> },
+      { chave: 'anexos', titulo: 'Anexos', direita: true, ordem: (o) => o.anexos.length, valores: (o) => [String(o.anexos.length)],
+        render: (o) => (o.anexos.length ? <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3 }}><Paperclip size={12} /> {o.anexos.length}</span> : vazio('')) },
+      { chave: 'vistos', titulo: 'Viram', direita: true, ordem: (o) => o.views.length, valores: (o) => o.views.map((v) => v.nome),
+        render: (o) => <span title={o.views.map((v) => v.nome).join(', ')} style={{ display: 'inline-flex', alignItems: 'center', gap: 3, color: 'var(--portal-text-secondary)' }}><Eye size={12} /> {o.views.length}</span> },
+    ]
+    return cols.filter((c): c is ColunaTabela<Opa> => !!c)
+  }, [isAdmin])
 }
 
 // ── Cartão de um Opa ────────────────────────────────────────────────

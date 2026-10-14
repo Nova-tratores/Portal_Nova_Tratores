@@ -287,7 +287,7 @@ export function filtrarItens(itens: Item[], f: Filtros): Item[] {
     // (soEtiquetaPendente: não existe mais etiqueta pendente — filtro ignorado)
     if (f.soIncompletos && camposFaltando(i).length === 0) return false
     if (texto) {
-      const alvo = semAcento([i.codigo, i.codigo_fabricante || '', i.descricao || '', i.local_tecnico || ''].join(' '))
+      const alvo = semAcento([i.codigo, i.codigo_fabricante || '', i.descricao || '', i.local_tecnico || '', ...(i.etiquetas || []), textoLocacao(locacaoDoItem(i))].join(' '))
       if (!alvo.includes(texto)) return false
     }
     return true
@@ -354,4 +354,47 @@ export function codigoDefinitivo(codigo: string): boolean {
 /** Para texto corrido: o código, ou "captação nº 45" enquanto não tem código. */
 export function nomeDoItem(codigo: string): string {
   return codigoDefinitivo(codigo) ? codigo : `captação nº ${Number(codigo.slice(4)) || codigo.slice(4)}`
+}
+
+// ── Locação no estoque e etiquetas (sql/pni-13) ─────────────────────
+
+export interface Locacao { prateleira: string; andar: string; caixa: string }
+
+/** SKU da peça no catálogo: o código correto (embalagem errada) vale mais que o da embalagem. */
+export function skuDaPeca(i: Pick<Item, 'codigo_fabricante' | 'codigo_correto'>): string | null {
+  return (i.codigo_correto || '').trim() || (i.codigo_fabricante || '').trim() || null
+}
+
+/** Locação gravada na peça (vazia sem a migration). */
+export function locacaoDoItem(i: Pick<Item, 'locacao_prateleira' | 'locacao_andar' | 'locacao_caixa'>): Locacao {
+  return { prateleira: (i.locacao_prateleira || '').trim(), andar: (i.locacao_andar || '').trim(), caixa: (i.locacao_caixa || '').trim() }
+}
+
+export function temLocacao(l: Locacao | null | undefined): boolean {
+  return !!l && !!(l.prateleira || l.andar || l.caixa)
+}
+
+/** "Prat. 3 · Andar G · Cx 24" (só os pedaços preenchidos). */
+export function textoLocacao(l: Locacao | null | undefined): string {
+  if (!l) return ''
+  const p: string[] = []
+  if (l.prateleira) p.push(`Prat. ${l.prateleira}`)
+  if (l.andar) p.push(`Andar ${l.andar}`)
+  if (l.caixa) p.push(`Cx ${l.caixa}`)
+  return p.join(' · ')
+}
+
+export function mesmaLocacao(a: Locacao, b: Locacao): boolean {
+  const n = (s: string) => s.trim().toUpperCase()
+  return n(a.prateleira) === n(b.prateleira) && n(a.andar) === n(b.andar) && n(a.caixa) === n(b.caixa)
+}
+
+/** Etiquetas sem espaço sobrando, sem vazias e sem repetir (maiúscula/minúscula não conta). Igual à RPC. */
+export function normalizarEtiquetas(lista: string[]): string[] {
+  const r: string[] = []
+  for (const bruto of lista) {
+    const t = bruto.replace(/\s+/g, ' ').trim().slice(0, 30)
+    if (t && !r.some((x) => x.toLowerCase() === t.toLowerCase())) r.push(t)
+  }
+  return r.slice(0, 15)
 }

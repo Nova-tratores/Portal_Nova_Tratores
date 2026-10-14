@@ -2,7 +2,7 @@
 // UTF-8 com BOM, separador ';', CRLF, decimal com vírgula. Gera a partir da
 // MESMA lista filtrada da tela.
 
-import { codigoDefinitivo, fmtDataHora, numeroCsv, textoAplicacoes, textoLocal } from './regras'
+import { codigoDefinitivo, fmtDataHora, locacaoDoItem, numeroCsv, textoAplicacoes, textoLocacao, textoLocal } from './regras'
 import { ROTULO_QUALIDADE, ROTULO_STATUS, type Item, type Nomes } from './tipos'
 
 export const BOM = '﻿'
@@ -11,6 +11,7 @@ export const COLUNAS_CSV = [
   'Código', 'Código existente (fabricante)', 'Descrição', 'Quantidade', 'Qualidade', 'Status',
   'Não identificável', 'Aplicação', 'Preço sugerido (R$)', 'Valor total (R$)', 'Localização', 'Desfecho (o que aconteceu)', 'Encerrado em',
   'Observações', 'Fotos', 'Etiqueta impressa em', 'Criado por', 'Criado em', 'Atualizado por', 'Atualizado em',
+  'Locação no estoque', 'Etiquetas',
 ] as const
 
 export function celulaCsv(v: string | number | null | undefined): string {
@@ -42,6 +43,8 @@ export function linhaCsv(i: Item, nomes: Nomes): string[] {
     fmtDataHora(i.criado_em),
     (i.atualizado_por && nomes.usuarios[i.atualizado_por]) || '',
     fmtDataHora(i.atualizado_em),
+    textoLocacao(locacaoDoItem(i)),
+    (i.etiquetas || []).join(', '),
   ]
 }
 

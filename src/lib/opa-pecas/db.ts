@@ -131,10 +131,28 @@ export function criarItem(a: {
 }
 
 export type CamposEditaveis = Partial<Pick<Item,
-  'descricao' | 'codigo_fabricante' | 'codigo_correto' | 'quantidade' | 'qualidade' | 'preco_sugerido' | 'nao_identificavel' | 'observacoes' | 'local_id' | 'local_tecnico'>>
+  'descricao' | 'codigo_fabricante' | 'codigo_correto' | 'quantidade' | 'qualidade' | 'preco_sugerido' | 'nao_identificavel' | 'observacoes' | 'local_id' | 'local_tecnico'
+  | 'locacao_prateleira' | 'locacao_andar' | 'locacao_caixa' | 'etiquetas'>>
 
-export function atualizarItem(id: string, dados: CamposEditaveis) {
-  return rpc<Item>('pni_atualizar_item', { p_id: id, p_dados: dados })
+export const MSG_MIGRACAO_LOCACAO = 'Para gravar locação e etiquetas falta rodar sql/pni-15-locacao-etiquetas.sql no SQL Editor.'
+
+export async function atualizarItem(id: string, dados: CamposEditaveis) {
+  try {
+    return await rpc<Item>('pni_atualizar_item', { p_id: id, p_dados: dados })
+  } catch (e) {
+    // banco sem o pni-13: a RPC recusa os campos novos
+    if (/Campo "(locacao_\w+|etiquetas)" não pode ser alterado/.test(e instanceof Error ? e.message : '')) throw new Error(MSG_MIGRACAO_LOCACAO)
+    throw e
+  }
+}
+
+/** Etiquetas (marcadores) já usadas em alguma peça — sugestões do campo. */
+export async function etiquetasUsadas(): Promise<string[]> {
+  const { data, error } = await supabase.from('pni_itens').select('etiquetas').not('etiquetas', 'eq', '{}').limit(1000)
+  if (error) return [] // sem a migration
+  const todas = new Map<string, string>()
+  for (const l of (data || []) as { etiquetas: string[] | null }[]) for (const t of l.etiquetas || []) if (!todas.has(t.toLowerCase())) todas.set(t.toLowerCase(), t)
+  return [...todas.values()].sort((a, b) => a.localeCompare(b, 'pt-BR'))
 }
 
 export function definirAplicacoes(id: string, aplicacoes: Aplicacao[]) {
