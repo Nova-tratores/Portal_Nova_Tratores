@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
 import { resolverNfseDaOS, OR_OS_SEM_PDF_NFSE } from "@/lib/clientes/nfse-omie";
+import { escolherDaVez, registrarConsulta } from "@/lib/clientes/sync-recente-fila";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -52,7 +53,16 @@ async function downloadNF(url: string, path: string): Promise<string> {
 }
 
 // Mapa nCodVend -> nome do vendedor (ListarVendedores), pra preencher o vendedor da OS.
+// Guardado por 1 h no processo: a lista quase não muda e era baixada inteira a cada 5 min.
+const vendedoresCache = new Map<string, { em: number; map: Map<number, string> }>();
 async function carregarVendedores(acc: Acc): Promise<Map<number, string>> {
+  const c = vendedoresCache.get(acc.name);
+  if (c && Date.now() - c.em < 60 * 60_000) return c.map;
+  const map = await baixarVendedores(acc);
+  if (map.size) vendedoresCache.set(acc.name, { em: Date.now(), map });
+  return map;
+}
+async function baixarVendedores(acc: Acc): Promise<Map<number, string>> {
   const map = new Map<number, string>();
   let pag = 1, totPag = 1;
   while (pag <= totPag) {
@@ -203,9 +213,13 @@ export async function GET(req: Request) {
         .select("num_os, cod_os").eq("empresa", acc.name)
         .eq("faturada", true).eq("cancelada", false)
         .or(OR_OS_SEM_PDF_NFSE) // sem nota ou só com a consulta do gov.br/prefeitura
-        .order("updated_at", { ascending: false }).limit(80);
+        .order("updated_at", { ascending: false }).limit(300);
 
-      for (const os of osSemNF || []) {
+      // Fila com espera crescente: item que não trouxe a nota só volta a ser consultado
+      // depois de 5, 10, 20… min (até 6 h); no máximo 20 por rodada (lib/clientes/sync-recente-fila).
+      const chaveOS = (o: { cod_os: number }) => `${acc.name}:os:${o.cod_os}`;
+      for (const os of escolherDaVez(osSemNF || [], chaveOS)) {
+        let achou = false;
         try {
           const st: any = await omieCall("/servicos/os/", "StatusOS", { nCodOS: os.cod_os }, acc);
           const nfseList: any[] = st?.ListaRpsNfse || [];
@@ -222,11 +236,11 @@ export async function GET(req: Request) {
               if (r.num_nf) upd.num_nf = r.num_nf;
               if (r.link_nf) upd.link_nf = r.link_nf;
               if (Object.keys(upd).length) await supabase.from("portal_nt_clientes_os").update(upd).eq("num_os", os.num_os).eq("empresa", acc.name);
-              if (r.link_nf) nfs++;
+              if (r.link_nf) { nfs++; achou = true; }
             }
           }
-          await new Promise(r => setTimeout(r, 300));
         } catch {}
+        registrarConsulta(chaveOS(os), achou);
       }
 
       // PV (peças): mesma coisa. Inclui os que a pasta ainda não marcou como faturado mas
@@ -236,9 +250,11 @@ export async function GET(req: Request) {
         .eq("cancelado", false)
         .or("faturado.eq.true,etapa.ilike.*fatur*")
         .or("link_nf.is.null,link_nf.eq.")
-        .order("updated_at", { ascending: false }).limit(80);
+        .order("updated_at", { ascending: false }).limit(300);
 
-      for (const pv of pvSemNF || []) {
+      const chavePV = (p: { cod_pedido: number }) => `${acc.name}:pv:${p.cod_pedido}`;
+      for (const pv of escolherDaVez(pvSemNF || [], chavePV)) {
+        let achou = false;
         try {
           const st: any = await omieCall("/produtos/pedido/", "StatusPedido", { codigo_pedido: pv.cod_pedido }, acc);
           const nfeList: any[] = st?.ListaNfe || [];
@@ -256,7 +272,8 @@ export async function GET(req: Request) {
               // Achou NF com DANFE → o pedido está faturado de fato (conserta a flag velha).
               if (url) upd.faturado = true;
               await supabase.from("portal_nt_clientes_pv").update(upd).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
-              nfs++;
+              // Só conta (e sai da fila) quando veio a DANFE; nota rejeitada não é nota.
+              if (url) { nfs++; achou = true; }
             }
             // Sem DANFE = nota REJEITADA/DENEGADA pela SEFAZ. Guarda a situação pra pasta
             // avisar e a pessoa anexar a nota manualmente. Update separado (best-effort):
@@ -276,8 +293,8 @@ export async function GET(req: Request) {
                 .eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
             }
           }
-          await new Promise(r => setTimeout(r, 300));
         } catch {}
+        registrarConsulta(chavePV(pv), achou);
       }
 
       resultado[acc.name] = { os_novas: osNovas, pv_novos: pvNovos, nfs };
