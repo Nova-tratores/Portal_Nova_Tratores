@@ -4,7 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useCallback, useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import { CalendarClock, History, Repeat, Plus, RefreshCw, AlertTriangle, Users, Settings2 } from 'lucide-react'
+import { CalendarClock, History, Repeat, Plus, RefreshCw, AlertTriangle, Users, Settings2, GraduationCap } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -14,6 +14,7 @@ import type { PresencaRow } from '@/lib/reunioes/server'
 import FormReuniao from '@/components/reunioes/FormReuniao'
 import FormSerie from '@/components/reunioes/FormSerie'
 import AjudaAba from '@/components/reunioes/AjudaAba'
+import TutorialReunioes, { useTutorialPrimeiraVez } from '@/components/reunioes/TutorialReunioes'
 import { cartao, botao, chamar, EtapaChip, diaDe, horaDe, primeiroNome, chip } from '@/components/reunioes/comum'
 
 type Aba = 'proximas' | 'historico' | 'series'
@@ -25,6 +26,7 @@ function ReunioesInner() {
   const { userProfile } = useAuth()
   const { isAdmin } = usePermissoes(userProfile?.id)
   const isMobile = useIsMobile()
+  const [tutorial, setTutorial] = useTutorialPrimeiraVez()
   const aba = (['proximas', 'historico', 'series'].includes(sp.get('aba') || '') ? sp.get('aba') : 'proximas') as Aba
   const [dados, setDados] = useState<Resp | null>(null)
   const [carregando, setCarregando] = useState(true)
@@ -83,6 +85,7 @@ function ReunioesInner() {
 
   return (
     <div style={{ padding: isMobile ? '14px 12px' : '18px 20px', maxWidth: 1100, margin: '0 auto' }}>
+      {tutorial && <TutorialReunioes onFechar={() => setTutorial(false)} />}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap', marginBottom: 14 }}>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {abas.map((a) => {
@@ -99,6 +102,7 @@ function ReunioesInner() {
           })}
         </div>
         <span style={{ flex: 1 }} />
+        <button onClick={() => setTutorial(true)} title="Rever o passo a passo das Reuniões" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-secondary,#555)', fontSize: 13, fontWeight: 700 }}><GraduationCap size={14} /> Tutorial</button>
         <button onClick={() => carregar()} title="Atualizar" style={{ display: 'flex', padding: 8, borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-surface,#fff)', cursor: 'pointer', color: 'var(--portal-text-muted,#888)' }}><RefreshCw size={14} /></button>
         <button onClick={() => setSerieForm(null)} style={{ ...botao('#4f46e5') }}><Repeat size={14} /> Nova série</button>
         <button onClick={() => setNovaReuniao(null)} style={botao()}><Plus size={15} /> Nova reunião</button>
