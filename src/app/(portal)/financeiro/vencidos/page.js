@@ -66,7 +66,8 @@ export default function VencidosPage() {
       const vencidos = (data || []).filter(c => {
         if (c.grupo_pai_id) return false // card agrupado: quem cobra é o principal
         if (c.status === 'vencido') return true
-        if (c.status === 'aguardando_vencimento' && c.vencimento_boleto) {
+        // PIX/cartão/cheque não vencem: a data é só a combinada (José, 15/10/2026)
+        if (c.status === 'aguardando_vencimento' && c.vencimento_boleto && !/pix|cart[aã]o|cheque/i.test(String(c.forma_pagamento || ''))) {
           const venc = new Date(c.vencimento_boleto); venc.setHours(0, 0, 0, 0)
           return venc < hoje
         }

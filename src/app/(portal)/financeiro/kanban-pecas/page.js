@@ -111,6 +111,7 @@ export default function Kanban() {
     const paraAutoVencido = (data || []).filter(c =>
       !c.grupo_pai_id &&
       c.status === 'aguardando_vencimento' &&
+      !/pix|cart[aã]o|cheque/i.test(String(c.forma_pagamento || '')) && // PIX/cartão/cheque não vencem (José, 15/10/2026)
       c.forma_pagamento !== 'Boleto 30 dias' &&
       c.forma_pagamento !== 'Boleto Parcelado' &&
       c.forma_pagamento !== 'Cartão Parcelado' &&
