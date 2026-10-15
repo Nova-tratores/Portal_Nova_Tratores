@@ -34,13 +34,77 @@ async function dadosDaOSParaRemessa(osId: string, acc: OmieAccount): Promise<{ c
     if (!os) return null;
     const esp = (os.Omie_Espelho && typeof os.Omie_Espelho === "object" ? os.Omie_Espelho : {}) as { info?: { contrato?: string } };
     const contrato = String(esp.info?.contrato || (os.Servico_Interno ? "Interno" : "")).trim();
-    let nCodProj = 0;
-    // projeto: o código é da conta Nova (a OS é sempre da Nova)
-    if (os.Projeto && !/castro/i.test(acc.name)) {
-      try { const { buscarNcodProj } = await import("@/lib/pos/omie"); nCodProj = await buscarNcodProj(String(os.Projeto)); } catch { /* sem projeto */ }
-    }
+    // projeto: cada empresa tem os seus códigos — acha pelo nome na conta da remessa (cria se não existir)
+    const nCodProj = os.Projeto ? await projetoNaConta(String(os.Projeto), acc).catch(() => 0) : 0;
     return { contrato, nCodProj, previsao: String(os.Previsao_Faturamento || "").slice(0, 10) };
   } catch { return null; }
+}
+
+/** Projeto pelo NOME na conta (Nova ou Castro); cria na conta se não existir. 0 = sem projeto. */
+const cacheProjConta = new Map<string, number>();
+export async function projetoNaConta(nome: string, acc: OmieAccount, criar = true): Promise<number> {
+  const alvo = String(nome || "").trim();
+  if (!alvo) return 0;
+  const chave = `${acc.name}|${alvo.toUpperCase()}`;
+  if (cacheProjConta.has(chave)) return cacheProjConta.get(chave)!;
+  const norm = (x: unknown) => String(x || "").trim().toUpperCase().replace(/\s+/g, " ");
+  try {
+    const r = await omieCall<{ cadastro?: Array<{ codigo: number; nome: string; inativo?: string }> }>(
+      "/geral/projetos/", "ListarProjetos", { pagina: 1, registros_por_pagina: 50, apenas_importado_api: "N", nome_projeto: alvo }, acc.key, acc.secret);
+    const lista = (r.cadastro || []).filter((p) => p.inativo !== "S");
+    const achado = lista.find((p) => norm(p.nome) === norm(alvo));
+    if (achado) { cacheProjConta.set(chave, achado.codigo); return achado.codigo; }
+  } catch { /* "não encontrado" cai aqui */ }
+  if (!criar) return 0;
+  try {
+    const r = await omieCall<{ codigo?: number }>("/geral/projetos/", "IncluirProjeto",
+      { codInt: `PRT${Date.now().toString(36)}`.slice(0, 20), nome: alvo.slice(0, 70), inativo: "N" }, acc.key, acc.secret);
+    const cod = Number(r.codigo || 0);
+    if (cod) { cacheProjConta.set(chave, cod); console.log(`[Omie] projeto "${alvo}" criado na ${acc.name} (${cod})`); }
+    return cod;
+  } catch (e) { console.warn(`[Omie] não criei o projeto "${alvo}" na ${acc.name}: ${(e as Error).message}`); return 0; }
+}
+
+/**
+ * Remessa de OS interna espelhando a OS (José, 15/10/2026): contrato, projeto, previsão e
+ * "Nº do pedido do cliente". Confere no Omie e corrige o que estiver diferente (enquanto a
+ * remessa não foi faturada). Devolve o que mudou ou o motivo de não mexer.
+ */
+export async function alinharRemessaDaOS(idPPV: string): Promise<{ mudou: string[]; aviso?: string }> {
+  const cab = await lerCabecalhoPPV(idPPV);
+  if (!cab || String(cab.Tipo_Pedido || "") !== "Remessa") return { mudou: [] };
+  const st = await statusRemessaPPV(idPPV, (cab.omie_empresa as string) || null);
+  if (!st) return { mudou: [], aviso: `${idPPV}: remessa não achada no Omie.` };
+  if (st.st.faturada === "S" || st.st.cancelada === "S") return { mudou: [] };
+  const acc = st.acc;
+  const detalhes = await buscarPPVPorId(idPPV);
+  const osId = String(detalhes?.osId || cab.Id_Os || "");
+  const daOS = await dadosDaOSParaRemessa(osId, acc);
+  if (!daOS) return { mudou: [] };
+  const numOS = osId ? (await numeroOSOmieDe(osId)) || "" : "";
+  const rc = await omieCall<{ cabec?: { nCodRem?: number; dPrevisao?: string }; infAdic?: { cNumCtr?: string; nCodProj?: number; cPedido?: string } }>(
+    "/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, acc.key, acc.secret);
+  const nCodRem = Number(rc.cabec?.nCodRem || 0);
+  if (!nCodRem) return { mudou: [], aviso: `${idPPV}: não li a remessa no Omie.` };
+  const esperado = {
+    cNumCtr: daOS.contrato.slice(0, 20),
+    nCodProj: daOS.nCodProj,
+    cPedido: numOS ? refOSNoPedido(numOS, acc.name) : "",
+    dPrevisao: daOS.previsao ? isoParaBR(daOS.previsao) : "",
+  };
+  const mudou: string[] = [];
+  const infAdic: Record<string, unknown> = {};
+  const cabec: Record<string, unknown> = { nCodRem };
+  if (esperado.cNumCtr && String(rc.infAdic?.cNumCtr || "") !== esperado.cNumCtr) { infAdic.cNumCtr = esperado.cNumCtr; mudou.push(`contrato "${esperado.cNumCtr}"`); }
+  if (esperado.nCodProj && Number(rc.infAdic?.nCodProj || 0) !== esperado.nCodProj) { infAdic.nCodProj = esperado.nCodProj; mudou.push("projeto"); }
+  if (esperado.cPedido && String(rc.infAdic?.cPedido || "") !== esperado.cPedido) { infAdic.cPedido = esperado.cPedido; mudou.push(`nº do pedido do cliente "${esperado.cPedido}"`); }
+  if (esperado.dPrevisao && String(rc.cabec?.dPrevisao || "") !== esperado.dPrevisao) { cabec.dPrevisao = esperado.dPrevisao; mudou.push(`previsão ${esperado.dPrevisao}`); }
+  if (!mudou.length) return { mudou };
+  try {
+    await omieCall("/produtos/remessa/", "AlterarRemessa", { cabec, ...(Object.keys(infAdic).length ? { infAdic } : {}) }, acc.key, acc.secret);
+  } catch (e) { return { mudou: [], aviso: `${idPPV}: o Omie não aceitou ajustar a remessa (${(e as Error).message}).` }; }
+  await registrarLog(idPPV, `Remessa ajustada igual à OS: ${mudou.join(", ")}.`).catch(() => {});
+  return { mudou };
 }
 
 /** Remessa no Omie: situação + NF-e (StatusRemessa pelo código de integração RM-<PPV>). */

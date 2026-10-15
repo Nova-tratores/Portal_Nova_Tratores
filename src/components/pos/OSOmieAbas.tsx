@@ -3,6 +3,7 @@
 // grade (+ janela "Item da Ordem de Serviço" no duplo clique), Departamentos,
 // Informações Adicionais, Parcelas (igual ao PPV), E-mail para o Cliente e a
 // janela de Informações do cliente. Estado em OmieEspelho (lib/pos/omie-espelho).
+import { EMAIL_INTERNO } from "@/lib/pos/omie-espelho";
 import EditarClienteOmie from "@/components/clientes/EditarClienteOmie";
 import { alertaCepGeral } from "@/lib/clientes/novo-cliente";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -575,6 +576,16 @@ export function SeletorCondicao({ esp, setEsp, podeEditar, listas }: { esp: Omie
 export function AbaEmail({ esp, setEsp, interna, podeEditar, emailCliente = "" }: { esp: OmieEspelho; setEsp: (f: (e: OmieEspelho) => OmieEspelho) => void; interna: boolean; podeEditar: boolean; emailCliente?: string }) {
   const m = esp.email;
   const set = (p: Partial<OmieEspelho["email"]>) => setEsp((x) => ({ ...x, email: { ...x.email, ...p } }));
+  // OS interna: nada vai para o cliente — recibo só para o pós-vendas (José, 15/10/2026)
+  if (interna) return (
+    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "14px 16px", borderRadius: 10, background: "#f5f3ff", border: "1px solid #ddd6fe", color: "#4c1d95" }}>
+      <i className="fas fa-envelope-circle-check" style={{ fontSize: 18, marginTop: 2 }} />
+      <div style={{ fontSize: 13, lineHeight: 1.55 }}>
+        <b>OS interna — nenhum e-mail vai para o cliente.</b><br />
+        O recibo de prestação de serviço vai só para <b>{EMAIL_INTERNO}</b>. O link da NFS-e fica desligado (não há NFS-e).
+      </div>
+    </div>
+  );
   return (
     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24, paddingTop: 6 }}>
       <EstilosOmie />

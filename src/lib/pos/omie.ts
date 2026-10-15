@@ -11,7 +11,7 @@ const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
 // Base do portal, pra montar os links de acesso que vão nas observações do Omie.
 import { PORTAL_BASE } from "@/lib/portal-url";
 import { omie } from "@/lib/omie/porta";
-import { dadosAdicionaisAuto, CONTA_INTERNO } from "@/lib/pos/omie-espelho";
+import { dadosAdicionaisAuto, CONTA_INTERNO, EMAIL_INTERNO } from "@/lib/pos/omie-espelho";
 
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
@@ -570,7 +570,8 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
             cEnvLink: 'N',
             // interna: "Enviar um Recibo de Prestação de Serviço (ao invés da NFS-e)"
             ...(interna ? { cEnvRecibo: 'S' } : {}),
-            cEnviarPara: emailCliente,
+            // interna: nada para o cliente — o recibo vai para o pós-vendas
+            cEnviarPara: interna ? EMAIL_INTERNO : emailCliente,
           },
     };
 

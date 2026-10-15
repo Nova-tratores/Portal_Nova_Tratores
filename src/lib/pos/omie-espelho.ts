@@ -6,6 +6,8 @@
 // Regras puras (client e server).
 
 export const CONTA_INTERNO = 2041409931;
+/** OS interna: nada vai para o cliente — o recibo vai para o pós-vendas (como nas internas feitas no Omie) */
+export const EMAIL_INTERNO = "posvendas.novatratores@gmail.com";
 export const CONTA_PADRAO = 1969919780; // Banco do Brasil
 export const DEPTO_SERVICOS_TRATORES = "2061368211";
 export const DEPTO_GARANTIAS = "2061368571";
@@ -68,7 +70,7 @@ export function espelhoPadrao(opts: { interna?: boolean; garantia?: boolean; ema
     condicao: "A30",
     condicaoNome: "Para 30 dias (C)",
     parcelas: [],
-    email: { para: opts.email || "", recibo: !!opts.interna, link: false },
+    email: { para: opts.interna ? EMAIL_INTERNO : (opts.email || ""), recibo: !!opts.interna, link: false },
     extras: [],
     naoCobrar: { hr: false, km: false },
   };
@@ -95,7 +97,7 @@ export function aplicarInterna(e: OmieEspelho, interna: boolean): OmieEspelho {
   return {
     ...e,
     info: { ...e.info, conta: interna ? CONTA_INTERNO : (e.info.conta === CONTA_INTERNO ? CONTA_PADRAO : e.info.conta), contrato: interna ? (e.info.contrato || "Interno") : "" },
-    email: { ...e.email, recibo: interna },
+    email: { ...e.email, recibo: interna, para: interna ? EMAIL_INTERNO : (e.email.para === EMAIL_INTERNO ? "" : e.email.para) },
   };
 }
 

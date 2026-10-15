@@ -21,7 +21,7 @@ import { resolverNfseDaOS } from '@/lib/clientes/nfse-omie';
 import { hojeSaoPaulo, parcelasDoPagamento } from '@/lib/pagamento/parcelas';
 import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
 import { alertaCepGeral } from '@/lib/clientes/novo-cliente';
-import { CONTA_INTERNO } from './omie-espelho';
+import { CONTA_INTERNO, EMAIL_INTERNO } from './omie-espelho';
 import {
   bloqueioFaturar, conferirIdentidade, estadoNoOmie, situacaoNfse, statusPendente, travaAtiva,
   chaveNum, motivoPPVFora, valorMudou, valorLiquido, TRAVA_MINUTOS,
@@ -603,18 +603,31 @@ export async function faturarOSComRecibo(id: string, entrada: { totalConfirmado:
 
   // 2b) conta INTERNO, contrato e "Enviar recibo em vez da NFS-e" (José, 15/10/2026)
   {
-    const cab = os1 as OSNoOmie & { InformacoesAdicionais?: { nCodCC?: number; cNumContrato?: string }; Email?: { cEnvRecibo?: string } };
+    const cab = os1 as OSNoOmie & { InformacoesAdicionais?: { nCodCC?: number; cNumContrato?: string }; Email?: { cEnvRecibo?: string; cEnviarPara?: string } };
     const precisa = Number(cab.InformacoesAdicionais?.nCodCC || 0) !== CONTA_INTERNO
       || String(cab.InformacoesAdicionais?.cNumContrato || '').trim() !== contrato.slice(0, 20)
-      || cab.Email?.cEnvRecibo !== 'S';
+      || cab.Email?.cEnvRecibo !== 'S'
+      || String(cab.Email?.cEnviarPara || '').trim().toLowerCase() !== EMAIL_INTERNO;
     if (precisa) {
       try {
         await omie('/servicos/os/', 'AlterarOS', {
           Cabecalho: { nCodOS },
           InformacoesAdicionais: { nCodCC: CONTA_INTERNO, cNumContrato: contrato.slice(0, 20) },
-          Email: { cEnvRecibo: 'S', cEnvBoleto: 'N', cEnvLink: 'N' },
+          // nada para o cliente: o recibo vai para o pós-vendas
+          Email: { cEnvRecibo: 'S', cEnvBoleto: 'N', cEnvLink: 'N', cEnviarPara: EMAIL_INTERNO },
         }, { escrita: true });
       } catch (e) { return falhar(`O Omie recusou ajustar conta INTERNO / contrato / recibo: ${e instanceof Error ? e.message : e}`, 'cabecalho'); }
+    }
+  }
+
+  // 2c) remessas das peças iguais à OS (contrato, projeto, previsão, nº do pedido do cliente)
+  {
+    const { alinharRemessaDaOS } = await import('@/lib/ppv/omie');
+    for (const p of await ppvsDaOS(os).catch(() => [] as PPVDaOS[])) {
+      if (!/remessa/i.test(p.tipo) || /cancel/i.test(String(p.status || ''))) continue;
+      const r = await alinharRemessaDaOS(p.id).catch((e) => ({ mudou: [] as string[], aviso: `${p.id}: ${e instanceof Error ? e.message : e}` }));
+      if (r.mudou.length) await logOS(id, `Remessa ${p.id} ajustada igual à OS: ${r.mudou.join(', ')}.`, userName, String(os.Status || ''));
+      if (r.aviso) await logOS(id, `Remessa: ${r.aviso}`, userName, String(os.Status || ''));
     }
   }
 

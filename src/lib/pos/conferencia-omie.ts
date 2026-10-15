@@ -2,6 +2,7 @@
 // conferirOS = só leitura (ConsultarOS). alinharOS = deixa o Omie igual ao portal
 // (AlterarOS: cabeçalho/infos/departamentos/e-mail + itens por nIdItem com
 // cAcaoItem A/I/E) e confere de novo.
+import { EMAIL_INTERNO } from "@/lib/pos/omie-espelho";
 import { pedidoClienteDaOS } from "@/lib/pos/pedido-cliente";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS } from "@/lib/pos/constants";
@@ -132,6 +133,11 @@ export async function conferirOS(idOs: string): Promise<ResultadoConferencia & {
   if (os.Servico_Interno) {
     // OS interna: TODOS os serviços com "não gerar conta a receber" — é o que faz sair recibo
     const cobrando = (dados.ServicosPrestados || []).filter((s) => s.cNaoGerarFinanceiro !== "S").length;
+    const em = String(dados.Email?.cEnviarPara || "").trim().toLowerCase();
+    if (em !== EMAIL_INTERNO) div.push({
+      doc: idOs, campo: "emailInterna", rotulo: "E-mail (OS interna)", portal: EMAIL_INTERNO, omie: em || "—", ajustavel: true,
+      explicacao: "OS interna não manda nada para o cliente: o recibo vai só para o pós-vendas. Ao atualizar, o e-mail do cliente sai.",
+    });
     if (cobrando) div.push({
       doc: idOs, campo: "naoGerarFinanceiro", rotulo: "Serviços que geram conta a receber", portal: "nenhum (OS interna)", omie: `${cobrando} serviço(s)`, ajustavel: true,
       explicacao: "OS interna não é cobrada: todos os serviços precisam estar com \"não gerar conta a receber\" (é isso que faz o Omie emitir RECIBO em vez de NFS-e). Ao atualizar, o portal marca todos.",
@@ -146,7 +152,7 @@ export async function conferirOS(idOs: string): Promise<ResultadoConferencia & {
     const omieDep: Record<string, number> = {};
     for (const d of dados.Departamentos || []) omieDep[String(d.cCodDepto)] = n(d.nPerc);
     add(compararDepartamentos(idOs, esp.deptos, omieDep, (c) => c));
-    add(compararCampo(idOs, "email", "E-mail do cliente", esp.email.para, dados.Email?.cEnviarPara));
+    if (!os.Servico_Interno) add(compararCampo(idOs, "email", "E-mail do cliente", esp.email.para, dados.Email?.cEnviarPara));
     add(compararCampo(idOs, "recibo", "Recibo em vez de NFS-e", esp.email.recibo ? "S" : "N", dados.Email?.cEnvRecibo || "N",
       { exibirPortal: esp.email.recibo ? "sim" : "não", exibirOmie: dados.Email?.cEnvRecibo === "S" ? "sim" : "não", vazioIgnora: false }));
   }
@@ -209,8 +215,9 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
     };
     const deps = Object.entries(esp.deptos).filter(([, v]) => n(v) > 0);
     if (deps.length) param.Departamentos = deps.map(([c, v]) => ({ cCodDepto: c, nPerc: n(v), nValor: Math.round(total * n(v)) / 100, nValorFixo: "N" }));
-    param.Email = { cEnviarPara: esp.email.para || undefined, cEnvRecibo: esp.email.recibo ? "S" : "N" };
+    param.Email = interna ? { cEnviarPara: EMAIL_INTERNO, cEnvRecibo: "S", cEnvLink: "N", cEnvBoleto: "N" } : { cEnviarPara: esp.email.para || undefined, cEnvRecibo: esp.email.recibo ? "S" : "N" };
   } else if (pedCli) param.InformacoesAdicionais = { cNumPedido: pedCli };
+  if (interna && !esp) param.Email = { cEnviarPara: EMAIL_INTERNO, cEnvRecibo: "S", cEnvLink: "N", cEnvBoleto: "N" };
   try {
     await omie("AlterarOS", param);
     if (textos.length) await omie("AlterarOS", { Cabecalho: { nCodOS }, ServicosPrestados: textos });
