@@ -21,6 +21,7 @@ import { resolverNfseDaOS } from '@/lib/clientes/nfse-omie';
 import { hojeSaoPaulo, parcelasDoPagamento } from '@/lib/pagamento/parcelas';
 import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
 import { alertaCepGeral } from '@/lib/clientes/novo-cliente';
+import { CONTA_INTERNO } from './omie-espelho';
 import {
   bloqueioFaturar, conferirIdentidade, estadoNoOmie, situacaoNfse, statusPendente, travaAtiva,
   chaveNum, motivoPPVFora, valorMudou, valorLiquido, TRAVA_MINUTOS,
@@ -303,6 +304,9 @@ export interface EstadoFaturamentoOS {
   formaPagamento: string | null;
   nfseNumero: string | null;
   nfseLink: string | null;
+  /** OS interna: fatura com recibo (sem NFS-e) */
+  interna?: boolean;
+  reciboNumero?: string | null;
   pecas: PecaFaturada[];
   /** pedidos de peças da OS que contam para concluir (no Omie, não remessa, não cancelados) */
   pedidos?: Array<{ id: string; pedidoOmie: string; faturado: boolean; nf?: string | null; ncCancelada?: { nf: string | null; pedido: string; motivo: string } | null }>;
@@ -328,6 +332,7 @@ export async function estadoFaturamento(id: string, auth: Autenticado): Promise<
     status: os.faturamento_status, erro: os.faturamento_erro,
     faturadoEm: os.faturado_omie_em, faturadoPor: os.faturado_por, formaPagamento: os.forma_pagamento,
     nfseNumero: os.nfse_numero, nfseLink: os.nfse_link,
+    interna: !!os.Servico_Interno, reciboNumero: await reciboDaOS(id),
     pecas: Array.isArray(os.faturamento_pecas) ? os.faturamento_pecas : [],
     valor: Number(String(os.Valor_Total ?? 0).replace(',', '.')) || 0,
     anteriores: await (async () => {
@@ -415,6 +420,7 @@ export async function simularFaturamentoOS(id: string, auth: Autenticado): Promi
   const garantia = await ehGarantia(os);
   const bloq = bloqueioFaturar(paraRegras(os, garantia));
   if (bloq) return { ok: false, erro: bloq };
+  if (os.Servico_Interno) return { ok: false, erro: 'OS interna fatura com recibo (sem NFS-e).' };
 
   let r: { nCodOS: number; dados: OSConsultada };
   try { r = await resolverOSNoOmie(os); } catch (e) { return { ok: false, erro: e instanceof Error ? e.message : String(e) }; }
@@ -487,6 +493,169 @@ async function cepDoCliente(nCodCli: number): Promise<SimulacaoFaturamentoOS['cl
   } catch { return undefined; }
 }
 
+// ---------------------------------------------------------------- OS interna: recibo
+// No Omie a OS sai com RECIBO (e não NFS-e) quando TODOS os serviços estão com
+// "não gerar conta a receber" (cNaoGerarFinanceiro = S). Conferido em 15/10/2026 nas
+// 163 OS faturadas mais recentes: 59 recibos, todos com S; 99 NFS-e, todas com N.
+// O FaturarOS não tem opção "recibo" — quem decide é o item.
+
+/** Nº do Contrato de Venda da OS (aba Informações adicionais) — obrigatório na interna */
+async function contratoDaOS(id: string): Promise<string> {
+  const { data } = await supabase.from(TBL_OS).select('Omie_Espelho').eq('Id_Ordem', id).limit(1);
+  const esp = (data?.[0] as { Omie_Espelho?: { info?: { contrato?: string } } } | undefined)?.Omie_Espelho;
+  return String(esp?.info?.contrato || '').trim();
+}
+
+/** nº do recibo gravado (coluna de sql/pos-recibo-interna.sql; sem ela, null) */
+async function reciboDaOS(id: string): Promise<string | null> {
+  const { data, error } = await supabase.from(TBL_OS).select('recibo_numero').eq('Id_Ordem', id).limit(1);
+  if (error) return null;
+  return ((data?.[0] as { recibo_numero?: string | null } | undefined)?.recibo_numero) || null;
+}
+
+/** Prévia da janela "Faturar com recibo": o que está no Omie agora. */
+export async function previaRecibo(id: string): Promise<{ ok: boolean; erro?: string; numeroOmie?: string; cliente?: string; total?: number; contrato?: string; servicos?: Array<{ descricao: string; total: number; naoGeraFinanceiro: boolean }>; remessas?: Array<{ id: string; pedidoOmie: string; valor: number }> }> {
+  const os = await lerOS(id);
+  if (!os) return { ok: false, erro: 'OS não encontrada.' };
+  if (!os.Servico_Interno) return { ok: false, erro: 'Só OS interna fatura com recibo.' };
+  const bloq = bloqueioFaturar(paraRegras(os, await ehGarantia(os)));
+  if (bloq) return { ok: false, erro: bloq };
+  let r: { nCodOS: number; dados: OSConsultada };
+  try { r = await resolverOSNoOmie(os); } catch (e) { return { ok: false, erro: e instanceof Error ? e.message : String(e) }; }
+  const est = estadoNoOmie(r.dados.Cabecalho, r.dados.InfoCadastro);
+  if (est !== 'aberta') { void reconciliarFaturamentoOS(id).catch(() => {}); return { ok: false, erro: est === 'cancelada' ? 'A OS está cancelada no Omie.' : 'A OS já está faturada no Omie. O portal vai atualizar a situação sozinho.' }; }
+  const ppvs = await ppvsDaOS(os).catch(() => [] as PPVDaOS[]);
+  const contrato = await contratoDaOS(id);
+  if (!contrato) return { ok: false, erro: 'OS interna: escolha o "Nº do Contrato de Venda" (código interno) na aba Informações adicionais e salve antes de faturar.' };
+  return {
+    ok: true, contrato, numeroOmie: chaveNum(os.Ordem_Omie), cliente: String(os.Os_Cliente || ''), total: Number(r.dados.Cabecalho?.nValorTotal || 0),
+    servicos: (r.dados.ServicosPrestados || []).map((s) => {
+      const it = s as Record<string, unknown>;
+      const q = Number(it.nQtde || 0), u = Number(it.nValUnit || 0);
+      return { descricao: String(it.cCodigo || '') === 'sol.aber.os' ? 'Solicitação de serviço' : (String(it.cDescServ || '').split(/\n|\|/)[0].slice(0, 90) || 'Serviço'), total: Math.round(q * u * 100) / 100, naoGeraFinanceiro: it.cNaoGerarFinanceiro === 'S' };
+    }),
+    remessas: ppvs.filter((p) => !/cancel/i.test(String(p.status || ''))).map((p) => ({ id: p.id, pedidoOmie: chaveNum(p.pedidoOmie), valor: Number(p.valor) || 0 })),
+  };
+}
+
+export interface ResultadoRecibo { ok: boolean; status: number; tipo: 'faturada' | 'erro' | 'desconhecido' | 'em_andamento' | 'nfse'; mensagem?: string; recibo?: string | null; concluida?: boolean }
+
+export async function faturarOSComRecibo(id: string, entrada: { totalConfirmado: number }, auth: Autenticado): Promise<ResultadoRecibo> {
+  const userName = auth.email || 'Sistema';
+  const os = await lerOS(id);
+  if (!os) return { ok: false, status: 404, tipo: 'erro', mensagem: 'OS não encontrada.' };
+  if (!os.Servico_Interno) return { ok: false, status: 400, tipo: 'erro', mensagem: 'Só OS interna fatura com recibo.' };
+  const contrato = await contratoDaOS(id);
+  if (!contrato) return { ok: false, status: 400, tipo: 'erro', mensagem: 'OS interna: escolha o "Nº do Contrato de Venda" (código interno) antes de faturar.' };
+  const garantia = await ehGarantia(os);
+  const bloq = bloqueioFaturar(paraRegras(os, garantia));
+  if (bloq) return { ok: false, status: 409, tipo: 'erro', mensagem: bloq };
+
+  // TRAVA (mesma do faturamento com nota)
+  const limite = new Date(Date.now() - TRAVA_MINUTOS * 60_000).toISOString();
+  const { data: travou, error: errTrava } = await supabase.from(TBL_OS)
+    .update({ faturando_desde: new Date().toISOString(), faturamento_status: 'faturando', faturamento_erro: null, faturado_por: userName, faturamento_pecas: null })
+    .eq('Id_Ordem', id).is('faturado_omie_em', null)
+    .or(`faturando_desde.is.null,faturando_desde.lt.${limite}`).select('Id_Ordem');
+  if (ehColunaFaltando(errTrava)) throw new MigracaoFaltando();
+  if (errTrava) throw new Error(errTrava.message);
+  if (!travou?.length) return { ok: false, status: 409, tipo: 'em_andamento', mensagem: 'Já existe um faturamento desta OS em andamento (ou ela acabou de ser faturada). Atualize a tela.' };
+  const falhar = async (m: string, etapa: string) => {
+    await gravarOS(id, { faturando_desde: null, faturamento_status: 'erro', faturamento_erro: m }).catch(() => {});
+    await auditar(id, userName, auth.userId, 'faturar_erro', { etapa, erro: m, recibo: true });
+    await logOS(id, `Faturamento com recibo NÃO realizado: ${m}`, userName, String(os.Status || ''));
+    return { ok: false, status: 400, tipo: 'erro' as const, mensagem: m };
+  };
+
+  let nCodOS: number;
+  try { nCodOS = (await resolverOSNoOmie(os)).nCodOS; } catch (e) { return falhar(e instanceof Error ? e.message : String(e), 'identidade'); }
+
+  // 1) estado e valor
+  let os1: OSNoOmie;
+  try { os1 = await omie<OSNoOmie>('/servicos/os/', 'ConsultarOS', { nCodOS }); } catch (e) { return falhar(`Não consegui consultar a OS no Omie: ${e instanceof Error ? e.message : e}`, 'consultar'); }
+  const est = estadoNoOmie(os1.Cabecalho, os1.InfoCadastro);
+  if (est !== 'aberta') {
+    await gravarOS(id, { faturando_desde: null, faturamento_status: null }).catch(() => {});
+    void reconciliarFaturamentoOS(id, { forcar: true }).catch(() => {});
+    return { ok: false, status: 409, tipo: 'erro', mensagem: est === 'cancelada' ? 'A OS está cancelada no Omie.' : 'A OS já está faturada (ou faturando) no Omie. O portal vai atualizar a situação sozinho.' };
+  }
+  const total = Number(os1.Cabecalho?.nValorTotal || 0);
+  if (valorMudou(total, Number(entrada.totalConfirmado) || 0)) return falhar(`O valor da OS no Omie mudou (agora R$ ${total.toFixed(2)}). Abra a janela de novo.`, 'valor');
+
+  // 2) todos os serviços com "não gerar conta a receber" = S (é isso que faz sair RECIBO)
+  const itens = (os1.ServicosPrestados || []) as Array<ItemServicoOmie & { cNaoGerarFinanceiro?: string }>;
+  if (!itens.length) return falhar('A OS não tem serviços no Omie.', 'itens');
+  const marcar = itens.filter((i) => i.cNaoGerarFinanceiro !== 'S');
+  if (marcar.length) {
+    if (marcar.some((i) => !i.nIdItem)) return falhar('O Omie não devolveu o código de algum serviço — não dá para marcar "não gerar conta a receber".', 'itens');
+    try {
+      await omie('/servicos/os/', 'AlterarOS', {
+        Cabecalho: { nCodOS },
+        ServicosPrestados: marcar.map((i) => ({ ...(i.nSeqItem ? { nSeqItem: i.nSeqItem } : {}), nIdItem: i.nIdItem, cAcaoItem: 'A', cNaoGerarFinanceiro: 'S' })),
+      }, { escrita: true });
+    } catch (e) { return falhar(`O Omie recusou marcar os serviços como "não gerar conta a receber": ${e instanceof Error ? e.message : e}`, 'marcar'); }
+    let os2: OSNoOmie;
+    try { os2 = await omie<OSNoOmie>('/servicos/os/', 'ConsultarOS', { nCodOS }); } catch (e) { return falhar(`Não consegui conferir os serviços no Omie: ${e instanceof Error ? e.message : e}`, 'conferir'); }
+    const ainda = ((os2.ServicosPrestados || []) as Array<{ cNaoGerarFinanceiro?: string }>).filter((i) => i.cNaoGerarFinanceiro !== 'S').length;
+    if (ainda) return falhar(`${ainda} serviço(s) continuam gerando conta a receber no Omie — sairia NFS-e em vez de recibo. Nada foi faturado.`, 'conferir');
+    if (valorMudou(Number(os2.Cabecalho?.nValorTotal || 0), total)) return falhar('O valor da OS mudou ao marcar os serviços. Nada foi faturado; confira no Omie.', 'conferir');
+  }
+
+  // 2b) conta INTERNO, contrato e "Enviar recibo em vez da NFS-e" (José, 15/10/2026)
+  {
+    const cab = os1 as OSNoOmie & { InformacoesAdicionais?: { nCodCC?: number; cNumContrato?: string }; Email?: { cEnvRecibo?: string } };
+    const precisa = Number(cab.InformacoesAdicionais?.nCodCC || 0) !== CONTA_INTERNO
+      || String(cab.InformacoesAdicionais?.cNumContrato || '').trim() !== contrato.slice(0, 20)
+      || cab.Email?.cEnvRecibo !== 'S';
+    if (precisa) {
+      try {
+        await omie('/servicos/os/', 'AlterarOS', {
+          Cabecalho: { nCodOS },
+          InformacoesAdicionais: { nCodCC: CONTA_INTERNO, cNumContrato: contrato.slice(0, 20) },
+          Email: { cEnvRecibo: 'S', cEnvBoleto: 'N', cEnvLink: 'N' },
+        }, { escrita: true });
+      } catch (e) { return falhar(`O Omie recusou ajustar conta INTERNO / contrato / recibo: ${e instanceof Error ? e.message : e}`, 'cabecalho'); }
+    }
+  }
+
+  // 3) ValidarOS + FaturarOS (uma chamada, sem repetir)
+  try { await omie('/servicos/osp/', 'ValidarOS', { nCodOS }); cacheValidar.delete(nCodOS); }
+  catch (e) { return falhar(`O Omie não validou a OS para faturar: ${e instanceof Error ? e.message : e}`, 'validar'); }
+  let resposta = '';
+  try {
+    const r = await omie<{ cCodStatus?: string; cDescStatus?: string }>('/servicos/osp/', 'FaturarOS', { nCodOS }, { escrita: true, timeoutMs: 90_000 });
+    resposta = `${r?.cCodStatus ?? ''} ${r?.cDescStatus ?? ''}`.trim();
+  } catch (e) {
+    if (e instanceof ErroOmie) return falhar(`O Omie recusou o faturamento: ${e.message}`, 'faturar');
+    const m = `Sem resposta do Omie ao faturar (${e instanceof Error ? e.message : e}). O recibo PODE ter sido gerado — o portal confere antes de qualquer nova tentativa.`;
+    await gravarOS(id, { faturamento_status: 'desconhecido', faturamento_erro: m }).catch(() => {});
+    try { await reconciliarFaturamentoOS(id, { forcar: true }); } catch { /* agendador */ }
+    return { ok: false, status: 202, tipo: 'desconhecido', mensagem: m };
+  }
+
+  // 4) recibo (o nº aparece no StatusOS; se por algum motivo saiu NFS-e, segue o caminho da nota)
+  let recibo: string | null = null;
+  let virouNfse = false;
+  for (let i = 0; i < 4 && !recibo && !virouNfse; i++) {
+    await new Promise((r) => setTimeout(r, i ? 3000 : 1500));
+    try {
+      const st = await omie<{ cNumRecibo?: string; cFaturada?: string; ListaRpsNfse?: unknown[] }>('/servicos/os/', 'StatusOS', { nCodOS });
+      if (Number(st.cNumRecibo || 0) > 0) recibo = String(Number(st.cNumRecibo));
+      else if ((st.ListaRpsNfse || []).length) virouNfse = true;
+    } catch { /* tenta de novo */ }
+  }
+
+  const { concluida } = await posFaturamento(id, { userName, userId: auth.userId, nCodOS, forma: null, ppvIds: [], respostaCrua: resposta, porFora: false });
+  if (virouNfse) {
+    await logOS(id, 'ATENÇÃO: a OS interna foi faturada mas o Omie gerou NFS-e em vez de recibo. Confira no Omie.', userName, String(os.Status || ''));
+    return { ok: true, status: 200, tipo: 'nfse', mensagem: 'O Omie faturou, mas gerou NFS-e em vez de recibo. Confira no Omie.', concluida };
+  }
+  await gravarOS(id, { faturamento_status: 'recibo_emitido', faturamento_erro: null }).catch(() => {});
+  if (recibo) await supabase.from(TBL_OS).update({ recibo_numero: recibo }).eq('Id_Ordem', id).then(() => {}, () => {});
+  await logOS(id, `OS interna faturada com recibo${recibo ? ` nº ${recibo}` : ''} (sem NFS-e, sem conta a receber).`, userName, String(os.Status || ''));
+  return { ok: true, status: 200, tipo: 'faturada', recibo, concluida, mensagem: recibo ? `Recibo nº ${recibo} gerado no Omie.` : 'Faturada. O nº do recibo aparece no Omie em instantes.' };
+}
+
 // ---------------------------------------------------------------- reenviar a NFS-e
 /**
  * NFS-e rejeitada (ex.: E0240 CEP do tomador): depois de corrigir o cadastro, manda
@@ -533,6 +702,7 @@ export async function faturarOSNoOmie(
   const garantia = await ehGarantia(os);
   const bloq = bloqueioFaturar(paraRegras(os, garantia));
   if (bloq) return { ok: false, status: 409, tipo: 'erro', mensagem: bloq };
+  if (os.Servico_Interno) return { ok: false, status: 400, tipo: 'erro', mensagem: 'OS interna fatura com recibo — use "Faturar com recibo".' };
 
   const forma = normalizarPagamento(entrada.forma);
   if (!forma) return { ok: false, status: 400, tipo: 'erro', mensagem: 'Escolha a forma de pagamento.' };
@@ -737,7 +907,13 @@ function dataOmieISO(d: string | null | undefined): string | null {
 /** Lê a NFS-e no StatusOS, grava situação/nº e o PDF (se já existir) na OS e na pasta do cliente. */
 async function atualizarNfse(id: string, nCodOS: number): Promise<StatusFaturamento> {
   const antes = await lerOS(id).catch(() => null);
-  const st = await omie<{ ListaRpsNfse?: Array<RpsNfse & { danfe?: string; cUrlNfse?: string }> }>('/servicos/os/', 'StatusOS', { nCodOS, lMsg: true });
+  const st = await omie<{ cNumRecibo?: string; ListaRpsNfse?: Array<RpsNfse & { danfe?: string; cUrlNfse?: string }> }>('/servicos/os/', 'StatusOS', { nCodOS, lMsg: true });
+  // faturada com RECIBO (OS interna): não há NFS-e para esperar
+  if (!(st?.ListaRpsNfse || []).length && Number(st?.cNumRecibo || 0) > 0) {
+    await gravarOS(id, { faturamento_status: 'recibo_emitido', faturamento_erro: null });
+    await supabase.from(TBL_OS).update({ recibo_numero: String(Number(st.cNumRecibo)) }).eq('Id_Ordem', id).then(() => {}, () => {});
+    return 'recibo_emitido';
+  }
   const sit = situacaoNfse(st?.ListaRpsNfse);
   const upd: Record<string, unknown> = { faturamento_status: sit.status, faturamento_erro: sit.mensagem };
   if (sit.numero) upd.nfse_numero = sit.numero;

@@ -4,7 +4,9 @@
 
 export type StatusFaturamento =
   | 'faturando' | 'desconhecido' | 'erro'
-  | 'nfse_aguardando' | 'nfse_autorizada' | 'nfse_rejeitada' | 'nfse_cancelada';
+  | 'nfse_aguardando' | 'nfse_autorizada' | 'nfse_rejeitada' | 'nfse_cancelada'
+  /** OS interna: faturada com RECIBO no Omie (sem NFS-e, sem conta a receber) */
+  | 'recibo_emitido';
 
 /** A trava de faturamento vale 10 min (lease) — depois disso a reconciliação decide. */
 export const TRAVA_MINUTOS = 10;
@@ -88,7 +90,6 @@ export function bloqueioFaturar(os: OSParaFaturar, agora: Date = new Date()): st
   if (!os.ordemOmie) return 'A OS ainda não foi enviada ao Omie.';
   if (os.faturadoEm) return 'Esta OS já foi faturada.';
   if (/cancel/i.test(os.status)) return 'OS cancelada não é faturada.';
-  if (os.servicoInterno) return 'OS interna não emite nota fiscal.';
   // Garantia fatura sim (José, 13/10/2026) — mas só com a montadora escolhida:
   // a OS vai ao Omie com os códigos de garantia e o contrato da montadora.
   if (os.ehGarantia && os.garantiaSemMontadora) return 'OS de garantia: escolha a montadora em Garantias antes de faturar (a nota sai no contrato dela).';
@@ -159,6 +160,7 @@ export function rotuloStatus(st: string | null | undefined): { texto: string; co
     case 'nfse_autorizada': return { texto: 'NFS-e emitida', cor: 'verde' };
     case 'nfse_rejeitada': return { texto: 'NFS-e rejeitada', cor: 'vermelho' };
     case 'nfse_cancelada': return { texto: 'NFS-e cancelada no Omie', cor: 'vermelho' };
+    case 'recibo_emitido': return { texto: 'Faturada com recibo (interna)', cor: 'verde' };
     default: return null;
   }
 }

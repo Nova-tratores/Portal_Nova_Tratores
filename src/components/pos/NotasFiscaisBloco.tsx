@@ -11,6 +11,8 @@ import NfseRejeitada from "./NfseRejeitada";
 interface EstadoNfse {
   habilitado: boolean; faturadoEm: string | null; status: string | null; erro: string | null;
   nfseNumero: string | null; nfseLink: string | null;
+  /** OS interna faturada com recibo (sem NFS-e) */
+  reciboNumero?: string | null;
   /** pedidos de peças faturados pela OS (ok = foi para a SEFAZ) */
   pecas?: { id: string; ok: boolean }[];
   /** NFS-e canceladas desta OS */
@@ -18,7 +20,7 @@ interface EstadoNfse {
 }
 /** situação conferida direto no sistema nacional */
 interface SituacaoGov { nfse: string; chave: string; atual: boolean; situacao: string; conferidoEm: string }
-interface NfPedido { faturado: boolean; numero?: string; emitidaEm?: string; canceladaEm?: string; erro?: string }
+interface NfPedido { faturado: boolean; numero?: string; emitidaEm?: string; canceladaEm?: string; erro?: string; remessa?: boolean; numeroRemessa?: string }
 
 const semZeros = (n: string | null | undefined) => String(n || "").replace(/^0+(?=\d)/, "");
 
@@ -77,7 +79,7 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
 
   const esperando = !!esperandoDesde;
   const pedidosFaturados = useMemo(() => new Set((nfse?.pecas || []).filter((p) => p.ok).map((p) => p.id)), [nfse]);
-  const nfseOk = !!nfse?.nfseNumero || nfse?.status === "nfse_autorizada" || nfse?.status === "nfse_rejeitada";
+  const nfseOk = !!nfse?.nfseNumero || nfse?.status === "nfse_autorizada" || nfse?.status === "nfse_rejeitada" || nfse?.status === "recibo_emitido";
   const pedidoAguardando = (pid: string) => esperando && pedidosFaturados.has(pid) && !(nfs[pid]?.faturado && !nfs[pid]?.canceladaEm);
   const falta = esperando && (!nfseOk || pedidos.some(pedidoAguardando));
   useEffect(() => {
@@ -175,7 +177,9 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--portal-text-muted)" }}>notas fiscais</span>
       </div>
       <div style={{ padding: "2px 10px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
-        {temOS && st !== "nfse_cancelada" && linha("nfse",
+        {temOS && st === "recibo_emitido" && linha("recibo", `Recibo${nfse?.reciboNumero ? ` nº ${nfse.reciboNumero}` : ""}`,
+          <>serviço · {chip("OS interna · sem NFS-e", "#6d28d9", "#ede9fe")}</>, null, true)}
+        {temOS && st !== "nfse_cancelada" && st !== "recibo_emitido" && linha("nfse",
           st === "nfse_aguardando" ? "NFS-e" : `NFS-e ${semZeros(nfse?.nfseNumero) || ""}`.trim(),
           st === "nfse_aguardando" ? <>serviço · {chip("aguardando o sistema nacional", "#075985", "#e0f2fe")}</>
             : st === "nfse_rejeitada" ? <>serviço · {chip("rejeitada", "#b91c1c", "#fee2e2")}</>
@@ -211,10 +215,12 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
         {pedidos.map((pid, i) => {
           const nf = nfs[pid];
           const ok = !!nf?.faturado && !nf.canceladaEm;
+          // OS interna: as peças vão como REMESSA — a nota é a NF-e de remessa (faturada no Omie)
+          const rem = !!nf?.remessa;
           return linha(pid,
-            ok && nf?.numero ? `NF-e ${semZeros(nf.numero)}` : "NF-e",
-            <>peças · pedido {semZeros(ppvOmieMap[pid])} · {pedidoAguardando(pid) ? chip("aguardando a SEFAZ", "#075985", "#e0f2fe") : nf === undefined ? "conferindo…" : ok ? (nf.emitidaEm ? `emitida ${String(nf.emitidaEm).slice(0, 10)}` : chip("emitida", "#047857", "#d1fae5")) : nf?.canceladaEm ? chip("cancelada", "#b91c1c", "#fee2e2") : chip("não faturada", "#b45309", "#fef3c7")}</>,
-            ok ? linkPdf(`Imprimir a NF-e do pedido ${semZeros(ppvOmieMap[pid])}`, () => abrirDanfe(pid), abrindo === pid) : null,
+            ok && nf?.numero ? `NF-e ${rem ? "de remessa " : ""}${semZeros(nf.numero)}` : rem ? "NF-e de remessa" : "NF-e",
+            <>{rem ? <>peças · remessa {semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}</> : <>peças · pedido {semZeros(ppvOmieMap[pid])}</>} · {pedidoAguardando(pid) ? chip("aguardando a SEFAZ", "#075985", "#e0f2fe") : nf === undefined ? "conferindo…" : ok ? (nf.emitidaEm ? `emitida ${String(nf.emitidaEm).slice(0, 10)}` : chip("emitida", "#047857", "#d1fae5")) : nf?.canceladaEm ? chip("cancelada", "#b91c1c", "#fee2e2") : rem ? chip("remessa ainda não faturada", "#6d28d9", "#ede9fe") : chip("não faturada", "#b45309", "#fef3c7")}</>,
+            ok ? linkPdf(`Imprimir a NF-e ${rem ? "da remessa" : "do pedido"} ${semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}`, () => abrirDanfe(pid), abrindo === pid) : null,
             !temOS && i === 0);
         })}
         {pedidos.some(pedidoAguardando) && (

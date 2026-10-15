@@ -23,7 +23,7 @@ function omie<T>(call: string, param: Rec): Promise<T> {
 }
 const n = (v: unknown) => { const x = Number(String(v ?? "").replace(",", ".")); return Number.isFinite(x) ? x : 0; };
 
-interface ItemOmieOS { nIdItem?: number; nSeqItem?: number; nCodServico?: number; nQtde?: number; nValUnit?: number; cTpDesconto?: string; nValorDesconto?: number; nPercDesconto?: number; cDescServ?: string }
+interface ItemOmieOS { nIdItem?: number; nSeqItem?: number; nCodServico?: number; nQtde?: number; nValUnit?: number; cTpDesconto?: string; nValorDesconto?: number; nPercDesconto?: number; cDescServ?: string; cNaoGerarFinanceiro?: string }
 interface OSOmie {
   Cabecalho?: { nCodOS?: number; cNumOS?: string; cEtapa?: string; nValorTotal?: number; dDtPrevisao?: string; cCodParc?: string; nQtdeParc?: number };
   Parcelas?: { nParcela?: number; dDtVenc?: string; nDias?: number; nPercentual?: number; nValor?: number }[];
@@ -120,11 +120,20 @@ export async function conferirOS(idOs: string): Promise<ResultadoConferencia & {
     const add = (d: Divergencia | null) => { if (d) div.push(d); };
     add(compararCampo(idOs, "previsao", "Previsão de faturamento", isoBR(previsaoDaOS(os)), dados.Cabecalho?.dDtPrevisao, { vazioIgnora: false }));
     add(compararCampo(idOs, "pedidoCliente", "Nº do pedido do cliente (pedido de venda das peças)", pedidosDaOS(os), ia.cNumPedido));
-    if (esp) {
+    // OS interna não tem parcelas (não é cobrada) — José, 15/10/2026
+    if (esp && !os.Servico_Interno) {
       const total = esperado.reduce((t, p) => t + Math.max(0, p.qtde * p.unit - p.desconto), 0);
       add(compararParcelas(idOs, parcelasDaOS(esp, previsaoDaOS(os), total).map((p) => ({ venc: p.dDtVenc, valor: p.nValor })),
         (dados.Parcelas || []).map((p) => ({ venc: String(p.dDtVenc || ""), valor: n(p.nValor) }))));
     }
+  }
+  if (os.Servico_Interno) {
+    // OS interna: TODOS os serviços com "não gerar conta a receber" — é o que faz sair recibo
+    const cobrando = (dados.ServicosPrestados || []).filter((s) => s.cNaoGerarFinanceiro !== "S").length;
+    if (cobrando) div.push({
+      doc: idOs, campo: "naoGerarFinanceiro", rotulo: "Serviços que geram conta a receber", portal: "nenhum (OS interna)", omie: `${cobrando} serviço(s)`, ajustavel: true,
+      explicacao: "OS interna não é cobrada: todos os serviços precisam estar com \"não gerar conta a receber\" (é isso que faz o Omie emitir RECIBO em vez de NFS-e). Ao atualizar, o portal marca todos.",
+    });
   }
   if (esp) {
     const add = (d: Divergencia | null) => { if (d) div.push(d); };
@@ -171,7 +180,7 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
       const textoMudou = p.descricao !== undefined && textoNormal(o.cDescServ) !== textoNormal(p.descricao);
       const mudou = diferente(n(o.nQtde), p.qtde, 0.0005) || diferente(n(o.nValUnit), p.unit) || diferente(descontoOmie(o), p.desconto);
       const { cDescServ, ...valores } = campos;
-      if (mudou) servicos.push({ nSeqItem: o.nSeqItem, nIdItem: o.nIdItem, cAcaoItem: "A", ...valores });
+      if (mudou || (interna && o.cNaoGerarFinanceiro !== "S")) servicos.push({ nSeqItem: o.nSeqItem, nIdItem: o.nIdItem, cAcaoItem: "A", ...valores });
       if (textoMudou) textos.push({ nSeqItem: o.nSeqItem, nIdItem: o.nIdItem, cAcaoItem: "A", cDescServ });
     } else servicos.push({ nSeqItem: ++proxSeq, cAcaoItem: "I", ...campos });
   }
@@ -180,7 +189,7 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
   const total = esperado.reduce((s, p) => s + Math.max(0, p.qtde * p.unit - p.desconto), 0);
   const cab: Rec = { nCodOS, dDtPrevisao: isoBR(previsaoDaOS(os)) };
   const param: Rec = { Cabecalho: cab };
-  if (esp) {
+  if (esp && !interna) {
     const parc = parcelasDaOS(esp, previsaoDaOS(os), total);
     const soma = parc.reduce((t, p) => t + p.nValor, 0) || 1;
     cab.cCodParc = "999"; cab.nQtdeParc = parc.length;

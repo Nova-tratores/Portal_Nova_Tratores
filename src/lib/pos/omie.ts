@@ -10,7 +10,7 @@ const OMIE_APP_SECRET = process.env.OMIE_APP_SECRET || "";
 // Base do portal, pra montar os links de acesso que vão nas observações do Omie.
 import { PORTAL_BASE } from "@/lib/portal-url";
 import { omie } from "@/lib/omie/porta";
-import { dadosAdicionaisAuto } from "@/lib/pos/omie-espelho";
+import { dadosAdicionaisAuto, CONTA_INTERNO } from "@/lib/pos/omie-espelho";
 
 // --- Constantes Omie ---
 const OMIE_ETAPA_EXECUTADA = "30";
@@ -181,7 +181,7 @@ async function buscarNcodCli(cnpj: string): Promise<{ nCodCli: number; email: st
 // --- Lookup de projeto ---
 const cacheProjetos = new Map<string, number>();
 
-async function buscarNcodProj(projeto: string): Promise<number> {
+export async function buscarNcodProj(projeto: string): Promise<number> {
   if (!projeto) return 0;
   const projetoNorm = projeto.trim();
   if (cacheProjetos.has(projetoNorm)) return cacheProjetos.get(projetoNorm)!;
@@ -508,10 +508,25 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
     // "não gerar conta a receber". OBS: no nó ServicosPrestados os campos
     // corretos são cCodCategItem e cNaoGerarFinanceiro (NÃO cCodCateg/
     // cNaoGerarReceber — esses fazem o Omie rejeitar a OS inteira).
+    // OS INTERNA (José, 15/10/2026): nada é cobrado — todos os serviços "não gerar conta a
+    // receber" (é isso que faz o Omie faturar com RECIBO), conta corrente INTERNO, Nº do
+    // Contrato de Venda OBRIGATÓRIO (código interno), "Enviar recibo em vez da NFS-e" ligado,
+    // sem parcelas. Departamento continua o normal. As peças vão como REMESSA (mais abaixo).
+    const interna = !!os.Servico_Interno && !payloadGarantia;
+    let contratoInterna = "";
+    if (interna) {
+      const esp = (os.Omie_Espelho && typeof os.Omie_Espelho === "object" ? os.Omie_Espelho : {}) as { info?: { contrato?: string } };
+      contratoInterna = String(esp.info?.contrato || "").trim();
+      if (!contratoInterna) {
+        return { sucesso: false, erro: 'OS interna: escolha o "Nº do Contrato de Venda" (código interno) na aba Informações adicionais antes de enviar ao Omie.' };
+      }
+    }
     const servicosBase = await montarServicosComReqs(os, idOrdem);
     const servicosFinal = payloadGarantia
       ? servicosBase.map((s) => ({ ...s, cCodCategItem: payloadGarantia!.codCategGarantia, cNaoGerarFinanceiro: 'S' as const }))
-      : servicosBase;
+      : interna
+        ? servicosBase.map((s) => ({ ...s, cNaoGerarFinanceiro: 'S' as const }))
+        : servicosBase;
     const cObsOS = await montarObsOS(os, idOrdem);
 
     const payload = {
@@ -526,11 +541,12 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
       },
       InformacoesAdicionais: {
         cCodCateg: payloadGarantia ? payloadGarantia.codCategGarantia : OMIE_COD_CATEG,
-        nCodCC: payloadGarantia ? payloadGarantia.nCodCC_Interno : OMIE_COD_CC,
+        nCodCC: payloadGarantia ? payloadGarantia.nCodCC_Interno : interna ? CONTA_INTERNO : OMIE_COD_CC,
         nCodProj: nCodProj || undefined,
         cDadosAdicNF: montarDadosAdic(os) || undefined,
         // Garantia: Nº Contrato de Venda = "{Montadora}-pgo" (ex.: Mahindra-pgo)
         ...(payloadGarantia?.cNumContrato ? { cNumContrato: payloadGarantia.cNumContrato } : {}),
+        ...(interna ? { cNumContrato: contratoInterna.slice(0, 20) } : {}),
       },
       // Garantia: o departamento "03. # Garantias" (100%) é aplicado logo
       // após a criação, via AlterarOS — o Omie exige o nValor da distribuição,
@@ -551,6 +567,8 @@ export async function criarOSNoOmie(idOrdem: string): Promise<{ sucesso: boolean
         : {
             cEnvBoleto: 'N',
             cEnvLink: 'N',
+            // interna: "Enviar um Recibo de Prestação de Serviço (ao invés da NFS-e)"
+            ...(interna ? { cEnvRecibo: 'S' } : {}),
             cEnviarPara: emailCliente,
           },
     };

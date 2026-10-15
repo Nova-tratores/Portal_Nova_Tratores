@@ -3,7 +3,7 @@
 // POST → fatura. body { forma, ppvIds[], totalConfirmado }. Ato fiscal: permissão
 //        explícita pos:faturar, trava no banco, sem reenvio automático ao Omie.
 import { NextRequest, NextResponse } from "next/server";
-import { estadoFaturamento, faturamentoHabilitado, faturarOSNoOmie, reconciliarFaturamentoOS } from "@/lib/pos/faturamento";
+import { estadoFaturamento, faturamentoHabilitado, faturarOSComRecibo, faturarOSNoOmie, previaRecibo, reconciliarFaturamentoOS } from "@/lib/pos/faturamento";
 import { gate, erroRota } from "./comum";
 
 export const runtime = "nodejs";
@@ -46,4 +46,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }, auth);
     return NextResponse.json({ success: r.ok, tipo: r.tipo, mensagem: r.mensagem, nfseNumero: r.nfseNumero ?? null, pecas: r.pecas ?? [] }, { status: r.status });
   } catch (e) { return erroRota(e, "POST"); }
+}
+
+/** PATCH → OS INTERNA: fatura com recibo (sem NFS-e, sem conta a receber). body { totalConfirmado } */
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const auth = await gate(req, true);
+  if (auth instanceof NextResponse) return auth;
+  const { id } = await params;
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (body?.previa === true) return NextResponse.json(await previaRecibo(id));
+    const r = await faturarOSComRecibo(id, { totalConfirmado: Number(body?.totalConfirmado) || 0 }, auth);
+    return NextResponse.json({ success: r.ok, tipo: r.tipo, mensagem: r.mensagem, recibo: r.recibo ?? null, concluida: !!r.concluida }, { status: r.status });
+  } catch (e) { return erroRota(e, "PATCH"); }
 }

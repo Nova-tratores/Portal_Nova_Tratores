@@ -22,6 +22,39 @@ async function numeroOSOmieDe(osId: string): Promise<string> {
   } catch { return ""; }
 }
 
+/** OS interna (José, 15/10/2026): a remessa das peças espelha a OS — contrato, projeto e previsão. */
+async function dadosDaOSParaRemessa(osId: string, acc: OmieAccount): Promise<{ contrato: string; nCodProj: number; previsao: string } | null> {
+  if (!osId) return null;
+  try {
+    const res = await supabaseFetch<Record<string, unknown>[]>(
+      `${TBL_OS}?Id_Ordem=eq.${encodeURIComponent(osId)}&select=Omie_Espelho,Projeto,Previsao_Faturamento,Servico_Interno&limit=1`
+    );
+    const os = res?.[0];
+    if (!os) return null;
+    const esp = (os.Omie_Espelho && typeof os.Omie_Espelho === "object" ? os.Omie_Espelho : {}) as { info?: { contrato?: string } };
+    const contrato = String(esp.info?.contrato || (os.Servico_Interno ? "Interno" : "")).trim();
+    let nCodProj = 0;
+    // projeto: o código é da conta Nova (a OS é sempre da Nova)
+    if (os.Projeto && !/castro/i.test(acc.name)) {
+      try { const { buscarNcodProj } = await import("@/lib/pos/omie"); nCodProj = await buscarNcodProj(String(os.Projeto)); } catch { /* sem projeto */ }
+    }
+    return { contrato, nCodProj, previsao: String(os.Previsao_Faturamento || "").slice(0, 10) };
+  } catch { return null; }
+}
+
+/** Remessa no Omie: situação + NF-e (StatusRemessa pelo código de integração RM-<PPV>). */
+export async function statusRemessaPPV(idPPV: string, empresa: string | null): Promise<{ acc: OmieAccount; st: { faturada?: string; cancelada?: string; cNumeroRemessa?: string; ListaNfe?: Array<{ cNumNFe?: string; cChaveNFe?: string; cDanfe?: string; dtEmissao?: string; cStatusNFe?: string }> } } | null> {
+  const contas = empresa ? [getAccount(empresa)].filter(Boolean) as OmieAccount[] : [];
+  for (const nome of ["Nova Tratores", "Castro Peças"]) { const a = getAccount(nome); if (a && !contas.some((c) => c.name === a.name)) contas.push(a); }
+  for (const acc of contas) {
+    try {
+      const st = await omieCall<Record<string, unknown>>("/produtos/remessa/", "StatusRemessa", { cCodIntRem: `RM-${idPPV}` }, acc.key, acc.secret);
+      if (st && (st.nCodRem || st.cNumeroRemessa)) return { acc, st: st as never };
+    } catch { /* tenta a outra conta */ }
+  }
+  return null;
+}
+
 async function osEhInterna(osId: string): Promise<boolean> {
   if (!osId) return false;
   try {
@@ -537,19 +570,22 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
 
     let numPedido = "";
     if (isRemessa) {
+      const daOS = await dadosDaOSParaRemessa(String(detalhes.osId || ""), acc);
       // ── REMESSA de verdade (/produtos/remessa/ IncluirRemessa) ──
       // Itens de remessa vão com CFOP 5.910 (Remessa em Bonificação/Doação/Brinde).
       const remessaPayload: Record<string, unknown> = {
         cabec: {
           cCodIntRem: `RM-${idPPV}`,
-          dPrevisao: dataPrevisao,
+          dPrevisao: (daOS?.previsao && isoParaBR(daOS.previsao)) || dataPrevisao,
           nCodCli,
           ...(nCodVend ? { nCodVend: String(nCodVend) } : {}),
         },
         infAdic: {
           cCodCateg: detalhes.categoriaPedido || OMIE_COD_CATEG_VENDA,
           cConsFinal: detalhes.consumoFinal ? "S" : "N",
-          cNumCtr: detalhes.numContrato || idPPV,
+          // contrato e projeto IGUAIS aos da OS (antes ia o nº do PPV — remessa 3786 saiu "PPV-0450")
+          cNumCtr: (daOS?.contrato || detalhes.numContrato || idPPV).slice(0, 20),
+          ...(daOS?.nCodProj ? { nCodProj: daOS.nCodProj } : {}),
           ...(refOS ? { cPedido: refOS } : {}),
           ...(detalhes.contato ? { cContato: detalhes.contato } : {}),
           ...(detalhes.dadosNF ? { cDadosAdic: detalhes.dadosNF } : {}),
@@ -986,6 +1022,8 @@ export interface ComunicacaoSefaz {
   nCodNF?: number; nIdPedido?: number; ambiente?: "producao" | "homologacao";
   emitidaEm?: string; canceladaEm?: string; denegada?: boolean;
   empresa?: string;
+  /** PPV que foi como REMESSA (OS interna): a nota é a NF-e de remessa */
+  remessa?: boolean; numeroRemessa?: string; danfeUrl?: string;
   eventos: EventoSefaz[];
   atualizadoEm?: string;
   erro?: string;
@@ -1084,6 +1122,21 @@ export async function obterComunicacaoSefaz(idPPV: string, opts: { refresh?: boo
   if (!cab) return { faturado: false, eventos: [], erro: "PPV não encontrado." };
   if (!cab.pedido_omie) return { faturado: false, eventos: [], erro: "Este PPV ainda não foi enviado ao Omie." };
 
+  if (String(cab.Tipo_Pedido || "") === "Remessa") {
+    const r = await statusRemessaPPV(idPPV, cab.omie_empresa as string | null);
+    if (!r) return { faturado: false, remessa: true, eventos: [], erro: "Remessa não encontrada no Omie." };
+    const nfs = r.st.ListaNfe || [];
+    const nf = nfs[nfs.length - 1];
+    const sem0 = (x: unknown) => String(x || "").replace(/^0+(?=\d)/, "");
+    const iso = (d?: string) => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(d || "")); return m ? `${m[3]}-${m[2]}-${m[1]}T12:00:00-03:00` : undefined; };
+    return {
+      faturado: r.st.faturada === "S" && !!nf, remessa: true, numeroRemessa: sem0(r.st.cNumeroRemessa), empresa: r.acc.name,
+      ...(nf ? { numero: sem0(nf.cNumNFe), chave: nf.cChaveNFe, emitidaEm: iso(nf.dtEmissao), danfeUrl: nf.cDanfe } : { semNF: true }),
+      ...(r.st.cancelada === "S" ? { canceladaEm: new Date().toISOString() } : {}),
+      eventos: [], atualizadoEm: new Date().toISOString(),
+    };
+  }
+
   if (!opts.refresh && cab.nf_sefaz && typeof cab.nf_sefaz === "object") {
     return cab.nf_sefaz as unknown as ComunicacaoSefaz;
   }
@@ -1119,6 +1172,7 @@ export async function obterComunicacaoSefaz(idPPV: string, opts: { refresh?: boo
 // URL temporária do DANFE (PDF) a partir do nCodNF (compl.nIdNF).
 export async function obterUrlDanfePPV(idPPV: string): Promise<{ url: string } | { erro: string }> {
   const com = await obterComunicacaoSefaz(idPPV);
+  if (com.remessa) return com.danfeUrl ? { url: com.danfeUrl } : { erro: com.erro || "A remessa ainda não tem NF-e." };
   if (!com.nCodNF) return { erro: com.erro || "Sem NF-e para gerar o DANFE." };
   // A nota já diz de qual empresa é: não precisa achar o PEDIDO de novo no Omie
   // (13/10/2026: PPV-0518 da Castro dava "Pedido não encontrado" com a NF-e 9360 emitida).

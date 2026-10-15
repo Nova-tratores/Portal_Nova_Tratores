@@ -10,6 +10,7 @@ import CancelarNotaModal from "./CancelarNotaModal";
 import { authHeaders } from "@/lib/auth/client";
 import { rotuloStatus } from "@/lib/pos/faturamento-regras";
 import FaturarOSModal from "./FaturarOSModal";
+import FaturarReciboModal from "./FaturarReciboModal";
 
 interface Estado {
   habilitado: boolean; podeFaturar: boolean; podeFaturarPecas: boolean; enviadaOmie: boolean; podeCancelarNota?: boolean; valor?: number;
@@ -17,6 +18,8 @@ interface Estado {
   bloqueio: string | null; status: string | null; erro: string | null;
   faturadoEm: string | null; faturadoPor: string | null; formaPagamento: string | null;
   nfseNumero: string | null; nfseLink: string | null;
+  /** OS interna: fatura com recibo (sem NFS-e) */
+  interna?: boolean; reciboNumero?: string | null;
   pecas: Array<{ id: string; pedidoOmie?: string; ok: boolean; erro?: string | null; nf?: string | null }>;
   pedidos?: Array<{ id: string; pedidoOmie: string; faturado: boolean; nf?: string | null; ncCancelada?: { nf: string | null; pedido: string; motivo: string } | null }>;
 }
@@ -196,10 +199,10 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 12.5, fontWeight: 800, color: c.tx }}>Faturada</div>
             <div style={{ fontSize: 11, color: "var(--portal-text-muted, #64748b)", lineHeight: 1.35 }}>
-              {new Date(estado.faturadoEm).toLocaleDateString("pt-BR")}{estado.formaPagamento ? ` · ${estado.formaPagamento}` : ""}
+              {new Date(estado.faturadoEm).toLocaleDateString("pt-BR")}{estado.status === "recibo_emitido" ? ` · recibo${estado.reciboNumero ? ` nº ${estado.reciboNumero}` : ""}` : estado.formaPagamento ? ` · ${estado.formaPagamento}` : ""}
             </div>
           </div>
-          {estado.podeCancelarNota && (
+          {estado.podeCancelarNota && estado.status !== "recibo_emitido" && (
             <div style={{ position: "relative" }}>
               <button type="button" onClick={(e) => abrirMenu(e.currentTarget)} title="Ações da nota (corrigir NFS-e / NF-e)"
                 style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border, #e2e8f0)", background: menuNota ? "#f1f5f9" : "transparent", color: "#475569", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -294,17 +297,22 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
         type="button"
         onClick={() => setAberto(true)}
         disabled={!estado.podeFaturar}
-        title={estado.podeFaturar ? `Faturar a OS ${ordemOmie.replace(/^0+/, "")} no Omie (emite a NFS-e). A janela mostra o pedido de peças vinculado para faturar junto.` : "Você não tem a permissão \"Faturar OS\". Peça ao administrador."}
+        title={!estado.podeFaturar ? "Você não tem a permissão \"Faturar OS\". Peça ao administrador." : estado.interna ? `OS interna: fatura no Omie com RECIBO (sem NFS-e e sem conta a receber).` : `Faturar a OS ${ordemOmie.replace(/^0+/, "")} no Omie (emite a NFS-e). A janela mostra o pedido de peças vinculado para faturar junto.`}
         style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", minHeight: 42, padding: "8px 12px", borderRadius: 10, border: "none",
-          background: estado.podeFaturar ? "#0BB7CD" : "#94A3B8", color: "#fefefe", fontWeight: 800, fontSize: 14, cursor: estado.podeFaturar ? "pointer" : "not-allowed", fontFamily: "inherit",
-          boxShadow: estado.podeFaturar ? "0 3px 10px rgba(11,183,205,.35)" : "none" }}
+          background: !estado.podeFaturar ? "#94A3B8" : estado.interna ? "#6d28d9" : "#0BB7CD", color: "#fefefe", fontWeight: 800, fontSize: 14, cursor: estado.podeFaturar ? "pointer" : "not-allowed", fontFamily: "inherit",
+          boxShadow: !estado.podeFaturar ? "none" : estado.interna ? "0 3px 10px rgba(109,40,217,.3)" : "0 3px 10px rgba(11,183,205,.35)" }}
       >
-        <i className="fas fa-file-invoice-dollar" /> Faturar
+        <i className={`fas ${estado.interna ? "fa-receipt" : "fa-file-invoice-dollar"}`} /> {estado.interna ? "Faturar com recibo" : "Faturar"}
       </button>
       <div style={{ fontSize: 11, color: "var(--portal-text-muted, #64748b)", textAlign: "center", marginTop: -2 }}>
-        {pedidosFaltando.length ? "a OS, o pedido de peças ou os dois" : "emite a NFS-e da OS"}
+        {estado.interna ? "OS interna · sem NFS-e e sem conta a receber" : pedidosFaltando.length ? "a OS, o pedido de peças ou os dois" : "emite a NFS-e da OS"}
       </div>
-      {aberto && <FaturarOSModal
+      {aberto && estado.interna && <FaturarReciboModal
+        osId={osId}
+        onClose={() => { setAberto(false); void carregar(); }}
+        onFaturado={() => { void carregar(); onFaturado(); }}
+      />}
+      {aberto && !estado.interna && <FaturarOSModal
         open
         osId={osId}
         onClose={() => { setAberto(false); void carregar(); }}

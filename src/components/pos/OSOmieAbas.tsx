@@ -462,6 +462,17 @@ export function AbaParcelas({ esp, setEsp, previsao, total, interna, faturada, p
   const linhas = esp.parcelas.length ? esp.parcelas : calc;
   const fixar = (k: number, pp: Partial<{ venc: string; valor: number }>) => setEsp((x) => ({ ...x, parcelas: linhas.map((p, j) => j === k ? { ...p, ...pp } : p) }));
   const inp: React.CSSProperties = { fontSize: 12.5, fontFamily: "inherit", border: `1px solid ${BORDA}`, borderRadius: 4, padding: "3px 6px", background: "transparent", marginBottom: 0, color: "inherit" };
+  // OS interna não é cobrada: sem parcelas (José, 15/10/2026)
+  if (interna) return (
+    <div style={{ display: "flex", gap: 12, alignItems: "flex-start", padding: "14px 16px", borderRadius: 10, background: "#f5f3ff", border: "1px solid #ddd6fe", color: "#4c1d95" }}>
+      <i className="fas fa-receipt" style={{ fontSize: 18, marginTop: 2 }} />
+      <div style={{ fontSize: 13, lineHeight: 1.55 }}>
+        <b>OS interna — sem parcelas.</b><br />
+        Não gera conta a receber: todos os serviços vão ao Omie com &quot;não gerar conta a receber&quot;, conta corrente INTERNO
+        e &quot;Enviar recibo em vez da NFS-e&quot; ligado. Ao faturar sai um <b>recibo</b>; as peças vão como <b>remessa</b>.
+      </div>
+    </div>
+  );
   return (
     <div>
       <div style={{ display: "flex", alignItems: "flex-end", marginBottom: 10, gap: 12, flexWrap: "wrap" }}>
