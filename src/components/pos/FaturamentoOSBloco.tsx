@@ -5,6 +5,7 @@
 // no Omie (o servidor limita a 1x a cada 2 min por OS). Nada aparece com o
 // interruptor POS_FATURAR desligado.
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import CancelarNotaModal from "./CancelarNotaModal";
 import { authHeaders } from "@/lib/auth/client";
 import { rotuloStatus } from "@/lib/pos/faturamento-regras";
@@ -41,7 +42,15 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
   const [conferindo, setConferindo] = useState(false);
   const [refaturando, setRefaturando] = useState(false);
   const [cancelarNota, setCancelarNota] = useState<null | "cancelar" | "duplicar">(null);
-  const [menuNota, setMenuNota] = useState(false);
+  // menu "⋯" abre por cima da tela (a coluna corta o que sai dela)
+  const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
+  const menuNota = !!menuPos;
+  const setMenuNota = (v: boolean | ((m: boolean) => boolean)) => { if (!(typeof v === "function" ? v(menuNota) : v)) setMenuPos(null); };
+  const abrirMenu = (el: HTMLElement) => {
+    if (menuPos) { setMenuPos(null); return; }
+    const r = el.getBoundingClientRect();
+    setMenuPos({ top: r.bottom + 6, left: Math.max(8, Math.min(window.innerWidth - 268, r.right - 260)) });
+  };
   // nota de peças: qual pedido e em qual passo
   const [pedidoAlvo, setPedidoAlvo] = useState<null | { id: string; num: string; nf: string | null; etapa: "cancelar" | "duplicar" }>(null);
   const [cancelandoAntiga, setCancelandoAntiga] = useState(false);
@@ -120,39 +129,33 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
     onFechar={() => { setPedidoAlvo(null); void carregar(); }} onFeito={() => { void carregar(); (onAtualizar || onFaturado)(); }} />;
   // NF-e de peças cancelada, falta duplicar o pedido
   const pedidosPendentes = (estado.pedidos || []).filter((p) => p.ncCancelada);
-  const avisoPedidos = pedidosPendentes.map((p) => (
-    <div key={`nc-${p.id}`} style={{ border: "1px solid #fecaca", background: "#fef2f2", color: "#7f1d1d", borderRadius: 10, padding: "9px 10px", fontSize: 12, margin: "4px 0" }}>
-      <div style={{ fontWeight: 800 }}><i className="fas fa-ban" /> NF-e {p.ncCancelada?.nf ? String(p.ncCancelada.nf).replace(/^0+(?=\d)/, "") : ""} de peças cancelada</div>
-      <div style={{ fontSize: 11, marginTop: 2 }}>pedido {p.ncCancelada?.pedido} · falta duplicar o pedido para emitir a nota certa</div>
-      {estado.podeCancelarNota && (
-        <button type="button" onClick={() => setPedidoAlvo({ id: p.id, num: String(p.ncCancelada?.pedido || ""), nf: p.ncCancelada?.nf || null, etapa: "duplicar" })}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", minHeight: 32, marginTop: 7, borderRadius: 8, border: "none", background: "#0369A1", color: "#fefefe", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-          <i className="fas fa-clone" /> Duplicar o pedido
-        </button>
-      )}
+  const faixa = (cor: "ambar" | "verm", texto: React.ReactNode, acao: React.ReactNode, chave: string) => (
+    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderRadius: 9, fontSize: 11.5, lineHeight: 1.35,
+      background: cor === "ambar" ? "#fffbeb" : "#fef2f2", borderLeft: `3px solid ${cor === "ambar" ? "#f59e0b" : "#ef4444"}`, color: cor === "ambar" ? "#78350f" : "#7f1d1d" }}>
+      <span style={{ flex: 1, minWidth: 0 }}>{texto}</span>
+      {acao}
     </div>
-  ));
+  );
+  const linkAcao = (rotulo: string, onClick: () => void, carregando = false, cor = "#0369A1") => (
+    <button type="button" onClick={onClick} disabled={carregando}
+      style={{ flexShrink: 0, border: "none", background: "transparent", color: cor, fontWeight: 800, fontSize: 11.5, cursor: carregando ? "wait" : "pointer", fontFamily: "inherit", padding: 0, whiteSpace: "nowrap" }}>
+      {carregando ? <i className="fas fa-spinner fa-spin" /> : rotulo}
+    </button>
+  );
+  const avisoPedidos = pedidosPendentes.map((p) => faixa("verm",
+    <><b>NF-e {p.ncCancelada?.nf ? String(p.ncCancelada.nf).replace(/^0+(?=\d)/, "") : ""} cancelada</b> · falta duplicar o pedido {p.ncCancelada?.pedido}</>,
+    estado.podeCancelarNota ? linkAcao("Duplicar", () => setPedidoAlvo({ id: p.id, num: String(p.ncCancelada?.pedido || ""), nf: p.ncCancelada?.nf || null, etapa: "duplicar" })) : null,
+    `nc-${p.id}`));
 
   // OS refeita, mas a antiga continua ativa no Omie (o título dela segue aberto lá)
   const ultAnt = (estado.anteriores || []).slice(-1)[0];
   const antigaAtiva = ultAnt?.novaOmie && ultAnt.omieCancelada !== true ? ultAnt : null;
   const avisoAntiga = antigaAtiva && (
-    <div style={{ border: "1px solid #fde68a", background: "#fffbeb", borderRadius: 12, padding: "10px 11px", margin: "4px 0" }}>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 9 }}>
-        <span style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: "#fef3c7", color: "#b45309", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}><i className="fas fa-clock-rotate-left" /></span>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12.5, fontWeight: 800, color: "#78350f" }}>Falta cancelar a OS {antigaAtiva.ordemOmie}</div>
-          <div style={{ fontSize: 11, color: "#92400e", marginTop: 2, lineHeight: 1.45 }}>A nota já foi cancelada; no Omie a OS e o título ainda estão abertos.</div>
-        </div>
-      </div>
-      {msgAntiga && <div style={{ fontSize: 11, marginTop: 7, padding: "6px 8px", borderRadius: 8, background: msgAntiga.ok ? "#f0fdf4" : "#fef2f2", color: msgAntiga.ok ? "#15803d" : "#b91c1c", fontWeight: 600 }}>{msgAntiga.texto}</div>}
-      {estado.podeCancelarNota && (
-        <button type="button" onClick={cancelarAntiga} disabled={cancelandoAntiga}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", height: 34, marginTop: 8, borderRadius: 9, border: "1px solid #f59e0b", background: "#fefefe", color: "#b45309", fontWeight: 800, fontSize: 12.5, cursor: cancelandoAntiga ? "wait" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
-          <i className={`fas ${cancelandoAntiga ? "fa-spinner fa-spin" : "fa-ban"}`} /> {cancelandoAntiga ? "Cancelando no Omie…" : "Cancelar no Omie"}
-        </button>
-      )}
-    </div>
+    <>
+      {faixa("ambar", <><b>OS {antigaAtiva.ordemOmie}</b> ainda aberta no Omie (nota já cancelada)</>,
+        estado.podeCancelarNota ? linkAcao("Cancelar", cancelarAntiga, cancelandoAntiga, "#b45309") : null, "antiga")}
+      {msgAntiga && <div style={{ fontSize: 11, padding: "2px 4px", color: msgAntiga.ok ? "#15803d" : "#b91c1c", fontWeight: 600 }}>{msgAntiga.texto}</div>}
+    </>
   );
 
   // ---------- nota cancelada: falta duplicar a OS ----------
@@ -186,14 +189,49 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
       {avisoAntiga}
       {avisoPedidos}
       {modalPedido}
-      <div style={{ border: `1px solid ${c.bd}`, background: c.bg, borderRadius: 9, padding: "8px 10px", fontSize: 12, color: c.tx, margin: "2px 0" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <i className="fas fa-circle-check" />
-          <span style={{ fontWeight: 800, flex: 1 }}>OS faturada</span>
-        </div>
-        <div style={{ marginTop: 3, fontSize: 11, opacity: .9 }}>
-          {new Date(estado.faturadoEm).toLocaleDateString("pt-BR")}{estado.formaPagamento ? ` · ${estado.formaPagamento}` : ""}
-          {estado.faturadoPor ? ` · ${/direto/i.test(estado.faturadoPor) ? "faturada direto no Omie" : estado.faturadoPor}` : ""}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6, margin: "2px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "8px 10px", borderRadius: 10, background: "var(--surface, #fefefe)", border: "1px solid var(--border, #e2e8f0)" }}
+          title={estado.faturadoPor ? `faturada por ${/direto/i.test(estado.faturadoPor) ? "direto no Omie" : estado.faturadoPor}` : undefined}>
+          <span style={{ width: 26, height: 26, borderRadius: 8, flexShrink: 0, background: c.bg, color: c.tx, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}><i className="fas fa-check" /></span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 12.5, fontWeight: 800, color: c.tx }}>Faturada</div>
+            <div style={{ fontSize: 11, color: "var(--portal-text-muted, #64748b)", lineHeight: 1.35 }}>
+              {new Date(estado.faturadoEm).toLocaleDateString("pt-BR")}{estado.formaPagamento ? ` · ${estado.formaPagamento}` : ""}
+            </div>
+          </div>
+          {estado.podeCancelarNota && (
+            <div style={{ position: "relative" }}>
+              <button type="button" onClick={(e) => abrirMenu(e.currentTarget)} title="Ações da nota (corrigir NFS-e / NF-e)"
+                style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border, #e2e8f0)", background: menuNota ? "#f1f5f9" : "transparent", color: "#475569", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <i className="fas fa-ellipsis-vertical" />
+              </button>
+              {menuNota && menuPos && typeof document !== "undefined" && createPortal(
+                <>
+                  <div onClick={() => setMenuNota(false)} style={{ position: "fixed", inset: 0, zIndex: 100040 }} />
+                  <div style={{ position: "fixed", top: menuPos.top, left: menuPos.left, zIndex: 100041, width: 260, background: "#fefefe", border: "1px solid #e2e8f0", borderRadius: 12, boxShadow: "0 14px 32px rgba(15,23,42,.22)", overflow: "hidden", color: "#0f172a" }}>
+                    <div style={{ padding: "8px 12px 6px", fontSize: 10.5, fontWeight: 800, textTransform: "uppercase", letterSpacing: .5, color: "#94a3b8" }}>Corrigir nota</div>
+                    <button type="button" onClick={() => { setMenuNota(false); setCancelarNota("cancelar"); }}
+                      style={{ display: "flex", alignItems: "flex-start", gap: 9, width: "100%", padding: "9px 12px", border: "none", borderTop: "1px solid #f1f5f9", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                      <i className="fas fa-file-invoice" style={{ color: "#0369A1", marginTop: 2, width: 14 }} />
+                      <span><span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#0f172a" }}>NFS-e{nfseAtual ? ` ${nfseAtual}` : ""} · serviço</span>
+                        <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 1 }}>cancelar e duplicar a OS</span></span>
+                    </button>
+                    {(estado.pedidos || []).filter((p) => p.faturado && !p.ncCancelada).map((p) => {
+                      const num = p.pedidoOmie.replace(/^0+(?=\d)/, "");
+                      const nf = p.nf ? String(p.nf).replace(/^0+(?=\d)/, "") : null;
+                      return (
+                        <button key={p.id} type="button" onClick={() => { setMenuNota(false); setPedidoAlvo({ id: p.id, num, nf, etapa: "cancelar" }); }}
+                          style={{ display: "flex", alignItems: "flex-start", gap: 9, width: "100%", padding: "9px 12px", border: "none", borderTop: "1px solid #f1f5f9", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                          <i className="fas fa-file-invoice-dollar" style={{ color: "#e8730c", marginTop: 2, width: 14 }} />
+                          <span><span style={{ display: "block", fontSize: 12.5, fontWeight: 700, color: "#0f172a" }}>NF-e{nf ? ` ${nf}` : ""} · peças</span>
+                            <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 1 }}>pedido {num} · cancelar e duplicar</span></span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>, document.body)}
+            </div>
+          )}
         </div>
         {pecasPendentes.length > 0 && (
           <div style={{ marginTop: 8, padding: "8px 9px", borderRadius: 8, background: COR.ambar.bg, border: `1px solid ${COR.ambar.bd}`, color: COR.ambar.tx }}>
@@ -205,41 +243,6 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", minHeight: 34, marginTop: 7, borderRadius: 8, border: "none", background: "#0BB7CD", color: "#fefefe", fontWeight: 800, fontSize: 12.5, cursor: refaturando ? "wait" : "pointer", fontFamily: "inherit" }}>
                 <i className={`fas ${refaturando ? "fa-spinner fa-spin" : "fa-file-invoice-dollar"}`} /> Faturar o pedido
               </button>
-            )}
-          </div>
-        )}
-        {estado.podeCancelarNota && (
-          <div style={{ position: "relative", marginTop: 8 }}>
-            <button type="button" onClick={() => setMenuNota((m) => !m)}
-              style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", minHeight: 30, padding: "0 10px", borderRadius: 8, border: "1px solid color-mix(in srgb, currentColor 25%, transparent)", background: "#fefefe", color: "#334155", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-              <i className="fas fa-sliders" style={{ color: "#64748b" }} />
-              <span style={{ flex: 1, textAlign: "left" }}>Ações da nota</span>
-              <i className="fas fa-chevron-down" style={{ fontSize: 10, color: "#94a3b8", transform: menuNota ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
-            </button>
-            {menuNota && (
-              <>
-                <div onClick={() => setMenuNota(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
-                <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 4px)", zIndex: 41, background: "#fefefe", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 12px 28px rgba(15,23,42,.18)", overflow: "hidden" }}>
-                  <button type="button" onClick={() => { setMenuNota(false); setCancelarNota("cancelar"); }}
-                    style={{ display: "flex", alignItems: "flex-start", gap: 9, width: "100%", padding: "10px 12px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-                    <i className="fas fa-file-circle-xmark" style={{ color: "#dc2626", marginTop: 2 }} />
-                    <span><span style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#0f172a" }}>Cancelar a NFS-e{nfseAtual ? ` ${nfseAtual}` : ""}</span>
-                      <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 1 }}>no sistema nacional · depois duplica a OS</span></span>
-                  </button>
-                  {(estado.pedidos || []).filter((p) => p.faturado && !p.ncCancelada).map((p) => {
-                    const num = p.pedidoOmie.replace(/^0+(?=\d)/, "");
-                    const nf = p.nf ? String(p.nf).replace(/^0+(?=\d)/, "") : null;
-                    return (
-                      <button key={p.id} type="button" onClick={() => { setMenuNota(false); setPedidoAlvo({ id: p.id, num, nf, etapa: "cancelar" }); }}
-                        style={{ display: "flex", alignItems: "flex-start", gap: 9, width: "100%", padding: "10px 12px", border: "none", borderTop: "1px solid #f1f5f9", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
-                        <i className="fas fa-boxes-stacked" style={{ color: "#e8730c", marginTop: 2 }} />
-                        <span><span style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#0f172a" }}>Cancelar a NF-e{nf ? ` ${nf}` : ""} de peças</span>
-                          <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 1 }}>pedido {num} · pelo Omie · depois duplica o pedido</span></span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
             )}
           </div>
         )}

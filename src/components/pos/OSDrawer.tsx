@@ -2657,23 +2657,25 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   const pvSolto = String(pedidoVenda || "").split(",").map((x) => semZeros(String(x.split(":").pop() || "").trim())).filter((n) => n && !noMapa.has(n)).join(", ");
                   // "o que virou o quê": nº do portal → nº no Omie, com o PDF do Omie no fim da linha
                   const linhaDoc = (portal: string, omie: string, onPdf: (() => void) | null, carregando: boolean, chave: string, primeira: boolean) => (
-                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 2px", borderTop: primeira ? "none" : "1px solid var(--border)" }}>
+                    <div key={chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 2px", borderTop: primeira ? "none" : "1px solid var(--border)" }}>
                       {void portal}
-                      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{omie}</span>
+                      <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted, #94a3b8)" }}>{/^OS/.test(omie) ? "Ordem de serviço" : "Pedido de venda"}</span>
+                        <span style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>nº {omie.replace(/^(OS|Pedido)\s*/, "")}</span>
+                      </span>
                       {onPdf && (
                         <button type="button" onClick={onPdf} disabled={carregando} title="Abrir o PDF oficial no Omie (gerado na hora)"
-                          style={{ background: "none", border: "none", padding: 0, color: "#0891A8", fontSize: 11.5, fontWeight: 800, cursor: carregando ? "wait" : "pointer", fontFamily: "inherit", flexShrink: 0 }}>
-                          {carregando ? <i className="fas fa-spinner fa-spin" /> : "PDF"}
+                          style={{ width: 28, height: 28, borderRadius: 8, border: "1px solid var(--border)", background: "transparent", color: "#dc2626", cursor: carregando ? "wait" : "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12.5 }}>
+                          <i className={`fas ${carregando ? "fa-spinner fa-spin" : "fa-file-pdf"}`} />
                         </button>
                       )}
                     </div>
                   );
                   return (
-                    <div style={{ margin: "6px 0 8px", padding: 10, borderRadius: 12, border: "1px solid color-mix(in srgb, #0BB7CD 45%, var(--border))", background: "color-mix(in srgb, #0BB7CD 7%, var(--surface))", display: "flex", flexDirection: "column", gap: 7 }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 2px 2px" }}>
+                    <div style={{ margin: "6px 0 8px", padding: "10px 10px 8px", borderRadius: 12, border: "1px solid var(--border)", background: "var(--surface)", display: "flex", flexDirection: "column", gap: 6, boxShadow: "0 1px 2px rgba(15,23,42,.04)" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 2px" }}>
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src="/marcas/omie.png" alt="Omie" style={{ height: 17, width: "auto", display: "block" }} />
-                        <span style={{ fontSize: 11, fontWeight: 700, color: "var(--portal-text-muted)" }}>documentos e faturamento</span>
+                        <img src="/marcas/omie.png" alt="Omie" style={{ height: 16, width: "auto", display: "block" }} />
                       </div>
                       {!ordemOmie && (
                         <>
@@ -2703,7 +2705,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </>
                       )}
                       {(ordemOmie || pedidosMapa.length > 0 || pvSolto) && (
-                        <div style={{ padding: "2px 10px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
+                        <div style={{ padding: "0 2px" }}>
                           {ordemOmie && linhaDoc(osId || "OS", `OS ${semZeros(ordemOmie)}`, abrirPdfOmie, baixandoPdfOmie, "os", true)}
                           {pedidosMapa.map(([pid, numOmie]) => linhaDoc(pid, `Pedido ${semZeros(numOmie)}`, () => abrirPdfPecasOmie(pid), baixandoPdfPecas === pid, pid, false))}
                           {pvSolto && linhaDoc(ppvOmieCarregando ? "peças" : "peças", ppvOmieCarregando ? "conferindo…" : `Pedido ${pvSolto}`, null, false, "pv-solto", false)}
