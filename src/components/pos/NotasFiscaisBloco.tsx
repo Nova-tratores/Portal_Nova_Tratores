@@ -3,7 +3,8 @@
 // de peças (PPV) — número, situação e PDF/DANFE. Enquanto a NFS-e não volta do
 // sistema nacional, mostra a barrinha e confere sozinho a cada 30 s.
 // Dados: GET /api/pos/ordens/[id]/faturar (NFS-e) e /api/ppv/nf-sefaz (NF-e).
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { authHeaders } from "@/lib/auth/client";
 
 interface EstadoNfse {
@@ -181,6 +182,16 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
             {st !== "nfse_aguardando" && nfse?.nfseNumero ? dicaNota(nfse.nfseNumero) : null}
           </span>,
           true)}
+        {temOS && st === "nfse_aguardando" && (
+          <div style={{ padding: "0 2px 8px" }}>
+            <div style={{ height: 5, borderRadius: 3, background: "rgba(11,183,205,.18)", overflow: "hidden" }}>
+              <div className="nf-barra" style={{ height: "100%", width: "40%", borderRadius: 3, background: "#0BB7CD" }} />
+            </div>
+            <div style={{ fontSize: 10.5, color: "var(--portal-text-muted)", marginTop: 4 }}>Buscando a nota… você recebe uma notificação quando sair.</div>
+            <style>{`@keyframes nfBarra { 0% { transform: translateX(-100%) } 100% { transform: translateX(250%) } } .nf-barra { animation: nfBarra 1.4s ease-in-out infinite; }`}</style>
+          </div>
+        )}
+        {temOS && st === "nfse_rejeitada" && nfse?.erro && <div style={{ fontSize: 10.5, color: "#b91c1c", padding: "0 2px 8px" }}>{nfse.erro} — corrija e reenvie pelo Omie.</div>}
         {anteriores.map((a, i) => linha(`ant-${i}`, `NFS-e ${semZeros(a.nfse) || ""}`.trim(),
           <>serviço · {chip("cancelada", "#b91c1c", "#fee2e2")}</>,
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
@@ -194,16 +205,6 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
             ))}
           </span>,
           !temOS && i === 0))}
-        {temOS && st === "nfse_aguardando" && (
-          <div style={{ padding: "0 2px 8px" }}>
-            <div style={{ height: 5, borderRadius: 3, background: "rgba(11,183,205,.18)", overflow: "hidden" }}>
-              <div className="nf-barra" style={{ height: "100%", width: "40%", borderRadius: 3, background: "#0BB7CD" }} />
-            </div>
-            <div style={{ fontSize: 10.5, color: "var(--portal-text-muted)", marginTop: 4 }}>Buscando a nota… você recebe uma notificação quando sair.</div>
-            <style>{`@keyframes nfBarra { 0% { transform: translateX(-100%) } 100% { transform: translateX(250%) } } .nf-barra { animation: nfBarra 1.4s ease-in-out infinite; }`}</style>
-          </div>
-        )}
-        {temOS && st === "nfse_rejeitada" && nfse?.erro && <div style={{ fontSize: 10.5, color: "#b91c1c", padding: "0 2px 8px" }}>{nfse.erro} — corrija e reenvie pelo Omie.</div>}
         {pedidos.map((pid, i) => {
           const nf = nfs[pid];
           const ok = !!nf?.faturado && !nf.canceladaEm;
@@ -229,18 +230,29 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
 
 /** Ícone discreto que abre um balão legível ao passar o mouse (ou tocar). */
 function DicaNota({ cor, fundo, carregando, children }: { cor: string; fundo: string; carregando: boolean; children: React.ReactNode }) {
-  const [aberto, setAberto] = useState(false);
+  const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
+  const btn = useRef<HTMLButtonElement>(null);
+  const fechar = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const abrir = () => {
+    if (fechar.current) clearTimeout(fechar.current);
+    const r = btn.current?.getBoundingClientRect();
+    if (!r) return;
+    const largura = 270;
+    setPos({ top: r.bottom + 6, left: Math.max(8, Math.min(window.innerWidth - largura - 8, r.right - largura)) });
+  };
+  const sair = () => { fechar.current = setTimeout(() => setPos(null), 180); };
+  const aberto = !!pos;
   return (
-    <span style={{ position: "relative", display: "inline-flex" }} onMouseEnter={() => setAberto(true)} onMouseLeave={() => setAberto(false)}>
-      <button type="button" onClick={() => setAberto((a) => !a)} title="Situação no sistema nacional"
+    <span style={{ display: "inline-flex" }} onMouseEnter={abrir} onMouseLeave={sair}>
+      <button ref={btn} type="button" onClick={() => (pos ? setPos(null) : abrir())} title="Situação no sistema nacional"
         style={{ width: 22, height: 22, borderRadius: 7, border: "none", background: fundo, color: cor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, cursor: "pointer", padding: 0 }}>
         <i className={`fas ${carregando ? "fa-spinner fa-spin" : "fa-landmark"}`} />
       </button>
-      {aberto && (
-        <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 60, width: 250, padding: "12px 14px", borderRadius: 12, background: "#fefefe", border: "1px solid #e2e8f0", boxShadow: "0 14px 34px rgba(15,23,42,.2)", textAlign: "left" }}>
+      {aberto && pos && typeof document !== "undefined" && createPortal(
+        <div onMouseEnter={abrir} onMouseLeave={sair}
+          style={{ position: "fixed", top: pos.top, left: pos.left, zIndex: 100050, width: 270, padding: "12px 14px", borderRadius: 12, background: "#fefefe", border: "1px solid #e2e8f0", boxShadow: "0 14px 34px rgba(15,23,42,.22)", textAlign: "left", color: "#1e293b" }}>
           {children}
-        </div>
-      )}
+        </div>, document.body)}
     </span>
   );
 }

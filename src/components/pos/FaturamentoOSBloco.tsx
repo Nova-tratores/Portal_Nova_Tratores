@@ -158,6 +158,8 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
   if (estado.faturadoEm) {
     const c = COR[rot?.cor || "verde"];
     return (
+      <>
+      {avisoAntiga}
       <div style={{ border: `1px solid ${c.bd}`, background: c.bg, borderRadius: 9, padding: "8px 10px", fontSize: 12, color: c.tx, margin: "2px 0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <i className="fas fa-circle-check" />
@@ -210,6 +212,7 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
         )}
         {modal}
       </div>
+      </>
     );
   }
 
