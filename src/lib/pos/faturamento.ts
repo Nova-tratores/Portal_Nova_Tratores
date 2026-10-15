@@ -325,14 +325,16 @@ export async function estadoFaturamento(id: string, auth: Autenticado): Promise<
   }
   if (!os) throw new Error('OS não encontrada.');
   const garantia = await ehGarantia(os);
+  const reciboNumero = await reciboDaOS(id);
   return {
     ...base,
     enviadaOmie: !!os.Ordem_Omie,
     bloqueio: bloqueioFaturar(paraRegras(os, garantia)),
-    status: os.faturamento_status, erro: os.faturamento_erro,
+    // tem nº de recibo e nenhuma NFS-e = faturada com recibo (mesmo se o banco ainda não aceitar a situação nova)
+    status: reciboNumero && !os.nfse_numero ? 'recibo_emitido' : os.faturamento_status, erro: os.faturamento_erro,
     faturadoEm: os.faturado_omie_em, faturadoPor: os.faturado_por, formaPagamento: os.forma_pagamento,
     nfseNumero: os.nfse_numero, nfseLink: os.nfse_link,
-    interna: !!os.Servico_Interno, reciboNumero: await reciboDaOS(id),
+    interna: !!os.Servico_Interno, reciboNumero,
     pecas: Array.isArray(os.faturamento_pecas) ? os.faturamento_pecas : [],
     valor: Number(String(os.Valor_Total ?? 0).replace(',', '.')) || 0,
     anteriores: await (async () => {
@@ -993,6 +995,7 @@ export async function reconciliarFaturamentoOS(id: string, opts: { forcar?: bool
       await concluirSeTudoFaturado(id, os.faturado_por || 'Sistema', 'pedido de peças faturado depois da OS');
     }
     if (!statusPendente(os.faturamento_status) && os.faturamento_status !== 'nfse_rejeitada') return 'em dia';
+    if (await reciboDaOS(id) && !os.nfse_numero) return 'recibo'; // recibo: não há NFS-e para esperar
     const nCodOS = Number(os.omie_ncodos || 0) || (await resolverOSNoOmie(os)).nCodOS;
     return `nfse: ${await atualizarNfse(id, nCodOS)}`;
   }

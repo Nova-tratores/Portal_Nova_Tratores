@@ -134,7 +134,13 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
       {carregando ? <i className="fas fa-spinner fa-spin" /> : "PDF"}
     </button>
   );
-  const linha = (chave: string, titulo: string, sub: React.ReactNode, direita: React.ReactNode, primeira: boolean) => (
+  const linha = (chave: string, titulo: string, sub: React.ReactNode, direita: React.ReactNode, primeira: boolean, rodape?: React.ReactNode) => rodape ? (
+    <div key={chave} style={{ borderTop: primeira ? "none" : "1px solid var(--border)" }}>
+      {linhaSo(chave, titulo, sub, direita, true)}
+      {rodape}
+    </div>
+  ) : linhaSo(chave, titulo, sub, direita, primeira);
+  const linhaSo = (chave: string, titulo: string, sub: React.ReactNode, direita: React.ReactNode, primeira: boolean) => (
     <div key={chave} style={{ display: "flex", alignItems: "center", gap: 6, padding: "7px 2px", borderTop: primeira ? "none" : "1px solid var(--border)" }}>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 13, fontWeight: 800, fontVariantNumeric: "tabular-nums" }}>{titulo}</div>
@@ -221,9 +227,12 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
           return linha(pid,
             ok && nf?.numero ? `NF-e ${rem ? "de remessa " : ""}${semZeros(nf.numero)}` : rem ? "NF-e de remessa" : "NF-e",
             <>{rem ? <>peças · remessa {semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}</> : <>peças · pedido {semZeros(ppvOmieMap[pid])}</>} · {pedidoAguardando(pid) ? chip("aguardando a SEFAZ", "#075985", "#e0f2fe") : nf === undefined ? "conferindo…" : ok ? (nf.emitidaEm ? `emitida ${String(nf.emitidaEm).slice(0, 10)}` : chip("emitida", "#047857", "#d1fae5")) : nf?.canceladaEm ? chip("cancelada", "#b91c1c", "#fee2e2") : rem ? chip("remessa ainda não faturada", "#6d28d9", "#ede9fe") : chip("não faturada", "#b45309", "#fef3c7")}</>,
-            ok ? linkPdf(`Imprimir a NF-e ${rem ? "da remessa" : "do pedido"} ${semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}`, () => abrirDanfe(pid), abrindo === pid)
-              : rem && nf && !nf.canceladaEm ? <FaturarRemessaBotao compacto ppvId={pid} numero={semZeros(nf.numeroRemessa || ppvOmieMap[pid])} onFeito={() => { void carregarNfs(true); }} /> : null,
-            !temOS && i === 0);
+            ok ? linkPdf(`Imprimir a NF-e ${rem ? "da remessa" : "do pedido"} ${semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}`, () => abrirDanfe(pid), abrindo === pid) : null,
+            !temOS && i === 0,
+            // remessa ainda não faturada: botão de largura inteira embaixo
+            !ok && rem && nf && !nf.canceladaEm
+              ? <div style={{ padding: "0 2px 9px" }}><FaturarRemessaBotao ppvId={pid} numero={semZeros(nf.numeroRemessa || ppvOmieMap[pid])} onFeito={() => { void carregarNfs(true); }} /></div>
+              : null);
         })}
         {pedidos.some(pedidoAguardando) && (
           <div style={{ padding: "0 2px 8px" }}>
