@@ -137,14 +137,19 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
   const ultAnt = (estado.anteriores || []).slice(-1)[0];
   const antigaAtiva = ultAnt?.novaOmie && ultAnt.omieCancelada !== true ? ultAnt : null;
   const avisoAntiga = antigaAtiva && (
-    <div style={{ border: "1px solid #fcd34d", background: "#fffbeb", color: "#92400e", borderRadius: 10, padding: "9px 10px", fontSize: 12, margin: "4px 0" }}>
-      <div style={{ fontWeight: 800 }}><i className="fas fa-triangle-exclamation" /> OS {antigaAtiva.ordemOmie} ainda ativa no Omie</div>
-      <div style={{ fontSize: 11, marginTop: 2, lineHeight: 1.45 }}>A nota dela já foi cancelada, mas a OS e o título a receber continuam abertos lá.</div>
-      {msgAntiga && <div style={{ fontSize: 11, marginTop: 5, fontWeight: 700, color: msgAntiga.ok ? "#15803d" : "#b91c1c" }}>{msgAntiga.texto}</div>}
+    <div style={{ border: "1px solid #fde68a", background: "#fffbeb", borderRadius: 12, padding: "10px 11px", margin: "4px 0" }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 9 }}>
+        <span style={{ width: 28, height: 28, borderRadius: 8, flexShrink: 0, background: "#fef3c7", color: "#b45309", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}><i className="fas fa-clock-rotate-left" /></span>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 12.5, fontWeight: 800, color: "#78350f" }}>Falta cancelar a OS {antigaAtiva.ordemOmie}</div>
+          <div style={{ fontSize: 11, color: "#92400e", marginTop: 2, lineHeight: 1.45 }}>A nota já foi cancelada; no Omie a OS e o título ainda estão abertos.</div>
+        </div>
+      </div>
+      {msgAntiga && <div style={{ fontSize: 11, marginTop: 7, padding: "6px 8px", borderRadius: 8, background: msgAntiga.ok ? "#f0fdf4" : "#fef2f2", color: msgAntiga.ok ? "#15803d" : "#b91c1c", fontWeight: 600 }}>{msgAntiga.texto}</div>}
       {estado.podeCancelarNota && (
         <button type="button" onClick={cancelarAntiga} disabled={cancelandoAntiga}
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", minHeight: 32, marginTop: 7, borderRadius: 8, border: "none", background: "#b45309", color: "#fefefe", fontWeight: 800, fontSize: 12, cursor: cancelandoAntiga ? "wait" : "pointer", fontFamily: "inherit" }}>
-          <i className={`fas ${cancelandoAntiga ? "fa-spinner fa-spin" : "fa-ban"}`} /> Cancelar a OS {antigaAtiva.ordemOmie} no Omie
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", height: 34, marginTop: 8, borderRadius: 9, border: "1px solid #f59e0b", background: "#fefefe", color: "#b45309", fontWeight: 800, fontSize: 12.5, cursor: cancelandoAntiga ? "wait" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+          <i className={`fas ${cancelandoAntiga ? "fa-spinner fa-spin" : "fa-ban"}`} /> {cancelandoAntiga ? "Cancelando no Omie…" : "Cancelar no Omie"}
         </button>
       )}
     </div>

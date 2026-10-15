@@ -135,11 +135,16 @@ async function acharCopia(nAntiga: number, nCodCli: number, idOrdem: string): Pr
 async function cancelarOSAntigaNoOmie(nCodOS: number, faturada: boolean): Promise<string | null> {
   try { await escrever("/servicos/osp/", "CancelarOS", { nCodOS, cCancelarNfse: faturada ? "S" : "N" }); }
   catch (e) { return e instanceof Error ? e.message : String(e); }
-  await espera(3000);
-  try {
-    const st = await ler<{ cCancelada?: string }>("/servicos/os/", "StatusOS", { nCodOS });
-    return st.cCancelada === "S" ? null : "o Omie aceitou, mas a OS ainda não aparece como cancelada — confira em alguns minutos";
-  } catch { return null; }
+  // o Omie leva alguns segundos para mostrar a OS cancelada (OS 5352: aceitou e só
+  // apareceu depois) — confere até 4 vezes; aceito sem erro e ainda não visível = cancelada
+  for (let i = 0; i < 4; i++) {
+    await espera(4000);
+    try {
+      const st = await ler<{ cCancelada?: string }>("/servicos/os/", "StatusOS", { nCodOS });
+      if (st.cCancelada === "S") return null;
+    } catch { /* confere de novo */ }
+  }
+  return null;
 }
 
 /** Repete o cancelamento da OS antiga no Omie (quando o "Duplicar a OS" não conseguiu). */
