@@ -2717,33 +2717,41 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </div>
                       )}
                       {/* peças que não foram ao Omie junto com a OS: reenviar */}
-                      {ordemOmie && !ppvOmieCarregando && ppvIds.filter((pid) => !ppvOmieMap[pid]).map((pid) => (
-                        <div key={`fora-${pid}`} style={{ margin: "6px 2px 0", padding: "8px 10px", borderRadius: 9, background: "#fffbeb", border: "1px solid #fde68a" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                            <i className="fas fa-box-open" style={{ color: "#b45309", fontSize: 12 }} />
-                            <div style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: "#92400e", lineHeight: 1.35 }}>
-                              <b>{pid}</b> não foi para o Omie
-                              <div style={{ fontSize: 10.5, opacity: .85 }}>{servicoInterno ? "remessa" : "pedido de venda"} · procura o produto na Nova e na Castro</div>
+                      {ordemOmie && !ppvOmieCarregando && ppvIds.filter((pid) => !ppvOmieMap[pid]).map((pid) => {
+                        const indo = enviandoPecas === pid;
+                        const enviar = async () => {
+                          if (!osId) return;
+                          setEnviandoPecas(pid); setMsgPecas(null);
+                          try {
+                            const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/enviar-pecas`, { method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" }, body: JSON.stringify({ ppvId: pid }) });
+                            const j = await r.json().catch(() => ({}));
+                            if (r.ok && j.ok) { setMsgPecas({ ok: true, texto: `${servicoInterno ? "Remessa" : "Pedido"} nº ${String(j.numero || "").replace(/^0+(?=\d)/, "")} criado${j.aviso ? ` · ${j.aviso}` : ""}` }); setOmieRefresh((k) => k + 1); }
+                            else setMsgPecas({ ok: false, texto: String(j.error || `Erro ${r.status}`) });
+                          } catch { setMsgPecas({ ok: false, texto: "Sem conexão." }); }
+                          setEnviandoPecas(null);
+                        };
+                        return (
+                          <div key={`fora-${pid}`} style={{ marginTop: 8, padding: "10px 11px", borderRadius: 10, background: "#fff7ed", border: "1px solid #fed7aa" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                              <span style={{ width: 26, height: 26, borderRadius: 7, flexShrink: 0, background: "#ffedd5", color: "#c2410c", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12 }}><i className="fas fa-box-open" /></span>
+                              <div style={{ minWidth: 0 }}>
+                                <div style={{ fontSize: 12.5, fontWeight: 800, color: "#7c2d12", whiteSpace: "nowrap" }}>{pid}</div>
+                                <div style={{ fontSize: 11, color: "#9a3412" }}>peças fora do Omie</div>
+                              </div>
                             </div>
-                            <button type="button" disabled={!!enviandoPecas || !podeOmie}
-                              onClick={async () => {
-                                if (!osId) return;
-                                setEnviandoPecas(pid); setMsgPecas(null);
-                                try {
-                                  const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/enviar-pecas`, { method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" }, body: JSON.stringify({ ppvId: pid }) });
-                                  const j = await r.json().catch(() => ({}));
-                                  if (r.ok && j.ok) { setMsgPecas({ ok: true, texto: `${pid} enviado: ${servicoInterno ? "remessa" : "pedido"} ${String(j.numero || "").replace(/^0+(?=\d)/, "")}${j.aviso ? ` · ${j.aviso}` : ""}` }); setOmieRefresh((k) => k + 1); }
-                                  else setMsgPecas({ ok: false, texto: `${pid}: ${j.error || `erro ${r.status}`}` });
-                                } catch { setMsgPecas({ ok: false, texto: "Sem conexão." }); }
-                                setEnviandoPecas(null);
-                              }}
-                              style={{ flexShrink: 0, height: 28, padding: "0 10px", borderRadius: 7, border: "none", background: "#e8730c", color: "#fefefe", fontWeight: 800, fontSize: 11.5, cursor: enviandoPecas ? "wait" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
-                              <i className={`fas ${enviandoPecas === pid ? "fa-spinner fa-spin" : "fa-paper-plane"}`} /> {enviandoPecas === pid ? "Enviando…" : "Enviar"}
+                            <button type="button" disabled={!!enviandoPecas || !podeOmie} onClick={enviar}
+                              title={`Envia como ${servicoInterno ? "remessa" : "pedido de venda"}. Procura o produto na Nova e, se não achar, na Castro.`}
+                              style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", height: 32, marginTop: 8, borderRadius: 8, border: "none", background: indo ? "#fdba74" : "#ea580c", color: "#fefefe", fontWeight: 800, fontSize: 12, cursor: enviandoPecas ? "wait" : "pointer", fontFamily: "inherit", whiteSpace: "nowrap" }}>
+                              <i className={`fas ${indo ? "fa-spinner fa-spin" : "fa-paper-plane"}`} /> {indo ? "Enviando ao Omie…" : `Enviar ${servicoInterno ? "remessa" : "pedido"}`}
                             </button>
                           </div>
+                        );
+                      })}
+                      {msgPecas && (
+                        <div style={{ marginTop: 6, padding: "6px 9px", borderRadius: 8, fontSize: 11, fontWeight: 600, lineHeight: 1.4, background: msgPecas.ok ? "#f0fdf4" : "#fef2f2", color: msgPecas.ok ? "#15803d" : "#b91c1c" }}>
+                          <i className={`fas ${msgPecas.ok ? "fa-check" : "fa-circle-exclamation"}`} /> {msgPecas.texto}
                         </div>
-                      ))}
-                      {msgPecas && <div style={{ margin: "5px 4px 0", fontSize: 11, fontWeight: 600, lineHeight: 1.4, color: msgPecas.ok ? "#15803d" : "#b91c1c" }}>{msgPecas.texto}</div>}
+                      )}
                       {osId && ordemOmie && (
                         <FaturamentoOSBloco
                           osId={osId}
