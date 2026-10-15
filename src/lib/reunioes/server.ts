@@ -69,6 +69,8 @@ export async function criarSerie(auth: Autenticado, campos: Partial<Serie>): Pro
     recorrencia: campos.recorrencia ?? 'nenhuma', dia_semana: campos.dia_semana ?? null, hora: campos.hora ?? null,
     duracao_min: campos.duracao_min ?? 30, corte_antecedencia_horas: campos.corte_antecedencia_horas ?? 18,
     visibilidade: campos.visibilidade ?? 'publico', criado_por: auth.userId,
+    // sala: só quando veio (sem sql/salas-reserva.sql a coluna não existe)
+    ...(campos.sala_id !== undefined ? { sala_id: campos.sala_id } : {}),
   }).select('*').single()) as Serie
 }
 
