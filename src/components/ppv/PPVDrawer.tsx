@@ -23,6 +23,7 @@ import AnexosModal from "./AnexosModal";
 import TarefasModal from "./TarefasModal";
 import SelecionarUsuarioModal from "./SelecionarUsuarioModal";
 import { ClienteOmieModal, SeletorTecnicos, SeletorCondicao, useListasOmie } from "@/components/pos/OSOmieAbas";
+import CancelarNotaModal from "@/components/pos/CancelarNotaModal";
 import { normalizarEspelho, espelhoPadrao, type OmieEspelho } from "@/lib/pos/omie-espelho";
 import { diasDoNumParcelas, rotuloNumParcelas, categoriaPPVPelaOS, numParcelasDaOS } from "@/lib/ppv/parcelas-condicao";
 import OcorrenciaFormModal from "@/components/ocorrencias/OcorrenciaFormModal";
@@ -104,6 +105,8 @@ export default function PPVDrawer({
   const { tecnicos, productCache, showToast } = usePPV();
   const { userProfile } = useAuth();
   const { pode } = usePermissoes(userProfile?.id);
+  // corrigir a NF-e de peças (cancelar → duplicar o pedido)
+  const [corrigirNota, setCorrigirNota] = useState<null | "cancelar" | "duplicar">(null);
   const podeEditar = pode('ppv', 'editar');
   const podeItem = pode('ppv', 'adicionar_item');
   const podeOmie = pode('ppv', 'enviar_omie');
@@ -1755,6 +1758,28 @@ export default function PPVDrawer({
                                 {[nf?.emitidaEm ? `emitida em ${nf.emitidaEm}` : "", !faturadoEm ? "faturada direto no Omie" : ""].filter(Boolean).join(" · ") || "nota das peças"}
                               </span>,
                               botao(abrirDanfe, "fa-print", "Imprimir a nota", "Imprimir a NF-e (DANFE em PDF)", danfeLoading), "nf")}
+                            {faturado && !remessa && pode("pos", "cancelar_faturamento") && (
+                              <button type="button" onClick={() => setCorrigirNota("cancelar")} title="Cancela a NF-e (pelo Omie) e depois duplica o pedido para faturar de novo"
+                                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, minHeight: 30, borderRadius: 8, border: "1px solid #e2e8f0", background: "#fefefe", color: "#334155", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                                <i className="fas fa-sliders" style={{ color: "#64748b" }} /> Corrigir a nota de peças
+                              </button>
+                            )}
+                            {(() => {
+                              const ult = (details?.faturamentoAnterior || []).slice(-1)[0];
+                              if (!ult?.pendenteDuplicar) return null;
+                              return (
+                                <div style={{ padding: "8px 10px", borderRadius: 8, background: "#fef2f2", border: "1px solid #fecaca", color: "#7f1d1d" }}>
+                                  <div style={{ fontSize: 12, fontWeight: 800 }}><i className="fas fa-ban" /> NF-e {String(ult.nf || "").replace(/^0+(?=\d)/, "")} cancelada</div>
+                                  <div style={{ fontSize: 10.5, marginTop: 2 }}>pedido {ult.pedidoOmie} · falta duplicar o pedido</div>
+                                  {pode("pos", "cancelar_faturamento") && (
+                                    <button type="button" onClick={() => setCorrigirNota("duplicar")}
+                                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", minHeight: 30, marginTop: 6, borderRadius: 8, border: "none", background: "#0369A1", color: "#fefefe", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+                                      <i className="fas fa-clone" /> Duplicar o pedido
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })()}
                             {!faturado && !remessa && (
                               <button type="button" onClick={() => setShowFaturar(true)} disabled={!podeFaturar} title={!podeFaturar ? MSG_SEM_PERMISSAO : `Faturar (emite NF-e) — Omie nº ${numOmie}`}
                                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 36, borderRadius: 9, border: "none", background: podeFaturar ? "#0BB7CD" : "#94A3B8", color: "#fefefe", fontWeight: 800, fontSize: 13, cursor: podeFaturar ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: podeFaturar ? "0 3px 10px rgba(11,183,205,.35)" : "none" }}>
@@ -1891,6 +1916,13 @@ export default function PPVDrawer({
         : <div style={{ position: "fixed", inset: 0, zIndex: 100010, background: "rgba(15,23,42,.35)", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => setCliOmie((c) => ({ ...c, aberto: false }))}>
             <div style={{ background: "#fefefe", borderRadius: 10, padding: "16px 22px", fontSize: 13.5, color: "#334155" }}><i className="fas fa-spinner fa-spin" /> Buscando o cliente no Omie…</div>
           </div>)}
+      {corrigirNota && ppvId && (() => {
+        const ult = (details?.faturamentoAnterior || []).slice(-1)[0];
+        const num = String(corrigirNota === "duplicar" ? ult?.pedidoOmie || "" : pedidoOmie || "").replace(/^0+(?=\d)/, "");
+        const nfNum = corrigirNota === "duplicar" ? String(ult?.nf || "") : String(details?.nfNumero || "");
+        return <CancelarNotaModal tipo="pedido" osId={modalOSId || ""} ppvId={ppvId} numeroOS={num} nfse={nfNum ? nfNum.replace(/^0+(?=\d)/, "") : null} etapaInicial={corrigirNota}
+          onFechar={() => { setCorrigirNota(null); if (ppvId) void carregarDetalhes(ppvId); }} onFeito={() => { onDirty?.(); }} />;
+      })()}
       <SelecionarUsuarioModal open={showVendedor} atual={tecnico} onClose={() => setShowVendedor(false)} onSelect={(nome) => setTecnico(nome)} />
       {/* Busca de cliente do PRÓPRIO drawer — escreve direto no estado daqui */}
       <ModalBuscaCliente open={buscaClienteOpen} onClose={() => setBuscaClienteOpen(false)} onSelect={aplicarCliente} />

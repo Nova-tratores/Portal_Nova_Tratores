@@ -104,6 +104,8 @@ export interface PPVDetalhes {
   cenarioFiscal?: string;
   previsaoFaturamento?: string;
   numParcelas?: string;
+  /** NF-e canceladas pelo portal (a última com pendenteDuplicar = falta duplicar o pedido) */
+  faturamentoAnterior?: Array<{ nf?: string | null; pedidoOmie?: string; canceladaEm?: string; motivo?: string; pendenteDuplicar?: boolean; novoPedido?: string }>;
   numContrato?: string;
   contato?: string;
   dadosNF?: string;

@@ -17,7 +17,7 @@ interface Estado {
   faturadoEm: string | null; faturadoPor: string | null; formaPagamento: string | null;
   nfseNumero: string | null; nfseLink: string | null;
   pecas: Array<{ id: string; pedidoOmie?: string; ok: boolean; erro?: string | null; nf?: string | null }>;
-  pedidos?: Array<{ id: string; pedidoOmie: string; faturado: boolean }>;
+  pedidos?: Array<{ id: string; pedidoOmie: string; faturado: boolean; nf?: string | null; ncCancelada?: { nf: string | null; pedido: string; motivo: string } | null }>;
 }
 
 const COR = {
@@ -42,6 +42,8 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
   const [refaturando, setRefaturando] = useState(false);
   const [cancelarNota, setCancelarNota] = useState<null | "cancelar" | "duplicar">(null);
   const [menuNota, setMenuNota] = useState(false);
+  // nota de peças: qual pedido e em qual passo
+  const [pedidoAlvo, setPedidoAlvo] = useState<null | { id: string; num: string; nf: string | null; etapa: "cancelar" | "duplicar" }>(null);
   const [cancelandoAntiga, setCancelandoAntiga] = useState(false);
   const [msgAntiga, setMsgAntiga] = useState<{ ok: boolean; texto: string } | null>(null);
   const cancelarAntiga = async () => {
@@ -114,6 +116,23 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
   const nfseAtual = estado.nfseNumero ? String(estado.nfseNumero).replace(/^0+(?=\d)/, "") : null;
   const modal = cancelarNota && <CancelarNotaModal osId={osId} numeroOS={numOS} nfse={nfseAtual} valor={estado.valor} etapaInicial={cancelarNota}
     onFechar={() => { setCancelarNota(null); void carregar(); }} onFeito={() => { void carregar(); (onAtualizar || onFaturado)(); }} />;
+  const modalPedido = pedidoAlvo && <CancelarNotaModal tipo="pedido" osId={osId} ppvId={pedidoAlvo.id} numeroOS={pedidoAlvo.num} nfse={pedidoAlvo.nf} etapaInicial={pedidoAlvo.etapa}
+    onFechar={() => { setPedidoAlvo(null); void carregar(); }} onFeito={() => { void carregar(); (onAtualizar || onFaturado)(); }} />;
+  // NF-e de peças cancelada, falta duplicar o pedido
+  const pedidosPendentes = (estado.pedidos || []).filter((p) => p.ncCancelada);
+  const avisoPedidos = pedidosPendentes.map((p) => (
+    <div key={`nc-${p.id}`} style={{ border: "1px solid #fecaca", background: "#fef2f2", color: "#7f1d1d", borderRadius: 10, padding: "9px 10px", fontSize: 12, margin: "4px 0" }}>
+      <div style={{ fontWeight: 800 }}><i className="fas fa-ban" /> NF-e {p.ncCancelada?.nf ? String(p.ncCancelada.nf).replace(/^0+(?=\d)/, "") : ""} de peças cancelada</div>
+      <div style={{ fontSize: 11, marginTop: 2 }}>pedido {p.ncCancelada?.pedido} · falta duplicar o pedido para emitir a nota certa</div>
+      {estado.podeCancelarNota && (
+        <button type="button" onClick={() => setPedidoAlvo({ id: p.id, num: String(p.ncCancelada?.pedido || ""), nf: p.ncCancelada?.nf || null, etapa: "duplicar" })}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", minHeight: 32, marginTop: 7, borderRadius: 8, border: "none", background: "#0369A1", color: "#fefefe", fontWeight: 800, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          <i className="fas fa-clone" /> Duplicar o pedido
+        </button>
+      )}
+    </div>
+  ));
+
   // OS refeita, mas a antiga continua ativa no Omie (o título dela segue aberto lá)
   const ultAnt = (estado.anteriores || []).slice(-1)[0];
   const antigaAtiva = ultAnt?.novaOmie && ultAnt.omieCancelada !== true ? ultAnt : null;
@@ -160,6 +179,8 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
     return (
       <>
       {avisoAntiga}
+      {avisoPedidos}
+      {modalPedido}
       <div style={{ border: `1px solid ${c.bd}`, background: c.bg, borderRadius: 9, padding: "8px 10px", fontSize: 12, color: c.tx, margin: "2px 0" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
           <i className="fas fa-circle-check" />
@@ -200,11 +221,18 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
                     <span><span style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#0f172a" }}>Cancelar a NFS-e{nfseAtual ? ` ${nfseAtual}` : ""}</span>
                       <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 1 }}>no sistema nacional · depois duplica a OS</span></span>
                   </button>
-                  <div title="Em construção" style={{ display: "flex", alignItems: "flex-start", gap: 9, padding: "10px 12px", borderTop: "1px solid #f1f5f9", opacity: .55 }}>
-                    <i className="fas fa-boxes-stacked" style={{ color: "#e8730c", marginTop: 2 }} />
-                    <span><span style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#0f172a" }}>Cancelar a NF-e de peças</span>
-                      <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 1 }}>em breve · depois duplica o pedido</span></span>
-                  </div>
+                  {(estado.pedidos || []).filter((p) => p.faturado && !p.ncCancelada).map((p) => {
+                    const num = p.pedidoOmie.replace(/^0+(?=\d)/, "");
+                    const nf = p.nf ? String(p.nf).replace(/^0+(?=\d)/, "") : null;
+                    return (
+                      <button key={p.id} type="button" onClick={() => { setMenuNota(false); setPedidoAlvo({ id: p.id, num, nf, etapa: "cancelar" }); }}
+                        style={{ display: "flex", alignItems: "flex-start", gap: 9, width: "100%", padding: "10px 12px", border: "none", borderTop: "1px solid #f1f5f9", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                        <i className="fas fa-boxes-stacked" style={{ color: "#e8730c", marginTop: 2 }} />
+                        <span><span style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#0f172a" }}>Cancelar a NF-e{nf ? ` ${nf}` : ""} de peças</span>
+                          <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 1 }}>pedido {num} · pelo Omie · depois duplica o pedido</span></span>
+                      </button>
+                    );
+                  })}
                 </div>
               </>
             )}
@@ -242,6 +270,8 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
   return (
     <>
       {avisoAntiga}
+      {avisoPedidos}
+      {modalPedido}
       {pedidosJaFaturados.length > 0 && (
         <div style={{ border: `1px solid ${COR.verde.bd}`, background: COR.verde.bg, color: COR.verde.tx, borderRadius: 6, padding: "7px 10px", fontSize: 12, margin: "4px 0" }}>
           <i className="fas fa-check" /> Pedido de peças {pedidosJaFaturados.map((p) => `PV ${p.pedidoOmie.replace(/^0+/, "")}`).join(", ")} já faturado — falta a OS.

@@ -304,7 +304,7 @@ export interface EstadoFaturamentoOS {
   nfseLink: string | null;
   pecas: PecaFaturada[];
   /** pedidos de peças da OS que contam para concluir (no Omie, não remessa, não cancelados) */
-  pedidos?: Array<{ id: string; pedidoOmie: string; faturado: boolean }>;
+  pedidos?: Array<{ id: string; pedidoOmie: string; faturado: boolean; nf?: string | null; ncCancelada?: { nf: string | null; pedido: string; motivo: string } | null }>;
   migracaoFaltando?: boolean;
 }
 
@@ -338,7 +338,23 @@ export async function estadoFaturamento(id: string, auth: Autenticado): Promise<
         omieCancelada: x.omieCancelada === undefined ? undefined : !!x.omieCancelada,
       })) : [];
     })().catch(() => []),
-    pedidos: (await ppvsDaOS(os)).filter(pedidoQueConta).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, faturado: !!p.faturadoEm })),
+    pedidos: await (async () => {
+      const lista = (await ppvsDaOS(os)).filter(pedidoQueConta);
+      // NF-e e nota cancelada aguardando "duplicar o pedido" (coluna faturamento_anterior pode não existir)
+      const extra = new Map<string, { nf: string | null; anterior: Record<string, unknown>[] }>();
+      if (lista.length) {
+        const ids = lista.map((p) => p.id);
+        const r1 = await supabase.from(TBL_PEDIDOS).select('id_pedido, nf_numero, faturamento_anterior').in('id_pedido', ids);
+        const r = r1.error ? await supabase.from(TBL_PEDIDOS).select('id_pedido, nf_numero').in('id_pedido', ids) : r1;
+        for (const x of (r.data || []) as Record<string, unknown>[]) extra.set(String(x.id_pedido), { nf: (x.nf_numero as string) || null, anterior: Array.isArray(x.faturamento_anterior) ? x.faturamento_anterior as Record<string, unknown>[] : [] });
+      }
+      return lista.map((p) => {
+        const e = extra.get(p.id);
+        const ult = e?.anterior.slice(-1)[0];
+        return { id: p.id, pedidoOmie: p.pedidoOmie, faturado: !!p.faturadoEm, nf: e?.nf || null,
+          ncCancelada: ult?.pendenteDuplicar ? { nf: (ult.nf as string) || null, pedido: String(ult.pedidoOmie || ''), motivo: String(ult.motivo || '') } : null };
+      });
+    })(),
   };
 }
 
