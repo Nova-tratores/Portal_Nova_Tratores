@@ -7,13 +7,16 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { Printer, SlidersHorizontal } from 'lucide-react'
+import { Printer, SlidersHorizontal, Tag } from 'lucide-react'
 import { marcarEtiqueta } from '@/lib/opa-pecas/db'
 import {
   ajustesImpressao, folhasNecessarias, guardarProximaPosicao, imprimirEtiquetas, POR_FOLHA, posicaoDepois, proximaPosicao,
   type EtiquetaItem,
 } from '@/lib/opa-pecas/etiqueta'
-import { Aviso, botao, LARANJA } from './comum'
+import {
+  guardarAjusteTermica, guardarModo, imprimirTermica, lerAjusteTermica, lerModo, type AjusteTermica, type ModoEtiqueta,
+} from '@/lib/opa-pecas/etiqueta-termica'
+import { Aviso, botao, INP, LARANJA } from './comum'
 import { Janela } from './Moldura'
 
 export interface ItemParaEtiqueta extends EtiquetaItem {
@@ -30,6 +33,10 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
   const [inicio, setInicio] = useState(proximaPosicao)
   const [erro, setErro] = useState<string | null>(null)
   const [aj] = useState(ajustesImpressao)
+  // térmica de rolo (padrão, 70 × 30 mm) × folha 3×10 — escolha lembrada neste navegador
+  const [modo, setModo] = useState<ModoEtiqueta>(lerModo)
+  const [term, setTerm] = useState<AjusteTermica>(lerAjusteTermica)
+  const mudaTerm = (k: 'largura' | 'altura' | 'x' | 'y', v: string) => setTerm((t) => ({ ...t, [k]: Number(String(v).replace(',', '.')) || 0 }))
   const repetidas = itens.filter((i) => i.jaGerada).length
   const n = itens.length
   const folhas = folhasNecessarias(inicio, n)
@@ -41,11 +48,20 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
       setErro('O link público das etiquetas ainda não existe no banco. Rode o sql/pni-10-link-publico.sql no Supabase e recarregue a página.')
       return
     }
-    if (!imprimirEtiquetas(itens, inicio)) {
-      setErro('O navegador bloqueou a janela de impressão. Libere pop-ups para o portal e tente de novo.')
-      return
+    if (modo === 'termica') {
+      guardarAjusteTermica(term)
+      if (!imprimirTermica(itens, term)) {
+        setErro('O navegador bloqueou a janela de impressão. Libere pop-ups para o portal e tente de novo.')
+        return
+      }
+    } else {
+      if (!imprimirEtiquetas(itens, inicio)) {
+        setErro('O navegador bloqueou a janela de impressão. Libere pop-ups para o portal e tente de novo.')
+        return
+      }
+      guardarProximaPosicao(posicaoDepois(inicio, n))
     }
-    guardarProximaPosicao(posicaoDepois(inicio, n))
+    guardarModo(modo)
     marcarEtiqueta(itens.map((i) => i.id)).then(() => onImpresso?.()).catch(() => null)
     onFechar()
   }
@@ -56,6 +72,56 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
       {repetidas > 0 && (
         <Aviso tipo="info">{repetidas === n ? 'Estas etiquetas já foram geradas' : `${repetidas} destas etiquetas já foram geradas`} — vão sair de novo.</Aviso>
       )}
+      <div role="tablist" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 14 }}>
+        {([['termica', 'Impressora térmica (rolo)'], ['folha', 'Folha A4/Carta (30 por folha)']] as const).map(([m, rot]) => (
+          <button key={m} type="button" role="tab" aria-selected={modo === m} onClick={() => setModo(m)} style={{
+            padding: '10px 8px', borderRadius: 10, fontSize: 13, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer',
+            border: '1.5px solid ' + (modo === m ? '#111827' : 'var(--portal-border)'),
+            background: modo === m ? '#111827' : 'var(--portal-bg-card)', color: modo === m ? '#fff' : 'var(--portal-text)',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+          }}>{m === 'termica' ? <Tag size={14} /> : <Printer size={14} />} {rot}</button>
+        ))}
+      </div>
+
+      {modo === 'termica' && (
+        <>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 0 12px' }}>
+            {/* prévia do tamanho (proporção real) */}
+            <div style={{ width: term.largura * 3, height: term.altura * 3, maxWidth: '100%', border: '1.5px dashed var(--portal-border)', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, padding: 6, background: '#fff', color: '#111' }}>
+              <div style={{ width: (term.altura - 4) * 3, height: (term.altura - 4) * 3, background: 'repeating-linear-gradient(45deg,#111 0 3px,#fff 3px 6px)', flexShrink: 0 }} />
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontFamily: 'monospace', fontWeight: 900, fontSize: 15 }}>{itens[0]?.codigo || 'PNI-000000'}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{itens[0]?.descricao || 'Descrição da peça'}</div>
+              </div>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, minmax(0, 1fr))', gap: 8, marginBottom: 10 }}>
+            {([['largura', 'Largura (mm)'], ['altura', 'Altura (mm)'], ['x', '→ lado (mm)'], ['y', '↓ cima (mm)']] as const).map(([k, rot]) => (
+              <label key={k} style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text-secondary)', display: 'flex', flexDirection: 'column', gap: 4 }}>
+                {rot}
+                <input type="number" step={k === 'x' || k === 'y' ? 0.5 : 1} value={term[k]} onChange={(e) => mudaTerm(k, e.target.value)} style={{ ...INP, padding: '6px 8px' }} />
+              </label>
+            ))}
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
+            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--portal-text-secondary)' }}>Girar:</span>
+            {([0, 90, 180, 270] as const).map((g) => (
+              <button key={g} type="button" aria-pressed={term.rotacao === g} onClick={() => setTerm((t) => ({ ...t, rotacao: g }))} style={{
+                padding: '5px 10px', borderRadius: 8, fontSize: 12.5, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer',
+                border: '1.5px solid ' + (term.rotacao === g ? '#111827' : 'var(--portal-border)'),
+                background: term.rotacao === g ? '#111827' : 'var(--portal-bg-card)', color: term.rotacao === g ? '#fff' : 'var(--portal-text)',
+              }}>{g}°</button>
+            ))}
+            <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)' }}>saiu de cabeça pra baixo = 180°; de lado = 90° ou 270°</span>
+          </div>
+          <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', lineHeight: 1.5, padding: '8px 10px', borderRadius: 8, background: 'var(--portal-bg-secondary)', marginBottom: 12 }}>
+            {n === 1 ? 'Sai 1 etiqueta' : `Saem ${n} etiquetas, uma embaixo da outra`}. No diálogo de impressão escolha a <b>ROGERIA</b>, margens <b>Nenhuma</b> e escala <b>100%</b>.
+            {' '}Se sair torta, use “→ lado” e “↓ cima” (negativo volta).
+          </div>
+        </>
+      )}
+
+      {modo === 'folha' && <>
       <p style={{ fontSize: 13.5, color: 'var(--portal-text-secondary)', margin: '0 0 12px', lineHeight: 1.5 }}>
         Toque na primeira posição <b>livre</b> da folha. As anteriores saem em branco, para reaproveitar folha já começada.
       </p>
@@ -93,6 +159,7 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
           <SlidersHorizontal size={12} /> Ajustar na tela de Etiquetas
         </Link>
       </div>
+      </>}
       <button type="button" onClick={imprimir} disabled={n === 0} style={{ ...botao('#111827', { grande: true, desab: n === 0 }), width: '100%' }}>
         <Printer size={18} /> Imprimir
       </button>

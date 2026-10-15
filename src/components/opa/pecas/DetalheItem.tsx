@@ -223,20 +223,20 @@ export default function DetalheItem({ item: inicial, base, onMudou }: {
             </div>
           </div>
 
-          {/* Concluída: código definitivo + QR (a etiqueta sai se quiser) */}
-          {codigoDefinitivo(item.codigo) && (
+          {/* Código + QR + etiqueta: em QUALQUER fase (José, 15/10/2026 — antes só concluída).
+              Antes de concluir o código é o provisório (CAP-); o QR é o mesmo para sempre. */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 10, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-secondary)' }}>
               <QrDaPeca token={item.token_publico} tamanho={92} />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: 0.6, textTransform: 'uppercase', color: 'var(--portal-text-muted)' }}>Código e QR</span>
                 <span style={{ fontFamily: 'monospace', fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>{item.codigo}</span>
+                {!codigoDefinitivo(item.codigo) && <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', maxWidth: 230 }}>Código provisório: muda quando a peça for concluída (o QR continua valendo).</span>}
                 <button type="button" onClick={() => setImprimindo(true)} style={{ ...botao('#111827'), padding: '7px 12px', fontSize: 12.5 }}>
                   <Printer size={14} /> {item.etiqueta_impressa_em ? 'Reimprimir etiqueta' : 'Imprimir etiqueta'}
                 </button>
                 {item.etiqueta_impressa_em && <span style={{ fontSize: 11, color: '#047857', fontWeight: 600 }}>impressa em {fmtDataHora(item.etiqueta_impressa_em)}</span>}
               </div>
             </div>
-          )}
         </div>
 
         {/* Em que fase está + o que fazer agora */}

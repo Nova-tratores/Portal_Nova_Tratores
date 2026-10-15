@@ -8,14 +8,15 @@
 
 import Link from 'next/link'
 import { useRef, useState } from 'react'
-import { Camera, Check, FlaskConical, ImagePlus, Loader2, MapPin, RotateCcw, Save, X } from 'lucide-react'
-import { criarItem } from '@/lib/opa-pecas/db'
+import { Camera, Check, FlaskConical, ImagePlus, Loader2, MapPin, Printer, RotateCcw, Save, X } from 'lucide-react'
+import { buscarItem, criarItem } from '@/lib/opa-pecas/db'
 import { comprimir, enviarFoto, mensagemErro } from '@/lib/opa-pecas/fotos'
 import { nomeDoItem, textoLocal } from '@/lib/opa-pecas/regras'
 import type { Qualidade } from '@/lib/opa-pecas/tipos'
 import { SeletorLocal, SeletorQualidade, SeletorQuantidade } from './Campos'
 import { Aviso, botao, INP, LARANJA, ROTULO, SECAO, TITULO_SECAO, useTelaLarga, type Base } from './comum'
 import ProdutoCadastro from './ProdutoCadastro'
+import Impressao, { type ItemParaEtiqueta } from './Impressao'
 
 const MIN_FOTOS = 2
 const MAX_FOTOS = 12
@@ -71,6 +72,21 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState<string | null>(null)
   const [salvo, setSalvo] = useState<{ id: string; codigo: string; local: string } | null>(null)
+  // etiqueta logo depois de cadastrar (térmica ou folha) — busca a chave do QR da peça nova
+  const [etiqueta, setEtiqueta] = useState<ItemParaEtiqueta | null>(null)
+  const [buscandoEt, setBuscandoEt] = useState(false)
+  const abrirEtiqueta = async () => {
+    if (!salvo) return
+    setBuscandoEt(true)
+    try {
+      const i = await buscarItem({ id: salvo.id })
+      if (i) setEtiqueta({ id: i.id, token: i.token_publico, codigo: i.codigo, descricao: i.descricao, quantidade: i.quantidade, local: salvo.local })
+    } catch (e) {
+      setErro(mensagemErro(e))
+    } finally {
+      setBuscandoEt(false)
+    }
+  }
 
   const muda = <K extends keyof Form>(k: K, v: Form[K]) => setForm((f) => ({ ...f, [k]: v }))
   const atualizarFoto = (id: string, patch: Partial<FotoLocal>) =>
@@ -109,6 +125,7 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
     setForm((f) => ({ ...FORM_VAZIO, local: f.local, tecnico: f.tecnico }))
     setErro(null)
     setSalvo(null)
+    setEtiqueta(null)
     if (!MODO_TESTE) camRef.current?.click()
   }
 
@@ -164,11 +181,16 @@ export default function Captura({ userId, base }: { userId: string; base: Base }
           <div style={{ fontSize: 13, color: '#047857', marginTop: 2 }}>{nomeDoItem(salvo.codigo)[0].toUpperCase() + nomeDoItem(salvo.codigo).slice(1)}</div>
           {salvo.local && <div style={{ fontSize: 13.5, color: '#047857', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 5 }}><MapPin size={14} /> {salvo.local}</div>}
         </div>
+        <button type="button" onClick={abrirEtiqueta} disabled={buscandoEt} style={{ ...botao('#111827', { grande: true, desab: buscandoEt }), width: '100%' }}>
+          {buscandoEt ? <Loader2 size={20} style={{ animation: 'spin 1s linear infinite' }} /> : <Printer size={20} />} Imprimir etiqueta
+        </button>
         <button type="button" onClick={proximoItem} style={{ ...botao(LARANJA, { grande: true }), width: '100%', padding: 18 }}>
           <Camera size={22} /> Próximo item
         </button>
+        {erro && <Aviso>{erro}</Aviso>}
+        {etiqueta && <Impressao itens={[etiqueta]} onFechar={() => setEtiqueta(null)} />}
         <p style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', textAlign: 'center', margin: 0 }}>
-          A peça segue para a <b>Verificação</b> (valor e aplicação). O código e o QR saem quando ela for concluída.{' '}
+          A peça segue para a <b>Verificação</b> (valor e aplicação). A etiqueta já pode sair agora; o código muda quando ela for concluída, o QR continua o mesmo.{' '}
           <Link href={`/opa/pecas/${encodeURIComponent(salvo.codigo)}`} style={{ color: 'var(--portal-text-secondary)' }}>Abrir peça</Link>
         </p>
       </div>
