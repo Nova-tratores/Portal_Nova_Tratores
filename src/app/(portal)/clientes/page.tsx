@@ -12,6 +12,7 @@ import ModalNovoCliente from '@/components/clientes/ModalNovoCliente'
 import ModalPedidoVenda from '@/components/clientes/ModalPedidoVenda'
 import EnviarFinanceiroModal from '@/components/clientes/EnviarFinanceiroModal'
 import EditarClienteOmie from '@/components/clientes/EditarClienteOmie'
+import NotasFiscaisCliente from '@/components/clientes/NotasFiscaisCliente'
 import { useSyncPasta, RelogioSync, textoProxima } from '@/components/clientes/SyncPasta'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
@@ -175,7 +176,8 @@ function ClientesPageInner() {
   const [tagsOmieCliente, setTagsOmieCliente] = useState<string[]>([])
   const router = useRouter()
   // Aba da pasta: separa OS + PVs avulsos em faturados / cancelados / abertos
-  const [osColuna, setOsColuna] = useState<'abertos' | 'faturados' | 'cancelados' | 'balcao'>('faturados')
+  const [osColuna, setOsColuna] = useState<'abertos' | 'faturados' | 'cancelados' | 'balcao' | 'notas'>('faturados')
+  const [notasTotal, setNotasTotal] = useState<number | null>(null) // aba "Notas fiscais" (todas as NFs do cliente e das máquinas dele)
   // aba Balcão: pedidos de peças sem OS ligada, com filtro por situação + janela do pedido
   const [balcaoFiltro, setBalcaoFiltro] = useState<'todos' | 'faturados' | 'abertos' | 'cancelados'>('todos')
   const [modalPV, setModalPV] = useState<PedidoVenda | null>(null)
@@ -810,7 +812,7 @@ function ClientesPageInner() {
       if (o.cancelada || r.tipo !== 'pv' || !r.num) return []
       return (osPorPV.get(`${r.empresa || o.empresa}|${r.num}`) || []).filter(x => x.num_os !== o.num_os)
     }
-    const contaAba = (aba: string) => aba === 'balcao' ? pvsSemOS.length : ordens.filter(o => situacaoOS(o) === aba).length
+    const contaAba = (aba: string) => aba === 'notas' ? (notasTotal ?? '…') : aba === 'balcao' ? pvsSemOS.length : ordens.filter(o => situacaoOS(o) === aba).length
 
     return (
       <div style={{ padding: 'clamp(12px, 4vw, 20px) clamp(12px, 4vw, 32px) 48px', width: '100%', boxSizing: 'border-box' }}>
@@ -1188,7 +1190,11 @@ function ClientesPageInner() {
             })()}
 
             {ordens.length === 0 && pedidos.length === 0 ? (
-              <div style={{ padding: 60, textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>Nenhuma ordem de servico encontrada</div>
+              <div>
+                <div style={{ padding: '30px 0 18px', textAlign: 'center', color: 'var(--portal-text-muted)', fontSize: 15 }}>Nenhuma ordem de servico encontrada</div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', margin: '0 0 10px' }}>Notas fiscais</div>
+                <NotasFiscaisCliente doc={cli.cnpj_cpf || ''} cod={cli.cod_cli} onAbrir={setDocAberto} onTotal={setNotasTotal} />
+              </div>
             ) : (
               <div>
                 {/* ABAS: Faturados / Cancelados / Abertos (OS) + Balcão (pedidos de peças sem OS) */}
@@ -1198,6 +1204,7 @@ function ClientesPageInner() {
                     { id: 'cancelados', label: 'Cancelados', cor: '#94A3B8' },
                     { id: 'abertos', label: 'Abertos', cor: '#EA580C' },
                     { id: 'balcao', label: 'Balcão', cor: '#C2410C' },
+                    { id: 'notas', label: 'Notas fiscais', cor: '#0891B2' },
                   ] as const).map(tab => {
                     const ativo = osColuna === tab.id
                     const n = contaAba(tab.id)
@@ -1217,7 +1224,12 @@ function ClientesPageInner() {
                   })}
                 </div>
 
-                {osColuna !== 'balcao' && (<>
+                {/* NOTAS FISCAIS: todas as NFs (saída e entrada) do cliente e das máquinas dele */}
+                {osColuna === 'notas' && (
+                  <NotasFiscaisCliente doc={cli.cnpj_cpf || ''} cod={cli.cod_cli} onAbrir={setDocAberto} onTotal={setNotasTotal} />
+                )}
+
+                {osColuna !== 'balcao' && osColuna !== 'notas' && (<>
                 {/* TITULO + FILTROS */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10, gap: 10 }}>
                   <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--portal-text)', display: 'flex', alignItems: 'center', gap: 8 }}>

@@ -80,6 +80,8 @@ export async function indexarNotas(opts: { completo?: boolean; vincularDesde?: s
  *  só fica registrada em `vinculosErro` — nada mais quebra. */
 async function vincularNotas(r: ResultadoIndexar, desde?: string | null): Promise<ResultadoIndexar> {
   const v = await supabaseAdmin.rpc('notas_fiscais_vincular', { p_desde: desde ?? null });
+  // notas de ENTRADA: chassis dos itens (sql/notas-maquina-entrada.sql; sem ela, só pula)
+  await supabaseAdmin.rpc('notas_fiscais_vincular_entrada', { p_desde: desde ?? null }).then(() => {}, () => {});
   if (v.error) return { ...r, vinculosErro: v.error.message };
   const vd = (v.data || {}) as { nfe?: number; nfse?: number };
   return { ...r, vinculos: { nfe: Number(vd.nfe || 0), nfse: Number(vd.nfse || 0) } };
