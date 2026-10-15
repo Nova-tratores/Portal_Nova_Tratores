@@ -224,10 +224,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (descontoKm > 0) descontoRows.push(`<tr class="discount"><td>Desconto KM</td><td style="text-align:center">—</td><td style="text-align:right">- R$ ${descontoKm.toFixed(2)}</td></tr>`);
   if (desconto > 0) descontoRows.push(`<tr class="discount"><td>Desconto Geral</td><td style="text-align:center">—</td><td style="text-align:right">- R$ ${desconto.toFixed(2)}</td></tr>`);
 
-  // Tema: ordem interna usa roxo (comprovante de conclusão), externa usa azul (OS)
+  // Mesma OS para todos; só a COR muda (José, 15/10/2026):
+  // cliente = azul (como sempre) · garantia = rosa · interna = cinza
+  // garantia: pelo tipo OU por ter garantia vinculada (as criadas à mão ficam em OS de Manutenção)
+  const ehGarantia = /garantia/i.test(tipoServico) || await supabase.from("garantias").select("id").eq("id_ordem", idOs).limit(1)
+    .then(({ data }) => !!data?.length, () => false);
   const tema = servicoInterno
-    ? { cor: "#7C3AED", clara: "#C4B5FD", titulo: "Comprovante de Conclusão", sub: "Ordem Interna — Uso Interno" }
-    : { cor: "#1E3A5F", clara: "#93C5FD", titulo: "Ordem de Serviço", sub: "Ordem de Serviço — Pós-Vendas" };
+    ? { cor: "#4B5563", clara: "#D1D5DB", titulo: "Ordem de Serviço", sub: "Ordem de Serviço — Pós-Vendas" }
+    : ehGarantia
+      ? { cor: "#BE185D", clara: "#F9A8D4", titulo: "Ordem de Serviço", sub: "Ordem de Serviço — Pós-Vendas" }
+      : { cor: "#1E3A5F", clara: "#93C5FD", titulo: "Ordem de Serviço", sub: "Ordem de Serviço — Pós-Vendas" };
 
   // Folha de assinatura (Modelo "Limpo") — sai SEMPRE junto com a OS, numa nova página.
   const servTextoAssin = (servRealizado || servSolicitado || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -308,7 +314,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   </div>`;
 
   const html = `<!DOCTYPE html>
-<html lang="pt-BR"><head><meta charset="UTF-8"><title>${servicoInterno ? "Comprovante Interno" : "OS"} ${id} - ${cliente}</title>
+<html lang="pt-BR"><head><meta charset="UTF-8"><title>OS ${id} - ${cliente}</title>
 <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 <style>
   @page { margin: 0.8cm; size: A4; }
@@ -383,10 +389,6 @@ ${viewMode || embed ? "" : "<script>window.onload = function() { window.print();
     </div>
   </div>
 
-  ${servicoInterno ? `<div style="margin:0 0 14px;padding:12px 18px;background:#F3E8FF;border:1px solid #C4B5FD;border-left:5px solid #7C3AED;border-radius:8px">
-    <div style="font-size:16px;font-weight:900;color:#6D28D9;letter-spacing:0.5px">COMPROVANTE DE CONCLUSÃO — ORDEM INTERNA</div>
-    <div style="font-size:12px;color:#6B21A8;margin-top:3px">Uso interno — a OS não é enviada ao Omie.${ordemOmie ? ` Remessa de peças no Omie: <b>${ordemOmie}</b>.` : " Sem peças vinculadas."}</div>
-  </div>` : ""}
 
   <div class="section">
     <div class="section-title">Cliente</div>
@@ -423,7 +425,7 @@ ${viewMode || embed ? "" : "<script>window.onload = function() { window.print();
         <div class="val">${projeto}</div>
       </div>
       ${ordemOmie ? `<div class="field">
-        <div class="lbl">${servicoInterno ? "Remessa de Peças (Omie)" : "Nº Omie"}</div>
+        <div class="lbl">Nº Omie</div>
         <div class="val">${ordemOmie}</div>
       </div>` : ""}
       ${previsaoExec ? `<div class="field">
