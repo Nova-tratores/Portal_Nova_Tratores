@@ -821,6 +821,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     }
   }, [subtotalBruto]);
 
+  const salvarRef = useRef<null | (() => Promise<boolean>)>(null);
   const enviarParaOmie = useCallback(async () => {
     if (!osId) return;
     if (!podeOmie) {
@@ -830,6 +831,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     if (!confirm(servicoInterno
       ? "Deseja enviar esta OS para o Omie?\n\n• A OS é criada normalmente no Omie.\n• Por ser INTERNA, as peças vinculadas saem como REMESSA (não gera pedido de venda)."
       : "Deseja enviar esta OS para o Omie?")) return;
+    // salva antes: a rota lê a OS GRAVADA — texto digitado e não salvo dava
+    // "Falta preencher Solicitação do cliente…" (OS-0826, 15/10/2026)
+    if (mode === "edit" && podeEditar) {
+      const salvou = await salvarRef.current?.();
+      if (salvou === false) return;
+    }
     setEnviandoOmie(true);
     try {
       const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userName }) });
@@ -867,7 +874,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       console.error(err);
     }
     setEnviandoOmie(false);
-  }, [osId, onSaved, servicoInterno, userName, podeConcluir, podeOmie]);
+  }, [osId, onSaved, servicoInterno, userName, podeConcluir, podeOmie, mode, podeEditar]);
 
   // Passo final: dev confirma que o envio ao Omie ficou certo e move a OS
   // (que está em "Enviado Para Omie") para "Concluída".
@@ -922,12 +929,12 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     finally { setDuplicando(false); }
   };
 
-  const salvar = useCallback(async () => {
-    if (mode === "edit" && !podeEditar) { alert("Você não tem permissão para editar esta OS."); return; }
-    if (status === "Cancelada" && !podeCancelar) { alert("Você não tem permissão para cancelar OS."); return; }
-    if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return; }
-    if (status === "Cancelada" && !motivoCancel.trim()) { alert("Informe o motivo do cancelamento"); return; }
-    if (status === "Cancelada" && temSubstituto && !substitutoId.trim()) { alert("Informe o ID do substituto"); return; }
+  const salvar = useCallback(async (): Promise<boolean> => {
+    if (mode === "edit" && !podeEditar) { alert("Você não tem permissão para editar esta OS."); return false; }
+    if (status === "Cancelada" && !podeCancelar) { alert("Você não tem permissão para cancelar OS."); return false; }
+    if (mode === "create" && !clienteChave) { alert("Selecione o Cliente"); return false; }
+    if (status === "Cancelada" && !motivoCancel.trim()) { alert("Informe o motivo do cancelamento"); return false; }
+    if (status === "Cancelada" && temSubstituto && !substitutoId.trim()) { alert("Informe o ID do substituto"); return false; }
     // Aberta AGORA (ainda no clique) pra o navegador não bloquear o pop-up;
     // recebe o endereço do formulário depois que a OS existir
     const janelaReq = mode === "create" && abrirReqDepois ? window.open("about:blank", "_blank") : null;
@@ -969,7 +976,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
         janelaReq?.close();
         alert(result.erro || "Erro ao salvar a OS.");
         setSaving(false);
-        return;
+        return false;
       }
       // Peças escolhidas na criação → PPV gerado junto com a OS
       if (mode === "create" && pecasPendentes.length > 0) {
@@ -1018,16 +1025,19 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
       // fecha porque a OS já foi gerada e o formulário de criação não deve continuar.
       if (mode === "create") onClose();
       onSaved();
+      return true;
     } catch (err) {
       console.error("Erro ao salvar:", err);
       alert("Erro ao salvar a OS.");
       setSaving(false);
+      return false;
     }
   }, [mode, osId, clienteChave, clienteInfo, tecnico1, tecnico2, tipoServico, revisao, projeto,
       servSolicitado, qtdHoras, qtdKm, ppv, status, ordemOmie, motivoCancel, descValor,
       descHoraValor, descKmValor, relatorioTecnico, previsaoExecucao, previsaoFaturamento, dataFimServico, servicoNumero,
       gerarPPV, servicoOficina, servicoInterno, alimentacoes, horaInicioExec, horaChegada, horaFimExec, onClose, onSaved, podeEditar, podeCancelar,
       pecasPendentes, abrirReqDepois]);
+  useEffect(() => { salvarRef.current = salvar; }, [salvar]);
 
   // ── Reset form to defaults ──
   const resetForm = useCallback(() => {
