@@ -8,7 +8,7 @@ import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { parseConta } from '@/lib/estoque/conta';
 import { COLS, COLS_VINCULOS, cobertura, migracaoFaltando, ultimaRodada } from '@/lib/notas/cache-docs';
-import { colunaBanco, ehCampoBusca, ehTipoNota, filtroBusca, parseOrdem, type CampoBusca } from '@/lib/notas/cache-regras';
+import { colunaBanco, ehCampoBusca, ehTipoNota, filtroBusca, parseOrdem, podeVerEntrada, type CampoBusca } from '@/lib/notas/cache-regras';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,6 +20,8 @@ const RE_SEM_NUMERO_N = /numero_n/i; // sql/notas-fiscais-ordem.sql ausente
 export async function GET(req: NextRequest) {
   const guarda = await protegerRota(req, [{ modulo: 'estoque', acao: 'notas' }]);
   if (guarda.resposta) return guarda.resposta;
+  // nota de ENTRADA só para quem tem Recebimentos (o mesmo gate de /estoque/recebimentos)
+  const podeEntrada = podeVerEntrada(guarda.user.isAdmin, guarda.user.modulos);
 
   const sp = req.nextUrl.searchParams;
   const conta = parseConta(sp.get('conta'));
@@ -37,7 +39,8 @@ export async function GET(req: NextRequest) {
   const montar = (cols: string, semVinculos = false, semNumeroN = false) => {
     let query = supabaseAdmin.from('notas_fiscais_docs').select(cols, { count: 'exact' });
     if (conta) query = query.eq('conta_omie', conta);
-    if (ehTipoNota(tipo)) query = query.eq('tipo', tipo);
+    if (!podeEntrada) query = query.neq('tipo', 'entrada');
+    if (ehTipoNota(tipo) && (podeEntrada || tipo !== 'entrada')) query = query.eq('tipo', tipo);
     if (de) query = query.gte('data_emissao', de);
     if (ate) query = query.lte('data_emissao', ate);
     const or = filtroBusca(q, campo, { semVinculos });
@@ -56,7 +59,7 @@ export async function GET(req: NextRequest) {
   try {
     let vinculosFaltando = false;
     let semNumeroN = false;
-    const [res0, cob, rodada] = await Promise.all([montar(COLS_VINCULOS), cobertura(conta), ultimaRodada()]);
+    const [res0, cob, rodada] = await Promise.all([montar(COLS_VINCULOS), cobertura(conta, { semEntrada: !podeEntrada }), ultimaRodada()]);
     let res = res0;
     // migrations opcionais ausentes: repete a consulta sem o que falta (até 2 vezes)
     for (let i = 0; i < 2 && res.error; i++) {
@@ -76,6 +79,7 @@ export async function GET(req: NextRequest) {
       cobertura: cob,
       ultimaRodada: rodada,
       podeIndexar: guarda.user.isAdmin,
+      podeEntrada,
       campo,
       ordem,
       vinculosFaltando,

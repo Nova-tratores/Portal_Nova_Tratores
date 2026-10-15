@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { protegerRota } from '@/lib/ajustes/permissao-server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
 import { COLS, guardarNota, lerArquivo, migracaoFaltando } from '@/lib/notas/cache-docs';
+import { podeVerEntrada } from '@/lib/notas/cache-regras';
 import { nomeArquivo, type LinhaDoc } from '@/lib/notas/cache-regras';
 
 export const dynamic = 'force-dynamic';
@@ -22,6 +23,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (error) throw new Error(error.message);
     let l = data as unknown as LinhaDoc | null;
     if (!l) return NextResponse.json({ erro: 'nota não encontrada' }, { status: 404 });
+    if (l.tipo === 'entrada' && !podeVerEntrada(guarda.user.isAdmin, guarda.user.modulos)) {
+      return NextResponse.json({ erro: 'Nota de entrada: precisa da permissão de Recebimentos.' }, { status: 403 });
+    }
 
     let path = tipo === 'pdf' ? l.pdf_path : l.xml_path;
     if (!path) {

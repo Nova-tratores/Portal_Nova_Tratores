@@ -22,7 +22,7 @@ import {
 interface Resp {
   notas: LinhaDoc[]; total: number; pagina: number; porPagina: number; totalPaginas: number;
   cobertura: Cobertura; ultimaRodada: { iniciado_em: string; status: string | null; detalhe: unknown } | null;
-  podeIndexar: boolean; vinculosFaltando?: boolean; numeroComoTexto?: boolean; erro?: string; migracaoFaltando?: boolean;
+  podeIndexar: boolean; podeEntrada?: boolean; vinculosFaltando?: boolean; numeroComoTexto?: boolean; erro?: string; migracaoFaltando?: boolean;
 }
 
 /** Cabeçalho da tabela: `col` = ordenável clicando (A→Z / Z→A). */
@@ -70,7 +70,7 @@ const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color
 const linkPastaSt: React.CSSProperties = { color: '#1d4ed8', textDecoration: 'none', fontWeight: 600 };
 const rotulo: React.CSSProperties = { display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 };
 
-export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; isAdmin: boolean }) {
+export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: { podeXml: boolean; isAdmin: boolean; podeEntrada?: boolean }) {
   const { conta, contaParam } = useConta();
   const router = useRouter();
   const pathname = usePathname();
@@ -181,6 +181,9 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
   };
 
   const cob = resp?.cobertura;
+  // quem não tem Recebimentos não vê nota de entrada (o servidor decide; a prop só esconde antes da 1ª resposta)
+  const mostraEntrada = podeEntrada && resp?.podeEntrada !== false;
+  const tiposVisiveis = mostraEntrada ? TIPOS : TIPOS.filter((t) => t !== 'entrada');
   const campoInfo = CAMPOS_BUSCA.find((c) => c.id === campo) || CAMPOS_BUSCA[0];
   const mostrarBateu = campo === 'auto' && !!q.trim();
 
@@ -189,14 +192,16 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Notas fiscais</h1>
-          <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 0 }}>Entradas e saídas guardadas no portal (PDF + XML) — continuam abrindo mesmo com a Omie fora</p>
+          <p style={{ color: '#888', fontSize: '.82rem', marginBottom: 0 }}>{mostraEntrada ? 'Entradas e saídas' : 'Notas de saída (NF-e e NFS-e)'} guardadas no portal (PDF + XML) — continuam abrindo mesmo com a Omie fora</p>
         </div>
         <ContaSelector />
       </div>
 
-      <div style={{ margin: '14px 0', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Link href="/estoque/notas-entrada" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Notas de Entrada (itens e contas a pagar)</Link>
-      </div>
+      {mostraEntrada && (
+        <div style={{ margin: '14px 0', display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+          <Link href="/estoque/notas-entrada" style={{ color: '#dc2626', textDecoration: 'none', fontSize: '.82rem', fontWeight: 600 }}>← Notas de Entrada (itens e contas a pagar)</Link>
+        </div>
+      )}
 
       {/* Cobertura */}
       {cob && (
@@ -233,9 +238,9 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div>
           <label style={rotulo}>Tipo</label>
-          <select value={tipo} onChange={(e) => { setTipo(e.target.value); setPagina(1); }} style={inp}>
-            <option value="">Todas</option>
-            {TIPOS.map((t) => <option key={t} value={t}>{ROTULO_TIPO[t]}</option>)}
+          <select value={mostraEntrada || tipo !== 'entrada' ? tipo : ''} onChange={(e) => { setTipo(e.target.value); setPagina(1); }} style={inp}>
+            <option value="">{mostraEntrada ? 'Todas' : 'Todas (saída)'}</option>
+            {tiposVisiveis.map((t) => <option key={t} value={t}>{ROTULO_TIPO[t]}</option>)}
           </select>
         </div>
         <div>

@@ -3,7 +3,7 @@ import {
   caminhoArquivo, nomeArquivo, proximaTentativa, adiarPendente, ehPdf, ehXml, selo,
   ehBloqueioOmie, ehOmieFora, ehNaoConcluida, filtroBusca, percent, MAX_TENTATIVAS, desescaparXml, pareceUrl,
   ondeBateu, linkPasta, empresaDaConta, chassiPrincipal,
-  parseOrdem, ordemParaParam, alternarOrdem, colunaBanco, ehOrdemPadrao, ORDEM_PADRAO,
+  parseOrdem, ordemParaParam, alternarOrdem, colunaBanco, ehOrdemPadrao, ORDEM_PADRAO, podeVerEntrada,
 } from './cache-regras';
 
 const base = { id: 1, conta_omie: 'NOVA', tipo: 'entrada' as const, chave_nfe: null, n_cod_nf: 6049268011, numero: '515688', serie: '3', data_emissao: '2026-10-08', parte_nome: 'MABRACO', parte_doc: '44552685000154', valor: 246.73, cancelada: false, pdf_path: null, xml_path: null, tentativas: 0, proxima_tentativa_em: null, ultimo_erro: null };
@@ -142,6 +142,14 @@ describe('busca livre (Tudo)', () => {
     expect(colunaBanco({ coluna: 'numero', dir: 'asc' }, { semNumeroN: true })).toBe('numero');
     expect(colunaBanco({ coluna: 'pedido', dir: 'asc' }, { semVinculos: true })).toBe('id');
     expect(colunaBanco({ coluna: 'maquina', dir: 'asc' })).toBe('maquina');
+  });
+  it('entrada só com permissão de recebimentos', () => {
+    expect(podeVerEntrada(true, [])).toBe(true);
+    expect(podeVerEntrada(false, ['estoque'])).toBe(true);
+    expect(podeVerEntrada(false, ['estoque:notas', 'estoque:recebimentos'])).toBe(true);
+    expect(podeVerEntrada(false, ['ajustes:recebimentos'])).toBe(true);
+    expect(podeVerEntrada(false, ['estoque:notas', 'estoque:notas-xml'])).toBe(false);
+    expect(podeVerEntrada(false, null)).toBe(false);
   });
   it('link da pasta, empresa e chassi principal', () => {
     expect(empresaDaConta('CASTRO')).toBe('Castro Pecas');

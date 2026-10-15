@@ -99,7 +99,9 @@ export async function exigirAcessoModulo(req: Request, modulo: string): Promise<
 // qualquer `modulo:*`); { admin: true } exige is_admin/is_dev.
 // ---------------------------------------------------------------------------
 export type OpcaoAcesso = { modulo: string; acao?: string } | { admin: true };
-export type UsuarioRota = { id: string; email?: string; nome?: string; isAdmin: boolean };
+/** `modulos` = modulos_permitidos crus, para a rota decidir permissões secundárias
+ *  (ex.: /estoque/notas só mostra entrada a quem tem recebimentos) sem reler o banco. */
+export type UsuarioRota = { id: string; email?: string; nome?: string; isAdmin: boolean; modulos: string[] };
 
 export async function protegerRota(
   req: Request,
@@ -141,7 +143,7 @@ export async function protegerRota(
     const { data: usu } = await supabaseAdmin.from('financeiro_usu').select('nome').eq('id', user.id).single();
     nome = (usu as any)?.nome || undefined;
   } catch { /* segue sem nome */ }
-  return { user: { id: user.id, email: user.email, nome, isAdmin } };
+  return { user: { id: user.id, email: user.email, nome, isAdmin, modulos: mods } };
 }
 
 // Autoria que vai pra auditoria: SEMPRE do login, nunca do corpo da requisicao.

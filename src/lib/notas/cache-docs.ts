@@ -296,10 +296,11 @@ export async function lerArquivo(path: string): Promise<Buffer | null> {
 }
 
 /** Contagens para a faixa de cobertura. */
-export async function cobertura(conta?: string): Promise<Cobertura> {
+export async function cobertura(conta?: string, opts: { semEntrada?: boolean } = {}): Promise<Cobertura> {
   const base = () => {
     let q = supabaseAdmin.from('notas_fiscais_docs').select('id', { count: 'exact', head: true });
     if (conta) q = q.eq('conta_omie', String(conta).toUpperCase());
+    if (opts.semEntrada) q = q.neq('tipo', 'entrada'); // quem não tem recebimentos não vê entrada
     return q;
   };
   const [t, p, x, c, s] = await Promise.all([

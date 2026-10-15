@@ -13,7 +13,8 @@ export default function NotasFiscaisPage() {
   if (!loading && userProfile && !pode('estoque', 'notas')) return <SemPermissao />;
   return (
     <Suspense fallback={<div style={{ padding: 24, color: '#888', fontSize: '.85rem' }}>Carregando…</div>}>
-      <NotasFiscais podeXml={pode('estoque', 'notas-xml')} isAdmin={isAdmin} />
+      {/* nota de ENTRADA só para quem tem Recebimentos (mesmo gate de /estoque/recebimentos); o servidor também filtra */}
+      <NotasFiscais podeXml={pode('estoque', 'notas-xml')} isAdmin={isAdmin} podeEntrada={pode('estoque', 'recebimentos') || pode('ajustes', 'recebimentos')} />
     </Suspense>
   );
 }

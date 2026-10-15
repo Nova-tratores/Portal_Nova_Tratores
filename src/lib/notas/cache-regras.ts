@@ -280,6 +280,15 @@ export function colunaBanco(o: Ordem, faltando: { semNumeroN?: boolean; semVincu
   return c.coluna;
 }
 
+/** Nota de ENTRADA só aparece para quem tem a permissão de Recebimentos (decisão
+ *  do José, 15/10/2026): admin/dev, módulo Estoque ou Ajustes inteiro, ou as ações
+ *  `estoque:recebimentos` / `ajustes:recebimentos` — o mesmo gate de /estoque/recebimentos. */
+export function podeVerEntrada(isAdmin: boolean, modulos: string[] | null | undefined): boolean {
+  if (isAdmin) return true;
+  const m = modulos || [];
+  return m.includes('estoque') || m.includes('ajustes') || m.includes('estoque:recebimentos') || m.includes('ajustes:recebimentos');
+}
+
 export type OndeBateu = 'nota' | 'pedido' | 'os' | 'cliente' | 'maquina';
 
 const semAcento = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
