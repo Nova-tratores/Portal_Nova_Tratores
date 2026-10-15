@@ -1,5 +1,6 @@
 const { supabaseAdmin } = require('./supabase');
 const { parseBR, parseBRTimestamp, fmtBR } = require('./dates');
+const { filtrarBaixasAlteradas, fatias } = require('./baixas-diff');
 const { omie } = require('../omie/porta');
 
 const PAGE_SIZE = 500;
@@ -423,13 +424,30 @@ async function aplicarBaixas(conta, dePagBR, atePagBR) {
     else pagar.push(row);
   });
 
-  // Update individual (Supabase JS nao tem batch UPDATE por linha).
-  // Em chunks paralelos pequenos para nao saturar.
+  // O que o espelho JÁ tem para esses títulos — para gravar só o que mudou.
+  // (15/10/2026: a janela de 24 meses fazia ~37 mil UPDATEs por rodada, 8x/dia,
+  // quase todos sem mudança nenhuma; 1,46 milhão de UPDATEs no pg_stat_statements.)
+  async function lerAtuais(tabela, rows) {
+    const atuais = [];
+    for (const fatia of fatias(rows.map(r => r.codigo_lancamento), 500)) {
+      const { data, error } = await supabaseAdmin.from(tabela)
+        .select('codigo_lancamento, data_pagamento, valor_pago')
+        .eq('conta_omie', contaLabel)
+        .in('codigo_lancamento', fatia);
+      if (error) throw new Error(`${tabela}: ${error.message}`);
+      atuais.push(...(data || []));
+    }
+    return atuais;
+  }
+
+  // Update individual só nas linhas que mudaram (Supabase JS nao tem batch
+  // UPDATE por linha). Em chunks paralelos pequenos para nao saturar.
   async function atualizaTabela(tabela, rows) {
     let ok = 0, err = 0;
+    const { alteradas, iguais, semEspelho } = filtrarBaixasAlteradas(rows, await lerAtuais(tabela, rows));
     const CHUNK = 20;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const slice = rows.slice(i, i + CHUNK);
+    for (let i = 0; i < alteradas.length; i += CHUNK) {
+      const slice = alteradas.slice(i, i + CHUNK);
       const proms = slice.map(r => supabaseAdmin.from(tabela)
         .update({ data_pagamento: r.data_pagamento, valor_pago: r.valor_pago })
         .eq('codigo_lancamento', r.codigo_lancamento)
@@ -437,16 +455,17 @@ async function aplicarBaixas(conta, dePagBR, atePagBR) {
         .then(res => res.error ? err++ : ok++));
       await Promise.all(proms);
       if ((i / CHUNK) % 10 === 0) {
-        console.log(`[baixas ${conta}] ${tabela}: ${i + slice.length}/${rows.length} processados`);
+        console.log(`[baixas ${conta}] ${tabela}: ${i + slice.length}/${alteradas.length} gravados`);
       }
     }
-    return { ok, err };
+    console.log(`[baixas ${conta}] ${tabela}: ${rows.length} baixas da Omie, ${iguais} já iguais, ${alteradas.length} gravadas (${semEspelho} sem título no espelho)`);
+    return { ok, err, iguais };
   }
 
   const resP = await atualizaTabela('contas_pagar', pagar);
   const resR = await atualizaTabela('contas_receber', receber);
-  console.log(`[baixas ${conta}] aplicado - pagar: ${resP.ok} ok / ${resP.err} erro, receber: ${resR.ok} ok / ${resR.err} erro`);
-  return { ok: true, atualizados: resP.ok + resR.ok, erros: resP.err + resR.err };
+  console.log(`[baixas ${conta}] aplicado - pagar: ${resP.ok} ok / ${resP.err} erro / ${resP.iguais} iguais, receber: ${resR.ok} ok / ${resR.err} erro / ${resR.iguais} iguais`);
+  return { ok: true, atualizados: resP.ok + resR.ok, iguais: resP.iguais + resR.iguais, erros: resP.err + resR.err };
 }
 
 // =============================================================================
