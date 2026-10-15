@@ -3,7 +3,7 @@ import {
   ETAPA_INFO, podeMoverEtapa, etapaEfetiva, corteFechado, validarItem, validarResultado, validarPublicacao,
   sugestoesProximaReuniao, classificarPendencias, validarSaida, podeNovoPrazo, contaReprogramacao,
   validarSerie, secretarioDaVez, proximaDataDaSerie, textoWhatsApp, novaOrdem, somaTempo, avisoMesmaPessoa,
-  podeConduzir, addDias, inicioISO, textoReagendamento,
+  podeConduzir, addDias, inicioISO, textoReagendamento, rotuloAtraso,
   type ItemPauta, type AcaoDeReuniao,
 } from '../regras'
 
@@ -197,4 +197,16 @@ describe('textoReagendamento', () => {
     expect(textoReagendamento('adiado', { temSerie: true })?.texto).toMatch(/próxima reunião da série/)
     expect(textoReagendamento('parking', { temSerie: false })?.texto).toMatch(/avulsa/)
   })
+})
+
+describe('rotuloAtraso', () => {
+  it('já vencida hoje = dias de atraso reais (contados de hoje, não da reunião)', () => {
+    expect(rotuloAtraso('2026-10-13', '2026-10-15')).toBe('2 dias de atraso')
+    expect(rotuloAtraso('2026-10-14', '2026-10-15')).toBe('1 dia de atraso')
+  })
+  it('ainda no prazo hoje (vence antes da reunião) = diz quando vence', () => {
+    expect(rotuloAtraso('2026-10-25', '2026-10-15')).toBe('vence 25/10, antes da reunião')
+    expect(rotuloAtraso('2026-10-15', '2026-10-15')).toBe('vence hoje, antes da reunião')
+  })
+  it('sem prazo', () => { expect(rotuloAtraso(null, '2026-10-15')).toBe('sem prazo') })
 })

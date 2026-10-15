@@ -272,6 +272,18 @@ export interface BlocoPendencias {
 
 const ATIVOS: TicketStatus[] = ['aberto', 'em_andamento', 'aguardando_terceiro', 'aguardando_interno']
 
+/**
+ * Texto do selo de uma pendência classificada como atrasada. A classificação usa a data da
+ * reunião (no dia ela já estará vencida), mas antes disso a tarefa pode estar no prazo —
+ * aí o selo diz quando vence, e não "N dias de atraso".
+ */
+export function rotuloAtraso(prazo: string | null, hoje: string): string {
+  if (!prazo) return 'sem prazo'
+  if (prazo < hoje) { const d = diasEntre(prazo, hoje); return `${d} dia${d === 1 ? '' : 's'} de atraso` }
+  const dm = `${prazo.slice(8, 10)}/${prazo.slice(5, 7)}`
+  return prazo === hoje ? 'vence hoje, antes da reunião' : `vence ${dm}, antes da reunião`
+}
+
 function diasEntre(deISO: string, ate: string): number {
   const a = new Date(deISO + 'T12:00:00Z').getTime()
   const b = new Date(ate + 'T12:00:00Z').getTime()

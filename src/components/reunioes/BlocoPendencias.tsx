@@ -6,7 +6,7 @@ import { useState } from 'react'
 import { AlertTriangle, CalendarClock, UserCog, ArrowUpRight, Ban, CheckCircle2 } from 'lucide-react'
 import UserSelect from '@/components/tickets/UserSelect'
 import type { Pendencia, SaidaPendencia } from '@/lib/reunioes/regras'
-import { PENDENCIAS_MINUTOS } from '@/lib/reunioes/regras'
+import { PENDENCIAS_MINUTOS, rotuloAtraso } from '@/lib/reunioes/regras'
 import { cartao, botao, botaoClaro, campo, chip, brCurto, Timer, primeiroNome, hojeISO } from './comum'
 
 export default function BlocoPendencias({ pend, usuarios, modoConducao, onTratar, onAbrirTicket }: {
@@ -48,7 +48,7 @@ export default function BlocoPendencias({ pend, usuarios, modoConducao, onTratar
           </button>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, fontSize: 12 }}>
             <span style={chip(atrasada ? '#dc2626' : '#d97706', atrasada ? 'rgba(220,38,38,.1)' : 'rgba(217,119,6,.12)')}>
-              {atrasada ? `${p.dias_atraso} dia${p.dias_atraso === 1 ? '' : 's'} de atraso` : `vence ${brCurto(p.prazo)}`}
+              {atrasada ? rotuloAtraso(p.prazo, hojeISO()) : `vence ${brCurto(p.prazo)}`}
             </span>
             <span style={{ color: 'var(--portal-text-muted,#888)' }}>{primeiroNome(nome(p.responsavel_id))}{p.aceite === 'pendente' ? ' · ainda não confirmou' : ''}{p.prazo_reprogramacoes ? ` · reprogramada ${p.prazo_reprogramacoes}×` : ''}</span>
           </div>

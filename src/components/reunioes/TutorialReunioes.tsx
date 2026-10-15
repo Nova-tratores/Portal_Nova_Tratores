@@ -2,7 +2,7 @@
 // Tutorial de primeira vez das Reuniões: abre sozinho na 1ª visita a /reunioes
 // (marca em localStorage) e de novo pelo botão "Tutorial" da tela.
 import { useEffect, useState } from 'react'
-import { CalendarClock, Repeat, ListChecks, Play, FileCheck2, HelpCircle, ChevronLeft, ChevronRight, X } from 'lucide-react'
+import { CalendarClock, Repeat, ListChecks, Play, FileCheck2, HelpCircle, ChevronLeft, ChevronRight, X, AlarmClock } from 'lucide-react'
 
 const CHAVE = 'reunioes-tutorial-visto'
 
@@ -42,15 +42,26 @@ export const PASSOS_TUTORIAL: Passo[] = [
       'O condutor clica em "Iniciar reunião", marca as presenças e, se precisar, inclui alguém de última hora.',
       'Primeiro vêm as pendências: tarefas de reuniões anteriores atrasadas ou vencendo.',
       'Em cada item, registre o resultado: Decidido (com decisão e motivo), Informado, Discutido, "Adiar p/ próxima" ou "Fora do tema". Os dois últimos são reagendados para a próxima reunião da série.',
-      'Alguém precisa fazer algo? Clique em "+ Ação": vira um ticket com responsável e prazo.',
+      'Alguém precisa fazer algo? Depois de decidir, clique em "+ Criar ação desta decisão" (ou em "+ Ação", na barra de baixo). A ação vira um ticket com UM responsável e um prazo; a pessoa recebe o aviso e confirma.',
     ],
-    dica: 'Surgiu outro assunto no meio da conversa? Escreva no campo de baixo e clique em "Anotar p/ próxima".',
+    dica: 'Tarefa para várias pessoas? Crie uma ação para cada uma, com a parte e o prazo de cada. Surgiu outro assunto no meio da conversa? Escreva no campo de baixo e clique em "Anotar p/ próxima".',
   },
   {
-    titulo: '4. Depois: publique a ata',
+    titulo: '4. Pendências: cobre o combinado',
+    icone: <AlarmClock size={30} />, cor: '#dc2626',
+    texto: [
+      'Toda reunião da série começa pelas pendências: as ações das reuniões anteriores que estão atrasadas ou vencem até a próxima. Não precisa vincular nada — toda ação criada numa reunião já entra aqui sozinha.',
+      'Para cada atrasada, o condutor escolhe uma saída: Novo prazo, Reatribuir (passa para outra pessoa), Escalar (vira item da pauta da próxima reunião) ou Cancelar.',
+      'Uma ação só ganha novo prazo duas vezes. Na terceira, o botão trava: ela precisa ser escalada, reatribuída ou cancelada.',
+    ],
+    dica: 'As concluídas aparecem só como contagem — o tempo da reunião fica para o que está parado.',
+  },
+  {
+    titulo: '5. Depois: publique a ata',
     icone: <FileCheck2 size={30} />, cor: '#7c3aed',
     texto: [
-      'Ao encerrar, confira e publique a ata. Depois de publicada ela não muda mais (só com adendo) e gera um texto curto para mandar no WhatsApp.',
+      'Ao encerrar, confira e publique a ata. Ela gera um texto curto para mandar no WhatsApp.',
+      'Depois de publicada, a ata não muda mais. Esqueceu algo ou precisa corrigir? Quem conduz escreve um adendo, embaixo da ata: ele fica registrado com data e autor, sem apagar o que já estava lá.',
       'As ações aparecem no "Seu dia" e no Cronograma de quem é responsável. Se atrasarem, voltam como pendência na próxima reunião da série.',
     ],
   },
