@@ -80,7 +80,7 @@ async function osAtualNoOmie(os: Record<string, unknown>): Promise<OsOmie | null
 }
 
 /** Refaz o cruzamento do "Nº do pedido do cliente" da OS e dos pedidos (best-effort). */
-async function cruzarNumeros(nCodOS: number, numOS: string, pedidos: { acc: OmieAccount; pedido: OmiePedidoConsulta }[], avisos: string[]) {
+export async function cruzarNumeros(nCodOS: number, numOS: string, pedidos: { acc: OmieAccount; pedido: OmiePedidoConsulta }[], avisos: string[]) {
   const nums = pedidos.map((p) => semZeros(p.pedido.cabecalho?.numero_pedido)).filter(Boolean).join(", ");
   try {
     await osCall("AlterarOS", { Cabecalho: { nCodOS }, InformacoesAdicionais: { cNumPedido: nums.slice(0, 15) } });
@@ -94,7 +94,7 @@ async function cruzarNumeros(nCodOS: number, numOS: string, pedidos: { acc: Omie
   }
 }
 
-async function pedidosDaOS(ppvs: Record<string, unknown>[]) {
+export async function pedidosDaOS(ppvs: Record<string, unknown>[]) {
   const lista: { acc: OmieAccount; pedido: OmiePedidoConsulta }[] = [];
   for (const p of ppvs) {
     if (!p.pedido_omie || p.status === "Cancelada") continue;

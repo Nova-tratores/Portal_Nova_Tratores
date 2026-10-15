@@ -17,6 +17,7 @@ import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie as omiePorta } from "@/lib/omie/porta";
 import { cancelarNfseNacional, MOTIVOS_CANCELAMENTO, type MotivoCancelamento } from "@/lib/nfse/nacional";
+import { cruzarNumeros, pedidosDaOS } from "@/lib/pos/substituir-omie";
 
 type Rec = Record<string, unknown>;
 interface OsOmie {
@@ -158,12 +159,14 @@ export async function refazerOSNoOmie(idOrdem: string, usuario: string): Promise
     try { await escrever("/servicos/osp/", "CancelarOS", { nCodOS: nAntiga, cCancelarNfse: "N" }); }
     catch (e) { avisos.push(`O Omie não cancelou a OS ${numAntiga} (${e instanceof Error ? e.message : e}). Cancele no Omie SEM cancelar a nota — o título a receber dela também precisa sair.`); }
   }
-  // 3) a nova cita o(s) pedido(s) de venda
-  const pedidos = String(os.Pedido_Venda || "").split(",").map((x) => semZeros(String(x.split(":").pop() || ""))).filter(Boolean).join(", ").slice(0, 15);
-  if (pedidos) {
-    try { await escrever("/servicos/os/", "AlterarOS", { Cabecalho: { nCodOS: nNova }, InformacoesAdicionais: { cNumPedido: pedidos } }); }
-    catch { avisos.push(`Não gravei o nº do pedido (${pedidos}) na OS ${numNova} — preencha no Omie.`); }
-  }
+  // 3) vínculo cruzado no Omie: a OS nova cita o(s) pedido(s) de venda e cada pedido
+  //    passa a citar a OS nova no "Nº do pedido do cliente" (é por aí que a Pasta
+  //    Clientes junta serviço + peças). Pedido já faturado pode recusar: vira aviso.
+  try {
+    const { data: ppvs } = await supabase.from("pedidos").select("id_pedido, pedido_omie, status, omie_empresa").eq("Id_Os", idOrdem);
+    const lista = await pedidosDaOS((ppvs || []) as Record<string, unknown>[]);
+    if (lista.length) await cruzarNumeros(nNova, numNova, lista, avisos);
+  } catch (e) { avisos.push(`Não refiz o vínculo OS × pedido no Omie (${e instanceof Error ? e.message : e}).`); }
   // código de integração "OS-0729-5376" (a conferência de identidade aceita esse formato);
   // se o Omie não deixar trocar, o portal grava o que estiver lá
   let ccodint = String(copia.Cabecalho?.cCodIntOS || "");
