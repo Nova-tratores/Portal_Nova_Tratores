@@ -13,7 +13,7 @@ interface Previa {
   servicos?: Array<{ descricao: string; total: number; naoGeraFinanceiro: boolean }>;
   remessas?: Array<{ id: string; pedidoOmie: string; valor: number }>;
 }
-type Resultado = { ok: boolean; tipo: string; mensagem?: string; recibo?: string | null; concluida?: boolean };
+type Resultado = { ok: boolean; tipo: string; mensagem?: string; recibo?: string | null; concluida?: boolean; remessas?: Array<{ id: string; ok: boolean; nf?: string | null; erro?: string }> };
 
 const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const ESTIMATIVA = 40;
@@ -82,7 +82,7 @@ export default function FaturarReciboModal({ osId, onClose, onFaturado }: { osId
         body: JSON.stringify({ totalConfirmado: previa.total || 0 }),
       });
       const j = await r.json().catch(() => ({}));
-      setRes({ ok: !!j.success, tipo: j.tipo || "erro", mensagem: j.mensagem || j.error, recibo: j.recibo, concluida: j.concluida });
+      setRes({ ok: !!j.success, tipo: j.tipo || "erro", mensagem: j.mensagem || j.error, recibo: j.recibo, concluida: j.concluida, remessas: j.remessas || [] });
       if (j.success) onFaturado();
     } catch {
       setRes({ ok: false, tipo: "desconhecido", mensagem: "O Omie não respondeu a tempo. Confira o bloco do Omie antes de tentar de novo — o portal confere sozinho." });
@@ -106,10 +106,18 @@ export default function FaturarReciboModal({ osId, onClose, onFaturado }: { osId
               {res.ok ? (res.tipo === "nfse" ? "Faturada — mas saiu NFS-e" : res.recibo ? `Recibo nº ${res.recibo}` : "Faturada com recibo") : "Não faturou"}
             </div>
             <div style={{ fontSize: 13, color: "#475569", marginTop: 8, lineHeight: 1.5 }}>{res.mensagem}</div>
-            {res.ok && res.tipo !== "nfse" && (
-              <div style={{ fontSize: 12.5, color: "#6d28d9", marginTop: 8, fontWeight: 600 }}>
-                {res.concluida ? "A OS foi para Concluída." : "A OS vai para Concluída quando as remessas de peças também estiverem faturadas."}
+            {res.ok && !!res.remessas?.length && (
+              <div style={{ marginTop: 12, textAlign: "left", border: "1px solid #e2e8f0", borderRadius: 10, overflow: "hidden" }}>
+                {res.remessas.map((r) => (
+                  <div key={r.id} style={{ display: "flex", gap: 8, alignItems: "flex-start", padding: "8px 11px", fontSize: 12.5, background: r.ok ? "#fff7ed" : "#fef2f2", color: r.ok ? "#9a3412" : "#b91c1c" }}>
+                    <i className={`fas ${r.ok ? "fa-file-invoice" : "fa-circle-exclamation"}`} style={{ marginTop: 2 }} />
+                    <span>{r.ok ? <>Remessa {r.id}: <b>{r.nf ? `NF-e ${r.nf}` : "faturada (NF-e saindo)"}</b></> : <>Remessa {r.id} não faturou: {r.erro}. Fature pelo bloco de notas da OS.</>}</span>
+                  </div>
+                ))}
               </div>
+            )}
+            {res.ok && res.tipo !== "nfse" && res.concluida && (
+              <div style={{ fontSize: 12.5, color: "#6d28d9", marginTop: 8, fontWeight: 600 }}>A OS foi para Concluída.</div>
             )}
             <button type="button" onClick={onClose} style={{ width: "100%", height: 42, marginTop: 18, borderRadius: 10, border: "none", background: "#0f172a", color: "#fefefe", fontWeight: 800, fontSize: 14, cursor: "pointer", fontFamily: "inherit" }}>Fechar</button>
           </div>
@@ -153,7 +161,7 @@ export default function FaturarReciboModal({ osId, onClose, onFaturado }: { osId
                   • Não cria conta a receber nem card no financeiro.<br />
                   {marcar > 0 && <>• {marcar} serviço(s) serão marcados como &quot;não gerar conta a receber&quot; no Omie antes de faturar.<br /></>}
                   {(previa.remessas || []).length > 0
-                    ? <>• Peças: remessa {previa.remessas!.map((r) => r.pedidoOmie || r.id).join(", ")} — fatura pela tela do PPV.</>
+                    ? <>• Peças: a remessa {previa.remessas!.map((r) => r.pedidoOmie || r.id).join(", ")} é <b>faturada junto</b> (NF-e de remessa).</>
                     : <>• Sem peças vinculadas.</>}
                 </div>
 

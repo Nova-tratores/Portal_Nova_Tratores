@@ -3,6 +3,7 @@
 // de peças (PPV) — número, situação e PDF/DANFE. Enquanto a NFS-e não volta do
 // sistema nacional, mostra a barrinha e confere sozinho a cada 30 s.
 // Dados: GET /api/pos/ordens/[id]/faturar (NFS-e) e /api/ppv/nf-sefaz (NF-e).
+import FaturarRemessaBotao from "@/components/ppv/FaturarRemessaBotao";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { authHeaders } from "@/lib/auth/client";
@@ -220,7 +221,8 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
           return linha(pid,
             ok && nf?.numero ? `NF-e ${rem ? "de remessa " : ""}${semZeros(nf.numero)}` : rem ? "NF-e de remessa" : "NF-e",
             <>{rem ? <>peças · remessa {semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}</> : <>peças · pedido {semZeros(ppvOmieMap[pid])}</>} · {pedidoAguardando(pid) ? chip("aguardando a SEFAZ", "#075985", "#e0f2fe") : nf === undefined ? "conferindo…" : ok ? (nf.emitidaEm ? `emitida ${String(nf.emitidaEm).slice(0, 10)}` : chip("emitida", "#047857", "#d1fae5")) : nf?.canceladaEm ? chip("cancelada", "#b91c1c", "#fee2e2") : rem ? chip("remessa ainda não faturada", "#6d28d9", "#ede9fe") : chip("não faturada", "#b45309", "#fef3c7")}</>,
-            ok ? linkPdf(`Imprimir a NF-e ${rem ? "da remessa" : "do pedido"} ${semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}`, () => abrirDanfe(pid), abrindo === pid) : null,
+            ok ? linkPdf(`Imprimir a NF-e ${rem ? "da remessa" : "do pedido"} ${semZeros(nf?.numeroRemessa || ppvOmieMap[pid])}`, () => abrirDanfe(pid), abrindo === pid)
+              : rem && nf && !nf.canceladaEm ? <FaturarRemessaBotao compacto ppvId={pid} numero={semZeros(nf.numeroRemessa || ppvOmieMap[pid])} onFeito={() => { void carregarNfs(true); }} /> : null,
             !temOS && i === 0);
         })}
         {pedidos.some(pedidoAguardando) && (

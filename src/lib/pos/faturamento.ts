@@ -514,7 +514,7 @@ async function reciboDaOS(id: string): Promise<string | null> {
 }
 
 /** Prévia da janela "Faturar com recibo": o que está no Omie agora. */
-export async function previaRecibo(id: string): Promise<{ ok: boolean; erro?: string; numeroOmie?: string; cliente?: string; total?: number; contrato?: string; servicos?: Array<{ descricao: string; total: number; naoGeraFinanceiro: boolean }>; remessas?: Array<{ id: string; pedidoOmie: string; valor: number }> }> {
+export async function previaRecibo(id: string): Promise<{ ok: boolean; erro?: string; numeroOmie?: string; cliente?: string; total?: number; contrato?: string; servicos?: Array<{ descricao: string; total: number; naoGeraFinanceiro: boolean }>; remessas?: Array<{ id: string; pedidoOmie: string; valor: number; faturada: boolean }> }> {
   const os = await lerOS(id);
   if (!os) return { ok: false, erro: 'OS não encontrada.' };
   if (!os.Servico_Interno) return { ok: false, erro: 'Só OS interna fatura com recibo.' };
@@ -534,13 +534,15 @@ export async function previaRecibo(id: string): Promise<{ ok: boolean; erro?: st
       const q = Number(it.nQtde || 0), u = Number(it.nValUnit || 0);
       return { descricao: String(it.cCodigo || '') === 'sol.aber.os' ? 'Solicitação de serviço' : (String(it.cDescServ || '').split(/\n|\|/)[0].slice(0, 90) || 'Serviço'), total: Math.round(q * u * 100) / 100, naoGeraFinanceiro: it.cNaoGerarFinanceiro === 'S' };
     }),
-    remessas: ppvs.filter((p) => !/cancel/i.test(String(p.status || ''))).map((p) => ({ id: p.id, pedidoOmie: chaveNum(p.pedidoOmie), valor: Number(p.valor) || 0 })),
+    remessas: ppvs.filter((p) => !/cancel/i.test(String(p.status || ''))).map((p) => ({ id: p.id, pedidoOmie: chaveNum(p.pedidoOmie), valor: Number(p.valor) || 0, faturada: !!p.faturadoEm })),
   };
 }
 
-export interface ResultadoRecibo { ok: boolean; status: number; tipo: 'faturada' | 'erro' | 'desconhecido' | 'em_andamento' | 'nfse'; mensagem?: string; recibo?: string | null; concluida?: boolean }
+export interface ResultadoRecibo { ok: boolean; status: number; tipo: 'faturada' | 'erro' | 'desconhecido' | 'em_andamento' | 'nfse'; mensagem?: string; recibo?: string | null; concluida?: boolean;
+  /** remessas das peças faturadas junto (NF-e de remessa) */
+  remessas?: Array<{ id: string; ok: boolean; nf?: string | null; erro?: string }> }
 
-export async function faturarOSComRecibo(id: string, entrada: { totalConfirmado: number }, auth: Autenticado): Promise<ResultadoRecibo> {
+export async function faturarOSComRecibo(id: string, entrada: { totalConfirmado: number; faturarRemessas?: boolean }, auth: Autenticado): Promise<ResultadoRecibo> {
   const userName = auth.email || 'Sistema';
   const os = await lerOS(id);
   if (!os) return { ok: false, status: 404, tipo: 'erro', mensagem: 'OS não encontrada.' };
@@ -666,7 +668,19 @@ export async function faturarOSComRecibo(id: string, entrada: { totalConfirmado:
   await gravarOS(id, { faturamento_status: 'recibo_emitido', faturamento_erro: null }).catch(() => {});
   if (recibo) await supabase.from(TBL_OS).update({ recibo_numero: recibo }).eq('Id_Ordem', id).then(() => {}, () => {});
   await logOS(id, `OS interna faturada com recibo${recibo ? ` nº ${recibo}` : ''} (sem NFS-e, sem conta a receber).`, userName, String(os.Status || ''));
-  return { ok: true, status: 200, tipo: 'faturada', recibo, concluida, mensagem: recibo ? `Recibo nº ${recibo} gerado no Omie.` : 'Faturada. O nº do recibo aparece no Omie em instantes.' };
+
+  // peças: fatura as remessas da OS junto (NF-e de remessa)
+  const remessas: NonNullable<ResultadoRecibo['remessas']> = [];
+  if (entrada.faturarRemessas !== false) {
+    const { faturarRemessaPPV } = await import('@/lib/ppv/omie');
+    for (const p of await ppvsDaOS(os).catch(() => [] as PPVDaOS[])) {
+      if (!/remessa/i.test(p.tipo) || /cancel/i.test(String(p.status || '')) || !p.pedidoOmie) continue;
+      const r = await faturarRemessaPPV(p.id, userName).catch((e) => ({ ok: false, erro: e instanceof Error ? e.message : String(e), nf: null }));
+      remessas.push({ id: p.id, ok: r.ok, nf: r.nf ?? null, erro: r.erro });
+      await logOS(id, r.ok ? `Remessa ${p.id} faturada${r.nf ? ` — NF-e ${r.nf}` : ''}.` : `Remessa ${p.id} NÃO faturada: ${r.erro}`, userName, String(os.Status || ''));
+    }
+  }
+  return { ok: true, status: 200, tipo: 'faturada', recibo, concluida, remessas, mensagem: recibo ? `Recibo nº ${recibo} gerado no Omie.` : 'Faturada. O nº do recibo aparece no Omie em instantes.' };
 }
 
 // ---------------------------------------------------------------- reenviar a NFS-e

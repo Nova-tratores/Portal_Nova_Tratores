@@ -1,5 +1,6 @@
 "use client";
 
+import FaturarRemessaBotao from "./FaturarRemessaBotao";
 import { useState, useEffect, useRef, useCallback, useMemo, type CSSProperties } from "react";
 import { useAlteracoesPendentes } from "@/lib/rascunho/pendencias";
 import MaquinasClienteIcone from "@/components/MaquinasClienteIcone";
@@ -1780,6 +1781,9 @@ export default function PPVDrawer({
                                 </div>
                               );
                             })()}
+                            {!faturado && remessa && podeFaturar && ppvId && (
+                              <FaturarRemessaBotao ppvId={ppvId} numero={numOmie} onFeito={() => { void carregarSefaz(true); void carregarDetalhes(ppvId); }} />
+                            )}
                             {!faturado && !remessa && (
                               <button type="button" onClick={() => setShowFaturar(true)} disabled={!podeFaturar} title={!podeFaturar ? MSG_SEM_PERMISSAO : `Faturar (emite NF-e) — Omie nº ${numOmie}`}
                                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, minHeight: 36, borderRadius: 9, border: "none", background: podeFaturar ? "#0BB7CD" : "#94A3B8", color: "#fefefe", fontWeight: 800, fontSize: 13, cursor: podeFaturar ? "pointer" : "not-allowed", fontFamily: "inherit", boxShadow: podeFaturar ? "0 3px 10px rgba(11,183,205,.35)" : "none" }}>

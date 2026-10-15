@@ -56,7 +56,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   try {
     const body = await req.json().catch(() => ({}));
     if (body?.previa === true) return NextResponse.json(await previaRecibo(id));
-    const r = await faturarOSComRecibo(id, { totalConfirmado: Number(body?.totalConfirmado) || 0 }, auth);
-    return NextResponse.json({ success: r.ok, tipo: r.tipo, mensagem: r.mensagem, recibo: r.recibo ?? null, concluida: !!r.concluida }, { status: r.status });
+    const r = await faturarOSComRecibo(id, { totalConfirmado: Number(body?.totalConfirmado) || 0, faturarRemessas: body?.faturarRemessas !== false }, auth);
+    return NextResponse.json({ success: r.ok, tipo: r.tipo, mensagem: r.mensagem, recibo: r.recibo ?? null, concluida: !!r.concluida, remessas: r.remessas || [] }, { status: r.status });
   } catch (e) { return erroRota(e, "PATCH"); }
 }

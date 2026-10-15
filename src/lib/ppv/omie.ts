@@ -108,6 +108,49 @@ export async function alinharRemessaDaOS(idPPV: string): Promise<{ mudou: string
   return { mudou };
 }
 
+/**
+ * FATURA a remessa no Omie (emite a NF-e de remessa) — José, 15/10/2026: as peças da OS
+ * interna saem junto com o recibo, pelo portal. /produtos/remessafat/: ConferirRemessa
+ * (valida) → ConcluirRemessa (uma chamada, sem repetir) → espera a NF-e no StatusRemessa.
+ */
+export async function faturarRemessaPPV(idPPV: string, usuario = "Portal"): Promise<{ ok: boolean; nf?: string | null; erro?: string; jaFaturada?: boolean }> {
+  const cab = await lerCabecalhoPPV(idPPV);
+  if (!cab) return { ok: false, erro: "PPV não encontrado." };
+  if (String(cab.Tipo_Pedido || "") !== "Remessa") return { ok: false, erro: "Este PPV não é remessa." };
+  const st0 = await statusRemessaPPV(idPPV, (cab.omie_empresa as string) || null);
+  if (!st0) return { ok: false, erro: "Remessa não encontrada no Omie." };
+  const sem0 = (x: unknown) => String(x || "").replace(/^0+(?=\d)/, "");
+  const nfDe = (st: typeof st0.st) => { const l = st.ListaNfe || []; const n = l[l.length - 1]; return n?.cNumNFe ? sem0(n.cNumNFe) : null; };
+  if (st0.st.cancelada === "S") return { ok: false, erro: "A remessa está cancelada no Omie." };
+  const marcar = async (nf: string | null) => {
+    await supabaseFetch(`${TBL_PEDIDOS}?id_pedido=eq.${encodeURIComponent(idPPV)}`, "PATCH", {
+      faturado_omie_em: new Date().toISOString(), status: "Concluída", ...(nf ? { nf_numero: nf } : {}),
+    }).catch(() => {});
+  };
+  if (st0.st.faturada === "S") { const nf = nfDe(st0.st); if (!cab.faturado_omie_em) await marcar(nf); return { ok: true, nf, jaFaturada: true }; }
+  const acc = st0.acc;
+  await alinharRemessaDaOS(idPPV).catch(() => null); // contrato/projeto/previsão iguais à OS antes da nota
+  const rc = await omieCall<{ cabec?: { nCodRem?: number } }>("/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, acc.key, acc.secret);
+  const nCodRem = Number(rc.cabec?.nCodRem || 0);
+  if (!nCodRem) return { ok: false, erro: "Não li a remessa no Omie." };
+  try { await omieCall("/produtos/remessafat/", "ConferirRemessa", { nCodRem }, acc.key, acc.secret); }
+  catch (e) { return { ok: false, erro: `O Omie não validou a remessa: ${(e as Error).message}` }; }
+  try {
+    const r = await omieCall<{ cCodStatus?: string; cDescStatus?: string }>("/produtos/remessafat/", "ConcluirRemessa", { nCodRem }, acc.key, acc.secret);
+    if (r?.cCodStatus && r.cCodStatus !== "0") return { ok: false, erro: `O Omie não faturou a remessa: ${r.cDescStatus || r.cCodStatus}` };
+  } catch (e) { return { ok: false, erro: `O Omie não faturou a remessa: ${(e as Error).message}` }; }
+  // a NF-e leva alguns segundos para aparecer
+  let nf: string | null = null;
+  for (let i = 0; i < 6 && !nf; i++) {
+    await new Promise((r) => setTimeout(r, 4000));
+    const st = await statusRemessaPPV(idPPV, acc.name).catch(() => null);
+    if (st) nf = nfDe(st.st);
+  }
+  await marcar(nf);
+  await registrarLog(idPPV, `Remessa faturada pelo portal${nf ? ` — NF-e de remessa ${nf}` : " (NF-e ainda sendo gerada)"} (${usuario}).`).catch(() => {});
+  return { ok: true, nf };
+}
+
 /** Remessa no Omie: situação + NF-e (StatusRemessa pelo código de integração RM-<PPV>). */
 export async function statusRemessaPPV(idPPV: string, empresa: string | null): Promise<{ acc: OmieAccount; st: { faturada?: string; cancelada?: string; cNumeroRemessa?: string; ListaNfe?: Array<{ cNumNFe?: string; cChaveNFe?: string; cDanfe?: string; dtEmissao?: string; cStatusNFe?: string }> } } | null> {
   const contas = empresa ? [getAccount(empresa)].filter(Boolean) as OmieAccount[] : [];
