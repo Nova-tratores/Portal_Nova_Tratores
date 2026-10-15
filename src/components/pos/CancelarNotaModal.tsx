@@ -7,6 +7,7 @@
 // O pedido de peças (PPV) e a NF-e dele não mudam.
 import { useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
+import CronometroEstimado, { useSegundos } from "@/components/comum/CronometroEstimado";
 
 const MOTIVOS: [string, string][] = [["1", "Erro na emissão"], ["2", "Serviço não prestado"], ["9", "Outros"]];
 interface Resultado { ok: boolean; erro?: string; antiga?: string; nova?: string; nfse?: string; avisos?: string[]; proximo?: string }
@@ -29,12 +30,18 @@ export default function CancelarNotaModal({ osId, numeroOS, nfse, valor = 0, eta
   const textoOk = texto.replace(/\s+/g, " ").trim().length >= 15;
 
   const chamar = async (corpo: Record<string, unknown>): Promise<Resultado> => {
+    // o Omie pode demorar: depois de 90 s a janela solta e o resultado aparece no bloco
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 90_000);
     try {
       const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/refaturar`, {
-        method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" }, body: JSON.stringify(corpo),
+        method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" }, body: JSON.stringify(corpo), signal: ctl.signal,
       });
       return await r.json().catch(() => ({ ok: false, erro: "Resposta inválida do servidor." }));
-    } catch { return { ok: false, erro: "Sem resposta do servidor. NÃO tente de novo: confira a situação da nota no bloco de notas." }; }
+    } catch {
+      onFeito();
+      return { ok: false, erro: "O Omie está demorando e o servidor continua trabalhando. Feche esta janela e confira o bloco de faturamento em 1 minuto — NÃO repita agora." };
+    } finally { clearTimeout(t); }
   };
   const cancelar = async () => {
     setEnviando("cancelar");
@@ -80,7 +87,8 @@ export default function CancelarNotaModal({ osId, numeroOS, nfse, valor = 0, eta
             <div style={{ textAlign: "center", padding: "24px 0" }}>
               <i className="fas fa-spinner fa-spin" style={{ fontSize: 28, color: "#0f172a" }} />
               <div style={{ fontSize: 15, fontWeight: 800, marginTop: 12 }}>{enviando === "cancelar" ? "Cancelando no sistema nacional…" : "Duplicando a OS no Omie…"}</div>
-              <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 4 }}>Não feche esta janela.</div>
+              <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 4, marginBottom: 12 }}>Não feche esta janela.</div>
+              <Cronometro estimativa={enviando === "cancelar" ? 15 : 60} />
             </div>
           ) : etapa === "cancelar" ? (
             <>
@@ -160,4 +168,9 @@ export default function CancelarNotaModal({ osId, numeroOS, nfse, valor = 0, eta
       </div>
     </div>
   );
+}
+
+function Cronometro({ estimativa }: { estimativa: number }) {
+  const segundos = useSegundos();
+  return <CronometroEstimado segundos={segundos} estimativa={estimativa} cor="#0f172a" />;
 }

@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 import type { ResultadoConferencia } from "@/lib/omie/conferencia";
+import CronometroEstimado, { useSegundos } from "@/components/comum/CronometroEstimado";
 
 type Alvo = { tipo: "os"; osId: string } | { tipo: "ppv"; ppvId: string };
 interface Resposta { os: ResultadoConferencia | null; ppvs: ResultadoConferencia[]; error?: string }
@@ -139,6 +140,7 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
               ))}
             </div>
             <div className="conf-barra"><div style={{ width: `${pct}%` }} /></div>
+            {fase !== "ok" && <div style={{ margin: "-12px 28px 20px" }}><CronometroConf key={fase} estimativa={fase === "atualizando" ? 30 : alvo.tipo === "os" ? 20 : 10} cor={cor} /></div>}
           </div>
           );
         })()
@@ -242,4 +244,9 @@ export default function ConferenciaOmie({ alvo, cor = "#0F8B8D", onOk, onCancela
       )}
     </div>
   );
+}
+
+function CronometroConf({ estimativa, cor }: { estimativa: number; cor: string }) {
+  const segundos = useSegundos();
+  return <CronometroEstimado segundos={segundos} estimativa={estimativa} cor={cor} />;
 }

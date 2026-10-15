@@ -9,6 +9,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 import ConferenciaOmie from "@/components/comum/ConferenciaOmie";
+import CronometroEstimado, { useSegundos, pctPeloTempo } from "@/components/comum/CronometroEstimado";
 import { parcelasDoPagamento } from "@/lib/pagamento/parcelas";
 import { validarCampos, type CamposFiscais } from "@/lib/pos/modelo-fiscal";
 import CamposFiscaisEditor, { paraTela, type ValoresTela } from "./CamposFiscaisEditor";
@@ -676,12 +677,11 @@ function FaturandoTela({ comOS, comPecas }: { comOS: boolean; comPecas: boolean 
     ...(comOS ? ["Aplicando os impostos dos serviços", "Gravando as parcelas", "Validando a OS no Omie", "Emitindo a NFS-e"] : []),
     ...(comPecas ? ["Gravando as parcelas do pedido de peças", "Emitindo a NF-e das peças"] : []),
   ];
-  const [passo, setPasso] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setPasso((p) => Math.min(p + 1, passos.length - 1)), 6000);
-    return () => clearInterval(t);
-  }, [passos.length]);
-  const pct = Math.min(94, Math.round(((passo + 0.6) / passos.length) * 100));
+  // tempo típico: OS ~75 s (impostos, parcelas, conferências e a emissão) + pedido ~35 s
+  const estimativa = (comOS ? 75 : 0) + (comPecas ? 35 : 0) || 40;
+  const segundos = useSegundos();
+  const pct = pctPeloTempo(segundos, estimativa);
+  const passo = Math.min(passos.length - 1, Math.floor((segundos / estimativa) * passos.length));
   const COR = "#0369A1";
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 68010, background: "rgba(15,23,42,.55)", backdropFilter: "blur(3px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}>
@@ -702,7 +702,7 @@ function FaturandoTela({ comOS, comPecas }: { comOS: boolean; comPecas: boolean 
             <div className="fat-logo" title={comOS ? "NFS-e" : "NF-e"}>{comOS ? <img src="/marcas/nfse.png" alt="NFS-e" style={{ maxWidth: 56, maxHeight: 30 }} /> : <b style={{ fontSize: 18, color: "#e8730c" }}>NF-e</b>}</div>
           </div>
           <div style={{ marginTop: 18, textAlign: "center", fontSize: 17, fontWeight: 800, color: "#1e293b" }}>Faturando no Omie</div>
-          <div style={{ marginTop: 4, textAlign: "center", fontSize: 12.5, color: "#64748b" }}>Não feche esta janela. Pode levar até 1 ou 2 minutos.</div>
+          <div style={{ marginTop: 4, textAlign: "center", fontSize: 12.5, color: "#64748b" }}>Não feche esta janela.</div>
         </div>
         <div style={{ padding: "18px 28px 6px", display: "flex", flexDirection: "column", gap: 11 }}>
           {passos.map((p, i) => (
@@ -720,6 +720,7 @@ function FaturandoTela({ comOS, comPecas }: { comOS: boolean; comPecas: boolean 
         <div style={{ margin: "14px 28px 24px", height: 6, borderRadius: 6, background: "#eef2f6", overflow: "hidden" }}>
           <div style={{ width: `${pct}%`, height: "100%", borderRadius: 6, background: `linear-gradient(90deg, ${COR}, #22c55e)`, transition: "width .6s ease" }} />
         </div>
+        <div style={{ margin: "-10px 28px 22px" }}><CronometroEstimado segundos={segundos} estimativa={estimativa} cor={COR} /></div>
       </div>
     </div>
   );

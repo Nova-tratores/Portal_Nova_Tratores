@@ -2714,6 +2714,15 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           osId={osId}
                           ordemOmie={ordemOmie}
                           abrirAoCarregar={abrirFaturar}
+                          onAtualizar={async () => {
+                            try {
+                              const d = await fetch(`/api/pos/ordens/${osId}`).then((r) => r.json());
+                              if (d?.status) setStatus(d.status);
+                              if (d?.ordemOmie !== undefined) setOrdemOmie(d.ordemOmie || "");
+                            } catch { /* a lista recarrega */ }
+                            setLogRefreshKey((k) => k + 1);
+                            onSaved?.();
+                          }}
                           onFaturado={async () => {
                             // bloco de notas já entra em "aguardando a nota" (José, 14/10/2026)
                             setNotasEsperaDesde(Date.now());

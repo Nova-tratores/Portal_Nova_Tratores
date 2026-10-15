@@ -12,7 +12,7 @@ import FaturarOSModal from "./FaturarOSModal";
 
 interface Estado {
   habilitado: boolean; podeFaturar: boolean; podeFaturarPecas: boolean; enviadaOmie: boolean; podeCancelarNota?: boolean; valor?: number;
-  anteriores?: Array<{ nfse: string | null; ordemOmie: string; canceladaEm: string; motivo: string }>;
+  anteriores?: Array<{ nfse: string | null; ordemOmie: string; canceladaEm: string; motivo: string; novaOmie?: string | null; omieCancelada?: boolean }>;
   bloqueio: string | null; status: string | null; erro: string | null;
   faturadoEm: string | null; faturadoPor: string | null; formaPagamento: string | null;
   nfseNumero: string | null; nfseLink: string | null;
@@ -27,12 +27,14 @@ const COR = {
   vermelho: { bg: "#fef2f2", bd: "#fecaca", tx: "#b91c1c" },
 };
 
-export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirAoCarregar = false }: {
+export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtualizar, abrirAoCarregar = false }: {
   osId: string;
   ordemOmie: string;
   /** botão Faturar da capa do card: abre a janela sozinho (uma vez) quando der para faturar */
   abrirAoCarregar?: boolean;
   onFaturado: () => void;
+  /** algo mudou sem faturar (cancelou nota, duplicou a OS): recarrega o drawer */
+  onAtualizar?: () => void;
 }) {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [aberto, setAberto] = useState(false);
@@ -40,6 +42,18 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirA
   const [refaturando, setRefaturando] = useState(false);
   const [cancelarNota, setCancelarNota] = useState<null | "cancelar" | "duplicar">(null);
   const [menuNota, setMenuNota] = useState(false);
+  const [cancelandoAntiga, setCancelandoAntiga] = useState(false);
+  const [msgAntiga, setMsgAntiga] = useState<{ ok: boolean; texto: string } | null>(null);
+  const cancelarAntiga = async () => {
+    setCancelandoAntiga(true); setMsgAntiga(null);
+    try {
+      const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/refaturar`, { method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" }, body: JSON.stringify({ acao: "cancelar_antiga" }) });
+      const j = await r.json().catch(() => ({}));
+      setMsgAntiga(j.ok ? { ok: true, texto: `OS ${j.antiga} cancelada no Omie.` } : { ok: false, texto: j.erro || "Não foi possível cancelar." });
+      void carregar(); onAtualizar?.();
+    } catch { setMsgAntiga({ ok: false, texto: "Sem resposta do servidor. Confira no Omie antes de tentar de novo." }); }
+    setCancelandoAntiga(false);
+  };
 
   const carregar = useCallback(async (opts: { reconciliar?: boolean; forcar?: boolean } = {}) => {
     try {
@@ -99,7 +113,23 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirA
   const numOS = ordemOmie.replace(/^0+(?=\d)/, "");
   const nfseAtual = estado.nfseNumero ? String(estado.nfseNumero).replace(/^0+(?=\d)/, "") : null;
   const modal = cancelarNota && <CancelarNotaModal osId={osId} numeroOS={numOS} nfse={nfseAtual} valor={estado.valor} etapaInicial={cancelarNota}
-    onFechar={() => { setCancelarNota(null); void carregar(); }} onFeito={() => { void carregar(); onFaturado(); }} />;
+    onFechar={() => { setCancelarNota(null); void carregar(); }} onFeito={() => { void carregar(); (onAtualizar || onFaturado)(); }} />;
+  // OS refeita, mas a antiga continua ativa no Omie (o título dela segue aberto lá)
+  const ultAnt = (estado.anteriores || []).slice(-1)[0];
+  const antigaAtiva = ultAnt?.novaOmie && ultAnt.omieCancelada !== true ? ultAnt : null;
+  const avisoAntiga = antigaAtiva && (
+    <div style={{ border: "1px solid #fcd34d", background: "#fffbeb", color: "#92400e", borderRadius: 10, padding: "9px 10px", fontSize: 12, margin: "4px 0" }}>
+      <div style={{ fontWeight: 800 }}><i className="fas fa-triangle-exclamation" /> OS {antigaAtiva.ordemOmie} ainda ativa no Omie</div>
+      <div style={{ fontSize: 11, marginTop: 2, lineHeight: 1.45 }}>A nota dela já foi cancelada, mas a OS e o título a receber continuam abertos lá.</div>
+      {msgAntiga && <div style={{ fontSize: 11, marginTop: 5, fontWeight: 700, color: msgAntiga.ok ? "#15803d" : "#b91c1c" }}>{msgAntiga.texto}</div>}
+      {estado.podeCancelarNota && (
+        <button type="button" onClick={cancelarAntiga} disabled={cancelandoAntiga}
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", minHeight: 32, marginTop: 7, borderRadius: 8, border: "none", background: "#b45309", color: "#fefefe", fontWeight: 800, fontSize: 12, cursor: cancelandoAntiga ? "wait" : "pointer", fontFamily: "inherit" }}>
+          <i className={`fas ${cancelandoAntiga ? "fa-spinner fa-spin" : "fa-ban"}`} /> Cancelar a OS {antigaAtiva.ordemOmie} no Omie
+        </button>
+      )}
+    </div>
+  );
 
   // ---------- nota cancelada: falta duplicar a OS ----------
   if (estado.status === "nfse_cancelada") {
@@ -208,6 +238,7 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirA
   // ---------- pode faturar ----------
   return (
     <>
+      {avisoAntiga}
       {pedidosJaFaturados.length > 0 && (
         <div style={{ border: `1px solid ${COR.verde.bd}`, background: COR.verde.bg, color: COR.verde.tx, borderRadius: 6, padding: "7px 10px", fontSize: 12, margin: "4px 0" }}>
           <i className="fas fa-check" /> Pedido de peças {pedidosJaFaturados.map((p) => `PV ${p.pedidoOmie.replace(/^0+/, "")}`).join(", ")} já faturado — falta a OS.

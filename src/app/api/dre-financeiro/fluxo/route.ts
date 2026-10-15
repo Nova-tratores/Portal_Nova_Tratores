@@ -83,6 +83,7 @@ export async function GET(request: NextRequest) {
           .select(`grupo_categoria,descricao_categoria,codigo_categoria,${colNome},valor_documento,id_origem:raw->>id_origem`)
           .gte('data_vencimento', ini)
           .lte('data_vencimento', fim)
+          .or('status_titulo.is.null,status_titulo.neq.CANCELADO') // título cancelado não entra (15/10/2026)
           .order('id')
         return aplicarConta(q, conta)
       })

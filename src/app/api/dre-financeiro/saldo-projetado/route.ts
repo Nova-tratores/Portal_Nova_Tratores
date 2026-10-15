@@ -43,6 +43,7 @@ export async function GET(request: NextRequest) {
         .select('data_vencimento,valor_documento,valor_pago,data_pagamento')
         .gte('data_vencimento', dataInicio)
         .lte('data_vencimento', dataFim)
+        .or('status_titulo.is.null,status_titulo.neq.CANCELADO') // título cancelado não entra (15/10/2026)
         .limit(50000)
       q = aplicarConta(q, conta)
       const { data, error } = await q

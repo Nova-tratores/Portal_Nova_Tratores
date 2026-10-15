@@ -126,6 +126,42 @@ async function acharCopia(nAntiga: number, nCodCli: number, idOrdem: string): Pr
  * duplica; cancela a antiga SÓ no Omie (a nota já foi cancelada no governo) e
  * liga a OS do portal à nova, que volta para "Cobrando Cliente".
  */
+/**
+ * Cancela a OS antiga no Omie. Faturada, o Omie só aceita com cCancelarNfse=S
+ * ("já está faturada, não é possível cancelar quando cCancelarNfse for N" —
+ * OS 5352, 15/10/2026); como a NFS-e já foi cancelada no governo, não há mais
+ * nada a cancelar lá. Devolve a mensagem de erro, ou null se cancelou.
+ */
+async function cancelarOSAntigaNoOmie(nCodOS: number, faturada: boolean): Promise<string | null> {
+  try { await escrever("/servicos/osp/", "CancelarOS", { nCodOS, cCancelarNfse: faturada ? "S" : "N" }); }
+  catch (e) { return e instanceof Error ? e.message : String(e); }
+  await espera(3000);
+  try {
+    const st = await ler<{ cCancelada?: string }>("/servicos/os/", "StatusOS", { nCodOS });
+    return st.cCancelada === "S" ? null : "o Omie aceitou, mas a OS ainda não aparece como cancelada — confira em alguns minutos";
+  } catch { return null; }
+}
+
+/** Repete o cancelamento da OS antiga no Omie (quando o "Duplicar a OS" não conseguiu). */
+export async function cancelarOSAntiga(idOrdem: string, usuario: string): Promise<ResultadoRefaturar> {
+  const { data: rows } = await supabase.from(TBL_OS).select("faturamento_anterior").eq("Id_Ordem", idOrdem).limit(1);
+  const historico = (rows?.[0]?.faturamento_anterior || []) as Rec[];
+  const i = historico.length - 1;
+  const ult = historico[i];
+  if (!ult?.nCodOS) return { ok: false, erro: "Não há OS antiga para cancelar." };
+  const nAntiga = Number(ult.nCodOS);
+  let st: { cFaturada?: string; cCancelada?: string };
+  try { st = await ler("/servicos/os/", "StatusOS", { nCodOS: nAntiga }); }
+  catch (e) { return { ok: false, erro: `Não consegui ler a OS ${ult.ordemOmie} no Omie: ${e instanceof Error ? e.message : e}` }; }
+  const erro = st.cCancelada === "S" ? null : await cancelarOSAntigaNoOmie(nAntiga, st.cFaturada === "S");
+  if (erro) return { ok: false, antiga: String(ult.ordemOmie), erro: `O Omie não cancelou a OS ${ult.ordemOmie}: ${erro}` };
+  historico[i] = { ...ult, omieCancelada: true };
+  await supabase.from(TBL_OS).update({ faturamento_anterior: historico }).eq("Id_Ordem", idOrdem);
+  await supabase.from("contas_receber").update({ status_titulo: "CANCELADO" }).eq("conta_omie", "NOVA").eq("raw->>nCodOS", String(nAntiga)).then(() => {}, () => {});
+  await logOS(idOrdem, `OS ${ult.ordemOmie} cancelada no Omie (o título a receber dela sai junto).`, usuario);
+  return { ok: true, antiga: String(ult.ordemOmie) };
+}
+
 export async function refazerOSNoOmie(idOrdem: string, usuario: string): Promise<ResultadoRefaturar> {
   const { data: rows } = await supabase.from(TBL_OS).select("*").eq("Id_Ordem", idOrdem).limit(1);
   const os = rows?.[0] as Rec | undefined;
@@ -154,11 +190,11 @@ export async function refazerOSNoOmie(idOrdem: string, usuario: string): Promise
   const numNova = semZeros(copia.Cabecalho?.cNumOS);
   const avisos: string[] = [];
 
-  // 2) cancela a antiga só no Omie (a nota já foi cancelada no governo; o título sai junto)
-  if (antiga.InfoCadastro?.cCancelada !== "S") {
-    try { await escrever("/servicos/osp/", "CancelarOS", { nCodOS: nAntiga, cCancelarNfse: "N" }); }
-    catch (e) { avisos.push(`O Omie não cancelou a OS ${numAntiga} (${e instanceof Error ? e.message : e}). Cancele no Omie SEM cancelar a nota — o título a receber dela também precisa sair.`); }
-  }
+  // 2) cancela a antiga no Omie (o título sai junto)
+  const antigaCancelada = antiga.InfoCadastro?.cCancelada === "S" || await cancelarOSAntigaNoOmie(nAntiga, antiga.InfoCadastro?.cFaturada === "S").then((e) => {
+    if (e) avisos.push(`O Omie não cancelou a OS ${numAntiga} (${e}). Use "Cancelar a OS ${numAntiga} no Omie" no bloco de faturamento.`);
+    return !e;
+  });
   // 3) vínculo cruzado no Omie: a OS nova cita o(s) pedido(s) de venda e cada pedido
   //    passa a citar a OS nova no "Nº do pedido do cliente" (é por aí que a Pasta
   //    Clientes junta serviço + peças). Pedido já faturado pode recusar: vira aviso.
@@ -180,7 +216,7 @@ export async function refazerOSNoOmie(idOrdem: string, usuario: string): Promise
 
   // 4) portal: liga a OS nova (a trava libera porque a nota está cancelada)
   const historico = Array.isArray(os.faturamento_anterior) ? [...(os.faturamento_anterior as Rec[])] : [];
-  if (historico.length) historico[historico.length - 1] = { ...historico[historico.length - 1], novaOmie: numNova };
+  if (historico.length) historico[historico.length - 1] = { ...historico[historico.length - 1], novaOmie: numNova, omieCancelada: antigaCancelada };
   const { error: e2 } = await supabase.from(TBL_OS).update({
     Ordem_Omie: numNova, id_omie: numNova, omie_ncodos: nNova, omie_ccodint: ccodint || null,
     faturado_omie_em: null, faturado_por: null, nfse_numero: null, nfse_link: null,

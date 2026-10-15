@@ -12,7 +12,7 @@ interface EstadoNfse {
   /** pedidos de peças faturados pela OS (ok = foi para a SEFAZ) */
   pecas?: { id: string; ok: boolean }[];
   /** NFS-e canceladas desta OS */
-  anteriores?: { nfse: string | null; canceladaEm: string; nfseLink: string | null; chave: string | null; motivo?: string; novaOmie?: string | null }[];
+  anteriores?: { nfse: string | null; canceladaEm: string; nfseLink: string | null; chave: string | null; motivo?: string; novaOmie?: string | null; omieCancelada?: boolean }[];
 }
 /** situação conferida direto no sistema nacional */
 interface SituacaoGov { nfse: string; chave: string; atual: boolean; situacao: string; conferidoEm: string }
@@ -142,19 +142,23 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
     autorizada: ["autorizada no governo", "#047857", "#d1fae5"], cancelada: ["cancelada no governo", "#b91c1c", "#fee2e2"],
     substituida: ["substituída no governo", "#92400e", "#fef3c7"], nao_encontrada: ["não encontrada no governo", "#92400e", "#fef3c7"],
   };
-  const linhaGov = (num: string | null | undefined) => {
+  /** ícone (prédio do governo) com a situação e os detalhes num balão ao passar o mouse */
+  const dicaNota = (num: string | null | undefined, extras: React.ReactNode = null) => {
     const g = num ? gov?.[String(num).replace(/^0+(?=\d)/, "")] : null;
+    const cor = g && COR_GOV[g.situacao] ? COR_GOV[g.situacao] : null;
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 2px 7px", fontSize: 10.5, color: "var(--portal-text-muted)" }}>
-        <i className="fas fa-landmark" style={{ fontSize: 10 }} />
-        {consultandoGov && !g ? <span>conferindo no sistema nacional…</span>
-          : g && COR_GOV[g.situacao] ? <>{chip(COR_GOV[g.situacao][0], COR_GOV[g.situacao][1], COR_GOV[g.situacao][2])}<span>conferido {new Date(g.conferidoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></>
-          : <span>situação no governo indisponível</span>}
-        <button type="button" onClick={() => void consultarGov()} disabled={consultandoGov} title="Conferir agora no sistema nacional"
-          style={{ marginLeft: "auto", background: "none", border: "none", padding: 0, color: "#0891A8", cursor: consultandoGov ? "wait" : "pointer", fontSize: 11 }}>
-          <i className={`fas fa-rotate${consultandoGov ? " fa-spin" : ""}`} />
+      <DicaNota cor={cor ? cor[1] : "#64748b"} fundo={cor ? cor[2] : "#f1f5f9"} carregando={consultandoGov && !g}>
+        <div style={{ fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: .4, color: "#64748b", marginBottom: 6 }}>Sistema nacional</div>
+        <div style={{ fontSize: 13.5, fontWeight: 700, color: cor ? cor[1] : "#334155" }}>
+          {consultandoGov && !g ? "Conferindo…" : cor ? cor[0].replace(" no governo", "") : "Situação indisponível"}
+        </div>
+        {g && <div style={{ fontSize: 12, color: "#64748b", marginTop: 2 }}>conferido às {new Date(g.conferidoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</div>}
+        {extras}
+        <button type="button" onClick={() => void consultarGov()} disabled={consultandoGov}
+          style={{ marginTop: 10, display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 8, border: "1px solid #e2e8f0", background: "#fefefe", color: "#0891A8", fontSize: 12, fontWeight: 700, cursor: consultandoGov ? "wait" : "pointer", fontFamily: "inherit" }}>
+          <i className={`fas fa-rotate${consultandoGov ? " fa-spin" : ""}`} /> Conferir agora
         </button>
-      </div>
+      </DicaNota>
     );
   };
   const anteriores = nfse?.anteriores || [];
@@ -172,24 +176,24 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
           st === "nfse_aguardando" ? <>serviço · {chip("aguardando o sistema nacional", "#075985", "#e0f2fe")}</>
             : st === "nfse_rejeitada" ? <>serviço · {chip("rejeitada", "#b91c1c", "#fee2e2")}</>
             : <>serviço · {chip("autorizada", "#047857", "#d1fae5")}</>,
-          nfse?.nfseLink ? <a href={nfse.nfseLink} target="_blank" rel="noreferrer" style={{ color: "#0891A8", fontSize: 11.5, fontWeight: 800, textDecoration: "none" }}>PDF</a> : null,
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            {nfse?.nfseLink ? <a href={nfse.nfseLink} target="_blank" rel="noreferrer" style={{ color: "#0891A8", fontSize: 11.5, fontWeight: 800, textDecoration: "none" }}>PDF</a> : null}
+            {st !== "nfse_aguardando" && nfse?.nfseNumero ? dicaNota(nfse.nfseNumero) : null}
+          </span>,
           true)}
-        {temOS && st !== "nfse_cancelada" && st !== "nfse_aguardando" && nfse?.nfseNumero && linhaGov(nfse.nfseNumero)}
-        {anteriores.map((a, i) => (
-          <div key={`ant-${a.nfse}-${i}`}>
-            {linha(`ant-${i}`, `NFS-e ${semZeros(a.nfse) || ""}`.trim(),
-              <>serviço · {chip("cancelada", "#b91c1c", "#fee2e2")}{a.canceladaEm ? ` em ${new Date(a.canceladaEm).toLocaleDateString("pt-BR")}` : ""}</>,
-              a.nfseLink ? <a href={a.nfseLink} target="_blank" rel="noreferrer" style={{ color: "#0891A8", fontSize: 11.5, fontWeight: 800, textDecoration: "none" }}>PDF</a> : null,
-              !temOS && i === 0)}
-            {a.motivo && (
-              <div style={{ margin: "0 2px 6px", padding: "6px 8px", borderRadius: 7, background: "#fef2f2", border: "1px solid #fecaca", color: "#7f1d1d", fontSize: 10.5, lineHeight: 1.45 }}>
-                <b>Motivo:</b> {a.motivo.replace(/^\d\s*-\s*/, "")}
-                {a.novaOmie ? <div style={{ marginTop: 2, color: "#475569" }}>refeita na OS nº {semZeros(a.novaOmie)}</div> : null}
+        {anteriores.map((a, i) => linha(`ant-${i}`, `NFS-e ${semZeros(a.nfse) || ""}`.trim(),
+          <>serviço · {chip("cancelada", "#b91c1c", "#fee2e2")}</>,
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            {a.nfseLink ? <a href={a.nfseLink} target="_blank" rel="noreferrer" style={{ color: "#0891A8", fontSize: 11.5, fontWeight: 800, textDecoration: "none" }}>PDF</a> : null}
+            {dicaNota(a.nfse, (
+              <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9", fontSize: 12.5, color: "#334155", lineHeight: 1.55 }}>
+                {a.canceladaEm && <div><b>Cancelada em</b> {new Date(a.canceladaEm).toLocaleDateString("pt-BR")}</div>}
+                {a.motivo && <div style={{ marginTop: 4 }}><b>Motivo:</b> {a.motivo.replace(/^\d\s*-\s*/, "")}</div>}
+                {a.novaOmie && <div style={{ marginTop: 4 }}><b>Refeita na OS</b> nº {semZeros(a.novaOmie)}</div>}
               </div>
-            )}
-            {linhaGov(a.nfse)}
-          </div>
-        ))}
+            ))}
+          </span>,
+          !temOS && i === 0))}
         {temOS && st === "nfse_aguardando" && (
           <div style={{ padding: "0 2px 8px" }}>
             <div style={{ height: 5, borderRadius: 3, background: "rgba(11,183,205,.18)", overflow: "hidden" }}>
@@ -220,5 +224,23 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
         )}
       </div>
     </div>
+  );
+}
+
+/** Ícone discreto que abre um balão legível ao passar o mouse (ou tocar). */
+function DicaNota({ cor, fundo, carregando, children }: { cor: string; fundo: string; carregando: boolean; children: React.ReactNode }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <span style={{ position: "relative", display: "inline-flex" }} onMouseEnter={() => setAberto(true)} onMouseLeave={() => setAberto(false)}>
+      <button type="button" onClick={() => setAberto((a) => !a)} title="Situação no sistema nacional"
+        style={{ width: 22, height: 22, borderRadius: 7, border: "none", background: fundo, color: cor, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 10.5, cursor: "pointer", padding: 0 }}>
+        <i className={`fas ${carregando ? "fa-spinner fa-spin" : "fa-landmark"}`} />
+      </button>
+      {aberto && (
+        <div style={{ position: "absolute", right: 0, top: "calc(100% + 6px)", zIndex: 60, width: 250, padding: "12px 14px", borderRadius: 12, background: "#fefefe", border: "1px solid #e2e8f0", boxShadow: "0 14px 34px rgba(15,23,42,.2)", textAlign: "left" }}>
+          {children}
+        </div>
+      )}
+    </span>
   );
 }

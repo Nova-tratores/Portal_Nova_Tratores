@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { autenticar } from "@/lib/auth/server";
 import { podeCancelarFaturamento } from "@/lib/pos/faturamento";
-import { cancelarNotaOS, refazerOSNoOmie } from "@/lib/pos/refaturar";
+import { cancelarNotaOS, refazerOSNoOmie, cancelarOSAntiga } from "@/lib/pos/refaturar";
 import { logAndNotify } from "@/lib/server/audit-notify";
 
 export const runtime = "nodejs";
@@ -19,9 +19,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { id } = await params;
   const body = await req.json().catch(() => ({}));
   const usuario = auth.email || "Portal";
-  const acao = body?.acao === "duplicar_os" ? "duplicar_os" : "cancelar";
+  const acao = body?.acao === "duplicar_os" ? "duplicar_os" : body?.acao === "cancelar_antiga" ? "cancelar_antiga" : "cancelar";
   try {
-    const r = acao === "duplicar_os"
+    const r = acao === "cancelar_antiga" ? await cancelarOSAntiga(id, usuario)
+      : acao === "duplicar_os"
       ? await refazerOSNoOmie(id, usuario)
       : await cancelarNotaOS(id, { motivo: String(body?.motivo || "") as "1" | "2" | "9", texto: String(body?.texto || ""), usuario });
     await logAndNotify({

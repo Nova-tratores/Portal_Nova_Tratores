@@ -288,7 +288,7 @@ export interface EstadoFaturamentoOS {
   /** pode "Cancelar nota e refazer" (pos:cancelar_faturamento) */
   podeCancelarNota?: boolean;
   /** notas canceladas desta OS (mais recente por último) */
-  anteriores?: Array<{ nfse: string | null; ordemOmie: string; canceladaEm: string; motivo: string; nfseLink: string | null; chave: string | null; novaOmie: string | null }>;
+  anteriores?: Array<{ nfse: string | null; ordemOmie: string; canceladaEm: string; motivo: string; nfseLink: string | null; chave: string | null; novaOmie: string | null; omieCancelada?: boolean }>;
   /** valor da OS no Omie (para explicar o título que sai ao cancelar) */
   valor?: number;
   podeFaturar: boolean;
@@ -335,6 +335,7 @@ export async function estadoFaturamento(id: string, auth: Autenticado): Promise<
       return Array.isArray(l) ? l.map((x) => ({
         nfse: (x.nfse as string) || null, ordemOmie: String(x.ordemOmie || ''), canceladaEm: String(x.canceladaEm || ''), motivo: String(x.motivo || ''),
         nfseLink: (x.nfseLink as string) || null, chave: (x.chave as string) || null, novaOmie: (x.novaOmie as string) || null,
+        omieCancelada: x.omieCancelada === undefined ? undefined : !!x.omieCancelada,
       })) : [];
     })().catch(() => []),
     pedidos: (await ppvsDaOS(os)).filter(pedidoQueConta).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, faturado: !!p.faturadoEm })),

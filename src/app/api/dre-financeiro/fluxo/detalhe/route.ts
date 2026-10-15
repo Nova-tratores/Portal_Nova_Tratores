@@ -96,6 +96,7 @@ export async function GET(request: NextRequest) {
       let q = supabase!.from(tabela)
         .select(`codigo_lancamento,data_vencimento,data_emissao,valor_documento,valor_pago,status_titulo,grupo_categoria,descricao_categoria,codigo_categoria,${colNome},numero_documento_fiscal,numero_parcela,id_origem:raw->>id_origem`)
         .gte('data_vencimento', ini).lte('data_vencimento', fim)
+        .or('status_titulo.is.null,status_titulo.neq.CANCELADO') // título cancelado não entra (15/10/2026)
         .order('id')
       q = aplicarConta(q, conta)
       // Aplica grupo direto na query (campo simples). Categoria e terceiro filtra
