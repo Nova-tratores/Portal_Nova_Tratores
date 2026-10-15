@@ -11,6 +11,7 @@ import { authHeaders } from "@/lib/auth/client";
 import { rotuloStatus } from "@/lib/pos/faturamento-regras";
 import FaturarOSModal from "./FaturarOSModal";
 import FaturarReciboModal from "./FaturarReciboModal";
+import CancelarDocOmieModal from "./CancelarDocOmieModal";
 
 interface Estado {
   habilitado: boolean; podeFaturar: boolean; podeFaturarPecas: boolean; enviadaOmie: boolean; podeCancelarNota?: boolean; valor?: number;
@@ -55,6 +56,8 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
     setMenuPos({ top: r.bottom + 6, left: Math.max(8, Math.min(window.innerWidth - 268, r.right - 260)) });
   };
   // nota de peças: qual pedido e em qual passo
+  // cancelar no Omie o que ainda não foi faturado (pedido de venda ou a OS)
+  const [cancelarDoc, setCancelarDoc] = useState<null | { tipo: "pedido"; ppvId: string; numero: string } | { tipo: "os"; osId: string; numero: string; pedidos: string[] }>(null);
   const [pedidoAlvo, setPedidoAlvo] = useState<null | { id: string; num: string; nf: string | null; etapa: "cancelar" | "duplicar" }>(null);
   const [cancelandoAntiga, setCancelandoAntiga] = useState(false);
   const [msgAntiga, setMsgAntiga] = useState<{ ok: boolean; texto: string } | null>(null);
@@ -125,6 +128,9 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
   const pedidosJaFaturados = (estado.pedidos || []).filter((p) => p.faturado);
 
   const numOS = ordemOmie.replace(/^0+(?=\d)/, "");
+  const modalCancelarDoc = cancelarDoc && <CancelarDocOmieModal alvo={cancelarDoc}
+    onClose={() => { setCancelarDoc(null); void carregar({ reconciliar: true, forcar: true }); }}
+    onFeito={() => { (onAtualizar || onFaturado)(); }} />;
   const nfseAtual = estado.nfseNumero ? String(estado.nfseNumero).replace(/^0+(?=\d)/, "") : null;
   const modal = cancelarNota && <CancelarNotaModal osId={osId} numeroOS={numOS} nfse={nfseAtual} valor={estado.valor} etapaInicial={cancelarNota}
     onFechar={() => { setCancelarNota(null); void carregar(); }} onFeito={() => { void carregar(); (onAtualizar || onFaturado)(); }} />;
@@ -240,7 +246,18 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
           <div style={{ marginTop: 8, padding: "8px 9px", borderRadius: 8, background: COR.ambar.bg, border: `1px solid ${COR.ambar.bd}`, color: COR.ambar.tx }}>
             <div style={{ fontWeight: 800, fontSize: 12 }}><i className="fas fa-hourglass-half" /> Falta o pedido de peças</div>
             <div style={{ fontSize: 10.5, marginTop: 1 }}>A OS vai para Concluída quando ele for faturado.</div>
-            {pecasPendentes.map((p) => <div key={p.id} style={{ fontSize: 11, marginTop: 3 }}><b>Pedido {p.pedidoOmie ? p.pedidoOmie.replace(/^0+(?=\d)/, "") : p.id}</b> · {p.erro}</div>)}
+            {pecasPendentes.map((p) => (
+              <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, marginTop: 3 }}>
+                <span style={{ flex: 1, minWidth: 0 }}><b>Pedido {p.pedidoOmie ? p.pedidoOmie.replace(/^0+(?=\d)/, "") : p.id}</b> · {p.erro}</span>
+                {estado.podeFaturarPecas && (
+                  <button type="button" onClick={() => setCancelarDoc({ tipo: "pedido", ppvId: p.id, numero: p.pedidoOmie ? p.pedidoOmie.replace(/^0+(?=\d)/, "") : p.id })}
+                    title="Cancelar este pedido de venda no Omie (ainda não faturado)"
+                    style={{ flexShrink: 0, border: "1px solid #fecaca", background: "#fefefe", color: "#b91c1c", borderRadius: 7, padding: "3px 8px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
+                    <i className="fas fa-ban" /> Cancelar
+                  </button>
+                )}
+              </div>
+            ))}
             {estado.podeFaturarPecas && estado.podeFaturar && (
               <button type="button" disabled={refaturando} onClick={() => refaturarPecas(pecasPendentes.map((p) => p.id))}
                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", minHeight: 34, marginTop: 7, borderRadius: 8, border: "none", background: "#0BB7CD", color: "#fefefe", fontWeight: 800, fontSize: 12.5, cursor: refaturando ? "wait" : "pointer", fontFamily: "inherit" }}>
@@ -250,6 +267,7 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
           </div>
         )}
         {modal}
+        {modalCancelarDoc}
       </div>
       </>
     );
@@ -307,6 +325,14 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
       <div style={{ fontSize: 11, color: "var(--portal-text-muted, #64748b)", textAlign: "center", marginTop: -2 }}>
         {estado.interna ? "OS interna · sem NFS-e e sem conta a receber" : pedidosFaltando.length ? "a OS, o pedido de peças ou os dois" : "emite a NFS-e da OS"}
       </div>
+      {estado.podeFaturar && (
+        <button type="button" onClick={() => setCancelarDoc({ tipo: "os", osId, numero: numOS, pedidos: (estado.pedidos || []).filter((p) => !p.faturado).map((p) => p.pedidoOmie ? `PV ${p.pedidoOmie.replace(/^0+(?=\d)/, "")}` : p.id) })}
+          title="Cancelar a OS no Omie e no portal (ainda não faturada)"
+          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", minHeight: 30, marginTop: 6, borderRadius: 8, border: "1px solid #fecaca", background: "transparent", color: "#b91c1c", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+          <i className="fas fa-ban" /> Cancelar a OS
+        </button>
+      )}
+      {modalCancelarDoc}
       {aberto && estado.interna && <FaturarReciboModal
         osId={osId}
         onClose={() => { setAberto(false); void carregar(); }}
