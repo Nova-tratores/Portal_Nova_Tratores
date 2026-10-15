@@ -3,6 +3,8 @@
 // grade (+ janela "Item da Ordem de Serviço" no duplo clique), Departamentos,
 // Informações Adicionais, Parcelas (igual ao PPV), E-mail para o Cliente e a
 // janela de Informações do cliente. Estado em OmieEspelho (lib/pos/omie-espelho).
+import EditarClienteOmie from "@/components/clientes/EditarClienteOmie";
+import { alertaCepGeral } from "@/lib/clientes/novo-cliente";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 import { supabase } from "@/lib/supabase";
@@ -582,8 +584,12 @@ export function AbaEmail({ esp, setEsp, interna, podeEditar, emailCliente = "" }
 }
 
 // ───────────────────────── Informações do cliente ─────────────────────────
-export function ClienteOmieModal({ cliente, cnpj, fechar }: { cliente: Rec | null; cnpj: string; fechar: () => void }) {
+export function ClienteOmieModal({ cliente: cliOmie, cnpj, fechar }: { cliente: Rec | null; cnpj: string; fechar: () => void }) {
+  // depois de editar, mostra o que foi salvo (o Omie é a fonte; a OS relê na próxima abertura)
+  const [salvo, setSalvo] = useState<Rec | null>(null);
+  const cliente = cliOmie ? { ...cliOmie, ...(salvo || {}) } : null;
   const v = (k: string) => String(cliente?.[k] ?? "");
+  const alertaCep = cliente ? alertaCepGeral(v("cep")) : null;
   const tags = Array.isArray(cliente?.tags) ? (cliente!.tags as { tag?: string }[]).map((t) => t.tag).filter(Boolean).join(", ") : "";
   const f = (t: string, val: string, span: number) => <Campo key={t} titulo={t} span={span} cinza><div style={inpOmie}>{val || "—"}</div></Campo>;
   return (
@@ -592,6 +598,17 @@ export function ClienteOmieModal({ cliente, cnpj, fechar }: { cliente: Rec | nul
         <div style={{ display: "flex", alignItems: "center", padding: "14px 20px", background: "var(--portal-bg-secondary, #f3f5f6)" }}>
           <EstilosOmie />
           <b style={{ flex: 1, fontSize: 17, fontWeight: 600, color: TEAL_ESC }}>Informações do cliente</b>
+          {cliente && (
+            <span style={{ marginRight: 14 }}>
+              <EditarClienteOmie doc={v("cnpj_cpf") || cnpj} cod={Number(v("codigo_cliente_omie")) || null} zIndex={100020}
+                onSalvo={(r) => { const f = r.form; setSalvo({
+                  razao_social: f.razao_social, nome_fantasia: f.nome_fantasia, email: f.email, cep: f.cep, endereco: f.endereco, endereco_numero: f.numero,
+                  complemento: f.complemento, bairro: f.bairro, cidade: f.cidade, estado: f.estado,
+                  inscricao_estadual: f.isento_ie ? "ISENTO" : f.inscricao_estadual,
+                  telefone1_ddd: (f.telefone || "").replace(/\D/g, "").slice(0, 2), telefone1_numero: (f.telefone || "").replace(/\D/g, "").slice(2),
+                }); }} />
+            </span>
+          )}
           <button type="button" onClick={fechar} style={{ border: "none", background: "transparent", color: TEAL_ESC, cursor: "pointer", fontSize: 14, fontFamily: "inherit" }}>Fechar ✕</button>
         </div>
         <div style={{ padding: "22px 20px", display: "grid", gridTemplateColumns: "repeat(6, minmax(0,1fr))", gap: "20px 14px" }}>
@@ -602,7 +619,8 @@ export function ClienteOmieModal({ cliente, cnpj, fechar }: { cliente: Rec | nul
             f("UF", v("estado"), 1), f("CEP", v("cep"), 1), f("Telefone", [v("telefone1_ddd"), v("telefone1_numero")].filter(Boolean).join(" "), 2), f("E-mail", v("email"), 2),
             f("Contato", v("contato"), 2), f("Tags", tags, 6),
           ]}
-          <div style={{ gridColumn: "span 6", fontSize: 12, color: CINZA }}>Cadastro no Omie (só leitura). Para mudar, use a Pasta do cliente.</div>
+          {alertaCep && <div style={{ gridColumn: "span 6", fontSize: 12.5, color: "#92400e", background: "#fffbeb", border: "1px solid #fde68a", borderRadius: 8, padding: "9px 12px", lineHeight: 1.5 }}><i className="fas fa-triangle-exclamation" style={{ marginRight: 6 }} />{alertaCep}</div>}
+          <div style={{ gridColumn: "span 6", fontSize: 12, color: CINZA }}>Cadastro do Omie. O botão Editar cliente altera na Nova e na Castro.</div>
         </div>
       </div>
     </div>

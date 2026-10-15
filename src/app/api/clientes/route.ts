@@ -124,7 +124,8 @@ export async function GET(req: NextRequest) {
           .from("Chamado_NF")
           .select("id, omie_num_os, omie_num_pedido, omie_empresa, anexo_boleto, anexo_nf_servico, anexo_nf_peca, num_nf_servico, num_nf_peca, status, valor_servico, setor_destino, created_at")
           .or(ors.join(","));
-        cards = ch || [];
+        // card excluído no kanban continua na tabela (status "excluido") — não mostra na pasta
+        cards = (ch || []).filter((c: any) => c.status !== "excluido");
       }
       // Indexa por número + EMPRESA: a Castro tem OS/PV com o mesmo número da
       // Nova, e a busca acima traz cards de outros clientes que repetem o número.

@@ -18,6 +18,7 @@ import { contaOmie } from "@/lib/omie/contas";
 import { omie as omiePorta } from "@/lib/omie/porta";
 import { cancelarNfseNacional, MOTIVOS_CANCELAMENTO, type MotivoCancelamento } from "@/lib/nfse/nacional";
 import { cruzarNumeros, pedidosDaOS } from "@/lib/pos/substituir-omie";
+import { retirarCardDoDocumentoCancelado } from "@/lib/financeiro/cards-chamado";
 
 type Rec = Record<string, unknown>;
 interface OsOmie {
@@ -93,7 +94,9 @@ export async function cancelarNotaOS(idOrdem: string, opts: { motivo: MotivoCanc
   await supabase.from("portal_nt_clientes_os").update({ cancelada: true, status: "Cancelada" }).eq("cod_os", nAntiga).then(() => {}, () => {});
   // financeiro do portal: o título da OS antiga sai na hora (o sync com o Omie confirma depois)
   await supabase.from("contas_receber").update({ status_titulo: "CANCELADO" }).eq("conta_omie", "NOVA").eq("raw->>nCodOS", String(nAntiga)).then(() => {}, () => {});
-  await logOS(idOrdem, `NFS-e ${nfse} cancelada no sistema nacional (OS ${numAntiga}). Motivo: ${anterior.motivo}`, opts.usuario);
+  // card do financeiro da OS antiga sai (e solta o pedido de venda para o card da OS nova)
+  const cards = await retirarCardDoDocumentoCancelado(supabase, { numOS: numAntiga, empresa: "Nova Tratores" }, `NFS-e ${nfse} da OS ${numAntiga} cancelada para refazer`).catch(() => [] as number[]);
+  await logOS(idOrdem, `NFS-e ${nfse} cancelada no sistema nacional (OS ${numAntiga}). Motivo: ${anterior.motivo}${cards.length ? `. Card do financeiro #${cards.join(", #")} excluído` : ""}`, opts.usuario);
 
   // a OS do Omie fica para o 2º passo ("Duplicar a OS"), que a tela oferece logo em seguida
   return { ok: true, nfse, antiga: numAntiga, proximo: "duplicar_os" };

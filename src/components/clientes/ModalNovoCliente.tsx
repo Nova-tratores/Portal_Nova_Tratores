@@ -5,10 +5,10 @@
 // novo-cliente.ts) — valida antes de enviar pra não dar erro no Omie.
 // CNPJ preenche pela Receita (BrasilAPI); CEP preenche endereço + IBGE (ViaCEP).
 import { useEffect, useMemo, useState } from 'react'
-import { X, Plus, Search, RefreshCw, AlertTriangle, CheckCircle } from 'lucide-react'
+import { X, Plus, Search, RefreshCw, AlertTriangle, CheckCircle, Pencil, Save } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import {
-  EMPRESAS_CLIENTE, LIMITES, UFS, soDigitos, validarNovoCliente, type FormNovoCliente,
+  EMPRESAS_CLIENTE, LIMITES, UFS, soDigitos, validarNovoCliente, alertaCepGeral, type FormNovoCliente,
 } from '@/lib/clientes/novo-cliente'
 
 export type ClienteCriado = {
@@ -42,9 +42,16 @@ function Campo({ rotulo, children, contador }: { rotulo: string; children: React
   )
 }
 
-export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPadrao, zIndex = 90000 }: {
-  aberto: boolean; onFechar: () => void; onCriado: (c: ClienteCriado) => void; empresaPadrao?: string; zIndex?: number
+/** Resultado da edição: o formulário salvo (o mesmo CNPJ foi alterado na Nova e na Castro). */
+export type ClienteEditado = { form: FormNovoCliente; resultado: { empresa: string; cod_cli: number; ok: boolean; erro?: string }[] }
+
+export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPadrao, zIndex = 90000, edicao, onEditado }: {
+  aberto: boolean; onFechar: () => void; onCriado?: (c: ClienteCriado) => void; empresaPadrao?: string; zIndex?: number
+  /** modo EDITAR: formulário já preenchido com o cadastro do Omie (CNPJ não muda) */
+  edicao?: FormNovoCliente | null
+  onEditado?: (c: ClienteEditado) => void
 }) {
+  const editando = !!edicao
   const [f, setF] = useState<FormNovoCliente>({ ...VAZIO })
   const [enviando, setEnviando] = useState(false)
   const [erroServidor, setErroServidor] = useState('')
@@ -59,14 +66,15 @@ export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPa
     let vivo = true
     Promise.resolve().then(() => {
       if (!vivo) return
-      setF({ ...VAZIO, empresa: empresaPadrao && /castro/i.test(empresaPadrao) ? 'Castro Pecas' : 'Nova Tratores' })
+      setF(edicao ? { ...VAZIO, ...edicao } : { ...VAZIO, empresa: empresaPadrao && /castro/i.test(empresaPadrao) ? 'Castro Pecas' : 'Nova Tratores' })
       setErroServidor(''); setTentou(false); setInfoDoc('')
     })
     return () => { vivo = false }
-  }, [aberto, empresaPadrao])
+  }, [aberto, empresaPadrao, edicao])
 
   const set = (campo: keyof FormNovoCliente, valor: string | boolean) => setF(p => ({ ...p, [campo]: valor }))
   const erros = useMemo(() => validarNovoCliente(f), [f])
+  const cepGeral = alertaCepGeral(f.cep)
 
   // CEP → endereço + IBGE (ViaCEP)
   const buscarCep = async (cepBruto?: string) => {
@@ -128,14 +136,15 @@ export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPa
     try {
       const { data } = await supabase.auth.getSession()
       const token = data.session?.access_token
-      const r = await fetch('/api/clientes/criar', {
-        method: 'POST',
+      const r = await fetch(editando ? '/api/clientes/editar' : '/api/clientes/criar', {
+        method: editando ? 'PATCH' : 'POST',
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify(f),
       })
       const j = await r.json().catch(() => null)
       if (!r.ok || !j?.ok) { setErroServidor(j?.error || j?.erro || `Erro ${r.status}`); return }
-      onCriado({ cod_cli: j.cod_cli, empresa: j.empresa, ja_existia: j.ja_existia, aviso: j.aviso, cliente: j.cliente, form: f })
+      if (editando) { onEditado?.({ form: f, resultado: j.resultado || [] }); return }
+      onCriado?.({ cod_cli: j.cod_cli, empresa: j.empresa, ja_existia: j.ja_existia, aviso: j.aviso, cliente: j.cliente, form: f })
     } catch {
       setErroServidor('Sem conexão com o servidor. Tente de novo.')
     } finally {
@@ -153,10 +162,10 @@ export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPa
       <div style={{ background: 'var(--portal-bg-card, #fff)', borderRadius: 16, width: 640, maxWidth: '100%', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.3)', overflow: 'hidden' }}>
         {/* Cabeçalho */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 22px', borderBottom: '1px solid #F1F5F9' }}>
-          <span style={{ width: 38, height: 38, borderRadius: 11, background: '#FEF2F2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Plus size={19} /></span>
+          <span style={{ width: 38, height: 38, borderRadius: 11, background: '#FEF2F2', color: '#DC2626', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{editando ? <Pencil size={17} /> : <Plus size={19} />}</span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--portal-text, #0f172a)' }}>Novo cliente</div>
-            <div style={{ fontSize: 12, color: '#64748B' }}>Cria no Omie e já aparece no portal (o Omie copia para a outra empresa).</div>
+            <div style={{ fontSize: 17, fontWeight: 800, color: 'var(--portal-text, #0f172a)' }}>{editando ? 'Editar cliente' : 'Novo cliente'}</div>
+            <div style={{ fontSize: 12, color: '#64748B' }}>{editando ? 'Altera o cadastro no Omie (Nova e Castro) e no portal.' : 'Cria no Omie e já aparece no portal (o Omie copia para a outra empresa).'}</div>
           </div>
           <button onClick={onFechar} disabled={enviando} title="Fechar"
             style={{ width: 32, height: 32, borderRadius: '50%', border: '1px solid #E5E7EB', background: 'var(--portal-bg-secondary, #f8fafc)', color: '#64748B', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
@@ -168,15 +177,16 @@ export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPa
           <div style={SECAO}>Identificação</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.4fr', gap: 12 }}>
             <Campo rotulo="Empresa *">
-              <select value={f.empresa} onChange={e => set('empresa', e.target.value)} style={{ ...INP, cursor: 'pointer' }}>
+              <select value={f.empresa} onChange={e => set('empresa', e.target.value)} disabled={editando} title={editando ? 'Na edição o cadastro é alterado nas duas empresas' : undefined} style={{ ...INP, cursor: editando ? 'default' : 'pointer', opacity: editando ? 0.6 : 1 }}>
                 {EMPRESAS_CLIENTE.map(e => <option key={e} value={e}>{e === 'Castro Pecas' ? 'Castro Peças' : e}</option>)}
               </select>
             </Campo>
             <Campo rotulo="CNPJ / CPF *">
               <div style={{ display: 'flex', gap: 6 }}>
                 <input value={f.cnpj_cpf} onChange={e => set('cnpj_cpf', e.target.value)} onBlur={() => ehCnpj && !f.razao_social && buscarCnpj()}
-                  placeholder="Só números ou com máscara" style={INP} />
-                <button type="button" onClick={buscarCnpj} disabled={!ehCnpj || buscandoDoc} title="Buscar dados na Receita (CNPJ)"
+                  readOnly={editando} title={editando ? 'O CNPJ/CPF não muda — para outro documento, cadastre um cliente novo' : undefined}
+                  placeholder="Só números ou com máscara" style={{ ...INP, ...(editando ? { opacity: 0.6, cursor: 'default' } : {}) }} />
+                <button type="button" onClick={buscarCnpj} disabled={!ehCnpj || buscandoDoc || editando} title="Buscar dados na Receita (CNPJ)"
                   style={{ flexShrink: 0, width: 40, height: 40, borderRadius: 9, border: '1px solid #E5E7EB', background: ehCnpj ? '#EFF6FF' : 'var(--portal-bg-secondary, #f8fafc)', color: ehCnpj ? '#2563EB' : '#CBD5E1', cursor: ehCnpj ? 'pointer' : 'default', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   {buscandoDoc ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Search size={15} />}
                 </button>
@@ -207,6 +217,7 @@ export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPa
                 <input value={f.cep} onChange={e => { set('cep', e.target.value); if (soDigitos(e.target.value).length === 8) buscarCep(e.target.value) }} placeholder="00000-000" style={INP} />
                 {buscandoCep && <RefreshCw size={13} color="#64748B" style={{ position: 'absolute', right: 10, top: 13, animation: 'spin 1s linear infinite' }} />}
               </div>
+              {cepGeral && <div title={cepGeral} style={{ display: 'flex', gap: 5, alignItems: 'flex-start', marginTop: 5, fontSize: 11, lineHeight: 1.35, color: '#B45309', fontWeight: 600 }}><AlertTriangle size={12} style={{ flexShrink: 0, marginTop: 1 }} /> CEP geral da cidade — a NFS-e pode ser recusada (E0240)</div>}
             </Campo>
             <Campo rotulo="Endereço * (rua, sítio, fazenda)" contador={{ atual: (f.endereco || '').trim().length, max: LIMITES.endereco }}>
               <input value={f.endereco} onChange={e => set('endereco', e.target.value)} style={INP} />
@@ -243,10 +254,15 @@ export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPa
           {/* Pendências (só depois de tentar criar, pra não assustar de cara) */}
           {tentou && erros.length > 0 && (
             <div style={{ marginTop: 16, padding: '11px 14px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#92400E', marginBottom: 5 }}><AlertTriangle size={14} /> Falta acertar antes de criar:</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: '#92400E', marginBottom: 5 }}><AlertTriangle size={14} /> Falta acertar antes de {editando ? 'salvar' : 'criar'}:</div>
               <ul style={{ margin: 0, paddingLeft: 20, fontSize: 12.5, color: '#92400E', lineHeight: 1.6 }}>
                 {erros.map((e, i) => <li key={i}>{e}</li>)}
               </ul>
+            </div>
+          )}
+          {cepGeral && (
+            <div style={{ marginTop: 14, padding: '10px 13px', borderRadius: 10, background: '#FFFBEB', border: '1px solid #FDE68A', fontSize: 12.5, color: '#92400E', lineHeight: 1.5, display: 'flex', gap: 8 }}>
+              <AlertTriangle size={15} style={{ flexShrink: 0, marginTop: 2 }} /> <span>{cepGeral}</span>
             </div>
           )}
           {erroServidor && (
@@ -260,8 +276,8 @@ export default function ModalNovoCliente({ aberto, onFechar, onCriado, empresaPa
             style={{ height: 40, padding: '0 18px', borderRadius: 10, border: '1px solid #E5E7EB', background: 'var(--portal-bg-card, #fff)', color: '#334155', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Cancelar</button>
           <button onClick={criar} disabled={enviando}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 40, padding: '0 20px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #dc2626, #b91c1c)', color: '#fefefe', fontSize: 13.5, fontWeight: 700, cursor: enviando ? 'wait' : 'pointer', opacity: enviando ? 0.7 : 1 }}>
-            {enviando ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : <Plus size={15} />}
-            {enviando ? 'Criando no Omie...' : 'Criar cliente'}
+            {enviando ? <RefreshCw size={15} style={{ animation: 'spin 1s linear infinite' }} /> : editando ? <Save size={15} /> : <Plus size={15} />}
+            {enviando ? (editando ? 'Salvando no Omie...' : 'Criando no Omie...') : editando ? 'Salvar alterações' : 'Criar cliente'}
           </button>
         </div>
       </div>

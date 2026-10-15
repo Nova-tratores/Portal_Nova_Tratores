@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { authHeaders } from "@/lib/auth/client";
+import NfseRejeitada from "./NfseRejeitada";
 
 interface EstadoNfse {
   habilitado: boolean; faturadoEm: string | null; status: string | null; erro: string | null;
@@ -21,8 +22,10 @@ interface NfPedido { faturado: boolean; numero?: string; emitidaEm?: string; can
 
 const semZeros = (n: string | null | undefined) => String(n || "").replace(/^0+(?=\d)/, "");
 
-export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoDesde = null }: {
+export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoDesde = null, clienteDoc = null }: {
   osId: string;
+  /** CNPJ/CPF do cliente — para corrigir o cadastro quando a NFS-e volta rejeitada */
+  clienteDoc?: string | null;
   ppvIds: string[];
   ppvOmieMap: Record<string, string>;
   /** acabou de faturar (timestamp): já mostra "aguardando a nota" e confere de 15 em 15 s */
@@ -191,7 +194,7 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
             <style>{`@keyframes nfBarra { 0% { transform: translateX(-100%) } 100% { transform: translateX(250%) } } .nf-barra { animation: nfBarra 1.4s ease-in-out infinite; }`}</style>
           </div>
         )}
-        {temOS && st === "nfse_rejeitada" && nfse?.erro && <div style={{ fontSize: 10.5, color: "#b91c1c", padding: "0 2px 8px" }}>{nfse.erro} — corrija e reenvie pelo Omie.</div>}
+        {temOS && st === "nfse_rejeitada" && <NfseRejeitada osId={osId} erro={nfse?.erro || "O sistema nacional recusou a nota."} cnpj={clienteDoc} onReenviada={() => { void carregarNfse(); }} />}
         {anteriores.map((a, i) => linha(`ant-${i}`, `NFS-e ${semZeros(a.nfse) || ""}`.trim(),
           <>serviço · {chip("cancelada", "#b91c1c", "#fee2e2")}</>,
           <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>

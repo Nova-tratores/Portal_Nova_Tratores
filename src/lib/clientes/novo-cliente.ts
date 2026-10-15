@@ -156,3 +156,38 @@ export function mensagemErroOmie(msg: string): string {
   if (m.includes("cnpj") || m.includes("cpf")) return `O Omie recusou o CNPJ/CPF. (${msg})`;
   return msg;
 }
+
+// ── Editar cliente (José, 15/10/2026): o mesmo formulário, preenchido com o cadastro do Omie.
+
+/** Cadastro do Omie (ConsultarCliente / ListarClientes) → formulário. */
+export function formDoCadastroOmie(c: Record<string, unknown> | null | undefined, empresa = "Nova Tratores"): FormNovoCliente {
+  const v = (k: string) => String(c?.[k] ?? "").trim();
+  const tel = [v("telefone1_ddd"), v("telefone1_numero")].join("");
+  const ie = v("inscricao_estadual");
+  return {
+    empresa, cnpj_cpf: v("cnpj_cpf"), razao_social: v("razao_social"), nome_fantasia: v("nome_fantasia"),
+    email: v("email"), telefone: tel, cep: v("cep"), endereco: v("endereco"), numero: v("endereco_numero"),
+    complemento: v("complemento"), bairro: v("bairro"),
+    cidade: v("cidade").replace(/\s*\([A-Z]{2}\)\s*$/, ""), estado: v("estado"), cidade_ibge: v("cidade_ibge"),
+    inscricao_estadual: /isento/i.test(ie) ? "" : ie, isento_ie: /isento/i.test(ie) || (v("contribuinte") === "N" && !ie),
+  };
+}
+
+/** `param` do AlterarCliente: as regras do incluir, sem o que é só de criação. */
+export function paramAlterarCliente(f: FormNovoCliente, codigoClienteOmie: number): Record<string, unknown> {
+  const p = paramIncluirCliente(f);
+  delete p.codigo_cliente_integracao; delete p.tags; delete p.inativo; delete p.cnpj_cpf; delete p.pessoa_fisica;
+  p.pesquisar_cep = "N"; // na edição vale o que a pessoa escreveu
+  p.codigo_cliente_omie = codigoClienteOmie;
+  return p;
+}
+
+// ── CEP geral da cidade (José, 15/10/2026): CEP terminado em "000" é o CEP do
+// município inteiro (ex.: 18800-000). O Omie aceita no cadastro, mas o sistema
+// nacional da NFS-e recusa a nota com E0240 ("CEP não existe ou não pertence ao
+// município do tomador"). Avisa antes de faturar e ao editar o cliente.
+export function alertaCepGeral(cep: string | null | undefined): string | null {
+  const d = soDigitos(String(cep || ""));
+  if (d.length !== 8 || !d.endsWith("000")) return null;
+  return `O CEP ${d.slice(0, 5)}-${d.slice(5)} é o CEP geral da cidade. A NFS-e pode ser recusada pelo sistema nacional (erro E0240: "CEP não existe ou não pertence ao município"). Se possível, use o CEP da rua ou da zona rural do cliente.`;
+}

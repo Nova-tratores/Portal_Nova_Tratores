@@ -9,6 +9,7 @@
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS } from "@/lib/pos/constants";
 import { buscarPPVPorId, registrarLog } from "@/lib/ppv/queries";
+import { retirarCardDoDocumentoCancelado } from "@/lib/financeiro/cards-chamado";
 import { resolverContaDoPedido, omieNaConta, garantirCst60, type OmieAccount } from "@/lib/ppv/omie";
 
 type Rec = Record<string, unknown>;
@@ -74,7 +75,9 @@ export async function cancelarNotaPedido(idPPV: string, opts: { motivo: string; 
   // Pasta Clientes e financeiro do portal na hora (o sync confirma depois)
   await supabase.from("portal_nt_clientes_pv").update({ cancelado: true }).eq("cod_pedido", cod).then(() => {}, () => {});
   await supabase.from("contas_receber").update({ status_titulo: "CANCELADO" }).eq("raw->>nCodPedido", String(cod)).then(() => {}, () => {});
-  await registrarLog(idPPV, `NF-e${nf ? ` ${nf}` : ""} cancelada (pedido ${num} cancelado no Omie). Motivo: ${anterior.motivo}`, opts.usuario).catch(() => {});
+  const empCard = /castro/i.test(acc.name) ? "Castro Pecas" : "Nova Tratores";
+  const cards = await retirarCardDoDocumentoCancelado(supabase, { numPedido: num, empresa: empCard }, `NF-e${nf ? ` ${nf}` : ""} do pedido ${num} cancelada para refazer`).catch(() => [] as number[]);
+  await registrarLog(idPPV, `NF-e${nf ? ` ${nf}` : ""} cancelada (pedido ${num} cancelado no Omie). Motivo: ${anterior.motivo}${cards.length ? `. Card do financeiro #${cards.join(", #")} excluído` : ""}`, opts.usuario).catch(() => {});
   return { ok: true, nf, antigo: num, avisos, proximo: "duplicar_pedido" };
 }
 

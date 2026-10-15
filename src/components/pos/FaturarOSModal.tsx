@@ -6,6 +6,8 @@
 // Passos (José, 13/10/2026): 1) o que faturar — OS + pedido, só a OS ou só o
 // pedido de peças; 2) dados (forma de pagamento, impostos, pedidos); 3) "Tem
 // certeza?". A OS só vai para Concluída quando a OS e os pedidos estão faturados.
+import EditarClienteOmie from "@/components/clientes/EditarClienteOmie";
+import { alertaCepGeral } from "@/lib/clientes/novo-cliente";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 import ConferenciaOmie from "@/components/comum/ConferenciaOmie";
@@ -21,6 +23,7 @@ interface PPVPrevia {
 }
 interface Previa {
   ok: boolean; erro?: string;
+  cliente?: { nCodCli: number; cep: string; cidade: string; alertaCep: string | null };
   os?: { id: string; cliente: string; numeroOmie: string; status: string };
   totalOmie?: number; valorPortal?: number; divergente?: boolean;
   servicos?: Array<{ descricao: string; detalhe?: string; quantidade: number; valorUnitario: number; desconto: number; total: number }>;
@@ -360,6 +363,13 @@ export default function FaturarOSModal({ open, osId, onClose, onFaturado }: {
           {/* ---------- passo 2: dados ---------- */}
           {!resultado && previa?.ok && etapa === "previa" && (
             <>
+              {comOS && previa.cliente?.alertaCep && (
+                <div style={caixa("ambar")}>
+                  <div style={{ fontWeight: 800, marginBottom: 4 }}><i className="fas fa-location-dot" /> CEP do cliente pode derrubar a NFS-e</div>
+                  <div>{previa.cliente.alertaCep}</div>
+                  <div style={{ marginTop: 8 }}><EditarClienteOmie cod={previa.cliente.nCodCli} empresa="Nova Tratores" zIndex={100200} onSalvo={(r) => setPrevia((p) => p && p.cliente ? { ...p, cliente: { ...p.cliente, cep: r.form.cep || "", alertaCep: alertaCepGeral(r.form.cep) } } : p)} /></div>
+                </div>
+              )}
               {comOS && FASES_ANTES_DA_EXECUCAO.test(previa.os?.status || "") && (
                 <div style={caixa("ambar")}><i className="fas fa-triangle-exclamation" /> A OS ainda está em <strong>{previa.os?.status}</strong>. Confira se o serviço já foi feito antes de faturar.</div>
               )}

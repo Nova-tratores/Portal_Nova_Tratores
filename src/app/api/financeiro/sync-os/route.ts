@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { contaOmie } from "@/lib/omie/contas";
 import { omie } from "@/lib/omie/porta";
+import { liberarPedidoDeCardsExcluidos, STATUS_EXCLUIDO } from "@/lib/financeiro/cards-chamado";
 
 // Cria automaticamente um Chamado_NF (setor Oficina) para cada Ordem de Serviço
 // faturada (com NFS-e). Cruza com o Pedido de Venda pelo campo "Nº do Pedido do
@@ -250,8 +251,11 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
     debug.pv = pvNum; debug.pv_empresa = pvEmp; debug.pv_manual = pvManual || null;
     const accPV = accPorNome(pvEmp);
 
-    const { data: jaOS } = await supabase.from("Chamado_NF").select("id").eq("omie_num_os", numOS).eq("omie_empresa", acc.name).limit(1);
-    if (jaOS && jaOS.length) {
+    const { data: jaOSTodos } = await supabase.from("Chamado_NF").select("id, status").eq("omie_num_os", numOS).eq("omie_empresa", acc.name);
+    // card EXCLUÍDO no kanban fica na tabela com status "excluido": pedido na mão recria;
+    // o automático continua respeitando a exclusão (não ressuscita card apagado de propósito)
+    const jaOS = (jaOSTodos || []).filter((c) => manual ? c.status !== STATUS_EXCLUIDO : true);
+    if (jaOS.length) {
       if (!dryRun) { debug.resultado = "Já existe card desta OS"; return debug; }
       debug.ja_existe = true; // no dryRun, segue mostrando o que seria criado
     }
@@ -323,7 +327,7 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
     if (pvNum) {
       const { data: jaPV } = await supabase.from("Chamado_NF")
         .select("id, omie_num_os, nom_cliente, status")
-        .eq("omie_num_pedido", pvNum).eq("omie_empresa", acc.name).limit(1);
+        .eq("omie_num_pedido", pvNum).eq("omie_empresa", acc.name).neq("status", STATUS_EXCLUIDO).limit(1);
       if (jaPV && jaPV.length && String(jaPV[0].omie_num_os || "") !== numOS) {
         const c = jaPV[0];
         debug.pv_ja_tem_card = c.id; debug.conflito_pv = true;
@@ -335,6 +339,8 @@ async function processarOSnum(consulta: Record<string, unknown>, label: string, 
     }
 
     if (dryRun) { debug.resultado = "OK — criaria o card"; debug.row = row; return debug; }
+    // card excluído ainda segura o pedido no índice único (pedido + empresa) — solta antes
+    if (pvNum) debug.pv_liberado_de_excluidos = await liberarPedidoDeCardsExcluidos(supabase, pvNum, acc.name).catch(() => 0);
     const { data: ins, error } = await supabase.from("Chamado_NF").insert([row]).select("id").maybeSingle();
     if (error) {
       const dup = error.code === "23505" || /duplicate key|omie_pedido_uidx/i.test(error.message || "");
@@ -452,7 +458,7 @@ async function handler(req: NextRequest) {
           // idempotência: card desta OS, ou card de peças do mesmo PV
           const { data: jaOS } = await supabase.from("Chamado_NF").select("id").eq("omie_num_os", numOS).eq("omie_empresa", acc.name).limit(1);
           let jaPV: any[] | null = null;
-          if (pvNum) { const { data } = await supabase.from("Chamado_NF").select("id").eq("omie_num_pedido", pvNum).eq("omie_empresa", pvEmp).limit(1); jaPV = data; }
+          if (pvNum) { const { data } = await supabase.from("Chamado_NF").select("id").eq("omie_num_pedido", pvNum).eq("omie_empresa", pvEmp).neq("status", STATUS_EXCLUIDO).limit(1); jaPV = data; }
           if ((jaOS && jaOS.length) || (jaPV && jaPV.length)) { jaExistiam++; porEmpresa[acc.name].jaExistiam++; continue; }
 
           // VÍNCULO: se a OS aponta um Pedido de Venda no campo, esse PV PRECISA estar faturado.
@@ -521,6 +527,7 @@ async function handler(req: NextRequest) {
           });
 
           if (!dryRun) {
+            if (pvNum) await liberarPedidoDeCardsExcluidos(supabase, pvNum, pvEmp).catch(() => 0);
             const { data: ins, error } = await supabase.from("Chamado_NF").insert([row]).select("id").maybeSingle();
             if (!error && ins) {
               criados++; porEmpresa[acc.name].criados++;

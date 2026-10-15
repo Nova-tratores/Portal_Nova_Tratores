@@ -2741,7 +2741,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                   );
                 })()}
 
-                {osId && ordemOmie && <NotasFiscaisBloco osId={osId} ppvIds={ppvIds} ppvOmieMap={ppvOmieMap} esperandoDesde={notasEsperaDesde} />}
+                {osId && ordemOmie && <NotasFiscaisBloco osId={osId} ppvIds={ppvIds} ppvOmieMap={ppvOmieMap} esperandoDesde={notasEsperaDesde} clienteDoc={clienteInfo?.cpf || null} />}
 
                 {/* ── Bloco Portal (logo da Nova): imprimir a OS, relatório técnico, PPVs e requisições ── */}
                 {(() => {

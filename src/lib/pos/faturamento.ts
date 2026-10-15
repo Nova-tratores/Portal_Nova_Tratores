@@ -20,6 +20,7 @@ import { filtrarDestinatarios } from '@/lib/notif/prefs';
 import { resolverNfseDaOS } from '@/lib/clientes/nfse-omie';
 import { hojeSaoPaulo, parcelasDoPagamento } from '@/lib/pagamento/parcelas';
 import { normalizarPagamento, OPCOES_PAGAMENTO } from './cobranca';
+import { alertaCepGeral } from '@/lib/clientes/novo-cliente';
 import {
   bloqueioFaturar, conferirIdentidade, estadoNoOmie, situacaoNfse, statusPendente, travaAtiva,
   chaveNum, motivoPPVFora, valorMudou, valorLiquido, TRAVA_MINUTOS,
@@ -390,6 +391,8 @@ export interface SimulacaoFaturamentoOS {
   validacao?: { ok: boolean; msg: string | null };
   ppvs?: Array<PPVDaOS & { motivoFora: string | null; itens?: ItemPeca[] }>;
   podeFaturarPecas?: boolean;
+  /** cadastro do cliente no Omie — CEP geral da cidade derruba a NFS-e (E0240) */
+  cliente?: { nCodCli: number; cep: string; cidade: string; alertaCep: string | null };
   liquidoOmie?: number;
   retidoOmie?: number;
   impostos?: {
@@ -470,9 +473,38 @@ export async function simularFaturamentoOS(id: string, auth: Autenticado): Promi
     opcoesPagamento: OPCOES_PAGAMENTO,
     hoje: hojeSaoPaulo(),
     validacao: await validarComCache(r.nCodOS),
+    cliente: await cepDoCliente(Number((r.dados.Cabecalho as { nCodCli?: number } | undefined)?.nCodCli || 0)),
     ppvs,
     podeFaturarPecas: podeFaturarPPV(auth),
   };
+}
+
+async function cepDoCliente(nCodCli: number): Promise<SimulacaoFaturamentoOS['cliente']> {
+  if (!nCodCli) return undefined;
+  try {
+    const c = await omie<{ cep?: string; cidade?: string }>('/geral/clientes/', 'ConsultarCliente', { codigo_cliente_omie: nCodCli });
+    return { nCodCli, cep: String(c.cep || ''), cidade: String(c.cidade || ''), alertaCep: alertaCepGeral(c.cep) };
+  } catch { return undefined; }
+}
+
+// ---------------------------------------------------------------- reenviar a NFS-e
+/**
+ * NFS-e rejeitada (ex.: E0240 CEP do tomador): depois de corrigir o cadastro, manda
+ * o RPS de novo pelo Omie (ReenviarOS) e volta a esperar a nota.
+ */
+export async function reenviarNfseOS(id: string, auth: Autenticado): Promise<{ ok: boolean; mensagem: string }> {
+  const os = await lerOS(id);
+  if (!os) return { ok: false, mensagem: 'OS não encontrada.' };
+  if (!os.faturado_omie_em) return { ok: false, mensagem: 'A OS não está faturada.' };
+  if (os.faturamento_status !== 'nfse_rejeitada') return { ok: false, mensagem: 'Só dá para reenviar uma NFS-e rejeitada.' };
+  const nCodOS = Number(os.omie_ncodos || 0) || (await resolverOSNoOmie(os)).nCodOS;
+  let r: { cCodStatus?: string; cDescStatus?: string };
+  try { r = await omie('/servicos/osp/', 'ReenviarOS', { nCodOS }, { escrita: true }); }
+  catch (e) { return { ok: false, mensagem: `O Omie não reenviou: ${e instanceof Error ? e.message : e}` }; }
+  if (r.cCodStatus && r.cCodStatus !== '0') return { ok: false, mensagem: `O Omie não reenviou: ${r.cDescStatus || r.cCodStatus}` };
+  await gravarOS(id, { faturamento_status: 'nfse_aguardando', faturamento_erro: null });
+  await logOS(id, `NFS-e reenviada ao sistema nacional pelo Omie (${r.cDescStatus || 'ok'})`, auth.email || 'Portal', String(os.Status || ''));
+  return { ok: true, mensagem: r.cDescStatus || 'Reenviada. Aguardando o sistema nacional.' };
 }
 
 // ---------------------------------------------------------------- faturar

@@ -95,6 +95,32 @@ async function resolverVendedor(nCodVend: number, vendMap: Map<number, string>, 
   } catch { return ""; }
 }
 
+// OS faturadas recentes que ainda não viraram card no financeiro (ver o uso abaixo).
+const tentativaFinanceiro = ((globalThis as any).__tentativaFinanceiro ??= new Map<number, number>()) as Map<number, number>;
+const MAX_PENDENTES_POR_RODADA = 8;
+async function osPendentesDoFinanceiro(): Promise<number[]> {
+  try {
+    const desde = new Date(Date.now() - 15 * 86_400_000).toISOString().slice(0, 10);
+    const { data: oss } = await supabase.from("portal_nt_clientes_os")
+      .select("cod_os, num_os, empresa").eq("faturada", true).eq("cancelada", false)
+      .gte("data_faturamento", desde).not("link_nf", "is", null).limit(400);
+    if (!oss?.length) return [];
+    const nums = [...new Set(oss.map((o: any) => String(o.num_os)))];
+    const { data: cards } = await supabase.from("Chamado_NF").select("omie_num_os, omie_empresa, status").in("omie_num_os", nums);
+    const comCard = new Set((cards || []).map((c: any) => `${c.omie_num_os}|${/castro/i.test(c.omie_empresa || "") ? "C" : "N"}`));
+    const agora = Date.now();
+    const out: number[] = [];
+    for (const o of oss as any[]) {
+      if (comCard.has(`${o.num_os}|${/castro/i.test(o.empresa || "") ? "C" : "N"}`)) continue;
+      if (agora - (tentativaFinanceiro.get(o.cod_os) || 0) < 30 * 60_000) continue;
+      tentativaFinanceiro.set(o.cod_os, agora);
+      out.push(Number(o.cod_os));
+      if (out.length >= MAX_PENDENTES_POR_RODADA) break;
+    }
+    return out;
+  } catch { return []; }
+}
+
 // GET /api/clientes/sync-recente — busca OS e PV alterados nos ultimos 60 minutos
 export async function GET(req: Request) {
   try {
@@ -338,6 +364,10 @@ export async function GET(req: Request) {
     // e o financeiro juntos mesmo sem o webhook do Omie (que não alcança o localhost).
     let cardsDisparados = 0;
     const tFin = Date.now();
+    // + OS faturadas nos últimos 15 dias, com a NFS-e já na pasta e SEM card (José, 15/10/2026):
+    // antes só ia a OS alterada na última hora — a que esperou a nota de peças ficava pra trás.
+    // Cada uma é tentada no máximo a cada 30 min (o sync-os confere as notas e não duplica).
+    for (const cod of await osPendentesDoFinanceiro()) osFaturadasCod.add(cod);
     for (const cod of osFaturadasCod) {
       try { await fetch(`${origin}/api/financeiro/sync-os?codOS=${cod}`, { method: "POST", signal: AbortSignal.timeout(120_000) }); cardsDisparados++; } catch {}
     }

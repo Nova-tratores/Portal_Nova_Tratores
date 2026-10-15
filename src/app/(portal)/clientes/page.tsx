@@ -10,6 +10,9 @@ import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/
 import ContatosChatwoot from '@/components/clientes/ContatosChatwoot'
 import ModalNovoCliente from '@/components/clientes/ModalNovoCliente'
 import ModalPedidoVenda from '@/components/clientes/ModalPedidoVenda'
+import EnviarFinanceiroModal from '@/components/clientes/EnviarFinanceiroModal'
+import EditarClienteOmie from '@/components/clientes/EditarClienteOmie'
+import { useSyncPasta, RelogioSync, textoProxima } from '@/components/clientes/SyncPasta'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import { BellOff, Tractor, Search, ChevronDown, ChevronUp, ArrowLeft, RefreshCw, ChevronRight, Download, FolderOpen, X, FileText, Wrench, Calendar, MapPin, User, Hash, ClipboardList, Package, Users, Shield, CheckCircle, Clock, Mail, Bell, Tag, Plus, Trash2, Save, Upload, AlertTriangle, Send, Phone, Copy, Check } from 'lucide-react'
@@ -151,6 +154,8 @@ function ClientesPageInner() {
   const [erroNota, setErroNota] = useState<Record<string, { rotulo: string; erro: string; dica: string; tecnico?: string }>>({})
   const [gerarCardFin, setGerarCardFin] = useState(true) // checkbox: gerar card no financeiro ao anexar NF de serviço
   const [forcandoCard, setForcandoCard] = useState(false) // escapes manuais (trocar PV / forçar card)
+  const [envioFin, setEnvioFin] = useState<{ os: OrdemServico; motivo: string } | null>(null) // janela "enviar ao financeiro"
+  const sync = useSyncPasta() // timer da sincronização com o Omie (cria os cards do financeiro)
   const [subNF, setSubNF] = useState<{ osNum: string; empresa: string; nf_tipo: 'servico' | 'peca'; num_antigo: string; num_novo: string } | null>(null)
   const [subSalvando, setSubSalvando] = useState(false)
   const [modalProjeto, setModalProjeto] = useState<string | null>(null)
@@ -677,23 +682,9 @@ function ClientesPageInner() {
   }
   // 2) Criar o card no financeiro À MÃO. Só existe pra quando deu erro na nota — o fluxo
   //    automático NUNCA cria card com nota faltando.
-  const criarCardManual = async (os: OrdemServico, motivo: string) => {
+  const criarCardManual = (os: OrdemServico, motivo: string) => {
     if (!podeAnexos || !selectedCliente) return
-    if (!window.confirm(
-      motivo
-        ? `Criar o card da OS ${os.num_os} no financeiro À MÃO?\n\nProblema encontrado:\n${motivo}\n\nO card será criado assim mesmo (o automático não cria quando falta nota).\nConfira os dados no financeiro depois.`
-        : `Enviar a OS ${os.num_os} para o financeiro agora?\n\nSe já existe um card, não vai duplicar.`
-    )) return
-    setForcandoCard(true)
-    try {
-      const res = await fetch(`/api/financeiro/sync-os?os=${encodeURIComponent(os.num_os)}&manual=1`, { method: 'POST' })
-      const d = await res.json()
-      const r = String(d?.resultado || d?.error || '')
-      await abrirDetalhe(selectedCliente)
-      if (/Card criado/i.test(r)) { setModalOS(null); alert(`✅ ${r}`) }
-      else alert(`Não criou o card.\n\n${r || 'Sem detalhe.'}`)
-    } catch { alert('Erro de conexão.') }
-    setForcandoCard(false)
+    setEnvioFin({ os, motivo })
   }
   // Marca uma NF (serviço/peça) como substituída na OS da pasta (nº antigo -> novo + histórico).
   const salvarSubstituicao = async () => {
@@ -860,6 +851,12 @@ function ClientesPageInner() {
                   </div>
                 ))}
               </div>
+              {cli.cnpj_cpf && (
+                <div style={{ padding: '0 18px 14px' }}>
+                  <EditarClienteOmie doc={cli.cnpj_cpf} cod={cli.cod_cli} empresa={cli.empresa} rotulo="Editar cadastro no Omie" estilo={{ width: '100%', height: 36 }}
+                    onSalvo={(r) => { const f = r.form; setSelectedCliente(p => p ? { ...p, razao_social: f.razao_social, nome_fantasia: f.nome_fantasia || p.nome_fantasia, email: f.email || '', telefone: f.telefone || '', cidade: f.cidade || '', estado: f.estado || '', endereco: f.endereco, bairro: f.bairro } : p) }} />
+                </div>
+              )}
             </div>
 
             {/* Contatos do WhatsApp (NovaZap) vinculados ao CNPJ */}
@@ -1467,6 +1464,24 @@ function ClientesPageInner() {
                             <b style={{ fontSize: 18, fontWeight: 800, color: '#fefefe', fontVariantNumeric: 'tabular-nums' }}>{formatCurrency(totalGeral)}</b>
                           </div>
                         </div>
+
+                        {/* Ainda não foi pro financeiro: quando vai (José, 15/10/2026) */}
+                        {os.faturada && !os.cancelada && !ehInterno && !os.financeiro && (() => {
+                          const faltam: string[] = []
+                          if (!os.link_nf) faltam.push('a NFS-e')
+                          for (const pv of pvsLig) if (!pv.link_nf) faltam.push(`a NF de peças do PV ${pv.num_pedido}`)
+                          const pronto = faltam.length === 0
+                          return (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 18px 9px 22px', borderTop: '1px solid #F1F5F9', background: pronto ? '#ECFDF5' : '#FFFBEB', fontSize: 12.5, color: pronto ? '#047857' : '#92400E', fontWeight: 600 }}>
+                              <i className={`fas ${pronto ? 'fa-clock' : 'fa-hourglass-half'}`} style={{ flexShrink: 0 }} />
+                              <span style={{ minWidth: 0 }}>
+                                {pronto
+                                  ? <>Vai para o financeiro {textoProxima(sync.st, sync.agora)}.</>
+                                  : <>Vai para o financeiro quando chegar {faltam.join(' e ')} — a pasta confere {textoProxima(sync.st, sync.agora)}.</>}
+                              </span>
+                            </div>
+                          )
+                        })()}
                       </div>
                     )
                   })}
@@ -1565,6 +1580,14 @@ function ClientesPageInner() {
         </div>
 
         {/* ========== MODAL: MARCAR NF SUBSTITUÍDA ========== */}
+        {envioFin && (
+          <EnviarFinanceiroModal
+            os={{ num_os: envioFin.os.num_os, cliente_nome: envioFin.os.cliente_nome, valor_total: envioFin.os.valor_total, num_nf: envioFin.os.num_nf, pv: envioFin.os.pv_manual || envioFin.os.num_pedido_cli || null }}
+            motivo={envioFin.motivo}
+            onFechar={() => setEnvioFin(null)}
+            onConcluido={(criou) => { if (selectedCliente) abrirDetalhe(selectedCliente); if (criou) setModalOS(null) }}
+          />
+        )}
         {subNF && (
           <div onClick={e => { if (e.target === e.currentTarget && !subSalvando) setSubNF(null) }}
             style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)', zIndex: 10001, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -3181,6 +3204,7 @@ function ClientesPageInner() {
 
         {aba === 'clientes' && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            <RelogioSync st={sync.st} agora={sync.agora} />
             {/* Grupo de ações secundárias */}
             <div style={{ display: 'inline-flex', alignItems: 'stretch', height: 42, borderRadius: 12, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', boxShadow: '0 1px 2px rgba(16,24,40,0.05)', overflow: 'hidden' }}>
               <button className="cli-tb-seg" onClick={() => router.push('/clientes/relatorios')} title="Relatórios semanais (faturados sem NF)"
