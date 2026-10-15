@@ -11,7 +11,7 @@ export default function NovoPatrimonioPage() {
     <PaginaPatrimonio>
       {(base) => (
         <Formulario base={base} inicial={FORM_VAZIO} onCancelar={() => router.push('/opa/patrimonio')}
-          onSalvo={(item) => { base.recarregar(); router.push(`/opa/patrimonio/${item.id}`) }} />
+          onSalvo={(item) => { base.recarregar(); router.push(`/opa/patrimonio/${item.id}?etiqueta=1`) }} />
       )}
     </PaginaPatrimonio>
   )

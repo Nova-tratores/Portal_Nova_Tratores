@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota } from '@/lib/ajustes/permissao-server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
-import { criarItem, listarItens, semMigracao } from '@/lib/patrimonio/db-server'
+import { criarItem, listarItens, semMigracao, semMigracao02 } from '@/lib/patrimonio/db-server'
 import { CATEGORIAS_PADRAO, validarForm, type DadosForm } from '@/lib/patrimonio/tipos'
 import { caminhoFotoValido } from '@/lib/patrimonio/fotos-regra'
 
@@ -14,6 +14,7 @@ export const dynamic = 'force-dynamic'
 function erro(e: unknown) {
   const err = e as { code?: string; message?: string }
   if (semMigracao(err)) return NextResponse.json({ ok: false, migracaoFaltando: true, erro: 'Falta rodar o sql/patrimonio-01.sql no banco.' }, { status: 503 })
+  if (semMigracao02(err)) return NextResponse.json({ ok: false, migracaoFaltando: true, erro: 'Falta rodar o sql/patrimonio-02.sql no banco (quantidade e etiqueta).' }, { status: 503 })
   return NextResponse.json({ ok: false, erro: err?.message || String(e) }, { status: 500 })
 }
 

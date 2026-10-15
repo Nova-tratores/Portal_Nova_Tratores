@@ -5,7 +5,7 @@
 
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ArrowRight, Camera, History, Loader2, MapPin, Pencil, Trash2, Truck, UserRound, X } from 'lucide-react'
+import { ArrowRight, Camera, History, Loader2, MapPin, Pencil, Printer, Trash2, Truck, UserRound, X } from 'lucide-react'
 import { comprimir, enviarFoto, urlsAssinadas } from '@/lib/opa-pecas/fotos'
 import { BUCKET_PATRIMONIO } from '@/lib/patrimonio/fotos-regra'
 import { formDoItem, ROTULO_SITUACAO, SITUACOES, textoOnde, type ItemPat, type Movimentacao, type Situacao } from '@/lib/patrimonio/tipos'
@@ -14,6 +14,7 @@ import { Aviso, botao, INP, ROTULO, SECAO, TITULO_SECAO, useTelaLarga } from '..
 import { Visualizador } from '../pecas/DetalheItem'
 import { api, COR_PAT, fmtData, fmtReal, SeloEstado, type BasePat } from './comum'
 import Formulario from './Formulario'
+import EtiquetasPat from './Etiquetas'
 
 export default function Ficha({ base, id }: { base: BasePat; id: string }) {
   const router = useRouter()
@@ -25,6 +26,8 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
   const [visor, setVisor] = useState<number | null>(null)
   const [editando, setEditando] = useState(false)
   const [movendo, setMovendo] = useState(false)
+  // logo depois de cadastrar a página abre com ?etiqueta=1 → janela da etiqueta já aberta
+  const [etiqueta, setEtiqueta] = useState(() => typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('etiqueta') === '1')
   const [ocupado, setOcupado] = useState(false)
   const fotoRef = useRef<HTMLInputElement>(null)
 
@@ -84,12 +87,17 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
           <SeloEstado estado={item.estado} />
           <span style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text-secondary)' }}>{ROTULO_SITUACAO[item.situacao]}</span>
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button type="button" onClick={() => setEtiqueta(true)} style={botao('#111827')}><Printer size={15} /> {item.etiqueta_impressa_em ? 'Reimprimir etiqueta' : 'Imprimir etiqueta'}</button>
             <button type="button" onClick={() => setMovendo(true)} style={botao(COR_PAT)}><Truck size={15} /> Mudar de lugar</button>
             <button type="button" onClick={() => setEditando(true)} style={botao('#52525B', { contorno: true })}><Pencil size={14} /> Editar</button>
             <button type="button" onClick={excluir} disabled={ocupado} style={botao('#B91C1C', { contorno: true, desab: ocupado })}><Trash2 size={14} /> Excluir</button>
           </div>
         </div>
-        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>{item.descricao}</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--portal-text)' }}>
+          {item.descricao}
+          {(item.quantidade || 1) > 1 && <span style={{ marginLeft: 8, fontSize: 14, fontWeight: 800, color: COR_PAT }}>× {item.quantidade} unidades</span>}
+        </div>
+        {item.etiqueta_impressa_em && <div style={{ fontSize: 12, fontWeight: 700, color: '#047857' }}>Etiqueta impressa em {fmtData(item.etiqueta_impressa_em)}</div>}
 
         <div style={{ display: 'grid', gridTemplateColumns: `repeat(auto-fill, minmax(${larga ? 110 : 84}px, 1fr))`, gap: 6 }}>
           {item.fotos.map((f, i) => (
@@ -114,7 +122,9 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
           {dado('Marca', item.marca)}
           {dado('Modelo', item.modelo)}
           {dado('Nº de série', item.numero_serie)}
-          {dado('Valor hoje', item.valor_atual != null && fmtReal(item.valor_atual))}
+          {dado('Quantidade', String(item.quantidade || 1))}
+          {dado((item.quantidade || 1) > 1 ? 'Valor hoje (cada)' : 'Valor hoje', item.valor_atual != null && fmtReal(item.valor_atual))}
+          {dado('Valor total', (item.quantidade || 1) > 1 && (item.valor_atual ?? item.valor_compra) != null && fmtReal((item.valor_atual ?? item.valor_compra)! * (item.quantidade || 1)))}
           {dado('Valor pago', item.valor_compra != null && fmtReal(item.valor_compra))}
           {dado('Comprado em', item.data_compra && fmtData(item.data_compra))}
           {dado('Fornecedor', item.fornecedor)}
@@ -157,6 +167,7 @@ export default function Ficha({ base, id }: { base: BasePat; id: string }) {
         )}
       </section>
 
+      {etiqueta && <EtiquetasPat itens={[item]} nomeLocal={base.nomeLocal} onFechar={() => setEtiqueta(false)} onImpresso={carregar} />}
       {visor != null && <Visualizador fotos={item.fotos.map((f) => urls[f.storage_path]).filter(Boolean)} inicio={visor} onFechar={() => setVisor(null)} />}
     </div>
   )

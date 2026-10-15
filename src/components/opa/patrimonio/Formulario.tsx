@@ -12,7 +12,7 @@ import {
   CATEGORIAS_PADRAO, ESTADOS, FORM_VAZIO, INFO_ESTADO, juntarTags, mudouOnde, ROTULO_SITUACAO, SITUACOES, TAGS_SUGERIDAS, validarForm,
   type DadosForm, type ItemPat,
 } from '@/lib/patrimonio/tipos'
-import { SeletorLocal } from '../pecas/Campos'
+import { SeletorLocal, SeletorQuantidade } from '../pecas/Campos'
 import { Aviso, botao, INP, ROTULO, SECAO, TITULO_SECAO, useTelaLarga } from '../pecas/comum'
 import { api, COR_PAT, type BasePat } from './comum'
 import SugestaoPreco from './SugestaoPreco'
@@ -126,6 +126,10 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
             <input value={form.descricao} onChange={(e) => muda('descricao', e.target.value.slice(0, 300))} placeholder="Ex.: Parafusadeira a bateria 12V" style={INP} />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
+            <label style={ROTULO}>Quantidade{obrig} <span style={{ fontWeight: 600, color: 'var(--portal-text-muted)' }}>(unidades iguais — o valor é por unidade)</span></label>
+            <SeletorQuantidade valor={Math.max(1, parseInt(form.quantidade, 10) || 1)} onChange={(q) => muda('quantidade', String(q))} />
+          </div>
+          <div style={{ gridColumn: '1 / -1' }}>
             <label style={ROTULO}>Categoria</label>
             <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               {categorias.map((c) => {
@@ -211,7 +215,7 @@ export default function Formulario({ base, item, inicial, onSalvo, onCancelar }:
         <SugestaoPreco form={form} automatico={!item && !form.valor_atual.trim()} onUsar={(v) => muda('valor_atual', String(v).replace('.', ','))} />
         <div style={grade}>
           <div>
-            <label style={ROTULO}>Valor hoje{opcional}</label>
+            <label style={ROTULO}>Valor hoje{(parseInt(form.quantidade, 10) || 1) > 1 ? ' (cada)' : ''}{opcional}</label>
             <input inputMode="decimal" value={form.valor_atual} onChange={(e) => muda('valor_atual', e.target.value.slice(0, 20))} placeholder="R$ quanto vale hoje" style={INP} />
           </div>
           <div>

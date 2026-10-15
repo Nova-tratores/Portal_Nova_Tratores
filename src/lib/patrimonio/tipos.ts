@@ -45,6 +45,10 @@ export interface ItemPat {
   numero_serie: string | null
   estado: Estado
   situacao: Situacao
+  /** quantas unidades iguais (sql/patrimonio-02); o valor é POR UNIDADE */
+  quantidade: number
+  /** última impressão da etiqueta (sql/patrimonio-02) */
+  etiqueta_impressa_em?: string | null
   local_id: string | null
   local_tecnico: string | null
   responsavel: string | null
@@ -79,6 +83,7 @@ export interface Movimentacao {
 /** Campos do formulário (criar/editar). Valores em texto como digitados. */
 export interface DadosForm {
   descricao: string
+  quantidade: string
   categoria: string
   marca: string
   modelo: string
@@ -99,7 +104,7 @@ export interface DadosForm {
 }
 
 export const FORM_VAZIO: DadosForm = {
-  descricao: '', categoria: '', marca: '', modelo: '', numero_serie: '', estado: 'bom', situacao: 'em_uso',
+  descricao: '', quantidade: '1', categoria: '', marca: '', modelo: '', numero_serie: '', estado: 'bom', situacao: 'em_uso',
   local_id: '', local_tecnico: '', responsavel: '', valor_atual: '', valor_compra: '', data_compra: '',
   fornecedor: '', nota_fiscal: '', garantia_ate: '', tags: [], observacoes: '',
 }
@@ -107,7 +112,7 @@ export const FORM_VAZIO: DadosForm = {
 export function formDoItem(i: ItemPat): DadosForm {
   const n = (v: number | null) => (v == null ? '' : String(v).replace('.', ','))
   return {
-    descricao: i.descricao, categoria: i.categoria || '', marca: i.marca || '', modelo: i.modelo || '', numero_serie: i.numero_serie || '',
+    descricao: i.descricao, quantidade: String(i.quantidade || 1), categoria: i.categoria || '', marca: i.marca || '', modelo: i.modelo || '', numero_serie: i.numero_serie || '',
     estado: i.estado, situacao: i.situacao, local_id: i.local_id || '', local_tecnico: i.local_tecnico || '', responsavel: i.responsavel || '',
     valor_atual: n(i.valor_atual), valor_compra: n(i.valor_compra), data_compra: i.data_compra || '', fornecedor: i.fornecedor || '',
     nota_fiscal: i.nota_fiscal || '', garantia_ate: i.garantia_ate || '', tags: i.tags || [], observacoes: i.observacoes || '',
@@ -153,10 +158,12 @@ export function validarForm(f: DadosForm): { erros: string[]; dados: Record<stri
   if (Number.isNaN(valorCompra)) erros.push('o valor de compra (número inválido)')
   if (!dataOk(f.data_compra) || !dataOk(f.garantia_ate)) erros.push('uma data válida')
   if (!(ESTADOS as readonly string[]).includes(f.estado)) erros.push('o estado')
+  const qtd = Math.floor(Number(String(f.quantidade ?? '1').replace(',', '.')))
+  if (!Number.isFinite(qtd) || qtd < 1 || qtd > 100000) erros.push('a quantidade (1 ou mais)')
   return {
     erros,
     dados: {
-      descricao: f.descricao.trim().slice(0, 300), categoria: t(f.categoria), marca: t(f.marca), modelo: t(f.modelo),
+      descricao: f.descricao.trim().slice(0, 300), quantidade: Number.isFinite(qtd) && qtd >= 1 ? Math.min(qtd, 100000) : 1, categoria: t(f.categoria), marca: t(f.marca), modelo: t(f.modelo),
       numero_serie: t(f.numero_serie), estado: f.estado, situacao: f.situacao,
       local_id: f.local_id || null, local_tecnico: t(f.local_tecnico), responsavel: t(f.responsavel),
       valor_atual: Number.isNaN(valorAtual) ? null : valorAtual, valor_compra: Number.isNaN(valorCompra) ? null : valorCompra,
@@ -185,15 +192,19 @@ export function filtrarItens(itens: ItemPat[], f: FiltrosPat, nomeLocal: (id: st
   })
 }
 
-export function totais(itens: ItemPat[]): { itens: number; valor: number; semValor: number } {
+/** Totais: o valor é POR UNIDADE → soma valor × quantidade. */
+export function totais(itens: ItemPat[]): { itens: number; unidades: number; valor: number; semValor: number } {
   let valor = 0
   let semValor = 0
+  let unidades = 0
   for (const i of itens) {
-    if (i.valor_atual != null) valor += i.valor_atual
-    else if (i.valor_compra != null) valor += i.valor_compra
+    const q = i.quantidade || 1
+    unidades += q
+    if (i.valor_atual != null) valor += i.valor_atual * q
+    else if (i.valor_compra != null) valor += i.valor_compra * q
     else semValor++
   }
-  return { itens: itens.length, valor: Math.round(valor * 100) / 100, semValor }
+  return { itens: itens.length, unidades, valor: Math.round(valor * 100) / 100, semValor }
 }
 
 /** "Box Técnico · Gabriel" / "Pós-Vendas" — onde está, para a tela. */

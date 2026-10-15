@@ -9,6 +9,23 @@ export function semMigracao(e: { code?: string; message?: string } | null | unde
   return !!e && (e.code === '42P01' || e.code === 'PGRST205' || /patrimonio_\w+.*does not exist|Could not find the table/i.test(e.message || ''))
 }
 
+/** Banco sem o sql/patrimonio-02.sql (coluna quantidade / etiqueta_impressa_em). */
+export function semMigracao02(e: { code?: string; message?: string } | null | undefined): boolean {
+  return !!e && (e.code === '42703' || e.code === 'PGRST204') && /quantidade|etiqueta_impressa_em/i.test(e.message || '')
+}
+
+/** Marca a etiqueta como impressa agora (os itens impressos). */
+export async function marcarEtiquetas(ids: string[]): Promise<number> {
+  let n = 0
+  for (let i = 0; i < ids.length; i += 500) {
+    const { data, error } = await supabaseAdmin.from('patrimonio_itens')
+      .update({ etiqueta_impressa_em: new Date().toISOString() }).in('id', ids.slice(i, i + 500)).select('id')
+    if (error) throw error
+    n += data?.length || 0
+  }
+  return n
+}
+
 const SELECT_ITEM = '*, patrimonio_fotos(id, storage_path, ordem)'
 
 type Linha = Omit<ItemPat, 'fotos'> & { patrimonio_fotos: ItemPat['fotos'] | null; valor_atual: number | string | null; valor_compra: number | string | null }
@@ -21,6 +38,7 @@ function normalizar(l: Linha): ItemPat {
     valor_atual: num(l.valor_atual),
     valor_compra: num(l.valor_compra),
     tags: l.tags || [],
+    quantidade: Number((l as { quantidade?: number }).quantidade) || 1,
     fotos: [...(patrimonio_fotos || [])].sort((a, b) => a.ordem - b.ordem),
   }
 }

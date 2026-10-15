@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota } from '@/lib/ajustes/permissao-server'
-import { atualizarItem, buscarItem, excluirItem, listarMovimentacoes, semMigracao } from '@/lib/patrimonio/db-server'
+import { atualizarItem, buscarItem, excluirItem, listarMovimentacoes, semMigracao, semMigracao02 } from '@/lib/patrimonio/db-server'
 import { validarForm, type DadosForm } from '@/lib/patrimonio/tipos'
 
 export const dynamic = 'force-dynamic'
@@ -13,6 +13,7 @@ export const dynamic = 'force-dynamic'
 function erro(e: unknown) {
   const err = e as { code?: string; message?: string }
   if (semMigracao(err)) return NextResponse.json({ ok: false, migracaoFaltando: true, erro: 'Falta rodar o sql/patrimonio-01.sql no banco.' }, { status: 503 })
+  if (semMigracao02(err)) return NextResponse.json({ ok: false, migracaoFaltando: true, erro: 'Falta rodar o sql/patrimonio-02.sql no banco (quantidade e etiqueta).' }, { status: 503 })
   return NextResponse.json({ ok: false, erro: err?.message || String(e) }, { status: 500 })
 }
 

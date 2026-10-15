@@ -3,7 +3,7 @@ import { FORM_VAZIO, filtrarItens, juntarTags, lerValor, limparTag, mudouOnde, t
 import { caminhoFotoValido } from '../fotos-regra'
 
 const item = (p: Partial<ItemPat>): ItemPat => ({
-  id: 'i', codigo: 'PAT-000001', descricao: 'Parafusadeira', categoria: 'Ferramenta elétrica', marca: 'Bosch', modelo: 'GSR 12V-15',
+  id: 'i', codigo: 'PAT-000001', quantidade: 1, descricao: 'Parafusadeira', categoria: 'Ferramenta elétrica', marca: 'Bosch', modelo: 'GSR 12V-15',
   numero_serie: null, estado: 'bom', situacao: 'em_uso', local_id: 'pecas', local_tecnico: null, responsavel: null,
   valor_atual: null, valor_compra: null, data_compra: null, fornecedor: null, nota_fiscal: null, garantia_ate: null,
   tags: [], observacoes: null, criado_por: null, criado_em: '2026-10-13T10:00:00Z', atualizado_em: '2026-10-13T10:00:00Z', fotos: [], ...p,
@@ -30,6 +30,9 @@ describe('patrimônio — regras', () => {
     expect(erros).toEqual([])
     expect(dados).toMatchObject({ descricao: 'Notebook', local_id: 'pos_vendas', valor_atual: 2500, valor_compra: null, tags: ['ti'], marca: null })
     expect(validarForm({ ...FORM_VAZIO, descricao: 'x', local_id: 'a', valor_compra: 'mil' }).erros).toEqual(['o valor de compra (número inválido)'])
+    expect(dados.quantidade).toBe(1)
+    expect(validarForm({ ...FORM_VAZIO, descricao: 'x', local_id: 'a', quantidade: '12' }).dados.quantidade).toBe(12)
+    expect(validarForm({ ...FORM_VAZIO, descricao: 'x', local_id: 'a', quantidade: '0' }).erros.length).toBe(1)
   })
 
   it('filtra por texto (sem acento), local, estado e tag', () => {
@@ -45,7 +48,9 @@ describe('patrimônio — regras', () => {
   })
 
   it('totais usam o valor de hoje, senão o pago', () => {
-    expect(totais([item({ valor_atual: 100 }), item({ valor_compra: 50 }), item({})])).toEqual({ itens: 3, valor: 150, semValor: 1 })
+    expect(totais([item({ valor_atual: 100 }), item({ valor_compra: 50 }), item({})])).toEqual({ itens: 3, unidades: 3, valor: 150, semValor: 1 })
+    // valor é por unidade: 5 cadeiras de 100 = 500
+    expect(totais([item({ valor_atual: 100, quantidade: 5 }), item({ quantidade: 2 })])).toEqual({ itens: 2, unidades: 7, valor: 500, semValor: 1 })
   })
 
   it('mudou de lugar, de mão ou de situação', () => {

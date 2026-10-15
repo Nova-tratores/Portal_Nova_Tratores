@@ -6,11 +6,13 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { Inbox, Landmark, MapPin, Plus, Search, UserRound } from 'lucide-react'
+import { Inbox, Landmark, MapPin, Plus, Printer, Search, UserRound } from 'lucide-react'
 import { urlsMiniaturas } from '@/lib/opa-pecas/fotos'
 import { BUCKET_PATRIMONIO } from '@/lib/patrimonio/fotos-regra'
 import { ESTADOS, FILTROS_VAZIOS, filtrarItens, INFO_ESTADO, ROTULO_SITUACAO, textoOnde, totais, type FiltrosPat, type ItemPat } from '@/lib/patrimonio/tipos'
-import { Aviso, INP, SECAO, useTelaLarga } from '../pecas/comum'
+import { Aviso, botao, INP, SECAO, useTelaLarga } from '../pecas/comum'
+import { Janela } from '../pecas/Moldura'
+import EtiquetasPat from './Etiquetas'
 import TabelaFiltravel, { SeletorVisao, useListaFiltrada, useModoVisao, type ColunaTabela } from '../pecas/TabelaFiltravel'
 import { COR_PAT, fmtData, fmtReal, SeloEstado, type BasePat } from './comum'
 
@@ -29,6 +31,9 @@ export default function Lista({ base }: { base: BasePat }) {
   const tabela = useListaFiltrada('opa-patrimonio-lista', preFiltrados, colunas)
   const visiveis = emLista ? tabela.visiveis : preFiltrados
   const t = totais(visiveis)
+  // etiquetas: 'escolher' = janela "só as que faltam / todas"; lista = imprimir essas
+  const [etiq, setEtiq] = useState<'escolher' | ItemPat[] | null>(null)
+  const faltam = visiveis.filter((i) => !i.etiqueta_impressa_em)
 
   useEffect(() => {
     const paths = base.itens.map((i) => i.fotos[0]?.storage_path).filter((p): p is string => !!p)
@@ -48,6 +53,7 @@ export default function Lista({ base }: { base: BasePat }) {
       {/* totais */}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <Tile titulo="Itens" valor={String(t.itens)} />
+        <Tile titulo="Unidades" valor={String(t.unidades)} />
         <Tile titulo="Valor do patrimônio" valor={fmtReal(t.valor)} dica={t.semValor ? `${t.semValor} sem valor` : undefined} />
       </div>
 
@@ -58,6 +64,9 @@ export default function Lista({ base }: { base: BasePat }) {
           <input value={f.texto} onChange={(e) => muda('texto', e.target.value)} placeholder="Buscar: código, descrição, marca, modelo, série, pessoa, tag…" style={{ ...INP, paddingLeft: 34 }} />
         </div>
         <SeletorVisao modo={modo} onChange={setModo} cor={COR_PAT} />
+        <button type="button" disabled={!visiveis.length} onClick={() => setEtiq('escolher')} style={botao('#111827', { desab: !visiveis.length })}>
+          <Printer size={15} /> Etiquetas
+        </button>
         {emLista && tabela.ativos > 0 && (
           <button type="button" onClick={tabela.limpar} style={{ height: 34, padding: '0 11px', borderRadius: 9, border: `1px solid ${COR_PAT}`, background: 'transparent', color: COR_PAT, fontSize: 12.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             Limpar filtros das colunas ({tabela.ativos})
@@ -115,7 +124,9 @@ export default function Lista({ base }: { base: BasePat }) {
                     <span style={{ fontFamily: 'monospace', fontSize: 12.5, fontWeight: 800, color: COR_PAT }}>{i.codigo}</span>
                     <SeloEstado estado={i.estado} />
                   </div>
-                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.descricao}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {(i.quantidade || 1) > 1 && <span style={{ color: COR_PAT }}>{i.quantidade}× </span>}{i.descricao}
+                  </div>
                   {(i.marca || i.modelo) && <div style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)' }}>{[i.marca, i.modelo].filter(Boolean).join(' · ')}</div>}
                   <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
                     <MapPin size={12} /> {textoOnde(i.local_id, i.local_tecnico, base.nomeLocal)}
@@ -131,6 +142,23 @@ export default function Lista({ base }: { base: BasePat }) {
           })}
         </div>
       )}
+
+      {etiq === 'escolher' && (
+        <Janela titulo="Imprimir etiquetas" onFechar={() => setEtiq(null)} largura={420}>
+          <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', marginBottom: 12 }}>
+            Vale para os itens da lista que está na tela{visiveis.length < base.itens.length ? ' (com os filtros)' : ''}.
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <button type="button" disabled={!faltam.length} onClick={() => setEtiq(faltam)} style={{ ...botao(COR_PAT, { grande: true, desab: !faltam.length }), width: '100%' }}>
+              Só as que faltam ({faltam.length} {faltam.length === 1 ? 'item' : 'itens'})
+            </button>
+            <button type="button" onClick={() => setEtiq(visiveis)} style={{ ...botao('#111827', { grande: true }), width: '100%' }}>
+              Todas ({visiveis.length} {visiveis.length === 1 ? 'item' : 'itens'})
+            </button>
+          </div>
+        </Janela>
+      )}
+      {Array.isArray(etiq) && <EtiquetasPat itens={etiq} nomeLocal={base.nomeLocal} onFechar={() => setEtiq(null)} onImpresso={base.recarregar} />}
     </div>
   )
 }
@@ -154,6 +182,7 @@ function useColunasPat(base: BasePat, minis: Record<string, string>): ColunaTabe
       render: (i) => <span style={{ fontFamily: 'monospace', fontSize: 12.5, fontWeight: 800, color: COR_PAT, whiteSpace: 'nowrap' }}>{i.codigo}</span> },
     { chave: 'descricao', titulo: 'Descrição', maxLargura: 280, ordem: (i) => i.descricao,
       render: (i) => <div style={{ minWidth: 160, fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i.descricao}</div> },
+    { chave: 'qtd', titulo: 'Qtd', direita: true, ordem: (i) => i.quantidade || 1, render: (i) => <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{i.quantidade || 1}</span> },
     { chave: 'categoria', titulo: 'Categoria', ordem: (i) => i.categoria || '', render: (i) => vazio(i.categoria) },
     { chave: 'marca', titulo: 'Marca', ordem: (i) => i.marca || '', render: (i) => vazio(i.marca) },
     { chave: 'modelo', titulo: 'Modelo', ordem: (i) => i.modelo || '', render: (i) => vazio(i.modelo) },
@@ -170,6 +199,10 @@ function useColunasPat(base: BasePat, minis: Record<string, string>): ColunaTabe
       render: (i) => (i.tags.length
         ? <span style={{ display: 'inline-flex', gap: 4, flexWrap: 'wrap' }}>{i.tags.slice(0, 3).map((tg) => <span key={tg} style={{ fontSize: 11, fontWeight: 700, color: COR_PAT, background: '#EEF2FF', borderRadius: 999, padding: '1px 7px', whiteSpace: 'nowrap' }}>#{tg}</span>)}{i.tags.length > 3 && <span style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>+{i.tags.length - 3}</span>}</span>
         : vazio('')) },
+    { chave: 'etiqueta', titulo: 'Etiqueta', ordem: (i) => i.etiqueta_impressa_em || '', valores: (i) => [i.etiqueta_impressa_em ? 'Impressa' : 'Falta'],
+      render: (i) => (i.etiqueta_impressa_em
+        ? <span style={{ fontSize: 12, fontWeight: 700, color: '#047857', whiteSpace: 'nowrap' }}>{fmtData(i.etiqueta_impressa_em)}</span>
+        : <span style={{ fontSize: 12, fontWeight: 700, color: '#B45309' }}>Falta</span>) },
     { chave: 'compra', titulo: 'Compra', ordem: (i) => i.data_compra || '', valores: (i) => (i.data_compra ? [fmtData(i.data_compra)] : []),
       render: (i) => <span style={{ fontSize: 12.5, whiteSpace: 'nowrap', color: 'var(--portal-text-secondary)' }}>{i.data_compra ? fmtData(i.data_compra) : vazio('')}</span> },
   ] as ColunaTabela<ItemPat>[], [nomeLocal, minis])

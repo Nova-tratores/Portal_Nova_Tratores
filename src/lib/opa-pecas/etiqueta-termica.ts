@@ -49,10 +49,13 @@ export function guardarModo(m: ModoEtiqueta) {
   try { localStorage.setItem(CHAVE_MODO, m) } catch { /* sem storage */ }
 }
 
+/** Item da etiqueta: peça do Opa (token → /e/<chave>) ou outro (url pronta, ex.: Patrimônio). */
+export type ItemTermica = Omit<EtiquetaItem, 'token'> & { token?: string; url?: string }
+
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 /** Página HTML com uma etiqueta por página (puro — testável). */
-export function htmlTermica(itens: (EtiquetaItem & { qr: string })[], a: AjusteTermica): string {
+export function htmlTermica(itens: (ItemTermica & { qr: string })[], a: AjusteTermica): string {
   const L = a.largura
   const H = a.altura
   const pad = Math.max(1, Math.min(2, H * 0.05))
@@ -105,9 +108,9 @@ ${etiquetas}
  * na própria página recebe o HTML e abre só o diálogo de impressão. O iframe
  * some depois de imprimir (ou de 1 min). Devolve false se não deu para montar.
  */
-export function imprimirTermica(itens: EtiquetaItem[], a: AjusteTermica = lerAjusteTermica()): boolean {
+export function imprimirTermica(itens: ItemTermica[], a: AjusteTermica = lerAjusteTermica()): boolean {
   try {
-    const com = itens.map((i) => ({ ...i, qr: qrSvg(QRCode.create(urlPublica(window.location.origin, i.token), { errorCorrectionLevel: 'M' }).modules) }))
+    const com = itens.map((i) => ({ ...i, qr: qrSvg(QRCode.create(i.url || urlPublica(window.location.origin, i.token || ''), { errorCorrectionLevel: 'M' }).modules) }))
     document.getElementById('pni-etiqueta-print')?.remove()
     const f = document.createElement('iframe')
     f.id = 'pni-etiqueta-print'
