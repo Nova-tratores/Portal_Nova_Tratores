@@ -2,20 +2,26 @@
 // Tela /estoque/notas: lista unificada do cache de notas fiscais, faixa de
 // cobertura, filtros, selo por nota, Ver PDF (visualizador), Baixar XML,
 // Guardar agora. Quando a Omie está fora, o que está guardado continua abrindo.
+// Busca por campo (Tudo · Nº da nota · Pedido · OS · Cliente · Máquina) com
+// deep-link ?campo=&q= ; colunas Pedido/OS (link pra Pasta Clientes) e Máquina.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { FileText, Download, RefreshCw, ShieldCheck, CloudOff, Database, Search } from 'lucide-react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { FileText, Download, RefreshCw, ShieldCheck, CloudOff, Database, Search, Tractor } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento';
-import { ROTULO_SELO, ROTULO_TIPO, TIPOS, percent, selo, type LinhaDoc, type Selo, type Cobertura } from '@/lib/notas/cache-regras';
+import {
+  CAMPOS_BUSCA, ROTULO_BATEU, ROTULO_SELO, ROTULO_TIPO, TIPOS, chassiPrincipal, ehCampoBusca, linkPasta, ondeBateu, percent, selo,
+  type CampoBusca, type LinhaDoc, type Selo, type Cobertura,
+} from '@/lib/notas/cache-regras';
 
 interface Resp {
   notas: LinhaDoc[]; total: number; pagina: number; porPagina: number; totalPaginas: number;
   cobertura: Cobertura; ultimaRodada: { iniciado_em: string; status: string | null; detalhe: unknown } | null;
-  podeIndexar: boolean; erro?: string; migracaoFaltando?: boolean;
+  podeIndexar: boolean; vinculosFaltando?: boolean; erro?: string; migracaoFaltando?: boolean;
 }
 
 const PRESETS: Array<{ label: string; dias: number | null }> = [
@@ -53,13 +59,20 @@ const td: React.CSSProperties = { padding: '8px 10px', borderBottom: '1px solid 
 const inp: React.CSSProperties = { padding: '9px 12px', border: '1px solid #e0e0e0', borderRadius: 8, fontSize: '.82rem', outline: 'none', background: '#fff', color: '#333' };
 const btn: React.CSSProperties = { padding: '7px 12px', border: '1px solid #e0e0e0', background: '#fff', color: '#666', borderRadius: 8, fontSize: '.76rem', fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 };
 const linkBtn: React.CSSProperties = { background: 'none', border: 'none', color: '#dc2626', fontSize: '.76rem', fontWeight: 600, cursor: 'pointer', padding: 0, textDecoration: 'underline', display: 'inline-flex', alignItems: 'center', gap: 4 };
+const linkPastaSt: React.CSSProperties = { color: '#1d4ed8', textDecoration: 'none', fontWeight: 600 };
+const rotulo: React.CSSProperties = { display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 };
 
 export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; isAdmin: boolean }) {
   const { conta, contaParam } = useConta();
+  const router = useRouter();
+  const pathname = usePathname();
+  const sp = useSearchParams();
+  const campoUrl = sp.get('campo');
   const [tipo, setTipo] = useState('');
-  const [de, setDe] = useState(menosDias(90));
-  const [ate, setAte] = useState(hojeLocal());
-  const [q, setQ] = useState('');
+  const [de, setDe] = useState(() => (sp.get('q') ? '' : menosDias(90)));
+  const [ate, setAte] = useState(() => (sp.get('q') ? '' : hojeLocal()));
+  const [q, setQ] = useState(() => sp.get('q') || '');
+  const [campo, setCampo] = useState<CampoBusca>(() => (ehCampoBusca(campoUrl) ? campoUrl : 'auto'));
   const [situacao, setSituacao] = useState('');
   const [pagina, setPagina] = useState(1);
   const [resp, setResp] = useState<Resp | null>(null);
@@ -71,15 +84,24 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
   const [aviso, setAviso] = useState('');
   const [indexando, setIndexando] = useState(false);
 
+  // q/campo vivem também na URL (deep-link de outras telas; F5 mantém a busca)
+  useEffect(() => {
+    const p = new URLSearchParams();
+    if (q.trim()) p.set('q', q.trim());
+    if (campo !== 'auto') p.set('campo', campo);
+    const alvo = p.toString() ? `${pathname}?${p}` : pathname;
+    if (`${window.location.pathname}${window.location.search}` !== alvo) router.replace(alvo, { scroll: false });
+  }, [q, campo, pathname, router]);
+
   const qs = useMemo(() => {
     const p = new URLSearchParams({ pagina: String(pagina) });
     if (tipo) p.set('tipo', tipo);
     if (de) p.set('de', de);
     if (ate) p.set('ate', ate);
-    if (q.trim()) p.set('q', q.trim());
+    if (q.trim()) { p.set('q', q.trim()); if (campo !== 'auto') p.set('campo', campo); }
     if (situacao) p.set('situacao', situacao);
     return p.toString() + contaParam;
-  }, [pagina, tipo, de, ate, q, situacao, contaParam]);
+  }, [pagina, tipo, de, ate, q, campo, situacao, contaParam]);
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('');
@@ -91,6 +113,8 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
     } catch (e) { setErro((e as Error).message); } finally { setCarregando(false); }
   }, [qs]);
   useEffect(() => { const t = setTimeout(() => { carregar(); }, 300); return () => clearTimeout(t); }, [carregar]);
+
+  const buscar = (texto: string, c: CampoBusca) => { setCampo(c); setQ(texto); setDe(''); setAte(''); setPagina(1); };
 
   const verPdf = (n: LinhaDoc) => {
     setDoc({ titulo: `${ROTULO_TIPO[n.tipo]} · NF ${n.numero || n.n_cod_nf} · ${n.parte_nome || ''}`, url: `/api/estoque/notas/${n.id}/arquivo?tipo=pdf`, nome: `NF-${n.numero || n.n_cod_nf}-${n.conta_omie}` });
@@ -136,7 +160,8 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
       if (!r.ok) setAviso(j.erro || `Erro ${r.status}`);
       else {
         const l = j.lote || {};
-        setAviso(`Indexadas: ${j.indexadas?.entrada ?? 0} entradas, ${j.indexadas?.saida ?? 0} saídas. Lote: ${l.processadas ?? 0} processadas, ${l.completas ?? 0} completas${l.paradoPor ? ` — parou: ${l.paradoPor}` : ''}.`);
+        const v = j.indexadas?.vinculos;
+        setAviso(`Indexadas: ${j.indexadas?.entrada ?? 0} entradas, ${j.indexadas?.saida ?? 0} saídas${v ? `; vínculos atualizados: ${v.nfe} NF-e, ${v.nfse} NFS-e` : j.indexadas?.vinculosErro ? ' (vínculos: aplicar sql/notas-fiscais-vinculos.sql)' : ''}. Lote: ${l.processadas ?? 0} processadas, ${l.completas ?? 0} completas${l.paradoPor ? ` — parou: ${l.paradoPor}` : ''}.`);
         if (l.paradoPor === 'omieFora') setOmieFora(true);
       }
       carregar();
@@ -144,9 +169,11 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
   };
 
   const cob = resp?.cobertura;
+  const campoInfo = CAMPOS_BUSCA.find((c) => c.id === campo) || CAMPOS_BUSCA[0];
+  const mostrarBateu = campo === 'auto' && !!q.trim();
 
   return (
-    <div style={{ maxWidth: 1280, margin: '0 auto', padding: '20px 24px' }}>
+    <div style={{ maxWidth: 1380, margin: '0 auto', padding: '20px 24px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ color: '#333', marginBottom: 4, fontSize: '1.4rem', fontWeight: 700 }}>Notas fiscais</h1>
@@ -183,19 +210,24 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
           <CloudOff size={16} /> <strong>Omie indisponível</strong> — mostrando só o que já está guardado. Notas sem documento guardado ficam na fila e são buscadas quando a Omie voltar.
         </div>
       )}
+      {resp?.vinculosFaltando && (
+        <div style={{ fontSize: '.78rem', color: '#92400e', background: '#fffbeb', border: '1px solid #fcd34d', borderRadius: 10, padding: '8px 12px', marginBottom: 12 }}>
+          Busca por pedido, OS e máquina ainda não instalada no banco (aplicar <code>sql/notas-fiscais-vinculos.sql</code>). Por enquanto a busca é só por nº, chave, cliente e CNPJ.
+        </div>
+      )}
       {aviso && <div style={{ fontSize: '.8rem', color: '#444', background: '#f5f5f5', border: '1px solid #e5e5e5', borderRadius: 10, padding: '8px 12px', marginBottom: 12 }}>{aviso}</div>}
 
       {/* Filtros */}
       <div style={{ display: 'flex', gap: 10, marginBottom: 14, alignItems: 'flex-end', flexWrap: 'wrap' }}>
         <div>
-          <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Tipo</label>
+          <label style={rotulo}>Tipo</label>
           <select value={tipo} onChange={(e) => { setTipo(e.target.value); setPagina(1); }} style={inp}>
             <option value="">Todas</option>
             {TIPOS.map((t) => <option key={t} value={t}>{ROTULO_TIPO[t]}</option>)}
           </select>
         </div>
         <div>
-          <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Período (emissão)</label>
+          <label style={rotulo}>Período (emissão)</label>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             {PRESETS.map((p) => {
               const ativo = p.dias == null ? !de && !ate : de === menosDias(p.dias) && ate === hojeLocal();
@@ -207,7 +239,7 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
           </div>
         </div>
         <div>
-          <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Situação</label>
+          <label style={rotulo}>Situação</label>
           <select value={situacao} onChange={(e) => { setSituacao(e.target.value); setPagina(1); }} style={inp}>
             <option value="">Todas</option>
             <option value="completa">Guardadas (PDF + XML)</option>
@@ -215,32 +247,41 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
             <option value="sem_documento">Sem documento na Omie</option>
           </select>
         </div>
-        <div style={{ flex: 1, minWidth: 220 }}>
-          <label style={{ display: 'block', color: '#888', fontSize: '.62rem', textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 3, fontWeight: 600 }}>Buscar</label>
-          <div style={{ position: 'relative' }}>
-            <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3' }} />
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPagina(1); }} placeholder="nº da nota, chave, cliente/fornecedor ou CNPJ" style={{ ...inp, width: '100%', paddingLeft: 30 }} />
+        <div style={{ flex: 1, minWidth: 320 }}>
+          <label style={rotulo}>Buscar</label>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <div style={{ position: 'relative', flex: 1 }}>
+              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#a3a3a3' }} />
+              <input value={q} onChange={(e) => { setQ(e.target.value); setPagina(1); }} placeholder={campoInfo.placeholder} style={{ ...inp, width: '100%', paddingLeft: 30 }} aria-label="Buscar" />
+            </div>
+            <select value={campo} onChange={(e) => { setCampo(ehCampoBusca(e.target.value) ? e.target.value : 'auto'); setPagina(1); }} style={inp} title="Em que campo buscar" aria-label="Buscar em">
+              {CAMPOS_BUSCA.map((c) => <option key={c.id} value={c.id}>{c.id === 'auto' ? 'em: Tudo' : `em: ${c.label}`}</option>)}
+            </select>
           </div>
         </div>
       </div>
 
       {erro && (
-        <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>
-          {erro}{resp?.migracaoFaltando ? '' : ''}
-        </div>
+        <div style={{ color: '#dc2626', marginBottom: 12, fontSize: '.85rem' }}>{erro}</div>
       )}
       {carregando && !resp && <div style={{ color: '#888', fontSize: '.85rem' }}>Carregando…</div>}
 
       {resp && (
         <>
-          <div style={{ fontSize: '.78rem', color: '#888', marginBottom: 8 }}>{resp.total.toLocaleString('pt-BR')} notas — página {resp.pagina}/{resp.totalPaginas}{carregando ? ' · atualizando…' : ''}</div>
+          <div style={{ fontSize: '.78rem', color: '#888', marginBottom: 8 }}>
+            {resp.total.toLocaleString('pt-BR')} notas — página {resp.pagina}/{resp.totalPaginas}{carregando ? ' · atualizando…' : ''}
+            {q.trim() && campo !== 'auto' ? <> · buscando <strong>{q.trim()}</strong> em {campoInfo.label}</> : null}
+            {q.trim() && campo === 'os' ? <span style={{ color: '#a3a3a3' }}> (NFS-e da OS + NF-e das peças ligadas a ela)</span> : null}
+          </div>
           <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr>{['Tipo', 'Nº / Série', 'Emissão', 'Cliente / Fornecedor', 'Valor', 'Documento', ''].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <thead><tr>{['Tipo', 'Nº / Série', 'Emissão', 'Cliente / Fornecedor', 'Pedido / OS', 'Máquina', 'Valor', 'Documento', ''].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
               <tbody>
                 {resp.notas.map((n) => {
                   const s = selo(n);
                   const c = COR_SELO[s];
+                  const bateu = mostrarBateu ? ondeBateu(n, q) : [];
+                  const chassi = chassiPrincipal(n.maquina);
                   return (
                     <tr key={n.id} style={{ opacity: n.cancelada ? 0.55 : 1 }}>
                       <td style={td}>
@@ -251,11 +292,38 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
                         <strong>{n.numero || '—'}</strong>{n.serie ? <span style={{ color: '#a3a3a3' }}> / {n.serie}</span> : null}
                         {n.cancelada && <div style={{ fontSize: '.68rem', color: '#dc2626', fontWeight: 700 }}>CANCELADA</div>}
                         {n.chave_nfe && <div style={{ fontSize: '.64rem', color: '#bbb', fontFamily: 'monospace' }} title={n.chave_nfe}>{n.chave_nfe.slice(0, 12)}…{n.chave_nfe.slice(-6)}</div>}
+                        {bateu.length > 0 && (
+                          <div style={{ marginTop: 3, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            {bateu.map((b) => <span key={b} style={{ fontSize: '.6rem', fontWeight: 700, padding: '1px 6px', borderRadius: 999, background: '#eff6ff', color: '#1e40af', border: '1px solid #bfdbfe' }}>bateu em: {ROTULO_BATEU[b]}</span>)}
+                          </div>
+                        )}
                       </td>
                       <td style={td}>{fmtData(n.data_emissao)}</td>
                       <td style={td}>
                         {n.parte_nome || <span style={{ color: '#c00' }}>—</span>}
                         {n.parte_doc && <div style={{ fontSize: '.68rem', color: '#a3a3a3' }}>{fmtDoc(n.parte_doc)}</div>}
+                      </td>
+                      <td style={{ ...td, whiteSpace: 'nowrap' }}>
+                        {n.pedido_num && (
+                          <div style={{ fontSize: '.76rem' }}>
+                            <span style={{ color: '#a3a3a3' }}>PV </span>
+                            <Link href={linkPasta(n, { pv: n.pedido_num })} target="_blank" title="Abrir o pedido na Pasta Clientes" style={linkPastaSt}>{n.pedido_num}</Link>
+                          </div>
+                        )}
+                        {n.os_num && (
+                          <div style={{ fontSize: '.76rem' }}>
+                            <span style={{ color: '#a3a3a3' }}>OS </span>
+                            <Link href={linkPasta(n, { os: n.os_num })} target="_blank" title="Abrir a OS na Pasta Clientes" style={linkPastaSt}>{n.os_num}</Link>
+                          </div>
+                        )}
+                        {!n.pedido_num && !n.os_num && <span style={{ color: '#ddd' }}>—</span>}
+                      </td>
+                      <td style={{ ...td, maxWidth: 230 }}>
+                        {n.maquina ? (
+                          <button onClick={() => buscar(chassi || n.maquina || '', 'maquina')} title={`Ver todas as notas desta máquina\n${n.maquina}`} style={{ ...linkBtn, color: '#374151', textDecoration: 'none', textAlign: 'left', whiteSpace: 'normal', fontWeight: 500, fontSize: '.74rem', lineHeight: 1.25 }}>
+                            <Tractor size={12} color="#b45309" style={{ flex: '0 0 auto' }} /> <span>{n.maquina.length > 60 ? n.maquina.slice(0, 58) + '…' : n.maquina}</span>
+                          </button>
+                        ) : <span style={{ color: '#ddd' }}>—</span>}
                       </td>
                       <td style={td}>{n.valor != null ? fmtRS(n.valor) : '—'}</td>
                       <td style={td}>
@@ -273,7 +341,7 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
                     </tr>
                   );
                 })}
-                {resp.notas.length === 0 && <tr><td style={{ ...td, color: '#a3a3a3' }} colSpan={7}>Nenhuma nota com esses filtros.</td></tr>}
+                {resp.notas.length === 0 && <tr><td style={{ ...td, color: '#a3a3a3' }} colSpan={9}>Nenhuma nota com esses filtros.{q.trim() && (de || ate) ? ' O período está limitando — clique em "Tudo" no período para procurar em todas.' : ''}</td></tr>}
               </tbody>
             </table>
           </div>

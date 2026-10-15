@@ -19,6 +19,8 @@ import { fmtBR, hoje, addDias } from './dates';
 import { supabase } from './supabase';
 
 const TABELA = 'portal_nt_notas_saida';
+// vira true quando o banco ainda não tem a coluna n_cod_os (até o próximo deploy)
+let semColunaOS = false;
 
 // Omie devolve data como "DD/MM/YYYY" (as vezes com hora) -> "YYYY-MM-DD".
 function toISODate(br: any): string | null {
@@ -49,6 +51,8 @@ function linhaNota(conta: Conta, tipo: 'produto' | 'servico', n: any, agoraISO: 
     cliente_doc: n.clienteDoc ? String(n.clienteDoc).replace(/\D/g, '') : null,
     qtde_itens: Array.isArray(n.itens) ? n.itens.length : 0,
     n_id_pedido: n.nIdPedido != null ? (Number(n.nIdPedido) || null) : null,
+    // NFS-e: id da OS de origem (sql/notas-fiscais-vinculos.sql); NF-e fica null
+    n_cod_os: n.nCodOS != null ? (Number(n.nCodOS) || null) : null,
     updated_at: agoraISO,
   };
 }
@@ -60,7 +64,17 @@ async function upsertPagina(linhas: any[]): Promise<number> {
   const porChave = new Map<string, any>();
   for (const l of validas) porChave.set(`${l.tipo}:${l.n_cod_nf}`, l);
   const lote = [...porChave.values()];
-  const { error } = await supabase.from(TABELA).upsert(lote, { onConflict: 'conta_omie,tipo,n_cod_nf' });
+  let { error } = await supabase.from(TABELA).upsert(lote, { onConflict: 'conta_omie,tipo,n_cod_nf' });
+  // Sem a migration sql/notas-fiscais-vinculos.sql a coluna n_cod_os não existe
+  // (PGRST204 / 42703): regrava sem ela, como antes, em vez de parar o sync.
+  if (error && /n_cod_os/i.test(error.message || '') && !semColunaOS) {
+    semColunaOS = true;
+    console.warn('[notas-sync] portal_nt_notas_saida sem n_cod_os (aplicar sql/notas-fiscais-vinculos.sql) — gravando sem a coluna');
+  }
+  if (error && semColunaOS) {
+    const semCol = lote.map((l) => Object.fromEntries(Object.entries(l).filter(([k]) => k !== 'n_cod_os')));
+    ({ error } = await supabase.from(TABELA).upsert(semCol, { onConflict: 'conta_omie,tipo,n_cod_nf' }));
+  }
   if (error) throw new Error(`upsert ${TABELA}: ${error.message}`);
   return lote.length;
 }

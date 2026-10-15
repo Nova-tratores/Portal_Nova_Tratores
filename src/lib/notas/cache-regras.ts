@@ -26,6 +26,13 @@ export interface LinhaDoc {
   tentativas: number;
   proxima_tentativa_em: string | null;
   ultimo_erro: string | null;
+  // Vínculos (sql/notas-fiscais-vinculos.sql) — só notas de SAÍDA; ausentes sem a migration
+  parte_cod?: number | null;   // código do cliente na Omie
+  pedido_num?: string | null;  // nº do pedido de venda (sem zeros à esquerda)
+  pedido_cod?: number | null;
+  os_num?: string | null;      // nº da OS
+  os_cod?: number | null;
+  maquina?: string | null;     // "MODELO CHASSI | CHASSI2"
 }
 
 export const MAX_TENTATIVAS = 8;
@@ -154,17 +161,122 @@ export function percent(parte: number, total: number): string {
   return `${Math.round((parte / total) * 100)}%`;
 }
 
-/** Monta o `or=` do PostgREST para a busca livre (nº, chave, nome, CNPJ). */
-export function filtroBusca(q: string): string | null {
+// ---------------------------------------------------------------------------
+// Busca por campo
+// ---------------------------------------------------------------------------
+export type CampoBusca = 'auto' | 'nota' | 'pedido' | 'os' | 'cliente' | 'maquina';
+
+export const CAMPOS_BUSCA: Array<{ id: CampoBusca; label: string; placeholder: string }> = [
+  { id: 'auto',    label: 'Tudo',             placeholder: 'nº da nota, pedido, OS, chave, cliente, CNPJ ou chassi' },
+  { id: 'nota',    label: 'Nº da nota',       placeholder: 'nº da nota ou chave de 44 dígitos' },
+  { id: 'pedido',  label: 'Pedido de venda',  placeholder: 'nº do pedido de venda (Omie)' },
+  { id: 'os',      label: 'OS',               placeholder: 'nº da ordem de serviço (Omie)' },
+  { id: 'cliente', label: 'Cliente',          placeholder: 'nome, CNPJ ou CPF' },
+  { id: 'maquina', label: 'Máquina',          placeholder: 'chassi inteiro, final do chassi ou modelo' },
+];
+
+export function ehCampoBusca(v: unknown): v is CampoBusca {
+  return typeof v === 'string' && CAMPOS_BUSCA.some((c) => c.id === v);
+}
+
+export const semZeros = (d: string) => d.replace(/^0+(?=\d)/, '');
+
+/** Valor de `ilike` do PostgREST: entre aspas duplas (projeto/chassi têm `.`, `/`, `-`,
+ *  que são reservados no `or=`), sem `"`/`%`; `*` vira `%` no servidor. */
+function ilike(col: string, texto: string): string {
+  const limpo = texto.replace(/["%]/g, '').replace(/[,()]/g, ' ').trim();
+  return `${col}.ilike."*${limpo}*"`;
+}
+
+/** Monta o `or=` do PostgREST para a busca. `campo` restringe a coluna; em
+ *  `auto` um número procura nota, pedido e OS ao mesmo tempo (e CNPJ só com
+ *  6+ dígitos — "6075" casaria qualquer CNPJ que contenha 6075). */
+export function filtroBusca(q: string, campo: CampoBusca = 'auto', opts: { semVinculos?: boolean } = {}): string | null {
   const t = String(q || '').trim();
   if (!t) return null;
+  // Sem a migration dos vínculos as colunas pedido_num/os_num/maquina não existem:
+  // campo que depende delas não acha nada; o modo Tudo volta ao comportamento antigo.
+  if (opts.semVinculos && (campo === 'pedido' || campo === 'os' || campo === 'maquina')) return 'id.eq.0';
   const digitos = t.replace(/\D/g, '');
-  const esc = t.replace(/[,()]/g, ' ').replace(/%/g, '');
-  if (digitos.length >= 20 && digitos.length === t.length) return `chave_nfe.ilike.*${digitos}*`;
-  if (digitos.length >= 11 && digitos.length === t.length) return `parte_doc.ilike.*${digitos}*,chave_nfe.ilike.*${digitos}*`;
-  if (digitos.length > 0 && digitos.length === t.length) {
-    const semZeros = digitos.replace(/^0+(?=\d)/, '');
-    return `numero.eq.${semZeros},parte_doc.ilike.*${digitos}*`;
+  const soDigitos = digitos.length > 0 && /^[\d.\/\-\s]+$/.test(t);
+  const n = semZeros(digitos);
+  switch (campo) {
+    case 'nota':
+      if (soDigitos && digitos.length >= 20) return `chave_nfe.ilike.*${digitos}*`;
+      if (soDigitos) return `numero.eq.${n}`;
+      return ilike('chave_nfe', t);
+    case 'pedido':
+      return soDigitos ? `pedido_num.eq.${n}` : ilike('pedido_num', t);
+    case 'os':
+      return soDigitos ? `os_num.eq.${n}` : ilike('os_num', t);
+    case 'cliente':
+      return soDigitos ? `parte_doc.ilike.*${digitos}*` : ilike('parte_nome', t);
+    case 'maquina':
+      return ilike('maquina', t);
+    default: {
+      if (soDigitos && digitos.length >= 20) return `chave_nfe.ilike.*${digitos}*`;
+      if (soDigitos && digitos.length >= 11) return `parte_doc.ilike.*${digitos}*,chave_nfe.ilike.*${digitos}*`;
+      if (soDigitos) {
+        const partes = opts.semVinculos ? [`numero.eq.${n}`] : [`numero.eq.${n}`, `pedido_num.eq.${n}`, `os_num.eq.${n}`];
+        if (digitos.length >= 6) partes.push(`parte_doc.ilike.*${digitos}*`);
+        return partes.join(',');
+      }
+      return opts.semVinculos ? ilike('parte_nome', t) : `${ilike('parte_nome', t)},${ilike('maquina', t)}`;
+    }
   }
-  return `parte_nome.ilike.*${esc}*`;
+}
+
+export type OndeBateu = 'nota' | 'pedido' | 'os' | 'cliente' | 'maquina';
+
+const semAcento = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+
+/** Em que colunas da linha a busca `q` (modo Tudo) bateu — o PostgREST não diz,
+ *  então a tela calcula para mostrar o selo "bateu em: Pedido / OS…". */
+export function ondeBateu(l: Pick<LinhaDoc, 'numero' | 'chave_nfe' | 'parte_nome' | 'parte_doc' | 'pedido_num' | 'os_num' | 'maquina'>, q: string): OndeBateu[] {
+  const t = String(q || '').trim();
+  if (!t) return [];
+  const out: OndeBateu[] = [];
+  const digitos = t.replace(/\D/g, '');
+  const soDigitos = digitos.length > 0 && /^[\d.\/\-\s]+$/.test(t);
+  if (soDigitos) {
+    const n = semZeros(digitos);
+    if (digitos.length >= 20) { if ((l.chave_nfe || '').includes(digitos)) out.push('nota'); return out; }
+    if (digitos.length >= 11) { if ((l.parte_doc || '').includes(digitos)) out.push('cliente'); if ((l.chave_nfe || '').includes(digitos)) out.push('nota'); return out; }
+    if (semZeros(l.numero || '') === n) out.push('nota');
+    if (semZeros(l.pedido_num || '') === n) out.push('pedido');
+    if (semZeros(l.os_num || '') === n) out.push('os');
+    if (digitos.length >= 6 && (l.parte_doc || '').includes(digitos)) out.push('cliente');
+    return out;
+  }
+  const alvo = semAcento(t);
+  if (semAcento(l.parte_nome || '').includes(alvo)) out.push('cliente');
+  if (semAcento(l.maquina || '').includes(alvo)) out.push('maquina');
+  return out;
+}
+
+export const ROTULO_BATEU: Record<OndeBateu, string> = { nota: 'Nota', pedido: 'Pedido', os: 'OS', cliente: 'Cliente', maquina: 'Máquina' };
+
+/** Empresa da Pasta Clientes correspondente à conta Omie. */
+export function empresaDaConta(conta: string | null | undefined): string {
+  return String(conta || '').toUpperCase() === 'CASTRO' ? 'Castro Pecas' : 'Nova Tratores';
+}
+
+/** Deep-link para a Pasta Clientes já na janela da OS ou do pedido. */
+export function linkPasta(l: Pick<LinhaDoc, 'conta_omie' | 'parte_cod' | 'parte_doc'>, alvo: { os?: string | null; pv?: string | null }): string {
+  const p = new URLSearchParams();
+  if (l.parte_cod) p.set('cod', String(l.parte_cod));
+  if (l.parte_doc) p.set('doc', l.parte_doc);
+  p.set('empresa', empresaDaConta(l.conta_omie));
+  if (alvo.os) p.set('os', alvo.os);
+  else if (alvo.pv) p.set('pv', alvo.pv);
+  return `/clientes?${p.toString()}`;
+}
+
+/** Primeiro chassi de `maquina` ("6075 MBNY… | LL8R…") para virar busca. */
+export function chassiPrincipal(maquina: string | null | undefined): string | null {
+  const s = String(maquina || '');
+  const m = s.match(/\b(?=[A-Z0-9]*[A-Z])(?=[A-Z0-9]*\d)[A-Z0-9]{17}\b/);
+  if (m) return m[0];
+  const primeiro = s.split('|')[0].trim();
+  return primeiro || null;
 }

@@ -108,10 +108,11 @@ export const TAREFAS: Record<string, Tarefa> = {
 
   'notas-cache-docs': async () => {
     if (desligada('NOTAS_CACHE')) return { pular: 'desligado (NOTAS_CACHE=off)' };
-    const { indexarNotas, guardarLote } = await import('@/lib/notas/cache-docs');
-    const idx = await indexarNotas();
+    const { indexarNotas, guardarLote, diasAtras, VINCULAR_JANELA_DIAS } = await import('@/lib/notas/cache-docs');
+    // vínculos pedido/OS/máquina só das notas dos últimos 120 dias (a passagem completa fica pros crons de sync)
+    const idx = await indexarNotas({ vincularDesde: diasAtras(VINCULAR_JANELA_DIAS) });
     const lote = await guardarLote({ limite: 120 });
-    const resumo = `indexadas e:${idx.entrada} s:${idx.saida}${idx.erro ? ` (erro ao indexar: ${idx.erro})` : ''} · lote ${lote.processadas}: ${lote.completas} completas, ${lote.parciais} parciais, ${lote.pendentes} pendentes, ${lote.falhas} falhas`;
+    const resumo = `indexadas e:${idx.entrada} s:${idx.saida}${idx.erro ? ` (erro ao indexar: ${idx.erro})` : ''}${idx.vinculos ? ` · vínculos nfe:${idx.vinculos.nfe} nfse:${idx.vinculos.nfse}` : idx.vinculosErro ? ' (vínculos: aplicar sql/notas-fiscais-vinculos.sql)' : ''} · lote ${lote.processadas}: ${lote.completas} completas, ${lote.parciais} parciais, ${lote.pendentes} pendentes, ${lote.falhas} falhas`;
     if (lote.paradoPor) return { resumo: `${resumo} — parou: ${lote.paradoPor} ${lote.erro || ''}`.trim() };
     return { resumo };
   },

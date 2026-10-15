@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   caminhoArquivo, nomeArquivo, proximaTentativa, adiarPendente, ehPdf, ehXml, selo,
   ehBloqueioOmie, ehOmieFora, ehNaoConcluida, filtroBusca, percent, MAX_TENTATIVAS, desescaparXml, pareceUrl,
+  ondeBateu, linkPasta, empresaDaConta, chassiPrincipal,
 } from './cache-regras';
 
 const base = { id: 1, conta_omie: 'NOVA', tipo: 'entrada' as const, chave_nfe: null, n_cod_nf: 6049268011, numero: '515688', serie: '3', data_emissao: '2026-10-08', parte_nome: 'MABRACO', parte_doc: '44552685000154', valor: 246.73, cancelada: false, pdf_path: null, xml_path: null, tentativas: 0, proxima_tentativa_em: null, ultimo_erro: null };
@@ -85,13 +86,53 @@ describe('erros da Omie', () => {
   });
 });
 
-describe('busca livre', () => {
+describe('busca livre (Tudo)', () => {
   it('chave, CNPJ, número e nome', () => {
     expect(filtroBusca('35261044552685000154550030005156881813887116')).toBe('chave_nfe.ilike.*35261044552685000154550030005156881813887116*');
     expect(filtroBusca('44552685000154')).toBe('parte_doc.ilike.*44552685000154*,chave_nfe.ilike.*44552685000154*');
-    expect(filtroBusca('001114')).toBe('numero.eq.1114,parte_doc.ilike.*001114*');
-    expect(filtroBusca('Mabraco, ltda (sp)')).toBe('parte_nome.ilike.*Mabraco  ltda  sp *');
+    expect(filtroBusca('44.552.685/0001-54')).toBe('parte_doc.ilike.*44552685000154*,chave_nfe.ilike.*44552685000154*');
+    // número curto: nota, pedido e OS ao mesmo tempo; CNPJ só com 6+ dígitos
+    expect(filtroBusca('1114')).toBe('numero.eq.1114,pedido_num.eq.1114,os_num.eq.1114');
+    expect(filtroBusca('001114')).toBe('numero.eq.1114,pedido_num.eq.1114,os_num.eq.1114,parte_doc.ilike.*001114*');
+    expect(filtroBusca('Mabraco, ltda (sp)')).toBe('parte_nome.ilike."*Mabraco  ltda  sp*",maquina.ilike."*Mabraco  ltda  sp*"');
+    expect(filtroBusca('MDI07513PS0006206')).toBe('parte_nome.ilike."*MDI07513PS0006206*",maquina.ilike."*MDI07513PS0006206*"');
     expect(filtroBusca('  ')).toBeNull();
+  });
+  it('por campo', () => {
+    expect(filtroBusca('001602', 'os')).toBe('os_num.eq.1602');
+    expect(filtroBusca('7198', 'pedido')).toBe('pedido_num.eq.7198');
+    expect(filtroBusca('515688', 'nota')).toBe('numero.eq.515688');
+    expect(filtroBusca('35261044552685000154550030005156881813887116', 'nota')).toBe('chave_nfe.ilike.*35261044552685000154550030005156881813887116*');
+    expect(filtroBusca('Mabraco', 'cliente')).toBe('parte_nome.ilike."*Mabraco*"');
+    expect(filtroBusca('44552685000154', 'cliente')).toBe('parte_doc.ilike.*44552685000154*');
+    // máquina: chassi com ponto/barra vai entre aspas, aspas e % somem
+    expect(filtroBusca('T-28380/0925', 'maquina')).toBe('maquina.ilike."*T-28380/0925*"');
+    expect(filtroBusca('6075 "cab" 100%', 'maquina')).toBe('maquina.ilike."*6075 cab 100*"');
+    expect(filtroBusca('02352', 'maquina')).toBe('maquina.ilike."*02352*"');
+  });
+  it('sem a migration dos vínculos', () => {
+    expect(filtroBusca('1602', 'auto', { semVinculos: true })).toBe('numero.eq.1602');
+    expect(filtroBusca('Mabraco', 'auto', { semVinculos: true })).toBe('parte_nome.ilike."*Mabraco*"');
+    expect(filtroBusca('1602', 'os', { semVinculos: true })).toBe('id.eq.0');
+    expect(filtroBusca('Mabraco', 'cliente', { semVinculos: true })).toBe('parte_nome.ilike."*Mabraco*"');
+  });
+  it('onde bateu (selo do modo Tudo)', () => {
+    const l = { ...base, numero: '1602', pedido_num: '7198', os_num: '1602', maquina: '6075 MBNYHBKYVPNL02352', parte_nome: 'SÉRGIO LUIZ DE LARA' };
+    expect(ondeBateu(l, '1602')).toEqual(['nota', 'os']);
+    expect(ondeBateu(l, '007198')).toEqual(['pedido']);
+    expect(ondeBateu(l, '44552685000154')).toEqual(['cliente']);
+    expect(ondeBateu(l, 'sergio')).toEqual(['cliente']);
+    expect(ondeBateu(l, 'vpnl02352')).toEqual(['maquina']);
+    expect(ondeBateu(l, '')).toEqual([]);
+  });
+  it('link da pasta, empresa e chassi principal', () => {
+    expect(empresaDaConta('CASTRO')).toBe('Castro Pecas');
+    expect(empresaDaConta('nova')).toBe('Nova Tratores');
+    expect(linkPasta({ conta_omie: 'NOVA', parte_cod: 2065769835, parte_doc: '12345678901' }, { os: '1602' })).toBe('/clientes?cod=2065769835&doc=12345678901&empresa=Nova+Tratores&os=1602');
+    expect(linkPasta({ conta_omie: 'CASTRO', parte_cod: null, parte_doc: '12345678901' }, { pv: '4366' })).toBe('/clientes?doc=12345678901&empresa=Castro+Pecas&pv=4366');
+    expect(chassiPrincipal('6075 MBNYHBKYVPNL02352 | LL8RET4W3P0G00312')).toBe('MBNYHBKYVPNL02352');
+    expect(chassiPrincipal('FROTA-FORD-9E-EVG9')).toBe('FROTA-FORD-9E-EVG9');
+    expect(chassiPrincipal(null)).toBeNull();
   });
   it('percent', () => {
     expect(percent(0, 0)).toBe('0%');

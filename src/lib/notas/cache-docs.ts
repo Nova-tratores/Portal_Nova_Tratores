@@ -27,6 +27,10 @@ const LIMITE_PDF_BYTES = 25 * 1024 * 1024;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export const COLS = 'id,conta_omie,tipo,chave_nfe,n_cod_nf,numero,serie,data_emissao,parte_nome,parte_doc,valor,cancelada,pdf_path,xml_path,pdf_em,xml_em,tentativas,proxima_tentativa_em,ultimo_erro';
+/** COLS + vínculos (sql/notas-fiscais-vinculos.sql). A rota cai para COLS se a migration faltar. */
+export const COLS_VINCULOS = COLS + ',parte_cod,pedido_num,pedido_cod,os_num,os_cod,maquina';
+/** Janela do vincular no ciclo de 10 min (dias). Crons e botão passam null = tudo. */
+export const VINCULAR_JANELA_DIAS = 120;
 
 /** Garante o bucket privado (a migration já cria; aqui é o fallback). */
 let bucketOk = false;
@@ -46,7 +50,11 @@ export function migracaoFaltando(msg: string | null | undefined): boolean {
   return /notas_fiscais_docs|notas_fiscais_indexar|schema cache|does not exist|PGRST205|42P01/i.test(String(msg || ''));
 }
 
-export interface ResultadoIndexar { entrada: number; saida: number; completo: boolean; erro?: string }
+export interface ResultadoIndexar {
+  entrada: number; saida: number; completo: boolean; erro?: string;
+  vinculos?: { nfe: number; nfse: number }; // notas_fiscais_vincular (pedido/OS/máquina)
+  vinculosErro?: string;                     // sem a migration dos vínculos
+}
 
 /**
  * RPC: indexa notas_entrada + portal_nt_notas_saida (só metadados).
@@ -55,15 +63,31 @@ export interface ResultadoIndexar { entrada: number; saida: number; completo: bo
  * reescrevia 21 mil linhas a cada 10 min. `completo: true` refaz tudo (botão do
  * admin). Sem a migration incremental, cai na função antiga (sempre completa).
  */
-export async function indexarNotas(opts: { completo?: boolean } = {}): Promise<ResultadoIndexar> {
+export async function indexarNotas(opts: { completo?: boolean; vincularDesde?: string | null } = {}): Promise<ResultadoIndexar> {
   const completo = !!opts.completo;
   let { data, error } = await supabaseAdmin.rpc('notas_fiscais_indexar', { p_completo: completo });
   if (error && /p_completo|does not exist|PGRST202|42883/i.test(error.message)) {
     ({ data, error } = await supabaseAdmin.rpc('notas_fiscais_indexar'));
-    if (!error) return lerIndexar(data, true);
+    if (!error) return vincularNotas(lerIndexar(data, true), opts.vincularDesde);
   }
   if (error) return { entrada: 0, saida: 0, completo, erro: error.message };
-  return lerIndexar(data, completo);
+  return vincularNotas(lerIndexar(data, completo), opts.vincularDesde);
+}
+
+/** Depois de indexar: resolve pedido/OS/cliente/máquina das notas de saída
+ *  (`notas_fiscais_vincular`, sql/notas-fiscais-vinculos.sql). `desde` = só
+ *  notas emitidas a partir daí (null = todas). Sem a migration a RPC falha e
+ *  só fica registrada em `vinculosErro` — nada mais quebra. */
+async function vincularNotas(r: ResultadoIndexar, desde?: string | null): Promise<ResultadoIndexar> {
+  const v = await supabaseAdmin.rpc('notas_fiscais_vincular', { p_desde: desde ?? null });
+  if (v.error) return { ...r, vinculosErro: v.error.message };
+  const vd = (v.data || {}) as { nfe?: number; nfse?: number };
+  return { ...r, vinculos: { nfe: Number(vd.nfe || 0), nfse: Number(vd.nfse || 0) } };
+}
+
+/** ISO (YYYY-MM-DD) de hoje − n dias, para o vincular incremental. */
+export function diasAtras(n: number, agora: Date = new Date()): string {
+  return new Date(agora.getTime() - n * 86400000).toISOString().slice(0, 10);
 }
 
 function lerIndexar(data: unknown, completoPedido: boolean): ResultadoIndexar {
@@ -304,12 +328,12 @@ export async function ultimaRodada(): Promise<{ iniciado_em: string; status: str
 export async function rodarAgendado(limite = 120): Promise<string> {
   const { comCronRun } = await import('@/lib/cron/observar');
   const r = await comCronRun(JOB, async () => {
-    const idx = await indexarNotas();
+    const idx = await indexarNotas({ vincularDesde: diasAtras(VINCULAR_JANELA_DIAS) });
     const lote = await guardarLote({ limite });
     return { idx, lote };
   }, { lockMinutos: 9, prioridade: 'rapido' });
   if (r.pulado) return 'pulado (rodada anterior ainda aberta)';
   if (r.erro) return 'erro: ' + r.erro;
   const { idx, lote } = r.resultado!;
-  return `indexadas e:${idx.entrada} s:${idx.saida}${idx.erro ? ' (idx erro: ' + idx.erro + ')' : ''}; lote ${lote.processadas}: ${lote.completas} completas, ${lote.parciais} parciais, ${lote.pendentes} pendentes, ${lote.falhas} falhas${lote.paradoPor ? ' — PAROU: ' + lote.paradoPor + ' ' + (lote.erro || '') : ''}`;
+  return `indexadas e:${idx.entrada} s:${idx.saida}${idx.erro ? ' (idx erro: ' + idx.erro + ')' : ''}${idx.vinculos ? `; vínculos nfe:${idx.vinculos.nfe} nfse:${idx.vinculos.nfse}` : idx.vinculosErro ? ' (vínculos: ' + idx.vinculosErro.slice(0, 80) + ')' : ''}; lote ${lote.processadas}: ${lote.completas} completas, ${lote.parciais} parciais, ${lote.pendentes} pendentes, ${lote.falhas} falhas${lote.paradoPor ? ' — PAROU: ' + lote.paradoPor + ' ' + (lote.erro || '') : ''}`;
 }

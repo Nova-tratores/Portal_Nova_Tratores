@@ -529,6 +529,10 @@ export function normalizarNFSe(nf: any): any {
   const docCpf = cab.cCPFDestinatario ?? nf.cCPFDestinatario ?? null;
   const clienteDoc = (docCnpj && String(docCnpj).replace(/\D/g, '')) || (docCpf && String(docCpf).replace(/\D/g, '')) || null;
   const clienteNome = cab.cRazaoDestinatario ?? cab.cRazaoSocial ?? cab.cNomeCliente ?? nf.cRazaoDestinatario ?? null;
+  // id interno da OS que gerou a NFS-e (OrdemServico.nCodigoOS) — vira n_cod_os no espelho
+  const osObj = pick(nf.OrdemServico, nf.ordemServico, nf.OS);
+  const nCodOSRaw = osObj.nCodigoOS ?? osObj.nCodOS ?? osObj.nCodigoOs ?? nf.nCodigoOS ?? null;
+  const nCodOS = nCodOSRaw != null && Number(nCodOSRaw) > 0 ? Number(nCodOSRaw) : null;
 
   return {
     tipo: 'servico',
@@ -542,6 +546,7 @@ export function normalizarNFSe(nf: any): any {
     clienteNome: clienteNome != null ? String(clienteNome) : null,
     clienteDoc: clienteDoc || null,
     cancelada: !!cancelada,
+    nCodOS,
     raw: nf
   };
 }

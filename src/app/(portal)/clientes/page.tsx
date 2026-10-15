@@ -390,10 +390,17 @@ function ClientesPageInner() {
     if (urlClienteTratada || clientes.length === 0) return
     setUrlClienteTratada(true)
     const p = new URLSearchParams(window.location.search)
-    const cod = p.get('cod'); const doc = p.get('doc')
+    // &empresa= desambigua (Nova e Castro repetem código); &os=1602 ou &pv=7198
+    // abre já na janela daquele serviço/pedido (link do cache de notas, /estoque/notas).
+    const cod = p.get('cod'); const doc = p.get('doc'); const empresa = p.get('empresa')
+    const os = p.get('os'); const pv = p.get('pv')
     if (!cod && !doc) return
-    const alvo = clientes.find(c => (cod && String(c.cod_cli) === cod) || (!!doc && c.cnpj_cpf === doc))
-    if (alvo) abrirDetalhe(alvo)
+    const mesmaEmpresa = (c: Cliente) => !empresa || String(c.empresa || '').toLowerCase().startsWith(empresa.toLowerCase().slice(0, 5))
+    const alvo = clientes.find(c => mesmaEmpresa(c) && ((cod && String(c.cod_cli) === cod) || (!!doc && c.cnpj_cpf === doc)))
+      || clientes.find(c => (cod && String(c.cod_cli) === cod) || (!!doc && c.cnpj_cpf === doc))
+    if (!alvo) { alert(`Cliente ${cod || doc} não está na lista de clientes carregada.`); return }
+    if (os || pv) abrirServico(alvo, os ? 'o' : 'p', String(os || pv))
+    else abrirDetalhe(alvo)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clientes, urlClienteTratada])
 
