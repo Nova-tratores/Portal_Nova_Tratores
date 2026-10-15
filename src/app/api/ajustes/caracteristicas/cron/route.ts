@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   // roda se o portal NÃO tiver terminado bem nas últimas 20 h.
   const desde = new Date(Date.now() - 20 * 3600_000).toISOString();
   const { data: feito } = await supabaseAdmin.from('cron_runs').select('iniciado_em')
-    .eq('job', 'ajustes-sync-caracteristicas').eq('status', 'ok').eq('disparado_por', 'agendador')
+    .eq('job', 'ajustes-sync-caracteristicas').eq('status', 'ok').in('disparado_por', ['agendador', 'botao', 'marcado'])
     .gte('iniciado_em', desde).limit(1);
   if (feito?.length) {
     return NextResponse.json({ sucesso: true, pulado: `o agendador do portal já rodou (${feito[0].iniciado_em})` });
