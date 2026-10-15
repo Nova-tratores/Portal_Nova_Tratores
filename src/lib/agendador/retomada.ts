@@ -30,3 +30,14 @@ export async function marcarFeito(chave: string, parte: string): Promise<void> {
     await sb.from('agendamentos').update({ parametros: { ...p, _retomada: { dia: hojeSP(), feitos: [...feitos, parte] } } }).eq('chave', chave);
   } catch { /* segue */ }
 }
+
+/** Rodada terminou inteira: apaga a retomada (ela só serve para rodada interrompida). */
+export async function limparRetomada(chave: string): Promise<void> {
+  try {
+    const p = await lerParametros(chave);
+    if (!('_retomada' in p)) return;
+    const resto = { ...p };
+    delete resto._retomada;
+    await sb.from('agendamentos').update({ parametros: resto }).eq('chave', chave);
+  } catch { /* segue */ }
+}

@@ -22,10 +22,10 @@ export const TAREFAS: Record<string, Tarefa> = {
   'ajustes-sync-caracteristicas': async (_p, ctx) => {
     const { iniciarSyncCaracteristicas } = await import('@/lib/ajustes/caracteristicas');
     const { getContasOmie } = await import('@/lib/ajustes/conta');
-    const { lerRetomada, marcarFeito } = await import('./retomada');
+    const { lerRetomada, marcarFeito, limparRetomada } = await import('./retomada');
     const feitas = await lerRetomada(ctx.chave);
     const faltam = getContasOmie().map((c) => c.label as string).filter((l) => !feitas.includes(l));
-    if (!faltam.length) return { pular: `já feito hoje (${feitas.join(', ')})` };
+    if (!faltam.length) { await limparRetomada(ctx.chave); return { pular: `já feito hoje (${feitas.join(', ')})` }; }
     const r = await iniciarSyncCaracteristicas('agendador', {
       aguardar: true,
       contas: faltam,
@@ -33,6 +33,8 @@ export const TAREFAS: Record<string, Tarefa> = {
     });
     if (r.jaRodando) return { pular: 'sync já em andamento (botão da tela)' };
     if (!r.ok) throw new Error(r.erro || 'sync falhou');
+    // Terminou inteira: a próxima rodada (ex.: a das 20:00 depois de um "Rodar agora") é completa.
+    await limparRetomada(ctx.chave);
     const porConta = (r.resumo?.porConta || {}) as Record<string, number>;
     const progresso = Object.fromEntries(Object.entries(porConta).map(([k, v]) => [k, `${v} peças`]));
     for (const l of feitas) progresso[l] = 'já feito antes (retomada)';
