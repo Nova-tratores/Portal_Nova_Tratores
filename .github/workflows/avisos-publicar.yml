@@ -5,8 +5,9 @@
 name: Avisos - Publicar agendados
 
 on:
-  schedule:
-    - cron: '*/15 9-23 * * *'   # a cada 15 min, 06:00–20:00 BRT (09–23 UTC)
+  # Desde 15/10/2026 este agendamento roda no AGENDADOR do portal (tela /agendamentos,
+  # docs/omie-fila-agendador-plano.md, etapa 3). Fica só o botão manual como reserva
+  # até 14/11/2026, depois este arquivo é apagado. Horário antigo: cron: '*/15 9-23 * * *'   # a cada 15 min, 06:00–20:00 BRT (09–23 UTC)
   workflow_dispatch: {}
 
 jobs:

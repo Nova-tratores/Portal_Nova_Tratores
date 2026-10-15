@@ -8,8 +8,9 @@
 name: Garantias - Claims perdidos (varredura)
 
 on:
-  schedule:
-    - cron: '15 10-21 * * *'   # a cada hora, 07:15-18:15 BRT (-03)
+  # Desde 15/10/2026 este agendamento roda no AGENDADOR do portal (tela /agendamentos,
+  # docs/omie-fila-agendador-plano.md, etapa 3). Fica só o botão manual como reserva
+  # até 14/11/2026, depois este arquivo é apagado. Horário antigo: cron: '15 10-21 * * *'   # a cada hora, 07:15-18:15 BRT (-03)
   workflow_dispatch: {}
 
 jobs:

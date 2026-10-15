@@ -7,8 +7,9 @@ name: Frota — ocorrências automáticas (multa/abastecimento/consumo)
 # 1x/dia, depois do fechar-dia (04:20 BRT). Secrets: PORTAL_URL e CRON_SECRET.
 
 on:
-  schedule:
-    - cron: '0 8 * * *'   # 08:00 UTC = 05:00 de Brasília
+  # Desde 15/10/2026 este agendamento roda no AGENDADOR do portal (tela /agendamentos,
+  # docs/omie-fila-agendador-plano.md, etapa 3). Fica só o botão manual como reserva
+  # até 14/11/2026, depois este arquivo é apagado. Horário antigo: cron: '0 8 * * *'   # 08:00 UTC = 05:00 de Brasília
   workflow_dispatch: {}    # permite rodar manualmente
 
 jobs:

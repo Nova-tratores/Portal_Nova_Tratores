@@ -6,8 +6,9 @@
 name: Feedbacks - Recalcular oportunidades
 
 on:
-  schedule:
-    - cron: '0 9 * * *'   # 06:00 BRT
+  # Desde 15/10/2026 este agendamento roda no AGENDADOR do portal (tela /agendamentos,
+  # docs/omie-fila-agendador-plano.md, etapa 3). Fica só o botão manual como reserva
+  # até 14/11/2026, depois este arquivo é apagado. Horário antigo: cron: '0 9 * * *'   # 06:00 BRT
   workflow_dispatch: {}
 
 jobs:

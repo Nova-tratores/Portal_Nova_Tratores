@@ -14,7 +14,61 @@ export type Tarefa = (parametros: Record<string, unknown>, ctx: ContextoTarefa) 
 const desligada = (env: string) => process.env[env] === 'off';
 const baseInterna = () => `http://127.0.0.1:${process.env.PORT || 3000}`;
 
+/**
+ * Chama uma rota do próprio portal (dentro do servidor) com a senha dos agendamentos,
+ * esperando a resposta. Usa node:http e não fetch: o fetch do Node desiste em 300 s
+ * e há rota que leva 15 min (oportunidades, fechar o dia da frota).
+ */
+async function chamarRotaInterna(metodo: string, caminho: string, timeoutMin: number): Promise<{ status: number; corpo: string }> {
+  const http = await import('node:http');
+  const segredo = process.env.CRON_SECRET || '';
+  if (!segredo) throw new Error('CRON_SECRET não configurado — a rota recusaria a chamada.');
+  return new Promise((resolve, reject) => {
+    const req = http.request({
+      host: '127.0.0.1', port: Number(process.env.PORT || 3000), path: caminho, method: metodo,
+      headers: { authorization: `Bearer ${segredo}`, 'x-cron-secret': segredo, 'x-agendador': '1', 'content-length': 0 },
+    }, (res) => {
+      let corpo = '';
+      res.setEncoding('utf8');
+      res.on('data', (c: string) => { if (corpo.length < 20_000) corpo += c; });
+      res.on('end', () => resolve({ status: res.statusCode || 0, corpo }));
+    });
+    req.setTimeout(timeoutMin * 60_000, () => req.destroy(new Error(`a rota não respondeu em ${timeoutMin} min`)));
+    req.on('error', reject);
+    req.end();
+  });
+}
+
+/** Resumo curto da resposta JSON da rota (sem listas grandes). */
+function resumirResposta(corpo: string): string {
+  try {
+    const j = JSON.parse(corpo);
+    const enxuto = JSON.stringify(j, (_k, v) => (Array.isArray(v) ? `[${v.length} itens]` : v));
+    return enxuto.length > 400 ? enxuto.slice(0, 400) + '…' : enxuto;
+  } catch {
+    return corpo.slice(0, 200) || 'ok';
+  }
+}
+
 export const TAREFAS: Record<string, Tarefa> = {
+  // Agendamentos trazidos do GitHub que não usam a Omie (etapa 3): cada um chama a
+  // própria rota de cron, como o GitHub fazia — parametros { metodo, caminho, timeout_min }.
+  'rota-interna': async (p) => {
+    const metodo = String(p.metodo || 'POST').toUpperCase();
+    const caminho = String(p.caminho || '');
+    if (!caminho.startsWith('/api/')) throw new Error('parametros.caminho precisa começar com /api/');
+    const { status, corpo } = await chamarRotaInterna(metodo, caminho, Number(p.timeout_min) || 20);
+    if (status >= 400) throw new Error(`a rota respondeu HTTP ${status}: ${corpo.slice(0, 300)}`);
+    try {
+      const j = JSON.parse(corpo);
+      if (j && (j.pulado === true || typeof j.pulado === 'string')) return { pular: typeof j.pulado === 'string' ? j.pulado : 'nada a fazer' };
+      if (j && j.sucesso === false) throw new Error(String(j.erro || j.error || 'a rota devolveu sucesso: false'));
+    } catch (e) {
+      if (e instanceof SyntaxError) { /* resposta não-JSON: segue com o texto */ } else throw e;
+    }
+    return { resumo: resumirResposta(corpo) };
+  },
+
   // Características das peças (espelho produtos_caracteristicas: locação, "Tipo:"…),
   // as duas contas. Veio do GitHub (ajustes-sync-caracteristicas.yml), que disparava
   // as 03:00 da madrugada só no papel (rodava 9h–12h e morria em deploy).

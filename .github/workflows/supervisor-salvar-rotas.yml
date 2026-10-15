@@ -5,8 +5,9 @@ name: Supervisor Vendas - Salvar rotas do dia
 # de alguém abrir o dia no mapa). Roda no servidor (portal no Railway).
 
 on:
-  schedule:
-    - cron: '30 4 * * *'    # 04:30 UTC ≈ 01:30 de Brasília (já virou o dia)
+  # Desde 15/10/2026 este agendamento roda no AGENDADOR do portal (tela /agendamentos,
+  # docs/omie-fila-agendador-plano.md, etapa 3). Fica só o botão manual como reserva
+  # até 14/11/2026, depois este arquivo é apagado. Horário antigo: cron: '30 4 * * *'    # 04:30 UTC ≈ 01:30 de Brasília (já virou o dia)
   workflow_dispatch: {}      # permite rodar manualmente
 
 jobs:

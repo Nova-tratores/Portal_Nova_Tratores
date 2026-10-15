@@ -4,8 +4,9 @@
 name: POS - Vigia de revisoes
 
 on:
-  schedule:
-    - cron: '40 9 * * *'   # 06:40 BRT
+  # Desde 15/10/2026 este agendamento roda no AGENDADOR do portal (tela /agendamentos,
+  # docs/omie-fila-agendador-plano.md, etapa 3). Fica só o botão manual como reserva
+  # até 14/11/2026, depois este arquivo é apagado. Horário antigo: cron: '40 9 * * *'   # 06:40 BRT
   workflow_dispatch: {}
 
 jobs:

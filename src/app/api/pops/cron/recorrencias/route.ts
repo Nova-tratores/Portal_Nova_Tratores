@@ -22,6 +22,8 @@ async function executar(req: NextRequest) {
   const pedida = req.nextUrl.searchParams.get('data') || ''
   const data = /^\d{4}-\d{2}-\d{2}$/.test(pedida) ? pedida : hojeSP()
   try {
+    // Chamado pelo agendador do portal (ele já registra a rodada e tem a trava): roda direto.
+    if (req.headers.get('x-agendador') === '1') return NextResponse.json({ sucesso: true, resultado: await gerarExecucoesDoDia(data), timestamp: new Date().toISOString() })
     const r = await comCronRun('pops-recorrencias', () => gerarExecucoesDoDia(data), { lockMinutos: 10 })
     if ('pulado' in r && r.pulado) return NextResponse.json({ sucesso: true, pulado: true })
     return NextResponse.json({ sucesso: true, ...('resultado' in r ? { resultado: r.resultado } : {}) })

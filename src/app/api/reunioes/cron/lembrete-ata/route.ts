@@ -18,6 +18,8 @@ function autorizado(req: NextRequest): boolean {
 async function executar(req: NextRequest) {
   if (!autorizado(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   try {
+    // Chamado pelo agendador do portal (ele já registra a rodada e tem a trava): roda direto.
+    if (req.headers.get('x-agendador') === '1') return NextResponse.json({ sucesso: true, resultado: await cronLembreteAta(), timestamp: new Date().toISOString() })
     const r = await comCronRun('reunioes-lembrete-ata', () => cronLembreteAta(), { lockMinutos: 10 })
     if ('pulado' in r && r.pulado) return NextResponse.json({ sucesso: true, pulado: true })
     return NextResponse.json({ sucesso: true, ...('resultado' in r ? { resultado: r.resultado } : {}), timestamp: new Date().toISOString() })

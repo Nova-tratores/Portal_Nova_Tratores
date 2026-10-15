@@ -7,8 +7,9 @@ name: Estoque - Sync SELIC (BCB)
 # Requer os secrets do GitHub: PORTAL_URL e CRON_SECRET.
 
 on:
-  schedule:
-    - cron: '30 10 * * *'   # 10:30 UTC = 07:30 BRT (BCB publica a taxa do dia útil anterior)
+  # Desde 15/10/2026 este agendamento roda no AGENDADOR do portal (tela /agendamentos,
+  # docs/omie-fila-agendador-plano.md, etapa 3). Fica só o botão manual como reserva
+  # até 14/11/2026, depois este arquivo é apagado. Horário antigo: cron: '30 10 * * *'   # 10:30 UTC = 07:30 BRT (BCB publica a taxa do dia útil anterior)
   workflow_dispatch: {}       # permite rodar manualmente
 
 jobs:
