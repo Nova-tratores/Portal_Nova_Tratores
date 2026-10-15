@@ -252,8 +252,10 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
                 {estado.podeFaturarPecas && (
                   <button type="button" onClick={() => setCancelarDoc({ tipo: "pedido", ppvId: p.id, numero: p.pedidoOmie ? p.pedidoOmie.replace(/^0+(?=\d)/, "") : p.id })}
                     title="Cancelar este pedido de venda no Omie (ainda não faturado)"
-                    style={{ flexShrink: 0, border: "1px solid #fecaca", background: "#fefefe", color: "#b91c1c", borderRadius: 7, padding: "3px 8px", fontSize: 11, fontWeight: 800, cursor: "pointer", fontFamily: "inherit" }}>
-                    <i className="fas fa-ban" /> Cancelar
+                    className="cancelar-discreto"
+                    style={{ flexShrink: 0, border: "none", background: "none", padding: 0, color: "#a16207", fontSize: 10.5, cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 2 }}>
+                    cancelar
+                    <style>{`.cancelar-discreto:hover { color: #b91c1c !important; }`}</style>
                   </button>
                 )}
               </div>
@@ -325,13 +327,27 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, onAtua
       <div style={{ fontSize: 11, color: "var(--portal-text-muted, #64748b)", textAlign: "center", marginTop: -2 }}>
         {estado.interna ? "OS interna · sem NFS-e e sem conta a receber" : pedidosFaltando.length ? "a OS, o pedido de peças ou os dois" : "emite a NFS-e da OS"}
       </div>
-      {estado.podeFaturar && (
-        <button type="button" onClick={() => setCancelarDoc({ tipo: "os", osId, numero: numOS, pedidos: (estado.pedidos || []).filter((p) => !p.faturado).map((p) => p.pedidoOmie ? `PV ${p.pedidoOmie.replace(/^0+(?=\d)/, "")}` : p.id) })}
-          title="Cancelar a OS no Omie e no portal (ainda não faturada)"
-          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", minHeight: 30, marginTop: 6, borderRadius: 8, border: "1px solid #fecaca", background: "transparent", color: "#b91c1c", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-          <i className="fas fa-ban" /> Cancelar a OS
-        </button>
-      )}
+      {/* cancelar no Omie (ainda não faturado) — discreto: só texto, acende no mouse */}
+      {(estado.podeFaturar || estado.podeFaturarPecas) && (() => {
+        const pend = (estado.pedidos || []).filter((p) => !p.faturado && !p.ncCancelada);
+        const pv = (p: { id: string; pedidoOmie: string }) => p.pedidoOmie ? p.pedidoOmie.replace(/^0+(?=\d)/, "") : p.id;
+        const lnk = (rot: string, titulo: string, acao: () => void) => (
+          <button key={rot} type="button" onClick={acao} title={titulo} className="cancelar-discreto"
+            style={{ border: "none", background: "none", padding: 0, fontSize: 11, color: "var(--portal-text-muted, #94a3b8)", cursor: "pointer", fontFamily: "inherit", textDecoration: "underline", textDecorationStyle: "dotted", textUnderlineOffset: 2 }}>
+            {rot}
+          </button>
+        );
+        return (
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", alignItems: "center", gap: "2px 8px", marginTop: 4, fontSize: 11, color: "var(--portal-text-muted, #94a3b8)" }}>
+            <span>cancelar:</span>
+            {estado.podeFaturar && lnk(`OS ${numOS}`, "Cancelar a OS no Omie e no portal (ainda não faturada)",
+              () => setCancelarDoc({ tipo: "os", osId, numero: numOS, pedidos: pend.map((p) => `PV ${pv(p)}`) }))}
+            {estado.podeFaturarPecas && pend.map((p) => lnk(`PV ${pv(p)}`, `Cancelar o pedido de venda ${pv(p)} no Omie (ainda não faturado)`,
+              () => setCancelarDoc({ tipo: "pedido", ppvId: p.id, numero: pv(p) })))}
+            <style>{`.cancelar-discreto:hover { color: #b91c1c !important; }`}</style>
+          </div>
+        );
+      })()}
       {modalCancelarDoc}
       {aberto && estado.interna && <FaturarReciboModal
         osId={osId}
