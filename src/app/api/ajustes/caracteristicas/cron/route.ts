@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { iniciarSyncCaracteristicas } from '@/lib/ajustes/caracteristicas';
 import { comCronRun } from '@/lib/cron/observar';
+import { supabaseAdmin } from '@/lib/server/supabase-admin';
 
 const CRON_SECRET = process.env.CRON_SECRET || '';
 
@@ -21,12 +22,22 @@ export async function GET(req: NextRequest) {
   if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  // RESERVA (Etapa 3 do plano docs/omie-fila-agendador-plano.md): desde 15/10/2026 o
+  // agendador do portal roda este sync às 20:00. O GitHub (que dispara de manhã) só
+  // roda se o portal NÃO tiver terminado bem nas últimas 20 h.
+  const desde = new Date(Date.now() - 20 * 3600_000).toISOString();
+  const { data: feito } = await supabaseAdmin.from('cron_runs').select('iniciado_em')
+    .eq('job', 'ajustes-sync-caracteristicas').eq('status', 'ok').eq('disparado_por', 'agendador')
+    .gte('iniciado_em', desde).limit(1);
+  if (feito?.length) {
+    return NextResponse.json({ sucesso: true, pulado: `o agendador do portal já rodou (${feito[0].iniciado_em})` });
+  }
   comCronRun('ajustes-sync-caracteristicas', async () => {
     const r = await iniciarSyncCaracteristicas('cron', { aguardar: true });
     if (r.jaRodando) return { pulado: 'sync já em andamento pela tela', jobId: r.jobId };
     if (!r.ok) throw new Error(r.erro || 'sync falhou');
     return r.resumo;
-  }, { lockMinutos: 60 })
+  }, { lockMinutos: 60, disparadoPor: 'github' })
     .then((r) => console.log('[cron sync-caracteristicas]', r.pulado ? 'pulado (já rodando)' : r.erro ? 'erro: ' + r.erro : 'concluído', JSON.stringify(r.resultado ?? {})))
     .catch((e) => console.error('[cron sync-caracteristicas] erro', (e as Error).message));
   return NextResponse.json({ sucesso: true, iniciado: true, timestamp: new Date().toISOString() });

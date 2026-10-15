@@ -99,6 +99,14 @@ insert into agendamentos (chave, handler, nome, modulo, descricao, tipo, interva
    'intervalo', 5, null, null, null, null, 'rapido', true, 5, true)
 on conflict (chave) do nothing;
 
+-- ─── 5. Etapa 3: agendamentos trazidos do GitHub ─────────────────────────────
+-- Syncs pesados da Omie a partir das 20:00 (decisão 13/10), um por vez (grupo omie-pesado).
+insert into agendamentos (chave, handler, nome, modulo, descricao, tipo, hora, prioridade, usa_omie, grupo, duracao_max_min, ativo) values
+  ('ajustes-sync-caracteristicas', 'ajustes-sync-caracteristicas', 'Características das peças (locação, Tipo)', 'Estoque',
+   'Espelho produtos_caracteristicas das duas contas — fonte de /ajustes/caracteristicas e das Etiquetas do PPV. Retoma por conta se interrompido.',
+   'diario', '20:00', 'pesado', true, 'omie-pesado', 30, true)
+on conflict (chave) do nothing;
+
 insert into agendador_estado (id) values (1) on conflict (id) do nothing;
 
 notify pgrst, 'reload schema';

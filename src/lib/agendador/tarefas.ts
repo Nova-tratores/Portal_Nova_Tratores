@@ -8,12 +8,37 @@
 // Imports dinâmicos: só carrega o módulo da tarefa quando ela roda.
 
 export type ResultadoTarefa = { resumo?: string; pular?: string; progresso?: Record<string, string> };
-export type Tarefa = (parametros: Record<string, unknown>) => Promise<ResultadoTarefa>;
+export type ContextoTarefa = { chave: string };
+export type Tarefa = (parametros: Record<string, unknown>, ctx: ContextoTarefa) => Promise<ResultadoTarefa>;
 
 const desligada = (env: string) => process.env[env] === 'off';
 const baseInterna = () => `http://127.0.0.1:${process.env.PORT || 3000}`;
 
 export const TAREFAS: Record<string, Tarefa> = {
+  // Características das peças (espelho produtos_caracteristicas: locação, "Tipo:"…),
+  // as duas contas. Veio do GitHub (ajustes-sync-caracteristicas.yml), que disparava
+  // as 03:00 da madrugada só no papel (rodava 9h–12h e morria em deploy).
+  // Retomada por conta: interrompida no meio da CASTRO, a próxima rodada do dia pula a NOVA.
+  'ajustes-sync-caracteristicas': async (_p, ctx) => {
+    const { iniciarSyncCaracteristicas } = await import('@/lib/ajustes/caracteristicas');
+    const { getContasOmie } = await import('@/lib/ajustes/conta');
+    const { lerRetomada, marcarFeito } = await import('./retomada');
+    const feitas = await lerRetomada(ctx.chave);
+    const faltam = getContasOmie().map((c) => c.label as string).filter((l) => !feitas.includes(l));
+    if (!faltam.length) return { pular: `já feito hoje (${feitas.join(', ')})` };
+    const r = await iniciarSyncCaracteristicas('agendador', {
+      aguardar: true,
+      contas: faltam,
+      aoConcluirConta: (label: string) => marcarFeito(ctx.chave, label),
+    });
+    if (r.jaRodando) return { pular: 'sync já em andamento (botão da tela)' };
+    if (!r.ok) throw new Error(r.erro || 'sync falhou');
+    const porConta = (r.resumo?.porConta || {}) as Record<string, number>;
+    const progresso = Object.fromEntries(Object.entries(porConta).map(([k, v]) => [k, `${v} peças`]));
+    for (const l of feitas) progresso[l] = 'já feito antes (retomada)';
+    return { resumo: `${r.resumo?.total ?? 0} peças gravadas (${Object.entries(porConta).map(([k, v]) => `${k} ${v}`).join(', ')})${feitas.length ? ` · retomada: ${feitas.join(', ')} já feitas` : ''}`, progresso };
+  },
+
   'pecas-alocacao-rapido': async () => {
     if (desligada('ALOCACAO_RAPIDO')) return { pular: 'desligado (ALOCACAO_RAPIDO=off)' };
     const { verificarAlocacaoRapido } = await import('@/lib/pecas/alocacao-rapido');

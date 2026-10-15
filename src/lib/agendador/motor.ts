@@ -97,7 +97,7 @@ export function executar(ag: Agendamento, disparadoPor: 'agendador' | 'botao' | 
   void (async () => {
     let r: CronRunResultado<ResultadoTarefa> | null = null;
     try {
-      r = await comCronRun<ResultadoTarefa>(ag.chave, () => tarefa(ag.parametros || {}), {
+      r = await comCronRun<ResultadoTarefa>(ag.chave, () => tarefa(ag.parametros || {}, { chave: ag.chave }), {
         lockMinutos: ag.duracao_max_min,
         prioridade: ag.prioridade,
         disparadoPor,

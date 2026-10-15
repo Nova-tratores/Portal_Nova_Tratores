@@ -50,7 +50,16 @@ function contaIdPorLabel(label: unknown): Conta | null {
  * Com `aguardar: true` (cron) espera o fim e devolve o resumo — a tela continua
  * recebendo 202 na hora. O lock por job (`ajustes_jobs`) vale pros dois caminhos.
  */
-export async function iniciarSyncCaracteristicas(criadoPor?: string, opts: { aguardar?: boolean } = {}): Promise<any> {
+export async function iniciarSyncCaracteristicas(
+  criadoPor?: string,
+  opts: {
+    aguardar?: boolean;
+    /** Só estas contas (rótulos, ex. ["CASTRO"]) — usado na retomada do agendador. */
+    contas?: string[];
+    /** Chamado depois que cada conta foi gravada (retomada por conta). */
+    aoConcluirConta?: (label: string, pecas: number) => Promise<void> | void;
+  } = {},
+): Promise<any> {
   if (await jobRodando('caracteristicas-sync', null)) {
     const ativo = await lerJobAtivo('caracteristicas-sync', null);
     return { ok: false, rodando: true, jaRodando: true, jobId: ativo?.id, etapa: ativo?.etapa };
@@ -60,7 +69,8 @@ export async function iniciarSyncCaracteristicas(criadoPor?: string, opts: { agu
   const execucao = (async () => {
     const porConta: Record<string, number> = {};
     try {
-      for (const c of getContasOmie()) {
+      const contas = getContasOmie().filter((c) => !opts.contas || opts.contas.includes(c.label));
+      for (const c of contas) {
         const label = c.label;
         atualizarJob(jobId, { etapa: `${label}: listando produtos...` });
         const produtos = await listarProdutos(c.id, {
@@ -93,6 +103,7 @@ export async function iniciarSyncCaracteristicas(criadoPor?: string, opts: { agu
           if (insErr) throw new Error(`insert ${label}: ${insErr.message}`);
         }
         porConta[label] = rows.length;
+        await opts.aoConcluirConta?.(label, rows.length);
         console.log(`[caract ${label}] ${rows.length} peças gravadas (com e sem característica)`);
       }
       const resumo = { porConta, total: Object.values(porConta).reduce((a, b) => a + b, 0), geradoEm: new Date().toISOString() };
