@@ -94,6 +94,7 @@ export default function ReuniaoDetalhe({ id }: { id: string }) {
         {!cancelada && <AjudaAba chave={modo} />}
         {d.serie && <span style={chip('#4f46e5', 'rgba(79,70,229,.1)')}><Repeat size={11} /> {d.serie.nome}</span>}
         <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--portal-text-muted,#999)' }}>{r.visibilidade === 'privado' ? <><Lock size={11} /> privada</> : <><Globe size={11} /> pública</>}</span>
+        {d.sala && <a href="/salas" title="Ver a agenda da sala" style={{ ...chip('#0891b2', 'rgba(8,145,178,.12)'), textDecoration: 'none' }}>📍 {d.sala.nome} · {horaDe(d.sala.inicio)}–{horaDe(d.sala.fim)}</a>}
         <span style={{ flex: 1 }} />
         {modo === 'pauta' && !cancelada && conduz && (
           <>

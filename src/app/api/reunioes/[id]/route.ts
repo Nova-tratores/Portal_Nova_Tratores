@@ -9,6 +9,7 @@ import {
   migrationFaltou, MSG_MIGRATION_REUNIOES,
 } from '@/lib/reunioes/server'
 import { supabaseAdmin } from '@/lib/server/supabase-admin'
+import { reservaDaReuniao } from '@/lib/salas/server'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -27,6 +28,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
         .eq('origem_reuniao_id', r.ticket.id).order('created_at'),
     ])
     const { destinos, origens, proxima } = await reagendamentos(r)
+    const reserva = await reservaDaReuniao(r.ticket.id).catch(() => null)
+    const sala = reserva ? { id: reserva.sala_id, nome: reserva.sala_nome || 'Sala', inicio: reserva.inicio, fim: reserva.fim } : null
     const condutor = condutorDe(r)
     const secretario = secretarioDe(r)
     const ids = [
@@ -40,7 +43,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       reuniao: r.ticket, serie: r.serie, itens: r.itens, presencas: r.presencas, ata: r.ata,
       etapa_efetiva: r.etapaEfetiva, corte_em: corte,
       pendencias: pend, acoes: acoes.data || [], usuarios,
-      destinos, origens, proxima,
+      destinos, origens, proxima, sala,
       condutor_id: condutor, secretario_id: secretario,
       meu_papel: papelNaReuniao(r, auth.userId),
       posso_conduzir: podeConduzir(r.presencas, auth.userId, auth.isAdmin),

@@ -6,6 +6,7 @@ import UserSelect from '@/components/tickets/UserSelect'
 import type { UsuarioMin } from '@/lib/tickets/constantes'
 import type { Serie, Recorrencia } from '@/lib/reunioes/regras'
 import { Modal, campo, rotulo, botao, botaoClaro, chamar } from './comum'
+import CampoSala from '@/components/salas/CampoSala'
 
 const DIAS = ['Domingo', 'Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado']
 
@@ -27,6 +28,8 @@ export default function FormSerie({ inicial, usuarios, meuId, onFechar, onSalvo 
   const [corte, setCorte] = useState(inicial?.corte_antecedencia_horas ?? 18)
   const [vis, setVis] = useState<'privado' | 'publico'>(inicial?.visibilidade || 'publico')
   const [ativa, setAtiva] = useState(inicial?.ativa ?? true)
+  const [sala, setSala] = useState<string | null>(inicial?.sala_id ?? null)
+  const [salaMexida, setSalaMexida] = useState(false)
   const [nomesLocais, setNomesLocais] = useState<Record<string, string>>({})
   const [salvando, setSalvando] = useState(false)
   const [erro, setErro] = useState('')
@@ -35,7 +38,7 @@ export default function FormSerie({ inicial, usuarios, meuId, onFechar, onSalvo 
   const salvar = async () => {
     setSalvando(true); setErro('')
     try {
-      const body = { nome, condutor_id: condutor, secretarios_rodizio: secretarios, participantes_padrao: participantes, recorrencia, dia_semana: recorrencia === 'nenhuma' ? null : dia, hora: recorrencia === 'nenhuma' ? null : hora, duracao_min: duracao, corte_antecedencia_horas: corte, visibilidade: vis, ativa }
+      const body = { nome, condutor_id: condutor, secretarios_rodizio: secretarios, participantes_padrao: participantes, recorrencia, dia_semana: recorrencia === 'nenhuma' ? null : dia, hora: recorrencia === 'nenhuma' ? null : hora, duracao_min: duracao, corte_antecedencia_horas: corte, visibilidade: vis, ativa, ...(salaMexida ? { sala_id: sala } : {}) }
       const j = inicial
         ? await chamar<{ serie: Serie }>(`/api/reunioes/series/${inicial.id}`, { method: 'PATCH', json: body })
         : await chamar<{ serie: Serie }>('/api/reunioes/series', { json: body })
@@ -89,6 +92,10 @@ export default function FormSerie({ inicial, usuarios, meuId, onFechar, onSalvo 
               <option value="publico">Pública (quem tem a Central vê)</option><option value="privado">Privada (RH, disciplina, saúde)</option>
             </select>
           </div>
+        </div>
+        <div>
+          <CampoSala valor={sala} onChange={(v) => { setSala(v); setSalaMexida(true) }} />
+          <small style={{ display: 'block', marginTop: 6, fontSize: 12, color: 'var(--portal-text-muted,#888)' }}>Cada reunião que a série criar já reserva a sala. Se o horário estiver ocupado, a reunião é marcada sem sala e o condutor recebe um aviso.</small>
         </div>
         {inicial && <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}><input type="checkbox" checked={ativa} onChange={(e) => setAtiva(e.target.checked)} /> Série ativa (gera instâncias)</label>}
         {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}

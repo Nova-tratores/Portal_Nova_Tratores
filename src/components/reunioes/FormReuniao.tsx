@@ -7,6 +7,7 @@ import type { UsuarioMin, Ticket } from '@/lib/tickets/constantes'
 import type { Serie } from '@/lib/reunioes/regras'
 import { secretarioDaVez } from '@/lib/reunioes/regras'
 import { Modal, campo, rotulo, botao, botaoClaro, chamar, hojeISO } from './comum'
+import CampoSala from '@/components/salas/CampoSala'
 
 export default function FormReuniao({ series, usuarios, meuId, serieInicial, onFechar, onCriada }: {
   series: Serie[]
@@ -20,6 +21,9 @@ export default function FormReuniao({ series, usuarios, meuId, serieInicial, onF
   const serie = series.find((s) => s.id === serieId) || null
   const [dia, setDia] = useState(hojeISO())
   const [hora, setHora] = useState(serie?.hora?.slice(0, 5) || '10:00')
+  const [duracao, setDuracao] = useState(serie?.duracao_min || 60)
+  const [sala, setSala] = useState<string | null>(serie?.sala_id ?? null)
+  const [salaLivre, setSalaLivre] = useState<boolean | null>(null)
   const [titulo, setTitulo] = useState('')
   const [secretario, setSecretario] = useState<string>(serie ? secretarioDaVez(serie) || '' : '')
   const [participantes, setParticipantes] = useState<string[]>([])
@@ -33,7 +37,7 @@ export default function FormReuniao({ series, usuarios, meuId, serieInicial, onF
   const escolherSerie = (id: string) => {
     setSerieId(id)
     const s = series.find((x) => x.id === id)
-    if (s) { if (s.hora) setHora(s.hora.slice(0, 5)); setSecretario(secretarioDaVez(s) || ''); setVis(s.visibilidade) }
+    if (s) { if (s.hora) setHora(s.hora.slice(0, 5)); setSecretario(secretarioDaVez(s) || ''); setVis(s.visibilidade); setDuracao(s.duracao_min || 60); setSala(s.sala_id ?? null) }
   }
 
   const salvar = async () => {
@@ -41,7 +45,7 @@ export default function FormReuniao({ series, usuarios, meuId, serieInicial, onF
     try {
       const j = await chamar<{ reuniao: Ticket; aviso: string | null }>('/api/reunioes', { json: {
         serie_id: serieId || undefined, dia, hora, titulo: titulo || undefined, secretario_id: secretario || undefined,
-        participantes, visibilidade: vis,
+        participantes, visibilidade: vis, duracao_min: duracao, sala_id: sala,
       } })
       onCriada(j.reuniao, j.aviso)
     } catch (e) { setErro(e instanceof Error ? e.message : 'Falha ao marcar') } finally { setSalvando(false) }
@@ -57,10 +61,16 @@ export default function FormReuniao({ series, usuarios, meuId, serieInicial, onF
             {series.map((s) => <option key={s.id} value={s.id}>{s.nome} · condutor {nome_(s.condutor_id).split(' ')[0]}</option>)}
           </select>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr', gap: 12 }}>
           <div><label style={rotulo}>Dia</label><input type="date" min={hojeISO()} value={dia} onChange={(e) => setDia(e.target.value)} style={campo} /></div>
           <div><label style={rotulo}>Hora</label><input type="time" value={hora} onChange={(e) => setHora(e.target.value)} style={campo} /></div>
+          <div><label style={rotulo}>Duração</label>
+            <select value={duracao} onChange={(e) => setDuracao(Number(e.target.value))} style={campo}>
+              {([[15, '15 min'], [30, '30 min'], [45, '45 min'], [60, '1 h'], [90, '1h30'], [120, '2 h'], [180, '3 h'], [240, '4 h']] as const).map(([m, t]) => <option key={m} value={m}>{t}</option>)}
+            </select>
+          </div>
         </div>
+        <CampoSala valor={sala} onChange={setSala} dia={dia} hora={hora} duracaoMin={duracao} onLivre={setSalaLivre} />
         <div><label style={rotulo}>Título (opcional)</label><input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder={serie ? `${serie.nome} — ${dia.split('-').reverse().join('/')}` : 'Ex.: Alinhamento da feira'} style={campo} maxLength={200} /></div>
         <div>
           <label style={rotulo}>Secretário (compila a ata) — condutor: {nome_(condutor)}</label>
@@ -88,7 +98,7 @@ export default function FormReuniao({ series, usuarios, meuId, serieInicial, onF
         {erro && <div style={{ color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <button onClick={onFechar} style={botaoClaro()}>Cancelar</button>
-          <button onClick={salvar} disabled={salvando || !dia || !hora} style={{ ...botao(), opacity: salvando ? .5 : 1 }}>{salvando ? 'Marcando…' : 'Marcar reunião'}</button>
+          <button onClick={salvar} disabled={salvando || !dia || !hora || (!!sala && salaLivre === false)} style={{ ...botao(), opacity: salvando || (!!sala && salaLivre === false) ? .5 : 1 }}>{salvando ? 'Marcando…' : 'Marcar reunião'}</button>
         </div>
       </div>
     </Modal>

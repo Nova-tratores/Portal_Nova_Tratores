@@ -66,6 +66,8 @@ const navItems: NavItem[] = [
   { id: 'tickets', name: 'Central de Trabalho', href: '/tickets/quadros', icon: <Ticket size={18} />, tag: 'TAREFAS · TICKETS · CRONOGRAMA', gradient: '', group: 'geral' },
   // Reuniões moram na Central de Trabalho: mesma permissão dela (filtro abaixo).
   { id: 'reunioes', name: 'Reuniões', href: '/reunioes', icon: <CalendarClock size={18} />, tag: 'PAUTA · ATA', gradient: '', group: 'geral' },
+  // Agenda da sala física: todo logado reserva (o filtro abaixo libera o id).
+  { id: 'salas', name: 'Sala de reunião', href: '/salas', icon: <MapPin size={18} />, tag: 'RESERVAR', gradient: '', group: 'geral' },
   // Base de conhecimento: aparece para todo mundo logado (o filtro abaixo libera o id).
   { id: 'conhecimento', name: 'Base de conhecimento', href: '/conhecimento', icon: <BookOpen size={18} />, tag: 'AJUDA', gradient: '', group: 'geral' },
   // POPs: ler procedimento publicado é de todo logado (criar/aprovar é por área, dentro do módulo).
@@ -617,7 +619,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const totalBell = notifData.naoLidas + chatData.totalNaoLidas
 
   const filteredNavItems = useMemo(() => navItems.filter(item => {
-    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat' || item.id === 'conhecimento' || item.id === 'pops') return true
+    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat' || item.id === 'conhecimento' || item.id === 'pops' || item.id === 'salas') return true
     if (item.id === 'reunioes') return temAcesso('tickets')
     if (temAcesso(item.id)) return true
     // Visibilidade quando o usuário tem permissão por sub-página (ex.: 'ajustes:inventario')

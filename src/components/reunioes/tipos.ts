@@ -29,4 +29,6 @@ export interface ReuniaoUI {
   /** item_origem_id → reunião de onde o item veio */
   origens?: Record<string, ReuniaoRef>
   proxima?: ReuniaoRef | null
+  /** sala reservada para esta reunião */
+  sala?: { id: string; nome: string; inicio: string; fim: string } | null
 }

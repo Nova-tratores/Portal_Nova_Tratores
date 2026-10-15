@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Ticket as TicketIcon, GanttChartSquare, SquareCheck, X, ListTodo,
-  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock,
+  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock, MapPin,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -78,6 +78,8 @@ export default function CentralNav() {
     { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={16} />, ativo: pathname.startsWith('/cronograma') },
     // Reuniões (pauta + ata sobre a engine de tickets): mesma permissão da Central.
     { href: '/reunioes', label: 'Reuniões', icone: <CalendarClock size={16} />, ativo: pathname.startsWith('/reunioes'), n: reunioesHoje },
+    // Agenda da sala física (tela própria, aberta a todo logado).
+    { href: '/salas', label: 'Sala', icone: <MapPin size={16} />, ativo: pathname.startsWith('/salas') },
     ...(isAdmin ? [{ href: '/tickets?aba=gerencial', label: 'Visão gerencial', icone: <BarChart3 size={16} />, ativo: naGerencial }] : []),
     // Bloco de notas dos devs (captar → agrupar → planejar vira ticket). Só Dev.
     ...(isDev ? [{ href: '/ideias', label: 'Ideias', icone: <Lightbulb size={16} />, ativo: pathname.startsWith('/ideias') }] : []),

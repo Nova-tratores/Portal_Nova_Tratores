@@ -1,6 +1,7 @@
 // REUNIÕES — lista e criação.
 // GET  /api/reunioes?visao=proximas|historico|minhas[&serie=uuid] -> { reunioes, presencas, itens, usuarios, series }
-// POST /api/reunioes { serie_id?, dia:'YYYY-MM-DD', hora:'HH:MM', titulo?, descricao?, secretario_id?, participantes?: uuid[], visibilidade?, duracao_min? }
+// POST /api/reunioes { serie_id?, dia:'YYYY-MM-DD', hora:'HH:MM', titulo?, descricao?, secretario_id?, participantes?: uuid[], visibilidade?, duracao_min?, sala_id? }
+//   sala_id: reserva a sala (sql/salas-reserva.sql); ocupada → 409 e nada é criado.
 //   Avulsa: quem cria é o condutor. Da série: só condutor da série ou admin.
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar } from '@/lib/auth/server'
@@ -63,9 +64,11 @@ export async function POST(req: NextRequest) {
       condutor_id: condutor, secretario_id: sec, participantes,
       visibilidade: body.visibilidade === 'privado' ? 'privado' : body.visibilidade === 'publico' ? 'publico' : undefined,
       duracao_min: body.duracao_min ? Math.round(Number(body.duracao_min)) : null,
+      ...(body.sala_id !== undefined ? { sala_id: uuidValido(body.sala_id) ? body.sala_id : null, salaObrigatoria: true } : {}),
     })
     return NextResponse.json({ reuniao: r.ticket, aviso: avisoMesmaPessoa(condutor, sec) })
   } catch (e) {
+    if ((e as { code?: string }).code === 'SALA_OCUPADA') return NextResponse.json({ error: (e as Error).message }, { status: 409 })
     if (migrationFaltou(e)) return NextResponse.json({ error: MSG_MIGRATION_REUNIOES }, { status: 503 })
     console.error('[reunioes] POST', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Falha ao criar a reunião' }, { status: 500 })

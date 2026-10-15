@@ -356,6 +356,8 @@ export interface Serie {
   visibilidade: 'privado' | 'publico'
   ativa: boolean
   instancias_geradas: number
+  /** sala reservada automaticamente em cada reunião da série (sql/salas-reserva.sql) */
+  sala_id?: string | null
   criado_por: string | null
   criado_em: string
   atualizado_em: string
@@ -398,6 +400,11 @@ export function validarSerie(body: Record<string, unknown>, criando: boolean): V
   if (body.corte_antecedencia_horas !== undefined) { const n = Math.round(Number(body.corte_antecedencia_horas)); if (!(n >= 0 && n <= 168)) return { ok: false, erro: 'Corte: de 0 a 168 horas.' }; c.corte_antecedencia_horas = n }
   if (body.visibilidade !== undefined) { if (body.visibilidade !== 'privado' && body.visibilidade !== 'publico') return { ok: false, erro: 'Visibilidade inválida.' }; c.visibilidade = body.visibilidade }
   if (body.ativa !== undefined) c.ativa = !!body.ativa
+  if (body.sala_id !== undefined) {
+    if (body.sala_id === null || body.sala_id === '') c.sala_id = null
+    else if (uuidOk(body.sala_id)) c.sala_id = body.sala_id as string
+    else return { ok: false, erro: 'Sala inválida.' }
+  }
   const rec = c.recorrencia ?? (criando ? 'nenhuma' : undefined)
   if (rec && rec !== 'nenhuma') {
     const dia = c.dia_semana ?? (body.dia_semana === undefined ? undefined : null)

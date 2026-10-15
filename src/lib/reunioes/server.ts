@@ -10,6 +10,7 @@ import {
 import { STATUS_FINAIS, type Ticket, type TicketParticipante, type TicketStatus } from '@/lib/tickets/constantes'
 import { hojeSP, moverEtapaDoTicket, sincronizarEtapaDoTicket } from '@/lib/trabalho/cronograma-server'
 import { diaSP } from '@/lib/trabalho/agenda-server'
+import { reservarParaReuniao, liberarSalaDaReuniao } from '@/lib/salas/server'
 import {
   ETAPA_INFO, ETAPAS_ENCERRADAS, classificarPendencias, etapaEfetiva, sugestoesProximaReuniao, secretarioDaVez,
   proximaDataDaSerie, inicioISO, textoWhatsApp, tituloReuniao, addDias,
@@ -155,6 +156,10 @@ export interface NovaReuniao {
   participantes?: string[]
   visibilidade?: 'privado' | 'publico'
   duracao_min?: number | null
+  /** Sala a reservar (undefined = a da série). */
+  sala_id?: string | null
+  /** true (marcação manual): sala ocupada = erro SALA_OCUPADA e nada é criado. false (série/cron): cria sem sala e avisa o condutor. */
+  salaObrigatoria?: boolean
 }
 
 /**
@@ -186,6 +191,19 @@ export async function criarReuniao(auth: Autenticado, n: NovaReuniao): Promise<R
     reuniao_id: ticket.id, usuario_id: u,
     papel: u === condutor ? 'condutor' : u === secretario ? 'secretario' : 'participante',
   })))
+  // Sala: reserva no mesmo passo. Ocupada → marcação manual desfaz tudo; série segue sem sala e avisa.
+  const salaId = n.sala_id !== undefined ? n.sala_id : (serie?.sala_id ?? null)
+  let avisoSala: string | null = null
+  if (salaId) {
+    const res = await reservarParaReuniao(auth, { sala_id: salaId, reuniao_id: ticket.id, titulo, dia: n.dia, hora: n.hora, duracao_min: Number(payload.duracao_min) || 30, responsavel_id: condutor })
+    if ('conflito' in res) {
+      if (n.salaObrigatoria) {
+        await supabaseAdmin.from('tickets').delete().eq('id', ticket.id)
+        throw Object.assign(new Error(`${res.mensagem}. Escolha outro horário ou marque sem sala.`), { code: 'SALA_OCUPADA' })
+      }
+      avisoSala = res.mensagem
+    }
+  }
   if (serie) await supabaseAdmin.from('reunioes_series').update({ instancias_geradas: serie.instancias_geradas + 1 }).eq('id', serie.id)
   await registrarEvento(ticket.id, auth.userId, 'criacao', { titulo, reuniao: true, inicio, condutor, secretario, participantes })
 
@@ -193,6 +211,7 @@ export async function criarReuniao(auth: Autenticado, n: NovaReuniao): Promise<R
   if (serie) await puxarSugestoes(ticket, serie, auth.userId)
 
   await notificarTicket(ticket, participantes, auth.userId, `Reunião marcada: ${titulo}`, `${n.dia.split('-').reverse().join('/')} às ${n.hora}. Inclua os itens da pauta até o corte.`)
+  if (avisoSala) await notificarTicket(ticket, [condutor], null, `Sala ocupada: ${titulo}`, `${avisoSala}. A reunião foi marcada sem sala — escolha outro horário ou local.`)
   return (await carregarReuniao(ticket.id))!
 }
 
@@ -300,6 +319,7 @@ export async function mudarEtapa(auth: Autenticado, r: ReuniaoCarregada, para: R
   if (!gravou?.length) throw Object.assign(new Error('Alguém mudou esta reunião agora — recarregue.'), { code: 'CONFLITO' })
   if (STATUS_FINAIS.includes(ETAPA_INFO[para].status as TicketStatus)) await supabaseAdmin.from('tickets_plano').delete().eq('ticket_id', r.ticket.id)
   await registrarEvento(r.ticket.id, auth.userId, 'reuniao_etapa', { de, para, ...(motivo ? { motivo } : {}) })
+  if (para === 'cancelada') await liberarSalaDaReuniao(auth, r.ticket.id).catch((e) => console.error('[reunioes] liberar sala', e))
 }
 
 export interface NovaAcao {
