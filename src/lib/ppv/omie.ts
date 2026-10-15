@@ -82,7 +82,7 @@ export async function alinharRemessaDaOS(idPPV: string): Promise<{ mudou: string
   const daOS = await dadosDaOSParaRemessa(osId, acc);
   if (!daOS) return { mudou: [] };
   const numOS = osId ? (await numeroOSOmieDe(osId)) || "" : "";
-  const rc = await omieCall<{ cabec?: { nCodRem?: number; dPrevisao?: string }; infAdic?: { cNumCtr?: string; nCodProj?: number; cPedido?: string } }>(
+  const rc = await omieCall<{ cabec?: { nCodRem?: number; nCodCli?: number; dPrevisao?: string }; infAdic?: { cNumCtr?: string; nCodProj?: number; cPedido?: string } }>(
     "/produtos/remessa/", "ConsultarRemessa", { cCodIntRem: `RM-${idPPV}` }, acc.key, acc.secret);
   const nCodRem = Number(rc.cabec?.nCodRem || 0);
   if (!nCodRem) return { mudou: [], aviso: `${idPPV}: não li a remessa no Omie.` };
@@ -94,7 +94,8 @@ export async function alinharRemessaDaOS(idPPV: string): Promise<{ mudou: string
   };
   const mudou: string[] = [];
   const infAdic: Record<string, unknown> = {};
-  const cabec: Record<string, unknown> = { nCodRem };
+  // o Omie exige o cliente na alteração (Client-202 sem ele)
+  const cabec: Record<string, unknown> = { nCodRem, nCodCli: Number(rc.cabec?.nCodCli || 0) };
   if (esperado.cNumCtr && String(rc.infAdic?.cNumCtr || "") !== esperado.cNumCtr) { infAdic.cNumCtr = esperado.cNumCtr; mudou.push(`contrato "${esperado.cNumCtr}"`); }
   if (esperado.nCodProj && Number(rc.infAdic?.nCodProj || 0) !== esperado.nCodProj) { infAdic.nCodProj = esperado.nCodProj; mudou.push("projeto"); }
   if (esperado.cPedido && String(rc.infAdic?.cPedido || "") !== esperado.cPedido) { infAdic.cPedido = esperado.cPedido; mudou.push(`nº do pedido do cliente "${esperado.cPedido}"`); }
