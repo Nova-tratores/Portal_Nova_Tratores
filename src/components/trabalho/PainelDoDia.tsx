@@ -11,7 +11,7 @@ import {
 import { authHeaders } from '@/lib/auth/client'
 import FormTicket from '@/components/tickets/FormTicket'
 import TicketModal from '@/components/tickets/TicketModal'
-import EscolhaBloco, { type EscolhaBlocoValor } from './EscolhaBloco'
+import EscolhaBloco, { carregarMeusBlocos, type EscolhaBlocoValor } from './EscolhaBloco'
 import SeletorDataAgenda from './SeletorDataAgenda'
 
 interface Pendente { id: string; numero: number; titulo: string; prazo: string | null; solicitante_nome: string; quadro_id?: string | null; quadro_nome: string | null; visibilidade?: 'privado' | 'publico' }
@@ -41,6 +41,8 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   const [erro, setErro] = useState('')
   // Bloco + privacidade escolhidos por quem recebe (por ticket pendente)
   const [organizacao, setOrganizacao] = useState<{ id: string; valor: EscolhaBlocoValor } | null>(null)
+  // Quantos blocos a pessoa tem (null = ainda carregando). Zero = confirmar cria "Meu trabalho".
+  const [qtdBlocos, setQtdBlocos] = useState<number | null>(null)
 
   const carregar = useCallback(async () => {
     try {
@@ -66,6 +68,9 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
   const extraOrg = pend?.quadro_id ? {} : { quadro_id: org.quadroId, visibilidade: org.visibilidade }
   // Todo ticket precisa estar num bloco: sem bloco escolhido não confirma.
   const faltaBloco = !!pend && !pend.quadro_id && !org.quadroId
+  // Quem ainda não tem bloco nenhum não fica travado: o Confirmar cria o bloco pessoal na hora.
+  const criaBloco = faltaBloco && qtdBlocos === 0
+  const travado = faltaBloco && !criaBloco
   const mostrarDia = !pend && h.itens.length > 0 && ((h.hora >= '07:30' && !h.confirmado && !diaFechado) || verDia)
   const naDashboard = pathname === '/dashboard' || pathname === '/'
   const atalho = naDashboard && h.preferencias.atalho_flutuante && !pend && !mostrarDia
@@ -74,6 +79,15 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
     if (!pend) return
     setSalvando(true); setErro('')
     try {
+      if (criaBloco && corpo.decisao !== 'recusar') {
+        const rq = await fetch('/api/tickets/quadros', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+          body: JSON.stringify({ nome: 'Meu trabalho', descricao: 'Bloco pessoal, criado ao confirmar o primeiro ticket.', visibilidade: 'privado' }) })
+        const jq = await rq.json().catch(() => ({}))
+        if (!rq.ok || !jq.quadro?.id) { setErro(jq.error || 'Não deu para criar o bloco "Meu trabalho" — tente de novo.'); return }
+        corpo = { ...corpo, quadro_id: jq.quadro.id, visibilidade: org.visibilidade }
+        try { localStorage.setItem('ct-ultimo-bloco', jq.quadro.id) } catch { /* ignora */ }
+        setQtdBlocos(1); carregarMeusBlocos(true).catch(() => {})
+      }
       const res = await fetch(`/api/tickets/${pend.id}/acoes`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) }, body: JSON.stringify({ acao: 'aceite', ...corpo }) })
       const json = await res.json().catch(() => ({}))
       if (!res.ok) { setErro(json.error || 'Falha'); return }
@@ -126,7 +140,8 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
                 {' · '}<button onClick={() => setTicketAberto(pend.id)} style={{ border: 'none', background: 'transparent', padding: 0, color: '#dc2626', fontWeight: 700, cursor: 'pointer' }}>ver detalhes</button></div>
               {modo !== 'recusar' && !pend.quadro_id && (
                 <div style={{ marginTop: 14, paddingTop: 12, borderTop: '1px dashed var(--portal-border,#e5e7eb)' }}>
-                  <EscolhaBloco valor={org} onChange={(v) => setOrganizacao({ id: pend.id, valor: v })} />
+                  <EscolhaBloco key={pend.id} valor={org} autoSelecionar onCarregado={(b) => setQtdBlocos(b.length)} onChange={(v) => setOrganizacao({ id: pend.id, valor: v })} />
+                  {criaBloco && <div style={{ marginTop: 10, fontSize: 12.5, color: 'var(--portal-text-secondary,#555)' }}>Ao confirmar, criamos para você o bloco <b>“Meu trabalho”</b> e o ticket entra nele.</div>}
                 </div>
               )}
               {modo === 'data' && (
@@ -141,6 +156,7 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
                     style={{ display: 'block', width: '100%', marginTop: 4, padding: '8px 10px', borderRadius: 8, border: '1px solid var(--portal-border,#e5e7eb)', background: 'var(--portal-bg,#fff)', color: 'var(--portal-text,#111)', resize: 'vertical' }} />
                 </label>
               )}
+              {travado && modo !== 'recusar' && <div style={{ marginTop: 10, padding: '8px 10px', borderRadius: 8, background: 'rgba(217,119,6,.12)', color: '#b45309', fontSize: 13, fontWeight: 700 }}>Escolha acima em qual bloco o ticket vai para poder confirmar.</div>}
               {erro && <div style={{ marginTop: 8, color: '#dc2626', fontSize: 13, fontWeight: 600 }}>{erro}</div>}
             </div>
             <div style={{ padding: '14px 20px', borderTop: '1px solid var(--portal-border,#f0f0f0)', display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'space-between' }}>
@@ -150,13 +166,13 @@ export default function PainelDoDia({ nome }: { nome?: string }) {
                     <button style={btn()} onClick={() => setModo('recusar')}><CircleX size={15} /> Recusar</button>
                     <button style={btn()} onClick={sugerirData}><CalendarClock size={15} /> Propor outra data</button>
                   </span>
-                  <button style={btn('#059669')} disabled={salvando || faltaBloco} title={faltaBloco ? 'Escolha um bloco' : undefined} onClick={() => decidir({ decisao: 'confirmar', ...extraOrg })}><Check size={15} /> Confirmar</button>
+                  <button style={{ ...btn('#059669'), ...(salvando || travado ? { opacity: .45, cursor: 'not-allowed' } : {}) }} disabled={salvando || travado} title={travado ? 'Escolha um bloco acima' : undefined} onClick={() => decidir({ decisao: 'confirmar', ...extraOrg })}><Check size={15} /> {salvando ? 'Confirmando…' : 'Confirmar'}</button>
                 </>
               ) : (
                 <>
                   <button style={btn()} onClick={() => { setModo(null); setErro('') }}>Voltar</button>
                   {modo === 'data'
-                    ? <button style={btn('#059669')} disabled={salvando || !novaData || faltaBloco} onClick={() => decidir({ decisao: 'nova_data', data: novaData, ...extraOrg })}><Check size={15} /> Confirmar com esta data</button>
+                    ? <button style={{ ...btn('#059669'), ...(salvando || !novaData || travado ? { opacity: .45, cursor: 'not-allowed' } : {}) }} disabled={salvando || !novaData || travado} onClick={() => decidir({ decisao: 'nova_data', data: novaData, ...extraOrg })}><Check size={15} /> Confirmar com esta data</button>
                     : <button style={btn('#dc2626')} disabled={salvando || !motivo.trim()} onClick={() => decidir({ decisao: 'recusar', motivo })}><CircleX size={15} /> Recusar ticket</button>}
                 </>
               )}

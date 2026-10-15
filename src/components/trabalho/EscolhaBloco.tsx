@@ -13,6 +13,10 @@ export interface EscolhaBlocoValor { quadroId: string | null; visibilidade: Tick
 
 // Cache entre aberturas (o modal do aceite abre um ticket atrás do outro).
 let cacheBlocos: QuadroResumo[] | null = null
+// Último bloco escolhido neste navegador — vira o pré-selecionado do próximo ticket.
+const CHAVE_ULTIMO = 'ct-ultimo-bloco'
+const lerUltimo = () => { try { return localStorage.getItem(CHAVE_ULTIMO) } catch { return null } }
+const gravarUltimo = (id: string | null) => { try { if (id) localStorage.setItem(CHAVE_ULTIMO, id) } catch { /* ignora */ } }
 
 export async function carregarMeusBlocos(forcar = false): Promise<QuadroResumo[]> {
   if (cacheBlocos && !forcar) return cacheBlocos
@@ -22,17 +26,30 @@ export async function carregarMeusBlocos(forcar = false): Promise<QuadroResumo[]
   return cacheBlocos
 }
 
-export default function EscolhaBloco({ valor, onChange }: {
+export default function EscolhaBloco({ valor, onChange: onChangeExterno, autoSelecionar, onCarregado }: {
   valor: EscolhaBlocoValor
   onChange: (v: EscolhaBlocoValor) => void
+  /** Sem bloco escolhido: já marca o último usado (ou o primeiro da lista). */
+  autoSelecionar?: boolean
+  /** Avisa quem usa quantos blocos a pessoa tem (0 = nenhum). */
+  onCarregado?: (blocos: QuadroResumo[]) => void
 }) {
+  const onChange = (v: EscolhaBlocoValor) => { gravarUltimo(v.quadroId); onChangeExterno(v) }
   const [blocos, setBlocos] = useState<QuadroResumo[] | null>(cacheBlocos)
   const [criando, setCriando] = useState(false)
 
   useEffect(() => {
     let vivo = true
-    carregarMeusBlocos(true).then((b) => { if (vivo) setBlocos(b) }).catch(() => { if (vivo) setBlocos([]) })
+    carregarMeusBlocos(true).then((b) => {
+      if (!vivo) return
+      setBlocos(b); onCarregado?.(b)
+      if (autoSelecionar && !valor.quadroId && b.length) {
+        const ultimo = lerUltimo()
+        onChangeExterno({ ...valor, quadroId: b.some((q) => q.id === ultimo) ? ultimo : b[0].id })
+      }
+    }).catch(() => { if (vivo) { setBlocos([]); onCarregado?.([]) } })
     return () => { vivo = false }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- só ao montar (um ticket por vez)
   }, [])
 
   const chip = (ativo: boolean, cor?: string): React.CSSProperties => ({
