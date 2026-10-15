@@ -5,7 +5,7 @@
 // tem cinza). Tamanho e ajuste fino ficam guardados neste navegador.
 
 import QRCode from 'qrcode'
-import { qrSvg } from '@/lib/ppv/etiquetas-html'
+import { code128Svg, qrSvg } from '@/lib/ppv/etiquetas-html'
 import { urlPublica, type EtiquetaItem } from './etiqueta'
 
 /** rotacao: a impressora puxa o rolo num sentido — girar a etiqueta acerta a orientação. */
@@ -49,8 +49,29 @@ export function guardarModo(m: ModoEtiqueta) {
   try { localStorage.setItem(CHAVE_MODO, m) } catch { /* sem storage */ }
 }
 
-/** Item da etiqueta: peça do Opa (token → /e/<chave>) ou outro (url pronta, ex.: Patrimônio). */
-export type ItemTermica = Omit<EtiquetaItem, 'token'> & { token?: string; url?: string }
+/** Item da etiqueta: peça do Opa (token → /e/<chave>) ou outro (url pronta, ex.: Patrimônio).
+ *  PPV: topo = empresa (NOVA TRATORES), extra = 2ª linha (mesma peça na outra empresa),
+ *  semQr = só texto (sem rastreio), barra = Code 128 do código (pistola 1D). */
+export type ItemTermica = Omit<EtiquetaItem, 'token'> & {
+  token?: string; url?: string; topo?: string; extra?: string; semQr?: boolean; barra?: boolean
+  /** locação em destaque (PPV: prateleira/andar/caixa abreviados, lidos de longe) */
+  locGrande?: boolean
+}
+
+/** "PRATELEIRA 3 · ANDAR G · CAIXA 1" → "PRAT 3 · AND G · CX 1"; o que faltar sai "-"
+ *  (José, 15/10/2026: prateleira, andar e caixa sempre dentro da etiqueta, abreviados). */
+export function locacaoAbreviada(loc: string): string {
+  const vals: Record<string, string> = {}
+  const outros: string[] = []
+  for (const seg of String(loc || '').split('·')) {
+    const m = seg.trim().match(/^(\S+)\s+(.+)$/)
+    if (!m) continue
+    const k = m[1].toUpperCase()
+    if (k === 'PRATELEIRA' || k === 'ANDAR' || k === 'CAIXA') vals[k] = m[2].trim()
+    else outros.push(`${k.slice(0, 4)} ${m[2].trim()}`)
+  }
+  return [`PRAT ${vals.PRATELEIRA || '-'}`, `AND ${vals.ANDAR || '-'}`, `CX ${vals.CAIXA || '-'}`, ...outros].join(' · ')
+}
 
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
@@ -69,14 +90,18 @@ export function htmlTermica(itens: (ItemTermica & { qr: string })[], a: AjusteTe
   const PH = deLado ? L : H + gap
   const AW = deLado ? H : L   // área da etiqueta dentro da página
   const AH = deLado ? L : H
+  const altBarra = Math.max(3, Math.min(6, H * 0.18))
   const etiquetas = itens.map((i) => {
     const desc = (i.descricao || 'Peça sem descrição') + (i.quantidade && i.quantidade > 1 ? ` (${i.quantidade} un.)` : '')
     return `<div class="pg"><div class="area"><div class="et">
-  <div class="qr">${i.qr}</div>
+  ${i.qr ? `<div class="qr">${i.qr}</div>` : ''}
   <div class="tx">
+    ${i.topo ? `<div class="topo">${esc(i.topo)}</div>` : ''}
     <div class="cod">${esc(i.codigo)}</div>
     <div class="desc">${esc(desc)}</div>
-    ${i.local ? `<div class="loc">${esc(i.local)}</div>` : ''}
+    ${i.local ? `<div class="loc${i.locGrande ? ' grande' : ''}">${esc(i.local)}</div>` : ''}
+    ${i.extra ? `<div class="extra">${esc(i.extra)}</div>` : ''}
+    ${i.barra ? code128Svg(i.codigo, altBarra) : ''}
   </div>
 </div></div></div>`
   }).join('\n')
@@ -96,6 +121,11 @@ export function htmlTermica(itens: (ItemTermica & { qr: string })[], a: AjusteTe
   .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 0.6mm; }
   .cod { font-family: 'Courier New', monospace; font-weight: 900; font-size: ${fonteCodigo}pt; line-height: 1; white-space: nowrap; overflow: hidden; }
   .desc { font-weight: 700; font-size: ${fonteDesc}pt; line-height: 1.12; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .loc.grande { font-weight: 900; font-size: ${Math.max(7, fonteCodigo * 0.62)}pt; white-space: normal; line-height: 1.05; }
+  .topo { font-weight: 900; font-size: ${Math.max(5.5, fonteDesc - 2)}pt; letter-spacing: 0.3pt; line-height: 1; }
+  .extra { font-weight: 700; font-size: ${Math.max(5.5, fonteDesc - 2)}pt; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .barra { display: block; max-width: 100%; margin-top: 0.4mm; }
+  .barra rect { fill: #000; }
   .loc { font-weight: 700; font-size: ${Math.max(6, fonteDesc - 1)}pt; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-top: 0.3mm solid #000; padding-top: 0.5mm; }
   @media screen { body { margin: 10mm; } .pg { outline: 1px dashed #999; margin-bottom: 4mm; } }
 </style></head><body>
@@ -110,7 +140,7 @@ ${etiquetas}
  */
 export function imprimirTermica(itens: ItemTermica[], a: AjusteTermica = lerAjusteTermica()): boolean {
   try {
-    const com = itens.map((i) => ({ ...i, qr: qrSvg(QRCode.create(i.url || urlPublica(window.location.origin, i.token || ''), { errorCorrectionLevel: 'M' }).modules) }))
+    const com = itens.map((i) => ({ ...i, qr: i.semQr ? '' : qrSvg(QRCode.create(i.url || urlPublica(window.location.origin, i.token || ''), { errorCorrectionLevel: 'M' }).modules) }))
     document.getElementById('pni-etiqueta-print')?.remove()
     const f = document.createElement('iframe')
     f.id = 'pni-etiqueta-print'

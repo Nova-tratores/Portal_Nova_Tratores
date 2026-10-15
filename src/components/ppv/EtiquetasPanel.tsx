@@ -14,6 +14,10 @@ import { usePermissoes } from '@/hooks/usePermissoes'
 import { authHeaders } from '@/lib/auth/client'
 import SemPermissao from '@/components/SemPermissao'
 import { htmlFolha, qrSvg, urlDaUnidade, type BlocoEtiqueta } from '@/lib/ppv/etiquetas-html'
+import { guardarAjusteTermica, imprimirTermica, lerAjusteTermica, locacaoAbreviada, TERMICA_PADRAO, type AjusteTermica, type ItemTermica } from '@/lib/opa-pecas/etiqueta-termica'
+import AjustesTermica from '@/components/opa/pecas/AjustesTermica'
+import { botao } from '@/components/opa/pecas/comum'
+import { Janela } from '@/components/opa/pecas/Moldura'
 import { casaFiltroColuna, reconciliarOrdem, ControleOrdenacao, SeletorColunas, MenuEngrenagem, type Sort } from '@/components/tabela/ConfigColunas'
 
 interface ItemBusca {
@@ -105,6 +109,19 @@ function valColEtiq(i: ItemBusca, col: string): string {
 // QR da unidade em SVG de retângulos PREENCHIDOS (qrSvg) em vez do SVG da lib,
 // que desenha os módulos como traço e sai lavado na impressora. `QRCode.create`
 // só monta a matriz — quem vira SVG somos nós.
+// Térmica (rolo da ROGERIA, mesmas medidas do Opa): uma etiqueta por página.
+// Juntada (NOVA + CASTRO) leva a 2ª empresa numa linha pequena embaixo.
+function itemTermica(linhas: LinhaEtiqueta[], comBarra: boolean, unidade?: { id: string; numero?: string }): ItemTermica {
+  const [a, b] = linhas
+  return {
+    codigo: a?.codigo || '', descricao: a?.descricao || '', local: locacaoAbreviada(a?.locacao || ''), locGrande: true,
+    topo: [a?.empresa, unidade?.numero].filter(Boolean).join(' · '),
+    extra: b ? `${b.empresa}: ${b.codigo} · ${locacaoAbreviada(b.locacao)}` : undefined,
+    semQr: !unidade, url: unidade ? urlDaUnidade(window.location.origin, unidade.id) : undefined,
+    barra: comBarra,
+  }
+}
+
 function qrDaUnidade(unidadeId: string): string {
   return qrSvg(QRCode.create(urlDaUnidade(window.location.origin, unidadeId), { errorCorrectionLevel: 'M' }).modules)
 }
@@ -121,7 +138,12 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const [erro, setErro] = useState('')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [etiquetas, setEtiquetas] = useState<Etiqueta[]>([])
-  const [formato, setFormato] = useState<'folha' | 'recorte'>('folha')
+  const [formato, setFormato] = useState<'folha' | 'recorte' | 'termica'>('folha')
+  // ajustes da térmica: os MESMOS do Opa (mesma chave no navegador), salvos a cada mudança
+  const [term, setTerm] = useState<AjusteTermica>({ ...TERMICA_PADRAO })
+  const termLido = useRef(false)
+  useEffect(() => { setTerm(lerAjusteTermica()); termLido.current = true }, [])
+  useEffect(() => { if (termLido.current) guardarAjusteTermica(term) }, [term])
   const [copiasLote, setCopiasLote] = useState(1)
   const [usadas, setUsadas] = useState<Set<number>>(new Set())
   const [rastrear, setRastrear] = useState(false)
@@ -139,6 +161,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   // e erro de escala nenhum ajuste fino conserta.
   const [papel, setPapel] = useState<'carta' | 'a4'>('carta')
   const [imprimindo, setImprimindo] = useState(false)
+  // telinha de impressão (igual à do Opa): térmica × folha, ajustes e o botão final
+  const [janelaImp, setJanelaImp] = useState(false)
   const [folhas, setFolhas] = useState<FolhaHist[]>([])
   // Config de colunas (filtro por coluna, ordenação principal+desempate, seletor).
   const [filtros, setFiltros] = useState<Record<string, string>>({})
@@ -155,7 +179,8 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     try {
       setRastrear(localStorage.getItem('etiquetas_rastrear') === '1')
       setComBarra(localStorage.getItem('etiquetas_com_barra') === '1')
-      if (localStorage.getItem('etiquetas_formato') === 'recorte') setFormato('recorte')
+      const fmt = localStorage.getItem('etiquetas_formato')
+      if (fmt === 'recorte' || fmt === 'termica') setFormato(fmt)
       setAjusteX(Number(localStorage.getItem('etiquetas_ajuste_x')) || 0)
       setAjusteY(Number(localStorage.getItem('etiquetas_ajuste_y')) || 0)
       if (localStorage.getItem('etiquetas_papel') === 'a4') setPapel('a4')
@@ -182,7 +207,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     setComBarra(v)
     try { localStorage.setItem('etiquetas_com_barra', v ? '1' : '0') } catch { /* segue */ }
   }
-  const mudarFormato = (v: 'folha' | 'recorte') => {
+  const mudarFormato = (v: 'folha' | 'recorte' | 'termica') => {
     setFormato(v)
     try { localStorage.setItem('etiquetas_formato', v) } catch { /* segue */ }
   }
@@ -284,6 +309,11 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       const res = await fetch(`/api/ppv/etiquetas/folhas?id=${id}`, { headers: { ...(await authHeaders()) } })
       const json = await res.json(); if (!res.ok || json.erro) throw new Error(json.erro || 'falha')
       const folha = json.folha as { formato: string; rastreado: boolean; usadas: number[]; itens: { linhas: LinhaEtiqueta[]; numero?: string; unidade_id?: string }[] }
+      if (folha.formato === 'termica') {
+        const itensT = (folha.itens || []).map(it => itemTermica(it.linhas, comBarra, folha.rastreado && it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined))
+        if (!imprimirTermica(itensT, term)) setErro('Não consegui preparar a etiqueta para imprimir. Recarregue a página e tente de novo.')
+        return
+      }
       const w = window.open('', '_blank'); if (!w) { setErro('O navegador bloqueou a janela — libere pop-ups.'); return }
       let blocos: BlocoEtiqueta[] = (folha.itens || []).map(it => ({ linhas: it.linhas }))
       if (folha.rastreado) {
@@ -454,8 +484,10 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
   const imprimir = async () => {
     if (etiquetas.length === 0 || imprimindo) return
     const fisicas = etiquetas.flatMap(e => Array.from({ length: Math.max(1, e.copias) }, () => e))
-    const w = window.open('', '_blank')
-    if (!w) { setErro('O navegador bloqueou a janela de impressão — libere pop-ups.'); return }
+    const termica = formato === 'termica'
+    // térmica imprime por um iframe escondido (sem abrir aba, como no Opa)
+    const w = termica ? null : window.open('', '_blank')
+    if (!termica && !w) { setErro('O navegador bloqueou a janela de impressão — libere pop-ups.'); return }
     setImprimindo(true)
     setErro('')
     let loteId = ''
@@ -463,7 +495,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       let blocos: BlocoEtiqueta[] = fisicas.map(e => ({ linhas: e.linhas }))
       let itensFolha: { linhas: LinhaEtiqueta[]; numero?: string; unidade_id?: string }[] = fisicas.map(e => ({ linhas: e.linhas }))
       if (rastrear) {
-        w.document.write('<p style="font-family:sans-serif;padding:20px;color:#555">Registrando unidades e gerando QR codes…</p>')
+        w?.document.write('<p style="font-family:sans-serif;padding:20px;color:#555">Registrando unidades e gerando QR codes…</p>')
         const res = await fetch('/api/pecas/unidades', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
@@ -492,27 +524,32 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
             throw new Error('Pareamento etiqueta↔QR divergiu — nada foi impresso, tente de novo.')
           }
         }
-        blocos = fisicas.map((e, i) => ({ linhas: e.linhas, qrSvg: qrDaUnidade(unidades[i].id), numero: unidades[i].numero }))
+        blocos = fisicas.map((e, i) => ({ linhas: e.linhas, qrSvg: termica ? null : qrDaUnidade(unidades[i].id), numero: unidades[i].numero }))
         itensFolha = fisicas.map((e, i) => ({ linhas: e.linhas, numero: unidades[i].numero, unidade_id: unidades[i].id }))
       }
-      w.document.open()
-      w.document.write(htmlFolha(blocos, formato === 'folha' ? usadas : new Set<number>(), {
-        tracejado: formato === 'recorte', comBarra, x: ajusteX, y: ajusteY, papel,
-      }))
-      w.document.close()
+      if (termica) {
+        const itensT = itensFolha.map(it => itemTermica(it.linhas, comBarra, it.unidade_id ? { id: it.unidade_id, numero: it.numero } : undefined))
+        if (!imprimirTermica(itensT, term)) throw new Error('Não consegui preparar a etiqueta para imprimir. Recarregue a página e tente de novo.')
+      } else if (w) {
+        w.document.open()
+        w.document.write(htmlFolha(blocos, formato === 'folha' ? usadas : new Set<number>(), {
+          tracejado: formato === 'recorte', comBarra, x: ajusteX, y: ajusteY, papel,
+        }))
+        w.document.close()
+      }
       // registra a folha no histórico (snapshot p/ reimprimir) e esvazia a fila
       // COMPARTILHADA — o que foi impresso sai da fila e vira "folha" consultável.
       try {
         await fetch('/api/ppv/etiquetas/folhas', {
           method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-          body: JSON.stringify({ formato, rastreado: rastrear, usadas: Array.from(usadas), itens: itensFolha }),
+          body: JSON.stringify({ formato, rastreado: rastrear, usadas: termica ? [] : Array.from(usadas), itens: itensFolha }),
         })
       } catch { /* histórico é best-effort — não trava a impressão */ }
       await limparFilaServer()
       setUsadas(new Set())
       carregarFolhas()
     } catch (e) {
-      w.close()
+      w?.close()
       setErro(String(e instanceof Error ? e.message : e))
       if (loteId) {
         try {
@@ -527,7 +564,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
     }
   }
 
-  const INP: React.CSSProperties = { width: '100%', padding: '10px 12px 10px 36px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 14, boxSizing: 'border-box', background: 'var(--portal-bg-card)', outline: 'none', color: 'var(--portal-text)' }
+  const INP: React.CSSProperties = { width: '100%', padding: '10px 12px 10px 36px', borderRadius: 8, border: '1px solid var(--portal-border)', fontSize: 16, boxSizing: 'border-box', background: 'var(--portal-bg-card)', outline: 'none', color: 'var(--portal-text)' }
 
   const totalFisicas = etiquetas.reduce((s, e) => s + Math.max(1, e.copias), 0)
 
@@ -536,16 +573,16 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
       <style>{'@media (max-width: 768px) { .ppv-x-etq { padding-left: 10px !important; padding-right: 10px !important; } }'}</style>
       <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
         {!embedded && (
-          <Link href="/ppv" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
+          <Link href="/ppv" style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 15, color: 'var(--portal-text-muted)', textDecoration: 'none' }}>
             <ArrowLeft size={15} /> PPV
           </Link>
         )}
-        <h1 style={{ fontSize: 19, fontWeight: 800, color: 'var(--portal-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
+        <h1 style={{ fontSize: 22, fontWeight: 800, color: 'var(--portal-text)', margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
           <Tag size={18} color="#e8730c" /> Etiquetas de identificação de peças
         </h1>
       </div>
 
-      <p style={{ fontSize: 12.5, color: 'var(--portal-text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }}>
+      <p style={{ fontSize: 14.5, color: 'var(--portal-text-secondary)', margin: '0 0 14px', lineHeight: 1.6 }}>
         Busque as peças (ou uma prateleira inteira, ex.: <em>PRATELEIRA 3</em>), <strong>marque várias</strong> e
         adicione todas à fila de uma vez — cada uma vira uma etiqueta com
         <strong> EMPRESA → CÓDIGO - DESCRIÇÃO - LOCAÇÃO</strong>, no tamanho da folha adesiva 3×10:
@@ -558,14 +595,14 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="Código, descrição ou locação (ex.: PRATELEIRA 6, ANDAR H ou 3 G 1)…" style={INP} autoFocus={!embedded} />
         {buscando && <Loader2 size={15} className="animate-spin" style={{ position: 'absolute', right: 12, top: 12, color: 'var(--portal-text-muted)' }} />}
       </div>
-      {erro && <div style={{ fontSize: 12.5, color: '#EA580C', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
+      {erro && <div style={{ fontSize: 14.5, color: '#EA580C', fontWeight: 600, marginBottom: 10 }}>{erro}</div>}
 
       {/* Resultados (busca) ou as últimas peças COMPRADAS (estado inicial) */}
       {(() => {
         const lista = listaMostrada
         if (mostrandoRecentes && carregandoRecentes) {
           return (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--portal-text-muted)', padding: '14px 4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14.5, color: 'var(--portal-text-muted)', padding: '14px 4px' }}>
               <Loader2 size={14} className="animate-spin" /> Carregando as últimas peças compradas…
             </div>
           )
@@ -582,12 +619,12 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         </div>
         <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'hidden', marginBottom: 12 }}>
           {mostrandoRecentes && (
-            <div style={{ padding: '8px 12px', fontSize: 12, fontWeight: 800, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)' }}>
+            <div style={{ padding: '8px 12px', fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', background: 'var(--portal-bg-secondary)', borderBottom: '1px solid var(--portal-border)' }}>
               📦 Últimas peças compradas (NFs de entrada do Omie)
             </div>
           )}
           <div style={{ maxHeight: 340, overflow: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12.5 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14.5 }}>
               <thead>
                 <tr style={{ background: 'var(--portal-bg-secondary)', textAlign: 'left' }}>
                   <th style={{ padding: '8px 10px', width: 30 }}>
@@ -609,7 +646,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
                     <th key={col} style={{ padding: '0 6px 6px', background: 'var(--portal-bg-secondary)' }}>
                       <input value={filtros[col] || ''} onClick={e => e.stopPropagation()} onChange={e => setFiltros(f => ({ ...f, [col]: e.target.value }))}
                         placeholder="filtrar" title={/^\d/.test(filtros[col] || '') ? 'Número = valor exato' : 'Texto = contém'}
-                        style={{ width: '100%', minWidth: 54, border: '1px solid var(--portal-border)', borderRadius: 4, padding: '3px 6px', fontSize: 11, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
+                        style={{ width: '100%', minWidth: 54, border: '1px solid var(--portal-border)', borderRadius: 4, padding: '3px 6px', fontSize: 13, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
                     </th>
                   ))}
                 </tr>
@@ -626,7 +663,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
                       {colsVisiveis.map(col => {
                         if (col === 'empresa') return (
                           <td key={col} style={{ padding: '7px 10px' }}>
-                            <span style={{ display: 'inline-block', whiteSpace: 'nowrap', fontSize: 10.5, fontWeight: 800, padding: '3px 10px', borderRadius: 999, color: '#fff', background: EMPRESA_COR[i.conta_omie] || '#6b7280' }}>
+                            <span style={{ display: 'inline-block', whiteSpace: 'nowrap', fontSize: 12.5, fontWeight: 800, padding: '3px 10px', borderRadius: 999, color: '#fff', background: EMPRESA_COR[i.conta_omie] || '#6b7280' }}>
                               {EMPRESA_LABEL[i.conta_omie] || i.conta_omie}
                             </span>
                           </td>
@@ -636,7 +673,7 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
                           <td key={col} style={{ padding: '7px 10px', color: 'var(--portal-text)' }}>
                             {i.descricao || <em style={{ color: 'var(--portal-text-muted)' }}>sem cadastro de características</em>}
                             {i.origem === 'produtos' && (
-                              <span title="Peça cadastrada na Omie depois da última sincronização de características (roda todo dia às 03:00 ou pelo botão em Ajustes → Características). A locação aparece depois dela." style={{ marginLeft: 8, fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#fef3c7', color: '#92400e', whiteSpace: 'nowrap' }}>cadastro novo · sem locação</span>
+                              <span title="Peça cadastrada na Omie depois da última sincronização de características (roda todo dia às 03:00 ou pelo botão em Ajustes → Características). A locação aparece depois dela." style={{ marginLeft: 8, fontSize: 12, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: '#fef3c7', color: '#92400e', whiteSpace: 'nowrap' }}>cadastro novo · sem locação</span>
                             )}
                           </td>
                         )
@@ -652,26 +689,26 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
           <div style={{ padding: 10, borderTop: '1px solid var(--portal-border)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', background: 'var(--portal-bg-secondary)' }}>
             <button onClick={adicionarSeparadas} disabled={sel.size === 0} style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', borderRadius: 8, border: 'none',
-              background: sel.size === 0 ? '#9ca3af' : '#e8730c', color: '#fff', fontSize: 13, fontWeight: 700, cursor: sel.size === 0 ? 'default' : 'pointer',
+              background: sel.size === 0 ? '#9ca3af' : '#e8730c', color: '#fff', fontSize: 15, fontWeight: 700, cursor: sel.size === 0 ? 'default' : 'pointer',
             }}>
               <Plus size={14} /> Adicionar {sel.size} peça{sel.size === 1 ? '' : 's'} ({copiasLote}× cada)
             </button>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
               Cópias por peça
               <input type="number" min={1} max={50} value={copiasLote}
                 onClick={e => e.stopPropagation()}
                 onChange={e => setCopiasLote(Math.max(1, Math.min(50, Number(e.target.value) || 1)))}
-                style={{ width: 56, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--portal-border)', fontSize: 12, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
+                style={{ width: 56, padding: '4px 6px', borderRadius: 6, border: '1px solid var(--portal-border)', fontSize: 14, background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
             </label>
             <button onClick={juntarEtiqueta} disabled={sel.size < 1 || sel.size > 2} title="Mesma peça nas 2 empresas (NOVA+CASTRO) numa única etiqueta com os dois códigos" style={{
               display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 8,
               border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)',
               color: sel.size < 1 || sel.size > 2 ? 'var(--portal-text-muted)' : 'var(--portal-text)',
-              fontSize: 12.5, fontWeight: 700, cursor: sel.size < 1 || sel.size > 2 ? 'default' : 'pointer',
+              fontSize: 14.5, fontWeight: 700, cursor: sel.size < 1 || sel.size > 2 ? 'default' : 'pointer',
             }}>
               Juntar em 1 etiqueta
             </button>
-            <span style={{ fontSize: 11.5, color: 'var(--portal-text-muted)', flex: '1 1 220px', minWidth: 0 }}>
+            <span style={{ fontSize: 13.5, color: 'var(--portal-text-muted)', flex: '1 1 220px', minWidth: 0 }}>
               Marque várias (ou use o ✓ do cabeçalho pra <strong>selecionar todas</strong>) e adicione de uma vez —
               cada peça vira 1 etiqueta. <strong>Juntar</strong> é só pra mesma peça nas 2 empresas (máx. 2).
             </span>
@@ -685,145 +722,29 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
         )
       })()}
 
-      {/* Formato de impressão */}
-      <div style={{ marginTop: 18, padding: '12px 14px', border: '1px solid var(--portal-border)', borderRadius: 10, background: 'var(--portal-bg-secondary)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
-          <span style={{ fontSize: 12.5, fontWeight: 800, color: 'var(--portal-text)' }}>Imprimir em:</span>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
-            <input type="radio" checked={formato === 'folha'} onChange={() => mudarFormato('folha')} />
-            Folha adesiva 3×10 (Pimaco/Avery 6180 — 66,7 × 25,4 mm)
-          </label>
-          {/* Papel comum = a MESMA folha 3×10, com a linha de corte impressa. */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--portal-text)', cursor: 'pointer' }}>
-            <input type="radio" checked={formato === 'recorte'} onChange={() => mudarFormato('recorte')} />
-            <Scissors size={14} /> Papel comum (mesma etiqueta, tracejado pra recortar)
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: rastrear ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={rastrear} onChange={e => mudarRastrear(e.target.checked)} />
-            <QrCode size={14} /> Rastrear unidades (QR)
-          </label>
-          {/* Barra fora do bloco do rastreio: ela é escolha de LEITOR, não de
-              rastreio — quem lê com pistola 1D precisa dela mesmo sem rastrear. */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 700, color: comBarra ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
-            <input type="checkbox" checked={comBarra} onChange={e => mudarComBarra(e.target.checked)} />
-            <Barcode size={14} /> Código de barras
-          </label>
-        </div>
-        {rastrear && (
-          <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
-            Cada etiqueta impressa vira uma <strong>unidade rastreada</strong> com QR próprio.
-            Quem pegar a peça escaneia, marca &quot;peguei&quot; e o departamento libera na fila de retiradas.
-          </div>
-        )}
-        <div style={{ marginTop: 8, fontSize: 11.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
-          {comBarra
-            ? <>A barra atravessa a etiqueta embaixo e <strong>rouba altura do texto</strong> — ligue só se a leitura for por pistola comum (1D), que não lê QR.</>
-            : <>Sem a barra, o texto ocupa a etiqueta inteira e sai <strong>bem maior</strong>. O QR pequeno faz o papel dela para celular e leitor 2D.</>}
-        </div>
-        {formato === 'recorte' && (
-          <div style={{ marginTop: 10, fontSize: 11.5, color: 'var(--portal-text-secondary)', lineHeight: 1.5 }}>
-            Mesma etiqueta da folha adesiva (66,7 × 25,4 mm), em 3 colunas coladas, com a linha de corte na borda.
-            {' '}Na impressão use <strong>escala 100%</strong> (sem &quot;ajustar à página&quot;).
-          </div>
-        )}
-        {formato === 'folha' && (
-          <div style={{ marginTop: 10 }}>
-            <div style={{ fontSize: 11.5, color: 'var(--portal-text-secondary)', marginBottom: 8, lineHeight: 1.5 }}>
-              Cada peça sai numa etiqueta da folha — é só descolar, sem recortar.
-              {' '}No diálogo de impressão: <strong>Papel = Carta</strong>, <strong>Margens = Nenhuma</strong> e <strong>Escala = 100%</strong>.
-              {' '}Com papel A4 a folha sai 2,7% menor e ~12,6mm mais baixa — o texto cai na etiqueta de baixo.
-              {' '}Folha já começada? Clique abaixo nas posições <strong>já usadas</strong> pra impressão pular elas{usadas.size > 0 && <> · <button onClick={() => setUsadas(new Set())} style={{ border: 'none', background: 'none', color: '#EA580C', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>limpar ({usadas.size})</button></>}:
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 46px)', gap: 3 }}>
-              {Array.from({ length: 30 }, (_, p) => (
-                <button key={p} onClick={() => setUsadas(prev => { const s = new Set(prev); if (s.has(p)) s.delete(p); else s.add(p); return s })}
-                  title={usadas.has(p) ? 'Posição já usada — a impressão pula' : 'Posição livre'}
-                  style={{
-                    height: 17, borderRadius: 4, fontSize: 9.5, fontWeight: 700, cursor: 'pointer',
-                    border: '1px solid var(--portal-border)',
-                    background: usadas.has(p) ? '#d1d5db' : 'var(--portal-bg-card)',
-                    color: usadas.has(p) ? '#6b7280' : 'var(--portal-text-muted)',
-                    textDecoration: usadas.has(p) ? 'line-through' : 'none',
-                  }}>
-                  {p + 1}
-                </button>
-              ))}
-            </div>
-            {/* Calibração da impressora: para o deslocamento que SOBRAR depois de
-                acertar o diálogo. Folha pré-cortada não perdoa 2mm. */}
-            {/* Papel da IMPRESSORA — não confundir com o tamanho da folha
-                adesiva, que é sempre Carta. Página no tamanho errado faz o
-                Chrome encaixar uma na outra e encolher 2,7%. */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 12, paddingTop: 10, borderTop: '1px dashed var(--portal-border)' }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)' }}>Papel que a impressora usa:</span>
-              {([['carta', 'Carta (216×279)'], ['a4', 'A4 (210×297)']] as const).map(([v, rotulo]) => (
-                <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--portal-text)', cursor: 'pointer' }}>
-                  <input type="radio" checked={papel === v} onChange={() => mudarPapel(v)} />
-                  {rotulo}
-                </label>
-              ))}
-              <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', flex: '1 1 100%', minWidth: 0, lineHeight: 1.5 }}>
-                A folha adesiva é sempre <strong>Carta</strong> — isto aqui é o papel <strong>selecionado na impressora</strong>.
-                {' '}Se estiverem diferentes, a impressora encaixa uma na outra e <strong>encolhe a folha em 2,7%</strong>:
-                {' '}as etiquetas saem menores e o erro cresce a cada linha, o que nenhum ajuste fino conserta.
-              </span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--portal-border)' }}>
-              <span style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--portal-text)' }}>Saiu deslocado? Ajuste fino (mm):</span>
-              {([['x', 'Horizontal', ajusteX, '+ direita', 15], ['y', 'Vertical', ajusteY, '+ desce', 25]] as const).map(([eixo, rotulo, valor, sentido, lim]) => (
-                <label key={eixo} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, color: 'var(--portal-text-secondary)' }}>
-                  {rotulo}
-                  <input type="number" step={0.5} min={-lim} max={lim} value={valor}
-                    onChange={e => mudarAjuste(eixo, Number(e.target.value))}
-                    style={{ width: 62, padding: '3px 6px', fontSize: 12, fontWeight: 700, textAlign: 'right', borderRadius: 5, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
-                  <span style={{ fontSize: 10.5, color: 'var(--portal-text-muted)' }}>{sentido}</span>
-                </label>
-              ))}
-              {(ajusteX !== 0 || ajusteY !== 0) && (
-                <button onClick={() => { mudarAjuste('x', 0); mudarAjuste('y', 0) }}
-                  style={{ border: 'none', background: 'none', color: '#EA580C', fontSize: 11.5, fontWeight: 700, cursor: 'pointer', padding: 0 }}>
-                  zerar
-                </button>
-              )}
-              <span style={{ fontSize: 11, color: 'var(--portal-text-muted)', flex: '1 1 100%', minWidth: 0, lineHeight: 1.5 }}>
-                Antes de gastar adesivo: imprima em <strong>papel comum</strong> e sobreponha à folha adesiva contra a luz.
-                {' '}Essa folha sai com uma <strong>régua de 100mm</strong> embaixo — se ela medir menos que 100mm, a impressora está
-                {' '}<strong>reduzindo</strong> a página (papel errado no diálogo) e o ajuste abaixo não resolve, porque o erro cresce a cada linha.
-                {' '}Se a régua medir certo, meça quantos mm o texto saiu fora do picote e ponha aqui com o <strong>sinal contrário</strong>
-                {' '}— desceu 12mm, use −12.
-              </span>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Fila de etiquetas */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8, margin: '18px 0 8px' }}>
-        <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>
+        <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', margin: 0 }}>
           Fila de impressão ({totalFisicas} etiqueta{totalFisicas === 1 ? '' : 's'})
         </h2>
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
           {etiquetas.length > 0 && (
-            <button onClick={limparFilaServer} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+            <button onClick={limparFilaServer} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '7px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'transparent', color: 'var(--portal-text-secondary)', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
               <Trash2 size={13} /> Limpar
             </button>
           )}
-          <button onClick={imprimir} disabled={etiquetas.length === 0 || imprimindo} style={{
+          <button onClick={() => setJanelaImp(true)} disabled={etiquetas.length === 0 || imprimindo} style={{
             display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 18px', borderRadius: 8, border: 'none',
-            background: etiquetas.length === 0 || imprimindo ? '#9ca3af' : '#111827', color: '#fff', fontSize: 13, fontWeight: 700,
+            background: etiquetas.length === 0 || imprimindo ? '#9ca3af' : '#111827', color: '#fff', fontSize: 15, fontWeight: 700,
             cursor: etiquetas.length === 0 || imprimindo ? 'default' : 'pointer',
           }}>
-            <Printer size={14} /> {imprimindo
-              ? 'Gerando…'
-              : rastrear && totalFisicas > 0
-                ? `Imprimir (${totalFisicas} unidade${totalFisicas === 1 ? '' : 's'} rastreada${totalFisicas === 1 ? '' : 's'})`
-                : 'Imprimir'}
+            <Printer size={16} /> {imprimindo ? 'Gerando…' : 'Imprimir…'}
           </button>
         </div>
       </div>
 
       {etiquetas.length === 0 ? (
-        <div style={{ border: '1.5px dashed var(--portal-border)', borderRadius: 10, padding: 26, textAlign: 'center', fontSize: 13, color: 'var(--portal-text-muted)' }}>
+        <div style={{ border: '1.5px dashed var(--portal-border)', borderRadius: 10, padding: 26, textAlign: 'center', fontSize: 15, color: 'var(--portal-text-muted)' }}>
           Nenhuma etiqueta na fila — busque uma peça acima e adicione.
         </div>
       ) : (
@@ -836,42 +757,152 @@ export default function EtiquetasPanel({ embedded = false }: { embedded?: boolea
               </button>
               {e.linhas.map((l, i) => (
                 <div key={i} style={{ marginTop: i === 0 ? 0 : 6 }}>
-                  <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: .5, color: 'var(--portal-text)' }}>{l.empresa}</div>
-                  <div style={{ fontSize: 12, color: 'var(--portal-text-secondary)', lineHeight: 1.4 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, letterSpacing: .5, color: 'var(--portal-text)' }}>{l.empresa}</div>
+                  <div style={{ fontSize: 14, color: 'var(--portal-text-secondary)', lineHeight: 1.4 }}>
                     <span style={{ fontFamily: 'monospace', fontWeight: 800, color: 'var(--portal-text)' }}>{l.codigo}</span>
                     {' - '}{l.descricao}{l.locacao ? ` - ${l.locacao}` : ''}
                   </div>
                 </div>
               ))}
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 11, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 8, fontSize: 13, fontWeight: 700, color: 'var(--portal-text-muted)' }}>
                 Cópias
                 <input type="number" min={1} max={50} value={e.copias}
                   onChange={ev => mudarCopiasServer(e.id, Number(ev.target.value) || 1)}
-                  style={{ width: 58, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--portal-border)', fontSize: 12 }} />
+                  style={{ width: 58, padding: '3px 6px', borderRadius: 6, border: '1px solid var(--portal-border)', fontSize: 14 }} />
               </label>
             </div>
           ))}
         </div>
       )}
 
+
+      {janelaImp && (
+        <Janela titulo={`Imprimir ${totalFisicas} etiqueta${totalFisicas === 1 ? '' : 's'}`} onFechar={() => setJanelaImp(false)} largura={560}>
+          <div role="tablist" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 14 }}>
+            {([['termica', 'Impressora térmica (rolo)'], ['folha', 'Folha 3×10 (30 por folha)']] as const).map(([m, rot]) => {
+              const ativo = m === 'termica' ? formato === 'termica' : formato !== 'termica'
+              return (
+                <button key={m} type="button" role="tab" aria-selected={ativo} onClick={() => mudarFormato(m === 'termica' ? 'termica' : formato === 'recorte' ? 'recorte' : 'folha')} style={{
+                  padding: '11px 8px', borderRadius: 10, fontSize: 14, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer',
+                  border: '1.5px solid ' + (ativo ? '#111827' : 'var(--portal-border)'),
+                  background: ativo ? '#111827' : 'var(--portal-bg-card)', color: ativo ? '#fff' : 'var(--portal-text)',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>{m === 'termica' ? <Tag size={15} /> : <Printer size={15} />} {rot}</button>
+              )
+            })}
+          </div>
+
+          {/* leitores: valem para os dois papéis */}
+          <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginBottom: 12 }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: rastrear ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={rastrear} onChange={e => mudarRastrear(e.target.checked)} />
+              <QrCode size={16} /> Rastrear unidades (QR)
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 700, color: comBarra ? '#EA580C' : 'var(--portal-text)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={comBarra} onChange={e => mudarComBarra(e.target.checked)} />
+              <Barcode size={16} /> Código de barras
+            </label>
+          </div>
+          {rastrear && (
+            <div style={{ fontSize: 13, color: 'var(--portal-text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>
+              Cada etiqueta vira uma <strong>unidade rastreada</strong> com QR próprio: quem pegar a peça escaneia e marca &quot;peguei&quot;.
+            </div>
+          )}
+
+          {formato === 'termica' && <>
+            <AjustesTermica term={term} setTerm={setTerm} n={totalFisicas}
+              exemplo={{ codigo: etiquetas[0]?.linhas[0]?.codigo || '0000000000', descricao: etiquetas[0]?.linhas[0]?.descricao || 'Descrição da peça' }} />
+            <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', lineHeight: 1.5, marginBottom: 12 }}>
+              Medidas iguais às do Opa Peças e do Patrimônio (mudou aqui, muda lá).
+            </div>
+          </>}
+
+          {formato !== 'termica' && <>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 12 }}>
+              {([['folha', 'Folha adesiva (Pimaco 6180)'], ['recorte', 'Papel comum (recortar)']] as const).map(([v, rot]) => (
+                <button key={v} type="button" aria-pressed={formato === v} onClick={() => mudarFormato(v)} style={{
+                  padding: '9px 8px', borderRadius: 10, fontSize: 13.5, fontWeight: 800, fontFamily: 'inherit', cursor: 'pointer',
+                  border: '1.5px solid ' + (formato === v ? '#EA580C' : 'var(--portal-border)'),
+                  background: formato === v ? '#EA580C' : 'var(--portal-bg-card)', color: formato === v ? '#fff' : 'var(--portal-text)',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>{v === 'recorte' && <Scissors size={14} />}{rot}</button>
+              ))}
+            </div>
+            {formato === 'folha' && <>
+              <p style={{ fontSize: 13.5, color: 'var(--portal-text-secondary)', margin: '0 0 10px', lineHeight: 1.5 }}>
+                Folha já começada? Toque nas posições <b>já usadas</b> para a impressão pular elas
+                {usadas.size > 0 && <> · <button type="button" onClick={() => setUsadas(new Set())} style={{ border: 'none', background: 'none', color: '#EA580C', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>limpar ({usadas.size})</button></>}.
+              </p>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, padding: 8, borderRadius: 10, background: 'var(--portal-bg-secondary)', border: '1px solid var(--portal-border)', maxWidth: 360, margin: '0 auto 14px' }}>
+                {Array.from({ length: 30 }, (_, pos) => (
+                  <button key={pos} type="button" onClick={() => setUsadas(prev => { const st = new Set(prev); if (st.has(pos)) st.delete(pos); else st.add(pos); return st })}
+                    title={usadas.has(pos) ? 'Posição já usada — a impressão pula' : 'Posição livre'}
+                    style={{
+                      height: 26, borderRadius: 4, fontSize: 11.5, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit',
+                      border: '1px solid var(--portal-border)',
+                      background: usadas.has(pos) ? 'repeating-linear-gradient(45deg, #e5e7eb 0 4px, #f3f4f6 4px 8px)' : 'var(--portal-bg-card)',
+                      color: usadas.has(pos) ? '#6b7280' : 'var(--portal-text-muted)', textDecoration: usadas.has(pos) ? 'line-through' : 'none',
+                    }}>{pos + 1}</button>
+                ))}
+              </div>
+            </>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--portal-text)' }}>Papel da impressora:</span>
+              {([['carta', 'Carta'], ['a4', 'A4']] as const).map(([v, rotulo]) => (
+                <label key={v} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 14, color: 'var(--portal-text)', cursor: 'pointer' }}>
+                  <input type="radio" checked={papel === v} onChange={() => mudarPapel(v)} />
+                  {rotulo}
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 10 }}>
+              <span style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--portal-text)' }}>Ajuste fino (mm):</span>
+              {([['x', '→ direita', ajusteX, 15], ['y', '↓ desce', ajusteY, 25]] as const).map(([eixo, rotulo, valor, lim]) => (
+                <label key={eixo} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13.5, color: 'var(--portal-text-secondary)' }}>
+                  {rotulo}
+                  <input type="number" step={0.5} min={-lim} max={lim} value={valor}
+                    onChange={e => mudarAjuste(eixo, Number(e.target.value))}
+                    style={{ width: 70, padding: '5px 7px', fontSize: 14, fontWeight: 700, textAlign: 'right', borderRadius: 6, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)' }} />
+                </label>
+              ))}
+              {(ajusteX !== 0 || ajusteY !== 0) && (
+                <button type="button" onClick={() => { mudarAjuste('x', 0); mudarAjuste('y', 0) }}
+                  style={{ border: 'none', background: 'none', color: '#EA580C', fontSize: 13.5, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: 'inherit' }}>zerar</button>
+              )}
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted)', lineHeight: 1.55, padding: '8px 10px', borderRadius: 8, background: 'var(--portal-bg-secondary)', marginBottom: 12 }}>
+              No diálogo de impressão: papel <b>{papel === 'a4' ? 'A4' : 'Carta'}</b> (o mesmo escolhido acima), margens <b>Nenhuma</b> e escala <b>100%</b>.
+              {' '}Saiu deslocado? Meça quantos mm o texto saiu do picote e ponha no ajuste com o <b>sinal contrário</b> (desceu 12 mm → −12).
+            </div>
+          </>}
+
+          <button type="button" onClick={() => { setJanelaImp(false); imprimir() }} disabled={etiquetas.length === 0 || imprimindo}
+            style={{ ...botao('#111827', { grande: true, desab: etiquetas.length === 0 || imprimindo }), width: '100%' }}>
+            <Printer size={18} /> {rastrear
+              ? `Imprimir ${totalFisicas} (unidade${totalFisicas === 1 ? '' : 's'} rastreada${totalFisicas === 1 ? '' : 's'})`
+              : `Imprimir ${totalFisicas} etiqueta${totalFisicas === 1 ? '' : 's'}`}
+          </button>
+        </Janela>
+      )}
+
       {/* Histórico de folhas impressas — consultar/reimprimir a folha inteira */}
       {folhas.length > 0 && (
         <div style={{ marginTop: 24 }}>
-          <h2 style={{ fontSize: 14, fontWeight: 800, color: 'var(--portal-text)', margin: '0 0 8px' }}>
+          <h2 style={{ fontSize: 16, fontWeight: 800, color: 'var(--portal-text)', margin: '0 0 8px' }}>
             Histórico de folhas
           </h2>
           <div style={{ border: '1px solid var(--portal-border)', borderRadius: 10, overflow: 'hidden' }}>
             {folhas.map(f => (
               <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderTop: '1px solid var(--portal-border)' }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 700, color: 'var(--portal-text)' }}>
-                    Folha #{f.id} · {f.total} etiqueta{f.total === 1 ? '' : 's'} · {f.formato === 'recorte' ? 'papel comum' : '3×10'}{f.rastreado ? ' · QR' : ''}
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: 'var(--portal-text)' }}>
+                    Folha #{f.id} · {f.total} etiqueta{f.total === 1 ? '' : 's'} · {f.formato === 'recorte' ? 'papel comum' : f.formato === 'termica' ? 'térmica' : '3×10'}{f.rastreado ? ' · QR' : ''}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--portal-text-muted)' }}>
+                  <div style={{ fontSize: 13, color: 'var(--portal-text-muted)' }}>
                     {fmtDataHora(f.criado_em)}{f.criado_nome ? ` · ${f.criado_nome}` : ''}
                   </div>
                 </div>
-                <button onClick={() => reimprimir(f.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                <button onClick={() => reimprimir(f.id)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', borderRadius: 8, border: '1px solid var(--portal-border)', background: 'var(--portal-bg-card)', color: 'var(--portal-text)', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
                   <Printer size={13} /> Reimprimir
                 </button>
               </div>

@@ -73,7 +73,7 @@ export async function limparFila(): Promise<void> {
 export async function registrarFolha(f: { formato?: string; rastreado?: boolean; usadas?: number[]; itens: ItemFolha[] }, autor?: AutorEtiqueta): Promise<Folha> {
   const itens = Array.isArray(f.itens) ? f.itens : [];
   const { data, error } = await supabase.from('etiquetas_folhas').insert({
-    formato: f.formato === 'recorte' ? 'recorte' : 'folha',
+    formato: f.formato === 'recorte' || f.formato === 'termica' ? f.formato : 'folha',
     rastreado: !!f.rastreado,
     usadas: Array.isArray(f.usadas) ? f.usadas : [],
     total: itens.length,
