@@ -185,7 +185,8 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
       </div>
       <div style={{ padding: "2px 10px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
         {temOS && st === "recibo_emitido" && linha("recibo", `Recibo${nfse?.reciboNumero ? ` nº ${nfse.reciboNumero}` : ""}`,
-          <>serviço · {chip("OS interna · sem NFS-e", "#6d28d9", "#ede9fe")}</>, null, true)}
+          <>serviço · {chip("OS interna · sem NFS-e", "#6d28d9", "#ede9fe")}</>,
+          linkPdf(`Recibo de prestação de serviço${nfse?.reciboNumero ? ` nº ${nfse.reciboNumero}` : ""}`, () => window.open(`/api/pos/ordens/${encodeURIComponent(osId)}/recibo`, "_blank")), true)}
         {temOS && st !== "nfse_cancelada" && st !== "recibo_emitido" && linha("nfse",
           st === "nfse_aguardando" ? "NFS-e" : `NFS-e ${semZeros(nfse?.nfseNumero) || ""}`.trim(),
           st === "nfse_aguardando" ? <>serviço · {chip("aguardando o sistema nacional", "#075985", "#e0f2fe")}</>
