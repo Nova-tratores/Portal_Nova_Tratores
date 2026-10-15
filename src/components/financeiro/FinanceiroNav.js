@@ -119,10 +119,12 @@ export default function FinanceiroNav({ children = null }) {
                 display: 'flex', alignItems: 'center', gap: '7px',
                 padding: isMobile ? '10px 12px' : '11px 20px', borderRadius: '11px 11px 0 0',
                 fontSize: isMobile ? '13px' : '15px', flexShrink: 0, fontWeight: isActive ? '600' : '500',
-                // Guias: fechadas com letra PRETA; a ATIVA é PRETA com fonte BRANCA (18/08)
-                color: isActive ? '#fefefe' : hasVencidos ? '#b91111' : '#111111',
-                background: isActive ? '#111111' : hasVencidos ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.45)',
-                boxShadow: isActive ? '0 -2px 6px rgba(0,0,0,0.07)' : 'none',
+                // Guias: fechadas com letra PRETA; a ATIVA é BRANCA com letra preta,
+                // "colada" no conteúdo como nas outras faixas (José, 15/10/2026 — antes preta)
+                // #fefefe/#111111: o modo escuro não remapeia essas duas
+                color: isActive ? '#111111' : hasVencidos ? '#b91111' : '#111111',
+                background: isActive ? '#fefefe' : hasVencidos ? 'rgba(239,68,68,0.18)' : 'rgba(255,255,255,0.45)',
+                boxShadow: isActive ? '0 -2px 6px rgba(0,0,0,0.15)' : 'none',
                 textDecoration: 'none', transition: 'all 0.15s',
                 whiteSpace: 'nowrap',
                 position: 'relative',
