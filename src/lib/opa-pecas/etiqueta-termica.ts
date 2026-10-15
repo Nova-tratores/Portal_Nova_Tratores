@@ -10,13 +10,13 @@ import { urlPublica, type EtiquetaItem } from './etiqueta'
 
 /** rotacao: a impressora puxa o rolo num sentido — girar a etiqueta acerta a orientação. */
 /** intervalo: espaço (mm) entre uma etiqueta e a próxima no rolo — a página = altura + intervalo
- *  (a ROGERIA foi configurada no Windows com papel 70 × 34 mm, 15/10/2026). */
+ *  (a ROGERIA foi configurada no Windows com papel 70 × 35 mm: 30 + 5 de intervalo, 15/10/2026). */
 export interface AjusteTermica { largura: number; altura: number; intervalo: number; x: number; y: number; rotacao: 0 | 90 | 180 | 270 }
-export const TERMICA_PADRAO: AjusteTermica = { largura: 70, altura: 30, intervalo: 4, x: 0, y: 0, rotacao: 0 }
+export const TERMICA_PADRAO: AjusteTermica = { largura: 70, altura: 30, intervalo: 5, x: 0, y: 0, rotacao: 0 }
 export const LIMITES: Record<'largura' | 'altura' | 'intervalo' | 'x' | 'y', [number, number]> = {
   largura: [20, 110], altura: [10, 150], intervalo: [0, 10], x: [-10, 10], y: [-10, 10],
 }
-const CHAVE = 'pni_etiqueta_termica_v2'
+const CHAVE = 'pni_etiqueta_termica_v3'
 const CHAVE_MODO = 'pni_etiqueta_modo'
 
 export type ModoEtiqueta = 'termica' | 'folha'
@@ -31,7 +31,7 @@ export function lerAjusteTermica(): AjusteTermica {
     const rot = Number(j.rotacao)
     const L = LIMITES
     return {
-      largura: n(j.largura, 70, ...L.largura), altura: n(j.altura, 30, ...L.altura), intervalo: n(j.intervalo, 4, ...L.intervalo),
+      largura: n(j.largura, 70, ...L.largura), altura: n(j.altura, 30, ...L.altura), intervalo: n(j.intervalo, 5, ...L.intervalo),
       x: n(j.x, 0, ...L.x), y: n(j.y, 0, ...L.y),
       rotacao: (rot === 90 || rot === 180 || rot === 270 ? rot : 0) as AjusteTermica['rotacao'],
     }
@@ -97,24 +97,36 @@ export function htmlTermica(itens: (EtiquetaItem & { qr: string })[], a: AjusteT
   @media screen { body { margin: 10mm; } .pg { outline: 1px dashed #999; margin-bottom: 4mm; } }
 </style></head><body>
 ${etiquetas}
-<script>window.onload = function () { setTimeout(function () { window.print() }, 250) }</script>
 </body></html>`
 }
 
 /**
- * Abre a(s) etiqueta(s) no tamanho do rolo e o diálogo de impressão. Chamar
- * DIRETO no clique (pop-up). Devolve false se o navegador bloqueou.
+ * Imprime a(s) etiqueta(s) SEM abrir aba (José, 15/10/2026): um iframe escondido
+ * na própria página recebe o HTML e abre só o diálogo de impressão. O iframe
+ * some depois de imprimir (ou de 1 min). Devolve false se não deu para montar.
  */
 export function imprimirTermica(itens: EtiquetaItem[], a: AjusteTermica = lerAjusteTermica()): boolean {
-  const w = window.open('', '_blank')
-  if (!w) return false
   try {
     const com = itens.map((i) => ({ ...i, qr: qrSvg(QRCode.create(urlPublica(window.location.origin, i.token), { errorCorrectionLevel: 'M' }).modules) }))
-    w.document.write(htmlTermica(com, a))
-    w.document.close()
+    document.getElementById('pni-etiqueta-print')?.remove()
+    const f = document.createElement('iframe')
+    f.id = 'pni-etiqueta-print'
+    f.setAttribute('aria-hidden', 'true')
+    // fora da tela, mas com tamanho (iframe com display:none não imprime em alguns navegadores)
+    f.style.cssText = 'position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none;'
+    document.body.appendChild(f)
+    const doc = f.contentDocument || f.contentWindow?.document
+    if (!doc || !f.contentWindow) { f.remove(); return false }
+    doc.open()
+    doc.write(htmlTermica(com, a))
+    doc.close()
+    const tirar = () => setTimeout(() => f.remove(), 500)
+    f.contentWindow.addEventListener('afterprint', tirar)
+    setTimeout(() => f.remove(), 60_000)
+    setTimeout(() => { f.contentWindow?.focus(); f.contentWindow?.print() }, 250)
     return true
   } catch {
-    w.close()
+    document.getElementById('pni-etiqueta-print')?.remove()
     return false
   }
 }

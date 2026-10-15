@@ -5,7 +5,7 @@
 // "etiqueta gerada" e guarda onde a folha parou. Medidas e calibração são as
 // da tela de Etiquetas do módulo Peças.
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Printer, SlidersHorizontal, Tag } from 'lucide-react'
 import { marcarEtiqueta } from '@/lib/opa-pecas/db'
@@ -38,6 +38,9 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
   const [term, setTerm] = useState<AjusteTermica>(lerAjusteTermica)
   type CampoTerm = 'largura' | 'altura' | 'intervalo' | 'x' | 'y'
   const mudaTerm = (k: CampoTerm, v: string) => setTerm((t) => ({ ...t, [k]: Number(String(v).replace(',', '.')) || 0 }))
+  // predefinições salvas a CADA mudança (José, 15/10/2026) — não só ao imprimir
+  useEffect(() => { guardarAjusteTermica(term) }, [term])
+  useEffect(() => { guardarModo(modo) }, [modo])
   // ao sair do campo, volta para dentro dos limites (evita 120 × 130 por engano)
   const limitar = (k: CampoTerm) => setTerm((t) => ({ ...t, [k]: Math.min(LIMITES[k][1], Math.max(LIMITES[k][0], t[k])) }))
   // prévia sempre cabe na janela (até 300 × 150 px), na proporção real
@@ -56,7 +59,7 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
     if (modo === 'termica') {
       guardarAjusteTermica(term)
       if (!imprimirTermica(itens, term)) {
-        setErro('O navegador bloqueou a janela de impressão. Libere pop-ups para o portal e tente de novo.')
+        setErro('Não consegui preparar a etiqueta para imprimir. Recarregue a página e tente de novo.')
         return
       }
     } else {
@@ -119,7 +122,7 @@ export default function Impressao({ itens, onFechar, onImpresso }: {
               }}>{g}°</button>
             ))}
             <button type="button" onClick={() => setTerm({ ...TERMICA_PADRAO })} style={{ marginLeft: 'auto', background: 'none', border: 'none', color: LARANJA, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 12.5 }}>
-              Voltar ao padrão (70 × 30, intervalo 4)
+              Voltar ao padrão (70 × 30, intervalo 5)
             </button>
           </div>
           <div style={{ fontSize: 12, color: 'var(--portal-text-muted)', lineHeight: 1.55, padding: '8px 10px', borderRadius: 8, background: 'var(--portal-bg-secondary)', marginBottom: 12 }}>
