@@ -7,7 +7,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { FileText, Download, RefreshCw, ShieldCheck, CloudOff, Database, Search, Tractor } from 'lucide-react';
+import { FileText, Download, RefreshCw, ShieldCheck, CloudOff, Database, Search, Tractor, ArrowUp, ArrowDown, ArrowUpDown } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
@@ -15,14 +15,22 @@ import { fmtRS } from '@/components/estoque/ui';
 import VisualizadorDocumento, { type DocumentoVisualizavel } from '@/components/comum/VisualizadorDocumento';
 import {
   CAMPOS_BUSCA, ROTULO_BATEU, ROTULO_SELO, ROTULO_TIPO, TIPOS, chassiPrincipal, ehCampoBusca, linkPasta, ondeBateu, percent, selo,
-  type CampoBusca, type LinhaDoc, type Selo, type Cobertura,
+  alternarOrdem, ehOrdemPadrao, ordemParaParam, parseOrdem,
+  type CampoBusca, type ColunaOrdem, type LinhaDoc, type Ordem, type Selo, type Cobertura,
 } from '@/lib/notas/cache-regras';
 
 interface Resp {
   notas: LinhaDoc[]; total: number; pagina: number; porPagina: number; totalPaginas: number;
   cobertura: Cobertura; ultimaRodada: { iniciado_em: string; status: string | null; detalhe: unknown } | null;
-  podeIndexar: boolean; vinculosFaltando?: boolean; erro?: string; migracaoFaltando?: boolean;
+  podeIndexar: boolean; vinculosFaltando?: boolean; numeroComoTexto?: boolean; erro?: string; migracaoFaltando?: boolean;
 }
+
+/** Cabeçalho da tabela: `col` = ordenável clicando (A→Z / Z→A). */
+const CABECALHO: Array<{ label: string; col?: ColunaOrdem }> = [
+  { label: 'Tipo', col: 'tipo' }, { label: 'Nº / Série', col: 'numero' }, { label: 'Emissão', col: 'data_emissao' },
+  { label: 'Cliente / Fornecedor', col: 'parte_nome' }, { label: 'Pedido / OS', col: 'pedido' }, { label: 'Máquina', col: 'maquina' },
+  { label: 'Valor', col: 'valor' }, { label: 'Documento' }, { label: '' },
+];
 
 const PRESETS: Array<{ label: string; dias: number | null }> = [
   { label: '30 dias', dias: 30 }, { label: '90 dias', dias: 90 }, { label: '1 ano', dias: 365 }, { label: 'Tudo', dias: null },
@@ -74,6 +82,7 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
   const [q, setQ] = useState(() => sp.get('q') || '');
   const [campo, setCampo] = useState<CampoBusca>(() => (ehCampoBusca(campoUrl) ? campoUrl : 'auto'));
   const [situacao, setSituacao] = useState('');
+  const [ordem, setOrdem] = useState<Ordem>(() => parseOrdem(sp.get('ordem')));
   const [pagina, setPagina] = useState(1);
   const [resp, setResp] = useState<Resp | null>(null);
   const [carregando, setCarregando] = useState(false);
@@ -89,9 +98,10 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
     const p = new URLSearchParams();
     if (q.trim()) p.set('q', q.trim());
     if (campo !== 'auto') p.set('campo', campo);
+    if (!ehOrdemPadrao(ordem)) p.set('ordem', ordemParaParam(ordem));
     const alvo = p.toString() ? `${pathname}?${p}` : pathname;
     if (`${window.location.pathname}${window.location.search}` !== alvo) router.replace(alvo, { scroll: false });
-  }, [q, campo, pathname, router]);
+  }, [q, campo, ordem, pathname, router]);
 
   const qs = useMemo(() => {
     const p = new URLSearchParams({ pagina: String(pagina) });
@@ -100,8 +110,9 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
     if (ate) p.set('ate', ate);
     if (q.trim()) { p.set('q', q.trim()); if (campo !== 'auto') p.set('campo', campo); }
     if (situacao) p.set('situacao', situacao);
+    if (!ehOrdemPadrao(ordem)) p.set('ordem', ordemParaParam(ordem));
     return p.toString() + contaParam;
-  }, [pagina, tipo, de, ate, q, campo, situacao, contaParam]);
+  }, [pagina, tipo, de, ate, q, campo, situacao, ordem, contaParam]);
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('');
@@ -115,6 +126,7 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
   useEffect(() => { const t = setTimeout(() => { carregar(); }, 300); return () => clearTimeout(t); }, [carregar]);
 
   const buscar = (texto: string, c: CampoBusca) => { setCampo(c); setQ(texto); setDe(''); setAte(''); setPagina(1); };
+  const ordenar = (col: ColunaOrdem) => { setOrdem((o) => alternarOrdem(o, col)); setPagina(1); };
 
   const verPdf = (n: LinhaDoc) => {
     setDoc({ titulo: `${ROTULO_TIPO[n.tipo]} · NF ${n.numero || n.n_cod_nf} · ${n.parte_nome || ''}`, url: `/api/estoque/notas/${n.id}/arquivo?tipo=pdf`, nome: `NF-${n.numero || n.n_cod_nf}-${n.conta_omie}` });
@@ -272,10 +284,25 @@ export default function NotasFiscais({ podeXml, isAdmin }: { podeXml: boolean; i
             {resp.total.toLocaleString('pt-BR')} notas — página {resp.pagina}/{resp.totalPaginas}{carregando ? ' · atualizando…' : ''}
             {q.trim() && campo !== 'auto' ? <> · buscando <strong>{q.trim()}</strong> em {campoInfo.label}</> : null}
             {q.trim() && campo === 'os' ? <span style={{ color: '#a3a3a3' }}> (NFS-e da OS + NF-e das peças ligadas a ela)</span> : null}
+            {resp.numeroComoTexto && ordem.coluna === 'numero' ? <span style={{ color: '#b45309' }}> · nº ordenado como texto (aplicar sql/notas-fiscais-ordem.sql para ordem numérica)</span> : null}
           </div>
           <div style={{ overflowX: 'auto', background: '#fff', border: '1px solid #eee', borderRadius: 12 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead><tr>{['Tipo', 'Nº / Série', 'Emissão', 'Cliente / Fornecedor', 'Pedido / OS', 'Máquina', 'Valor', 'Documento', ''].map((h) => <th key={h} style={th}>{h}</th>)}</tr></thead>
+              <thead><tr>
+                {CABECALHO.map((h, i) => {
+                  if (!h.col) return <th key={i} style={th}>{h.label}</th>;
+                  const ativa = ordem.coluna === h.col;
+                  const titulo = ativa ? (ordem.dir === 'asc' ? 'Ordenado de A a Z — clique para inverter' : 'Ordenado de Z a A — clique para inverter') : 'Clique para ordenar por esta coluna';
+                  return (
+                    <th key={i} style={{ ...th, cursor: 'pointer', userSelect: 'none', color: ativa ? '#dc2626' : th.color }} onClick={() => ordenar(h.col!)} title={titulo} aria-sort={ativa ? (ordem.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                        {h.label}
+                        {ativa ? (ordem.dir === 'asc' ? <ArrowUp size={11} /> : <ArrowDown size={11} />) : <ArrowUpDown size={11} style={{ opacity: 0.35 }} />}
+                      </span>
+                    </th>
+                  );
+                })}
+              </tr></thead>
               <tbody>
                 {resp.notas.map((n) => {
                   const s = selo(n);

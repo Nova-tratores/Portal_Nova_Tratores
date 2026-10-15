@@ -226,6 +226,60 @@ export function filtroBusca(q: string, campo: CampoBusca = 'auto', opts: { semVi
   }
 }
 
+// ---------------------------------------------------------------------------
+// Ordenação pelo cabeçalho (feita no servidor — a lista é paginada)
+// ---------------------------------------------------------------------------
+export type ColunaOrdem = 'tipo' | 'numero' | 'data_emissao' | 'parte_nome' | 'pedido' | 'maquina' | 'valor';
+export type DirOrdem = 'asc' | 'desc';
+export interface Ordem { coluna: ColunaOrdem; dir: DirOrdem }
+
+/** coluna do banco por chave; `semNumeroN` = sem sql/notas-fiscais-ordem.sql (texto);
+ *  `semVinculos` = sem sql/notas-fiscais-vinculos.sql. `padrao` = direção do 1º clique. */
+export const COLUNAS_ORDEM: Record<ColunaOrdem, { coluna: string; semNumeroN?: string; semVinculos?: string; padrao: DirOrdem }> = {
+  tipo:         { coluna: 'tipo',        padrao: 'asc' },
+  numero:       { coluna: 'numero_n',    semNumeroN: 'numero', padrao: 'desc' },
+  data_emissao: { coluna: 'data_emissao', padrao: 'desc' },
+  parte_nome:   { coluna: 'parte_nome',  padrao: 'asc' },
+  pedido:       { coluna: 'pedido_num',  semVinculos: 'id', padrao: 'desc' },
+  maquina:      { coluna: 'maquina',     semVinculos: 'id', padrao: 'asc' },
+  valor:        { coluna: 'valor',       padrao: 'desc' },
+};
+
+export const ORDEM_PADRAO: Ordem = { coluna: 'data_emissao', dir: 'desc' };
+
+export function ehColunaOrdem(v: unknown): v is ColunaOrdem {
+  return typeof v === 'string' && Object.prototype.hasOwnProperty.call(COLUNAS_ORDEM, v);
+}
+
+/** "numero.asc" → Ordem; inválido → padrão. */
+export function parseOrdem(s: string | null | undefined): Ordem {
+  const [c, d] = String(s || '').split('.');
+  if (!ehColunaOrdem(c)) return ORDEM_PADRAO;
+  return { coluna: c, dir: d === 'asc' || d === 'desc' ? d : COLUNAS_ORDEM[c].padrao };
+}
+
+export function ordemParaParam(o: Ordem): string {
+  return `${o.coluna}.${o.dir}`;
+}
+
+export function ehOrdemPadrao(o: Ordem): boolean {
+  return o.coluna === ORDEM_PADRAO.coluna && o.dir === ORDEM_PADRAO.dir;
+}
+
+/** Clique no cabeçalho: mesma coluna inverte; outra coluna começa na direção padrão dela. */
+export function alternarOrdem(atual: Ordem, coluna: ColunaOrdem): Ordem {
+  if (atual.coluna === coluna) return { coluna, dir: atual.dir === 'asc' ? 'desc' : 'asc' };
+  return { coluna, dir: COLUNAS_ORDEM[coluna].padrao };
+}
+
+/** Coluna real do banco para o `.order()` do PostgREST, conforme as migrations presentes. */
+export function colunaBanco(o: Ordem, faltando: { semNumeroN?: boolean; semVinculos?: boolean } = {}): string {
+  const c = COLUNAS_ORDEM[o.coluna];
+  if (faltando.semNumeroN && c.semNumeroN) return c.semNumeroN;
+  if (faltando.semVinculos && c.semVinculos) return c.semVinculos;
+  return c.coluna;
+}
+
 export type OndeBateu = 'nota' | 'pedido' | 'os' | 'cliente' | 'maquina';
 
 const semAcento = (s: string) => s.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();

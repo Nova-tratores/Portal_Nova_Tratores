@@ -3,6 +3,7 @@ import {
   caminhoArquivo, nomeArquivo, proximaTentativa, adiarPendente, ehPdf, ehXml, selo,
   ehBloqueioOmie, ehOmieFora, ehNaoConcluida, filtroBusca, percent, MAX_TENTATIVAS, desescaparXml, pareceUrl,
   ondeBateu, linkPasta, empresaDaConta, chassiPrincipal,
+  parseOrdem, ordemParaParam, alternarOrdem, colunaBanco, ehOrdemPadrao, ORDEM_PADRAO,
 } from './cache-regras';
 
 const base = { id: 1, conta_omie: 'NOVA', tipo: 'entrada' as const, chave_nfe: null, n_cod_nf: 6049268011, numero: '515688', serie: '3', data_emissao: '2026-10-08', parte_nome: 'MABRACO', parte_doc: '44552685000154', valor: 246.73, cancelada: false, pdf_path: null, xml_path: null, tentativas: 0, proxima_tentativa_em: null, ultimo_erro: null };
@@ -124,6 +125,23 @@ describe('busca livre (Tudo)', () => {
     expect(ondeBateu(l, 'sergio')).toEqual(['cliente']);
     expect(ondeBateu(l, 'vpnl02352')).toEqual(['maquina']);
     expect(ondeBateu(l, '')).toEqual([]);
+  });
+  it('ordenação pelo cabeçalho', () => {
+    expect(parseOrdem(null)).toEqual(ORDEM_PADRAO);
+    expect(parseOrdem('qualquer.asc')).toEqual(ORDEM_PADRAO);
+    expect(parseOrdem('numero.asc')).toEqual({ coluna: 'numero', dir: 'asc' });
+    expect(parseOrdem('parte_nome')).toEqual({ coluna: 'parte_nome', dir: 'asc' });
+    expect(ordemParaParam({ coluna: 'valor', dir: 'desc' })).toBe('valor.desc');
+    expect(ehOrdemPadrao({ coluna: 'data_emissao', dir: 'desc' })).toBe(true);
+    expect(ehOrdemPadrao({ coluna: 'data_emissao', dir: 'asc' })).toBe(false);
+    // mesma coluna inverte; outra começa na direção padrão
+    expect(alternarOrdem({ coluna: 'parte_nome', dir: 'asc' }, 'parte_nome')).toEqual({ coluna: 'parte_nome', dir: 'desc' });
+    expect(alternarOrdem({ coluna: 'parte_nome', dir: 'asc' }, 'valor')).toEqual({ coluna: 'valor', dir: 'desc' });
+    // coluna real do banco conforme as migrations
+    expect(colunaBanco({ coluna: 'numero', dir: 'asc' })).toBe('numero_n');
+    expect(colunaBanco({ coluna: 'numero', dir: 'asc' }, { semNumeroN: true })).toBe('numero');
+    expect(colunaBanco({ coluna: 'pedido', dir: 'asc' }, { semVinculos: true })).toBe('id');
+    expect(colunaBanco({ coluna: 'maquina', dir: 'asc' })).toBe('maquina');
   });
   it('link da pasta, empresa e chassi principal', () => {
     expect(empresaDaConta('CASTRO')).toBe('Castro Pecas');
