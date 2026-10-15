@@ -14,7 +14,7 @@ import dynamic from 'next/dynamic'
 const MapaCarros = dynamic(() => import('@/components/supervisor/MapaCarros'), { ssr: false })
 import ModalVisita from '@/components/supervisor/ModalVisita'
 import VincularCarroModal from '@/components/supervisor/VincularCarroModal'
-import { authHeaders } from '@/lib/auth/client'
+import { authHeaders, fetchAuth } from '@/lib/auth/client'
 
 type Tab = 'geral' | 'vendedores' | 'visitas' | 'mapa' | 'pos-vendas' | 'alertas'
 
@@ -44,19 +44,19 @@ export default function SupervisorVendasPage() {
     setLoading(true)
     try {
       if (tab === 'geral') {
-        const res = await fetch('/api/supervisor-vendas?acao=kpis')
+        const res = await fetchAuth('/api/supervisor-vendas?acao=kpis')
         if (res.ok) setKpis(await res.json())
       } else if (tab === 'vendedores') {
-        const res = await fetch('/api/supervisor-vendas?acao=vendedores')
+        const res = await fetchAuth('/api/supervisor-vendas?acao=vendedores')
         if (res.ok) setVendedores(await res.json())
       } else if (tab === 'visitas') {
         let url = '/api/supervisor-vendas?acao=visitas'
         if (filtroVendedor) url += `&vendedor_id=${filtroVendedor}`
         if (filtroTipo) url += `&tipo=${filtroTipo}`
-        const res = await fetch(url)
+        const res = await fetchAuth(url)
         if (res.ok) setVisitas(await res.json())
       } else if (tab === 'pos-vendas') {
-        const res = await fetch('/api/supervisor-vendas?acao=visitas&pos_vendas=true')
+        const res = await fetchAuth('/api/supervisor-vendas?acao=visitas&pos_vendas=true')
         if (res.ok) setVisitas(await res.json())
       } else if (tab === 'mapa') {
         // Mapa unificado: visitas a clientes + carros do comercial
@@ -64,8 +64,8 @@ export default function SupervisorVendasPage() {
         if (filtroVendedor) url += `&vendedor_id=${filtroVendedor}`
         if (filtroTipo) url += `&tipo=${filtroTipo}`
         const [resV, resC] = await Promise.all([
-          fetch(url),
-          fetch('/api/supervisor-vendas/carros'),
+          fetchAuth(url),
+          fetchAuth('/api/supervisor-vendas/carros'),
         ])
         if (resV.ok) setVisitasMapa((await resV.json()).filter((v: any) => v.latitude && v.longitude))
         if (resC.ok) {
@@ -82,7 +82,7 @@ export default function SupervisorVendasPage() {
           setCarros([])
         }
       } else if (tab === 'alertas') {
-        const res = await fetch('/api/supervisor-vendas?acao=alertas')
+        const res = await fetchAuth('/api/supervisor-vendas?acao=alertas')
         if (res.ok) setAlertas(await res.json())
       }
     } catch { /* */ }
@@ -94,12 +94,12 @@ export default function SupervisorVendasPage() {
   // Carregar vendedores pra filtro
   const [vendedoresLista, setVendedoresLista] = useState<any[]>([])
   useEffect(() => {
-    fetch('/api/supervisor-vendas?acao=vendedores').then(r => r.json()).then(d => setVendedoresLista(d || [])).catch(() => {})
+    fetchAuth('/api/supervisor-vendas?acao=vendedores').then(r => r.json()).then(d => setVendedoresLista(d || [])).catch(() => {})
   }, [])
 
   const resolverPosVendas = async (id: string, resolvido: boolean) => {
     if (!podeResolver) return
-    await fetch('/api/supervisor-vendas', {
+    await fetchAuth('/api/supervisor-vendas', {
       method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
       body: JSON.stringify({ acao: 'pos_vendas_resolver', id, resolvido }),
     })
@@ -109,7 +109,7 @@ export default function SupervisorVendasPage() {
   const removerCarro = async (placa: string) => {
     if (!podeCarros) return
     if (!confirm('Remover o vínculo deste carro?')) return
-    await fetch(`/api/supervisor-vendas/carros?placa=${encodeURIComponent(placa)}`, { method: 'DELETE' })
+    await fetchAuth(`/api/supervisor-vendas/carros?placa=${encodeURIComponent(placa)}`, { method: 'DELETE' })
     carregar()
   }
 

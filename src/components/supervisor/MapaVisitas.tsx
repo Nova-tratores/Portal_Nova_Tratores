@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface Props {
   visitas: any[]
@@ -47,7 +48,7 @@ export default function MapaVisitas({ visitas, tipoCores, fmtData, onVisitaClick
   // Carregar veículos dos vendedores
   const carregarVeiculos = useCallback(async () => {
     try {
-      const res = await fetch('/api/supervisor-vendas/veiculos?acao=posicoes')
+      const res = await fetchAuth('/api/supervisor-vendas/veiculos?acao=posicoes')
       if (res.ok) setVeiculos(await res.json())
     } catch { /* */ }
   }, [])
@@ -69,7 +70,7 @@ export default function MapaVisitas({ visitas, tipoCores, fmtData, onVisitaClick
     setRotaPlaca(placa)
     setRotaLoading(true)
     try {
-      const res = await fetch(`/api/supervisor-vendas/veiculos?acao=rota&placa=${encodeURIComponent(placa)}`)
+      const res = await fetchAuth(`/api/supervisor-vendas/veiculos?acao=rota&placa=${encodeURIComponent(placa)}`)
       if (!res.ok) return
       const rota = await res.json()
       const pontos = rota.pontos || []

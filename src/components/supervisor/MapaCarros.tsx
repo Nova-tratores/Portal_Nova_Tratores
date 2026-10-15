@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { distKm, filtrarEspetos, segmentarTrajeto } from '@/lib/frota/gps'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { fetchAuth } from '@/lib/auth/client'
 
 interface Carro { placa: string; descricao?: string | null; pessoa_nome?: string | null; vinculo_tipo?: string | null }
 // Lugar conhecido (geocerca ou propriedade de cliente) — vira um pin discreto
@@ -140,7 +141,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const carregarLive = useCallback(async () => {
     if (data !== hojeStr()) { setLive([]); return }
     try {
-      const res = await fetch(`/api/supervisor-vendas/veiculos?acao=posicoes&fonte=${fontePosicoes}`)
+      const res = await fetchAuth(`/api/supervisor-vendas/veiculos?acao=posicoes&fonte=${fontePosicoes}`)
       if (res.ok) setLive(await res.json())
     } catch { /* */ }
   }, [data, fontePosicoes])
@@ -220,7 +221,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     rotaLayerRef.current?.clearLayers()
     setLoadingHist(true)
     try {
-      const res = await fetch(`/api/supervisor-vendas/veiculos?acao=historico&placa=${encodeURIComponent(placa)}`)
+      const res = await fetchAuth(`/api/supervisor-vendas/veiculos?acao=historico&placa=${encodeURIComponent(placa)}`)
       setHistorico(res.ok ? await res.json() : [])
     } catch { setHistorico([]) }
     setLoadingHist(false)
@@ -243,7 +244,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     setLoading(true)
     setResumo(null)
     try {
-      const res = await fetch(`/api/supervisor-vendas/veiculos?acao=rota&placa=${encodeURIComponent(placa)}&data=${dataParam}`)
+      const res = await fetchAuth(`/api/supervisor-vendas/veiculos?acao=rota&placa=${encodeURIComponent(placa)}&data=${dataParam}`)
       if (!res.ok) { setLoading(false); return }
       const rota = await res.json()
       // espetos de GPS fora do desenho e da timeline (o resumo/km oficial

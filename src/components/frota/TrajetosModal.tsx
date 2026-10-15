@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Route, X, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { fetchAuth } from '@/lib/auth/client';
 import { formatarPlaca } from '@/lib/frota/placa';
 import { filtrarEspetos, segmentarTrajeto } from '@/lib/frota/gps';
 
@@ -135,7 +136,7 @@ export default function TrajetosModal({ placa, onClose }: Props) {
       for (const dia of faltam) {
         try {
           const [rotaRes, paradasRes] = await Promise.all([
-            fetch(`/api/supervisor-vendas/veiculos?acao=rota&placa=${encodeURIComponent(placa)}&data=${dia}`).then((r) => (r.ok ? r.json() : null)),
+            fetchAuth(`/api/supervisor-vendas/veiculos?acao=rota&placa=${encodeURIComponent(placa)}&data=${dia}`).then((r) => (r.ok ? r.json() : null)),
             supabase
               .from('frota_paradas')
               .select('inicio, fim, duracao_min, latitude, longitude, classe, destino_nome, atipica')

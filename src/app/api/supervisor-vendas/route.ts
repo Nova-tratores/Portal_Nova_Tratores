@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { protegerRota } from "@/lib/ajustes/permissao-server";
+import { acessoSupervisor } from "@/lib/supervisor/acesso";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -12,6 +13,9 @@ function startOfWeek() { const d = new Date(); const day = d.getDay(); d.setDate
 function startOfMonth() { const d = new Date(); d.setDate(1); d.setHours(0,0,0,0); return d.toISOString() }
 
 export async function GET(req: NextRequest) {
+  // visitas e negócios do CRM: só Supervisor de Vendas (antes era aberta)
+  const acesso = await acessoSupervisor(req);
+  if (acesso.resposta) return acesso.resposta;
   const acao = req.nextUrl.searchParams.get("acao") || "kpis";
 
   try {

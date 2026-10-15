@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useIsMobile } from '@/hooks/useIsMobile'
+import { fetchAuth } from '@/lib/auth/client'
 import { X, Car, Search } from 'lucide-react'
 import { normalizarPlaca as norm } from '@/lib/frota/placa'
 
@@ -20,10 +21,10 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/supervisor-vendas/veiculos?acao=adesoes').then(r => r.ok ? r.json() : []),
-      fetch('/api/supervisor-vendas/carros?todos=1').then(r => r.ok ? r.json() : []),
+      fetchAuth('/api/supervisor-vendas/veiculos?acao=adesoes').then(r => r.ok ? r.json() : []),
+      fetchAuth('/api/supervisor-vendas/carros?todos=1').then(r => r.ok ? r.json() : []),
       fetch('/api/pos/lousa?modo=usuarios').then(r => r.ok ? r.json() : []),
-      fetch('/api/supervisor-vendas?acao=vendedores').then(r => r.ok ? r.json() : []),
+      fetchAuth('/api/supervisor-vendas?acao=vendedores').then(r => r.ok ? r.json() : []),
     ]).then(([ad, cl, us, ve]) => {
       setAdesoes(Array.isArray(ad) ? ad : [])
       const map: Record<string, Classif> = {}
@@ -47,7 +48,7 @@ export default function VincularCarroModal({ onClose, onSaved }: { onClose: () =
     setClassMap(prev => ({ ...prev, [key]: novo }))
     setSalvandoPlaca(a.placa)
     try {
-      await fetch('/api/supervisor-vendas/carros', {
+      await fetchAuth('/api/supervisor-vendas/carros', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           placa: a.placa, descricao: a.descricao, adesao_id: a.adesao_id,

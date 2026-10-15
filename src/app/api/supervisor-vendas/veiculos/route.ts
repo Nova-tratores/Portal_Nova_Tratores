@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { fetchRotaExata, fetchTudo, computarESalvarRota } from "@/lib/pos/rastreamento";
 import { normalizarPlaca } from "@/lib/frota/placa";
+import { acessoSupervisor } from "@/lib/supervisor/acesso";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -9,6 +10,9 @@ const supabase = createClient(
 );
 
 export async function GET(req: NextRequest) {
+  // leitura do rastreamento: Frota ou Supervisor de Vendas (antes era aberta)
+  const acesso = await acessoSupervisor(req, { frota: true });
+  if (acesso.resposta) return acesso.resposta;
   const acao = req.nextUrl.searchParams.get("acao") || "posicoes";
   const hoje = new Date().toISOString().split("T")[0];
 
@@ -199,6 +203,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const acesso = await acessoSupervisor(req);
+  if (acesso.resposta) return acesso.resposta;
   try {
     const { vendedor_id, vendedor_nome, placa } = await req.json();
     if (!vendedor_id || !placa) return NextResponse.json({ error: "vendedor_id e placa obrigatórios" }, { status: 400 });

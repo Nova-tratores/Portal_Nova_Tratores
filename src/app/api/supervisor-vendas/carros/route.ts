@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { acessoSupervisor } from "@/lib/supervisor/acesso";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -10,6 +11,8 @@ const supabase = createClient(
 // GET            → só comerciais ativos (mapa / lista lateral)
 // GET ?todos=1   → todos os classificados (modal de gerenciamento)
 export async function GET(req: NextRequest) {
+  const acesso = await acessoSupervisor(req);
+  if (acesso.resposta) return acesso.resposta;
   const todos = req.nextUrl.searchParams.get("todos");
   let q = supabase.from("comercial_veiculos").select("*").order("pessoa_nome", { ascending: true });
   if (!todos) q = q.eq("categoria", "comercial").eq("ativo", true);
@@ -19,6 +22,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const acesso = await acessoSupervisor(req);
+  if (acesso.resposta) return acesso.resposta;
   try {
     const body = await req.json();
     const { placa, descricao, adesao_id, vinculo_tipo, pessoa_id, pessoa_nome, categoria, ativo } = body;
@@ -50,6 +55,8 @@ export async function POST(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const acesso = await acessoSupervisor(req);
+  if (acesso.resposta) return acesso.resposta;
   const placa = req.nextUrl.searchParams.get("placa");
   if (!placa) return NextResponse.json({ error: "placa obrigatória" }, { status: 400 });
   const { error } = await supabase.from("comercial_veiculos").delete().eq("placa", placa);
