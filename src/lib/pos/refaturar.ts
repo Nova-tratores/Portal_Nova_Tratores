@@ -88,6 +88,8 @@ export async function cancelarERefazerOS(idOrdem: string, opts: { motivo: Motivo
   }).eq("Id_Ordem", idOrdem);
   if (e1) return { ok: false, nfse, erro: `A NFS-e ${nfse} FOI CANCELADA no sistema nacional, mas o portal não gravou (${e1.message}). Avise o T.I. — não tente de novo.` };
   await supabase.from("portal_nt_clientes_os").update({ cancelada: true, status: "Cancelada" }).eq("cod_os", nAntiga).then(() => {}, () => {});
+  // financeiro do portal: o título da OS antiga sai na hora (o sync com o Omie confirma depois)
+  await supabase.from("contas_receber").update({ status_titulo: "CANCELADO" }).eq("conta_omie", "NOVA").eq("raw->>nCodOS", String(nAntiga)).then(() => {}, () => {});
   await logOS(idOrdem, `NFS-e ${nfse} cancelada no sistema nacional (OS ${numAntiga}). Motivo: ${anterior.motivo}`, opts.usuario);
 
   // 4) Omie: OS nova (cópia) + cancela a antiga sem mexer na nota
