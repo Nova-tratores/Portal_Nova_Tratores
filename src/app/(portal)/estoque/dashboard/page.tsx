@@ -2,7 +2,7 @@
 // Dashboard de Vendas — duas visões independentes: "Peças + Serviços" e "Máquinas".
 // Consome /api/estoque/dashboard{,/historico,/categorias-vendas,/vendas,/pedido-itens,
 // /compras,/tendencia}. Cor do VALOR é sempre neutra; verde/vermelho só p/ variação.
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ResponsiveContainer, LineChart, Line, BarChart, ComposedChart, Bar, Area, AreaChart, Cell, LabelList, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
@@ -38,6 +38,8 @@ interface Categoria {
   valorAtual: number;
   custoAtual: number;
   margemAtual: number;
+  /** Serviços/Total Geral: o custo de serviços veio do Painel Omie. */
+  custoServicosOk?: boolean;
   mesAnteriorValor: number;
   mesAnteriorCusto: number;
   anoAnteriorValor: number;
@@ -75,7 +77,9 @@ interface TendPonto { label: string; mes: number; ano: number; pecas: number; se
   /** Peças+Serviços do mês, MoM de PS, e PS do mesmo mês de -1 ano (YoY) e -2 anos. */
   ps: number; psDeltaPct: number | null; psAnoAnt: number; psAno2Ant: number;
   /** Compras (entradas) de peças do mês — sparkline do card Entradas + razão. */
-  compras: number }
+  compras: number;
+  /** Custo do mês: peças por CMC (fatias Balcão/Oficina) e serviços do Painel Omie (null = painel indisponível). */
+  custoPecasBalcao: number; custoPecasOficina: number; custoServicos: number | null }
 /** Ponto de uma janela comparativa (-1/-2 anos) — gráficos "Comparar" abaixo. */
 interface CompPonto { label: string; mes: number; ano: number; pecas: number; pecasBalcao: number; pecasOficina: number; servicos: number }
 interface Comparativos { a1: CompPonto[]; a2: CompPonto[] }
@@ -216,7 +220,8 @@ export default function DashboardPage() {
   const [ano, setAno] = useState(now.getFullYear());
   const ehAno = mes === 0;
   const periodoParam = ehAno ? 'mes=0&modo=ano' : 'mes=' + mes;
-  const [categoria, setCategoria] = useState('');
+  // Padrão = Revenda de Peças Oficina (pedido do José); "Todas" continua no seletor.
+  const [categoria, setCategoria] = useState('Revenda de Peças Oficina');
   const [metrica, setMetrica] = useState<Metrica>('venda');
   const [visao, setVisao] = useState<Visao>('pecas');
 
@@ -317,7 +322,7 @@ export default function DashboardPage() {
     getDash(`/api/estoque/dashboard/tendencia?_=1${contaParam}`)
       .then((r) => r.json())
       .then((d) => {
-        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; pecasBalcao?: number; pecasOficina?: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number; psAno2Ant?: number; compras?: number }>;
+        const raw = (d.pontos || []) as Array<{ label: string; mes: number; ano: number; pecas: number; pecasBalcao?: number; pecasOficina?: number; servicos: number; maquinas: number; maquinasUn: number; psAnoAnt?: number; psAno2Ant?: number; compras?: number; custoPecasBalcao?: number; custoPecasOficina?: number; custoServicos?: number | null }>;
         let prev = 0;
         let prevPs = 0;
         setTendencia(raw.map((p, i) => {
@@ -327,7 +332,7 @@ export default function DashboardPage() {
           const psDeltaPct = i === 0 || prevPs <= 0 ? null : ((ps - prevPs) / prevPs) * 100;
           prev = total;
           prevPs = ps;
-          return { ...p, total, ps, deltaPct, psDeltaPct, pecasBalcao: p.pecasBalcao ?? 0, pecasOficina: p.pecasOficina ?? (p.pecas - (p.pecasBalcao ?? 0)), psAnoAnt: p.psAnoAnt ?? 0, psAno2Ant: p.psAno2Ant ?? 0, compras: p.compras ?? 0, parcial: i === raw.length - 1 };
+          return { ...p, total, ps, deltaPct, psDeltaPct, pecasBalcao: p.pecasBalcao ?? 0, pecasOficina: p.pecasOficina ?? (p.pecas - (p.pecasBalcao ?? 0)), psAnoAnt: p.psAnoAnt ?? 0, psAno2Ant: p.psAno2Ant ?? 0, compras: p.compras ?? 0, custoPecasBalcao: p.custoPecasBalcao ?? 0, custoPecasOficina: p.custoPecasOficina ?? 0, custoServicos: p.custoServicos ?? null, parcial: i === raw.length - 1 };
         }));
         setTendComparativos((d.comparativos as Comparativos) || null);
       })
@@ -674,7 +679,7 @@ export default function DashboardPage() {
         {visao === 'pecas' && (
           <>
             <Sel label="Categoria de peças" value={categoria} onChange={setCategoria} options={[{ value: '', label: 'Todas' }, ...categoriasOpts.map((c) => ({ value: c.codigo, label: c.descricao }))]} />
-            <span title="Venda/Custo/Margem vale para Peças e Serviços (KPIs e cards). Serviços não tem custo apurado (fica “—” em Custo). Comprei é sempre entradas de NF." style={{ fontSize: '1rem', color: '#9ca3af', cursor: 'help', paddingBottom: 9 }}>ⓘ</span>
+            <span title="Venda/Custo/Margem vale para Peças e Serviços (KPIs e cards). Custo de Serviços vem do Painel Omie (comissão, despesas, frota, RH e custo real das internas); se o painel não responder fica “—”. Comprei é sempre entradas de NF." style={{ fontSize: '1rem', color: '#9ca3af', cursor: 'help', paddingBottom: 9 }}>ⓘ</span>
             <div style={{ display: 'flex', gap: 4, marginLeft: 'auto' }}>
               {(['venda', 'custo', 'margem'] as Metrica[]).map((m) => (
                 <button key={m} onClick={() => setMetrica(m)}
@@ -769,8 +774,8 @@ export default function DashboardPage() {
         // Lubrificantes) + demais tipos com faturamento, em ordem alfabética.
         const pecasCats = cats.filter((c) => c.cardType === 'produto');
         const totalPecasVenda = cPecas?.valorAtual ?? pecasCats.reduce((s, c) => s + c.valorAtual, 0);
-        // Peças e Serviços respondem ao toggle Venda/Custo/Margem. Serviços não tem
-        // custo apurado neste painel → em "Custo" fica "—".
+        // Peças e Serviços respondem ao toggle Venda/Custo/Margem. O custo de Serviços
+        // vem do Painel Omie; se ele não responder, em "Custo" fica "—".
         const kv = (c: Categoria | undefined, quando: 'atual' | 'mesAnt' | 'anoAnt') => (c ? valorMetrica(c, metrica, quando) : 0);
         const rotuloMetrica = metrica === 'venda' ? 'faturamento no período' : metrica === 'custo' ? 'custo (CMV) no período' : 'margem no período';
         const psA = kv(cPecas, 'atual') + kv(cServ, 'atual');
@@ -813,11 +818,11 @@ export default function DashboardPage() {
               )}
               {cServ && (
                 <KpiCard titulo="Serviços" accent={ACCENT.servicos}
-                  valorNode={metrica === 'custo' ? '—' : fmtRS(kv(cServ, 'atual'))}
-                  subNode={metrica === 'venda' ? undefined : metrica === 'custo' ? 'serviço sem custo apurado' : 'margem = receita (sem custo)'}
+                  valorNode={metrica === 'custo' && !cServ.custoServicosOk ? '—' : fmtRS(kv(cServ, 'atual'))}
+                  subNode={metrica === 'venda' ? undefined : !cServ.custoServicosOk ? (metrica === 'custo' ? 'custo indisponível (Painel Omie)' : 'margem = receita (sem custo)') : metrica === 'custo' ? 'custo no período · Painel Omie' : 'margem no período · custo do Painel Omie'}
                   varM={calcVar(kv(cServ, 'atual'), kv(cServ, 'mesAnt'))} supM={cServ.mesAnteriorValor < BASE_MIN_PECAS}
                   varA={calcVar(kv(cServ, 'atual'), kv(cServ, 'anoAnt'))} supA={cServ.anoAnteriorValor < BASE_MIN_PECAS}
-                  modo={modo} parcial={parcial} comparavel={!parcial} semVar={metrica === 'custo'}
+                  modo={modo} parcial={parcial} comparavel={!parcial} semVar={metrica === 'custo' && !cServ.custoServicosOk}
                   strongDrop={metrica === 'venda' && !parcial && cServ.anoAnteriorValor >= BASE_MIN_PECAS && cServ.varAnoAnterior < -50}
                   sparkNode={spk && <Sparkline data={spk.map((t) => t.servicos)} cor={ACCENT.servicos} parcialUltimo />}
                   acoes={[
@@ -843,7 +848,7 @@ export default function DashboardPage() {
 
             {tendencia && tendencia.length > 0 && (
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
-                <PecasChart pontos={tendencia} comparativos={tendComparativos} onSelectMes={(m, a) => { setMes(m); setAno(a); }} />
+                <PecasChart pontos={tendencia} comparativos={tendComparativos} metrica={metrica} onSelectMes={(m, a) => { setMes(m); setAno(a); }} />
               </div>
             )}
 
@@ -1451,8 +1456,14 @@ const fmtVar = (v: number | null): { txt: string; cor: string } => {
   return { txt: s + v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%', cor: v >= 0 ? COR_POS : COR_NEG };
 };
 
-interface PSTooltipProps { active?: boolean; label?: string; payload?: Array<{ payload: TendPonto }> }
-function PSTooltip({ active, payload, label }: PSTooltipProps) {
+// Tons de vermelho do CUSTO no gráfico (mesma ordem das fatias de venda).
+const CUSTO_OFICINA = '#7f1d1d';
+const CUSTO_BALCAO = '#fca5a5';
+const CUSTO_SERVICOS = '#dc2626';
+type CustoPos = 'sobre' | 'sob';
+
+interface PSTooltipProps { active?: boolean; label?: string; payload?: Array<{ payload: TendPonto }>; metrica?: Metrica }
+function PSTooltip({ active, payload, label, metrica = 'venda' }: PSTooltipProps) {
   if (!active || !payload || !payload.length) return null;
   const p = payload[0].payload;
   const ps = p.ps || p.pecas + p.servicos;
@@ -1462,15 +1473,54 @@ function PSTooltip({ active, payload, label }: PSTooltipProps) {
   const yoy = p.psAnoAnt > 0 ? ((ps - p.psAnoAnt) / p.psAnoAnt) * 100 : null;
   const mom = fmtVar(p.psDeltaPct);
   const vy = fmtVar(yoy);
+  const caixa = (filhos: ReactNode) => (
+    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '9px 12px', fontSize: '.95rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)', minWidth: 234 }}>
+      <div style={{ fontWeight: 700, marginBottom: 5 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
+      {filhos}
+    </div>
+  );
+  if (metrica !== 'venda') {
+    // Custo/Margem: por fatia, venda · custo · margem% (serviço sem custo do painel = "—").
+    const semServ = p.custoServicos == null;
+    const linhas = [
+      { nome: 'Peças Oficina', v: oficina, c: p.custoPecasOficina, cor: metrica === 'custo' ? CUSTO_OFICINA : CHART_PECAS },
+      { nome: 'Peças Balcão', v: balcao, c: p.custoPecasBalcao, cor: metrica === 'custo' ? '#ef4444' : '#1e6fb8' },
+      { nome: 'Serviços', v: p.servicos, c: semServ ? null : p.custoServicos, cor: metrica === 'custo' ? CUSTO_SERVICOS : CHART_SERVICOS_INK },
+    ];
+    const tv = linhas.reduce((s, l) => s + l.v, 0);
+    const tc = linhas.reduce((s, l) => s + (l.c ?? 0), 0);
+    const mPct = (v: number, c: number | null) => (c == null || v <= 0 ? '—' : Math.round(((v - c) / v) * 100) + '%');
+    const cel = { fontVariantNumeric: 'tabular-nums' as const, textAlign: 'right' as const, padding: '1px 0 1px 12px' };
+    return caixa(
+      <table style={{ borderCollapse: 'collapse', fontSize: '.9rem' }}>
+        <thead><tr style={{ color: '#9ca3af', fontSize: '.76rem' }}><th /><th style={cel}>Venda</th><th style={cel}>Custo</th><th style={cel}>Margem</th></tr></thead>
+        <tbody>
+          {linhas.map((l) => (
+            <tr key={l.nome}>
+              <td style={{ color: l.cor, fontWeight: 600 }}>{l.nome}</td>
+              <td style={cel}>{fmtRS(l.v)}</td>
+              <td style={{ ...cel, fontWeight: 700 }}>{l.c == null ? '—' : fmtRS(l.c)}</td>
+              <td style={{ ...cel, color: '#6b7280' }}>{mPct(l.v, l.c)}</td>
+            </tr>
+          ))}
+          <tr style={{ borderTop: '1px solid #eee' }}>
+            <td style={{ fontWeight: 700, paddingTop: 4 }}>Total</td>
+            <td style={{ ...cel, fontWeight: 800, paddingTop: 4 }}>{fmtRS(tv)}</td>
+            <td style={{ ...cel, fontWeight: 800, paddingTop: 4 }}>{fmtRS(tc)}</td>
+            <td style={{ ...cel, color: '#6b7280', paddingTop: 4 }}>{mPct(tv, tc)}</td>
+          </tr>
+        </tbody>
+      </table>,
+    );
+  }
   const row = (nome: string, v: number, pctv: number, cor: string) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16 }}>
       <span style={{ color: cor }}>{nome} <span style={{ color: '#9ca3af' }}>({pctv}%)</span></span>
       <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>{fmtRS(v)}</span>
     </div>
   );
-  return (
-    <div style={{ background: '#fff', border: '1px solid #e5e7eb', borderRadius: 8, padding: '9px 12px', fontSize: '.95rem', boxShadow: '0 2px 8px rgba(0,0,0,.1)', minWidth: 234 }}>
-      <div style={{ fontWeight: 700, marginBottom: 5 }}>{label}{p.parcial && <span style={{ color: '#b45309', fontWeight: 600 }}> · parcial</span>}</div>
+  return caixa(
+    <>
       {row('Peças Oficina', oficina, pct(oficina), CHART_PECAS)}
       {row('Peças Balcão', balcao, pct(balcao), CHART_PECAS_BALCAO)}
       {row('Serviços', p.servicos, pct(p.servicos), CHART_SERVICOS_INK)}
@@ -1485,7 +1535,7 @@ function PSTooltip({ active, payload, label }: PSTooltipProps) {
           <span>vs. ano anterior</span><span style={{ fontWeight: 700, color: vy.cor }}>{vy.txt}</span>
         </div>
       )}
-    </div>
+    </>,
   );
 }
 // Mini-tendência de 12 meses no rodapé do card. Sem eixos/grade/tooltip. O último
@@ -1508,30 +1558,61 @@ function Sparkline({ data, cor, parcialUltimo }: { data: number[]; cor: string; 
     </div>
   );
 }
-function PecasChart({ pontos, comparativos, onSelectMes }: { pontos: TendPonto[]; comparativos?: Comparativos | null; onSelectMes?: (mes: number, ano: number) => void }) {
-  const [view, setView] = useState<PSView>('empilhado');
+function PecasChart({ pontos, comparativos, metrica = 'venda', onSelectMes }: { pontos: TendPonto[]; comparativos?: Comparativos | null; metrica?: Metrica; onSelectMes?: (mes: number, ano: number) => void }) {
+  // Padrão = Agrupado (pedido do José).
+  const [view, setView] = useState<PSView>('agrupado');
+  // Modo Custo: custo desenhado SOBRE a barra de venda (sobreposto) ou SOB ela (espelhado abaixo do zero).
+  const [custoPos, setCustoPos] = useState<CustoPos>(() => {
+    try { return typeof window !== 'undefined' && localStorage.getItem('estoque-dash-custo-pos') === 'sob' ? 'sob' : 'sobre'; } catch { return 'sobre'; }
+  });
+  const trocarCustoPos = (v: CustoPos) => { setCustoPos(v); try { localStorage.setItem('estoque-dash-custo-pos', v); } catch { /* sem storage */ } };
   const [compararAberto, setCompararAberto] = useState(false);
   const [cmp, setCmp] = useState<{ a1: boolean; a2: boolean }>({ a1: false, a2: false });
   const lastClick = useRef<{ label: string; ts: number } | null>(null);
+  const ehCusto = metrica === 'custo';
+  const ehMargem = metrica === 'margem';
+  const isPct = view === 'pct';
+  const isStack = view === 'empilhado';
+  const stackId = isStack || isPct ? 'ps' : undefined;
+  // Custo por cima/por baixo: barras num 2º eixo X escondido, nas MESMAS posições das de venda.
+  const sobrepor = ehCusto && !isPct;
+  const sob = sobrepor && custoPos === 'sob';
+  const sinal = sob ? -1 : 1;
+  const semCustoServ = pontos.some((p) => p.custoServicos == null);
+  const data = pontos.map((p) => {
+    const cOfi = p.custoPecasOficina || 0;
+    const cBal = p.custoPecasBalcao || 0;
+    const cServ = p.custoServicos ?? 0;
+    // Barra principal: venda (Venda e Custo) ou margem (Margem; serviço sem custo = receita).
+    const vOfi = ehMargem ? p.pecasOficina - cOfi : p.pecasOficina;
+    const vBal = ehMargem ? p.pecasBalcao - cBal : p.pecasBalcao;
+    const vServ = ehMargem ? p.servicos - cServ : p.servicos;
+    const vTot = vOfi + vBal + vServ;
+    const cTot = cOfi + cBal + cServ;
+    // % Mix: no Custo é a divisão do CUSTO entre as fatias.
+    const [pa, pb, pc, pt] = ehCusto ? [cOfi, cBal, cServ, cTot] : [vOfi, vBal, vServ, vTot];
+    return {
+      ...p,
+      vOfi, vBal, vServ, vTot,
+      cOfi: cOfi * sinal, cBal: cBal * sinal, cServ: cServ * sinal, cTot: cTot * sinal,
+      // Linhas comparativas (Comparar): NÃO ligam o ponto do mês parcial — período
+      // cheio do passado vs mês corrente parcial geraria um salto no canto.
+      psAnoAnt: p.parcial ? null : p.psAnoAnt,
+      psAno2Ant: p.parcial ? null : p.psAno2Ant,
+      oficinaPct: pt > 0 ? (pa / pt) * 100 : 0,
+      balcaoPct: pt > 0 ? (pb / pt) * 100 : 0,
+      servicosPct: pt > 0 ? (pc / pt) * 100 : 0,
+    };
+  });
   // Média sobre MESES FECHADOS apenas (exclui o mês corrente parcial, que puxaria
   // a linha para baixo e comprimiria a leitura das barras).
-  const fechados = pontos.filter((p) => !p.parcial);
-  const media = fechados.length ? fechados.reduce((s, p) => s + p.ps, 0) / fechados.length : 0;
+  const fechados = data.filter((p) => !p.parcial);
+  const media = fechados.length ? fechados.reduce((s, p) => s + p.vTot, 0) / fechados.length : 0;
   const diaHoje = new Date().getDate();
   const ultimo = pontos[pontos.length - 1];
   const primeiro = pontos[0];
   // Rótulo de janela de 12 meses deslocada `y` anos (para o "Comparar").
   const winLabel = (y: number) => primeiro && ultimo ? `${MESES[primeiro.mes - 1]}/${String(primeiro.ano - y).slice(2)}–${MESES[ultimo.mes - 1]}/${String(ultimo.ano - y).slice(2)}` : '';
-  const data = pontos.map((p) => ({
-    ...p,
-    // Linhas comparativas (Comparar): NÃO ligam o ponto do mês parcial — período
-    // cheio do passado vs mês corrente parcial geraria um salto no canto.
-    psAnoAnt: p.parcial ? null : p.psAnoAnt,
-    psAno2Ant: p.parcial ? null : p.psAno2Ant,
-    oficinaPct: p.ps > 0 ? (p.pecasOficina / p.ps) * 100 : 0,
-    balcaoPct: p.ps > 0 ? (p.pecasBalcao / p.ps) * 100 : 0,
-    servicosPct: p.ps > 0 ? (p.servicos / p.ps) * 100 : 0,
-  }));
   // Duplo-clique numa barra → recarrega o dashboard naquele mês.
   const handleClick = (st: { activeLabel?: string; activePayload?: Array<{ payload: TendPonto }> }) => {
     if (!onSelectMes || !st?.activePayload?.length) return;
@@ -1544,52 +1625,90 @@ function PecasChart({ pontos, comparativos, onSelectMes }: { pontos: TendPonto[]
       lastClick.current = { label: st.activeLabel || '', ts: agora };
     }
   };
-  const isPct = view === 'pct';
-  const isStack = view === 'empilhado';
-  const stackId = isStack || isPct ? 'ps' : undefined;
-  const kOfi = isPct ? 'oficinaPct' : 'pecasOficina';
-  const kBal = isPct ? 'balcaoPct' : 'pecasBalcao';
-  const kS = isPct ? 'servicosPct' : 'servicos';
+  const kOfi = isPct ? 'oficinaPct' : 'vOfi';
+  const kBal = isPct ? 'balcaoPct' : 'vBal';
+  const kS = isPct ? 'servicosPct' : 'vServ';
+  // No % Mix do Custo as próprias barras principais viram o custo (vermelhas).
+  const corOfi = ehCusto && isPct ? CUSTO_OFICINA : CHART_PECAS;
+  const corBal = ehCusto && isPct ? CUSTO_BALCAO : CHART_PECAS_BALCAO;
+  const corServ = ehCusto && isPct ? CUSTO_SERVICOS : CHART_SERVICOS;
+  // Com o custo por cima, a venda fica apagada (vira contexto) e os rótulos passam a ser do custo.
+  const opVenda = sobrepor ? (sob ? 0.85 : 0.28) : 1;
+  const rotVenda = !sobrepor || sob;
+  // Barra negativa: o recharts inverte a altura, então 'top' cai embaixo dela.
+  const posRotCusto = 'top';
+  const fmtAbs = (v: number) => fmtK(Math.abs(v));
+  const fmtRotCusto = (v: number) => (v ? fmtK(Math.abs(v)) : '');
+  const raioCusto: [number, number, number, number] = sob ? [0, 0, 3, 3] : [3, 3, 0, 0];
   const tgl = (v: PSView, l: string) => (
     <button key={v} onClick={() => setView(v)}
       style={{ padding: '5px 11px', border: '1px solid', borderColor: view === v ? '#111827' : '#e0e0e0', background: view === v ? '#111827' : '#fff', color: view === v ? '#fff' : '#666', borderRadius: 7, fontSize: '.78rem', fontWeight: 600, cursor: 'pointer' }}>{l}</button>
   );
+  const tglPos = (v: CustoPos, l: string, dica: string) => (
+    <button key={v} onClick={() => trocarCustoPos(v)} title={dica}
+      style={{ padding: '5px 11px', border: '1px solid', borderColor: custoPos === v ? '#b91c1c' : '#e0e0e0', background: custoPos === v ? '#b91c1c' : '#fff', color: custoPos === v ? '#fff' : '#666', borderRadius: 7, fontSize: '.78rem', fontWeight: 600, cursor: 'pointer' }}>{l}</button>
+  );
+  const titulo = ehCusto ? 'custo × venda' : ehMargem ? 'margem' : 'faturamento';
   return (
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
         <div>
-          <div style={{ fontSize: '.85rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Peças + Serviços · faturamento — últimos 12 meses</div>
-          {!isPct && <div style={{ fontSize: '.72rem', color: '#9ca3af' }}>valores em R$ mil</div>}
+          <div style={{ fontSize: '.85rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px' }}>Peças + Serviços · {titulo} — últimos 12 meses</div>
+          {!isPct && <div style={{ fontSize: '.72rem', color: '#9ca3af' }}>valores em R$ mil{metrica !== 'venda' ? ' · custo de peças = CMC; de serviços = Painel Omie' : ''}</div>}
         </div>
-        <div style={{ display: 'flex', gap: 4 }}>{tgl('empilhado', 'Empilhado')}{tgl('agrupado', 'Agrupado')}{tgl('pct', '% Mix')}</div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {sobrepor && <div style={{ display: 'flex', gap: 4 }}>{tglPos('sobre', 'Custo sobre a venda', 'Custo desenhado por cima da barra de venda')}{tglPos('sob', 'Custo sob a venda', 'Custo espelhado abaixo da linha do zero')}</div>}
+          <div style={{ display: 'flex', gap: 4 }}>{tgl('empilhado', 'Empilhado')}{tgl('agrupado', 'Agrupado')}{tgl('pct', '% Mix')}</div>
+        </div>
       </div>
-      <div style={{ width: '100%', height: 340 }}>
+      <div style={{ width: '100%', height: sob ? 420 : 340 }}>
         <ResponsiveContainer width="100%" height="100%">
-          <ComposedChart data={data} margin={{ top: 24, right: 12, left: 8, bottom: 0 }} onClick={handleClick}>
+          <ComposedChart data={data} margin={{ top: 24, right: 12, left: 8, bottom: sob ? 18 : 0 }} onClick={handleClick}>
             <XAxis dataKey="label" tick={{ fontSize: 13 }} />
-            <YAxis tick={{ fontSize: 13 }} width={isPct ? 42 : 56} domain={isPct ? [0, 100] : undefined} tickFormatter={isPct ? (v) => v + '%' : (v) => fmtK(v)} />
-            <Tooltip content={<PSTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
+            {sobrepor && <XAxis xAxisId="custo" dataKey="label" hide />}
+            <YAxis tick={{ fontSize: 13 }} width={isPct ? 42 : 56} domain={isPct ? [0, 100] : undefined} tickFormatter={isPct ? (v) => v + '%' : (v) => fmtAbs(v)} />
+            <Tooltip content={<PSTooltip metrica={metrica} />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />
             <Legend wrapperStyle={{ fontSize: 14 }} />
-            {isStack && <ReferenceLine y={media} stroke="#9ca3af" strokeDasharray="5 4" ifOverflow="extendDomain"
+            {sob && <ReferenceLine y={0} stroke="#374151" />}
+            {isStack && !sobrepor && <ReferenceLine y={media} stroke="#9ca3af" strokeDasharray="5 4" ifOverflow="extendDomain"
               label={{ value: `média ${fechados.length}m fechados: ${fmtK(media)}`, position: 'insideTopRight', fill: '#6b7280', fontSize: 12 }} />}
-            <Bar dataKey={kOfi} stackId={stackId} name="Peças Oficina" fill={CHART_PECAS} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
-              {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
-              {view === 'agrupado' && <LabelList dataKey="pecasOficina" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+            <Bar dataKey={kOfi} stackId={stackId} name={ehCusto && isPct ? 'Custo Peças Oficina' : 'Peças Oficina'} fill={corOfi} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
+              {data.map((p, i) => <Cell key={i} fillOpacity={(p.parcial ? 0.55 : 1) * opVenda} />)}
+              {rotVenda && view === 'agrupado' && <LabelList dataKey="vOfi" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="oficinaPct" position="center" style={{ fontSize: 11, fill: '#fff', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
-            <Bar dataKey={kBal} stackId={stackId} name="Peças Balcão" fill={CHART_PECAS_BALCAO} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
-              {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
-              {view === 'agrupado' && <LabelList dataKey="pecasBalcao" position="top" style={{ fontSize: 11, fill: '#1e6fb8', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
-              {isPct && <LabelList dataKey="balcaoPct" position="center" style={{ fontSize: 11, fill: '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
+            <Bar dataKey={kBal} stackId={stackId} name={ehCusto && isPct ? 'Custo Peças Balcão' : 'Peças Balcão'} fill={corBal} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
+              {data.map((p, i) => <Cell key={i} fillOpacity={(p.parcial ? 0.55 : 1) * opVenda} />)}
+              {rotVenda && view === 'agrupado' && <LabelList dataKey="vBal" position="top" style={{ fontSize: 11, fill: '#1e6fb8', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {isPct && <LabelList dataKey="balcaoPct" position="center" style={{ fontSize: 11, fill: ehCusto ? '#450a0a' : '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
-            <Bar dataKey={kS} stackId={stackId} name="Serviços" fill={CHART_SERVICOS} radius={[3, 3, 0, 0]} maxBarSize={54}>
-              {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
-              {isStack && <LabelList dataKey="ps" position="top" style={{ fontSize: 12, fill: '#374151', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
-              {view === 'agrupado' && <LabelList dataKey="servicos" position="top" style={{ fontSize: 11, fill: CHART_SERVICOS_INK, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
-              {isPct && <LabelList dataKey="servicosPct" position="center" style={{ fontSize: 11, fill: '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
+            <Bar dataKey={kS} stackId={stackId} name={ehCusto && isPct ? 'Custo Serviços' : 'Serviços'} fill={corServ} radius={[3, 3, 0, 0]} maxBarSize={54}>
+              {data.map((p, i) => <Cell key={i} fillOpacity={(p.parcial ? 0.55 : 1) * opVenda} />)}
+              {rotVenda && isStack && <LabelList dataKey="vTot" position="top" style={{ fontSize: 12, fill: '#374151', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {rotVenda && view === 'agrupado' && <LabelList dataKey="vServ" position="top" style={{ fontSize: 11, fill: CHART_SERVICOS_INK, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
+              {isPct && <LabelList dataKey="servicosPct" position="center" style={{ fontSize: 11, fill: ehCusto ? '#fff' : '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
-            {!isPct && cmp.a1 && <Line type="monotone" dataKey="psAnoAnt" name={`−1 ano · ${winLabel(1)}`} stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls={false} />}
-            {!isPct && cmp.a2 && <Line type="monotone" dataKey="psAno2Ant" name={`−2 anos · ${winLabel(2)}`} stroke="#a78bfa" strokeWidth={1.5} strokeDasharray="2 3" dot={false} connectNulls={false} />}
+            {sobrepor && (
+              <Bar xAxisId="custo" dataKey="cOfi" stackId={stackId ? 'custo' : undefined} name="Custo Peças Oficina" fill={CUSTO_OFICINA} radius={isStack ? [0, 0, 0, 0] : raioCusto} maxBarSize={54}>
+                {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
+                {view === 'agrupado' && <LabelList dataKey="cOfi" position={posRotCusto} style={{ fontSize: 11, fill: CUSTO_OFICINA, fontWeight: 700 }} formatter={fmtRotCusto} />}
+              </Bar>
+            )}
+            {sobrepor && (
+              <Bar xAxisId="custo" dataKey="cBal" stackId={stackId ? 'custo' : undefined} name="Custo Peças Balcão" fill={CUSTO_BALCAO} radius={isStack ? [0, 0, 0, 0] : raioCusto} maxBarSize={54}>
+                {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
+                {view === 'agrupado' && <LabelList dataKey="cBal" position={posRotCusto} style={{ fontSize: 11, fill: '#dc2626', fontWeight: 700 }} formatter={fmtRotCusto} />}
+              </Bar>
+            )}
+            {sobrepor && (
+              <Bar xAxisId="custo" dataKey="cServ" stackId={stackId ? 'custo' : undefined} name="Custo Serviços" fill={CUSTO_SERVICOS} radius={raioCusto} maxBarSize={54}>
+                {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
+                {isStack && <LabelList dataKey="cTot" position={posRotCusto} style={{ fontSize: 12, fill: '#991b1b', fontWeight: 700 }} formatter={fmtRotCusto} />}
+                {view === 'agrupado' && <LabelList dataKey="cServ" position={posRotCusto} style={{ fontSize: 11, fill: '#991b1b', fontWeight: 700 }} formatter={fmtRotCusto} />}
+              </Bar>
+            )}
+            {!isPct && metrica === 'venda' && cmp.a1 && <Line type="monotone" dataKey="psAnoAnt" name={`−1 ano · ${winLabel(1)}`} stroke="#9ca3af" strokeWidth={1.5} strokeDasharray="4 3" dot={false} connectNulls={false} />}
+            {!isPct && metrica === 'venda' && cmp.a2 && <Line type="monotone" dataKey="psAno2Ant" name={`−2 anos · ${winLabel(2)}`} stroke="#a78bfa" strokeWidth={1.5} strokeDasharray="2 3" dot={false} connectNulls={false} />}
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -1601,9 +1720,10 @@ function PecasChart({ pontos, comparativos, onSelectMes }: { pontos: TendPonto[]
               {ultimo.label} é o mês corrente — parcial (até dia {diaHoje}).
             </span>
           )}
+          {metrica !== 'venda' && semCustoServ && <span style={{ marginLeft: 10, color: '#b91c1c' }}>Custo de serviços indisponível (Painel Omie não respondeu) — contado como zero.</span>}
           {onSelectMes && <span style={{ marginLeft: ultimo?.parcial ? 10 : 0 }}>Dica: duplo-clique numa barra abre aquele mês.</span>}
         </div>
-        {!isPct && (
+        {!isPct && metrica === 'venda' && (
           <div style={{ position: 'relative' }}>
             <button onClick={() => setCompararAberto((v) => !v)}
               style={{ padding: '5px 11px', border: '1px solid', borderColor: cmp.a1 || cmp.a2 ? '#111827' : '#e0e0e0', background: cmp.a1 || cmp.a2 ? '#111827' : '#fff', color: cmp.a1 || cmp.a2 ? '#fff' : '#666', borderRadius: 7, fontSize: '.78rem', fontWeight: 600, cursor: 'pointer' }}>
@@ -1626,8 +1746,8 @@ function PecasChart({ pontos, comparativos, onSelectMes }: { pontos: TendPonto[]
         )}
       </div>
       {/* "Comparar": gráficos de barras (Peças Oficina/Balcão + Serviços) das janelas anteriores, abaixo. */}
-      {cmp.a1 && comparativos?.a1?.length ? <ComparativoChart pontos={comparativos.a1} view={view} titulo={`−1 ano · ${winLabel(1)}`} accent="#22c55e" /> : null}
-      {cmp.a2 && comparativos?.a2?.length ? <ComparativoChart pontos={comparativos.a2} view={view} titulo={`−2 anos · ${winLabel(2)}`} accent="#a78bfa" /> : null}
+      {metrica === 'venda' && cmp.a1 && comparativos?.a1?.length ? <ComparativoChart pontos={comparativos.a1} view={view} titulo={`−1 ano · ${winLabel(1)}`} accent="#22c55e" /> : null}
+      {metrica === 'venda' && cmp.a2 && comparativos?.a2?.length ? <ComparativoChart pontos={comparativos.a2} view={view} titulo={`−2 anos · ${winLabel(2)}`} accent="#a78bfa" /> : null}
     </div>
   );
 }

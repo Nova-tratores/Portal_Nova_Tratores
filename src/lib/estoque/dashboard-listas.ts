@@ -22,6 +22,7 @@ import { diasUteis } from './historico-grade';
 import { localSP, feriadosNacionais, feriadosExtras } from '@/lib/assistente/horario';
 import { MESES_CURTO } from './utils';
 import { CONTA_DEFAULT, type ContaFiltro } from './conta';
+import { custoServicosMensal, chaveMes } from './custo-servicos-painel';
 
 const num = (v: unknown): number => parseFloat(String(v ?? 0)) || 0;
 
@@ -718,6 +719,11 @@ export interface TendenciaPonto {
   psAno2Ant: number;
   /** Compras (entradas) de peças do mês — sparkline do card "Entradas" + razão. */
   compras: number;
+  /** Custo (CMC × qtd) das peças vendidas no mês, nas mesmas fatias Balcão/Oficina. */
+  custoPecasBalcao: number;
+  custoPecasOficina: number;
+  /** Custo dos serviços no mês (Painel Omie). null = painel indisponível. */
+  custoServicos: number | null;
 }
 
 /** Ponto de uma janela comparativa (-1/-2 anos) para o "Comparar" (gráficos abaixo). */
@@ -797,10 +803,16 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaResu
   }
 
   // Calcula peças/serviços/máquinas de TODOS os 36 meses (para o YoY / Comparar).
-  const porMes = new Map<string, { pecas: number; pecasBalcao: number; pecasOficina: number; servicos: number; maquinas: number; maquinasUn: number }>();
+  const porMes = new Map<string, { pecas: number; pecasBalcao: number; pecasOficina: number; custoPecas: number; custoBalcao: number; servicos: number; maquinas: number; maquinasUn: number }>();
   for (const m of meses) {
     const itensMes = itens.filter((it) => it.mes === m.mes && it.ano === m.ano);
-    const pecas = agregarCardsPecas(itensMes, null, fixed).totalPecas;
+    const aggPecas = agregarCardsPecas(itensMes, null, fixed);
+    const pecas = aggPecas.totalPecas;
+    const custoBalcao = itensMes.reduce((s, it) => {
+      if (!ehPecaVenda(it) || !CAT_BALCAO.has(String(it.codigo_categoria ?? ''))) return s;
+      const cmc = num(it.cmc_unitario), q = num(it.quantidade);
+      return cmc > 0 && q > 0 ? s + cmc * q : s;
+    }, 0);
     // Balcão = itens de peça na categoria 1.01.03; Oficina = total − Balcão (mesma
     // régua de peça do totalPecas, então as duas fatias somam o total exato).
     const pecasBalcao = itensMes.reduce(
@@ -812,6 +824,8 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaResu
       pecas,
       pecasBalcao,
       pecasOficina: pecas - pecasBalcao,
+      custoPecas: aggPecas.totalCusto,
+      custoBalcao,
       servicos: osPorMes[m.mes + '/' + m.ano] || 0,
       maquinas: maq.reduce((s, x) => s + x.receita, 0),
       maquinasUn: maq.reduce((s, x) => s + x.unidades, 0),
@@ -820,7 +834,10 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaResu
 
   // Compras (entradas) de peças por mês — só dos 12 exibidos (sparkline + razão).
   const ultimos = meses.slice(-12);
-  const comprasPorMes = await Promise.all(ultimos.map((m) => somarComprasPecas(m.mes, m.ano, conta)));
+  const [comprasPorMes, custoServ] = await Promise.all([
+    Promise.all(ultimos.map((m) => somarComprasPecas(m.mes, m.ano, conta))),
+    custoServicosMensal(conta, ultimos[0], ultimos[ultimos.length - 1]),
+  ]);
 
   // Últimos 12, cada um com Peças+Serviços do mesmo mês de -1 e -2 anos.
   const pontos: TendenciaPonto[] = ultimos.map((m, i) => {
@@ -840,6 +857,9 @@ export async function montarTendencia(conta: ContaFiltro): Promise<TendenciaResu
       psAnoAnt: ant ? ant.pecas + ant.servicos : 0,
       psAno2Ant: ant2 ? ant2.pecas + ant2.servicos : 0,
       compras: comprasPorMes[i],
+      custoPecasBalcao: d.custoBalcao,
+      custoPecasOficina: d.custoPecas - d.custoBalcao,
+      custoServicos: custoServ ? custoServ[chaveMes(m.mes, m.ano)] || 0 : null,
     };
   });
 
