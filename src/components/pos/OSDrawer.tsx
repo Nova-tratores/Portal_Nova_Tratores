@@ -27,6 +27,7 @@ import SubstituirOmieModal from "./SubstituirOmieModal";
 import EditarPPVsModal from "./EditarPPVsModal";
 import NovaRequisicaoOSModal from "./NovaRequisicaoOSModal";
 import NotasFiscaisBloco from "./NotasFiscaisBloco";
+import EnviarOmieModal, { type FaseEnvioOmie } from "./EnviarOmieModal";
 import AnexosModal from "@/components/ppv/AnexosModal";
 import TarefasModal from "@/components/ppv/TarefasModal";
 import ChequeRevisaoBloco from "./ChequeRevisaoBloco";
@@ -822,59 +823,48 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   }, [subtotalBruto]);
 
   const salvarRef = useRef<null | (() => Promise<boolean>)>(null);
-  const enviarParaOmie = useCallback(async () => {
+  // janela do envio ao Omie: confirmar → enviando (passos + estimativa) → resultado
+  const [envioOmie, setEnvioOmie] = useState<FaseEnvioOmie | null>(null);
+  const enviarParaOmie = useCallback(() => {
     if (!osId) return;
-    if (!podeOmie) {
-      alert("Você não tem permissão para enviar ao Omie.");
-      return;
-    }
-    if (!confirm(servicoInterno
-      ? "Deseja enviar esta OS para o Omie?\n\n• A OS é criada normalmente no Omie.\n• Por ser INTERNA, as peças vinculadas saem como REMESSA (não gera pedido de venda)."
-      : "Deseja enviar esta OS para o Omie?")) return;
+    if (!podeOmie) { alert("Você não tem permissão para enviar ao Omie."); return; }
+    setEnvioOmie({ fase: "confirmar" });
+  }, [osId, podeOmie]);
+  const executarEnvioOmie = useCallback(async () => {
+    if (!osId) return;
+    setEnvioOmie({ fase: "enviando" });
     // salva antes: a rota lê a OS GRAVADA — texto digitado e não salvo dava
     // "Falta preencher Solicitação do cliente…" (OS-0826, 15/10/2026)
     if (mode === "edit" && podeEditar) {
       const salvou = await salvarRef.current?.();
-      if (salvou === false) return;
+      if (salvou === false) { setEnvioOmie({ fase: "erro", mensagem: "A OS não foi salva — corrija o que o aviso pediu e tente de novo." }); return; }
     }
     setEnviandoOmie(true);
     try {
       const res = await fetch(`/api/pos/ordens/${osId}/omie`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userName }) });
       const result = await res.json().catch(() => ({} as Record<string, never>));
       // Resposta sem os campos esperados = a conexão caiu no meio (ex.: timeout
-      // do proxy do Railway enquanto o Omie processava). O envio pode TER dado
-      // certo no servidor — reenviar às cegas assusta; melhor conferir.
+      // do proxy do Railway enquanto o Omie processava). O envio pode TER dado certo.
       if (typeof result.sucesso === "undefined" && !result.erro) {
-        alert(
-          "A conexão caiu enquanto o Omie processava (demorou demais).\n\n" +
-          "O envio pode ter sido concluído mesmo assim. Recarregue a página e confira se a OS recebeu o nº do Omie:\n" +
-          "• Se recebeu, está tudo certo — não reenvie.\n" +
-          "• Se não recebeu, tente enviar de novo (reenviar não duplica: o sistema recusa OS que já tem nº)."
-        );
+        setEnvioOmie({ fase: "incerto" });
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
-        setEnviandoOmie(false);
-        return;
-      }
-      if (result.sucesso) {
-        let msg = `OS enviada para o Omie com sucesso!\nNº Omie: ${result.cNumOS}`;
-        if (result.pedidoVenda) msg += `\n${servicoInterno ? "Remessa de peças" : "Pedido de Venda"} nº ${result.pedidoVenda}`;
-        if (result.pedidoVendaErro) msg += `\nErro nas peças: ${result.pedidoVendaErro}`;
-        alert(msg);
+      } else if (result.sucesso) {
+        setEnvioOmie({ fase: "ok", numeroOS: String(result.cNumOS || ""), pedidos: result.pedidoVenda || undefined, erroPecas: result.pedidoVendaErro || undefined });
         if (result.cNumOS) setOrdemOmie(String(result.cNumOS));
         // Interna conclui; externa vai COBRAR o cliente antes de concluir
         setStatus(servicoInterno ? "Concluída" : "Cobrando Cliente");
         setLogRefreshKey((k) => k + 1);
         onSaved?.();
       } else {
-        alert(`Erro ao enviar para o Omie:\n${result.erro}`);
+        setEnvioOmie({ fase: "erro", mensagem: String(result.erro || "Erro desconhecido.") });
       }
     } catch (err) {
-      alert("Erro de conexão ao enviar para o Omie.");
       console.error(err);
+      setEnvioOmie({ fase: "erro", mensagem: "Erro de conexão ao enviar para o Omie." });
     }
     setEnviandoOmie(false);
-  }, [osId, onSaved, servicoInterno, userName, podeConcluir, podeOmie, mode, podeEditar]);
+  }, [osId, onSaved, servicoInterno, userName, mode, podeEditar]);
 
   // Passo final: dev confirma que o envio ao Omie ficou certo e move a OS
   // (que está em "Enviado Para Omie") para "Concluída".
@@ -2695,6 +2685,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                               <div style={{ fontSize: 11.5, color: "var(--portal-text-muted)", padding: "0 2px", lineHeight: 1.4 }}>
                                 A OS está pronta para ir ao Omie. Ao enviar, ela vira uma OS no Omie e o pedido de peças vai junto.
                               </div>
+                              {envioOmie && osId && <EnviarOmieModal estado={envioOmie} osId={osId} cliente={clienteInfo?.nome || ""} interna={servicoInterno}
+                                ppvIds={ppvIds} onConfirmar={() => { void executarEnvioOmie(); }} onFechar={() => setEnvioOmie(null)} />}
                               <button type="button" onClick={enviarParaOmie} disabled={enviandoOmie || !podeOmie}
                                 title={!podeOmie ? MSG_SEM_PERMISSAO : servicoInterno ? "OS interna: vai normal pro Omie; peças saem como remessa" : "Criar esta OS no Omie"}
                                 style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", minHeight: 40, padding: "0 12px", borderRadius: 10, border: "none",
