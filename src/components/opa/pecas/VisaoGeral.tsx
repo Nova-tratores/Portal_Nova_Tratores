@@ -10,7 +10,7 @@ import { gerarCsv, baixarCsv } from '@/lib/opa-pecas/csv'
 import { listarItens, mudarStatusLote, nomesUsuarios, salvarMarca, salvarTipo, type ResultadoLote } from '@/lib/opa-pecas/db'
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
 import { gerarPdfCatalogo } from '@/lib/opa-pecas/pdf'
-import { skuDaPeca, calcularTotais, codigoDefinitivo, nomeDoItem, ehFinal, exigeMotivo, FILTROS_VAZIOS, filtrarItens, resumoFiltros, textoLocal, transicaoValida, type Filtros } from '@/lib/opa-pecas/regras'
+import { skuDaPeca, calcularTotais, nomeDoItem, ehFinal, exigeMotivo, FILTROS_VAZIOS, filtrarItens, resumoFiltros, textoLocal, transicaoValida, type Filtros } from '@/lib/opa-pecas/regras'
 import { QUALIDADES, ROTULO_QUALIDADE, ROTULO_STATUS, STATUS, type Item, type Lookup, type Qualidade, type Status } from '@/lib/opa-pecas/tipos'
 import { Aviso, botao, INP, LARANJA, useMiniaturas, type Base } from './comum'
 import { CampoPreco } from './Campos'
@@ -104,11 +104,10 @@ export default function VisaoGeral({ base }: { base: Base }) {
   }
 
   const imprimirLote = (lista: Item[]) => {
-    const comCodigo = lista.filter((i) => codigoDefinitivo(i.codigo))
-    if (comCodigo.length) setImprimindo(comCodigo.map((i) => ({ id: i.id, jaGerada: !!i.etiqueta_impressa_em, token: i.token_publico, codigo: i.codigo, descricao: i.descricao, quantidade: i.quantidade, local: textoLocal(i, base.nomesLocais) })))
+    // etiqueta em QUALQUER fase (José, 15/10/2026): código provisório CAP- até concluir; o QR é fixo
+    if (lista.length) setImprimindo(lista.map((i) => ({ id: i.id, jaGerada: !!i.etiqueta_impressa_em, token: i.token_publico, codigo: i.codigo, descricao: i.descricao, quantidade: i.quantidade, local: textoLocal(i, base.nomesLocais) })))
   }
-  // etiqueta só existe para peça com código definitivo (concluída); imprime as marcadas
-  const selComCodigo = selecionados.filter((i) => codigoDefinitivo(i.codigo))
+  const selComCodigo = selecionados
 
   const exportarCsv = () => baixarCsv(`pecas-nao-identificadas-${new Date().toISOString().slice(0, 10)}.csv`, gerarCsv(filtrados, nomes))
 
@@ -189,7 +188,7 @@ export default function VisaoGeral({ base }: { base: Base }) {
         </span>
         <div style={{ flex: 1 }} />
         <button onClick={() => imprimirLote(selComCodigo)} disabled={!selComCodigo.length}
-          title={selecionados.length ? 'Etiquetas das peças marcadas que já têm código (concluídas), juntas na mesma folha' : 'Marque as peças na lista para imprimir as etiquetas'}
+          title={selecionados.length ? 'Etiquetas das peças marcadas (térmica ou folha) — ficam marcadas como impressas' : 'Marque as peças na lista para imprimir as etiquetas'}
           style={{ ...ACAO, ...(selComCodigo.length ? { background: '#111827', color: '#fefefe', borderColor: '#111827' } : { opacity: 0.45, cursor: 'not-allowed' }) }}>
           <Printer size={14} /> Etiquetas{selComCodigo.length ? ` (${selComCodigo.length})` : ''}
         </button>

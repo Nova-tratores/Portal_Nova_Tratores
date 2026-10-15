@@ -12,7 +12,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { CheckSquare, Clock, Inbox, Loader2, MapPin, Printer, RotateCcw, Square } from 'lucide-react'
 import { listarItens } from '@/lib/opa-pecas/db'
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
-import { codigoDefinitivo, fmtDataHora, nomeDoItem, ordenarFila, textoLocal } from '@/lib/opa-pecas/regras'
+import { fmtDataHora, nomeDoItem, ordenarFila, textoLocal } from '@/lib/opa-pecas/regras'
 import type { Item, Status } from '@/lib/opa-pecas/tipos'
 import { Aviso, botao, CodigoPeca, SeloEtiqueta, SeloStatus, LARANJA, Miniatura, SECAO, useMiniaturas, useTelaLarga, type Base } from './comum'
 import { Janela } from './Moldura'
@@ -81,16 +81,16 @@ export default function Etapa({ etapa, base }: { etapa: EtapaLista; base: Base }
 
   const paraEtiqueta = (l: Item[]): ItemParaEtiqueta[] =>
     l.map((i) => ({ id: i.id, jaGerada: !!i.etiqueta_impressa_em, token: i.token_publico, codigo: i.codigo, descricao: i.descricao, quantidade: i.quantidade, local: textoLocal(i, base.nomesLocais) }))
-  const comCodigo = lista.filter((i) => codigoDefinitivo(i.codigo))
+  const comCodigo = lista // etiqueta em qualquer fase (código provisório até concluir)
   const marcadas = comCodigo.filter((i) => sel.has(i.id))
   const alternar = (id: string) => setSel((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
 
-  // Concluídas: marca as peças e imprime as etiquetas juntas (folha A4, 30 por folha)
-  const barraEtiquetas = concluidas && comCodigo.length > 0 && (
+  // Marca as peças e imprime as etiquetas juntas (térmica ou folha) — em qualquer etapa
+  const barraEtiquetas = comCodigo.length > 0 && (
     <div style={{ ...SECAO, flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
       <Printer size={18} style={{ color: 'var(--portal-text-muted)' }} />
       <span style={{ fontSize: 13.5, color: 'var(--portal-text)', flex: 1, minWidth: 200 }}>
-        <b>Etiquetas</b> — marque as peças e imprima juntas na mesma folha A4 (30 por folha)
+        <b>Etiquetas</b> — marque as peças e imprima juntas; ficam marcadas como impressas
       </span>
       <button type="button" onClick={() => setSel(marcadas.length === comCodigo.length ? new Set() : new Set(comCodigo.map((i) => i.id)))}
         style={botao('#52525B', { contorno: true })}>
@@ -107,7 +107,7 @@ export default function Etapa({ etapa, base }: { etapa: EtapaLista; base: Base }
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
       {lista.map((i) => {
         const ativo = aberto?.id === i.id
-        const marcavel = concluidas && codigoDefinitivo(i.codigo)
+        const marcavel = true
         return (
           <div key={i.id} style={{ display: 'flex', alignItems: 'stretch', gap: 6 }}>
             {marcavel && (
@@ -125,7 +125,7 @@ export default function Etapa({ etapa, base }: { etapa: EtapaLista; base: Base }
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                   <CodigoPeca codigo={i.codigo} />
                   {concluidas ? <SeloStatus status={i.status} /> : i.decisao && etapa !== 'verificacao' && <ChipDecisao decisao={i.decisao} />}
-                  {concluidas && <SeloEtiqueta em={i.etiqueta_impressa_em} />}
+                  <SeloEtiqueta em={i.etiqueta_impressa_em} />
                 </div>
                 <div style={{ fontSize: 12.5, color: i.descricao ? 'var(--portal-text-secondary)' : 'var(--portal-text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: 2 }}>
                   {i.descricao || 'Sem descrição'} · {i.quantidade} {i.quantidade === 1 ? 'peça' : 'peças'}

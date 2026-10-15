@@ -1,13 +1,13 @@
 'use client'
-// Atalho do menu Etapas: imprimir as etiquetas de todas as peças concluídas
-// (com código definitivo) de uma vez, na mesma folha A4. Para escolher quais,
-// a tela Concluídas deixa marcar peça por peça. Não existe "pendente".
+// Atalho do menu Etapas: imprimir as etiquetas de TODAS as peças de uma vez
+// (qualquer fase — José, 15/10/2026), na térmica ou na folha. Opção de só as
+// que ainda não foram impressas; ao imprimir, todas ficam marcadas como impressas.
 
 import { useEffect, useState } from 'react'
 import { Loader2, Printer } from 'lucide-react'
 import { listarItens } from '@/lib/opa-pecas/db'
 import { mensagemErro } from '@/lib/opa-pecas/fotos'
-import { codigoDefinitivo, textoLocal } from '@/lib/opa-pecas/regras'
+import { textoLocal } from '@/lib/opa-pecas/regras'
 import type { Item } from '@/lib/opa-pecas/tipos'
 import { Aviso, botao, useBase } from './comum'
 import Impressao, { type ItemParaEtiqueta } from './Impressao'
@@ -37,7 +37,7 @@ function Escolha({ onFechar }: { onFechar: () => void }) {
   useEffect(() => {
     let vivo = true
     listarItens()
-      .then((l) => { if (vivo) setItens(l.filter((i) => codigoDefinitivo(i.codigo))) })
+      .then((l) => { if (vivo) setItens(l) })
       .catch((e) => { if (vivo) setErro(mensagemErro(e)) })
     return () => { vivo = false }
   }, [])
@@ -48,6 +48,7 @@ function Escolha({ onFechar }: { onFechar: () => void }) {
   if (imprimindo) return <Impressao itens={imprimindo} onFechar={onFechar} />
 
   const todas = itens || []
+  const faltam = todas.filter((i) => !i.etiqueta_impressa_em)
   const carregando = !itens || base.carregando
 
   return (
@@ -57,12 +58,16 @@ function Escolha({ onFechar }: { onFechar: () => void }) {
       {!erro && !carregando && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <p style={{ fontSize: 13.5, color: 'var(--portal-text-secondary)', margin: 0, lineHeight: 1.5 }}>
-            Etiqueta existe para peça concluída (com código): <b>{todas.length}</b> peça{todas.length === 1 ? '' : 's'}. Elas saem juntas na folha A4 (30 por folha).
-            Para escolher quais, use <b>Concluídas</b> e marque as peças.
+            <b>{todas.length}</b> peça{todas.length === 1 ? '' : 's'} no Opa · <b>{todas.length - faltam.length}</b> já com etiqueta impressa · <b>{faltam.length}</b> sem etiqueta.
+            Ao imprimir, elas ficam marcadas como impressas. Para escolher uma a uma, marque na lista.
           </p>
+          <button type="button" onClick={() => setImprimindo(para(faltam))} disabled={!faltam.length}
+            style={{ ...botao('#111827', { grande: true, desab: !faltam.length }), width: '100%' }}>
+            <Printer size={18} /> Só as que faltam ({faltam.length})
+          </button>
           <button type="button" onClick={() => setImprimindo(para(todas))} disabled={!todas.length}
-            style={{ ...botao('#111827', { grande: true, desab: !todas.length }), width: '100%' }}>
-            <Printer size={18} /> Imprimir as {todas.length} etiqueta{todas.length === 1 ? '' : 's'}
+            style={{ ...botao('#52525B', { contorno: true, desab: !todas.length }), width: '100%' }}>
+            <Printer size={16} /> Todas, inclusive as já impressas ({todas.length})
           </button>
         </div>
       )}

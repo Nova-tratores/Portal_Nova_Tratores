@@ -188,8 +188,10 @@ export function substituirFoto(fotoId: string, path: string) {
   return rpc<{ id: string; storage_path: string; anterior: string }>('pni_substituir_foto', { p_foto_id: fotoId, p_path: path })
 }
 
-export function marcarEtiqueta(ids: string[]) {
-  return rpc<number>('pni_marcar_etiqueta', { p_ids: ids })
+export async function marcarEtiqueta(ids: string[]): Promise<number> {
+  let n = 0
+  for (let i = 0; i < ids.length; i += 500) n += (await rpc<number>('pni_marcar_etiqueta', { p_ids: ids.slice(i, i + 500) })) || 0
+  return n
 }
 
 export function salvarTipo(id: string | null, nome: string, ativo = true) {
