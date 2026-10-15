@@ -4,7 +4,11 @@
 >
 > **Andamento:** Etapa 0 ✅ (13/10, apêndice A) · Etapa 1 ✅ porta única em todo o portal (13/10,
 > commits 7100b494 → 1303a3d4) · Etapa 2 ✅ código no ar em 14/10 (59e166f6) e `sql/agendador.sql` **aplicada 14/10** —
-> agendador (`src/lib/agendador`), rotas `/api/agendador`, tela `/agendamentos` nova · Etapa 3 a seguir.
+> agendador (`src/lib/agendador`), rotas `/api/agendador`, tela `/agendamentos` nova · Etapa 3 🟡 em
+> andamento: características às 20:00 no portal (15/10, GitHub como reserva das 20 h) e os 26
+> agendamentos sem Omie trocados direto (15/10; workflows só com botão manual até 14/11/2026,
+> depois apagar). Faltam os syncs da Omie (produtos, estoque, movimentos, compras, backfill CMC,
+> recebimentos completo, DRE, notas, remessas, pasta completa, NFs…).
 > Objetivo: toda chamada à Omie passa por uma porta só, com fila e prioridade, e todos os
 > agendamentos passam a rodar dentro do portal (Railway), com uma tela que mostra o que
 > está acontecendo de verdade. O GitHub Actions deixa de ser o relógio e vira só o vigia.
