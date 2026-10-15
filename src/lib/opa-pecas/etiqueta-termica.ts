@@ -9,9 +9,14 @@ import { qrSvg } from '@/lib/ppv/etiquetas-html'
 import { urlPublica, type EtiquetaItem } from './etiqueta'
 
 /** rotacao: a impressora puxa o rolo num sentido — girar a etiqueta acerta a orientação. */
-export interface AjusteTermica { largura: number; altura: number; x: number; y: number; rotacao: 0 | 90 | 180 | 270 }
-export const TERMICA_PADRAO: AjusteTermica = { largura: 70, altura: 30, x: 0, y: 0, rotacao: 0 }
-const CHAVE = 'pni_etiqueta_termica'
+/** intervalo: espaço (mm) entre uma etiqueta e a próxima no rolo — a página = altura + intervalo
+ *  (a ROGERIA foi configurada no Windows com papel 70 × 34 mm, 15/10/2026). */
+export interface AjusteTermica { largura: number; altura: number; intervalo: number; x: number; y: number; rotacao: 0 | 90 | 180 | 270 }
+export const TERMICA_PADRAO: AjusteTermica = { largura: 70, altura: 30, intervalo: 4, x: 0, y: 0, rotacao: 0 }
+export const LIMITES: Record<'largura' | 'altura' | 'intervalo' | 'x' | 'y', [number, number]> = {
+  largura: [20, 110], altura: [10, 150], intervalo: [0, 10], x: [-10, 10], y: [-10, 10],
+}
+const CHAVE = 'pni_etiqueta_termica_v2'
 const CHAVE_MODO = 'pni_etiqueta_modo'
 
 export type ModoEtiqueta = 'termica' | 'folha'
@@ -24,8 +29,10 @@ export function lerAjusteTermica(): AjusteTermica {
       return Number.isFinite(x) && x >= min && x <= max ? x : padrao
     }
     const rot = Number(j.rotacao)
+    const L = LIMITES
     return {
-      largura: n(j.largura, 70, 20, 120), altura: n(j.altura, 30, 15, 200), x: n(j.x, 0, -10, 10), y: n(j.y, 0, -10, 10),
+      largura: n(j.largura, 70, ...L.largura), altura: n(j.altura, 30, ...L.altura), intervalo: n(j.intervalo, 4, ...L.intervalo),
+      x: n(j.x, 0, ...L.x), y: n(j.y, 0, ...L.y),
       rotacao: (rot === 90 || rot === 180 || rot === 270 ? rot : 0) as AjusteTermica['rotacao'],
     }
   } catch {
@@ -53,18 +60,22 @@ export function htmlTermica(itens: (EtiquetaItem & { qr: string })[], a: AjusteT
   const fonteCodigo = Math.max(8, Math.min(16, H * 0.42))   // pt
   const fonteDesc = Math.max(6, Math.min(9, H * 0.25))
   const deLado = a.rotacao === 90 || a.rotacao === 270
-  const PW = deLado ? H : L   // tamanho da PÁGINA que vai para a impressora
-  const PH = deLado ? L : H
+  const gap = Math.max(0, a.intervalo || 0)
+  // PÁGINA = um passo do rolo (etiqueta + intervalo); a etiqueta fica nos primeiros mm
+  const PW = deLado ? H + gap : L
+  const PH = deLado ? L : H + gap
+  const AW = deLado ? H : L   // área da etiqueta dentro da página
+  const AH = deLado ? L : H
   const etiquetas = itens.map((i) => {
     const desc = (i.descricao || 'Peça sem descrição') + (i.quantidade && i.quantidade > 1 ? ` (${i.quantidade} un.)` : '')
-    return `<div class="pg"><div class="et">
+    return `<div class="pg"><div class="area"><div class="et">
   <div class="qr">${i.qr}</div>
   <div class="tx">
     <div class="cod">${esc(i.codigo)}</div>
     <div class="desc">${esc(desc)}</div>
     ${i.local ? `<div class="loc">${esc(i.local)}</div>` : ''}
   </div>
-</div></div>`
+</div></div></div>`
   }).join('\n')
   return `<!doctype html><html><head><meta charset="utf-8"><title>Etiqueta</title>
 <style>
@@ -72,6 +83,7 @@ export function htmlTermica(itens: (EtiquetaItem & { qr: string })[], a: AjusteT
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   html, body { width: ${PW}mm; background: #fff; color: #000; font-family: Arial, Helvetica, sans-serif; }
   .pg { width: ${PW}mm; height: ${PH}mm; position: relative; overflow: hidden; page-break-after: always; break-after: page; }
+  .area { position: absolute; left: 0; top: 0; width: ${AW}mm; height: ${AH}mm; }
   .pg:last-child { page-break-after: auto; break-after: auto; }
   .et { width: ${L}mm; height: ${H}mm; padding: ${pad}mm; display: flex; align-items: center; gap: ${pad}mm; overflow: hidden;
         position: absolute; left: 50%; top: 50%;
