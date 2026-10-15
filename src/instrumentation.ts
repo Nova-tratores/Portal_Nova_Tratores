@@ -243,6 +243,24 @@ export async function register(): Promise<void> {
     }
   }
 
+  // Permissões v2 — modo sombra (Fase 3a): as checagens das rotas comparam a regra
+  // antiga com a v2 e o buffer desce a cada 60 s (RPC perm_sombra_registrar).
+  // PERM_V2 = sombra (padrão em produção) | on (v2 decide) | off.
+  {
+    const { descarregarSombra, modoAtual } = await import('./lib/permissoes/sombra-server');
+    const modo = modoAtual();
+    if (modo !== 'off') {
+      const flush = async () => {
+        const r = await descarregarSombra();
+        if (!r.ok) log('permissões v2: flush da sombra falhou: ' + r.erro);
+      };
+      setInterval(() => { flush().catch(() => {}); }, 60 * 1000);
+      const proc = process as unknown as { once?: (ev: string, fn: () => void) => void };
+      proc.once?.('SIGTERM', () => { flush().catch(() => {}); });
+    }
+    log(`permissões v2: modo ${modo}`);
+  }
+
   // Cache de NOTAS FISCAIS (PDF + XML no bucket privado): indexa as fontes e
   // guarda um lote de 120 notas a cada 10 min (≈ 2 chamadas Omie por nota, longe
   // da cota). Para sozinho em bloqueio/Omie fora. Só produção; NOTAS_CACHE=on liga

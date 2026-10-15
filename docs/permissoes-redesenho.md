@@ -189,3 +189,48 @@ Ajustes aceitos nos templates v1:
   - O Dev vê todos.
   - Extra de teste apagado.
 - Build limpo no worktree (`C:/wt_perm`, `npm ci` próprio — com `node_modules` em junction o Turbopack recusa: "Symlink node_modules is invalid").
+
+## Fase 3a — checagens na v2 + modo sombra (15/10/2026)
+
+### Mapeamento de quem lê o banco com a chave pública (antes de fechar RLS)
+
+**Apps de fora no mesmo Supabase:**
+
+| App | Chave | Usa sem login (anon) |
+|---|---|---|
+| Proposta-Comercial (SPA antigo, último commit 02/2026) | anon no código | Clientes, Configuracoes, Equipamentos, Formulario, Proposta_Fabrica, cad_trator, storage `equipamentos` |
+| Dashboard Agro externo | anon no código (`index.html`, `upload.html`, scripts Python) | `tratores`, `lupa_*`, `municipio_*`, `hidrologia_municipio`, `temperatura_municipio`, `renagro_registros`, `pecuaria`, `lavouras_*` + RPCs `lupa_*`/`distinct_culturas*` |
+| NT_Mecanicos (app dos técnicos) | anon + login; as rotas do servidor dele usam anon puro | anon: Clientes, checkin_diario, frota_donos_relatorio, rastreio_pontos_relatorio, maxspeed_tile_cache, push_subscriptions, tecnico_veiculos. Logado: Ordem_Servico, Requisicao, garantias*, portal_permissoes, portal_notificacoes, pedidos, financeiro_usu… |
+| CRM (vendas-pwa) | anon + login (authenticated) | — (precisa de policy para authenticated: visitas, negocios, vendedores, Clientes, catalogo_*…) |
+| gestao-vendas (antigo) | anon + login | — (comissao_*, vendas_itens, clientes, produtos…) |
+| Contas a Pagar (antigo, portado para /dre-financeiro) | anon no servidor | contas_pagar, contas_receber, notas_entrada, produtos, vendas_itens, dre_cache… — confirmar se ainda roda no Railway |
+| Omie CMC Garantia (antigo) | service role | não é afetado por RLS |
+
+O Chatwoot fork e o vigia de câmeras não estão nesta máquina. Pelo CLAUDE.md, os dois falam com a API do portal, não direto com o Supabase.
+
+**Páginas públicas do portal que usam anon no navegador:**
+- `/tv-painel`: `portal_permissoes`, `Ordem_Servico`, `agenda_visao`, `tecnico_caminhos`, `tecnico_veiculos`.
+- `public/bug-reporter.js`: INSERT em `bug_reports` e upload no bucket `bug-reports`, sempre como anon.
+- `public/mapa-geral/*`: chave anon no código; dentro do portal herda a sessão.
+- Todo o resto (`/q`, `/assinar`, `/cheque`, `/garantia`, `/e`, `/carrinho`, `/g`, `/p`) passa por `/api` com service role.
+
+**O portal pelo navegador:** cerca de 105 tabelas/views/buckets, muitas gravadas direto do navegador. O Financeiro grava `Chamado_NF`, `finan_pagar` (também a partir de Requisições), `finan_receber`, `finan_rh`, `EnvioBoleto` e `mensagens_chat`, e escuta Realtime nelas.
+
+**Consequência:** fechar tabela por tabela, conferindo esta lista; nunca `revoke` em massa do anon. Antes de tocar em `portal_permissoes`, `Ordem_Servico`, `tecnico_*` ou `tratores`, mover a `/tv-painel` e o bug-reporter para `/api` e combinar o NT_Mecanicos e o Dashboard Agro.
+
+### Etapa 1 — Financeiro sem anon
+- `sql/permissoes-v2-05-financeiro-sem-anon.sql`: só `REVOKE ALL … FROM anon` em `Chamado_NF`, `finan_pagar`, `finan_receber`, `finan_rh`, `EnvioBoleto` e `mensagens_chat`.
+- Antes: todas, menos `EnvioBoleto`, devolviam linhas ao anon. Usuário logado não muda.
+- A restrição por módulo vem depois. Hoje até o "Mecânico Teste", sem módulo nenhum, lê essas tabelas, e as sub-páginas do Financeiro não têm gate. Restringir tira acesso de gente logada, então entra no relatório de impacto da Fase 5.
+
+### Modo sombra nas rotas
+- `sql/permissoes-v2-04-sombra.sql`: `perm_sombra` (agregado por dia × usuário × tela × rota × resultado antigo/v2) + RPC `perm_sombra_registrar`.
+- `src/lib/permissoes/sombra.ts` (puro, 4 testes) e `sombra-server.ts`: cache de 60 s das telas efetivas por usuário, buffer e flush de 60 s no `instrumentation.ts`.
+- Os três helpers genéricos (`exigirPermissao`, `exigirAcessoModulo`, `protegerRota`, 67 rotas) passam pelo `decidirPermissao`.
+- `PERM_V2`:
+  - `sombra` (padrão em produção): a regra antiga decide e a v2 é registrada;
+  - `on`: a v2 decide e a antiga vira a sombra; se o banco falhar, cai na antiga;
+  - `off`: nada.
+- **Divergências esperadas** (bugs da regra antiga que a v2 corrige):
+  - as ações explícitas e só-Dev (`pos:faturar`…) passam na regra antiga para quem tem `pos` puro;
+  - `exigirPermissao(modulo)` sem ação nega quem só tem `modulo:x`.
