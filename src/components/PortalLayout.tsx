@@ -33,6 +33,7 @@ import OrcamentoVencidoAlerta from './orcamentos/OrcamentoVencidoAlerta'
 import NotifPrefsModal from './notif/NotifPrefsModal'
 import OpaLembrete from './opa/OpaLembrete'
 import SatLembrete from './sat/SatLembrete'
+import QuemAcessa from './permissoes/QuemAcessa'
 
 interface NavItem {
   id: string
@@ -1582,6 +1583,9 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
 
       {/* Central de Trabalho: confirmar ticket recebido, "Seu dia" e atalho na dashboard */}
       {!emIframe && userProfile?.id && <PainelDoDia nome={userProfile?.nome || ''} />}
+
+      {/* Dev: quem tem acesso à página atual (permissões v2 × regra de hoje) */}
+      {!emIframe && isDev && <QuemAcessa />}
 
       {/* Assistente Tratorilson (flutuante, global) — só no modo flutuante e pra quem tem acesso */}
       {/* No celular o Tratorilson NÃO flutua na lateral — fica só dentro do painel
