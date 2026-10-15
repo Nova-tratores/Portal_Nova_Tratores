@@ -5,12 +5,13 @@
 // no Omie (o servidor limita a 1x a cada 2 min por OS). Nada aparece com o
 // interruptor POS_FATURAR desligado.
 import { useCallback, useEffect, useState } from "react";
+import CancelarNotaModal from "./CancelarNotaModal";
 import { authHeaders } from "@/lib/auth/client";
 import { rotuloStatus } from "@/lib/pos/faturamento-regras";
 import FaturarOSModal from "./FaturarOSModal";
 
 interface Estado {
-  habilitado: boolean; podeFaturar: boolean; podeFaturarPecas: boolean; enviadaOmie: boolean;
+  habilitado: boolean; podeFaturar: boolean; podeFaturarPecas: boolean; enviadaOmie: boolean; podeCancelarNota?: boolean;
   bloqueio: string | null; status: string | null; erro: string | null;
   faturadoEm: string | null; faturadoPor: string | null; formaPagamento: string | null;
   nfseNumero: string | null; nfseLink: string | null;
@@ -36,6 +37,7 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirA
   const [aberto, setAberto] = useState(false);
   const [conferindo, setConferindo] = useState(false);
   const [refaturando, setRefaturando] = useState(false);
+  const [cancelarNota, setCancelarNota] = useState(false);
 
   const carregar = useCallback(async (opts: { reconciliar?: boolean; forcar?: boolean } = {}) => {
     try {
@@ -118,6 +120,14 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirA
             )}
           </div>
         )}
+        {estado.podeCancelarNota && (
+          <button type="button" onClick={() => setCancelarNota(true)} title="Cancela a NFS-e no sistema nacional e refaz a OS no Omie para faturar de novo"
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", minHeight: 30, marginTop: 8, borderRadius: 8, border: "1px solid #fecaca", background: "#fefefe", color: "#b91c1c", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+            <i className="fas fa-file-circle-xmark" /> Cancelar nota e refazer
+          </button>
+        )}
+        {cancelarNota && <CancelarNotaModal osId={osId} numeroOS={ordemOmie.replace(/^0+(?=\d)/, "")} nfse={estado.nfseNumero ? String(estado.nfseNumero).replace(/^0+(?=\d)/, "") : null}
+          onFechar={() => { setCancelarNota(false); void carregar(); }} onFeito={() => { void carregar(); onFaturado(); }} />}
       </div>
     );
   }

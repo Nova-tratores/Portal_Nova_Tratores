@@ -1766,7 +1766,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         {pedidoVenda && (
                           <div style={{ flex: "1 1 180px", padding: "8px 12px", borderRadius: 10, background: "var(--portal-bg-secondary, #f8fafc)" }}>
                             <div style={{ fontSize: 11, opacity: 0.7, textTransform: "uppercase", letterSpacing: 0.4 }}>Pedido de venda</div>
-                            <div style={{ fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>nº {pedidoVenda.split(",").map((x) => x.trim().replace(/^0+(?=\d)/, "")).filter(Boolean).join(", ") || pedidoVenda}</div>
+                            {/* "PPV-0446:000000000007739" → "nº 7739 (PPV-0446)" — sem zeros à esquerda */}
+                            <div style={{ fontWeight: 800, fontSize: 17, fontVariantNumeric: "tabular-nums" }}>nº {pedidoVenda.split(",").map((x) => { const [a, b] = x.includes(":") ? x.split(":") : ["", x]; const num = String(b).trim().replace(/^0+(?=\d)/, ""); return a.trim() ? `${num} (${a.trim()})` : num; }).filter(Boolean).join(", ") || pedidoVenda}</div>
                           </div>
                         )}
                       </div>
@@ -1777,7 +1778,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                         </div>
                       )}
                       {omieLog && (
-                        <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, margin: 0, padding: 8, background: "var(--portal-bg-secondary, #f8fafc)", borderRadius: 6, fontFamily: "inherit", lineHeight: 1.5 }}>{omieLog}</pre>
+                        <pre style={{ whiteSpace: "pre-wrap", fontSize: 12, margin: 0, padding: 8, background: "var(--portal-bg-secondary, #f8fafc)", borderRadius: 6, fontFamily: "inherit", lineHeight: 1.5 }}>{omieLog.replace(/\b0{3,}(?=\d)/g, "")}</pre>
                       )}
                       {status === "Enviado Para Omie" && (
                         <button

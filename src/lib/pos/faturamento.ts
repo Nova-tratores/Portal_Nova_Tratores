@@ -285,6 +285,8 @@ async function notificarQuemFaturou(quem: string | null | undefined, titulo: str
 // ---------------------------------------------------------------- estado p/ a tela
 export interface EstadoFaturamentoOS {
   habilitado: boolean;
+  /** pode "Cancelar nota e refazer" (pos:cancelar_faturamento) */
+  podeCancelarNota?: boolean;
   podeFaturar: boolean;
   podeFaturarPecas: boolean;
   enviadaOmie: boolean;
@@ -303,7 +305,7 @@ export interface EstadoFaturamentoOS {
 }
 
 export async function estadoFaturamento(id: string, auth: Autenticado): Promise<EstadoFaturamentoOS> {
-  const base = { habilitado: faturamentoHabilitado(auth), podeFaturar: podeFaturarOS(auth), podeFaturarPecas: podeFaturarPPV(auth) };
+  const base = { habilitado: faturamentoHabilitado(auth), podeFaturar: podeFaturarOS(auth), podeFaturarPecas: podeFaturarPPV(auth), podeCancelarNota: podeCancelarFaturamento(auth) };
   let os: LinhaOS | null;
   try { os = await lerOS(id); }
   catch (e) {
