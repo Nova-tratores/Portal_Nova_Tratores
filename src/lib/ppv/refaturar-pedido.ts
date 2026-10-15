@@ -6,6 +6,7 @@
 //   2) Duplicar o pedido: DuplicarPedidoVenda; acha a cópia pela lista do cliente
 //      (o retorno nem sempre traz o código), refaz consumo final + CST 60, o
 //      vínculo com a OS e liga o PPV do portal à cópia (volta para "Enviado Omie").
+import { refPedidoNaOS, refOSNoPedido } from "@/lib/pos/pedido-cliente";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS } from "@/lib/pos/constants";
 import { buscarPPVPorId, registrarLog } from "@/lib/ppv/queries";
@@ -132,7 +133,7 @@ export async function duplicarPedidoCancelado(idPPV: string, usuario: string): P
   const os = osRow?.[0] as Rec | undefined;
   const numOS = semZeros(os?.Ordem_Omie);
   try {
-    await omieNaConta(acc, "/produtos/pedido/", "AlterarPedidoVenda", { cabecalho: { codigo_pedido: codNovo }, informacoes_adicionais: { consumidor_final: "S", ...(numOS ? { numero_pedido_cliente: numOS } : {}) } });
+    await omieNaConta(acc, "/produtos/pedido/", "AlterarPedidoVenda", { cabecalho: { codigo_pedido: codNovo }, informacoes_adicionais: { consumidor_final: "S", ...(numOS ? { numero_pedido_cliente: refOSNoPedido(numOS, acc.name) } : {}) } });
   } catch (e) { avisos.push(`Não gravei consumo final / nº da OS no pedido ${numNovo}: ${e instanceof Error ? e.message : e}`); }
   const cst = await garantirCst60(acc, { codigo_pedido: codNovo }).catch((e) => ({ trocados: 0, erro: e instanceof Error ? e.message : String(e) }));
   if (cst.erro) avisos.push(`CST 60 no pedido ${numNovo}: ${cst.erro}`);
@@ -142,7 +143,7 @@ export async function duplicarPedidoCancelado(idPPV: string, usuario: string): P
       const { contaOmie } = await import("@/lib/omie/contas");
       const { key, secret } = contaOmie("Nova Tratores");
       await omiePorta({ appKey: key, appSecret: secret, rotulo: "Nova Tratores" }, "/servicos/os/", "AlterarOS",
-        { Cabecalho: { nCodOS: Number(os.omie_ncodos) }, InformacoesAdicionais: { cNumPedido: numNovo } }, { gravacao: true, tentativas: 0 });
+        { Cabecalho: { nCodOS: Number(os.omie_ncodos) }, InformacoesAdicionais: { cNumPedido: refPedidoNaOS(numNovo, acc.name) } }, { gravacao: true, tentativas: 0 });
     } catch (e) { avisos.push(`Não gravei o pedido ${numNovo} na OS ${numOS} (OS faturada não aceita alteração): ${e instanceof Error ? e.message : e}`); }
   }
 

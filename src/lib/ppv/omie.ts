@@ -3,6 +3,7 @@
 // Suporte a múltiplas contas Omie por empresa
 // =============================================
 
+import { refOSNoPedido, ehCastro } from "@/lib/pos/pedido-cliente";
 import { supabaseFetch } from "./supabase";
 import { diasDoNumParcelas } from "@/lib/ppv/parcelas-condicao";
 import { resolverContaCorrente, resolverDepartamentos, type ContaDestino, type DeptoDestino } from "./conta-corrente";
@@ -540,9 +541,35 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     if (!prod.empresa) prod.empresa = empresaMajoritaria;
   }
 
-  // 7. Criar pedido na conta correta
-  const empresaNome = empresaMajoritaria;
-  const acc = getAccount(empresaNome);
+  // 7. Conta do pedido: confere no Omie se TODOS os produtos existem na empresa escolhida.
+  //    Se faltar algum e todos existirem na outra, o pedido/remessa vai pela outra
+  //    (José, 15/10/2026: "se não achar na Nova, tem que procurar na Castro").
+  let empresaNome = empresaMajoritaria;
+  let acc = getAccount(empresaNome);
+  const codigosOmie = new Map<string, number>();
+  {
+    const tentar = async (a: OmieAccount) => {
+      const m = new Map<string, number>(); const faltam: string[] = [];
+      for (const [cod] of produtosFinais) {
+        try { m.set(cod, await buscarCodigoProdutoOmie(cod, a)); } catch { faltam.push(cod); }
+      }
+      return { m, faltam };
+    };
+    const r1 = await tentar(acc);
+    let achou = r1;
+    if (r1.faltam.length) {
+      const outraNome = ehCastro(acc.name) ? "Nova Tratores" : "Castro Peças";
+      const outra = getAccount(outraNome);
+      const r2 = outra.name !== acc.name ? await tentar(outra) : r1;
+      if (r2.faltam.length) {
+        return { sucesso: false, erro: `Produto não encontrado no Omie — na ${acc.name}: ${r1.faltam.join(", ")}; na ${outra.name}: ${r2.faltam.join(", ")}. Cadastre o produto ou separe o PPV por empresa.` };
+      }
+      console.log(`[Omie PPV] ${idPPV} → ${r1.faltam.join(", ")} não existe na ${acc.name}; vai pela ${outra.name}`);
+      empresaNome = outra.name; acc = outra; achou = r2;
+      for (const [, p] of produtosFinais) p.empresa = outra.name;
+    }
+    achou.m.forEach((v, k) => codigosOmie.set(k, v));
+  }
   console.log(`[Omie PPV] ${idPPV} → Empresa: ${empresaNome} (${acc.name}), ${produtosFinais.length} produto(s)`);
   const produtos = produtosFinais;
 
@@ -555,7 +582,7 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     const itens: Array<{ codInt: string; codigoProdutoOmie: number; qtde: number; preco: number; fiscal: { cfop?: string; imposto?: Record<string, Record<string, unknown>> } | null }> = [];
     for (let i = 0; i < produtos.length; i++) {
       const [cod, prod] = produtos[i];
-      const codigoProdutoOmie = await buscarCodigoProdutoOmie(cod, acc);
+      const codigoProdutoOmie = codigosOmie.get(cod) ?? await buscarCodigoProdutoOmie(cod, acc);
       const contaProd = /castro|primari/i.test(prod.empresa || "") ? "castro" : "nova";
       const fiscal = await impostoDoProdutoFiscal(contaProd, codigoProdutoOmie);
       itens.push({ codInt: `${idPPV}-${i + 1}`, codigoProdutoOmie, qtde: prod.qtde, preco: prod.preco, fiscal });
@@ -564,7 +591,9 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
     const tipoLabel = isRemessa ? "Remessa" : "Pedido de Venda";
     const linksBase = await montarLinksPPV(idPPV, String(detalhes.osId || ""));
     // "Nº do pedido do cliente" = nº da OS NO OMIE (não o OS-xxxx do portal); sem OS no Omie, fica o do portal
-    const refOS = detalhes.osId ? (String(opcoes?.numeroOSOmie || "").replace(/^0+(?=\d)/, "") || (await numeroOSOmieDe(String(detalhes.osId))) || String(detalhes.osId)) : "";
+    const refOSNum = detalhes.osId ? (String(opcoes?.numeroOSOmie || "").replace(/^0+(?=\d)/, "") || (await numeroOSOmieDe(String(detalhes.osId))) || String(detalhes.osId)) : "";
+    // OS é sempre da Nova: pedido/remessa na Castro leva "NOVA <nº>" (José, 15/10/2026)
+    const refOS = refOSNoPedido(refOSNum, acc.name);
     const obsVenda = detalhes.dadosNF ? `${detalhes.dadosNF}\n\n${linksBase}` : linksBase;
     const dataPrevisao = isoParaBR(detalhes.previsaoFaturamento);
 

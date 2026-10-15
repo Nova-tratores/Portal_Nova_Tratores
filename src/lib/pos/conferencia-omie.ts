@@ -2,6 +2,7 @@
 // conferirOS = só leitura (ConsultarOS). alinharOS = deixa o Omie igual ao portal
 // (AlterarOS: cabeçalho/infos/departamentos/e-mail + itens por nIdItem com
 // cAcaoItem A/I/E) e confere de novo.
+import { pedidoClienteDaOS } from "@/lib/pos/pedido-cliente";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS } from "@/lib/pos/constants";
 import { contaOmie } from "@/lib/omie/contas";
@@ -69,7 +70,8 @@ const isoBR = (iso: string) => { const [a, m, d] = iso.slice(0, 10).split("-"); 
 /** previsão de faturamento da OS no portal (vazia = hoje) */
 const previsaoDaOS = (os: Rec) => String(os.Previsao_Faturamento || "").slice(0, 10) || hojeISO();
 /** nº do(s) pedido(s) de venda no Omie: "PPV-0446:000000000007739" → "7739" */
-const pedidosDaOS = (os: Rec) => String(os.Pedido_Venda || "").split(",").map((x) => String(x.split(":").pop() || "").trim().replace(/^0+(?=\d)/, "")).filter(Boolean).join(", ").slice(0, 15);
+// "Nº do pedido do cliente": dos PPVs da OS no Omie, com "CASTRO " quando o pedido é da Castro
+const pedidosDaOS = (os: Rec) => pedidoClienteDaOS(String(os.ID_PPV || "").split(","));
 /** parcelas esperadas: as editadas à mão na OS ou as da condição, a partir da previsão */
 function parcelasDaOS(esp: OmieEspelho, previsao: string, total: number) {
   const l = esp.parcelas.length ? esp.parcelas : calcularParcelas(diasDoEspelho(esp), previsao, total);
@@ -119,7 +121,7 @@ export async function conferirOS(idOs: string): Promise<ResultadoConferencia & {
   {
     const add = (d: Divergencia | null) => { if (d) div.push(d); };
     add(compararCampo(idOs, "previsao", "Previsão de faturamento", isoBR(previsaoDaOS(os)), dados.Cabecalho?.dDtPrevisao, { vazioIgnora: false }));
-    add(compararCampo(idOs, "pedidoCliente", "Nº do pedido do cliente (pedido de venda das peças)", pedidosDaOS(os), ia.cNumPedido));
+    add(compararCampo(idOs, "pedidoCliente", "Nº do pedido do cliente (pedido de venda das peças)", await pedidosDaOS(os), ia.cNumPedido));
     // OS interna não tem parcelas (não é cobrada) — José, 15/10/2026
     if (esp && !os.Servico_Interno) {
       const total = esperado.reduce((t, p) => t + Math.max(0, p.qtde * p.unit - p.desconto), 0);
@@ -195,7 +197,7 @@ export async function alinharOS(idOs: string): Promise<ResultadoConferencia> {
     cab.cCodParc = "999"; cab.nQtdeParc = parc.length;
     param.Parcelas = parc.map((p) => ({ ...p, nPercentual: Math.round((p.nValor / soma) * 10000) / 100 }));
   }
-  const pedCli = pedidosDaOS(os);
+  const pedCli = await pedidosDaOS(os);
   if (servicos.length) param.ServicosPrestados = servicos;
   if (esp) {
     param.InformacoesAdicionais = {

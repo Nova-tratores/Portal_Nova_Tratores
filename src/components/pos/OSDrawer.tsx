@@ -166,6 +166,9 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   const [ppvOmieCarregando, setPpvOmieCarregando] = useState(false);
   // Substituir a OS/pedido no Omie (só Dev ou quem um Dev liberou)
   const [omieRefresh, setOmieRefresh] = useState(0);
+  // PPV da OS que ficou fora do Omie (ex.: produto não achado) → reenviar só as peças
+  const [enviandoPecas, setEnviandoPecas] = useState<string | null>(null);
+  const [msgPecas, setMsgPecas] = useState<{ ok: boolean; texto: string } | null>(null);
   const [substituindo, setSubstituindo] = useState(false);
   const [podeSubstituir, setPodeSubstituir] = useState(false);
   useEffect(() => {
@@ -2713,6 +2716,34 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                           {pvSolto && linhaDoc(ppvOmieCarregando ? "peças" : "peças", ppvOmieCarregando ? "conferindo…" : `Pedido ${pvSolto}`, null, false, "pv-solto", false)}
                         </div>
                       )}
+                      {/* peças que não foram ao Omie junto com a OS: reenviar */}
+                      {ordemOmie && !ppvOmieCarregando && ppvIds.filter((pid) => !ppvOmieMap[pid]).map((pid) => (
+                        <div key={`fora-${pid}`} style={{ margin: "6px 2px 0", padding: "8px 10px", borderRadius: 9, background: "#fffbeb", border: "1px solid #fde68a" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                            <i className="fas fa-box-open" style={{ color: "#b45309", fontSize: 12 }} />
+                            <div style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: "#92400e", lineHeight: 1.35 }}>
+                              <b>{pid}</b> não foi para o Omie
+                              <div style={{ fontSize: 10.5, opacity: .85 }}>{servicoInterno ? "remessa" : "pedido de venda"} · procura o produto na Nova e na Castro</div>
+                            </div>
+                            <button type="button" disabled={!!enviandoPecas || !podeOmie}
+                              onClick={async () => {
+                                if (!osId) return;
+                                setEnviandoPecas(pid); setMsgPecas(null);
+                                try {
+                                  const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/enviar-pecas`, { method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" }, body: JSON.stringify({ ppvId: pid }) });
+                                  const j = await r.json().catch(() => ({}));
+                                  if (r.ok && j.ok) { setMsgPecas({ ok: true, texto: `${pid} enviado: ${servicoInterno ? "remessa" : "pedido"} ${String(j.numero || "").replace(/^0+(?=\d)/, "")}${j.aviso ? ` · ${j.aviso}` : ""}` }); setOmieRefresh((k) => k + 1); }
+                                  else setMsgPecas({ ok: false, texto: `${pid}: ${j.error || `erro ${r.status}`}` });
+                                } catch { setMsgPecas({ ok: false, texto: "Sem conexão." }); }
+                                setEnviandoPecas(null);
+                              }}
+                              style={{ flexShrink: 0, height: 28, padding: "0 10px", borderRadius: 7, border: "none", background: "#e8730c", color: "#fefefe", fontWeight: 800, fontSize: 11.5, cursor: enviandoPecas ? "wait" : "pointer", fontFamily: "inherit", display: "flex", alignItems: "center", gap: 5 }}>
+                              <i className={`fas ${enviandoPecas === pid ? "fa-spinner fa-spin" : "fa-paper-plane"}`} /> {enviandoPecas === pid ? "Enviando…" : "Enviar"}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      {msgPecas && <div style={{ margin: "5px 4px 0", fontSize: 11, fontWeight: 600, lineHeight: 1.4, color: msgPecas.ok ? "#15803d" : "#b91c1c" }}>{msgPecas.texto}</div>}
                       {osId && ordemOmie && (
                         <FaturamentoOSBloco
                           osId={osId}

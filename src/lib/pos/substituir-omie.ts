@@ -13,6 +13,7 @@
 //      foi duplicado por nós, cancela a cópia (desfaz) e nada muda no portal;
 //   4) só então troca o vínculo no portal e refaz o cruzamento (best-effort).
 // Documento faturado não é substituído aqui (cancelar a nota é outro fluxo).
+import { refPedidoNaOS, refOSNoPedido } from "@/lib/pos/pedido-cliente";
 import { supabase } from "@/lib/pos/supabase";
 import { TBL_OS, TBL_LOGS_PPO } from "@/lib/pos/constants";
 import { contaOmie } from "@/lib/omie/contas";
@@ -81,7 +82,7 @@ async function osAtualNoOmie(os: Record<string, unknown>): Promise<OsOmie | null
 
 /** Refaz o cruzamento do "Nº do pedido do cliente" da OS e dos pedidos (best-effort). */
 export async function cruzarNumeros(nCodOS: number, numOS: string, pedidos: { acc: OmieAccount; pedido: OmiePedidoConsulta }[], avisos: string[]) {
-  const nums = pedidos.map((p) => semZeros(p.pedido.cabecalho?.numero_pedido)).filter(Boolean).join(", ");
+  const nums = pedidos.map((p) => refPedidoNaOS(p.pedido.cabecalho?.numero_pedido, p.acc.name)).filter(Boolean).join(", ");
   try {
     await osCall("AlterarOS", { Cabecalho: { nCodOS }, InformacoesAdicionais: { cNumPedido: nums.slice(0, 15) } });
   } catch (e) { avisos.push(`Não gravei o nº do pedido na OS ${numOS}: ${e instanceof Error ? e.message : e}`); }
@@ -89,7 +90,7 @@ export async function cruzarNumeros(nCodOS: number, numOS: string, pedidos: { ac
     const cod = pedido.cabecalho?.codigo_pedido;
     if (!cod) continue;
     try {
-      await omieNaConta(acc, "/produtos/pedido/", "AlterarPedidoVenda", { cabecalho: { codigo_pedido: cod }, informacoes_adicionais: { numero_pedido_cliente: semZeros(numOS) } });
+      await omieNaConta(acc, "/produtos/pedido/", "AlterarPedidoVenda", { cabecalho: { codigo_pedido: cod }, informacoes_adicionais: { numero_pedido_cliente: refOSNoPedido(numOS, acc.name) } });
     } catch (e) { avisos.push(`Não gravei o nº da OS no pedido ${semZeros(pedido.cabecalho?.numero_pedido)}: ${e instanceof Error ? e.message : e}`); }
   }
 }
