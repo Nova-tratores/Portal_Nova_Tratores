@@ -12,7 +12,7 @@ export async function POST(req: NextRequest) {
   if (guarda.resposta) return guarda.resposta;
   const limite = Math.max(0, Math.min(60, parseInt(req.nextUrl.searchParams.get('limite') || '30', 10) || 30));
   try {
-    const idx = await indexarNotas();
+    const idx = await indexarNotas({ completo: true }); // botão do admin: reindexa tudo
     if (idx.erro && migracaoFaltando(idx.erro)) {
       return NextResponse.json({ erro: 'Cache de notas ainda não instalado no banco (aplicar sql/notas-fiscais-cache.sql).', migracaoFaltando: true }, { status: 503 });
     }

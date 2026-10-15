@@ -46,12 +46,29 @@ export function migracaoFaltando(msg: string | null | undefined): boolean {
   return /notas_fiscais_docs|notas_fiscais_indexar|schema cache|does not exist|PGRST205|42P01/i.test(String(msg || ''));
 }
 
-/** RPC: indexa notas_entrada + portal_nt_notas_saida (só metadados). */
-export async function indexarNotas(): Promise<{ entrada: number; saida: number; erro?: string }> {
-  const { data, error } = await supabaseAdmin.rpc('notas_fiscais_indexar');
-  if (error) return { entrada: 0, saida: 0, erro: error.message };
-  const d = (data || {}) as { entrada?: number; saida?: number };
-  return { entrada: Number(d.entrada || 0), saida: Number(d.saida || 0) };
+export interface ResultadoIndexar { entrada: number; saida: number; completo: boolean; erro?: string }
+
+/**
+ * RPC: indexa notas_entrada + portal_nt_notas_saida (só metadados).
+ * INCREMENTAL por padrão (sql/notas-fiscais-cache-incremental.sql): só linhas de
+ * origem mais novas que a última indexada — a versão completa levava 3,5 s e
+ * reescrevia 21 mil linhas a cada 10 min. `completo: true` refaz tudo (botão do
+ * admin). Sem a migration incremental, cai na função antiga (sempre completa).
+ */
+export async function indexarNotas(opts: { completo?: boolean } = {}): Promise<ResultadoIndexar> {
+  const completo = !!opts.completo;
+  let { data, error } = await supabaseAdmin.rpc('notas_fiscais_indexar', { p_completo: completo });
+  if (error && /p_completo|does not exist|PGRST202|42883/i.test(error.message)) {
+    ({ data, error } = await supabaseAdmin.rpc('notas_fiscais_indexar'));
+    if (!error) return lerIndexar(data, true);
+  }
+  if (error) return { entrada: 0, saida: 0, completo, erro: error.message };
+  return lerIndexar(data, completo);
+}
+
+function lerIndexar(data: unknown, completoPedido: boolean): ResultadoIndexar {
+  const d = (data || {}) as { entrada?: number; saida?: number; completo?: boolean };
+  return { entrada: Number(d.entrada || 0), saida: Number(d.saida || 0), completo: d.completo ?? completoPedido };
 }
 
 // ---------------------------------------------------------------------------
