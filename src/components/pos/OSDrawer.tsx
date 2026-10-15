@@ -163,6 +163,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
   // Só aparece quando o PPV JÁ virou pedido/remessa no Omie; o rótulo mostra
   // o número do Omie (não o id do PPV).
   const [ppvOmieMap, setPpvOmieMap] = useState<Record<string, string>>({});
+  // empresa de cada pedido/remessa no Omie (pedido da Castro aparece com "CASTRO")
+  const [ppvEmpresaMap, setPpvEmpresaMap] = useState<Record<string, string>>({});
   const [ppvOmieCarregando, setPpvOmieCarregando] = useState(false);
   // Substituir a OS/pedido no Omie (só Dev ou quem um Dev liberou)
   const [omieRefresh, setOmieRefresh] = useState(0);
@@ -190,14 +192,16 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
     setPpvOmieCarregando(true);
     (async () => {
       const mapa: Record<string, string> = {};
+      const emp: Record<string, string> = {};
       await Promise.all(ids.map(async (pid) => {
         try {
           const r = await fetch(`/api/ppv/pedidos?id=${encodeURIComponent(pid)}`);
           const j = r.ok ? await r.json() : null;
           if (j?.pedidoOmie) mapa[pid] = String(j.pedidoOmie);
+          if (j?.omieEmpresa) emp[pid] = String(j.omieEmpresa);
         } catch { /* sem Omie ainda */ }
       }));
-      if (ativo) { setPpvOmieMap(mapa); setPpvOmieCarregando(false); }
+      if (ativo) { setPpvOmieMap(mapa); setPpvEmpresaMap(emp); setPpvOmieCarregando(false); }
     })();
     return () => { ativo = false; };
   }, [ppv, visible, ordemOmie, omieRefresh]);
@@ -2663,8 +2667,8 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                     <div key={chave} style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 2px", borderTop: primeira ? "none" : "1px solid var(--border)" }}>
                       {void portal}
                       <span style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", lineHeight: 1.2 }}>
-                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted, #94a3b8)" }}>{/^OS/.test(omie) ? "Ordem de serviço" : "Pedido de venda"}</span>
-                        <span style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>nº {omie.replace(/^(OS|Pedido)\s*/, "")}</span>
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: .4, color: "var(--portal-text-muted, #94a3b8)" }}>{/^OS/.test(omie) ? "Ordem de serviço" : /^Remessa/.test(omie) ? "Remessa de peças" : "Pedido de venda"}</span>
+                        <span style={{ fontSize: 13.5, fontWeight: 800, fontVariantNumeric: "tabular-nums", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>nº {omie.replace(/^(OS|Pedido|Remessa)\s*/, "")}</span>
                       </span>
                       {onPdf && (
                         <button type="button" onClick={onPdf} disabled={carregando} title="Abrir o PDF oficial no Omie (gerado na hora)"
@@ -2712,7 +2716,7 @@ export default function OSDrawer({ visible, mode, osId, clientes, onClienteCriad
                       {(ordemOmie || pedidosMapa.length > 0 || pvSolto) && (
                         <div style={{ padding: "0 2px" }}>
                           {ordemOmie && linhaDoc(osId || "OS", `OS ${semZeros(ordemOmie)}`, abrirPdfOmie, baixandoPdfOmie, "os", true)}
-                          {pedidosMapa.map(([pid, numOmie]) => linhaDoc(pid, `Pedido ${semZeros(numOmie)}`, () => abrirPdfPecasOmie(pid), baixandoPdfPecas === pid, pid, false))}
+                          {pedidosMapa.map(([pid, numOmie]) => linhaDoc(pid, `${servicoInterno ? "Remessa" : "Pedido"} ${semZeros(numOmie)}${/castro/i.test(ppvEmpresaMap[pid] || "") ? " · Castro" : ""}`, () => abrirPdfPecasOmie(pid), baixandoPdfPecas === pid, pid, false))}
                           {pvSolto && linhaDoc(ppvOmieCarregando ? "peças" : "peças", ppvOmieCarregando ? "conferindo…" : `Pedido ${pvSolto}`, null, false, "pv-solto", false)}
                         </div>
                       )}

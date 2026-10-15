@@ -637,7 +637,8 @@ export async function enviarPPVParaOmie(idPPV: string, opcoes?: { remessa?: bool
         try {
           const cr = await omieCall<Record<string, unknown>>("/produtos/remessa/", "ConsultarRemessa", { nCodRem }, acc.key, acc.secret);
           const cab = (cr?.cabec || cr?.cabecalho || {}) as Record<string, unknown>;
-          const num = cab.nNumero || cab.numero || cab.cNumero;
+          // o número da remessa no Omie vem em cNumeroRemessa (nCodRem é o código interno)
+          const num = cab.cNumeroRemessa || cab.nNumero || cab.numero || cab.cNumero;
           if (num) numPedido = String(num);
           console.log(`[Omie PPV] ${idPPV} → ConsultarRemessa cabec:`, JSON.stringify(cab).slice(0, 220));
         } catch (e) { console.warn(`[Omie PPV] ${idPPV} → ConsultarRemessa falhou: ${(e as Error).message}`); }
