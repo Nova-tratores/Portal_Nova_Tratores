@@ -32,6 +32,7 @@ export async function GET(req: NextRequest) {
   const campoRaw = sp.get('campo') || 'auto';
   const campo: CampoBusca = ehCampoBusca(campoRaw) ? campoRaw : 'auto';
   const situacao = sp.get('situacao') || ''; // completa | incompleta | sem_documento
+  const soMaquinas = sp.get('maquinas') === '1'; // só notas que citam máquina (chassi/nº de série)
   const ordem = parseOrdem(sp.get('ordem')); // ex.: numero.asc (cabeçalho clicável)
   const pagina = Math.max(1, parseInt(sp.get('pagina') || '1', 10) || 1);
   const offset = (pagina - 1) * POR_PAGINA;
@@ -48,6 +49,7 @@ export async function GET(req: NextRequest) {
     if (situacao === 'completa') query = query.not('pdf_path', 'is', null).not('xml_path', 'is', null);
     else if (situacao === 'incompleta') query = query.or('pdf_path.is.null,xml_path.is.null');
     else if (situacao === 'sem_documento') query = query.gte('tentativas', 8);
+    if (soMaquinas && !semVinculos) query = query.not('maquina', 'is', null);
     const col = colunaBanco(ordem, { semVinculos, semNumeroN });
     query = query.order(col, { ascending: ordem.dir === 'asc', nullsFirst: false });
     if (col !== 'data_emissao') query = query.order('data_emissao', { ascending: false, nullsFirst: false });

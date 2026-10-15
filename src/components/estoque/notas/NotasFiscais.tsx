@@ -82,6 +82,7 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
   const [q, setQ] = useState(() => sp.get('q') || '');
   const [campo, setCampo] = useState<CampoBusca>(() => (ehCampoBusca(campoUrl) ? campoUrl : 'auto'));
   const [situacao, setSituacao] = useState('');
+  const [soMaquinas, setSoMaquinas] = useState(false); // notas de máquinas (venda e compra, pelo chassi)
   const [ordem, setOrdem] = useState<Ordem>(() => parseOrdem(sp.get('ordem')));
   const [pagina, setPagina] = useState(1);
   const [resp, setResp] = useState<Resp | null>(null);
@@ -110,9 +111,10 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
     if (ate) p.set('ate', ate);
     if (q.trim()) { p.set('q', q.trim()); if (campo !== 'auto') p.set('campo', campo); }
     if (situacao) p.set('situacao', situacao);
+    if (soMaquinas) p.set('maquinas', '1');
     if (!ehOrdemPadrao(ordem)) p.set('ordem', ordemParaParam(ordem));
     return p.toString() + contaParam;
-  }, [pagina, tipo, de, ate, q, campo, situacao, ordem, contaParam]);
+  }, [pagina, tipo, de, ate, q, campo, situacao, soMaquinas, ordem, contaParam]);
 
   const carregar = useCallback(async () => {
     setCarregando(true); setErro('');
@@ -263,6 +265,14 @@ export default function NotasFiscais({ podeXml, isAdmin, podeEntrada = true }: {
             <option value="incompleta">Falta PDF ou XML</option>
             <option value="sem_documento">Sem documento na Omie</option>
           </select>
+        </div>
+        <div>
+          <label style={rotulo}>Máquinas</label>
+          <button type="button" onClick={() => { setSoMaquinas((v) => !v); setPagina(1); }}
+            title="Só notas que citam máquina (chassi / nº de série) — vendas e compras de máquinas"
+            style={{ ...inp, display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer', fontWeight: 700, background: soMaquinas ? '#ecfeff' : (inp as React.CSSProperties).background, borderColor: soMaquinas ? '#0891B2' : undefined, color: soMaquinas ? '#0e7490' : undefined }}>
+            <i className="fas fa-tractor" /> {soMaquinas ? 'Só máquinas' : 'Todas'}
+          </button>
         </div>
         <div style={{ flex: 1, minWidth: 320 }}>
           <label style={rotulo}>Buscar</label>
