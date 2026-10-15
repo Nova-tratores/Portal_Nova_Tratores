@@ -262,7 +262,9 @@ export async function GET(req: Request) {
               if (r.num_nf) upd.num_nf = r.num_nf;
               if (r.link_nf) upd.link_nf = r.link_nf;
               if (Object.keys(upd).length) await supabase.from("portal_nt_clientes_os").update(upd).eq("num_os", os.num_os).eq("empresa", acc.name);
-              if (r.link_nf) { nfs++; achou = true; }
+              // O card do financeiro só nasce com o PDF da NFS-e: quando ele chega numa rodada
+              // depois do faturamento, o financeiro precisa ser chamado de novo.
+              if (r.link_nf) { nfs++; achou = true; osFaturadasCod.add(Number(os.cod_os)); }
             }
           }
         } catch {}
@@ -301,7 +303,7 @@ export async function GET(req: Request) {
               if (url) upd.faturado = true;
               await supabase.from("portal_nt_clientes_pv").update(upd).eq("num_pedido", pv.num_pedido).eq("empresa", acc.name);
               // Só conta (e sai da fila) quando veio a DANFE; nota rejeitada não é nota.
-              if (url) { nfs++; achou = true; }
+              if (url) { nfs++; achou = true; houvePVFaturado = true; }
             }
             // Sem DANFE = nota REJEITADA/DENEGADA pela SEFAZ. Guarda a situação pra pasta
             // avisar e a pessoa anexar a nota manualmente. Update separado (best-effort):
