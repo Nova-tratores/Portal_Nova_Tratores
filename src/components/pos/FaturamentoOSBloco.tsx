@@ -11,7 +11,8 @@ import { rotuloStatus } from "@/lib/pos/faturamento-regras";
 import FaturarOSModal from "./FaturarOSModal";
 
 interface Estado {
-  habilitado: boolean; podeFaturar: boolean; podeFaturarPecas: boolean; enviadaOmie: boolean; podeCancelarNota?: boolean;
+  habilitado: boolean; podeFaturar: boolean; podeFaturarPecas: boolean; enviadaOmie: boolean; podeCancelarNota?: boolean; valor?: number;
+  anteriores?: Array<{ nfse: string | null; ordemOmie: string; canceladaEm: string; motivo: string }>;
   bloqueio: string | null; status: string | null; erro: string | null;
   faturadoEm: string | null; faturadoPor: string | null; formaPagamento: string | null;
   nfseNumero: string | null; nfseLink: string | null;
@@ -37,7 +38,8 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirA
   const [aberto, setAberto] = useState(false);
   const [conferindo, setConferindo] = useState(false);
   const [refaturando, setRefaturando] = useState(false);
-  const [cancelarNota, setCancelarNota] = useState(false);
+  const [cancelarNota, setCancelarNota] = useState<null | "cancelar" | "duplicar">(null);
+  const [menuNota, setMenuNota] = useState(false);
 
   const carregar = useCallback(async (opts: { reconciliar?: boolean; forcar?: boolean } = {}) => {
     try {
@@ -94,6 +96,34 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirA
     : [];
   const pedidosJaFaturados = (estado.pedidos || []).filter((p) => p.faturado);
 
+  const numOS = ordemOmie.replace(/^0+(?=\d)/, "");
+  const nfseAtual = estado.nfseNumero ? String(estado.nfseNumero).replace(/^0+(?=\d)/, "") : null;
+  const modal = cancelarNota && <CancelarNotaModal osId={osId} numeroOS={numOS} nfse={nfseAtual} valor={estado.valor} etapaInicial={cancelarNota}
+    onFechar={() => { setCancelarNota(null); void carregar(); }} onFeito={() => { void carregar(); onFaturado(); }} />;
+
+  // ---------- nota cancelada: falta duplicar a OS ----------
+  if (estado.status === "nfse_cancelada") {
+    const ult = (estado.anteriores || []).slice(-1)[0];
+    return (
+      <div style={{ border: "1px solid #fecaca", background: "#fef2f2", borderRadius: 10, padding: "10px 11px", fontSize: 12, color: "#7f1d1d", margin: "2px 0" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <i className="fas fa-ban" />
+          <span style={{ fontWeight: 800, flex: 1 }}>NFS-e {ult?.nfse || nfseAtual || ""} cancelada</span>
+        </div>
+        <div style={{ marginTop: 3, fontSize: 11, opacity: .9 }}>
+          {ult?.canceladaEm ? `em ${new Date(ult.canceladaEm).toLocaleDateString("pt-BR")} · ` : ""}falta duplicar a OS {numOS} para emitir a nota certa
+        </div>
+        {estado.podeCancelarNota && (
+          <button type="button" onClick={() => setCancelarNota("duplicar")}
+            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 7, width: "100%", minHeight: 36, marginTop: 8, borderRadius: 9, border: "none", background: "#0369A1", color: "#fefefe", fontWeight: 800, fontSize: 12.5, cursor: "pointer", fontFamily: "inherit", boxShadow: "0 3px 10px rgba(3,105,161,.3)" }}>
+            <i className="fas fa-clone" /> Duplicar a OS
+          </button>
+        )}
+        {modal}
+      </div>
+    );
+  }
+
   // ---------- já faturada ----------
   if (estado.faturadoEm) {
     const c = COR[rot?.cor || "verde"];
@@ -121,13 +151,34 @@ export default function FaturamentoOSBloco({ osId, ordemOmie, onFaturado, abrirA
           </div>
         )}
         {estado.podeCancelarNota && (
-          <button type="button" onClick={() => setCancelarNota(true)} title="Cancela a NFS-e no sistema nacional e refaz a OS no Omie para faturar de novo"
-            style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, width: "100%", minHeight: 30, marginTop: 8, borderRadius: 8, border: "1px solid #fecaca", background: "#fefefe", color: "#b91c1c", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
-            <i className="fas fa-file-circle-xmark" /> Cancelar nota e refazer
-          </button>
+          <div style={{ position: "relative", marginTop: 8 }}>
+            <button type="button" onClick={() => setMenuNota((m) => !m)}
+              style={{ display: "flex", alignItems: "center", gap: 7, width: "100%", minHeight: 30, padding: "0 10px", borderRadius: 8, border: "1px solid color-mix(in srgb, currentColor 25%, transparent)", background: "#fefefe", color: "#334155", fontWeight: 700, fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>
+              <i className="fas fa-sliders" style={{ color: "#64748b" }} />
+              <span style={{ flex: 1, textAlign: "left" }}>Ações da nota</span>
+              <i className="fas fa-chevron-down" style={{ fontSize: 10, color: "#94a3b8", transform: menuNota ? "rotate(180deg)" : "none", transition: "transform .15s" }} />
+            </button>
+            {menuNota && (
+              <>
+                <div onClick={() => setMenuNota(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+                <div style={{ position: "absolute", left: 0, right: 0, top: "calc(100% + 4px)", zIndex: 41, background: "#fefefe", border: "1px solid #e2e8f0", borderRadius: 10, boxShadow: "0 12px 28px rgba(15,23,42,.18)", overflow: "hidden" }}>
+                  <button type="button" onClick={() => { setMenuNota(false); setCancelarNota("cancelar"); }}
+                    style={{ display: "flex", alignItems: "flex-start", gap: 9, width: "100%", padding: "10px 12px", border: "none", background: "transparent", cursor: "pointer", textAlign: "left", fontFamily: "inherit" }}>
+                    <i className="fas fa-file-circle-xmark" style={{ color: "#dc2626", marginTop: 2 }} />
+                    <span><span style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#0f172a" }}>Cancelar a NFS-e{nfseAtual ? ` ${nfseAtual}` : ""}</span>
+                      <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 1 }}>no sistema nacional · depois duplica a OS</span></span>
+                  </button>
+                  <div title="Em construção" style={{ display: "flex", alignItems: "flex-start", gap: 9, padding: "10px 12px", borderTop: "1px solid #f1f5f9", opacity: .55 }}>
+                    <i className="fas fa-boxes-stacked" style={{ color: "#e8730c", marginTop: 2 }} />
+                    <span><span style={{ display: "block", fontSize: 12.5, fontWeight: 800, color: "#0f172a" }}>Cancelar a NF-e de peças</span>
+                      <span style={{ display: "block", fontSize: 11, color: "#64748b", marginTop: 1 }}>em breve · depois duplica o pedido</span></span>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
         )}
-        {cancelarNota && <CancelarNotaModal osId={osId} numeroOS={ordemOmie.replace(/^0+(?=\d)/, "")} nfse={estado.nfseNumero ? String(estado.nfseNumero).replace(/^0+(?=\d)/, "") : null}
-          onFechar={() => { setCancelarNota(false); void carregar(); }} onFeito={() => { void carregar(); onFaturado(); }} />}
+        {modal}
       </div>
     );
   }

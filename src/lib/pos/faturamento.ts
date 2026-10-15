@@ -287,6 +287,10 @@ export interface EstadoFaturamentoOS {
   habilitado: boolean;
   /** pode "Cancelar nota e refazer" (pos:cancelar_faturamento) */
   podeCancelarNota?: boolean;
+  /** notas canceladas desta OS (mais recente por último) */
+  anteriores?: Array<{ nfse: string | null; ordemOmie: string; canceladaEm: string; motivo: string; nfseLink: string | null; chave: string | null; novaOmie: string | null }>;
+  /** valor da OS no Omie (para explicar o título que sai ao cancelar) */
+  valor?: number;
   podeFaturar: boolean;
   podeFaturarPecas: boolean;
   enviadaOmie: boolean;
@@ -324,6 +328,15 @@ export async function estadoFaturamento(id: string, auth: Autenticado): Promise<
     faturadoEm: os.faturado_omie_em, faturadoPor: os.faturado_por, formaPagamento: os.forma_pagamento,
     nfseNumero: os.nfse_numero, nfseLink: os.nfse_link,
     pecas: Array.isArray(os.faturamento_pecas) ? os.faturamento_pecas : [],
+    valor: Number(String(os.Valor_Total ?? 0).replace(',', '.')) || 0,
+    anteriores: await (async () => {
+      const { data } = await supabase.from(TBL_OS).select('faturamento_anterior').eq('Id_Ordem', id).limit(1);
+      const l = (data?.[0] as { faturamento_anterior?: Record<string, unknown>[] } | undefined)?.faturamento_anterior;
+      return Array.isArray(l) ? l.map((x) => ({
+        nfse: (x.nfse as string) || null, ordemOmie: String(x.ordemOmie || ''), canceladaEm: String(x.canceladaEm || ''), motivo: String(x.motivo || ''),
+        nfseLink: (x.nfseLink as string) || null, chave: (x.chave as string) || null, novaOmie: (x.novaOmie as string) || null,
+      })) : [];
+    })().catch(() => []),
     pedidos: (await ppvsDaOS(os)).filter(pedidoQueConta).map((p) => ({ id: p.id, pedidoOmie: p.pedidoOmie, faturado: !!p.faturadoEm })),
   };
 }

@@ -159,3 +159,21 @@ export async function cancelarNfseNacional(opts: {
     || String(j.message || j.mensagem || r.texto || `HTTP ${r.status}`).slice(0, 500);
   return { ok: false, jaCancelada: codigos.includes("E1102"), erro: msg, codigos, status: r.status };
 }
+
+export type SituacaoNacional = "autorizada" | "cancelada" | "substituida" | "nao_encontrada" | "erro";
+/** Situação da NFS-e direto no sistema nacional (eventos de cancelamento/substituição). Só leitura. */
+export async function consultarSituacaoNacional(chave: string, empresa: "NOVA" | "CASTRO" = "NOVA"): Promise<{ situacao: SituacaoNacional; detalhe?: string }> {
+  const cert = certificadoDaEmpresa(empresa);
+  const k = String(chave || "").replace(/\D/g, "");
+  if (k.length !== 50) return { situacao: "erro", detalhe: "chave inválida" };
+  try {
+    const canc = await requisitar(`${SEFIN_PRODUCAO}/nfse/${k}/eventos/101101/1`, "GET", cert);
+    if (canc.status === 200) return { situacao: "cancelada" };
+    const subst = await requisitar(`${SEFIN_PRODUCAO}/nfse/${k}/eventos/105102/1`, "GET", cert);
+    if (subst.status === 200) return { situacao: "substituida" };
+    const nota = await requisitar(`${SEFIN_PRODUCAO}/nfse/${k}`, "GET", cert);
+    if (nota.status === 200) return { situacao: "autorizada" };
+    if (nota.status === 404) return { situacao: "nao_encontrada" };
+    return { situacao: "erro", detalhe: `HTTP ${nota.status}` };
+  } catch (e) { return { situacao: "erro", detalhe: e instanceof Error ? e.message : String(e) }; }
+}

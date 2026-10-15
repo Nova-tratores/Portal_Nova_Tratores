@@ -1,91 +1,98 @@
 "use client";
-// "Cancelar nota e refazer" (José, 15/10/2026): cancela a NFS-e da OS no sistema
-// nacional, cancela a OS no Omie e liga uma cópia nova para faturar de novo.
-// O PPV e a NF-e das peças ficam como estão. Confirmação em dois passos.
+// Cancelar a nota da OS e refazer (José, 15/10/2026), em dois passos:
+//   1) Cancelar a NFS-e — direto no sistema nacional (certificado da empresa);
+//   2) Duplicar a OS — OS nova no Omie (reaproveita a cópia se já existir), a
+//      antiga é cancelada lá (o título sai junto) e esta OS do portal passa a
+//      apontar para a nova, voltando para "Cobrando Cliente".
+// O pedido de peças (PPV) e a NF-e dele não mudam.
 import { useState } from "react";
 import { authHeaders } from "@/lib/auth/client";
 
 const MOTIVOS: [string, string][] = [["1", "Erro na emissão"], ["2", "Serviço não prestado"], ["9", "Outros"]];
-interface Resultado { ok: boolean; erro?: string; antiga?: string; nova?: string; nfse?: string; avisos?: string[]; pendenteOmie?: string }
+interface Resultado { ok: boolean; erro?: string; antiga?: string; nova?: string; nfse?: string; avisos?: string[]; proximo?: string }
+type Etapa = "cancelar" | "confirmar" | "duplicar" | "fim";
 
-export default function CancelarNotaModal({ osId, numeroOS, nfse, onFechar, onFeito }: {
-  osId: string; numeroOS: string; nfse: string | null; onFechar: () => void; onFeito: () => void;
+const brl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+
+export default function CancelarNotaModal({ osId, numeroOS, nfse, valor = 0, etapaInicial = "cancelar", onFechar, onFeito }: {
+  osId: string; numeroOS: string; nfse: string | null; valor?: number;
+  /** "duplicar" = a nota já foi cancelada: abre direto no 2º passo */
+  etapaInicial?: "cancelar" | "duplicar";
+  onFechar: () => void; onFeito: () => void;
 }) {
+  const [etapa, setEtapa] = useState<Etapa>(etapaInicial);
   const [motivo, setMotivo] = useState("1");
   const [texto, setTexto] = useState("");
-  const [confirmar, setConfirmar] = useState(false);
-  const [enviando, setEnviando] = useState(false);
+  const [enviando, setEnviando] = useState<null | "cancelar" | "duplicar">(null);
   const [res, setRes] = useState<Resultado | null>(null);
+  const [cancelada, setCancelada] = useState(etapaInicial === "duplicar");
   const textoOk = texto.replace(/\s+/g, " ").trim().length >= 15;
 
-  const enviar = async () => {
-    setEnviando(true);
+  const chamar = async (corpo: Record<string, unknown>): Promise<Resultado> => {
     try {
       const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/refaturar`, {
-        method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" },
-        body: JSON.stringify({ motivo, texto }),
+        method: "POST", headers: { ...(await authHeaders()), "Content-Type": "application/json" }, body: JSON.stringify(corpo),
       });
-      const j: Resultado = await r.json().catch(() => ({ ok: false, erro: "Resposta inválida do servidor." }));
-      setRes(j);
-      if (j.ok || j.pendenteOmie) onFeito();
-    } catch { setRes({ ok: false, erro: "Sem resposta do servidor. NÃO tente de novo: confira no Omie e no sistema nacional se a nota foi cancelada." }); }
-    setEnviando(false);
+      return await r.json().catch(() => ({ ok: false, erro: "Resposta inválida do servidor." }));
+    } catch { return { ok: false, erro: "Sem resposta do servidor. NÃO tente de novo: confira a situação da nota no bloco de notas." }; }
+  };
+  const cancelar = async () => {
+    setEnviando("cancelar");
+    const j = await chamar({ acao: "cancelar", motivo, texto });
+    setEnviando(null); setRes(j);
+    if (j.ok) { setCancelada(true); setEtapa("duplicar"); onFeito(); } else setEtapa("fim");
+  };
+  const duplicar = async () => {
+    setEnviando("duplicar");
+    const j = await chamar({ acao: "duplicar_os" });
+    setEnviando(null); setRes(j); setEtapa("fim");
+    if (j.ok) onFeito();
   };
 
   const btn: React.CSSProperties = { padding: "12px 18px", borderRadius: 10, border: "none", fontSize: 14, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" };
+  const passo = (n: number, titulo: string, ativo: boolean, feito: boolean) => (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+      <span style={{ width: 26, height: 26, borderRadius: "50%", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: 800,
+        background: feito ? "#22c55e" : ativo ? "#0f172a" : "#e2e8f0", color: feito || ativo ? "#fefefe" : "#64748b" }}>{feito ? <i className="fas fa-check" /> : n}</span>
+      <span style={{ fontSize: 13, fontWeight: ativo ? 800 : 600, color: ativo ? "#0f172a" : "#64748b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{titulo}</span>
+    </div>
+  );
+
   return (
     <div onClick={() => !enviando && onFechar()} style={{ position: "fixed", inset: 0, zIndex: 68000, background: "rgba(15,23,42,.55)", backdropFilter: "blur(4px)", display: "flex", alignItems: "flex-start", justifyContent: "center", padding: "6vh 16px", overflowY: "auto" }}>
-      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fefefe", color: "#1e293b", borderRadius: 16, width: "100%", maxWidth: 560, boxShadow: "0 30px 70px rgba(0,0,0,.35)", overflow: "hidden" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", background: "linear-gradient(135deg, #fee2e2, #fefefe 70%)", borderBottom: "1px solid #fecaca" }}>
-          <span style={{ width: 44, height: 44, borderRadius: 12, background: "#dc2626", color: "#fefefe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}><i className="fas fa-file-circle-xmark" /></span>
+      <div onClick={(e) => e.stopPropagation()} style={{ background: "#fefefe", color: "#1e293b", borderRadius: 16, width: "100%", maxWidth: 580, boxShadow: "0 30px 70px rgba(0,0,0,.35)", overflow: "hidden" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, padding: "18px 22px", background: "linear-gradient(135deg, #f1f5f9, #fefefe 70%)", borderBottom: "1px solid #e2e8f0" }}>
+          <span style={{ width: 44, height: 44, borderRadius: 12, background: "#0f172a", color: "#fefefe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}><i className="fas fa-file-pen" /></span>
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>Cancelar nota e refazer</div>
+            <div style={{ fontSize: 17, fontWeight: 800 }}>Corrigir a nota de serviço</div>
             <div style={{ fontSize: 12.5, color: "#64748b" }}>OS nº {numeroOS}{nfse ? ` · NFS-e nº ${nfse}` : ""}</div>
           </div>
-          <button onClick={onFechar} disabled={enviando} style={{ background: "#fefefe", border: "1px solid #e2e8f0", borderRadius: 10, width: 36, height: 36, cursor: "pointer", color: "#475569", fontSize: 18 }}>×</button>
+          <button onClick={onFechar} disabled={!!enviando} title="Fechar" style={{ background: "#fefefe", border: "1px solid #e2e8f0", borderRadius: 10, width: 36, height: 36, cursor: "pointer", color: "#475569", fontSize: 18 }}>×</button>
+        </div>
+        <div style={{ display: "flex", gap: 10, padding: "14px 22px", borderBottom: "1px solid #f1f5f9" }}>
+          {passo(1, "Cancelar a NFS-e", etapa === "cancelar" || etapa === "confirmar", cancelada)}
+          <span style={{ width: 24, height: 2, background: "#e2e8f0", alignSelf: "center" }} />
+          {passo(2, "Duplicar a OS", etapa === "duplicar", etapa === "fim" && !!res?.ok && !!res.nova)}
         </div>
 
         <div style={{ padding: "18px 22px 22px" }}>
           {enviando ? (
             <div style={{ textAlign: "center", padding: "24px 0" }}>
-              <i className="fas fa-spinner fa-spin" style={{ fontSize: 28, color: "#dc2626" }} />
-              <div style={{ fontSize: 15, fontWeight: 800, marginTop: 12 }}>Cancelando no sistema nacional…</div>
-              <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 4 }}>Depois o portal acerta o Omie. Não feche esta janela.</div>
+              <i className="fas fa-spinner fa-spin" style={{ fontSize: 28, color: "#0f172a" }} />
+              <div style={{ fontSize: 15, fontWeight: 800, marginTop: 12 }}>{enviando === "cancelar" ? "Cancelando no sistema nacional…" : "Duplicando a OS no Omie…"}</div>
+              <div style={{ fontSize: 12.5, color: "#64748b", marginTop: 4 }}>Não feche esta janela.</div>
             </div>
-          ) : res ? (
-            <>
-              <div style={{ borderRadius: 12, padding: "14px 16px", fontSize: 13.5, lineHeight: 1.55, marginBottom: 14,
-                background: res.ok ? "#f0fdf4" : res.pendenteOmie ? "#fffbeb" : "#fef2f2", border: `1px solid ${res.ok ? "#bbf7d0" : res.pendenteOmie ? "#fcd34d" : "#fecaca"}`,
-                color: res.ok ? "#14532d" : res.pendenteOmie ? "#92400e" : "#7f1d1d" }}>
-                {res.ok ? (
-                  <>
-                    <div style={{ fontWeight: 800, marginBottom: 4 }}><i className="fas fa-circle-check" /> NFS-e {res.nfse} cancelada</div>
-                    <div>A OS {res.antiga} foi cancelada no Omie e a OS nova é a <b>nº {res.nova}</b>. A OS voltou para <b>Cobrando Cliente</b>: ajuste o que precisar e fature de novo.</div>
-                    <div style={{ marginTop: 4 }}>O pedido de peças e a NF-e dele continuam como estavam.</div>
-                  </>
-                ) : (
-                  <><div style={{ fontWeight: 800, marginBottom: 4 }}><i className="fas fa-triangle-exclamation" /> {res.pendenteOmie ? "Falta acertar o Omie" : "Não foi cancelada"}</div>{res.erro}</>
-                )}
-              </div>
-              {(res.avisos || []).map((a) => <div key={a} style={{ fontSize: 12.5, color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "8px 12px", marginBottom: 8 }}>{a}</div>)}
-              <button onClick={onFechar} style={{ ...btn, width: "100%", background: "#334155", color: "#fefefe" }}>Fechar</button>
-            </>
-          ) : !confirmar ? (
+          ) : etapa === "cancelar" ? (
             <>
               <div style={{ fontSize: 13.5, color: "#334155", lineHeight: 1.6, marginBottom: 14 }}>
-                O portal vai:
-                <ol style={{ margin: "6px 0 0 18px", padding: 0 }}>
-                  <li><b>Cancelar a NFS-e{nfse ? ` nº ${nfse}` : ""} no sistema nacional</b> (com o certificado da empresa);</li>
-                  <li>Cancelar a OS {numeroOS} no Omie (o título a receber dela sai junto) e criar uma <b>OS nova</b> com os mesmos serviços;</li>
-                  <li>Ligar a OS nova a esta OS do portal, que volta para <b>Cobrando Cliente</b> para você ajustar e faturar de novo.</li>
-                </ol>
-                <div style={{ marginTop: 8 }}>O pedido de peças (PPV) e a NF-e dele <b>não mudam</b>.</div>
+                A NFS-e{nfse ? ` nº ${nfse}` : ""} será <b>cancelada direto no sistema nacional</b>, com o certificado da empresa. Depois você escolhe <b>duplicar a OS</b> para emitir a nota certa.
+                <div style={{ marginTop: 6, color: "#64748b" }}>O pedido de peças e a NF-e dele não mudam.</div>
               </div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 6 }}>Motivo</label>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
                 {MOTIVOS.map(([v, t]) => (
                   <button key={v} type="button" onClick={() => setMotivo(v)} style={{ padding: "8px 14px", borderRadius: 10, fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
-                    border: motivo === v ? "1.5px solid #dc2626" : "1px solid #cbd5e1", background: motivo === v ? "#fef2f2" : "#fefefe", color: motivo === v ? "#b91c1c" : "#334155" }}>{t}</button>
+                    border: motivo === v ? "1.5px solid #0f172a" : "1px solid #cbd5e1", background: motivo === v ? "#0f172a" : "#fefefe", color: motivo === v ? "#fefefe" : "#334155" }}>{t}</button>
                 ))}
               </div>
               <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: "#475569", marginBottom: 6 }}>Explique (vai para o sistema nacional)</label>
@@ -93,24 +100,59 @@ export default function CancelarNotaModal({ osId, numeroOS, nfse, onFechar, onFe
                 style={{ width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10, border: "1px solid #cbd5e1", fontSize: 13.5, fontFamily: "inherit", resize: "vertical", marginBottom: 4 }} />
               <div style={{ fontSize: 11.5, color: textoOk ? "#64748b" : "#b45309", marginBottom: 14 }}>{texto.trim().length}/255 · mínimo 15 letras</div>
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={() => setConfirmar(true)} disabled={!textoOk} style={{ ...btn, flex: 1, background: textoOk ? "#dc2626" : "#94a3b8", color: "#fefefe", cursor: textoOk ? "pointer" : "not-allowed" }}>Continuar</button>
+                <button onClick={() => setEtapa("confirmar")} disabled={!textoOk} style={{ ...btn, flex: 1, background: textoOk ? "#dc2626" : "#94a3b8", color: "#fefefe", cursor: textoOk ? "pointer" : "not-allowed" }}>Continuar</button>
                 <button onClick={onFechar} style={{ ...btn, background: "#f1f5f9", color: "#334155" }}>Voltar</button>
+              </div>
+            </>
+          ) : etapa === "confirmar" ? (
+            <>
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 16 }}>
+                <span style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0, background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}><i className="fas fa-triangle-exclamation" /></span>
+                <div>
+                  <div style={{ fontSize: 16.5, fontWeight: 800 }}>Cancelar a NFS-e{nfse ? ` nº ${nfse}` : ""}?</div>
+                  <div style={{ fontSize: 13, color: "#475569", marginTop: 4, lineHeight: 1.55 }}>O cancelamento no sistema nacional <b>não pode ser desfeito</b>.</div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={cancelar} style={{ ...btn, flex: 1, background: "#dc2626", color: "#fefefe" }}><i className="fas fa-ban" /> Sim, cancelar a nota</button>
+                <button onClick={() => setEtapa("cancelar")} style={{ ...btn, background: "#f1f5f9", color: "#334155" }}>Voltar</button>
+              </div>
+            </>
+          ) : etapa === "duplicar" ? (
+            <>
+              <div style={{ borderRadius: 12, padding: "12px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#14532d", fontSize: 13.5, marginBottom: 14 }}>
+                <b><i className="fas fa-circle-check" /> NFS-e{nfse ? ` ${nfse}` : ""} cancelada no sistema nacional.</b>
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, marginBottom: 6 }}>Próximo passo: duplicar a OS {numeroOS}</div>
+              <div style={{ fontSize: 13.5, color: "#334155", lineHeight: 1.6 }}>Ao duplicar:</div>
+              <ul style={{ margin: "6px 0 14px 18px", padding: 0, fontSize: 13.5, color: "#334155", lineHeight: 1.65 }}>
+                <li>o Omie cria uma <b>OS nova</b> com os mesmos serviços (se a cópia já existir, ela é usada);</li>
+                <li>a OS {numeroOS} é <b>cancelada no Omie</b> e o título a receber{valor ? ` de ${brl(valor)}` : ""} sai do financeiro;</li>
+                <li>esta OS do portal passa a apontar para a nova e volta para <b>Cobrando Cliente</b>: ajuste o que precisar e <b>fature de novo</b>;</li>
+                <li>o pedido de peças e a NF-e dele continuam iguais.</li>
+              </ul>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button onClick={duplicar} style={{ ...btn, flex: 1, background: "#0369A1", color: "#fefefe", boxShadow: "0 6px 14px rgba(3,105,161,.3)" }}><i className="fas fa-clone" /> Duplicar a OS</button>
+                <button onClick={onFechar} style={{ ...btn, background: "#f1f5f9", color: "#334155" }}>Depois</button>
               </div>
             </>
           ) : (
             <>
-              <div style={{ display: "flex", gap: 12, alignItems: "flex-start", marginBottom: 14 }}>
-                <span style={{ width: 42, height: 42, borderRadius: 12, flexShrink: 0, background: "#fee2e2", color: "#dc2626", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}><i className="fas fa-triangle-exclamation" /></span>
-                <div>
-                  <div style={{ fontSize: 16.5, fontWeight: 800 }}>Tem certeza?</div>
-                  <div style={{ fontSize: 13, color: "#475569", marginTop: 4, lineHeight: 1.55 }}>
-                    A NFS-e{nfse ? ` nº ${nfse}` : ""} será <b>cancelada de verdade</b> no sistema nacional. Não dá para desfazer.
-                  </div>
-                </div>
+              <div style={{ borderRadius: 12, padding: "14px 16px", fontSize: 13.5, lineHeight: 1.55, marginBottom: 14,
+                background: res?.ok ? "#f0fdf4" : "#fef2f2", border: `1px solid ${res?.ok ? "#bbf7d0" : "#fecaca"}`, color: res?.ok ? "#14532d" : "#7f1d1d" }}>
+                {res?.ok && res.nova ? (
+                  <>
+                    <div style={{ fontWeight: 800, marginBottom: 4 }}><i className="fas fa-circle-check" /> Pronto: OS nova nº {res.nova}</div>
+                    <div>A OS {res.antiga} foi cancelada no Omie. Esta OS voltou para <b>Cobrando Cliente</b> — ajuste o que precisar e fature de novo.</div>
+                  </>
+                ) : (
+                  <><div style={{ fontWeight: 800, marginBottom: 4 }}><i className="fas fa-triangle-exclamation" /> Não concluiu</div>{res?.erro}</>
+                )}
               </div>
+              {(res?.avisos || []).map((a) => <div key={a} style={{ fontSize: 12.5, color: "#92400e", background: "#fffbeb", border: "1px solid #fcd34d", borderRadius: 10, padding: "8px 12px", marginBottom: 8 }}>{a}</div>)}
               <div style={{ display: "flex", gap: 8 }}>
-                <button onClick={enviar} style={{ ...btn, flex: 1, background: "#dc2626", color: "#fefefe" }}><i className="fas fa-file-circle-xmark" /> Sim, cancelar a nota</button>
-                <button onClick={() => setConfirmar(false)} style={{ ...btn, background: "#f1f5f9", color: "#334155" }}>Voltar</button>
+                {!res?.ok && cancelada && <button onClick={() => setEtapa("duplicar")} style={{ ...btn, flex: 1, background: "#0369A1", color: "#fefefe" }}>Tentar duplicar de novo</button>}
+                <button onClick={onFechar} style={{ ...btn, flex: cancelada && !res?.ok ? undefined : 1, background: "#334155", color: "#fefefe" }}>Fechar</button>
               </div>
             </>
           )}

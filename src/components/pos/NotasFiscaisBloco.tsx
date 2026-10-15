@@ -11,7 +11,11 @@ interface EstadoNfse {
   nfseNumero: string | null; nfseLink: string | null;
   /** pedidos de peças faturados pela OS (ok = foi para a SEFAZ) */
   pecas?: { id: string; ok: boolean }[];
+  /** NFS-e canceladas desta OS */
+  anteriores?: { nfse: string | null; canceladaEm: string; nfseLink: string | null; chave: string | null }[];
 }
+/** situação conferida direto no sistema nacional */
+interface SituacaoGov { nfse: string; chave: string; atual: boolean; situacao: string; conferidoEm: string }
 interface NfPedido { faturado: boolean; numero?: string; emitidaEm?: string; canceladaEm?: string; erro?: string }
 
 const semZeros = (n: string | null | undefined) => String(n || "").replace(/^0+(?=\d)/, "");
@@ -26,6 +30,17 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
   const [nfse, setNfse] = useState<EstadoNfse | null>(null);
   const [nfs, setNfs] = useState<Record<string, NfPedido>>({});
   const [abrindo, setAbrindo] = useState<string | null>(null);
+  const [gov, setGov] = useState<Record<string, SituacaoGov> | null>(null);
+  const [consultandoGov, setConsultandoGov] = useState(false);
+  const consultarGov = useCallback(async () => {
+    setConsultandoGov(true);
+    try {
+      const r = await fetch(`/api/pos/ordens/${encodeURIComponent(osId)}/nfse-situacao`, { headers: await authHeaders() });
+      const j = await r.json().catch(() => ({}));
+      if (r.ok) setGov(Object.fromEntries(((j.notas || []) as SituacaoGov[]).map((n) => [n.nfse, n])));
+    } catch { /* sem consulta */ }
+    setConsultandoGov(false);
+  }, [osId]);
 
   const carregarNfse = useCallback(async (conferir = false) => {
     try {
@@ -52,9 +67,9 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
 
   useEffect(() => {
     let vivo = true;
-    Promise.resolve().then(() => { if (vivo) { void carregarNfse(); void carregarNfs(); } });
+    Promise.resolve().then(() => { if (vivo) { void carregarNfse(); void carregarNfs(); void consultarGov(); } });
     return () => { vivo = false; };
-  }, [carregarNfse, carregarNfs]);
+  }, [carregarNfse, carregarNfs, consultarGov]);
 
   const esperando = !!esperandoDesde;
   const pedidosFaturados = useMemo(() => new Set((nfse?.pecas || []).filter((p) => p.ok).map((p) => p.id)), [nfse]);
@@ -101,7 +116,7 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
   };
 
   const temOS = !!nfse?.faturadoEm || (esperando && !!nfse?.habilitado);
-  if (!temOS && !pedidos.length) return null;
+  if (!temOS && !pedidos.length && !(nfse?.anteriores || []).length) return null;
 
   const chip = (txt: string, cor: string, bg: string) => (
     <span style={{ fontSize: 10.5, fontWeight: 800, padding: "1px 7px", borderRadius: 999, color: cor, background: bg, whiteSpace: "nowrap" }}>{txt}</span>
@@ -123,6 +138,26 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
   );
 
   const st = esperando && !nfseOk ? "nfse_aguardando" : nfse?.status;
+  const COR_GOV: Record<string, [string, string, string]> = {
+    autorizada: ["autorizada no governo", "#047857", "#d1fae5"], cancelada: ["cancelada no governo", "#b91c1c", "#fee2e2"],
+    substituida: ["substituída no governo", "#92400e", "#fef3c7"], nao_encontrada: ["não encontrada no governo", "#92400e", "#fef3c7"],
+  };
+  const linhaGov = (num: string | null | undefined) => {
+    const g = num ? gov?.[String(num).replace(/^0+(?=\d)/, "")] : null;
+    return (
+      <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 2px 7px", fontSize: 10.5, color: "var(--portal-text-muted)" }}>
+        <i className="fas fa-landmark" style={{ fontSize: 10 }} />
+        {consultandoGov && !g ? <span>conferindo no sistema nacional…</span>
+          : g && COR_GOV[g.situacao] ? <>{chip(COR_GOV[g.situacao][0], COR_GOV[g.situacao][1], COR_GOV[g.situacao][2])}<span>conferido {new Date(g.conferidoEm).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}</span></>
+          : <span>situação no governo indisponível</span>}
+        <button type="button" onClick={() => void consultarGov()} disabled={consultandoGov} title="Conferir agora no sistema nacional"
+          style={{ marginLeft: "auto", background: "none", border: "none", padding: 0, color: "#0891A8", cursor: consultandoGov ? "wait" : "pointer", fontSize: 11 }}>
+          <i className={`fas fa-rotate${consultandoGov ? " fa-spin" : ""}`} />
+        </button>
+      </div>
+    );
+  };
+  const anteriores = nfse?.anteriores || [];
 
   return (
     <div style={{ margin: "4px 0 8px", padding: 10, borderRadius: 12, border: "1px solid color-mix(in srgb, #16a34a 35%, var(--border))", background: "color-mix(in srgb, #16a34a 5%, var(--surface))", display: "flex", flexDirection: "column", gap: 7 }}>
@@ -132,13 +167,23 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
         <span style={{ fontSize: 11, fontWeight: 700, color: "var(--portal-text-muted)" }}>notas fiscais</span>
       </div>
       <div style={{ padding: "2px 10px", borderRadius: 9, background: "var(--surface)", border: "1px solid var(--border)" }}>
-        {temOS && linha("nfse",
+        {temOS && st !== "nfse_cancelada" && linha("nfse",
           st === "nfse_aguardando" ? "NFS-e" : `NFS-e ${semZeros(nfse?.nfseNumero) || ""}`.trim(),
           st === "nfse_aguardando" ? <>serviço · {chip("aguardando o sistema nacional", "#075985", "#e0f2fe")}</>
             : st === "nfse_rejeitada" ? <>serviço · {chip("rejeitada", "#b91c1c", "#fee2e2")}</>
             : <>serviço · {chip("autorizada", "#047857", "#d1fae5")}</>,
           nfse?.nfseLink ? <a href={nfse.nfseLink} target="_blank" rel="noreferrer" style={{ color: "#0891A8", fontSize: 11.5, fontWeight: 800, textDecoration: "none" }}>PDF</a> : null,
           true)}
+        {temOS && st !== "nfse_cancelada" && st !== "nfse_aguardando" && nfse?.nfseNumero && linhaGov(nfse.nfseNumero)}
+        {anteriores.map((a, i) => (
+          <div key={`ant-${a.nfse}-${i}`}>
+            {linha(`ant-${i}`, `NFS-e ${semZeros(a.nfse) || ""}`.trim(),
+              <>serviço · {chip("cancelada", "#b91c1c", "#fee2e2")}{a.canceladaEm ? ` em ${new Date(a.canceladaEm).toLocaleDateString("pt-BR")}` : ""}</>,
+              a.nfseLink ? <a href={a.nfseLink} target="_blank" rel="noreferrer" style={{ color: "#0891A8", fontSize: 11.5, fontWeight: 800, textDecoration: "none" }}>PDF</a> : null,
+              !temOS && i === 0)}
+            {linhaGov(a.nfse)}
+          </div>
+        ))}
         {temOS && st === "nfse_aguardando" && (
           <div style={{ padding: "0 2px 8px" }}>
             <div style={{ height: 5, borderRadius: 3, background: "rgba(11,183,205,.18)", overflow: "hidden" }}>
