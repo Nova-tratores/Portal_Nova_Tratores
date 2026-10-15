@@ -12,7 +12,7 @@ interface EstadoNfse {
   /** pedidos de peças faturados pela OS (ok = foi para a SEFAZ) */
   pecas?: { id: string; ok: boolean }[];
   /** NFS-e canceladas desta OS */
-  anteriores?: { nfse: string | null; canceladaEm: string; nfseLink: string | null; chave: string | null }[];
+  anteriores?: { nfse: string | null; canceladaEm: string; nfseLink: string | null; chave: string | null; motivo?: string; novaOmie?: string | null }[];
 }
 /** situação conferida direto no sistema nacional */
 interface SituacaoGov { nfse: string; chave: string; atual: boolean; situacao: string; conferidoEm: string }
@@ -181,6 +181,12 @@ export default function NotasFiscaisBloco({ osId, ppvIds, ppvOmieMap, esperandoD
               <>serviço · {chip("cancelada", "#b91c1c", "#fee2e2")}{a.canceladaEm ? ` em ${new Date(a.canceladaEm).toLocaleDateString("pt-BR")}` : ""}</>,
               a.nfseLink ? <a href={a.nfseLink} target="_blank" rel="noreferrer" style={{ color: "#0891A8", fontSize: 11.5, fontWeight: 800, textDecoration: "none" }}>PDF</a> : null,
               !temOS && i === 0)}
+            {a.motivo && (
+              <div style={{ margin: "0 2px 6px", padding: "6px 8px", borderRadius: 7, background: "#fef2f2", border: "1px solid #fecaca", color: "#7f1d1d", fontSize: 10.5, lineHeight: 1.45 }}>
+                <b>Motivo:</b> {a.motivo.replace(/^\d\s*-\s*/, "")}
+                {a.novaOmie ? <div style={{ marginTop: 2, color: "#475569" }}>refeita na OS nº {semZeros(a.novaOmie)}</div> : null}
+              </div>
+            )}
             {linhaGov(a.nfse)}
           </div>
         ))}
