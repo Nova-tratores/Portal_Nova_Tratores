@@ -1,6 +1,7 @@
 'use client'
 // AGENDA — janelas: detalhe (popover), criação rápida, formulário completo do compromisso
 // e formulário da Lousa (técnicos). Tudo no visual do Google Agenda.
+import CampoLocal from "./CampoLocal"
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   X, Pencil, Trash2, MapPin, Users, AlignLeft, Clock, Repeat, ExternalLink, Check, Search, Wrench, Calendar as CalIcon,
@@ -283,7 +284,7 @@ export function FormEvento({ inicial, pessoas, eu, corPadrao, salvando, erro, on
           <div className="gc-secao"><Users size={18} /><b>Convidados</b></div>
           <SeletorPessoas pessoas={pessoas} escolhidos={r.participantes} onChange={(ids) => up({ participantes: ids })} eu={eu} />
 
-          <div className="gc-campo-ic"><MapPin size={18} /><input placeholder="Adicionar local (ex.: Sala de reunião, cliente, cidade)" value={r.local} maxLength={200} onChange={(e) => up({ local: e.target.value })} /></div>
+          <CampoLocal valor={r.local} onChange={(v) => up({ local: v })} />
           <div className="gc-campo-ic gc-topo-al"><AlignLeft size={18} /><textarea placeholder="Adicionar descrição" rows={4} value={r.descricao} maxLength={4000} onChange={(e) => up({ descricao: e.target.value })} /></div>
 
           <div className="gc-cores">

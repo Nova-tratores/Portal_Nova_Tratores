@@ -6,7 +6,7 @@
 // DELETE ?dia=YYYY-MM-DD → só esta ocorrência da série; sem dia → o compromisso todo
 import { NextRequest, NextResponse } from 'next/server'
 import { autenticar, type Autenticado } from '@/lib/auth/server'
-import { carregarEvento, editarEvento, moverEvento, responderEvento, excluirEvento, migrationFaltou, MSG_MIGRATION_AGENDA, type EventoDb } from '@/lib/agenda/server'
+import { carregarEvento, editarEvento, moverEvento, responderEvento, excluirEvento, migrationFaltou, MSG_MIGRATION_AGENDA, ConflitoAgenda, type EventoDb } from '@/lib/agenda/server'
 import { validarEvento, DIA_RE, type Resposta } from '@/lib/agenda/regras'
 
 export const runtime = 'nodejs'
@@ -16,6 +16,7 @@ const dono = (auth: Autenticado, e: EventoDb) => auth.isAdmin || e.criado_por ==
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/
 
 function falha(e: unknown, ctx: string) {
+  if (e instanceof ConflitoAgenda) return NextResponse.json({ error: `Horário ocupado: ${e.conflitos.join(' ')}`, conflitos: e.conflitos }, { status: 409 })
   if (migrationFaltou(e)) return NextResponse.json({ error: MSG_MIGRATION_AGENDA }, { status: 503 })
   if ((e as { code?: string }).code === 'NAO_CONVIDADO') return NextResponse.json({ error: (e as Error).message }, { status: 403 })
   console.error(`[agenda/eventos/id] ${ctx}`, e)

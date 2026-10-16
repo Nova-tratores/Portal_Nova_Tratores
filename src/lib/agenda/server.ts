@@ -13,6 +13,8 @@ import {
   type Fonte, type ItemAgenda, type Pessoa, type NovoEvento, type Resposta, type Freq,
 } from './regras'
 
+import { acharConflitos, textoConflito } from './conflitos'
+
 export { migrationFaltou }
 export const MSG_MIGRATION_AGENDA = 'Os compromissos da agenda ainda não foram ativados no banco. Rode sql/agenda-coletiva.sql no SQL Editor do Supabase. O resto da agenda (reuniões, sala, tickets, OS, Lousa) já aparece.'
 export const SEM_TECNICO = 'sem-tecnico'
@@ -263,7 +265,15 @@ const quando = (n: Pick<NovoEvento, 'inicio' | 'diaInteiro'>) => {
   return `${l.dia.slice(8, 10)}/${l.dia.slice(5, 7)}${n.diaInteiro ? '' : ` às ${l.hora}`}`
 }
 
+/** Erro de horário ocupado (a rota devolve 409 com as frases). */
+export class ConflitoAgenda extends Error {
+  code = 'CONFLITO'
+  constructor(public conflitos: string[]) { super('Horário ocupado') }
+}
+
 export async function criarEvento(auth: Autenticado, n: NovoEvento): Promise<EventoDb> {
+  const conf = await conferirConflitos(auth, n, { organizador: auth.userId })
+  if (conf.length) throw new ConflitoAgenda(conf)
   const e = ok(await supabaseAdmin.from('agenda_eventos').insert({
     titulo: n.titulo, descricao: n.descricao, local: n.local, inicio: n.inicio, fim: n.fim, dia_inteiro: n.diaInteiro,
     cor: n.cor, recorrencia: n.recorrencia, criado_por: auth.userId,
@@ -279,6 +289,14 @@ export async function criarEvento(auth: Autenticado, n: NovoEvento): Promise<Eve
 }
 
 export async function editarEvento(auth: Autenticado, atual: EventoDb, n: NovoEvento): Promise<EventoDb> {
+  // só confere quando muda o que pode bater: horário, repetição, local ou convidados novos
+  const jaEram = (ok(await supabaseAdmin.from('agenda_participantes').select('user_id').eq('evento_id', atual.id)) as { user_id: string }[]).map((p) => p.user_id)
+  const mexeu = atual.inicio !== n.inicio || atual.fim !== n.fim || (atual.local || '') !== (n.local || '')
+    || JSON.stringify(atual.recorrencia || null) !== JSON.stringify(n.recorrencia || null) || n.participantes.some((p) => !jaEram.includes(p) && p !== atual.criado_por)
+  if (mexeu) {
+    const conf = await conferirConflitos(auth, n, { organizador: atual.criado_por, ignorarId: atual.id })
+    if (conf.length) throw new ConflitoAgenda(conf)
+  }
   const e = ok(await supabaseAdmin.from('agenda_eventos').update({
     titulo: n.titulo, descricao: n.descricao, local: n.local, inicio: n.inicio, fim: n.fim, dia_inteiro: n.diaInteiro,
     cor: n.cor, recorrencia: n.recorrencia, updated_at: new Date().toISOString(),
@@ -326,4 +344,33 @@ export async function excluirEvento(auth: Autenticado, ev: EventoDb, soDia?: str
     await notificar(parts.filter((p) => p.resposta !== 'nao').map((p) => p.user_id), auth.userId, `${autor} cancelou: ${ev.titulo}`, quando({ inicio: ev.inicio, diaInteiro: ev.dia_inteiro }), ev.id)
   }
   await registrarAuditLog({ userId: auth.userId, userName: await nomeUsuario(auth.userId), sistema: 'agenda', acao: soDia ? 'excluir_ocorrencia' : 'excluir', entidade: 'evento', entidadeId: ev.id, entidadeLabel: ev.titulo, detalhes: soDia ? { dia: soDia } : {} }).catch(() => {})
+}
+
+// ------------------------------------------------------------------ conflito de horário
+/**
+ * Conflitos do compromisso novo/editado (José, 16/10/2026): organizador ou convidado já
+ * ocupado no horário, ou o mesmo local ocupado. Vale para cada ocorrência da série nos
+ * próximos 2 meses. Devolve as frases para a tela (vazio = pode salvar).
+ */
+export async function conferirConflitos(auth: Autenticado, n: NovoEvento, opts: { organizador: string; ignorarId?: string | null }): Promise<string[]> {
+  if (n.diaInteiro) return []
+  const ini = localDe(n.inicio), fim = localDe(n.fim)
+  const dur = diasEntre(ini.dia, fim.dia)
+  const limite = addDias(ini.dia, 62)
+  const ateSerie = n.recorrencia?.ate && n.recorrencia.ate < limite ? n.recorrencia.ate : limite
+  const dias = n.recorrencia ? ocorrencias(ini.dia, n.recorrencia.freq, ateSerie, [], ini.dia, ateSerie, dur) : [ini.dia]
+  if (!dias.length) return []
+  const janelas = dias.map((d) => ({ inicio: isoDe(d, ini.hora), fim: isoDe(addDias(d, dur), fim.hora) }))
+  const r = await carregarAgenda(auth, dias[0], addDias(dias[dias.length - 1], dur), 'coletiva')
+  const nomes = new Map(r.pessoas.map((p) => [p.id, p.nome]))
+  const pessoas = [...new Set([opts.organizador, ...n.participantes])]
+  return [...new Set(acharConflitos(janelas, pessoas, n.local, r.itens, { ignorarRef: opts.ignorarId, nomes }).map(textoConflito))].slice(0, 6)
+}
+
+// ------------------------------------------------------------------ locais
+export interface LocalAgenda { id: string; nome: string }
+export async function listarLocais(): Promise<LocalAgenda[]> {
+  const { data, error } = await supabaseAdmin.from('agenda_locais').select('id, nome').eq('ativo', true).order('ordem').order('nome')
+  if (error) { if (migrationFaltou(error)) return []; throw error }
+  return (data || []) as LocalAgenda[]
 }
