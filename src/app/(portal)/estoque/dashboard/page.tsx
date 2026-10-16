@@ -2,7 +2,7 @@
 // Dashboard de Vendas — duas visões independentes: "Peças + Serviços" e "Máquinas".
 // Consome /api/estoque/dashboard{,/historico,/categorias-vendas,/vendas,/pedido-itens,
 // /compras,/tendencia}. Cor do VALOR é sempre neutra; verde/vermelho só p/ variação.
-import { useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
+import { useState, useCallback, useEffect, type ReactNode } from 'react';
 import Link from 'next/link';
 import { ResponsiveContainer, LineChart, Line, BarChart, ComposedChart, Bar, Area, AreaChart, Cell, LabelList, XAxis, YAxis, Tooltip, CartesianGrid, Legend, ReferenceLine } from 'recharts';
 import { useAuth } from '@/hooks/useAuth';
@@ -12,6 +12,7 @@ import { useConta } from '@/components/estoque/ContaProvider';
 import ContaSelector from '@/components/estoque/ContaSelector';
 import { fmtRS } from '@/components/estoque/ui';
 import RelatorioDashboard from '@/components/estoque/RelatorioDashboard';
+import ComposicaoBarra, { type SerieBarra } from '@/components/estoque/ComposicaoBarra';
 import { chartColors } from '@/lib/estoque/chartColors';
 import { authHeaders } from '@/lib/auth/client';
 import HistoricoGrade, { type SerieGrade, type MesHistorico, type SemanaHistorico, type Medida } from '@/components/estoque/HistoricoGrade';
@@ -271,6 +272,8 @@ export default function DashboardPage() {
   // Atalhos/popups: "Por categoria" (peças) e "Decomposição" (serviços).
   const [catPopup, setCatPopup] = useState(false);
   const [servDecompPopup, setServDecompPopup] = useState(false);
+  // Barra clicada no gráfico de 12 meses → popup da composição.
+  const [barraSel, setBarraSel] = useState<{ serie: SerieBarra; ponto: TendPonto } | null>(null);
 
   const [osAberto, setOsAberto] = useState(false);
   const [osServicos, setOsServicos] = useState<OSRow[] | null>(null);
@@ -765,7 +768,7 @@ export default function DashboardPage() {
                   {tendencia && tendencia.length > 0 && (
                     <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
                       <div style={{ fontSize: '.85rem', color: '#6b7280', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', marginBottom: 8 }}>Máquinas · faturamento e unidades — últimos 12 meses</div>
-                      <MaquinasChart pontos={tendencia} />
+                      <MaquinasChart pontos={tendencia} onBarra={(serie, ponto) => setBarraSel({ serie, ponto })} />
                     </div>
                   )}
 
@@ -868,7 +871,7 @@ export default function DashboardPage() {
 
             {tendencia && tendencia.length > 0 && (
               <div style={{ background: '#fff', border: '1px solid #eee', borderRadius: 12, padding: '16px 18px 10px', marginBottom: 18 }}>
-                <PecasChart pontos={tendencia} comparativos={tendComparativos} metrica={metrica} onSelectMes={(m, a) => { setMes(m); setAno(a); }} />
+                <PecasChart pontos={tendencia} comparativos={tendComparativos} metrica={metrica} onBarra={(serie, ponto) => setBarraSel({ serie, ponto })} />
               </div>
             )}
 
@@ -901,6 +904,27 @@ export default function DashboardPage() {
               </div>
             )}
           </>
+        );
+      })()}
+
+      {/* Popup: o que compõe a barra clicada no gráfico de 12 meses */}
+      {barraSel && (() => {
+        const p = barraSel.ponto;
+        const valores: Record<SerieBarra, number | null> = {
+          pecasOficina: p.pecasOficina, pecasBalcao: p.pecasBalcao, servicos: p.servicos,
+          custoPecasOficina: p.custoPecasOficina, custoPecasBalcao: p.custoPecasBalcao, custoServicos: p.custoServicos,
+          maquinas: p.maquinas,
+        };
+        return (
+          <ComposicaoBarra
+            serie={barraSel.serie} mes={p.mes} ano={p.ano}
+            rotuloMes={p.label + (p.parcial ? ' (parcial)' : '')}
+            valorBarra={valores[barraSel.serie]}
+            contaParam={contaParam}
+            buscar={getDash}
+            onAbrirMes={() => { setMes(p.mes); setAno(p.ano); setBarraSel(null); }}
+            onFechar={() => setBarraSel(null)}
+          />
         );
       })()}
 
@@ -1578,8 +1602,10 @@ function Sparkline({ data, cor, parcialUltimo }: { data: number[]; cor: string; 
     </div>
   );
 }
-function PecasChart({ pontos, comparativos, metrica = 'venda', onSelectMes, impressao }: {
-  pontos: TendPonto[]; comparativos?: Comparativos | null; metrica?: Metrica; onSelectMes?: (mes: number, ano: number) => void;
+function PecasChart({ pontos, comparativos, metrica = 'venda', onBarra, impressao }: {
+  pontos: TendPonto[]; comparativos?: Comparativos | null; metrica?: Metrica;
+  /** Clique numa barra → popup com o que compõe o valor (a página abre o ComposicaoBarra). */
+  onBarra?: (serie: SerieBarra, ponto: TendPonto) => void;
   /** Relatório impresso: largura fixa, sem botões/animação, view e posição do custo vindos de fora. */
   impressao?: { largura: number; view: PSView; custoPos: CustoPos };
 }) {
@@ -1595,7 +1621,6 @@ function PecasChart({ pontos, comparativos, metrica = 'venda', onSelectMes, impr
   const trocarCustoPos = (v: CustoPos) => { setCustoPos(v); try { localStorage.setItem('estoque-dash-custo-pos', v); } catch { /* sem storage */ } };
   const [compararAberto, setCompararAberto] = useState(false);
   const [cmp, setCmp] = useState<{ a1: boolean; a2: boolean }>({ a1: false, a2: false });
-  const lastClick = useRef<{ label: string; ts: number } | null>(null);
   const ehCusto = metrica === 'custo';
   const ehMargem = metrica === 'margem';
   const isPct = view === 'pct';
@@ -1640,18 +1665,11 @@ function PecasChart({ pontos, comparativos, metrica = 'venda', onSelectMes, impr
   const primeiro = pontos[0];
   // Rótulo de janela de 12 meses deslocada `y` anos (para o "Comparar").
   const winLabel = (y: number) => primeiro && ultimo ? `${MESES[primeiro.mes - 1]}/${String(primeiro.ano - y).slice(2)}–${MESES[ultimo.mes - 1]}/${String(ultimo.ano - y).slice(2)}` : '';
-  // Duplo-clique numa barra → recarrega o dashboard naquele mês.
-  const handleClick = (st: { activeLabel?: string; activePayload?: Array<{ payload: TendPonto }> }) => {
-    if (!onSelectMes || !st?.activePayload?.length) return;
-    const p = st.activePayload[0].payload;
-    const agora = Date.now();
-    if (lastClick.current && lastClick.current.label === st.activeLabel && agora - lastClick.current.ts < 400) {
-      lastClick.current = null;
-      onSelectMes(p.mes, p.ano);
-    } else {
-      lastClick.current = { label: st.activeLabel || '', ts: agora };
-    }
-  };
+  // Clique numa barra → popup da composição. O payload do recharts traz o ponto do mês.
+  const clicar = (serie: SerieBarra) => onBarra && !impressao
+    ? (d: { payload?: TendPonto }) => { if (d?.payload) onBarra(serie, d.payload); }
+    : undefined;
+  const cursorBarra = onBarra && !impressao ? 'pointer' : undefined;
   const kOfi = isPct ? 'oficinaPct' : 'vOfi';
   const kBal = isPct ? 'balcaoPct' : 'vBal';
   const kS = isPct ? 'servicosPct' : 'vServ';
@@ -1690,7 +1708,7 @@ function PecasChart({ pontos, comparativos, metrica = 'venda', onSelectMes, impr
       </div>
       <div style={{ width: impressao ? impressao.largura : '100%', height: sob ? 420 : 340 }}>
         <ResponsiveContainer width={impressao ? impressao.largura : '100%'} height={sob ? 420 : 340}>
-          <ComposedChart data={data} margin={{ top: 24, right: 12, left: 8, bottom: sob ? 18 : 0 }} onClick={handleClick}>
+          <ComposedChart data={data} margin={{ top: 24, right: 12, left: 8, bottom: sob ? 18 : 0 }} >
             <XAxis dataKey="label" tick={{ fontSize: 13 }} />
             {sobrepor && <XAxis xAxisId="custo" dataKey="label" hide />}
             <YAxis tick={{ fontSize: 13 }} width={isPct ? 42 : 56} domain={isPct ? [0, 100] : undefined} tickFormatter={isPct ? (v) => v + '%' : (v) => fmtAbs(v)} />
@@ -1699,36 +1717,36 @@ function PecasChart({ pontos, comparativos, metrica = 'venda', onSelectMes, impr
             {sob && <ReferenceLine y={0} stroke="#374151" />}
             {isStack && !sobrepor && <ReferenceLine y={media} stroke="#9ca3af" strokeDasharray="5 4" ifOverflow="extendDomain"
               label={{ value: `média ${fechados.length}m fechados: ${fmtK(media)}`, position: 'insideTopRight', fill: '#6b7280', fontSize: 12 }} />}
-            <Bar isAnimationActive={anim} dataKey={kOfi} stackId={stackId} name={ehCusto && isPct ? 'Custo Peças Oficina' : 'Peças Oficina'} fill={corOfi} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
+            <Bar isAnimationActive={anim} onClick={clicar(ehCusto && isPct ? 'custoPecasOficina' : 'pecasOficina')} cursor={cursorBarra} dataKey={kOfi} stackId={stackId} name={ehCusto && isPct ? 'Custo Peças Oficina' : 'Peças Oficina'} fill={corOfi} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={(p.parcial ? 0.55 : 1) * opVenda} />)}
               {rotVenda && view === 'agrupado' && <LabelList dataKey="vOfi" position="top" style={{ fontSize: 11, fill: CHART_PECAS, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="oficinaPct" position="center" style={{ fontSize: 11, fill: '#fff', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
-            <Bar isAnimationActive={anim} dataKey={kBal} stackId={stackId} name={ehCusto && isPct ? 'Custo Peças Balcão' : 'Peças Balcão'} fill={corBal} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
+            <Bar isAnimationActive={anim} onClick={clicar(ehCusto && isPct ? 'custoPecasBalcao' : 'pecasBalcao')} cursor={cursorBarra} dataKey={kBal} stackId={stackId} name={ehCusto && isPct ? 'Custo Peças Balcão' : 'Peças Balcão'} fill={corBal} radius={isStack || isPct ? [0, 0, 0, 0] : [3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={(p.parcial ? 0.55 : 1) * opVenda} />)}
               {rotVenda && view === 'agrupado' && <LabelList dataKey="vBal" position="top" style={{ fontSize: 11, fill: '#1e6fb8', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="balcaoPct" position="center" style={{ fontSize: 11, fill: ehCusto ? '#450a0a' : '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
-            <Bar isAnimationActive={anim} dataKey={kS} stackId={stackId} name={ehCusto && isPct ? 'Custo Serviços' : 'Serviços'} fill={corServ} radius={[3, 3, 0, 0]} maxBarSize={54}>
+            <Bar isAnimationActive={anim} onClick={clicar(ehCusto && isPct ? 'custoServicos' : 'servicos')} cursor={cursorBarra} dataKey={kS} stackId={stackId} name={ehCusto && isPct ? 'Custo Serviços' : 'Serviços'} fill={corServ} radius={[3, 3, 0, 0]} maxBarSize={54}>
               {data.map((p, i) => <Cell key={i} fillOpacity={(p.parcial ? 0.55 : 1) * opVenda} />)}
               {rotVenda && isStack && <LabelList dataKey="vTot" position="top" style={{ fontSize: 12, fill: '#374151', fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {rotVenda && view === 'agrupado' && <LabelList dataKey="vServ" position="top" style={{ fontSize: 11, fill: CHART_SERVICOS_INK, fontWeight: 700 }} formatter={(v: number) => fmtK(v)} />}
               {isPct && <LabelList dataKey="servicosPct" position="center" style={{ fontSize: 11, fill: ehCusto ? '#fff' : '#083344', fontWeight: 700 }} formatter={(v: number) => (v >= 8 ? Math.round(v) + '%' : '')} />}
             </Bar>
             {sobrepor && (
-              <Bar isAnimationActive={anim} xAxisId="custo" dataKey="cOfi" stackId={stackId ? 'custo' : undefined} name="Custo Peças Oficina" fill={CUSTO_OFICINA} radius={isStack ? [0, 0, 0, 0] : raioCusto} maxBarSize={54}>
+              <Bar isAnimationActive={anim} onClick={clicar('custoPecasOficina')} cursor={cursorBarra} xAxisId="custo" dataKey="cOfi" stackId={stackId ? 'custo' : undefined} name="Custo Peças Oficina" fill={CUSTO_OFICINA} radius={isStack ? [0, 0, 0, 0] : raioCusto} maxBarSize={54}>
                 {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
                 {view === 'agrupado' && <LabelList dataKey="cOfi" position={posRotCusto} style={{ fontSize: 11, fill: CUSTO_OFICINA, fontWeight: 700 }} formatter={fmtRotCusto} />}
               </Bar>
             )}
             {sobrepor && (
-              <Bar isAnimationActive={anim} xAxisId="custo" dataKey="cBal" stackId={stackId ? 'custo' : undefined} name="Custo Peças Balcão" fill={CUSTO_BALCAO} radius={isStack ? [0, 0, 0, 0] : raioCusto} maxBarSize={54}>
+              <Bar isAnimationActive={anim} onClick={clicar('custoPecasBalcao')} cursor={cursorBarra} xAxisId="custo" dataKey="cBal" stackId={stackId ? 'custo' : undefined} name="Custo Peças Balcão" fill={CUSTO_BALCAO} radius={isStack ? [0, 0, 0, 0] : raioCusto} maxBarSize={54}>
                 {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
                 {view === 'agrupado' && <LabelList dataKey="cBal" position={posRotCusto} style={{ fontSize: 11, fill: '#dc2626', fontWeight: 700 }} formatter={fmtRotCusto} />}
               </Bar>
             )}
             {sobrepor && (
-              <Bar isAnimationActive={anim} xAxisId="custo" dataKey="cServ" stackId={stackId ? 'custo' : undefined} name="Custo Serviços" fill={CUSTO_SERVICOS} radius={raioCusto} maxBarSize={54}>
+              <Bar isAnimationActive={anim} onClick={clicar('custoServicos')} cursor={cursorBarra} xAxisId="custo" dataKey="cServ" stackId={stackId ? 'custo' : undefined} name="Custo Serviços" fill={CUSTO_SERVICOS} radius={raioCusto} maxBarSize={54}>
                 {data.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.55 : 1} />)}
                 {isStack && <LabelList dataKey="cTot" position={posRotCusto} style={{ fontSize: 12, fill: '#991b1b', fontWeight: 700 }} formatter={fmtRotCusto} />}
                 {view === 'agrupado' && <LabelList dataKey="cServ" position={posRotCusto} style={{ fontSize: 11, fill: '#991b1b', fontWeight: 700 }} formatter={fmtRotCusto} />}
@@ -1748,7 +1766,7 @@ function PecasChart({ pontos, comparativos, metrica = 'venda', onSelectMes, impr
             </span>
           )}
           {metrica !== 'venda' && semCustoServ && <span style={{ marginLeft: 10, color: '#b91c1c' }}>Custo de serviços indisponível (Painel Omie não respondeu) — contado como zero.</span>}
-          {onSelectMes && <span style={{ marginLeft: ultimo?.parcial ? 10 : 0 }}>Dica: duplo-clique numa barra abre aquele mês.</span>}
+          {onBarra && <span style={{ marginLeft: ultimo?.parcial ? 10 : 0 }}>Dica: clique numa barra para ver o que compõe o valor.</span>}
         </div>
         {!isPct && metrica === 'venda' && (
           <div style={{ position: 'relative' }}>
@@ -1843,7 +1861,7 @@ function MaqTooltip({ active, payload, label }: MaqTooltipProps) {
     </div>
   );
 }
-function MaquinasChart({ pontos, largura }: { pontos: TendPonto[]; /** Relatório impresso: largura fixa, sem animação. */ largura?: number }) {
+function MaquinasChart({ pontos, largura, onBarra }: { pontos: TendPonto[]; /** Relatório impresso: largura fixa, sem animação. */ largura?: number; onBarra?: (serie: SerieBarra, ponto: TendPonto) => void }) {
   return (
     <div style={{ width: largura ?? '100%', height: 340 }}>
       <ResponsiveContainer width={largura ?? '100%'} height={340}>
@@ -1852,7 +1870,7 @@ function MaquinasChart({ pontos, largura }: { pontos: TendPonto[]; /** Relatóri
           <XAxis dataKey="label" tick={{ fontSize: 13 }} />
           <YAxis tick={{ fontSize: 13 }} tickFormatter={(v) => fmtMil(v)} width={90} />
           {!largura && <Tooltip content={<MaqTooltip />} cursor={{ fill: 'rgba(0,0,0,.03)' }} />}
-          <Bar isAnimationActive={!largura} dataKey="maquinas" name="Faturamento" fill={ACCENT.maquinas} radius={[3, 3, 0, 0]}>
+          <Bar isAnimationActive={!largura} onClick={onBarra && !largura ? (d: { payload?: TendPonto }) => { if (d?.payload) onBarra('maquinas', d.payload); } : undefined} cursor={onBarra && !largura ? 'pointer' : undefined} dataKey="maquinas" name="Faturamento" fill={ACCENT.maquinas} radius={[3, 3, 0, 0]}>
             {pontos.map((p, i) => <Cell key={i} fillOpacity={p.parcial ? 0.5 : 1} />)}
             <LabelList dataKey="maquinasUn" position="top" style={{ fontSize: 13, fill: '#92610e', fontWeight: 700 }} formatter={(v: number) => (v ? v.toLocaleString('pt-BR') : '')} />
           </Bar>

@@ -106,3 +106,89 @@ export async function custoServicosMensal(
   emVoo.set(chave, p);
   return p;
 }
+
+// ---------------------------------------------------------------------------
+// Detalhe de UM mês (popup do gráfico). Só o que não expõe salário: custo fixo e
+// comissão vão como TOTAL; despesas e OS internas vão linha a linha.
+// ---------------------------------------------------------------------------
+export interface DetalheCustoServicos {
+  componentes: { comissao: number; despesaGeral: number; despesaVeic: number; custoFixo: number; custoRealInterno: number; total: number };
+  despesas: Array<{ data: string; descricao: string; valor: number; veiculo: string | null; tecnico: string | null; tipo: 'geral' | 'veiculo' }>;
+  internas: Array<{ numero: string; cliente: string; data: string; tipo: string; custo: number }>;
+}
+
+interface DespesaPainel { data?: string; descricao?: string; valor?: unknown; veiculo?: string; _tecnico?: string; _contado?: boolean }
+interface OSPainel {
+  numero_os_join?: string | number; nome_cliente_join?: string; data_emissao_join?: string; data_abertura_join?: string;
+  tipo_calculado?: string; _internoSub?: string | null; custo_real?: { total?: number } | null;
+}
+
+/** Valor "1.234,56" / "1234.56" / número → número. */
+function dinheiro(v: unknown): number {
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  let s = String(v ?? '').replace(/[^\d.,-]/g, '');
+  if (!s) return 0;
+  if (s.includes(',')) s = s.replace(/\./g, '').replace(',', '.');
+  return parseFloat(s) || 0;
+}
+
+/** Monta o detalhe a partir da resposta crua do painel (pura — testável). */
+export function montarDetalheCusto(
+  j: { grafico?: GraficoMesPainel[]; listaDespesas?: DespesaPainel[]; listaOS?: OSPainel[] },
+  mesChave: string,
+): DetalheCustoServicos {
+  const g = (j.grafico || []).find((x) => x.mes === mesChave) || {};
+  const c = {
+    comissao: n(g.comissao), despesaGeral: n(g.despesaGeral), despesaVeic: n(g.despesaVeic),
+    custoFixo: n(g.custoFixo), custoRealInterno: n(g.custoRealInterno), total: 0,
+  };
+  c.total = c.comissao + c.despesaGeral + c.despesaVeic + c.custoFixo + c.custoRealInterno;
+  const despesas = (j.listaDespesas || [])
+    .filter((d) => d._contado)
+    .map((d) => ({
+      data: String(d.data || ''), descricao: String(d.descricao || ''), valor: dinheiro(d.valor),
+      veiculo: d.veiculo ? String(d.veiculo) : null, tecnico: d._tecnico ? String(d._tecnico) : null,
+      tipo: (String(d.veiculo || '').length > 3 ? 'veiculo' : 'geral') as 'geral' | 'veiculo',
+    }))
+    .sort((a, b) => b.valor - a.valor);
+  const mesDe = (s?: string) => {
+    const t = String(s || '').split(' ')[0];
+    if (t.includes('/')) { const p = t.split('/'); return `${p[2]}-${p[1]}`; }
+    if (t.includes('-')) { const p = t.split('-'); return `${p[0]}-${p[1]}`; }
+    return '';
+  };
+  const internas = (j.listaOS || [])
+    .filter((o) => o._internoSub === 'REAL' && mesDe(o.data_emissao_join || o.data_abertura_join) === mesChave)
+    .map((o) => ({
+      numero: String(o.numero_os_join ?? ''), cliente: String(o.nome_cliente_join || ''),
+      data: String(o.data_emissao_join || o.data_abertura_join || ''), tipo: String(o.tipo_calculado || ''),
+      custo: n(o.custo_real?.total),
+    }))
+    .filter((o) => o.custo > 0)
+    .sort((a, b) => b.custo - a.custo);
+  return { componentes: c, despesas, internas };
+}
+
+const cacheDetalhe = new Map<string, { ts: number; dados: DetalheCustoServicos | null }>();
+
+/** Detalhe do custo de serviços de um mês. null = painel indisponível (sem token, fora, timeout). */
+export async function detalheCustoServicosMes(conta: ContaFiltro, mes: number, ano: number): Promise<DetalheCustoServicos | null> {
+  const token = process.env.PAINEL_SERVICE_TOKEN;
+  if (!token) return null;
+  const chave = `${conta || 'TODAS'}|${chaveMes(mes, ano)}`;
+  const c = cacheDetalhe.get(chave);
+  if (c && Date.now() - c.ts < TTL_MS) return c.dados;
+  try {
+    const ini = new Date(ano, mes - 1, 1);
+    const fim = new Date(ano, mes, 0);
+    const url = `${PAINEL}/api/dashboard-vendedor?nome=TODOS&${paramsConta(conta)}&dataInicio=${iso(ini)}&dataFim=${iso(fim)}&_pularComparativo=1`;
+    const r = await fetch(url, { headers: { 'x-painel-token': token }, signal: AbortSignal.timeout(TIMEOUT_MS), cache: 'no-store' });
+    if (!r.ok) throw new Error(`painel respondeu ${r.status}`);
+    const dados = montarDetalheCusto(await r.json(), chaveMes(mes, ano));
+    cacheDetalhe.set(chave, { ts: Date.now(), dados });
+    return dados;
+  } catch (e) {
+    console.warn('[custo-servicos-painel] detalhe', (e as Error).message);
+    return null;
+  }
+}
