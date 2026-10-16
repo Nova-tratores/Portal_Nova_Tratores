@@ -74,10 +74,31 @@ const AJUDA: Record<string, AjudaFrota> = {
     termos: [
       { t: 'Seta no carro', d: 'Para onde o carro andando está indo, pelos últimos pontos do rastreador.' },
       { t: 'Tempo com a loja', d: 'Mediana das viagens reais (desde jan/2026) que saíram da loja e pararam a até 2 km do ponto (ou 5 km), sem as fora da curva: as que levaram mais de 2,5× o normal para a distância e as que ficam fora dos quartis. Sem viagens por perto, é estimado pela distância.' },
+      { t: 'Km rodados × projetado', d: 'Rodados = mediana do que os carros andaram de verdade nessas viagens (pontos do rastreador dos últimos 90 dias). Projetado = o caminho mais curto pela estrada, calculado pelo mapa de rotas.' },
       { t: 'Andando', d: 'Motor ligado e acima de 5 km/h.' },
       { t: 'Parado com motor ligado', d: 'Motor ligado e parado (marcha lenta).' },
       { t: 'Desligado', d: 'Motor desligado, com sinal nas últimas 24 h.' },
       { t: 'Sem sinal', d: 'Mais de 1 h sem posição com o motor ligado, ou mais de 24 h desligado.' },
+    ],
+  },
+  '/frota/ranking': {
+    titulo: 'Ranking de uso',
+    icon: '🏆',
+    resumo: 'Quem mais rodou e mais ficou com o motor ligado, no período que você escolher.',
+    oQueMostra:
+      'Soma, por veículo ou por motorista, os km rodados, o tempo de motor ligado (em movimento e em marcha lenta) e os dias ' +
+      'em que o carro foi usado. Os dados vêm do rastreador e cada dia é fechado de madrugada, então o último dia é ontem. ' +
+      'Motorista = quem estava com o carro naquele dia; dia sem motorista registrado entra em "Sem motorista".',
+    comoUsar: [
+      'Escolha o período (ontem, semana, mês, ano ou Período… com as datas).',
+      'Por veículo ou Por motorista; a métrica escolhida define a ordem (ou clique no título da coluna).',
+      'Por dia / Por semana / Por mês mostra a métrica escolhida em cada coluna, mais forte onde é maior; passe o mouse para ver tudo.',
+      'CSV baixa o que está na tela para abrir no Excel.',
+    ],
+    termos: [
+      { t: 'Ligado', d: 'Tempo com a ignição ligada, andando ou parado.' },
+      { t: 'Marcha lenta', d: 'Ligado e parado: combustível gasto sem sair do lugar. Acima de 25% do tempo ligado fica em laranja.' },
+      { t: 'Dias', d: 'Dias em que o carro rodou ou ligou o motor.' },
     ],
   },
   '/frota/pendencias': {

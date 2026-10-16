@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { estimar, extrairViagens, fmtMin, modeloDistancia, semForaDaCurva, type ParadaHist } from '../tempo-loja';
+import { estimar, extrairViagens, fmtMin, kmNoTrecho, kmRealizado, modeloDistancia, selecionarViagens, semForaDaCurva, type ParadaHist } from '../tempo-loja';
 
 const LOJA = { lat: -23.2085, lng: -49.371 };
 const FAZ = { lat: -23.3, lng: -49.45 }; // ~13 km da loja
@@ -61,6 +61,29 @@ describe('estimar', () => {
   });
   it('sem histórico nenhum', () => {
     expect(estimar(FAZ, LOJA, [], 'ida', null).fonte).toBe('sem_dados');
+  });
+});
+
+describe('km realizado', () => {
+  const t = (hhmm: string) => `2026-10-15T${hhmm}:00Z`;
+  // ~1,1 km a cada ponto andando para o norte
+  const pontos = [0, 1, 2, 3, 4].map((i) => ({ dt: t(`08:0${i}`), lat: -23.2 + i * 0.01, lng: -49.37, vel: 60 }));
+  it('soma só a janela da viagem e só com o carro andando', () => {
+    const parados = [{ dt: t('08:05'), lat: -23.16, lng: -49.36, vel: 0 }, { dt: t('08:06'), lat: -23.15, lng: -49.37, vel: 0 }];
+    expect(kmNoTrecho([...pontos, ...parados], t('08:00'), t('08:06'))).toBeCloseTo(4 * 1.112 + 1.03, 1);
+    expect(kmNoTrecho(pontos, t('08:01'), t('08:03'))).toBeCloseTo(2 * 1.112, 1);
+  });
+  it('sem pontos cobrindo a viagem devolve null', () => {
+    expect(kmNoTrecho(pontos, t('07:00'), t('08:04'))).toBeNull(); // 1º ponto 60 min depois da saída
+    expect(kmNoTrecho([], t('08:00'), t('08:04'))).toBeNull();
+  });
+  it('mediana ignora as sem dados', () => {
+    expect(kmRealizado([30, null, 34, 31])).toEqual({ km: 31, viagens: 3 });
+    expect(kmRealizado([null])).toEqual({ km: null, viagens: 0 });
+  });
+  it('selecionarViagens devolve as viagens usadas na mediana', () => {
+    const vs = [30, 32, 31, 29, 150].map((min) => ({ sentido: 'ida' as const, lat: FAZ.lat, lng: FAZ.lng, min, kmReto: 13 }));
+    expect(selecionarViagens(FAZ, vs, 'ida', null)!.limpas.map((v) => v.min)).toEqual([30, 32, 31, 29]);
   });
 });
 

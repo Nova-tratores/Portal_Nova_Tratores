@@ -22,7 +22,10 @@ export interface Viagem {
   lat: number;     // o ponto fora da loja (destino da ida / origem da volta)
   lng: number;
   min: number;     // duração em minutos
-  kmReto: number;  // distância em linha reta loja ↔ ponto
+  kmReto: number;  // distância em linha reta loja ↔ ponto (só para filtrar)
+  placa?: string;
+  saida?: string;  // ISO: fim da parada de origem
+  chegada?: string; // ISO: início da parada de destino
 }
 
 export interface Estimativa {
@@ -71,7 +74,7 @@ export function extrairViagens(paradas: ParadaHist[], loja: { lat: number; lng: 
       const kmReto = distKm(loja.lat, loja.lng, fora.latitude, fora.longitude);
       if (kmReto < KM_MIN_VIAGEM) continue;
       if (kmReto / (min / 60) > KMH_RETO_MAX) continue;
-      out.push({ sentido: aLoja ? 'ida' : 'volta', lat: fora.latitude, lng: fora.longitude, min, kmReto });
+      out.push({ sentido: aLoja ? 'ida' : 'volta', lat: fora.latitude, lng: fora.longitude, min, kmReto, placa: a.placa, saida: a.fim, chegada: b.inicio });
     }
   }
   return out;
@@ -127,13 +130,13 @@ export const esperadoMin = (m: ModeloDistancia, km: number) => m.fixo + m.porKm 
 export const FOLGA_MAX = 2.5;
 export const FOLGA_MIN = 0.4;
 
-export function estimar(
+/** As viagens perto do ponto que valem (sem as fora da curva), ou null. */
+export function selecionarViagens(
   ponto: { lat: number; lng: number },
-  loja: { lat: number; lng: number },
   viagens: Viagem[],
   sentido: 'ida' | 'volta',
   modelo: ModeloDistancia | null,
-): Estimativa {
+): { perto: Viagem[]; limpas: Viagem[] } | null {
   const doSentido = viagens.filter((v) => v.sentido === sentido);
   for (const raio of [2, 5]) {
     const perto = doSentido.filter((v) => distKm(v.lat, v.lng, ponto.lat, ponto.lng) <= raio);
@@ -146,14 +149,65 @@ export function estimar(
         })
       : perto;
     if (!plausiveis.length) continue;
-    const limpas = semForaDaCurva(plausiveis.map((v) => v.min));
-    return { min: Math.round(mediana(limpas)), viagens: limpas.length, descartadas: perto.length - limpas.length, fonte: 'historico' };
+    const mins = semForaDaCurva(plausiveis.map((v) => v.min));
+    const lo = mins[0], hi = mins[mins.length - 1];
+    return { perto, limpas: plausiveis.filter((v) => v.min >= lo && v.min <= hi) };
+  }
+  return null;
+}
+
+export function estimar(
+  ponto: { lat: number; lng: number },
+  loja: { lat: number; lng: number },
+  viagens: Viagem[],
+  sentido: 'ida' | 'volta',
+  modelo: ModeloDistancia | null,
+): Estimativa {
+  const sel = selecionarViagens(ponto, viagens, sentido, modelo);
+  if (sel) {
+    const limpas = sel.limpas.map((v) => v.min);
+    return { min: Math.round(mediana(limpas)), viagens: limpas.length, descartadas: sel.perto.length - limpas.length, fonte: 'historico' };
   }
   if (modelo) {
     const km = distKm(loja.lat, loja.lng, ponto.lat, ponto.lng);
     return { min: Math.round(esperadoMin(modelo, km)), viagens: 0, descartadas: 0, fonte: 'distancia' };
   }
   return { min: null, viagens: 0, descartadas: 0, fonte: 'sem_dados' };
+}
+
+// ── km REALIZADO de uma viagem, pelos pontos do rastreador (rotas_vendedor) ──
+export interface PontoRota { dt: string; lat: number; lng: number; vel?: number | null }
+
+/** Lacuna máxima entre a saída/chegada e o 1º/último ponto da janela. */
+export const LACUNA_MAX_MIN = 15;
+
+/** Km rodados entre `de` e `ate`: soma só os trechos com o carro andando
+ *  (velocidade > 0 em uma das pontas — parado, o GPS "passeia" e quase dobrava
+ *  o km) e ignora saltos de 5 km ou mais (erro de GPS). Mesma conta do km do
+ *  dia em lib/pos/rastreamento. null quando os pontos não cobrem a viagem. */
+export function kmNoTrecho(pontos: PontoRota[], de: string, ate: string): number | null {
+  const ini = new Date(de).getTime(), fim = new Date(ate).getTime();
+  const janela = pontos
+    .filter((p) => { const t = new Date(p.dt).getTime(); return t >= ini && t <= fim && Number.isFinite(p.lat) && Number.isFinite(p.lng); })
+    .sort((a, b) => a.dt.localeCompare(b.dt));
+  if (janela.length < 2) return null;
+  const lacuna = LACUNA_MAX_MIN * 60_000;
+  if (new Date(janela[0].dt).getTime() - ini > lacuna || fim - new Date(janela[janela.length - 1].dt).getTime() > lacuna) return null;
+  let km = 0;
+  for (let i = 1; i < janela.length; i++) {
+    const a = janela[i - 1], b = janela[i];
+    if (!((Number(a.vel) || 0) > 0 || (Number(b.vel) || 0) > 0)) continue;
+    const d = distKm(a.lat, a.lng, b.lat, b.lng);
+    if (d < 5) km += d;
+  }
+  return km;
+}
+
+/** Mediana dos km realizados (ignora as viagens sem pontos), com 1 casa. */
+export function kmRealizado(kms: (number | null)[]): { km: number | null; viagens: number } {
+  const ok = kms.filter((k): k is number => k != null && k > 0);
+  if (!ok.length) return { km: null, viagens: 0 };
+  return { km: Math.round(mediana(ok) * 10) / 10, viagens: ok.length };
 }
 
 /** "42 min" · "1h05" */

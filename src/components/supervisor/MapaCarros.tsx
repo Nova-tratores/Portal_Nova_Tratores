@@ -12,6 +12,7 @@ import type { VeiculoVivo } from '@/lib/frota/mapa-vivo-server'
 interface Carro { placa: string; descricao?: string | null; pessoa_nome?: string | null; vinculo_tipo?: string | null }
 
 // nomes vêm do CRM / geocercas / cadastro — nunca interpolar cru no HTML do Leaflet
+const kmBR = (km: number) => `${(Math.round(km * 10) / 10).toLocaleString('pt-BR')} km`
 const esc = (s: unknown) => String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c))
 
 const ICONE_CARRO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>'
@@ -28,11 +29,14 @@ function htmlTempoLoja(d: any): string {
     const det = e.fonte === 'historico'
       ? `${e.viagens} viage${e.viagens === 1 ? 'm' : 'ns'}${e.descartadas ? ` · ${e.descartadas} fora da curva` : ''}`
       : 'estimado pela distância'
-    return `<div>${rotulo}: <b style="color:#0f172a">~${fmtMin(e.min)}</b> <span style="color:#94a3b8">(${det})</span></div>`
+    const km = e.kmRealizado != null ? ` · <b style="color:#0f172a">${kmBR(e.kmRealizado)}</b> rodados` : ''
+    return `<div>${rotulo}: <b style="color:#0f172a">~${fmtMin(e.min)}</b>${km} <span style="color:#94a3b8">(${det})</span></div>`
   }
+  const projetado = d.kmProjetado != null
+    ? `<div style="margin-top:2px">Percurso projetado: <b style="color:#0f172a">${kmBR(d.kmProjetado)}</b> <span style="color:#94a3b8">(pela estrada)</span></div>`
+    : ''
   return `<div style="font-weight:800;color:#334155;margin-bottom:2px">Tempo com a loja</div>` +
-    linha('Ida da loja', d.ida) + linha('Volta à loja', d.volta) +
-    `<div style="color:#94a3b8;font-size:11px;margin-top:2px">${String(d.kmReto).replace('.', ',')} km em linha reta</div>`
+    linha('Ida da loja', d.ida) + linha('Volta à loja', d.volta) + projetado
 }
 // "Paulo Motta / Gabriel Moraes" → "Paulo" (o rótulo do carro é curto)
 const primeiroNome = (s: string) => (s.split(' / ')[0] || '').trim().split(/\s+/)[0] || ''

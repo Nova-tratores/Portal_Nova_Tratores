@@ -73,6 +73,9 @@ export const PAGINAS_FROTA: PaginaFrota[] = [
   { key: 'frota:motoristas',         label: 'Motoristas',        href: '/frota/motoristas',         grupo: 'Cadastro', aba: 'pessoas' },
   { key: 'frota:multas',             label: 'Multas',            href: '/frota/multas',             grupo: 'Operação', aba: 'pessoas' },
   { key: 'frota:paradas',            label: 'Paradas',           href: '/frota/paradas',            grupo: 'Operação', aba: 'pessoas' },
+  // Ranking de km e horas ligado por veículo/motorista (16/10/2026). Mesma chave
+  // de Paradas: os dois leem o resumo diário do rastreador (frota_dias).
+  { key: 'frota:paradas',            label: 'Ranking de uso',    href: '/frota/ranking',            grupo: 'Operação', aba: 'pessoas' },
   { key: 'frota:custos',             label: 'Custos (TCO)',      href: '/frota/custos',             grupo: 'Custos',   aba: 'custos' },
 ];
 
