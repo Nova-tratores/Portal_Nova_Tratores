@@ -1,4 +1,4 @@
-// GET /api/frota/mapa/propriedades                 — municípios com CAR carregado (centro + nº de imóveis)
+// GET /api/frota/mapa/propriedades                 — municípios com CAR carregado (lista fixa, com o centro)
 // GET /api/frota/mapa/propriedades?municipio=<ibge> — contornos dos imóveis rurais (CAR) do município
 //
 // Camada "Propriedades (CAR)" do mapa dos carros: mostra em que fazenda o carro
@@ -10,6 +10,7 @@ import { NextResponse } from 'next/server';
 import { autenticar } from '@/lib/auth/server';
 import { temAcessoMapa } from '@/lib/frota/server';
 import { supabaseAdmin } from '@/lib/server/supabase-admin';
+import { MUNICIPIOS_CAR } from '@/lib/frota/car-municipios';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -55,9 +56,9 @@ export async function GET(req: Request) {
   try {
     let dados: unknown;
     if (!municipio) {
-      const { data, error } = await supabaseAdmin.rpc('agro_mapa_municipios');
-      if (error) throw error;
-      dados = { municipios: data || [] };
+      // lista fixa: agro_mapa_municipios() estoura o statement timeout (calcula o
+      // centro de ~34 mil polígonos a cada chamada) — ver lib/frota/car-municipios.ts
+      dados = { municipios: MUNICIPIOS_CAR };
     } else {
       const ibge = Number(municipio);
       if (!Number.isInteger(ibge)) return NextResponse.json({ error: 'municipio inválido' }, { status: 400 });
@@ -72,6 +73,9 @@ export async function GET(req: Request) {
     const m = e instanceof Error ? e.message : String((e as { message?: string })?.message || e);
     if (/agro_mapa_/.test(m) && /not find|does not exist|schema cache/i.test(m)) {
       return NextResponse.json({ error: 'Camada de propriedades indisponível (falta sql/agro-mapa.sql).', migracaoFaltando: true }, { status: 503 });
+    }
+    if (/statement timeout/i.test(m)) {
+      return NextResponse.json({ error: 'O banco demorou para responder. Tente ligar a camada de novo em instantes.' }, { status: 503 });
     }
     return NextResponse.json({ error: m }, { status: 500 });
   }

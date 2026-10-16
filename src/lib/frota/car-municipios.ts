@@ -1,0 +1,55 @@
+// GERADO em 2026-10-16 a partir de agro_mapa_municipios() (sql/agro-mapa.sql).
+// Os municípios com CAR carregado e o centro de cada um mudam só quando o
+// Dashboard Agro carrega município novo. A função calcula o centro de ~34 mil
+// polígonos e estourou o statement timeout em produção (16/10/2026) — por
+// isso a camada "Propriedades (CAR)" do mapa usa esta lista fixa.
+// Para regerar: chamar a RPC com o service role e reescrever este arquivo.
+export interface MunicipioCar { ibge: number; nome: string; centro: [number, number] }
+
+export const MUNICIPIOS_CAR: MunicipioCar[] = [
+  { ibge: 3500550, nome: "Águas de Santa Bárbara", centro: [-22.90308, -49.26656] },
+  { ibge: 3501509, nome: "Alvinlândia", centro: [-22.45259, -49.76253] },
+  { ibge: 3502200, nome: "Angatuba", centro: [-23.39291, -48.43469] },
+  { ibge: 3503109, nome: "Arandu", centro: [-23.16911, -49.05807] },
+  { ibge: 3504503, nome: "Avaré", centro: [-23.06643, -48.86624] },
+  { ibge: 3505005, nome: "Barão de Antonina", centro: [-23.57172, -49.55641] },
+  { ibge: 3506300, nome: "Bernardino de Campos", centro: [-23.02527, -49.49040] },
+  { ibge: 3506904, nome: "Bofete", centro: [-23.12196, -48.29688] },
+  { ibge: 3507159, nome: "Bom Sucesso de Itararé", centro: [-24.31893, -49.15678] },
+  { ibge: 3509452, nome: "Campina do Monte Alegre", centro: [-23.61066, -48.45614] },
+  { ibge: 3509809, nome: "Campos Novos Paulista", centro: [-22.63602, -50.00157] },
+  { ibge: 3510153, nome: "Canitar", centro: [-23.02141, -49.78785] },
+  { ibge: 3511409, nome: "Cerqueira César", centro: [-23.07157, -49.11990] },
+  { ibge: 3557204, nome: "Chavantes", centro: [-23.04029, -49.75590] },
+  { ibge: 3512605, nome: "Coronel Macedo", centro: [-23.63076, -49.30430] },
+  { ibge: 3515194, nome: "Espírito Santo do Turvo", centro: [-22.66810, -49.43102] },
+  { ibge: 3515400, nome: "Fartura", centro: [-23.39875, -49.50610] },
+  { ibge: 3519253, nome: "Iaras", centro: [-22.79862, -49.08124] },
+  { ibge: 3519501, nome: "Ibirarema", centro: [-22.80736, -50.07089] },
+  { ibge: 3520905, nome: "Ipaussu", centro: [-23.06298, -49.59901] },
+  { ibge: 3521705, nome: "Itaberá", centro: [-23.87762, -49.14893] },
+  { ibge: 3521804, nome: "Itaí", centro: [-23.46959, -49.02793] },
+  { ibge: 3522802, nome: "Itaporanga", centro: [-23.66127, -49.44057] },
+  { ibge: 3523206, nome: "Itararé", centro: [-24.10251, -49.29970] },
+  { ibge: 3523503, nome: "Itatinga", centro: [-23.14719, -48.61619] },
+  { ibge: 3527801, nome: "Lupércio", centro: [-22.44700, -49.80779] },
+  { ibge: 3528601, nome: "Manduri", centro: [-23.04333, -49.29950] },
+  { ibge: 3532827, nome: "Nova Campina", centro: [-24.20311, -48.98501] },
+  { ibge: 3533700, nome: "Ocauçu", centro: [-22.43038, -49.94042] },
+  { ibge: 3533809, nome: "Óleo", centro: [-22.97041, -49.36578] },
+  { ibge: 3534708, nome: "Ourinhos", centro: [-22.93675, -49.83407] },
+  { ibge: 3535309, nome: "Palmital", centro: [-22.81868, -50.22675] },
+  { ibge: 3535804, nome: "Paranapanema", centro: [-23.45745, -48.80440] },
+  { ibge: 3538808, nome: "Piraju", centro: [-23.18887, -49.38550] },
+  { ibge: 3543204, nome: "Ribeirão do Sul", centro: [-22.75465, -49.92689] },
+  { ibge: 3543501, nome: "Riversul", centro: [-23.84262, -49.45597] },
+  { ibge: 3545407, nome: "Salto Grande", centro: [-22.89947, -49.96484] },
+  { ibge: 3546405, nome: "Santa Cruz do Rio Pardo", centro: [-22.75689, -49.55066] },
+  { ibge: 3550506, nome: "São Pedro do Turvo", centro: [-22.67897, -49.76816] },
+  { ibge: 3551207, nome: "Sarutaiá", centro: [-23.25855, -49.48267] },
+  { ibge: 3553005, nome: "Taguaí", centro: [-23.47258, -49.39950] },
+  { ibge: 3553807, nome: "Taquarituba", centro: [-23.54468, -49.24314] },
+  { ibge: 3554201, nome: "Tejupá", centro: [-23.34546, -49.31285] },
+  { ibge: 3554607, nome: "Timburi", centro: [-23.19985, -49.62017] },
+  { ibge: 3555505, nome: "Ubirajara", centro: [-22.55209, -49.66526] },
+];
