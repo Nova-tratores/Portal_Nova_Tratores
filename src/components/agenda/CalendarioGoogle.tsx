@@ -94,7 +94,8 @@ export default function CalendarioGoogle({ modo, titulo }: { modo: 'coletiva' | 
   useEffect(() => {
      
     const v = ler<Vista | null>(chave('vista'), null)
-    setVistaS(v && VISTAS.some((x) => x.id === v) ? v : window.innerWidth < 900 ? 'dia' : modo === 'tecnicos' ? 'pessoas' : 'semana')
+    // Lousa abre na SEMANA: na vista de um dia só, um dia sem OS parecia "não aparece nada" (16/10/2026)
+    setVistaS(v && VISTAS.some((x) => x.id === v) ? v : window.innerWidth < 900 ? 'dia' : 'semana')
     setOcultos(new Set(ler<string[]>(chave('ocultos'), [])))
     setFontesOff(new Set(ler<Fonte[]>(chave('fontes-off'), [])))
     setSetoresFechados(new Set(ler<string[]>(chave('setores-fechados'), [])))
