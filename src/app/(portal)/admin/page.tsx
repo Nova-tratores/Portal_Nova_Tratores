@@ -50,6 +50,8 @@ const MODULOS = [
   { id: 'marketing', label: 'Marketing & Eventos', color: '#DB2777' },
   { id: 'mecanicos', label: 'Janela Mecânicos', color: '#1d4ed8' },
   { id: 'mapa', label: 'Mapeamento Técnico', color: '#b91c1c' },
+  // Lousa Virtual (agenda semanal dos técnicos; também lança na Agenda coletiva) — faltava aqui (16/10/2026)
+  { id: 'lousa', label: 'Lousa Virtual (agenda dos técnicos)', color: '#0ea5e9' },
   { id: 'opa', label: 'Opa (Ocorrências)', color: '#dc2626' },
   // Peças não identificadas (aba do Opa): fotografar/cadastrar é de todos; este módulo
   // é o "setor de peças" — identificar, precificar, mudar status, exportar, cadastros.

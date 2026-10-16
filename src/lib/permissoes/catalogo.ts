@@ -23,7 +23,7 @@ export const GRUPOS_ORDEM = ['Serviços', 'Peças', 'Financeiro', 'Comercial', '
 const GRUPO_POR_MODULO: Record<string, string> = {
   // Serviços
   pos: 'Serviços', garantias: 'Serviços', revisoes: 'Serviços', mecanicos: 'Serviços',
-  'painel-mecanicos': 'Serviços', sat: 'Serviços', mapa: 'Serviços', 'fotos-tecnicos': 'Serviços',
+  'painel-mecanicos': 'Serviços', sat: 'Serviços', mapa: 'Serviços', 'fotos-tecnicos': 'Serviços', lousa: 'Serviços',
   // Peças
   ppv: 'Peças', orcamentos: 'Peças', requisicoes: 'Peças',
   // Financeiro
