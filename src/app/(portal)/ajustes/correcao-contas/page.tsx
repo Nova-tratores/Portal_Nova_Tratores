@@ -27,8 +27,13 @@ interface Lancamento {
   status?: string | null;
   codigoCategoria?: string | number | null; descricaoCategoria?: string | null;
   codigoDepartamento?: string | number | null; descricaoDepartamento?: string | null;
+  dataPrevisao?: string | null; observacao?: string | null;
+  codigoProjeto?: number | null; idContaCorrente?: number | null;
+  projetoNome?: string | null; // preenchido na tela (espelho de projetos)
 }
 type Situacao = 'todas' | 'aberto' | 'atrasado';
+type Vista = 'ranking' | 'lista';
+interface CamposForm { dataVencimento: string; dataPrevisao: string; codigoProjeto: string; idContaCorrente: string; numeroDocumento: string; observacao: string }
 interface LancamentosPayload { total?: number; mostrando?: number; lancamentos?: Lancamento[]; erro?: string }
 interface CatDep { codigo: string | number; descricao: string }
 interface RateioRow { id: number; codDep: string; perc: string }
@@ -67,10 +72,13 @@ const COLS: ColDef[] = [
   { key: 'valor', label: 'Valor', type: 'num', align: 'right', val: (l) => Number(l.valor) || 0, txt: (l) => fmtBRL(l.valor) },
   { key: 'dataEmissao', label: 'Emissao', type: 'date', val: (l) => l.dataEmissao || '', txt: (l) => fmtData(l.dataEmissao) },
   { key: 'vencimento', label: 'Vencimento', type: 'date', val: (l) => l.vencimento || '', txt: (l) => fmtData(l.vencimento) },
+  { key: 'dataPrevisao', label: 'Previsao', type: 'date', val: (l) => l.dataPrevisao || '', txt: (l) => fmtData(l.dataPrevisao) },
   { key: 'status', label: 'Situacao', type: 'text', val: (l) => l.status || '', txt: (l) => l.status || '' },
   { key: 'contraparte', label: 'Fornecedor/Cliente', type: 'text', val: (l) => decode(l.contraparte), txt: (l) => decode(l.contraparte) },
+  { key: 'numeroDoc', label: 'Nº doc', type: 'text', val: (l) => l.numeroDoc || '', txt: (l) => l.numeroDoc || '' },
   { key: 'descricaoCategoria', label: 'Categoria', type: 'text', val: (l) => l.descricaoCategoria || '', txt: (l) => l.descricaoCategoria || '' },
   { key: 'descricaoDepartamento', label: 'Departamento', type: 'text', val: (l) => l.descricaoDepartamento || '', txt: (l) => l.descricaoDepartamento || '' },
+  { key: 'projeto', label: 'Projeto', type: 'text', val: (l) => l.projetoNome || '', txt: (l) => l.projetoNome || '' },
 ];
 
 export default function CorrecaoContasPage() {
@@ -83,6 +91,11 @@ export default function CorrecaoContasPage() {
   const [tipo, setTipo] = useState<Tipo>('pagar');
   const [dim, setDim] = useState<Dim>('categoria');
   const [situacao, setSituacao] = useState<Situacao>('todas');
+  // Ranking (barras por categoria/departamento) ou Lista (todos os lancamentos numa tabela ordenavel)
+  const [vista, setVista] = useState<Vista>(() => {
+    try { return localStorage.getItem('cc-vista') === 'lista' ? 'lista' : 'ranking'; } catch { return 'ranking'; }
+  });
+  const mudarVista = (v: Vista) => { setVista(v); try { localStorage.setItem('cc-vista', v); } catch { /* sem storage */ } };
   const [de, setDe] = useState(def.de);
   const [ate, setAte] = useState(def.ate);
   // em aberto/atrasado ignora a janela de emissao (titulos atrasados costumam ser antigos)
@@ -103,6 +116,10 @@ export default function CorrecaoContasPage() {
   // caches de cat/dep por conta (slug)
   const catCache = useRef<Record<string, CatDep[]>>({});
   const depCache = useRef<Record<string, CatDep[]>>({});
+  const projCache = useRef<Record<string, CatDep[]>>({});
+  const ccCache = useRef<Record<string, CatDep[]>>({});
+  // nome do projeto por empresa+codigo (coluna Projeto da tabela)
+  const [projetos, setProjetos] = useState<Record<string, Record<string, string>>>({});
 
   // modal individual
   const [modalLanc, setModalLanc] = useState<Lancamento | null>(null);
@@ -120,11 +137,27 @@ export default function CorrecaoContasPage() {
       if (situacao !== 'todas') qs += '&situacao=' + situacao;
       if (usaData && de) qs += '&de=' + encodeURIComponent(de);
       if (usaData && ate) qs += '&ate=' + encodeURIComponent(ate);
+      const sit = situacao === 'aberto' ? ' em aberto' : situacao === 'atrasado' ? ' atrasado(s)' : '';
+      if (vista === 'lista') {
+        // modo Lista: todos os lancamentos do filtro numa tabela so (cabecalho ordena A→Z / Z→A)
+        const r = await fetch(`/api/ajustes/contas/lancamentos?${qs.replace(/^&/, '').replace(/dim=\w+/, 'dim=todos')}&limite=2500`);
+        const d = (await r.json()) as LancamentosPayload;
+        if (d.erro) { setStatus('Erro: ' + d.erro); setLancs([]); return; }
+        setRanking([]);
+        setLancs(d.lancamentos || []);
+        setSort({ key: 'vencimento', dir: 1 });
+        setFiltros({});
+        setGrupoSel({ codigo: '*', descricao: 'Todos os lancamentos', total: 0, n: d.total || 0 });
+        const corte = (d.total || 0) > (d.mostrando || 0) ? ` · mostrando os ${d.mostrando} maiores — refine o periodo ou a situacao` : '';
+        setLancSub(`${d.total || 0} lancamento(s)${sit}${corte} · clique no cabecalho para ordenar, filtre por coluna, Corrigir para editar`);
+        setResumo(`${d.total || 0} lancamentos${sit}`);
+        setStatus('');
+        return;
+      }
       const r = await fetch(`/api/ajustes/contas/ranking?${qs.replace(/^&/, '')}`);
       const d = (await r.json()) as RankingPayload;
       if (d.erro) { setStatus('Erro: ' + d.erro); setRanking([]); return; }
       setRanking(d.ranking || []);
-      const sit = situacao === 'aberto' ? ' em aberto' : situacao === 'atrasado' ? ' atrasado(s)' : '';
       setResumo(`${d.totalLancamentos || 0} lancamentos${sit} · total ${fmtBRL(d.totalGeral)} · ${(d.ranking || []).length} ${dim}(s)`);
       setStatus('');
     } catch (ex) {
@@ -132,13 +165,13 @@ export default function CorrecaoContasPage() {
     } finally {
       setCarregando(false);
     }
-  }, [tipo, dim, situacao, usaData, contaParam, de, ate]);
+  }, [tipo, dim, situacao, usaData, contaParam, de, ate, vista]);
 
-  // recarrega ao trocar conta/tipo/dim/situacao
+  // recarrega ao trocar conta/tipo/dim/situacao/vista
   useEffect(() => {
     buscar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conta, tipo, dim, situacao]);
+  }, [conta, tipo, dim, situacao, vista]);
 
   const abrirLancamentos = useCallback(async (grupo: GrupoRanking) => {
     setGrupoSel(grupo);
@@ -176,10 +209,31 @@ export default function CorrecaoContasPage() {
     depCache.current[slug] = d.departamentos || [];
     return depCache.current[slug];
   }, []);
+  const carregarProjetos = useCallback(async (slug: string): Promise<CatDep[]> => {
+    if (projCache.current[slug]) return projCache.current[slug];
+    const r = await fetch('/api/ajustes/projetos?conta=' + encodeURIComponent(slug), { headers: await authHeaders() });
+    const d = await r.json();
+    projCache.current[slug] = d.projetos || [];
+    setProjetos((s) => ({ ...s, [slug]: Object.fromEntries((d.projetos || []).map((p: CatDep) => [String(p.codigo), p.descricao])) }));
+    return projCache.current[slug];
+  }, []);
+  const carregarCCs = useCallback(async (slug: string): Promise<CatDep[]> => {
+    if (ccCache.current[slug]) return ccCache.current[slug];
+    const r = await fetch('/api/ajustes/contas-correntes?conta=' + encodeURIComponent(slug));
+    const d = await r.json();
+    ccCache.current[slug] = (d.contasCorrentes || []).map((c: { codigo: number; descricao: string; tipo?: string }) => ({ codigo: c.codigo, descricao: `${c.descricao}${c.tipo ? ` (${c.tipo})` : ''}` }));
+    return ccCache.current[slug];
+  }, []);
+  // nomes dos projetos das duas empresas (coluna Projeto)
+  useEffect(() => {
+    carregarProjetos('NOVA').catch(() => {});
+    carregarProjetos('CASTRO').catch(() => {});
+  }, [carregarProjetos]);
 
   // linhas filtradas/ordenadas
   const linhasVisiveis = useMemo(() => {
-    let rows = lancs.filter((l) => COLS.every((c) => {
+    const nomeProjeto = (l: Lancamento) => (l.codigoProjeto ? ((projetos[String(l.conta).toUpperCase()] || {})[String(l.codigoProjeto)] || String(l.codigoProjeto)) : '');
+    let rows = lancs.map((l) => ({ ...l, projetoNome: nomeProjeto(l) })).filter((l) => COLS.every((c) => {
       const f = filtros[c.key]; if (!f) return true;
       return norm(c.txt(l)).indexOf(norm(f)) >= 0;
     }));
@@ -192,7 +246,7 @@ export default function CorrecaoContasPage() {
       });
     }
     return rows;
-  }, [lancs, filtros, sort]);
+  }, [lancs, filtros, sort, projetos]);
 
   // botao de massa: so 1 cliente/fornecedor distinto nas linhas visiveis
   const massaInfo = useMemo(() => {
@@ -217,7 +271,7 @@ export default function CorrecaoContasPage() {
         <div>
           <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: '#1e293b', marginBottom: 4 }}>Correcao de contas</h1>
           <p style={{ color: '#64748b', fontSize: '.82rem', maxWidth: 820 }}>
-            Ranking de gastos por <b>categoria</b> ou <b>departamento</b> (a pagar e a receber) pra achar valores que distorcem o DRE. Use <b>Situacao</b> pra ver so as contas <b>em aberto</b> ou <b>atrasadas</b>. Clique numa barra pra ver os lancamentos e <b>corrigir</b> a categoria/departamento direto no Omie. Conta <b>{conta ? conta.toUpperCase() : 'Todas'}</b>.
+            Ranking de gastos por <b>categoria</b> ou <b>departamento</b> (a pagar e a receber) pra achar valores que distorcem o DRE. Use <b>Situacao</b> pra ver so as contas <b>em aberto</b> ou <b>atrasadas</b>. Clique numa barra pra ver os lancamentos e <b>corrigir</b> direto no Omie: categoria, departamento, vencimento, previsao, projeto, conta corrente, nº do documento e observacao. Na vista <b>Lista</b> todos os lancamentos do filtro aparecem numa tabela so, com o cabecalho ordenando A→Z / Z→A. Conta <b>{conta ? conta.toUpperCase() : 'Todas'}</b>.
           </p>
         </div>
         <div style={{ marginLeft: 'auto' }}><ContaSelector /></div>
@@ -230,8 +284,9 @@ export default function CorrecaoContasPage() {
       {/* Controles */}
       <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, marginBottom: 14 }}>
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 12, flexWrap: 'wrap' }}>
+          <Toggle label="Visualizacao" value={vista} onChange={(v) => mudarVista(v as Vista)} opts={[['ranking', 'Ranking'], ['lista', 'Lista']]} />
           <Toggle label="Tipo" value={tipo} onChange={(v) => setTipo(v as Tipo)} opts={[['pagar', 'A pagar'], ['receber', 'A receber']]} />
-          <Toggle label="Agrupar por" value={dim} onChange={(v) => setDim(v as Dim)} opts={[['categoria', 'Categoria'], ['departamento', 'Departamento']]} />
+          {vista === 'ranking' && <Toggle label="Agrupar por" value={dim} onChange={(v) => setDim(v as Dim)} opts={[['categoria', 'Categoria'], ['departamento', 'Departamento']]} />}
           <Toggle label="Situacao" value={situacao} onChange={(v) => setSituacao(v as Situacao)} opts={[['todas', 'Todas'], ['aberto', 'Em aberto'], ['atrasado', 'Atrasado']]} />
           <div>
             <label style={{ display: 'block', fontSize: '.65rem', color: usaData ? '#64748b' : '#cbd5e1', marginBottom: 2 }}>Emissao de</label>
@@ -249,8 +304,8 @@ export default function CorrecaoContasPage() {
         </div>
       </div>
 
-      {/* Ranking (lista de barras clicaveis) */}
-      <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, marginBottom: 14 }}>
+      {/* Ranking (lista de barras clicaveis) — so na vista Ranking */}
+      {vista === 'ranking' && <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, padding: 14, marginBottom: 14 }}>
         {topRanking.length === 0 ? (
           <div style={{ padding: 36, textAlign: 'center', color: '#94a3b8' }}>{carregando ? 'Carregando…' : 'Sem dados para o periodo/filtro.'}</div>
         ) : (
@@ -270,27 +325,27 @@ export default function CorrecaoContasPage() {
             })}
           </div>
         )}
-      </div>
+      </div>}
 
-      {/* Painel de lancamentos */}
+      {/* Painel de lancamentos (grupo do ranking ou todos, na vista Lista) */}
       {grupoSel && (
         <div style={{ background: '#fff', border: '1px solid #e2e8f0', borderRadius: 8, overflow: 'hidden', marginBottom: 14 }}>
           <div style={{ padding: '10px 14px', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-            <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.9rem', margin: 0 }}>{dim === 'categoria' ? 'Categoria: ' : 'Departamento: '}{grupoSel.descricao || '(sem)'}</h2>
+            <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.9rem', margin: 0 }}>{grupoSel.codigo === '*' ? 'Todos os lancamentos' : `${dim === 'categoria' ? 'Categoria: ' : 'Departamento: '}${grupoSel.descricao || '(sem)'}`}</h2>
             <span style={{ fontSize: '.72rem', color: '#64748b' }}>{lancSub}</span>
             <div style={{ flex: 1 }} />
             {massaInfo && (
               <button onClick={() => setMassaRows(massaInfo.rows)} style={{ padding: '4px 12px', background: '#d97706', color: '#fff', border: 'none', borderRadius: 6, fontSize: '.72rem', cursor: 'pointer' }} title="So aparece quando o filtro deixa um unico cliente/fornecedor">Alterar em massa ({massaInfo.rows.length})</button>
             )}
-            <button onClick={() => setGrupoSel(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>
+            {vista === 'ranking' && <button onClick={() => setGrupoSel(null)} style={{ background: 'none', border: 'none', fontSize: '1.4rem', lineHeight: 1, color: '#64748b', cursor: 'pointer' }}>×</button>}
           </div>
           <div style={{ overflow: 'auto', maxHeight: '60vh' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead style={{ position: 'sticky', top: 0, zIndex: 1 }}>
                 <tr>
                   {COLS.map((c) => (
-                    <th key={c.key} onClick={() => ordenarPor(c.key)} style={{ ...thStyle, textAlign: c.align === 'right' ? 'right' : 'left' }}>
-                      {c.label}{sort.key === c.key ? (sort.dir > 0 ? ' ▲' : ' ▼') : ''}
+                    <th key={c.key} onClick={() => ordenarPor(c.key)} title={sort.key === c.key ? (sort.dir > 0 ? 'A→Z — clique para inverter' : 'Z→A — clique para inverter') : 'Clique para ordenar A→Z / Z→A'} aria-sort={sort.key === c.key ? (sort.dir > 0 ? 'ascending' : 'descending') : 'none'} style={{ ...thStyle, textAlign: c.align === 'right' ? 'right' : 'left', color: sort.key === c.key ? '#2563eb' : thStyle.color }}>
+                      {c.label}{sort.key === c.key ? (sort.dir > 0 ? ' ▲' : ' ▼') : <span style={{ opacity: 0.35 }}> ⇅</span>}
                     </th>
                   ))}
                   <th style={thStyle} />
@@ -313,10 +368,13 @@ export default function CorrecaoContasPage() {
                     <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 500, fontVariantNumeric: 'tabular-nums' }}>{fmtBRL(l.valor)}</td>
                     <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#64748b' }}>{fmtData(l.dataEmissao) || '-'}</td>
                     <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: '#64748b' }}>{fmtData(l.vencimento) || '-'}</td>
+                    <td style={{ ...tdStyle, whiteSpace: 'nowrap', color: l.dataPrevisao && l.dataPrevisao !== l.vencimento ? '#b45309' : '#64748b' }}>{fmtData(l.dataPrevisao) || '-'}</td>
                     <td style={tdStyle}><StatusBadge s={l.status} /></td>
                     <td style={tdStyle}>{decode(l.contraparte) || '-'}</td>
+                    <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b', whiteSpace: 'nowrap' }}>{l.numeroDoc || '-'}</td>
                     <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b' }}>{l.descricaoCategoria || '-'}</td>
                     <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b' }}>{l.descricaoDepartamento || '-'}</td>
+                    <td style={{ ...tdStyle, fontSize: '.72rem', color: '#64748b', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={l.projetoNome || ''}>{l.projetoNome || '-'}</td>
                     <td style={{ ...tdStyle, textAlign: 'right' }}>
                       <button onClick={() => setModalLanc(l)} style={{ padding: '3px 10px', background: '#2563eb', color: '#fff', border: 'none', borderRadius: 4, fontSize: '.72rem', cursor: 'pointer' }}>Corrigir</button>
                     </td>
@@ -329,7 +387,7 @@ export default function CorrecaoContasPage() {
       )}
 
       {modalLanc && (
-        <ModalCorrecao lanc={modalLanc} tipo={tipo} carregarCats={carregarCats} carregarDeps={carregarDeps}
+        <ModalCorrecao lanc={modalLanc} tipo={tipo} carregarCats={carregarCats} carregarDeps={carregarDeps} carregarProjetos={carregarProjetos} carregarCCs={carregarCCs}
           onClose={() => setModalLanc(null)} onAplicado={() => { setModalLanc(null); buscar(); }} />
       )}
       {massaRows && (
@@ -371,9 +429,11 @@ function StatusBadge({ s }: { s?: string | null }) {
 
 // ---------- modal de correcao individual ----------
 let rowSeq = 1;
-function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, onClose, onAplicado }: {
+const ROTULO_CAMPO_FORM: Record<keyof CamposForm, string> = { dataVencimento: 'Vencimento', dataPrevisao: 'Previsao', codigoProjeto: 'Projeto', idContaCorrente: 'Conta corrente', numeroDocumento: 'Nº documento', observacao: 'Observacao' };
+function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, carregarProjetos, carregarCCs, onClose, onAplicado }: {
   lanc: Lancamento; tipo: Tipo;
   carregarCats: (slug: string) => Promise<CatDep[]>; carregarDeps: (slug: string) => Promise<CatDep[]>;
+  carregarProjetos: (slug: string) => Promise<CatDep[]>; carregarCCs: (slug: string) => Promise<CatDep[]>;
   onClose: () => void; onAplicado: () => void;
 }) {
   // conta_omie já é 'NOVA'/'CASTRO' (uppercase) — o backend unificado exige esse formato.
@@ -385,6 +445,24 @@ function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, onClose, onApli
   const [rateio, setRateio] = useState<RateioRow[]>([{ id: rowSeq++, codDep: lanc.codigoDepartamento != null ? String(lanc.codigoDepartamento) : '', perc: '100' }]);
   const [modalStatus, setModalStatus] = useState('');
   const [aplicando, setAplicando] = useState(false);
+  // campos alem de categoria/departamento (vencimento, previsao, projeto, conta corrente, nº doc, observacao)
+  const [projs, setProjs] = useState<CatDep[]>([]);
+  const [ccs, setCcs] = useState<CatDep[]>([]);
+  const [filtroProj, setFiltroProj] = useState('');
+  const inicial: CamposForm = {
+    dataVencimento: (lanc.vencimento || '').slice(0, 10), dataPrevisao: (lanc.dataPrevisao || '').slice(0, 10),
+    codigoProjeto: lanc.codigoProjeto ? String(lanc.codigoProjeto) : '', idContaCorrente: lanc.idContaCorrente ? String(lanc.idContaCorrente) : '',
+    numeroDocumento: lanc.numeroDoc || '', observacao: lanc.observacao || '',
+  };
+  const [form, setForm] = useState<CamposForm>(inicial);
+  const setCampo = (k: keyof CamposForm, v: string) => setForm((s) => ({ ...s, [k]: v }));
+  const camposMudados = useMemo(() => {
+    const out: Partial<CamposForm> = {};
+    (Object.keys(inicial) as (keyof CamposForm)[]).forEach((k) => { if (form[k] !== inicial[k]) out[k] = form[k]; });
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form]);
+  const nMudados = Object.keys(camposMudados).length;
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
@@ -394,12 +472,12 @@ function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, onClose, onApli
 
   useEffect(() => {
     let vivo = true;
-    Promise.all([carregarCats(slug), carregarDeps(slug)]).then(([c, d]) => {
+    Promise.all([carregarCats(slug), carregarDeps(slug), carregarProjetos(slug).catch(() => [] as CatDep[]), carregarCCs(slug).catch(() => [] as CatDep[])]).then(([c, d, p, cc]) => {
       if (!vivo) return;
-      setCats(c); setDeps(d); setCarregando(false);
+      setCats(c); setDeps(d); setProjs(p); setCcs(cc); setCarregando(false);
     }).catch((e) => { if (vivo) { setModalStatus('Erro ao carregar: ' + (e as Error).message); setCarregando(false); } });
     return () => { vivo = false; };
-  }, [slug, carregarCats, carregarDeps]);
+  }, [slug, carregarCats, carregarDeps, carregarProjetos, carregarCCs]);
 
   const soma = rateio.reduce((s, r) => s + (Number(r.perc) || 0), 0);
   const somaOk = Math.abs(soma - 100) < 0.01;
@@ -416,13 +494,14 @@ function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, onClose, onApli
       if (r.codDep && perc > 0) distribuicao.push({ cCodDep: r.codDep, nPerDep: perc });
     }
     if (faltou) { setModalStatus('escolha o departamento em todas as linhas'); return; }
-    if (!confirm(`Aplicar correcao no Omie para o lancamento ${lanc.codigoLancamento} (${decode(lanc.contraparte)})?`)) return;
+    const resumoCampos = nMudados ? ` e ${nMudados} campo(s): ${Object.keys(camposMudados).map((k) => ROTULO_CAMPO_FORM[k as keyof CamposForm]).join(', ')}` : '';
+    if (!confirm(`Aplicar correcao no Omie para o lancamento ${lanc.codigoLancamento} (${decode(lanc.contraparte)})?${resumoCampos}`)) return;
     setAplicando(true);
     setModalStatus('aplicando no Omie...');
     try {
       const r = await fetch('/api/ajustes/contas/corrigir', {
         method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ conta: slug, tipo, codigoLancamento: lanc.codigoLancamento, codigoCategoria: catSel, distribuicao }),
+        body: JSON.stringify({ conta: slug, tipo, codigoLancamento: lanc.codigoLancamento, codigoCategoria: catSel, distribuicao, campos: camposMudados }),
       });
       const d = await r.json();
       if (!d.ok) { setModalStatus(d.erro || 'falha'); setAplicando(false); return; }
@@ -431,13 +510,13 @@ function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, onClose, onApli
     } catch (ex) {
       setModalStatus('rede: ' + (ex as Error).message); setAplicando(false);
     }
-  }, [somaOk, rateio, lanc, slug, tipo, catSel, onAplicado]);
+  }, [somaOk, rateio, lanc, slug, tipo, catSel, onAplicado, camposMudados, nMudados]);
 
   return (
     <Overlay onClose={onClose}>
-      <div style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 560, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
+      <div style={{ background: '#fff', borderRadius: 10, width: '100%', maxWidth: 680, maxHeight: '90vh', display: 'flex', flexDirection: 'column', boxShadow: '0 10px 40px rgba(0,0,0,.25)' }}>
         <div style={{ borderBottom: '1px solid #e2e8f0', padding: '12px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Corrigir categoria / departamento</h2>
+          <h2 style={{ fontWeight: 600, color: '#1e293b', fontSize: '.95rem', margin: 0 }}>Corrigir lancamento</h2>
           <button onClick={onClose} style={closeBtn}>×</button>
         </div>
         <div style={{ padding: 18, overflowY: 'auto', fontSize: '.85rem' }}>
@@ -471,6 +550,35 @@ function ModalCorrecao({ lanc, tipo, carregarCats, carregarDeps, onClose, onApli
                 })}
               </div>
               <div style={{ marginTop: 6, fontSize: '.72rem' }}>Soma: <b style={{ color: somaOk ? '#047857' : '#dc2626' }}>{soma.toFixed(2)}%</b>{somaOk ? '' : ' (precisa ser 100)'}</div>
+
+              {/* Outros campos do titulo — so o que mudar vai para a Omie */}
+              <div style={{ marginTop: 16, borderTop: '1px solid #e2e8f0', paddingTop: 12 }}>
+                <div style={{ fontSize: '.72rem', color: '#64748b', marginBottom: 8 }}>Outros campos do titulo <span style={{ color: '#94a3b8' }}>(so o que voce alterar e enviado; {nMudados ? <b style={{ color: '#b45309' }}>{nMudados} alterado(s)</b> : 'nada alterado'})</span></div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div><label style={lblStyle}>Vencimento</label><input type="date" value={form.dataVencimento} onChange={(e) => setCampo('dataVencimento', e.target.value)} style={{ ...selStyle, borderColor: form.dataVencimento !== inicial.dataVencimento ? '#f59e0b' : '#cbd5e1' }} /></div>
+                  <div><label style={lblStyle}>Previsao de {tipo === 'receber' ? 'recebimento' : 'pagamento'}</label><input type="date" value={form.dataPrevisao} onChange={(e) => setCampo('dataPrevisao', e.target.value)} style={{ ...selStyle, borderColor: form.dataPrevisao !== inicial.dataPrevisao ? '#f59e0b' : '#cbd5e1' }} /></div>
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={lblStyle}>Projeto <span style={{ color: '#94a3b8' }}>({projs.length} no cadastro · digite para filtrar)</span></label>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                      <input value={filtroProj} onChange={(e) => setFiltroProj(e.target.value)} placeholder="filtrar projeto (modelo, chassi, nome)" style={{ ...selStyle, flex: '0 0 42%' }} />
+                      <select value={form.codigoProjeto} onChange={(e) => setCampo('codigoProjeto', e.target.value)} style={{ ...selStyle, flex: 1, borderColor: form.codigoProjeto !== inicial.codigoProjeto ? '#f59e0b' : '#cbd5e1' }}>
+                        <option value="">{inicial.codigoProjeto ? '(manter sem alterar)' : '(sem projeto)'}</option>
+                        {inicial.codigoProjeto && !projs.some((p) => String(p.codigo) === inicial.codigoProjeto) && <option value={inicial.codigoProjeto}>{lanc.projetoNome || inicial.codigoProjeto} [atual]</option>}
+                        {projs.filter((p) => !filtroProj.trim() || norm(p.descricao).includes(norm(filtroProj)) || String(p.codigo).includes(filtroProj.trim())).slice(0, 400).map((p) => <option key={String(p.codigo)} value={String(p.codigo)}>{p.descricao}</option>)}
+                      </select>
+                    </div>
+                  </div>
+                  <div><label style={lblStyle}>Conta corrente</label>
+                    <select value={form.idContaCorrente} onChange={(e) => setCampo('idContaCorrente', e.target.value)} style={{ ...selStyle, borderColor: form.idContaCorrente !== inicial.idContaCorrente ? '#f59e0b' : '#cbd5e1' }}>
+                      <option value="">{inicial.idContaCorrente ? '(manter sem alterar)' : '(sem conta corrente)'}</option>
+                      {inicial.idContaCorrente && !ccs.some((c) => String(c.codigo) === inicial.idContaCorrente) && <option value={inicial.idContaCorrente}>{inicial.idContaCorrente} [atual]</option>}
+                      {ccs.map((c) => <option key={String(c.codigo)} value={String(c.codigo)}>{c.descricao}</option>)}
+                    </select>
+                  </div>
+                  <div><label style={lblStyle}>Nº do documento</label><input value={form.numeroDocumento} onChange={(e) => setCampo('numeroDocumento', e.target.value)} maxLength={60} style={{ ...selStyle, borderColor: form.numeroDocumento !== inicial.numeroDocumento ? '#f59e0b' : '#cbd5e1' }} /></div>
+                  <div style={{ gridColumn: '1 / -1' }}><label style={lblStyle}>Observacao</label><textarea value={form.observacao} onChange={(e) => setCampo('observacao', e.target.value)} maxLength={1000} rows={2} style={{ ...selStyle, resize: 'vertical', borderColor: form.observacao !== inicial.observacao ? '#f59e0b' : '#cbd5e1' }} /></div>
+                </div>
+              </div>
             </>
           )}
         </div>

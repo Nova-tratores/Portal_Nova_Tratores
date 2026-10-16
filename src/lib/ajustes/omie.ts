@@ -19,6 +19,7 @@
 // sleep/num e fmtBR/hoje agora vem dos modulos de apoio do modulo Ajustes.
 // =============================================================================
 
+import { camposDoOmie, diffCampos, paramsOmieCampos } from './contas-campos';
 import type { Conta } from './conta';
 import { decodeOmieTexto } from '@/lib/omie/texto';
 import { getCredentials } from './conta';
@@ -1497,7 +1498,9 @@ export async function consultarConta(conta: Conta, tipo: any, codigoLancamento: 
 // distribuicao usa percentual (nPerDep); a Omie deriva o valor.
 // Retorna { rawRequest, rawResponse, anterior }.
 export async function alterarContaCategoriaDepto(conta: Conta, args: Record<string, any> = {}): Promise<any> {
-  const { tipo, codigoLancamento, codigoCategoria, distribuicao } = args;
+  // `campos` (opcional): vencimento, previsão, projeto, conta corrente, nº documento,
+  // observação — ver contas-campos.ts. Só o que difere do título atual vai para a Omie.
+  const { tipo, codigoLancamento, codigoCategoria, distribuicao, campos } = args;
   if (codigoLancamento == null) throw new Error('informe o codigo do lancamento');
   const { endpoint, alterar } = endpointCallConta(tipo);
   const atual = await consultarConta(conta, tipo, codigoLancamento);
@@ -1505,7 +1508,8 @@ export async function alterarContaCategoriaDepto(conta: Conta, args: Record<stri
   const anterior = {
     codigoCategoria: atual.codigo_categoria || null,
     distribuicao: distAtual.map((d: any) => ({ cCodDep: d.cCodDep, cDesDep: d.cDesDep, nPerDep: d.nPerDep })),
-    valorDocumento: atual.valor_documento
+    valorDocumento: atual.valor_documento,
+    campos: camposDoOmie(atual)
   };
   const params: Record<string, any> = {
     codigo_lancamento_omie: Number(codigoLancamento) || codigoLancamento,
@@ -1517,8 +1521,10 @@ export async function alterarContaCategoriaDepto(conta: Conta, args: Record<stri
   const distFinal = distFonte.map((d: any) => ({ cCodDep: String(d.cCodDep), nPerDep: Number(d.nPerDep) }))
     .filter((d: any) => d.cCodDep && Number.isFinite(d.nPerDep));
   if (distFinal.length) params.distribuicao = distFinal;
+  const { mudou, anterior: camposAnteriores } = diffCampos(anterior.campos, campos || {});
+  Object.assign(params, paramsOmieCampos(mudou));
   const rawResponse = await omieRequest(endpoint, alterar, params, conta);
-  return { rawRequest: params, rawResponse, anterior };
+  return { rawRequest: params, rawResponse, anterior, mudou, camposAnteriores };
 }
 
 // Lista as contas correntes (bancos/caixas) de uma empresa. Usado pela tela

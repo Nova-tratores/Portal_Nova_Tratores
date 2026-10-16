@@ -2,12 +2,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { parseConta } from '@/lib/ajustes/conta';
 import { aplicarCorrecaoLancamento, validarCorrecao, type Distribuicao } from '@/lib/ajustes/contas';
-import { protegerRota } from '@/lib/ajustes/permissao-server';
+import { protegerRota, autorDe } from '@/lib/ajustes/permissao-server';
+import { normalizarCampos } from '@/lib/ajustes/contas-campos';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// WRITE no Omie: corrige categoria/departamento de UM lançamento (AlterarConta*).
+// WRITE no Omie: corrige categoria/departamento e/ou campos (vencimento, previsão,
+// projeto, conta corrente, nº documento, observação) de UM lançamento (AlterarConta*).
 export async function POST(req: NextRequest) {
   // Onda 0: exige login e permissao; o autor sai do login, nao do corpo.
   const acesso = await protegerRota(req, [{ modulo: 'ajustes', acao: 'correcao-contas' }]);
@@ -20,10 +22,12 @@ export async function POST(req: NextRequest) {
     if (b.codigoLancamento == null) return NextResponse.json({ ok: false, erro: 'informe codigoLancamento' }, { status: 400 });
     const codigoCategoria = b.codigoCategoria != null && String(b.codigoCategoria).trim() !== '' ? String(b.codigoCategoria) : null;
     const distribuicao: Distribuicao[] | null = Array.isArray(b.distribuicao) && b.distribuicao.length ? b.distribuicao : null;
-    const erroVal = validarCorrecao({ codigoCategoria, distribuicao });
+    const { campos, erro: erroCampos } = normalizarCampos(b.campos);
+    if (erroCampos) return NextResponse.json({ ok: false, erro: erroCampos }, { status: 400 });
+    const erroVal = validarCorrecao({ codigoCategoria, distribuicao, campos });
     if (erroVal) return NextResponse.json({ ok: false, erro: erroVal }, { status: 400 });
 
-    const out = await aplicarCorrecaoLancamento({ conta, tipo, codigoLancamento: b.codigoLancamento, codigoCategoria, distribuicao });
+    const out = await aplicarCorrecaoLancamento({ conta, tipo, codigoLancamento: b.codigoLancamento, codigoCategoria, distribuicao, campos, criadoPor: autorDe(acesso.user) });
     if (!out.ok) return NextResponse.json({ ok: false, erro: out.erro }, { status: 502 });
     return NextResponse.json(out);
   } catch (e) {

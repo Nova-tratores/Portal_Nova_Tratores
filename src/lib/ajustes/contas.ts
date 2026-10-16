@@ -10,6 +10,7 @@ import type { Conta, ContaFiltro } from './conta';
 import { supabase } from './supabase';
 import * as cache from './cache';
 import { fmtBR, parseAnyDate, hoje } from './dates';
+import { temCampos, updateEspelhoCampos, rawComCampos, type CamposCorrecao } from './contas-campos';
 import {
   omieRequest,
   alterarContaCategoriaDepto,
@@ -91,7 +92,9 @@ export async function rankingContas(tipo: string, dim: string, conta: ContaFiltr
   return { tipo, dim, ranking, totalGeral, totalLancamentos: rows.length };
 }
 
-/** Lançamentos de uma categoria/departamento específico. */
+/** Lançamentos de uma categoria/departamento específico — ou TODOS (dim 'todos',
+ *  modo Lista da tela). Devolve também previsão, observação, projeto e conta
+ *  corrente (os dois últimos só existem no `raw`). `limite` = teto de linhas. */
 export async function lancamentosContas(
   tipo: string,
   dim: string,
@@ -100,20 +103,26 @@ export async function lancamentosContas(
   ate: string | null,
   codigo: string | null,
   statusIn?: string[] | null,
+  limite = 1000,
 ): Promise<any> {
   const nomeCol = colNomeContraparte(tipo);
   const filtros: FiltrosContas = { conta, de: de || null, ate: ate || null, statusIn: statusIn || undefined };
-  (filtros as any)[dim === 'departamento' ? 'codigoDepartamento' : 'codigoCategoria'] = codigo;
-  const cols = `conta_omie, codigo_lancamento, valor_documento, data_emissao, data_vencimento, numero_documento, numero_documento_fiscal, status_titulo, ${nomeCol}, codigo_categoria, descricao_categoria, codigo_departamento, descricao_departamento`;
+  if (dim !== 'todos') (filtros as any)[dim === 'departamento' ? 'codigoDepartamento' : 'codigoCategoria'] = codigo;
+  const cols = `conta_omie, codigo_lancamento, valor_documento, data_emissao, data_vencimento, data_previsao, numero_documento, numero_documento_fiscal, observacao, status_titulo, ${nomeCol}, codigo_categoria, descricao_categoria, codigo_departamento, descricao_departamento, codigo_projeto:raw->>codigo_projeto, id_conta_corrente:raw->>id_conta_corrente`;
   const rows = await lerContas(tipo, filtros, cols);
   rows.sort((a, b) => (Number(b.valor_documento) || 0) - (Number(a.valor_documento) || 0));
-  const lancamentos = rows.slice(0, 1000).map((r) => ({
+  const teto = Math.max(1, Math.min(5000, Number(limite) || 1000));
+  const lancamentos = rows.slice(0, teto).map((r) => ({
     conta: r.conta_omie,
     codigoLancamento: r.codigo_lancamento,
     valor: Number(r.valor_documento) || 0,
     dataEmissao: r.data_emissao,
     vencimento: r.data_vencimento,
+    dataPrevisao: r.data_previsao || null,
     numeroDoc: r.numero_documento || r.numero_documento_fiscal || null,
+    observacao: r.observacao || null,
+    codigoProjeto: r.codigo_projeto && Number(r.codigo_projeto) > 0 ? Number(r.codigo_projeto) : null,
+    idContaCorrente: r.id_conta_corrente && Number(r.id_conta_corrente) > 0 ? Number(r.id_conta_corrente) : null,
     status: r.status_titulo || null,
     contraparte: r[nomeCol] || null,
     codigoCategoria: r.codigo_categoria,
@@ -218,7 +227,34 @@ export async function obterContasCorrentes(conta: Conta): Promise<any[]> {
   return lista;
 }
 
-// ---- Correção de categoria/departamento ----
+/** Projetos da empresa (espelho portal_nt_projetos_PRINCIPAL — sem ir à Omie; o
+ *  cron de clientes atualiza). [{codigo, descricao}], ativos, por nome. Cache 1h. */
+export async function obterProjetos(conta: Conta): Promise<Array<{ codigo: number; descricao: string }>> {
+  const chave = `projetos:${conta}`;
+  const hit = cache.get<Array<{ codigo: number; descricao: string }>>(chave);
+  if (hit) return hit.valor;
+  const lista: Array<{ codigo: number; descricao: string }> = [];
+  try {
+    const PAG = 1000;
+    for (let from = 0; ; from += PAG) {
+      const { data, error } = await supabase
+        .from('portal_nt_projetos_PRINCIPAL')
+        .select('codigo, nome, inativo')
+        .ilike('empresa', conta === 'CASTRO' ? '%castro%' : '%nova%')
+        .order('nome', { ascending: true })
+        .range(from, from + PAG - 1);
+      if (error) { console.warn('[projetos]', error.message); break; }
+      for (const p of (data || []) as any[]) if (p.inativo !== 'S' && p.codigo) lista.push({ codigo: Number(p.codigo), descricao: String(p.nome || p.codigo) });
+      if (!data || data.length < PAG) break;
+    }
+  } catch (e: any) {
+    console.warn('[projetos]', e?.message || e);
+  }
+  cache.set(chave, lista, 3600);
+  return lista;
+}
+
+// ---- Correção de categoria/departamento (+ campos: contas-campos.ts) ----
 
 export interface Distribuicao {
   cCodDep: string;
@@ -226,13 +262,13 @@ export interface Distribuicao {
   cDesDep?: string;
 }
 
-export function validarCorrecao({ codigoCategoria, distribuicao }: { codigoCategoria?: string | null; distribuicao?: Distribuicao[] | null }): string | null {
+export function validarCorrecao({ codigoCategoria, distribuicao, campos }: { codigoCategoria?: string | null; distribuicao?: Distribuicao[] | null; campos?: CamposCorrecao | null }): string | null {
   if (distribuicao) {
     const soma = distribuicao.reduce((s, d) => s + (Number(d.nPerDep) || 0), 0);
     if (Math.abs(soma - 100) > 0.01) return `a soma dos percentuais do rateio deve ser 100 (atual: ${soma})`;
     if (distribuicao.some((d) => !d.cCodDep)) return 'cada linha do rateio precisa de um departamento';
   }
-  if (!codigoCategoria && !distribuicao) return 'informe nova categoria e/ou departamento';
+  if (!codigoCategoria && !distribuicao && !temCampos(campos)) return 'informe o que alterar (categoria, departamento, vencimento, previsão, projeto, conta corrente, nº do documento ou observação)';
   return null;
 }
 
@@ -243,16 +279,22 @@ export async function aplicarCorrecaoLancamento(args: {
   codigoLancamento: number | string;
   codigoCategoria?: string | null;
   distribuicao?: Distribuicao[] | null;
+  campos?: CamposCorrecao | null;   // vencimento/previsão/projeto/conta corrente/nº doc/observação
   origem?: string;
+  criadoPor?: string | null;        // autor (do login) para a auditoria
 }): Promise<any> {
-  const { conta, tipo, codigoLancamento, codigoCategoria, distribuicao, origem } = args;
+  const { conta, tipo, codigoLancamento, codigoCategoria, distribuicao, campos, origem, criadoPor } = args;
   let resultado: any = null;
   let erro: any = null;
   let anterior: any = null;
+  let mudou: CamposCorrecao = {};
+  let camposAnteriores: CamposCorrecao = {};
   try {
-    const out = await alterarContaCategoriaDepto(conta, { tipo, codigoLancamento, codigoCategoria, distribuicao });
+    const out = await alterarContaCategoriaDepto(conta, { tipo, codigoLancamento, codigoCategoria, distribuicao, campos: campos || undefined });
     resultado = out.rawResponse;
     anterior = out.anterior;
+    mudou = out.mudou || {};
+    camposAnteriores = out.camposAnteriores || {};
   } catch (e: any) {
     erro = e.faultstring || e.message;
     if (e.bloqueio) erro = { msg: erro, bloqueio: true };
@@ -292,6 +334,16 @@ export async function aplicarCorrecaoLancamento(args: {
       upd.codigo_departamento = novoCodDep;
       if (novoDescDep) upd.descricao_departamento = novoDescDep;
     }
+    // campos extras: colunas do espelho + raw (projeto e conta corrente só vivem no raw)
+    Object.assign(upd, updateEspelhoCampos(mudou));
+    if (temCampos(mudou)) {
+      try {
+        const { data: linha } = await supabase.from(tabelaContas(tipo)).select('raw').eq('conta_omie', conta).eq('codigo_lancamento', Number(codigoLancamento)).maybeSingle();
+        upd.raw = rawComCampos((linha as any)?.raw || null, mudou);
+      } catch (e: any) {
+        console.warn('[corrigir] ler raw:', e.message);
+      }
+    }
     if (Object.keys(upd).length) {
       try {
         await supabase.from(tabelaContas(tipo)).update(upd).eq('conta_omie', conta).eq('codigo_lancamento', Number(codigoLancamento));
@@ -301,7 +353,7 @@ export async function aplicarCorrecaoLancamento(args: {
     }
   }
   try {
-    await supabase.from('contas_correcoes').insert({
+    const linhaAudit: any = {
       conta_omie: conta,
       tipo,
       codigo_lancamento: Number(codigoLancamento),
@@ -311,10 +363,20 @@ export async function aplicarCorrecaoLancamento(args: {
       departamento_novo: distribuicao,
       status: erro ? 'erro' : 'aplicado',
       erro: erro || null,
-      raw_request: { tipo, codigoLancamento, codigoCategoria, distribuicao },
+      raw_request: { tipo, codigoLancamento, codigoCategoria, distribuicao, campos: campos || null },
       raw_response: erro ? { erro } : resultado,
-      criado_por: origem === 'massa' ? 'app-massa' : 'app',
-    });
+      criado_por: criadoPor || (origem === 'massa' ? 'app-massa' : 'app'),
+      campos_anterior: temCampos(mudou) ? camposAnteriores : null,
+      campos_novo: temCampos(mudou) ? mudou : null,
+    };
+    let { error } = await supabase.from('contas_correcoes').insert(linhaAudit);
+    // sem sql/contas-correcoes-campos.sql as duas colunas não existem: grava sem elas
+    if (error && /campos_anterior|campos_novo/i.test(error.message || '')) {
+      const { campos_anterior: _a, campos_novo: _b, ...semCampos } = linhaAudit;
+      void _a; void _b;
+      ({ error } = await supabase.from('contas_correcoes').insert(semCampos));
+    }
+    if (error) console.warn('[corrigir] log auditoria:', error.message);
   } catch (e: any) {
     console.warn('[corrigir] log auditoria:', e.message);
   }
@@ -325,6 +387,7 @@ export async function aplicarCorrecaoLancamento(args: {
     descStatus: resultado && resultado.descricao_status,
     anterior,
     nova: { codigoCategoria, descricaoCategoria: descNovaCat, codigoDepartamento: novoCodDep, descricaoDepartamento: novoDescDep },
+    campos: temCampos(mudou) ? { anterior: camposAnteriores, novo: mudou } : null,
   };
 }
 
