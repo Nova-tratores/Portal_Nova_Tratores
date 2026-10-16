@@ -14,3 +14,23 @@ export async function negarSemDashboard(req: Request): Promise<NextResponse | nu
     return NextResponse.json({ erro: (e as Error).message }, { status: (e as { status?: number }).status ?? 401 });
   }
 }
+
+/** Pode ver a visão Máquinas (`estoque:dashboard-maquinas`, módulo `estoque` inteiro ou admin/dev)? */
+export async function podeVerMaquinas(req: Request): Promise<boolean> {
+  try {
+    await exigirPermissao(req, 'estoque', 'dashboard-maquinas');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Porta do dashboard + se o usuário pode ver máquinas (as rotas tiram esses dados de quem não pode). */
+export async function acessoDashboard(req: Request): Promise<{ negado: NextResponse | null; maquinas: boolean }> {
+  const negado = await negarSemDashboard(req);
+  if (negado) return { negado, maquinas: false };
+  return { negado: null, maquinas: await podeVerMaquinas(req) };
+}
+
+export const semPermissaoMaquinas = () =>
+  NextResponse.json({ erro: 'sem permissao para ver maquinas (estoque:dashboard-maquinas)' }, { status: 403 });

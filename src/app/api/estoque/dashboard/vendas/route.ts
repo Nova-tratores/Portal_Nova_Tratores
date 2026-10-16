@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { negarSemDashboard } from '@/lib/estoque/dashboard-auth';
+import { negarSemDashboard, podeVerMaquinas, semPermissaoMaquinas } from '@/lib/estoque/dashboard-auth';
 import { parseConta } from '@/lib/estoque/conta';
 import { listarVendas } from '@/lib/estoque/dashboard-listas';
 
@@ -21,6 +21,7 @@ export async function GET(req: NextRequest) {
   const categoria = sp.get('categoria') || null;
   const familiaMaquina = sp.get('familiaMaquina') || null;
   if (!ano || (!ehAno && !mes)) return NextResponse.json({ erro: 'Informe mes e ano' });
+  if (familiaMaquina && !(await podeVerMaquinas(req))) return semPermissaoMaquinas();
   try {
     const vendas = await listarVendas(mes, ano, catKey, categoria, conta, familiaMaquina);
     return NextResponse.json({ vendas, total: vendas.length });

@@ -98,6 +98,8 @@ export default function RelatorioDashboard(props: {
   contaLabel: string;
   categoriaLabel: string;
   usuario?: string;
+  /** estoque:dashboard-maquinas — sem ela as seções de máquinas nem aparecem. */
+  podeMaquinas?: boolean;
   /** Desenha o gráfico Peças+Serviços em largura fixa para o papel. */
   graficoPS: (o: { largura: number; view: RelView; custoPos: RelCustoPos; metrica: RelMetrica }) => ReactNode;
   graficoMaq: (o: { largura: number }) => ReactNode;
@@ -120,7 +122,10 @@ export default function RelatorioDashboard(props: {
     try { localStorage.setItem(LS_SECOES, JSON.stringify(n)); } catch { /* sem storage */ }
     return n;
   });
-  const algum = Object.values(secoes).some(Boolean);
+  const grupos = props.podeMaquinas ? (['Peças + Serviços', 'Máquinas'] as const) : (['Peças + Serviços'] as const);
+  // Sem a permissão, as seções de máquinas ficam desligadas mesmo que marcadas antes.
+  const secoesEf: Record<Secao, boolean> = props.podeMaquinas ? secoes : { ...secoes, maqResumo: false, maqGrafico: false, maqMensal: false };
+  const algum = Object.values(secoesEf).some(Boolean);
   // O título da aba vira o nome sugerido do PDF.
   const imprimir = () => {
     const tituloAntes = document.title;
@@ -145,7 +150,7 @@ export default function RelatorioDashboard(props: {
             <div style={{ fontSize: '.88rem', color: '#6b7280', marginBottom: 14 }}>
               {props.dados.periodo} · {props.contaLabel} · categoria: {props.categoriaLabel}. Sai em A4 deitado; no diálogo do navegador dá para escolher “Salvar como PDF”.
             </div>
-            {(['Peças + Serviços', 'Máquinas'] as const).map((g) => (
+            {grupos.map((g) => (
               <div key={g} style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: '.75rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.5px', color: '#9ca3af', marginBottom: 6 }}>{g}</div>
                 {SECOES.filter((s) => s.grupo === g).map((s) => (
@@ -199,7 +204,7 @@ export default function RelatorioDashboard(props: {
               .rel-dash-root h2 { font-size: 12.5px; margin: 0 0 6px; text-transform: uppercase; letter-spacing: .4px; border-left: 3px solid #111827; padding-left: 6px; }
             }
           `}</style>
-          <Conteudo {...props} secoes={secoes} view={view} custoPos={custoPos} metricaGraf={metricaGraf} />
+          <Conteudo {...props} secoes={secoesEf} view={view} custoPos={custoPos} metricaGraf={metricaGraf} />
         </div>,
         document.body,
       )}

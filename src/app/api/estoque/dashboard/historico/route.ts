@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { negarSemDashboard } from '@/lib/estoque/dashboard-auth';
+import { negarSemDashboard, podeVerMaquinas, semPermissaoMaquinas } from '@/lib/estoque/dashboard-auth';
 import { parseConta } from '@/lib/estoque/conta';
-import { montarHistorico } from '@/lib/estoque/dashboard-listas';
+import { montarHistorico, ehCardMaquina } from '@/lib/estoque/dashboard-listas';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
   if (!catKey) {
     return NextResponse.json({ erro: 'Informe catKey' });
   }
+  if (ehCardMaquina(catKey) && !(await podeVerMaquinas(req))) return semPermissaoMaquinas();
   try {
     const r = await montarHistorico(catKey, filtroCategoria, conta);
     return NextResponse.json(r);

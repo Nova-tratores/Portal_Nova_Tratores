@@ -257,6 +257,9 @@ export const ACOES_POR_MODULO: Record<string, AcaoPermissao[]> = {
   // (id da rota = slug). A Home (/estoque, busca de produto) é o landing.
   estoque: [
     { id: 'dashboard', label: 'Dashboard de Vendas' },
+    // Visão "Máquinas" do Dashboard de Vendas (cards, gráfico, vendas e histórico
+    // de máquinas). Só 'dashboard' não basta; o módulo Estoque inteiro e admin veem.
+    { id: 'dashboard-maquinas', label: 'Dashboard de Vendas — ver Máquinas' },
     { id: 'notas-entrada', label: 'Notas de Entrada' },
     { id: 'recebimentos', label: 'Recebimentos' },
     { id: 'recebimentos-omie', label: 'Recebimentos (Omie)' },

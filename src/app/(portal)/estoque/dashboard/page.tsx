@@ -212,6 +212,8 @@ function calcVar(a: number, b: number): number {
 export default function DashboardPage() {
   const { userProfile } = useAuth();
   const { pode, loading: permLoading } = usePermissoes(userProfile?.id);
+  // Visão Máquinas: permissão própria (estoque:dashboard-maquinas; módulo Estoque inteiro e admin passam).
+  const podeMaq = pode('estoque', 'dashboard-maquinas');
   const { conta, contaParam, setConta } = useConta();
 
   useEffect(() => { setConta(''); }, [setConta]);
@@ -225,6 +227,8 @@ export default function DashboardPage() {
   const [categoria, setCategoria] = useState('Revenda de Peças Oficina');
   const [metrica, setMetrica] = useState<Metrica>('venda');
   const [visao, setVisao] = useState<Visao>('pecas');
+  // ?v=maquinas sem a permissão cai em Peças + Serviços.
+  const visaoAtual: Visao = visao === 'maquinas' && !podeMaq ? 'pecas' : visao;
 
   const [dados, setDados] = useState<DashboardResp | null>(null);
   const [tendencia, setTendencia] = useState<TendPonto[] | null>(null);
@@ -660,6 +664,7 @@ export default function DashboardPage() {
               contaLabel={conta ? conta : 'NOVA + CASTRO'}
               categoriaLabel={categoria ? (categoriasOpts.find((c) => c.codigo === categoria)?.descricao || categoria) : 'Todas'}
               usuario={userProfile?.nome}
+              podeMaquinas={podeMaq}
               graficoPS={(o) => tendencia ? <PecasChart pontos={tendencia} metrica={o.metrica} impressao={{ largura: o.largura, view: o.view, custoPos: o.custoPos }} /> : null}
               graficoMaq={(o) => tendencia ? <MaquinasChart pontos={tendencia} largura={o.largura} /> : null}
             />
@@ -678,9 +683,9 @@ export default function DashboardPage() {
 
       {/* Seletor de visão */}
       <div style={{ display: 'inline-flex', gap: 0, marginBottom: 14, border: '1px solid #e0e0e0', borderRadius: 10, overflow: 'hidden' }}>
-        {([['pecas', 'Peças + Serviços'], ['maquinas', 'Máquinas']] as Array<[Visao, string]>).map(([v, rotulo]) => (
+        {([['pecas', 'Peças + Serviços'], ...(podeMaq ? [['maquinas', 'Máquinas']] : [])] as Array<[Visao, string]>).map(([v, rotulo]) => (
           <button key={v} onClick={() => trocarVisao(v)}
-            style={{ padding: '10px 20px', border: 'none', borderRight: v === 'pecas' ? '1px solid #e0e0e0' : 'none', background: visao === v ? '#111827' : '#fff', color: visao === v ? '#fff' : '#666', fontSize: '1.12rem', fontWeight: 700, cursor: 'pointer' }}>
+            style={{ padding: '10px 20px', border: 'none', borderRight: v === 'pecas' && podeMaq ? '1px solid #e0e0e0' : 'none', background: visaoAtual === v ? '#111827' : '#fff', color: visaoAtual === v ? '#fff' : '#666', fontSize: '1.12rem', fontWeight: 700, cursor: 'pointer' }}>
             {rotulo}
           </button>
         ))}
@@ -691,7 +696,7 @@ export default function DashboardPage() {
         <Sel label="Período" value={mes} onChange={(v) => setMes(parseInt(v))}
           options={[{ value: 0, label: 'Ano inteiro' }, ...MESES.map((m, i) => ({ value: i + 1, label: m }))]} />
         <Sel label="Ano" value={ano} onChange={(v) => setAno(parseInt(v))} options={anos.map((y) => ({ value: y, label: String(y) }))} />
-        {visao === 'pecas' && (
+        {visaoAtual === 'pecas' && (
           <>
             <Sel label="Categoria de peças" value={categoria} onChange={setCategoria} options={[{ value: '', label: 'Todas' }, ...categoriasOpts.map((c) => ({ value: c.codigo, label: c.descricao }))]} />
             <span title="Venda/Custo/Margem vale para Peças e Serviços (KPIs e cards). Custo de Serviços vem do Painel Omie (comissão, despesas, frota, RH e custo real das internas); se o painel não responder fica “—”. Comprei é sempre entradas de NF." style={{ fontSize: '1rem', color: '#9ca3af', cursor: 'help', paddingBottom: 9 }}>ⓘ</span>
@@ -727,7 +732,7 @@ export default function DashboardPage() {
           </div>
         );
 
-        if (visao === 'maquinas') {
+        if (visaoAtual === 'maquinas') {
           const maqFamilias = cats.filter((c) => c.cardType === 'maquina');
           const ativas = maqFamilias.filter((c) => (c.unidades ?? 0) > 0 || c.valorAtual > 0).sort((a, b) => b.valorAtual - a.valorAtual);
           const zeradas = maqFamilias.filter((c) => (c.unidades ?? 0) === 0 && c.valorAtual === 0);
