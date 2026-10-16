@@ -91,6 +91,42 @@ export function ordenarVivos<T extends { status: StatusVivo; nome?: string | nul
   );
 }
 
+/** Rumo (0° = norte, 90° = leste) de A para B. */
+export function rumoGraus(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const rad = Math.PI / 180;
+  const y = Math.sin((b.lng - a.lng) * rad) * Math.cos(b.lat * rad);
+  const x = Math.cos(a.lat * rad) * Math.sin(b.lat * rad) - Math.sin(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((b.lng - a.lng) * rad);
+  return (Math.atan2(y, x) / rad + 360) % 360;
+}
+
+/** Para onde o carro está indo: do último ponto para trás, o primeiro que está a
+ *  pelo menos `minMetros` (GPS parado oscila alguns metros) e a no máximo
+ *  `maxMin` minutos do último. Pontos em ordem de tempo. */
+export function rumoDosPontos(
+  pontos: { lat: number; lng: number; dt: string }[],
+  minMetros = 25,
+  maxMin = 10,
+): number | null {
+  if (pontos.length < 2) return null;
+  const ult = pontos[pontos.length - 1];
+  const tUlt = new Date(ult.dt).getTime();
+  for (let i = pontos.length - 2; i >= 0; i--) {
+    const p = pontos[i];
+    if ((tUlt - new Date(p.dt).getTime()) / 60000 > maxMin) break;
+    const R = 6371000, rad = Math.PI / 180;
+    const dLat = (ult.lat - p.lat) * rad, dLng = (ult.lng - p.lng) * rad;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(p.lat * rad) * Math.cos(ult.lat * rad) * Math.sin(dLng / 2) ** 2;
+    if (2 * R * Math.asin(Math.sqrt(h)) >= minMetros) return Math.round(rumoGraus(p, ult));
+  }
+  return null;
+}
+
+const RUMOS = ['norte', 'nordeste', 'leste', 'sudeste', 'sul', 'sudoeste', 'oeste', 'noroeste'];
+/** 0° → "norte", 135° → "sudeste" */
+export function nomeRumo(graus: number): string {
+  return RUMOS[Math.round((((graus % 360) + 360) % 360) / 45) % 8];
+}
+
 /** "GABRIEL MORAES" e "Gabriel Moraes" são a mesma pessoa (a OS grava em
  *  caixa alta, o vínculo técnico↔carro não). */
 export function chaveNome(s: string | null | undefined): string {

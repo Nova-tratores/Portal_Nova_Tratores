@@ -69,8 +69,11 @@ const AJUDA: Record<string, AjudaFrota> = {
       'Clique num grupo para ver os carros dele e escolher um.',
       'Propriedades (CAR): ligue e aproxime o mapa; aparecem os contornos das fazendas dos municípios na tela. Roxo = tem cliente vinculado.',
       'A busca encontra um cliente ou local e leva o mapa até ele.',
+      'Clique num ponto do mapa (ou num cliente, local ou propriedade) para ver quanto tempo a frota leva da loja até ali e de volta.',
     ],
     termos: [
+      { t: 'Seta no carro', d: 'Para onde o carro andando está indo, pelos últimos pontos do rastreador.' },
+      { t: 'Tempo com a loja', d: 'Mediana das viagens reais (desde jan/2026) que saíram da loja e pararam a até 2 km do ponto (ou 5 km), sem as fora da curva: as que levaram mais de 2,5× o normal para a distância e as que ficam fora dos quartis. Sem viagens por perto, é estimado pela distância.' },
       { t: 'Andando', d: 'Motor ligado e acima de 5 km/h.' },
       { t: 'Parado com motor ligado', d: 'Motor ligado e parado (marcha lenta).' },
       { t: 'Desligado', d: 'Motor desligado, com sinal nas últimas 24 h.' },

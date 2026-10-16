@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { osDosTecnicos, agruparPorProximidade, contarPorStatus, diaBR, haQuanto, limparNome, ordenarVivos, statusVivo } from '../mapa-vivo';
+import { nomeRumo, rumoDosPontos, rumoGraus, osDosTecnicos,agruparPorProximidade, contarPorStatus, diaBR, haQuanto, limparNome, ordenarVivos, statusVivo } from '../mapa-vivo';
 
 const AGORA = new Date('2026-10-15T15:00:00Z').getTime();
 const ha = (min: number) => new Date(AGORA - min * 60000).toISOString();
@@ -52,6 +52,32 @@ describe('limparNome', () => {
     expect(limparNome('NICOLAS DARIO')).toBe('Nicolas Dario');
     expect(limparNome('DANILO DE SOUZA')).toBe('Danilo de Souza');
     expect(limparNome('Lucas Jose Bragança Enz')).toBe('Lucas Jose Bragança Enz');
+  });
+});
+
+describe('rumo', () => {
+  it('rumoGraus: norte 0°, leste 90°, sul 180°', () => {
+    expect(Math.round(rumoGraus({ lat: 0, lng: 0 }, { lat: 1, lng: 0 }))).toBe(0);
+    expect(Math.round(rumoGraus({ lat: 0, lng: 0 }, { lat: 0, lng: 1 }))).toBe(90);
+    expect(Math.round(rumoGraus({ lat: 1, lng: 0 }, { lat: 0, lng: 0 }))).toBe(180);
+  });
+  it('rumoDosPontos ignora a oscilação do GPS parado e pega o ponto anterior que se moveu', () => {
+    const pts = [
+      { lat: -23.2100, lng: -49.371, dt: '2026-10-16T12:00:00Z' }, // ~200 m ao sul
+      { lat: -23.20825, lng: -49.371, dt: '2026-10-16T12:04:00Z' }, // 5 m do último: oscilação
+      { lat: -23.2082, lng: -49.371, dt: '2026-10-16T12:05:00Z' },
+    ];
+    expect(nomeRumo(rumoDosPontos(pts) as number)).toBe('norte');
+  });
+  it('sem movimento nos últimos 10 min não tem rumo', () => {
+    expect(rumoDosPontos([
+      { lat: -23.3, lng: -49.4, dt: '2026-10-16T11:00:00Z' },
+      { lat: -23.2, lng: -49.4, dt: '2026-10-16T12:00:00Z' },
+    ])).toBeNull();
+  });
+  it('nomeRumo', () => {
+    expect(nomeRumo(135)).toBe('sudeste');
+    expect(nomeRumo(359)).toBe('norte');
   });
 });
 

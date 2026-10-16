@@ -4,7 +4,8 @@ import { distKm, filtrarEspetos, segmentarTrajeto } from '@/lib/frota/gps'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import { fetchAuth } from '@/lib/auth/client'
 import { carregarLeaflet } from '@/components/feedbacks/leaflet'
-import { agruparPorProximidade, contarPorStatus, diaBR, haQuanto, STATUS_INFO, statusVivo, type StatusVivo } from '@/lib/frota/mapa-vivo'
+import { agruparPorProximidade, contarPorStatus, diaBR, haQuanto, nomeRumo, STATUS_INFO, statusVivo, type StatusVivo } from '@/lib/frota/mapa-vivo'
+import { fmtMin } from '@/lib/frota/tempo-loja'
 import { formatarPlaca } from '@/lib/frota/placa'
 import type { VeiculoVivo } from '@/lib/frota/mapa-vivo-server'
 
@@ -15,6 +16,24 @@ const esc = (s: unknown) => String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '
 
 const ICONE_CARRO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>'
 const ORDEM_STATUS: StatusVivo[] = ['andando', 'ligado_parado', 'desligado', 'sem_sinal']
+
+// Bloco "tempo da loja até aqui" que vai dentro dos popups (preenchido depois
+// que a rota /api/frota/mapa/tempo-loja responde).
+const PLACEHOLDER_TEMPO = '<div data-tempo-loja style="margin-top:6px;border-top:1px solid #e2e8f0;padding-top:5px;font-size:12px;color:#64748b">Calculando o tempo até a loja…</div>'
+function htmlTempoLoja(d: any): string {
+  if (!d || d.error) return '<span style="color:#b91c1c">Não foi possível calcular o tempo até a loja.</span>'
+  if (d.naLoja) return '<b style="color:#334155">Na loja</b>'
+  const linha = (rotulo: string, e: any) => {
+    if (!e || e.min == null) return `<div>${rotulo}: <b>sem dados</b></div>`
+    const det = e.fonte === 'historico'
+      ? `${e.viagens} viage${e.viagens === 1 ? 'm' : 'ns'}${e.descartadas ? ` · ${e.descartadas} fora da curva` : ''}`
+      : 'estimado pela distância'
+    return `<div>${rotulo}: <b style="color:#0f172a">~${fmtMin(e.min)}</b> <span style="color:#94a3b8">(${det})</span></div>`
+  }
+  return `<div style="font-weight:800;color:#334155;margin-bottom:2px">Tempo com a loja</div>` +
+    linha('Ida da loja', d.ida) + linha('Volta à loja', d.volta) +
+    `<div style="color:#94a3b8;font-size:11px;margin-top:2px">${String(d.kmReto).replace('.', ',')} km em linha reta</div>`
+}
 // "Paulo Motta / Gabriel Moraes" → "Paulo" (o rótulo do carro é curto)
 const primeiroNome = (s: string) => (s.split(' / ')[0] || '').trim().split(/\s+/)[0] || ''
 // Lugar conhecido (geocerca ou propriedade de cliente) — vira um pin discreto
@@ -98,6 +117,9 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const [carAviso, setCarAviso] = useState<string | null>(null)
   const [carCarregando, setCarCarregando] = useState(false)
   const [vistaTick, setVistaTick] = useState(0)
+  // tempo loja ↔ ponto (frota): cache por ponto (~100 m) e clique no mapa
+  const tempoCacheRef = useRef(new Map<string, any>())
+  const cliqueMapaRef = useRef<((e: any) => void) | null>(null)
   // cada pedido de rota ganha um número: resposta atrasada de um clique
   // anterior não desenha por cima do carro escolhido depois
   const rotaReqRef = useRef(0)
@@ -137,6 +159,8 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     locaisLayerRef.current = L.layerGroup().addTo(mapInstance.current)
     mapInstance.current.on('zoomend', () => setZoom(mapInstance.current.getZoom()))
     mapInstance.current.on('moveend', () => setVistaTick((t) => t + 1))
+    // clique em lugar vazio do mapa (frota): tempo da loja até ali
+    mapInstance.current.on('click', (e: any) => cliqueMapaRef.current?.(e))
     carLayerRef.current = L.layerGroup().addTo(mapInstance.current)
     // muitos polígonos: desenho em canvas (SVG com ~900 contornos por município pesa)
     carRendererRef.current = L.canvas({ padding: 0.5 })
@@ -157,6 +181,35 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       .openOn(mapInstance.current)
   }, [foco, ready])
 
+  // Preenche o bloco "tempo com a loja" dentro de um popup aberto.
+  const preencherTempoLoja = useCallback(async (raiz: HTMLElement | null | undefined, lat: number, lng: number) => {
+    const el = raiz?.querySelector('[data-tempo-loja]') as HTMLElement | null
+    if (!el) return
+    const k = `${lat.toFixed(3)},${lng.toFixed(3)}`
+    let d = tempoCacheRef.current.get(k)
+    if (!d) {
+      try {
+        const r = await fetchAuth(`/api/frota/mapa/tempo-loja?lat=${lat}&lng=${lng}`)
+        d = await r.json()
+        if (r.ok) tempoCacheRef.current.set(k, d)
+      } catch { d = { error: 'falha' } }
+    }
+    el.innerHTML = htmlTempoLoja(d)
+  }, [])
+
+  useEffect(() => {
+    if (!ehFrota) { cliqueMapaRef.current = null; return }
+    cliqueMapaRef.current = (e: any) => {
+      const L = LRef.current
+      if (!L || !mapInstance.current) return
+      const pop = L.popup({ maxWidth: 260 })
+        .setLatLng(e.latlng)
+        .setContent(PLACEHOLDER_TEMPO.replace('margin-top:6px;border-top:1px solid #e2e8f0;padding-top:5px;', ''))
+        .openOn(mapInstance.current)
+      preencherTempoLoja(pop.getElement(), e.latlng.lat, e.latlng.lng)
+    }
+  }, [ehFrota, preencherTempoLoja])
+
   // Camada de lugares conhecidos (geocercas + propriedades de clientes) —
   // pins pequenos pra não competir com os carros; botão liga/desliga.
   useEffect(() => {
@@ -167,14 +220,15 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     for (const loc of locais) {
       if (!loc.lat || !loc.lng) continue
       const cor = COR_LOCAL[loc.classe || ''] || '#64748b'
-      L.circleMarker([loc.lat, loc.lng], {
-        radius: 6, weight: 2, color: '#fff', fillColor: cor, fillOpacity: 0.9,
+      const m = L.circleMarker([loc.lat, loc.lng], {
+        radius: 6, weight: 2, color: '#fff', fillColor: cor, fillOpacity: 0.9, bubblingMouseEvents: false,
       })
-        .bindPopup(`<div style="font-size:13px;font-weight:700">${esc(loc.nome)}</div>${loc.subtitulo ? `<div style="font-size:11px;color:#64748B">${esc(loc.subtitulo)}</div>` : ''}`)
+        .bindPopup(`<div style="font-size:13px;font-weight:700">${esc(loc.nome)}</div>${loc.subtitulo ? `<div style="font-size:11px;color:#64748B">${esc(loc.subtitulo)}</div>` : ''}${ehFrota ? PLACEHOLDER_TEMPO : ''}`)
         .bindTooltip(esc(loc.nome), { direction: 'top', offset: [0, -6] })
-        .addTo(locaisLayerRef.current)
+      if (ehFrota) m.on('popupopen', (ev: any) => preencherTempoLoja(ev.popup.getElement(), loc.lat, loc.lng))
+      m.addTo(locaisLayerRef.current)
     }
-  }, [locais, mostrarLocais, ready])
+  }, [locais, mostrarLocais, ready, ehFrota, preencherTempoLoja])
 
   // Posições ao vivo. Supervisor: só quando a data é hoje (rota antiga).
   // Frota: sempre — cada carro na ÚLTIMA posição conhecida, com a situação.
@@ -264,10 +318,14 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         const cor = STATUS_INFO[st].cor
         const escolhido = carroSel?.placa === v.placa
         const apagado = !!carroSel && !escolhido
+        // seta de direção: só andando e com rumo calculado pelos últimos pontos
+        const seta = st === 'andando' && v.rumo != null
+          ? `<div style="position:absolute;inset:-3px;transform:rotate(${v.rumo}deg);pointer-events:none"><div style="position:absolute;left:50%;top:-13px;transform:translateX(-50%);width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:12px solid ${cor};filter:drop-shadow(0 0 1.5px #fff) drop-shadow(0 1px 2px rgba(0,0,0,0.4))"></div></div>`
+          : ''
         const icon = L.divIcon({
           className: '',
           html: `<div style="display:flex;flex-direction:column;align-items:center;opacity:${apagado ? 0.35 : 1}">
-            <div style="width:30px;height:30px;border-radius:50%;background:${cor};border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:${escolhido ? `0 0 0 5px ${cor}55,` : ''}0 2px 6px rgba(0,0,0,0.45)">${ICONE_CARRO}</div>
+            <div style="position:relative;width:30px;height:30px;border-radius:50%;background:${cor};border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:${escolhido ? `0 0 0 5px ${cor}55,` : ''}0 2px 6px rgba(0,0,0,0.45)">${seta}${ICONE_CARRO}</div>
             <div style="margin-top:2px;background:rgba(15,23,42,0.9);color:#fff;font:700 10.5px Inter,sans-serif;padding:1px 6px;border-radius:4px;white-space:nowrap">${v.nome ? `${esc(primeiroNome(v.nome))} · ` : ''}${esc(v.placa_exibicao)}</div>
             ${v.os_execucao?.length ? `<div style="margin-top:1px;background:#15803d;color:#fff;font:700 9.5px Inter,sans-serif;padding:0 5px;border-radius:4px;white-space:nowrap">${esc(v.os_execucao[0].id)}</div>` : ''}
           </div>`,
@@ -276,7 +334,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
         const marker = L.marker([v.lat, v.lng], { icon, zIndexOffset: escolhido ? 6000 : 5000 })
         marker.bindTooltip(
           `<b>${esc(v.nome || v.placa_exibicao)}</b>${v.nome ? ` · ${esc(v.placa_exibicao)}` : ''}<br/>` +
-          `<span style="color:${cor};font-weight:700">${STATUS_INFO[st].label}</span> · ${esc(haQuanto(v.dt, agoraMs))}` +
+          `<span style="color:${cor};font-weight:700">${STATUS_INFO[st].label}</span>${st === 'andando' && v.rumo != null ? ` para o ${nomeRumo(v.rumo)}` : ''} · ${esc(haQuanto(v.dt, agoraMs))}` +
           (v.local ? `<br/>${esc(v.local)}` : '') +
           (v.os_execucao || []).map((o) => `<br/><span style="color:#15803d;font-weight:700">${esc(o.id)}</span> em execução${o.cliente ? ` · ${esc(o.cliente)}` : ''}`).join(''),
           { direction: 'top', offset: [0, -20] },
@@ -398,13 +456,18 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
               ? { color: '#7c3aed', weight: 1.5, fillColor: '#7c3aed', fillOpacity: 0.18 }
               : { color: '#15803d', weight: 1, fillColor: '#15803d', fillOpacity: 0.04 }),
             onEachFeature: (f: any, layer: any) => {
+              layer.options.bubblingMouseEvents = false
+              layer.on('popupopen', (ev: any) => {
+                const c = layer.getBounds().getCenter()
+                preencherTempoLoja(ev.popup.getElement(), c.lat, c.lng)
+              })
               const pr = f.properties || {}
               const ha = pr.area_ha != null ? `${Number(pr.area_ha).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ha` : ''
               layer.bindPopup(
                 `<div style="font-size:12px;font-weight:800;color:#334155">Propriedade rural (CAR) · ${esc(m.nome)}</div>` +
                 (pr.clientes ? `<div style="font-size:13px;font-weight:700;color:#7c3aed;margin-top:3px">${esc(pr.clientes)}</div>` : '<div style="font-size:11.5px;color:#64748b;margin-top:3px">sem cliente vinculado</div>') +
                 `<div style="font-size:12px;margin-top:3px">${[ha, pr.cultura].filter(Boolean).map(esc).join(' · ')}</div>` +
-                `<div style="font-size:10px;color:#94a3b8;margin-top:3px">${esc(pr.cod_car || '')}</div>`,
+                `<div style="font-size:10px;color:#94a3b8;margin-top:3px">${esc(pr.cod_car || '')}</div>` + PLACEHOLDER_TEMPO,
                 { maxWidth: 280 },
               )
             },
@@ -418,7 +481,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       }
     })()
     return () => { vivo = false }
-  }, [ehFrota, ready, mostrarCar, zoom, vistaTick, carMunicipios])
+  }, [ehFrota, ready, mostrarCar, zoom, vistaTick, carMunicipios, preencherTempoLoja])
 
   // Histórico do carro (lista de dias salvos)
   const abrirCarro = useCallback(async (placa: string, nome: string) => {

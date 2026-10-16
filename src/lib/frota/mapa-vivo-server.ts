@@ -12,7 +12,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchTudo } from '@/lib/pos/rastreamento';
 import { classificarParada, type GeocercaCtx } from '@/lib/frota/paradas';
 import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/propriedades';
-import { chaveNome, diaBR, limparNome, ordenarVivos, osDosTecnicos, rotuloLocal, statusVivo, type OsExecucao, type StatusVivo } from '@/lib/frota/mapa-vivo';
+import { chaveNome, diaBR, limparNome, ordenarVivos, osDosTecnicos, rotuloLocal, rumoDosPontos, statusVivo, type OsExecucao, type StatusVivo } from '@/lib/frota/mapa-vivo';
 import { formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
 
 export interface VeiculoVivo {
@@ -36,9 +36,11 @@ export interface VeiculoVivo {
   fonte: 'ao_vivo' | 'cache' | null;
   status: StatusVivo;
   local: string | null;
+  /** para onde está indo (0° = norte), pelos últimos pontos; null parado/sem dado */
+  rumo: number | null;
 }
 
-interface Pos { lat: number; lng: number; ignicao: boolean; velocidade: number; dt: string | null; fonte: 'ao_vivo' | 'cache' }
+interface Pos { lat: number; lng: number; ignicao: boolean; velocidade: number; dt: string | null; fonte: 'ao_vivo' | 'cache'; rumo?: number | null }
 
 const JANELAS_MIN = [30, 180, 26 * 60];
 
@@ -52,12 +54,15 @@ async function ultimaPosicaoLive(adesaoId: number): Promise<Pos | null> {
     type PosRE = { latitude: number; longitude: number; ignicao: number; velocidade: number; dt_posicao: string };
     const posicoes = (await fetchTudo('/posicoes', { where: w }, 1000)) as PosRE[];
     if (!posicoes.length) continue;
-    const last = posicoes.reduce((a, b) =>
-      new Date(b.dt_posicao).getTime() > new Date(a.dt_posicao).getTime() ? b : a);
+    const ordenadas = [...posicoes].sort((a, b) => new Date(a.dt_posicao).getTime() - new Date(b.dt_posicao).getTime());
+    const last = ordenadas[ordenadas.length - 1];
     if (!last?.latitude || !last?.longitude) continue;
+    const rumo = rumoDosPontos(
+      ordenadas.slice(-60).filter((x) => x.latitude && x.longitude).map((x) => ({ lat: x.latitude, lng: x.longitude, dt: x.dt_posicao })),
+    );
     return {
       lat: last.latitude, lng: last.longitude, ignicao: last.ignicao === 1,
-      velocidade: Number(last.velocidade) || 0, dt: last.dt_posicao || null, fonte: 'ao_vivo',
+      velocidade: Number(last.velocidade) || 0, dt: last.dt_posicao || null, fonte: 'ao_vivo', rumo,
     };
   }
   return null;
@@ -177,6 +182,7 @@ async function montar(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
       fonte: pos?.fonte ?? null,
       status: statusVivo(pos, agora),
       local,
+      rumo: pos?.rumo ?? null,
     };
   });
   return ordenarVivos(lista);
