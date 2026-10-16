@@ -160,7 +160,11 @@ async function fonteOS(c: Ctx): Promise<ItemAgenda[]> {
   const out: ItemAgenda[] = []
   for (const o of os) {
     if (osCancelada(o.Status)) continue
-    const pessoas = [...new Set([o.Os_Tecnico, o.Os_Tecnico2].map((n) => c.dir.porNome.get(normTexto(n))).filter((x): x is string => !!x && c.ids.has(x)))]
+    let pessoas = [...new Set([o.Os_Tecnico, o.Os_Tecnico2].map((n) => c.dir.porNome.get(normTexto(n))).filter((x): x is string => !!x && c.ids.has(x)))]
+    // técnico da OS que não é usuário marcado como técnico (ou OS sem técnico): na Lousa
+    // vai para "Sem técnico" em vez de sumir (16/10/2026)
+    const tecnicoEscrito = [o.Os_Tecnico, o.Os_Tecnico2].filter((n) => String(n || '').trim()).join(' + ')
+    if (!pessoas.length && c.ids.has(SEM_TECNICO)) pessoas = [SEM_TECNICO]
     if (!pessoas.length) continue
     const sol = solicitacaoDaOS(o.Serv_Solicitado)
     for (const [ini, fim] of faixasDeDias(diasDaOS(o))) {
@@ -170,7 +174,7 @@ async function fonteOS(c: Ctx): Promise<ItemAgenda[]> {
         inicio: isoDe(ini, '00:00'), fim: isoDe(addDias(fim, 1), '00:00'), diaInteiro: true, pessoas,
         local: o.Servico_Oficina ? 'Oficina' : o.Cidade_Cliente, descricao: sol || null, esmaecido: !osEmAberto(o.Status),
         link: `/pos?id=${encodeURIComponent(o.Id_Ordem)}`,
-        detalhes: [['Situação', o.Status || '—'], ...(o.Tipo_Servico ? [['Tipo', o.Tipo_Servico] as [string, string]] : []), ['Técnico', pessoas.map((p) => nomeDe(c, p)).join(' + ')]],
+        detalhes: [['Situação', o.Status || '—'], ...(o.Tipo_Servico ? [['Tipo', o.Tipo_Servico] as [string, string]] : []), ['Técnico', pessoas[0] === SEM_TECNICO ? (tecnicoEscrito ? `${tecnicoEscrito} (não é técnico do portal)` : 'sem técnico na OS') : pessoas.map((p) => nomeDe(c, p)).join(' + ')]],
       })
     }
   }
