@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { authHeaders } from '@/lib/auth/client'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
+import CentroPosVendas, { type AbaCPV } from '@/components/mecanicos/CentroPosVendas'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
 import { supabase } from '@/lib/supabase'
 import {
@@ -180,6 +181,8 @@ const calcHorasServicoDia = (eventos: any[]): number => {
 export default function MecanicosPage() {
   const { userProfile } = useAuth()
   const { temAcesso, pode, loading: loadingPerm } = usePermissoes(userProfile?.id)
+  // Centro do Pós-Vendas (painel dos técnicos / faturamento ao vivo) abre primeiro; a tela antiga é a aba "tecnicos"
+  const [aba, setAba] = useState<AbaCPV>('painel')
   const podeCriarOc = pode('mecanicos', 'criar_ocorrencia')
   const podeJustificar = pode('mecanicos', 'justificar_alerta')
   const podeConverter = pode('mecanicos', 'converter_alerta')
@@ -599,6 +602,8 @@ export default function MecanicosPage() {
   }
 
   // ── DETALHE DO MECANICO ──
+  if (aba !== 'tecnicos' && !detalhe) return <CentroPosVendas aba={aba} onAba={setAba} />
+
   if (detalhe) {
     const ocPendentes = detalhe.ocorrencias.filter(o => o.pontos === 0 || o.pontos === 1).length
 
@@ -1403,7 +1408,7 @@ export default function MecanicosPage() {
           <Users size={18} color="#fff" />
         </div>
         <div>
-          <h1 style={{ fontSize: 17, fontWeight: 700, color: '#111827', margin: 0 }}>Janela Mecanicos</h1>
+          <h1 style={{ fontSize: 17, fontWeight: 700, color: '#111827', margin: 0 }}>Janela Mecanicos <button type="button" onClick={() => setAba('painel')} style={{ marginLeft: 8, border: '1px solid #bae6fd', background: '#f0f9ff', color: '#0369a1', borderRadius: 8, padding: '3px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>← Painel do pós-vendas</button></h1>
           <p style={{ fontSize: 12, color: '#6B7280', margin: 0 }}>
             Tecnicos, ocorrencias e desempenho
             {mesLista && (() => {

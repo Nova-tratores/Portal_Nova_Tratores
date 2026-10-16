@@ -60,3 +60,42 @@ export async function valorPecasDosPPVs(ids: string[]): Promise<ValorPecasPPV> {
   r.total = r.bruto - r.desconto;
   return r;
 }
+
+/**
+ * Valor das peças (com o desconto do pedido) de MUITOS PPVs de uma vez → total por PPV.
+ * Mesma conta de valorPecasDosPPVs, em lote (painel do pós-vendas, 16/10/2026).
+ */
+export async function valorPecasPorPPV(ids: string[]): Promise<Map<string, number>> {
+  const lista = [...new Set((ids || []).map((s) => String(s).trim()).filter(Boolean))];
+  const out = new Map<string, number>();
+  for (let i = 0; i < lista.length; i += 150) {
+    const grupo = lista.slice(i, i + 150);
+    const [itensQ, pedsQ] = await Promise.all([
+      supabase.from(TBL_ITENS).select('Id_PPV, CodProduto, Preco, Qtde, TipoMovimento').in('Id_PPV', grupo).limit(20000),
+      supabase.from(TBL_PEDIDOS).select('id_pedido, desconto_percentual, status').in('id_pedido', grupo),
+    ]);
+    const descPct = new Map<string, number>();
+    const cancelado = new Set<string>();
+    for (const p of pedsQ.data || []) {
+      descPct.set(String(p.id_pedido), parseFloat(String(p.desconto_percentual ?? 0)) || 0);
+      if (/cancel/i.test(String((p as { status?: string }).status || ''))) cancelado.add(String(p.id_pedido));
+    }
+    const porChave = new Map<string, { ppv: string; qtde: number; totalFin: number }>();
+    for (const item of itensQ.data || []) {
+      const ppv = String(item.Id_PPV || '');
+      const chave = `${ppv}|${item.CodProduto}`;
+      const preco = parseFloat(item.Preco || 0) || 0;
+      let qtd = Math.abs(parseFloat(item.Qtde || 0) || 0);
+      if (String(item.TipoMovimento || '').toLowerCase().includes('devolu')) qtd = -qtd;
+      const g = porChave.get(chave) || { ppv, qtde: 0, totalFin: 0 };
+      g.qtde += qtd; g.totalFin += preco * qtd;
+      porChave.set(chave, g);
+    }
+    for (const g of porChave.values()) {
+      if (g.qtde === 0 || cancelado.has(g.ppv)) continue;
+      const pct = Math.min(100, Math.max(0, descPct.get(g.ppv) || 0));
+      out.set(g.ppv, (out.get(g.ppv) || 0) + g.totalFin * (1 - pct / 100));
+    }
+  }
+  return out;
+}
