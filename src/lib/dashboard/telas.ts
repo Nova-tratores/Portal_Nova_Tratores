@@ -134,6 +134,7 @@ export const TELAS: Tela[] = [
   ...t('Central de Trabalho', 'reunioes', 'tickets', [
     ['Reuniões', '/reunioes', ['reunião', 'pauta', 'ata']],
   ]),
+  ...t('Outros', 'agenda', undefined, [['Agenda coletiva', '/agenda', ['agenda', 'calendário', 'compromisso', 'google agenda', 'setor', 'técnicos']]]),
   ...t('Outros', 'salas', undefined, [['Sala de reunião (agenda)', '/salas', ['sala', 'reservar sala', 'agenda da sala', 'reserva']]]),
   ...t('Outros', 'opa', 'opa', [
     ['Opa', '/opa'],

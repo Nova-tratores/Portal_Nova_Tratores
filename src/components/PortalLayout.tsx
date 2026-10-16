@@ -22,7 +22,7 @@ import {
   LayoutGrid, List, CircleDot, Clock, Truck, Bot, Ticket, Cctv, GraduationCap, UserPlus, Tags,
   ListPlus, CircleCheckBig, MessageSquarePlus, BadgeCheck
 } from 'lucide-react'
-import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock } from 'lucide-react'
+import { MailCheck as IconEnviosEmail, BookOpen, Lightbulb as IconIdeias, CalendarClock, CalendarDays } from 'lucide-react'
 import BotaoAjuda from '@/components/conhecimento/BotaoAjuda'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -68,6 +68,7 @@ const navItems: NavItem[] = [
   { id: 'reunioes', name: 'Reuniões', href: '/reunioes', icon: <CalendarClock size={18} />, tag: 'PAUTA · ATA', gradient: '', group: 'geral' },
   // Agenda da sala física: todo logado reserva (o filtro abaixo libera o id).
   { id: 'salas', name: 'Sala de reunião', href: '/salas', icon: <MapPin size={18} />, tag: 'RESERVAR', gradient: '', group: 'geral' },
+  { id: 'agenda', name: 'Agenda', href: '/agenda', icon: <CalendarDays size={18} />, tag: 'TODOS', gradient: '', group: 'geral' },
   // Base de conhecimento: aparece para todo mundo logado (o filtro abaixo libera o id).
   { id: 'conhecimento', name: 'Base de conhecimento', href: '/conhecimento', icon: <BookOpen size={18} />, tag: 'AJUDA', gradient: '', group: 'geral' },
   // POPs: ler procedimento publicado é de todo logado (criar/aprovar é por área, dentro do módulo).
@@ -619,7 +620,7 @@ export default function PortalLayout({ children }: { children: React.ReactNode }
   const totalBell = notifData.naoLidas + chatData.totalNaoLidas
 
   const filteredNavItems = useMemo(() => navItems.filter(item => {
-    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat' || item.id === 'conhecimento' || item.id === 'pops' || item.id === 'salas') return true
+    if (item.id === 'dashboard' || item.id === 'opa' || item.id === 'sat' || item.id === 'conhecimento' || item.id === 'pops' || item.id === 'salas' || item.id === 'agenda') return true
     if (item.id === 'reunioes') return temAcesso('tickets')
     if (temAcesso(item.id)) return true
     // Visibilidade quando o usuário tem permissão por sub-página (ex.: 'ajustes:inventario')

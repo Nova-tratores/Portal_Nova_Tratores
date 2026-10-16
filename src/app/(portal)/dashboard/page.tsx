@@ -13,7 +13,7 @@ import {
   BarChart3, Users, Package, ClipboardCheck, AlertTriangle,
   CheckCircle2, Map, RefreshCw, Database, X, Check, Calculator, Eye, Camera, Wheat, Megaphone, TrendingUp, Server,
   FolderPlus, Pencil, Trash2, FolderOpen, MapPin, ShieldCheck, Building,
-  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus, Tags, BookOpen, CalendarClock,
+  Star, LayoutGrid, List, CircleDot, AlertCircle, Headset, LayoutDashboard, Truck, UserPlus, Tags, BookOpen, CalendarClock, CalendarDays,
 } from 'lucide-react'
 
 interface SystemCard {
@@ -95,6 +95,8 @@ const systems: SystemCard[] = [
   { id: 'tarefas', name: 'Central de Trabalho', description: 'Tarefas, tickets e cronograma num lugar só', icon: <ClipboardCheck size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #dc2626, #7f1d1d)', href: '/tickets/quadros', tag: 'TRABALHO', group: 'outros' },
   // Reuniões (pauta + ata) moram na Central de Trabalho: mesma permissão dela.
   { id: 'reunioes', name: 'Reuniões', description: 'Pauta antes, condução na hora e ata com as ações decididas', icon: <CalendarClock size={28} />, color: '#dc2626', gradient: 'linear-gradient(135deg, #ef4444, #991b1b)', href: '/reunioes', tag: 'REUNIÕES', group: 'outros' },
+  // Agenda coletiva (estilo Google Agenda) — FORA de systemToModulo: todo logado vê e marca.
+  { id: 'agenda', name: 'Agenda', description: 'A agenda de todos, por setor: compromissos, reuniões, sala e os técnicos', icon: <CalendarDays size={28} />, color: '#1a73e8', gradient: 'linear-gradient(135deg, #4285f4, #1a56c4)', href: '/agenda', tag: 'AGENDA', group: 'outros' },
   // Agenda da sala física — de propósito FORA de systemToModulo: todo logado reserva.
   { id: 'salas', name: 'Sala de reunião', description: 'Veja quando a sala está livre e reserve sem bater horário com ninguém', icon: <MapPin size={28} />, color: '#0891b2', gradient: 'linear-gradient(135deg, #22d3ee, #0e7490)', href: '/salas', tag: 'RESERVAR', group: 'outros' },
   { id: 'dashboard-agro', name: 'Dashboard Agro', description: 'Dashboard de acompanhamento do segmento agrícola', icon: <Wheat size={28} />, color: '#6B7280', gradient: 'linear-gradient(135deg, #22c55e, #15803d)', href: '/dashboard-agro', tag: 'AGRO', group: 'outros' },

@@ -9,7 +9,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, Ticket as TicketIcon, GanttChartSquare, SquareCheck, X, ListTodo,
-  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock, MapPin,
+  ArrowRight, Users, Lock, Calendar, BarChart3, Lightbulb, CalendarClock, MapPin, CalendarDays,
 } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { usePermissoes } from '@/hooks/usePermissoes'
@@ -75,6 +75,8 @@ export default function CentralNav() {
   const emQuadros = pathname.startsWith('/tickets') && !naGerencial
   const abas = [
     { href: '/tickets/quadros', label: 'Quadros', icone: <LayoutGrid size={16} />, ativo: emQuadros },
+    // Agenda coletiva estilo Google (todos por setor + reuniões, sala, prazos, técnicos).
+    { href: '/agenda', label: 'Agenda', icone: <CalendarDays size={16} />, ativo: pathname.startsWith('/agenda') },
     { href: '/cronograma', label: 'Cronograma', icone: <GanttChartSquare size={16} />, ativo: pathname.startsWith('/cronograma') },
     // Reuniões (pauta + ata sobre a engine de tickets): mesma permissão da Central.
     { href: '/reunioes', label: 'Reuniões', icone: <CalendarClock size={16} />, ativo: pathname.startsWith('/reunioes'), n: reunioesHoje },
