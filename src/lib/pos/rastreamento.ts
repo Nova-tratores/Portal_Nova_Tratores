@@ -4,6 +4,7 @@
 // =============================================
 import { normalizarPlaca, resolverPlaca } from '@/lib/frota/placa'
 import { agregarIgnicao, type MetricasIgnicao } from '@/lib/frota/ignicao'
+import { diaBR } from '@/lib/frota/mapa-vivo'
 
 const API_URL = process.env.ROTAEXATA_API_URL || 'https://api.rotaexata.com.br'
 const EMAIL = process.env.ROTAEXATA_EMAIL || ''
@@ -40,7 +41,8 @@ export async function fetchRotaExata(endpoint: string, params?: Record<string, s
       .join('&')
     url += `?${qs}`
   }
-  const res = await fetch(url, { headers: { Authorization: token } })
+  // tempo limite: sem ele uma Rota Exata travada deixava a tela em "Carregando rota…" para sempre
+  const res = await fetch(url, { headers: { Authorization: token }, signal: AbortSignal.timeout(30_000) })
   if (res.status === 404) return { data: [] }
   if (!res.ok) {
     const text = await res.text()
@@ -302,7 +304,9 @@ export async function computarESalvarRota(
   placa: string,
   data: string,
 ): Promise<RotaDia> {
-  const hoje = new Date().toISOString().split('T')[0]
+  // dia em horário de Brasília: em UTC, depois das 21h "hoje" já era amanhã e a
+  // rota PARCIAL do dia era gravada no cache como se o dia tivesse acabado
+  const hoje = diaBR()
 
   // Chave CANÔNICA do cache: os chamadores passam a placa em formatos
   // diferentes ("EPX-5475" do supervisor, "EPX5475" do frota) e a mesma rota

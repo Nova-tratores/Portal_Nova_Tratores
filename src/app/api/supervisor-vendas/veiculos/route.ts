@@ -3,6 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 import { fetchRotaExata, fetchTudo, computarESalvarRota } from "@/lib/pos/rastreamento";
 import { normalizarPlaca } from "@/lib/frota/placa";
 import { acessoSupervisor } from "@/lib/supervisor/acesso";
+import { diaBR } from "@/lib/frota/mapa-vivo";
+
+export const maxDuration = 60;
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -14,7 +17,7 @@ export async function GET(req: NextRequest) {
   const acesso = await acessoSupervisor(req, { frota: true });
   if (acesso.resposta) return acesso.resposta;
   const acao = req.nextUrl.searchParams.get("acao") || "posicoes";
-  const hoje = new Date().toISOString().split("T")[0];
+  const hoje = diaBR();
 
   try {
     if (acao === "adesoes") {
@@ -79,8 +82,8 @@ export async function GET(req: NextRequest) {
       if (alvos.length === 0) return NextResponse.json([]);
 
       const agora = new Date();
-      const inicioDia = new Date(agora);
-      inicioDia.setHours(0, 0, 0, 0);
+      // meia-noite de Brasília (setHours usava o fuso do servidor, UTC no Railway)
+      const inicioDia = new Date(`${hoje}T00:00:00-03:00`);
 
       const BATCH = 10;
       const resultado: any[] = [];
@@ -209,7 +212,7 @@ export async function POST(req: NextRequest) {
     const { vendedor_id, vendedor_nome, placa } = await req.json();
     if (!vendedor_id || !placa) return NextResponse.json({ error: "vendedor_id e placa obrigatórios" }, { status: 400 });
 
-    const hoje = new Date().toISOString().split("T")[0];
+    const hoje = diaBR();
     const { error } = await supabase.from("checkin_vendedor").upsert({
       vendedor_id, vendedor_nome: vendedor_nome || "", placa, data: hoje,
     }, { onConflict: "vendedor_id,data" });

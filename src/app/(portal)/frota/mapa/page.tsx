@@ -1,21 +1,18 @@
 'use client';
-// Frota > Mapa — posição ao vivo + trajeto de qualquer dia de TODA a frota
-// rastreada. Reusa o MapaCarros do supervisor (Leaflet + OSM: ao vivo,
-// polyline do dia, paradas, histórico de 90 dias) — aqui só muda a fonte:
-// todos os 16 rastreados, não só os carros do comercial. Também desenha a
-// camada de LOCAIS: geocercas da Rota Exata + propriedades de clientes do
-// portal (as geocodificadas).
+// Frota > Mapa — cada carro ATIVO da frota na última posição conhecida, com a
+// cor da situação (andando · parado ligado · desligado · sem sinal), + o trajeto
+// de qualquer dia. Reusa o MapaCarros do supervisor em modo="frota": a lista e
+// os marcadores vêm de /api/frota/mapa/vivo. Camadas opcionais (começam
+// desligadas): LOCAIS (geocercas + propriedades de clientes) e VISITAS do dia.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Map as MapIcon, Search, X } from 'lucide-react';
 import { authHeaders } from '@/lib/auth/client';
 import { supabase } from '@/lib/supabase';
-import { formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
+import { resolverPlaca } from '@/lib/frota/placa';
 import type { LocalPin } from '@/components/supervisor/MapaCarros';
 
 const MapaCarros = dynamic(() => import('@/components/supervisor/MapaCarros'), { ssr: false });
-
-interface CarroMapa { placa: string; descricao?: string | null; pessoa_nome?: string | null }
 
 const CLASSE_LABEL: Record<string, string> = {
   loja: 'Loja', cliente: 'Cliente (geocerca)', manutencao: 'Manutenção',
@@ -34,33 +31,12 @@ const TIPO_CORES: Record<string, { bg: string; text: string }> = {
 const semAcento = (s: string) => s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
 
 export default function FrotaMapaPage() {
-  const [carros, setCarros] = useState<CarroMapa[]>([]);
   const [locais, setLocais] = useState<LocalPin[]>([]);
   const [visitas, setVisitas] = useState<any[]>([]);
-  const [erro, setErro] = useState('');
   // busca de cliente/local: escolher → o mapa voa até lá
   const [busca, setBusca] = useState('');
   const [buscaAberta, setBuscaAberta] = useState(false);
   const [foco, setFoco] = useState<{ lat: number; lng: number; nome?: string; subtitulo?: string } | null>(null);
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const r = await fetch('/api/frota/veiculos', { headers: await authHeaders() });
-        const d = await r.json();
-        if (!r.ok) { setErro(d.error || 'Falha ao carregar.'); return; }
-        setCarros(
-          (d.veiculos || [])
-            .filter((v: any) => v.tem_rastreador && v.tipo_registro === 'veiculo')
-            .map((v: any) => ({
-              placa: v.placa,
-              descricao: [v.marca, v.modelo || v.descricao].filter(Boolean).join(' ') || formatarPlaca(v.placa),
-              pessoa_nome: v.responsavel_nome,
-            })),
-        );
-      } catch (e) { setErro(String(e)); }
-    })();
-  }, []);
 
   // Camada de locais: geocercas + propriedades de clientes (falha em silêncio —
   // o mapa funciona sem ela)
@@ -90,18 +66,20 @@ export default function FrotaMapaPage() {
     })();
   }, []);
 
-  // Visitas dos VENDEDORES (TODAS, com coordenada) — o cadastro do comercial
-  // (vw_visitas_detalhadas) vira pins no mapa, com toggle próprio. Paginado
-  // de 1000 em 1000 (teto do PostgREST) pra não truncar quando crescer.
+  // Visitas dos VENDEDORES com coordenada — camada opcional; o mapa mostra só
+  // as do dia escolhido. Busca a janela do histórico de rotas (120 dias), não
+  // a história inteira. Paginado de 1000 em 1000 (teto do PostgREST).
   useEffect(() => {
     (async () => {
       try {
+        const desde = new Date(Date.now() - 120 * 86400_000).toISOString();
         const todas: any[] = [];
         for (let offset = 0; offset < 20_000; offset += 1000) {
           const { data } = await supabase
             .from('vw_visitas_detalhadas')
             .select('id, vendedor_nome, cliente_nome, tipo, data_visita, latitude, longitude')
             .not('latitude', 'is', null)
+            .gte('data_visita', desde)
             .order('data_visita', { ascending: false })
             .range(offset, offset + 999);
           todas.push(...(data || []));
@@ -153,7 +131,7 @@ export default function FrotaMapaPage() {
           <MapIcon size={20} color="#1e40af" /> Mapa & rastreamento
         </h2>
         <span style={{ fontSize: 13.5, color: 'var(--portal-text)' }}>
-          {carros.length} veículos rastreados · escolha um carro e uma data pra ver o trajeto e as paradas
+          Onde cada carro está agora. Clique num carro para ver o trajeto e as paradas do dia.
         </span>
         <div style={{ flex: 1 }} />
         {/* Busca de cliente/local: escolher → o mapa voa até lá */}
@@ -198,14 +176,12 @@ export default function FrotaMapaPage() {
           )}
         </div>
       </div>
-      {erro && <div style={{ color: '#b91c1c', fontSize: 13, marginBottom: 10 }}>{erro}</div>}
       {/* O MapaCarros usa height:100% — sem um pai com ALTURA EXPLÍCITA o
           Leaflet monta num container de 0px e a tela fica em branco. */}
       <div style={{ width: '100%', height: 'calc(100vh - 230px)', minHeight: 480, borderRadius: 0, overflow: 'hidden', border: '1px solid var(--portal-border)' }}>
         <MapaCarros
-          carros={carros as any}
-          fontePosicoes="frota"
-          tituloPainel="FROTA RASTREADA"
+          carros={[]}
+          modo="frota"
           locais={locais}
           visitas={visitas}
           tipoCores={TIPO_CORES}

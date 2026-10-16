@@ -18,6 +18,7 @@ import { temModuloFrota } from '@/lib/frota/server';
 import { fetchTudo } from '@/lib/pos/rastreamento';
 import { classificarParada, type GeocercaCtx } from '@/lib/frota/paradas';
 import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/propriedades';
+import { rotuloLocal as rotuloDe } from '@/lib/frota/mapa-vivo';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -122,18 +123,6 @@ async function cidadeDe(lat: number, lng: number): Promise<string | null> {
   return cidade || null;
 }
 
-function rotuloDe(classe: string, nome: string | null): string {
-  switch (classe) {
-    case 'loja': return 'Loja';
-    case 'cliente':
-    case 'cliente_portal': return nome ? `Cliente ${nome}` : 'Cliente';
-    case 'manutencao': return nome ? `Manutenção · ${nome}` : 'Manutenção';
-    case 'estacionamento': return 'Estacionamento';
-    case 'descarga': return nome ? `Descarga · ${nome}` : 'Descarga';
-    case 'outro_destino': return nome || 'Destino cadastrado';
-    default: return 'Sem cadastro de local';
-  }
-}
 
 export async function GET(req: NextRequest) {
   const auth = await autenticar(req);
