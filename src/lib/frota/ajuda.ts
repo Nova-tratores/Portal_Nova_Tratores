@@ -58,16 +58,23 @@ const AJUDA: Record<string, AjudaFrota> = {
   '/frota/mapa': {
     titulo: 'Mapa',
     icon: '🗺️',
-    resumo: 'Onde cada carro está e por onde andou.',
+    resumo: 'Onde cada carro está agora, quem está com ele e por onde andou.',
     oQueMostra:
-      'Os veículos com rastreador no mapa, com a última posição recebida, junto com os locais cadastrados (loja, clientes, ' +
-      'geocercas) e as visitas do CRM. A busca encontra um cliente ou local e leva o mapa até ele.',
+      'Os carros ATIVOS da frota com rastreador, cada um na última posição recebida, com a cor da situação e há quanto tempo ' +
+      'foi o último sinal. A lista mostra o técnico (vínculo da Janela Mecânico ou quem pegou o carro hoje), o lugar ("Loja", ' +
+      '"Cliente X") e a OS do Pós-Vendas em execução com o cliente. Carros muito próximos viram um grupo ("9 carros · Loja"). ' +
+      'Camadas opcionais (começam desligadas): visitas do CRM do dia, locais cadastrados e propriedades rurais (CAR).',
     comoUsar: [
-      'Digite o nome do cliente ou do local na busca para o mapa ir até o ponto.',
-      'Clique num carro para ver a placa, o responsável e o dia de uso; a Ficha completa fica na aba Veículos.',
+      'Clique num carro (no mapa ou na lista) para ver o trajeto, as paradas e a linha do tempo do dia; a lista de dias fica no painel.',
+      'Clique num grupo para ver os carros dele e escolher um.',
+      'Propriedades (CAR): ligue e aproxime o mapa; aparecem os contornos das fazendas dos municípios na tela. Roxo = tem cliente vinculado.',
+      'A busca encontra um cliente ou local e leva o mapa até ele.',
     ],
     termos: [
-      { t: 'Última posição', d: 'O ponto mais recente que o rastreador mandou; carro sem rastreador não aparece.' },
+      { t: 'Andando', d: 'Motor ligado e acima de 5 km/h.' },
+      { t: 'Parado com motor ligado', d: 'Motor ligado e parado (marcha lenta).' },
+      { t: 'Desligado', d: 'Motor desligado, com sinal nas últimas 24 h.' },
+      { t: 'Sem sinal', d: 'Mais de 1 h sem posição com o motor ligado, ou mais de 24 h desligado.' },
     ],
   },
   '/frota/pendencias': {

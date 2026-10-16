@@ -1,6 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { sanitizarFiltro } from "@/lib/busca-segura";
+import { autenticar, type Autenticado } from "@/lib/auth/server";
+
+// Até 16/10/2026 esta rota não pedia login: qualquer um na internet lia os
+// clientes (com CNPJ) e criava/editava/apagava em portal_nt_clientes_PRINCIPAL
+// (o chamador era o app estático do Mapa Geral, removido). Agora:
+//   GET  → login + Mapa/Frota/Feedbacks/Clientes;
+//   PUT  → idem, e SÓ coordenadas (o MiniMapa dos Feedbacks corrige a posição);
+//   POST/DELETE → só admin (o cadastro de cliente é na Omie).
+const MODULOS_LEITURA = ["mapa", "frota", "feedbacks", "clientes"];
+function podeLer(auth: Autenticado): boolean {
+  return auth.isAdmin || auth.modulos.some((m) => MODULOS_LEITURA.some((x) => m === x || m.startsWith(`${x}:`)));
+}
+const CAMPOS_PUT = new Set(["lat", "lng", "latitude", "longitude"]);
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -46,6 +59,9 @@ async function fetchAll(select: string) {
 }
 
 export async function GET(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  if (!podeLer(auth)) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   const id = req.nextUrl.searchParams.get("id");
   const busca = req.nextUrl.searchParams.get("busca");
 
@@ -138,6 +154,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  if (!auth.isAdmin) return NextResponse.json({ error: "Só administrador" }, { status: 403 });
   const body = await req.json();
 
   const { data, error } = await supabase
@@ -154,8 +173,15 @@ export async function POST(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  if (!podeLer(auth)) return NextResponse.json({ error: "Sem permissão" }, { status: 403 });
   const body = await req.json();
-  const { id, ...updates } = body;
+  const { id, ...resto } = body;
+  const updates = Object.fromEntries(Object.entries(resto).filter(([k]) => CAMPOS_PUT.has(k)));
+  if (!Object.keys(updates).length) {
+    return NextResponse.json({ error: "Só a posição (lat/lng) pode ser alterada por aqui" }, { status: 400 });
+  }
 
   if (!id) {
     return NextResponse.json({ error: "ID obrigatorio" }, { status: 400 });
@@ -174,6 +200,9 @@ export async function PUT(req: NextRequest) {
 }
 
 export async function DELETE(req: NextRequest) {
+  const auth = await autenticar(req);
+  if (!auth) return NextResponse.json({ error: "Não autenticado" }, { status: 401 });
+  if (!auth.isAdmin) return NextResponse.json({ error: "Só administrador" }, { status: 403 });
   const id = req.nextUrl.searchParams.get("id");
 
   if (!id) {

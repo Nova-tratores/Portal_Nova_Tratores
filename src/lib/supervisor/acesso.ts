@@ -3,11 +3,11 @@
 // carro↔pessoa ficavam abertos a qualquer um na internet).
 //
 // - leitura de rastreamento (posições, rota, histórico): Frota OU Supervisor
-//   de Vendas — as duas telas usam o mesmo mapa;
+//   de Vendas ou o módulo "mapa" (Mapa Técnico) — as telas usam o mesmo mapa;
 // - o resto (CRM, vínculo de carros, check-in): só Supervisor de Vendas.
 import { NextResponse } from 'next/server';
 import { autenticar, type Autenticado } from '@/lib/auth/server';
-import { temModuloFrota } from '@/lib/frota/server';
+import { temAcessoMapa } from '@/lib/frota/server';
 
 export function temSupervisorVendas(auth: Autenticado): boolean {
   if (auth.isAdmin) return true;
@@ -20,6 +20,6 @@ export async function acessoSupervisor(
 ): Promise<{ auth: Autenticado; resposta?: undefined } | { resposta: NextResponse; auth?: undefined }> {
   const auth = await autenticar(req);
   if (!auth) return { resposta: NextResponse.json({ error: 'Não autenticado' }, { status: 401 }) };
-  if (temSupervisorVendas(auth) || (frota && temModuloFrota(auth))) return { auth };
+  if (temSupervisorVendas(auth) || (frota && temAcessoMapa(auth))) return { auth };
   return { resposta: NextResponse.json({ error: 'Sem permissão' }, { status: 403 }) };
 }

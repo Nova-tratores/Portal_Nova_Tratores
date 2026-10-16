@@ -15,6 +15,8 @@ const esc = (s: unknown) => String(s ?? '').replace(/[<>&"']/g, (c) => ({ '<': '
 
 const ICONE_CARRO = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>'
 const ORDEM_STATUS: StatusVivo[] = ['andando', 'ligado_parado', 'desligado', 'sem_sinal']
+// "Paulo Motta / Gabriel Moraes" → "Paulo" (o rótulo do carro é curto)
+const primeiroNome = (s: string) => (s.split(' / ')[0] || '').trim().split(/\s+/)[0] || ''
 // Lugar conhecido (geocerca ou propriedade de cliente) — vira um pin discreto
 // no mapa, com botão pra ligar/desligar a camada.
 export interface LocalPin {
@@ -87,6 +89,15 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
   const [agoraMs, setAgoraMs] = useState(() => Date.now())
   const [avisoRota, setAvisoRota] = useState<string | null>(null)
   const [zoom, setZoom] = useState(10)
+  // camada Propriedades (CAR): contorno das fazendas dos municípios na tela
+  const carLayerRef = useRef<any>(null)
+  const carRendererRef = useRef<any>(null)
+  const carCacheRef = useRef(new Map<number, any>())
+  const [mostrarCar, setMostrarCar] = useState(false)
+  const [carMunicipios, setCarMunicipios] = useState<{ ibge: number; nome: string; centro: [number, number] }[] | null>(null)
+  const [carAviso, setCarAviso] = useState<string | null>(null)
+  const [carCarregando, setCarCarregando] = useState(false)
+  const [vistaTick, setVistaTick] = useState(0)
   // cada pedido de rota ganha um número: resposta atrasada de um clique
   // anterior não desenha por cima do carro escolhido depois
   const rotaReqRef = useRef(0)
@@ -125,6 +136,10 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
     visitasLayerRef.current = L.layerGroup().addTo(mapInstance.current)
     locaisLayerRef.current = L.layerGroup().addTo(mapInstance.current)
     mapInstance.current.on('zoomend', () => setZoom(mapInstance.current.getZoom()))
+    mapInstance.current.on('moveend', () => setVistaTick((t) => t + 1))
+    carLayerRef.current = L.layerGroup().addTo(mapInstance.current)
+    // muitos polígonos: desenho em canvas (SVG com ~900 contornos por município pesa)
+    carRendererRef.current = L.canvas({ padding: 0.5 })
   }, [ready])
 
   // "Voar até" o ponto buscado (cliente/local) — abre um popup no destino.
@@ -253,15 +268,17 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
           className: '',
           html: `<div style="display:flex;flex-direction:column;align-items:center;opacity:${apagado ? 0.35 : 1}">
             <div style="width:30px;height:30px;border-radius:50%;background:${cor};border:3px solid #fff;display:flex;align-items:center;justify-content:center;box-shadow:${escolhido ? `0 0 0 5px ${cor}55,` : ''}0 2px 6px rgba(0,0,0,0.45)">${ICONE_CARRO}</div>
-            <div style="margin-top:2px;background:rgba(15,23,42,0.9);color:#fff;font:700 10.5px Inter,sans-serif;padding:1px 6px;border-radius:4px;white-space:nowrap">${esc(v.placa_exibicao)}</div>
+            <div style="margin-top:2px;background:rgba(15,23,42,0.9);color:#fff;font:700 10.5px Inter,sans-serif;padding:1px 6px;border-radius:4px;white-space:nowrap">${v.nome ? `${esc(primeiroNome(v.nome))} · ` : ''}${esc(v.placa_exibicao)}</div>
+            ${v.os_execucao?.length ? `<div style="margin-top:1px;background:#15803d;color:#fff;font:700 9.5px Inter,sans-serif;padding:0 5px;border-radius:4px;white-space:nowrap">${esc(v.os_execucao[0].id)}</div>` : ''}
           </div>`,
-          iconSize: [84, 52], iconAnchor: [42, 18],
+          iconSize: [140, 64], iconAnchor: [70, 18],
         })
         const marker = L.marker([v.lat, v.lng], { icon, zIndexOffset: escolhido ? 6000 : 5000 })
         marker.bindTooltip(
           `<b>${esc(v.nome || v.placa_exibicao)}</b>${v.nome ? ` · ${esc(v.placa_exibicao)}` : ''}<br/>` +
           `<span style="color:${cor};font-weight:700">${STATUS_INFO[st].label}</span> · ${esc(haQuanto(v.dt, agoraMs))}` +
-          (v.local ? `<br/>${esc(v.local)}` : ''),
+          (v.local ? `<br/>${esc(v.local)}` : '') +
+          (v.os_execucao || []).map((o) => `<br/><span style="color:#15803d;font-weight:700">${esc(o.id)}</span> em execução${o.cliente ? ` · ${esc(o.cliente)}` : ''}`).join(''),
           { direction: 'top', offset: [0, -20] },
         )
         marker.on('click', () => selecionarCarroRef.current(v.placa, v.nome || v.placa_exibicao))
@@ -332,6 +349,76 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       marker.addTo(visitasLayerRef.current)
     }
   }, [visitasVisiveis, ready, tipoCores, fmtVisita, mostrarVisitas, onVisitaClick])
+
+  // Camada Propriedades (CAR): ligada e com zoom >= 11, carrega os municípios
+  // cujo centro está na tela (até 4, os mais perto do centro) e desenha o
+  // contorno. Propriedade com cliente vinculado fica roxa.
+  useEffect(() => {
+    if (!ehFrota || !ready || !mapInstance.current || !carLayerRef.current) return
+    const L = LRef.current
+    const camada = carLayerRef.current
+    if (!mostrarCar) { camada.clearLayers(); setCarAviso(null); return }
+    if (zoom < 11) { camada.clearLayers(); setCarAviso('Aproxime o mapa para ver as propriedades (CAR)'); return }
+    let vivo = true
+    ;(async () => {
+      try {
+        let lista = carMunicipios
+        if (!lista) {
+          if (vivo) { setCarAviso('Carregando propriedades (CAR)…'); setCarCarregando(true) }
+          const r = await fetchAuth('/api/frota/mapa/propriedades')
+          const d = await r.json().catch(() => ({}))
+          if (!r.ok) { if (vivo) setCarAviso(d.error || 'Camada de propriedades indisponível'); return }
+          lista = (d.municipios || []) as { ibge: number; nome: string; centro: [number, number] }[]
+          if (vivo) setCarMunicipios(lista)
+        }
+        const mapa = mapInstance.current
+        const area = mapa.getBounds().pad(0.6)
+        const c = mapa.getCenter()
+        const dist = (m: { centro: [number, number] }) => distKm({ lat: c.lat, lng: c.lng }, { lat: m.centro[0], lng: m.centro[1] })
+        const alvo = (lista || [])
+          .filter((m) => Array.isArray(m.centro) && area.contains([m.centro[0], m.centro[1]]))
+          .sort((a, b) => dist(a) - dist(b))
+          .slice(0, 4)
+        if (!alvo.length) { if (vivo) { camada.clearLayers(); setCarAviso('Sem propriedades (CAR) carregadas nesta região') } return }
+        const faltam = alvo.filter((m) => !carCacheRef.current.has(m.ibge))
+        if (faltam.length && vivo) { setCarCarregando(true); setCarAviso(`Carregando propriedades (CAR) de ${faltam.map((m) => m.nome).join(', ')}…`) }
+        // em paralelo: cada município leva alguns segundos no banco
+        await Promise.all(faltam.map(async (m) => {
+          const r = await fetchAuth(`/api/frota/mapa/propriedades?municipio=${m.ibge}`)
+          if (r.ok) carCacheRef.current.set(m.ibge, await r.json())
+        }))
+        if (!vivo) return
+        camada.clearLayers()
+        for (const m of alvo) {
+          const fc = carCacheRef.current.get(m.ibge)
+          if (!fc) continue
+          L.geoJSON(fc, {
+            renderer: carRendererRef.current,
+            style: (f: any) => (f.properties?.clientes
+              ? { color: '#7c3aed', weight: 1.5, fillColor: '#7c3aed', fillOpacity: 0.18 }
+              : { color: '#15803d', weight: 1, fillColor: '#15803d', fillOpacity: 0.04 }),
+            onEachFeature: (f: any, layer: any) => {
+              const pr = f.properties || {}
+              const ha = pr.area_ha != null ? `${Number(pr.area_ha).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} ha` : ''
+              layer.bindPopup(
+                `<div style="font-size:12px;font-weight:800;color:#334155">Propriedade rural (CAR) · ${esc(m.nome)}</div>` +
+                (pr.clientes ? `<div style="font-size:13px;font-weight:700;color:#7c3aed;margin-top:3px">${esc(pr.clientes)}</div>` : '<div style="font-size:11.5px;color:#64748b;margin-top:3px">sem cliente vinculado</div>') +
+                `<div style="font-size:12px;margin-top:3px">${[ha, pr.cultura].filter(Boolean).map(esc).join(' · ')}</div>` +
+                `<div style="font-size:10px;color:#94a3b8;margin-top:3px">${esc(pr.cod_car || '')}</div>`,
+                { maxWidth: 280 },
+              )
+            },
+          }).addTo(camada)
+        }
+        setCarAviso(null)
+      } catch {
+        if (vivo) setCarAviso('Não foi possível carregar as propriedades agora')
+      } finally {
+        if (vivo) setCarCarregando(false)
+      }
+    })()
+    return () => { vivo = false }
+  }, [ehFrota, ready, mostrarCar, zoom, vistaTick, carMunicipios])
 
   // Histórico do carro (lista de dias salvos)
   const abrirCarro = useCallback(async (placa: string, nome: string) => {
@@ -574,6 +661,11 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
                         <span style={{ display: 'block', fontSize: 11, color: st === 'sem_sinal' ? '#b91c1c' : '#475569', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {!v.tem_rastreador ? 'sem rastreador vinculado' : `${haQuanto(v.dt, agoraMs)}${v.local ? ` · ${v.local}` : ''}`}
                         </span>
+                        {(v.os_execucao || []).map((o) => (
+                          <span key={o.id} style={{ display: 'block', fontSize: 11, color: '#15803d', fontWeight: 700, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {o.id} em execução{o.cliente ? ` · ${o.cliente}` : ''}
+                          </span>
+                        ))}
                       </span>
                     </button>
                   )
@@ -645,7 +737,7 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
       </div>
 
       {/* Liga/desliga as camadas de contexto (aparecem quando a tela passou os dados) */}
-      {(locais.length > 0 || visitas.length > 0) && (
+      {(locais.length > 0 || visitas.length > 0 || ehFrota) && (
         <div style={{ position: 'absolute', ...(isMobile ? { top: 10, right: 10, flexDirection: 'column', alignItems: 'flex-end' } as React.CSSProperties : { bottom: 12, right: 12 }), zIndex: 1000, display: 'flex', gap: 6 }}>
           {visitas.length > 0 && (
             <button
@@ -679,6 +771,28 @@ export default function MapaCarros({ carros, visitas = [], tipoCores = {}, onVis
               Locais ({locais.length})
             </button>
           )}
+          {ehFrota && (
+            <button
+              onClick={() => setMostrarCar((v) => !v)}
+              title={mostrarCar ? 'Ocultar o contorno das propriedades rurais' : 'Mostrar o contorno das propriedades rurais (CAR) dos municípios na tela'}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6, padding: '7px 12px',
+                borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700,
+                background: mostrarCar ? '#7c3aed' : 'rgba(255,255,255,0.97)',
+                color: mostrarCar ? '#fff' : '#475569',
+                boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
+              }}
+            >
+              <span style={{ width: 8, height: 8, borderRadius: 2, background: mostrarCar ? '#ddd6fe' : '#94a3b8' }} />
+              {carCarregando ? 'Propriedades…' : 'Propriedades (CAR)'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {ehFrota && mostrarCar && carAviso && (
+        <div style={{ position: 'absolute', bottom: 56, left: '50%', transform: 'translateX(-50%)', zIndex: 1000, background: 'rgba(30,41,59,0.92)', color: '#fff', padding: '6px 12px', borderRadius: 8, fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {carAviso}
         </div>
       )}
 

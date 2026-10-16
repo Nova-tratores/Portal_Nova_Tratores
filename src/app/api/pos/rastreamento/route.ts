@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { autenticar } from '@/lib/auth/server'
 import { normalizarPlaca } from '@/lib/frota/placa'
 import { supabase } from '@/lib/pos/supabase'
 
@@ -559,6 +560,12 @@ export async function GET(req: NextRequest) {
  * body: { adesao_id, motorista_id }
  */
 export async function POST(req: NextRequest) {
+  // grava no Rota Exata e em tecnico_veiculos: exige login (até 16/10/2026 era
+  // aberto). O GET continua aberto porque a TV da oficina (/tv-painel) lê sem login.
+  const auth = await autenticar(req)
+  if (!auth) return NextResponse.json({ error: 'Não autenticado' }, { status: 401 })
+  const podeGravar = auth.isAdmin || auth.modulos.some((m) => ['mecanicos', 'pos', 'frota'].some((x) => m === x || m.startsWith(x + ':')))
+  if (!podeGravar) return NextResponse.json({ error: 'Sem permissão' }, { status: 403 })
   try {
     const body = await req.json()
     const acao = body.acao

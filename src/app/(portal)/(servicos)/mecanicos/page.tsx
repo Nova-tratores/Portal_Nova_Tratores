@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { authHeaders } from '@/lib/auth/client'
 import { usePermissoes } from '@/hooks/usePermissoes'
 import SemPermissao from '@/components/SemPermissao'
 import { gateBtn, estiloSemPermissao } from '@/lib/permissoes/ui'
@@ -338,7 +339,7 @@ export default function MecanicosPage() {
     setVincSaving(true)
     try {
       const res = await fetch('/api/pos/rastreamento', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({
           acao: 'vincular_veiculo_tecnico',
           tecnico_nome: detalhe.tecnico_nome || detalhe.nome,
@@ -363,7 +364,7 @@ export default function MecanicosPage() {
     setVincSaving(true)
     try {
       const res = await fetch('/api/pos/rastreamento', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ acao: 'desvincular_veiculo_tecnico', tecnico_nome: detalhe.tecnico_nome || detalhe.nome, motorista_id: detalhe.veiculo.motorista_id }),
       })
       const d = await res.json()

@@ -91,6 +91,26 @@ export function ordenarVivos<T extends { status: StatusVivo; nome?: string | nul
   );
 }
 
+/** "GABRIEL MORAES" e "Gabriel Moraes" são a mesma pessoa (a OS grava em
+ *  caixa alta, o vínculo técnico↔carro não). */
+export function chaveNome(s: string | null | undefined): string {
+  return String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+export interface OsExecucao { id: string; cliente: string | null }
+
+/** OS em execução de qualquer um dos técnicos do carro (técnico 1 ou 2 da OS). */
+export function osDosTecnicos(
+  tecnicos: string[],
+  ordens: { Id_Ordem: string; Os_Cliente?: string | null; Os_Tecnico?: string | null; Os_Tecnico2?: string | null }[],
+): OsExecucao[] {
+  const nomes = new Set(tecnicos.map(chaveNome).filter(Boolean));
+  if (!nomes.size) return [];
+  return ordens
+    .filter((o) => nomes.has(chaveNome(o.Os_Tecnico)) || nomes.has(chaveNome(o.Os_Tecnico2)))
+    .map((o) => ({ id: o.Id_Ordem, cliente: limparNome(o.Os_Cliente) }));
+}
+
 /** Junta carros a até `raioKm` uns dos outros (pátio da loja: 9 carros no mesmo
  *  ponto viravam um borrão). Guloso, na ordem recebida; o centro do grupo é o
  *  1º carro. Carros sem posição ficam de fora. */

@@ -12,17 +12,21 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { fetchTudo } from '@/lib/pos/rastreamento';
 import { classificarParada, type GeocercaCtx } from '@/lib/frota/paradas';
 import { carregarPropriedades, propriedadesComoGeocercas } from '@/lib/frota/propriedades';
-import { diaBR, limparNome, ordenarVivos, rotuloLocal, statusVivo, type StatusVivo } from '@/lib/frota/mapa-vivo';
+import { chaveNome, diaBR, limparNome, ordenarVivos, osDosTecnicos, rotuloLocal, statusVivo, type OsExecucao, type StatusVivo } from '@/lib/frota/mapa-vivo';
 import { formatarPlaca, resolverPlaca } from '@/lib/frota/placa';
 
 export interface VeiculoVivo {
   placa: string;
   placa_exibicao: string;
   modelo: string;
-  /** quem dirige hoje (check-in do app) ou o responsável do carro */
+  /** quem dirige hoje (check-in) > técnico(s) vinculados ao carro > responsável da Frota */
   nome: string | null;
   motorista_hoje: string | null;
   responsavel: string | null;
+  /** vínculo técnico↔carro da Janela Mecânico (tecnico_veiculos) */
+  tecnicos: string[];
+  /** OS do Pós em execução de algum desses técnicos — o cliente que está sendo atendido */
+  os_execucao: OsExecucao[];
   tem_rastreador: boolean;
   lat: number | null;
   lng: number | null;
@@ -89,7 +93,7 @@ async function geocercasCtx(supabase: SupabaseClient): Promise<GeocercaCtx[]> {
 
 async function montar(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
   const hoje = diaBR();
-  const [veic, resp, uso, geocercas] = await Promise.all([
+  const [veic, resp, uso, geocercas, vinc, ordens] = await Promise.all([
     supabase.from('frota_veiculos')
       .select('id, placa, marca, modelo, descricao, adesao_id')
       .eq('tipo_registro', 'veiculo').eq('ativo', true).eq('tem_rastreador', true)
@@ -98,6 +102,8 @@ async function montar(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
     // quem pegou o carro hoje (check-in dos vendedores + app dos mecânicos)
     supabase.from('vw_frota_uso_diario').select('placa, pessoa_nome, created_at').eq('data', hoje),
     geocercasCtx(supabase).catch(() => [] as GeocercaCtx[]),
+    supabase.from('tecnico_veiculos').select('tecnico_nome, placa'),
+    supabase.from('Ordem_Servico').select('Id_Ordem, Os_Cliente, Os_Tecnico, Os_Tecnico2').eq('Status', 'Execução'),
   ]);
   if (veic.error) throw new Error(veic.error.message);
 
@@ -109,6 +115,18 @@ async function montar(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
     const atual = motoristaHoje.get(p);
     if (u.pessoa_nome && (!atual || String(u.created_at) > atual.at)) motoristaHoje.set(p, { nome: u.pessoa_nome, at: String(u.created_at) });
   }
+
+  // técnicos por placa (sem repetir a mesma pessoa escrita de dois jeitos)
+  const tecnicosPorPlaca = new Map<string, string[]>();
+  for (const t of (vinc.data || []) as { tecnico_nome: string; placa: string }[]) {
+    const p = resolverPlaca(t.placa || '');
+    const nome = limparNome(t.tecnico_nome);
+    if (!p || !nome) continue;
+    const arr = tecnicosPorPlaca.get(p) || [];
+    if (!arr.some((x) => chaveNome(x) === chaveNome(nome))) arr.push(nome);
+    tecnicosPorPlaca.set(p, arr);
+  }
+  const ordensExec = (ordens.data || []) as { Id_Ordem: string; Os_Cliente: string | null; Os_Tecnico: string | null; Os_Tecnico2: string | null }[];
 
   const veiculos = veic.data || [];
   const posicoes = new Map<string, Pos>();
@@ -127,6 +145,8 @@ async function montar(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
     const pos = posicoes.get(v.placa) || null;
     const responsavel = limparNome(respPorVeiculo.get(v.id));
     const motorista_hoje = limparNome(motoristaHoje.get(resolverPlaca(v.placa))?.nome);
+    const tecnicos = tecnicosPorPlaca.get(resolverPlaca(v.placa)) || [];
+    const os_execucao = osDosTecnicos(motorista_hoje ? [motorista_hoje, ...tecnicos] : tecnicos, ordensExec);
     let local: string | null = null;
     if (pos) {
       const emMovimento = pos.fonte === 'ao_vivo' && pos.ignicao && pos.velocidade >= 15;
@@ -143,9 +163,11 @@ async function montar(supabase: SupabaseClient): Promise<VeiculoVivo[]> {
       placa: v.placa,
       placa_exibicao: formatarPlaca(v.placa),
       modelo: [v.marca, v.modelo || v.descricao].filter(Boolean).join(' '),
-      nome: motorista_hoje || responsavel,
+      nome: motorista_hoje || (tecnicos.length ? tecnicos.join(' / ') : null) || responsavel,
       motorista_hoje,
       responsavel,
+      tecnicos,
+      os_execucao,
       tem_rastreador: Number(v.adesao_id) > 0,
       lat: pos?.lat ?? null,
       lng: pos?.lng ?? null,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agruparPorProximidade, contarPorStatus, diaBR, haQuanto, limparNome, ordenarVivos, statusVivo } from '../mapa-vivo';
+import { osDosTecnicos, agruparPorProximidade, contarPorStatus, diaBR, haQuanto, limparNome, ordenarVivos, statusVivo } from '../mapa-vivo';
 
 const AGORA = new Date('2026-10-15T15:00:00Z').getTime();
 const ha = (min: number) => new Date(AGORA - min * 60000).toISOString();
@@ -52,6 +52,21 @@ describe('limparNome', () => {
     expect(limparNome('NICOLAS DARIO')).toBe('Nicolas Dario');
     expect(limparNome('DANILO DE SOUZA')).toBe('Danilo de Souza');
     expect(limparNome('Lucas Jose Bragança Enz')).toBe('Lucas Jose Bragança Enz');
+  });
+});
+
+describe('osDosTecnicos', () => {
+  const ordens = [
+    { Id_Ordem: 'OS-0836', Os_Cliente: 'CLAIR SANDRO DOGNANI', Os_Tecnico: 'GABRIEL MORAES', Os_Tecnico2: '' },
+    { Id_Ordem: 'OS-0900', Os_Cliente: 'FAZENDA X', Os_Tecnico: 'JOSÉ OLIVEIRA', Os_Tecnico2: 'Paulo Motta' },
+  ];
+  it('acha a OS pelo técnico 1 ou 2, sem ligar para caixa e acento', () => {
+    expect(osDosTecnicos(['Gabriel Moraes'], ordens)).toEqual([{ id: 'OS-0836', cliente: 'Clair Sandro Dognani' }]);
+    expect(osDosTecnicos(['paulo motta'], ordens).map((o) => o.id)).toEqual(['OS-0900']);
+    expect(osDosTecnicos(['Jose Oliveira'], ordens).map((o) => o.id)).toEqual(['OS-0900']);
+  });
+  it('sem técnico não acha nada', () => {
+    expect(osDosTecnicos([], ordens)).toEqual([]);
   });
 });
 

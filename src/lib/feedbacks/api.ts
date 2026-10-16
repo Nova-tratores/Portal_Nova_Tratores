@@ -367,7 +367,7 @@ export async function buscarLocalizacaoCliente(codigoOmie: string): Promise<Loca
 export async function salvarLocalizacaoCliente(id: number, lat: number, lng: number): Promise<void> {
   const res = await fetch("/api/mapa/clientes", {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...(await authHeaders()) },
     body: JSON.stringify({ id, lat, lng }),
   });
   if (!res.ok) {

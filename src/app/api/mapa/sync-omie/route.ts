@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { omie } from "@/lib/omie/porta";
+import { exigirAdmin } from "@/lib/auth/server";
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL || "",
@@ -57,6 +58,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Chaves Omie nao configuradas" }, { status: 500 });
   }
 
+  // só admin: o único chamador era o botão do app estático do Mapa Geral
+  // (removido em 16/10/2026); antes qualquer um disparava o sync sem login
+  if (!(await exigirAdmin(req))) return NextResponse.json({ error: "Só administrador" }, { status: 403 });
   const body = await req.json().catch(() => ({}));
   const geocodificar = body.geocodificar !== false; // default true
   const maxGeocode = body.maxGeocode || 50; // limite por chamada (respeitar rate limit)

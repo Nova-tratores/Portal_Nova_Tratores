@@ -14,6 +14,12 @@ export function temModuloFrota(auth: Autenticado): boolean {
   );
 }
 
+/** Mapa dos carros (/frota/mapa e /mapa-geral): Frota OU o módulo "mapa"
+ *  (Mapa Técnico do Pós-Vendas, que desde 16/10/2026 é a mesma tela). */
+export function temAcessoMapa(auth: Autenticado): boolean {
+  return temModuloFrota(auth) || auth.modulos.some((m) => m === 'mapa' || m.startsWith('mapa:'));
+}
+
 /** Módulo "Pendências (Frota)" — abrir/acompanhar pendências dos carros sem o
  *  módulo Frota inteiro. Quem tem Frota também passa. */
 export function temModuloPendencias(auth: Autenticado): boolean {

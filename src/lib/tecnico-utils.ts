@@ -6,7 +6,7 @@
  * reconhecido como o mesmo usuario.
  *
  * Usado por: /api/mecanicos, /api/painel-mecanicos, /api/pos/ordens/omie-sync,
- *            /lib/pos/omie, /lib/omie/matching, /public/mapa-geral/js/relatorio.js (manual)
+ *            /lib/pos/omie, /lib/omie/matching
  */
 
 const DIACRITICS = /[\u0300-\u036f]/g;
