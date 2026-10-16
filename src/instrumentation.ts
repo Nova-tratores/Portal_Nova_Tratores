@@ -288,5 +288,30 @@ export async function register(): Promise<void> {
     log('cache de notas fiscais LIGADO (indexa + 120 notas a cada 10 min)');
   }
 
+  // CENTRO DO PÓS-VENDAS (Janela Mecânicos, 16/10/2026): deixa a base de 4 anos sempre gravada
+  // (a tela abre e troca de data na hora) e a leitura do Tratorilson pronta (refaz quando passa
+  // de 3 h, só 06h–20h). Só produção; POS_PAINEL_AQUECER=on liga no local, =off desliga.
+  if (rodaRobos && ((process.env.NODE_ENV === 'production' && process.env.POS_PAINEL_AQUECER !== 'off') || process.env.POS_PAINEL_AQUECER === 'on')) {
+    const rodarPainel = async () => {
+      try {
+        const { aquecerBase } = await import('./lib/mecanicos/base-cache');
+        await aquecerBase();
+        const hora = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false }).format(new Date()));
+        if (hora >= 6 && hora < 20) {
+          const { ultimaAnalise, gerarUmaVez, estaGerando, VALIDADE_ANALISE_MS } = await import('./lib/mecanicos/analise-server');
+          const u = await ultimaAnalise();
+          if ((!u || Date.now() - Date.parse(u.geradaEm) > VALIDADE_ANALISE_MS) && !estaGerando()) {
+            // leitura do sistema: vê tudo (a agenda só usa o login para mascarar itens privados)
+            await gerarUmaVez({ userId: '', email: null, isAdmin: true, isDev: false, categoria: null, modulos: [] }, 'Tratorilson (automático)');
+            log('pos-painel: leitura do Tratorilson atualizada');
+          }
+        }
+      } catch (e) { log('pos-painel falhou: ' + (e as Error).message); }
+    };
+    setInterval(() => { rodarPainel().catch(() => {}); }, 10 * 60 * 1000);
+    setTimeout(() => { rodarPainel().catch(() => {}); }, 90 * 1000); // 1ª rodada ~1,5 min após o boot
+    log('centro do pós-vendas: base + leitura do Tratorilson aquecidas a cada 10 min');
+  }
+
   log('schedulers registrados (lembrete-nf 5min, pasta-cliente 5min; financeiro-scanner sob SYNC_FINANCEIRO_AUTO). sync-incremental e backfill-cmc agora no GitHub Actions.');
 }

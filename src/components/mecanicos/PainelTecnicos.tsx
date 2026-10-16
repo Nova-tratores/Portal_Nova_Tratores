@@ -1,251 +1,252 @@
 'use client'
-// Painel do pós-vendas por técnico (José, 16/10/2026): horas faturadas × internas × ociosas
-// contra a meta (40 h/semana, seg–sex), km e valor gerado (serviço, km, peças; bruto, custo
-// de terceiros e líquido), por semana ou mês, com evolução e ficha de cada técnico.
-// Dados: GET /api/mecanicos/painel. Regras em lib/mecanicos/painel.ts.
-import { useCallback, useEffect, useMemo, useState } from 'react'
+// Painel do pós-vendas (José, 16/10/2026) — uma história só, de cima para baixo:
+//  1. Faturamento ao vivo (hoje · semana · mês)
+//  2. Fita do tempo (escolhe o período)
+//  3. A CONTA do período: faturado − terceiros − gastos (abastecimento/alimentação) = resultado
+//  4. Um CARTÃO por técnico: horas × meta, faturado, gastos, km, pontos de ocorrência e resultado
+//  5. Evolução com UM gráfico (escolhe o que ver; clicar na barra vai para aquele período)
+// Dados: base inteira de GET /api/mecanicos/base (gravada no banco), calculada na tela por montarPainel.
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, Cell, ComposedChart, Line, CartesianGrid, PieChart, Pie, Legend,
-} from 'recharts'
-import { authHeaders } from '@/lib/auth/client'
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, ReferenceLine, Cell, CartesianGrid } from 'recharts'
 import type { LinhaTecnico, OSFaturada, DiaRegistrado } from '@/lib/mecanicos/painel'
-import { brl, brl2, horas, kmFmt, COR, Kpi, Cartao, EstilosCPV } from './ui'
+import { brl, brl2, horas, kmFmt, COR, Kpi, Cartao, EstilosCPV, Numero } from './ui'
+import SeletorTempo from './SeletorTempo'
+import FaturamentoVivo from './FaturamentoVivo'
+import { montarPainel, pesosPorOS, SEM_TECNICO, type Escala, type PainelMontado } from '@/lib/mecanicos/painel'
+import { porDiaDe } from '@/lib/mecanicos/fita'
+import { faixa } from '@/lib/mecanicos/ocorrencias-painel'
+import { authHeaders } from '@/lib/auth/client'
+import { useBasePosVendas } from './useBasePosVendas'
 
-interface Resp {
-  tipo: 'semana' | 'mes'; ref: string; periodo: { de: string; ate: string; rotulo: string }
-  linhas: LinhaTecnico[]; total: LinhaTecnico
-  serie: { rotulo: string; de: string; ate: string; total: LinhaTecnico; porTecnico: Record<string, { faturadas: number; internas: number; ociosas: number; bruto: number; liquido: number; km: number }> }[]
-  os: OSFaturada[]; dias: DiaRegistrado[]
-}
+type Resp = PainelMontado & { geradoEm?: string }
+type Metrica = 'bruto' | 'resultado' | 'faturadas' | 'gastos'
 
 const hojeSP = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date())
-const somar = (dia: string, n: number) => { const d = new Date(`${dia}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
-const somarMes = (dia: string, n: number) => { const [a, m] = dia.split('-').map(Number); const k = a * 12 + m - 1 + n; return `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}-15` }
 const br = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
-const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro']
-const primeiroNome = (n: string) => n.split(' ').slice(0, 2).join(' ')
+interface OSInterna { os: string; cliente: string; motivo: string; horas: number; tecnicos: string[] }
+const TXT = 'var(--portal-text, #0f172a)', MUDO = 'var(--portal-text-muted, #64748b)'
+const COR_GASTO = '#ea580c'
+const COR_RESULT = '#0f766e'
+const METRICAS: [Metrica, string][] = [['bruto', 'Faturado'], ['resultado', 'Resultado'], ['faturadas', 'Horas faturadas'], ['gastos', 'Gastos']]
 
 export default function PainelTecnicos() {
-  const [tipo, setTipo] = useState<'semana' | 'mes'>('semana')
+  const [tipo, setTipo] = useState<Escala>('semana')
   const [ref, setRef] = useState(hojeSP)
-  const [d, setD] = useState<Resp | null>(null)
-  const [carregando, setCarregando] = useState(true)
-  const [erro, setErro] = useState('')
-  const [foco, setFoco] = useState<string>('Equipe')
+  const [metrica, setMetrica] = useState<Metrica>('bruto')
   const [ficha, setFicha] = useState<string | null>(null)
   const [listaOS, setListaOS] = useState<{ titulo: string; os: OSFaturada[] } | null>(null)
+  const [verInternas, setVerInternas] = useState(false)
+  const [pontos, setPontos] = useState<Record<string, number>>({})
 
-  const carregar = useCallback(async () => {
-    setCarregando(true); setErro('')
-    try {
-      const r = await fetch(`/api/mecanicos/painel?tipo=${tipo}&ref=${ref}`, { headers: await authHeaders(), cache: 'no-store' })
-      const j = await r.json()
-      if (!r.ok) throw new Error(j.error || `Erro ${r.status}`)
-      setD(j)
-    } catch (e) { setErro(e instanceof Error ? e.message : 'Falha') } finally { setCarregando(false) }
-  }, [tipo, ref])
-  useEffect(() => { let vivo = true; Promise.resolve().then(() => { if (vivo) void carregar() }); return () => { vivo = false } }, [carregar])
+  // base baixada uma vez; cada período é calculado aqui mesmo (troca de data instantânea)
+  const { base, carregando, erro, recarregar } = useBasePosVendas()
+  const pesos = useMemo(() => (base ? pesosPorOS(base.diasTodos) : undefined), [base])
+  const porDia = useMemo(() => (base ? porDiaDe(base.faturadas) : null), [base])
+  const d: Resp | null = useMemo(() => (base ? { ...montarPainel(base, tipo, ref, hojeSP(), pesos), geradoEm: base.geradoEm } : null), [base, tipo, ref, pesos])
 
-  const tecnicos = useMemo(() => (d?.linhas || []).filter((l) => l.tecnico !== 'Sem técnico'), [d])
-  const rotuloPeriodo = d ? (tipo === 'semana' ? `Semana de ${br(d.periodo.de)} a ${br(d.periodo.ate)}` : `${MESES[Number(d.periodo.de.slice(5, 7)) - 1]} de ${d.periodo.de.slice(0, 4)}`) : ''
-  const andar = (n: number) => setRef((r) => (tipo === 'semana' ? somar(r, 7 * n) : somarMes(r, n)))
+  // pontos de ocorrência do mês do período (escudo de 100)
+  const mesRef = ref.slice(0, 7)
+  useEffect(() => {
+    let vivo = true
+    ;(async () => {
+      try {
+        const r = await fetch(`/api/mecanicos/ocorrencias-painel?mes=${mesRef}`, { headers: await authHeaders(), cache: 'no-store' })
+        const j = await r.json()
+        if (r.ok && vivo) setPontos(Object.fromEntries((j.linhas || []).map((l: { tecnico: string; saldo: number }) => [l.tecnico, l.saldo])))
+      } catch { /* sem pontos: o cartão não mostra o selo */ }
+    })()
+    return () => { vivo = false }
+  }, [mesRef])
 
-  const meta = tecnicos[0]?.meta || (tipo === 'semana' ? 40 : 0)
-  const dadosMeta = tecnicos.map((l) => ({ nome: primeiroNome(l.tecnico), tecnico: l.tecnico, Faturadas: l.faturadas, Internas: l.internas, Ociosas: l.ociosas, pct: l.meta ? Math.round(((l.faturadas + l.internas) / l.meta) * 100) : 0 }))
-  const dadosValor = (d?.linhas || []).map((l) => ({ nome: primeiroNome(l.tecnico), tecnico: l.tecnico, Serviço: l.servico, Km: l.kmValor, Peças: l.pecas, Outros: Math.max(0, l.outros), custo: l.custo, liquido: l.liquido }))
-  const dadosSerie = (d?.serie || []).map((b) => {
-    const x = foco === 'Equipe' ? { bruto: b.total.bruto, liquido: b.total.liquido, faturadas: b.total.faturadas } : { bruto: b.porTecnico[foco]?.bruto || 0, liquido: b.porTecnico[foco]?.liquido || 0, faturadas: b.porTecnico[foco]?.faturadas || 0 }
-    return { rotulo: b.rotulo, Bruto: x.bruto, Líquido: x.liquido, 'Horas faturadas': x.faturadas }
-  })
   const t = d?.total
-  const composicao = t ? [
-    { nome: 'Serviço', valor: t.servico, cor: COR.servico }, { nome: 'Km', valor: t.kmValor, cor: COR.km },
-    { nome: 'Peças', valor: t.pecas, cor: COR.pecas }, { nome: 'Outros', valor: Math.max(0, t.outros), cor: COR.outros },
-  ].filter((x) => x.valor > 0) : []
+  const g = d?.gastos
+  const resultado = t && g ? t.liquido - g.foraDasOS : 0
+  const tecnicos = useMemo(() => (d?.linhas || []).filter((l) => l.tecnico !== SEM_TECNICO), [d])
+  const semTecnico = d?.linhas.find((l) => l.tecnico === SEM_TECNICO)
+  const osDoTecnico = (tec: string) => (d?.os || []).filter((o) => (o.tecnicos.length ? o.tecnicos : [SEM_TECNICO]).includes(tec))
+  const gastoDe = (tec: string) => d?.gastos.porPessoa.find((p) => p.pessoa === tec)
 
-  const osDoTecnico = (tec: string) => (d?.os || []).filter((o) => (o.tecnicos.length ? o.tecnicos : ['Sem técnico']).includes(tec))
+  const serie = (d?.serie || []).map((b, i) => {
+    const gs = d!.gastosSerie[i]
+    const v = metrica === 'bruto' ? b.total.bruto : metrica === 'faturadas' ? b.total.faturadas : metrica === 'gastos' ? gs?.total || 0 : b.total.liquido - (gs ? gs.total : 0)
+    return { rotulo: b.rotulo, de: b.de, valor: Math.round(v * 10) / 10, atual: ref >= b.de && ref <= b.ate }
+  })
+  const corMetrica = metrica === 'bruto' ? '#0369a1' : metrica === 'faturadas' ? COR.faturadas : metrica === 'gastos' ? COR_GASTO : COR_RESULT
 
   return (
     <div>
       <EstilosCPV />
-      {/* período */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginBottom: 16 }}>
-        <div style={{ display: 'inline-flex', background: 'var(--portal-bg-secondary, #f1f5f9)', borderRadius: 10, padding: 3 }}>
-          {(['semana', 'mes'] as const).map((k) => (
-            <button key={k} type="button" onClick={() => setTipo(k)} style={{ border: 'none', borderRadius: 8, padding: '7px 16px', fontWeight: 700, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', background: tipo === k ? 'var(--portal-bg-card, #fefefe)' : 'transparent', color: tipo === k ? '#0369a1' : 'var(--portal-text-muted, #64748b)', boxShadow: tipo === k ? '0 1px 3px rgba(15,23,42,.12)' : 'none' }}>{k === 'semana' ? 'Semana' : 'Mês'}</button>
-          ))}
-        </div>
-        <button type="button" onClick={() => andar(-1)} aria-label="Anterior" style={btnSeta}><i className="fas fa-chevron-left" /></button>
-        <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--portal-text, #0f172a)', minWidth: 210, textAlign: 'center' }}>{rotuloPeriodo || '…'}</div>
-        <button type="button" onClick={() => andar(1)} aria-label="Próximo" style={btnSeta}><i className="fas fa-chevron-right" /></button>
-        <button type="button" onClick={() => setRef(hojeSP())} style={{ ...btnSeta, width: 'auto', padding: '0 12px', fontSize: 12.5, fontWeight: 700 }}>Hoje</button>
-        {carregando && <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #64748b)' }}><i className="fas fa-spinner fa-spin" /> carregando…</span>}
-        <span style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--portal-text-muted, #94a3b8)' }}>Meta: 8 h por dia útil (seg–sex){tipo === 'semana' ? ' = 40 h' : ''}</span>
-      </div>
+      <style>{ESTILO}</style>
+      <FaturamentoVivo compacto />
+      <SeletorTempo escala={tipo} refDia={ref} onMudar={(e, r) => { setTipo(e); setRef(r) }} porDia={porDia} desde={base?.de} carregando={carregando} geradoEm={base?.geradoEm} onAtualizar={() => void recarregar()} />
       {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
+      {!d && carregando && <div style={{ padding: 40, textAlign: 'center', color: MUDO }}><i className="fas fa-circle-notch fa-spin" /> carregando o histórico…</div>}
 
-      {t && (
+      {t && g && (
         <>
-          {/* indicadores */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 12, marginBottom: 14 }}>
-            <Kpi titulo="Horas faturadas" valor={t.faturadas} formato={horas} cor={COR.faturadas} icone="fa-file-invoice-dollar" sub={t.meta ? `${Math.round((t.faturadas / t.meta) * 100)}% da meta da equipe (${horas(t.meta)})` : undefined} />
-            <Kpi titulo="Horas internas" valor={t.internas} formato={horas} cor={COR.internas} icone="fa-house" atraso={60} sub="em OS interna (relatório do app)" />
-            <Kpi titulo="Horas ociosas" valor={t.ociosas} formato={horas} cor="#64748b" icone="fa-hourglass-half" atraso={120} sub={`trabalhadas no app: ${horas(t.trabalhadas)}${t.extras ? ` · fim de semana ${horas(t.extras)}` : ''}`} />
-            <Kpi titulo="Km cobrados" valor={t.km} formato={kmFmt} cor={COR.km} icone="fa-road" atraso={180} sub={`${brl(t.kmValor)} em deslocamento`} />
-            <Kpi titulo="Faturado (bruto)" valor={t.bruto} formato={brl} cor="#0369a1" icone="fa-sack-dollar" atraso={240} destaque sub={`${Math.round(t.os)} OS faturadas`} />
-            <Kpi titulo="Líquido" valor={t.liquido} formato={brl} cor={COR.liquido} icone="fa-chart-line" atraso={300} destaque sub={`custo de terceiros ${brl(t.custo)}`} />
-          </div>
+          {/* 3. a conta do período */}
+          <section className="pt-conta cpv-entra">
+            <button type="button" className="pt-passo" onClick={() => setListaOS({ titulo: 'período', os: d!.os })} title="Ver as OS faturadas">
+              <span className="pt-rot">Faturado</span>
+              <span className="pt-val" style={{ color: '#0369a1' }}><Numero valor={t.bruto} formato={brl} /></span>
+              <span className="pt-sub">{Math.round(t.os)} OS · serviço {brl(t.servico)} · km {brl(t.kmValor)} · peças {brl(t.pecas)}</span>
+              <span className="pt-mini">{[['servico', COR.servico], ['kmValor', COR.km], ['pecas', COR.pecas], ['outros', COR.outros]].map(([k, c]) => <i key={k} style={{ width: `${t.bruto ? (Math.max(0, t[k as keyof LinhaTecnico] as number) / t.bruto) * 100 : 0}%`, background: c }} />)}</span>
+            </button>
+            <span className="pt-op">−</span>
+            <div className="pt-passo">
+              <span className="pt-rot">Custo de terceiros</span>
+              <span className="pt-val" style={{ color: COR.custo }}><Numero valor={t.custo} formato={brl} /></span>
+              <span className="pt-sub">requisições ligadas às OS</span>
+            </div>
+            <span className="pt-op">−</span>
+            <div className="pt-passo">
+              <span className="pt-rot">Gastos do pós-vendas</span>
+              <span className="pt-val" style={{ color: COR_GASTO }}><Numero valor={g.foraDasOS} formato={brl} /></span>
+              <span className="pt-sub">abastecimento {brl(g.abastecimento)} · alimentação {brl(g.alimentacao)}{g.total > g.foraDasOS ? ` (${brl(g.total - g.foraDasOS)} já nas OS)` : ''}</span>
+            </div>
+            <span className="pt-op">=</span>
+            <div className="pt-passo pt-final" style={{ background: resultado >= 0 ? '#f0fdfa' : '#fef2f2', borderColor: resultado >= 0 ? '#99f6e4' : '#fecaca' }}>
+              <span className="pt-rot">Resultado</span>
+              <span className="pt-val" style={{ color: resultado >= 0 ? COR_RESULT : '#b91c1c' }}><Numero valor={resultado} formato={brl} /></span>
+              <span className="pt-sub">{t.bruto ? `${Math.round((resultado / t.bruto) * 100)}% do faturado` : '—'}</span>
+            </div>
+          </section>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap: 14, marginBottom: 14 }}>
-            {/* meta de horas */}
-            <Cartao titulo={<>Meta de horas por técnico <span style={{ fontWeight: 600, fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>· {horas(meta)} cada</span></>} atraso={120}>
-              <div style={{ height: Math.max(180, dadosMeta.length * 48 + 40) }}>
-                <ResponsiveContainer>
-                  <BarChart data={dadosMeta} layout="vertical" margin={{ left: 8, right: 36 }}>
-                    <XAxis type="number" hide domain={[0, (dm: number) => Math.max(dm, meta) * 1.05]} />
-                    <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 12.5, fontWeight: 700 }} />
-                    <Tooltip formatter={(v: number) => horas(v)} cursor={{ fill: 'rgba(148,163,184,.12)' }} />
-                    <ReferenceLine x={meta} stroke="#0f172a" strokeDasharray="5 4" label={{ value: `meta ${horas(meta)}`, position: 'top', fontSize: 11 }} />
-                    <Bar dataKey="Faturadas" stackId="h" fill={COR.faturadas} radius={[6, 0, 0, 6]} animationDuration={900} onClick={(x: { tecnico?: string }) => x.tecnico && setFicha(x.tecnico)} cursor="pointer" />
-                    <Bar dataKey="Internas" stackId="h" fill={COR.internas} animationDuration={900} />
-                    <Bar dataKey="Ociosas" stackId="h" fill={COR.ociosas} radius={[0, 6, 6, 0]} animationDuration={900}
-                      label={{ position: 'right', fontSize: 11.5, fontWeight: 800, formatter: (_: number, __: unknown, i?: number) => (i != null && dadosMeta[i] ? `${dadosMeta[i].pct}%` : '') } as never} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <Legenda itens={[['Faturadas', COR.faturadas], ['Internas', COR.internas], ['Ociosas', COR.ociosas]]} />
-            </Cartao>
+          {/* horas da equipe */}
+          <section className="pt-horas cpv-entra" style={{ animationDelay: '80ms' }}>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, flexWrap: 'wrap' }}>
+              <b style={{ fontSize: 16, color: TXT }}>Horas da equipe</b>
+              <span style={{ fontSize: 13.5, color: MUDO }}>meta {horas(t.meta)} ({horas(tecnicos[0]?.meta || 0)} por técnico) · trabalhadas no app {horas(t.trabalhadas)}</span>
+            </div>
+            <BarraHoras faturadas={t.faturadas} internas={t.internas} ociosas={t.ociosas} meta={t.meta} grande />
+            <div className="pt-legenda">
+              <span><i style={{ background: COR.faturadas }} /> Faturadas <b>{horas(t.faturadas)}</b></span>
+              <button type="button" onClick={() => setVerInternas(true)}><i style={{ background: COR.internas }} /> Internas <b>{horas(t.internas)}</b> · {d!.internas.length} OS <u>ver</u></button>
+              <span><i style={{ background: COR.ociosas }} /> Ociosas <b>{horas(t.ociosas)}</b></span>
+              <span><i style={{ background: COR.km }} /> Km cobrados <b>{kmFmt(t.km)}</b></span>
+            </div>
+          </section>
 
-            {/* valor gerado */}
-            <Cartao titulo="Valor gerado por técnico" atraso={180} extra={<span style={{ fontSize: 11.5, color: 'var(--portal-text-muted, #94a3b8)' }}>clique na barra para ver as OS</span>}>
-              <div style={{ height: Math.max(180, dadosValor.length * 48 + 40) }}>
-                <ResponsiveContainer>
-                  <BarChart data={dadosValor} layout="vertical" margin={{ left: 8, right: 70 }}>
-                    <XAxis type="number" hide />
-                    <YAxis type="category" dataKey="nome" width={110} tick={{ fontSize: 12.5, fontWeight: 700 }} />
-                    <Tooltip formatter={(v: number) => brl2(v)} cursor={{ fill: 'rgba(148,163,184,.12)' }} />
-                    {(['Serviço', 'Km', 'Peças', 'Outros'] as const).map((k, i, arr) => (
-                      <Bar key={k} dataKey={k} stackId="v" fill={k === 'Serviço' ? COR.servico : k === 'Km' ? COR.km : k === 'Peças' ? COR.pecas : COR.outros}
-                        radius={i === 0 ? [6, 0, 0, 6] : i === arr.length - 1 ? [0, 6, 6, 0] : 0} animationDuration={900} cursor="pointer"
-                        onClick={(x: { tecnico?: string }) => x.tecnico && setListaOS({ titulo: x.tecnico, os: osDoTecnico(x.tecnico) })}
-                        {...(i === arr.length - 1 ? { label: { position: 'right', fontSize: 11.5, fontWeight: 800, formatter: (_: number, __: unknown, j?: number) => (j != null && dadosValor[j] ? brl(dadosValor[j].Serviço + dadosValor[j].Km + dadosValor[j].Peças + dadosValor[j].Outros) : '') } as never } : {})} />
-                    ))}
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-              <Legenda itens={[['Serviço', COR.servico], ['Km', COR.km], ['Peças', COR.pecas], ['Outros', COR.outros]]} />
-            </Cartao>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 460px), 1fr))', gap: 14, marginBottom: 14 }}>
-            {/* evolução */}
-            <Cartao titulo={`Evolução — últimas ${tipo === 'semana' ? '8 semanas' : '6 meses'}`} atraso={240}
-              extra={<select value={foco} onChange={(e) => setFoco(e.target.value)} style={{ border: '1px solid var(--portal-border, #e2e8f0)', borderRadius: 8, padding: '5px 8px', fontSize: 12.5, fontWeight: 700, background: 'var(--portal-bg-card, #fefefe)', color: 'var(--portal-text, #0f172a)' }}>
-                <option value="Equipe">Equipe toda</option>
-                {(d?.linhas || []).map((l) => <option key={l.tecnico} value={l.tecnico}>{l.tecnico}</option>)}
-              </select>}>
-              <div style={{ height: 260 }}>
-                <ResponsiveContainer>
-                  <ComposedChart data={dadosSerie} margin={{ left: 0, right: 8, top: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,.25)" />
-                    <XAxis dataKey="rotulo" tick={{ fontSize: 11.5 }} />
-                    <YAxis yAxisId="v" tick={{ fontSize: 11 }} tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))} width={42} />
-                    <YAxis yAxisId="h" orientation="right" tick={{ fontSize: 11 }} width={34} />
-                    <Tooltip formatter={(v: number, n: string) => (n === 'Horas faturadas' ? horas(v) : brl2(v))} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar yAxisId="v" dataKey="Bruto" fill="#0369a1" radius={[6, 6, 0, 0]} animationDuration={900} />
-                    <Line yAxisId="v" dataKey="Líquido" stroke={COR.liquido} strokeWidth={2.5} dot={{ r: 3 }} animationDuration={1100} />
-                    <Line yAxisId="h" dataKey="Horas faturadas" stroke={COR.faturadas} strokeWidth={2} strokeDasharray="5 4" dot={{ r: 3 }} animationDuration={1100} />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            </Cartao>
-
-            {/* composição */}
-            <Cartao titulo="De onde veio o faturamento" atraso={300}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-                <div style={{ width: 210, height: 210 }}>
-                  <ResponsiveContainer>
-                    <PieChart>
-                      <Pie data={composicao} dataKey="valor" nameKey="nome" innerRadius={58} outerRadius={92} paddingAngle={2} animationDuration={900}>
-                        {composicao.map((c) => <Cell key={c.nome} fill={c.cor} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: number) => brl2(v)} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </div>
-                <div style={{ flex: 1, minWidth: 180, display: 'grid', gap: 8 }}>
-                  {composicao.map((c) => (
-                    <div key={c.nome} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
-                      <span style={{ width: 10, height: 10, borderRadius: 3, background: c.cor }} />
-                      <span style={{ flex: 1, color: 'var(--portal-text, #0f172a)' }}>{c.nome}</span>
-                      <b style={{ fontVariantNumeric: 'tabular-nums' }}>{brl(c.valor)}</b>
-                      <span style={{ width: 38, textAlign: 'right', color: 'var(--portal-text-muted, #64748b)', fontSize: 12 }}>{t.bruto ? Math.round((c.valor / t.bruto) * 100) : 0}%</span>
-                    </div>
-                  ))}
-                  <div style={{ borderTop: '1px solid var(--portal-border, #e2e8f0)', paddingTop: 8, display: 'grid', gap: 4, fontSize: 13 }}>
-                    <div style={{ display: 'flex' }}><span style={{ flex: 1 }}>Bruto</span><b>{brl(t.bruto)}</b></div>
-                    <div style={{ display: 'flex', color: COR.custo }}><span style={{ flex: 1 }}>− Custo de terceiros</span><b>{brl(t.custo)}</b></div>
-                    <div style={{ display: 'flex', color: COR.liquido, fontSize: 14.5 }}><span style={{ flex: 1, fontWeight: 800 }}>= Líquido</span><b>{brl(t.liquido)}</b></div>
+          {/* 4. um cartão por técnico */}
+          <div className="pt-cards">
+            {tecnicos.map((l, i) => {
+              const gp = gastoDe(l.tecnico)
+              const res = l.liquido - (gp?.foraDasOS || 0)
+              const pts = pontos[l.tecnico]
+              const pct = l.meta ? Math.round(((l.faturadas + l.internas) / l.meta) * 100) : 0
+              return (
+                <button key={l.tecnico} type="button" className="pt-card cpv-entra" style={{ animationDelay: `${120 + i * 60}ms` }} onClick={() => setFicha(l.tecnico)}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="pt-nome">{l.tecnico}</span>
+                    {pts != null && <span className="pt-pts" style={{ color: { ok: '#047857', atencao: '#b45309', critico: '#b91c1c' }[faixa(pts)], background: { ok: '#ecfdf5', atencao: '#fffbeb', critico: '#fef2f2' }[faixa(pts)] }} title="Pontos de ocorrência no mês (começa com 100)"><i className="fas fa-shield-halved" /> {pts}</span>}
                   </div>
-                </div>
-              </div>
-            </Cartao>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, marginTop: 8 }}>
+                    <span style={{ fontSize: 24, fontWeight: 900, color: pct >= 80 ? '#047857' : pct >= 50 ? '#b45309' : '#b91c1c' }}>{pct}%</span>
+                    <span style={{ fontSize: 13, color: MUDO }}>da meta · {horas(l.faturadas)} faturadas{l.internas ? ` + ${horas(l.internas)} internas` : ''}</span>
+                  </div>
+                  <BarraHoras faturadas={l.faturadas} internas={l.internas} ociosas={l.ociosas} meta={l.meta} />
+                  <div className="pt-nums">
+                    <span><small>Faturado</small><b style={{ color: '#0369a1' }}>{brl(l.bruto)}</b></span>
+                    <span><small>Gastos</small><b style={{ color: COR_GASTO }}>{brl(gp?.total || 0)}</b></span>
+                    <span><small>Km</small><b>{kmFmt(l.km)}</b></span>
+                    <span><small>Resultado</small><b style={{ color: res >= 0 ? COR_RESULT : '#b91c1c' }}>{brl(res)}</b></span>
+                  </div>
+                  <span className="pt-abrir">ver detalhes <i className="fas fa-chevron-right" /></span>
+                </button>
+              )
+            })}
           </div>
+          {semTecnico && semTecnico.bruto > 0 && (
+            <button type="button" className="pt-sem" onClick={() => setListaOS({ titulo: 'sem técnico (abertas direto no Omie)', os: osDoTecnico(SEM_TECNICO) })}>
+              <i className="fas fa-circle-info" /> {brl(semTecnico.bruto)} faturados em {Math.round(semTecnico.os)} OS sem técnico (abertas direto no Omie) <u>ver</u>
+            </button>
+          )}
 
-          {/* tabela */}
-          <Cartao titulo="Técnicos" atraso={360}>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13, minWidth: 820 }}>
-                <thead>
-                  <tr style={{ color: 'var(--portal-text-muted, #64748b)', fontSize: 11, textTransform: 'uppercase', letterSpacing: .4, textAlign: 'right' }}>
-                    {['Técnico', 'Trabalhadas', 'Faturadas', 'Internas', 'Ociosas', 'Km', 'Serviço', 'Km R$', 'Peças', 'Bruto', 'Custo', 'Líquido'].map((h, i) => <th key={h} style={{ padding: '6px 8px', textAlign: i ? 'right' : 'left', fontWeight: 800 }}>{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody>
-                  {d!.linhas.map((l) => (
-                    <tr key={l.tecnico} className="cpv-linha" style={{ borderTop: '1px solid var(--portal-border, #f1f5f9)', cursor: 'pointer' }} onClick={() => setFicha(l.tecnico)}>
-                      <td style={{ padding: '9px 8px', fontWeight: 800, color: 'var(--portal-text, #0f172a)' }}>{l.tecnico}</td>
-                      <td style={td}>{horas(l.trabalhadas)}</td>
-                      <td style={{ ...td, color: COR.faturadas, fontWeight: 800 }}>{horas(l.faturadas)}</td>
-                      <td style={td}>{horas(l.internas)}</td>
-                      <td style={{ ...td, color: l.ociosas > l.meta * 0.5 ? '#b91c1c' : 'inherit' }}>{l.tecnico === 'Sem técnico' ? '—' : horas(l.ociosas)}</td>
-                      <td style={td}>{kmFmt(l.km)}</td>
-                      <td style={td}>{brl(l.servico)}</td>
-                      <td style={td}>{brl(l.kmValor)}</td>
-                      <td style={td}>{brl(l.pecas)}</td>
-                      <td style={{ ...td, fontWeight: 800 }}>{brl(l.bruto)}</td>
-                      <td style={{ ...td, color: COR.custo }}>{l.custo ? brl(l.custo) : '—'}</td>
-                      <td style={{ ...td, fontWeight: 800, color: COR.liquido }}>{brl(l.liquido)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+          {/* 5. evolução */}
+          <Cartao titulo="Evolução" atraso={200}
+            extra={<div className="pt-metricas">{METRICAS.map(([k, r]) => <button key={k} type="button" className={metrica === k ? 'pt-m-on' : ''} onClick={() => setMetrica(k)}>{r}</button>)}</div>}>
+            <div style={{ height: 240 }}>
+              <ResponsiveContainer>
+                <BarChart data={serie} margin={{ left: 0, right: 8, top: 18 }}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(148,163,184,.25)" />
+                  <XAxis dataKey="rotulo" tick={{ fontSize: 12.5 }} />
+                  <YAxis tick={{ fontSize: 11.5 }} width={48} tickFormatter={(v: number) => (metrica === 'faturadas' ? `${v}h` : v >= 1000 || v <= -1000 ? `${Math.round(v / 1000)}k` : String(v))} />
+                  <Tooltip formatter={(v: number) => (metrica === 'faturadas' ? horas(v) : brl2(v))} cursor={{ fill: 'rgba(148,163,184,.12)' }} />
+                  {metrica === 'resultado' && <ReferenceLine y={0} stroke="#94a3b8" />}
+                  <Bar dataKey="valor" name={METRICAS.find(([k]) => k === metrica)![1]} radius={[6, 6, 0, 0]} animationDuration={700} cursor="pointer"
+                    onClick={(x: { de?: string }) => x.de && setRef(x.de)}
+                    label={{ position: 'top', fontSize: 11, fill: '#64748b', formatter: (v: number) => (metrica === 'faturadas' ? `${Math.round(v)}h` : Math.abs(v) >= 1000 ? `${Math.round(v / 1000)}k` : '') } as never}>
+                    {serie.map((s, i) => <Cell key={i} fill={s.atual ? corMetrica : `${corMetrica}66`} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
             </div>
-            <div style={{ fontSize: 11.5, color: 'var(--portal-text-muted, #94a3b8)', marginTop: 8, lineHeight: 1.5 }}>
-              Trabalhadas = relatório do app (seg–sex). Faturadas = horas cobradas nas OS faturadas no período (OS com 2 técnicos: pelo que cada um registrou; valor e km meio a meio). Ociosas = meta − faturadas − internas. Custo = requisições da OS. &quot;Sem técnico&quot; = OS aberta direto no Omie.
-            </div>
+            <div style={{ fontSize: 12, color: MUDO }}>Clique numa barra para ir para aquele período. Resultado = líquido − todos os gastos do período.</div>
           </Cartao>
         </>
       )}
 
-      {ficha && d && <FichaTecnico tecnico={ficha} linha={d.linhas.find((l) => l.tecnico === ficha)} dias={d.dias.filter((x) => x.tecnico === ficha)} os={osDoTecnico(ficha)} onFechar={() => setFicha(null)} />}
+      {ficha && d && <FichaTecnico tecnico={ficha} linha={d.linhas.find((l) => l.tecnico === ficha)} dias={d.dias.filter((x) => x.tecnico === ficha)} os={osDoTecnico(ficha)} gasto={gastoDe(ficha)} onFechar={() => setFicha(null)} />}
       {listaOS && <ListaOS titulo={listaOS.titulo} os={listaOS.os} onFechar={() => setListaOS(null)} />}
+      {verInternas && <ListaInternas internas={d?.internas || []} onFechar={() => setVerInternas(false)} />}
     </div>
   )
 }
+
+/** Barra de horas: faturadas + internas + ociosas contra a meta. */
+function BarraHoras({ faturadas, internas, ociosas, meta, grande = false }: { faturadas: number; internas: number; ociosas: number; meta: number; grande?: boolean }) {
+  const total = Math.max(meta, faturadas + internas + ociosas, 1)
+  const pct = (v: number) => `${(v / total) * 100}%`
+  return (
+    <div className="pt-barra" style={{ height: grande ? 18 : 10 }} title={`faturadas ${horas(faturadas)} · internas ${horas(internas)} · ociosas ${horas(ociosas)} · meta ${horas(meta)}`}>
+      <i style={{ width: pct(faturadas), background: COR.faturadas }} />
+      <i style={{ width: pct(internas), background: COR.internas }} />
+      <i style={{ width: pct(ociosas), background: COR.ociosas }} />
+    </div>
+  )
+}
+
+const ESTILO = `
+.pt-conta { display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; margin-bottom: 14px }
+.pt-passo { flex: 1 1 200px; display: flex; flex-direction: column; gap: 3px; text-align: left; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 14px 16px; font-family: inherit; color: inherit; min-width: 0 }
+button.pt-passo { cursor: pointer; transition: box-shadow .2s, transform .2s }
+button.pt-passo:hover { box-shadow: 0 8px 20px rgba(15,23,42,.08); transform: translateY(-2px) }
+.pt-final { border-width: 2px }
+.pt-rot { font-size: 12.5px; font-weight: 800; text-transform: uppercase; letter-spacing: .5px; color: var(--portal-text-muted, #64748b) }
+.pt-val { font-size: 28px; font-weight: 900; font-variant-numeric: tabular-nums; line-height: 1.15 }
+.pt-sub { font-size: 12.5px; color: var(--portal-text-muted, #64748b) }
+.pt-mini { display: flex; height: 6px; border-radius: 4px; overflow: hidden; margin-top: 6px; background: var(--portal-bg-secondary, #f1f5f9) }
+.pt-mini i, .pt-barra i { display: block; height: 100%; transition: width .8s cubic-bezier(.2,.8,.2,1) }
+.pt-op { align-self: center; font-size: 26px; font-weight: 900; color: var(--portal-text-muted, #94a3b8) }
+.pt-horas { background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 14px 16px; margin-bottom: 14px }
+.pt-barra { display: flex; border-radius: 6px; overflow: hidden; margin: 10px 0 8px; background: var(--portal-bg-secondary, #f1f5f9) }
+.pt-legenda { display: flex; gap: 18px; flex-wrap: wrap; font-size: 13.5px; color: var(--portal-text-muted, #475569) }
+.pt-legenda > * { display: inline-flex; align-items: center; gap: 6px; border: none; background: transparent; font-family: inherit; font-size: 13.5px; color: inherit; padding: 0 }
+.pt-legenda button { cursor: pointer } .pt-legenda button:hover { color: #0369a1 }
+.pt-legenda i { width: 11px; height: 11px; border-radius: 3px; display: inline-block }
+.pt-legenda b { color: var(--portal-text, #0f172a) }
+.pt-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-bottom: 12px }
+.pt-card { text-align: left; background: var(--portal-bg-card, #fefefe); border: 1px solid var(--portal-border, #e5e7eb); border-radius: 16px; padding: 14px 16px 12px; cursor: pointer; font-family: inherit; color: inherit; transition: box-shadow .2s, transform .2s, border-color .2s; min-width: 0 }
+.pt-card:hover { box-shadow: 0 10px 24px rgba(15,23,42,.09); transform: translateY(-2px); border-color: #93c5fd }
+.pt-nome { font-size: 16.5px; font-weight: 900; color: var(--portal-text, #0f172a); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
+.pt-pts { font-size: 12.5px; font-weight: 800; border-radius: 99px; padding: 2px 9px; white-space: nowrap }
+.pt-nums { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; margin-top: 4px }
+.pt-nums span { display: flex; flex-direction: column }
+.pt-nums small { font-size: 11.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .4px; color: var(--portal-text-muted, #94a3b8) }
+.pt-nums b { font-size: 16px; font-variant-numeric: tabular-nums; color: var(--portal-text, #0f172a) }
+.pt-abrir { display: block; margin-top: 10px; font-size: 12.5px; font-weight: 800; color: #0369a1; opacity: .7 }
+.pt-card:hover .pt-abrir { opacity: 1 }
+.pt-sem { display: block; width: 100%; text-align: left; border: 1px dashed var(--portal-border, #cbd5e1); background: transparent; border-radius: 12px; padding: 9px 12px; font-family: inherit; font-size: 13px; color: var(--portal-text-muted, #64748b); cursor: pointer; margin-bottom: 14px }
+.pt-sem:hover { color: #0369a1; border-color: #0369a1 }
+.pt-metricas { display: flex; gap: 4px; flex-wrap: wrap }
+.pt-metricas button { border: 1px solid var(--portal-border, #e2e8f0); background: transparent; border-radius: 99px; padding: 5px 12px; font-family: inherit; font-size: 13px; font-weight: 700; color: var(--portal-text-muted, #64748b); cursor: pointer }
+.pt-metricas .pt-m-on { background: #0369a1; border-color: #0369a1; color: #fefefe }
+@media (max-width: 720px) { .pt-op { display: none } .pt-val { font-size: 23px } }
+`
 
 const btnSeta: React.CSSProperties = { width: 34, height: 34, borderRadius: 9, border: '1px solid var(--portal-border, #e2e8f0)', background: 'var(--portal-bg-card, #fefefe)', color: 'var(--portal-text, #334155)', cursor: 'pointer', fontFamily: 'inherit' }
-const td: React.CSSProperties = { padding: '9px 8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }
 
-function Legenda({ itens }: { itens: [string, string][] }) {
-  return (
-    <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', marginTop: 6, fontSize: 12, color: 'var(--portal-text-muted, #64748b)' }}>
-      {itens.map(([n, c]) => <span key={n} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: c }} />{n}</span>)}
-    </div>
-  )
-}
 
 function Janela({ titulo, children, onFechar, largura = 760 }: { titulo: React.ReactNode; children: React.ReactNode; onFechar: () => void; largura?: number }) {
   if (typeof document === 'undefined') return null
@@ -259,7 +260,7 @@ function Janela({ titulo, children, onFechar, largura = 760 }: { titulo: React.R
         <div style={{ padding: 18 }}>{children}</div>
       </div>
     </div>,
-    document.body,
+    (document.fullscreenElement as HTMLElement | null) || document.body,
   )
 }
 
@@ -285,11 +286,37 @@ function TabelaOS({ os }: { os: OSFaturada[] }) {
   )
 }
 
+function ListaInternas({ internas, onFechar }: { internas: OSInterna[]; onFechar: () => void }) {
+  return (
+    <Janela titulo="OS internas no período" onFechar={onFechar}>
+      <div style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #64748b)', marginBottom: 12, lineHeight: 1.5 }}>
+        Conta como interna (não cobrada do cliente): tipo de serviço interno no portal, conta corrente interna no Omie
+        ou Nº do Contrato de Venda interno (entrega técnica, cortesia, pré-entrega…). Contrato “-pgo” não é interno: a montadora paga.
+        As horas são as do relatório do app no período.
+      </div>
+      {!internas.length ? <div style={{ padding: 20, textAlign: 'center', color: 'var(--portal-text-muted, #94a3b8)', fontSize: 13 }}>Nenhuma hora em OS interna no período.</div> : (
+        <div style={{ display: 'grid', gap: 8 }}>
+          {internas.map((o) => (
+            <a key={o.os} href={`/pos?id=${encodeURIComponent(o.os)}`} target="_blank" rel="noreferrer" className="cpv-linha"
+              style={{ display: 'flex', gap: 12, alignItems: 'center', padding: '10px 12px', border: '1px solid var(--portal-border, #e2e8f0)', borderLeft: `4px solid ${COR.internas}`, borderRadius: 10, textDecoration: 'none', color: 'inherit' }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 800, fontSize: 13.5 }}>{o.os} <span style={{ fontWeight: 700, fontSize: 11.5, color: COR.internas, background: 'rgba(139,92,246,.1)', borderRadius: 99, padding: '1px 8px', marginLeft: 4 }}>{o.motivo}</span></div>
+                <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{o.cliente || '—'} · {o.tecnicos.join(' + ')}</div>
+              </div>
+              <div style={{ fontWeight: 900, fontSize: 15, color: COR.internas, whiteSpace: 'nowrap' }}>{horas(o.horas)}</div>
+            </a>
+          ))}
+        </div>
+      )}
+    </Janela>
+  )
+}
+
 function ListaOS({ titulo, os, onFechar }: { titulo: string; os: OSFaturada[]; onFechar: () => void }) {
   return <Janela titulo={<>OS faturadas · {titulo}</>} onFechar={onFechar}><TabelaOS os={os} /></Janela>
 }
 
-function FichaTecnico({ tecnico, linha, dias, os, onFechar }: { tecnico: string; linha?: LinhaTecnico; dias: DiaRegistrado[]; os: OSFaturada[]; onFechar: () => void }) {
+function FichaTecnico({ tecnico, linha, dias, os, gasto, onFechar }: { tecnico: string; linha?: LinhaTecnico; dias: DiaRegistrado[]; os: OSFaturada[]; gasto?: { abastecimento: number; alimentacao: number; total: number; litros: number; foraDasOS: number }; onFechar: () => void }) {
   const porDia = Object.entries(dias.reduce<Record<string, { cliente: number; interna: number }>>((m, x) => {
     const k = (m[x.data] ||= { cliente: 0, interna: 0 }); if (x.interna) k.interna += x.horas; else k.cliente += x.horas; return m
   }, {})).sort().map(([data, v]) => ({ dia: br(data), Cliente: Math.round(v.cliente * 10) / 10, Interna: Math.round(v.interna * 10) / 10 }))
@@ -301,7 +328,8 @@ function FichaTecnico({ tecnico, linha, dias, os, onFechar }: { tecnico: string;
           <Kpi titulo="Internas" valor={linha.internas} formato={horas} cor={COR.internas} atraso={60} />
           <Kpi titulo="Ociosas" valor={linha.ociosas} formato={horas} cor="#64748b" atraso={120} />
           <Kpi titulo="Km" valor={linha.km} formato={kmFmt} cor={COR.km} atraso={180} />
-          <Kpi titulo="Líquido" valor={linha.liquido} formato={brl} cor={COR.liquido} destaque atraso={240} sub={`bruto ${brl(linha.bruto)}`} />
+          <Kpi titulo="Gastos" valor={gasto?.total || 0} formato={brl} cor={COR_GASTO} atraso={210} sub={`abastec. ${brl(gasto?.abastecimento || 0)} · alim. ${brl(gasto?.alimentacao || 0)}`} />
+          <Kpi titulo="Resultado" valor={linha.liquido - (gasto?.foraDasOS || 0)} formato={brl} cor={COR_RESULT} destaque atraso={240} sub={`bruto ${brl(linha.bruto)} · líquido ${brl(linha.liquido)}`} />
         </div>
       )}
       <div style={{ fontSize: 13.5, fontWeight: 800, margin: '4px 0 8px' }}>Horas registradas no app, por dia</div>

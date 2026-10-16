@@ -1,38 +1,55 @@
 'use client'
 // Janela Mecânicos → Centro do Pós-Vendas (José, 16/10/2026): abas Painel dos técnicos,
-// Faturamento ao vivo e a tela antiga (técnicos, ocorrências, GPS).
+// Radar de Ocorrências (o faturamento ao vivo está dentro do Painel); o Tratorilson lê tudo no topo (sem aba).
+import { useEffect, useRef, useState } from 'react'
 import PainelTecnicos from './PainelTecnicos'
-import FaturamentoVivo from './FaturamentoVivo'
+import RadarOcorrencias from './RadarOcorrencias'
+import TratorilsonLeitura from './TratorilsonLeitura'
 
-export type AbaCPV = 'painel' | 'vivo' | 'tecnicos'
+export type AbaCPV = 'painel' | 'ocorrencias'
 
 export default function CentroPosVendas({ aba, onAba }: { aba: AbaCPV; onAba: (a: AbaCPV) => void }) {
+  // tela cheia de verdade (Fullscreen API): some o menu do portal, fica só o painel
+  const raiz = useRef<HTMLDivElement>(null)
+  const [cheia, setCheia] = useState(false)
+  useEffect(() => {
+    const f = () => setCheia(!!document.fullscreenElement)
+    document.addEventListener('fullscreenchange', f)
+    return () => document.removeEventListener('fullscreenchange', f)
+  }, [])
+  const alternarTela = () => {
+    if (document.fullscreenElement) void document.exitFullscreen()
+    else void raiz.current?.requestFullscreen?.()
+  }
   const abas: [AbaCPV, string, string][] = [
-    ['painel', 'Painel dos técnicos', 'fa-chart-column'],
-    ['vivo', 'Faturamento ao vivo', 'fa-signal'],
-    ['tecnicos', 'Técnicos e ocorrências', 'fa-users'],
+    ['painel', 'Painel do pós-vendas', 'fa-chart-column'],
+    ['ocorrencias', 'Ocorrências', 'fa-satellite-dish'],
   ]
   return (
-    <div style={{ padding: 'clamp(14px, 2.5vw, 28px) clamp(12px, 2vw, 24px)', maxWidth: 1320, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, flexWrap: 'wrap' }}>
-        <div style={{ width: 40, height: 40, borderRadius: 12, background: 'linear-gradient(135deg, #0891b2, #0369a1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fefefe', fontSize: 17, boxShadow: '0 6px 16px rgba(3,105,161,.3)' }}>
-          <i className="fas fa-gauge-high" />
-        </div>
-        <div>
-          <h1 style={{ fontSize: 19, fontWeight: 900, color: 'var(--portal-text, #0f172a)', margin: 0 }}>Pós-Vendas</h1>
-          <p style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #64748b)', margin: 0 }}>Horas, km e faturamento dos técnicos</p>
-        </div>
-        <div style={{ marginLeft: 'auto', display: 'inline-flex', gap: 4, background: 'var(--portal-bg-secondary, #f1f5f9)', borderRadius: 12, padding: 4, flexWrap: 'wrap' }}>
-          {abas.map(([id, rot, ic]) => (
-            <button key={id} type="button" onClick={() => onAba(id)}
-              style={{ border: 'none', borderRadius: 9, padding: '8px 14px', fontWeight: 800, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 7,
-                background: aba === id ? 'var(--portal-bg-card, #fefefe)' : 'transparent', color: aba === id ? '#0369a1' : 'var(--portal-text-muted, #64748b)', boxShadow: aba === id ? '0 1px 4px rgba(15,23,42,.12)' : 'none' }}>
-              <i className={`fas ${ic}`} /> {rot}
-            </button>
-          ))}
-        </div>
+    <div ref={raiz} style={{ padding: 'clamp(14px, 2vw, 24px) clamp(12px, 2vw, 28px)', width: '100%', boxSizing: 'border-box', background: 'var(--portal-bg, #f8fafc)', minHeight: cheia ? '100vh' : undefined, overflowY: cheia ? 'auto' : undefined }}>
+      <style>{`
+        .cpv-abas { display: flex; align-items: flex-end; gap: 4px; border-bottom: 1px solid var(--portal-border, #e5e7eb); margin-bottom: 16px }
+        .cpv-aba { position: relative; border: none; background: transparent; font-family: inherit; font-size: 16px; font-weight: 800; color: var(--portal-text-muted, #64748b); padding: 10px 16px 12px; cursor: pointer; display: inline-flex; align-items: center; gap: 9px; border-radius: 10px 10px 0 0; transition: color .2s, background .2s }
+        .cpv-aba:hover { color: var(--portal-text, #0f172a); background: var(--portal-bg-secondary, #f1f5f9) }
+        .cpv-aba i { font-size: 15px; opacity: .75 }
+        .cpv-aba::after { content: ''; position: absolute; left: 12px; right: 12px; bottom: -1px; height: 3px; border-radius: 3px 3px 0 0; background: #0369a1; transform: scaleX(0); transition: transform .3s cubic-bezier(.3,1.3,.5,1) }
+        .cpv-aba-on { color: #0369a1 } .cpv-aba-on i { opacity: 1 } .cpv-aba-on::after { transform: scaleX(1) }
+        .cpv-tela { margin-left: auto; margin-bottom: 6px; width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--portal-border, #e2e8f0); background: var(--portal-bg-card, #fefefe); color: var(--portal-text-muted, #64748b); cursor: pointer }
+        .cpv-tela:hover { color: #0369a1; border-color: #0369a1 }
+        @media (max-width: 720px) { .cpv-aba { font-size: 14px; padding: 8px 10px 10px } .cpv-aba span { display: none } .cpv-aba i { font-size: 18px } }
+      `}</style>
+      <div className="cpv-abas" role="tablist">
+        {abas.map(([id, rot, ic]) => (
+          <button key={id} type="button" role="tab" aria-selected={aba === id} className={`cpv-aba ${aba === id ? 'cpv-aba-on' : ''}`} onClick={() => onAba(id)} title={rot}>
+            <i className={`fas ${ic}`} /> <span>{rot}</span>
+          </button>
+        ))}
+        <button type="button" className="cpv-tela" onClick={alternarTela} title={cheia ? 'Sair da tela cheia (Esc)' : 'Tela cheia'}>
+          <i className={`fas ${cheia ? 'fa-compress' : 'fa-expand'}`} />
+        </button>
       </div>
-      {aba === 'painel' ? <PainelTecnicos /> : <FaturamentoVivo />}
+      <TratorilsonLeitura />
+      {aba === 'ocorrencias' ? <RadarOcorrencias /> : <PainelTecnicos />}
     </div>
   )
 }

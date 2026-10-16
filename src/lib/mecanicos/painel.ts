@@ -127,6 +127,98 @@ export function agregar(
   return { linhas, total }
 }
 
+/** Gasto do pós-vendas (abastecimento e alimentação) — ver gastos-server.ts. */
+export interface Gasto {
+  data: string
+  pessoa: string
+  tipo: 'abastecimento' | 'alimentacao'
+  origem: 'cartao' | 'requisicao'
+  valor: number
+  litros: number
+  /** requisição ligada a OS: já está no custo de terceiros da OS */
+  naOS: boolean
+  ref?: string
+}
+
+export interface ResumoGastos {
+  abastecimento: number
+  alimentacao: number
+  total: number
+  litros: number
+  /** a parte que NÃO está no custo das OS (para o resultado não descontar duas vezes) */
+  foraDasOS: number
+  porPessoa: { pessoa: string; abastecimento: number; alimentacao: number; total: number; litros: number; foraDasOS: number }[]
+}
+
+/** Soma os gastos do período, por tipo e por pessoa. */
+export function resumirGastos(gastos: Gasto[], de: string, ate: string): ResumoGastos {
+  const r: ResumoGastos = { abastecimento: 0, alimentacao: 0, total: 0, litros: 0, foraDasOS: 0, porPessoa: [] }
+  const m = new Map<string, ResumoGastos['porPessoa'][number]>()
+  for (const g of gastos) {
+    if (g.data < de || g.data > ate) continue
+    r[g.tipo] += g.valor; r.total += g.valor; r.litros += g.litros
+    if (!g.naOS) r.foraDasOS += g.valor
+    const p = m.get(g.pessoa) || { pessoa: g.pessoa, abastecimento: 0, alimentacao: 0, total: 0, litros: 0, foraDasOS: 0 }
+    p[g.tipo] += g.valor; p.total += g.valor; p.litros += g.litros
+    if (!g.naOS) p.foraDasOS += g.valor
+    m.set(g.pessoa, p)
+  }
+  const arred = (n: number) => Math.round(n * 100) / 100
+  for (const k of ['abastecimento', 'alimentacao', 'total', 'litros', 'foraDasOS'] as const) r[k] = arred(r[k])
+  r.porPessoa = [...m.values()].map((p) => ({ ...p, abastecimento: arred(p.abastecimento), alimentacao: arred(p.alimentacao), total: arred(p.total), litros: arred(p.litros), foraDasOS: arred(p.foraDasOS) })).sort((a, b) => b.total - a.total)
+  return r
+}
+
+/** Os dados brutos do painel (o servidor grava; a tela calcula qualquer período na hora). */
+export interface BaseDados {
+  tecnicos: string[]
+  faturadas: OSFaturada[]
+  diasTodos: DiaRegistrado[]
+  osInternas: Record<string, { cliente: string; motivo: string }>
+  /** abastecimento e alimentação do pós-vendas (pode faltar em base gravada antes de 16/10) */
+  gastos?: Gasto[]
+}
+export interface OSInterna { os: string; cliente: string; motivo: string; horas: number; tecnicos: string[] }
+
+export const QTD_SERIE = { dia: 14, semana: 8, mes: 6, ano: 3 } as const
+
+/**
+ * O painel de um período a partir da base inteira — puro, roda no navegador (troca de data na hora).
+ * Período em andamento conta a meta só até hoje (dia que nem chegou não vira hora ociosa).
+ */
+export function montarPainel(base: BaseDados, tipo: 'dia' | 'semana' | 'mes' | 'ano', ref: string, hoje: string, pesos?: Map<string, Map<string, number>>) {
+  const buckets = periodos(tipo, ref, QTD_SERIE[tipo])
+  const atual = buckets[buckets.length - 1]
+  const p = pesos || pesosPorOS(base.diasTodos)
+  const ate = (b: Bucket) => (b.ate > hoje ? hoje : b.ate)
+  const periodo = agregar(atual.de, ate(atual), base.tecnicos, base.diasTodos, base.faturadas, p)
+  const serie = buckets.map((b) => {
+    const r = agregar(b.de, ate(b), base.tecnicos, base.diasTodos, base.faturadas, p)
+    return { ...b, total: r.total, porTecnico: Object.fromEntries(r.linhas.map((l) => [l.tecnico, { faturadas: l.faturadas, internas: l.internas, ociosas: l.ociosas, bruto: l.bruto, liquido: l.liquido, km: l.km }])) }
+  })
+  const noPeriodo = (d: string) => d >= atual.de && d <= atual.ate
+  const dias = base.diasTodos.filter((d) => noPeriodo(d.data))
+  const porInterna = new Map<string, OSInterna>()
+  for (const d of dias) {
+    if (!d.interna) continue
+    const info = base.osInternas[d.os]
+    const x = porInterna.get(d.os) || { os: d.os, cliente: info?.cliente || '', motivo: info?.motivo || 'interna', horas: 0, tecnicos: [] }
+    x.horas = Math.round((x.horas + d.horas) * 10) / 10
+    if (!x.tecnicos.includes(d.tecnico)) x.tecnicos.push(d.tecnico)
+    porInterna.set(d.os, x)
+  }
+  return {
+    tipo, ref, periodo: { de: atual.de, ate: atual.ate, rotulo: atual.rotulo },
+    linhas: periodo.linhas, total: periodo.total, serie,
+    os: base.faturadas.filter((o) => noPeriodo(o.data)).sort((a, b) => b.data.localeCompare(a.data)),
+    dias,
+    internas: [...porInterna.values()].sort((a, b) => b.horas - a.horas),
+    gastos: resumirGastos(base.gastos || [], atual.de, ate(atual)),
+    gastosSerie: buckets.map((b) => ({ rotulo: b.rotulo, ...resumirGastos(base.gastos || [], b.de, ate(b)) })).map((g) => ({ abastecimento: g.abastecimento, alimentacao: g.alimentacao, total: g.total, rotulo: g.rotulo })),
+  }
+}
+export type PainelMontado = ReturnType<typeof montarPainel>
+
 export interface Bucket { rotulo: string; de: string; ate: string }
 
 /** As últimas `n` semanas (segunda a domingo; a meta conta só seg–sex) terminando na semana de `hoje`. */
@@ -149,6 +241,55 @@ export function ultimosMeses(hoje: string, n: number): Bucket[] {
     const ultimo = new Date(Date.UTC(ano, mes, 0)).getUTCDate()
     return { rotulo: `${MESES[mes - 1]}/${String(ano).slice(2)}`, de, ate: `${ano}-${String(mes).padStart(2, '0')}-${String(ultimo).padStart(2, '0')}` }
   })
+}
+
+/**
+ * OS INTERNA (regra do José, 16/10/2026) — não é cobrada do cliente quando:
+ *  - no portal, o tipo de serviço é interno (Servico_Interno); ou
+ *  - no Omie, a conta corrente é a conta interna; ou
+ *  - no Omie, o "Nº do Contrato de Venda" é um código interno (lista CODIGOS_INTERNOS).
+ * Contrato terminado em "-pgo" NÃO é interno: a montadora paga (garantia/PDI).
+ * Devolve o motivo (para mostrar na tela) ou null.
+ */
+export function motivoInterna(o: { servicoInterno?: unknown; conta?: unknown; contratos?: unknown[] }, contaInterna: number, codigosInternos: string[]): string | null {
+  if (o.servicoInterno) return 'tipo de serviço interno'
+  if (Number(o.conta) === contaInterna) return 'conta corrente interna'
+  const norm = (s: unknown) => String(s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase()
+  const internos = new Set(codigosInternos.map(norm))
+  for (const c of o.contratos || []) {
+    const n = norm(c)
+    if (n && internos.has(n) && !/-pgo$/.test(n)) return `contrato ${String(c).trim()}`
+  }
+  return null
+}
+
+/** Os últimos `n` dias terminando em `hoje` (cada dia um período). */
+export function ultimosDias(hoje: string, n: number): Bucket[] {
+  return Array.from({ length: n }, (_, i) => { const d = somarDias(hoje, -(n - 1 - i)); return { rotulo: `${d.slice(8, 10)}/${d.slice(5, 7)}`, de: d, ate: d } })
+}
+
+/** Os últimos `n` anos terminando no ano de `hoje`. */
+export function ultimosAnos(hoje: string, n: number): Bucket[] {
+  const a = Number(hoje.slice(0, 4))
+  return Array.from({ length: n }, (_, i) => { const y = a - (n - 1 - i); return { rotulo: String(y), de: `${y}-01-01`, ate: `${y}-12-31` } })
+}
+
+export type Escala = 'dia' | 'semana' | 'mes' | 'ano'
+export const ESCALAS: Escala[] = ['dia', 'semana', 'mes', 'ano']
+
+/** Os `n` períodos da escala que terminam no período de `ref`. */
+export function periodos(escala: Escala, ref: string, n: number): Bucket[] {
+  return escala === 'dia' ? ultimosDias(ref, n) : escala === 'semana' ? ultimasSemanas(ref, n) : escala === 'mes' ? ultimosMeses(ref, n) : ultimosAnos(ref, n)
+}
+
+/** Anda `n` períodos a partir de `ref` (devolve um dia dentro do período novo). */
+export function andarPeriodo(escala: Escala, ref: string, n: number): string {
+  if (escala === 'dia') return somarDias(ref, n)
+  if (escala === 'semana') return somarDias(ref, 7 * n)
+  const [a, m] = ref.split('-').map(Number)
+  if (escala === 'ano') return `${a + n}-${String(m).padStart(2, '0')}-15`
+  const k = a * 12 + m - 1 + n
+  return `${Math.floor(k / 12)}-${String((k % 12) + 1).padStart(2, '0')}-15`
 }
 
 /** Horas registradas por OS e técnico (para repartir as horas cobradas). */

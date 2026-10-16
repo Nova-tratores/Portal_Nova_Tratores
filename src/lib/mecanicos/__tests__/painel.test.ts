@@ -50,3 +50,58 @@ describe('painel do pós-vendas', () => {
     expect(total.meta).toBe(40) // só a Ana tem meta
   })
 })
+
+describe('escalas dia/semana/mês/ano', () => {
+  it('períodos e andar', async () => {
+    const { periodos, andarPeriodo } = await import('../painel')
+    expect(periodos('dia', '2026-10-16', 2)).toEqual([{ rotulo: '15/10', de: '2026-10-15', ate: '2026-10-15' }, { rotulo: '16/10', de: '2026-10-16', ate: '2026-10-16' }])
+    expect(periodos('ano', '2026-10-16', 1)).toEqual([{ rotulo: '2026', de: '2026-01-01', ate: '2026-12-31' }])
+    expect(andarPeriodo('mes', '2026-01-31', -1)).toBe('2025-12-15')
+    expect(andarPeriodo('ano', '2026-10-16', -1)).toBe('2025-10-15')
+    expect(andarPeriodo('semana', '2026-10-16', 1)).toBe('2026-10-23')
+  })
+})
+
+describe('OS interna', () => {
+  it('portal, conta corrente ou contrato interno; -pgo não', async () => {
+    const { motivoInterna } = await import('../painel')
+    const cod = ['Interno', 'Entrega Tecnica', 'Mahindra-pgo']
+    expect(motivoInterna({ servicoInterno: true }, 99, cod)).toBe('tipo de serviço interno')
+    expect(motivoInterna({ conta: '99' }, 99, cod)).toBe('conta corrente interna')
+    expect(motivoInterna({ contratos: ['', 'entrega técnica'] }, 99, cod)).toBe('contrato entrega técnica')
+    expect(motivoInterna({ contratos: ['Mahindra-pgo'] }, 99, cod)).toBeNull()
+    expect(motivoInterna({ conta: 1, contratos: [null] }, 99, cod)).toBeNull()
+  })
+})
+
+describe('montarPainel (na tela)', () => {
+  it('período em andamento: meta só até hoje; internas listadas', async () => {
+    const { montarPainel } = await import('../painel')
+    const base = {
+      tecnicos: ['Ana'],
+      faturadas: [os({ data: '2026-10-13', tecnicos: ['Ana'] })],
+      diasTodos: [{ os: 'OS-9', data: '2026-10-14', tecnico: 'Ana', horas: 3, interna: true }],
+      osInternas: { 'OS-9': { cliente: 'Loja', motivo: 'contrato Interno' } },
+    }
+    const p = montarPainel(base, 'semana', '2026-10-14', '2026-10-14')
+    expect(p.total.meta).toBe(24) // seg a qua = 3 dias úteis
+    expect(p.linhas[0]).toMatchObject({ tecnico: 'Ana', faturadas: 4, internas: 3, ociosas: 17 })
+    expect(p.internas).toEqual([{ os: 'OS-9', cliente: 'Loja', motivo: 'contrato Interno', horas: 3, tecnicos: ['Ana'] }])
+    expect(p.serie).toHaveLength(8)
+  })
+})
+
+describe('gastos do pós-vendas', () => {
+  it('soma por tipo e pessoa; o que está na OS fica marcado', async () => {
+    const { resumirGastos } = await import('../painel')
+    const g = [
+      { data: '2026-10-13', pessoa: 'Ana', tipo: 'abastecimento' as const, origem: 'cartao' as const, valor: 100, litros: 20, naOS: false },
+      { data: '2026-10-14', pessoa: 'Ana', tipo: 'alimentacao' as const, origem: 'requisicao' as const, valor: 50, litros: 0, naOS: true },
+      { data: '2026-10-14', pessoa: 'Bia', tipo: 'alimentacao' as const, origem: 'requisicao' as const, valor: 40, litros: 0, naOS: false },
+      { data: '2026-09-30', pessoa: 'Bia', tipo: 'abastecimento' as const, origem: 'cartao' as const, valor: 999, litros: 1, naOS: false },
+    ]
+    const r = resumirGastos(g, '2026-10-01', '2026-10-31')
+    expect(r).toMatchObject({ abastecimento: 100, alimentacao: 90, total: 190, litros: 20, foraDasOS: 140 })
+    expect(r.porPessoa[0]).toEqual({ pessoa: 'Ana', abastecimento: 100, alimentacao: 50, total: 150, litros: 20, foraDasOS: 100 })
+  })
+})

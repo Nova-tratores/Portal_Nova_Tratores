@@ -16,7 +16,8 @@ const INTERVALO = 20_000
 const br = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`
 const hora = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', timeZone: 'America/Sao_Paulo' }) : '')
 
-export default function FaturamentoVivo() {
+/** `compacto`: dentro do Painel dos técnicos — só hoje/semana/mês e os últimos faturamentos. */
+export default function FaturamentoVivo({ compacto = false }: { compacto?: boolean }) {
   const [d, setD] = useState<Resp | null>(null)
   const [erro, setErro] = useState('')
   const [novos, setNovos] = useState<Set<string>>(new Set())
@@ -64,6 +65,50 @@ export default function FaturamentoVivo() {
       </div>
     </div>
   )
+
+  const listaUltimos = (max: number, altura: number) => (
+    <div style={{ display: 'grid', gap: 6, maxHeight: altura, overflowY: 'auto' }}>
+      {d && d.ultimos.length === 0 && <div style={{ fontSize: 13, color: 'var(--portal-text-muted, #94a3b8)', padding: 12 }}>Nada faturado ainda este mês.</div>}
+      {d?.ultimos.slice(0, max).map((o) => (
+        <a key={o.os} href={o.os.startsWith('OMIE') ? undefined : `/pos?id=${encodeURIComponent(o.os)}`} target="_blank" rel="noreferrer"
+          className={`cpv-linha${novos.has(o.os) ? ' cpv-novo' : ''}`}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '7px 10px', borderRadius: 10, border: '1px solid var(--portal-border, #eef2f7)', textDecoration: 'none', color: 'inherit' }}>
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ fontWeight: 800, fontSize: 13.5 }}>{o.os}{novos.has(o.os) && <span style={{ marginLeft: 6, fontSize: 10.5, fontWeight: 800, color: '#a16207', background: '#fef9c3', borderRadius: 6, padding: '1px 6px' }}>NOVO</span>}</div>
+            <div style={{ fontSize: 12, color: 'var(--portal-text-muted, #64748b)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {br(o.data)}{o.em ? ` ${hora(o.em)}` : ''} · {o.cliente || 'Omie'} · {o.tecnicos.join(' + ') || 'sem técnico'}
+            </div>
+          </div>
+          <div style={{ fontWeight: 800, fontSize: 14, whiteSpace: 'nowrap' }}>{brl(o.bruto)}</div>
+        </a>
+      ))}
+    </div>
+  )
+
+  if (compacto) {
+    return (
+      <section style={{ marginBottom: 16 }}>
+        <EstilosCPV />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+          <span className="cpv-pulso" style={{ width: 9, height: 9, borderRadius: 5, background: '#16a34a' }} />
+          <b style={{ fontSize: 16, color: 'var(--portal-text, #0f172a)' }}>Faturamento ao vivo</b>
+          <span style={{ fontSize: 12.5, color: 'var(--portal-text-muted, #94a3b8)' }}>{d ? `atualiza sozinho · há ${seg}s` : 'carregando…'}</span>
+        </div>
+        {erro && <div style={{ padding: '10px 12px', borderRadius: 10, background: '#fef2f2', color: '#b91c1c', marginBottom: 12 }}>{erro}</div>}
+        {d && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: 12 }}>
+            {bloco('Hoje', d.dia, 0, true)}
+            {bloco('Esta semana', d.semana, 60)}
+            {bloco('Este mês', d.mes, 120)}
+            <div className="cpv-entra" style={{ animationDelay: '180ms', borderRadius: 16, padding: '12px 12px', background: 'var(--portal-bg-card, #fefefe)', border: '1px solid var(--portal-border, #e5e7eb)' }}>
+              <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: .6, color: 'var(--portal-text-muted, #64748b)', marginBottom: 8 }}>Últimos faturamentos</div>
+              {listaUltimos(6, 190)}
+            </div>
+          </div>
+        )}
+      </section>
+    )
+  }
 
   return (
     <div>

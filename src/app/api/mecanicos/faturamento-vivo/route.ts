@@ -4,6 +4,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { protegerRota } from '@/lib/ajustes/permissao-server'
 import { carregarBase } from '@/lib/mecanicos/painel-server'
+import { comCache } from '@/lib/mecanicos/cache'
 import { segundaDa, type OSFaturada } from '@/lib/mecanicos/painel'
 
 export const runtime = 'nodejs'
@@ -20,29 +21,36 @@ function somar(os: OSFaturada[]) {
   return t
 }
 
-export async function GET(req: NextRequest) {
-  const guarda = await protegerRota(req, [{ modulo: 'mecanicos' }, { modulo: 'pos' }])
-  if (guarda.resposta) return guarda.resposta
+async function montar() {
   const hoje = hojeSP()
   const ini = hoje.slice(0, 8) + '01'
   const seg = segundaDa(hoje)
   const de = seg < ini ? seg : ini
+  const base = await carregarBase(de, hoje)
+  const fat = base.faturadas
+  const mes = fat.filter((o) => o.data >= ini)
+  const ultimos = [...fat].sort((a, b) => (b.em || `${b.data}T12:00`).localeCompare(a.em || `${a.data}T12:00`)).slice(0, 15)
+  // dia a dia do mês (gráfico)
+  const porDia: Record<string, { bruto: number; liquido: number }> = {}
+  for (const o of mes) { const d = (porDia[o.data] ||= { bruto: 0, liquido: 0 }); d.bruto += o.bruto; d.liquido += o.bruto - o.custo }
+  return {
+    agora: new Date().toISOString(), hoje,
+    dia: somar(fat.filter((o) => o.data === hoje)),
+    semana: somar(fat.filter((o) => o.data >= seg)),
+    mes: somar(mes),
+    porDia: Object.entries(porDia).sort().map(([data, v]) => ({ data, bruto: Math.round(v.bruto * 100) / 100, liquido: Math.round(v.liquido * 100) / 100 })),
+    ultimos,
+  }
+}
+
+export async function GET(req: NextRequest) {
+  const guarda = await protegerRota(req, [{ modulo: 'mecanicos' }, { modulo: 'pos' }])
+  if (guarda.resposta) return guarda.resposta
   try {
-    const base = await carregarBase(de, hoje)
-    const fat = base.faturadas
-    const mes = fat.filter((o) => o.data >= ini)
-    const ultimos = [...fat].sort((a, b) => (b.em || `${b.data}T12:00`).localeCompare(a.em || `${a.data}T12:00`)).slice(0, 15)
-    // dia a dia do mês (gráfico)
-    const porDia: Record<string, { bruto: number; liquido: number }> = {}
-    for (const o of mes) { const d = (porDia[o.data] ||= { bruto: 0, liquido: 0 }); d.bruto += o.bruto; d.liquido += o.bruto - o.custo }
-    return NextResponse.json({
-      agora: new Date().toISOString(), hoje,
-      dia: somar(fat.filter((o) => o.data === hoje)),
-      semana: somar(fat.filter((o) => o.data >= seg)),
-      mes: somar(mes),
-      porDia: Object.entries(porDia).sort().map(([data, v]) => ({ data, bruto: Math.round(v.bruto * 100) / 100, liquido: Math.round(v.liquido * 100) / 100 })),
-      ultimos,
-    })
+    // gravado em posvendas_painel_cache; recalculado por trás quando passa de 60 s.
+    // A chave leva o dia: virou o dia, semana e mês recomeçam.
+    const r = await comCache(`vivo:${hojeSP()}`, 60_000, montar, req.nextUrl.searchParams.get('forcar') === '1')
+    return NextResponse.json({ ...r.dados, geradoEm: r.geradoEm })
   } catch (e) {
     console.error('[mecanicos/faturamento-vivo]', e)
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Falha' }, { status: 500 })

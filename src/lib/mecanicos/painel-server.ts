@@ -15,10 +15,10 @@ import { diasDoRelatorio, normalizarTecnico, dataIso, type RelatorioTecnico } fr
 import { parseValorMisto } from '@/lib/marketing/custos'
 import { carregarDiretorio } from '@/lib/agenda/server'
 import { normTexto } from '@/lib/agenda/regras'
-import { SEM_TECNICO, type DiaRegistrado, type OSFaturada } from './painel'
-import { CODIGOS_INTERNOS } from '@/lib/pos/omie-espelho'
+import { SEM_TECNICO, motivoInterna, type DiaRegistrado, type OSFaturada } from './painel'
+import { CODIGOS_INTERNOS, CONTA_INTERNO } from '@/lib/pos/omie-espelho'
 
-const INTERNOS = new Set(CODIGOS_INTERNOS.map((c) => normTexto(c.codigo)))
+const CODIGOS = CODIGOS_INTERNOS.map((c) => c.codigo)
 
 const semZeros = (v: unknown) => String(v ?? '').trim().replace(/^0+(?=\d)/, '')
 const num = (v: unknown) => { const n = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(n) ? n : 0 }
@@ -39,7 +39,7 @@ async function paginar(montar: (de: number, ate: number) => PromiseLike<{ data: 
 }
 
 /** Nome de exibição do técnico: o do cadastro do portal quando o nome casa (inclusive o "nome de técnico"). */
-async function padronizador() {
+export async function padronizador() {
   const dir = await carregarDiretorio()
   const porId = new Map(dir.pessoas.map((p) => [p.id, p.nome]))
   const tecnicos = dir.pessoas.filter((p) => p.tecnico).map((p) => p.nome)
@@ -49,10 +49,10 @@ async function padronizador() {
     const id = dir.porNome.get(normTexto(s))
     return (id && porId.get(id)) || normalizarTecnico(s)
   }
-  return { tecnicos, padronizar }
+  return { tecnicos, padronizar, pessoas: dir.pessoas.map((p) => p.nome) }
 }
 
-const COLS_OS = 'Id_Ordem, Ordem_Omie, Os_Cliente, Os_Tecnico, Os_Tecnico2, Servico_Interno, Status, Qtd_HR, Valor_HR, Qtd_KM, Valor_KM, Desconto_Hora, Desconto_KM, Valor_Total, ID_PPV, faturado_omie_em'
+const COLS_OS = 'Id_Ordem, Ordem_Omie, Os_Cliente, Os_Tecnico, Os_Tecnico2, Servico_Interno, Status, Qtd_HR, Valor_HR, Qtd_KM, Valor_KM, Desconto_Hora, Desconto_KM, Valor_Total, ID_PPV, faturado_omie_em, esp_info:Omie_Espelho->info'
 const COLS_REL = 'IdOs, Ordem_Servico, TecResp1, TecResp2, DataInicio, InicioHora, FinalHora, DataInicio2, InicioHora2, FinalHora2, DataInicio3, InicioHora3, FinaHora3, TotalHora'
 
 export interface BasePainel {
@@ -61,6 +61,8 @@ export interface BasePainel {
   faturadas: OSFaturada[]
   /** horas registradas de TODAS as datas por OS (para repartir horas cobradas) */
   diasTodos: DiaRegistrado[]
+  /** OS internas que aparecem nos relatórios: cliente e por que é interna */
+  osInternas: Record<string, { cliente: string; motivo: string }>
 }
 
 /** Tudo que o painel precisa entre `de` e `ate` (YYYY-MM-DD). */
@@ -110,10 +112,19 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
   const faltam = [...new Set([...relatorios.values()].map((r) => String(r.Ordem_Servico || '')).filter((id) => id && !osMap.has(id)))]
   for (let i = 0; i < faltam.length; i += 200) for (const o of await paginar((x, y) => sb.from(TBL_OS).select(COLS_OS).in('Id_Ordem', faltam.slice(i, i + 200)).range(x, y))) osMap.set(String(o.Id_Ordem), o)
 
+  // OS interna: tipo de serviço interno (portal), conta corrente interna ou contrato interno (Omie)
+  const internaDe = (o: Rec | undefined) => {
+    if (!o) return null
+    const info = (o.esp_info && typeof o.esp_info === 'object' ? o.esp_info : {}) as Rec
+    return motivoInterna({ servicoInterno: o.Servico_Interno, conta: info.conta, contratos: [info.contrato, omiePorNum.get(semZeros(o.Ordem_Omie))?.contrato] }, CONTA_INTERNO, CODIGOS)
+  }
+  const osInternas: BasePainel['osInternas'] = {}
+  for (const o of osMap.values()) { const m = internaDe(o); if (m) osInternas[String(o.Id_Ordem)] = { cliente: String(o.Os_Cliente || ''), motivo: m } }
+
   const diasTodos: DiaRegistrado[] = []
   for (const r of relatorios.values()) {
     const os = osMap.get(String(r.Ordem_Servico || ''))
-    const interna = !!os?.Servico_Interno
+    const interna = !!internaDe(os)
     const base = diasDoRelatorio(r as unknown as RelatorioTecnico)
     for (const t of [r.TecResp1, r.TecResp2]) {
       const tec = padronizar(t)
@@ -124,7 +135,7 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
 
   // 4) peças e custo de terceiros das OS faturadas
   const osFat = [...osMap.values()].filter((o) => {
-    if (o.Servico_Interno || /cancel/i.test(String(o.Status || ''))) return false
+    if (internaDe(o) || /cancel/i.test(String(o.Status || ''))) return false
     const n = semZeros(o.Ordem_Omie)
     const d = o.faturado_omie_em ? diaSP(String(o.faturado_omie_em)) : omiePorNum.get(n)?.data
     return !!d && d >= de && d <= ate
@@ -175,7 +186,7 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
     if (numsDoPortal.has(n)) continue
     // só serviço do pós-vendas (tem hora ou km) e que não seja contrato interno ("-pgo" = montadora paga, entra)
     if (!(o.horas > 0 || o.km > 0)) continue
-    if (INTERNOS.has(normTexto(o.contrato)) && !/-pgo$/i.test(o.contrato)) continue
+    if (motivoInterna({ contratos: [o.contrato] }, CONTA_INTERNO, CODIGOS)) continue
     faturadas.push({
       os: `OMIE ${n}`, numeroOmie: n, cliente: '', data: o.data, em: null, tecnicos: [],
       horasCobradas: o.horas, km: o.km, servico: o.vh, kmValor: o.vk, pecas: 0, outros: o.outros,
@@ -183,7 +194,7 @@ export async function carregarBase(de: string, ate: string): Promise<BasePainel>
     })
   }
 
-  return { tecnicos, faturadas, diasTodos, dias: diasTodos.filter((d) => d.data >= de && d.data <= ate) }
+  return { tecnicos, faturadas, diasTodos, dias: diasTodos.filter((d) => d.data >= de && d.data <= ate), osInternas }
 }
 
 function somar(dia: string, n: number) { const d = new Date(`${dia}T12:00:00Z`); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10) }
