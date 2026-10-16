@@ -295,6 +295,8 @@ Objetivo: Tratorilson **atende clientes no WhatsApp** (revisão / manutenção /
 - **Para produção:** ligar o **NÚMERO REAL** da empresa ao mesmo app Meta + gerar **TOKEN PERMANENTE** (System User) e atualizar as variáveis no Railway. **O código não muda** — só as credenciais.
 
 ## Variáveis de ambiente (Railway) — só NOMES
+- **`PAPEL` (16/10/2026):** `tudo` (padrão: web + robôs no mesmo processo) · `web` (só requisições; nenhum agendador/intervalo de robô sobe, nem o `fecharOrfas`) · `worker` (serviço separado no Railway só para robôs: agendador + intervalos; `next start` normal, porque as tarefas `rota-interna` chamam 127.0.0.1). Motivo: 52 deploys em 15/10 interromperam 17 rodadas e o GitHub deixou de disparar ~20 crons diários; o worker com watch paths (`src/lib/**`, `src/app/api/**/cron/**`, `src/instrumentation.ts`) reinicia só quando o código dos robôs muda. Ordem obrigatória: subir o código com o gate ANTES de criar o worker e, ao criá-lo, pôr `PAPEL=web` no serviço web no mesmo momento (senão robôs em dobro). Guia: `docs/railway-worker.md`.
+
 - **Supabase:** `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
 - **IA (Tratorilson):** `AI_PROVIDER` (openai|groq), `OPENAI_API_KEY`, `OPENAI_MODEL` (gpt-4o-mini), `GROQ_API_KEY` (reserva)
   - ✅ `OPENAI_API_KEY` está no `.env.local` E no Railway (confirmado 26/08/2026) — usada pelo Tratorilson e pelo filtro de trator do Vigia das Câmeras.

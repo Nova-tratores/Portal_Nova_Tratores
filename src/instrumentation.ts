@@ -44,6 +44,19 @@ export async function register(): Promise<void> {
   // TAMBÉM causava execução em duplicidade e disputa na mesma chave Omie.
   // Aqui ficam só os jobs que NÃO têm cron no GitHub (abaixo).
 
+  // PAPEL do processo (serviço separado no Railway para os robôs, 16/10/2026):
+  //   tudo   (padrão) — web + robôs no mesmo processo, como sempre foi;
+  //   web    — só atende requisições; NENHUM agendador/setInterval de robô sobe
+  //            (nem o fecharOrfas do agendador, que marcaria as rodadas do worker
+  //            como interrompidas a cada deploy do web);
+  //   worker — serviço só de robôs: agendador + intervalos; atende HTTP só para
+  //            as tarefas `rota-interna` (127.0.0.1) e o healthcheck.
+  // Os flushes do monitor de uso e da sombra de permissões ficam nos dois: o
+  // buffer vive no processo que recebeu a requisição.
+  const PAPEL = (process.env.PAPEL || 'tudo').trim().toLowerCase();
+  const rodaRobos = PAPEL !== 'web';
+  log(`papel do processo: ${PAPEL}${rodaRobos ? '' : ' (robôs ficam com o worker)'}`);
+
   const base = `http://127.0.0.1:${process.env.PORT || 3000}`;
   const CINCO_MIN = 5 * 60 * 1000;
 
@@ -53,7 +66,7 @@ export async function register(): Promise<void> {
   // Sem a tabela (migration sql/agendador.sql) ou com AGENDADOR=off, seguem os
   // setInterval antigos deste arquivo. Só produção.
   let agendadorLigado = false;
-  if (process.env.NODE_ENV === 'production') {
+  if (rodaRobos && process.env.NODE_ENV === 'production') {
     try {
       const { iniciarAgendador } = await import('./lib/agendador/motor');
       agendadorLigado = await iniciarAgendador();
@@ -65,7 +78,7 @@ export async function register(): Promise<void> {
   // Só liga com SYNC_FINANCEIRO_AUTO=on, como backup caso o webhook falhe.
   if (agendadorLigado) {
     log('agendamentos internos com o AGENDADOR (tela /agendamentos)');
-  } else if (process.env.SYNC_FINANCEIRO_AUTO === 'on') {
+  } else if (rodaRobos && process.env.SYNC_FINANCEIRO_AUTO === 'on') {
     const rodarSyncFinanceiro = async () => {
       for (const path of ['/api/financeiro/sync-os', '/api/financeiro/sync-pecas?dias=3']) {
         try { await fetch(`${base}${path}`, { method: 'POST' }); } catch (e) { log('sync financeiro falhou: ' + (e as Error).message); }
@@ -85,7 +98,7 @@ export async function register(): Promise<void> {
   // Pasta Cliente: vigia OS/PV/NFs novas (alteradas na última 1h) a cada 5 min.
   // SÓ atualiza as tabelas da pasta (portal_nt_clientes_*) + baixa as NFs — NÃO cria
   // card no financeiro. É o que garante a NF aparecer sozinha na pasta do cliente.
-  if (!agendadorLigado) {
+  if (rodaRobos && !agendadorLigado) {
     const rodarSyncClientes = async () => {
       try { await fetch(`${base}/api/clientes/sync-recente`); } catch (e) { log('sync-recente clientes falhou: ' + (e as Error).message); }
     };
@@ -100,7 +113,7 @@ export async function register(): Promise<void> {
   // O ENVIO AO OMIE **NÃO** é automático de propósito: cria ordem/pedido REAL no Omie,
   // então quem dispara é a pessoa, pelos botões da fase "Enviar Omie" no Kanban
   // (um por card, ou "Enviar todas" no cabeçalho da fase).
-  if (!agendadorLigado && (process.env.NODE_ENV === 'production')) {
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production')) {
     const { processarLoteRelatorios } = await import('./lib/pos/atualizar-relatorio');
     const rodarTratorilson = async () => {
       try {
@@ -118,7 +131,7 @@ export async function register(): Promise<void> {
   // depois da mensagem automática de fora do horário) vira card "Precisa de
   // atendimento" + alerta central pro pós-vendas. Só LÊ o Chatwoot. Só produção.
   // VIGIA_CONVERSAS=off desliga.
-  if (!agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.VIGIA_CONVERSAS !== 'off')) {
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.VIGIA_CONVERSAS !== 'off')) {
     const { vigiarConversas } = await import('./lib/assistente/vigia-conversas');
     const rodarVigiaZap = async () => {
       try {
@@ -136,7 +149,7 @@ export async function register(): Promise<void> {
   // Lê o heartbeat no Supabase (não depende do GITHUB_TOKEN) e não toca chave
   // Omie — só lê + escreve notificação —, então roda seguro aqui in-process. SÓ
   // produção (não spammar no localhost de dev, que compartilha o mesmo banco).
-  if (!agendadorLigado && (process.env.NODE_ENV === 'production')) {
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production')) {
     const { checarSaudeCrons } = await import('./lib/agendamentos/heartbeat');
     const rodarVigia = async () => {
       try {
@@ -156,7 +169,7 @@ export async function register(): Promise<void> {
   // recebida levava horas para virar demanda. Leve: ~5 páginas de ListarRecebimentos
   // por conta. Não tem cron equivalente no GitHub (sem duplicidade). SÓ produção.
   // Desliga com ALOCACAO_RAPIDO=off.
-  if (!agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.ALOCACAO_RAPIDO !== 'off')) {
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.ALOCACAO_RAPIDO !== 'off')) {
     const { rodarAlocacaoRapidoAgendado } = await import('./lib/pecas/alocacao-rapido');
     const rodarAlocacao = async () => {
       try {
@@ -174,7 +187,7 @@ export async function register(): Promise<void> {
   // sem resposta clara ou NFS-e ainda aguardando a prefeitura, a cada 10 min.
   // Só olha as pendentes (índice parcial) — sem pendência, nenhuma chamada ao Omie.
   // SÓ produção. Desliga com POS_FATURAR_RECONCILIAR=off.
-  if (!agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.POS_FATURAR_RECONCILIAR !== 'off')) {
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.POS_FATURAR_RECONCILIAR !== 'off')) {
     const { rodarReconciliacaoFaturamento } = await import('./lib/pos/faturamento');
     const rodarFatOS = async () => {
       try {
@@ -191,7 +204,7 @@ export async function register(): Promise<void> {
   // (cadastro, checklist, requisição, OS, Opa) só rodava quando alguém abria a
   // tela — requisição que chegava ao financeiro ficava "aberta" até a próxima
   // visita. Agora roda a cada 15 min. SÓ produção. Desliga com FROTA_PENDENCIAS_SYNC=off.
-  if (!agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.FROTA_PENDENCIAS_SYNC !== 'off')) {
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production' && process.env.FROTA_PENDENCIAS_SYNC !== 'off')) {
     const { rodarPendenciasAgendado } = await import('./lib/frota/pendencias-sync');
     const rodarPendFrota = async () => {
       try {
@@ -207,7 +220,7 @@ export async function register(): Promise<void> {
   // Central de Trabalho: replanejamento diário dos cronogramas ligados a quadros
   // de tickets (etapa atrasada empurra as seguintes). Uma vez por dia, a partir
   // das 06:00 BRT — antes da tela "Seu dia" das 7:30. SÓ produção.
-  if (!agendadorLigado && (process.env.NODE_ENV === 'production')) {
+  if (rodaRobos && !agendadorLigado && (process.env.NODE_ENV === 'production')) {
     const { recalcularProjetosLigados, hojeSP } = await import('./lib/trabalho/cronograma-server');
     let ultimoDia = '';
     const rodarReplanejamento = async () => {
@@ -265,7 +278,7 @@ export async function register(): Promise<void> {
   // guarda um lote de 120 notas a cada 10 min (≈ 2 chamadas Omie por nota, longe
   // da cota). Para sozinho em bloqueio/Omie fora. Só produção; NOTAS_CACHE=on liga
   // no local, =off desliga. Registra em cron_runs como notas-cache-docs.
-  if (!agendadorLigado && ((process.env.NODE_ENV === 'production' && process.env.NOTAS_CACHE !== 'off') || process.env.NOTAS_CACHE === 'on')) {
+  if (rodaRobos && !agendadorLigado && ((process.env.NODE_ENV === 'production' && process.env.NOTAS_CACHE !== 'off') || process.env.NOTAS_CACHE === 'on')) {
     const { rodarAgendado } = await import('./lib/notas/cache-docs');
     const rodarNotas = async () => {
       try { log('notas-cache: ' + await rodarAgendado(120)); } catch (e) { log('notas-cache falhou: ' + (e as Error).message); }

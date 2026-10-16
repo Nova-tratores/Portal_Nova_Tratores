@@ -110,7 +110,16 @@ async function gravar(chave: string, patch: Record<string, unknown>, quem: strin
 }
 
 export async function rodarAgora(chave: string, quem: string) {
-  if (!estadoMotor().ligado) throw new ErroAcao('O agendador não está ligado neste servidor (só roda em produção, com a migration aplicada).', 409);
+  if (!estadoMotor().ligado) {
+    // PAPEL=web (robôs num serviço separado): este processo não tem o motor.
+    // Marca uma execução "uma vez" para daqui a 5 s — o worker a pega no próximo
+    // laço (30 s) e a rodada entra em cron_runs como "marcado".
+    if ((process.env.PAPEL || 'tudo').trim().toLowerCase() === 'web') {
+      const m = await marcarUmaVez(chave, quem, new Date(Date.now() + 5_000).toISOString());
+      return { iniciou: true, viaWorker: true, chave: m.chave };
+    }
+    throw new ErroAcao('O agendador não está ligado neste servidor (só roda em produção, com a migration aplicada).', 409);
+  }
   const ag = await carregar(chave);
   const r = executar(ag, 'botao', quem);
   if (!r.ok) throw new ErroAcao(r.mensagem, 409);
